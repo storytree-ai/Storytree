@@ -48,3 +48,131 @@ it doesn't exist (ADR-0001, observability-first). Defined alongside the schema i
 Stories are its visible nodes; capability dependencies are the fine-grained edges
 beneath. The exact inter-level grain is open (see ADR-0002 → "What this does NOT
 decide").
+
+## Lifecycle (a capability's status)
+
+Status lives on the **capability** (the provable unit); a **story**'s state is a
+pure rollup of its capabilities'. Carried from v1's lifecycle, with
+`under_construction` renamed to **building** and the health metaphor kept (we did
+*not* rename `healthy` to "proven" — "proven" stays as general proof-mode
+language, `healthy` is the status word).
+
+**proposed** — Authored but not yet selected for implementation. The initial
+state.
+
+**building** — Selected and under active implementation (v1: `under_construction`).
+Written at pickup as the first commit, before any code edits.
+
+**healthy** — Proven: the capability passed its UAT with fresh green contract
+tests at HEAD. Written only by a UAT pass.
+
+**unhealthy** — A once-healthy capability that has drifted (a contract test now
+fails, owned files changed, or the proof no longer matches HEAD). **Computed**
+from evidence, never written to disk.
+
+**mapped** — Brownfield: the capability is *observationally* verified by an
+existing target-repo test suite, without storytree driving a red→green flow. A
+distinct, weaker state than `healthy` — observational green never short-circuits
+to proven. v2 **supports** brownfield; the exact mapping mechanism under pi/DBOS
+is still to design (see `open-questions.md` §2).
+
+**retired** — Terminal off-tree state: pruned from the active tree. May carry
+`retired_reason` (prose) and `superseded_by` (an edge to its replacement).
+
+## Proof, evidence & gating
+
+**gate** — A structural enforcement point that **refuses** invalid work rather
+than warning. storytree keeps the commit-time / promotion gate (ADR-0001 cites it
+as a proven v1 idea).
+
+**prove-it-gate** — The principle that a unit reaches `healthy` only via earned,
+on-disk evidence — never a hand-edit.
+
+**verdict** — The Pass/Fail outcome of a capability's UAT. Reserved for UAT
+outcomes; v1 also used "verdict" for agent conclusions and evidence-row states —
+those are different concepts and do not claim the word here.
+
+**evidence** — The forensic record that a capability's contracts went red→green
+and its UAT was signed: an audit trail, not itself the gate. How v2 persists
+evidence (events vs files) and the attestation/identity model are open
+(`open-questions.md` §1).
+
+**proof hash** — A hash of a unit's proof-bearing content (outcome, contracts, …)
+that invalidates a prior verdict when the content changes.
+
+**red-green** — The discipline that a failing (red) contract test is authored
+before the implementation that turns it green. A *principle*, not a synonym for
+`contract`.
+
+**mock-UAT seam** — Mocks/stubs are allowed in contract tests (isolated) but
+forbidden in a UAT walkthrough (real collaborators) — the same boundary as
+contract vs capability.
+
+## Principles & patterns (carried from v1)
+
+**deep-modules** — A unit's public interface should be small relative to its rich
+implementation (interface is cost, capability is benefit). ADR-0002's model rests
+on this.
+
+**defects-amend-the-owning-story** — A defect amends the capability whose contract
+it violates (reverting it to `building`), rather than spawning a new unit.
+
+**fail-closed-on-dirty-tree** — A command that writes attestable evidence refuses
+to run on a dirty working tree (writes nothing, distinct exit code).
+
+**standalone-resilient-library** — Structure a unit as a library with minimal
+load-bearing deps, exercised end-to-end by integration tests, with a thin
+CLI/adapter wrapper.
+
+## Unit fields
+
+**outcome** — A capability's plain-English, single-sentence value statement (no
+conjunctions — split the unit if it needs them).
+
+**guidance** — Non-obvious technical context needed to rebuild a unit; only what
+an agent could not derive from outcome + proof.
+
+**title** — Short human label for a unit; not load-bearing for proof.
+
+**id** — A unit's unique identifier. v2 must allocate these **conflict-free across
+concurrent sessions** — a stated goal; the DBOS spike validated durable,
+collision-free workflow IDs as one mechanism.
+
+## Studio & tooling
+
+**studio** — The live PixiJS web IDE that renders the tree and **drives** the
+agents (diffs, approvals, steering, per-node chat). Supersedes v1's read-only
+`dashboard` — a richer, driving surface, not merely a renamed view.
+
+**ADR** — Architecture Decision Record under `docs/decisions/`, capturing a
+cross-cutting decision.
+
+**fixture** — A test-supporting artifact (data file, scaffold, temp crate)
+created during a walkthrough and cleaned up before signing.
+
+**ndjson** — Newline-delimited JSON; the line-delimited record format (a candidate
+backing for the event stream). v1 used "JSONL" interchangeably — standardize on
+**ndjson**.
+
+**asset** — In storytree, a **tree/game art asset** for the isometric renderer
+(ADR-0001, deferred). Note: this is *not* v1's "asset" (shared DRY content under
+`assets/`), which does not carry — guard against the collision when importing v1
+docs.
+
+## v1 → v2 term map
+
+For reading v1 (Agentic) docs. Left = what v1 wrote; right = how to read it here.
+
+| v1 term | storytree |
+|---|---|
+| story | **capability** (the provable, UAT'd unit) |
+| epic | a grouping — closest is **story**; a dedicated epic tier is deferred |
+| `contract.yml` (per-agent) | — dropped (v2 has no per-agent contract file) |
+| "story is a contract" / red-green | the **red-green** principle / a capability's proof — not the noun `contract` |
+| acceptance / acceptance.tests | a capability's **UAT** + its **contract tests** |
+| depends_on / predecessor / prerequisite | **dependency** (now UAT-generated) |
+| under_construction | **building** |
+| healthy / proven | **healthy** |
+| dashboard | **studio** |
+| asset (shared DRY content) | — dropped; in storytree **asset = tree art** (ADR-0001) |
+| pattern (the `patterns/` subsystem) | — dropped; named patterns (e.g. standalone-resilient-library) carry |
