@@ -88,7 +88,7 @@ resume and no duplicate side-effects. If that holds, the foundation holds.
 
 ## What this does NOT decide
 
-- The story / contract / event **schema** (lands in `packages/core`, next).
+- The story / capability / contract / event **schema** (lands in `packages/core`, next).
 - The wire protocol between studio and orchestrator (events out / commands in).
 - Art direction and asset source for the isometric tree (deferred; user-chosen).
 - Whether the bootstrap harness moves from Claude Code to the Claude Agent SDK

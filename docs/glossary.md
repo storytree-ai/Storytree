@@ -27,6 +27,20 @@ assertion, with no walkable journey of its own.
 
 ## Supporting terms
 
+**node** — A unit being worked **on the DAG** — a story or capability under
+construction — driven by one pi session inside a DBOS workflow. The
+coordination/scheduling grain (the thing the orchestrator schedules and the
+isolation/claim layer is keyed on). Distinct from a **run** below: a pi
+run/attempt against a node is an execution event (many-per-node), never a new
+node. The execution environment is not the coordination structure (ADR-0004,
+ADR-0009).
+
+**run** (pi run / attempt) — A single per-node **execution** attempt, recorded
+as an event in the event store — many-per-node, never a new node. Distinct from
+v1's overloaded `runs`/`test_runs` table (per-build vs per-event vs id-keyed
+dir); here `run` is strictly the per-node execution attempt (ADR-0004; see
+`open-questions.md` §3, §8).
+
 **UAT** (user-acceptance walkthrough) — A prose journey, run end-to-end against
 *real* collaborators, that proves a capability meets its goal. Minimal-first:
 ship one that proves the goal, grow more as defects surface. Lives at the
@@ -42,7 +56,32 @@ cannot prove a capability that stands on an unproven one.
 **event** — A typed record of a state change (pi events + orchestrator events) —
 the unit of observability. If a state change isn't an event the UI can render,
 it doesn't exist (ADR-0001, observability-first). Defined alongside the schema in
-`packages/core`.
+`packages/core`. Includes operator-actor events (see **approval event /
+promotion event**), not just agent activity.
+
+**event log** — The typed, **append-only** record in the event store — one row
+per state change — that is the single source of truth the studio renders and the
+only thing **written**. The artifact behind the `event` term; distinct from the
+derived **node rollup** below (ADR-0006).
+
+**node rollup** — The current status and latest `verdict` **per** story /
+capability / contract, derived as a **projection** over the event log and never
+hand-maintained. A capability's lifecycle status (proposed / building / healthy;
+unhealthy computed) is *read off* the log, not written beside it. v2's answer to
+v1's per-build `runs`-grain mess (ADR-0006).
+
+**pi event stream** — pi's structured lifecycle event stream (plus `edit`-tool
+diffs/patches) emitted as it works inside a node — the **agent-activity ingest
+channel** into the event store, normalized by `packages/pi-adapter`. One of
+exactly two defined ingest channels; the other is orchestrator events (ADR-0001,
+ADR-0006).
+
+**approval event / promotion event** — Typed events with `actor = operator`
+recorded in the event store: an **approval / steering event** (a human in-loop
+intervention) and a signed **promotion event** (the human accepting a
+capability's green result onto the trunk, carrying operator identity and the UAT
+verdict). Part of the same observability record as pi's own activity (ADR-0008);
+identity backing is open (`open-questions.md` §1).
 
 **DAG** — The directed acyclic graph the studio renders and watches grow.
 Stories are its visible nodes; capability dependencies are the fine-grained edges
@@ -63,8 +102,9 @@ state.
 **building** — Selected and under active implementation (v1: `under_construction`).
 Written at pickup as the first commit, before any code edits.
 
-**healthy** — Proven: the capability passed its UAT with fresh green contract
-tests at HEAD. Written only by a UAT pass.
+**healthy** — Proven: the unit reached `healthy` through one of its three proof
+modes (capability-UAT, contract-test, or operator-attested) at HEAD — for a
+UAT-proven capability, a UAT pass with fresh green contract tests.
 
 **unhealthy** — A once-healthy capability that has drifted (a contract test now
 fails, owned files changed, or the proof no longer matches HEAD). **Computed**
@@ -87,6 +127,52 @@ as a proven v1 idea).
 
 **prove-it-gate** — The principle that a unit reaches `healthy` only via earned,
 on-disk evidence — never a hand-edit.
+
+**proof mode** — How a unit earns `healthy`. Three modes: **capability-UAT** (an
+honest scripted walkthrough), **contract-test** (an isolated automated
+assertion), and **operator-attested** (below). `packages/core` encodes these as a
+discriminated `proof_mode` union (ADR-0007).
+
+**operator-attested** — A third proof mode (alongside capability-UAT and
+contract-test) for behavioural/guardrail surfaces that have neither an honest
+scripted UAT nor an isolatable automated test — e.g. the orchestrator's own
+routing / approval / steering discipline. Promotion to `healthy` is an explicit,
+per-unit, **operator-granted** attestation recorded as a typed **signed event**;
+an agent can never self-exempt, and the attestation is distinguishable in the
+audit trail from a UAT walkthrough sign. Successor to v1's `manual_signings`
+(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`
+(observational, never `healthy`). Its persistence/identity backing is still open
+(`open-questions.md` §1).
+
+**convergence** — Two **distinct** senses v1 conflated and v2 keeps separate;
+always qualify which is meant. (1) *DAG-stabilisation* — the dependency DAG is
+iterated to a fixed point before any unit goes red (owned by the
+decomposition/scheduler loop; see `open-questions.md` §4). (2) *cold-rebuild* —
+below. (ADR-0003, ADR-0007.)
+
+**cold-rebuild** — The convergence contract that is storytree's **health
+invariant**: a unit is `healthy` iff an agent starting **cold** — from the unit's
+own spec plus its transitive upstream specs, and nothing else — can drive it
+red→green. The cold-rebuild sense of `convergence`, explicitly distinct from
+DAG-stabilisation. The dependency rule ("you cannot prove a capability that
+stands on an unproven one") falls out of it (ADR-0007; carried from Agentic
+ADR-0006/0027).
+
+**per-node budget** — A code-enforced ceiling (iterations / token-cost /
+wall-cost — exact unit TBD) on a node's spine loop. The loop terminates on green
+**or** budget-exhausted, the latter a typed terminal event with per-round cost
+visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting
+v1's "cascade rounds are not a cost"; the concrete unit and default ceiling stay
+open (`open-questions.md` §6).
+
+**approval** (approval-gated trunk) — A first-class, typed operator act
+(`actor = operator`) in which the human accepts an agent action, or a
+capability's green result, **onto the trunk** via the studio. The trunk is
+**approval-gated**: a green signal is a *request for human diff-review*, not an
+automatic merge (inverts v1's auto-merge-on-green). Distinct from a **gate**
+(which structurally refuses invalid work); an approval is the human admitting
+work that has already passed the gate's content invariants (ADR-0008). The
+identity backing the signature is open (`open-questions.md` §1).
 
 **verdict** — The Pass/Fail outcome of a capability's UAT. Reserved for UAT
 outcomes; v1 also used "verdict" for agent conclusions and evidence-row states —
@@ -124,6 +210,20 @@ to run on a dirty working tree (writes nothing, distinct exit code).
 load-bearing deps, exercised end-to-end by integration tests, with a thin
 CLI/adapter wrapper.
 
+**verification-wins** — The stance that binding to external truth via tests +
+on-disk evidence **overrides** LLM memory consolidation / recency
+("recency-wins"). v2 rejects Dreams-style reconciliation in favour of a
+commit/event-bound evidence chain. Carried from v1's learning-loop design
+(Agentic ADR-0011); the learning loop's v2 home is still open
+(`open-questions.md` §5).
+
+**inner loop / outer loop** — **inner loop** = driving one unit from red to green
+(automatable, owned by a pi node). **outer loop** = accepting a result onto the
+trunk, accepting a decomposition, or amending / retrying / abandoning a unit
+(held by **human judgment** in the studio). The human-in-the-loop gate sits at
+the outer loop; the north-star may later dissolve it (ADR-0007, ADR-0008; carried
+from Agentic ADR-0006/0020).
+
 ## Unit fields
 
 **outcome** — A capability's plain-English, single-sentence value statement (no
@@ -138,11 +238,70 @@ an agent could not derive from outcome + proof.
 concurrent sessions** — a stated goal; the DBOS spike validated durable,
 collision-free workflow IDs as one mechanism.
 
+## Concurrency & isolation
+
+**claim** — A typed **write-ownership** record (a row/event in the one shared
+event store) naming what a node intends to write, checked under a
+serializable/unique constraint at **node-schedule time**; a conflict is a **hard
+refusal** (a `claim-conflict-refused` event), never a warning. The v2 successor
+to v1's per-worktree `session_claims` table (Agentic ADR-0022), now living in the
+single shared Postgres store (ADR-0009). Granularity, the conflict-resolution
+ceremony, and whether code *edits* still use a git branch/worktree per node are
+open (`open-questions.md` §3).
+
+**write-ownership** (scope) — The single vocabulary for *what surface/unit* a node
+claims the right to write, used by the claim / conflict-detection layer. Unifies
+v1's scattered terms (`declared_scope` vs per-agent `does_not_touch`) into one
+concept (ADR-0009); the exact shape (node-scoped vs file-glob) is open
+(`open-questions.md` §3).
+
 ## Studio & tooling
 
 **studio** — The live PixiJS web IDE that renders the tree and **drives** the
 agents (diffs, approvals, steering, per-node chat). Supersedes v1's read-only
 `dashboard` — a richer, driving surface, not merely a renamed view.
+
+**orchestrator** — The thin custom TypeScript layer (`packages/orchestrator`)
+over DBOS/Postgres (ADR-0001): owns the story-DAG, the scheduler, and the event
+store, and is the **only** module that drives the **pi-adapter**. It is the
+code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; pi
+nodes never schedule child nodes. Distinct from a pi session (which owns work
+*inside* a node) (ADR-0004, ADR-0005).
+
+**spine** — The code-sequenced control-flow layer (the orchestrator over DBOS
+workflows) that owns **closed, deterministic routing**: the order steps run in,
+when a loop iterates, which branch is taken. A pi session's own model loop is the
+**leaf** it delegates to. Discriminator (carried verbatim from Agentic ADR-0026):
+*if a for-loop or a match could express the routing, the spine owns it; if the
+routing needs the model to decide what comes next, the leaf (pi node) owns it.*
+Authoritatively defined by ADR-0005.
+
+**leaf step / leaf judgment** — A single step in a code-sequenced cascade whose
+work is owned by a **pi session's own model loop** (what to write, how to satisfy
+a contract) rather than by the spine — the **control-flow** sense of "leaf"
+(ADR-0005). Distinct from **contract**, the *leaf tier* of the work hierarchy
+(ADR-0002); the two senses must not be conflated.
+
+**pi-adapter** — The project-owned **thin wrapper** (`packages/pi-adapter`) and
+typed-event parser over pi's documented surface (`prompt` / `steer` / `followUp`
++ lifecycle event stream + `edit`-tool diffs). The **sole** surface through which
+pi is invoked and the **only** place a model runtime is imported: it spawns/steers
+pi, normalizes pi's stream into the typed events the event store renders, and
+exposes nothing model-shaped upward. No third-party agent framework sits in this
+role; `packages/core` and `apps/studio` never parse a pi stream directly
+(ADR-0004, ADR-0006). Carries v1's own-a-thin-wrapper-over-the-agent-runtime
+principle (Agentic ADR-0008/0026).
+
+**trunk** — The canonical **integrated mainline** a capability lands on once
+**approved**. In v2 the trunk is **approval-gated** (a human admits a green
+result), never auto-merge-on-green, and never holds knowingly-broken intermediate
+states (ADR-0008). Supersedes v1's trunk, which auto-merged on green and tolerated
+broken intermediate states under an eventual-consistency posture.
+
+**steering** — A first-class, typed operator act of **redirecting an in-flight pi
+run mid-execution** (pi's `steer` surface), recorded as an event in the event
+store. The in-loop counterpart to **approval**: the human shapes an action *while
+it runs*, rather than only accepting/rejecting its result (ADR-0008).
 
 **ADR** — Architecture Decision Record under `docs/decisions/`, capturing a
 cross-cutting decision.
@@ -174,5 +333,11 @@ For reading v1 (Agentic) docs. Left = what v1 wrote; right = how to read it here
 | under_construction | **building** |
 | healthy / proven | **healthy** |
 | dashboard | **studio** |
+| `manual_signings` (ADR-0024) | **operator-attested** proof mode (ADR-0007) |
+| `session_claims` table (ADR-0022) | **claim** in the shared store (ADR-0009) |
+| `declared_scope` / `does_not_touch` | **write-ownership** (one vocabulary; ADR-0009) |
+| `runs` / `test_runs` (per-build) | a per-node **run** (execution event) + the **node rollup** projection (ADR-0004, ADR-0006) |
+| auto-merge-on-green trunk | the **approval-gated trunk** (human admits green; ADR-0008) |
 | asset (shared DRY content) | — dropped; in storytree **asset = tree art** (ADR-0001) |
 | pattern (the `patterns/` subsystem) | — dropped; named patterns (e.g. standalone-resilient-library) carry |
+| deployment (v1, ×3 overload) | — not carried; v1 conflated VCS-exclusion vs runtime-artifact-exclusion (ADR-0003) — guard against the overload, do not reintroduce the word |
