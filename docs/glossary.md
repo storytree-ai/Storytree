@@ -84,9 +84,10 @@ verdict). Part of the same observability record as pi's own activity (ADR-0008);
 identity backing is open (`open-questions.md` §1).
 
 **DAG** — The directed acyclic graph the studio renders and watches grow.
-Stories are its visible nodes; capability dependencies are the fine-grained edges
-beneath. The exact inter-level grain is open (see ADR-0002 → "What this does NOT
-decide").
+Stories are nodes and **have edges** — they depend on each other; a story→story
+edge is derived from capability dependencies (and may be authored at
+decomposition). Capability dependencies are the fine-grained graph beneath
+(ADR-0002).
 
 ## Lifecycle (a capability's status)
 
@@ -102,9 +103,9 @@ state.
 **building** — Selected and under active implementation (v1: `under_construction`).
 Written at pickup as the first commit, before any code edits.
 
-**healthy** — Proven: the unit reached `healthy` through one of its three proof
-modes (capability-UAT, contract-test, or operator-attested) at HEAD — for a
-UAT-proven capability, a UAT pass with fresh green contract tests.
+**healthy** — Proven: the unit reached `healthy` through one of its two proof
+modes (capability-UAT or contract-test) at HEAD — for a UAT-proven capability, a
+UAT pass (signed by a dedicated UAT subagent) with fresh green contract tests.
 
 **unhealthy** — A once-healthy capability that has drifted (a contract test now
 fails, owned files changed, or the proof no longer matches HEAD). **Computed**
@@ -128,21 +129,11 @@ as a proven v1 idea).
 **prove-it-gate** — The principle that a unit reaches `healthy` only via earned,
 on-disk evidence — never a hand-edit.
 
-**proof mode** — How a unit earns `healthy`. Three modes: **capability-UAT** (an
-honest scripted walkthrough), **contract-test** (an isolated automated
-assertion), and **operator-attested** (below). `packages/core` encodes these as a
-discriminated `proof_mode` union (ADR-0007).
-
-**operator-attested** — A third proof mode (alongside capability-UAT and
-contract-test) for behavioural/guardrail surfaces that have neither an honest
-scripted UAT nor an isolatable automated test — e.g. the orchestrator's own
-routing / approval / steering discipline. Promotion to `healthy` is an explicit,
-per-unit, **operator-granted** attestation recorded as a typed **signed event**;
-an agent can never self-exempt, and the attestation is distinguishable in the
-audit trail from a UAT walkthrough sign. Successor to v1's `manual_signings`
-(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`
-(observational, never `healthy`). Its persistence/identity backing is still open
-(`open-questions.md` §1).
+**proof mode** — How a unit earns `healthy`. Two modes: **capability-UAT** (an
+honest scripted walkthrough) and **contract-test** (an isolated automated
+assertion). `packages/core` encodes these as a discriminated `proof_mode` union
+(ADR-0007). Things that fit neither are guardrail-code (→ a contract) or guidance
+(→ ADR-0010), never a third proof tier.
 
 **convergence** — Two **distinct** senses v1 conflated and v2 keeps separate;
 always qualify which is meant. (1) *DAG-stabilisation* — the dependency DAG is
@@ -165,14 +156,13 @@ visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting
 v1's "cascade rounds are not a cost"; the concrete unit and default ceiling stay
 open (`open-questions.md` §6).
 
-**approval** (approval-gated trunk) — A first-class, typed operator act
-(`actor = operator`) in which the human accepts an agent action, or a
-capability's green result, **onto the trunk** via the studio. The trunk is
-**approval-gated**: a green signal is a *request for human diff-review*, not an
-automatic merge (inverts v1's auto-merge-on-green). Distinct from a **gate**
-(which structurally refuses invalid work); an approval is the human admitting
-work that has already passed the gate's content invariants (ADR-0008). The
-identity backing the signature is open (`open-questions.md` §1).
+**approval** — An *optional*, first-class typed operator act (`actor = operator`)
+in which the human accepts or vetoes an agent action or a capability's result via
+the studio. Promotion does **not** require it: the trunk lands an
+independently-signed green result autonomously (ADR-0008); approval is the human
+stepping in when they choose. Distinct from a **gate** (which structurally
+refuses invalid work) and from the **dedicated UAT subagent**'s sign (the
+autonomous proof).
 
 **verdict** — The Pass/Fail outcome of a capability's UAT. Reserved for UAT
 outcomes; v1 also used "verdict" for agent conclusions and evidence-row states —
@@ -214,15 +204,15 @@ CLI/adapter wrapper.
 on-disk evidence **overrides** LLM memory consolidation / recency
 ("recency-wins"). v2 rejects Dreams-style reconciliation in favour of a
 commit/event-bound evidence chain. Carried from v1's learning-loop design
-(Agentic ADR-0011); the learning loop's v2 home is still open
-(`open-questions.md` §5).
+(Agentic ADR-0011); the learning loop is now homed in **ADR-0010** (the guidance
+system).
 
 **inner loop / outer loop** — **inner loop** = driving one unit from red to green
-(automatable, owned by a pi node). **outer loop** = accepting a result onto the
-trunk, accepting a decomposition, or amending / retrying / abandoning a unit
-(held by **human judgment** in the studio). The human-in-the-loop gate sits at
-the outer loop; the north-star may later dissolve it (ADR-0007, ADR-0008; carried
-from Agentic ADR-0006/0020).
+(a pi node builds; a dedicated UAT subagent signs). **outer loop** = a result
+landing on the trunk, a decomposition being accepted, a unit amended / retried /
+abandoned. Both run **autonomously by default**; the human may step into either
+at will through the studio but is not a required gate (ADR-0008). What makes this
+safe is builder ≠ UAT-signer (ADR-0007).
 
 ## Unit fields
 
@@ -292,11 +282,12 @@ role; `packages/core` and `apps/studio` never parse a pi stream directly
 (ADR-0004, ADR-0006). Carries v1's own-a-thin-wrapper-over-the-agent-runtime
 principle (Agentic ADR-0008/0026).
 
-**trunk** — The canonical **integrated mainline** a capability lands on once
-**approved**. In v2 the trunk is **approval-gated** (a human admits a green
-result), never auto-merge-on-green, and never holds knowingly-broken intermediate
-states (ADR-0008). Supersedes v1's trunk, which auto-merged on green and tolerated
-broken intermediate states under an eventual-consistency posture.
+**trunk** — The canonical **integrated mainline** a capability lands on. In v2 a
+unit lands **autonomously** once its content invariants hold (contracts green, an
+independently-signed UAT, healthy upstream); the human may veto but is not a
+required gate (ADR-0008), and the trunk never holds knowingly-broken states.
+Supersedes v1's trunk, which auto-merged on green *and* tolerated broken
+intermediate states under an eventual-consistency posture.
 
 **steering** — A first-class, typed operator act of **redirecting an in-flight pi
 run mid-execution** (pi's `steer` surface), recorded as an event in the event
@@ -333,11 +324,11 @@ For reading v1 (Agentic) docs. Left = what v1 wrote; right = how to read it here
 | under_construction | **building** |
 | healthy / proven | **healthy** |
 | dashboard | **studio** |
-| `manual_signings` (ADR-0024) | **operator-attested** proof mode (ADR-0007) |
+| `manual_signings` (ADR-0024) | — retired; deterministic→a **contract** (0007), behavioural→**guidance** (ADR-0010) |
 | `session_claims` table (ADR-0022) | **claim** in the shared store (ADR-0009) |
 | `declared_scope` / `does_not_touch` | **write-ownership** (one vocabulary; ADR-0009) |
 | `runs` / `test_runs` (per-build) | a per-node **run** (execution event) + the **node rollup** projection (ADR-0004, ADR-0006) |
-| auto-merge-on-green trunk | the **approval-gated trunk** (human admits green; ADR-0008) |
+| auto-merge-on-green trunk | the **trunk** — autonomous on independently-signed green; human optional (ADR-0008) |
 | asset (shared DRY content) | — dropped; in storytree **asset = tree art** (ADR-0001) |
 | pattern (the `patterns/` subsystem) | — dropped; named patterns (e.g. standalone-resilient-library) carry |
 | deployment (v1, ×3 overload) | — not carried; v1 conflated VCS-exclusion vs runtime-artifact-exclusion (ADR-0003) — guard against the overload, do not reintroduce the word |

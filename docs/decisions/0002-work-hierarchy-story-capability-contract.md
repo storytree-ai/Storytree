@@ -103,11 +103,13 @@ proof-mode table above.
 
 ## What this does NOT decide
 
-- **The exact DAG grain.** Capabilities clearly form the dependency graph
-  (UAT-generated edges). Whether stories *also* form a coarse DAG, or are pure
-  groupings over a capability-level graph that crosses story boundaries — and
-  how the "DAG of stories" the studio watches derives from capability
-  dependencies — lands with the `packages/core` schema and the scheduler.
+- **The exact DAG grain — decided (amended 2026-06-04):** stories **do** form a
+  DAG; they depend on each other. A story→story edge is **derived** from
+  capability dependencies (story X depends on Y when a capability in X needs one
+  in Y), and may also be **authored** during decomposition — the derived graph is
+  the source of truth, and an authored edge no capability backs is a signal to
+  surface. Capabilities remain the fine-grained graph beneath, and a story's
+  *proof* is still pure composition. `packages/core` encodes both levels.
 - **How a story's proof composes** beyond "its capabilities are proven" (e.g.
   whether a story may carry its own thin integration UAT). Default for now: pure
   rollup.

@@ -12,19 +12,13 @@ plus signed `uat_signings` rows, a four-tier `signer` identity chain, and a
 HEAD). **Open:** how does v2 persist proof in a DBOS-event, model-agnostic world —
 events vs files? Is there a `signer` / `attestation` concept, and what identity
 backs it with no single human/subscription?
-→ Partially addressed by ADR-0003 (routes Agentic ADR-0024's
-operator-attested/`manual_signings` principle to ADR-0007 and the never-bypass-gate
-principle to ADR-0008) and ADR-0006 (proof/forensic events — red/green, UAT
-promotion signing, operator-attested — originate **in the event store**; how they
-persist and the identity model deferred here). ADR-0007 introduces the
-**operator-attested** signed event but states v1's committed-JSONL +
-`uat_signings` shape does **not** carry, leaving the events-vs-files persistence
-and the attestation **identity** open here (v2 form lands with the ADR-0006 event
-schema). ADR-0008 §3 settles the *promotion* act — UAT promotion is a **human
-approval in the studio** recorded as a signed promotion event with operator
-identity — narrowing the residual to: **what identity backs the operator
-signature** with no single human/subscription, and whether there is an explicit
-signer/attestation type. **Still open:** persistence shape + identity backing.
+→ ADR-0007 settles *who signs*: a capability's UAT is signed by a **dedicated
+UAT subagent** (builder ≠ signer), and ADR-0008 makes promotion **autonomous by
+default** (human optional) — so there is no human-signer and no operator-attested
+tier. ADR-0006 puts proof/forensic events (red/green, UAT-sign) **in the event
+store**; v1's committed-JSONL + `uat_signings` shape does **not** carry. **Still
+open:** the persistence shape (events-only vs events + artifact refs) and the
+**agent-signer identity** with no single human/subscription.
 *Terms:* evidence, red-state / red-evidence, green-evidence, attestation, signer,
 executor, signing & walk-ancestry, forensic-evidence.
 
@@ -33,9 +27,8 @@ executor, signing & walk-ancestry, forensic-evidence.
 *mechanism*: how storytree maps an existing target-repo suite onto
 capabilities/contracts under pi, what "observational-green" means operationally,
 and how fixtures/models are version-pinned.
-→ ADR-0007 reaffirms this stays open while distinguishing **operator-attested**
-(earned, reaches `healthy`) from **mapped** (observational, never `healthy`); the
-mapping *mechanism* remains undecided here.
+→ ADR-0007 keeps `mapped` (observational, never `healthy`) distinct from a
+proven unit; the mapping *mechanism* remains undecided here.
 *Terms:* brownfield, observational-green, mapped-vs-proven, MappedStatus,
 fixture-pin.
 
@@ -169,12 +162,10 @@ have any equivalent tier for cross-cutting knowledge — referenced,
 reciprocity-checked entities shared across capabilities — or does the single shared
 event store plus per-node guidance make a dedicated shared-content tier
 unnecessary?
-→ Consciously **parked, not dropped**: ADR-0003 marks Agentic ADR-0007's
-cross-cutting-knowledge principle as durable-but-homeless (it has **no v2 home
-yet**). **Term collision:** v1's `asset` (shared DRY content under `assets/`) does
-**not** carry — `glossary.md` redefines `asset` as tree/game art for the isometric
-renderer, so there is no glossary anchor for the v1 shared-content sense; this
-section is its only home. **Still open:** whether the cross-cutting-knowledge tier
-returns at all, and under what (non-`asset`) name.
+→ **Now homed in ADR-0010** (the guidance system): v1's cross-cutting knowledge
+becomes **guidance assets** — modular, injectable `principle`/`definition`/`guideline`
+units (the v1 `asset` shared-content sense, renamed since `asset` = tree-art in the
+glossary). **Still open here:** the asset **schema** + the **injection** mechanism
+(how an asset attaches to an agent's context) and the curation/graduation flow.
 *Terms:* asset (v1 shared DRY content), cross-cutting knowledge, referenced entity,
 reciprocity check, consume / consumes.

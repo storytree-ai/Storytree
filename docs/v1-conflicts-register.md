@@ -27,17 +27,17 @@ verification; this is their triaged disposition.
 - **[H] "cascade rounds are not a cost" / no per-iteration budget** — sound only under a flat subscription; v2 bills per token. → `ADR-0008` (cost is a first-class budget surface).
 - **[L] `--dangerously-skip-permissions` everywhere** — no in-loop approval gate; v2's headline is a UI that approves/steers. → `ADR-0008`.
 - **[L] API-key path is banned as a standing principle** — v1 ADR-0003 erects per-token billing as "unacceptable"; v2 adopts exactly it. → `ADR-0003` (reversal ledger; superseded).
-- **[H] auto-merge-on-green, "main may hold broken states", no human review** — v2 is approval-gated trunk. → `ADR-0008`.
+- **[H] auto-merge-on-green, "main may hold broken states", no human review** — v2 lands autonomously but only on invariants (never broken); human optional. → `ADR-0008`.
 - **[L] pi is named and rejected** (ADR-0023 §7; ADR-0006 says story/red-green/UAT "don't map cleanly" onto this harness class) — v2 deliberately chose pi. → `ADR-0001`/`ADR-0006` (+ pi-adapter impedance noted).
 - **[L] Task-tool-blocked premise** — ADR-0003's "Rust owns the spawn tree / no agents-spawn-agents" rests on a Claude-Code quirk; v2 re-derives fanout ownership from first principles. → `ADR-0005`/`ADR-0004`.
 - **[H] ADR-0022 coordination substrate is a workaround for the *absence* of a shared store** — v2 ships the shared store by default, so port the answer, not the workaround. → `ADR-0009`.
 
 ### 1c. v1-internal contradictions (informational — facts about the v1 corpus)
 - **[H] The "seven-step commit-time gate" has no originating ADR** — treated as law across ≥5 ADRs; ADR-0014 sources its key step to ADR-0005, which self-disclaims being a gate. → `ADR-0007` (v2 *defines* its gate cleanly) · `V1-FACT`.
-- **[H] `manual_signings` is half the UAT-promotion read-set but no ADR establishes the table** (ADR-0008/0022 enumerate signing tables without it). → `ADR-0007` (operator-attested formalised) + `OPEN-Q §1`.
+- **[H] `manual_signings` is half the UAT-promotion read-set but no ADR establishes the table** (ADR-0008/0022 enumerate signing tables without it). → `ADR-0007` (retired — deterministic things are contracts) + `OPEN-Q §1`.
 - **[H] UAT signer decided ≥2 ways** — ADR-0006 §8 reserves a human signer; ADR-0008/0010/0015 have the in-loop agent sign autonomously. → `OPEN-Q §1` + `ADR-0007`/`ADR-0008`.
 - **[H] `runs.outcome` enum decided twice** (green/inner_loop_exhausted/crashed vs green/exhaustion/refusal) across co-reactivated ADR-0006/0010. → `ADR-0006`.
-- **[H] UAT-exempt story class (ADR-0024) has no tier** in v2's trichotomy, and ADR-0028's rationale for retiring it is false. → `ADR-0007` (adds the operator-attested third tier; overrules ADR-0028 D16).
+- **[H] UAT-exempt story class (ADR-0024) has no tier** in v2's trichotomy. → `ADR-0007` (retired — guardrail-code or guidance ADR-0010; D16 stands).
 - **[H] ID-collision fix claimed but disclaimed** — ADR-0001 banners it; ADR-0028 D9 calls the race "out of v2 scope"; the ADR that dissects it (0025) was absent. → `ADR-0009`.
 - **[L] ADR-0018 still cites a credential path ADR-0019 had already retired.** → `V1-FACT`.
 - **[L] Duplicate ADR-0021** (two files claim the slot; one untracked) and **[L] phantom ADR-0009** (cited live by ADR-0010, no file exists). → `V1-FACT` (v2 ADR-0009 extends conflict-free allocation to the ADR namespace itself).
