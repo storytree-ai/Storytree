@@ -240,19 +240,6 @@ const curated = [
     ),
     references: [adr(1)],
   },
-  {
-    id: 'stack-rejected-alternatives',
-    category: 'techstack',
-    title: 'Rejected: Mastra · LangGraph/LangSmith · Claude Agent SDK · Google ADK',
-    description: 'What the stack rules out, and why — so it isn’t relitigated.',
-    body: para(
-      '- **Mastra** — good TS agent framework, but redundant once pi owns per-node control; younger concurrency-durability story.',
-      '- **LangGraph.js** — strongest concurrency primitives, but its rich observability is LangSmith, billed per trace — wrong for a watch-everything system we own anyway.',
-      '- **Claude Agent SDK** — excellent and pay-as-you-go, but Anthropic-models-only; fails model-agnostic. (Fine as a *bootstrap* harness.)',
-      '- **Google ADK** — Python is mature, but the TS port is young and Gemini-first.',
-    ),
-    references: [adr(1)],
-  },
 
   // --- guardrail (a hard boundary you can't cross) ---
   {

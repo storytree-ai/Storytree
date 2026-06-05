@@ -183,18 +183,6 @@
     "updatedAt": "2026-06-05T00:00:00.000Z"
   },
   {
-    "id": "stack-rejected-alternatives",
-    "category": "techstack",
-    "title": "Rejected: Mastra · LangGraph/LangSmith · Claude Agent SDK · Google ADK",
-    "description": "What the stack rules out, and why — so it isn’t relitigated.",
-    "body": "- **Mastra** — good TS agent framework, but redundant once pi owns per-node control; younger concurrency-durability story.\n\n- **LangGraph.js** — strongest concurrency primitives, but its rich observability is LangSmith, billed per trace — wrong for a watch-everything system we own anyway.\n\n- **Claude Agent SDK** — excellent and pay-as-you-go, but Anthropic-models-only; fails model-agnostic. (Fine as a *bootstrap* harness.)\n\n- **Google ADK** — Python is mature, but the TS port is young and Gemini-first.",
-    "references": [
-      "doc:decisions/0001-foundational-stack.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-05T00:00:00.000Z"
-  },
-  {
     "id": "never-bypass-the-gate",
     "category": "guardrail",
     "title": "The gate is never bypassable",
