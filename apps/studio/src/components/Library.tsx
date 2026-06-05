@@ -29,9 +29,9 @@ export function Library({ category }: { category: AssetCategory | null }): React
         <div>
           <h1>Library</h1>
           <p className="muted">
-            Modular, injectable artifacts — definitions, principles, and guidelines (the durable
-            guidance synthesised from the ADRs). The seed of an injectable guidance library
-            (open-questions §9).
+            Modular, injectable artifacts — definitions, principles, patterns, guardrails, and the
+            techstack (the durable guidance synthesised from the ADRs). The seed of an injectable
+            guidance library (open-questions §9).
           </p>
         </div>
         <a className="btn primary" href={assetNewHref}>

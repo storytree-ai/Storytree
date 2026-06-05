@@ -34,8 +34,9 @@ export function Home(): React.JSX.Element {
         </CapCard>
         <CapCard title="Library">
           Modular, injectable <em>artifacts</em> — <code>definition</code> / <code>principle</code> /{' '}
-          <code>guideline</code> units, browsable and searchable. The durable guidance is synthesised
-          from the ADRs; each artifact cites the ADR it came from.
+          <code>pattern</code> / <code>guardrail</code> / <code>techstack</code> units, browsable and
+          searchable. The durable guidance is synthesised from the ADRs; each artifact cites the ADR
+          it came from.
         </CapCard>
       </div>
 

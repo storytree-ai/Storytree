@@ -25,11 +25,9 @@ import type {
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
   'principle',
-  'guideline',
-  'guardrail',
   'pattern',
+  'guardrail',
   'techstack',
-  'context',
 ];
 
 interface Paths {

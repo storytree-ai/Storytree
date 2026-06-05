@@ -56,20 +56,20 @@ export interface NewComment {
 }
 
 /**
- * The artifact taxonomy: a typed, reusable unit of agent guidance. Grounded in
- * the v1 (Agentic) `assets/` corpus and shaped to the durable outputs the ADRs
- * actually produce. `guardrail` absorbs hard boundaries, authority/precedence
- * rules, and the failure modes they guard against. The one-line gloss per
- * category is shown in the UI.
+ * The artifact taxonomy: a typed, reusable unit of agent guidance. A lean set,
+ * shaped to the durable outputs the ADRs produce.
+ * - `pattern` absorbs the old "guideline": a reusable approach you apply.
+ * - `guardrail` is reserved for **deterministically-enforced** boundaries (by a
+ *   gate / schema / DB constraint / code path). Anything merely advisory is a
+ *   `pattern`, not a guardrail.
+ * The one-line gloss per category is shown in the UI.
  */
 export type AssetCategory =
   | 'definition' // "what something is"
   | 'principle' // "how to judge"
-  | 'guideline' // "what to do"
-  | 'guardrail' // "a hard boundary you can't cross" — incl. authority rules & the failure modes they prevent
-  | 'pattern' // "a reusable structure"
-  | 'techstack' // "what we build on" — a technology choice
-  | 'context'; // "what world we operate in"
+  | 'pattern' // "a reusable approach"
+  | 'guardrail' // "a deterministically-enforced boundary"
+  | 'techstack'; // "what we build on"
 
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
@@ -124,22 +124,18 @@ export interface DocContent {
 export const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
   'principle',
-  'guideline',
-  'guardrail',
   'pattern',
+  'guardrail',
   'techstack',
-  'context',
 ];
 
 /** One-line gloss per category (shown in the Library UI). */
 export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   definition: 'what something is',
   principle: 'how to judge',
-  guideline: 'what to do',
-  guardrail: "a hard boundary you can't cross",
-  pattern: 'a reusable structure',
+  pattern: 'a reusable approach',
+  guardrail: 'a deterministically-enforced boundary',
   techstack: 'what we build on',
-  context: 'what world we operate in',
 };
 
 /** Highlight colour palette for text-anchored comments. */

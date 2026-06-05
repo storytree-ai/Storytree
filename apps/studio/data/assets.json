@@ -13,7 +13,7 @@
   },
   {
     "id": "edit-first-curation",
-    "category": "guideline",
+    "category": "pattern",
     "title": "Edit-first curation",
     "description": "Edit is the default; authoring a new artifact is the justified exception. Search before you write.",
     "body": "**Rule.** Edit is the default. Writing a new artifact is the exception and must be justified: what search terms were run, what the closest existing artifact was, and why editing it was not the right move.\n\n- Duplicate artifacts split authority — a consumer does not know which to trust.\n\n- An edit keeps the revision history and evidence chain attached to the original.\n\n- Search-before-write is the cheapest duplication defence there is.\n\n_Imported from v1 `assets/guidelines/edit-first-curation.yml`._",
@@ -23,7 +23,7 @@
   },
   {
     "id": "assess-tradeoffs-by-naming-both-sides",
-    "category": "guideline",
+    "category": "pattern",
     "title": "Assess tradeoffs by naming both sides",
     "description": "Every tradeoff surfaced must answer “what are we trading — A vs B?” with both sides in concrete, user-facing terms.",
     "body": "Any tradeoff surfaced must answer **“what are we trading? — A vs B”**, with both sides in concrete user-facing terms: latency, blast radius, contract strength, observability, security posture, reversibility.\n\nGeneric “more work” / “more complex” framings do **not** satisfy the rule. In an AI-coded corpus, cascade work amortises; the only durable “more work” cost is AI-illegible complexity guidance and tooling cannot solve.\n\n_Imported from v1. ADR-0001’s “Alternatives considered” follows it._",
@@ -296,7 +296,7 @@
   },
   {
     "id": "auto-merge-on-green",
-    "category": "guardrail",
+    "category": "pattern",
     "title": "Auto-merge on green",
     "description": "v1 auto-merged on green and tolerated a knowingly-broken mainline; v2 rejects it — green is a request for human diff-review.",
     "body": "v1’s trunk auto-merged on green and tolerated broken intermediate states under an eventual-consistency posture. v2 **inverts** this: the trunk is approval-gated, a green result is a *request for human diff-review*, and the trunk never holds knowingly-broken states.\n\n_See the `approval-gated-trunk` constraint (ADR-0008)._",
@@ -308,7 +308,7 @@
   },
   {
     "id": "faked-uat-theatre",
-    "category": "guardrail",
+    "category": "pattern",
     "title": "Faked-UAT theatre",
     "description": "Stubbing collaborators in a UAT is a structural defect — the mock-UAT seam forbids it. Guardrail surfaces use operator-attested, not a fake walkthrough.",
     "body": "Stubs/mocks are correct in a contract test (isolated) but a **structural defect** in a UAT (real collaborators). Don’t fake a walkthrough for a behavioural/guardrail surface that has no honest UAT — use the `operator-attested` proof mode instead.\n\n_The mock-UAT seam; synthesised from ADR-0007._",
@@ -320,7 +320,7 @@
   },
   {
     "id": "vibe-the-load-bearing-layers",
-    "category": "guardrail",
+    "category": "pattern",
     "title": "Vibing the load-bearing layers",
     "description": "v1’s internals were vibed and became unobservable. Don’t vibe the parts the system rests on — the event model, concurrency-safe state, the spine.",
     "body": "v1 proved the *idea* but its internals were vibed and are hard to see. v2’s stance: **go slow, own the load-bearing layers.** The event model, concurrency-safe shared state, and the orchestrator spine are designed up front, not improvised.\n\n_Synthesised from ADR-0001._",
@@ -332,7 +332,7 @@
   },
   {
     "id": "store-lock-races-and-id-collisions",
-    "category": "guardrail",
+    "category": "pattern",
     "title": "Store-lock races & id collisions",
     "description": "v1 hit store-lock races and in-process story-ID collisions under concurrency. v2 designs concurrency-safe state from day one (DBOS + DB-allocated ids).",
     "body": "v1’s concurrency scars: store-lock races and in-process story-ID collisions (even duplicate ADR numbers). v2 treats concurrency-safe state as a **foundation, not a retrofit** — DBOS workflow isolation, claims in the one shared store, and DB-allocated collision-free ids.\n\n_Synthesised from ADR-0001 / ADR-0009._",
@@ -344,42 +344,8 @@
     "updatedAt": "2026-06-05T00:00:00.000Z"
   },
   {
-    "id": "north-star-self-building",
-    "category": "context",
-    "title": "North star: storytree builds itself",
-    "description": "Set up the blocks so agents author, test, and UAT-prove stories on the tree — and the tree’s own growth is the product you watch.",
-    "body": "The goal is for storytree to **build itself**: a fleet of agents author, test, and UAT-prove stories on the tree, and the tree’s growth is the product you watch. v2 is currently bootstrapped by hand; the scaffolding should fall away as the tree becomes self-building.\n\n_From the README north-star._",
-    "references": [
-      "doc:decisions/0001-foundational-stack.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-05T00:00:00.000Z"
-  },
-  {
-    "id": "bootstrap-phase-midwife-harness",
-    "category": "context",
-    "title": "Bootstrap phase: a midwife harness",
-    "description": "v2 is being bootstrapped by hand — Claude Code working across the storytree and Agentic repos — until the tree can grow itself.",
-    "body": "storytree lives as a **sibling** of the v1 Agentic repo (independent git history). During bootstrap it is built via Claude Code working across both repos. This is temporary scaffolding, not the product.\n\n_From the README development notes._",
-    "references": [],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-05T00:00:00.000Z"
-  },
-  {
-    "id": "pay-as-you-go-self-hosted",
-    "category": "context",
-    "title": "Pay-as-you-go, self-hosted",
-    "description": "API keys not a subscription; free to try non-Anthropic models; your data and traces stay yours (no per-trace SaaS).",
-    "body": "v2 runs on pay-as-you-go API billing, free to try non-Anthropic models, and self-hosted: observability lands in our own event store with no external trace SaaS in the loop. Your data and traces stay yours.\n\n_Synthesised from ADR-0001._",
-    "references": [
-      "doc:decisions/0001-foundational-stack.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-05T00:00:00.000Z"
-  },
-  {
     "id": "glossary-wins",
-    "category": "guardrail",
+    "category": "pattern",
     "title": "When a term is in question, the glossary wins",
     "description": "docs/glossary.md is the authoritative terminology every layer speaks; when a term’s meaning is contested, it wins.",
     "body": "Every layer — `packages/core` types, the orchestrator, the studio, the ADRs — uses the glossary’s terms as defined. **When a term’s meaning is in question, `docs/glossary.md` wins**; the reasoning lives in the cited ADR.\n\n_From the glossary preamble (ADR-0002)._",

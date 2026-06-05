@@ -54,7 +54,7 @@ const curated = [
   },
   {
     id: 'edit-first-curation',
-    category: 'guideline',
+    category: 'pattern',
     title: 'Edit-first curation',
     description: 'Edit is the default; authoring a new artifact is the justified exception. Search before you write.',
     body: para(
@@ -68,7 +68,7 @@ const curated = [
   },
   {
     id: 'assess-tradeoffs-by-naming-both-sides',
-    category: 'guideline',
+    category: 'pattern',
     title: 'Assess tradeoffs by naming both sides',
     description:
       'Every tradeoff surfaced must answer “what are we trading — A vs B?” with both sides in concrete, user-facing terms.',
@@ -354,10 +354,10 @@ const curated = [
     references: [GLOSSARY],
   },
 
-  // --- guardrail: failure modes guarded against (was anti-pattern) ---
+  // --- pattern: practices & cautionary lessons (advisory, not enforced) ---
   {
     id: 'auto-merge-on-green',
-    category: 'guardrail',
+    category: 'pattern',
     title: 'Auto-merge on green',
     description:
       'v1 auto-merged on green and tolerated a knowingly-broken mainline; v2 rejects it — green is a request for human diff-review.',
@@ -369,7 +369,7 @@ const curated = [
   },
   {
     id: 'faked-uat-theatre',
-    category: 'guardrail',
+    category: 'pattern',
     title: 'Faked-UAT theatre',
     description:
       'Stubbing collaborators in a UAT is a structural defect — the mock-UAT seam forbids it. Guardrail surfaces use operator-attested, not a fake walkthrough.',
@@ -381,7 +381,7 @@ const curated = [
   },
   {
     id: 'vibe-the-load-bearing-layers',
-    category: 'guardrail',
+    category: 'pattern',
     title: 'Vibing the load-bearing layers',
     description:
       'v1’s internals were vibed and became unobservable. Don’t vibe the parts the system rests on — the event model, concurrency-safe state, the spine.',
@@ -393,7 +393,7 @@ const curated = [
   },
   {
     id: 'store-lock-races-and-id-collisions',
-    category: 'guardrail',
+    category: 'pattern',
     title: 'Store-lock races & id collisions',
     description:
       'v1 hit store-lock races and in-process story-ID collisions under concurrency. v2 designs concurrency-safe state from day one (DBOS + DB-allocated ids).',
@@ -404,48 +404,10 @@ const curated = [
     references: [adr(1), adr(9)],
   },
 
-  // --- context (what world we operate in) ---
-  {
-    id: 'north-star-self-building',
-    category: 'context',
-    title: 'North star: storytree builds itself',
-    description:
-      'Set up the blocks so agents author, test, and UAT-prove stories on the tree — and the tree’s own growth is the product you watch.',
-    body: para(
-      'The goal is for storytree to **build itself**: a fleet of agents author, test, and UAT-prove stories on the tree, and the tree’s growth is the product you watch. v2 is currently bootstrapped by hand; the scaffolding should fall away as the tree becomes self-building.',
-      '_From the README north-star._',
-    ),
-    references: [adr(1)],
-  },
-  {
-    id: 'bootstrap-phase-midwife-harness',
-    category: 'context',
-    title: 'Bootstrap phase: a midwife harness',
-    description:
-      'v2 is being bootstrapped by hand — Claude Code working across the storytree and Agentic repos — until the tree can grow itself.',
-    body: para(
-      'storytree lives as a **sibling** of the v1 Agentic repo (independent git history). During bootstrap it is built via Claude Code working across both repos. This is temporary scaffolding, not the product.',
-      '_From the README development notes._',
-    ),
-    references: [],
-  },
-  {
-    id: 'pay-as-you-go-self-hosted',
-    category: 'context',
-    title: 'Pay-as-you-go, self-hosted',
-    description:
-      'API keys not a subscription; free to try non-Anthropic models; your data and traces stay yours (no per-trace SaaS).',
-    body: para(
-      'v2 runs on pay-as-you-go API billing, free to try non-Anthropic models, and self-hosted: observability lands in our own event store with no external trace SaaS in the loop. Your data and traces stay yours.',
-      '_Synthesised from ADR-0001._',
-    ),
-    references: [adr(1)],
-  },
-
-  // --- guardrail: authority & precedence (was governance) ---
+  // --- authority & precedence (was governance) ---
   {
     id: 'glossary-wins',
-    category: 'guardrail',
+    category: 'pattern',
     title: 'When a term is in question, the glossary wins',
     description:
       'docs/glossary.md is the authoritative terminology every layer speaks; when a term’s meaning is contested, it wins.',

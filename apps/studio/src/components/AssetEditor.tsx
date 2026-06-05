@@ -27,7 +27,7 @@ interface FormState {
 
 const EMPTY: FormState = {
   id: '',
-  category: 'guideline',
+  category: 'pattern',
   title: '',
   description: '',
   body: '',
