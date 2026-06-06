@@ -71,8 +71,8 @@ an analogous decomposition/convergence loop before capabilities are built? If so
 name it once.
 → ADR-0003 routes Agentic ADR-0020's decompose-before-implement principle to
 ADR-0007, and ADR-0007 §4 explicitly **splits `convergence`** into two senses
-(glossary): the **cold-rebuild** sense (the health invariant, now owned by
-ADR-0007) vs the **DAG-stabilisation** sense (driving the capability graph to a
+(glossary): the **cold-rebuild** sense (an authoring guideline, not a gate; ADR-0010
+§6) vs the **DAG-stabilisation** sense (driving the capability graph to a
 fixed point before any contract goes red), assigning the latter to this section's
 decomposition/convergence loop + the scheduler. **Still open:** whether v2 has the
 loop at all, and its name.

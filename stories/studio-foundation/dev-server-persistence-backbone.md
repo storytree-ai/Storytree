@@ -5,7 +5,7 @@ story: studio-foundation
 title: "Dev-server persistence backbone"
 outcome: "Data written through the studio's API survives a dev-server restart."
 status: "proposed"
-proof_mode: "capability-UAT"
+proof_mode: "integration-test"
 depends_on: []
 ---
 
@@ -15,43 +15,49 @@ depends_on: []
 
 **Depends on —** *(none — a root capability)*
 
-> **Proof status (honest) —** CODE EXISTS AND RUNS; NO AUTOMATED PROOF. Fully implemented and live under `pnpm --filter studio dev` (vite.config.ts mounts the plugin; the server logs the data-api line on boot; assets.json holds 81 seeded records served through the real readStore path). Exercised by hand via the UI during development. But package.json defines only dev/build/preview/typecheck; no vitest/jest; zero .test/.spec files; no scripted UAT. NOT proven, NOT verified-green — all 15 contracts and the UAT are retrospective specs awaiting a runner.
+> **Proof status (honest) —** CODE EXISTS AND RUNS; NO AUTOMATED PROOF. Fully implemented and live under `pnpm --filter studio dev` (vite.config.ts mounts the plugin; the server logs the data-api line on boot; assets.json holds 88 seeded records served through the real readStore path). Exercised by hand via the UI during development. But package.json defines only dev/build/preview/typecheck; no vitest/jest; zero .test/.spec files; no scripted integration test. NOT proven, NOT verified-green — all 15 contracts and the integration test are retrospective specs awaiting a runner.
 
 ## Guidance
 
-WHY THIS IS A CAPABILITY, NOT A STORY OR CONTRACT: its honest proof is one walkable journey — POST, restart the process, GET — run over the real wire against real fs and the git-tracked JSON. No single assertion captures 'survives restart'; that needs two processes sharing one disk. Everything bundled here shares ONE file mechanism (readStore/writeStore), ONE namespace seam, and that ONE journey.
+WHY THIS IS A CAPABILITY, NOT A STORY OR CONTRACT: its honest proof is one integration test — POST, restart the process, GET — run over the real wire against real fs and the git-tracked JSON (real in-story collaborators, no stubs). No single isolated contract captures 'survives restart'; that needs two processes sharing one disk. But it is not a story either: it has no operator-facing outcome of its own — it is the persistence organ the React capabilities lean on. Everything bundled here shares ONE file mechanism (readStore/writeStore), ONE namespace seam, and that ONE integration path.
 
 RESTART-SURVIVAL IS IMPLICIT, NOT EXPLICIT: there is no snapshot/flush/WAL code. Durability falls out of the architecture — every mutation calls writeStore synchronously to disk (devApi.ts:221,238,246,299,311,319) and every read calls readStore from disk (no in-memory cache anywhere). State lives ONLY in apps/studio/data/*.json, so a new process re-reads it. To rebuild: never add an in-memory cache without write-through, or restart-survival silently breaks.
 
-REGISTRATION ORDER IS LOAD-BEARING: the middleware is added directly inside configureServer (devApi.ts:358), NOT in a returned post-hook. Vite runs returned hooks AFTER its SPA history-fallback (which rewrites everything to index.html). Registering directly means /api/* is matched first. Get this wrong and every /api call returns the HTML shell with 200 — a failure the contracts can't catch (they call handlers directly), so it must be asserted via the real-server UAT.
+REGISTRATION ORDER IS LOAD-BEARING: the middleware is added directly inside configureServer (devApi.ts:358), NOT in a returned post-hook. Vite runs returned hooks AFTER its SPA history-fallback (which rewrites everything to index.html). Registering directly means /api/* is matched first. Get this wrong and every /api call returns the HTML shell with 200 — a failure the contracts can't catch (they call handlers directly), so it must be asserted by the integration test against the real running server.
 
-DEV-ONLY BY DESIGN: this backbone exists only under `vite` dev (configureServer never runs in `vite build`; see devApi.ts:8-10). Scope is exactly `pnpm --filter studio dev`; do not UAT a built/preview bundle expecting persistence.
+DEV-ONLY BY DESIGN: this backbone exists only under `vite` dev (configureServer never runs in `vite build`; see devApi.ts:8-10). Scope is exactly `pnpm --filter studio dev`; do not run the integration test against a built/preview bundle expecting persistence.
 
 PATCH RE-VALIDATES THE WHOLE MERGED RECORD: asset PATCH (devApi.ts:308) spreads existing+patch+`id:existing.id` back through readAssetInput, re-locking the id AND re-running every guard on the merged result. createdAt is preserved by explicit carry-over (devApi.ts:309), not by the validator.
 
-KNOWN DRIFT HAZARD: ASSET_CATEGORIES is hand-duplicated at devApi.ts:25-31 from src/types.ts:124-130 (the server can't trivially import a src value in plugin context). Contract dpb-asset-categories-allowlist-matches-types exists solely to fail if they diverge. (Verified: both arrays are ['definition','principle','pattern','guardrail','techstack'].)
+KNOWN DRIFT HAZARD: ASSET_CATEGORIES is hand-duplicated at devApi.ts:25-33 from src/types.ts:128-136 (the server can't trivially import a src value in plugin context). Contract dpb-asset-categories-allowlist-matches-types exists solely to fail if they diverge. (Verified: both arrays are ['definition','principle','pattern','guardrail','techstack','template','adr'] — 7 entries, including the seeded `template` category and the defined-but-unseeded `adr` category.)
 
-SEED-STATE FOR THE UAT: comments.json ships as [] and assets.json ships with 81 records (verified). The UAT must delete its probe rows at the end — these are git-tracked files and residue dirties the tree. Use collision-unlikely probe ids (e.g. 'uat-probe').
+SEED-STATE FOR THE INTEGRATION TEST: comments.json ships as [] and assets.json ships with 88 records (verified). The test must delete its probe rows at the end — these are git-tracked files and residue dirties the tree. Use collision-unlikely probe ids (e.g. 'it-probe').
 
-NO HARNESS EXISTS YET: package.json has no test runner; zero .test/.spec files. Contracts describe the isolated test that WOULD prove each leaf (pure functions or handler calls with readStore/writeStore/fetch stubbed); the UAT is the manual curl-or-browser walkthrough. Implementing them means first adding a runner (e.g. vitest) — net-new work, not a recording of something already green.
+NO HARNESS EXISTS YET: package.json has no test runner; zero .test/.spec files. Contracts describe the isolated unit test that WOULD prove each leaf (pure functions or handler calls with readStore/writeStore/fetch stubbed); the integration test is the across-the-wire restart walkthrough against the real fs and the real connect server. Implementing either means first adding a runner (e.g. vitest) — net-new work, not a recording of something already green.
 
-## UAT — capability-UAT
+## Integration test
 
 **Goal —** Prove that data written through the studio's /api survives a dev-server restart — the load-bearing persistence seam every React capability leans on.
 
-The single end-to-end walkthrough against **real** collaborators that proves this
-capability's goal (minimal-first; mocks are forbidden here — the mock-UAT seam).
+The integration test exercises this capability against its **real in-story
+collaborators** — the real connect-middleware seam, the real fs, and the git-tracked JSON
+stores — with **no stubs within the organism** (ADR-0010 §2/§5). It spans two processes
+sharing one disk, which is exactly why this is an integration test and not a single
+isolated contract: no one assertion captures "survives restart". (The `depends_on` is
+empty — this is a root capability, so the test rides nothing else in-story.)
 
-1. Start the dev server: `pnpm --filter studio dev`; confirm it logs the `storytree data api: ... store → apps/studio/data/` line (devApi.ts:353-355) so the plugin mounted on the real connect server.
-2. GET http://localhost:5173/api/comments → 200 with [] (seeded-empty store read through readStore's real-file path, devApi.ts:186-196). GET /api/assets → 200 with the 81 seeded records, proving the store is served from disk, not memory.
-3. POST /api/comments with { topicKind:'doc', topicId:'decisions/0002-work-hierarchy-story-capability-contract.md', body:'restart-proof note', anchor:{kind:'topic'} } → 201; capture the server-stamped id (randomUUID) and note resolved:false, createdAt set (devApi.ts:209-222).
-4. POST /api/assets with a fresh kebab id { id:'uat-probe', category:'pattern', title:'Probe', description:'d', body:'b', references:[] } → 201 with createdAt===updatedAt (devApi.ts:296-300).
+The integration test would, against the real running backbone:
+
+1. Start the dev server: `pnpm --filter studio dev`; assert it logs the `storytree data api: ... store → apps/studio/data/` line (devApi.ts:353-355), proving the plugin mounted on the real connect server.
+2. GET http://localhost:5173/api/comments → 200 with [] (seeded-empty store read through readStore's real-file path, devApi.ts:186-196); GET /api/assets → 200 with the 88 seeded records, proving the store is served from disk, not memory.
+3. POST /api/comments with { topicKind:'doc', topicId:'decisions/0002-work-hierarchy-story-capability-contract.md', body:'restart-proof note', anchor:{kind:'topic'} } → 201; capture the server-stamped id (randomUUID) and assert resolved:false, createdAt set (devApi.ts:209-222).
+4. POST /api/assets with a fresh kebab id { id:'it-probe', category:'pattern', title:'Probe', description:'d', body:'b', references:[] } → 201 with createdAt===updatedAt (devApi.ts:296-300).
 5. GET /api/comments?topicId=decisions/0002-work-hierarchy-story-capability-contract.md → 200 returning exactly the comment just posted, proving the topicId query filter selects the new row (devApi.ts:189-196).
-6. PATCH /api/comments?id=<captured-id> with { resolved:true } → 200; observe resolved:true and a non-null resolvedAt (devApi.ts:233-239). PATCH /api/assets?id=uat-probe with { title:'Probe 2' } → 200 with the same createdAt but a bumped updatedAt (devApi.ts:303-312).
+6. PATCH /api/comments?id=<captured-id> with { resolved:true } → 200; assert resolved:true and a non-null resolvedAt (devApi.ts:233-239). PATCH /api/assets?id=it-probe with { title:'Probe 2' } → 200 with the same createdAt but a bumped updatedAt (devApi.ts:303-312).
 7. Stop the dev server (kill the Vite process) — discarding ALL in-memory state; the only survivor is the JSON on disk.
 8. Restart `pnpm --filter studio dev` (a brand-new process).
-9. GET /api/comments?topicId=decisions/0002-work-hierarchy-story-capability-contract.md → 200 and the comment is STILL there with resolved:true and its resolvedAt. GET /api/assets → the 81 seeds PLUS uat-probe with title 'Probe 2'. This is the core proof: the write made before the restart is read back after it.
-10. DELETE /api/comments?id=<captured-id> → 200 {ok:true}; DELETE /api/assets?id=uat-probe → 200 {ok:true}. GET both again → the probe rows are gone and assets.json is back to its 81 seeded records, leaving the git-tracked stores clean (devApi.ts:242-248, 315-321).
+9. GET /api/comments?topicId=decisions/0002-work-hierarchy-story-capability-contract.md → 200 and assert the comment is STILL there with resolved:true and its resolvedAt; GET /api/assets → the 88 seeds PLUS it-probe with title 'Probe 2'. This is the core proof: the write made before the restart is read back after it.
+10. DELETE /api/comments?id=<captured-id> → 200 {ok:true}; DELETE /api/assets?id=it-probe → 200 {ok:true}. GET both again → the probe rows are gone and assets.json is back to its 88 seeded records, leaving the git-tracked stores clean (devApi.ts:242-248, 315-321).
 
 ## Contracts (15)
 
@@ -99,8 +105,8 @@ assertion a contract test *would* prove, with the real code it covers.
    - **asserts —** Patching asset 'x' with a body that also carries {id:'y'} returns an asset whose id is still 'x', whose createdAt equals the original, and whose updatedAt differs from createdAt.
    - **covers —** `apps/studio/server/devApi.ts:303-312`
 14. **`dpb-asset-categories-allowlist-matches-types`** — The server ASSET_CATEGORIES allow-list equals the canonical types.ts list
-   - **asserts —** The ASSET_CATEGORIES array in server/devApi.ts deep-equals ASSET_CATEGORIES exported from src/types.ts — a guard against the duplicated allow-list drifting.
-   - **covers —** `apps/studio/server/devApi.ts:25-31`
+   - **asserts —** The ASSET_CATEGORIES array in server/devApi.ts deep-equals ASSET_CATEGORIES exported from src/types.ts — both the 7-entry list ['definition','principle','pattern','guardrail','techstack','template','adr'] — a guard against the duplicated allow-list drifting.
+   - **covers —** `apps/studio/server/devApi.ts:25-33`
 15. **`dpb-api-client-unwraps-error-envelope`** — api.ts http<T> throws the server's {error} message on a non-ok response
    - **asserts —** http<T> given a stubbed fetch returning {ok:false,status:409,text:()=>'{"error":"dup"}'} rejects with Error('dup'); on ok it resolves to the parsed body; an empty body parses to null.
    - **covers —** `apps/studio/src/api.ts:12-24`

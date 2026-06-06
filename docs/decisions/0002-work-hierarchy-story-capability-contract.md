@@ -4,6 +4,8 @@
 
 accepted
 
+> Amended by ADR-0010 (proof ladder, dependency grain, DAG grain).
+
 ## Date
 
 2026-06-03
@@ -36,9 +38,10 @@ Three tiers, top to bottom:
 
 - **capability** — a component within a story: **independently viable** (it
   stands on its own — the unit you could specify and prove in isolation),
-  **UAT-proven**, and composed of contracts. This is *exactly what v1 called a
-  story*. It carries the integrated UAT walkthrough and it is the unit
-  dependencies are drawn between.
+  **integration-proven** (against real in-story collaborators), and composed of
+  contracts. This is *exactly what v1 called a story*. The UAT lives at the story
+  (ADR-0010 §2); the capability is the unit within-story dependencies are drawn
+  between.
 
 - **contract** — a single **test-proven behaviour** within a capability: one
   automated, isolated test (collaborators stubbed). The leaf. (In v1 "contract"
@@ -50,23 +53,27 @@ Three tiers, top to bottom:
 
 | Tier | Proven by | Isolation |
 |---|---|---|
-| story | composition — its capabilities are proven | — |
-| capability | ≥1 integrated UAT walkthrough (minimal-first, grown as defects surface) + all its contracts green | integrated — real collaborators |
+| story | ≥1 integrated **UAT** walkthrough (minimal-first, grown as defects surface) | integrated — **real**, the whole organism end to end |
+| capability | ≥1 **integration test** + all its contracts green | **real in-story collaborators** (no stubs within the organism) |
 | contract | one automated test | isolated — collaborators stubbed |
 
 Decision rules that fall out of the table:
-- A unit is a **capability**, not a contract, if a standalone UAT makes sense
-  for it — you can walk its goal end-to-end.
+- A unit is a **story**, not a capability, if a standalone UAT makes sense for it
+  — you can walk its goal end-to-end as a whole organism.
+- A unit is a **capability**, not a contract, if its honest proof is an
+  integration test against real in-story collaborators.
 - A unit is a **contract**, not a capability, if the only honest proof is an
-  automated assertion, with no walkable journey of its own.
-- A unit is a **story**, not a capability, if it is a grouping whose proof is
-  just the sum of its capabilities'.
+  isolated automated assertion (collaborators stubbed), with no walkable journey
+  of its own.
 
-**Dependencies are generated, not hand-drawn.** A capability's UAT runs against
-its *real* collaborators; wherever capability A's walkthrough needs capability B
-to be real, B is upstream of A. "You cannot prove a capability that stands on an
-unproven one" then falls out as a consequence, not a separate rule. (Carried
-from v1's design work.)
+**Dependencies are generated, not hand-drawn** — at two altitudes (ADR-0010 §3):
+- **Within a story**, capability edges are **code-derived** (static analysis of
+  the imports/calls between capabilities); inside the boundary a dependency *is*
+  the code coupling. "You cannot prove a capability that stands on an unproven
+  one" still falls out as a consequence, not a separate rule.
+- **Across stories**, dependencies are **declared-interface-only** — a story may
+  depend on another *only* through a documented interface (ADR-0010 §3-§4);
+  hidden cross-story coupling is forbidden.
 
 ## Why "capability" (the naming decision)
 
@@ -103,14 +110,11 @@ proof-mode table above.
 
 ## What this does NOT decide
 
-- **The exact DAG grain.** Capabilities clearly form the dependency graph
-  (UAT-generated edges). Whether stories *also* form a coarse DAG, or are pure
-  groupings over a capability-level graph that crosses story boundaries — and
-  how the "DAG of stories" the studio watches derives from capability
-  dependencies — lands with the `packages/core` schema and the scheduler.
-- **How a story's proof composes** beyond "its capabilities are proven" (e.g.
-  whether a story may carry its own thin integration UAT). Default for now: pure
-  rollup.
+- **The exact DAG grain** — *Resolved by ADR-0010* (stories carry interface-edges
+  via declared cross-story interfaces; capabilities carry their own within-story,
+  code-derived graph).
+- **How a story's proof composes** — *Resolved by ADR-0010* (the story carries
+  the UAT; it is no longer a pure rollup).
 - **Whether a fourth grouping tier (an "epic" over stories) ever returns.** Not
   now; not precluded.
 

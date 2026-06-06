@@ -21,6 +21,7 @@ ADR number.
 **Context:** ADR-0002 settled that **dependencies are capability-level** (UAT-generated). But README/glossary still say "DAG of stories." So the grain the studio renders is undecided. (v1 had one flat "story" grain with `depends_on` between stories — no split.)
 **Options:** (a) stories are **pure rollups**; edges live only between capabilities; the studio derives a story-level view. (b) stories also carry **coarse derived edges** (a real story-DAG over capability deps). (c) defer to `packages/core`.
 **Rec:** **(a)** — matches ADR-0002's stated default ("pure rollup"); render the story view as a projection. Cheapest, and reversible.
+**✅ RESOLVED by ADR-0010 (2026-06-06)** — neither the original (a) nor (b). Stories are **bounded contexts that carry interface-edges**: a story may depend on another **only** through a declared, documented cross-story interface (`boundary`/`port`) — there is no cross-story capability graph. Capabilities have their **own within-story, code-derived** dependency graph (static analysis of imports/calls). Two graphs at two altitudes; cross-story coupling is not a pure rollup nor a coarse derivation of capability deps, but its own declared-interface grain.
 
 ### B. Event vocabulary — OTel-GenAI conventions, or a bespoke pi-shaped set?
 **Decide · impacts:** the whole event schema · **tracked:** open-q §8, ADR-0006
@@ -103,6 +104,7 @@ ADR number.
 **Decide-later · tracked:** open-q §2
 **Context:** `mapped` (observational-green, never `healthy`) is an accepted status; *how* storytree maps an existing test suite onto capabilities/contracts under pi is undesigned.
 **Rec:** defer until a real brownfield target exists (storytree builds itself first).
+**Status-enum note (owner, 2026-06-06):** ADR-0010 settled the adjacent status-enum question — `proposed` was **retained** for the retro-authored seed; no `experimental` / `built-unproven` tier was added (experimentation stage). The `mapped` mechanism itself stays deferred as above.
 
 ### N. ADR-number allocation (governance, meta)
 **Decide-later · tracked:** open-q §3, ADR-0009

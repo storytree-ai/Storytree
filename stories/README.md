@@ -22,8 +22,8 @@ already reads markdown).
 stories/
   README.md                          ← this file
   <story-slug>/
-    story.md                         ← tier: story   — lists its capabilities + the dependency graph
-    <capability-slug>.md             ← tier: capability — guidance + UAT + its contracts inline (the leaf)
+    story.md                         ← tier: story   — carries the UAT + lists its capabilities + the dependency graph
+    <capability-slug>.md             ← tier: capability — guidance + integration-test proof + its contracts inline (the leaf)
 ```
 
 Three tiers, one per ADR-0002 grain. **Stories** and **capabilities** each get a file;
@@ -33,10 +33,19 @@ contracts inline keeps the tree legible (8 files, not 88) while staying fully
 ontology-aligned; promoting a contract to its own file later is a mechanical change.
 
 Dependencies are **capability → capability** edges, stored inline as each capability's
-`depends_on:` list (the story file also renders the whole graph with the UAT reason for
-every edge). The graph is acyclic.
+`depends_on:` list (the story file also renders the whole graph). Per
+[ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md) these
+within-story edges are **code-derived** — read off the imports/calls between
+capabilities (static analysis), not hand-authored from a UAT. A *story* depends on
+another only through a **declared, documented cross-story interface** (provisionally
+`boundary`/`port`); there is no such edge yet because there is only one story. The graph
+is acyclic.
 
-### Field → ADR-0002 / glossary mapping
+### Field → ADR / glossary mapping
+
+The proof ladder follows [ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md)
+(which amends ADR-0002/0007): UAT at the **story**, integration tests at the
+**capability**, the isolated unit test at the **contract**.
 
 | field | where | tier | meaning | source |
 |---|---|---|---|---|
@@ -44,21 +53,27 @@ every edge). The graph is acyclic.
 | `tier` | frontmatter | all | `story` / `capability` / `contract` | ADR-0002 |
 | `title` | frontmatter | all | short human label (not load-bearing for proof) | glossary *title* |
 | `outcome` | frontmatter | story, capability | one-sentence value statement, **no conjunctions** | glossary *outcome* |
-| `status` | frontmatter | story, capability | lifecycle state | glossary *Lifecycle* |
-| `proof_mode` | frontmatter | capability | `capability-UAT` / `contract-test` / `operator-attested` | [ADR-0007](../docs/decisions/0007-proof-model.md) |
+| `status` | frontmatter | story, capability | lifecycle state (enum unchanged — ADR-0010 §Consequences) | glossary *Lifecycle* |
+| `proof_mode` | frontmatter | story, capability | the tier's proof: story = `UAT`; capability = `integration-test`; contract = `contract-test` | [ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md) (amends [ADR-0007](../docs/decisions/0007-proof-model.md)) |
 | `capabilities` | frontmatter | story | the story's composition (the map grain) | ADR-0002 |
-| `depends_on` | frontmatter | capability | UAT-generated upstream edges | glossary *dependency* |
+| `depends_on` | frontmatter | capability | **code-derived** within-story upstream edges (static analysis); cross-story coupling is interface-only | ADR-0010 §3, glossary *dependency* |
 | **Guidance** | body | capability | non-obvious context to rebuild the unit | glossary *guidance* |
-| **UAT** | body | capability | prose walkthrough vs **real** collaborators (no mocks) | glossary *UAT* |
-| **Contracts** | body | capability → contract | the test-proven leaf behaviours | glossary *contract* / *contract test* |
+| **UAT** | body | story | prose acceptance walkthrough vs **real** collaborators — the whole organism, end to end | ADR-0010 §2, glossary *UAT* |
+| **Integration tests** | body | capability | prove the capability against **real in-story collaborators** (no stubs within the organism) | ADR-0010 §2/§5 |
+| **Contracts** | body | capability → contract | the unit-test-proven leaf behaviours | glossary *contract* / *contract test* |
 | `asserts` / `covers` | per contract | contract | the single isolated assertion + the real code it tests | ADR-0002, glossary *contract test* |
 
 ### The proof-mode boundary (the rule that tiers a unit)
 
-- **story** — a grouping; proven purely when its capabilities are proven.
-- **capability** — independently viable; proven by ≥1 integrated **UAT** against real
-  collaborators (a standalone end-to-end walkthrough is honest for it). The unit
-  dependencies are drawn between.
+Per ADR-0010 the proof ladder shifts up one rung: a clean pyramid bounded by the organism —
+**unit (contract) → integration (capability) → acceptance/UAT (story)**.
+
+- **story** — a **bounded context** (organism); proven by ≥1 integrated **UAT**, an
+  acceptance walkthrough against **real** collaborators (the whole organism, end to end).
+  The UAT lives here, not at the capability.
+- **capability** — independently viable; proven by ≥1 **integration test** against **real
+  in-story collaborators** (no stubs within the organism). The within-story dependency
+  edges (code-derived) are drawn between capabilities.
 - **contract** — one **isolated automated test** (collaborators stubbed); no walkable
   journey of its own.
 
@@ -71,9 +86,9 @@ v1's proven on-disk vocabulary so the lineage stays legible:
 |---|---|
 | `epics/live/<slug>/epic.yml` (groups stories) | a **story** (`story.md`) — the map grain |
 | `stories/<id>.yml` (UAT-proven unit) | a **capability** (`<slug>.md`) |
-| `acceptance.tests[]` (test file + justification) | a **contract** (named, with `asserts` + `covers`) |
-| `acceptance.uat` (prose walkthrough) | the capability's **UAT** section |
-| `depends_on: [ids]` (inline, acyclic) | `depends_on:` (inline, acyclic) — unchanged |
+| `acceptance.tests[]` (test file + justification) | a **contract** (unit leaf) + the capability's **integration tests** |
+| `acceptance.uat` (prose walkthrough) | the **story's UAT** section (moved up a rung — ADR-0010 §2) |
+| `depends_on: [ids]` (inline, acyclic) | `depends_on:` (inline, acyclic) — now **code-derived** within-story edges (ADR-0010 §3) |
 | `outcome` / `status` / `guidance` | same field names |
 
 **Deliberately *not* carried** (these are orchestrator / event-store concerns, not a
@@ -88,35 +103,35 @@ leaf tier**.
 `apps/studio` was built directly, by hand. It **runs** (`pnpm --filter studio dev`) but
 has **no automated test suite and no scripted UAT** (`package.json` defines only
 dev/build/preview/typecheck; there are zero `*.test`/`*.spec` files). So every unit here
-is a **retrospective spec**: contracts describe the isolated tests that *would* prove
-each behaviour (citing real code at `file:line`); UATs describe the walkthroughs that
-*would* prove each capability. Every capability is `status: proposed`. **Nothing here is
-`healthy` or `mapped`** — none of it has earned on-disk evidence through storytree's
-prove-it gate.
+is a **retrospective spec**: contracts describe the isolated unit tests that *would* prove
+each behaviour (citing real code at `file:line`); capabilities describe the integration
+tests that *would* prove them against real in-story collaborators; and the would-be UAT is
+a **story-level** acceptance walkthrough that *would* prove the organism end to end. Every
+unit is `status: proposed`. **Nothing here is `healthy` or `mapped`** — none of it has
+earned on-disk evidence through storytree's prove-it gate.
 
 ## Open modeling calls (for the owner)
 
 Surfaced rather than guessed — these are load-bearing and easy to revise (the
 representation is plain files).
 
-1. **Lifecycle status for retro-authored specs over built code (the big one).**
-   `proposed` undersells reality (the code is built, runs, and was hand-exercised), but
-   `mapped` overstates it (`mapped` means *verified by an existing test suite* — there is
-   none) and `healthy` is out (no earned evidence). v1 never retro-authored specs over
-   already-built code, so it offers no precedent. **Does the status enum need a tier
-   between `proposed` and `healthy`** — e.g. `built-unproven` / `observed` — to honestly
-   describe working-but-unproven code? *Default taken:* `proposed` + an honest per-unit
-   proof note. Decide the enum when `packages/core` formalizes the schema.
+1. **Lifecycle status for retro-authored specs over built code (the big one). — RESOLVED
+   (owner, 2026-06-06).** The question was whether the status enum needs a tier between
+   `proposed` and `healthy` — e.g. `built-unproven` / `observed` — to honestly describe
+   working-but-unproven code (`proposed` undersells the built/running code; `mapped` means
+   *verified by an existing test suite* — there is none; `healthy` is out, no earned
+   evidence). **Decision:** `proposed` **stays; no new tier** — this is the experimentation
+   stage, paired with an honest per-unit proof note (see ADR-0010 §Consequences). Kept here
+   for the record.
 
-2. **`resolve-comment` — own capability, or fold into `annotate-topic`?** Kept separate
-   (a distinct verb with a genuine multi-surface propagation walk: header badge, row
-   pill, hide-resolved toggle, section badge, gutter tick, sidebar count, on-disk
-   `resolvedAt`). But its UAT renders a corpus doc for two of those surfaces, which is a
-   `read-corpus` need it does not declare — an entanglement with `annotate-topic` (which
-   *does* depend on `read-corpus`). *Recommendation:* defensible either way; I lean
-   **keep separate** (the fan-out is a real standalone proof and a useful fine-grained
-   example), but if kept, consider adding a `resolve-comment → read-corpus` edge, or fold
-   resolve into `annotate-topic` as extra steps + contracts.
+2. **`resolve-comment` — own capability, or fold into `annotate-topic`? — RESOLVED
+   (owner, 2026-06-06): keep separate, no edge.** It is a distinct verb with a genuine
+   multi-surface propagation walk (header badge, row pill, hide-resolved toggle, section
+   badge, gutter tick, sidebar count, on-disk `resolvedAt`). Its integration test renders a
+   corpus doc for two of those surfaces, but that does **not** create a
+   `resolve-comment → read-corpus` edge: edges track code coupling (ADR-0010 §3) and a test
+   may exercise any real in-story collaborator as scaffolding (ADR-0010 §5). The wider
+   test-collaborator surface is correct, not a missing edge.
 
 3. **`seed-library-corpus` — capability, or a contract-cluster?** Its honest proof is
    largely one observable effect (the written `assets.json`), which smells contract-ish,
@@ -133,10 +148,14 @@ representation is plain files).
    upstream capability only if you want "the SPA loads the corpus into one typed context"
    to be its own provable unit.
 
-5. **Lower-stakes notes.** *(a)* The 5-category **taxonomy** is modeled as a closed
-   schema folded into `browse-library` (with one drift-guard contract asserting the
-   server vs `types.ts` lists match), not its own unit — a taxonomy has no end-to-end
-   walk; it could alternatively be a `definition` artifact. *(b)* `GuidanceAsset` is still
+5. **Lower-stakes notes.** *(a)* The **taxonomy** (a closed 7-category schema —
+   `definition`, `principle`, `pattern`, `guardrail`, `techstack`, `template`, `adr`; six
+   populated by the seed, `adr` defined-but-unseeded) is modeled as a closed schema folded
+   into `browse-library` (with one drift-guard contract asserting the server vs `types.ts`
+   lists match), not its own unit — a taxonomy has no end-to-end walk; it could
+   alternatively be a `definition` artifact. NOTE (owner, 2026-06-06): `template` is a real,
+   seeded category (6 scaffolds), but per-category template ENFORCEMENT is not yet worked
+   through. *(b)* `GuidanceAsset` is still
    a *live proposal* for the parked open-questions §9 knowledge tier, so the three Library
    capabilities sit on a model that isn't ratified yet. *(c)* The `slugify` parity
    invariant is asserted in two capabilities (`read-corpus`, `annotate-topic`); it could
@@ -147,8 +166,10 @@ representation is plain files).
 
 A multi-agent **workflow** decomposed `apps/studio`: 5 readers proposed candidate
 capabilities from different slices → a synthesis step deduped them into one coherent
-story → one agent per capability decomposed it into contracts + a minimal UAT → an
-assembly step finalized the UAT-generated dependency edges → an adversarial **tier-audit**
+story → one agent per capability decomposed it into contracts + a minimal walkthrough → an
+assembly step finalized the dependency edges (since reframed by ADR-0010 as code-derived
+within-story edges, with the acceptance walkthrough folded up to a single story-level UAT)
+→ an adversarial **tier-audit**
 (one auditor per capability) tried to falsify every story/capability/contract boundary
 call against the proof-mode rule. Two errors the audit caught were corrected in this seed
 (a contract miscount in `browse-library`; the dup-slug explanation in

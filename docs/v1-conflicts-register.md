@@ -20,7 +20,7 @@ verification; this is their triaged disposition.
 
 ### 1a. v2 self-conflicts — fix in v2's own docs
 - **[L] "contract" given a 3rd v2 sense** — ADR-0001:91 lists "story / **contract** / event" (contract as a *peer* of story); ADR-0002 makes contract the *leaf*. → `V2-FIX` (ADR-0001 line corrected to "story / capability / contract / event").
-- **[L] DAG grain** — README/ADR-0001/glossary say "DAG of stories"; ADR-0002 says edges are capability-level and the story-grain is undecided. → `OPEN-Q` (already flagged in ADR-0002 "What this does NOT decide" + glossary DAG entry).
+- **[L] DAG grain** — README/ADR-0001/glossary say "DAG of stories"; ADR-0002 said edges are capability-level and the story-grain undecided. → **`ADR-0010`** (now *resolved*, was `OPEN-Q`): stories **do** carry edges, but only via declared cross-story **interfaces** (`boundary`/`port`); capabilities have their own **within-story, code-derived** graph — two graphs at two altitudes, not one capability-level DAG crossing story lines.
 
 ### 1b. v1 decisions that invert under v2 (recorded as inversions/supersessions)
 - **[L] Observability/UI is a read-only sidecar** — ADR-0021/0023 make Claude-Code's extension surfaces THE observability+UI layer (sidecar reads a `runs` table from hooks/OTel) and **reject pi by name**. v2 inverts: pi-stream-sourced event store + an embedded *driving* IDE. → `ADR-0006`.

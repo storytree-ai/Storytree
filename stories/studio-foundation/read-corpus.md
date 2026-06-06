@@ -5,7 +5,7 @@ story: studio-foundation
 title: "Read the doc/ADR corpus"
 outcome: "An operator reads any corpus document as rendered markdown in the studio."
 status: "proposed"
-proof_mode: "capability-UAT"
+proof_mode: "integration-test"
 depends_on: [dev-server-persistence-backbone]
 ---
 
@@ -15,11 +15,11 @@ depends_on: [dev-server-persistence-backbone]
 
 **Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md)
 
-> **Proof status (honest) —** UNPROVEN — retrospective spec over working, hand-built code. The code runs under `pnpm --filter studio dev`: the grouped sidebar renders from the real docs/ tree, #/doc/<id> deep-links resolve, /api/docs/content reads files off disk through safeDocPath, ReactMarkdown+remark-gfm renders the prose with slug-id headings, and the one real cross-link (docs/glossary.md → ADR-0002) rewrites to an internal nav. But apps/studio has NO automated test suite and NO scripted/recorded UAT. The UAT WOULD prove the capability if executed; each contract describes an isolated test that WOULD prove its leaf against the cited real code. Do not call it proven or healthy.
+> **Proof status (honest) —** UNPROVEN — retrospective spec over working, hand-built code. The code runs under `pnpm --filter studio dev`: the grouped sidebar renders from the real docs/ tree, #/doc/<id> deep-links resolve, /api/docs/content reads files off disk through safeDocPath, ReactMarkdown+remark-gfm renders the prose with slug-id headings, and the one real cross-link (docs/glossary.md → ADR-0002) rewrites to an internal nav. But apps/studio has NO automated test suite and NO scripted/recorded integration test. The integration test WOULD prove the capability if executed against its real in-story collaborators; each contract describes an isolated unit test that WOULD prove its leaf against the cited real code. Do not call it proven or healthy.
 
 ## Guidance
 
-Read-only by design: this capability OWNS its server doc handlers (listDocs, safeDocPath, handleDocs at devApi.ts:96-343) but only RIDES the /api/* middleware registration in storytreeDataApi.configureServer (devApi.ts:358-377), which is dev-server-persistence-backbone. It needs that server process real but NOT the JSON store (comments/assets) — docs are served live from <repo>/docs and never written. The whole API is a Vite dev-only plugin; a production `vite build` is a static SPA with no /api, so there is no read path to UAT in a build.
+Read-only by design — and this is exactly the code-derived dependency on dev-server-persistence-backbone (ADR-0010 §3): this capability OWNS its server doc handlers (listDocs, safeDocPath, handleDocs at devApi.ts:96-343) but its handlers are only dispatched because they RIDE the /api/* middleware registration in storytreeDataApi.configureServer (devApi.ts:358-377), which is the backbone. The integration test needs that server process real but NOT the JSON store (comments/assets) — docs are served live from <repo>/docs and never written. The whole API is a Vite dev-only plugin; a production `vite build` is a static SPA with no /api, so there is no read path to integration-test in a build.
 
 Doc identity is the docs/-relative path with forward slashes (e.g. 'decisions/0002-...md'), computed in listDocs via path.relative(...).split(path.sep).join('/'). This is why route.ts URI-encodes the whole id into ONE hash segment (docHref) and decodes it back (parseRoute 'doc'); a naive '/'-split router would shatter the id. Test slug-bearing ids on Windows too (path.sep is '\\').
 
@@ -29,27 +29,29 @@ The security boundary (safeDocPath traversal/.md refusal + handleDocs 404s) is a
 
 slugify is shared (markdown.ts) between the rendered heading id (Markdown.tsx:43-47) and section-comment anchors — the same-slug invariant is load-bearing for annotate-topic, so keep slugify's contract strict. parseHeadings has its OWN ATX regex and fence-skipper independent of remark; it feeds the comment panel's section list, so it must agree with slugify but is not what renders the page.
 
-resolveDocHref tries three candidates in order — current-doc-dir-relative, then docs/-stripped, then as-is (markdown.ts:68-72) — and the ONLY real cross-link in the corpus today is docs/glossary.md → decisions/0002 (a docs-root-relative href from a top-level doc, so candidate #1 resolves). The '..'-relative and docs/-prefix-strip branches exist but have no corpus example, so prove them with pure-function contracts, not the UAT. The Markdown link component (Markdown.tsx:73-85) layers three cases: in-corpus → docHref internal link; '://' scheme → new-tab external; else → raw href.
+resolveDocHref tries three candidates in order — current-doc-dir-relative, then docs/-stripped, then as-is (markdown.ts:68-72) — and the ONLY real cross-link in the corpus today is docs/glossary.md → decisions/0002 (a docs-root-relative href from a top-level doc, so candidate #1 resolves). The '..'-relative and docs/-prefix-strip branches exist but have no corpus example, so prove them with pure-function contracts, not the integration test. The Markdown link component (Markdown.tsx:73-85) layers three cases: in-corpus → docHref internal link; '://' scheme → new-tab external; else → raw href.
 
 DocView memoizes the <Markdown> subtree (DocView.tsx:51-59) on purpose: the annotation layer injects highlight <mark>s imperatively and a React reconcile would strip them. That memo is an annotate-topic concern; the read path is just fetch→loading/ready/error→render — don't entangle the two when scoping read contracts.
 
-HONEST STATE: no test runner is wired in apps/studio (no *.test.* files) and no scripted UAT. Most contracts are pure functions trivially unit-testable; the handleDocs ones need a tiny fake req/res + a temp docs dir; listDocs needs a temp tree. None of this exists yet.
+HONEST STATE: no test runner is wired in apps/studio (no *.test.* files) and no scripted integration test. Most contracts are pure functions trivially unit-testable; the handleDocs ones need a tiny fake req/res + a temp docs dir; listDocs needs a temp tree; the integration test needs the real dev server up. None of this exists yet.
 
-## UAT — capability-UAT
+## Integration test
 
 **Goal —** An operator browses the grouped corpus index, opens a document by deep-link, reads it as rendered markdown, and follows an in-corpus cross-link to a sibling doc — all against the real docs/ tree on disk, no fixtures.
 
-The single end-to-end walkthrough against **real** collaborators that proves this
-capability's goal (minimal-first; mocks are forbidden here — the mock-UAT seam).
+The integration test exercises read-corpus against its **real in-story collaborators** —
+the real `dev-server-persistence-backbone` middleware seam it rides, and the real `docs/`
+tree served off disk — with **no stubs within the organism** (ADR-0010 §2/§5). It would,
+against the real running studio:
 
-1. Start the studio with `pnpm --filter studio dev`; in a browser open the app at #/ (Overview). Confirm the left Sidebar shows two document sections, 'ADRs (history)' and 'Reference', that the ADR section lists the decisions/ files first in filename order while glossary/adjudication/open-questions/v1-conflicts sit under Reference — proving the index rendered from the real docs/ tree, grouped by deriveGroup and ordered Decisions-first.
-2. Confirm each sidebar entry shows its human title (the doc's first '# ' heading text via deriveTitle) rather than the bare filename — e.g. the glossary entry reads as its '# ' title, not 'glossary.md'.
-3. Click the glossary entry. Observe the URL hash becomes #/doc/glossary.md (docHref URI-encodes the relpath into one segment) and the entry gains the 'active' class; confirm DocView shows a brief 'Loading …' then renders the document — proving the deep-link route resolved (parseRoute 'doc'), api.docContent fetched /api/docs/content?id=glossary.md, the server read the real file off disk, and ReactMarkdown rendered the prose (headings, lists, GFM tables) with the 'docs / glossary.md' crumb.
-4. Reload the browser on that same #/doc/glossary.md URL (cold deep-link, no prior navigation) and confirm the same document renders — proving the hash route alone deep-links to a doc.
-5. In the rendered glossary, hover a heading and confirm it carries a stable slug id and a '#' anchor (clicking '#' sets location.hash to that slug) — proving slugify-based section anchors on the rendered headings.
-6. Find the in-corpus cross-link in the glossary body that points at ADR-0002 (the decisions/0002-... link). Confirm it rendered as an internal link whose href is #/doc/decisions%2F0002-... (resolveDocHref matched it to a known doc id and rewrote it through docHref), NOT a raw .md href and NOT a new browser tab.
-7. Click that cross-link. Confirm the studio navigates in-place to #/doc/decisions/0002-...md and DocView loads and renders ADR-0002 from disk — completing one coherent 'browse the index → open a doc → read it → follow a cross-link to a sibling doc' walk end-to-end against the real corpus.
-8. Negative read-path check (same surface, the security boundary the happy path rides): manually request /api/docs/content?id=../package.json and /api/docs/content?id=glossary (no .md). Confirm both return 404 'doc not found' and no file contents — proving the read-only doc-serving guard refuses traversal and non-markdown ids on the exact endpoint this journey uses.
+1. Start the studio with `pnpm --filter studio dev`; load the app at #/ (Overview). Assert the left Sidebar shows two document sections, 'ADRs (history)' and 'Reference', that the ADR section lists the decisions/ files first in filename order while glossary/adjudication/open-questions/v1-conflicts sit under Reference — proving the index rendered from the real docs/ tree, grouped by deriveGroup and ordered Decisions-first.
+2. Assert each sidebar entry shows its human title (the doc's first '# ' heading text via deriveTitle) rather than the bare filename — e.g. the glossary entry reads as its '# ' title, not 'glossary.md'.
+3. Click the glossary entry. Assert the URL hash becomes #/doc/glossary.md (docHref URI-encodes the relpath into one segment) and the entry gains the 'active' class; assert DocView shows a brief 'Loading …' then renders the document — proving the deep-link route resolved (parseRoute 'doc'), api.docContent fetched /api/docs/content?id=glossary.md, the real backbone server read the real file off disk, and ReactMarkdown rendered the prose (headings, lists, GFM tables) with the 'docs / glossary.md' crumb.
+4. Reload the browser on that same #/doc/glossary.md URL (cold deep-link, no prior navigation) and assert the same document renders — proving the hash route alone deep-links to a doc.
+5. In the rendered glossary, assert a heading carries a stable slug id and a '#' anchor (clicking '#' sets location.hash to that slug) — proving slugify-based section anchors on the rendered headings.
+6. Find the in-corpus cross-link in the glossary body that points at ADR-0002 (the decisions/0002-... link). Assert it rendered as an internal link whose href is #/doc/decisions%2F0002-... (resolveDocHref matched it to a known doc id and rewrote it through docHref), NOT a raw .md href and NOT a new browser tab.
+7. Click that cross-link. Assert the studio navigates in-place to #/doc/decisions/0002-...md and DocView loads and renders ADR-0002 from disk — completing one coherent 'browse the index → open a doc → read it → follow a cross-link to a sibling doc' walk against the real corpus.
+8. Negative read-path check (same surface, the security boundary the happy path rides): request /api/docs/content?id=../package.json and /api/docs/content?id=glossary (no .md). Assert both return 404 'doc not found' and no file contents — proving the read-only doc-serving guard refuses traversal and non-markdown ids on the exact endpoint this test uses.
 
 ## Contracts (12)
 

@@ -1,7 +1,8 @@
 // Seed the Library with artifacts:
 //   1. curated principles/guidelines — durable guidance synthesised from the ADRs
 //      (each cites its source ADR via `references`) plus a few v1 imports;
-//   2. one `definition` artifact per term in docs/glossary.md, auto-extracted.
+//   2. one `template` artifact per artifact category (the fillable scaffolds);
+//   3. one `definition` artifact per term in docs/glossary.md, auto-extracted.
 //
 //   node data/seed.assets.mjs            # writes data/assets.json if missing
 //   node data/seed.assets.mjs --force    # overwrites
@@ -86,7 +87,7 @@ const curated = [
     description: 'A unit reaches `healthy` only via earned, on-disk evidence — never a hand-edit.',
     body: para(
       'A unit reaches `healthy` only through earned, on-disk **evidence** produced by one of its proof modes — never a hand-edit. The gate **refuses** invalid work rather than warning about it.',
-      'Corollary — **cold-rebuild** (the health invariant): a unit is `healthy` iff an agent starting *cold*, from the unit’s own spec plus its transitive upstream specs and nothing else, can drive it red→green.',
+      'Corollary — **cold-rebuild** (an authoring guideline, not a gate): a story should be written self-contained enough that a cold agent — from the story’s spec plus its upstream stories’ declared interfaces, and nothing else — could rebuild it and pass its UAT (the internals may differ). It is not the definition of `healthy` and is never machine-enforced (ADR-0010 §6).',
       '_storytree-native; from `docs/glossary.md` and ADR-0007._',
     ),
     references: [GLOSSARY, adr(7)],
@@ -95,11 +96,12 @@ const curated = [
     id: 'proof-mode',
     category: 'definition',
     title: 'Proof mode',
-    description: 'The three ways a unit earns `healthy` — capability-UAT, contract-test, and operator-attested.',
+    description: 'The four ways a unit earns `healthy`, one rung per tier — UAT, integration-test, contract-test, and operator-attested.',
     body: para(
-      'How a unit earns `healthy`. `packages/core` encodes these as a discriminated `proof_mode` union (ADR-0007).',
-      '- **capability-UAT** — an honest scripted walkthrough against *real* collaborators (also generates `dependency` edges).',
-      '- **contract-test** — one isolated automated assertion (collaborators stubbed; the mock-UAT seam permits it).',
+      'How a unit earns `healthy`, one rung per tier (ADR-0010). `packages/core` encodes these as a discriminated `proof_mode` union (ADR-0007).',
+      '- **UAT** (story) — an honest scripted acceptance walkthrough against *real* collaborators, proving the whole organism end to end.',
+      '- **integration-test** (capability) — the organs wired against *real in-story collaborators* (no stubs within the organism).',
+      '- **contract-test** (contract) — one isolated automated assertion (collaborators stubbed; the mock-UAT seam permits it).',
       '- **operator-attested** — a per-unit, operator-granted signed event for surfaces with neither an honest UAT nor an isolatable test. An agent can never self-exempt.',
     ),
     references: [adr(7), adr(2)],

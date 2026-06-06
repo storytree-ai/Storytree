@@ -1,8 +1,10 @@
 # storytree
 
 An agentic software-builder. Work is modeled as a **DAG of stories** — each
-story a composition of **capabilities** — each capability a component proven by contracts (tests) and a UAT walkthrough — and a fleet of AI
-coding agents grows the tree, one proven capability at a time. You **watch it
+story a **bounded context** (an organism) proven by a **UAT** acceptance
+walkthrough, composed of **capabilities** proven by **integration tests** (real
+in-story collaborators), down to **contracts**, the isolated unit-test leaf — and
+a fleet of AI coding agents grows the tree, one proven story at a time. You **watch it
 grow**: every state change is a typed event rendered live in a game-like
 (city-builder) view, so the system's internals are visible rather than
 buried.
