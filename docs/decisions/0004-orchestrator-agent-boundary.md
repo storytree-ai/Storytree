@@ -2,6 +2,11 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0003/0006/0008/0026.
 
+> **Amended by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)** — pi is
+> replaced by an **owned agent loop** (`packages/agent`, superseding `pi-adapter`). Read
+> "pi" / "pi-adapter" below as that owned loop; the boundary, single-model-import-site,
+> orchestrator-only-driver, run≠node, and sole-fan-out rules are unchanged.
+
 ## Decision
 
 Confine every model call behind one orchestrator-driven boundary, so model-unavailability is a *local* failure, never a system outage.

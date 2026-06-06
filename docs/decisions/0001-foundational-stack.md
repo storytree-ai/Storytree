@@ -2,7 +2,11 @@
 
 ## Status
 
-accepted
+accepted (2026-06-03) — **partially superseded by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)**:
+the **pi** per-node runtime and the **model-agnostic, pay-as-you-go** non-negotiable are
+reversed (storytree owns the agent loop, built on the Anthropic SDK). Everything else here
+stands — DBOS/Postgres, the thin orchestrator, the event store, PixiJS, and the
+TS/Node/pnpm stack.
 
 ## Date
 

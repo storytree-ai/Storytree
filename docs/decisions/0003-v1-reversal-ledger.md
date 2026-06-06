@@ -8,13 +8,17 @@ The index of where every v1 decision went, so nothing is silently dropped and th
 
 Rust→TS/Node/pnpm · SurrealDB→Postgres/DBOS · Claude-subscription-subprocess→pi+API-keys · managed-GCP/SWE-bench→local. Two v1 principles explicitly **dead**: the subscription-auth ban, and "cascade rounds are not a cost" (per-node budget resurrected in ADR-0005).
 
+## v2-internal reversals
+
+- **pi → owned agent loop (ADR-0011).** ADR-0001 chose **pi** as the per-node runtime (the v2 home for v1-0003's "Claude-sub subprocess"); [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) reverses it — storytree now **owns the agent loop and context engineering**, built on the Anthropic SDK. ADR-0001's *model-agnostic, pay-as-you-go* non-negotiable is **relaxed** to start Anthropic-only (pivot if it bites). So the v1-0003 row below now routes **pi → owned loop (ADR-0011)**, and ADR-0004/0005's pi-adapter/leaf are amended to that owned loop. A pi-wording sweep of the glossary + ADR-0006/0008 is the tracked follow-up.
+
 ## Every v1 ADR
 
 | v1 ADR | | v2 home |
 |---|---|---|
 | 0001 Rust | superseded | TS stack (0001); boundaries/invalid-states → core |
 | 0002 SurrealDB | superseded | Postgres/DBOS (0001) |
-| 0003 Claude-sub subprocess | superseded | pi+keys; orchestrator-only-spawns → 0004 |
+| 0003 Claude-sub subprocess | superseded | pi+keys → **owned loop (ADR-0011)**; orchestrator-only-spawns → 0004 |
 | 0004 no-bootstrap-generator | obsolete | per-node spec name open → open-q §4 |
 | 0005 red-green | carry | forensic, contract-level → 0007 |
 | 0006 hardening loop | carry | run≠node → 0004; cold-rebuild → 0007; human-outer-loop → 0008 |

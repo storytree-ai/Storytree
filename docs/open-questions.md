@@ -61,6 +61,11 @@ v1's two-0021 / gap-0009 collisions). **Still open:** (a) whether pi's code
 *edits* still use a git branch/worktree per node; (b) claim granularity /
 **write-ownership** scope shape; (c) the conflict-resolution ceremony on refusal;
 (d) the concurrency-safe scheme for v2's own ADR-number namespace.
+→ **(a) reframed by [ADR-0012](decisions/0012-tool-execution-pluggable-sandbox.md)**: tool
+execution (the owned loop's `bash`/edits — pi is dropped, ADR-0011) runs behind a pluggable
+`ToolExecutor` **sandbox seam** — a *borrowed* backend (virtual / git worktree / container),
+distinct from ADR-0009's DBOS coordination isolation; the concrete backend stays deferred to
+need.
 *Terms:* session branch, branch-per-session isolation, worktree-isolation, claims,
 session-claims, CrossSessionCoordination.
 

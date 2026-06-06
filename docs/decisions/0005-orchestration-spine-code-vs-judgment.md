@@ -2,6 +2,11 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0026/0010/0020.
 
+> **Amended by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)** — the leaf
+> is an **owned agent loop**, not a pi session; read "pi leaf" / "pi-adapter" below as that
+> owned loop. The spine/leaf discriminator and the code-sequences-vs-model-judges split are
+> unchanged.
+
 ## Decision
 
 The orchestrator (TypeScript over DBOS workflows) owns code-sequenced control-flow; a pi session's model loop owns leaf judgment.
