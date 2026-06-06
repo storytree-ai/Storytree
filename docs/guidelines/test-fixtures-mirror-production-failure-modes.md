@@ -26,8 +26,8 @@ Per pre-install in the fixture, ask two questions in order:
 
 ## Where it fires
 
-- When pi scaffolds a new contract or integration test — especially fixtures simulating filesystem state, container/runtime state, user/permission context, or external-process behaviour (priming a stub's exit codes, error wordings, or output).
+- When the owned loop scaffolds a new contract or integration test — especially fixtures simulating filesystem state, container/runtime state, user/permission context, or external-process behaviour (priming a stub's exit codes, error wordings, or output).
 - When re-authoring tests after a UAT-caught defect: this is exactly when the rule is most active. The previous fixture let a defect through; the re-author must install one that does *not* mask the same class. If the new fixture would still let the original defect through, the contract has not been tightened.
-- When pi is chasing a production failure a green test did not catch — suspect the fixture before blaming the environment. The fix is usually in the fixture (or in making production guarantee the property), not a workaround in the source.
+- When the owned loop is chasing a production failure a green test did not catch — suspect the fixture before blaming the environment. The fix is usually in the fixture (or in making production guarantee the property), not a workaround in the source.
 
 This composes with [implementer-shortcut-patterns](implementer-shortcut-patterns.md): both are "green test, red production" disciplines on inverse axes — sterile fixture here, hollow implementation there. Many UAT-caught defects implicate both.

@@ -4,7 +4,7 @@
 
 ## Why this matters
 
-Storytree builds the very kind of agent-driven system it is built *with* — the orchestrator, the spine, `pi-adapter`, studio. When that tooling errors mid-task, the tempting move is to route around it: a null guard, a hardcoded value, a swallowed exception, a shell fallback, just enough to get unblocked. Every such workaround is technical debt that hides a real defect. The problem does not go away; it goes quiet, and re-emerges later, harder to diagnose because a layer of masking now sits on top of it.
+Storytree builds the very kind of agent-driven system it is built *with* — the orchestrator, the spine, the owned agent loop (`packages/agent`), studio. When that tooling errors mid-task, the tempting move is to route around it: a null guard, a hardcoded value, a swallowed exception, a shell fallback, just enough to get unblocked. Every such workaround is technical debt that hides a real defect. The problem does not go away; it goes quiet, and re-emerges later, harder to diagnose because a layer of masking now sits on top of it.
 
 Because we dogfood, a defect in our own tooling is a *first-class bug*, not an environmental annoyance to be tiptoed around. Fixing it at the source improves the platform for every future session; working around it degrades the platform and the trust in it.
 

@@ -4,7 +4,7 @@
 
 ## Why this matters
 
-An agent — a `pi` session, the orchestrator's own routing prompt, a guideline doc like this one — operates inside a finite attention window. Every sentence that does not help it choose the right next move is competing with the sentences that do. Low-signal guidance does not just fail to help; it actively crowds out the content that would.
+An agent — an owned-loop session, the orchestrator's own routing prompt, a guideline doc like this one — operates inside a finite attention window. Every sentence that does not help it choose the right next move is competing with the sentences that do. Low-signal guidance does not just fail to help; it actively crowds out the content that would.
 
 ## Signal
 
@@ -15,7 +15,7 @@ High-signal content is:
 - **Verifiable** — has a clear success criterion that can be tested or observed.
 - **Evidence-based** — grounded in the codebase as it actually is (real paths, existing patterns, real constraints).
 
-Examples: "the orchestrator is the sole fan-out point — pi nodes never schedule child nodes"; "a contract reaches healthy by its isolated unit test passing"; "events are the only thing written; the rollup is a projection."
+Examples: "the orchestrator is the sole fan-out point — owned-loop nodes never schedule child nodes"; "a contract reaches healthy by its isolated unit test passing"; "events are the only thing written; the rollup is a projection."
 
 ## Noise
 

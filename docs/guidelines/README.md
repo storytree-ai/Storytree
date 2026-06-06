@@ -4,7 +4,7 @@ Durable engineering-discipline docs for working in Storytree. Each is standalone
 
 ## What these are (and are not)
 
-- **Ported, not invented.** These are the durable kernels of guidance carried from v1 (Agentic, the Rust rebuild) and the legacy Python repo (AgenticEngineering), mutated into Storytree's vocabulary and stack (TypeScript / pnpm / Postgres / DBOS, the orchestrator and spine, `pi` and `pi-adapter`, studio, the event store, the story/capability/contract hierarchy).
+- **Ported, not invented.** These are the durable kernels of guidance carried from v1 (Agentic, the Rust rebuild) and the legacy Python repo (AgenticEngineering), mutated into Storytree's vocabulary and stack (TypeScript / pnpm / Postgres / DBOS, the orchestrator and spine, the owned agent loop (`packages/agent`), studio, the event store, the story/capability/contract hierarchy).
 - **Not an asset system.** Storytree deliberately killed v1's `assets/` mechanism (the reciprocity-checked shared-content system with consumer-tracking fields). These docs do **not** reinstate it: no shared-content schema, no consumer registry, no reciprocity fields. They are plain markdown. In Storytree, "asset" means tree/game art only.
 - **Advisory, not enforced.** These are authoring guidance for agents and operators. They are *not* machine-enforced gates. The enforced surfaces are the prove-it-gate, the proof modes, the approval-gated trunk, and the claim/write-ownership layer, defined in the ADRs and glossary. Where a guideline names a discipline an agent should follow, it is exactly that — a discipline, not a refusal point.
 

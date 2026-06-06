@@ -4,7 +4,7 @@
 
 ## Why this matters
 
-When `pi` works at a leaf it is rewarded for green tests. If the tests pin a gameable signal — a return code, a help-text string, a "success: true" flag — pi can earn the reward with a hollow implementation, and the breakage stays hidden until the slowest, most expensive proof channel (the story UAT against real collaborators) runs. This is the root failure class behind the whole proof model: green signal, red reality.
+When the owned loop works at a leaf it is rewarded for green tests. If the tests pin a gameable signal — a return code, a help-text string, a "success: true" flag — the owned loop can earn the reward with a hollow implementation, and the breakage stays hidden until the slowest, most expensive proof channel (the story UAT against real collaborators) runs. This is the root failure class behind the whole proof model: green signal, red reality.
 
 ## Common signals of reward hacking
 

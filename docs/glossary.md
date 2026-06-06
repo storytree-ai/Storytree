@@ -35,17 +35,17 @@ wired-up organ around it.
 ## Supporting terms
 
 **node** — A unit being worked **on the DAG** — a story or capability under
-construction — driven by one pi session inside a DBOS workflow. The
+construction — driven by one owned-loop session inside a DBOS workflow. The
 coordination/scheduling grain (the thing the orchestrator schedules and the
-isolation/claim layer is keyed on). Distinct from a **run** below: a pi
+isolation/claim layer is keyed on). Distinct from a **run** below: an owned-loop
 run/attempt against a node is an execution event (many-per-node), never a new
 node. The execution environment is not the coordination structure (ADR-0004,
-ADR-0009).
+ADR-0009, ADR-0011).
 
-**run** (pi run / attempt) — A single per-node **execution** attempt, recorded
+**run** (owned-loop run / attempt) — A single per-node **execution** attempt, recorded
 as an event in the event store — many-per-node, never a new node. Distinct from
 v1's overloaded `runs`/`test_runs` table (per-build vs per-event vs id-keyed
-dir); here `run` is strictly the per-node execution attempt (ADR-0004; see
+dir); here `run` is strictly the per-node execution attempt (ADR-0004, ADR-0011; see
 `open-questions.md` §3, §8).
 
 **UAT** (user-acceptance walkthrough) — A prose journey, run end-to-end against
@@ -74,7 +74,7 @@ the seam, the way a frontend depends on a database. The name is provisional: bar
 `component` in ADR-0002), so the candidates are **`boundary`** or **`port`**,
 to be ratified when `packages/core` formalises the schema (ADR-0010 §4).
 
-**event** — A typed record of a state change (pi events + orchestrator events) —
+**event** — A typed record of a state change (owned-loop events + orchestrator events) —
 the unit of observability. If a state change isn't an event the UI can render,
 it doesn't exist (ADR-0001, observability-first). Defined alongside the schema in
 `packages/core`. Includes operator-actor events (see **approval event /
@@ -91,17 +91,17 @@ hand-maintained. A capability's lifecycle status (proposed / building / healthy;
 unhealthy computed) is *read off* the log, not written beside it. v2's answer to
 v1's per-build `runs`-grain mess (ADR-0006).
 
-**pi event stream** — pi's structured lifecycle event stream (plus `edit`-tool
+**owned-loop event stream** — the owned loop's structured lifecycle event stream (plus `edit`-tool
 diffs/patches) emitted as it works inside a node — the **agent-activity ingest
-channel** into the event store, normalized by `packages/pi-adapter`. One of
+channel** into the event store, normalized by `packages/agent`. One of
 exactly two defined ingest channels; the other is orchestrator events (ADR-0001,
-ADR-0006).
+ADR-0006, ADR-0011).
 
 **approval event / promotion event** — Typed events with `actor = operator`
 recorded in the event store: an **approval / steering event** (a human in-loop
 intervention) and a signed **promotion event** (the human accepting a
 unit's green result onto the trunk, carrying operator identity and, for a story,
-the UAT verdict). Part of the same observability record as pi's own activity (ADR-0008);
+the UAT verdict). Part of the same observability record as the owned loop's own activity (ADR-0008);
 identity backing is open (`open-questions.md` §1).
 
 **DAG** — The directed acyclic graph the studio renders and watches grow.
@@ -136,7 +136,7 @@ from evidence, never written to disk.
 **mapped** — Brownfield: the capability is *observationally* verified by an
 existing target-repo test suite, without storytree driving a red→green flow. A
 distinct, weaker state than `healthy` — observational green never short-circuits
-to proven. v2 **supports** brownfield; the exact mapping mechanism under pi/DBOS
+to proven. v2 **supports** brownfield; the exact mapping mechanism under the owned loop / DBOS
 is still to design (see `open-questions.md` §2).
 
 **retired** — Terminal off-tree state: pruned from the active tree. May carry
@@ -248,7 +248,7 @@ commit/event-bound evidence chain. Carried from v1's learning-loop design
 (`open-questions.md` §5).
 
 **inner loop / outer loop** — **inner loop** = driving one unit from red to green
-(automatable, owned by a pi node). **outer loop** = accepting a result onto the
+(automatable, owned by an owned-loop node). **outer loop** = accepting a result onto the
 trunk, accepting a decomposition, or amending / retrying / abandoning a unit
 (held by **human judgment** in the studio). The human-in-the-loop gate sits at
 the outer loop; the north-star may later dissolve it (ADR-0007, ADR-0008; carried
@@ -293,33 +293,33 @@ agents (diffs, approvals, steering, per-node chat). Supersedes v1's read-only
 
 **orchestrator** — The thin custom TypeScript layer (`packages/orchestrator`)
 over DBOS/Postgres (ADR-0001): owns the story-DAG, the scheduler, and the event
-store, and is the **only** module that drives the **pi-adapter**. It is the
-code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; pi
-nodes never schedule child nodes. Distinct from a pi session (which owns work
-*inside* a node) (ADR-0004, ADR-0005).
+store, and is the **only** module that drives `packages/agent` (the owned loop). It is the
+code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; owned-loop
+nodes never schedule child nodes. Distinct from an owned-loop session (which owns work
+*inside* a node) (ADR-0004, ADR-0005, ADR-0011).
 
 **spine** — The code-sequenced control-flow layer (the orchestrator over DBOS
 workflows) that owns **closed, deterministic routing**: the order steps run in,
-when a loop iterates, which branch is taken. A pi session's own model loop is the
+when a loop iterates, which branch is taken. The owned loop is the
 **leaf** it delegates to. Discriminator (carried verbatim from Agentic ADR-0026):
 *if a for-loop or a match could express the routing, the spine owns it; if the
-routing needs the model to decide what comes next, the leaf (pi node) owns it.*
+routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.*
 Authoritatively defined by ADR-0005.
 
 **leaf step / leaf judgment** — A single step in a code-sequenced cascade whose
-work is owned by a **pi session's own model loop** (what to write, how to satisfy
+work is owned by the **owned loop** (what to write, how to satisfy
 a contract) rather than by the spine — the **control-flow** sense of "leaf"
-(ADR-0005). Distinct from **contract**, the *leaf tier* of the work hierarchy
+(ADR-0005, ADR-0011). Distinct from **contract**, the *leaf tier* of the work hierarchy
 (ADR-0002); the two senses must not be conflated.
 
-**pi-adapter** — The project-owned **thin wrapper** (`packages/pi-adapter`) and
-typed-event parser over pi's documented surface (`prompt` / `steer` / `followUp`
-+ lifecycle event stream + `edit`-tool diffs). The **sole** surface through which
-pi is invoked and the **only** place a model runtime is imported: it spawns/steers
-pi, normalizes pi's stream into the typed events the event store renders, and
+**agent package** (`packages/agent`) — The project-owned **thin wrapper** (`packages/agent`) and
+typed-event parser over the owned loop's surface (prompt / steer / follow-up
++ lifecycle events + `edit`-tool diffs). The **sole** surface through which
+the owned loop is invoked and the **only** place a model runtime is imported: it spawns/steers
+the owned loop, normalizes its stream into the typed events the event store renders, and
 exposes nothing model-shaped upward. No third-party agent framework sits in this
-role; `packages/core` and `apps/studio` never parse a pi stream directly
-(ADR-0004, ADR-0006). Carries v1's own-a-thin-wrapper-over-the-agent-runtime
+role; `packages/core` and `apps/studio` never parse the owned loop's stream directly
+(ADR-0004, ADR-0006, ADR-0011). Carries v1's own-a-thin-wrapper-over-the-agent-runtime
 principle (Agentic ADR-0008/0026).
 
 **trunk** — The canonical **integrated mainline** a capability lands on once
@@ -328,8 +328,8 @@ result), never auto-merge-on-green, and never holds knowingly-broken intermediat
 states (ADR-0008). Supersedes v1's trunk, which auto-merged on green and tolerated
 broken intermediate states under an eventual-consistency posture.
 
-**steering** — A first-class, typed operator act of **redirecting an in-flight pi
-run mid-execution** (pi's `steer` surface), recorded as an event in the event
+**steering** — A first-class, typed operator act of **redirecting an in-flight
+owned-loop run mid-execution** (the owned loop's steer operation), recorded as an event in the event
 store. The in-loop counterpart to **approval**: the human shapes an action *while
 it runs*, rather than only accepting/rejecting its result (ADR-0008).
 

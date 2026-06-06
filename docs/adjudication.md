@@ -23,12 +23,12 @@ ADR number.
 **Rec:** **(a)** — matches ADR-0002's stated default ("pure rollup"); render the story view as a projection. Cheapest, and reversible.
 **✅ RESOLVED by ADR-0010 (2026-06-06)** — neither the original (a) nor (b). Stories are **bounded contexts that carry interface-edges**: a story may depend on another **only** through a declared, documented cross-story interface (`boundary`/`port`) — there is no cross-story capability graph. Capabilities have their **own within-story, code-derived** dependency graph (static analysis of imports/calls). Two graphs at two altitudes; cross-story coupling is not a pure rollup nor a coarse derivation of capability deps, but its own declared-interface grain.
 
-### B. Event vocabulary — OTel-GenAI conventions, or a bespoke pi-shaped set?
+### B. Event vocabulary — OTel-GenAI conventions, or a bespoke owned-loop-shaped set?
 **Decide · impacts:** the whole event schema · **tracked:** open-q §8, ADR-0006
-**Q:** Do our typed events follow **OpenTelemetry GenAI semantic conventions**, or a **bespoke** pi-shaped vocabulary?
+**Q:** Do our typed events follow **OpenTelemetry GenAI semantic conventions**, or a **bespoke** owned-loop-shaped vocabulary?
 **Context:** v1 (ADR-0006) chose OTel-GenAI *for trace-SaaS interop*. v2 owns its store with **no SaaS in the loop**, so the original reason is gone — but OTel is still a stable, documented vocabulary we could borrow.
-**Options:** (a) **bespoke**, mapped from pi's lifecycle stream (fits our model exactly; no external constraint). (b) **OTel-GenAI** envelope (interop/standard, at some impedance to pi). (c) bespoke core + an OTel **export** later if ever needed.
-**Rec:** **(c)** — design the bespoke event types pi actually emits; keep an OTel export as a future option, don't pay for it now.
+**Options:** (a) **bespoke**, mapped from the owned loop's lifecycle stream (fits our model exactly; no external constraint). (b) **OTel-GenAI** envelope (interop/standard, at some impedance to the owned loop). (c) bespoke core + an OTel **export** later if ever needed.
+**Rec:** **(c)** — design the bespoke event types the owned loop actually emits; keep an OTel export as a future option, don't pay for it now.
 
 ### C. Proof persistence + who signs + signer identity
 **Decide + Ratify · impacts:** core schema, gate, ADR-0007/0008 · **tracked:** open-q §1
@@ -57,8 +57,8 @@ ADR number.
 
 ### F. Concurrency residuals — code-edit isolation + claim shape
 **Decide · impacts:** orchestrator, ADR-0009 · **tracked:** open-q §3
-**Q:** (1) Do pi's **code edits** still use a git **branch/worktree per node**, or edit a shared checkout under DBOS isolation? (2) Is a **claim** node-scoped or file-glob, and what happens on refusal?
-**Context:** ADR-0009 moved *coordination* off git (claims = Postgres rows, isolation = DBOS workflow). But where pi's actual file edits land is separate and open. v1 used a git branch + worktree per session (ADR-0013).
+**Q:** (1) Do the owned loop's **code edits** still use a git **branch/worktree per node**, or edit a shared checkout under DBOS isolation? (2) Is a **claim** node-scoped or file-glob, and what happens on refusal?
+**Context:** ADR-0009 moved *coordination* off git (claims = Postgres rows, isolation = DBOS workflow). But where the owned loop's actual file edits land is separate and open. v1 used a git branch + worktree per session (ADR-0013).
 **Options (edits):** (a) git **worktree per node** for edits (clean rollback, familiar) + DBOS for coordination; (b) shared checkout, serialize via claims (simpler, riskier). **(claim):** node-scoped (coarse, simple) vs file-glob (precise, more bookkeeping).
 **Rec:** **(a)** worktree-per-node for edits + **node-scoped claims** to start; tighten to file-glob only if real contention shows up.
 
@@ -66,13 +66,13 @@ ADR number.
 **Decide · impacts:** spine, studio cost surface · **tracked:** open-q §6, ADR-0005
 **Q:** A node loop ends on green **or** budget-exhausted — but budget measured in **what** (iterations / tokens / wall-cost / blend), and what default ceiling?
 **Context:** v1 retired its iteration budget ("cascade rounds are not a cost") under a flat subscription; ADR-0005 resurrects one because v2 is pay-as-you-go. The *mechanism* exists; the unit/ceiling don't.
-**Options:** (a) **iteration count** (simplest, crude). (b) **token/$ cost** (truest to pay-as-you-go, needs pi to report usage). (c) blend (cost ceiling + iteration safety cap).
+**Options:** (a) **iteration count** (simplest, crude). (b) **token/$ cost** (truest to pay-as-you-go, needs the owned loop to report usage). (c) blend (cost ceiling + iteration safety cap).
 **Rec:** **(c)** — a $ ceiling is the real risk, an iteration cap is the cheap backstop; expose both in the studio. Default ceilings TBD after the first real runs.
 
 ### H. Decomposition loop + per-node spec taxonomy
 **Decide · impacts:** scheduler, node-driving · **tracked:** open-q §4
 **Q:** (1) Does v2 have a **decompose-before-implement** loop (stabilise the capability DAG before any contract goes red), and what's it called? (2) Does any **per-node spec file** survive, under what name?
-**Context:** v1 ADR-0020 had an investigator→writer→review loop converging the DAG first. v1 drove nodes with a multi-persona cascade (Curator/Inspector/QA-Engineer…) + per-agent `contract.yml`. v2 collapses a node to a **single pi session** (ADR-0004), so the personas are gone; whether a neutral spec file survives (never named `contract`) is open.
+**Context:** v1 ADR-0020 had an investigator→writer→review loop converging the DAG first. v1 drove nodes with a multi-persona cascade (Curator/Inspector/QA-Engineer…) + per-agent `contract.yml`. v2 collapses a node to a **single owned-loop session** (ADR-0004, ADR-0011), so the personas are gone; whether a neutral spec file survives (never named `contract`) is open.
 **Options (loop):** adopt + name it (e.g. "decomposition") · fold into scheduler implicitly · defer. **(spec):** no spec (prompt template only) · a neutral `spec.md`/`node.yml`.
 **Rec:** keep the **decomposition loop** as an explicit scheduler phase (name it `decomposition`); **no per-node spec file** to start — drive nodes from a prompt template + the unit's `outcome`/`guidance` fields.
 
@@ -102,7 +102,7 @@ ADR number.
 
 ### M. Brownfield mapping mechanism
 **Decide-later · tracked:** open-q §2
-**Context:** `mapped` (observational-green, never `healthy`) is an accepted status; *how* storytree maps an existing test suite onto capabilities/contracts under pi is undesigned.
+**Context:** `mapped` (observational-green, never `healthy`) is an accepted status; *how* storytree maps an existing test suite onto capabilities/contracts under the owned loop is undesigned.
 **Rec:** defer until a real brownfield target exists (storytree builds itself first).
 **Status-enum note (owner, 2026-06-06):** ADR-0010 settled the adjacent status-enum question — `proposed` was **retained** for the retro-authored seed; no `experimental` / `built-unproven` tier was added (experimentation stage). The `mapped` mechanism itself stays deferred as above.
 

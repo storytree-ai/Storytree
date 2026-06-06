@@ -26,4 +26,4 @@ The pull model inverts this: the agent starts with a minimal bootstrap (who it i
 - Prefer handing an agent a path to read over pasting the content into its prompt.
 - When a single context to pull would still exceed the window, escalate to [recursive-decomposition-patterns](recursive-decomposition-patterns.md) — query the context as an environment rather than loading it whole.
 
-In Storytree, the event store is the single source of truth and the orchestrator briefs each pi node; this principle argues for those briefs to be pointers into live state read just-in-time, keeping initial load minimal and context fresh, rather than fat static snapshots.
+In Storytree, the event store is the single source of truth and the orchestrator briefs each owned-loop node; this principle argues for those briefs to be pointers into live state read just-in-time, keeping initial load minimal and context fresh, rather than fat static snapshots.

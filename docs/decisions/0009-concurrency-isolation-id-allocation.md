@@ -14,4 +14,4 @@ Back ADR-0001's "parallel + conflict-free IDs from day one" on DBOS/Postgres, an
 
 ## Open
 
-Git branch/worktree for pi's *code edits*? · claim granularity / write-ownership shape · conflict-resolution ceremony · the ADR-number allocation scheme — all open-q §3 · channel open-q §5.
+Git branch/worktree for the owned loop's *code edits*? · claim granularity / write-ownership shape · conflict-resolution ceremony · the ADR-number allocation scheme — all open-q §3 · channel open-q §5.

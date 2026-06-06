@@ -38,24 +38,24 @@ to fall away as the tree becomes self-building.
 └───────────────▲───────────────────────────┬─────────────────┘
                 │ normalized events          │ run / steer / approve
 ┌───────────────┴───────────────────────────▼─────────────────┐
-│  pi-adapter   wraps a pi coding-agent session per node        │  packages/pi-adapter
-│  maps pi's lifecycle event stream + diffs → our event model   │
+│  agent        wraps an owned-loop session per node           │  packages/agent
+│  maps the owned loop's lifecycle event stream + diffs → ours │
 └──────────────────────────────┬───────────────────────────────┘
                                │
                     ┌──────────▼──────────┐
-                    │  pi (the coding      │  external runtime
-                    │  agent that writes   │  (earendil-works/pi)
-                    │  the code per story) │
+                    │  owned loop (the     │  agent loop built on
+                    │  loop that writes    │  the Anthropic
+                    │  the code per story) │  Messages API
                     └─────────────────────┘
 
    packages/core — shared types: story / capability / contract / event schema (the
                    single source of truth every layer speaks)
 ```
 
-The orchestrator owns only what pi does **not**: multi-node DAG scheduling and
+The orchestrator owns only what the owned loop does **not**: multi-node DAG scheduling and
 durable, concurrency-safe shared state. Everything an agent does inside a node
-— the model loop, steering, diffs, approvals — belongs to **pi**. Observability
-is **ours**: pi's event stream + orchestrator events land in our own event
+— the model loop, steering, diffs, approvals — belongs to **the owned loop**. Observability
+is **ours**: the owned loop's event stream + orchestrator events land in our own event
 store and render in our own UI. No external trace SaaS.
 
 ## Stack
@@ -63,12 +63,12 @@ store and render in our own UI. No external trace SaaS.
 | Concern | Choice | Why |
 |---|---|---|
 | Language / runtime | TypeScript, Node 24, pnpm workspaces | model-agnostic, owns the loop |
-| Per-node coding agent | **pi** (`earendil-works/pi`) | model-agnostic (15+ providers), customizable, emits a clean event stream + diffs |
+| Per-node coding agent | **the owned loop** (`packages/agent`, on the Anthropic Messages API) | we own the agent loop + context engineering; emits a clean event stream + diffs |
 | Durable execution | **DBOS** (Transact-TS over Postgres) | crash-safe concurrent workflows, auto-resume, durable queues — parallelism without the scars |
 | Orchestration | thin custom layer | the story-DAG + event store; small, ours |
-| Observability | own event store | pi events + orchestrator events → typed event log → UI. No per-trace SaaS |
+| Observability | own event store | owned-loop events + orchestrator events → typed event log → UI. No per-trace SaaS |
 | Tree UI | **PixiJS v8** + `@pixi/react`, 2D isometric | fastest 2D, embeds as an IDE panel, batches 1000s of live sprites @60fps |
-| Models | any, via pi | pay-as-you-go API keys; not tied to a subscription |
+| Models | via the owned loop | pay-as-you-go API keys; not tied to a subscription |
 
 See [docs/decisions/0001-foundational-stack.md](docs/decisions/0001-foundational-stack.md)
 for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
@@ -90,7 +90,7 @@ Claude Agent SDK, Google ADK).
 ```
 packages/core          shared types: story / capability / contract / event schema
 packages/orchestrator  DAG scheduler, event store, DBOS workflows
-packages/pi-adapter     pi session wrapper → normalized events
+packages/agent         owned-loop session wrapper → normalized events
 apps/studio            web IDE: React + PixiJS isometric tree
 docs/decisions         ADRs
 ```
@@ -115,4 +115,4 @@ Copy `.env.example` → `.env` and fill in model API keys + `DATABASE_URL`.
 **Foundation scaffold.** Structure, design docs, and TS monorepo skeleton are
 in place. No runtime code yet — the modules are stubs. Next up: the event
 schema (`packages/core`) and a 3-node durable-concurrency spike on DBOS to
-prove crash-safe parallel pi sessions before building outward.
+prove crash-safe parallel owned-loop sessions before building outward.

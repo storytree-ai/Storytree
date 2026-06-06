@@ -23,4 +23,4 @@ Most tasks do not need all of a large context at once. Loading everything wastes
 - **Hold the firewall.** The executing step must not reach back into the full context store or re-search. If it does, the separation is broken and focus is lost.
 - **Aggregate before completing.** Signal completion only after every branch has finished and results are combined — never inside a loop or branch.
 
-In Storytree terms, the natural homes for this are oversized exploration (see [exploration-principles](exploration-principles.md)), large pi-event-stream or evidence analysis, and reasoning over big spec inputs during decomposition — wherever a single context would blow the window.
+In Storytree terms, the natural homes for this are oversized exploration (see [exploration-principles](exploration-principles.md)), large owned-loop-event-stream or evidence analysis, and reasoning over big spec inputs during decomposition — wherever a single context would blow the window.

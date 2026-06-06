@@ -31,7 +31,7 @@ executor, signing & walk-ancestry, forensic-evidence.
 ## 2. Brownfield mapping mechanism  (concept ACCEPTED; mechanism TBD)
 `mapped` is now a supported v2 status (see `glossary.md`). **Open** is the
 *mechanism*: how storytree maps an existing target-repo suite onto
-capabilities/contracts under pi, what "observational-green" means operationally,
+capabilities/contracts under the owned loop, what "observational-green" means operationally,
 and how fixtures/models are version-pinned.
 → ADR-0007 reaffirms this stays open while distinguishing **operator-attested**
 (earned, reaches `healthy`) from **mapped** (observational, never `healthy`); the
@@ -45,19 +45,19 @@ v1 coordinated concurrent work with per-session git branches
 (refuse on conflict), and a 3-primitive CrossSessionCoordination substrate
 (identity / claims / channel). **Open:** v2's concurrency is DBOS-based (validated
 in the spike). Which of these survive — is there still an explicit claims /
-branch-isolation layer, or do DBOS + per-node pi sessions replace it?
+branch-isolation layer, or do DBOS + per-node owned-loop sessions replace it?
 → Largely resolved by ADR-0009: **claims survive** as typed rows/events in the
 **one shared Postgres store** (not a per-worktree `session_claims` table), checked
 at node-schedule time as a **hard refusal**; v1's 3-primitive
 CrossSessionCoordination substrate collapses into the shared store; **DBOS
 workflow isolation replaces branch-per-session for coordination**; DB-allocated
-ids dissolve both Agentic ADR-0025 collision classes. Framed by ADR-0004 (a pi
+ids dissolve both Agentic ADR-0025 collision classes. Framed by ADR-0004 (an owned-loop
 **run** is an execution event, many-per-node; the **orchestrator** is the sole
-fan-out point — no agent-spawns-agent) and ADR-0005 (the **spine**, not a pi node,
+fan-out point — no agent-spawns-agent) and ADR-0005 (the **spine**, not an owned-loop node,
 owns fan-out/fan-in scheduling; explicitly defers isolation/claims/id allocation
-here). ADR-0003 also notes concurrency-safe id allocation must extend to v2's
+here; ADR-0011). ADR-0003 also notes concurrency-safe id allocation must extend to v2's
 **own ADR/decision-number namespace** (the ADR-0025 generalisation; motivated by
-v1's two-0021 / gap-0009 collisions). **Still open:** (a) whether pi's code
+v1's two-0021 / gap-0009 collisions). **Still open:** (a) whether the owned loop's code
 *edits* still use a git branch/worktree per node; (b) claim granularity /
 **write-ownership** scope shape; (c) the conflict-resolution ceremony on refusal;
 (d) the concurrency-safe scheme for v2's own ADR-number namespace.
@@ -84,7 +84,7 @@ loop at all, and its name.
 
 **Node-driving / agent-spec taxonomy.** ADR-0004 records that **no** v1 multi-agent
 persona cascade (Curator / Inspector / QA-Engineer / build-rust) survives — a node
-is driven by a **single pi prompt template**. **Open:** whether any *neutral
+is driven by a **single owned-loop prompt template**. **Open:** whether any *neutral
 per-node spec file* survives and under what name — it must **never** be called
 `contract` (that noun is the leaf tier; see glossary). Captured so it is not
 silently re-invented; ADR-0004 points here rather than deciding it.
@@ -144,8 +144,8 @@ epics (`epics/`).
   undecided (ADR-0001). v1's was a "phone-line shape": NDJSON over stdio.
   → Its **existence/direction** is now pinned: ADR-0004 fixes that the studio
   drives agents by sending **commands to the orchestrator** (which alone turns them
-  into pi calls via the pi-adapter — the studio never calls pi directly), and
-  ADR-0005's documented-surface guard constrains only the **pi-facing** boundary,
+  into owned-loop calls via `packages/agent` — the studio never calls the owned loop directly), and
+  ADR-0005's documented-surface guard constrains only the **owned-loop-facing** boundary,
   explicitly leaving this protocol open. ADR-0008 adds that the protocol must carry
   **operator commands** (approvals, steering, per-node chat) — i.e. it is
   **bidirectional**, not emit-only. **Still open:** the concrete shape (v1's
@@ -153,7 +153,7 @@ epics (`epics/`).
 - **OTel GenAI conventions** — v1 used them for trace-SaaS interop; v2 owns its
   event store (no trace SaaS), so adoption is open.
   → ADR-0006 records this as the open sub-decision for the **event store's
-  vocabulary** (OTel-GenAI-where-practical vs a bespoke pi vocabulary): v1 0006 §5
+  vocabulary** (OTel-GenAI-where-practical vs a bespoke owned-loop vocabulary): v1 0006 §5
   chose OTel-GenAI for trace-SaaS interop, but v2 owns its store with **no SaaS**,
   so adoption is no longer forced. ADR-0003 points here when noting the inverted
   observability stack (Agentic ADR-0023) leaves the event vocabulary undecided.

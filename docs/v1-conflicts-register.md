@@ -23,12 +23,12 @@ verification; this is their triaged disposition.
 - **[L] DAG grain** — README/ADR-0001/glossary say "DAG of stories"; ADR-0002 said edges are capability-level and the story-grain undecided. → **`ADR-0010`** (now *resolved*, was `OPEN-Q`): stories **do** carry edges, but only via declared cross-story **interfaces** (`boundary`/`port`); capabilities have their own **within-story, code-derived** graph — two graphs at two altitudes, not one capability-level DAG crossing story lines.
 
 ### 1b. v1 decisions that invert under v2 (recorded as inversions/supersessions)
-- **[L] Observability/UI is a read-only sidecar** — ADR-0021/0023 make Claude-Code's extension surfaces THE observability+UI layer (sidecar reads a `runs` table from hooks/OTel) and **reject pi by name**. v2 inverts: pi-stream-sourced event store + an embedded *driving* IDE. → `ADR-0006`.
+- **[L] Observability/UI is a read-only sidecar** — ADR-0021/0023 make Claude-Code's extension surfaces THE observability+UI layer (sidecar reads a `runs` table from hooks/OTel) and **reject pi by name**. v2 inverts: an owned-loop-stream-sourced event store + an embedded *driving* IDE (the leaf is now the owned loop, ADR-0011). → `ADR-0006`.
 - **[H] "cascade rounds are not a cost" / no per-iteration budget** — sound only under a flat subscription; v2 bills per token. → `ADR-0008` (cost is a first-class budget surface).
 - **[L] `--dangerously-skip-permissions` everywhere** — no in-loop approval gate; v2's headline is a UI that approves/steers. → `ADR-0008`.
 - **[L] API-key path is banned as a standing principle** — v1 ADR-0003 erects per-token billing as "unacceptable"; v2 adopts exactly it. → `ADR-0003` (reversal ledger; superseded).
 - **[H] auto-merge-on-green, "main may hold broken states", no human review** — v2 is approval-gated trunk. → `ADR-0008`.
-- **[L] pi is named and rejected** (ADR-0023 §7; ADR-0006 says story/red-green/UAT "don't map cleanly" onto this harness class) — v2 deliberately chose pi. → `ADR-0001`/`ADR-0006` (+ pi-adapter impedance noted).
+- **[L] pi is named and rejected** (ADR-0023 §7; ADR-0006 says story/red-green/UAT "don't map cleanly" onto this harness class) — v2 initially chose pi, now reversed to an owned loop (ADR-0011). → `ADR-0001`/`ADR-0006` (+ owned-loop boundary impedance noted).
 - **[L] Task-tool-blocked premise** — ADR-0003's "Rust owns the spawn tree / no agents-spawn-agents" rests on a Claude-Code quirk; v2 re-derives fanout ownership from first principles. → `ADR-0005`/`ADR-0004`.
 - **[H] ADR-0022 coordination substrate is a workaround for the *absence* of a shared store** — v2 ships the shared store by default, so port the answer, not the workaround. → `ADR-0009`.
 
@@ -57,7 +57,7 @@ verification; this is their triaged disposition.
 - **[H] ADR-0005 headline vs content ("gate" vs "forensic, not a gate")** → `GLOSSARY` (red-green = a principle, not the noun) · `V1-FACT`.
 
 ### 2b. Captured in open-questions.md (still open)
-- **[H] event vocabulary — OTel GenAI vs bespoke pi-shaped** → `OPEN-Q §8` (+ `ADR-0006` for the store shape).
+- **[H] event vocabulary — OTel GenAI vs bespoke owned-loop-shaped** → `OPEN-Q §8` (+ `ADR-0006` for the store shape).
 - **[H] isolation/coordination on dead git/embedded-store mechanics** → `OPEN-Q §3` (+ `ADR-0009`).
 - **[L] channel / forum / noticeboard (3 near-identical surfaces)** → `OPEN-Q §5`.
 - **[L] decompose-before-implement loop** → `OPEN-Q §4`.
@@ -67,10 +67,10 @@ verification; this is their triaged disposition.
 
 ### 2c. Addressed by the new principle ADRs (0003–0009)
 - **[H] orchestrator-only-spawns-agents boundary has no v2 home** → `ADR-0004`.
-- **[L] ADR-0026 deterministic spine absent but IS v2's DBOS-over-pi** → `ADR-0005`.
+- **[L] ADR-0026 deterministic spine absent but IS v2's DBOS-over-the-owned-loop** → `ADR-0005`.
 - **[H] `runs` per-RUN vs per-EVENT grain; `runs` vs `test_runs` name** → `ADR-0006`.
 - **[L] "run/runs" overloaded; path keyed by story-id vs run-id** → `ADR-0006`.
-- **[H] red-green mechanism (separate agents) doesn't map to one pi session** → `ADR-0007`/`ADR-0005`.
+- **[H] red-green mechanism (separate agents) doesn't map to one owned-loop session** → `ADR-0007`/`ADR-0005`.
 - **[H] UAT-mocks-forbidden anchored to "the real claude binary"** → `ADR-0007` (mock-UAT seam, already in glossary).
 - **[L] parallelism deferred (ADR-0006) vs default (ADR-0013)** → `ADR-0009`/`ADR-0008`.
 - **[L] orchestrator-owns-fanout justified by the dead Task-blocked quirk** → `ADR-0005`/`ADR-0004`.
@@ -80,7 +80,7 @@ verification; this is their triaged disposition.
 
 ### 2d. Still needs a home / decision (flagged for you)
 - **[H] cross-session LEARNING substrate** (forum-graduation + memory-curator + "verification-wins-over-recency") — a durable *principle* with no explicit v2 home yet (only loosely under `OPEN-Q §5/§6`). **Recommend: add an open-question or fold into a future knowledge-tier ADR.**
-- **[H] every v1 agent has two names** (kebab role-id + an undefined job-title persona) — v2 drops personas, but the per-node role taxonomy under single-pi-session is unsettled. → partial `ADR-0008` + flag.
+- **[H] every v1 agent has two names** (kebab role-id + an undefined job-title persona) — v2 drops personas, but the per-node role taxonomy under a single owned-loop session is unsettled. → partial `ADR-0008` + flag.
 - **[L] "deployment" (×3)**, **"audit/review" (×5)** — v2 doesn't import these heavily; minor. **Recommend: a one-line glossary "not carried" note if they appear in imported v1 docs.**
 - **[L] "capability" — v1 used it for a healthy unit; ADR-0002's "collision-free" rationale is stack-scoped** (arguable, not wrong). → optional glossary footnote.
 - **[L] v2 ADR-0002 rests on v1 0027/0028, both DRAFT/unratified** — informational; ADR-0002 is accepted regardless. → note in `ADR-0003` ledger.

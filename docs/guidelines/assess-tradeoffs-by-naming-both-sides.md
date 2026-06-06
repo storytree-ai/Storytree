@@ -10,7 +10,7 @@ Concrete terms are observable properties of the system. "We lose contract streng
 
 ## The "more work" trap
 
-In an agent-driven corpus, "this option is more work upfront" is a **misframed cost** and does not count as a named side. pi does the work at agent speed; upfront effort (re-speccing a contract, retiring tests, threading a new field through callers, amending sibling stories) is a one-time cost that amortises across every future invocation of the cleaner shape.
+In an agent-driven corpus, "this option is more work upfront" is a **misframed cost** and does not count as a named side. The owned loop does the work at agent speed; upfront effort (re-speccing a contract, retiring tests, threading a new field through callers, amending sibling stories) is a one-time cost that amortises across every future invocation of the cleaner shape.
 
 The only durable cost from "more work" is **maintenance complexity an agent cannot legibly carry forward** — concurrency edge cases needing cross-file human-style reasoning, hidden contracts spread across many surfaces with no central home, load-bearing-but-undocumented mutation order. And even most of that is solvable by adding guidance (a doc naming the rule) or tooling (a check that enforces it). That solvable subset is also not a durable cost.
 

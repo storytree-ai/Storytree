@@ -4,7 +4,7 @@
 
 ## Why this matters
 
-When pi works at the leaf, it is rewarded for green tests. If the test's assertions pin *shape* but not *depth*, pi can earn green with a hollow implementation, and the breakage stays invisible until the story's UAT runs the canonical journey end-to-end against real collaborators — the slowest, most expensive feedback channel. This is the "test green, production red" defect class. It is the inverse of [test-fixtures-mirror-production-failure-modes](test-fixtures-mirror-production-failure-modes.md): there the *fixture* is sterile; here the *implementation* is hollow. Walk both diagnostics when a UAT fails on a previously-green capability.
+When the owned loop works at the leaf, it is rewarded for green tests. If the test's assertions pin *shape* but not *depth*, the owned loop can earn green with a hollow implementation, and the breakage stays invisible until the story's UAT runs the canonical journey end-to-end against real collaborators — the slowest, most expensive feedback channel. This is the "test green, production red" defect class. It is the inverse of [test-fixtures-mirror-production-failure-modes](test-fixtures-mirror-production-failure-modes.md): there the *fixture* is sterile; here the *implementation* is hollow. Walk both diagnostics when a UAT fails on a previously-green capability.
 
 ## The five sub-patterns
 
