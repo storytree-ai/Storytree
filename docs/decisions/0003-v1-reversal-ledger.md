@@ -12,6 +12,10 @@ Rust→TS/Node/pnpm · SurrealDB→Postgres/DBOS · Claude-subscription-subproce
 
 - **pi → owned agent loop (ADR-0011).** ADR-0001 chose **pi** as the per-node runtime (the v2 home for v1-0003's "Claude-sub subprocess"); [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) reverses it — storytree now **owns the agent loop and context engineering**, built on the Anthropic SDK. ADR-0001's *model-agnostic, pay-as-you-go* non-negotiable is **relaxed** to start Anthropic-only (pivot if it bites). So the v1-0003 row below now routes **pi → owned loop (ADR-0011)**, and ADR-0004/0005's pi-adapter/leaf are amended to that owned loop. A pi-wording sweep of the glossary + ADR-0006/0008 is the tracked follow-up.
 
+## Considered, not reversed
+
+- **TypeScript stack — reconsidered post-pi, NOT reversed (2026-06-06).** With pi dropped (ADR-0011), ADR-0001's TS rationale was partly invalidated (it was partly pi-driven; v1 was Rust), so a Rust rewrite was weighed. Reaffirmed TS, all-in: the agent loop stays TS on the official Anthropic SDK, and **DBOS is kept over Temporal** → an all-TS backend, so a Rust `core` would be an island. See [ADR-0001 § Reaffirmation](0001-foundational-stack.md). Logged here so it is not re-litigated cold.
+
 ## Every v1 ADR
 
 | v1 ADR | | v2 home |

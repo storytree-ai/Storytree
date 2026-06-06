@@ -8,6 +8,27 @@ reversed (storytree owns the agent loop, built on the Anthropic SDK). Everything
 stands — DBOS/Postgres, the thin orchestrator, the event store, PixiJS, and the
 TS/Node/pnpm stack.
 
+## Reaffirmation (2026-06-06) — TypeScript stands, all-in
+
+With **pi** dropped ([ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)), this
+ADR's TypeScript rationale — part of which was pi compatibility — was reconsidered against a
+possible **Rust** rewrite (v1/`Agentic` was Rust; Rust's stronger compile-time guardrails fit
+storytree's correctness ethos). Verdict: **TypeScript stands, now all-in.** Reasoning:
+
+- The **agent loop stays TS on the official Anthropic SDK** — there is no official Rust SDK,
+  and raw HTTP would forfeit the SDK's streaming / tool-runner / structured-output helpers
+  (ADR-0011).
+- **DBOS is retained over Temporal.** DBOS is a *library* in the **same Postgres as the event
+  store** (the single source of truth the studio renders); Temporal would add a separate
+  service + state store + UI overlapping what storytree builds itself. Temporal's
+  signals/queries and scale-maturity were the draw — not worth a second platform yet.
+- The **studio is browser-bound TS** (React + PixiJS) regardless.
+
+With loop, orchestrator, and studio all TS, a Rust `packages/core` would be an **island**
+behind a codegen seam serving no other Rust code — net negative. TS guardrails (strict
+`tsconfig`, zod at boundaries, branded types, exhaustive discriminated unions) carry the
+correctness load instead. Recorded so the Rust question is not re-litigated cold.
+
 ## Date
 
 2026-06-03
