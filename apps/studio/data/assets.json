@@ -38,7 +38,7 @@
     "category": "principle",
     "title": "Prove-it gate",
     "description": "A unit reaches `healthy` only via earned, on-disk evidence — never a hand-edit.",
-    "body": "A unit reaches `healthy` only through earned, on-disk **evidence** produced by one of its proof modes — never a hand-edit. The gate **refuses** invalid work rather than warning about it.\n\nCorollary — **cold-rebuild** (the health invariant): a unit is `healthy` iff an agent starting *cold*, from the unit’s own spec plus its transitive upstream specs and nothing else, can drive it red→green.\n\n_storytree-native; from `docs/glossary.md` and ADR-0007._",
+    "body": "A unit reaches `healthy` only through earned, on-disk **evidence** produced by one of its proof modes — never a hand-edit. The gate **refuses** invalid work rather than warning about it.\n\nCorollary — **cold-rebuild** (an authoring guideline, not a gate): a story should be written self-contained enough that a cold agent — from the story’s spec plus its upstream stories’ declared interfaces, and nothing else — could rebuild it and pass its UAT (the internals may differ). It is not the definition of `healthy` and is never machine-enforced (ADR-0010 §6).\n\n_storytree-native; from `docs/glossary.md` and ADR-0007._",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0007-proof-model.md"
@@ -50,8 +50,8 @@
     "id": "proof-mode",
     "category": "definition",
     "title": "Proof mode",
-    "description": "The three ways a unit earns `healthy` — capability-UAT, contract-test, and operator-attested.",
-    "body": "How a unit earns `healthy`. `packages/core` encodes these as a discriminated `proof_mode` union (ADR-0007).\n\n- **capability-UAT** — an honest scripted walkthrough against *real* collaborators (also generates `dependency` edges).\n\n- **contract-test** — one isolated automated assertion (collaborators stubbed; the mock-UAT seam permits it).\n\n- **operator-attested** — a per-unit, operator-granted signed event for surfaces with neither an honest UAT nor an isolatable test. An agent can never self-exempt.",
+    "description": "The four ways a unit earns `healthy`, one rung per tier — UAT, integration-test, contract-test, and operator-attested.",
+    "body": "How a unit earns `healthy`, one rung per tier (ADR-0010). `packages/core` encodes these as a discriminated `proof_mode` union (ADR-0007).\n\n- **UAT** (story) — an honest scripted acceptance walkthrough against *real* collaborators, proving the whole organism end to end.\n\n- **integration-test** (capability) — the organs wired against *real in-story collaborators* (no stubs within the organism).\n\n- **contract-test** (contract) — one isolated automated assertion (collaborators stubbed; the mock-UAT seam permits it).\n\n- **operator-attested** — a per-unit, operator-granted signed event for surfaces with neither an honest UAT nor an isolatable test. An agent can never self-exempt.",
     "references": [
       "doc:decisions/0007-proof-model.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md"
@@ -422,9 +422,10 @@
     "category": "definition",
     "title": "story",
     "description": "The top-level unit of work you watch grow, and a node on the DAG the studio renders.",
-    "body": "The top-level unit of work you watch grow, and a node on the DAG the\nstudio renders. A coherent, independently-meaningful body of work, *composed of\ncapabilities*. The map grain: the thing a newcomer points at (\"the event store\",\n\"the tree renderer\"). A story is **proven when its capabilities are proven**.\nDeliberately bigger than v1's story.",
+    "body": "The top-level unit of work you watch grow, and a node on the DAG the\nstudio renders. A **bounded context / organism** — self-contained and\n**independently deployable** (the microservice grain), *composed of\ncapabilities*. The map grain: the thing a newcomer points at (\"the event store\",\n\"the tree renderer\"). A story is **proven as a whole by ≥1 integrated UAT**\n(acceptance walkthrough of the organism against real collaborators), not a pure\nrollup of its capabilities. Inside it capabilities share machinery (DRY is good);\nacross stories behaviour is duplicated, not shared, except through a declared\n**boundary** (ADR-0010). Deliberately bigger than v1's story.",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
@@ -433,10 +434,11 @@
     "id": "capability",
     "category": "definition",
     "title": "capability",
-    "description": "A component within a story: independently viable (it stands on its own — the unit you could specify and prove in isolation), proven by an integrated UAT walkthrough, and composed of contracts.",
-    "body": "A component within a story: **independently viable** (it stands\non its own — the unit you could specify and prove in isolation), proven by an\nintegrated **UAT** walkthrough, and composed of **contracts**. The unit\ndependencies are drawn between, and the unit v1 (Agentic) called a \"story\". A\nunit is a capability — not a contract — if a standalone UAT makes sense for it.",
+    "description": "An organ within a story (bounded context): independently viable, proven by ≥1 integration test against real in-story collaborators (no stubs within the organism), and composed of contracts.",
+    "body": "An **organ within a story** (bounded context): independently\nviable, proven by ≥1 **integration test** against **real in-story collaborators**\n(no stubs within the organism), and composed of **contracts**. It no longer\ncarries the UAT — that moved up to the story. The unit within-story dependencies\nare drawn between (code-derived; see **dependency**), and the unit v1 (Agentic)\ncalled a \"story\". A unit is a capability — not a contract — if it is an\nintegration-wired organ rather than a single isolated behaviour (ADR-0010).",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
@@ -445,8 +447,8 @@
     "id": "contract",
     "category": "definition",
     "title": "contract",
-    "description": "A single test-proven behaviour within a capability: one automated, isolated test (collaborators stubbed).",
-    "body": "A single **test-proven behaviour** within a capability: one\nautomated, isolated test (collaborators stubbed). The leaf. A unit is a\ncontract — not a capability — if the only honest proof is an automated\nassertion, with no walkable journey of its own.",
+    "description": "A single test-proven behaviour within a capability: one automated, isolated unit test (collaborators stubbed).",
+    "body": "A single **test-proven behaviour** within a capability: one\nautomated, **isolated** unit test (collaborators stubbed). The leaf — the bottom\nrung of the proof ladder (unit → integration → UAT). A unit is a contract — not a\ncapability — if the only honest proof is an isolated automated assertion, with no\nwired-up organ around it.",
     "references": [
       "doc:glossary.md"
     ],
@@ -484,10 +486,11 @@
     "id": "uat",
     "category": "definition",
     "title": "UAT",
-    "description": "A prose journey, run end-to-end against real collaborators, that proves a capability meets its goal.",
-    "body": "A prose journey, run end-to-end against\n*real* collaborators, that proves a capability meets its goal. Minimal-first:\nship one that proves the goal, grow more as defects surface. Lives at the\n**capability** level — contracts get automated tests, not UATs.",
+    "description": "A prose journey, run end-to-end against real collaborators, that proves a story (the whole organism) meets its goal.",
+    "body": "A prose journey, run end-to-end against\n*real* collaborators, that proves a **story** (the whole organism) meets its goal.\nMinimal-first: ship one that proves the goal, grow more as defects surface. Lives\nat the **story** level — capabilities get integration tests, contracts get\nisolated unit tests, not UATs (ADR-0010).",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
@@ -496,8 +499,8 @@
     "id": "contract-test",
     "category": "definition",
     "title": "contract test",
-    "description": "The automated test that proves a contract.",
-    "body": "The automated test that proves a contract. Isolated:\ncollaborators are stubbed, for fast feedback during the build.",
+    "description": "The automated test that proves a contract: the isolated unit test at the bottom rung of the proof ladder (unit → integration → UAT).",
+    "body": "The automated test that proves a contract: the **isolated\nunit test** at the bottom rung of the proof ladder (unit → integration → UAT).\nCollaborators are stubbed, for fast feedback during the build.",
     "references": [
       "doc:glossary.md"
     ],
@@ -508,10 +511,25 @@
     "id": "dependency",
     "category": "definition",
     "title": "dependency",
-    "description": "A directed edge from one capability to another, generated by UAT need: if A's walkthrough requires B to be real, B is upstream of A.",
-    "body": "A directed edge from one capability to another, **generated by\nUAT need**: if A's walkthrough requires B to be real, B is upstream of A. You\ncannot prove a capability that stands on an unproven one.",
+    "description": "A directed edge, defined at two altitudes (ADR-0010).",
+    "body": "A directed edge, defined at two altitudes (ADR-0010).\n**Within a story**, capability→capability edges are **code-derived** (static\nanalysis of imports/calls): inside the boundary a dependency *is* the code\ncoupling, read off the source, not hand-authored. **Across stories**, one story\nmay depend on another **only** through a declared, documented **boundary** (§4) —\nhidden cross-story coupling is forbidden. You cannot prove a unit that stands on\nan unproven one.",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
+    ],
+    "createdAt": "2026-06-05T00:00:00.000Z",
+    "updatedAt": "2026-06-05T00:00:00.000Z"
+  },
+  {
+    "id": "boundary",
+    "category": "definition",
+    "title": "boundary",
+    "description": "The declared, documented seam between two stories — the only legal cross-story coupling: two organisms dependent to deliver an outcome but each still functioning in isolation against the seam, the…",
+    "body": "The declared, documented\nseam between two stories — the **only** legal cross-story coupling: two organisms\ndependent to deliver an outcome but each still functioning in isolation against\nthe seam, the way a frontend depends on a database. The name is provisional: bare\n`interface` collides with TS `interface` (the same collision that sank\n`component` in ADR-0002), so the candidates are **`boundary`** or **`port`**,\nto be ratified when `packages/core` formalises the schema (ADR-0010 §4).",
+    "references": [
+      "doc:glossary.md",
+      "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
@@ -573,8 +591,8 @@
     "id": "approval-event-promotion-event",
     "category": "definition",
     "title": "approval event / promotion event",
-    "description": "Typed events with actor = operator recorded in the event store: an approval / steering event (a human in-loop intervention) and a signed promotion event (the human accepting a capability's green re…",
-    "body": "Typed events with `actor = operator`\nrecorded in the event store: an **approval / steering event** (a human in-loop\nintervention) and a signed **promotion event** (the human accepting a\ncapability's green result onto the trunk, carrying operator identity and the UAT\nverdict). Part of the same observability record as pi's own activity (ADR-0008);\nidentity backing is open (`open-questions.md` §1).",
+    "description": "Typed events with actor = operator recorded in the event store: an approval / steering event (a human in-loop intervention) and a signed promotion event (the human accepting a unit's green result o…",
+    "body": "Typed events with `actor = operator`\nrecorded in the event store: an **approval / steering event** (a human in-loop\nintervention) and a signed **promotion event** (the human accepting a\nunit's green result onto the trunk, carrying operator identity and, for a story,\nthe UAT verdict). Part of the same observability record as pi's own activity (ADR-0008);\nidentity backing is open (`open-questions.md` §1).",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md"
@@ -623,10 +641,11 @@
     "id": "healthy",
     "category": "definition",
     "title": "healthy",
-    "description": "Proven: the unit reached healthy through one of its three proof modes (capability-UAT, contract-test, or operator-attested) at HEAD — for a UAT-proven capability, a UAT pass with fresh green contra…",
-    "body": "Proven: the unit reached `healthy` through one of its three proof\nmodes (capability-UAT, contract-test, or operator-attested) at HEAD — for a\nUAT-proven capability, a UAT pass with fresh green contract tests.",
+    "description": "Proven: the unit reached healthy through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contrac…",
+    "body": "Proven: the unit reached `healthy` through its tier's proof mode at\nHEAD — a story by a UAT pass over fresh green capabilities, a capability by\nintegration tests over fresh green contracts, a contract by its isolated unit test\n(or, where neither honest test exists, operator-attested) (ADR-0010).",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
@@ -684,8 +703,8 @@
     "id": "operator-attested",
     "category": "definition",
     "title": "operator-attested",
-    "description": "A third proof mode (alongside capability-UAT and contract-test) for behavioural/guardrail surfaces that have neither an honest scripted UAT nor an isolatable automated test — e.g.",
-    "body": "A third proof mode (alongside capability-UAT and\ncontract-test) for behavioural/guardrail surfaces that have neither an honest\nscripted UAT nor an isolatable automated test — e.g. the orchestrator's own\nrouting / approval / steering discipline. Promotion to `healthy` is an explicit,\nper-unit, **operator-granted** attestation recorded as a typed **signed event**;\nan agent can never self-exempt, and the attestation is distinguishable in the\naudit trail from a UAT walkthrough sign. Successor to v1's `manual_signings`\n(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`\n(observational, never `healthy`). Its persistence/identity backing is still open\n(`open-questions.md` §1).",
+    "description": "A proof mode (alongside UAT, integration-test and contract-test) for behavioural/guardrail surfaces that have neither an honest scripted UAT nor an isolatable automated test — e.g.",
+    "body": "A proof mode (alongside UAT, integration-test and\ncontract-test) for behavioural/guardrail surfaces that have neither an honest\nscripted UAT nor an isolatable automated test — e.g. the orchestrator's own\nrouting / approval / steering discipline. Promotion to `healthy` is an explicit,\nper-unit, **operator-granted** attestation recorded as a typed **signed event**;\nan agent can never self-exempt, and the attestation is distinguishable in the\naudit trail from a UAT walkthrough sign. Successor to v1's `manual_signings`\n(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`\n(observational, never `healthy`). Its persistence/identity backing is still open\n(`open-questions.md` §1).",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0007-proof-model.md"
@@ -711,10 +730,11 @@
     "id": "cold-rebuild",
     "category": "definition",
     "title": "cold-rebuild",
-    "description": "The convergence contract that is storytree's health invariant: a unit is healthy iff an agent starting cold — from the unit's own spec plus its transitive upstream specs, and nothing else — can dri…",
-    "body": "The convergence contract that is storytree's **health\ninvariant**: a unit is `healthy` iff an agent starting **cold** — from the unit's\nown spec plus its transitive upstream specs, and nothing else — can drive it\nred→green. The cold-rebuild sense of `convergence`, explicitly distinct from\nDAG-stabilisation. The dependency rule (\"you cannot prove a capability that\nstands on an unproven one\") falls out of it (ADR-0007; carried from Agentic\nADR-0006/0027).",
+    "description": "An authoring guideline (not a gate), at story grain: a story should be written self-contained enough that a cold agent — given the story's own spec plus the declared interfaces of its upstream stor…",
+    "body": "An **authoring guideline** (not a gate), at **story grain**: a\nstory should be written self-contained enough that a cold agent — given the story's\nown spec **plus the declared interfaces of its upstream stories** (never their\ninternals), and nothing else — could rebuild it and pass its UAT. The rebuilt\n*internals* may legitimately differ (many implementations satisfy one UAT). The\ncold-rebuild sense of `convergence`, distinct from DAG-stabilisation. It is **not**\nthe definition of `healthy` (earned via the proof modes / prove-it-gate) and is\n**not machine-enforced** — v1 carried it as guidance for agents authoring stories\nand never tested it (ADR-0010 §6; ADR-0007; carried from Agentic ADR-0006/0027).",
     "references": [
       "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md",
       "doc:decisions/0007-proof-model.md",
       "doc:decisions/0006-event-store-observability-surface.md"
     ],
@@ -751,8 +771,8 @@
     "id": "verdict",
     "category": "definition",
     "title": "verdict",
-    "description": "The Pass/Fail outcome of a capability's UAT.",
-    "body": "The Pass/Fail outcome of a capability's UAT. Reserved for UAT\noutcomes; v1 also used \"verdict\" for agent conclusions and evidence-row states —\nthose are different concepts and do not claim the word here.",
+    "description": "The Pass/Fail outcome of a story's UAT.",
+    "body": "The Pass/Fail outcome of a story's UAT. Reserved for UAT\noutcomes; v1 also used \"verdict\" for agent conclusions and evidence-row states —\nthose are different concepts and do not claim the word here.",
     "references": [
       "doc:glossary.md"
     ],
@@ -763,8 +783,8 @@
     "id": "evidence",
     "category": "definition",
     "title": "evidence",
-    "description": "The forensic record that a capability's contracts went red→green and its UAT was signed: an audit trail, not itself the gate.",
-    "body": "The forensic record that a capability's contracts went red→green\nand its UAT was signed: an audit trail, not itself the gate. How v2 persists\nevidence (events vs files) and the attestation/identity model are open\n(`open-questions.md` §1).",
+    "description": "The forensic record that a unit's tests went red→green and its story's UAT was signed: an audit trail, not itself the gate.",
+    "body": "The forensic record that a unit's tests went red→green and its\nstory's UAT was signed: an audit trail, not itself the gate. How v2 persists\nevidence (events vs files) and the attestation/identity model are open\n(`open-questions.md` §1).",
     "references": [
       "doc:glossary.md"
     ],
@@ -799,10 +819,11 @@
     "id": "mock-uat-seam",
     "category": "definition",
     "title": "mock-UAT seam",
-    "description": "Mocks/stubs are allowed in contract tests (isolated) but forbidden in a UAT walkthrough (real collaborators) — the same boundary as contract vs capability.",
-    "body": "Mocks/stubs are allowed in contract tests (isolated) but\nforbidden in a UAT walkthrough (real collaborators) — the same boundary as\ncontract vs capability.",
+    "description": "No mocks within an organism: capability integration tests and the story UAT both run against real in-story collaborators.",
+    "body": "**No mocks within an organism**: capability integration tests\nand the story UAT both run against real in-story collaborators. The one stubbable\nboundary is the declared cross-story **boundary** — a story's UAT may run against\na stubbed / contract-tested version of an upstream story's interface (like\nacceptance-testing a frontend against a stubbed database). Isolated unit\n(contract) tests still stub freely. This is isolation, not theatre (ADR-0010 §5).",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-05T00:00:00.000Z"
