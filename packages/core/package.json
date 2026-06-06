@@ -1,0 +1,24 @@
+{
+  "name": "@storytree/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "storytree core: the work-hierarchy schema (story / capability / contract) and the corpus loader + validator. ADR-0002 / 0010 / 0013.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx scripts/validate-corpus.ts",
+    "test": "tsx scripts/validate-corpus.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}
