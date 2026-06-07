@@ -77,7 +77,7 @@
     "category": "principle",
     "title": "Go slow, own the layers",
     "description": "Own every load-bearing layer; stay model-agnostic and self-hosted. No vibing the parts the system rests on.",
-    "body": "**The principle.** Own every load-bearing layer — design it up front, go slow, stay model-agnostic and self-hosted — and never vibe the parts the system rests on.\n\n## Why\n\nThis is v2's bet, learned from v1: vibed load-bearing layers become unobservable and unfixable. The parts the system rests on — the event model, concurrency-safe state, the orchestrator spine — must be designed up front, not improvised. Renting them (a subscription, someone else's runtime) surrenders your data and traces and couples you to a single model.\n\n## How to apply\n\nBefore building on a layer, ask: is this load-bearing? If so, own it — design it deliberately, go slow, keep it model-agnostic and self-hosted (API keys, not a subscription; your data and traces stay yours). The orchestrator owns only what the owned loop does not — multi-node scheduling and durable, concurrency-safe shared state.\n\n## See also\n\n_Synthesised from ADR-0001 (doc:decisions/0001-foundational-stack.md)._",
+    "body": "**The principle.** Own every load-bearing layer — design it up front, go slow, stay model-agnostic and self-hosted — and never vibe the parts the system rests on.\n\n## Why\n\nThis is v2's bet, learned from v1: v1's internals were vibed and became unobservable — vibed load-bearing layers become unobservable and unfixable. v1 proved the *idea*, but its improvised internals are hard to see and hard to change. The parts the system rests on — the event model, concurrency-safe state, the orchestrator spine — must be designed up front, not improvised. Renting them (a subscription, someone else's runtime) surrenders your data and traces and couples you to a single model.\n\n## How to apply\n\nBefore building on a layer, ask: is this load-bearing? If so, own it — design it deliberately, go slow, keep it model-agnostic and self-hosted (API keys, not a subscription; your data and traces stay yours). The orchestrator owns only what the owned loop does not — multi-node scheduling and durable, concurrency-safe shared state.\n\n## See also\n\n_Synthesised from ADR-0001 (doc:decisions/0001-foundational-stack.md)._",
     "references": [
       "doc:decisions/0001-foundational-stack.md"
     ],
@@ -304,18 +304,6 @@
     "body": "**The pattern.** Never fake a walkthrough — stubbing collaborators in a UAT is a structural defect; surfaces with no honest UAT use the operator-attested proof mode instead.\n\n## Problem\n\nStubs/mocks are correct in a contract test (isolated) but a **structural defect** in a UAT, which must run against real collaborators. Behavioural/guardrail surfaces often have no honest UAT, tempting a faked walkthrough.\n\n## Approach\n\nDon't fake a walkthrough for a behavioural/guardrail surface that has no honest UAT — use the `operator-attested` proof mode instead. The mock-UAT seam draws this line: mocks belong in isolated contract tests, not in a UAT.\n\n## Tradeoffs\n\nYou trade the false comfort of a green-looking but stubbed walkthrough against an honest signal. Operator-attestation is more work and requires a human, but a faked UAT proves nothing about the real organism.\n\n## See also\n\n_The mock-UAT seam; synthesised from ADR-0007._",
     "references": [
       "doc:decisions/0007-proof-model.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "vibe-the-load-bearing-layers",
-    "category": "pattern",
-    "title": "Vibing the load-bearing layers",
-    "description": "v1’s internals were vibed and became unobservable. Don’t vibe the parts the system rests on — the event model, concurrency-safe state, the spine.",
-    "body": "**The pattern.** v1 vibed its internals and they became unobservable; v2 instead designs the load-bearing layers — the event model, concurrency-safe state, the orchestrator spine — up front.\n\n## Problem\n\nv1 proved the *idea* but its internals were vibed and are hard to see. Improvising the parts the system rests on leaves them unobservable and unmaintainable.\n\n## Approach\n\nv2's stance: **go slow, own the load-bearing layers.** The event model, concurrency-safe shared state, and the orchestrator spine are designed up front, not improvised.\n\n## Tradeoffs\n\nYou trade early velocity against observability and durability of the foundation. Designing the load-bearing layers up front is slower to start but avoids the unobservable, hard-to-change internals vibing produced in v1.\n\n## See also\n\n_Synthesised from ADR-0001._",
-    "references": [
-      "doc:decisions/0001-foundational-stack.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-07T00:00:00.000Z"
@@ -617,79 +605,6 @@
     "updatedAt": "2026-06-07T00:00:00.000Z"
   },
   {
-    "id": "proposed",
-    "category": "definition",
-    "title": "proposed",
-    "description": "Authored but not yet selected for implementation.",
-    "body": "**In one line.** A unit's initial lifecycle state — authored but not yet selected for implementation.\n\n## What it is\n\nAuthored but not yet selected for implementation. The initial state.\n\n## What it is not\n\nDistinct from **building**, which is the next state once a unit is selected and under active implementation.\n\n## See also\n\n_`docs/glossary.md`. Related: `building`, `node-rollup`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "building",
-    "category": "definition",
-    "title": "building",
-    "description": "Selected and under active implementation (v1: underconstruction).",
-    "body": "**In one line.** A unit's lifecycle state once it is selected and under active implementation (v1: `under_construction`).\n\n## What it is\n\nSelected and under active implementation (v1: `under_construction`). Written at pickup as the first commit, before any code edits.\n\n## What it is not\n\nDistinct from **proposed** (authored but not yet selected) and from `healthy` (proven via a proof mode); `building` names only the in-flight state.\n\n## See also\n\n_`docs/glossary.md`. Related: `proposed`, `healthy`, `node-rollup`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "healthy",
-    "category": "definition",
-    "title": "healthy",
-    "description": "Proven: the unit reached healthy through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contrac…",
-    "body": "**In one line.** A unit that has been proven — it reached `healthy` through its tier's proof mode at HEAD.\n\n## What it is\n\nProven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010).\n\n## What it is not\n\nNot `mapped` (observational green from an existing target-repo suite, which never short-circuits to proven), and not `unhealthy` (a once-healthy unit that has since drifted).\n\n## See also\n\n_`docs/glossary.md`; ADR-0010 (organism model). Related: `proof-mode`, `unhealthy`, `mapped`, `prove-it-gate`._",
-    "references": [
-      "doc:glossary.md",
-      "doc:decisions/0010-organism-model-story-bounded-context.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "unhealthy",
-    "category": "definition",
-    "title": "unhealthy",
-    "description": "A once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD).",
-    "body": "**In one line.** A once-healthy capability that has drifted away from its proof.\n\n## What it is\n\nA once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD). **Computed** from evidence, never written to disk.\n\n## What it is not\n\nNot a written-down status flag — it is a computed state derived from evidence, never persisted. Distinct from `healthy` (the proven state it has fallen away from).\n\n## See also\n\n_`docs/glossary.md`. Related: `healthy`, `node-rollup`, `proof-hash`, `evidence`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "mapped",
-    "category": "definition",
-    "title": "mapped",
-    "description": "Brownfield: the capability is observationally verified by an existing target-repo test suite, without storytree driving a red→green flow.",
-    "body": "**In one line.** A brownfield state in which a capability is observationally verified by an existing target-repo test suite, without storytree driving a red→green flow.\n\n## What it is\n\nBrownfield: the capability is *observationally* verified by an existing target-repo test suite, without storytree driving a red→green flow. v2 **supports** brownfield; the exact mapping mechanism under the owned loop / DBOS is still to design (see `open-questions.md` §2).\n\n## What it is not\n\nA distinct, weaker state than `healthy` — observational green never short-circuits to proven.\n\n## See also\n\n_`docs/glossary.md`; `open-questions.md` §2 (mapping mechanism open). Related: `healthy`, `operator-attested`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "retired",
-    "category": "definition",
-    "title": "retired",
-    "description": "Terminal off-tree state: pruned from the active tree.",
-    "body": "**In one line.** A terminal off-tree state: a unit pruned from the active tree.\n\n## What it is\n\nTerminal off-tree state: pruned from the active tree. May carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).\n\n## See also\n\n_`docs/glossary.md`. Related lifecycle states: `proposed`, `building`, `healthy`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
     "id": "gate",
     "category": "definition",
     "title": "gate",
@@ -833,10 +748,10 @@
   },
   {
     "id": "defects-amend-the-owning-story",
-    "category": "pattern",
+    "category": "principle",
     "title": "defects-amend-the-owning-story",
     "description": "A defect amends the capability whose contract it violates (reverting it to building), rather than spawning a new unit.",
-    "body": "**The pattern.** When a defect violates a capability's contract, amend the owning capability (reverting it to `building`) rather than spawning a new unit.\n\n## Problem\n\nA defect could be filed as a brand-new unit, fragmenting ownership of a behaviour across the unit that owns it and the unit that records its bug.\n\n## Approach\n\nRoute the defect to the capability whose contract it violates; revert that capability to `building` and fix it under its existing contract.\n\n## Tradeoffs\n\nYou trade a new unit's clean slate for a single accountable owner per behaviour and an intact contract/evidence chain on the original capability.\n\n## See also\n\n_`docs/glossary.md`._",
+    "body": "**The principle.** When a defect violates a capability's contract, amend the owning capability (reverting it to `building`) rather than spawning a new unit.\n\n## Why\n\nA defect could be filed as a brand-new unit, fragmenting ownership of a behaviour across the unit that owns it and the unit that records its bug.\n\n## How to apply\n\nRoute the defect to the capability whose contract it violates; revert that capability to `building` and fix it under its existing contract. You trade a new unit's clean slate for a single accountable owner per behaviour and an intact contract/evidence chain on the original capability.\n\n## See also\n\n_`docs/glossary.md`._",
     "references": [
       "doc:glossary.md"
     ],
@@ -845,10 +760,10 @@
   },
   {
     "id": "fail-closed-on-dirty-tree",
-    "category": "guardrail",
+    "category": "principle",
     "title": "fail-closed-on-dirty-tree",
     "description": "A command that writes attestable evidence refuses to run on a dirty working tree (writes nothing, distinct exit code).",
-    "body": "**The boundary.** A command that writes attestable evidence must not run on a dirty working tree.\n\n## Rule\n\nSuch a command refuses to run when the working tree is dirty — it writes nothing and exits with a distinct code.\n\n## Enforced by\n\nThe command checks working-tree cleanliness before doing any evidence-writing work and aborts on a dirty tree — no writes, distinct non-zero exit code. A code-path guard, not a warning.\n\n## Failure mode prevented\n\nEvidence attributed to a clean commit could silently include uncommitted changes, corrupting the proof/evidence chain that promotion depends on.\n\n## See also\n\n_`docs/glossary.md`._",
+    "body": "**The principle.** A command that writes attestable evidence must not run on a dirty working tree — it writes nothing and exits with a distinct code.\n\n## Why\n\nEvidence attributed to a clean commit could silently include uncommitted changes, corrupting the proof/evidence chain that promotion depends on.\n\n## How to apply\n\nHave such a command check working-tree cleanliness before doing any evidence-writing work and abort on a dirty tree — no writes, distinct non-zero exit code. Make it a code-path guard, not a warning, so the boundary is non-bypassable in practice.\n\n## See also\n\n_`docs/glossary.md`._",
     "references": [
       "doc:glossary.md"
     ],
@@ -861,69 +776,6 @@
     "title": "verification-wins",
     "description": "The stance that binding to external truth via tests + on-disk evidence overrides LLM memory consolidation / recency (\"recency-wins\").",
     "body": "**The principle.** Binding to external truth via tests + on-disk evidence **overrides** LLM memory consolidation / recency (\"recency-wins\").\n\n## Why\n\nA confident-but-stale model recollection can override what the tests and evidence actually show. v2 rejects Dreams-style memory reconciliation in favour of a commit/event-bound evidence chain.\n\n## How to apply\n\nWhen the model's memory and the evidence chain disagree, the evidence wins — trust the tests + on-disk record over recency.\n\n## See also\n\n_`docs/glossary.md`. Carried from v1's learning-loop design (Agentic ADR-0011); the learning loop's v2 home is still open (`open-questions.md` §5)._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "inner-loop-outer-loop",
-    "category": "definition",
-    "title": "inner loop / outer loop",
-    "description": "inner loop = driving one unit from red to green (automatable, owned by an owned-loop node).",
-    "body": "**In one line.** The two loops of work in storytree: the *inner loop* is driving one unit red→green (automatable, owned by an owned-loop node), and the *outer loop* is the human-judgment decisions taken around it in the studio.\n\n## What it is\n\n**inner loop** = driving one unit from red to green (automatable, owned by an owned-loop node). **outer loop** = accepting a result onto the trunk, accepting a decomposition, or amending / retrying / abandoning a unit (held by **human judgment** in the studio). The human-in-the-loop gate sits at the outer loop; the north-star may later dissolve it.\n\n## See also\n\n_Synthesised from ADR-0007, ADR-0008; carried from Agentic ADR-0006/0020. See glossary; overlaps the `human-owns-the-outer-loop` guardrail._",
-    "references": [
-      "doc:glossary.md",
-      "doc:decisions/0007-proof-model.md",
-      "doc:decisions/0008-ui-drives-agents-approvals.md",
-      "doc:decisions/0006-event-store-observability-surface.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "outcome",
-    "category": "definition",
-    "title": "outcome",
-    "description": "A capability's plain-English, single-sentence value statement (no conjunctions — split the unit if it needs them).",
-    "body": "**In one line.** A capability's plain-English, single-sentence value statement.\n\n## What it is\n\nA capability's plain-English, single-sentence value statement, with no conjunctions — if it needs them, split the unit instead.\n\n## See also\n\n_From `docs/glossary.md`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "guidance",
-    "category": "definition",
-    "title": "guidance",
-    "description": "Non-obvious technical context needed to rebuild a unit;",
-    "body": "**In one line.** The non-obvious technical context needed to rebuild a unit — only what an agent could not derive on its own.\n\n## What it is\n\nNon-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof.\n\n## See also\n\n_From `docs/glossary.md`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "title",
-    "category": "definition",
-    "title": "title",
-    "description": "Short human label for a unit;",
-    "body": "**In one line.** A short human label for a unit, not load-bearing for proof.\n\n## What it is\n\nA short human label for a unit; it is not load-bearing for proof.\n\n## See also\n\n_From `docs/glossary.md`. A unit-field def alongside `id`._",
-    "references": [
-      "doc:glossary.md"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "id",
-    "category": "definition",
-    "title": "id",
-    "description": "A unit's unique identifier.",
-    "body": "**In one line.** A unit's unique identifier, which v2 must allocate conflict-free across concurrent sessions.\n\n## What it is\n\nA unit's unique identifier. v2 must allocate these **conflict-free across concurrent sessions** — a stated goal; the DBOS spike validated durable, collision-free workflow IDs as one mechanism.\n\n## See also\n\n_From `docs/glossary.md`. A unit-field def alongside `title`._",
     "references": [
       "doc:glossary.md"
     ],
@@ -1152,10 +1004,8 @@
     "body": "**The question.** Trim-and-cross-link, or merge-and-retire, the two heavily-overlapping pairs?\n\n## Context\n\n`inner-loop-outer-loop` (definition) restates `human-owns-the-outer-loop` (guardrail) almost verbatim; `own-the-layers` (principle) restates `vibe-the-load-bearing-layers` (pattern). In each pair one unit is neutral vocabulary and the other carries the enforced/cautionary claim.\n\n## Options\n\n- **A — Keep both, trim overlap + cross-link.** The definition keeps the vocabulary; the guardrail/pattern keeps the claim. Non-destructive.\n\n- **B — Merge & retire one side of each.** Fewer units; destructive.\n\n- **C — Leave fully as-is.**\n\n## Recommendation\n\nA (keep both, trim + cross-link). Non-binding until you decide.\n\n## See also\n\n_`docs/research/library-template-alignment.md` §7 D3. Related: `inner-loop-outer-loop`, `human-owns-the-outer-loop`, `own-the-layers`, `vibe-the-load-bearing-layers`._",
     "references": [
       "doc:research/library-template-alignment.md",
-      "asset:inner-loop-outer-loop",
       "asset:human-owns-the-outer-loop",
-      "asset:own-the-layers",
-      "asset:vibe-the-load-bearing-layers"
+      "asset:own-the-layers"
     ],
     "createdAt": "2026-06-07T00:00:00.000Z",
     "updatedAt": "2026-06-07T00:00:00.000Z"
@@ -1188,5 +1038,30 @@
     ],
     "createdAt": "2026-06-07T00:00:00.000Z",
     "updatedAt": "2026-06-07T00:00:00.000Z"
+  },
+  {
+    "id": "lifecycle-status",
+    "category": "definition",
+    "title": "lifecycle status",
+    "description": "A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring to proven to pruned.",
+    "body": "**In one line.** A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring through proven to pruned.\n\n## What it is\n\nStatus lives on every tier (story / capability / contract) and is drawn from six states:\n\n- **proposed** — authored but not yet selected for implementation; the initial state.\n\n- **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits.\n\n- **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010).\n\n- **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk.\n\n- **mapped** — brownfield: the capability is *observationally* verified by an existing target-repo test suite, without storytree driving a red→green flow; a distinct, weaker state than `healthy` — observational green never short-circuits to proven; v2 **supports** brownfield, the exact mapping mechanism under the owned loop / DBOS is still to design (see `open-questions.md` §2).\n\n- **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).\n\n## What it is not\n\n`healthy` is not `mapped` (observational green never short-circuits to proven) and not `unhealthy` (a once-healthy unit that has since drifted). `mapped` and `unhealthy` are computed from evidence, never written to disk.\n\n## See also\n\n_`docs/glossary.md`; ADR-0010 (organism model); `open-questions.md` §2 (mapping mechanism open). Related: `proof-mode`, `node-rollup`, `proof-hash`, `evidence`, `operator-attested`, `prove-it-gate`._",
+    "references": [
+      "doc:glossary.md",
+      "doc:decisions/0010-organism-model-story-bounded-context.md"
+    ],
+    "createdAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z"
+  },
+  {
+    "id": "unit-fields",
+    "category": "definition",
+    "title": "unit fields",
+    "description": "The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.",
+    "body": "**In one line.** The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.\n\n## What it is\n\nThe four core fields a unit carries:\n\n- **outcome** — a capability's plain-English, single-sentence value statement, with no conjunctions (if it needs them, split the unit instead).\n\n- **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof.\n\n- **title** — a short human label for a unit; not load-bearing for proof.\n\n- **id** — a unit's unique identifier. v2 must allocate these **conflict-free across concurrent sessions** — a stated goal; the DBOS spike validated durable, collision-free workflow IDs as one mechanism.\n\n## See also\n\n_From `docs/glossary.md`._",
+    "references": [
+      "doc:glossary.md"
+    ],
+    "createdAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   }
 ]

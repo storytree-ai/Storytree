@@ -63,42 +63,62 @@ const GENERATED_TEMPLATE_KINDS = new Set([
 // (a) assets.json
 // ---------------------------------------------------------------------------
 
+// Render one knowledge doc into a runtime-store asset. `category` is the doc's
+// `kind` (knowledge.json is the source of truth, so a recategorized unit's asset
+// category follows it); `prevAsset` (if any) supplies stable timestamps.
+function renderKnowledgeAsset(doc, prevAsset) {
+  return {
+    id: doc.id,
+    category: doc.kind,
+    title: doc.title,
+    description: doc.description,
+    body: renderBody(doc),
+    references: doc.references,
+    createdAt: doc.createdAt ?? prevAsset?.createdAt,
+    updatedAt: doc.updatedAt ?? prevAsset?.updatedAt,
+  };
+}
+
 function buildAssets() {
   const existing = JSON.parse(readFileSync(assetsFile, 'utf8'));
   const docs = JSON.parse(readFileSync(knowledgeFile, 'utf8'));
   const docById = new Map(docs.map((d) => [d.id, d]));
+  const emitted = new Set();
 
-  const out = existing.map((a) => {
+  // 1. Walk the existing store order. Knowledge assets are re-rendered from the
+  //    structured source; a knowledge asset whose doc was DELETED from
+  //    knowledge.json is dropped (assets.json is a generated derivative, so its
+  //    membership follows knowledge.json). Templates are kept/regenerated.
+  const out = [];
+  for (const a of existing) {
     if (KNOWLEDGE_KINDS.has(a.category)) {
       const doc = docById.get(a.id);
-      if (!doc) throw new Error(`assets.json unit ${a.id} (${a.category}) has no knowledge.json doc`);
-      if (doc.kind !== a.category) {
-        throw new Error(`unit ${a.id}: kind ${doc.kind} != category ${a.category}`);
-      }
-      // Render the WHOLE asset from the structured source (knowledge.json is the
-      // source of truth for title/description/references/body, not just body).
-      // id/category and timestamps are stable keys; field order matches the store.
-      return {
-        id: a.id,
-        category: a.category,
-        title: doc.title,
-        description: doc.description,
-        body: renderBody(doc),
-        references: doc.references,
-        createdAt: doc.createdAt ?? a.createdAt,
-        updatedAt: doc.updatedAt ?? a.updatedAt,
-      };
+      if (!doc) continue; // retired in knowledge.json -> drop from the store
+      out.push(renderKnowledgeAsset(doc, a));
+      emitted.add(doc.id);
+      continue;
     }
     if (a.category === 'template') {
       if (GENERATED_TEMPLATE_KINDS.has(a.id)) {
         const kind = a.id.slice('template-'.length);
-        return { ...a, body: generateTemplate(kind) };
+        out.push({ ...a, body: generateTemplate(kind) });
+      } else {
+        // template-adr (and any other non-knowledge template) kept as-is.
+        out.push(a);
       }
-      // template-adr (and any other non-knowledge template) kept as-is.
-      return a;
+      continue;
     }
     throw new Error(`unit ${a.id}: unexpected category ${JSON.stringify(a.category)}`);
-  });
+  }
+
+  // 2. Append knowledge docs that are NEW (not yet in the store), in knowledge.json
+  //    order, so consolidated/created units (e.g. lifecycle-status, unit-fields)
+  //    land in the generated store.
+  for (const doc of docs) {
+    if (emitted.has(doc.id)) continue;
+    out.push(renderKnowledgeAsset(doc, undefined));
+    emitted.add(doc.id);
+  }
 
   writeFileSync(assetsFile, JSON.stringify(out, null, 2) + '\n', 'utf8');
   return out;
@@ -147,7 +167,7 @@ const GLOSSARY_SECTION_ORDER = [
   },
   {
     heading: "Lifecycle (a capability's status)",
-    ids: ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'],
+    ids: ['lifecycle-status'],
   },
   {
     heading: 'Proof, evidence & gating',
@@ -161,10 +181,10 @@ const GLOSSARY_SECTION_ORDER = [
     heading: 'Principles & patterns (carried from v1)',
     ids: [
       'deep-modules', 'defects-amend-the-owning-story', 'fail-closed-on-dirty-tree',
-      'standalone-resilient-library', 'verification-wins', 'inner-loop-outer-loop',
+      'standalone-resilient-library', 'verification-wins', 'human-owns-the-outer-loop',
     ],
   },
-  { heading: 'Unit fields', ids: ['outcome', 'guidance', 'title', 'id'] },
+  { heading: 'Unit fields', ids: ['unit-fields'] },
   { heading: 'Concurrency & isolation', ids: ['claim', 'write-ownership'] },
   {
     heading: 'Studio & tooling',

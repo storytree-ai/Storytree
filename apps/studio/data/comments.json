@@ -1,1 +1,102 @@
-[]
+[
+  {
+    "id": "68920d65-df08-4a1c-96d1-50f3412d4000",
+    "topicKind": "asset",
+    "topicId": "oq-library-body-durability",
+    "anchor": {
+      "kind": "topic",
+      "headingSlug": null,
+      "headingText": null,
+      "quote": null,
+      "prefix": null,
+      "suffix": null,
+      "startOffset": null,
+      "color": null
+    },
+    "body": "Please explain the full workflow including what the seeder is and does in simple language",
+    "author": "operator",
+    "createdAt": "2026-06-07T23:05:59.859Z",
+    "resolved": false,
+    "resolvedAt": null
+  },
+  {
+    "id": "2ddd5966-9560-46db-b9b0-4f5e9920626d",
+    "topicKind": "asset",
+    "topicId": "oq-anti-pattern-lessons",
+    "anchor": {
+      "kind": "topic",
+      "headingSlug": null,
+      "headingText": null,
+      "quote": null,
+      "prefix": null,
+      "suffix": null,
+      "startOffset": null,
+      "color": null
+    },
+    "body": "not important, when i get to reviewing these i can tell you to fix them or regacgorise them later",
+    "author": "operator",
+    "createdAt": "2026-06-07T23:07:23.642Z",
+    "resolved": false,
+    "resolvedAt": null
+  },
+  {
+    "id": "821fb656-911b-4880-9bff-dab9ceaf17a0",
+    "topicKind": "asset",
+    "topicId": "oq-redundant-library-pairs",
+    "anchor": {
+      "kind": "topic",
+      "headingSlug": null,
+      "headingText": null,
+      "quote": null,
+      "prefix": null,
+      "suffix": null,
+      "startOffset": null,
+      "color": null
+    },
+    "body": "B, merge and retire",
+    "author": "operator",
+    "createdAt": "2026-06-07T23:07:51.746Z",
+    "resolved": false,
+    "resolvedAt": null
+  },
+  {
+    "id": "9a7ce4c5-36b8-49c7-8e08-235df3f02187",
+    "topicKind": "asset",
+    "topicId": "oq-thin-glossary-terms",
+    "anchor": {
+      "kind": "topic",
+      "headingSlug": null,
+      "headingText": null,
+      "quote": null,
+      "prefix": null,
+      "suffix": null,
+      "startOffset": null,
+      "color": null
+    },
+    "body": "consolidate",
+    "author": "operator",
+    "createdAt": "2026-06-07T23:10:30.271Z",
+    "resolved": false,
+    "resolvedAt": null
+  },
+  {
+    "id": "8c8dc7df-fe0a-4b51-bf2d-796bf918a075",
+    "topicKind": "asset",
+    "topicId": "oq-soft-recategorizations",
+    "anchor": {
+      "kind": "topic",
+      "headingSlug": null,
+      "headingText": null,
+      "quote": null,
+      "prefix": null,
+      "suffix": null,
+      "startOffset": null,
+      "color": null
+    },
+    "body": "sure flip them, less is more",
+    "author": "operator",
+    "createdAt": "2026-06-07T23:11:23.254Z",
+    "resolved": false,
+    "resolvedAt": null
+  }
+]

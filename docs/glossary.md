@@ -118,29 +118,7 @@ capabilities'. Carried from v1's lifecycle, with
 *not* rename `healthy` to "proven" — "proven" stays as general proof-mode
 language, `healthy` is the status word).
 
-**proposed** — Authored but not yet selected for implementation. The initial
-state.
-
-**building** — Selected and under active implementation (v1: `under_construction`).
-Written at pickup as the first commit, before any code edits.
-
-**healthy** — Proven: the unit reached `healthy` through its tier's proof mode at
-HEAD — a story by a UAT pass over fresh green capabilities, a capability by
-integration tests over fresh green contracts, a contract by its isolated unit test
-(or, where neither honest test exists, operator-attested) (ADR-0010).
-
-**unhealthy** — A once-healthy capability that has drifted (a contract test now
-fails, owned files changed, or the proof no longer matches HEAD). **Computed**
-from evidence, never written to disk.
-
-**mapped** — Brownfield: the capability is *observationally* verified by an
-existing target-repo test suite, without storytree driving a red→green flow. A
-distinct, weaker state than `healthy` — observational green never short-circuits
-to proven. v2 **supports** brownfield; the exact mapping mechanism under the owned loop / DBOS
-is still to design (see `open-questions.md` §2).
-
-**retired** — Terminal off-tree state: pruned from the active tree. May carry
-`retired_reason` (prose) and `superseded_by` (an edge to its replacement).
+**lifecycle status** — A unit's status, drawn from six states. **proposed** — authored but not yet selected for implementation; the initial state. **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits. **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010). **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk. **mapped** — brownfield: the capability is *observationally* verified by an existing target-repo test suite, without storytree driving a red→green flow; a distinct, weaker state than `healthy` — observational green never short-circuits to proven; v2 **supports** brownfield, the exact mapping mechanism under the owned loop / DBOS is still to design (see `open-questions.md` §2). **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).
 
 ## Proof, evidence & gating
 
@@ -256,17 +234,7 @@ from Agentic ADR-0006/0020).
 
 ## Unit fields
 
-**outcome** — A capability's plain-English, single-sentence value statement (no
-conjunctions — split the unit if it needs them).
-
-**guidance** — Non-obvious technical context needed to rebuild a unit; only what
-an agent could not derive from outcome + proof.
-
-**title** — Short human label for a unit; not load-bearing for proof.
-
-**id** — A unit's unique identifier. v2 must allocate these **conflict-free across
-concurrent sessions** — a stated goal; the DBOS spike validated durable,
-collision-free workflow IDs as one mechanism.
+**unit fields** — The four core fields a unit carries. **outcome** — a capability's plain-English, single-sentence value statement (no conjunctions — split the unit if it needs them). **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof. **title** — short human label for a unit; not load-bearing for proof. **id** — a unit's unique identifier; v2 must allocate these **conflict-free across concurrent sessions** (a stated goal; the DBOS spike validated durable, collision-free workflow IDs as one mechanism).
 
 ## Concurrency & isolation
 
