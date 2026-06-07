@@ -54,9 +54,10 @@ export function Library({ category }: { category: AssetCategory | null }): React
           <h1>Library</h1>
           <p className="muted">
             Modular, injectable artifacts — definitions, principles, patterns, guardrails, templates,
-            the techstack, and ADRs — all first-class, authorable categories. The canonical ADR docs
-            under <code>docs/decisions/</code> also fold in read-only. The durable guidance
-            synthesised from the record; the seed of an injectable guidance library (open-questions §9).
+            the techstack, ADRs, and open questions — all first-class, authorable categories. The
+            canonical ADR docs under <code>docs/decisions/</code> also fold in read-only. The durable
+            guidance synthesised from the record; the seed of an injectable guidance library
+            (open-questions §9).
           </p>
         </div>
         <a className="btn primary" href={assetNewHref}>

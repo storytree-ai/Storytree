@@ -30,6 +30,7 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'techstack',
   'template',
   'adr',
+  'open-question',
 ];
 
 interface Paths {

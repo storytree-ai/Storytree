@@ -219,6 +219,12 @@ into `glossary.md` without breaking extraction. Options are in §7.
 
 ## 7. Open decisions — detail for the owner
 
+> **Now live as `open-question` artifacts in the Library** (new first-class artifact type,
+> gloss "an unresolved decision to settle"). D1→`oq-library-body-durability`,
+> D2→`oq-anti-pattern-lessons`, D3→`oq-redundant-library-pairs`, D4→`oq-thin-glossary-terms`,
+> D5→`oq-soft-recategorizations`. Decide them in the studio (comment / edit) rather than over
+> chat — this is the dogfooding handoff. The detail below mirrors those artifacts.
+
 These were **not** mutated: each is a genuine fork (destructive, or touches the authoritative
 glossary, or is your design taste). My recommendation is marked ★.
 

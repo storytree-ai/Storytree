@@ -71,7 +71,8 @@ export type AssetCategory =
   | 'guardrail' // "a deterministically-enforced boundary"
   | 'techstack' // "what we build on"
   | 'template' // "the shape an artifact conforms to"
-  | 'adr'; // "a decision record"
+  | 'adr' // "a decision record"
+  | 'open-question'; // "an unresolved decision to settle"
 
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
@@ -133,6 +134,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'techstack',
   'template',
   'adr',
+  'open-question',
 ];
 
 /** One-line gloss per category (shown in the Library UI). */
@@ -144,6 +146,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   techstack: 'what we build on',
   template: 'the shape an artifact conforms to',
   adr: 'a decision record',
+  'open-question': 'an unresolved decision to settle',
 };
 
 /**

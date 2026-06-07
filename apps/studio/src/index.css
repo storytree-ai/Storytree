@@ -21,6 +21,7 @@
   --cat-techstack: #16a34a;
   --cat-template: #b45309;
   --cat-adr: #334155;
+  --cat-open-question: #ea580c;
   --cat-context: #b45309;
   --cat-glossary: #475569;
 
@@ -1196,6 +1197,9 @@ mark.st-hl.flash {
 .chip.cat-adr {
   background: var(--cat-adr);
 }
+.chip.cat-open-question {
+  background: var(--cat-open-question);
+}
 .cat-dot.cat-guardrail {
   background: var(--cat-guardrail);
 }
@@ -1210,6 +1214,9 @@ mark.st-hl.flash {
 }
 .cat-dot.cat-adr {
   background: var(--cat-adr);
+}
+.cat-dot.cat-open-question {
+  background: var(--cat-open-question);
 }
 .chip-btn.cat-guardrail.active {
   background: var(--cat-guardrail);
@@ -1230,6 +1237,10 @@ mark.st-hl.flash {
 .chip-btn.cat-adr.active {
   background: var(--cat-adr);
   border-color: var(--cat-adr);
+}
+.chip-btn.cat-open-question.active {
+  background: var(--cat-open-question);
+  border-color: var(--cat-open-question);
 }
 
 /* editor: body label row (template button) + required-section hint */
