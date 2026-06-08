@@ -1,0 +1,3 @@
+[submodule "legacy/Agentic"]
+	path = legacy/Agentic
+	url = git@github.com:HuaMick/Agentic.git
