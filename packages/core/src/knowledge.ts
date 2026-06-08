@@ -238,9 +238,17 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   ],
   "open-question": [
     {
-      field: "statement",
+      field: "stakes",
       lead: true,
-      heading: "**The question.**",
+      heading: "**Why this matters.**",
+      required: true,
+      placeholder:
+        "_What breaks, or what job is blocked, if this stays unsettled — one sentence a newcomer (or an agent without the repo loaded) understands, before any identifier or ADR number._",
+    },
+    {
+      field: "statement",
+      lead: false,
+      heading: "The question",
       required: true,
       placeholder: "_The decision to settle, in one sentence._",
     },
@@ -250,7 +258,15 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       heading: "Context",
       required: true,
       placeholder:
-        "_Why it is open now — the forces and constraints, and what is blocked until it lands._",
+        "_Why it is open now — the forces and constraints, and what is blocked until it lands. Gloss every internal term, code identifier, and ADR number on first use._",
+    },
+    {
+      field: "diagram",
+      lead: false,
+      heading: "Diagram",
+      required: false,
+      placeholder:
+        "_A picture when the subject is a structure, flow, or state machine — an ASCII box/flow diagram in a fenced code block. Omit for a pure value/policy choice._",
     },
     {
       field: "options",
