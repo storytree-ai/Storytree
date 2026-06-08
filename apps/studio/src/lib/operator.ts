@@ -1,4 +1,4 @@
-// The single local operator identity (ADR-0008 / adjudication §C: a simple local
+// The single local operator identity (ADR-0008: a simple local
 // operator for the single-operator dogfood; revisit when multi-operator). Stored
 // in localStorage so comments carry a name across reloads.
 

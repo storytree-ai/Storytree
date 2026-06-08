@@ -91,13 +91,42 @@ Claude Agent SDK, Google ADK).
 ## Repo layout
 
 ```
-packages/core          shared types: story / capability / contract / event schema
+packages/core          shared types: story / capability / contract + event + Library schema
 packages/orchestrator  DAG scheduler, event store, the prove-it (red-green) gate
 packages/agent         owned-loop session wrapper → normalized events
 packages/store         typed node-pg client over Cloud SQL Postgres (keyless IAM auth)
-apps/studio            web IDE: React + PixiJS isometric tree
-docs/decisions         ADRs (0001–0021)
+packages/cli           the choose-your-own-adventure Library CLI (ADR-0023)
+apps/studio            web IDE: React + PixiJS isometric tree, and the Library browser
+apps/studio/data       knowledge.json — the structured source of the Library corpus
+docs/decisions         ADRs (0001–0023) — also the source-of-record for the Library `adr` category
 ```
+
+## Documentation & the Library
+
+Durable project knowledge lives in the **Library** — a typed artifact tier
+(`definition` / `principle` / `pattern` / `guardrail` / `techstack` / `template` /
+`adr` / `open-question`), not in a sprawl of standalone docs. Its structured source is
+[`apps/studio/data/knowledge.json`](apps/studio/data/knowledge.json); it is migrated
+into the shared Cloud SQL Postgres store (ADR-0017 / ADR-0019), browsed in the studio,
+and explored from the CLI (`pnpm storytree library`).
+
+The Library's source of truth is the structured `knowledge.json`; two views are
+**generated** from it by `apps/studio/data/build-corpus.mjs` and must never be hand-edited:
+`apps/studio/data/assets.json` (the rendered corpus) and
+[`docs/glossary.md`](docs/glossary.md) (the authoritative terms). To change the Library,
+edit `knowledge.json` (or use the CLI against the live DB) and re-run the generator.
+
+What remains under `docs/` is therefore intentionally lean — everything else durable has
+folded into the Library:
+
+- **`docs/decisions/`** — the ADRs (0001–0023). Immutable, dated decision records; also
+  the source-of-record the studio folds in as the Library's read-only `adr` category.
+- **`docs/glossary.md`** — generated from the Library (see above).
+- **`docs/open-questions.md`** — the deferred-decisions backlog, cited by section number
+  (`§n`) from the glossary and the ADRs.
+- **`docs/research/`** — long-form decision-provenance behind specific ADRs.
+
+The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md).
 
 ## Development (bootstrap phase)
 

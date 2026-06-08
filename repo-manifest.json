@@ -1,0 +1,41 @@
+{
+  "$comment": "Allow-list gate for the repo ROOT and docs/. Enforced by scripts/check-manifest.mjs (`pnpm check:manifest`), wired into `pnpm gate` and the CI `verify` job (ADR-0022). Adding a NEW top-level root entry, or a NEW standalone doc under docs/, REQUIRES adding it here with a justification first — that friction is the point: it blocks temp/ad-hoc junk at root and keeps durable project knowledge in the Library (definition/principle/pattern/guardrail/techstack/adr/open-question), not loose prose docs. A new doc's justification must say why it does NOT belong in the Library. See the `repo-surface-allowlist` Library guardrail.",
+  "root": {
+    "files": {
+      "README.md": "Project front-door (the one standalone narrative doc we keep).",
+      "CLAUDE.md": "Agent onboarding / one-read orientation; load-bearing.",
+      "package.json": "Workspace root manifest + gate/sync scripts.",
+      "pnpm-workspace.yaml": "pnpm workspace definition (packages/*, apps/*).",
+      "pnpm-lock.yaml": "Locked dependency graph (frozen-lockfile in CI).",
+      "tsconfig.base.json": "Shared TS compiler options every package extends.",
+      "repo-manifest.json": "This allow-list (self-listed so the check passes on itself).",
+      ".env.example": "Sample env (ANTHROPIC_API_KEY); DB auth is keyless.",
+      ".gitignore": "Ignored paths.",
+      ".gitattributes": "Git attributes (eol/diff).",
+      ".gitmodules": "Submodule wiring (legacy/Agentic, read-only).",
+      ".editorconfig": "Editor formatting baseline.",
+      ".nvmrc": "Pinned Node version (24)."
+    },
+    "dirs": {
+      "packages": "Workspace packages (core / agent / orchestrator / store / cli).",
+      "apps": "Workspace apps (studio).",
+      "docs": "ADRs + generated glossary + open-questions backlog + research notes (see docs.* below).",
+      "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/core.",
+      "infra": "Terraform / GCP infra (Cloud SQL, idle-stop).",
+      "scripts": "Repo-level maintenance scripts (e.g. this manifest check).",
+      "legacy": "Read-only V1 Rust submodule (legacy/Agentic); reference only.",
+      ".github": "CI workflows (the green gate + auto-merge, ADR-0022).",
+      ".claude": "Claude Code project config / worktrees."
+    }
+  },
+  "docs": {
+    "allowedDirs": {
+      "decisions": "ADRs — immutable dated decision records; also the source-of-record the studio folds in as the Library's read-only `adr` category. New ADRs do not need a manifest entry.",
+      "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model."
+    },
+    "files": {
+      "glossary.md": "GENERATED from the Library (knowledge.json) by apps/studio/data/build-corpus.mjs; read by the studio. Not hand-authored — a Library projection, not a standalone doc.",
+      "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the generated glossary, the ADRs, and Library units' references. A threaded cross-reference ledger, not atomic Library units."
+    }
+  }
+}

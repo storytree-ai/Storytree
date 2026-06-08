@@ -40,6 +40,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Repo-surface allow-list (the `repo-surface-allowlist` guardrail): refuse
+      # unlisted root entries / loose docs so temp/ad-hoc junk can't merge.
+      - name: Repo manifest
+        run: pnpm check:manifest
+
       - name: Typecheck
         run: pnpm -r typecheck
 

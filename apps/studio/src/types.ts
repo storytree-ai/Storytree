@@ -39,7 +39,7 @@ export interface Comment {
   anchor: CommentAnchor;
   /** Markdown. */
   body: string;
-  /** Single local operator identity for now (ADR-0008 / adjudication §C). */
+  /** Single local operator identity for now (ADR-0008). */
   author: string;
   createdAt: string;
   resolved: boolean;
@@ -76,7 +76,7 @@ export type AssetCategory =
 
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
- * library (open-questions §9 / adjudication §J). Named `GuidanceAsset`, NOT bare
+ * library (open-questions §9, resolved by ADR-0017 / ADR-0019). Named `GuidanceAsset`, NOT bare
  * `asset`: the glossary reserves `asset` for tree/game art. ADRs are *not*
  * artifacts (they are history); a principle/guideline synthesized from an ADR
  * cites it via `references`.
@@ -155,7 +155,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
  * Library *also* folds in the canonical ADR docs under docs/decisions/ as
  * read-only `adr` rows, so an item is either an editable artifact
  * (`kind: 'artifact'` → AssetView) or a doc-backed ADR (`kind: 'doc'` → read-only
- * DocView). The glossary / open-questions / adjudication / v1 registers stay in
+ * DocView). The glossary / open-questions / research notes stay in
  * the sidebar's "Reference" section, not the Library.
  */
 export interface LibraryItem {
