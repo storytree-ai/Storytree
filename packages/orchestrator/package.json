@@ -1,0 +1,24 @@
+{
+  "name": "@storytree/orchestrator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "storytree orchestration spine (ADR-0005): the deterministic step machine (runSequence / runLoop) that owns control flow while the owned loop judges at the leaf. Hosts the ADR-0020 red-green phase machine.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@storytree/agent": "workspace:*",
+    "@storytree/core": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}

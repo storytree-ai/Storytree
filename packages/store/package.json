@@ -1,0 +1,26 @@
+{
+  "name": "@storytree/store",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "storytree Postgres store (ADR-0015/0017/0019): a thin typed Cloud SQL client (Node connector + IAM, no password, no DBOS) backing the library artifact + append-only event + projection tables. JSONB docs, zod-validated at the write boundary.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.4.0",
+    "@storytree/core": "workspace:*",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}
