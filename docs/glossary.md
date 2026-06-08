@@ -48,16 +48,6 @@ v1's overloaded `runs`/`test_runs` table (per-build vs per-event vs id-keyed
 dir); here `run` is strictly the per-node execution attempt (ADR-0004, ADR-0011; see
 `open-questions.md` §3, §8).
 
-**UAT** (user-acceptance walkthrough) — A prose journey, run end-to-end against
-*real* collaborators, that proves a **story** (the whole organism) meets its goal.
-Minimal-first: ship one that proves the goal, grow more as defects surface. Lives
-at the **story** level — capabilities get integration tests, contracts get
-isolated unit tests, not UATs (ADR-0010).
-
-**contract test** — The automated test that proves a contract: the **isolated
-unit test** at the bottom rung of the proof ladder (unit → integration → UAT).
-Collaborators are stubbed, for fast feedback during the build.
-
 **dependency** — A directed edge, defined at two altitudes (ADR-0010).
 **Within a story**, capability→capability edges are **code-derived** (static
 analysis of imports/calls): inside the boundary a dependency *is* the code
@@ -79,17 +69,6 @@ the unit of observability. If a state change isn't an event the UI can render,
 it doesn't exist (ADR-0001, observability-first). Defined alongside the schema in
 `packages/core`. Includes operator-actor events (see **approval event /
 promotion event**), not just agent activity.
-
-**event log** — The typed, **append-only** record in the event store — one row
-per state change — that is the single source of truth the studio renders and the
-only thing **written**. The artifact behind the `event` term; distinct from the
-derived **node rollup** below (ADR-0006).
-
-**node rollup** — The current status and latest `verdict` **per** story /
-capability / contract, derived as a **projection** over the event log and never
-hand-maintained. A capability's lifecycle status (proposed / building / healthy;
-unhealthy computed) is *read off* the log, not written beside it. v2's answer to
-v1's per-build `runs`-grain mess (ADR-0006).
 
 **owned-loop event stream** — the owned loop's structured lifecycle event stream (plus `edit`-tool
 diffs/patches) emitted as it works inside a node — the **agent-activity ingest
@@ -121,10 +100,6 @@ language, `healthy` is the status word).
 **lifecycle status** — A unit's status, drawn from six states. **proposed** — authored but not yet selected for implementation; the initial state. **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits. **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010). **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk. **mapped** — brownfield: the capability is *observationally* verified by an existing target-repo test suite, without storytree driving a red→green flow; a distinct, weaker state than `healthy` — observational green never short-circuits to proven; v2 **supports** brownfield, the exact mapping mechanism under the owned loop / DBOS is still to design (see `open-questions.md` §2). **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).
 
 ## Proof, evidence & gating
-
-**gate** — A structural enforcement point that **refuses** invalid work rather
-than warning. storytree keeps the commit-time / promotion gate (ADR-0001 cites it
-as a proven v1 idea).
 
 **prove-it-gate** — The principle that a unit reaches `healthy` only via earned,
 on-disk evidence — never a hand-edit.
@@ -191,10 +166,6 @@ evidence (events vs files) and the attestation/identity model are open
 **proof hash** — A hash of a unit's proof-bearing content (outcome, contracts, …)
 that invalidates a prior verdict when the content changes.
 
-**red-green** — The discipline that a failing (red) contract test is authored
-before the implementation that turns it green. A *principle*, not a synonym for
-`contract`.
-
 **mock-UAT seam** — **No mocks within an organism**: capability integration tests
 and the story UAT both run against real in-story collaborators. The one stubbable
 boundary is the declared cross-story **boundary** — a story's UAT may run against
@@ -204,15 +175,8 @@ acceptance-testing a frontend against a stubbed database). Isolated unit
 
 ## Principles & patterns (carried from v1)
 
-**deep-modules** — A unit's public interface should be small relative to its rich
-implementation (interface is cost, capability is benefit). ADR-0002's model rests
-on this.
-
 **defects-amend-the-owning-story** — A defect amends the capability whose contract
 it violates (reverting it to `building`), rather than spawning a new unit.
-
-**fail-closed-on-dirty-tree** — A command that writes attestable evidence refuses
-to run on a dirty working tree (writes nothing, distinct exit code).
 
 **standalone-resilient-library** — Structure a unit as a library with minimal
 load-bearing deps, exercised end-to-end by integration tests, with a thin
@@ -297,20 +261,8 @@ result), never auto-merge-on-green, and never holds knowingly-broken intermediat
 states (ADR-0008). Supersedes v1's trunk, which auto-merged on green and tolerated
 broken intermediate states under an eventual-consistency posture.
 
-**steering** — A first-class, typed operator act of **redirecting an in-flight
-owned-loop run mid-execution** (the owned loop's steer operation), recorded as an event in the event
-store. The in-loop counterpart to **approval**: the human shapes an action *while
-it runs*, rather than only accepting/rejecting its result (ADR-0008).
-
-**ADR** — Architecture Decision Record under `docs/decisions/`, capturing a
-cross-cutting decision.
-
 **fixture** — A test-supporting artifact (data file, scaffold, temp crate)
 created during a walkthrough and cleaned up before signing.
-
-**ndjson** — Newline-delimited JSON; the line-delimited record format (a candidate
-backing for the event stream). v1 used "JSONL" interchangeably — standardize on
-**ndjson**.
 
 **asset** — In storytree, a **tree/game art asset** for the isometric renderer
 (ADR-0001, deferred). Note: this is *not* v1's "asset" (shared DRY content under
