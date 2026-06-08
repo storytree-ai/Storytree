@@ -24,7 +24,7 @@ export function Home(): React.JSX.Element {
       <div className="cap-grid">
         <CapCard title="Read the record">
           The ADRs are kept as <em>history</em> — the justification record — alongside the glossary,
-          open-questions, and adjudication. Rendered with stable section anchors and in-corpus
+          open-questions, and the research notes. Rendered with stable section anchors and in-corpus
           cross-links. Start in the sidebar.
         </CapCard>
         <CapCard title="Annotate">
