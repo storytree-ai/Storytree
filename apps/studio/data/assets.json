@@ -1004,5 +1004,18 @@
     ],
     "createdAt": "2026-06-08T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
+  },
+  {
+    "id": "stack-cloud-sql-keyless-iam",
+    "category": "techstack",
+    "title": "Cloud SQL access · Node connector · keyless IAM",
+    "description": "How storytree reaches its Postgres runtime store: the Cloud SQL Node connector with IAM database auth via ambient ADC. Agent sessions need no per-session OAuth and no key files.",
+    "body": "**The choice.** Reach the Cloud SQL Postgres via the Node connector with keyless IAM database authentication — agent sessions authenticate from ambient Application Default Credentials, never a per-session OAuth or a key file.\n\n## What it is\n\nThe `@google-cloud/cloud-sql-connector` Node connector (paired with `pg`, in `packages/store`) mints short-lived IAM tokens as the database password over a TLS socket — no password is stored. Identity comes from the operator’s Application Default Credentials already established on the dev host (plus a dedicated service account for headless/impersonated runs). The IAM database user is the operator email (`STORYTREE_DB_USER`), the database is `storytree`, and the instance connection name is `storytree-498613:australia-southeast1:storytree-pg`.\n\n## Why this\n\nNo secrets in the repo and no per-session interactive login, so agents can run migrations and queries headlessly; it matches the stop/start cost posture (ADR-0015 §5) and keeps the browser/credential-free boundary (the studio never holds DB creds). A session should ASSUME keyless credentials are present and verify with `gcloud auth application-default print-access-token`, not assume it is unauthenticated.\n\n## Constraints\n\nThe instance is STOPPED by default and bills only while up — burst with `pnpm db:up` → work → `pnpm db:down`. IAM users are bare roles, so a ONE-TIME privilege bootstrap (`infra/bootstrap-grants.sql`, applied as the throwaway-password `postgres` user via `packages/store/scripts/apply-grants.mjs`) granted the IAM user `CREATE` on the database; this is idempotent and already applied. The connector deps live in `packages/store`; DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection.\n\n## See also\n\n_Synthesised from ADR-0021 (doc:decisions/0021-keyless-agent-session-auth-and-db-bootstrap.md) and ADR-0015 (doc:decisions/0015-gcp-hosting-cloud-sql-event-store.md). Validated 2026-06-08: 73 units migrated keyless, then the instance stopped._",
+    "references": [
+      "doc:decisions/0021-keyless-agent-session-auth-and-db-bootstrap.md",
+      "doc:decisions/0015-gcp-hosting-cloud-sql-event-store.md"
+    ],
+    "createdAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   }
 ]
