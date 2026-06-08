@@ -57,6 +57,15 @@ resource "google_project_iam_member" "idle_stopper_monitoring" {
   member  = "serviceAccount:${google_service_account.sql_idle_stopper.email}"
 }
 
+# Deploying a Gen2 function that RUNS AS sql-idle-stopper requires the deploying identity
+# (the operator's ADC) to be able to actAs that SA. Owner usually implies this, but a
+# freshly-created SA can lag the check — so bind it explicitly and Terraform-managed.
+resource "google_service_account_iam_member" "operator_actas_idle_stopper" {
+  service_account_id = google_service_account.sql_idle_stopper.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:${var.operator_email}"
+}
+
 # --- function source: zip the dir → GCS (Cloud Build installs deps from package.json) ---
 data "archive_file" "idle_stop_src" {
   type        = "zip"
@@ -110,6 +119,7 @@ resource "google_cloudfunctions2_function" "idle_stop" {
     google_project_service.run,
     google_project_service.cloudbuild,
     google_project_service.artifactregistry,
+    google_service_account_iam_member.operator_actas_idle_stopper,
   ]
 }
 
