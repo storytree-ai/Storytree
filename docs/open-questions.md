@@ -165,7 +165,7 @@ epics (`epics/`).
   v1-successor question can rest here only if the need ever resurfaces. Not an open
   decision — a noted deletion.
 
-## 9. Cross-cutting knowledge / shared-content tier  (awaiting decision)
+## 9. Cross-cutting knowledge / shared-content tier  (RESOLVED — ADR-0017 / ADR-0019)
 v1 modelled shared, cross-cutting content as first-class **asset** entities under
 `assets/` that stories **referenced** (Agentic ADR-0007, "stories consume assets"),
 with reciprocity-checked links so a consuming story and a consumed asset stayed
@@ -181,5 +181,17 @@ yet**). **Term collision:** v1's `asset` (shared DRY content under `assets/`) do
 renderer, so there is no glossary anchor for the v1 shared-content sense; this
 section is its only home. **Still open:** whether the cross-cutting-knowledge tier
 returns at all, and under what (non-`asset`) name.
+→ **RESOLVED (ADR-0017, 2026-06-07 / ADR-0019, 2026-06-08).** The tier **returns** —
+as a structured, zod-validated **corpus tier** in the shared event store (*not* a
+re-instated `asset` system), named **`library`** (ADR-0019; the studio Library grid
+and the tier share one name). Work units **consume** library units; a library unit
+**`derives_from`** ADRs / other units (ADR-0017's ADR-rooted provenance DAG). The
+[ADR-0014](decisions/0014-notice-board-feedback-graduates-into-durable-guidance.md)
+notice-board's posts **graduate into** this tier (operator-gated; **no separate
+`forum/`** — that resolves conflict C2). **Residual — now an ADR-0017 deferred item,
+not a parked §9 question:** the **citing / reference / reciprocity** mechanism (how
+`derives_from` / `consumes` are kept mutual) and the **comments / human-input** layer
+(the notice board itself) are consciously deferred in ADR-0017. So the only surviving
+piece of the old §9 — *reciprocity-checked* shared content — lives there, not here.
 *Terms:* asset (v1 shared DRY content), cross-cutting knowledge, referenced entity,
 reciprocity check, consume / consumes.
