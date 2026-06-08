@@ -1259,97 +1259,58 @@
   },
   {
     "kind": "open-question",
-    "id": "oq-library-body-durability",
-    "title": "How do we make the Library body-alignments durable vs the seeder?",
-    "description": "A --force reseed reverts every aligned body except the recategorized units; pick how the structured store and the glossary-extracting seeder reconcile.",
-    "references": [
-      "doc:research/library-template-alignment.md",
-      "doc:decisions/0013-structured-corpus-markdown-as-view.md",
-      "doc:decisions/0017-cross-cutting-knowledge-tier.md"
-    ],
-    "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z",
-    "statement": "How should the round-1 body alignments be made durable, given a seeder `--force` reseed reverts every aligned body except the recategorized units?",
-    "context": "`apps/studio/data/assets.json` is the runtime store; `seed.assets.mjs` regenerates it on `--force`, auto-extracting the 54 `definition` units from `docs/glossary.md` **verbatim** (one paragraph per term). The multi-section definition template therefore cannot live in `glossary.md` without breaking extraction. The aligned bodies currently live only in the runtime store.",
-    "options": "- **A — Store is source of record.** Treat `assets.json` as authoritative; the seeder stays a reset-only fallback. Simplest, zero further work; cost: provenance drifts and a naive reseed degrades quality. (Matches ADR-0017’s end-state informally.)\n\n- **B — Seeder authoritative, definitions mechanically wrapped.** Sync the 28 curated bodies + template refinements into the seeder and teach the extractor to wrap each glossary def as `**In one line.**` + `## What it is`. Fully regenerable; cost: definitions lose the hand-crafted \"What it is not\" / \"See also\" splits.\n\n- **C — Hybrid.** Seeder authoritative for curated + templates; definitions get the mechanical wrap as a baseline, and the ~15 defs with genuine \"what it is not\" / cross-links are promoted to curated overrides (like `deep-modules`).",
-    "recommendation": "C (hybrid) — best durability/quality balance. Non-binding until you decide.",
-    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D1; ADR-0013 (structured corpus); ADR-0017 (knowledge tier)._"
-  },
-  {
-    "kind": "open-question",
     "id": "oq-anti-pattern-lessons",
     "title": "Are the v1 \"cautionary lessons\" correctly housed as patterns?",
     "description": "auto-merge-on-green / vibe-the-load-bearing-layers / store-lock-races sit in an intentional lessons sub-bucket of `pattern` but describe mistakes, not approaches.",
     "references": [
       "doc:research/library-template-alignment.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
-      "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0009-concurrency-isolation-id-allocation.md",
       "asset:approval-gated-trunk",
-      "asset:own-the-layers",
       "asset:claims-in-the-shared-store"
     ],
     "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z",
-    "statement": "Should the three v1 cautionary lessons stay as `pattern`, move to `principle`, or merge into their positive counterparts?",
-    "context": "`auto-merge-on-green`, `vibe-the-load-bearing-layers`, and `store-lock-races-and-id-collisions` sit under the seeder’s `// pattern: practices & cautionary lessons` comment — an intentional sub-bucket — but they describe v1 mistakes, not reusable approaches you apply. Each overlaps a positive counterpart: `approval-gated-trunk`, `own-the-layers`, `claims-in-the-shared-store`.",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "statement": "Should the two remaining v1 cautionary lessons stay as `pattern`, move to `principle`, or merge into their positive counterparts?",
+    "context": "`auto-merge-on-green` and `store-lock-races-and-id-collisions` sit under the seeder's `// pattern: practices & cautionary lessons` framing but describe v1 mistakes, not reusable approaches you apply. Each overlaps a positive counterpart: `approval-gated-trunk` and `claims-in-the-shared-store` / `durable-workflow-per-node`. (The third lesson, `vibe-the-load-bearing-layers`, was already merged into `own-the-layers` per ADR-0018 §D3.)",
     "options": "- **A — Keep + cross-link** each to its positive counterpart. Non-destructive; honours the intentional bucket.\n\n- **B — Merge & retire**: fold each lesson’s v1 evidence into its counterpart’s \"Why\" and retire the standalone unit. DRY-est; loses standalone discoverability.\n\n- **C — Recategorize → `principle`** (stated negatively). Keeps them standalone but stops calling them patterns.",
     "recommendation": "A (keep + cross-link). Non-binding until you decide.",
-    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D2; ADR-0008, ADR-0001, ADR-0009. Related: `approval-gated-trunk`, `own-the-layers`, `claims-in-the-shared-store`._"
+    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D2; ADR-0008, ADR-0009. Related: `approval-gated-trunk`, `claims-in-the-shared-store`, `durable-workflow-per-node`._"
   },
   {
     "kind": "open-question",
-    "id": "oq-redundant-library-pairs",
-    "title": "Merge or keep the two redundant Library pairs?",
-    "description": "inner-loop-outer-loop (def) ≈ human-owns-the-outer-loop (guardrail); own-the-layers (principle) ≈ vibe-the-load-bearing-layers (pattern).",
+    "id": "oq-knowledge-tier-name",
+    "title": "What do we name the cross-cutting knowledge tier?",
+    "description": "ADR-0017 deferred the tier's name (provisional 'knowledge'); 'asset' is reserved for game art and bare 'guidance' collides with the per-capability note. Needed for the Phase-2 type/table.",
     "references": [
-      "doc:research/library-template-alignment.md",
-      "asset:human-owns-the-outer-loop",
-      "asset:own-the-layers"
+      "doc:decisions/0017-cross-cutting-knowledge-tier.md",
+      "doc:glossary.md"
     ],
-    "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z",
-    "statement": "Trim-and-cross-link, or merge-and-retire, the two heavily-overlapping pairs?",
-    "context": "`inner-loop-outer-loop` (definition) restates `human-owns-the-outer-loop` (guardrail) almost verbatim; `own-the-layers` (principle) restates `vibe-the-load-bearing-layers` (pattern). In each pair one unit is neutral vocabulary and the other carries the enforced/cautionary claim.",
-    "options": "- **A — Keep both, trim overlap + cross-link.** The definition keeps the vocabulary; the guardrail/pattern keeps the claim. Non-destructive.\n\n- **B — Merge & retire one side of each.** Fewer units; destructive.\n\n- **C — Leave fully as-is.**",
-    "recommendation": "A (keep both, trim + cross-link). Non-binding until you decide.",
-    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D3. Related: `inner-loop-outer-loop`, `human-owns-the-outer-loop`, `own-the-layers`, `vibe-the-load-bearing-layers`._"
+    "createdAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "statement": "What is the canonical name for the cross-cutting knowledge tier — the type/table the Phase-2 store and the `packages/core` union will use?",
+    "context": "ADR-0017 parked this. `asset` is reserved (glossary = game art); bare `guidance` collides with the per-capability `Guidance` note (ADR-0011); the working name is **`knowledge`** (a \"knowledge unit\"). The studio surface is called the **Library**. A name is needed before the Phase-2 schema hardens.",
+    "options": "- **`knowledge`** — ADR-0017’s provisional working name (\"knowledge unit\" / \"knowledge tier\"). Neutral, accurate, no collisions.\n\n- **`library`** — matches the studio UI surface; friendly, but conflates the *container* (the Library) with the *unit*.\n\n- **something else** — propose a term.",
+    "recommendation": "`knowledge` for the unit/type, keeping \"Library\" as the UI surface name. Non-binding until you decide.",
+    "seeAlso": "_ADR-0017 (deferred names); `docs/glossary.md` (`asset`, `guidance`)._"
   },
   {
     "kind": "open-question",
-    "id": "oq-thin-glossary-terms",
-    "title": "Consolidate the thin glossary-term definitions?",
-    "description": "Lifecycle statuses (proposed/building/healthy/…) and title/id are thin, but each is a canonical glossary.md term — consolidating means editing the authoritative glossary.",
+    "id": "oq-store-execution-model",
+    "title": "Phase 2: wire DBOS now, or start with a plain Postgres connection?",
+    "description": "The corpus migration needs read/write + event/projection tables on Cloud SQL. Start with a plain typed pg connection and add DBOS when the orchestrator needs durable workflows, or adopt DBOS from day one?",
     "references": [
-      "doc:research/library-template-alignment.md",
-      "doc:glossary.md",
-      "doc:decisions/0016-knowledge-code-binding-and-staleness.md"
+      "doc:decisions/0015-gcp-hosting-cloud-sql-event-store.md",
+      "doc:decisions/0001-foundational-stack.md",
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0017-cross-cutting-knowledge-tier.md"
     ],
-    "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z",
-    "statement": "Should the thin lifecycle-status defs and `title` / `id` be consolidated, given each is a canonical `docs/glossary.md` term?",
-    "context": "The lifecycle statuses (`proposed` / `building` / `healthy` / `unhealthy` / `mapped` / `retired`) and `title` / `id` are one-line glossary terms auto-extracted into the Library. Consolidating means editing the authoritative glossary (which `glossary-wins` defers to) plus a grouped-term extractor — heavier than a Library edit.",
-    "options": "- **A — Leave as-is.** Thinness is fine for canonical vocabulary; one addressable unit per term has injection value.\n\n- **B — Consolidate** the lifecycle statuses into one \"lifecycle status\" definition and `title` / `id` / `outcome` / `guidance` into one \"unit fields\" definition. Requires a `glossary.md` edit + grouped-term extraction. (`proof-hash` either expands with the ADR-0016 staleness anchor or stays a terse leaf.)",
-    "recommendation": "A (leave as-is). Non-binding until you decide.",
-    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D4; `docs/glossary.md`; ADR-0016._"
-  },
-  {
-    "kind": "open-question",
-    "id": "oq-soft-recategorizations",
-    "title": "Confirm or veto two reversible recategorizations",
-    "description": "defects-amend-the-owning-story → pattern and fail-closed-on-dirty-tree → guardrail were applied as reversible calls; both could instead be principle.",
-    "references": [
-      "doc:research/library-template-alignment.md",
-      "doc:glossary.md",
-      "asset:defects-amend-the-owning-story",
-      "asset:fail-closed-on-dirty-tree"
-    ],
-    "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z",
-    "statement": "Keep, or flip to `principle`, the two soft recategorizations already applied?",
-    "context": "During alignment, `defects-amend-the-owning-story` was moved definition → **pattern** and `fail-closed-on-dirty-tree` definition → **guardrail** (with an \"Enforced by\" section). The glossary groups both under \"Principles & patterns\" and neither is \"what something is\", but both could defensibly be a `principle` instead.",
-    "options": "- **A — Keep both as applied** (`pattern` / `guardrail`).\n\n- **B — Flip `defects-amend-the-owning-story` → `principle`.**\n\n- **C — Flip `fail-closed-on-dirty-tree` → `principle`.** (B and C are independent — pick either, both, or neither.)",
-    "recommendation": "Keep as applied (A) unless you prefer the principle framing. Non-binding.",
-    "seeAlso": "_`docs/research/library-template-alignment.md` §7 D5; `docs/glossary.md`. Related: `defects-amend-the-owning-story`, `fail-closed-on-dirty-tree`._"
+    "createdAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "statement": "For the Phase-2 corpus migration, do we wire DBOS from the start, or begin with a plain Postgres (Cloud SQL / IAM) connection and add DBOS when the orchestrator / agent-loop needs durable execution?",
+    "context": "ADR-0015 provisioned Cloud SQL Postgres 16 (IAM auth) with reserved `dbos` and `events` schemas; ADR-0001 / ADR-0009 chose DBOS for durable, concurrency-safe workflows and put coordination `claim`s in the shared store. But the knowledge-tier migration itself is mostly read/write of artifacts + an append-only event log + a projection — it does not yet need durable-workflow orchestration.",
+    "options": "- **A — Plain connection first.** A thin typed Postgres client (Cloud SQL connector + IAM) writes the artifact / event / projection tables; DBOS lands later with the orchestrator / agent-loop, which actually needs durable workflows. Faster to migrate the corpus; less upfront machinery.\n\n- **B — DBOS from day one.** Adopt DBOS now for all writes, consistent with ADR-0001 / ADR-0009 (durable + crash-safe immediately; `claim`s already presume the shared store). More setup before the corpus lands.",
+    "recommendation": "A for the corpus migration (it is CRUD + events, not workflows); bring DBOS in with the orchestrator. ADR-0009's claims-in-the-store argues for B if you want one write path from the start — your call.",
+    "seeAlso": "_ADR-0015 (Cloud SQL store), ADR-0001 / ADR-0009 (DBOS), ADR-0017 (the tier moves into the store)._"
   }
 ]

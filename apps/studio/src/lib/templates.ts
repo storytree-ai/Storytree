@@ -5,8 +5,9 @@
 // deterministic enforcement (a gate / schema / DB constraint / code path) — that
 // "Enforced by" line is exactly what separates a guardrail from a mere `pattern`
 // (ADR-0007 / ADR-0008). So `guardrail` requires an "Enforced by" section and the
-// editor blocks save without it. The seed ships one `template-<category>` artifact
-// per artifact category as the starting scaffold (see data/seed.assets.mjs).
+// editor blocks save without it. One `template-<category>` artifact per category is
+// the starting scaffold, generated from `packages/core` `KIND_SPECS`
+// (see apps/studio/data/build-corpus.mjs; the old data/seed.assets.mjs is retired, ADR-0018).
 
 import type { AssetCategory } from '../types';
 
