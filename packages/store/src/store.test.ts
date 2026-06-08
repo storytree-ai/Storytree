@@ -44,7 +44,7 @@ test("validateLibraryDoc accepts a real knowledge.json unit", async () => {
   const unit = await firstKnowledgeUnit();
   const parsed = validateLibraryDoc(unit);
   assert.equal(typeof parsed.id, "string");
-  assert.equal(typeof parsed.kind, "string");
+  assert.ok("kind" in parsed && typeof parsed.kind === "string");
 });
 
 test("validateLibraryDoc rejects garbage", () => {

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import { Knowledge } from "./knowledge.js";
 
 /**
@@ -160,13 +161,42 @@ export class InMemoryStore implements Store {
 }
 
 /**
- * The zod write-boundary validator for library documents. A library doc is a member of the
- * existing {@link Knowledge} union (ADR-0019's Knowledge->Library rename is deferred, so the
- * type name stays `Knowledge`; this function is the library-doc validator the store layer uses).
- * Throws on malformed input (loud write boundary).
+ * A `template` library artifact. Templates are GENERATED views of the schema (generateTemplate over
+ * KIND_SPECS), not structured source units, so they carry no per-kind fields — they are first-class
+ * Library artifacts only in their rendered {@link https://|GuidanceAsset} form (`category: 'template'`,
+ * a markdown `body`). They are stored so the DB holds the COMPLETE Library (all artifacts the studio
+ * shows), not just the structured-source units. The 6 `template-<kind>` units + `template-adr`.
  */
-export function validateLibraryDoc(input: unknown): Knowledge {
-  return Knowledge.parse(input);
+export const LibraryTemplate = z
+  .object({
+    id: z.string(),
+    category: z.literal("template"),
+    title: z.string(),
+    description: z.string(),
+    body: z.string(),
+    references: z.array(z.string()).default([]),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .strict();
+export type LibraryTemplate = z.infer<typeof LibraryTemplate>;
+
+/**
+ * A library artifact at the write boundary: a structured {@link Knowledge} unit (definition /
+ * principle / pattern / guardrail / techstack / open-question) OR a generated {@link LibraryTemplate}.
+ * Together these are every artifact the studio Library shows.
+ */
+export const LibraryDoc = z.union([Knowledge, LibraryTemplate]);
+export type LibraryDoc = z.infer<typeof LibraryDoc>;
+
+/**
+ * The zod write-boundary validator for library documents (ADR-0017: zod-validated at write). Accepts
+ * a structured {@link Knowledge} unit or a generated {@link LibraryTemplate}. Throws on malformed
+ * input (loud write boundary). (ADR-0019's Knowledge->Library rename is deferred, so the structured
+ * type name stays `Knowledge`.)
+ */
+export function validateLibraryDoc(input: unknown): LibraryDoc {
+  return LibraryDoc.parse(input);
 }
 
 /**

@@ -52,10 +52,26 @@ test("validateLibraryDoc accepts a well-formed knowledge doc", () => {
     updatedAt: "2026-06-08T00:00:00Z",
   };
   const parsed = validateLibraryDoc(doc);
-  assert.equal(parsed.kind, "principle");
+  assert.ok("kind" in parsed && parsed.kind === "principle");
+});
+
+test("validateLibraryDoc accepts a generated template artifact", () => {
+  const tpl = {
+    id: "template-principle",
+    category: "template",
+    title: "Template · principle",
+    description: "the shape a principle conforms to",
+    body: "**The principle.** _..._",
+    references: [],
+    createdAt: "2026-06-08T00:00:00Z",
+    updatedAt: "2026-06-08T00:00:00Z",
+  };
+  const parsed = validateLibraryDoc(tpl);
+  assert.ok("category" in parsed && parsed.category === "template");
 });
 
 test("validateLibraryDoc throws on malformed input (loud write boundary)", () => {
   assert.throws(() => validateLibraryDoc({ kind: "principle", id: "p1" }));
   assert.throws(() => validateLibraryDoc({ kind: "not-a-kind" }));
+  assert.throws(() => validateLibraryDoc({ category: "template", id: "t1" })); // missing body/title
 });
