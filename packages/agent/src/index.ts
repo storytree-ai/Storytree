@@ -17,3 +17,11 @@ export { runTurn, DEFAULT_MAX_TURNS } from "./run-turn.js";
 
 export type { StepResult, StepArgs } from "./step.js";
 export { runStep, runStepValidated } from "./step.js";
+
+export type { WriteToolSpec } from "./fs-tools.js";
+export {
+  FileToolExecutor,
+  PathEscapeError,
+  FILE_TOOLS,
+  FILE_WRITE_TOOLS,
+} from "./fs-tools.js";
