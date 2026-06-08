@@ -19,3 +19,29 @@ export {
   globMatch,
   RecordingTestExecutor,
 } from "./phase-machine.js";
+
+export type {
+  ShellRunResult,
+  ShellCommand,
+  ShellTestResolver,
+} from "./shell-test-executor.js";
+export {
+  ShellTestExecutor,
+  defaultClassifyKind,
+  nodeEvalExecutor,
+} from "./shell-test-executor.js";
+
+export type {
+  WriteToolSpec,
+  WriteViolation,
+  WriteScopedToolExecutorArgs,
+} from "./write-scoped-executor.js";
+export { WriteScopedToolExecutor } from "./write-scoped-executor.js";
+
+export type {
+  TreeState,
+  PhasePrompts,
+  ProveSpec,
+  ProveResult,
+} from "./prove-it-gate.js";
+export { proveUnit, gitTreeState } from "./prove-it-gate.js";
