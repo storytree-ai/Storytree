@@ -1,0 +1,79 @@
+name: CI
+
+# The green gate, and (for PRs) the merge that follows it — ADR-0022.
+# Runs on every PR into main and on direct pushes to main.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A new push to the same PR/branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The gate. Tests are offline (no DB / no API key), so CI needs no secrets.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      # legacy/Agentic is a private submodule and not part of the pnpm workspace,
+      # so the default no-submodule checkout is correct (and avoids needing creds).
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      # @storytree/core corpus validation + the node:test suites across packages.
+      # This is the gate per CLAUDE.md ("Gate: pnpm -r typecheck · pnpm -r test").
+      # `pnpm -r build` is intentionally NOT run: packages export raw TS, and the
+      # only buildable target (apps/studio) currently fails to `vite build`
+      # (its devApi pulls in the Node-only @storytree/store) — a pre-existing
+      # issue tracked separately, not a gate concern.
+      - name: Test
+        run: pnpm -r test
+
+  # ---------------------------------------------------------------------------
+  # Auto-merge-on-green, done inside free Actions (GitHub-native auto-merge is
+  # paywalled on private repos). Runs only for PRs, only after `verify` passes.
+  # Opt out of a given PR by marking it a draft or adding the `hold` label.
+  # ---------------------------------------------------------------------------
+  automerge:
+    name: automerge
+    needs: verify
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'hold')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge now that the gate is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh pr merge ${{ github.event.pull_request.number }}
+          --repo ${{ github.repository }}
+          --merge
+          --delete-branch
