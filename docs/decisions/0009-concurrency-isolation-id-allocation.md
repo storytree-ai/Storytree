@@ -2,6 +2,8 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0013/0022/0025/0014.
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — the DBOS-based isolation/claims here are the deferred path, not the built one).
+
 ## Decision
 
 Back ADR-0001's "parallel + conflict-free IDs from day one" on DBOS/Postgres, and collapse v1's git+claims substrate (which only existed to fake a shared store v2 ships by default).

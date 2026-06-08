@@ -1,8 +1,10 @@
 # infra — storytree runtime store (Terraform)
 
 Provisions the one Cloud SQL Postgres that holds the runtime store (events, claims,
-IDs, node rollup, DBOS durable state, comments) per [ADR-0015](../docs/decisions/0015-gcp-hosting-cloud-sql-event-store.md).
-The corpus + guidance stay in git, not here.
+IDs, node rollup, the library/knowledge tier, comments) per [ADR-0015](../docs/decisions/0015-gcp-hosting-cloud-sql-event-store.md).
+The DB contents live under the `events` schema (see `packages/store/src/schema.sql`).
+DBOS is deferred (ADR-0019), so there is no `dbos` schema and no durable-workflow
+state — durable execution stays a reserved future target, not live DB contents.
 
 **No service-account keys.** Auth is keyless: user ADC for Terraform, IAM database
 auth for the app. See ADR-0015 §3.

@@ -38,8 +38,17 @@ database.
 ```bash
 pnpm --filter studio typecheck    # strict tsc (repo tsconfig.base)
 pnpm --filter studio build        # static SPA build (no API — see "Persistence")
-node apps/studio/data/seed.assets.mjs --force   # re-seed the Library
+npx tsx apps/studio/data/build-corpus.mjs   # regenerate the Library from knowledge.json
 ```
+
+The Library is **generated, not seeded.** The structured source of truth is
+[`data/knowledge.json`](data/knowledge.json); `build-corpus.mjs` renders it into
+two derived views — [`data/assets.json`](data/assets.json) (what the UI reads) and
+[`../../docs/glossary.md`](../../docs/glossary.md). Never hand-edit those two
+outputs; edit `knowledge.json` and rebuild. The old `data/seed.assets.mjs` seeder
+is **retired**. The library is **also** migrated into the shared Cloud SQL Postgres
+store ([`packages/store`](../../packages/store)); the studio ↔ store swap (reading
+the Library from Postgres instead of the local JSON) is still **pending**.
 
 ## Commenting — text-quote anchoring
 
@@ -114,7 +123,7 @@ it must name what enforces it), `techstack` (what we build on), a **`template`**
 (the shape an artifact conforms to), and an **`adr`** (a decision record). A small
 fixed ontology, not the unbounded tags we removed.
 
-**Templates are enforced.** Each artifact category ships a seeded
+**Templates are enforced.** Each artifact category ships a generated
 `template-<category>` scaffold. The editor offers a "Start from the <category>
 template" button when authoring a new artifact, and **blocks save** when a
 required section is missing. The load-bearing rule: a **`guardrail`** must include
@@ -133,12 +142,13 @@ spans both authored artifacts and the doc-backed decision records. The glossary 
 open-questions / adjudication / v1 registers stay in the sidebar's **Reference**
 section, not the Library.
 
-The Library ships seeded ([`data/seed.assets.mjs`](data/seed.assets.mjs)) with
-**87 artifacts**: curated guidance synthesised from the ADRs (each `references`
-its source ADR), six `template` scaffolds (one per authorable category bar
-`template` itself), a few v1 imports, and one `definition` per glossary term
-(auto-extracted, citing the glossary and any ADRs it mentions) — alongside the 9
-canonical ADRs that fold in read-only as `adr` cards.
+The Library is **generated** from [`data/knowledge.json`](data/knowledge.json) by
+[`data/build-corpus.mjs`](data/build-corpus.mjs) — **74 knowledge units** rendered
+into **81 artifacts** in `assets.json` (the 74 units plus **7 `template`
+scaffolds**): curated guidance synthesised from the ADRs (each `references` its
+source ADR), one `definition` per glossary term, and a few v1 imports. The
+canonical ADRs under `docs/decisions/` additionally fold in read-only as `adr`
+cards at runtime (served live by the dev API, not stored in `assets.json`).
 
 ### API (dev only)
 
@@ -161,7 +171,9 @@ canonical ADRs that fold in read-only as `adr` cards.
   **synthesised out of** the ADRs into principles/patterns/guardrails, each citing
   its source ADR via `references`.
 - **Glossary → definitions.** Every `**term** — …` in `docs/glossary.md` becomes a
-  `definition` artifact at seed time. `glossary.md` stays as the cited source.
+  `definition` artifact at build time. Conversely `glossary.md` is now a *generated
+  view* of `knowledge.json` (built by `build-corpus.mjs`), the cited source being
+  the structured knowledge units.
 - **Text-quote anchoring** (W3C Web Annotation) for the highlight layer — see
   "Commenting" above. No anchoring/markdown-highlight dependency; hand-rolled.
 - **`GuidanceAsset`, not bare `asset`.** The glossary reserves **`asset`** for
@@ -189,7 +201,7 @@ foundation only.
 apps/studio
 ├── vite.config.ts          # wires React + the data-api plugin
 ├── server/devApi.ts        # the "backend": docs + comments + artifacts over Vite
-├── data/                   # JSON stores (tracked) + the Library seed script
+├── data/                   # knowledge.json (source) + build-corpus.mjs → assets.json (generated)
 └── src
     ├── App.tsx             # shell: loads docs/artifacts/comments, routes
     ├── api.ts · types.ts   # typed client · shared on-disk shapes

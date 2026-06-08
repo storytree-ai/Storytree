@@ -2,6 +2,8 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0026/0010/0020.
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — the orchestrator-over-DBOS wording is the reserved future target, not the built path).
+
 > **Amended by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)** — the leaf
 > is an **owned agent loop**, not a pi session; read "pi leaf" / "pi-adapter" below as that
 > owned loop. The spine/leaf discriminator and the code-sequences-vs-model-judges split are

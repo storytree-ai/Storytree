@@ -2,6 +2,8 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0006/0021/0023 (this **inverts** them).
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — DBOS is a reserved future target, not the built path).
+
 ## Decision
 
 The event store is the single source of truth; the studio renders it **and** drives the agents through it.

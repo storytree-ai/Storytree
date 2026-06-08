@@ -1,5 +1,8 @@
 # storytree
 
+> **New here? Read [CLAUDE.md](CLAUDE.md) first.** It is the orientation doc for a
+> fresh session — current truth, the active reversals, and where the source lives.
+
 An agentic software-builder. Work is modeled as a **DAG of stories** — each
 story a **bounded context** (an organism) proven by a **UAT** acceptance
 walkthrough, composed of **capabilities** proven by **integration tests** (real
@@ -33,8 +36,8 @@ to fall away as the tree becomes self-building.
                 │ events out                 │ commands in
 ┌───────────────┴───────────────────────────▼─────────────────┐
 │  orchestrator   DAG scheduler · event store · the story tree  │  packages/orchestrator
-│  durable + concurrency-safe via DBOS (Postgres) — parallel    │
-│  from day one (no store-lock races, conflict-free story IDs)  │
+│  concurrency-safe on a typed Postgres store — parallel from   │
+│  day one (no store-lock races, conflict-free story IDs)       │
 └───────────────▲───────────────────────────┬─────────────────┘
                 │ normalized events          │ run / steer / approve
 ┌───────────────┴───────────────────────────▼─────────────────┐
@@ -53,7 +56,7 @@ to fall away as the tree becomes self-building.
 ```
 
 The orchestrator owns only what the owned loop does **not**: multi-node DAG scheduling and
-durable, concurrency-safe shared state. Everything an agent does inside a node
+concurrency-safe shared state on a typed Postgres store. Everything an agent does inside a node
 — the model loop, steering, diffs, approvals — belongs to **the owned loop**. Observability
 is **ours**: the owned loop's event stream + orchestrator events land in our own event
 store and render in our own UI. No external trace SaaS.
@@ -64,7 +67,7 @@ store and render in our own UI. No external trace SaaS.
 |---|---|---|
 | Language / runtime | TypeScript, Node 24, pnpm workspaces | model-agnostic, owns the loop |
 | Per-node coding agent | **the owned loop** (`packages/agent`, on the Anthropic Messages API) | we own the agent loop + context engineering; emits a clean event stream + diffs |
-| Durable execution | **DBOS** (Transact-TS over Postgres) | crash-safe concurrent workflows, auto-resume, durable queues — parallelism without the scars |
+| Runtime store | **Cloud SQL Postgres** via typed `node-pg` (`packages/store`) | concurrency-safe shared state; JSONB + zod-validated. DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection — durable workflows stay a reserved future target |
 | Orchestration | thin custom layer | the story-DAG + event store; small, ours |
 | Observability | own event store | owned-loop events + orchestrator events → typed event log → UI. No per-trace SaaS |
 | Tree UI | **PixiJS v8** + `@pixi/react`, 2D isometric | fastest 2D, embeds as an IDE panel, batches 1000s of live sprites @60fps |
@@ -89,30 +92,46 @@ Claude Agent SDK, Google ADK).
 
 ```
 packages/core          shared types: story / capability / contract / event schema
-packages/orchestrator  DAG scheduler, event store, DBOS workflows
+packages/orchestrator  DAG scheduler, event store, the prove-it (red-green) gate
 packages/agent         owned-loop session wrapper → normalized events
+packages/store         typed node-pg client over Cloud SQL Postgres (keyless IAM auth)
 apps/studio            web IDE: React + PixiJS isometric tree
-docs/decisions         ADRs
+docs/decisions         ADRs (0001–0021)
 ```
 
 ## Development (bootstrap phase)
 
-storytree lives as a **sibling** of the Agentic repo (`C:\code\storytree`
-alongside `C:\code\Agentic`) — independent git history, not nested. During
-bootstrap it's built via Claude Code working across both repos (`--add-dir`).
+storytree is built via Claude Code during bootstrap. The v1 tree is vendored as a
+**read-only submodule** at `legacy/Agentic` (no longer a live sibling repo you
+`--add-dir` into) — it's kept for reference, not edited.
 
 ```bash
 corepack enable pnpm   # Node 24 ships corepack; no global install needed
 pnpm install
-# Postgres for DBOS runs via Docker (Docker Desktop is present):
-#   docker run -d --name storytree-pg -e POSTGRES_PASSWORD=storytree -p 5432:5432 postgres:16
 ```
 
-Copy `.env.example` → `.env` and fill in model API keys + `DATABASE_URL`.
+The runtime store is **Cloud SQL Postgres with keyless IAM auth** (ADR-0021) — no
+local Docker Postgres, no `DATABASE_URL`, no password. Bring the store up/down
+through the Auth Proxy via pnpm scripts:
+
+```bash
+pnpm db:up      # start the Cloud SQL instance + Auth Proxy (IAM, ambient ADC)
+pnpm db:down    # stop it (cost posture — see infra/README.md)
+```
+
+Copy `.env.example` → `.env` and set `ANTHROPIC_API_KEY` (the Anthropic SDK is
+the only model provider). DB auth is keyless; there is no connection secret to
+fill in. See [infra/README.md](infra/README.md) for the one-time gcloud auth.
 
 ## Status
 
-**Foundation scaffold.** Structure, design docs, and TS monorepo skeleton are
-in place. No runtime code yet — the modules are stubs. Next up: the event
-schema (`packages/core`) and a 3-node durable-concurrency spike on DBOS to
-prove crash-safe parallel owned-loop sessions before building outward.
+**Foundation built and green.** The foundation packages — `packages/core` (the
+shared story/capability/contract + event schema), `packages/agent` (the owned
+loop on the Anthropic Messages API), `packages/orchestrator` (DAG scheduler,
+event store, and the **prove-it red-green gate**, ADR-0020), and `packages/store`
+(the typed Postgres client) — are implemented and passing. The library/knowledge
+tier already migrated into the shared Cloud SQL store (ADR-0017 / Phase-2,
+keyless IAM per ADR-0021). DBOS-style durable workflows remain **deferred**
+(ADR-0019, reaffirmed ADR-0020) — a named, reserved future target, not a
+dependency today. Next up: growing outward from the foundation onto the live
+story tree.

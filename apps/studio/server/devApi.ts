@@ -8,6 +8,18 @@
 // This runs in `vite` (dev) only — which is exactly the foundation's scope
 // (`pnpm --filter studio dev`). A production `vite build` is a static SPA with
 // no /api; wiring real persistence to the orchestrator is later work.
+//
+// SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
+//   • apps/studio/data/knowledge.json is the STRUCTURED SOURCE of the Library.
+//   • apps/studio/data/assets.json and docs/glossary.md are GENERATED VIEWS, built
+//     by apps/studio/data/build-corpus.mjs from knowledge.json — NEVER hand-edit
+//     them. (This API's POST/PATCH to assets.json is dev-authoring only; whatever
+//     it writes gets CLOBBERED on the next build-corpus run — edit knowledge.json
+//     and rebuild instead.)
+//   • The Library is ALSO migrated into the shared Cloud SQL Postgres store
+//     (packages/store). The studio ↔ store swap (reading/writing the Library
+//     through Postgres instead of these JSON files) is PENDING — until then this
+//     file-backed path stays the studio's live persistence.
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';

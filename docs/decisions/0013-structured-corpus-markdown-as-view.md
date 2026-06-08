@@ -12,6 +12,8 @@ toward its `packages/core` encoding.
 > where it pays; the principle is **corpus-wide** (ADRs included — work units convert first
 > in practice). Revised Decision below. (Owner conversation, 2026-06-06.)
 
+> **Scope note (library tier):** "YAML is the source of truth" below scopes the work-hierarchy units. The **library** tier's structured source on disk is **JSON** (`apps/studio/data/knowledge.json`, ADR-0018) — same structured-source / markdown-as-view principle, JSON encoding.
+
 ## Date
 
 2026-06-06

@@ -35,12 +35,12 @@ wired-up organ around it.
 ## Supporting terms
 
 **node** — A unit being worked **on the DAG** — a story or capability under
-construction — driven by one owned-loop session inside a DBOS workflow. The
-coordination/scheduling grain (the thing the orchestrator schedules and the
-isolation/claim layer is keyed on). Distinct from a **run** below: an owned-loop
-run/attempt against a node is an execution event (many-per-node), never a new
-node. The execution environment is not the coordination structure (ADR-0004,
-ADR-0009, ADR-0011).
+construction — driven by one owned-loop session (the intended DBOS workflow
+wrapper is deferred, ADR-0019). The coordination/scheduling grain (the thing the
+orchestrator schedules and the isolation/claim layer is keyed on). Distinct from
+a **run** below: an owned-loop run/attempt against a node is an execution event
+(many-per-node), never a new node. The execution environment is not the
+coordination structure (ADR-0004, ADR-0009, ADR-0011).
 
 **run** (owned-loop run / attempt) — A single per-node **execution** attempt, recorded
 as an event in the event store — many-per-node, never a new node. Distinct from
@@ -234,7 +234,7 @@ from Agentic ADR-0006/0020).
 
 ## Unit fields
 
-**unit fields** — The four core fields a unit carries. **outcome** — a capability's plain-English, single-sentence value statement (no conjunctions — split the unit if it needs them). **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof. **title** — short human label for a unit; not load-bearing for proof. **id** — a unit's unique identifier; v2 must allocate these **conflict-free across concurrent sessions** (a stated goal; the DBOS spike validated durable, collision-free workflow IDs as one mechanism).
+**unit fields** — The four core fields a unit carries. **outcome** — a capability's plain-English, single-sentence value statement (no conjunctions — split the unit if it needs them). **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof. **title** — short human label for a unit; not load-bearing for proof. **id** — a unit's unique identifier; v2 must allocate these **conflict-free across concurrent sessions** (a stated goal; an earlier DBOS spike showed durable, collision-free workflow IDs as one candidate mechanism, but DBOS is deferred — ADR-0019 — so that mechanism is reference, not in place).
 
 ## Concurrency & isolation
 
@@ -260,19 +260,20 @@ agents (diffs, approvals, steering, per-node chat). Supersedes v1's read-only
 `dashboard` — a richer, driving surface, not merely a renamed view.
 
 **orchestrator** — The thin custom TypeScript layer (`packages/orchestrator`)
-over DBOS/Postgres (ADR-0001): owns the story-DAG, the scheduler, and the event
-store, and is the **only** module that drives `packages/agent` (the owned loop). It is the
-code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; owned-loop
-nodes never schedule child nodes. Distinct from an owned-loop session (which owns work
-*inside* a node) (ADR-0004, ADR-0005, ADR-0011).
+over plain Postgres (DBOS deferred, ADR-0019; ADR-0001): owns the story-DAG, the
+scheduler, and the event store, and is the **only** module that drives
+`packages/agent` (the owned loop). It is the code-sequenced **spine** and the
+sole **fan-out** point — it schedules nodes; owned-loop nodes never schedule
+child nodes. Distinct from an owned-loop session (which owns work *inside* a
+node) (ADR-0004, ADR-0005, ADR-0011).
 
-**spine** — The code-sequenced control-flow layer (the orchestrator over DBOS
-workflows) that owns **closed, deterministic routing**: the order steps run in,
-when a loop iterates, which branch is taken. The owned loop is the
-**leaf** it delegates to. Discriminator (carried verbatim from Agentic ADR-0026):
-*if a for-loop or a match could express the routing, the spine owns it; if the
-routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.*
-Authoritatively defined by ADR-0005.
+**spine** — The code-sequenced control-flow layer (the orchestrator over plain
+Postgres — DBOS deferred, ADR-0019) that owns **closed, deterministic routing**:
+the order steps run in, when a loop iterates, which branch is taken. The owned
+loop is the **leaf** it delegates to. Discriminator (carried verbatim from
+Agentic ADR-0026): *if a for-loop or a match could express the routing, the spine
+owns it; if the routing needs the model to decide what comes next, the leaf
+(owned-loop node) owns it.* Authoritatively defined by ADR-0005.
 
 **leaf step / leaf judgment** — A single step in a code-sequenced cascade whose
 work is owned by the **owned loop** (what to write, how to satisfy

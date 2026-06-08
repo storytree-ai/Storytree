@@ -25,7 +25,9 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
-# DBOS / local data
+# Deferred / not produced today: DBOS is deferred (ADR-0019) and the store is
+# keyless Cloud SQL (ADR-0021), so neither dir is generated now — kept ignored
+# pre-emptively in case a future local-DBOS or local-Postgres path returns.
 .dbos/
 pgdata/
 

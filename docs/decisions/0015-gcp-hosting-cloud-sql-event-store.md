@@ -22,6 +22,8 @@ history = events); **git holds the code and an optional generated markdown view,
 artifact state.** Everything else in this ADR (Cloud SQL choice, keyless auth, DBOS co-location,
 stop/start + backstop, cost envelope) stands.
 
+**DBOS co-location (§2) is deferred per [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — the `dbos` schema stays reserved and `packages/store` has no DBOS dependency; the store is a plain typed Postgres connection now.
+
 ## Date
 
 2026-06-06

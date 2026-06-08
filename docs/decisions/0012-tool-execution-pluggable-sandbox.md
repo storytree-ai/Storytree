@@ -6,6 +6,8 @@ accepted (2026-06-06) — resolves part of `open-questions.md` §3(a); complemen
 [ADR-0009](0009-concurrency-isolation-id-allocation.md) (state isolation) and
 [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) (the owned loop).
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — the DBOS-based state isolation this complements is the deferred path, not the built one).
+
 ## Date
 
 2026-06-06

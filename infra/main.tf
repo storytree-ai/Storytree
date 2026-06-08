@@ -83,7 +83,7 @@ resource "google_sql_database_instance" "storytree" {
 }
 
 resource "google_sql_database" "app" {
-  name     = "storytree" # one database; schemas `dbos` + `events` live inside it (ADR-0015 §2)
+  name     = "storytree" # one database; the `events` schema lives inside it (schema.sql). DBOS is deferred (ADR-0019) — no `dbos` schema, it stays a reserved future target.
   instance = google_sql_database_instance.storytree.name
 }
 

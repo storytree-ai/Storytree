@@ -6,6 +6,8 @@ accepted (2026-06-06) — **supersedes** ADR-0001's *pi* per-node runtime and **
 its *model-agnostic, pay-as-you-go* non-negotiable; **amends** ADR-0004 and ADR-0005 (the
 boundary now wraps an owned loop, not pi). The rest of ADR-0001's stack stands.
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — §5's "DBOS/Postgres durable execution stands" is overtaken (DBOS deferred; the store is a plain typed Postgres connection now).
+
 ## Date
 
 2026-06-06

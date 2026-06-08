@@ -2,6 +2,8 @@
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0003/0006/0008/0026.
 
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — DBOS is a reserved future target, not the built path).
+
 > **Amended by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)** — pi is
 > replaced by an **owned agent loop** (`packages/agent`, superseding `pi-adapter`). Read
 > "pi" / "pi-adapter" below as that owned loop; the boundary, single-model-import-site,

@@ -101,7 +101,7 @@
     "category": "principle",
     "title": "The spine sequences, the leaf judges",
     "description": "If a for-loop or a match could express the routing, the spine (code) owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.",
-    "body": "**The principle.** If a for-loop or a match could express the routing, the spine (code) owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.\n\n## Why\n\nWithout this discriminator, routing decisions leak into the model that a deterministic for-loop or match could have made — making control-flow non-reproducible, unauditable, and needlessly costly — or, inversely, genuine judgement gets hard-coded into a brittle spine. Keeping closed, deterministic routing in code and open judgement in the leaf keeps each where it can be proven.\n\n## How to apply\n\nFor each routing decision, ask: could a for-loop or a match express it? If yes, the **spine** owns it — the code-sequenced orchestrator over DBOS workflows, with closed, deterministic routing. If the routing needs the model to decide what comes next, the **leaf** (owned-loop node) owns it; the owned loop is the leaf the spine delegates to.\n\n## See also\n\n_Synthesised from ADR-0005; discriminator carried verbatim from v1 (doc:decisions/0005-orchestration-spine-code-vs-judgment.md)._",
+    "body": "**The principle.** If a for-loop or a match could express the routing, the spine (code) owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.\n\n## Why\n\nWithout this discriminator, routing decisions leak into the model that a deterministic for-loop or match could have made — making control-flow non-reproducible, unauditable, and needlessly costly — or, inversely, genuine judgement gets hard-coded into a brittle spine. Keeping closed, deterministic routing in code and open judgement in the leaf keeps each where it can be proven.\n\n## How to apply\n\nFor each routing decision, ask: could a for-loop or a match express it? If yes, the **spine** owns it — the code-sequenced orchestrator over plain Postgres (DBOS deferred, ADR-0019), with closed, deterministic routing. If the routing needs the model to decide what comes next, the **leaf** (owned-loop node) owns it; the owned loop is the leaf the spine delegates to.\n\n## See also\n\n_Synthesised from ADR-0005; discriminator carried verbatim from v1 (doc:decisions/0005-orchestration-spine-code-vs-judgment.md)._",
     "references": [
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md"
     ],
@@ -125,12 +125,13 @@
     "category": "guardrail",
     "title": "Claims live in the shared store",
     "description": "Write-ownership is a typed claim checked at node-schedule time in the one shared store; a conflict is a hard refusal, never a warning.",
-    "body": "**The boundary.** Write-ownership is a typed claim checked at node-schedule time in the one shared store, and a conflict is a hard refusal — never a warning.\n\n## Rule\n\nCoordination moves off git and into the one shared Postgres store (DBOS).\n\n- A **claim** is a typed write-ownership record naming what a node intends to write, checked under a serializable/unique constraint at **node-schedule time**.\n\n- A conflict is a **hard refusal** (a `claim-conflict-refused` event), never a warning.\n\n- DBOS workflow isolation replaces branch-per-session for coordination; DB-allocated ids dissolve the collision classes.\n\n## Enforced by\n\nA serializable/unique constraint on the claims table in the shared Postgres (DBOS) store, checked at node-schedule time: a conflicting claim raises a `claim-conflict-refused` event instead of committing, so two nodes can never hold the same write.\n\n## Failure mode prevented\n\nIf the boundary is crossed, two nodes hold the same write concurrently, reintroducing v1’s store-lock races and id collisions and corrupting shared state.\n\n## See also\n\n_Synthesised from ADR-0009._",
+    "body": "**The boundary.** Write-ownership is a typed claim checked at node-schedule time in the one shared store, and a conflict is a hard refusal — never a warning. (The claim layer is the intended design; it waits on the deferred DBOS path — ADR-0019.)\n\n## Rule\n\nCoordination moves off git and into the one shared Postgres store. The intended mechanism stands on DBOS, which is deferred (ADR-0019), so the claim layer is not built yet — the Phase-2 library migration ran on a plain typed Postgres connection and did not need it.\n\n- A **claim** is a typed write-ownership record naming what a node intends to write, checked under a serializable/unique constraint at **node-schedule time**.\n\n- A conflict is a **hard refusal** (a `claim-conflict-refused` event), never a warning.\n\n- DBOS workflow isolation would replace branch-per-session for coordination, and DB-allocated ids dissolve the collision classes — both part of the deferred DBOS path.\n\n## Enforced by\n\nWhen built, a serializable/unique constraint on the claims table in the shared Postgres store, checked at node-schedule time: a conflicting claim raises a `claim-conflict-refused` event instead of committing, so two nodes can never hold the same write. This is the intended enforcement; it waits on the deferred DBOS path (ADR-0019).\n\n## Failure mode prevented\n\nIf the boundary is crossed once concurrent multi-node work lands, two nodes hold the same write concurrently, reintroducing v1’s store-lock races and id collisions and corrupting shared state.\n\n## See also\n\n_Synthesised from ADR-0009; the DBOS-backed mechanism is deferred by ADR-0019._",
     "references": [
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md"
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "stack-typescript-node-pnpm",
@@ -149,7 +150,7 @@
     "category": "techstack",
     "title": "The owned per-node agent loop",
     "description": "We build the per-node leaf runtime ourselves — a minimal tool-use loop on the Anthropic Messages API (`@anthropic-ai/sdk`), living in `packages/agent`.",
-    "body": "**The choice.** The per-node leaf runtime is owned code — a minimal tool-use loop on the Anthropic Messages API, living in `packages/agent`.\n\n## What it is\n\nThe owned agent loop runs everything *inside* a node — the model loop, steering, diffs, approvals. It is a minimal tool-use loop on the Anthropic Messages API (`@anthropic-ai/sdk`): `messages.create` with `tools` → dispatch `tool_use` → feed `tool_result` → loop to `end_turn`, emitting a lifecycle event stream plus `edit`-tool diffs. It lives in `packages/agent` (ADR-0011 replaced the third-party `pi` leaf with this owned loop).\n\n## Why this\n\nContext engineering and the agent loop are the layers storytree most needs to own and see into — renting them (the original `pi` bet) means renting exactly what we need to control. The v1 Claude Code SDK opacity (an opaque wrapper around a binary) is the cautionary tale. Anthropic-only for now behind a thin internal seam; the earlier model-agnostic non-negotiable is relaxed to a *revisit-if-it-bites* posture, not re-committed (ADR-0011).\n\n## Constraints\n\nThe model runtime is reached **only** through `packages/agent`, the sole model-runtime import site; `packages/core` and `apps/studio` have no path to it (ADR-0004, amended by ADR-0011).\n\n## See also\n\n_Synthesised from ADR-0001, ADR-0004 and ADR-0011 (doc:decisions/0001-foundational-stack.md, doc:decisions/0004-orchestrator-agent-boundary.md, doc:decisions/0011-own-the-agent-loop-and-context-engineering.md)._",
+    "body": "**The choice.** The per-node leaf runtime is owned code — a minimal tool-use loop on the Anthropic Messages API, living in `packages/agent`.\n\n## What it is\n\nThe owned agent loop runs everything *inside* a node — the model loop, steering, diffs, approvals. It is a minimal tool-use loop on the Anthropic Messages API (`@anthropic-ai/sdk`): `messages.create` with `tools` → dispatch `tool_use` → feed `tool_result` → loop to `end_turn`, emitting a lifecycle event stream plus `edit`-tool diffs. It lives in `packages/agent` (ADR-0011 replaced the third-party `pi` leaf with this owned loop).\n\n## Why this\n\nContext engineering and the agent loop are the layers storytree most needs to own and see into — renting them means renting exactly what we need to control. ADR-0011 retired the earlier bet on a third-party `pi` leaf in favour of this owned loop, for that reason; `packages/pi-adapter` is a dead placeholder and the `pi-` ids here are residual rename debt, not a live `pi` dependency. The v1 Claude Code SDK opacity (an opaque wrapper around a binary) is the cautionary tale. Anthropic-only for now behind a thin internal seam; the earlier model-agnostic non-negotiable is relaxed to a *revisit-if-it-bites* posture, not re-committed (ADR-0011).\n\n## Constraints\n\nThe model runtime is reached **only** through `packages/agent`, the sole model-runtime import site; `packages/core` and `apps/studio` have no path to it (ADR-0004, amended by ADR-0011).\n\n## See also\n\n_Synthesised from ADR-0001, ADR-0004 and ADR-0011 (doc:decisions/0001-foundational-stack.md, doc:decisions/0004-orchestrator-agent-boundary.md, doc:decisions/0011-own-the-agent-loop-and-context-engineering.md)._",
     "references": [
       "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
@@ -162,14 +163,15 @@
     "id": "stack-dbos-postgres",
     "category": "techstack",
     "title": "DBOS (Transact-TS) over Postgres",
-    "description": "Durable execution: crash-safe concurrent workflows, auto-resume, durable queues — parallelism as a library, not a cluster.",
-    "body": "**The choice.** DBOS (Transact-TS) over Postgres for durable execution — crash-safe concurrent workflows, auto-resume, durable queues.\n\n## What it is\n\nDBOS gives crash-safe parallelism as a library, not a cluster: auto-resumed workflows, durable queues with concurrency caps, and collision-free workflow ids. The orchestrator owns only what the owned loop does not — multi-node scheduling and durable, concurrency-safe shared state.\n\n## Why this\n\nIt delivers parallelism as a library rather than a cluster to operate. Restate is the reserved alternative if a single self-contained binary is later preferred over a Postgres dependency.\n\n## Constraints\n\nCarries a Postgres dependency (the reason Restate is held in reserve). Used for durable, concurrency-safe shared state and multi-node scheduling — the layer the orchestrator owns.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009 (doc:decisions/0001-foundational-stack.md, doc:decisions/0009-concurrency-isolation-id-allocation.md)._",
+    "description": "Durable execution — crash-safe concurrent workflows, auto-resume, durable queues — the named/reserved future target, deferred (ADR-0019); the store is a plain typed node-pg Postgres connection now.",
+    "body": "**The choice.** DBOS (Transact-TS) over Postgres is the named, reserved durable-execution target — crash-safe concurrent workflows, auto-resume, durable queues — but it is deferred (ADR-0019); the store is a plain typed node-pg Postgres connection today.\n\n## What it is\n\nDBOS would give crash-safe parallelism as a library, not a cluster: auto-resumed workflows, durable queues with concurrency caps, and collision-free workflow ids. It is deferred (ADR-0019, reaffirmed ADR-0020): today the store is a plain typed `node-pg` Postgres connection and the orchestrator runs over it directly — no DBOS, no durable workflows. DBOS stays the named/reserved target for what the orchestrator owns and the owned loop does not: multi-node scheduling and durable, concurrency-safe shared state.\n\n## Why this\n\nDurable execution as a library rather than a cluster is the reason it is held as the future target. It was deferred because the Phase-2 library migration ran fine on a plain typed Postgres connection and did not need durable workflows yet (ADR-0019). Restate is the reserved alternative if a single self-contained binary is later preferred over a Postgres dependency.\n\n## Constraints\n\nDeferred, not adopted: nothing depends on DBOS today, and the store is a plain typed `node-pg` Postgres connection. When taken up it carries a Postgres dependency (the reason Restate is held in reserve) and would back durable, concurrency-safe shared state and multi-node scheduling — the layer the orchestrator owns.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009; deferred by ADR-0019 (reaffirmed ADR-0020) (doc:decisions/0001-foundational-stack.md, doc:decisions/0009-concurrency-isolation-id-allocation.md, doc:decisions/0019-library-tier-name-and-defer-dbos.md)._",
     "references": [
       "doc:decisions/0001-foundational-stack.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md"
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "stack-pixijs-react-studio",
@@ -263,14 +265,15 @@
     "id": "durable-workflow-per-node",
     "category": "pattern",
     "title": "One durable workflow per node",
-    "description": "Each node is a single owned-loop session driven inside one DBOS workflow — crash-safe and auto-resumed, with isolation keyed on the node.",
-    "body": "**The pattern.** Drive each node as a single owned-loop session inside one DBOS workflow — crash-safe and auto-resumed, with isolation keyed on the node.\n\n## Problem\n\nA node under construction needs crash-safe, resumable execution and write-ownership isolation, without resorting to a branch-per-session model for coordination.\n\n## Approach\n\nA node under construction is driven by one owned-loop session inside a DBOS workflow. DBOS workflow isolation (not a branch-per-session) provides crash-safe, auto-resumed execution; claims in the shared store handle write-ownership.\n\n## Tradeoffs\n\nYou trade a dependency on DBOS workflow isolation and the shared store against a branch-per-session coordination model. The durable-workflow approach buys crash recovery and auto-resume at the cost of standing on DBOS and the shared store rather than git branches.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009 (glossary: node)._",
+    "description": "Each node is a single owned-loop session; the intended durable path drives it inside one DBOS workflow (crash-safe, auto-resumed), but DBOS is deferred (ADR-0019/0020) — today the spine runs the session over plain Postgres with best-effort replay.",
+    "body": "**The pattern.** Drive each node as a single owned-loop session, isolation keyed on the node. The intended durable path wraps it in one DBOS workflow (crash-safe, auto-resumed), but DBOS is deferred (ADR-0019, reaffirmed ADR-0020) — today the spine runs the session over plain Postgres with best-effort replay.\n\n## Problem\n\nA node under construction needs resumable execution and write-ownership isolation, without resorting to a branch-per-session model for coordination.\n\n## Approach\n\nA node under construction is driven by one owned-loop session. The intended durable mechanism wraps that session in a DBOS workflow — DBOS workflow isolation (not a branch-per-session) providing crash-safe, auto-resumed execution — but DBOS is deferred (ADR-0019), so today the spine drives the session over a plain typed Postgres connection with best-effort replay rather than guaranteed auto-resume; claims in the shared store (also deferred with DBOS) would handle write-ownership.\n\n## Tradeoffs\n\nThe durable-workflow path buys crash recovery and auto-resume at the cost of standing on DBOS and the shared store rather than git branches; until DBOS is taken up, the plain-Postgres spine accepts best-effort replay in exchange for not carrying that dependency yet.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009 (glossary: node); the DBOS workflow path is deferred by ADR-0019 (reaffirmed ADR-0020)._",
     "references": [
       "doc:decisions/0001-foundational-stack.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md"
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "standalone-resilient-library",
@@ -312,14 +315,15 @@
     "id": "store-lock-races-and-id-collisions",
     "category": "pattern",
     "title": "Store-lock races & id collisions",
-    "description": "v1 hit store-lock races and in-process story-ID collisions under concurrency. v2 designs concurrency-safe state from day one (DBOS + DB-allocated ids).",
-    "body": "**The pattern.** v1 hit store-lock races and in-process story-ID collisions under concurrency; v2 instead designs concurrency-safe state from day one with DBOS workflow isolation, claims in the shared store, and DB-allocated ids.\n\n## Problem\n\nv1's concurrency scars: store-lock races and in-process story-ID collisions (even duplicate ADR numbers) appeared once work ran concurrently, because concurrency-safety was retrofitted rather than designed in.\n\n## Approach\n\nv2 treats concurrency-safe state as a **foundation, not a retrofit** — DBOS workflow isolation, claims in the one shared store, and DB-allocated collision-free ids.\n\n## Tradeoffs\n\nYou trade the simplicity of a single-process store and locally-minted ids against safe concurrent operation. Standing on DBOS, a shared store, and DB-allocated ids is heavier infrastructure but dissolves the race and collision classes v1 hit.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009._",
+    "description": "v1 hit store-lock races and in-process story-ID collisions under concurrency. v2 designs concurrency-safe state in from the start; the intended remedy (DBOS workflow isolation + DB-allocated ids) is the deferred DBOS path (ADR-0019), not yet built.",
+    "body": "**The pattern.** v1 hit store-lock races and in-process story-ID collisions under concurrency; v2 instead treats concurrency-safe state as a foundation. The intended remedy — DBOS workflow isolation, claims in the shared store, and DB-allocated ids — is the deferred DBOS path (ADR-0019), not yet in place.\n\n## Problem\n\nv1's concurrency scars: store-lock races and in-process story-ID collisions (even duplicate ADR numbers) appeared once work ran concurrently, because concurrency-safety was retrofitted rather than designed in.\n\n## Approach\n\nv2 treats concurrency-safe state as a **foundation, not a retrofit**. The intended mechanism is DBOS workflow isolation, claims in the one shared store, and DB-allocated collision-free ids — but DBOS is deferred (ADR-0019, reaffirmed ADR-0020), so that remedy is the named/intended path, not built. The lesson stands regardless: until concurrent multi-node work lands on a plain typed Postgres store, the race and collision classes are simply not yet exercised.\n\n## Tradeoffs\n\nYou trade the simplicity of a single-process store and locally-minted ids against safe concurrent operation. The intended remedy — DBOS, a shared store, and DB-allocated ids — is heavier infrastructure that would dissolve the race and collision classes v1 hit; deferring it keeps the dependency off until concurrent multi-node work needs it.\n\n## See also\n\n_Synthesised from ADR-0001 and ADR-0009; the DBOS-based remedy is deferred by ADR-0019 (reaffirmed ADR-0020)._",
     "references": [
       "doc:decisions/0001-foundational-stack.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md"
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "glossary-wins",
@@ -449,15 +453,16 @@
     "id": "node",
     "category": "definition",
     "title": "node",
-    "description": "A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session inside a DBOS workflow.",
-    "body": "**In one line.** A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session inside a DBOS workflow.\n\n## What it is\n\nA unit being worked **on the DAG** — a story or capability under construction — driven by one owned-loop session inside a DBOS workflow. The coordination/scheduling grain: the thing the orchestrator schedules and the isolation/claim layer is keyed on.\n\n## What it is not\n\nDistinct from a **run**: an owned-loop run/attempt against a node is an execution event (many-per-node), never a new node. The execution environment is not the coordination structure (ADR-0004, ADR-0009).\n\n## See also\n\n_`docs/glossary.md`; ADR-0004 (orchestrator/agent boundary), ADR-0009 (concurrency, isolation, id allocation). Related: `run`, `dag`._",
+    "description": "A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019).",
+    "body": "**In one line.** A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019).\n\n## What it is\n\nA unit being worked **on the DAG** — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019). The coordination/scheduling grain: the thing the orchestrator schedules and the isolation/claim layer is keyed on.\n\n## What it is not\n\nDistinct from a **run**: an owned-loop run/attempt against a node is an execution event (many-per-node), never a new node. The execution environment is not the coordination structure (ADR-0004, ADR-0009).\n\n## See also\n\n_`docs/glossary.md`; ADR-0004 (orchestrator/agent boundary), ADR-0009 (concurrency, isolation, id allocation), ADR-0019 (DBOS deferred). Related: `run`, `dag`._",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md"
+      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "run",
@@ -824,30 +829,32 @@
     "id": "orchestrator",
     "category": "definition",
     "title": "orchestrator",
-    "description": "The thin custom TypeScript layer (packages/orchestrator) over DBOS/Postgres (ADR-0001): owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).",
-    "body": "**In one line.** The thin custom TypeScript layer (`packages/orchestrator`) over DBOS/Postgres that owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).\n\n## What it is\n\nThe thin custom TypeScript layer (`packages/orchestrator`) over DBOS/Postgres (ADR-0001): it owns the story-DAG, the scheduler, and the event store, and is the **only** module that drives `packages/agent` (the owned loop). It is the code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; owned-loop nodes never schedule child nodes.\n\n## What it is not\n\nDistinct from an owned-loop session, which owns work *inside* a node (ADR-0004, ADR-0005, ADR-0011).\n\n## See also\n\n_From `docs/glossary.md` and ADR-0001, ADR-0004, ADR-0005, ADR-0011. See `spine` and `pi-adapter`._",
+    "description": "The thin custom TypeScript layer (packages/orchestrator) over plain Postgres (DBOS deferred, ADR-0019): owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).",
+    "body": "**In one line.** The thin custom TypeScript layer (`packages/orchestrator`) over plain Postgres (DBOS deferred, ADR-0019) that owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).\n\n## What it is\n\nThe thin custom TypeScript layer (`packages/orchestrator`) over plain Postgres — DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection (ADR-0001): it owns the story-DAG, the scheduler, and the event store, and is the **only** module that drives `packages/agent` (the owned loop). It is the code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; owned-loop nodes never schedule child nodes.\n\n## What it is not\n\nDistinct from an owned-loop session, which owns work *inside* a node (ADR-0004, ADR-0005, ADR-0011).\n\n## See also\n\n_From `docs/glossary.md` and ADR-0001, ADR-0004, ADR-0005, ADR-0011; DBOS deferred by ADR-0019. See `spine` and `pi-adapter`._",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
-      "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md"
+      "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "spine",
     "category": "definition",
     "title": "spine",
-    "description": "The code-sequenced control-flow layer (the orchestrator over DBOS workflows) that owns closed, deterministic routing: the order steps run in, when a loop iterates, which branch is taken.",
-    "body": "**In one line.** The code-sequenced control-flow layer (the orchestrator over DBOS workflows) that owns closed, deterministic routing — the order steps run in, when a loop iterates, which branch is taken.\n\n## What it is\n\nThe code-sequenced control-flow layer (the orchestrator over DBOS workflows) that owns **closed, deterministic routing**: the order steps run in, when a loop iterates, which branch is taken. The discriminator (carried verbatim from Agentic ADR-0026): *if a for-loop or a match could express the routing, the spine owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.*\n\n## What it is not\n\nNot the **leaf** — the owned loop is the leaf the spine delegates to.\n\n## See also\n\n_From `docs/glossary.md`; authoritatively defined by ADR-0005 (carried verbatim from Agentic ADR-0026). See `leaf-step-leaf-judgment` and `orchestrator`._",
+    "description": "The code-sequenced control-flow layer (the orchestrator over plain Postgres, DBOS deferred — ADR-0019) that owns closed, deterministic routing: the order steps run in, when a loop iterates, which branch is taken.",
+    "body": "**In one line.** The code-sequenced control-flow layer (the orchestrator over plain Postgres, DBOS deferred — ADR-0019) that owns closed, deterministic routing — the order steps run in, when a loop iterates, which branch is taken.\n\n## What it is\n\nThe code-sequenced control-flow layer (the orchestrator over plain Postgres — DBOS is deferred, ADR-0019) that owns **closed, deterministic routing**: the order steps run in, when a loop iterates, which branch is taken. The discriminator (carried verbatim from Agentic ADR-0026): *if a for-loop or a match could express the routing, the spine owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.*\n\n## What it is not\n\nNot the **leaf** — the owned loop is the leaf the spine delegates to.\n\n## See also\n\n_From `docs/glossary.md`; authoritatively defined by ADR-0005 (carried verbatim from Agentic ADR-0026); DBOS deferred by ADR-0019. See `leaf-step-leaf-judgment` and `orchestrator`._",
     "references": [
       "doc:glossary.md",
-      "doc:decisions/0005-orchestration-spine-code-vs-judgment.md"
+      "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-07T00:00:00.000Z"
+    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "leaf-step-leaf-judgment",
@@ -998,9 +1005,10 @@
     "category": "definition",
     "title": "unit fields",
     "description": "The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.",
-    "body": "**In one line.** The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.\n\n## What it is\n\nThe four core fields a unit carries:\n\n- **outcome** — a capability's plain-English, single-sentence value statement, with no conjunctions (if it needs them, split the unit instead).\n\n- **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof.\n\n- **title** — a short human label for a unit; not load-bearing for proof.\n\n- **id** — a unit's unique identifier. v2 must allocate these **conflict-free across concurrent sessions** — a stated goal; the DBOS spike validated durable, collision-free workflow IDs as one mechanism.\n\n## See also\n\n_From `docs/glossary.md`._",
+    "body": "**In one line.** The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.\n\n## What it is\n\nThe four core fields a unit carries:\n\n- **outcome** — a capability's plain-English, single-sentence value statement, with no conjunctions (if it needs them, split the unit instead).\n\n- **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof.\n\n- **title** — a short human label for a unit; not load-bearing for proof.\n\n- **id** — a unit's unique identifier. v2 must allocate these **conflict-free across concurrent sessions** — a stated goal. An earlier DBOS spike showed durable, collision-free workflow IDs as one candidate mechanism, but DBOS is deferred (ADR-0019), so that mechanism is reference, not the adopted id-allocation path.\n\n## See also\n\n_From `docs/glossary.md`._",
     "references": [
-      "doc:glossary.md"
+      "doc:glossary.md",
+      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-08T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"

@@ -4,6 +4,8 @@
 
 **draft (2026-06-06, proposed for adjudication.)** Resolves open-q §5 (channel/post); proposes a home for the graduation *target* (relates open-q §9). Evolves Agentic ADR-0011 (forum staging surface) + ADR-0022 §3 (per-story channel) — whose *coordination* half already **collapsed into ADR-0009** per [`agentic-artifact-gap-analysis.md`](../agentic-artifact-gap-analysis.md); this ADR homes the **feedback + graduation** half that gap-analysis left parked in §5/§9. **Decision bullets marked ⚠ are provisional pending owner adjudication of conflicts C1–C4 (see Open); each is being carried into its own session.**
 
+**DBOS deferred per [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — the Postgres/DBOS substrate this composes with is a plain typed Postgres connection now (DBOS reserved, not built). The comments→events / studio↔store migration this describes is **still pending**: `apps/studio/server/devApi.ts` + `apps/studio/data/comments.json` remain the live path.
+
 ## Date
 
 2026-06-06
