@@ -71,13 +71,13 @@ test("tree focus <id> renders the node's outbound source refs", async () => {
 });
 
 test("tree focus shows inbound intra-library edges (back-edge scan)", async () => {
-  // oq-anti-pattern-lessons has `asset:approval-gated-trunk`, so focusing the target sees it inbound.
+  // the `trunk` definition has `asset:approval-gated-trunk`, so focusing the target sees it inbound.
   const env = await run(["library", "tree", "focus", "approval-gated-trunk"], {
     store: await seeded(),
   });
   assert.equal(env.ok, true);
   assert.match(env.body, /inbound/);
-  assert.match(env.body, /← oq-anti-pattern-lessons/);
+  assert.match(env.body, /← trunk/);
 });
 
 test("tree focus on a missing id is guidance, not a throw", async () => {

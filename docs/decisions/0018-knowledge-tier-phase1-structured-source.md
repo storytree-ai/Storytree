@@ -75,7 +75,9 @@ recorded here as it resolves.
 
 - **The tier's name** (`oq-knowledge-tier-name`, open) and the **store execution model — DBOS vs a
   plain Postgres connection** (`oq-store-execution-model`, open) — both parked for Phase 2.
-- **Cautionary-pattern housing** (`oq-anti-pattern-lessons`) — deferred by the owner.
+- **Cautionary-pattern housing** (`oq-anti-pattern-lessons`) — deferred by the owner. *(Resolved
+  later by [ADR-0028](0028-merge-cautionary-lessons-into-counterparts.md): merge & retire — each lesson's
+  v1 scar folded into its counterpart's "Why".)*
 - The full **agent↔Library interaction protocol** (read / edit / curate; the resolve→retire automation)
   — under design separately.
 
