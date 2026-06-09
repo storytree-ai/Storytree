@@ -1,14 +1,17 @@
 import type { Pool, PoolClient } from "pg";
 import type { Store, StoredDoc, StoreEvent } from "@storytree/core";
-import { validateLibraryDoc } from "@storytree/core";
+import { upcastAndValidate } from "@storytree/core";
 
 /**
  * The Postgres-backed {@link Store} (ADR-0017): history = `events.library_event`, current-state =
  * the `events.library_artifact` projection. `upsertDoc` does BOTH atomically in one transaction
  * (append event + upsert projection). Relationships live as ID refs inside docs, never as FKs.
  *
- * The doc body is validated at the write boundary with {@link validateLibraryDoc} (loud failure)
- * before anything is persisted. Reads come from the projection; history comes from the event log.
+ * The doc body is forward-migrated AND validated at the write boundary with
+ * {@link upcastAndValidate} (migrate-on-write, design §3) before anything is persisted: an
+ * old-shape doc is upcast-and-stamped rather than rejected, and the UPCAST OUTPUT is what gets
+ * persisted (so a v0 legacy row auto-forwards to the current version on its next write). Reads come
+ * from the projection; history comes from the event log.
  *
  * This class only RUNS behind the live-DB gate; it is constructed from a live `pg` Pool.
  */
@@ -74,10 +77,12 @@ export class PgLibraryStore implements Store {
     doc: unknown;
     actor?: string;
   }): Promise<StoredDoc> {
-    // Loud write boundary: reject malformed docs before opening the transaction.
-    validateLibraryDoc(input.doc);
+    // Loud write boundary: forward-migrate an old-shape doc to the current schema version, then
+    // validate, before opening the transaction. PERSIST THE UPCAST OUTPUT (not the original input)
+    // so a legacy v0 row auto-forwards on its next write (design §3).
+    const doc = upcastAndValidate(input.doc);
     const actor = input.actor ?? DEFAULT_ACTOR;
-    const docJson = JSON.stringify(input.doc);
+    const docJson = JSON.stringify(doc);
 
     const client: PoolClient = await this.#pool.connect();
     try {

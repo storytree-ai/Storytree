@@ -4,6 +4,7 @@
 export {
   run,
   dashboard,
+  libraryCheck,
   viewArtifact,
   listCategory,
   treeFocus,
@@ -13,3 +14,13 @@ export {
 export type { RunDeps } from "./commands.js";
 export { formatEnvelope } from "./envelope.js";
 export type { Envelope } from "./envelope.js";
+export {
+  libraryHealth,
+  libraryHealthCheap,
+  worstLevel,
+  gateFailures,
+  levelCounts,
+  GATE_CHECKS,
+  CHEAP_CHECKS,
+} from "./health.js";
+export type { CheckLevel, CheckResult, HealthOpts } from "./health.js";

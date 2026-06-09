@@ -1,6 +1,12 @@
 export * from "./schema.js";
 export { loadUnit, parseUnit } from "./loader.js";
 export * from "./knowledge.js";
+export {
+  CURRENT_SCHEMA_VERSION,
+  type Migration,
+  MIGRATIONS,
+  upcast,
+} from "./migrations.js";
 export { renderBody, generateTemplate } from "./knowledge-render.js";
 export {
   groupSources,

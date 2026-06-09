@@ -1,11 +1,29 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import type { Store, StoredDoc } from "@storytree/core";
-import { validateLibraryDoc, groupSources } from "@storytree/core";
+import {
+  upcastAndValidate,
+  groupSources,
+  CURRENT_SCHEMA_VERSION,
+  KIND_SPECS,
+} from "@storytree/core";
 import { renderStoredDoc } from "@storytree/store";
 
 import type { Envelope } from "./envelope.js";
+import {
+  libraryHealth,
+  libraryHealthCheap,
+  worstLevel,
+  gateFailures,
+  levelCounts,
+} from "./health.js";
+
+/** Fields removed by a past migration that must not reappear (design §4 check 2; the seeAlso incident). */
+const RETIRED_FIELDS = ["seeAlso"];
 
 /** The edit-first-curation pointer, reused wherever a write surface should nudge search-before-write. */
 const EDIT_FIRST =
@@ -91,10 +109,17 @@ export async function dashboard(store: Store): Promise<Envelope> {
   }
   const groups = groupByKind(docs);
   const kinds = orderedKinds(groups.keys());
-  const lines: string[] = [
-    `Library: OK — ${docs.length} artifacts across ${kinds.length} categories.`,
-    "",
-  ];
+  // Real health banner from the CHEAP checks (skip the fs-heavy referential-integrity) — design §4 surface a.
+  const cheap = libraryHealthCheap(docs, {
+    currentSchemaVersion: CURRENT_SCHEMA_VERSION,
+    retiredFields: RETIRED_FIELDS,
+  });
+  const { fail, warn } = levelCounts(cheap);
+  const banner =
+    fail === 0 && warn === 0
+      ? `Library: OK — ${docs.length} artifacts across ${kinds.length} categories.`
+      : `Library: ${fail} FAIL, ${warn} WARN — run \`storytree library --check\` for detail.`;
+  const lines: string[] = [banner, ""];
   for (const kind of kinds) {
     const arr = groups.get(kind) ?? [];
     lines.push(`${kind}  (${arr.length})`, ...idTitleRows(arr), "");
@@ -113,6 +138,70 @@ export async function dashboard(store: Store): Promise<Envelope> {
     next: [
       "storytree library artifact <id>",
       `storytree library artifact list ${kinds[0] ?? "<category>"}`,
+    ],
+  };
+}
+
+/** The repo root, resolved from this file's location (packages/cli/src -> three dirs up). */
+function repoRoot(): string {
+  return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+}
+
+/** Count the generated non-template assets in apps/studio/data/assets.json (for count-reconciliation). */
+function generatedAssetCount(): number | undefined {
+  try {
+    const raw = readFileSync(
+      path.join(repoRoot(), "apps", "studio", "data", "assets.json"),
+      "utf8",
+    );
+    const assets = JSON.parse(raw) as { category?: string }[];
+    const kinds = new Set(Object.keys(KIND_SPECS));
+    return assets.filter((a) => typeof a.category === "string" && kinds.has(a.category)).length;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `storytree library --check` (design §4 surface b) — the FULL per-id health report (all five checks).
+ * Provides the fs-backed resolvers (docExists under <repoRoot>/docs, generatedAssetCount from
+ * assets.json) so {@link libraryHealth} stays pure. Envelope `ok` is false IFF a GATE check FAILs (a
+ * real gate break / non-zero exit); a WARN keeps `ok` true (design §4 "A WARN keeps ok=true").
+ */
+export async function libraryCheck(store: Store): Promise<Envelope> {
+  const docs = await store.queryDocs();
+  const docsDir = path.join(repoRoot(), "docs");
+  const genCount = generatedAssetCount();
+  const results = libraryHealth(docs, {
+    currentSchemaVersion: CURRENT_SCHEMA_VERSION,
+    retiredFields: RETIRED_FIELDS,
+    docExists: (rel) => {
+      const target = path.join(docsDir, rel);
+      try {
+        return existsSync(target) && statSync(target).isFile();
+      } catch {
+        return false;
+      }
+    },
+    ...(genCount !== undefined ? { generatedAssetCount: genCount } : {}),
+  });
+  const { fail, warn } = levelCounts(results);
+  const gateFails = gateFailures(results);
+  const lines: string[] = [];
+  for (const r of results) {
+    lines.push(`[${r.level}] ${r.name}`);
+    for (const l of r.lines) lines.push(`        ${l}`);
+  }
+  lines.push("", `${fail} FAIL, ${warn} WARN  (worst: ${worstLevel(results)}).`);
+  if (gateFails.length > 0) {
+    lines.push(`GATE BROKEN: ${gateFails.map((r) => r.name).join(", ")} — fix before merge.`);
+  }
+  return {
+    ok: gateFails.length === 0,
+    body: lines.join("\n"),
+    next: [
+      "storytree library",
+      "storytree library --check --pg   (run the same checks against the live projection)",
     ],
   };
 }
@@ -240,7 +329,9 @@ export async function newArtifact(
   }
   let valid: unknown;
   try {
-    valid = validateLibraryDoc(parsed);
+    // Migrate-on-write (design §3): forward an old-shape doc through pending migrations, then
+    // validate — so a doc still carrying a retired field (e.g. seeAlso) is upcast, not rejected.
+    valid = upcastAndValidate(parsed);
   } catch (e) {
     return { ok: false, body: `doc failed validation:\n${(e as Error).message}`, next: [] };
   }
@@ -333,7 +424,9 @@ export async function editArtifact(
 
   let valid: unknown;
   try {
-    valid = validateLibraryDoc(nextDoc);
+    // Migrate-on-write (design §3): upcast the edited doc through pending migrations before
+    // validating, so an edit to a lagging-version row is forward-migrated, not rejected.
+    valid = upcastAndValidate(nextDoc);
   } catch (e) {
     return {
       ok: false,
@@ -457,6 +550,7 @@ function libraryHelp(): Envelope {
       "context is just-in-time: drill in to earn the detail.",
       "",
       "  storytree library                          health + dashboard + commands",
+      "  storytree library --check [--pg]           full health report (gate-fails exit non-zero)",
       "  storytree library artifact <id>            view one artifact",
       "  storytree library artifact list <category> list a category",
       "  storytree library tree focus <id>          the local DAG of one artifact",
@@ -501,6 +595,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   let values: {
     help?: boolean;
     pg?: boolean;
+    check?: boolean;
     json?: string;
     file?: string;
     set?: string[];
@@ -511,6 +606,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       allowPositionals: true,
       options: {
         pg: { type: "boolean", default: false },
+        check: { type: "boolean", default: false },
         help: { type: "boolean", short: "h", default: false },
         json: { type: "string" },
         file: { type: "string" },
@@ -539,7 +635,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     };
   }
 
-  if (sub === undefined) return help ? libraryHelp() : dashboard(deps.store);
+  if (sub === undefined) {
+    if (help) return libraryHelp();
+    if (values.check === true) return libraryCheck(deps.store);
+    return dashboard(deps.store);
+  }
 
   if (sub === "tree") {
     if (third === undefined || help) return treeHelp();

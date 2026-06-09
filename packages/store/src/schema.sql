@@ -42,6 +42,16 @@ CREATE TABLE IF NOT EXISTS events.comment (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Schema-migration ledger (design §3 "DB ledger row", Phase 3): the human-facing "which migration
+-- ran + when + by whom" audit, complementing the per-row `schemaVersion` stamp inside the docs.
+-- Append-only / additive: never alters the tables above.
+CREATE TABLE IF NOT EXISTS events.schema_migration (
+  version    INT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actor      TEXT NOT NULL
+);
+
 -- Helpful indexes (ADR-0017).
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);

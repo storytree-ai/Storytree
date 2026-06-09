@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { Knowledge } from "./knowledge.js";
+import { upcast } from "./migrations.js";
 
 /**
  * The narrow Store seam + an in-memory implementation + a REUSABLE parity suite
@@ -206,6 +207,17 @@ export type LibraryDoc = z.infer<typeof LibraryDoc>;
  */
 export function validateLibraryDoc(input: unknown): LibraryDoc {
   return LibraryDoc.parse(input);
+}
+
+/**
+ * The single write-boundary helper (design §3 "migrate-on-write":
+ * docs/research/library-schema-migrations-and-health-checks.md): forward-migrate an old-shape doc
+ * with {@link upcast}, THEN validate. A doc authored against an old schema is upcast-and-stamped
+ * rather than rejected; a current-shape doc validates unchanged. Use this (not bare
+ * {@link validateLibraryDoc}) at any write boundary that may receive lagging-version docs.
+ */
+export function upcastAndValidate(input: unknown): LibraryDoc {
+  return validateLibraryDoc(upcast(input as Record<string, unknown>));
 }
 
 /**

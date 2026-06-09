@@ -279,6 +279,13 @@ const commonShape = {
   id: z.string(),
   title: z.string(),
   description: z.string(), // one-line
+  /**
+   * Per-ROW schema version pin (design §3/§5: library-schema-migrations-and-health-checks.md).
+   * Absent => 0 (the pre-pin world): the field is optional-with-default, so `.strict()` still
+   * accepts existing docs that never carried it. The write-boundary upcaster
+   * ({@link upcast} in migrations.ts) stamps it to `CURRENT_SCHEMA_VERSION`.
+   */
+  schemaVersion: z.number().int().nonnegative().default(0),
   references: z.array(z.string()).default([]),
   provenance: Markdown.optional(),
   glossarySection: z.string().optional(),
