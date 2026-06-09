@@ -78,6 +78,9 @@ importers:
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
+      '@storytree/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@storytree/store':
         specifier: workspace:*
         version: link:../store
@@ -119,6 +122,9 @@ importers:
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76

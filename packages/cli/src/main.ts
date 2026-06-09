@@ -30,7 +30,11 @@ async function buildStore(usePg: boolean): Promise<{ store: Store; close: () => 
 }
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
+  // The root `pnpm storytree` script forwards args after a literal `--`, which pnpm passes
+  // through verbatim; drop it so parseArgs doesn't read it as the end-of-options marker
+  // (which would demote every forwarded flag, e.g. --dry-run/--check, to a positional).
+  const raw = process.argv.slice(2);
+  const argv = raw[0] === "--" ? raw.slice(1) : raw;
   const usePg = argv.includes("--pg");
   const { store, close } = await buildStore(usePg);
   try {

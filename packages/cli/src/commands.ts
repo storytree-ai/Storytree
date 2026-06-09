@@ -21,6 +21,7 @@ import {
   gateFailures,
   levelCounts,
 } from "./health.js";
+import { nodeBuild, nodeHelp } from "./node-build.js";
 
 /** Fields removed by a past migration that must not reappear (design §4 check 2; the seeAlso incident). */
 const RETIRED_FIELDS = ["seeAlso"];
@@ -533,6 +534,7 @@ function topHelp(): Envelope {
       "",
       "areas:",
       "  library          explore + curate the Library (the knowledge tier)",
+      "  node             drive a node through the prove-it-gate (dry-run only today)",
       "  agents <name>    (coming soon) an agent's system prompt",
       "",
       "start here:",
@@ -599,6 +601,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     json?: string;
     file?: string;
     set?: string[];
+    "dry-run"?: boolean;
+    actor?: string;
   };
   try {
     const parsed = parseArgs({
@@ -611,6 +615,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         json: { type: "string" },
         file: { type: "string" },
         set: { type: "string", multiple: true },
+        "dry-run": { type: "boolean", default: false },
+        actor: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -627,10 +633,26 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   const [area, sub, third, fourth] = positionals;
 
   if (area === undefined) return topHelp();
+
+  if (area === "node") {
+    if (sub === undefined || help) return nodeHelp();
+    if (sub !== "build") {
+      return {
+        ok: false,
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run`,
+        next: ["storytree node build <id> --dry-run"],
+      };
+    }
+    return nodeBuild(third, {
+      dryRun: values["dry-run"] === true,
+      ...(values.actor !== undefined ? { actor: values.actor } : {}),
+    });
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, node (agents coming soon).`,
       next: ["storytree library"],
     };
   }

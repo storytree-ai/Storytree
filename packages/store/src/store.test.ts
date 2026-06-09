@@ -16,13 +16,16 @@ const LIVE = process.env["STORYTREE_DB_LIVE"] === "1";
 
 // ---- Offline: schema.sql shape -------------------------------------------------------------
 
-test("schema.sql declares the events schema and all four tables", async () => {
+test("schema.sql declares the events schema and all six tables", async () => {
   const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
   assert.match(sql, /CREATE SCHEMA IF NOT EXISTS events/);
   assert.match(sql, /events\.library_event/);
   assert.match(sql, /events\.library_artifact/);
   assert.match(sql, /events\.comment_event/);
   assert.match(sql, /events\.comment\b/);
+  // Drive-machinery Phase A: the work-hierarchy lifecycle + signed-verdict homes (additive only).
+  assert.match(sql, /events\.work_event/);
+  assert.match(sql, /events\.verdict\b/);
   // The event `type` is constrained to the three lifecycle kinds.
   assert.match(sql, /CHECK \(type IN \('created', 'updated', 'deleted'\)\)/);
   // No foreign keys at this layer (ADR-0017: relationships are ID refs in docs).

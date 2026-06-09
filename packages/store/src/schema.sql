@@ -52,6 +52,36 @@ CREATE TABLE IF NOT EXISTS events.schema_migration (
   actor      TEXT NOT NULL
 );
 
+-- Work-hierarchy lifecycle history (drive-machinery Phase A): one append-only event per node
+-- lifecycle change. Additive + reversible; the clean home for the lifecycle rows that would
+-- otherwise co-mingle with library_event. Nothing writes here yet (the dry-run path uses an
+-- InMemoryStore); the rollup projection in @storytree/core reads this stream once wired.
+CREATE TABLE IF NOT EXISTS events.work_event (
+  seq     BIGSERIAL PRIMARY KEY,
+  unit_id TEXT NOT NULL,
+  tier    TEXT NOT NULL,
+  type    TEXT NOT NULL,            -- proposed|building|verdict|retired|...
+  doc     JSONB,
+  actor   TEXT NOT NULL,
+  at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Signed proof rows (the prove-it-gate's output, ADR-0020 §4): stops verdicts co-mingling with
+-- library_event. `doc` is the full signed Verdict; the scalar columns are the queryable spine.
+CREATE TABLE IF NOT EXISTS events.verdict (
+  seq        BIGSERIAL PRIMARY KEY,
+  unit_id    TEXT NOT NULL,
+  run_id     TEXT NOT NULL,
+  proof_mode TEXT NOT NULL,
+  outcome    TEXT NOT NULL,         -- pass|fail
+  commit_sha TEXT NOT NULL,
+  signer     TEXT NOT NULL,
+  doc        JSONB NOT NULL,
+  at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Helpful indexes (ADR-0017).
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
+CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
+CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);

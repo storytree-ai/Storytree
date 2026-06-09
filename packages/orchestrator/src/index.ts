@@ -45,3 +45,22 @@ export type {
   ProveResult,
 } from "./prove-it-gate.js";
 export { proveUnit, gitTreeState } from "./prove-it-gate.js";
+
+export type { NodeSpec } from "./node-spec.js";
+export { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
+
+export type { NodeBuildConfig } from "./test-command-registry.js";
+export {
+  NODE_BUILD_REGISTRY,
+  lookupNodeBuildConfig,
+  registeredNodeIds,
+} from "./test-command-registry.js";
+
+export type { DryRunResolveOptions, ResolveResult } from "./resolve-prove-spec.js";
+export {
+  resolveProveSpec,
+  assemblePrompts,
+  dryRunModel,
+  DRY_RUN_TEST_REL,
+  DRY_RUN_IMPL_REL,
+} from "./resolve-prove-spec.js";

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@storytree/core": "workspace:*",
+    "@storytree/orchestrator": "workspace:*",
     "@storytree/store": "workspace:*"
   },
   "devDependencies": {

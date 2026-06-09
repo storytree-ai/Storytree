@@ -20,3 +20,11 @@ export * from "./proof.js";
 export * from "./signer.js";
 export * from "./model-events.js";
 export * from "./store.js";
+export {
+  rollupStatus,
+  rollupParitySuite,
+  workEvent,
+  WorkEventDoc,
+  WORK_EVENT_KIND,
+  SIGNING_EVENT_KIND,
+} from "./rollup.js";
