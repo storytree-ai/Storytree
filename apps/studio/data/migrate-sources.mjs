@@ -99,7 +99,7 @@ const PROVENANCE = {
   'recursive-decomposition-patterns':
     'Source: Recursive Language Models (Zhang/Kraska/Khattab, MIT CSAIL); a context-engineering principle, not a code spec. Composes with `exploration-principles` and `pull-based-context-architecture`. Imported from legacy AgenticEngineering `AgenticGuidance`.',
   'repo-surface-allowlist':
-    'Authoritatively defined by ADR-0024; enforces on the ADR-0022 dev-repo green gate. The repo-hygiene complement to `edit-first-curation` (search/edit before authoring) and `signal-and-noise` (cut low-signal docs). Distinct from the PRODUCT proof gate (`gate` / `never-bypass-the-gate` / `prove-it-gate`): same "a gate refuses, it does not warn" family, but this guards the dev repo’s git surface, not promotion onto the story DAG. Mechanism: `repo-manifest.json` + `scripts/check-manifest.mjs`.',
+    'Authoritatively defined by ADR-0025; enforces on the ADR-0022 dev-repo green gate. The repo-hygiene complement to `edit-first-curation` (search/edit before authoring) and `signal-and-noise` (cut low-signal docs). Distinct from the PRODUCT proof gate (`gate` / `never-bypass-the-gate` / `prove-it-gate`): same "a gate refuses, it does not warn" family, but this guards the dev repo’s git surface, not promotion onto the story DAG. Mechanism: `repo-manifest.json` + `scripts/check-manifest.mjs`.',
 };
 
 /** Backticked ids in `seeAlso` that name a real artifact (and aren't self / already linked). */

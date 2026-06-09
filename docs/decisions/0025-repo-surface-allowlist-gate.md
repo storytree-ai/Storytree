@@ -1,4 +1,4 @@
-# ADR-0024: Repo-surface allow-list gate — root + docs/ require a justified manifest entry
+# ADR-0025: Repo-surface allow-list gate — root + docs/ require a justified manifest entry
 
 ## Status
 
