@@ -8,6 +8,8 @@ boundary now wraps an owned loop, not pi). The rest of ADR-0001's stack stands.
 
 **Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — §5's "DBOS/Postgres durable execution stands" is overtaken (DBOS deferred; the store is a plain typed Postgres connection now).
 
+**Superseded-in-part by [ADR-0030](0030-all-in-on-claude-agent-sdk.md)** (accepted, 2026-06-10) — §§1–2 are demoted: the **Claude Agent SDK** becomes the live runtime (subscription auth), the owned loop becomes the offline/test executor + pivot-out fallback, and "own context engineering / never delegate to a third-party harness" reframes to owning the **map and pull surfaces** (story tree, Library, CLI). §3's seam discipline carries, pointed the other way.
+
 ## Date
 
 2026-06-06

@@ -11,6 +11,7 @@ Rust→TS/Node/pnpm · SurrealDB→Postgres/DBOS · Claude-subscription-subproce
 ## v2-internal reversals
 
 - **pi → owned agent loop (ADR-0011).** ADR-0001 chose **pi** as the per-node runtime (the v2 home for v1-0003's "Claude-sub subprocess"); [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) reverses it — storytree now **owns the agent loop and context engineering**, built on the Anthropic SDK. ADR-0001's *model-agnostic, pay-as-you-go* non-negotiable is **relaxed** to start Anthropic-only (pivot if it bites). So the v1-0003 row below now routes **pi → owned loop (ADR-0011)**, and ADR-0004/0005's pi-adapter/leaf are amended to that owned loop. A pi-wording sweep of the glossary + ADR-0006/0008 is the tracked follow-up.
+- **owned loop → Claude Agent SDK as live runtime (ADR-0030).** [ADR-0030](0030-all-in-on-claude-agent-sdk.md) supersedes ADR-0011 in part: the live driver is the **Agent SDK on subscription auth**, the owned loop is demoted to the offline/test executor + pivot-out fallback, and "own the window" reframes to "own the map and the pull surfaces" (the story tree + Library are the research object, not the loop). This completes an arc back near v1-0003's starting point — Claude-sub subprocess → pi (0001) → owned loop (0011) → Agent SDK on subscription (0030) — with the spine-side prove-it-gate (ADR-0020) as the structural difference from v1.
 
 ## Considered, not reversed
 
