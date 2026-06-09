@@ -123,7 +123,7 @@
     "category": "guardrail",
     "title": "Approval-gated trunk",
     "description": "A green result is a request for human diff-review, not an automatic merge. The human holds the outer loop; content invariants are never bypassable.",
-    "body": "**The boundary.** A green result is a request for human diff-review, not an automatic merge — the trunk is landed on only by operator approval, and content invariants are never bypassable.\n\n## Rule\n\nThe studio **drives** agents; the human sits at the **outer loop**.\n\n- **Per-action approval** is first-class (inverts v1’s skip-permissions): approve / reject / steer individual owned-loop actions in-loop.\n\n- **Approval-gated trunk** (inverts auto-merge-on-green): a green result surfaces for human diff-review and lands only on approval, as a signed promotion event.\n\n- Content invariants — contracts green, UAT signed, upstream healthy — are **never bypassable**.\n\n## Enforced by\n\nThe promotion gate: landing on trunk is a signed `promotion` event the orchestrator emits only after an operator approves the diff *and* the content invariants pass — there is no code path that writes the trunk without it.\n\n## Failure mode prevented\n\nIf the boundary is crossed, knowingly-broken or unreviewed work auto-merges onto the trunk (v1’s auto-merge-on-green failure), the mainline holds broken intermediate states, and human judgment is removed from the outer loop.",
+    "body": "**The boundary.** A green result is a request for human diff-review, not an automatic merge — the trunk is landed on only by operator approval, and content invariants are never bypassable.\n\n## Rule\n\nThe studio **drives** agents; the human sits at the **outer loop**.\n\n- **Per-action approval** is first-class (inverts v1’s skip-permissions): approve / reject / steer individual owned-loop actions in-loop.\n\n- **Approval-gated trunk** (inverts auto-merge-on-green): a green result surfaces for human diff-review and lands only on approval, as a signed promotion event.\n\n- Content invariants — contracts green, UAT signed, upstream healthy — are **never bypassable**.\n\n## Enforced by\n\nThe promotion gate: landing on trunk is a signed `promotion` event the orchestrator emits only after an operator approves the diff *and* the content invariants pass — there is no code path that writes the trunk without it.\n\n## Failure mode prevented\n\nIf the boundary is crossed, knowingly-broken or unreviewed work auto-merges onto the trunk and human judgment is removed from the outer loop. This is exactly v1’s **auto-merge-on-green** scar: v1’s trunk auto-merged the moment tests went green and tolerated broken intermediate states under an eventual-consistency posture, so the mainline was knowingly-broken at times — buying landing throughput at the cost of a trunk you could not trust. v2 inverts it: a green result is a *request for human diff-review*, never an automatic merge, so the trunk never holds a knowingly-broken state. The diff-review step is the price paid to close the window in which the mainline held broken states.",
     "references": [
       "doc:decisions/0008-ui-drives-agents-approvals.md"
     ],
@@ -135,7 +135,7 @@
     "category": "guardrail",
     "title": "Claims live in the shared store",
     "description": "Write-ownership is a typed claim checked at node-schedule time in the one shared store; a conflict is a hard refusal, never a warning.",
-    "body": "**The boundary.** Write-ownership is a typed claim checked at node-schedule time in the one shared store, and a conflict is a hard refusal — never a warning. (The claim layer is the intended design; it waits on the deferred DBOS path — ADR-0019.)\n\n## Rule\n\nCoordination moves off git and into the one shared Postgres store. The intended mechanism stands on DBOS, which is deferred (ADR-0019), so the claim layer is not built yet — the Phase-2 library migration ran on a plain typed Postgres connection and did not need it.\n\n- A **claim** is a typed write-ownership record naming what a node intends to write, checked under a serializable/unique constraint at **node-schedule time**.\n\n- A conflict is a **hard refusal** (a `claim-conflict-refused` event), never a warning.\n\n- DBOS workflow isolation would replace branch-per-session for coordination, and DB-allocated ids dissolve the collision classes — both part of the deferred DBOS path.\n\n## Enforced by\n\nWhen built, a serializable/unique constraint on the claims table in the shared Postgres store, checked at node-schedule time: a conflicting claim raises a `claim-conflict-refused` event instead of committing, so two nodes can never hold the same write. This is the intended enforcement; it waits on the deferred DBOS path (ADR-0019).\n\n## Failure mode prevented\n\nIf the boundary is crossed once concurrent multi-node work lands, two nodes hold the same write concurrently, reintroducing v1’s store-lock races and id collisions and corrupting shared state.",
+    "body": "**The boundary.** Write-ownership is a typed claim checked at node-schedule time in the one shared store, and a conflict is a hard refusal — never a warning. (The claim layer is the intended design; it waits on the deferred DBOS path — ADR-0019.)\n\n## Rule\n\nCoordination moves off git and into the one shared Postgres store. The intended mechanism stands on DBOS, which is deferred (ADR-0019), so the claim layer is not built yet — the Phase-2 library migration ran on a plain typed Postgres connection and did not need it.\n\n- A **claim** is a typed write-ownership record naming what a node intends to write, checked under a serializable/unique constraint at **node-schedule time**.\n\n- A conflict is a **hard refusal** (a `claim-conflict-refused` event), never a warning.\n\n- DBOS workflow isolation would replace branch-per-session for coordination, and DB-allocated ids dissolve the collision classes — both part of the deferred DBOS path.\n\n## Enforced by\n\nWhen built, a serializable/unique constraint on the claims table in the shared Postgres store, checked at node-schedule time: a conflicting claim raises a `claim-conflict-refused` event instead of committing, so two nodes can never hold the same write. This is the intended enforcement; it waits on the deferred DBOS path (ADR-0019).\n\n## Failure mode prevented\n\nIf the boundary is crossed once concurrent multi-node work lands, two nodes hold the same write concurrently and corrupt shared state. This is v1’s **store-lock-races-and-id-collisions** scar: once work ran concurrently, v1 hit store-lock races and in-process story-ID collisions (even duplicate ADR numbers), because concurrency-safety was retrofitted rather than designed in. v2 treats concurrency-safe state as a *foundation, not a retrofit* — the claim checked at node-schedule time and DB-allocated collision-free ids dissolve both the race and the collision classes. The race and collision classes are simply not yet exercised: the intended remedy stands on the deferred DBOS path (ADR-0019), so until concurrent multi-node work lands on the plain typed Postgres store the claim layer is named/intended, not built.",
     "references": [
       "doc:decisions/0009-concurrency-isolation-id-allocation.md",
       "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
@@ -304,19 +304,6 @@
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
-    "id": "auto-merge-on-green",
-    "category": "pattern",
-    "title": "Auto-merge on green",
-    "description": "v1 auto-merged on green and tolerated a knowingly-broken mainline; v2 rejects it — green is a request for human diff-review.",
-    "body": "**The pattern.** v1 auto-merged on green and tolerated a knowingly-broken mainline; v2 instead treats a green result as a request for human diff-review, landing on the approval-gated trunk only on approval.\n\n## Problem\n\nv1's trunk auto-merged on green and tolerated broken intermediate states under an eventual-consistency posture, leaving the mainline knowingly-broken at times.\n\n## Approach\n\nv2 **inverts** this: the trunk is approval-gated, a green result is a *request for human diff-review*, and the trunk never holds knowingly-broken states.\n\n## Tradeoffs\n\nYou trade the throughput of automatic landing against a trunk that is never knowingly broken. Approval-gating adds a human diff-review step before merge but removes the window in which the mainline holds broken states.",
-    "references": [
-      "doc:decisions/0008-ui-drives-agents-approvals.md",
-      "asset:approval-gated-trunk"
-    ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z"
-  },
-  {
     "id": "faked-uat-theatre",
     "category": "pattern",
     "title": "Faked-UAT theatre",
@@ -325,21 +312,6 @@
     "references": [
       "doc:decisions/0007-proof-model.md"
     ],
-    "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z"
-  },
-  {
-    "id": "store-lock-races-and-id-collisions",
-    "category": "pattern",
-    "title": "Store-lock races & id collisions",
-    "description": "v1 hit store-lock races and in-process story-ID collisions under concurrency. v2 designs concurrency-safe state in from the start; the intended remedy (DBOS workflow isolation + DB-allocated ids) is the deferred DBOS path (ADR-0019), not yet built.",
-    "body": "**The pattern.** v1 hit store-lock races and in-process story-ID collisions under concurrency; v2 instead treats concurrency-safe state as a foundation. The intended remedy — DBOS workflow isolation, claims in the shared store, and DB-allocated ids — is the deferred DBOS path (ADR-0019), not yet in place.\n\n## Problem\n\nv1's concurrency scars: store-lock races and in-process story-ID collisions (even duplicate ADR numbers) appeared once work ran concurrently, because concurrency-safety was retrofitted rather than designed in.\n\n## Approach\n\nv2 treats concurrency-safe state as a **foundation, not a retrofit**. The intended mechanism is DBOS workflow isolation, claims in the one shared store, and DB-allocated collision-free ids — but DBOS is deferred (ADR-0019, reaffirmed ADR-0020), so that remedy is the named/intended path, not built. The lesson stands regardless: until concurrent multi-node work lands on a plain typed Postgres store, the race and collision classes are simply not yet exercised.\n\n## Tradeoffs\n\nYou trade the simplicity of a single-process store and locally-minted ids against safe concurrent operation. The intended remedy — DBOS, a shared store, and DB-allocated ids — is heavier infrastructure that would dissolve the race and collision classes v1 hit; deferring it keeps the dependency off until concurrent multi-node work needs it.",
-    "references": [
-      "doc:decisions/0001-foundational-stack.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
-      "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
-    ],
-    "provenance": "The DBOS-based remedy is deferred by ADR-0019 (reaffirmed ADR-0020).",
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -1011,8 +983,7 @@
     "references": [
       "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
-      "asset:approval-gated-trunk",
-      "asset:auto-merge-on-green"
+      "asset:approval-gated-trunk"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
@@ -1089,23 +1060,6 @@
     "references": [],
     "createdAt": "2026-06-07T00:00:00.000Z",
     "updatedAt": "2026-06-07T00:00:00.000Z"
-  },
-  {
-    "id": "oq-anti-pattern-lessons",
-    "category": "open-question",
-    "title": "Are the v1 \"cautionary lessons\" correctly housed as patterns?",
-    "description": "auto-merge-on-green / vibe-the-load-bearing-layers / store-lock-races sit in an intentional lessons sub-bucket of `pattern` but describe mistakes, not approaches.",
-    "body": "**Why this matters.** Our “mistakes to avoid” notes are shelved in the same drawer as our “recommended playbooks”, so a newcomer can’t tell a warning from an endorsed practice — and the Library risks reading its own past mistakes back as advice to repeat. We need to decide where the two remaining cautionary tales belong.\n\n## The question\n\nShould the two remaining v1 cautionary lessons stay as `pattern`, move to `principle`, or merge into their positive counterparts?\n\n## Context\n\n`auto-merge-on-green` and `store-lock-races-and-id-collisions` sit under the seeder’s `// pattern: practices & cautionary lessons` framing but describe v1 mistakes, not reusable approaches you apply. Each overlaps a positive counterpart — the practice we adopted *instead*: `approval-gated-trunk`, and `claims-in-the-shared-store` / `durable-workflow-per-node`. (The third lesson, `vibe-the-load-bearing-layers`, was already merged into `own-the-layers` per ADR-0018 §D3 — the open-question-resolution ADR’s decision D3.)\n\n## Diagram\n\n```\n  cautionary lesson (a v1 mistake)         the practice we keep instead\n  ────────────────────────────────         ────────────────────────────\n  auto-merge-on-green                  ↔    approval-gated-trunk\n  store-lock-races-and-id-collisions   ↔    claims-in-the-shared-store\n                                            / durable-workflow-per-node\n  vibe-the-load-bearing-layers         →    already folded into own-the-layers\n                                            (ADR-0018 §D3)\n```\nEach lesson already has a positive twin; the question is whether the warning keeps its own shelf or is filed inside the twin.\n\n## Options\n\n- **A — Keep + cross-link** each to its positive counterpart. Non-destructive; honours the intentional bucket.\n\n- **B — Merge & retire**: fold each lesson’s v1 evidence into its counterpart’s \"Why\" and retire the standalone unit. DRY-est; loses standalone discoverability.\n\n- **C — Recategorize → `principle`** (stated negatively). Keeps them standalone but stops calling them patterns.\n\n## Recommendation\n\nA (keep + cross-link). Non-binding until you decide.",
-    "references": [
-      "doc:research/library-template-alignment.md",
-      "doc:decisions/0008-ui-drives-agents-approvals.md",
-      "doc:decisions/0009-concurrency-isolation-id-allocation.md",
-      "asset:approval-gated-trunk",
-      "asset:claims-in-the-shared-store",
-      "asset:durable-workflow-per-node"
-    ],
-    "createdAt": "2026-06-07T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
     "id": "lifecycle-status",
