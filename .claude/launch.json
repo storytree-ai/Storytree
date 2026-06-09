@@ -5,13 +5,21 @@
       "name": "studio",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "studio", "dev"],
-      "port": 5173
+      "port": 5173,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "pg",
+        "STORYTREE_DB_USER": "hua.mick@gmail.com"
+      }
     },
     {
       "name": "studio-5174",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "studio", "dev", "--", "--port", "5174", "--strictPort"],
-      "port": 5174
+      "port": 5174,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "pg",
+        "STORYTREE_DB_USER": "hua.mick@gmail.com"
+      }
     }
   ]
 }

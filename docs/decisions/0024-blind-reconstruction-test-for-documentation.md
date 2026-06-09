@@ -1,4 +1,4 @@
-# ADR-0026: A definition earns its place only if a cold agent can't reconstruct it (the blind-reconstruction test)
+# ADR-0024: A definition earns its place only if a cold agent can't reconstruct it (the blind-reconstruction test)
 
 ## Status
 

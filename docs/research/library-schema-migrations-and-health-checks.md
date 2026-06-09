@@ -1,7 +1,7 @@
 # Library schema migrations & health checks: versioning data through schema change, and detecting what didn't come forward
 
 **Date:** 2026-06-09
-**Status:** IMPLEMENTED (2026-06-09, ref [ADR-0025](../decisions/0025-library-schema-migrations-and-health-checks.md)).
+**Status:** IMPLEMENTED (2026-06-09, ref [ADR-0026](../decisions/0026-library-schema-migrations-and-health-checks.md)).
 The recommendation landed: the per-row `schemaVersion` pin, the forward-only migration registry + write-boundary
 upcaster, the eager batch-migrate, the `schema_migration` ledger, and the one health module surfaced three ways
 (dashboard banner + `--check` + the CI SEED gate) are all built and green. The original proposal text is kept
@@ -466,7 +466,7 @@ If adopted past Phase 1, this is ADR-sized (versioned Library migrations + the h
 
 ## 10. Implementation note (what landed, 2026-06-09)
 
-Adopted in full and recorded as [ADR-0025](../decisions/0025-library-schema-migrations-and-health-checks.md).
+Adopted in full and recorded as [ADR-0026](../decisions/0026-library-schema-migrations-and-health-checks.md).
 The recommendation shipped: per-row `schemaVersion` pin + forward-only migration registry + write-boundary
 upcaster (migrate-on-write) + eager batch-migrate + `schema_migration` ledger + one health module surfaced
 three ways. Files that changed:

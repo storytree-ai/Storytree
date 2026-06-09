@@ -180,6 +180,13 @@ code {
   color: var(--muted);
   padding: 0 8px 6px;
 }
+.side-head-link {
+  color: inherit;
+}
+.side-head-link:hover {
+  color: var(--text);
+  text-decoration: none;
+}
 .side-group {
   margin-bottom: 10px;
 }
@@ -644,6 +651,25 @@ a.stat:hover {
 .library-head p {
   margin: 0;
   max-width: 620px;
+}
+/* "Library" stays a heading but clicks back to the landing; the type is a muted crumb. */
+.crumb-link {
+  color: inherit;
+}
+.crumb-link:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.crumb-sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+/* Landing definition cards: a touch more breathing room than artifact cards. */
+.type-card h3 {
+  margin: 2px 0 4px;
+}
+.type-card .asset-desc {
+  margin: 0;
 }
 
 .filters {

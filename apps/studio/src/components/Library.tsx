@@ -8,6 +8,18 @@ import {
   type LibraryItem,
 } from '../types';
 
+/** Human label for each artifact type, shown on the landing's definition cards. */
+const TYPE_LABEL: Record<AssetCategory, string> = {
+  definition: 'Definitions',
+  principle: 'Principles',
+  pattern: 'Patterns',
+  guardrail: 'Guardrails',
+  techstack: 'Tech stack',
+  template: 'Templates',
+  adr: 'Decision records',
+  'open-question': 'Open questions',
+};
+
 export function Library({ category }: { category: AssetCategory | null }): React.JSX.Element {
   const { docs, assets, comments } = useAppData();
   const [query, setQuery] = useState('');
@@ -35,10 +47,15 @@ export function Library({ category }: { category: AssetCategory | null }): React
     return [...artifactItems, ...adrDocItems];
   }, [assets, docs]);
 
+  const countFor = (cat: AssetCategory): number => items.filter((it) => it.category === cat).length;
+
+  // Artifacts in the selected category, filtered by the search box. Computed
+  // unconditionally (before the landing early-return) to keep hook order stable;
+  // it's unused on the landing where `category` is null.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
-      if (category && it.category !== category) return false;
+      if (category === null || it.category !== category) return false;
       if (q) {
         const hay = `${it.id} ${it.title} ${it.description}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -47,17 +64,59 @@ export function Library({ category }: { category: AssetCategory | null }): React
     });
   }, [items, category, query]);
 
+  // Landing (no category): explain what the Library is and offer one definition
+  // card per artifact type. No flat "all" wall — you pick a type to browse.
+  if (category === null) {
+    return (
+      <div className="library pad">
+        <div className="library-head">
+          <div>
+            <h1>Library</h1>
+            <p>
+              The project’s <strong>injectable guidance</strong> — modular, typed artifacts an agent
+              pulls into context on demand. Each unit is one of the types below, synthesised from the
+              record (every artifact cites the ADR it came from). Pick a type to browse.
+            </p>
+          </div>
+          <a className="btn primary" href={assetNewHref}>
+            + New artifact
+          </a>
+        </div>
+
+        <ul className="asset-grid">
+          {ASSET_CATEGORIES.map((cat) => {
+            const n = countFor(cat);
+            if (n === 0) return null;
+            return (
+              <li key={cat}>
+                <a className="asset-card type-card" href={libraryHref(cat)}>
+                  <div className="asset-card-top">
+                    <span className={`chip cat-${cat}`}>{cat}</span>
+                    <span className="badge ghost">{n}</span>
+                  </div>
+                  <h3>{TYPE_LABEL[cat]}</h3>
+                  <p className="asset-desc">{ASSET_CATEGORY_GLOSS[cat]}</p>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="library pad">
       <div className="library-head">
         <div>
-          <h1>Library</h1>
-          <p className="muted">
-            Modular, injectable artifacts — definitions, principles, patterns, guardrails, templates,
-            the techstack, ADRs, and open questions — all first-class, authorable categories. The
-            canonical ADR docs under <code>docs/decisions/</code> also fold in read-only. The durable
-            guidance synthesised from the record; the seed of an injectable guidance library
-            (open-questions §9).
+          <h1>
+            <a className="crumb-link" href={libraryHref()}>
+              Library
+            </a>
+            <span className="crumb-sep"> / {TYPE_LABEL[category]}</span>
+          </h1>
+          <p className="muted small cat-gloss">
+            <span className={`cat-dot cat-${category}`} /> {category} — {ASSET_CATEGORY_GLOSS[category]}
           </p>
         </div>
         <a className="btn primary" href={assetNewHref}>
@@ -67,11 +126,8 @@ export function Library({ category }: { category: AssetCategory | null }): React
 
       <div className="filters">
         <div className="filter-cats">
-          <a className={category === null ? 'chip-btn active' : 'chip-btn'} href={libraryHref()}>
-            all ({items.length})
-          </a>
           {ASSET_CATEGORIES.map((cat) => {
-            const n = items.filter((it) => it.category === cat).length;
+            const n = countFor(cat);
             if (n === 0) return null;
             return (
               <a
@@ -87,17 +143,11 @@ export function Library({ category }: { category: AssetCategory | null }): React
         </div>
         <input
           className="search"
-          placeholder="Search the library…"
+          placeholder={`Search ${TYPE_LABEL[category].toLowerCase()}…`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
-
-      {category && (
-        <p className="muted small cat-gloss">
-          <span className={`cat-dot cat-${category}`} /> {category} — {ASSET_CATEGORY_GLOSS[category]}
-        </p>
-      )}
 
       {filtered.length === 0 ? (
         <p className="muted pad-sm">No items match.</p>
