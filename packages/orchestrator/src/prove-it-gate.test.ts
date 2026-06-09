@@ -8,6 +8,7 @@ import { InMemoryStore, type SignerInputs, type Verdict } from "@storytree/core"
 import { PathWriteScope, RecordingTestExecutor } from "./phase-machine.js";
 import type { TestObservation } from "./phase-machine.js";
 import type { WriteToolSpec } from "./write-scoped-executor.js";
+import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
 import type { ProveSpec, TreeState } from "./prove-it-gate.js";
 
@@ -78,10 +79,12 @@ function freshSpec(args: {
     unitId: "unit-1",
     proofMode: "contract",
     testId: "T",
-    model: phaseAwareModel(),
-    tools: leafTools(),
-    scope: scope(),
-    writeTools,
+    author: new OwnedLoopAuthor({
+      model: phaseAwareModel(),
+      tools: leafTools(),
+      scope: scope(),
+      writeTools,
+    }),
     testExecutor: executor,
     store,
     signerInputs: args.signerInputs,

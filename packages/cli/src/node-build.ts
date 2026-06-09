@@ -32,9 +32,16 @@ import type { Envelope } from "./envelope.js";
  * is synthetic. `--live` is gated on owner decisions (API key, budget — plan Phase 0/D).
  */
 
-const HONEST_FRAMING =
+const HONEST_FRAMING_DRY =
   "honest framing: a dry-run proves the GLUE (spec → ProveSpec → gate → verdict → rollup), NOT the\n" +
   "node's actual proofs — the model is scripted and the red→green is synthetic in a temp workspace.\n" +
+  "The node's authored status is untouched; the verdict landed in an in-memory store and is gone.";
+
+const HONEST_FRAMING_LIVE =
+  "honest framing: a live smoke proves the LIVE LOOP through the gate — a real Claude Agent SDK leaf\n" +
+  "(ADR-0030, subscription-funded) genuinely authored the test and impl under hook-enforced write\n" +
+  "scope, and the spine observed the genuine red→green those writes caused. The TASK is still the\n" +
+  "synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n" +
   "The node's authored status is untouched; the verdict landed in an in-memory store and is gone.";
 
 /** The repo root, resolved from this file's location (packages/cli/src → four dirs up). */
@@ -44,6 +51,12 @@ function repoRoot(): string {
 
 export interface NodeBuildOpts {
   dryRun: boolean;
+  /** `--live` — the ADR-0030 live smoke: a real Claude Agent SDK leaf authors through the gate. */
+  live?: boolean;
+  /** `--model` — the SDK leaf's model (live only). Default: claude-sonnet-4-6. */
+  model?: string;
+  /** `--budget` — per-authoring-slice USD ceiling, SDK-enforced (live only). Default: 1. */
+  budgetUsd?: number;
   /** `--actor` — the signer chain's flag tier (flag → STORYTREE_SIGNER → git email). */
   actor?: string;
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
@@ -58,19 +71,26 @@ export async function nodeBuild(
   if (unitId === undefined) {
     return {
       ok: false,
-      body: "node build needs an id: storytree node build <id> --dry-run",
+      body: "node build needs an id: storytree node build <id> --dry-run | --live",
       next: registeredNodeIds().map((id) => `storytree node build ${id} --dry-run`),
     };
   }
-  if (!opts.dryRun) {
+  const live = opts.live === true;
+  if (opts.dryRun === live) {
     return {
       ok: false,
       body:
-        "only --dry-run is implemented: a live build spends API budget and is gated on owner\n" +
-        "decisions (API-key source + per-node budget ceiling — plan §3 Phase 0/D).",
-      next: [`storytree node build ${unitId} --dry-run`],
+        "pick exactly one mode:\n" +
+        "  --dry-run   offline scripted walk (zero cost)\n" +
+        "  --live      ADR-0030 live smoke: a real Claude Agent SDK leaf authors through the gate\n" +
+        "              (subscription-funded; needs Claude Code auth / CLAUDE_CODE_OAUTH_TOKEN)",
+      next: [
+        `storytree node build ${unitId} --dry-run`,
+        `storytree node build ${unitId} --live`,
+      ],
     };
   }
+  const mode = live ? "live-smoke" : "dry-run";
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -104,9 +124,9 @@ export async function nodeBuild(
     };
   }
 
-  // Dry-run sandbox: a fresh temp workspace + a fresh InMemoryStore. The library store the CLI
-  // was built with is deliberately NOT used — a dry-run never touches shared state.
-  const runId = `dry-run-${Date.now().toString(36)}`;
+  // Smoke sandbox (both modes): a fresh temp workspace + a fresh InMemoryStore. The library store
+  // the CLI was built with is deliberately NOT used — a smoke never touches shared state.
+  const runId = `${mode}-${Date.now().toString(36)}`;
   const store = new InMemoryStore();
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-node-build-"));
   try {
@@ -115,13 +135,20 @@ export async function nodeBuild(
       workEvent({ unitId: spec.id, event: "building", runId }, signer.signer),
     );
 
-    const resolved = resolveProveSpec(spec, {
-      mode: "dry-run",
-      workspace,
-      store,
-      runId,
-      signerInputs: { flag: signer.signer },
-    });
+    const resolved = resolveProveSpec(
+      spec,
+      live
+        ? {
+            mode: "live-smoke",
+            workspace,
+            store,
+            runId,
+            signerInputs: { flag: signer.signer },
+            ...(opts.model !== undefined ? { model: opts.model } : {}),
+            ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
+          }
+        : { mode: "dry-run", workspace, store, runId, signerInputs: { flag: signer.signer } },
+    );
     if (!resolved.ok) {
       return {
         ok: false,
@@ -133,15 +160,24 @@ export async function nodeBuild(
     const result = await proveUnit(resolved.spec);
     const derived = rollupStatus(spec.id, await store.readEvents());
     const header = [
-      `node build ${spec.id} — DRY-RUN`,
+      `node build ${spec.id} — ${mode.toUpperCase()}`,
       "",
       `spec:        ${rel(specFile)}`,
       `proof mode:  ${spec.proofMode} → ${resolved.spec.proofMode}`,
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
+      ...(resolved.liveAuthor !== undefined
+        ? [
+            `leaf:        Claude Agent SDK (${resolved.liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
+            `cost:        $${resolved.liveAuthor.totalCostUsd.toFixed(4)} SDK-reported (subscription-billed)`,
+            `scope walls: ${resolved.liveAuthor.violations.length === 0 ? "no write refusals" : resolved.liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
+          ]
+        : []),
       "",
       `phase trail: ${result.phasesVisited.join(" → ")}`,
     ];
+    const framing = live ? HONEST_FRAMING_LIVE : HONEST_FRAMING_DRY;
+    const modeFlag = live ? "--live" : "--dry-run";
 
     if (!result.ok) {
       return {
@@ -151,9 +187,9 @@ export async function nodeBuild(
           `verdict:     NONE — failed closed at ${result.failedAt}: ${result.reason}`,
           `rollup:      ${derived ?? "(no derived status)"} (authored status stands: ${spec.status})`,
           "",
-          HONEST_FRAMING,
+          framing,
         ].join("\n"),
-        next: [`storytree node build ${spec.id} --dry-run`],
+        next: [`storytree node build ${spec.id} ${modeFlag}`],
       };
     }
 
@@ -165,10 +201,10 @@ export async function nodeBuild(
         `evidence:    ${result.verdict.evidence.map((e) => e.kind).join(", ")}`,
         `rollup:      ${derived} (derived from the event log: building → signed pass; authored status in the spec stays ${spec.status})`,
         "",
-        HONEST_FRAMING,
+        framing,
       ].join("\n"),
       next: [
-        "storytree node build <id> --dry-run   (any registered node)",
+        `storytree node build <id> ${modeFlag}   (any registered node)`,
         `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
       ],
     };
@@ -192,6 +228,11 @@ export function nodeHelp(): Envelope {
       "      walk a real node spec through AUTHOR_TEST → … → GATE with a scripted model in a",
       "      temp workspace: zero API cost, no live DB. Proves the drive-machinery glue, not",
       "      the node's actual proofs.",
+      "",
+      "  storytree node build <id> --live [--model <id>] [--budget <usd>] [--actor <email>]",
+      "      the ADR-0030 live smoke: a REAL Claude Agent SDK leaf (subscription-funded) authors",
+      "      the synthetic red→green pair through the gate under hook-enforced write scope.",
+      "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). Default budget: $1/slice.",
       "",
       `buildable (registered) nodes: ${registeredNodeIds().join(", ")}`,
     ].join("\n"),

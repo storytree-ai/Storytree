@@ -11,6 +11,7 @@ import { InMemoryStore, type SignerInputs } from "@storytree/core";
 import { PathWriteScope } from "./phase-machine.js";
 import { ShellTestExecutor } from "./shell-test-executor.js";
 import type { ShellCommand } from "./shell-test-executor.js";
+import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { proveUnit } from "./prove-it-gate.js";
 import type { ProveSpec, TreeState } from "./prove-it-gate.js";
 
@@ -123,10 +124,12 @@ function freshSpec(args: {
     unitId: "e2e-unit",
     proofMode: "contract",
     testId: "e2e",
-    model: phaseAwareModel(args.implSource),
-    tools,
-    scope,
-    writeTools: FILE_WRITE_TOOLS,
+    author: new OwnedLoopAuthor({
+      model: phaseAwareModel(args.implSource),
+      tools,
+      scope,
+      writeTools: FILE_WRITE_TOOLS,
+    }),
     testExecutor,
     store,
     signerInputs: SIGNER,

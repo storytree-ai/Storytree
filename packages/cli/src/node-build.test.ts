@@ -35,11 +35,19 @@ test("node build <id> --dry-run walks the gate and reports trail + verdict + rol
   assert.match(env.body, /NOT the\nnode's actual proofs/);
 });
 
-test("node build without --dry-run is refused (live is owner-gated)", async () => {
+test("node build with no mode is refused (must pick --dry-run or --live)", async () => {
   const env = await run(["node", "build", "library-cli"], deps);
   assert.equal(env.ok, false);
-  assert.match(env.body, /only --dry-run is implemented/);
+  assert.match(env.body, /pick exactly one mode/);
+  assert.match(env.body, /--live/);
   assert.ok(env.next?.some((n) => n.includes("--dry-run")));
+  assert.ok(env.next?.some((n) => n.includes("--live")));
+});
+
+test("node build with BOTH modes is refused (dry-run xor live)", async () => {
+  const env = await run(["node", "build", "library-cli", "--dry-run", "--live"], deps);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /pick exactly one mode/);
 });
 
 test("node build with an unknown id is guidance listing the buildable nodes", async () => {

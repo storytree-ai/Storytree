@@ -1,5 +1,7 @@
-// @storytree/agent — the owned agent loop (ADR-0011): the surviving turn discipline on the raw
-// Messages API, behind a thin Model seam. The Agentic subprocess-wrapper half is dead (survey §3).
+// @storytree/agent — the agent runtimes (ADR-0011 / ADR-0030). This package is the SOLE model-
+// runtime import site (ADR-0004): the owned loop on the raw Messages API (the offline/test
+// executor and pivot-out fallback) AND the Claude Agent SDK leaf (the live runtime, ADR-0030),
+// both behind the runtime-agnostic PhaseAuthor seam.
 export type {
   Model,
   ModelMessage,
@@ -17,6 +19,16 @@ export { runTurn, DEFAULT_MAX_TURNS } from "./run-turn.js";
 
 export type { StepResult, StepArgs } from "./step.js";
 export { runStep, runStepValidated } from "./step.js";
+
+export type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
+
+export type {
+  SdkQueryFn,
+  SdkWriteViolation,
+  SdkRunInfo,
+  ClaudeAgentAuthorArgs,
+} from "./sdk-author.js";
+export { ClaudeAgentAuthor, decideWrite } from "./sdk-author.js";
 
 export type { WriteToolSpec } from "./fs-tools.js";
 export {

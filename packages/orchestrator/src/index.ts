@@ -46,6 +46,9 @@ export type {
 } from "./prove-it-gate.js";
 export { proveUnit, gitTreeState } from "./prove-it-gate.js";
 
+export type { OwnedLoopAuthorArgs } from "./owned-loop-author.js";
+export { OwnedLoopAuthor } from "./owned-loop-author.js";
+
 export type { NodeSpec } from "./node-spec.js";
 export { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
 
@@ -56,10 +59,16 @@ export {
   registeredNodeIds,
 } from "./test-command-registry.js";
 
-export type { DryRunResolveOptions, ResolveResult } from "./resolve-prove-spec.js";
+export type {
+  DryRunResolveOptions,
+  LiveSmokeResolveOptions,
+  ResolveOptions,
+  ResolveResult,
+} from "./resolve-prove-spec.js";
 export {
   resolveProveSpec,
   assemblePrompts,
+  liveSmokePrompts,
   dryRunModel,
   DRY_RUN_TEST_REL,
   DRY_RUN_IMPL_REL,

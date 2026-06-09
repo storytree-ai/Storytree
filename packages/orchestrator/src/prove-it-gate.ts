@@ -15,8 +15,7 @@
 
 import { execFile } from "node:child_process";
 
-import { runStep } from "@storytree/agent";
-import type { Model, ToolExecutor } from "@storytree/agent";
+import type { PhaseAuthor } from "@storytree/agent";
 import type {
   EvidenceRef,
   ProofMode,
@@ -31,12 +30,7 @@ import type {
   Phase,
   TestExecutor,
   TestObservation,
-  WriteScope,
 } from "./phase-machine.js";
-import {
-  WriteScopedToolExecutor,
-  type WriteToolSpec,
-} from "./write-scoped-executor.js";
 
 /** The injected working-tree snapshot (ADR-0020 §4): the commit attested + whether the tree is clean. */
 export interface TreeState {
@@ -55,13 +49,12 @@ export interface ProveSpec {
   unitId: string;
   proofMode: ProofMode;
   testId: string;
-  model: Model;
-  /** The leaf's tool surface; wrapped in a {@link WriteScopedToolExecutor} whose phase the spine flips. */
-  tools: ToolExecutor;
-  /** The per-phase write-ownership predicate (ADR-0020 §2). */
-  scope: WriteScope;
-  /** Maps the leaf's WRITE tools to path-extractors so the scope can gate them. */
-  writeTools: WriteToolSpec;
+  /**
+   * The leaf runtime behind the executor seam (ADR-0030 §2): the owned loop (`OwnedLoopAuthor`)
+   * or the Claude Agent SDK (`ClaudeAgentAuthor`). It authors inside the two authoring phases
+   * under its own write-scope enforcement; it never observes red/green or reports a verdict.
+   */
+  author: PhaseAuthor;
   /** The spine's red/green observer (ADR-0020 §3) — the model never produces these. */
   testExecutor: TestExecutor;
   /** The event store the signed promotion row is appended to (ADR-0017). */
@@ -86,36 +79,23 @@ export type ProveResult =
 /** The store `kind` for the signed promotion event. */
 const SIGNING_KIND = "signing";
 
-/** The model string handed to {@link runStep}; the leaf brief is the request's user message. */
-const STEP_MODEL = "spine-leaf";
-
 /**
  * Walk one unit through the ADR-0020 honesty loop and return a signed {@link Verdict} on success or a
  * fail-closed {@link ProveResult} on any refusal. On EVERY abort, NO signing row is written — proof is
  * non-authorable, so an unproven unit leaves no promotion event behind.
  *
- * The spine OWNS every transition: it flips the {@link WriteScopedToolExecutor}'s phase, runs the
- * authoring steps, OBSERVES red/green itself via {@link ProveSpec.testExecutor}, and only signs at the
- * GATE when the tree is clean and a signer resolves.
+ * The spine OWNS every transition: it hands the leaf {@link PhaseAuthor} exactly two authoring
+ * slices, OBSERVES red/green itself via {@link ProveSpec.testExecutor}, and only signs at the
+ * GATE when the tree is clean and a signer resolves. The author enforces its own per-phase write
+ * scope (OwnedLoopAuthor: the write-scoped decorator; ClaudeAgentAuthor: PreToolUse deny hooks).
  */
 export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const visited: Phase[] = [];
-  const scoped = new WriteScopedToolExecutor({
-    inner: spec.tools,
-    scope: spec.scope,
-    writeTools: spec.writeTools,
-    phase: "AUTHOR_TEST",
-  });
 
   // ── Phase 1: AUTHOR_TEST ────────────────────────────────────────────────
   // The leaf may write the TEST only. On a successful authoring step we advance to CONFIRM_RED.
   visited.push("AUTHOR_TEST");
-  scoped.setPhase("AUTHOR_TEST");
-  const authored = await runStep({
-    model: spec.model,
-    tools: scoped,
-    request: { model: STEP_MODEL, messages: [{ role: "user", content: spec.prompts.authorTest }] },
-  });
+  const authored = await spec.author.author("AUTHOR_TEST", spec.prompts.authorTest);
   if (!authored.ok) {
     return fail("AUTHOR_TEST", `authoring the test failed (${authored.error})`, visited);
   }
@@ -126,8 +106,8 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
 
   // ── Phase 2: CONFIRM_RED ────────────────────────────────────────────────
   // The spine OBSERVES the red itself. A forged/early green here is the attack ADR-0020 §3 stops.
+  // No leaf runs in this phase (or any later one except IMPLEMENT) — the author is never invoked.
   visited.push("CONFIRM_RED");
-  scoped.setPhase("CONFIRM_RED");
   const redObs = await spec.testExecutor.run(spec.testId);
   const redGate = nextPhase("CONFIRM_RED", redObs);
   if (!redGate.ok) {
@@ -137,12 +117,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ── Phase 3: IMPLEMENT ──────────────────────────────────────────────────
   // The leaf may write SOURCE only (never the test it must satisfy). Advance to CONFIRM_GREEN.
   visited.push("IMPLEMENT");
-  scoped.setPhase("IMPLEMENT");
-  const implemented = await runStep({
-    model: spec.model,
-    tools: scoped,
-    request: { model: STEP_MODEL, messages: [{ role: "user", content: spec.prompts.implement }] },
-  });
+  const implemented = await spec.author.author("IMPLEMENT", spec.prompts.implement);
   if (!implemented.ok) {
     return fail("IMPLEMENT", `implementing against the test failed (${implemented.error})`, visited);
   }
@@ -154,7 +129,6 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ── Phase 4: CONFIRM_GREEN ──────────────────────────────────────────────
   // The spine OBSERVES the green itself. A red here means the implementation is not proven.
   visited.push("CONFIRM_GREEN");
-  scoped.setPhase("CONFIRM_GREEN");
   const greenObs = await spec.testExecutor.run(spec.testId);
   const greenGate = nextPhase("CONFIRM_GREEN", greenObs);
   if (!greenGate.ok) {
@@ -165,7 +139,6 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // Observe-only. Sign the verdict against a clean committed tree + a resolved signer, then append
   // the SIGNED promotion event. Any refusal here writes NO row.
   visited.push("GATE");
-  scoped.setPhase("GATE");
 
   const tree = await spec.treeState();
   if (!tree.clean) {

@@ -602,6 +602,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     file?: string;
     set?: string[];
     "dry-run"?: boolean;
+    live?: boolean;
+    model?: string;
+    budget?: string;
     actor?: string;
   };
   try {
@@ -616,6 +619,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         file: { type: "string" },
         set: { type: "string", multiple: true },
         "dry-run": { type: "boolean", default: false },
+        live: { type: "boolean", default: false },
+        model: { type: "string" },
+        budget: { type: "string" },
         actor: { type: "string" },
       },
     });
@@ -645,6 +651,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     }
     return nodeBuild(third, {
       dryRun: values["dry-run"] === true,
+      live: values.live === true,
+      ...(values.model !== undefined ? { model: values.model } : {}),
+      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
       ...(values.actor !== undefined ? { actor: values.actor } : {}),
     });
   }
