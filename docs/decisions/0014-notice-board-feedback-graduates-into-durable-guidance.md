@@ -2,7 +2,7 @@
 
 ## Status
 
-**draft (2026-06-06, proposed for adjudication.)** Resolves open-q §5 (channel/post); proposes a home for the graduation *target* (relates open-q §9). Evolves Agentic ADR-0011 (forum staging surface) + ADR-0022 §3 (per-story channel) — whose *coordination* half already **collapsed into ADR-0009** per [`agentic-artifact-gap-analysis.md`](../agentic-artifact-gap-analysis.md); this ADR homes the **feedback + graduation** half that gap-analysis left parked in §5/§9. **Decision bullets marked ⚠ are provisional pending owner adjudication of conflicts C1–C4 (see Open); each is being carried into its own session.**
+**draft (2026-06-06, proposed for adjudication.)** Resolves open-q §5 (channel/post); proposes a home for the graduation *target* (relates open-q §9). Evolves Agentic ADR-0011 (forum staging surface) + ADR-0022 §3 (per-story channel) — whose *coordination* half already **collapsed into ADR-0009** per the v1→v2 artifact gap-analysis review (a one-time review artifact, since removed once the Library became the home for durable knowledge); this ADR homes the **feedback + graduation** half that review left parked in §5/§9. **Decision bullets marked ⚠ are provisional pending owner adjudication of conflicts C1–C4 (see Open); each is being carried into its own session.**
 
 **DBOS deferred per [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — the Postgres/DBOS substrate this composes with is a plain typed Postgres connection now (DBOS reserved, not built). The comments→events / studio↔store migration this describes is **still pending**: `apps/studio/server/devApi.ts` + `apps/studio/data/comments.json` remain the live path.
 
@@ -46,5 +46,5 @@ The notice board is **anchored prose feedback on the shared event store, with an
 ## References
 
 - [ADR-0006](0006-event-store-observability-surface.md) (event store), [ADR-0008](0008-ui-drives-agents-approvals.md) (studio drives agents; per-node chat), [ADR-0009](0009-concurrency-isolation-id-allocation.md) (claims; coordination substrate), [ADR-0013](0013-structured-corpus-markdown-as-view.md) (structured corpus; the guidance representation).
-- [`agentic-artifact-gap-analysis.md`](../agentic-artifact-gap-analysis.md) (0022 collapsed → 0009; 0011 forum parked), open-questions [§5](../open-questions.md) / [§9](../open-questions.md), Agentic ADR-0011 + ADR-0022 §3 (`C:\code\Agentic`).
+- The v1→v2 artifact gap-analysis review (a one-time review artifact, since removed; 0022 collapsed → 0009; 0011 forum parked), open-questions [§5](../open-questions.md) / [§9](../open-questions.md), Agentic ADR-0011 + ADR-0022 §3 (`C:\code\Agentic`).
 - Design conversation, 2026-06-06.

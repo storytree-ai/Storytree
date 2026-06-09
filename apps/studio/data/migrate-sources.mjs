@@ -65,6 +65,41 @@ const PROVENANCE = {
     "Carries v1's own-a-thin-wrapper-over-the-agent-runtime principle (Agentic ADR-0008/0026).",
   'stack-cloud-sql-keyless-iam':
     'Validated 2026-06-08: 73 units migrated keyless, then the instance stopped.',
+  // The guideline-corpus units folded in by PR #14: their seeAlso is genuine substance
+  // ("Composes with X (nuance)" relationship prose + v1/legacy origin), not pointer-restatement,
+  // so it is preserved verbatim as provenance (their backticked cross-links are also lifted to refs).
+  'doc-vs-implementation-precedence':
+    'Composes with the `assess-tradeoffs-by-naming-both-sides` pattern (that governs how a surfaced tradeoff is framed; this governs whether the surface should exist). Imported from v1 `assets/guidelines/doc-vs-implementation-precedence.yml`.',
+  'dogfood-fix-the-source':
+    'Composes with `verify-edit-write-persisted-or-escalate` (a recovery fallback is permitted only after the failure is made visible). Imported from v1 `assets/guidelines/dogfood-fix-the-source.yml`.',
+  'exploration-principles':
+    'Composes with the `recursive-decomposition-patterns` pattern. Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'guidance-quality':
+    'Composes with the `signal-and-noise` principle (the discriminatory-power lens this serves). Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'no-proof-preservation':
+    'The inverse of a hand-edit that fakes `healthy`: there a unit claims proof it never earned; here a unit clings to proof its new content no longer supports. See the `prove-it-gate` principle and the `proof-hash` definition. Imported from v1 `assets/guidelines/no-proof-preservation.yml`.',
+  'reward-hacking':
+    'Composes with `implementer-shortcut-patterns` (the specific hollow shapes), `test-fixtures-mirror-production-failure-modes` (the sterile-fixture inverse), and `test-creation-principles`. See the `faked-uat-theatre` and `agent-never-self-exempts` artifacts. Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'signal-and-noise':
+    'Composes with the `guidance-quality` principle (the authoring moves that add signal). Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'stale-prerequisite-links-are-phantoms':
+    'Composes with the `defects-amend-the-owning-story` principle (that expands the DAG; this contracts it); both reach the operator before the DAG shape changes. See the `dependency` and `boundary` definitions (ADR-0010). Imported from v1 `assets/guidelines/stale-prerequisite-links-are-phantoms.yml`.',
+  'test-creation-principles':
+    'Same falsifiability discipline as `verify-edit-write-persisted-or-escalate`, applied to assertions. See the `contract-test` and `mock-uat-seam` definitions. Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'test-fixtures-mirror-production-failure-modes':
+    'Composes with `implementer-shortcut-patterns` (sterile fixture here, hollow implementation there) and `tightening-a-shared-contract-needs-a-full-sweep`. See the `mock-uat-seam` definition. Imported from v1 `assets/guidelines/test-fixtures-mirror-production-failure-modes.yml`.',
+  'tightening-a-shared-contract-needs-a-full-sweep':
+    'Composes with `test-fixtures-mirror-production-failure-modes` (that prevents a sterile fixture passing; this catches a previously-valid fixture a contract change just broke). Imported from v1 `assets/guidelines/tightening-a-shared-contract-needs-a-full-sweep.yml`.',
+  'verify-edit-write-persisted-or-escalate':
+    'Composes with `implementer-shortcut-patterns` and `test-fixtures-mirror-production-failure-modes` — the same falsifiability discipline applied to a write’s persistence. Imported from v1 `assets/guidelines/verify-edit-write-persisted-or-escalate.yml`.',
+  'implementer-shortcut-patterns':
+    'Composes with `test-fixtures-mirror-production-failure-modes` (the sterile-fixture inverse) and `reward-hacking`. See the `faked-uat-theatre` and `mock-uat-seam` artifacts. Imported from v1 `assets/guidelines/implementer-shortcut-patterns.yml`.',
+  'pull-based-context-architecture':
+    'A context-engineering principle for how agents are briefed, not a code spec for any subsystem. Composes with `signal-and-noise` (at the briefing layer) and `recursive-decomposition-patterns`. See ADR-0011 (pull-based just-in-time context). Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'recursive-decomposition-patterns':
+    'Source: Recursive Language Models (Zhang/Kraska/Khattab, MIT CSAIL); a context-engineering principle, not a code spec. Composes with `exploration-principles` and `pull-based-context-architecture`. Imported from legacy AgenticEngineering `AgenticGuidance`.',
+  'repo-surface-allowlist':
+    'Authoritatively defined by ADR-0024; enforces on the ADR-0022 dev-repo green gate. The repo-hygiene complement to `edit-first-curation` (search/edit before authoring) and `signal-and-noise` (cut low-signal docs). Distinct from the PRODUCT proof gate (`gate` / `never-bypass-the-gate` / `prove-it-gate`): same "a gate refuses, it does not warn" family, but this guards the dev repo’s git surface, not promotion onto the story DAG. Mechanism: `repo-manifest.json` + `scripts/check-manifest.mjs`.',
 };
 
 /** Backticked ids in `seeAlso` that name a real artifact (and aren't self / already linked). */
