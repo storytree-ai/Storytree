@@ -1,14 +1,11 @@
-import { useAppData, openCount } from '../lib/appData';
-import { docHref, libraryHref, type Route } from '../lib/route';
-import { ASSET_CATEGORIES, type AssetCategory, type DocMeta } from '../types';
+import { useAppData } from '../lib/appData';
+import { libraryHref, type Route } from '../lib/route';
+import { ASSET_CATEGORIES, type AssetCategory } from '../types';
 
 export function Sidebar({ route }: { route: Route }): React.JSX.Element {
-  const { docs, assets, comments } = useAppData();
-  // ADRs now live in the Library (counted under the `adr` category below); only
-  // the non-decision docs keep a standalone "Reference" section in the sidebar.
+  const { docs, assets } = useAppData();
+  // ADRs are folded into the Library under the `adr` category (counted below).
   const adrDocs = docs.filter((d) => d.group === 'Decisions');
-  const reference = docs.filter((d) => d.group !== 'Decisions');
-  const activeDocId = route.name === 'doc' ? route.id : null;
   const libCat = route.name === 'library' ? route.category : undefined;
 
   // Library counts come from the artifacts; `adr` also includes the doc-backed
@@ -17,22 +14,16 @@ export function Sidebar({ route }: { route: Route }): React.JSX.Element {
     const artifacts = assets.filter((a) => a.category === cat).length;
     return cat === 'adr' ? artifacts + adrDocs.length : artifacts;
   };
-  const totalItems = assets.length + adrDocs.length;
 
   return (
     <aside className="sidebar">
       <div className="side-section">
-        <div className="side-head">Library</div>
+        <div className="side-head">
+          <a className="side-head-link" href={libraryHref()}>
+            Library
+          </a>
+        </div>
         <ul className="side-list">
-          <li>
-            <a
-              className={route.name === 'library' && libCat === null ? 'side-item active' : 'side-item'}
-              href={libraryHref()}
-            >
-              <span className="side-item-label">All</span>
-              <span className="badge ghost">{totalItems}</span>
-            </a>
-          </li>
           {ASSET_CATEGORIES.map((cat) => {
             const n = countFor(cat);
             if (n === 0) return null;
@@ -51,48 +42,6 @@ export function Sidebar({ route }: { route: Route }): React.JSX.Element {
           })}
         </ul>
       </div>
-
-      <DocSection title="Reference" docs={reference} activeDocId={activeDocId} comments={comments} />
     </aside>
-  );
-}
-
-function DocSection({
-  title,
-  docs,
-  activeDocId,
-  comments,
-}: {
-  title: string;
-  docs: DocMeta[];
-  activeDocId: string | null;
-  comments: ReturnType<typeof useAppData>['comments'];
-}): React.JSX.Element | null {
-  if (docs.length === 0) return null;
-  return (
-    <div className="side-section">
-      <div className="side-head">{title}</div>
-      <ul className="side-list">
-        {docs.map((doc) => {
-          const open = openCount(comments, doc.id);
-          return (
-            <li key={doc.id}>
-              <a
-                className={doc.id === activeDocId ? 'side-item active' : 'side-item'}
-                href={docHref(doc.id)}
-                title={doc.title}
-              >
-                <span className="side-item-label">{doc.title}</span>
-                {open > 0 && (
-                  <span className="badge" title={`${open} open comment(s)`}>
-                    {open}
-                  </span>
-                )}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }
