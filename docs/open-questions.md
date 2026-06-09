@@ -188,10 +188,15 @@ and the tier share one name). Work units **consume** library units; a library un
 **`derives_from`** ADRs / other units (ADR-0017's ADR-rooted provenance DAG). The
 [ADR-0014](decisions/0014-notice-board-feedback-graduates-into-durable-guidance.md)
 notice-board's posts **graduate into** this tier (operator-gated; **no separate
-`forum/`** — that resolves conflict C2). **Residual — now an ADR-0017 deferred item,
+`forum/`** — that resolves conflict C2). *(ADR-0014 itself has since been **superseded
+by ADR-0017 / ADR-0018**, recorded in
+[ADR-0027](decisions/0027-supersede-adr-0014-notice-board.md), 2026-06-10 — graduation's
+home and the open-question → ADR flow are now owned by 0017/0018; the C2 reading above
+stands.)* **Residual — now an ADR-0017 deferred item,
 not a parked §9 question:** the **citing / reference / reciprocity** mechanism (how
 `derives_from` / `consumes` are kept mutual) and the **comments / human-input** layer
-(the notice board itself) are consciously deferred in ADR-0017. So the only surviving
-piece of the old §9 — *reciprocity-checked* shared content — lives there, not here.
+(the notice board itself) are consciously deferred in ADR-0017 — and are now tracked as
+the first-class open-question `oq-feedback-graduation-mechanism` (ADR-0027). So the only
+surviving piece of the old §9 — *reciprocity-checked* shared content — lives there, not here.
 *Terms:* asset (v1 shared DRY content), cross-cutting knowledge, referenced entity,
 reciprocity check, consume / consumes.
