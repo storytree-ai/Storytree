@@ -88,8 +88,21 @@ export interface GuidanceAsset {
   title: string;
   /** One line: what it is / when to inject it (the v1 `description`). */
   description: string;
-  /** Markdown body — the guidance itself. */
+  /**
+   * Markdown body — the guidance itself. For a structured Knowledge unit this is the DERIVED
+   * render of {@link GuidanceAsset.fields} (read-only on the wire); for a body-only unit
+   * (template / adr) it is the authored source.
+   */
   body: string;
+  /**
+   * Per-kind STRUCTURED fields (KIND_SPECS in @storytree/core), keyed by field name
+   * (oneLine / whatItIs / options / …). Present iff this is a structured Knowledge unit
+   * (its `category` is one of the six structured kinds); absent for body-only units
+   * (template / adr). When present these are AUTHORITATIVE — `body` is their derived render
+   * (option C of oq-library-doc-shape, ADR-0013/0017/0023). The studio editor edits these
+   * directly so a save never collapses structure into a one-way rendered body.
+   */
+  fields?: Record<string, string>;
   /**
    * Topic refs this artifact points at: "doc:<relpath>" (e.g. its source ADR) or
    * "asset:<id>". The SINGLE citation source — rendered grouped-by-type as "Sources"
@@ -111,7 +124,10 @@ export interface AssetInput {
   category: AssetCategory;
   title: string;
   description: string;
+  /** Derived render of {@link AssetInput.fields} for a structured unit; the source for a body-only one. */
   body: string;
+  /** Per-kind structured fields when the category is a structured Knowledge kind (option C). */
+  fields?: Record<string, string>;
   references: string[];
   provenance?: string;
 }

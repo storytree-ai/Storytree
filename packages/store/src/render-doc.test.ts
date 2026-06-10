@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { StoredDoc } from "@storytree/core";
-import { renderBody } from "@storytree/core";
-import { renderStoredDoc } from "./render-doc.js";
+import { renderBody, upcastAndValidate } from "@storytree/core";
+import { renderStoredDoc, buildLibraryDoc } from "./render-doc.js";
 
 /**
  * Offline + pure: renderStoredDoc maps a StoredDoc into the GuidanceAsset wire shape. Two paths:
@@ -106,4 +106,162 @@ test("renderStoredDoc falls back to the stored kind when a body doc omits catego
   };
   const rendered = renderStoredDoc(stored);
   assert.equal(rendered.category, "pattern");
+});
+
+// ---- option C (oq-library-doc-shape): structured fields survive an edit round-trip ----
+
+test("renderStoredDoc carries the per-kind fields of a structured unit on the wire", () => {
+  const definition = {
+    kind: "definition",
+    id: "spine",
+    title: "spine",
+    description: "the control-flow layer",
+    references: [],
+    oneLine: "The control-flow layer.",
+    whatItIs: "The deterministic routing layer.",
+    whatItIsNot: "Not the leaf.",
+    createdAt: "2026-06-01T00:00:00Z",
+    updatedAt: "2026-06-01T00:00:00Z",
+  };
+  const stored: StoredDoc = {
+    id: "spine",
+    kind: "definition",
+    doc: definition,
+    createdAt: "2026-06-02T00:00:00Z",
+    updatedAt: "2026-06-03T00:00:00Z",
+  };
+  const rendered = renderStoredDoc(stored);
+  assert.deepEqual(rendered.fields, {
+    oneLine: "The control-flow layer.",
+    whatItIs: "The deterministic routing layer.",
+    whatItIsNot: "Not the leaf.",
+  });
+  // The body is still the derived render — fields are an ADDITION, not a replacement.
+  assert.equal(rendered.body, renderBody(definition as never));
+});
+
+test("a body-only (template) read carries NO fields", () => {
+  const stored: StoredDoc = {
+    id: "template-definition",
+    kind: "template",
+    doc: { id: "template-definition", category: "template", title: "T", description: "d", body: "b" },
+    createdAt: "2026-06-02T00:00:00Z",
+    updatedAt: "2026-06-02T00:00:00Z",
+  };
+  assert.equal(renderStoredDoc(stored).fields, undefined);
+});
+
+test("buildLibraryDoc(fields) persists a STRUCTURED doc that round-trips with no structure loss", () => {
+  const input = {
+    id: "spine",
+    category: "definition",
+    title: "spine",
+    description: "the control-flow layer",
+    body: "IGNORED derived body",
+    references: ["doc:glossary.md"],
+    fields: {
+      oneLine: "The control-flow layer.",
+      whatItIs: "The deterministic routing layer.",
+      whatItIsNot: "Not the leaf.",
+    },
+  };
+  const doc = buildLibraryDoc(input, null);
+  // A structured doc: kind set, no rendered body / category leaked in.
+  assert.equal(doc["kind"], "definition");
+  assert.equal(doc["body"], undefined);
+  assert.equal(doc["category"], undefined);
+  assert.equal(doc["whatItIs"], "The deterministic routing layer.");
+  // It validates as a structured Knowledge doc at the store's write boundary.
+  assert.doesNotThrow(() => upcastAndValidate(doc));
+
+  // Round-trip: render it back and the fields are byte-identical (the OQ's whole point).
+  const rendered = renderStoredDoc({
+    id: "spine",
+    kind: "definition",
+    doc,
+    createdAt: "2026-06-02T00:00:00Z",
+    updatedAt: "2026-06-03T00:00:00Z",
+  });
+  assert.deepEqual(rendered.fields, input.fields);
+});
+
+test("buildLibraryDoc merges over the existing doc, preserving write-only metadata", () => {
+  const existing: StoredDoc = {
+    id: "spine",
+    kind: "definition",
+    doc: {
+      kind: "definition",
+      id: "spine",
+      title: "spine",
+      description: "old",
+      references: [],
+      oneLine: "old one-line",
+      whatItIs: "old what-it-is",
+      glossarySection: "Studio & tooling",
+      glossaryBody: "the canonical glossary paragraph",
+      schemaVersion: 1,
+      createdAt: "2026-06-01T00:00:00Z",
+      updatedAt: "2026-06-01T00:00:00Z",
+    },
+    createdAt: "2026-06-01T00:00:00Z",
+    updatedAt: "2026-06-01T00:00:00Z",
+  };
+  const doc = buildLibraryDoc(
+    {
+      id: "spine",
+      category: "definition",
+      title: "spine (edited)",
+      description: "new",
+      body: "",
+      references: [],
+      fields: { oneLine: "new one-line", whatItIs: "new what-it-is" },
+    },
+    existing,
+  );
+  // Edited fields win; glossary metadata + original createdAt survive the edit.
+  assert.equal(doc["oneLine"], "new one-line");
+  assert.equal(doc["title"], "spine (edited)");
+  assert.equal(doc["glossarySection"], "Studio & tooling");
+  assert.equal(doc["glossaryBody"], "the canonical glossary paragraph");
+  assert.equal(doc["createdAt"], "2026-06-01T00:00:00Z");
+});
+
+test("buildLibraryDoc omits an empty optional field (clears its section cleanly)", () => {
+  const existing: StoredDoc = {
+    id: "spine",
+    kind: "definition",
+    doc: {
+      kind: "definition", id: "spine", title: "spine", description: "d", references: [],
+      oneLine: "x", whatItIs: "y", whatItIsNot: "to be cleared",
+      createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-06-01T00:00:00Z",
+    },
+    createdAt: "2026-06-01T00:00:00Z",
+    updatedAt: "2026-06-01T00:00:00Z",
+  };
+  const doc = buildLibraryDoc(
+    {
+      id: "spine", category: "definition", title: "spine", description: "d", body: "", references: [],
+      fields: { oneLine: "x", whatItIs: "y", whatItIsNot: "   " },
+    },
+    existing,
+  );
+  assert.equal(doc["whatItIsNot"], undefined, "blank optional field is dropped, not stored as ''");
+});
+
+test("buildLibraryDoc without fields (template) persists a body-bearing asset", () => {
+  const doc = buildLibraryDoc(
+    {
+      id: "template-adr",
+      category: "template",
+      title: "Template — adr",
+      description: "scaffold",
+      body: "# ADR-NNNN",
+      references: [],
+    },
+    null,
+  );
+  assert.equal(doc["body"], "# ADR-NNNN");
+  assert.equal(doc["category"], "template");
+  assert.equal(doc["kind"], undefined, "a body-only doc has no structured kind");
+  assert.doesNotThrow(() => upcastAndValidate(doc));
 });

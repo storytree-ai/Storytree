@@ -11,11 +11,14 @@
 //     (oq-studio-store-default → B, dogfooding shared state); needs `pnpm db:up` first. Built lazily
 //     (first pg use) so an offline json session never touches pg.
 //
-// Asset write semantics (pg): editing a structured Knowledge unit stores it in RENDERED form (the
-// GuidanceAsset doc), one-way — apps/studio/data/knowledge.json stays the structured authoring
-// source. Reads render each stored Library doc back into the GuidanceAsset wire shape via
-// renderStoredDoc (a structured unit → renderBody(doc); a doc that already has a string body →
-// served as-is).
+// Asset write semantics (pg): a structured Knowledge unit is persisted as a STRUCTURED doc, not a
+// rendered body (option C of oq-library-doc-shape, ADR-0013/0017/0023). The studio editor sends the
+// per-kind `fields`; PgBackend builds the structured doc via `buildLibraryDoc`, MERGING over the
+// existing stored doc so write-only metadata (glossary*, doc-level createdAt, schemaVersion) survives
+// the edit. Reads render each stored Library doc back into the GuidanceAsset wire shape via
+// renderStoredDoc (a structured unit → renderBody(doc) for `body` PLUS its per-kind `fields`; a doc
+// that already has a string body — template / adr — → served as-is). A non-structured category, or a
+// write without `fields`, still persists a rendered body-bearing asset.
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -34,6 +37,8 @@ export interface AssetInput {
   body: string;
   references: string[];
   provenance?: string;
+  /** Per-kind structured fields when `category` is a structured Knowledge kind (option C). */
+  fields?: Record<string, string>;
 }
 
 /** Filter for listing comments: by topic id and/or topic kind (mirrors the JSON dev API filter). */
@@ -222,6 +227,7 @@ function toGuidanceAsset(rendered: {
   body: string;
   references: string[];
   provenance?: string;
+  fields?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
@@ -233,6 +239,7 @@ function toGuidanceAsset(rendered: {
     body: rendered.body,
     references: rendered.references,
     ...(rendered.provenance ? { provenance: rendered.provenance } : {}),
+    ...(rendered.fields ? { fields: rendered.fields } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };
@@ -270,10 +277,13 @@ export class PgBackend implements LibraryBackend {
   async createAsset(input: AssetInput): Promise<GuidanceAsset> {
     const { store, library } = await this.#ready();
     if (await library.getDoc(input.id)) throw new AssetConflictError(input.id);
+    // Option C: a structured kind with `fields` persists a STRUCTURED doc (no rendered body);
+    // anything else persists a body-bearing asset. buildLibraryDoc is the inverse of renderStoredDoc.
+    const doc = store.buildLibraryDoc(input, null);
     const stored = await library.upsertDoc({
       id: input.id,
       kind: input.category,
-      doc: input,
+      doc,
       actor: DEFAULT_ACTOR,
     });
     return toGuidanceAsset(store.renderStoredDoc(stored));
@@ -281,11 +291,15 @@ export class PgBackend implements LibraryBackend {
 
   async updateAsset(id: string, input: AssetInput): Promise<GuidanceAsset | null> {
     const { store, library } = await this.#ready();
-    if (!(await library.getDoc(id))) return null;
+    const existing = await library.getDoc(id);
+    if (!existing) return null;
+    // Merge over the existing stored doc so write-only metadata (glossary*, doc createdAt,
+    // schemaVersion) survives the edit instead of being dropped.
+    const doc = store.buildLibraryDoc({ ...input, id }, existing);
     const stored = await library.upsertDoc({
       id,
       kind: input.category,
-      doc: { ...input, id },
+      doc,
       actor: DEFAULT_ACTOR,
     });
     return toGuidanceAsset(store.renderStoredDoc(stored));

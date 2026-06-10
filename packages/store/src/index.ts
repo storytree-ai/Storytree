@@ -16,8 +16,8 @@ export { loadCorpus, loadComments } from "./load-corpus.js";
 export type { LoadCorpusResult } from "./load-corpus.js";
 export { batchMigrate } from "./batch-migrate.js";
 export type { BatchMigrateResult } from "./batch-migrate.js";
-export { renderStoredDoc } from "./render-doc.js";
-export type { RenderedAsset } from "./render-doc.js";
+export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";
+export type { RenderedAsset, AssetWriteInput } from "./render-doc.js";
 export { PgCommentStore, mergeCommentPatch } from "./pg-comment-store.js";
 export type {
   Comment,

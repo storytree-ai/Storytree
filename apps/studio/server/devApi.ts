@@ -180,6 +180,16 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
+/** A flat string→string record (drops non-string values); `{}` for anything that isn't an object. */
+function asStringRecord(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === 'string') out[k] = val;
+  }
+  return out;
+}
+
 function asNumberOrNull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
@@ -283,11 +293,16 @@ function readAssetInput(input: Record<string, unknown>): AssetInput {
   const title = asString(input.title).trim();
   const description = asString(input.description).trim();
   const body = asString(input.body).trim();
+  const fields = asStringRecord(input.fields);
+  const hasFields = Object.keys(fields).length > 0;
   if (!isValidSlug(id)) throw new HttpError(400, 'id must be a kebab-case slug (a-z, 0-9, hyphens)');
   if (!ASSET_CATEGORIES.includes(category)) throw new HttpError(400, 'invalid category');
   if (!title) throw new HttpError(400, 'title is required');
   if (!description) throw new HttpError(400, 'description is required');
-  if (!body) throw new HttpError(400, 'body is required');
+  // A structured unit carries per-kind `fields` (the body is a derived render); a body-only unit
+  // (template / adr) must carry a body. The per-field structural validation runs at the store's
+  // zod write boundary (mapped to 400 in handleAssets).
+  if (!hasFields && !body) throw new HttpError(400, 'body is required');
   const provenance = asString(input.provenance).trim();
   return {
     id,
@@ -297,7 +312,18 @@ function readAssetInput(input: Record<string, unknown>): AssetInput {
     body,
     references: asStringArray(input.references),
     ...(provenance ? { provenance } : {}),
+    ...(hasFields ? { fields } : {}),
   };
+}
+
+/** Map a store write-boundary error to an HTTP status: a zod failure is a 400, a conflict a 409. */
+function assetWriteError(err: unknown): HttpError {
+  if (err instanceof HttpError) return err;
+  if (err instanceof AssetConflictError) return new HttpError(409, err.message);
+  if (err && typeof err === 'object' && (err as { name?: unknown }).name === 'ZodError') {
+    return new HttpError(400, `structured doc failed validation: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return new HttpError(500, err instanceof Error ? err.message : String(err));
 }
 
 async function handleAssets(
@@ -317,19 +343,23 @@ async function handleAssets(
     try {
       return sendJson(res, 201, await backend.createAsset(input));
     } catch (err) {
-      if (err instanceof AssetConflictError) throw new HttpError(409, err.message);
-      throw err;
+      throw assetWriteError(err);
     }
   }
 
   if (method === 'PATCH') {
     const id = url.searchParams.get('id') ?? '';
-    // The id is fixed by the path; the body supplies the new category/title/description/body/refs.
+    // The id is fixed by the path; the body supplies the new category/title/description/body/fields/refs.
     const input = readAssetInput({
       ...(await readJsonBody<Record<string, unknown>>(req)),
       id,
     });
-    const next = await backend.updateAsset(id, input);
+    let next;
+    try {
+      next = await backend.updateAsset(id, input);
+    } catch (err) {
+      throw assetWriteError(err);
+    }
     if (!next) throw new HttpError(404, 'asset not found');
     return sendJson(res, 200, next);
   }
