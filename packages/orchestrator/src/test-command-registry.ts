@@ -106,6 +106,23 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
       install: true,
     },
   },
+  // The notice-board store node (ADR-0033): the pg presence store — event+projection mirroring
+  // PgCommentStore, proven OFFLINE against a fake transactional client (the live SQL leg is
+  // live-gated/human-verified, never attested by a worktree PASS). `install: true`: the impl
+  // imports @storytree/core (presence merge/validation).
+  "presence-store": {
+    command: pnpmTest("@storytree/store"),
+    scope: pkgScope("store"),
+    real: {
+      testFile: "packages/store/src/presence-store.test.ts",
+      sourceFile: "packages/store/src/presence-store.ts",
+      scope: {
+        testGlobs: ["packages/store/src/presence-store.test.ts"],
+        sourceGlobs: ["packages/store/src/presence-store.ts"],
+      },
+      install: true,
+    },
+  },
 };
 
 /** Look up a node's build config; a miss returns null (the caller turns it into guidance). */
