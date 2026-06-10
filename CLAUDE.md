@@ -101,7 +101,11 @@ file conflicts).
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
   Live smoke (ADR-0030, subscription-billed): `pnpm storytree node build <id> --live`
-  (`--dry-run` is the offline scripted walk).
+  (`--dry-run` is the offline scripted walk). Phase E chains a WHOLE story in dependency order:
+  `pnpm storytree story build <story-id> --dry-run | --live [--budget <usd>]` (topo order from
+  `depends_on`, story UAT node last, halt-is-never-a-pass; live default $10 total ceiling).
+  `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
+  (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
 - Library CLI (ADR-0023): `pnpm storytree library` (explore; offline). Writes need the live DB:
   `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`. See the
   Library section above (note: inline `--json` needs `npx tsx packages/cli/src/main.ts`, not `pnpm`).
