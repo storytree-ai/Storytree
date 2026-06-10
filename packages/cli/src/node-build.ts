@@ -199,6 +199,8 @@ export interface DriveNodeArgs {
   model?: string;
   /** Per-authoring-slice USD ceiling, SDK-enforced (live only). */
   budgetUsd?: number;
+  /** Per-authoring-slice turn ceiling, SDK-enforced (live only). Default: 16. */
+  maxTurns?: number;
 }
 
 export type DriveNodeResult =
@@ -223,6 +225,7 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     const sdkOpts = {
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
+      ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     };
     const resolveOptions: ResolveOptions =
       args.mode === "live-smoke"
@@ -277,6 +280,8 @@ export interface NodeBuildOpts {
   model?: string;
   /** `--budget` — per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default: 1. */
   budgetUsd?: number;
+  /** `--max-turns` — per-authoring-slice turn ceiling, SDK-enforced (live/real only). Default: 16. */
+  maxTurns?: number;
   /** `--actor` — the signer chain's flag tier (flag → STORYTREE_SIGNER → git email). */
   actor?: string;
   /** `--store` — the verdict store: absent = in-memory, `pg` = the live work tables (live/real only). */
@@ -423,6 +428,7 @@ export async function nodeBuild(
           signerInputs: { flag: signer.signer },
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
+          ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
         };
         const resolved = resolveProveSpec(spec, resolveOptions);
         if (!resolved.ok) {
@@ -477,6 +483,7 @@ export async function nodeBuild(
         signer: signer.signer,
         ...(opts.model !== undefined ? { model: opts.model } : {}),
         ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
+        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
       });
       if (!drive.resolved) {
         return {
@@ -588,7 +595,7 @@ export function nodeHelp(): Envelope {
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
       "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). Default budget: $1/slice.",
       "",
-      "  storytree node build <id> --real [--model <id>] [--budget <usd>] [--actor <email>]",
+      "  storytree node build <id> --real [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",
       "      node's REAL test/impl at their real paths, the spine runs the node's REAL proof",
       "      command for red/green, commits the authored files, and the GATE reads genuine git",

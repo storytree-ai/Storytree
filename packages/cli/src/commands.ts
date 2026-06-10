@@ -636,6 +636,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     real?: boolean;
     model?: string;
     budget?: string;
+    "max-turns"?: string;
     actor?: string;
     store?: string;
     "working-on"?: string;
@@ -657,6 +658,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         real: { type: "boolean", default: false },
         model: { type: "string" },
         budget: { type: "string" },
+        "max-turns": { type: "string" },
         actor: { type: "string" },
         store: { type: "string" },
         "working-on": { type: "string" },
@@ -693,6 +695,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       real: values.real === true,
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
       ...(values.actor !== undefined ? { actor: values.actor } : {}),
       ...(values.store !== undefined ? { verdictStore: values.store } : {}),
     });

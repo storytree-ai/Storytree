@@ -28,6 +28,11 @@ your write scope) — the spine wires the dispatch afterwards. Two views: **bare
 edges, build surface and the presence block. (Verdict rollup detail is deliberately OUT of this
 cut — story owner call 3; do not query verdicts.)
 
+**Budget your turns.** Each phase runs under a hard turn ceiling. Do not explore the repo — this
+Guidance plus `./envelope.js` and the type exports of `./noticeboard.ts` are ALL the context you
+need. Write each deliverable file in ONE Write call (compose fully, then write; avoid
+incremental Edits).
+
 - **The exported surface (exactly this):**
   - `interface TreeDeps { storiesDir: string; lookupConfig: (id: string) => { real?: unknown } | null; presence: PresenceStoreLike | null; now: () => Date }`
     — import `type PresenceStoreLike` from `./noticeboard.js` (the sibling module, already at
@@ -59,22 +64,22 @@ cut — story owner call 3; do not query verdicts.)
   when the list is empty, or when ANY presence call throws (wrap it): the block is silently
   absent — the view still renders `ok: true`. Degrade, never fail; nothing here refuses or warns
   on overlap.
-- **The test (`packages/cli/src/tree.test.ts`, the registered REAL proof — offline only):** build
-  a TEMP stories dir with `node:fs` `mkdtempSync` (clean it up in `after`): write a `story.md`
-  with frontmatter (`id`/`tier: story`/`title`/`outcome`/`status: proposed`/`proof_mode: UAT`/
-  `capabilities: [cap-a, cap-b, cap-c]`) and capability files for `cap-a`/`cap-b` ONLY
-  (`tier: capability`, `proof_mode: integration-test`, `cap-b` carrying
-  `depends_on: [cap-a]`) — `cap-c` stays missing on purpose. Fake `lookupConfig`: `cap-a` →
-  `{ real: {} }`, `cap-b` → `{}`, else null. Fake `PresenceStoreLike` with one active doc whose
-  `nodes` names the story id and one whose `nodes` do not. Assert: bare and focused render `ok: true`
-  with `presence: null` and the body carries no `sessions here:`; the focused table marks cap-a
-  `REAL-buildable`, cap-b `registered`, cap-c `unregistered` and notes its missing spec; with the
-  fake presence store the focused body has `sessions here:` with the matching sessionId and NOT
-  the unrelated one; with a presence store whose every method throws, the view still renders
-  `ok: true` with no presence block; the focused `next` includes a `noticeboard declare` pointer
-  with `--node <storyId>` and a `node build` pointer; the bare `next` includes
-  `storytree tree <storyId>`. Assert on fragments, never byte-exact bodies (you cannot run this
-  test yourself; brittle assertions are how this build dies).
+- **The test (`packages/cli/src/tree.test.ts`, the registered REAL proof — offline only):** ONE
+  tight file, written in ONE Write call. Setup (a `before` hook): `mkdtempSync` a temp stories
+  dir; write `story.md` (frontmatter: `id: demo-story`, `tier: story`, `title`, `outcome`,
+  `status: proposed`, `proof_mode: UAT`, `capabilities: [cap-a, cap-b, cap-c]`) and three
+  capability files (`tier: capability`, `proof_mode: integration-test`; `cap-b` carries
+  `depends_on: [cap-a]`); remove it in `after`. Fakes: `lookupConfig` mapping `cap-a` →
+  `{ real: {} }`, `cap-b` → `{}`, else `null`; a `PresenceStoreLike` whose `listActive` returns
+  one active doc with `nodes: ["demo-story"]` and one with unrelated nodes. Assert BY FRAGMENT
+  (never byte-exact bodies — you cannot run this test yourself; brittle assertions are how this
+  build dies): (1) bare and focused render `ok: true` with `presence: null`, body free of
+  `sessions here:`; (2) focused marks cap-a `REAL-buildable`, cap-b `registered`, cap-c
+  `unregistered`; (3) with the fake presence store the focused body shows `sessions here:` with
+  the matching sessionId and NOT the unrelated one; (4) with a presence store whose methods all
+  throw, focused still renders `ok: true`, no block; (5) focused `next` carries a
+  `noticeboard declare` pointer with `--node demo-story` and a `node build` pointer; bare `next`
+  carries `storytree tree demo-story`. That is the whole list — do not add more cases.
 
 ## Integration test (would-be)
 

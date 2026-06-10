@@ -152,6 +152,8 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   model?: string;
   /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
   maxBudgetUsd?: number;
+  /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
+  maxTurns?: number;
 }
 
 /**
@@ -166,6 +168,8 @@ export interface RealResolveOptions extends BaseResolveOptions {
   model?: string;
   /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
   maxBudgetUsd?: number;
+  /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
+  maxTurns?: number;
   /**
    * Injected leaf for OFFLINE wiring tests (a scripted {@link OwnedLoopAuthor}); defaults to the
    * live {@link ClaudeAgentAuthor}. The executor seam (ADR-0030 §2), used as the test seam here.
@@ -244,6 +248,7 @@ export function resolveProveSpec(
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+      ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
     });
     author = liveAuthor;
     prompts = liveSmokePrompts(spec);
@@ -310,6 +315,7 @@ function resolveReal(
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+      ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
     });
     author = liveAuthor;
   }
