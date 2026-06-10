@@ -114,7 +114,7 @@ test("the registry covers the library story + its seven capabilities; a miss is 
 });
 
 test("the verdict-line entry carries a REAL proof config whose write walls really wall", () => {
-  assert.deepEqual(realBuildableNodeIds(), ["declare-presence", "verdict-line"]);
+  assert.deepEqual(realBuildableNodeIds(), ["declare-presence", "presence-store", "verdict-line"]);
   const real = lookupNodeBuildConfig("verdict-line")?.real;
   assert.ok(real !== undefined);
   // Repo-relative REAL paths, not temp-workspace synthetics.
@@ -144,6 +144,22 @@ test("the declare-presence entry is REAL-buildable with install (zod import) and
   // The leaf can never reach the dependency manifests (deny-by-default, ADR-0031 §2).
   assert.equal(scope.isWriteAllowed("IMPLEMENT", "package.json"), false);
   assert.equal(scope.isWriteAllowed("IMPLEMENT", "pnpm-lock.yaml"), false);
+});
+
+test("the presence-store entry is REAL-buildable with install (core import) and real walls", () => {
+  const real = lookupNodeBuildConfig("presence-store")?.real;
+  assert.ok(real !== undefined);
+  assert.equal(real.testFile, "packages/store/src/presence-store.test.ts");
+  assert.equal(real.sourceFile, "packages/store/src/presence-store.ts");
+  assert.equal(real.install, true);
+  const scope = new PathWriteScope(real.scope);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
+  // Neither the DDL (spine work, already at HEAD) nor sibling stores are reachable.
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/store/src/schema.sql"), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/store/src/pg-comment-store.ts"), false);
 });
 
 // ── prompt assembly (real briefs off the real spec) ──────────────────────────────────────────────
@@ -260,7 +276,7 @@ test("real mode fails closed on a registered node WITHOUT a real-proof config", 
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.match(result.reason, /no REAL proof config/);
-  assert.deepEqual(result.registered, ["declare-presence", "verdict-line"]);
+  assert.deepEqual(result.registered, ["declare-presence", "presence-store", "verdict-line"]);
 });
 
 test("realPrompts names the REAL files, the REAL proof command, and the no-node_modules constraint", () => {

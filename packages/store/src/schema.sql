@@ -42,6 +42,26 @@ CREATE TABLE IF NOT EXISTS events.comment (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Session-presence history (ADR-0033): one append-only event per declare/done. `id` is the
+-- worktree-derived sessionId; presence is advisory, so rows carry no signer chain.
+CREATE TABLE IF NOT EXISTS events.session_event (
+  seq   BIGSERIAL PRIMARY KEY,
+  id    TEXT NOT NULL,
+  type  TEXT NOT NULL,
+  doc   JSONB,
+  actor TEXT NOT NULL,
+  at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Session-presence current-state projection: one row per session (upserted; staleness is always
+-- derived from the doc's lastSeenAt, never stored).
+CREATE TABLE IF NOT EXISTS events.session (
+  id         TEXT PRIMARY KEY,
+  doc        JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Schema-migration ledger (design §3 "DB ledger row", Phase 3): the human-facing "which migration
 -- ran + when + by whom" audit, complementing the per-row `schemaVersion` stamp inside the docs.
 -- Append-only / additive: never alters the tables above.
