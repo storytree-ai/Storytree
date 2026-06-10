@@ -22,8 +22,9 @@ test("node build <id> --dry-run walks the gate and reports trail + verdict + rol
   assert.equal(env.ok, true, env.body);
   // The full phase trail, in order.
   assert.match(env.body, /AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE/);
-  // The signed verdict, attributed to the --actor signer, with the spine's own red→green evidence.
-  assert.match(env.body, /verdict: {5}PASS — signed by tester@example\.com/);
+  // The signed verdict, attributed to the --actor signer, rendered by core's verdictLine (the
+  // promoted verdict-line node is the live consumer here), with the spine's red→green evidence.
+  assert.match(env.body, /verdict: {5}PASS library-cli \(capability\) — signed by tester@example\.com @ /);
   assert.match(env.body, /observation:red, observation:green/);
   // The real spec drove it: real file, real proof-mode mapping.
   assert.match(env.body, /stories\/library\/library-cli\.md/);

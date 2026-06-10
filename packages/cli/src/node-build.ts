@@ -9,6 +9,7 @@ import {
   InMemoryStore,
   resolveSignerFromEnv,
   rollupStatus,
+  verdictLine,
   workEvent,
 } from "@storytree/core";
 import {
@@ -17,14 +18,17 @@ import {
   loadNodeSpec,
   lookupNodeBuildConfig,
   mapProofMode,
+  promoteRealPass,
   proveUnit,
   realBuildableNodeIds,
   registeredNodeIds,
   resolveProveSpec,
+  runRegressionSuite,
 } from "@storytree/orchestrator";
 import type {
   BuildWorktree,
   NodeSpec,
+  PromotionResult,
   ProveResult,
   ResolveOptions,
 } from "@storytree/orchestrator";
@@ -61,17 +65,27 @@ function honestFramingLive(persisted: boolean): string {
   );
 }
 
-function honestFramingReal(persisted: boolean): string {
+function honestFramingReal(
+  persisted: boolean,
+  promotion: PromotionResult | undefined,
+  regression: "green" | "red" | undefined,
+): string {
+  const commitFate =
+    promotion !== undefined
+      ? `the authored commit is PARKED on ${promotion.branch}\n(landing rides the PR/CI gate — merge NON-SQUASH so the verdict's commit stays an ancestor of main)`
+      : "the authored commit was not promoted (see the promotion line above)";
+  const suiteClause =
+    regression === undefined
+      ? "only the\nnode's registered proof command ran (not the full package suite — no-install worktree,\nbuiltins-only target)"
+      : `the node's proof command ran AND the package regression suite was observed ${regression.toUpperCase()}\nin the installed worktree`;
   return (
-    "honest framing: a REAL build (Phase F). What was real: a fresh git worktree of THIS repo, the\n" +
+    "honest framing: a REAL build (ADR-0031). What was real: a fresh git worktree of THIS repo, the\n" +
     "node's REAL test/impl files at their real repo paths authored by a live Claude Agent SDK leaf\n" +
     "under hook-enforced write scope, the registry's REAL proof command run by the spine for both\n" +
     "red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
-    "`git status` off that worktree. What is still NOT proven: the authored commit lives only in the\n" +
-    "temp worktree (unreferenced after cleanup — landing it is later promotion work)" +
-    (persisted ? "" : ", the verdict\nlanded in an in-memory store and is gone") +
-    ", and only the\nnode's registered proof command ran (not the full package suite — the worktree has no\n" +
-    "node_modules by design, builtins-only targets)." +
+    `\`git status\` off that worktree. ${commitFate}` +
+    (persisted ? "" : "; the verdict\nlanded in an in-memory store and is gone") +
+    `; and ${suiteClause}.` +
     (persisted
       ? "\nWhat DID persist: the signed verdict — events.verdict in the shared store (the rollup can\nderive from it across sessions)."
       : "")
@@ -337,7 +351,8 @@ export async function nodeBuild(
 
   // REAL mode fail-closed precheck BEFORE any worktree is cut: the node must carry a real-proof
   // registry config (the resolver re-checks this; the precheck just keeps the refusal cheap).
-  const realConfig = lookupNodeBuildConfig(spec.id)?.real;
+  const buildConfig = lookupNodeBuildConfig(spec.id);
+  const realConfig = buildConfig?.real;
   if (real && realConfig === undefined) {
     const buildable = realBuildableNodeIds();
     return {
@@ -363,11 +378,17 @@ export async function nodeBuild(
     let result: ProveResult;
     let liveAuthor: ClaudeAgentAuthor | undefined;
     let worktree: BuildWorktree | undefined;
+    let promotion: PromotionResult | undefined;
+    let promotionSkipped: string | undefined;
+    let regression: "green" | "red" | undefined;
 
     if (real) {
       // The REAL walk: a fresh DETACHED git worktree of this repo (the node's real source at
       // real paths); the spine commits the authored files before the GATE reads the real tree.
-      worktree = await createBuildWorktree(repoRoot());
+      worktree = await createBuildWorktree(
+        repoRoot(),
+        realConfig?.install === true ? { install: true } : {},
+      );
       try {
         await store.appendEvent(
           workEvent(
@@ -394,6 +415,29 @@ export async function nodeBuild(
         }
         result = await proveUnit(resolved.spec);
         liveAuthor = resolved.liveAuthor;
+
+        // Promotion (ADR-0031): a signed REAL pass lands, it does not evaporate. The proven
+        // commit is parked on a claude/real/<id>-<run> branch BEFORE the worktree goes away;
+        // an installed worktree first re-observes the whole package suite (a green leaf must
+        // not break its package) — a red suite keeps the branch local-only (forensics, no PR).
+        if (result.ok) {
+          if (result.verdict.commitSha === worktree.headSha) {
+            promotionSkipped = "nothing authored — the verdict attests the unchanged HEAD";
+          } else {
+            if (realConfig?.install === true && buildConfig !== null) {
+              regression = (
+                await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root })
+              ).result;
+            }
+            promotion = await promoteRealPass({
+              repoRoot: repoRoot(),
+              unitId: spec.id,
+              runId,
+              commitSha: result.verdict.commitSha,
+              ...(regression === "red" ? { push: false } : {}),
+            });
+          }
+        }
       } finally {
         await worktree.remove();
       }
@@ -428,7 +472,7 @@ export async function nodeBuild(
       `store:       ${storeChoice.label}`,
       ...(real && worktree !== undefined && realConfig !== undefined
         ? [
-            `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}, removed after)`,
+            `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
             `real proof:  node --import tsx --test ${realConfig.testFile}`,
           ]
         : []),
@@ -436,8 +480,21 @@ export async function nodeBuild(
       "",
       `phase trail: ${result.phasesVisited.join(" → ")}`,
     ];
+    const promotionLines = [
+      ...(regression !== undefined
+        ? [
+            `regression:  package suite ${regression.toUpperCase()} in the worktree${regression === "red" ? " — push withheld (a green leaf must not break its package)" : ""}`,
+          ]
+        : []),
+      ...(promotion !== undefined
+        ? [
+            `promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`,
+          ]
+        : []),
+      ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
+    ];
     const framing = real
-      ? honestFramingReal(persisted)
+      ? honestFramingReal(persisted, promotion, regression)
       : live
         ? honestFramingLive(persisted)
         : HONEST_FRAMING_DRY;
@@ -460,13 +517,19 @@ export async function nodeBuild(
       ok: true,
       body: [
         ...header,
-        `verdict:     ${result.verdict.outcome.toUpperCase()} — signed by ${result.verdict.signer} at ${result.verdict.at} (commit ${result.verdict.commitSha})`,
+        `verdict:     ${verdictLine(result.verdict)}`,
         `evidence:    ${result.verdict.evidence.map((e) => e.kind).join(", ")}`,
+        ...promotionLines,
         `rollup:      ${derived} (derived from the event log: building → signed pass; authored status in the spec stays ${spec.status})`,
         "",
         framing,
       ].join("\n"),
       next: [
+        ...(promotion !== undefined && promotion.pushed
+          ? [
+              `gh pr create --head ${promotion.branch} --title "real: ${spec.id} proven via the gate"   (merge NON-SQUASH — the verdict's commit must stay an ancestor)`,
+            ]
+          : []),
         `storytree node build <id> ${modeFlag}   (any registered node)`,
         `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
       ],
@@ -496,7 +559,10 @@ export function nodeHelp(): Envelope {
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",
       "      node's REAL test/impl at their real paths, the spine runs the node's REAL proof",
       "      command for red/green, commits the authored files, and the GATE reads genuine git",
-      "      state. Needs Claude Code auth. The authored commit is not landed (promotion is later).",
+      "      state. Needs Claude Code auth. A signed PASS is PROMOTED (ADR-0031): the proven",
+      "      commit is parked on claude/real/<id>-<run> and pushed when origin exists — land it",
+      "      via PR with a NON-SQUASH merge. Registry nodes with real.install get a lockfile-only",
+      "      pnpm install in the worktree plus a package-suite regression run before any push.",
       "",
       "  --store pg   (--live/--real only) persist the building mark + signed verdict to the",
       "      live work tables (events.work_event/events.verdict) instead of an in-memory store.",

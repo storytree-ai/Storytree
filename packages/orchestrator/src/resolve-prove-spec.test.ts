@@ -310,6 +310,13 @@ test("REAL mode offline walk: fresh worktree + real proof command + spine commit
     const real = lookupNodeBuildConfig("verdict-line")?.real;
     assert.ok(real !== undefined);
 
+    // Recreate the walk's NET-NEW precondition: verdict-line's proven commit has since been
+    // PROMOTED and folded into HEAD (ADR-0031), so a fresh worktree already holds the files and
+    // CONFIRM_RED would observe green. Deleting them in the worktree restores "nothing exists at
+    // HEAD" for this walk; the leaf re-authors both and the spine commits the rewrite.
+    await fs.rm(path.join(worktree.root, real.testFile));
+    await fs.rm(path.join(worktree.root, real.sourceFile));
+
     // The injected leaf (executor seam as test seam): the owned loop scripted to write the REAL
     // repo paths, behind the SAME write walls the live leaf gets.
     const author = new OwnedLoopAuthor({

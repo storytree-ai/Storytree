@@ -1,10 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createBuildWorktree, commitAuthored } from "./build-worktree.js";
+import {
+  createBuildWorktree,
+  commitAuthored,
+  promoteRealPass,
+  platformShellCommand,
+} from "./build-worktree.js";
 import { gitTreeState } from "./prove-it-gate.js";
 
 /**
@@ -62,4 +69,138 @@ test("createBuildWorktree cuts a detached worktree at HEAD; commitAuthored earns
   // Teardown removed the checkout (and remove() is idempotent).
   await assert.rejects(fs.access(wt.root));
   await wt.remove();
+});
+
+// ── Fixture repos for promotion tests (NEVER this repo — branch refs must not pollute it) ─
+
+function git(args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile("git", args, { cwd }, (error, stdout, stderr) => {
+      if (error === null) resolve(stdout);
+      else reject(new Error(`git ${args.join(" ")} failed: ${error.message}\n${stderr}`));
+    });
+  });
+}
+
+/** A throwaway local repo with one commit (identity pinned — no global config reliance). */
+async function fixtureRepo(): Promise<{ root: string; sha: string }> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-promote-fixture-"));
+  await git(["init", "-b", "main"], root);
+  await git(["config", "user.email", "tester@example.com"], root);
+  await git(["config", "user.name", "fixture"], root);
+  await fs.writeFile(path.join(root, "a.txt"), "fixture\n");
+  await git(["add", "-A"], root);
+  await git(["commit", "-m", "fixture: initial"], root);
+  const sha = (await git(["rev-parse", "HEAD"], root)).trim();
+  return { root, sha };
+}
+
+test("promoteRealPass parks the proven commit on a run-unique branch (no origin → local only, kept)", async () => {
+  const fixture = await fixtureRepo();
+  try {
+    const promoted = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "some-node",
+      runId: "real-test1",
+      commitSha: fixture.sha,
+    });
+    assert.equal(promoted.branch, "claude/real/some-node-real-test1");
+    assert.equal(promoted.commitSha, fixture.sha);
+    assert.equal(promoted.pushed, false);
+    assert.match(promoted.detail, /no origin remote/);
+    // The branch ref REALLY points at the proven commit (preservation is real, not reported).
+    const tip = (await git(["rev-parse", promoted.branch], fixture.root)).trim();
+    assert.equal(tip, fixture.sha);
+
+    // A retried run gets a FRESH branch (runId in the name — no collision with the first).
+    const retry = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "some-node",
+      runId: "real-test2",
+      commitSha: fixture.sha,
+    });
+    assert.equal(retry.branch, "claude/real/some-node-real-test2");
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("promoteRealPass pushes to origin when one exists; push:false withholds but still parks", async () => {
+  const fixture = await fixtureRepo();
+  const bare = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-promote-origin-"));
+  try {
+    await git(["init", "--bare", "-b", "main"], bare);
+    await git(["remote", "add", "origin", bare], fixture.root);
+
+    const promoted = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "pushed-node",
+      runId: "real-test3",
+      commitSha: fixture.sha,
+    });
+    assert.equal(promoted.pushed, true);
+    assert.match(promoted.detail, /pushed to /);
+    // The proven commit reached origin — the branch tip in the bare repo IS the verdict's sha.
+    const originTip = (await git(["rev-parse", "refs/heads/" + promoted.branch], bare)).trim();
+    assert.equal(originTip, fixture.sha);
+
+    // push:false (regression-red preservation): local branch exists, origin never sees it.
+    const withheld = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "pushed-node",
+      runId: "real-test4",
+      commitSha: fixture.sha,
+      push: false,
+    });
+    assert.equal(withheld.pushed, false);
+    assert.match(withheld.detail, /withheld/);
+    const localTip = (await git(["rev-parse", withheld.branch], fixture.root)).trim();
+    assert.equal(localTip, fixture.sha);
+    await assert.rejects(git(["rev-parse", "refs/heads/" + withheld.branch], bare));
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+    await fs.rm(bare, { recursive: true, force: true });
+  }
+});
+
+test("createBuildWorktree install seam: the injected installer runs in the worktree; a failure tears the worktree down and throws", async () => {
+  const seen: string[] = [];
+  const wt = await createBuildWorktree(REPO_ROOT, {
+    install: true,
+    installRunner: async (root) => {
+      seen.push(root);
+    },
+  });
+  try {
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0], wt.root);
+  } finally {
+    await wt.remove();
+  }
+
+  // Install failure: fail-closed — no half-installed worktree survives to look buildable.
+  await assert.rejects(
+    createBuildWorktree(REPO_ROOT, {
+      install: true,
+      installRunner: async () => {
+        throw new Error("simulated pnpm failure");
+      },
+    }),
+    /dependency install failed/,
+  );
+});
+
+test("platformShellCommand wraps pnpm via cmd.exe on win32 and passes everything else through", () => {
+  const pnpm = { file: "pnpm", args: ["--filter", "@storytree/core", "test"], cwd: "/x" };
+  const onWin = platformShellCommand(pnpm, "win32");
+  assert.notEqual(onWin.file, "pnpm");
+  assert.match(onWin.file, /cmd/i);
+  assert.deepEqual(onWin.args, ["/d", "/s", "/c", "pnpm", "--filter", "@storytree/core", "test"]);
+  assert.equal(onWin.cwd, "/x");
+
+  const onLinux = platformShellCommand(pnpm, "linux");
+  assert.deepEqual(onLinux, pnpm);
+
+  const node = { file: process.execPath, args: ["-e", "0"] };
+  assert.deepEqual(platformShellCommand(node, "win32"), node);
 });

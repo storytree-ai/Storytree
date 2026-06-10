@@ -362,6 +362,15 @@ export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts
   const guidance =
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
+  const depsLine =
+    real.install === true
+      ? `- the worktree HAS its workspace dependencies installed (lockfile-only): you may import ` +
+        `workspace packages and existing dependencies per the surrounding code's idiom, but you ` +
+        `can NEVER add one — \`package.json\`/\`pnpm-lock.yaml\` are outside your write scope, ` +
+        `and a new-dependency need means the node spec is wrong (stop, do not work around it).`
+      : `- the worktree has NO node_modules: the test and the implementation may import ONLY ` +
+        `\`node:\` builtins and relative files. \`import type { ... } from "./x.js"\` is fine ` +
+        `(erased at runtime); a VALUE import of any package (zod etc.) will crash the proof run.`;
   const conventions =
     `This is a REAL build: you are in a fresh git worktree of the storytree repo (TypeScript, ` +
     `strict, ESM NodeNext — relative imports use the .js extension). The spine proves the unit ` +
@@ -370,9 +379,7 @@ export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts
     `itself; you cannot run tests or shell commands.\n` +
     `- the TEST file is \`${real.testFile}\` (node:test + node:assert/strict).\n` +
     `- the IMPLEMENTATION file is \`${real.sourceFile}\`.\n` +
-    `- the worktree has NO node_modules: the test and the implementation may import ONLY ` +
-    `\`node:\` builtins and relative files. \`import type { ... } from "./x.js"\` is fine ` +
-    `(erased at runtime); a VALUE import of any package (zod etc.) will crash the proof run.`;
+    depsLine;
   return {
     authorTest:
       `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +

@@ -78,8 +78,18 @@ export {
   DRY_RUN_IMPL_REL,
 } from "./resolve-prove-spec.js";
 
-export type { BuildWorktree } from "./build-worktree.js";
-export { createBuildWorktree, commitAuthored } from "./build-worktree.js";
+export type {
+  BuildWorktree,
+  CreateBuildWorktreeOptions,
+  PromotionResult,
+} from "./build-worktree.js";
+export {
+  createBuildWorktree,
+  commitAuthored,
+  promoteRealPass,
+  runRegressionSuite,
+  platformShellCommand,
+} from "./build-worktree.js";
 
 export type {
   StoryNodeOutcome,

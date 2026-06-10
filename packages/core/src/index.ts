@@ -17,6 +17,7 @@ export {
   type AssetTarget,
 } from "./knowledge-sources.js";
 export * from "./proof.js";
+export { verdictLine } from "./verdict-line.js";
 export * from "./signer.js";
 export * from "./model-events.js";
 export * from "./store.js";

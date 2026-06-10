@@ -6,15 +6,20 @@
  * verdict's `commitSha` points at — the GATE's clean-tree check then reads genuine `git status`,
  * never an injected fake.
  *
- * Lifecycle honesty: after {@link BuildWorktree.remove} the authored commit is UNREFERENCED
- * (dangling — recoverable until gc, but on no branch). Landing an authored change is later work
- * (promotion); iteration one proves the drive, it does not merge code.
+ * Lifecycle (ADR-0031): a signed REAL pass is PROMOTED — {@link promoteRealPass} parks the proven
+ * commit on a `claude/real/<unit-id>-<run-id>` branch (pushed to origin when one exists), so it
+ * rides the ADR-0022 PR/CI cadence to `main` via a NON-SQUASH merge that keeps the verdict's
+ * `commitSha` a true ancestor. A V1 lesson made V2-shaped: a pass that evaporates is unfinished
+ * work, and landing always goes through the merge gate, never around it.
  */
 
 import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+
+import { ShellTestExecutor } from "./shell-test-executor.js";
+import type { ShellCommand } from "./shell-test-executor.js";
 
 /** A live build worktree: the checkout root, the HEAD it was cut from, and its own teardown. */
 export interface BuildWorktree {
@@ -26,16 +31,53 @@ export interface BuildWorktree {
   remove(): Promise<void>;
 }
 
+/** Options for {@link createBuildWorktree} (ADR-0031 §2: dependency-bearing REAL targets). */
+export interface CreateBuildWorktreeOptions {
+  /**
+   * Install workspace dependencies into the fresh worktree (`pnpm install --frozen-lockfile
+   * --prefer-offline` — LOCKFILE-ONLY by construction; the shared pnpm store makes it mostly
+   * hard-links). Without it the worktree has no node_modules and REAL targets must stay
+   * builtins-only. The V1 slow-growth rule carries over: the LEAF can never add a dependency —
+   * `package.json`/`pnpm-lock.yaml` sit outside every write scope (deny-by-default walls).
+   */
+  install?: boolean;
+  /** Injectable installer (offline tests); defaults to spawning the real pnpm. */
+  installRunner?: (root: string) => Promise<void>;
+}
+
 /**
  * Cut a fresh detached worktree of `repoRoot`'s HEAD under the OS temp dir. The directory is
  * created by `git worktree add` itself (inside a private mkdtemp parent so teardown can remove
- * everything even if git's own removal hiccups).
+ * everything even if git's own removal hiccups). With `install: true` the worktree also gets a
+ * lockfile-only dependency install before it is handed to the leaf (failure tears the worktree
+ * down and throws — a half-installed workspace must not look buildable).
  */
-export async function createBuildWorktree(repoRoot: string): Promise<BuildWorktree> {
+export async function createBuildWorktree(
+  repoRoot: string,
+  options: CreateBuildWorktreeOptions = {},
+): Promise<BuildWorktree> {
   const parent = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-real-"));
   const root = path.join(parent, "wt");
   await runGit(["worktree", "add", "--detach", root, "HEAD"], repoRoot);
   const headSha = (await runGit(["rev-parse", "HEAD"], root)).trim();
+
+  if (options.install === true) {
+    const installRunner = options.installRunner ?? defaultPnpmInstall;
+    try {
+      await installRunner(root);
+    } catch (e) {
+      try {
+        await runGit(["worktree", "remove", "--force", root], repoRoot);
+      } catch {
+        // Best-effort; the directory removal below still runs.
+      }
+      await fs.rm(parent, { recursive: true, force: true });
+      throw new Error(
+        `worktree dependency install failed (the worktree was torn down): ${(e as Error).message}`,
+        { cause: e },
+      );
+    }
+  }
 
   let removed = false;
   return {
@@ -94,6 +136,143 @@ export async function commitAuthored(args: {
   );
   const sha = (await runGit(["rev-parse", "HEAD"], args.worktreeRoot)).trim();
   return { committed: true, commitSha: sha };
+}
+
+// ── Promotion (ADR-0031 §1): a signed REAL pass lands, it does not evaporate ─
+
+/** The outcome of {@link promoteRealPass}: where the proven commit now lives. */
+export interface PromotionResult {
+  /** The branch the proven commit was parked on (`claude/real/<unit-id>-<run-id>`). */
+  branch: string;
+  /** The exact commit the signed verdict attests (the branch tip). */
+  commitSha: string;
+  /** Whether the branch reached origin (false = local branch only; see `detail`). */
+  pushed: boolean;
+  /** Human detail: where it was pushed, or why it stayed local. */
+  detail: string;
+}
+
+/**
+ * Park a signed REAL pass's proven commit on a branch and (when an `origin` remote exists) push
+ * it, so landing rides the ADR-0022 PR/CI cadence instead of evaporating with the worktree. The
+ * branch name embeds the runId, so a retried build never collides with a prior run's branch.
+ *
+ * Honesty invariant (ADR-0031): the branch tip IS `commitSha` — the exact commit the verdict
+ * signed. Landing must keep that commit in `main`'s ancestry (merge commit / fast-forward, never
+ * a squash), or the persisted verdict loses its anchor to history.
+ *
+ * A push failure is DATA, not an error: the local branch is kept either way (preservation over
+ * loss — V1's failed-ceremony rule), and the caller reports `detail`.
+ */
+export async function promoteRealPass(args: {
+  repoRoot: string;
+  unitId: string;
+  runId: string;
+  commitSha: string;
+  /**
+   * Default true. `false` parks the branch LOCALLY only — preservation without spread, e.g. when
+   * the package regression suite came back red: the proven commit must not be lost, but a branch
+   * known to break its package should not reach origin as a landing candidate.
+   */
+  push?: boolean;
+}): Promise<PromotionResult> {
+  const branch = `claude/real/${args.unitId}-${args.runId}`;
+  await runGit(["branch", branch, args.commitSha], args.repoRoot);
+
+  if (args.push === false) {
+    return {
+      branch,
+      commitSha: args.commitSha,
+      pushed: false,
+      detail: "push withheld — local branch kept for forensics",
+    };
+  }
+
+  let origin: string | null;
+  try {
+    origin = (await runGit(["remote", "get-url", "origin"], args.repoRoot)).trim();
+  } catch {
+    origin = null;
+  }
+  if (origin === null) {
+    return {
+      branch,
+      commitSha: args.commitSha,
+      pushed: false,
+      detail: "no origin remote — local branch only",
+    };
+  }
+  try {
+    await runGit(["push", "-u", "origin", branch], args.repoRoot);
+    return { branch, commitSha: args.commitSha, pushed: true, detail: `pushed to ${origin}` };
+  } catch (e) {
+    const firstLine = (e as Error).message.split("\n")[0] ?? "push failed";
+    return {
+      branch,
+      commitSha: args.commitSha,
+      pushed: false,
+      detail: `push to origin failed — local branch kept: ${firstLine}`,
+    };
+  }
+}
+
+// ── The regression suite (ADR-0031 §2: a green node must not break its package) ─
+
+/**
+ * Run a package-suite regression command in the (installed) worktree and observe green/red the
+ * same honest way the gate does — exit code only, `NODE_TEST*` scrubbed (the forged-green fix).
+ * The V1 lesson adapted to package grain: a node's own proof going green never proves it didn't
+ * break the package around it; promotion requires this suite green too.
+ */
+export async function runRegressionSuite(args: {
+  command: ShellCommand;
+  cwd: string;
+}): Promise<{ result: "green" | "red" }> {
+  const executor = new ShellTestExecutor({
+    command: (): ShellCommand => platformShellCommand({ ...args.command, cwd: args.cwd }),
+  });
+  const observation = await executor.run("regression-suite");
+  return { result: observation.result };
+}
+
+/**
+ * Make a {@link ShellCommand} spawnable on this platform: on Windows, `pnpm` is a `.cmd` shim
+ * that `execFile` cannot spawn directly (no shell), so it is wrapped as `cmd.exe /d /s /c pnpm …`.
+ * Everything else passes through. `platform` is injectable for offline tests of both shapes.
+ */
+export function platformShellCommand(
+  cmd: ShellCommand,
+  platform: NodeJS.Platform = process.platform,
+): ShellCommand {
+  if (platform !== "win32" || cmd.file !== "pnpm") return cmd;
+  return {
+    file: process.env["ComSpec"] ?? "cmd.exe",
+    args: ["/d", "/s", "/c", "pnpm", ...cmd.args],
+    ...(cmd.cwd !== undefined ? { cwd: cmd.cwd } : {}),
+  };
+}
+
+/** The default installer: a lockfile-only, shared-store-preferring pnpm install in the worktree. */
+async function defaultPnpmInstall(root: string): Promise<void> {
+  const cmd = platformShellCommand({
+    file: "pnpm",
+    args: ["install", "--frozen-lockfile", "--prefer-offline"],
+    cwd: root,
+  });
+  await new Promise<void>((resolve, reject) => {
+    execFile(
+      cmd.file,
+      cmd.args,
+      { cwd: cmd.cwd, maxBuffer: 64 * 1024 * 1024 },
+      (error, _stdout, stderr) => {
+        if (error === null) {
+          resolve();
+          return;
+        }
+        reject(new Error(`pnpm install failed: ${error.message}\n${stderr}`, { cause: error }));
+      },
+    );
+  });
 }
 
 /** Run a git command in `cwd`, resolving stdout; rejects (loud) on a non-zero exit. */
