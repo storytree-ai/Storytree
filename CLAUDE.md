@@ -117,6 +117,10 @@ file conflicts).
 - Studio UI: `pnpm --filter studio dev` (Vite, port 5173) — backed by the live store **by default**
   (`oq-studio-store-default` → B; bring the DB up with `pnpm db:up` first). Set
   `STORYTREE_STUDIO_STORE=json` for the offline JSON backend (won't reflect CLI edits).
+  **Durable background mode:** `pnpm studio:up` / `studio:down` / `studio:status` runs it detached
+  (no terminal to babysit; pid/log in `apps/studio/.studio.{pid,log}`). The UI self-reports store
+  health (`/api/health`) and shows a banner with a **Start DB** button when the live store is
+  stopped — no need to relaunch the studio after a DB idle-stop; it recovers in place.
 
 ## Legacy — `legacy/Agentic/` is REFERENCE-ONLY
 
