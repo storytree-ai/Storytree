@@ -75,6 +75,9 @@ export interface LibraryBackend {
   /** Returns `true` if a row was removed, `false` if `id` did not exist. */
   deleteAsset(id: string): Promise<boolean>;
 
+  /** Cheap connectivity probe for /api/health. Never throws. */
+  health(): Promise<'ok' | 'unreachable' | 'n/a'>;
+
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
   /** Returns the merged comment, or `null` if `id` does not exist. */
@@ -146,6 +149,10 @@ export class JsonBackend implements LibraryBackend {
     if (next.length === assets.length) return false;
     await writeStore(this.#assetsFile, next);
     return true;
+  }
+
+  async health(): Promise<'ok' | 'unreachable' | 'n/a'> {
+    return 'n/a'; // no DB behind the JSON files — nothing to probe
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {
@@ -308,6 +315,31 @@ export class PgBackend implements LibraryBackend {
   async deleteAsset(id: string): Promise<boolean> {
     const { library } = await this.#ready();
     return library.deleteDoc(id);
+  }
+
+  /**
+   * Connectivity probe for /api/health: SELECT 1 through the (lazily created) pool, raced
+   * against a ~4s timeout so a stopped Cloud SQL instance answers "unreachable" quickly
+   * instead of hanging the health endpoint. Never throws — a #ready() failure (pool build)
+   * also reports 'unreachable', and because #ready() only caches AFTER every step succeeds,
+   * a failed probe leaves the backend retryable once the DB comes back up.
+   */
+  async health(): Promise<'ok' | 'unreachable' | 'n/a'> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await this.#ready();
+      const handle = this.#handle;
+      if (!handle) return 'unreachable';
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('health probe timed out')), 4000);
+      });
+      await Promise.race([handle.pool.query('SELECT 1'), timeout]);
+      return 'ok';
+    } catch {
+      return 'unreachable';
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {

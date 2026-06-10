@@ -149,6 +149,25 @@ export interface DocContent {
   markdown: string;
 }
 
+/**
+ * GET /api/health — which store backs this studio session and whether the DB
+ * answers. `db` is 'n/a' for the offline json store; for pg it is the result
+ * of a cheap connectivity probe (the endpoint itself never 500s — it is what
+ * the UI leans on precisely when the DB is down).
+ */
+export interface StoreHealth {
+  store: 'pg' | 'json';
+  db: 'ok' | 'unreachable' | 'n/a';
+}
+
+/** GET /api/db/status — the Cloud SQL instance as gcloud reports it. */
+export interface DbStatus {
+  /** e.g. 'RUNNABLE' | 'STOPPED' */
+  state: string;
+  /** e.g. 'ALWAYS' | 'NEVER' */
+  activationPolicy: string;
+}
+
 export const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
   'principle',

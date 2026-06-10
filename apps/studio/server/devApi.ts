@@ -26,6 +26,9 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import type { ChildProcessByStdio } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, ResolvedConfig } from 'vite';
 import type {
@@ -326,6 +329,38 @@ function assetWriteError(err: unknown): HttpError {
   return new HttpError(500, err instanceof Error ? err.message : String(err));
 }
 
+// pg error codes / syscall codes that mean "the DB isn't there", not "your request was bad":
+// admin shutdown/crash (57P0x), connection-does-not-exist / can't-connect (08xxx), and the
+// usual socket-level failures from a stopped Cloud SQL instance.
+const PG_CONNECTION_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  '57P01',
+  '57P02',
+  '57P03',
+  '08006',
+  '08001',
+]);
+
+/**
+ * Whether an UNRECOGNISED error (not HttpError / ZodError / AssetConflictError — those carry
+ * their own status) looks like a pg connection failure. Mapped to 503 in the central catch so
+ * the UI can tell "DB is down, press Start" apart from a genuine server bug (500).
+ */
+function isConnectionError(err: unknown): boolean {
+  if (err instanceof HttpError || err instanceof AssetConflictError) return false;
+  if (err && typeof err === 'object' && (err as { name?: unknown }).name === 'ZodError') return false;
+  const code = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
+  if (typeof code === 'string' && PG_CONNECTION_CODES.has(code)) return true;
+  const message = err instanceof Error ? err.message : '';
+  return /connect|terminat|timeout/i.test(message);
+}
+
+const DB_UNREACHABLE_MESSAGE =
+  'live store unreachable — start the DB (pnpm db:up or the Start DB button)';
+
 async function handleAssets(
   req: IncomingMessage,
   res: ServerResponse,
@@ -392,6 +427,101 @@ async function handleDocs(
   throw new HttpError(404, 'not found');
 }
 
+// ---------- db control (gcloud on the OPERATOR's machine) ----------
+//
+// /api/db/* shells out to gcloud locally. That is deliberate, not a remote-exec hole: the Vite
+// dev server binds localhost-only and is the operator's own session, so these endpoints are
+// just UI buttons over the same `pnpm db:up` / `gcloud sql ...` commands the operator would
+// type — using the operator's ambient ADC credentials (ADR-0021).
+
+const DB_INSTANCE = 'storytree-pg';
+const DB_PROJECT = 'storytree-498613';
+// On Windows gcloud is a .cmd shim, and Node refuses to spawn .cmd/.bat without a shell
+// (CVE-2024-27980 hardening) — so route through the shell there; shell:false everywhere else.
+// When the shell IS used, the command goes as ONE pre-joined string (args-with-shell is
+// deprecated, DEP0190); every argument here is a static literal, so joining is safe.
+const GCLOUD_SHELL = process.platform === 'win32';
+
+function spawnGcloud(args: string[]): ChildProcessByStdio<null, Readable, Readable> {
+  const stdio: ['ignore', 'pipe', 'pipe'] = ['ignore', 'pipe', 'pipe'];
+  return GCLOUD_SHELL
+    ? spawn(['gcloud', ...args].join(' '), { shell: true, stdio })
+    : spawn('gcloud', args, { stdio });
+}
+
+/** Run gcloud to completion, resolving stdout; reject on spawn failure or non-zero exit. */
+function runGcloud(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawnGcloud(args);
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (c: Buffer) => (stdout += c.toString('utf8')));
+    child.stderr.on('data', (c: Buffer) => (stderr += c.toString('utf8')));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve(stdout);
+      else reject(new Error(`gcloud exited ${code ?? 'null'}: ${stderr.trim() || stdout.trim()}`));
+    });
+  });
+}
+
+async function handleDb(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+  const method = req.method ?? 'GET';
+
+  if (url.pathname === '/api/db/status') {
+    if (method !== 'GET') throw new HttpError(405, `method ${method} not allowed`);
+    let out: string;
+    try {
+      out = await runGcloud([
+        'sql',
+        'instances',
+        'describe',
+        DB_INSTANCE,
+        '--project',
+        DB_PROJECT,
+        '--format=value(state,settings.activationPolicy)',
+      ]);
+    } catch (err) {
+      throw new HttpError(502, err instanceof Error ? err.message : String(err));
+    }
+    // `value(...)` prints the two fields on one line, tab-separated.
+    const [state = 'UNKNOWN', activationPolicy = 'UNKNOWN'] = out.trim().split(/\s+/);
+    return sendJson(res, 200, { state, activationPolicy });
+  }
+
+  if (url.pathname === '/api/db/start') {
+    if (method !== 'POST') throw new HttpError(405, `method ${method} not allowed`);
+    // Fire-and-forget: the patch takes ~a minute; the UI polls /api/health / /api/db/status
+    // for the outcome. Idempotent — patching an already-ALWAYS instance is harmless.
+    const child = spawnGcloud([
+      'sql',
+      'instances',
+      'patch',
+      DB_INSTANCE,
+      '--project',
+      DB_PROJECT,
+      '--activation-policy',
+      'ALWAYS',
+      '--quiet',
+    ]);
+    try {
+      // Confirm the process actually launched (gcloud missing → 'error', not an exception).
+      await new Promise<void>((resolve, reject) => {
+        child.once('spawn', resolve);
+        child.once('error', reject);
+      });
+    } catch (err) {
+      throw new HttpError(502, `failed to start gcloud: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    child.stdout.on('data', (c: Buffer) => console.log(`[db:start] ${c.toString('utf8').trimEnd()}`));
+    child.stderr.on('data', (c: Buffer) => console.log(`[db:start] ${c.toString('utf8').trimEnd()}`));
+    child.on('close', (code) => console.log(`[db:start] gcloud exited with code ${code ?? 'null'}`));
+    return sendJson(res, 202, { ok: true });
+  }
+
+  throw new HttpError(404, 'not found');
+}
+
 export function storytreeDataApi(): Plugin {
   let paths: Paths;
   let backend: LibraryBackend;
@@ -425,7 +555,13 @@ export function storytreeDataApi(): Plugin {
         if (!url.pathname.startsWith('/api/')) return next();
         void (async () => {
           try {
-            if (url.pathname.startsWith('/api/docs')) {
+            if (url.pathname === '/api/health') {
+              // Health must NEVER throw or 500 — it is what the UI leans on when the DB is
+              // down. backend.health() is contractually non-throwing ('n/a' for json).
+              sendJson(res, 200, { store: selectedStore(), db: await backend.health() });
+            } else if (url.pathname.startsWith('/api/db/')) {
+              await handleDb(req, res, url);
+            } else if (url.pathname.startsWith('/api/docs')) {
               await handleDocs(req, res, url, paths);
             } else if (url.pathname === '/api/comments') {
               await handleComments(req, res, url, backend);
@@ -435,8 +571,15 @@ export function storytreeDataApi(): Plugin {
               throw new HttpError(404, 'unknown endpoint');
             }
           } catch (err) {
-            const status = err instanceof HttpError ? err.status : 500;
-            sendJson(res, status, { error: err instanceof Error ? err.message : String(err) });
+            if (err instanceof HttpError) {
+              sendJson(res, err.status, { error: err.message });
+            } else if (isConnectionError(err)) {
+              // A pg connection failure surfacing here means the live store is down, not a
+              // bug — answer 503 with the remedy so the UI can offer the Start DB button.
+              sendJson(res, 503, { error: DB_UNREACHABLE_MESSAGE });
+            } else {
+              sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+            }
           }
         })();
       });

@@ -3,10 +3,12 @@
 import type {
   AssetInput,
   Comment,
+  DbStatus,
   DocContent,
   DocMeta,
   GuidanceAsset,
   NewComment,
+  StoreHealth,
 } from './types';
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
@@ -53,4 +55,12 @@ export const api = {
     http(`/api/assets?id=${q(id)}`, jsonInit('PATCH', input)),
   deleteAsset: (id: string): Promise<{ ok: true }> =>
     http(`/api/assets?id=${q(id)}`, { method: 'DELETE' }),
+
+  // Store health (see components/StoreBanner.tsx). /api/health never 500s and
+  // the server's own DB probe times out at ~4s; the client-side abort is a
+  // backstop so a wedged request can't pin the banner's in-flight guard.
+  health: (): Promise<StoreHealth> =>
+    http('/api/health', { signal: AbortSignal.timeout(10_000) }),
+  dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
+  dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),
 };

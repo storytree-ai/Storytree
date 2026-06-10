@@ -5,6 +5,7 @@ import { useOperator } from './lib/operator';
 import { homeHref, libraryHref, useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset } from './types';
 import { Sidebar } from './components/Sidebar';
+import { StoreBanner } from './components/StoreBanner';
 import { Home } from './components/Home';
 import { DocView } from './components/DocView';
 import { Library } from './components/Library';
@@ -27,30 +28,41 @@ export function App(): React.JSX.Element {
     setAssets(await api.listAssets());
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const [d, a, c] = await Promise.all([
-          api.listDocs(),
-          api.listAssets(),
-          api.listComments(),
-        ]);
-        if (!active) return;
-        setDocs(d);
-        setAssets(a);
-        setComments(c);
-        setStatus('ready');
-      } catch (e) {
-        if (!active) return;
-        setError(e instanceof Error ? e.message : String(e));
-        setStatus('error');
-      }
-    })();
-    return () => {
-      active = false;
-    };
+  // The initial load is a re-invocable callback (not just an effect body) so
+  // the store banner can retry it after the live store comes back up.
+  const loadInitial = useCallback(async (): Promise<void> => {
+    try {
+      const [d, a, c] = await Promise.all([
+        api.listDocs(),
+        api.listAssets(),
+        api.listComments(),
+      ]);
+      setDocs(d);
+      setAssets(a);
+      setComments(c);
+      setStatus('ready');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setStatus('error');
+    }
   }, []);
+
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
+
+  // When the live store recovers (Start DB / the banner's poll), re-pull what
+  // the outage cost us: the whole initial load if it failed, or just the
+  // mutable collections if we were already up.
+  const onStoreRecovered = useCallback((): void => {
+    if (status === 'error') {
+      setStatus('loading');
+      void loadInitial();
+    } else if (status === 'ready') {
+      void refreshAssets();
+      void refreshComments();
+    }
+  }, [status, loadInitial, refreshAssets, refreshComments]);
 
   const appData: AppData = useMemo(
     () => ({
@@ -89,6 +101,8 @@ export function App(): React.JSX.Element {
           </label>
         </header>
 
+        <StoreBanner onRecovered={onStoreRecovered} />
+
         <div className="body">
           <Sidebar route={route} />
           <main className="content">
@@ -100,6 +114,10 @@ export function App(): React.JSX.Element {
                 <p className="muted">
                   Is the dev server running? Start it with{' '}
                   <code>pnpm --filter studio dev</code>.
+                </p>
+                <p className="muted">
+                  If the dev server <em>is</em> up, the live store may be stopped — use
+                  the Start DB button in the banner above.
                 </p>
               </div>
             )}

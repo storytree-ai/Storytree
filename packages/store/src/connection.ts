@@ -60,6 +60,13 @@ export async function createPool(opts?: CreatePoolOptions): Promise<PoolHandle> 
     database,
   });
 
+  // An idle client's socket dying (Cloud SQL idle-stopped, a network blip) makes the Pool emit
+  // 'error'; with no listener that crashes the whole Node process. Log and let the pool replace
+  // the client on next checkout — in-flight queries still reject normally at the call site.
+  pool.on("error", (err) => {
+    console.error(`[store] pg pool idle-client error (suppressed): ${err.message}`);
+  });
+
   return { pool, connector };
 }
 
