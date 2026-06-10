@@ -90,6 +90,22 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
       },
     },
   },
+  // The notice-board story's first node (ADR-0033): the core presence module — zod schema +
+  // pure staleness/merge logic. `install: true` (ADR-0031 §2): the impl imports zod, so the
+  // worktree gets a lockfile-only install and promotion requires the core suite green.
+  "declare-presence": {
+    command: pnpmTest("@storytree/core"),
+    scope: pkgScope("core"),
+    real: {
+      testFile: "packages/core/src/presence.test.ts",
+      sourceFile: "packages/core/src/presence.ts",
+      scope: {
+        testGlobs: ["packages/core/src/presence.test.ts"],
+        sourceGlobs: ["packages/core/src/presence.ts"],
+      },
+      install: true,
+    },
+  },
 };
 
 /** Look up a node's build config; a miss returns null (the caller turns it into guidance). */

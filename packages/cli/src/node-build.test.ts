@@ -105,7 +105,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /node build <id> --dry-run/);
   assert.match(bare.body, /library-cli/);
   assert.match(bare.body, /--real/);
-  assert.match(bare.body, /REAL-buildable nodes: {9}verdict-line/);
+  assert.match(bare.body, /REAL-buildable nodes: {9}declare-presence, verdict-line/);
 
   const noId = await run(["node", "build", "--dry-run"], deps);
   assert.equal(noId.ok, false);
