@@ -28,10 +28,14 @@ export interface NodeBuildConfig {
  * worktree of this repo: the real test file the spine runs (`node --import tsx --test <testFile>`
  * at the worktree root) and the per-phase write walls over REAL repo-relative paths.
  *
- * Iteration-one constraint (deliberate, documented): the worktree gets NO `pnpm install`, so the
+ * Dependencies (ADR-0031 §2): without `install`, the worktree gets NO `pnpm install`, so the
  * authored test/impl may import ONLY `node:` builtins and relative files (type-only imports are
- *  erased and fine) — which is why the first real targets are NET-NEW, dependency-free leaf
- * behaviours (plan §5: a genuine red→green, not a synthetic red over brownfield code).
+ * erased and fine) — the right shape for NET-NEW, dependency-free leaves. With `install: true`,
+ * the worktree gets a LOCKFILE-ONLY `pnpm install` first (shared-store cheap), the authored files
+ * may import workspace dependencies, and promotion additionally requires the node's package suite
+ * (the registry `command`) green in the worktree — a green leaf must not break its package. The
+ * leaf can never ADD a dependency either way: `package.json`/`pnpm-lock.yaml` sit outside every
+ * write scope (deny-by-default).
  */
 export interface RealProofConfig {
   /** Repo-relative TS test file the REAL proof runs. AUTHOR_TEST may write exactly this. */
@@ -40,6 +44,8 @@ export interface RealProofConfig {
   sourceFile: string;
   /** Per-phase write walls over REAL repo-relative paths. */
   scope: PathWriteScopeConfig;
+  /** Lockfile-only `pnpm install` in the worktree first (dependency-bearing targets, ADR-0031). */
+  install?: boolean;
 }
 
 const pnpmTest = (pkg: string): ShellCommand => ({

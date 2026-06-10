@@ -14,16 +14,20 @@ depends_on: []
 **Outcome —** A pure function renders a signed verdict as a single human-readable line naming
 outcome, unit, proof mode, signer, short commit, and timestamp.
 
-> **First REAL-mode target (drive-machinery Phase F).** This is a NET-NEW, dependency-free
-> behaviour, chosen so the prove-it-gate's red is GENUINE: at HEAD neither the test nor the
-> implementation exists, the live leaf authors both in a fresh worktree, and the spine observes the
-> real red→green itself. The authored status stays `proposed` — `healthy` is only ever derived from
-> the gate's signed verdict (ADR-0020), and landing the authored code is later (promotion) work.
+> **First REAL-mode target (drive-machinery Phase F) — since PROVEN and PROMOTED (ADR-0031).**
+> Chosen as a NET-NEW, dependency-free behaviour so the prove-it-gate's red was GENUINE at build
+> time. The live leaf authored both files in a fresh worktree, the spine observed the real
+> red→green, signed a PASS (run `real-mq7ky4ck`, persisted to `events.verdict`), and the exact
+> proven commit (`0e8f4ba`) was folded into the tree by promotion — the function now ships in
+> `@storytree/core` with the CLI node-build envelope as its live consumer. The authored status
+> stays `proposed` forever: `healthy` is only ever derived from signed verdicts (ADR-0020).
 >
-> *Placement note (parked owner call):* the stories/ seed keeps contracts inline in capability
-> files; this one gets its own file because the drive machinery loads file-per-unit specs, and the
-> README calls that promotion mechanical. Where `verdict-line` finally sits (a drive-machinery
-> story? the CLI story?) is an owner modeling call.
+> *Placement (resolved, ADR-0031 §3):* it lives here, under the `drive-machinery` story
+> ([story.md](story.md)) — machinery is ordinary work in the ordinary tree. File-per-unit is the
+> registered-buildable grain; the seed's contracts-inline convention still governs authored
+> capability files. NOTE for re-builds: the net-new precondition is per-run — the files now exist
+> at HEAD, so a fresh REAL build of this node would observe green at CONFIRM_RED and fail closed
+> (correctly: there is nothing left to prove).
 
 ## Guidance
 
