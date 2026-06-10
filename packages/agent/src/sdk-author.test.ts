@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as path from "node:path";
 
 import { ClaudeAgentAuthor, decideWrite } from "./sdk-author.js";
 import type { SdkQueryFn } from "./sdk-author.js";
@@ -10,7 +11,8 @@ import type { SdkQueryFn } from "./sdk-author.js";
  * The live wiring is exercised by `storytree node build <id> --live` (the Phase-D smoke).
  */
 
-const CWD = "C:/work/space";
+// Platform-agnostic absolute workspace (resolves under the current drive on Windows, / on POSIX).
+const CWD = path.resolve("/work/space");
 
 const testOnlyInAuthor = (phase: string, rel: string): boolean =>
   phase === "AUTHOR_TEST" ? rel.endsWith(".test.cjs") : rel === "impl.cjs";
@@ -33,7 +35,7 @@ test("decideWrite allows an in-scope ABSOLUTE write (relativized against cwd)", 
     phase: "IMPLEMENT",
     cwd: CWD,
     toolName: "Write",
-    toolInput: { file_path: `${CWD}/impl.cjs` },
+    toolInput: { file_path: path.join(CWD, "impl.cjs") },
     isWriteAllowed: testOnlyInAuthor,
   });
   assert.deepEqual(d, { allow: true, relPath: "impl.cjs" });
