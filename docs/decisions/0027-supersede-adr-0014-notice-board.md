@@ -89,8 +89,12 @@ the genuinely still-open items.
 - The Library's open-questions change by net **zero**: `oq-adr-0014-draft` retired, `oq-feedback-graduation-mechanism`
   added. Both the `knowledge.json` seed and the live Cloud SQL projection are updated consistently, and
   the generated views (`assets.json`, `docs/glossary.md`) are regenerated from the seed.
-- The cite/graduation mechanism is now tracked backlog (it was a buried deferral in ADR-0017). It stays
-  **deferred** — no build is claimed here; only its home moved from prose to a first-class unit.
+- The cite/graduation mechanism is now tracked backlog (it was a buried deferral in ADR-0017). It stayed
+  **deferred** here — no build was claimed; only its home moved from prose to a first-class unit.
+  **(Update, 2026-06-10: the mechanism is now DECIDED by [ADR-0032](0032-cite-graduation-mechanism.md)** —
+  a cite is a typed *link*, graduation is a future synthesis agent, and the cite-threshold framing of §3
+  below is refined away. The `oq-feedback-graduation-mechanism` open-question is correspondingly retired
+  per the ADR-0018 §6 lifecycle.)
 - **ADR numbering:** `0027` is the next free number on this branch (which carries 0001–0026). Parallel
   branches may also reach for 0027; reconcile at merge time as prior merges did (e.g. the 0024→0025
   renumber). This is flagged, not silently assumed.

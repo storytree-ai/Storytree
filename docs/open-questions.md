@@ -195,8 +195,12 @@ home and the open-question → ADR flow are now owned by 0017/0018; the C2 readi
 stands.)* **Residual — now an ADR-0017 deferred item,
 not a parked §9 question:** the **citing / reference / reciprocity** mechanism (how
 `derives_from` / `consumes` are kept mutual) and the **comments / human-input** layer
-(the notice board itself) are consciously deferred in ADR-0017 — and are now tracked as
-the first-class open-question `oq-feedback-graduation-mechanism` (ADR-0027). So the only
-surviving piece of the old §9 — *reciprocity-checked* shared content — lives there, not here.
+(the notice board itself) were consciously deferred in ADR-0017 and then tracked as the
+first-class open-question `oq-feedback-graduation-mechanism` (ADR-0027). **That question is
+now DECIDED and retired by [ADR-0032](decisions/0032-cite-graduation-mechanism.md)
+(2026-06-10):** a cite is a typed *link* (composing into a signal-graph across the system),
+graduation is a future *synthesis agent* that emits open-questions / proposals, and the
+anti-gaming/cite-density machinery is a deliberate non-goal. The build is tracked by the
+`notice-board` story, not by an open question.
 *Terms:* asset (v1 shared DRY content), cross-cutting knowledge, referenced entity,
 reciprocity check, consume / consumes.

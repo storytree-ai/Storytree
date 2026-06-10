@@ -65,7 +65,9 @@ Two facts shaped this decision:
   unit"). To settle.
 - The **citing / reference / reciprocity** mechanism (how `derives_from` / `consumes` are checked
   and kept mutual) and the **comments** layer — the human-input plane on top. The owner judged
-  these need more thought; deferred.
+  these need more thought; deferred. *(Resolved 2026-06-10: the comments layer shipped (ADR-0027),
+  and the citing mechanism is now decided by [ADR-0032](0032-cite-graduation-mechanism.md) — a cite
+  is a typed link, graduation is a future synthesis agent.)*
 - Whether per-capability `Guidance` becomes a **`consumes`-reference into the knowledge tier** (the
   DRY unification) or stays separate — folded into the deferred citing decision.
 - **Templates → schema.** The 6 `template` units describe shapes `packages/core` zod already

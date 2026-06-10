@@ -2,21 +2,22 @@
 id: "archive-with-reason"
 tier: capability
 story: notice-board
-title: "Wrong posts are archived with a reason, never deleted or decremented"
-outcome: "A wrong post is archived by a reasoned event that preserves history and removes it from curation."
+title: "Wrong posts are archived with a reason, never deleted"
+outcome: "A wrong post is archived by a reasoned event that preserves history and removes it from the live surface."
 status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
 
-# Wrong posts are archived with a reason, never deleted or decremented
+# Wrong posts are archived with a reason, never deleted
 
 **Outcome —** A wrong post is archived by a reasoned event that preserves history and removes it
-from curation.
+from the live surface.
 
 > **Proof status (honest) — `proposed`, greenfield.** Would-be tests only. Design floor from
-> ADR-0027 §3: "wrong posts **archived with a reason**, never a forgeable integer counter" —
-> correction is additive (an event), never destructive (no delete, no cite decrement).
+> ADR-0032 §4 (carrying ADR-0014's one surviving piece unchanged): wrong posts are **archived with
+> a reason** — correction is additive (an event), never destructive (no delete; the post's cites/links
+> stay in the log).
 
 ## Guidance
 
@@ -26,9 +27,9 @@ is recorded, not erased.
 
 - **Shape:** `{ postId, archivedBy, reason, at }` — attributable via the fail-closed signer
   chain; `reason` is required prose (the lesson-shaped part: WHY it was wrong outlives the post).
-- **Additive only:** the post's events — including its cites — remain in the log untouched. The
-  *projection* marks the post archived; curation reads exclude it (`graduation-candidates` owns
-  that exclusion read).
+- **Additive only:** the post's events — including its cites/links — remain in the log untouched. The
+  *projection* marks the post archived; live-surface reads exclude it, and a future `signal-synthesis`
+  agent ignores archived signal.
 - **Reversible by the same mechanism:** un-archiving, if ever needed, is another reasoned event,
   not an edit of the archival.
 
