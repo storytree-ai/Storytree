@@ -32,7 +32,7 @@ class FakeClient {
   failOnPattern?: string;
 
   async query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> {
-    this.calls.push({ text, values });
+    this.calls.push({ text, values: values ?? [] });
     if (this.failOnPattern !== undefined && text.includes(this.failOnPattern)) {
       throw new Error(`Fake-induced failure matching: ${JSON.stringify(this.failOnPattern)}`);
     }
