@@ -12,6 +12,7 @@ import {
 
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
+import { loadLocalSecrets } from "./secrets.js";
 
 /**
  * The `storytree` CLI entry (ADR-0023). Offline-first: by default it runs against an in-memory store
@@ -35,6 +36,10 @@ async function main(): Promise<void> {
   // (which would demote every forwarded flag, e.g. --dry-run/--check, to a positional).
   const raw = process.argv.slice(2);
   const argv = raw[0] === "--" ? raw.slice(1) : raw;
+  // Hydrate credentials (CLAUDE_CODE_OAUTH_TOKEN / STORYTREE_DB_USER) from ~/.storytree/
+  // secrets.json when the env doesn't already carry them — env always wins (owner call,
+  // 2026-06-11: one rotation point that survives sessions and worktrees).
+  loadLocalSecrets();
   const usePg = argv.includes("--pg");
   const { store, close } = await buildStore(usePg);
   try {

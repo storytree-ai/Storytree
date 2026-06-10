@@ -29,6 +29,12 @@ capability reuses — validation, staleness classification, upsert-merge. It liv
 clock reads (callers pass `now`), no worktree probing — identity *derivation* belongs to the CLI
 node; this node only refuses docs that arrive without it.
 
+- **The full doc shape (ADR-0033 Decision 1) — every field below must exist in the schema:**
+  `sessionId` (worktree name, the identity key), `branch`, `workingOn` (required prose), `nodes`
+  (work-hierarchy id strings, defaults to `[]` — what the board groups by), `status`
+  (`"active" | "done"`, defaults `"active"`), `startedAt` (set once at first declare, preserved by
+  every merge), `lastSeenAt` (bumped by the store on upsert). Unknown/stored-staleness fields are
+  rejected, not stripped silently.
 - **Fail-closed on attribution and substance, without signing:** a blank `sessionId`, `branch`, or
   `workingOn` is a refusal, not a default — an unattributable or silent "I exist" is worthless to
   the board. That is the whole gate; per ADR-0033 Decision 1 the verdict-grade signer chain (ADR-0020)
@@ -39,7 +45,9 @@ node; this node only refuses docs that arrive without it.
   open owner call 1.
 - **Merge is the upsert's brain:** `mergeDeclaration(existing, patch)` follows the exact
   `mergeCommentPatch` pattern (`packages/store/src/pg-comment-store.ts`) — the store applies it
-  inside its transaction; the semantics are provable here without one.
+  inside its transaction; the semantics are provable here without one. `sessionId` and `startedAt`
+  are the two anchors a patch can never move; `nodes`/`status`/`workingOn`/`branch`/`lastSeenAt`
+  patch normally (undefined ignored).
 - **REAL-build target (ADR-0031):** ONE test file proves all three contracts, so a signed PASS
   attests the node. Its registry entry will carry `real.install: true` — the impl imports `zod`,
   so the build worktree needs the lockfile-only install step.

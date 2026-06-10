@@ -92,6 +92,10 @@ file conflicts).
 
 - Install: `corepack enable pnpm` · `pnpm install`
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
+- **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (SDK leaf) and
+  `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
+  wins (`packages/cli/src/secrets.ts`). One rotation point, survives sessions and worktrees; no
+  env-var prefixes needed on `pnpm storytree …` commands.
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). It is **STOPPED by
   default** for cost — bring it up only for a burst. Auto-stop is **idle-aware** now (ADR-0015 §5,
