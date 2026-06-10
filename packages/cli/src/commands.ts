@@ -22,6 +22,8 @@ import {
   levelCounts,
 } from "./health.js";
 import { nodeBuild, nodeHelp } from "./node-build.js";
+import { deriveIdentity, noticeboardCommand } from "./noticeboard.js";
+import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { storyBuild, storyHelp } from "./story-build.js";
 
 /** Fields removed by a past migration that must not reappear (design §4 check 2; the seeAlso incident). */
@@ -535,6 +537,7 @@ function topHelp(): Envelope {
       "",
       "areas:",
       "  library          explore + curate the Library (the knowledge tier)",
+      "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  agents <name>    (coming soon) an agent's system prompt",
@@ -543,6 +546,23 @@ function topHelp(): Envelope {
       "  storytree library    health + a map of every artifact + the commands",
     ].join("\n"),
     next: ["storytree library"],
+  };
+}
+
+function noticeboardHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree noticeboard — the session presence board (ADR-0033): advisory, never enforcing.",
+      "identity is derived from the enclosing .claude/worktrees/<name> checkout — never typed.",
+      "",
+      "  storytree noticeboard --pg                                        the board (active sessions)",
+      "  storytree noticeboard declare --working-on <prose> [--node <id>]... --pg   declare presence",
+      "  storytree noticeboard done --pg                                   mark this session done",
+      "",
+      "presence needs the live DB: pnpm db:up first. Reads degrade politely without it.",
+    ].join("\n"),
+    next: ["pnpm db:up", "storytree noticeboard --pg"],
   };
 }
 
@@ -586,6 +606,14 @@ export interface RunDeps {
   readonly writable?: boolean;
   /** Recorded as the event `actor` on writes (per-session attribution). Defaults to "cli". */
   readonly actor?: string;
+  /**
+   * The presence seam (ADR-0033): `store` is the live presence store when --pg (null offline);
+   * `identity` is injectable for tests — when ABSENT it is derived from the enclosing worktree.
+   */
+  readonly presence?: {
+    readonly store?: PresenceStoreLike | null;
+    readonly identity?: SessionIdentity | null;
+  };
 }
 
 /**
@@ -610,6 +638,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     budget?: string;
     actor?: string;
     store?: string;
+    "working-on"?: string;
+    node?: string[];
   };
   try {
     const parsed = parseArgs({
@@ -629,6 +659,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         budget: { type: "string" },
         actor: { type: "string" },
         store: { type: "string" },
+        "working-on": { type: "string" },
+        node: { type: "string", multiple: true },
       },
     });
     positionals = parsed.positionals;
@@ -685,10 +717,31 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     });
   }
 
+  if (area === "noticeboard") {
+    if (help) return noticeboardHelp();
+    // Identity: injected by tests; otherwise derived from the enclosing worktree (never typed).
+    const identity =
+      deps.presence !== undefined && deps.presence.identity !== undefined
+        ? deps.presence.identity
+        : deriveIdentity();
+    return noticeboardCommand(
+      sub,
+      {
+        ...(values["working-on"] !== undefined ? { workingOn: values["working-on"] } : {}),
+        nodes: values.node ?? [],
+      },
+      {
+        store: deps.presence?.store ?? null,
+        identity,
+        now: () => new Date(),
+      },
+    );
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, node, story (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, noticeboard, node, story (agents coming soon).`,
       next: ["storytree library"],
     };
   }

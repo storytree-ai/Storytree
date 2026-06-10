@@ -8,10 +8,12 @@ import {
   createPool,
   closePool,
   PgLibraryStore,
+  PgPresenceStore,
 } from "@storytree/store";
 
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
+import type { PresenceStoreLike } from "./noticeboard.js";
 import { loadLocalSecrets } from "./secrets.js";
 
 /**
@@ -20,14 +22,23 @@ import { loadLocalSecrets } from "./secrets.js";
  * NO API key. `--pg` swaps in the live Postgres store (the instance is STOPPED by default — bring it
  * up first). The dispatch lives in `run`; this file only wires the store and prints the envelope.
  */
-async function buildStore(usePg: boolean): Promise<{ store: Store; close: () => Promise<void> }> {
+async function buildStore(usePg: boolean): Promise<{
+  store: Store;
+  presence: PresenceStoreLike | null;
+  close: () => Promise<void>;
+}> {
   if (usePg) {
     const { pool, connector } = await createPool();
-    return { store: new PgLibraryStore(pool), close: () => closePool(pool, connector) };
+    return {
+      store: new PgLibraryStore(pool),
+      // The presence board (ADR-0033) shares the live pool; offline there is no presence surface.
+      presence: new PgPresenceStore(pool),
+      close: () => closePool(pool, connector),
+    };
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, close: async () => {} };
+  return { store, presence: null, close: async () => {} };
 }
 
 async function main(): Promise<void> {
@@ -41,13 +52,14 @@ async function main(): Promise<void> {
   // 2026-06-11: one rotation point that survives sessions and worktrees).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, close } = await buildStore(usePg);
+  const { store, presence, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
     const env = await run(argv, {
       store,
       writable: usePg,
+      presence: { store: presence },
       ...(actor !== undefined ? { actor } : {}),
     });
     process.stdout.write(formatEnvelope(env));

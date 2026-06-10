@@ -18,6 +18,13 @@ export { batchMigrate } from "./batch-migrate.js";
 export type { BatchMigrateResult } from "./batch-migrate.js";
 export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";
 export type { RenderedAsset, AssetWriteInput } from "./render-doc.js";
+export { PgPresenceStore } from "./presence-store.js";
+export type {
+  PresenceClient,
+  PresencePool,
+  PresencePoolClient,
+  PresenceEvent,
+} from "./presence-store.js";
 export { PgCommentStore, mergeCommentPatch } from "./pg-comment-store.js";
 export type {
   Comment,
