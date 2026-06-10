@@ -10,6 +10,8 @@ export {
 export type { CreatePoolOptions, PoolHandle } from "./connection.js";
 export { applySchema, SCHEMA_SQL_PATH } from "./migrate.js";
 export { PgLibraryStore } from "./pg-store.js";
+export { PgWorkStore } from "./pg-work-store.js";
+export type { WorkStoreClient } from "./pg-work-store.js";
 export { loadCorpus, loadComments } from "./load-corpus.js";
 export type { LoadCorpusResult } from "./load-corpus.js";
 export { batchMigrate } from "./batch-migrate.js";

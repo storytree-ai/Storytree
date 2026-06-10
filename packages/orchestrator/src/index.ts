@@ -80,3 +80,12 @@ export {
 
 export type { BuildWorktree } from "./build-worktree.js";
 export { createBuildWorktree, commitAuthored } from "./build-worktree.js";
+
+export type {
+  StoryNodeOutcome,
+  StoryNodeBuilder,
+  StoryBuildArgs,
+  StoryBuildRun,
+  TopoResult,
+} from "./story-build.js";
+export { runStoryBuild, topoOrderStoryNodes } from "./story-build.js";

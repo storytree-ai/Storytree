@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { Status } from "./schema.js";
+import { Status, Tier } from "./schema.js";
 import { Verdict } from "./proof.js";
 import type { Store, StoreEvent } from "./store.js";
 
@@ -28,13 +28,15 @@ export const SIGNING_EVENT_KIND = "signing";
 /**
  * The doc carried by a lifecycle work event. `event` is the lifecycle change (NOT the StoreEvent
  * `type`, which stays in the created/updated/deleted vocabulary); `runId` ties a `building` mark
- * to the owned-loop run that picked the unit up.
+ * to the owned-loop run that picked the unit up; `tier` feeds the `events.work_event.tier`
+ * column when the event lands in the pg work store (optional — old events have none).
  */
 export const WorkEventDoc = z
   .object({
     unitId: z.string(),
     event: z.enum(["proposed", "building", "retired"]),
     runId: z.string().optional(),
+    tier: Tier.optional(),
   })
   .strict();
 export type WorkEventDoc = z.infer<typeof WorkEventDoc>;

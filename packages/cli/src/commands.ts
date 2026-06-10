@@ -22,6 +22,7 @@ import {
   levelCounts,
 } from "./health.js";
 import { nodeBuild, nodeHelp } from "./node-build.js";
+import { storyBuild, storyHelp } from "./story-build.js";
 
 /** Fields removed by a past migration that must not reappear (design §4 check 2; the seeAlso incident). */
 const RETIRED_FIELDS = ["seeAlso"];
@@ -534,7 +535,8 @@ function topHelp(): Envelope {
       "",
       "areas:",
       "  library          explore + curate the Library (the knowledge tier)",
-      "  node             drive a node through the prove-it-gate (dry-run only today)",
+      "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
+      "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  agents <name>    (coming soon) an agent's system prompt",
       "",
       "start here:",
@@ -607,6 +609,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     model?: string;
     budget?: string;
     actor?: string;
+    store?: string;
   };
   try {
     const parsed = parseArgs({
@@ -625,6 +628,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         model: { type: "string" },
         budget: { type: "string" },
         actor: { type: "string" },
+        store: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -658,13 +662,33 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
       ...(values.actor !== undefined ? { actor: values.actor } : {}),
+      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+    });
+  }
+
+  if (area === "story") {
+    if (sub === undefined || help) return storyHelp();
+    if (sub !== "build") {
+      return {
+        ok: false,
+        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run`,
+        next: ["storytree story build library --dry-run"],
+      };
+    }
+    return storyBuild(third, {
+      dryRun: values["dry-run"] === true,
+      live: values.live === true,
+      ...(values.model !== undefined ? { model: values.model } : {}),
+      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+      ...(values.actor !== undefined ? { actor: values.actor } : {}),
+      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
     });
   }
 
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, node (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, node, story (agents coming soon).`,
       next: ["storytree library"],
     };
   }

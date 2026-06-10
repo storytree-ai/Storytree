@@ -47,6 +47,8 @@ export interface NodeSpec {
   proofMode: z.infer<typeof FrontmatterProofMode>;
   story: string | undefined;
   dependsOn: string[];
+  /** A story spec's `capabilities` frontmatter list (empty for capability/contract tiers). */
+  capabilities: string[];
   /** The `## Guidance` section's prose, when the body carries one (feeds prompt assembly). */
   guidance: string | undefined;
   /** The file the spec was loaded from (for honest provenance in CLI output). */
@@ -78,6 +80,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     proofMode: fm.proof_mode,
     story: fm.story,
     dependsOn: fm.depends_on,
+    capabilities: fm.capabilities,
     guidance,
     file,
   };

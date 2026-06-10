@@ -35,6 +35,22 @@ write wall held live). Read the stale spots against this ledger:
   the old `model` / `tools` / `scope` / `writeTools` quartet — the §2 table's rows for those four
   collapse into "construct a `PhaseAuthor`".
 
+## Addendum — 2026-06-10 (later): Phase E + verdict persistence landed
+
+- **Phase E is DONE.** `storytree story build <story-id> --dry-run | --live` is the thin
+  topo-ordered loop the plan asked for: `topoOrderStoryNodes` (capabilities by `depends_on`,
+  Kahn + deterministic tie-break, story UAT node LAST) + `runStoryBuild`
+  (`packages/orchestrator/src/story-build.ts`), which drives each node through the SAME
+  single-node `proveUnit` walk over ONE shared store/runId. The loop is `runSequence`
+  underneath, so the *halted-is-never-a-pass* guard is literally reused, not re-implemented.
+  The Phase-0 budget call is resolved at story grain: `--budget` is a TOTAL live ceiling
+  (default $10), checked fail-closed before each node; each slice stays SDK-capped at $1.
+- **Phase-0 decision 3 (verdict tables) is now WRITTEN TO.** `PgWorkStore`
+  (`packages/store/src/pg-work-store.ts`) routes `kind:"work"` → `events.work_event` and
+  `kind:"signing"` → `events.verdict` (PR #29's parked decision 4); builds opt in with
+  `--store pg` (live/real only — a scripted dry-run PASS persisted to the shared store would
+  be a forged healthy, so it is refused).
+
 ---
 
 ## 1. Where we actually are (verified this session)

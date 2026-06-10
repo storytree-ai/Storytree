@@ -78,6 +78,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@storytree/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
