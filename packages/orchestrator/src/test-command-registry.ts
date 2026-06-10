@@ -19,6 +19,27 @@ export interface NodeBuildConfig {
   command: ShellCommand;
   /** Per-phase write walls: tests writable only in AUTHOR_TEST, source only in IMPLEMENT. */
   scope: PathWriteScopeConfig;
+  /** REAL-mode proof config (Phase F). Absent = the node is dry-run/live-smoke buildable only. */
+  real?: RealProofConfig;
+}
+
+/**
+ * What `--real` (drive-machinery Phase F) needs to drive a node's ACTUAL proof in a fresh git
+ * worktree of this repo: the real test file the spine runs (`node --import tsx --test <testFile>`
+ * at the worktree root) and the per-phase write walls over REAL repo-relative paths.
+ *
+ * Iteration-one constraint (deliberate, documented): the worktree gets NO `pnpm install`, so the
+ * authored test/impl may import ONLY `node:` builtins and relative files (type-only imports are
+ *  erased and fine) — which is why the first real targets are NET-NEW, dependency-free leaf
+ * behaviours (plan §5: a genuine red→green, not a synthetic red over brownfield code).
+ */
+export interface RealProofConfig {
+  /** Repo-relative TS test file the REAL proof runs. AUTHOR_TEST may write exactly this. */
+  testFile: string;
+  /** Repo-relative implementation file named in the leaf brief. IMPLEMENT may write per scope. */
+  sourceFile: string;
+  /** Per-phase write walls over REAL repo-relative paths. */
+  scope: PathWriteScopeConfig;
 }
 
 const pnpmTest = (pkg: string): ShellCommand => ({
@@ -49,6 +70,20 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   "seed-corpus-scripts": { command: pnpmTest("@storytree/store"), scope: pkgScope("store") },
   "library-health-gate": { command: pnpmTest("@storytree/cli"), scope: pkgScope("cli") },
   "library-cli": { command: pnpmTest("@storytree/cli"), scope: pkgScope("cli") },
+  // The first REAL-buildable node (Phase F): a NET-NEW, dependency-free core behaviour, so the
+  // red is genuine (the test imports an implementation that does not exist at HEAD).
+  "verdict-line": {
+    command: pnpmTest("@storytree/core"),
+    scope: pkgScope("core"),
+    real: {
+      testFile: "packages/core/src/verdict-line.test.ts",
+      sourceFile: "packages/core/src/verdict-line.ts",
+      scope: {
+        testGlobs: ["packages/core/src/verdict-line.test.ts"],
+        sourceGlobs: ["packages/core/src/verdict-line.ts"],
+      },
+    },
+  },
 };
 
 /** Look up a node's build config; a miss returns null (the caller turns it into guidance). */
@@ -59,4 +94,12 @@ export function lookupNodeBuildConfig(unitId: string): NodeBuildConfig | null {
 /** The registered (buildable) node ids, for "did you mean" guidance. */
 export function registeredNodeIds(): string[] {
   return Object.keys(NODE_BUILD_REGISTRY).sort();
+}
+
+/** The ids that are REAL-buildable (carry a {@link RealProofConfig}), for `--real` guidance. */
+export function realBuildableNodeIds(): string[] {
+  return Object.entries(NODE_BUILD_REGISTRY)
+    .filter(([, c]) => c.real !== undefined)
+    .map(([id]) => id)
+    .sort();
 }

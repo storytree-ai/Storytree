@@ -33,6 +33,22 @@ test("nodeEvalExecutor: a compile-shaped message + exit 1 is a red with kind 'co
   assert.equal(obs.kind, "compile");
 });
 
+test("ENV HONESTY: the spawned observer never inherits NODE_TEST* (the forged-green channel)", async () => {
+  // THIS process runs under `node --test`, so NODE_TEST_CONTEXT is set right now. A spawned
+  // `node --test <file>` that inherited it would act as a runner child and could exit 0 without
+  // running the file — a forged green. The executor must scrub every NODE_TEST* var.
+  assert.ok(
+    Object.keys(process.env).some((k) => k.startsWith("NODE_TEST")),
+    "precondition: the suite itself runs under node --test",
+  );
+  const exec = nodeEvalExecutor({
+    scrubbed:
+      "process.exit(Object.keys(process.env).some((k) => k.startsWith('NODE_TEST')) ? 1 : 0)",
+  });
+  const obs = await exec.run("scrubbed");
+  assert.equal(obs.result, "green", "the child saw a NODE_TEST* variable — the scrub failed");
+});
+
 test("ShellTestExecutor: a red is DATA — run resolves, does not throw", async () => {
   const exec = nodeEvalExecutor({ bad: "process.exit(2)" });
   // Must not reject: a non-zero exit is a red observation, not a spawn error.

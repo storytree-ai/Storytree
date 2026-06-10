@@ -50,6 +50,37 @@ test("node build with BOTH modes is refused (dry-run xor live)", async () => {
   assert.match(env.body, /pick exactly one mode/);
 });
 
+test("node build with --dry-run AND --real is refused; the mode menu names --real", async () => {
+  const env = await run(["node", "build", "verdict-line", "--dry-run", "--real"], deps);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /pick exactly one mode/);
+  assert.match(env.body, /--real/);
+  assert.match(env.body, /REAL proof command|REAL test\/impl/);
+  assert.ok(env.next?.some((n) => n.includes("--real")));
+});
+
+test("node build --real on a node WITHOUT a real-proof config fails closed before any worktree", async () => {
+  const env = await run(
+    ["node", "build", "library-cli", "--real", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not REAL-buildable/);
+  assert.match(env.body, /verdict-line/);
+  assert.ok(env.next?.some((n) => n === "storytree node build verdict-line --real"));
+});
+
+test("the verdict-line node spec loads and dry-runs (the real target is also glue-driveable)", async () => {
+  const env = await run(
+    ["node", "build", "verdict-line", "--dry-run", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /stories\/drive-machinery\/verdict-line\.md/);
+  assert.match(env.body, /contract-test → contract/);
+  assert.match(env.body, /rollup: {6}healthy/);
+});
+
 test("node build with an unknown id is guidance listing the buildable nodes", async () => {
   const env = await run(["node", "build", "no-such-node", "--dry-run", "--actor", "t@e.c"], deps);
   assert.equal(env.ok, false);
@@ -72,6 +103,8 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.equal(bare.ok, true);
   assert.match(bare.body, /node build <id> --dry-run/);
   assert.match(bare.body, /library-cli/);
+  assert.match(bare.body, /--real/);
+  assert.match(bare.body, /REAL-buildable nodes: {9}verdict-line/);
 
   const noId = await run(["node", "build", "--dry-run"], deps);
   assert.equal(noId.ok, false);

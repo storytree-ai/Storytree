@@ -7,16 +7,24 @@ import {
   ScriptedModel,
 } from "@storytree/agent";
 import type { ModelResponse, PhaseAuthor } from "@storytree/agent";
+import { resolveSigner } from "@storytree/core";
 import type { SignerInputs, Store } from "@storytree/core";
 
 import { PathWriteScope } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { ShellTestExecutor } from "./shell-test-executor.js";
 import type { ShellCommand } from "./shell-test-executor.js";
+import { gitTreeState } from "./prove-it-gate.js";
 import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
 import type { NodeSpec } from "./node-spec.js";
 import { mapProofMode } from "./node-spec.js";
-import { lookupNodeBuildConfig, registeredNodeIds } from "./test-command-registry.js";
+import {
+  lookupNodeBuildConfig,
+  realBuildableNodeIds,
+  registeredNodeIds,
+} from "./test-command-registry.js";
+import type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
+import { commitAuthored } from "./build-worktree.js";
 
 /**
  * The resolver (drive-machinery Phase B, plan §2): turn a loaded {@link NodeSpec} into the full
@@ -34,6 +42,11 @@ import { lookupNodeBuildConfig, registeredNodeIds } from "./test-command-registr
  *    the test and the impl under hook-enforced write scope, and the spine observes the genuine
  *    red→green its writes cause. Still synthetic in WHAT is built (the add(2,3) task in a temp
  *    dir) — it proves the live loop through the gate, not the node's real proof command (Phase F).
+ *  - **real** (the plan's Phase F): nothing synthetic in the walk. The workspace is a FRESH GIT
+ *    WORKTREE of this repo, the leaf authors the node's REAL test/impl at their real repo paths
+ *    (registry {@link RealProofConfig}), the spine runs the registry's REAL proof command for
+ *    red/green, COMMITS the authored files itself after the observed green, and the GATE reads
+ *    genuine `git status` off the worktree — cleanliness is earned by that commit, never injected.
  */
 
 /** Workspace-relative paths the dry-run's scripted model writes (mirrors prove-it-gate.e2e.test.ts). */
@@ -52,25 +65,32 @@ const DRY_RUN_IMPL_SOURCE = `module.exports = { add: (a, b) => a + b };
 `;
 
 /**
- * The dry-run model factory: a phase-aware {@link ScriptedModel} whose two authoring steps each
- * issue ONE real `write_file` tool_use (test file first, impl second) and then end the turn. The
- * writes are REAL (they land via the FileToolExecutor and the spine really observes the exit-code
- * red→green they cause) — only the authorship is scripted.
+ * A scripted writer model: each authoring step issues ONE real `write_file` tool_use (the next
+ * entry in `writes`) and then ends the turn. The writes are REAL (they land via the
+ * FileToolExecutor and the spine really observes the exit-code red→green they cause) — only the
+ * authorship is scripted. Used by the dry-run, and by offline tests of the REAL-mode wiring.
  */
-export function dryRunModel(): ScriptedModel {
+export function scriptedWriterModel(
+  writes: ReadonlyArray<{ path: string; content: string }>,
+): ScriptedModel {
   let writeTurnPending = true;
   let step = 0;
   return new ScriptedModel((): ModelResponse => {
     if (writeTurnPending) {
       writeTurnPending = false;
-      const [pathRel, content] =
-        step === 0
-          ? [DRY_RUN_TEST_REL, DRY_RUN_TEST_SOURCE]
-          : [DRY_RUN_IMPL_REL, DRY_RUN_IMPL_SOURCE];
+      const write = writes[step];
+      if (write === undefined) {
+        throw new Error(`scriptedWriterModel exhausted: no scripted write for step ${step}`);
+      }
       return {
         stopReason: "tool_use",
         content: [
-          { type: "tool_use", id: `dry-w${step}`, name: "write_file", input: { path: pathRel, content } },
+          {
+            type: "tool_use",
+            id: `scripted-w${step}`,
+            name: "write_file",
+            input: { path: write.path, content: write.content },
+          },
         ],
       };
     }
@@ -81,6 +101,14 @@ export function dryRunModel(): ScriptedModel {
       content: [{ type: "text", text: "authoring step complete" }],
     };
   });
+}
+
+/** The dry-run model: the scripted writer over the synthetic add(2,3) pair. */
+export function dryRunModel(): ScriptedModel {
+  return scriptedWriterModel([
+    { path: DRY_RUN_TEST_REL, content: DRY_RUN_TEST_SOURCE },
+    { path: DRY_RUN_IMPL_REL, content: DRY_RUN_IMPL_SOURCE },
+  ]);
 }
 
 /**
@@ -126,7 +154,29 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   maxBudgetUsd?: number;
 }
 
-export type ResolveOptions = DryRunResolveOptions | LiveSmokeResolveOptions;
+/**
+ * Real (plan Phase F): the node's REAL proof in a fresh git worktree. `workspace` MUST be the
+ * worktree root (see `createBuildWorktree`); unless `treeState` is injected (tests only), the
+ * GATE's tree seam first COMMITS the leaf's authored files spine-side, then reads genuine
+ * `git status` — a dirty tree past that commit fails closed, never gets papered over.
+ */
+export interface RealResolveOptions extends BaseResolveOptions {
+  mode: "real";
+  /** Model for the SDK leaf. Default: claude-sonnet-4-6. */
+  model?: string;
+  /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
+  maxBudgetUsd?: number;
+  /**
+   * Injected leaf for OFFLINE wiring tests (a scripted {@link OwnedLoopAuthor}); defaults to the
+   * live {@link ClaudeAgentAuthor}. The executor seam (ADR-0030 §2), used as the test seam here.
+   */
+  authorOverride?: PhaseAuthor;
+}
+
+export type ResolveOptions =
+  | DryRunResolveOptions
+  | LiveSmokeResolveOptions
+  | RealResolveOptions;
 
 /**
  * Resolution outcome: the full ProveSpec (plus, in live mode, the live author for cost/violation
@@ -154,9 +204,13 @@ export function resolveProveSpec(
     };
   }
 
-  // Shared execution seams: a real Node test runner over the workspace's planted/authored pair,
-  // and the per-phase write walls. The registry's real command/scope are NOT spawned in either
-  // mode — driving the node's REAL proof is later work (plan Phase F).
+  if (opts.mode === "real") {
+    return resolveReal(spec, config, opts);
+  }
+
+  // Shared SYNTHETIC execution seams (dry-run / live-smoke): a real Node test runner over the
+  // workspace's planted/authored pair, and the per-phase write walls. The registry's real
+  // command/scope are NOT spawned in these modes — that is what `mode: "real"` is for.
   const testExecutor = new ShellTestExecutor({
     command: (): ShellCommand => ({
       file: process.execPath,
@@ -211,6 +265,127 @@ export function resolveProveSpec(
   return liveAuthor !== undefined
     ? { ok: true, spec: proveSpec, liveAuthor }
     : { ok: true, spec: proveSpec };
+}
+
+/**
+ * Resolve REAL mode (plan Phase F). Fail-closed twice over: a registered node without a
+ * {@link RealProofConfig} is not real-buildable, and the default tree seam earns cleanliness by a
+ * real spine-side commit + a real `git status` (an injected `treeState` is for offline tests only).
+ */
+function resolveReal(
+  spec: NodeSpec,
+  config: NodeBuildConfig,
+  opts: RealResolveOptions,
+): ResolveResult {
+  const real = config.real;
+  if (real === undefined) {
+    return {
+      ok: false,
+      reason:
+        `node "${spec.id}" is registered but has no REAL proof config ` +
+        `(registry real.testFile/sourceFile/scope) — it is dry-run/live-smoke buildable only`,
+      registered: realBuildableNodeIds(),
+    };
+  }
+
+  // The REAL proof command: the spine runs the registry's test file in the worktree itself.
+  // tsx is resolved from THIS package's installation (absolute URL), so the bare worktree —
+  // deliberately not `pnpm install`ed — can still run a TypeScript test file.
+  const testExecutor = new ShellTestExecutor({
+    command: (): ShellCommand => ({
+      file: process.execPath,
+      args: ["--import", tsxLoaderUrl(), "--test", path.join(opts.workspace, real.testFile)],
+      cwd: opts.workspace,
+    }),
+  });
+  const scope = new PathWriteScope(real.scope);
+
+  let author: PhaseAuthor;
+  let liveAuthor: ClaudeAgentAuthor | undefined;
+  if (opts.authorOverride !== undefined) {
+    author = opts.authorOverride;
+  } else {
+    liveAuthor = new ClaudeAgentAuthor({
+      cwd: opts.workspace,
+      isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+      ...(opts.model !== undefined ? { model: opts.model } : {}),
+      ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+    });
+    author = liveAuthor;
+  }
+
+  // The GATE's tree seam: commit the authored files (attributed to the resolved signer; a
+  // non-resolving signer still fails the gate itself), then read the REAL git state. Honest by
+  // construction: if anything is still dirty after that commit, the gate fails closed.
+  const signer = resolveSigner(opts.signerInputs);
+  const commitAuthor = signer.ok ? signer.signer : "spine@storytree.invalid";
+  const treeState =
+    opts.treeState ??
+    (async (): Promise<TreeState> => {
+      await commitAuthored({
+        worktreeRoot: opts.workspace,
+        message: `storytree real build ${opts.runId}: ${spec.id} (authored by the gated leaf)`,
+        author: commitAuthor,
+      });
+      return gitTreeState(opts.workspace)();
+    });
+
+  const proveSpec: ProveSpec = {
+    unitId: spec.id,
+    proofMode: mapProofMode(spec.proofMode),
+    testId: spec.id,
+    author,
+    testExecutor,
+    store: opts.store,
+    signerInputs: opts.signerInputs,
+    treeState,
+    now: opts.now ?? ((): string => new Date().toISOString()),
+    prompts: realPrompts(spec, real),
+    runId: opts.runId,
+  };
+  return liveAuthor !== undefined
+    ? { ok: true, spec: proveSpec, liveAuthor }
+    : { ok: true, spec: proveSpec };
+}
+
+/** Resolve the tsx loader to an ABSOLUTE url usable by `node --import` in a bare worktree. */
+function tsxLoaderUrl(): string {
+  return import.meta.resolve("tsx");
+}
+
+/**
+ * The REAL-mode briefs: the node's identity/outcome/guidance plus the repo + worktree facts the
+ * leaf needs to author the REAL files — exact paths, the proof command the spine runs, and the
+ * iteration-one no-node_modules constraint (builtins + relative imports only).
+ */
+export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts {
+  const guidance =
+    spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
+  const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
+  const conventions =
+    `This is a REAL build: you are in a fresh git worktree of the storytree repo (TypeScript, ` +
+    `strict, ESM NodeNext — relative imports use the .js extension). The spine proves the unit ` +
+    `by running\n` +
+    `  node --import tsx --test ${real.testFile}\n` +
+    `itself; you cannot run tests or shell commands.\n` +
+    `- the TEST file is \`${real.testFile}\` (node:test + node:assert/strict).\n` +
+    `- the IMPLEMENTATION file is \`${real.sourceFile}\`.\n` +
+    `- the worktree has NO node_modules: the test and the implementation may import ONLY ` +
+    `\`node:\` builtins and relative files. \`import type { ... } from "./x.js"\` is fine ` +
+    `(erased at runtime); a VALUE import of any package (zod etc.) will crash the proof run.`;
+  return {
+    authorTest:
+      `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+      `\`${real.testFile}\`. The implementation \`${real.sourceFile}\` must NOT exist yet — do ` +
+      `not create it (writes outside the test file are refused in this phase). Author the test ` +
+      `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
+      `meets the outcome; the spine observes the red itself. When the test file is written, stop.`,
+    implement:
+      `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
+      `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
+      `refused in this phase. When the implementation is written, stop — the spine observes the ` +
+      `green itself.`,
+  };
 }
 
 /**

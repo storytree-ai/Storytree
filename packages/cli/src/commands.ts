@@ -603,6 +603,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     set?: string[];
     "dry-run"?: boolean;
     live?: boolean;
+    real?: boolean;
     model?: string;
     budget?: string;
     actor?: string;
@@ -620,6 +621,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         set: { type: "string", multiple: true },
         "dry-run": { type: "boolean", default: false },
         live: { type: "boolean", default: false },
+        real: { type: "boolean", default: false },
         model: { type: "string" },
         budget: { type: "string" },
         actor: { type: "string" },
@@ -652,6 +654,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return nodeBuild(third, {
       dryRun: values["dry-run"] === true,
       live: values.live === true,
+      real: values.real === true,
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
       ...(values.actor !== undefined ? { actor: values.actor } : {}),

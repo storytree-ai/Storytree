@@ -10,13 +10,16 @@ import {
   workEvent,
 } from "@storytree/core";
 import {
+  createBuildWorktree,
   findNodeSpecFile,
   loadNodeSpec,
+  lookupNodeBuildConfig,
   proveUnit,
+  realBuildableNodeIds,
   registeredNodeIds,
   resolveProveSpec,
 } from "@storytree/orchestrator";
-import type { NodeSpec } from "@storytree/orchestrator";
+import type { BuildWorktree, NodeSpec, ResolveOptions } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
 
@@ -44,6 +47,16 @@ const HONEST_FRAMING_LIVE =
   "synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n" +
   "The node's authored status is untouched; the verdict landed in an in-memory store and is gone.";
 
+const HONEST_FRAMING_REAL =
+  "honest framing: a REAL build (Phase F). What was real: a fresh git worktree of THIS repo, the\n" +
+  "node's REAL test/impl files at their real repo paths authored by a live Claude Agent SDK leaf\n" +
+  "under hook-enforced write scope, the registry's REAL proof command run by the spine for both\n" +
+  "red and green, a spine-side commit of the authored files, and a GATE that read genuine\n" +
+  "`git status` off that worktree. What is still NOT proven: the authored commit lives only in the\n" +
+  "temp worktree (unreferenced after cleanup — landing it is later promotion work), the verdict\n" +
+  "landed in an in-memory store and is gone, and only the node's registered proof command ran (not\n" +
+  "the full package suite — the worktree has no node_modules by design, builtins-only targets).";
+
 /** The repo root, resolved from this file's location (packages/cli/src → four dirs up). */
 function repoRoot(): string {
   return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -53,9 +66,11 @@ export interface NodeBuildOpts {
   dryRun: boolean;
   /** `--live` — the ADR-0030 live smoke: a real Claude Agent SDK leaf authors through the gate. */
   live?: boolean;
-  /** `--model` — the SDK leaf's model (live only). Default: claude-sonnet-4-6. */
+  /** `--real` — Phase F: the leaf authors the node's REAL proof in a fresh git worktree. */
+  real?: boolean;
+  /** `--model` — the SDK leaf's model (live/real only). Default: claude-sonnet-4-6. */
   model?: string;
-  /** `--budget` — per-authoring-slice USD ceiling, SDK-enforced (live only). Default: 1. */
+  /** `--budget` — per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default: 1. */
   budgetUsd?: number;
   /** `--actor` — the signer chain's flag tier (flag → STORYTREE_SIGNER → git email). */
   actor?: string;
@@ -76,21 +91,28 @@ export async function nodeBuild(
     };
   }
   const live = opts.live === true;
-  if (opts.dryRun === live) {
+  const real = opts.real === true;
+  const picked = [opts.dryRun, live, real].filter(Boolean).length;
+  if (picked !== 1) {
     return {
       ok: false,
       body:
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk (zero cost)\n" +
-        "  --live      ADR-0030 live smoke: a real Claude Agent SDK leaf authors through the gate\n" +
-        "              (subscription-funded; needs Claude Code auth / CLAUDE_CODE_OAUTH_TOKEN)",
+        "  --live      ADR-0030 live smoke: a real Claude Agent SDK leaf authors the SYNTHETIC\n" +
+        "              add(2,3) pair through the gate (subscription-funded; needs Claude Code\n" +
+        "              auth / CLAUDE_CODE_OAUTH_TOKEN)\n" +
+        "  --real      Phase F: the leaf authors the node's REAL test/impl in a fresh git\n" +
+        "              worktree; the spine runs the node's REAL proof command and commits the\n" +
+        "              authored files before the GATE reads the real tree",
       next: [
         `storytree node build ${unitId} --dry-run`,
         `storytree node build ${unitId} --live`,
+        `storytree node build ${unitId} --real`,
       ],
     };
   }
-  const mode = live ? "live-smoke" : "dry-run";
+  const mode = real ? "real" : live ? "live-smoke" : "dry-run";
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -124,31 +146,63 @@ export async function nodeBuild(
     };
   }
 
-  // Smoke sandbox (both modes): a fresh temp workspace + a fresh InMemoryStore. The library store
-  // the CLI was built with is deliberately NOT used — a smoke never touches shared state.
+  // REAL mode fail-closed precheck BEFORE any worktree is cut: the node must carry a real-proof
+  // registry config (the resolver re-checks this; the precheck just keeps the refusal cheap).
+  const realConfig = lookupNodeBuildConfig(spec.id)?.real;
+  if (real && realConfig === undefined) {
+    const buildable = realBuildableNodeIds();
+    return {
+      ok: false,
+      body:
+        `node "${spec.id}" is not REAL-buildable — its registry entry has no real-proof config ` +
+        `(real.testFile/sourceFile/scope).\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
+      next: buildable.map((id) => `storytree node build ${id} --real`),
+    };
+  }
+
+  // The build sandbox: dry-run/live-smoke walk in a fresh EMPTY temp dir; REAL walks in a fresh
+  // DETACHED git worktree of this repo (the node's real source at real paths). Either way the
+  // verdict store is a fresh InMemoryStore — never the live library DB; nothing persists.
   const runId = `${mode}-${Date.now().toString(36)}`;
   const store = new InMemoryStore();
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-node-build-"));
+  let worktree: BuildWorktree | undefined;
+  let workspace: string;
+  if (real) {
+    worktree = await createBuildWorktree(repoRoot());
+    workspace = worktree.root;
+  } else {
+    workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-node-build-"));
+  }
   try {
     // The lifecycle mark a real build starts with — gives the rollup something real to project.
     await store.appendEvent(
       workEvent({ unitId: spec.id, event: "building", runId }, signer.signer),
     );
 
-    const resolved = resolveProveSpec(
-      spec,
-      live
+    const sdkOpts = {
+      ...(opts.model !== undefined ? { model: opts.model } : {}),
+      ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
+    };
+    const resolveOptions: ResolveOptions = real
+      ? {
+          mode: "real",
+          workspace,
+          store,
+          runId,
+          signerInputs: { flag: signer.signer },
+          ...sdkOpts,
+        }
+      : live
         ? {
             mode: "live-smoke",
             workspace,
             store,
             runId,
             signerInputs: { flag: signer.signer },
-            ...(opts.model !== undefined ? { model: opts.model } : {}),
-            ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
+            ...sdkOpts,
           }
-        : { mode: "dry-run", workspace, store, runId, signerInputs: { flag: signer.signer } },
-    );
+        : { mode: "dry-run", workspace, store, runId, signerInputs: { flag: signer.signer } };
+    const resolved = resolveProveSpec(spec, resolveOptions);
     if (!resolved.ok) {
       return {
         ok: false,
@@ -166,6 +220,12 @@ export async function nodeBuild(
       `proof mode:  ${spec.proofMode} → ${resolved.spec.proofMode}`,
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
+      ...(real && worktree !== undefined && realConfig !== undefined
+        ? [
+            `worktree:    ${workspace} (detached @ ${worktree.headSha.slice(0, 7)}, removed after)`,
+            `real proof:  node --import tsx --test ${realConfig.testFile}`,
+          ]
+        : []),
       ...(resolved.liveAuthor !== undefined
         ? [
             `leaf:        Claude Agent SDK (${resolved.liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
@@ -176,8 +236,8 @@ export async function nodeBuild(
       "",
       `phase trail: ${result.phasesVisited.join(" → ")}`,
     ];
-    const framing = live ? HONEST_FRAMING_LIVE : HONEST_FRAMING_DRY;
-    const modeFlag = live ? "--live" : "--dry-run";
+    const framing = real ? HONEST_FRAMING_REAL : live ? HONEST_FRAMING_LIVE : HONEST_FRAMING_DRY;
+    const modeFlag = real ? "--real" : live ? "--live" : "--dry-run";
 
     if (!result.ok) {
       return {
@@ -209,7 +269,11 @@ export async function nodeBuild(
       ],
     };
   } finally {
-    await fs.rm(workspace, { recursive: true, force: true });
+    if (worktree !== undefined) {
+      await worktree.remove();
+    } else {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   }
 }
 
@@ -234,7 +298,14 @@ export function nodeHelp(): Envelope {
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
       "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). Default budget: $1/slice.",
       "",
+      "  storytree node build <id> --real [--model <id>] [--budget <usd>] [--actor <email>]",
+      "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",
+      "      node's REAL test/impl at their real paths, the spine runs the node's REAL proof",
+      "      command for red/green, commits the authored files, and the GATE reads genuine git",
+      "      state. Needs Claude Code auth. The authored commit is not landed (promotion is later).",
+      "",
       `buildable (registered) nodes: ${registeredNodeIds().join(", ")}`,
+      `REAL-buildable nodes:         ${realBuildableNodeIds().join(", ") || "(none yet)"}`,
     ].join("\n"),
     next: ["storytree node build library-cli --dry-run"],
   };

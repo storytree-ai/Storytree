@@ -52,16 +52,18 @@ export { OwnedLoopAuthor } from "./owned-loop-author.js";
 export type { NodeSpec } from "./node-spec.js";
 export { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
 
-export type { NodeBuildConfig } from "./test-command-registry.js";
+export type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
 export {
   NODE_BUILD_REGISTRY,
   lookupNodeBuildConfig,
   registeredNodeIds,
+  realBuildableNodeIds,
 } from "./test-command-registry.js";
 
 export type {
   DryRunResolveOptions,
   LiveSmokeResolveOptions,
+  RealResolveOptions,
   ResolveOptions,
   ResolveResult,
 } from "./resolve-prove-spec.js";
@@ -69,7 +71,12 @@ export {
   resolveProveSpec,
   assemblePrompts,
   liveSmokePrompts,
+  realPrompts,
   dryRunModel,
+  scriptedWriterModel,
   DRY_RUN_TEST_REL,
   DRY_RUN_IMPL_REL,
 } from "./resolve-prove-spec.js";
+
+export type { BuildWorktree } from "./build-worktree.js";
+export { createBuildWorktree, commitAuthored } from "./build-worktree.js";

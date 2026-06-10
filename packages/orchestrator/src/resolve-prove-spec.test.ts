@@ -6,11 +6,24 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore, rollupStatus, workEvent } from "@storytree/core";
+import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 
 import { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
-import { lookupNodeBuildConfig, registeredNodeIds } from "./test-command-registry.js";
-import { resolveProveSpec, assemblePrompts } from "./resolve-prove-spec.js";
-import { proveUnit } from "./prove-it-gate.js";
+import {
+  lookupNodeBuildConfig,
+  realBuildableNodeIds,
+  registeredNodeIds,
+} from "./test-command-registry.js";
+import {
+  resolveProveSpec,
+  assemblePrompts,
+  realPrompts,
+  scriptedWriterModel,
+} from "./resolve-prove-spec.js";
+import { proveUnit, gitTreeState } from "./prove-it-gate.js";
+import { PathWriteScope } from "./phase-machine.js";
+import { OwnedLoopAuthor } from "./owned-loop-author.js";
+import { createBuildWorktree } from "./build-worktree.js";
 
 /**
  * Phase B (drive-machinery): the resolver glue. Loads the REAL stories/library node specs from the
@@ -98,6 +111,23 @@ test("the registry covers the library story + its seven capabilities; a miss is 
     assert.ok(config.scope.testGlobs.length > 0 && config.scope.sourceGlobs.length > 0);
   }
   assert.equal(lookupNodeBuildConfig("unregistered-node"), null);
+});
+
+test("the verdict-line entry carries a REAL proof config whose write walls really wall", () => {
+  assert.deepEqual(realBuildableNodeIds(), ["verdict-line"]);
+  const real = lookupNodeBuildConfig("verdict-line")?.real;
+  assert.ok(real !== undefined);
+  // Repo-relative REAL paths, not temp-workspace synthetics.
+  assert.equal(real.testFile, "packages/core/src/verdict-line.test.ts");
+  assert.equal(real.sourceFile, "packages/core/src/verdict-line.ts");
+  // The per-phase walls: test writable ONLY in AUTHOR_TEST, source ONLY in IMPLEMENT.
+  const scope = new PathWriteScope(real.scope);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/core/src/proof.ts"), false);
+  assert.equal(scope.isWriteAllowed("GATE", real.sourceFile), false);
 });
 
 // ── prompt assembly (real briefs off the real spec) ──────────────────────────────────────────────
@@ -197,5 +227,138 @@ test("dry-run glue: real library-cli spec → ProveSpec → proveUnit → signed
     assert.equal(rollupStatus("library-cli", await store.readEvents()), "healthy");
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+// ── REAL mode (Phase F): fail-closed config gate, briefs, and the offline wiring walk ───────────
+
+test("real mode fails closed on a registered node WITHOUT a real-proof config", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
+  const result = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r1",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /no REAL proof config/);
+  assert.deepEqual(result.registered, ["verdict-line"]);
+});
+
+test("realPrompts names the REAL files, the REAL proof command, and the no-node_modules constraint", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
+  const real = lookupNodeBuildConfig("verdict-line")?.real;
+  assert.ok(real !== undefined);
+  const prompts = realPrompts(spec, real);
+  assert.match(prompts.authorTest, /packages\/core\/src\/verdict-line\.test\.ts/);
+  assert.match(prompts.authorTest, /node --import tsx --test/);
+  assert.match(prompts.authorTest, /must NOT exist yet/);
+  assert.match(prompts.authorTest, /NO node_modules/);
+  assert.match(prompts.authorTest, /Guidance from the node spec/);
+  assert.match(prompts.implement, /packages\/core\/src\/verdict-line\.ts/);
+  assert.match(prompts.implement, /Writes to the test file are refused/);
+});
+
+/**
+ * Scripted stand-ins for what the LIVE leaf authors in a real run (the live run authors its own;
+ * these only prove the WIRING offline): a genuinely-red test (its import target does not exist at
+ * HEAD) and the dependency-free impl that turns it green.
+ */
+const SCRIPTED_REAL_TEST = `import test from "node:test";
+import assert from "node:assert/strict";
+import { verdictLine } from "./verdict-line.js";
+
+test("verdictLine renders the single specified line", () => {
+  const line = verdictLine({
+    unitId: "verdict-line",
+    proofMode: "contract",
+    outcome: "pass",
+    commitSha: "abc1234def5678",
+    signer: "tester@example.com",
+    runId: "r1",
+    evidence: [],
+    at: "2026-06-10T00:00:00.000Z",
+  });
+  assert.equal(
+    line,
+    "PASS verdict-line (contract) — signed by tester@example.com @ abc1234, 2026-06-10T00:00:00.000Z",
+  );
+});
+`;
+
+const SCRIPTED_REAL_IMPL = `export interface VerdictLike {
+  unitId: string;
+  proofMode: string;
+  outcome: string;
+  commitSha: string;
+  signer: string;
+  at: string;
+}
+
+export function verdictLine(v: VerdictLike): string {
+  return \`\${v.outcome.toUpperCase()} \${v.unitId} (\${v.proofMode}) — signed by \${v.signer} @ \${v.commitSha.slice(0, 7)}, \${v.at}\`;
+}
+`;
+
+test("REAL mode offline walk: fresh worktree + real proof command + spine commit → signed pass on a genuinely clean tree", async () => {
+  const worktree = await createBuildWorktree(REPO_ROOT);
+  const store = new InMemoryStore();
+  try {
+    const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
+    const real = lookupNodeBuildConfig("verdict-line")?.real;
+    assert.ok(real !== undefined);
+
+    // The injected leaf (executor seam as test seam): the owned loop scripted to write the REAL
+    // repo paths, behind the SAME write walls the live leaf gets.
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([
+        { path: real.testFile, content: SCRIPTED_REAL_TEST },
+        { path: real.sourceFile, content: SCRIPTED_REAL_IMPL },
+      ]),
+      tools: new FileToolExecutor({ rootDir: worktree.root }),
+      scope: new PathWriteScope(real.scope),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: worktree.root,
+      store,
+      runId: "real-offline-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+      // NO treeState injected: the DEFAULT real seam must commit spine-side and read real git.
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    assert.equal(resolved.liveAuthor, undefined, "an injected author means no SDK leaf");
+
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, true, result.ok ? "" : `${result.failedAt}: ${result.reason}`);
+    if (!result.ok) return;
+    assert.deepEqual(result.phasesVisited, [
+      "AUTHOR_TEST",
+      "CONFIRM_RED",
+      "IMPLEMENT",
+      "CONFIRM_GREEN",
+      "GATE",
+    ]);
+    // contract-test → contract, and the spine's own red→green evidence.
+    assert.equal(result.verdict.proofMode, "contract");
+    assert.deepEqual(
+      result.verdict.evidence.map((e) => e.kind),
+      ["observation:red", "observation:green"],
+    );
+
+    // Cleanliness was EARNED: the verdict pins a NEW commit (the spine's), and the worktree's
+    // REAL git state agrees — clean, at exactly that commit.
+    assert.notEqual(result.verdict.commitSha, worktree.headSha);
+    const tree = await gitTreeState(worktree.root)();
+    assert.equal(tree.clean, true);
+    assert.equal(tree.commitSha, result.verdict.commitSha);
+  } finally {
+    await worktree.remove();
   }
 });

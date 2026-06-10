@@ -90,11 +90,24 @@ export class ShellTestExecutor implements TestExecutor {
    * Spawn the command and resolve with the captured {@link ShellRunResult}. A non-zero exit is NOT a
    * rejection — `execFile`'s error carries the exit `code`, which we surface as data. We only reject
    * when there is NO exit code (a genuine spawn failure such as ENOENT, where the process never ran).
+   *
+   * ENV HONESTY: every `NODE_TEST*` variable is SCRUBBED from the child env. When the spine itself
+   * runs under `node --test` (our own suite, CI), the runner exports `NODE_TEST_CONTEXT` to its
+   * children; a spawned `node --test <file>` that inherits it behaves as a coordinated test-runner
+   * child and can exit 0 WITHOUT running the file — observed as a FORGED GREEN at CONFIRM_RED.
+   * The observation must come from a process whose verdict channel is its own exit code only.
    */
   private spawn(cmd: ShellCommand): Promise<ShellRunResult> {
     return new Promise<ShellRunResult>((resolve, reject) => {
-      const options: { cwd?: string; maxBuffer: number } = {
+      const env: NodeJS.ProcessEnv = {};
+      for (const [key, value] of Object.entries(process.env)) {
+        if (!key.startsWith("NODE_TEST")) {
+          env[key] = value;
+        }
+      }
+      const options: { cwd?: string; maxBuffer: number; env: NodeJS.ProcessEnv } = {
         maxBuffer: 64 * 1024 * 1024,
+        env,
       };
       if (cmd.cwd !== undefined) {
         options.cwd = cmd.cwd;
