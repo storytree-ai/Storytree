@@ -5,7 +5,7 @@ import { Markdown } from "./schema.js";
  * The cross-cutting knowledge tier (ADR-0017), encoded as a schema.
  *
  * A knowledge unit is a curated markdown body whose structure is fixed per kind
- * (definition / principle / pattern / guardrail / techstack / open-question). Round-1
+ * (definition / principle / pattern / guardrail / techstack / process / open-question). Round-1
  * authored every body against a per-kind template; Phase 1 makes that template the
  * *derived* artifact rather than the source.
  *
@@ -53,6 +53,7 @@ export type KnowledgeKind =
   | "pattern"
   | "guardrail"
   | "techstack"
+  | "process"
   | "open-question";
 
 /**
@@ -202,6 +203,55 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder: "_Version pins, boundaries, and what it must not be used for._",
     },
   ],
+  process: [
+    {
+      field: "statement",
+      lead: true,
+      heading: "**The ceremony.**",
+      required: true,
+      placeholder: "_What this process accomplishes, in one sentence._",
+    },
+    {
+      field: "trigger",
+      lead: false,
+      heading: "Trigger",
+      required: true,
+      placeholder:
+        "_The moment a session runs this — the observable condition, not a vibe._",
+    },
+    {
+      field: "steps",
+      lead: false,
+      heading: "Steps",
+      required: true,
+      placeholder:
+        "_The ordered ceremony, one numbered step per action — each step names the command it runs or the surface it touches._",
+    },
+    {
+      field: "surfaces",
+      lead: false,
+      heading: "Surfaces",
+      required: true,
+      placeholder:
+        "_Which surfaces this touches — tree, noticeboard, library, repo/CI — and what it reads or writes on each._",
+    },
+    {
+      field: "failureModes",
+      lead: false,
+      heading: "Failure modes",
+      required: true,
+      placeholder:
+        "_What breaks when the ceremony is skipped or a step runs out of order — concrete incidents over hypotheticals._",
+    },
+    {
+      field: "verification",
+      lead: false,
+      heading: "Verification",
+      required: false,
+      placeholder:
+        "_What deterministically checks the ceremony was followed — a gate, a CI job, a test. If nothing checks it, say so explicitly._",
+    },
+  ],
   "open-question": [
     {
       field: "stakes",
@@ -320,6 +370,7 @@ export const Principle = buildKindSchema("principle");
 export const Pattern = buildKindSchema("pattern");
 export const Guardrail = buildKindSchema("guardrail");
 export const TechStack = buildKindSchema("techstack");
+export const Process = buildKindSchema("process");
 export const OpenQuestion = buildKindSchema("open-question");
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
@@ -329,6 +380,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Pattern,
   Guardrail,
   TechStack,
+  Process,
   OpenQuestion,
 ]);
 
@@ -338,4 +390,5 @@ export type Principle = z.infer<typeof Principle>;
 export type Pattern = z.infer<typeof Pattern>;
 export type Guardrail = z.infer<typeof Guardrail>;
 export type TechStack = z.infer<typeof TechStack>;
+export type Process = z.infer<typeof Process>;
 export type OpenQuestion = z.infer<typeof OpenQuestion>;

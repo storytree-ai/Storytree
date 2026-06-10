@@ -253,7 +253,22 @@ v1's scattered terms (`declared_scope` vs per-agent `does_not_touch`) into one
 concept (ADR-0009); the exact shape (node-scoped vs file-glob) is open
 (`open-questions.md` §3).
 
+**noticeboard** — The session-presence surface — one of the three working surfaces (tree = the work, noticeboard = the sessions, library = the knowledge) and the coordination organ: parallel sessions declare "I exist, in this worktree, working on X" anchored to story nodes (ADR-0033). One upserted declaration per session over append-only history (`events.session_event` + `events.session`); identity is the worktree name (derived, never typed; no signer chain — presence is not proof). Advisory-only: the board *shows* overlap, nothing refuses anything (claims-with-refusal is named-deferred, like DBOS); staleness by `lastSeenAt` replaces release discipline; automation never touches a blocking-capable hook and a board write failure never fails the enclosing action. Live-DB only — offline surfaces render without presence lines. Distinct from the feedback organ (`stories/feedback-graduation`, ADR-0032).
+
 ## Studio & tooling
+
+**story tree** — The **work surface**: the living, populated DAG of stories > capabilities > contracts along which the software is grown — one of the three working surfaces (tree = the work, noticeboard = the sessions, library = the knowledge). It is the project's **research object** (ADR-0030): the map of the AI-driven SDLC a human watches grow, not an incidental task list. Authored file-per-unit as frontmatter markdown under `stories/` (a `story.md` per story plus a file per capability, contracts inline by convention, statuses and `depends_on` in frontmatter); rendered by the storytree CLI and the studio. Nodes **exist** when authored; green-ness is per-node and earned later through the prove-it-gate. Distinct from the git commit tree, and from the bare **DAG** (the shape — the story tree is the populated artifact that has it).
+
+**library** — The shared **knowledge tier**: schema-validated artifact docs (definitions,
+principles, patterns, guardrails, techstack, processes, open questions) living in the
+shared Cloud SQL Postgres store — JSONB, zod-validated at write; history = events,
+current state = projection (ADR-0017, ADR-0019). The live store is the source of truth
+for artifact state; git holds code plus *generated* views (this glossary, `assets.json`),
+and `knowledge.json` is the migration seed (ADR-0023 §11). One of the three working
+surfaces (story tree = the work, noticeboard = the sessions, library = the knowledge —
+ADR-0034); sessions read it just-in-time via the exploratory `storytree library` CLI,
+humans via the studio. Artifacts are derived from ADRs and cite them — on disagreement
+the ADR wins.
 
 **studio** — The live PixiJS web IDE that renders the tree and **drives** the
 agents (diffs, approvals, steering, per-node chat). Supersedes v1's read-only

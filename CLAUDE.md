@@ -150,4 +150,9 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 - `verbatimModuleSyntax` (use `import type`), `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
   `strict`. No build step — packages export raw TS consumed via `tsx`.
 - Tests: `node:test` + `node:assert/strict`, `*.test.ts` under `src/`.
-- Commit only when asked; the project cadence is merge-to-main-when-green.
+- **Merge to main quickly and frequently.** When a unit of work is green (`pnpm gate`), commit and
+  open a **non-draft PR** without waiting to be asked — CI auto-merges it on green (ADR-0022).
+  **Never merge manually** (`gh pr merge` in any flavor lands pre-CI — no required checks). To hold
+  a PR for review: mark it draft or add the `hold` label. `claude/real/*` promotion branches merge
+  **non-squash** (ADR-0031 — the verdict's commit must stay an ancestor of `main`). Don't commit
+  red/WIP work to a non-draft PR; finish the unit or mark it draft.

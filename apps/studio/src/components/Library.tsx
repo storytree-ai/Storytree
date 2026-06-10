@@ -15,6 +15,7 @@ const TYPE_LABEL: Record<AssetCategory, string> = {
   pattern: 'Patterns',
   guardrail: 'Guardrails',
   techstack: 'Tech stack',
+  process: 'Processes',
   template: 'Templates',
   adr: 'Decision records',
   'open-question': 'Open questions',

@@ -52,6 +52,7 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'pattern',
   'guardrail',
   'techstack',
+  'process',
   'template',
   'adr',
   'open-question',

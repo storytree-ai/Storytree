@@ -56,8 +56,21 @@ const GENERATED_TEMPLATE_KINDS = new Set([
   'template-pattern',
   'template-guardrail',
   'template-techstack',
+  'template-process',
   'template-open-question',
 ]);
+
+// One-line gloss per generated template's description ("Fillable scaffold for a new
+// <kind> artifact (<gloss>)."). A kind added to KIND_SPECS must be added here too.
+const TEMPLATE_GLOSS = {
+  definition: 'what something is',
+  principle: 'how to judge',
+  pattern: 'a reusable approach',
+  guardrail: 'a deterministically-enforced boundary',
+  techstack: 'what we build on',
+  process: 'a repeatable operating ceremony',
+  'open-question': 'an unresolved decision to settle',
+};
 
 // ---------------------------------------------------------------------------
 // (a) assets.json
@@ -121,6 +134,24 @@ function buildAssets() {
     if (emitted.has(doc.id)) continue;
     out.push(renderKnowledgeAsset(doc, undefined));
     emitted.add(doc.id);
+  }
+
+  // 3. Append generated templates for kinds that gained one (e.g. template-process,
+  //    ADR-0034) — step 1 only re-renders templates already in the store.
+  const presentIds = new Set(out.map((a) => a.id));
+  for (const tid of GENERATED_TEMPLATE_KINDS) {
+    if (presentIds.has(tid)) continue;
+    const kind = tid.slice('template-'.length);
+    out.push({
+      id: tid,
+      category: 'template',
+      title: `Template — ${kind}`,
+      description: `Fillable scaffold for a new ${kind} artifact (${TEMPLATE_GLOSS[kind]}).`,
+      body: generateTemplate(kind),
+      references: [],
+      createdAt: '2026-06-11T00:00:00.000Z',
+      updatedAt: '2026-06-11T00:00:00.000Z',
+    });
   }
 
   writeFileSync(assetsFile, JSON.stringify(out, null, 2) + '\n', 'utf8');
@@ -188,12 +219,12 @@ const GLOSSARY_SECTION_ORDER = [
     ],
   },
   { heading: 'Unit fields', ids: ['unit-fields'] },
-  { heading: 'Concurrency & isolation', ids: ['claim', 'write-ownership'] },
+  { heading: 'Concurrency & isolation', ids: ['claim', 'write-ownership', 'noticeboard'] },
   {
     heading: 'Studio & tooling',
     ids: [
-      'studio', 'orchestrator', 'spine', 'leaf-step-leaf-judgment', 'pi-adapter',
-      'trunk', 'steering', 'adr', 'fixture', 'ndjson', 'asset',
+      'story-tree', 'library', 'studio', 'orchestrator', 'spine', 'leaf-step-leaf-judgment',
+      'pi-adapter', 'trunk', 'steering', 'adr', 'fixture', 'ndjson', 'asset',
     ],
   },
 ];
