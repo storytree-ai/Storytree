@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import {
   ShellTestExecutor,
   defaultClassifyKind,
+  isScrubbedEnvKey,
   nodeEvalExecutor,
+  runShellCommand,
 } from "./shell-test-executor.js";
 
 // These spawn the SAME Node binary running this test — fully offline, no files, no network.
@@ -106,6 +108,61 @@ test("ShellTestExecutor: passes cwd through to the spawned process", async () =>
     }),
   });
   assert.equal((await check.run("cwd2")).result, "green");
+});
+
+// ── runShellCommand: the shared runner (CONFIRM observations + the leaf's feedback tools) ──
+
+test("runShellCommand captures stdout, stderr, and a non-zero exit code as DATA", async () => {
+  const out = await runShellCommand({
+    file: process.execPath,
+    args: ["-e", "console.log('out-line'); console.error('err-line'); process.exit(3)"],
+  });
+  assert.equal(out.code, 3);
+  assert.match(out.stdout, /out-line/);
+  assert.match(out.stderr, /err-line/);
+});
+
+test("runShellCommand rejects on a genuine spawn failure (the command never ran)", async () => {
+  await assert.rejects(
+    () => runShellCommand({ file: "definitely-not-a-real-binary-xyz", args: [] }),
+    /failed to spawn/,
+  );
+});
+
+test("ENV HONESTY: secret-shaped vars never reach the spawned process (output flows to the leaf)", async () => {
+  // The leaf authors the test file the proof command executes, and the feedback tool returns the
+  // command's OUTPUT to the model — a test that prints process.env must find no credentials.
+  process.env["STORYTREE_FAKE_TOKEN"] = "leak-me";
+  process.env["STORYTREE_FAKE_PLAIN"] = "pass-through";
+  try {
+    const out = await runShellCommand({
+      file: process.execPath,
+      args: [
+        "-e",
+        "process.stdout.write(`${process.env.STORYTREE_FAKE_TOKEN ?? 'absent'}|${process.env.STORYTREE_FAKE_PLAIN ?? 'absent'}`)",
+      ],
+    });
+    assert.equal(out.stdout, "absent|pass-through");
+  } finally {
+    delete process.env["STORYTREE_FAKE_TOKEN"];
+    delete process.env["STORYTREE_FAKE_PLAIN"];
+  }
+});
+
+test("isScrubbedEnvKey: the real credential names are scrubbed; benign names are not", () => {
+  for (const key of [
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "AWS_SECRET_ACCESS_KEY",
+    "MY_PASSWORD",
+    "NODE_TEST_CONTEXT",
+  ]) {
+    assert.equal(isScrubbedEnvKey(key), true, `${key} must be scrubbed`);
+  }
+  for (const key of ["PATH", "HOME", "USERPROFILE", "STORYTREE_STUDIO_STORE", "ComSpec"]) {
+    assert.equal(isScrubbedEnvKey(key), false, `${key} must pass through`);
+  }
 });
 
 test("defaultClassifyKind: classifies TS-diagnostic and missing-symbol shapes as compile", () => {

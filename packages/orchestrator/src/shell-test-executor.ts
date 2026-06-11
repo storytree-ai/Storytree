@@ -86,54 +86,81 @@ export class ShellTestExecutor implements TestExecutor {
       : { result: "red", kind, testId };
   }
 
-  /**
-   * Spawn the command and resolve with the captured {@link ShellRunResult}. A non-zero exit is NOT a
-   * rejection — `execFile`'s error carries the exit `code`, which we surface as data. We only reject
-   * when there is NO exit code (a genuine spawn failure such as ENOENT, where the process never ran).
-   *
-   * ENV HONESTY: every `NODE_TEST*` variable is SCRUBBED from the child env. When the spine itself
-   * runs under `node --test` (our own suite, CI), the runner exports `NODE_TEST_CONTEXT` to its
-   * children; a spawned `node --test <file>` that inherits it behaves as a coordinated test-runner
-   * child and can exit 0 WITHOUT running the file — observed as a FORGED GREEN at CONFIRM_RED.
-   * The observation must come from a process whose verdict channel is its own exit code only.
-   */
+  /** Spawn via the shared {@link runShellCommand} (env-scrubbed, exit-code-as-data). */
   private spawn(cmd: ShellCommand): Promise<ShellRunResult> {
-    return new Promise<ShellRunResult>((resolve, reject) => {
-      const env: NodeJS.ProcessEnv = {};
-      for (const [key, value] of Object.entries(process.env)) {
-        if (!key.startsWith("NODE_TEST")) {
-          env[key] = value;
-        }
-      }
-      const options: { cwd?: string; maxBuffer: number; env: NodeJS.ProcessEnv } = {
-        maxBuffer: 64 * 1024 * 1024,
-        env,
-      };
-      if (cmd.cwd !== undefined) {
-        options.cwd = cmd.cwd;
-      }
-      execFile(cmd.file, cmd.args, options, (error, stdout, stderr) => {
-        if (error === null) {
-          resolve({ stdout, stderr, code: 0 });
-          return;
-        }
-        // execFile annotates the error with `code` (number) on a non-zero exit, or a string errno
-        // ('ENOENT', etc.) on a genuine spawn failure. Distinguish: a numeric `code` is a real exit
-        // (a red), so surface it as data; anything else is a spawn failure we reject on.
-        const exit = (error as NodeJS.ErrnoException & { code?: number | string }).code;
-        if (typeof exit === "number") {
-          resolve({ stdout, stderr, code: exit });
-          return;
-        }
-        reject(
-          new Error(
-            `ShellTestExecutor failed to spawn '${cmd.file}' (${String(exit ?? error.message)}): the test command did not run, so red/green could not be observed`,
-            { cause: error },
-          ),
-        );
-      });
-    });
+    return runShellCommand(cmd);
   }
+}
+
+/**
+ * Env-var names that never reach a spawned test/feedback process. Two scrub families:
+ *  - `NODE_TEST*` (the forged-green fix): when the spine itself runs under `node --test`, the
+ *    runner exports `NODE_TEST_CONTEXT` to its children; a spawned `node --test <file>` that
+ *    inherits it behaves as a coordinated test-runner child and can exit 0 WITHOUT running the
+ *    file — observed as a FORGED GREEN at CONFIRM_RED. The observation must come from a process
+ *    whose verdict channel is its own exit code only.
+ *  - secret-shaped names (TOKEN/SECRET/PASSWORD/CREDENTIAL/API_KEY/ACCESS_KEY): the leaf authors
+ *    the test file this command executes, and with the spine feedback tool its OUTPUT flows back
+ *    to the model — a test that prints `process.env` must find no credentials there.
+ */
+export function isScrubbedEnvKey(key: string): boolean {
+  return (
+    key.startsWith("NODE_TEST") ||
+    /TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|ACCESS_KEY/i.test(key)
+  );
+}
+
+/** The child env every spawned test/feedback process gets: the parent env minus the scrub list. */
+export function scrubbedChildEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!isScrubbedEnvKey(key)) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
+/**
+ * Spawn one {@link ShellCommand} and resolve with the captured {@link ShellRunResult}. A non-zero
+ * exit is NOT a rejection — `execFile`'s error carries the exit `code`, which we surface as data.
+ * We only reject when there is NO exit code (a genuine spawn failure such as ENOENT, where the
+ * process never ran). The child env is {@link scrubbedChildEnv} — see its env-honesty notes.
+ *
+ * Exported as the shared runner: the gate's CONFIRM observations spawn through it (via
+ * {@link ShellTestExecutor}), and the spine feedback tool (the leaf's bounded `run_proof` /
+ * `run_typecheck`) spawns the SAME command the same way — one oracle, two consumers.
+ */
+export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
+  return new Promise<ShellRunResult>((resolve, reject) => {
+    const options: { cwd?: string; maxBuffer: number; env: NodeJS.ProcessEnv } = {
+      maxBuffer: 64 * 1024 * 1024,
+      env: scrubbedChildEnv(),
+    };
+    if (cmd.cwd !== undefined) {
+      options.cwd = cmd.cwd;
+    }
+    execFile(cmd.file, cmd.args, options, (error, stdout, stderr) => {
+      if (error === null) {
+        resolve({ stdout, stderr, code: 0 });
+        return;
+      }
+      // execFile annotates the error with `code` (number) on a non-zero exit, or a string errno
+      // ('ENOENT', etc.) on a genuine spawn failure. Distinguish: a numeric `code` is a real exit
+      // (a red), so surface it as data; anything else is a spawn failure we reject on.
+      const exit = (error as NodeJS.ErrnoException & { code?: number | string }).code;
+      if (typeof exit === "number") {
+        resolve({ stdout, stderr, code: exit });
+        return;
+      }
+      reject(
+        new Error(
+          `failed to spawn '${cmd.file}' (${String(exit ?? error.message)}): the command did not run, so its exit code could not be observed`,
+          { cause: error },
+        ),
+      );
+    });
+  });
 }
 
 /**

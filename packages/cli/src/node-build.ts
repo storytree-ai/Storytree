@@ -265,6 +265,11 @@ export function liveLeafLines(liveAuthor: ClaudeAgentAuthor): string[] {
     `leaf:        Claude Agent SDK (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
     `cost:        $${liveAuthor.totalCostUsd.toFixed(4)} SDK-reported (subscription-billed)`,
     `scope walls: ${liveAuthor.violations.length === 0 ? "no write refusals" : liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
+    ...(liveAuthor.feedbackRuns.length > 0
+      ? [
+          `feedback:    ${liveAuthor.feedbackRuns.length} bounded run(s) — ${liveAuthor.feedbackRuns.map((f) => `${f.phase}:${f.tool}=${f.code === 0 ? "green" : `exit ${f.code ?? "none"}`}`).join(", ")} (feedback only; the spine's own observations decided)`,
+        ]
+      : []),
   ];
 }
 

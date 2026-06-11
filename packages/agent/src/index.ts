@@ -26,9 +26,18 @@ export type {
   SdkQueryFn,
   SdkWriteViolation,
   SdkRunInfo,
+  SdkFeedbackRun,
+  FeedbackCommand,
+  FeedbackRunOutput,
   ClaudeAgentAuthorArgs,
 } from "./sdk-author.js";
-export { ClaudeAgentAuthor, decideWrite } from "./sdk-author.js";
+export {
+  ClaudeAgentAuthor,
+  decideWrite,
+  executeFeedback,
+  formatFeedbackOutput,
+  leafSystemPrompt,
+} from "./sdk-author.js";
 
 export type { WriteToolSpec } from "./fs-tools.js";
 export {

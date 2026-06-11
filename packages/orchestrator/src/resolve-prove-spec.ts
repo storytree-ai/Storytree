@@ -6,13 +6,13 @@ import {
   FILE_WRITE_TOOLS,
   ScriptedModel,
 } from "@storytree/agent";
-import type { ModelResponse, PhaseAuthor } from "@storytree/agent";
+import type { FeedbackCommand, ModelResponse, PhaseAuthor } from "@storytree/agent";
 import { resolveSigner } from "@storytree/core";
 import type { SignerInputs, Store } from "@storytree/core";
 
 import { PathWriteScope } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
-import { ShellTestExecutor } from "./shell-test-executor.js";
+import { ShellTestExecutor, runShellCommand } from "./shell-test-executor.js";
 import type { ShellCommand } from "./shell-test-executor.js";
 import { gitTreeState } from "./prove-it-gate.js";
 import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
@@ -24,7 +24,7 @@ import {
   registeredNodeIds,
 } from "./test-command-registry.js";
 import type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
-import { commitAuthored } from "./build-worktree.js";
+import { commitAuthored, platformShellCommand } from "./build-worktree.js";
 
 /**
  * The resolver (drive-machinery Phase B, plan §2): turn a loaded {@link NodeSpec} into the full
@@ -215,12 +215,13 @@ export function resolveProveSpec(
   // Shared SYNTHETIC execution seams (dry-run / live-smoke): a real Node test runner over the
   // workspace's planted/authored pair, and the per-phase write walls. The registry's real
   // command/scope are NOT spawned in these modes — that is what `mode: "real"` is for.
+  const syntheticProofCmd: ShellCommand = {
+    file: process.execPath,
+    args: [path.join(opts.workspace, DRY_RUN_TEST_REL)],
+    cwd: opts.workspace,
+  };
   const testExecutor = new ShellTestExecutor({
-    command: (): ShellCommand => ({
-      file: process.execPath,
-      args: [path.join(opts.workspace, DRY_RUN_TEST_REL)],
-      cwd: opts.workspace,
-    }),
+    command: (): ShellCommand => syntheticProofCmd,
   });
   const scope = new PathWriteScope({
     testGlobs: ["*.test.cjs"],
@@ -246,6 +247,7 @@ export function resolveProveSpec(
     liveAuthor = new ClaudeAgentAuthor({
       cwd: opts.workspace,
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+      feedbackCommands: feedbackCommandsFor(syntheticProofCmd, `node ${DRY_RUN_TEST_REL}`),
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
       ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
@@ -296,14 +298,29 @@ function resolveReal(
   // The REAL proof command: the spine runs the registry's test file in the worktree itself.
   // tsx is resolved from THIS package's installation (absolute URL), so the bare worktree —
   // deliberately not `pnpm install`ed — can still run a TypeScript test file.
+  const realProofCmd: ShellCommand = {
+    file: process.execPath,
+    args: ["--import", tsxLoaderUrl(), "--test", path.join(opts.workspace, real.testFile)],
+    cwd: opts.workspace,
+  };
   const testExecutor = new ShellTestExecutor({
-    command: (): ShellCommand => ({
-      file: process.execPath,
-      args: ["--import", tsxLoaderUrl(), "--test", path.join(opts.workspace, real.testFile)],
-      cwd: opts.workspace,
-    }),
+    command: (): ShellCommand => realProofCmd,
   });
   const scope = new PathWriteScope(real.scope);
+
+  // The leaf's bounded feedback tools (option A): run_proof spawns the SAME command the CONFIRM
+  // observations spawn; run_typecheck (install-bearing nodes) spawns the registry's typecheck in
+  // the worktree. One oracle, two consumers — the leaf iterates against exactly what will be
+  // observed, and the observations themselves stay out-of-band.
+  const typecheckCmd =
+    real.install === true && real.typecheck !== undefined
+      ? platformShellCommand({ ...real.typecheck, cwd: opts.workspace })
+      : undefined;
+  const feedbackCommands = feedbackCommandsFor(
+    realProofCmd,
+    `node --import tsx --test ${real.testFile}`,
+    typecheckCmd,
+  );
 
   let author: PhaseAuthor;
   let liveAuthor: ClaudeAgentAuthor | undefined;
@@ -313,6 +330,7 @@ function resolveReal(
     liveAuthor = new ClaudeAgentAuthor({
       cwd: opts.workspace,
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+      feedbackCommands,
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
       ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
@@ -360,6 +378,39 @@ function tsxLoaderUrl(): string {
 }
 
 /**
+ * The option-A feedback commands for a live leaf: `run_proof` always (the EXACT command the
+ * spine's CONFIRM observations spawn), `run_typecheck` when the node registers one. Both spawn
+ * through {@link runShellCommand} — env-scrubbed, exit-code-as-data, leaf controls zero arguments.
+ */
+export function feedbackCommandsFor(
+  proofCmd: ShellCommand,
+  proofDisplay: string,
+  typecheckCmd?: ShellCommand,
+): FeedbackCommand[] {
+  const commands: FeedbackCommand[] = [
+    {
+      name: "run_proof",
+      description:
+        `Run the registered proof command (${proofDisplay}) in the workspace and return its ` +
+        "exit code and output. Bounded runs. FEEDBACK ONLY: the spine re-runs this command " +
+        "itself, out-of-band, and only that observation decides red/green.",
+      run: () => runShellCommand(proofCmd),
+    },
+  ];
+  if (typecheckCmd !== undefined) {
+    commands.push({
+      name: "run_typecheck",
+      description:
+        "Run the package typecheck (tsc --noEmit, full strict flags) in the workspace and " +
+        "return its exit code and output. Bounded runs. Promotion requires this green — the " +
+        "proof command runs under tsx (types stripped), so only this sees type errors.",
+      run: () => runShellCommand(typecheckCmd),
+    });
+  }
+  return commands;
+}
+
+/**
  * The REAL-mode briefs: the node's identity/outcome/guidance plus the repo + worktree facts the
  * leaf needs to author the REAL files — exact paths, the proof command the spine runs, and the
  * iteration-one no-node_modules constraint (builtins + relative imports only).
@@ -377,7 +428,7 @@ export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts
         `- the proof command runs under tsx (types stripped), but promotion ALSO runs the package ` +
         `typecheck (\`tsc --noEmit\`, full strict flags incl. \`exactOptionalPropertyTypes\` and ` +
         `\`noUncheckedIndexedAccess\`) — type-illegal code that happens to be runtime-green will ` +
-        `not land, so author type-legal code from the start.`
+        `not land. Use the \`run_typecheck\` feedback tool before stopping.`
       : `- the worktree has NO node_modules: the test and the implementation may import ONLY ` +
         `\`node:\` builtins and relative files. \`import type { ... } from "./x.js"\` is fine ` +
         `(erased at runtime); a VALUE import of any package (zod etc.) will crash the proof run.`;
@@ -386,7 +437,9 @@ export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts
     `strict, ESM NodeNext — relative imports use the .js extension). The spine proves the unit ` +
     `by running\n` +
     `  node --import tsx --test ${real.testFile}\n` +
-    `itself; you cannot run tests or shell commands.\n` +
+    `itself for the OFFICIAL red/green. You can run that same command yourself at any time via ` +
+    `the \`run_proof\` feedback tool (bounded runs; its output is feedback, never the verdict). ` +
+    `You cannot run shell commands.\n` +
     `- the TEST file is \`${real.testFile}\` (node:test + node:assert/strict).\n` +
     `- the IMPLEMENTATION file is \`${real.sourceFile}\`.\n` +
     depsLine;
@@ -396,12 +449,16 @@ export function realPrompts(spec: NodeSpec, real: RealProofConfig): PhasePrompts
       `\`${real.testFile}\`. The implementation \`${real.sourceFile}\` must NOT exist yet — do ` +
       `not create it (writes outside the test file are refused in this phase). Author the test ` +
       `so it FAILS now (importing the missing implementation) and PASSES once the implementation ` +
-      `meets the outcome; the spine observes the red itself. When the test file is written, stop.`,
+      `meets the outcome. After writing it, use \`run_proof\` to confirm it fails for the RIGHT ` +
+      `reason (a missing-implementation/assertion failure, not a syntax error in the test). ` +
+      `The spine observes the official red itself. When the test file is written and checked, stop.`,
     implement:
       `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
       `then write ONLY \`${real.sourceFile}\` so that test passes. Writes to the test file are ` +
-      `refused in this phase. When the implementation is written, stop — the spine observes the ` +
-      `green itself.`,
+      `refused in this phase. Iterate: write, \`run_proof\`, fix — until the proof is green` +
+      `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
+      `then stop; the spine observes the official green itself. If you conclude the test itself ` +
+      `is wrong, stop and say so plainly instead of working around it.`,
   };
 }
 
@@ -418,15 +475,18 @@ export function liveSmokePrompts(spec: NodeSpec): PhasePrompts {
     `- the TEST file is \`${DRY_RUN_TEST_REL}\` (plain CommonJS, run with \`node ${DRY_RUN_TEST_REL}\`,\n` +
     `  no test framework): it must \`require("./impl.cjs")\` and assert with \`node:assert/strict\`\n` +
     `  that \`add(2, 3) === 5\`, then log ok;\n` +
-    `- the IMPL file is \`${DRY_RUN_IMPL_REL}\`: \`module.exports = { add }\`.`;
+    `- the IMPL file is \`${DRY_RUN_IMPL_REL}\`: \`module.exports = { add }\`.\n` +
+    `The \`run_proof\` feedback tool runs that test command for you (bounded runs; its output is\n` +
+    `feedback, never the verdict — the spine observes the official red/green itself).`;
   return {
     authorTest:
       `${header}\n\n${conventions}\n\nPhase AUTHOR_TEST — write ONLY \`${DRY_RUN_TEST_REL}\`. ` +
       `\`${DRY_RUN_IMPL_REL}\` must NOT exist yet (the spine observes the red itself; do not create it, ` +
-      `and writes to it are refused in this phase). When the test file is written, stop.`,
+      `and writes to it are refused in this phase). After writing, you may \`run_proof\` to confirm ` +
+      `it fails for the right reason. When the test file is written, stop.`,
     implement:
       `${header}\n\n${conventions}\n\nPhase IMPLEMENT — read \`${DRY_RUN_TEST_REL}\`, then write ONLY ` +
       `\`${DRY_RUN_IMPL_REL}\` so that test passes. Writes to the test file are refused in this phase. ` +
-      `When the impl is written, stop — the spine observes the green itself.`,
+      `Iterate with \`run_proof\` until green, then stop — the spine observes the official green itself.`,
   };
 }

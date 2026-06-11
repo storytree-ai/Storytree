@@ -5,6 +5,12 @@
  * a PreToolUse hook BEFORE any write lands, Bash is not in the tool surface (a shell write would
  * bypass the scope hook), and red/green is never this runtime's to report.
  *
+ * Feedback tools (option A): the spine may expose its registered proof/typecheck commands as
+ * bounded in-process MCP tools (`mcp__spine__run_proof` …) so the leaf can iterate
+ * write→run→fix instead of authoring blind. The tools spawn FIXED commands (the leaf controls
+ * zero arguments — not Bash, a doorbell), their output is feedback only, and the attested
+ * red/green observations remain the spine's own out-of-band runs after the leaf stops.
+ *
  * Pivot-out posture (ADR-0030 §2): this file is the ONLY place the Agent SDK is imported
  * (ADR-0004's single-import-site rule, widened to this package). The scope predicate is a plain
  * structural function so the orchestrator's `WriteScope` plugs in without an import cycle, and
@@ -13,7 +19,7 @@
 
 import * as path from "node:path";
 
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
@@ -40,6 +46,37 @@ export interface SdkRunInfo {
   costUsd: number;
 }
 
+/** The captured outcome of one feedback run (the orchestrator's ShellRunResult, structurally). */
+export interface FeedbackRunOutput {
+  /** The process exit code, or `null` if it was killed / never ran. */
+  code: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * One spine-registered feedback command exposed to the leaf as an in-process MCP tool
+ * (`mcp__spine__<name>`). FEEDBACK ONLY (the option-A seam): `run` spawns a FIXED command the
+ * spine registered — the leaf controls zero arguments — and its captured output flows back to the
+ * model so it can iterate write→run→fix before stopping. Nothing the leaf sees here is attested:
+ * the spine re-runs the proof itself, out-of-band, at CONFIRM_RED/CONFIRM_GREEN (ADR-0020 §3).
+ */
+export interface FeedbackCommand {
+  /** Tool name suffix (e.g. `run_proof`, `run_typecheck`). */
+  name: string;
+  /** What the model is told the tool does. */
+  description: string;
+  /** Spawn the fixed registered command and capture its outcome (never throws on a red exit). */
+  run: () => Promise<FeedbackRunOutput>;
+}
+
+/** Accounting for one bounded feedback run the leaf made. */
+export interface SdkFeedbackRun {
+  phase: AuthoringPhase;
+  tool: string;
+  code: number | null;
+}
+
 /** Constructor args for {@link ClaudeAgentAuthor}. */
 export interface ClaudeAgentAuthorArgs {
   /** The workspace the leaf works in — `cwd` for the SDK session; writes outside it are denied. */
@@ -55,6 +92,13 @@ export interface ClaudeAgentAuthorArgs {
   maxTurns?: number;
   /** Per-slice hard budget ceiling in USD (the SDK aborts past it). Default: 1. */
   maxBudgetUsd?: number;
+  /**
+   * Spine-registered feedback commands exposed to the leaf as bounded in-process MCP tools
+   * (`mcp__spine__<name>`). Absent/empty = the pre-option-A blind leaf (no execution feedback).
+   */
+  feedbackCommands?: FeedbackCommand[];
+  /** Per-authoring-slice cap on feedback runs, shared across commands. Default: 5. */
+  maxFeedbackRuns?: number;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
 }
@@ -65,11 +109,94 @@ const LEAF_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"];
 /** Tools the PreToolUse scope hook gates (everything that takes a `file_path` write target). */
 const WRITE_TOOL_MATCHER = "Write|Edit";
 
-const SYSTEM_PROMPT =
+/** The in-process MCP server name the feedback tools live under (`mcp__spine__<tool>`). */
+const FEEDBACK_SERVER = "spine";
+
+/** Default per-slice feedback-run cap (shared across commands). */
+const DEFAULT_MAX_FEEDBACK_RUNS = 5;
+
+/** Per-stream character cap on feedback output returned to the model (tail-kept). */
+const MAX_FEEDBACK_STREAM_CHARS = 8_000;
+
+const SYSTEM_PROMPT_BASE =
   "You are the leaf agent inside storytree's prove-it gate (red-green honesty loop). Work only " +
   "inside the workspace. Write ONLY the file(s) the phase brief allows — out-of-scope writes are " +
-  "refused by policy, and that refusal is final for this phase. You cannot run tests or shell " +
+  "refused by policy, and that refusal is final for this phase. ";
+
+/** The blind-leaf closing (no feedback tools wired). */
+const SYSTEM_PROMPT_NO_FEEDBACK =
+  "You cannot run tests or shell " +
   "commands; the spine observes test results itself. When the brief's deliverable is written, stop.";
+
+/** The option-A closing: bounded feedback runs exist, but the verdict never moves leaf-side. */
+const SYSTEM_PROMPT_WITH_FEEDBACK =
+  "You cannot run shell commands, but the spine exposes its registered command(s) as bounded " +
+  `feedback tools (mcp__${FEEDBACK_SERVER}__*) — use them to check your work and iterate. Their ` +
+  "output is FEEDBACK ONLY: the spine re-runs the command itself after you stop, and only that " +
+  "observation counts — your own claim of green is never the proof. If you conclude a frozen " +
+  "input is itself wrong (e.g. the test you must satisfy but may not edit), stop and say so " +
+  "plainly instead of working around it. When the brief's deliverable is written and checked, stop.";
+
+/** Build the per-slice system prompt (the closing differs with/without feedback tools). */
+export function leafSystemPrompt(hasFeedback: boolean): string {
+  return SYSTEM_PROMPT_BASE + (hasFeedback ? SYSTEM_PROMPT_WITH_FEEDBACK : SYSTEM_PROMPT_NO_FEEDBACK);
+}
+
+/**
+ * Render one feedback run for the model: exit code first, then tail-truncated streams (failures
+ * print last, so the tail is the diagnostic end). Pure — exported for offline tests.
+ */
+export function formatFeedbackOutput(
+  out: FeedbackRunOutput,
+  maxCharsPerStream: number = MAX_FEEDBACK_STREAM_CHARS,
+): string {
+  const clip = (s: string): string =>
+    s.length <= maxCharsPerStream
+      ? s
+      : `[…${s.length - maxCharsPerStream} chars truncated]\n${s.slice(-maxCharsPerStream)}`;
+  const verdictless = out.code === 0 ? "exit 0" : `exit ${out.code ?? "none (killed/not run)"}`;
+  return [
+    `${verdictless} — feedback only; the spine's own out-of-band observation is the verdict.`,
+    "--- stdout ---",
+    clip(out.stdout) || "(empty)",
+    "--- stderr ---",
+    clip(out.stderr) || "(empty)",
+  ].join("\n");
+}
+
+/**
+ * Execute one bounded feedback run (the tool handler's whole decision, pure-injectable for
+ * offline tests). Budget-exhausted refuses WITHOUT spawning; a spawn failure is returned as an
+ * error result (never thrown into the SDK); every run that consumed budget is recorded.
+ */
+export async function executeFeedback(args: {
+  phase: AuthoringPhase;
+  command: FeedbackCommand;
+  used: number;
+  max: number;
+  record: (run: SdkFeedbackRun) => void;
+}): Promise<{ text: string; isError: boolean }> {
+  if (args.used >= args.max) {
+    return {
+      isError: true,
+      text:
+        `feedback run budget exhausted (${args.max} runs this slice): stop iterating — finish ` +
+        "the deliverable and stop; the spine observes the official result itself.",
+    };
+  }
+  let out: FeedbackRunOutput;
+  try {
+    out = await args.command.run();
+  } catch (e) {
+    args.record({ phase: args.phase, tool: args.command.name, code: null });
+    return {
+      isError: true,
+      text: `feedback command failed to run: ${(e as Error).message}`,
+    };
+  }
+  args.record({ phase: args.phase, tool: args.command.name, code: out.code });
+  return { isError: false, text: formatFeedbackOutput(out) };
+}
 
 /**
  * The pure scope decision the PreToolUse hook applies (exported for offline tests). Fail-closed:
@@ -151,6 +278,9 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
   /** Per-slice accounting (subtype/turns/cost) read off each SDK result message. */
   readonly runs: SdkRunInfo[] = [];
 
+  /** Every bounded feedback run the leaf made, in order (run_proof/run_typecheck, exit codes). */
+  readonly feedbackRuns: SdkFeedbackRun[] = [];
+
   constructor(args: ClaudeAgentAuthorArgs) {
     this.#args = args;
     this.#queryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
@@ -161,16 +291,54 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     return this.runs.reduce((sum, r) => sum + r.costUsd, 0);
   }
 
+  /** The fully-qualified feedback tool names this leaf exposes (empty = blind leaf). */
+  get feedbackToolNames(): string[] {
+    return (this.#args.feedbackCommands ?? []).map((c) => `mcp__${FEEDBACK_SERVER}__${c.name}`);
+  }
+
   async author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult> {
+    const feedback = this.#args.feedbackCommands ?? [];
+    const maxFeedbackRuns = this.#args.maxFeedbackRuns ?? DEFAULT_MAX_FEEDBACK_RUNS;
+    // The per-SLICE feedback budget: a fresh counter per author() call, shared across commands.
+    let feedbackUsed = 0;
+
     const options: Options = {
       cwd: this.#args.cwd,
       model: this.#args.model ?? "claude-sonnet-4-6",
       maxTurns: this.#args.maxTurns ?? 16,
       maxBudgetUsd: this.#args.maxBudgetUsd ?? 1,
       tools: LEAF_TOOLS,
-      allowedTools: LEAF_TOOLS,
+      allowedTools: [...LEAF_TOOLS, ...this.feedbackToolNames],
       permissionMode: "bypassPermissions",
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: leafSystemPrompt(feedback.length > 0),
+      ...(feedback.length > 0
+        ? {
+            mcpServers: {
+              [FEEDBACK_SERVER]: createSdkMcpServer({
+                name: FEEDBACK_SERVER,
+                version: "1.0.0",
+                tools: feedback.map((command) =>
+                  tool(command.name, command.description, {}, async () => {
+                    const r = await executeFeedback({
+                      phase,
+                      command,
+                      used: feedbackUsed,
+                      max: maxFeedbackRuns,
+                      record: (run) => {
+                        feedbackUsed += 1;
+                        this.feedbackRuns.push(run);
+                      },
+                    });
+                    return {
+                      content: [{ type: "text" as const, text: r.text }],
+                      ...(r.isError ? { isError: true } : {}),
+                    };
+                  }),
+                ),
+              }),
+            },
+          }
+        : {}),
       hooks: {
         PreToolUse: [
           {

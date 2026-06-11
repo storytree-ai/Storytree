@@ -29,6 +29,9 @@ export {
   ShellTestExecutor,
   defaultClassifyKind,
   nodeEvalExecutor,
+  runShellCommand,
+  scrubbedChildEnv,
+  isScrubbedEnvKey,
 } from "./shell-test-executor.js";
 
 export type {
@@ -72,6 +75,7 @@ export {
   assemblePrompts,
   liveSmokePrompts,
   realPrompts,
+  feedbackCommandsFor,
   dryRunModel,
   scriptedWriterModel,
   DRY_RUN_TEST_REL,

@@ -17,6 +17,7 @@ import {
 import {
   resolveProveSpec,
   assemblePrompts,
+  feedbackCommandsFor,
   realPrompts,
   scriptedWriterModel,
 } from "./resolve-prove-spec.js";
@@ -377,6 +378,98 @@ test("realPrompts for an install-bearing node names the typecheck wall (type-leg
   assert.match(prompts.authorTest, /tsc --noEmit/);
   assert.match(prompts.authorTest, /exactOptionalPropertyTypes/);
   assert.match(prompts.implement, /tsc --noEmit/);
+});
+
+// ── Feedback tools (option A): the briefs, the commands, and the resolver wiring ────────────────
+
+test("realPrompts brief the feedback loop: run_proof in both phases, feedback ≠ verdict, stop-if-test-wrong", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
+  const real = lookupNodeBuildConfig("verdict-line")?.real;
+  assert.ok(real !== undefined);
+  const prompts = realPrompts(spec, real);
+  // AUTHOR_TEST: confirm the red is the RIGHT-KIND red before stopping (ADR-0020 §3).
+  assert.match(prompts.authorTest, /run_proof/);
+  assert.match(prompts.authorTest, /fails for the RIGHT\s+reason/);
+  // IMPLEMENT: iterate against the real oracle; the verdict stays the spine's.
+  assert.match(prompts.implement, /Iterate: write, `run_proof`, fix/);
+  assert.match(prompts.implement, /spine observes the official green itself/);
+  assert.match(prompts.implement, /stop and say so plainly/);
+  // No-install node: no run_typecheck in the brief.
+  assert.doesNotMatch(prompts.implement, /run_typecheck/);
+});
+
+test("realPrompts for an install-bearing node also brief run_typecheck", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "declare-presence.md"));
+  const real = lookupNodeBuildConfig("declare-presence")?.real;
+  assert.ok(real !== undefined);
+  const prompts = realPrompts(spec, real);
+  assert.match(prompts.authorTest, /run_typecheck/);
+  assert.match(prompts.implement, /`run_typecheck` is green/);
+});
+
+test("feedbackCommandsFor: run_proof always (the SAME command, really spawnable); run_typecheck only when registered", async () => {
+  const greenCmd = { file: process.execPath, args: ["-e", "console.log('ok'); process.exit(0)"] };
+  const redCmd = { file: process.execPath, args: ["-e", "console.error('boom'); process.exit(1)"] };
+
+  const proofOnly = feedbackCommandsFor(greenCmd, "node test");
+  assert.deepEqual(proofOnly.map((c) => c.name), ["run_proof"]);
+  assert.match(proofOnly[0]!.description, /FEEDBACK ONLY/);
+  // The runner really spawns the fixed command and surfaces exit-code-as-data.
+  const green = await proofOnly[0]!.run();
+  assert.equal(green.code, 0);
+  assert.match(green.stdout, /ok/);
+
+  const both = feedbackCommandsFor(greenCmd, "node test", redCmd);
+  assert.deepEqual(both.map((c) => c.name), ["run_proof", "run_typecheck"]);
+  const red = await both[1]!.run();
+  assert.equal(red.code, 1);
+  assert.match(red.stderr, /boom/);
+});
+
+test("real-mode resolution arms the live leaf with run_proof + run_typecheck (install node)", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "declare-presence.md"));
+  const result = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-feedback",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.ok(result.liveAuthor !== undefined);
+  assert.deepEqual(result.liveAuthor.feedbackToolNames, [
+    "mcp__spine__run_proof",
+    "mcp__spine__run_typecheck",
+  ]);
+});
+
+test("real-mode resolution for a no-install node arms run_proof only", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "drive-machinery", "verdict-line.md"));
+  const result = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-feedback2",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
+});
+
+test("live-smoke resolution arms run_proof over the synthetic pair", () => {
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
+  const result = resolveProveSpec(spec, {
+    mode: "live-smoke",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "r-smoke",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
 });
 
 /**
