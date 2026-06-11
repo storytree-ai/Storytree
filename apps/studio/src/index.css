@@ -1569,6 +1569,39 @@ mark.st-hl.flash {
   opacity: 0.12;
 }
 
+/* session wisps (notice-board presence orbiting a tree) */
+.world-wisp-glow {
+  fill: var(--accent);
+  opacity: 0.25;
+}
+.world-wisp-dot {
+  fill: var(--accent);
+  stroke: #ffffff;
+  stroke-width: 1.2;
+}
+.world-wisp.band-stale .world-wisp-glow { fill: var(--warn); }
+.world-wisp.band-stale .world-wisp-dot { fill: var(--warn); }
+.world-wisp.band-possibly-dead .world-wisp-glow { fill: var(--st-retired); opacity: 0.15; }
+.world-wisp.band-possibly-dead .world-wisp-dot { fill: var(--st-retired); }
+
+/* sessions-here block in the panel */
+.tree-sessions {
+  margin-top: 10px;
+}
+.tree-session {
+  margin: 4px 0;
+}
+.tree-session-band {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 7px;
+  background: var(--accent);
+}
+.tree-session-band.band-stale { background: var(--warn); }
+.tree-session-band.band-possibly-dead { background: var(--st-retired); }
+
 /* nameplates */
 .world-plate-bg {
   fill: var(--surface);

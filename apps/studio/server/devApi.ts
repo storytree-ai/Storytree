@@ -676,6 +676,9 @@ export function storytreeDataApi(): Plugin {
                   }
                 }
               }
+              // Notice-board presence (ADR-0033): advisory, silently absent offline.
+              const sessions = await backend.activeSessions();
+              if (sessions && sessions.length > 0) payload.sessions = sessions;
               sendJson(res, 200, payload);
             } else if (url.pathname === '/api/comments') {
               await handleComments(req, res, url, backend);

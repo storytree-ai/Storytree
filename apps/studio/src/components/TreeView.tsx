@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
-import type { TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
+import type { TreeCapability, TreeSession, TreeStory, TreeVerdict, WorkStatus } from '../types';
 
 // ---------- deterministic pseudo-random ----------
 
@@ -299,6 +299,7 @@ const STATUS_ORDER: (WorkStatus | 'unknown')[] = [
 
 export function TreeView(): React.JSX.Element {
   const [stories, setStories] = useState<TreeStory[] | null>(null);
+  const [sessions, setSessions] = useState<TreeSession[]>([]);
   const [loadError, setLoadError] = useState('');
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [hoverStory, setHoverStory] = useState<string | null>(null);
@@ -309,7 +310,10 @@ export function TreeView(): React.JSX.Element {
   useEffect(() => {
     api
       .tree()
-      .then((p) => setStories(p.stories))
+      .then((p) => {
+        setStories(p.stories);
+        setSessions(p.sessions ?? []);
+      })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
 
@@ -320,6 +324,29 @@ export function TreeView(): React.JSX.Element {
     () => (stories && focusStoryId ? relationsFor(stories, focusStoryId) : null),
     [stories, focusStoryId],
   );
+
+  // Which sessions sit at which tree: a session anchors to a story directly (node =
+  // story id) or via any capability the story owns. Unanchored sessions still count
+  // in the toolbar total — they just have no tree to orbit.
+  const sessionsByStory = useMemo(() => {
+    const capOwner = new Map<string, string>();
+    for (const s of stories ?? []) for (const c of s.capabilities) capOwner.set(c.id, s.id);
+    const byStory = new Map<string, TreeSession[]>();
+    for (const session of sessions) {
+      const storyIds = new Set<string>();
+      for (const node of session.nodes) {
+        if (stories?.some((s) => s.id === node)) storyIds.add(node);
+        const owner = capOwner.get(node);
+        if (owner) storyIds.add(owner);
+      }
+      for (const id of storyIds) {
+        const list = byStory.get(id);
+        if (list) list.push(session);
+        else byStory.set(id, [session]);
+      }
+    }
+    return byStory;
+  }, [stories, sessions]);
 
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -382,8 +409,11 @@ export function TreeView(): React.JSX.Element {
       <div className="tree-toolbar">
         <h2>Story world</h2>
         <span className="muted small">
-          {stories.length} stories · {capCount} capabilities — trees grow as stories gain
-          capabilities; trails are story dependencies. Click a tree for its capability DAG.
+          {stories.length} stories · {capCount} capabilities
+          {sessions.length > 0 &&
+            ` · ${sessions.length} active session${sessions.length === 1 ? '' : 's'}`}{' '}
+          — trees grow as stories gain capabilities; trails are story dependencies. Click a
+          tree for its capability DAG.
         </span>
         <span className="tree-toolbar-chips">
           {STATUS_ORDER.filter((st) => (statusCounts.get(st) ?? 0) > 0).map((st) => (
@@ -473,6 +503,7 @@ export function TreeView(): React.JSX.Element {
                 tree={t}
                 className={treeClass(t)}
                 hidden={hidden}
+                sessions={sessionsByStory.get(t.story.id) ?? []}
                 onHover={(on) => setHoverStory(on ? t.story.id : null)}
                 onSelect={() => {
                   setSelectedCap(null);
@@ -486,6 +517,7 @@ export function TreeView(): React.JSX.Element {
         {selected && (
           <StoryPanel
             story={selected}
+            sessions={sessionsByStory.get(selected.id) ?? []}
             selectedCap={selectedCap}
             hoverCap={hoverCap}
             hidden={hidden}
@@ -529,16 +561,24 @@ function FieldTexture({ width, height }: { width: number; height: number }): Rea
   );
 }
 
+/** Age since lastSeenAt, compact ("12m" / "3h"). */
+function formatAge(lastSeenAt: string): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60_000));
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
+}
+
 function TopDownTree({
   tree: t,
   className,
   hidden,
+  sessions,
   onHover,
   onSelect,
 }: {
   tree: WorldTree;
   className: string;
   hidden: ReadonlySet<string>;
+  sessions: TreeSession[];
   onHover: (on: boolean) => void;
   onSelect: () => void;
 }): React.JSX.Element {
@@ -601,6 +641,28 @@ function TopDownTree({
       {/* trunk peeking through the canopy centre */}
       <circle className="world-trunk" r={3.4} />
 
+      {/* session wisps — live sessions from the notice board orbit the trees they work on */}
+      {sessions.map((s, i) => {
+        const phase = (i * 360) / sessions.length + rand01(hash(s.sessionId)) * 90;
+        return (
+          <g key={s.sessionId} className={`world-wisp band-${s.band}`}>
+            <title>{`${s.sessionId} [${s.band}] ${formatAge(s.lastSeenAt)} — ${s.workingOn}`}</title>
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from={`${phase} 0 0`}
+              to={`${phase + 360} 0 0`}
+              dur={`${s.band === 'fresh' ? 9 : 16}s`}
+              repeatCount="indefinite"
+            />
+            <g transform={`translate(${t.r + 13} 0)`}>
+              <circle className="world-wisp-glow" r={6.5} />
+              <circle className="world-wisp-dot" r={2.8} />
+            </g>
+          </g>
+        );
+      })}
+
       {/* nameplate */}
       <g className="world-plate" transform={`translate(${-plateW / 2} ${t.r + 12})`}>
         <rect className="world-plate-bg" width={plateW} height={30} rx={7} />
@@ -636,6 +698,7 @@ function VerdictLine({ verdict }: { verdict: TreeVerdict | undefined }): React.J
 
 function StoryPanel({
   story,
+  sessions,
   selectedCap,
   hoverCap,
   hidden,
@@ -644,6 +707,7 @@ function StoryPanel({
   onClose,
 }: {
   story: TreeStory;
+  sessions: TreeSession[];
   selectedCap: string | null;
   hoverCap: string | null;
   hidden: ReadonlySet<string>;
@@ -713,6 +777,20 @@ function StoryPanel({
             <code key={d}>{d} </code>
           ))}
         </p>
+      )}
+
+      {sessions.length > 0 && (
+        <div className="tree-sessions">
+          <h4 className="tree-subdag-title">sessions here ({sessions.length})</h4>
+          {sessions.map((s) => (
+            <p key={s.sessionId} className="tree-session small">
+              <span className={`tree-session-band band-${s.band}`} title={s.band} />
+              <code>{s.sessionId}</code>
+              <span className="muted"> {formatAge(s.lastSeenAt)} · </span>
+              {s.workingOn}
+            </p>
+          ))}
+        </div>
       )}
 
       <h4 className="tree-subdag-title">capabilities ({story.capabilities.length})</h4>

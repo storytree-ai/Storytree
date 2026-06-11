@@ -280,8 +280,26 @@ export interface TreeStory {
   error?: string;
 }
 
+/**
+ * An active session from the notice board (ADR-0033), woven into the tree view when
+ * the live store answers — SILENTLY ABSENT otherwise, like the CLI presence block.
+ * `band` is derived server-side at read time (never stored): fresh < 1h ≤ stale < 4h
+ * ≤ possibly-dead.
+ */
+export interface TreeSession {
+  sessionId: string;
+  branch: string;
+  workingOn: string;
+  /** Work-hierarchy ids the session anchored to (story or capability ids). */
+  nodes: string[];
+  band: 'fresh' | 'stale' | 'possibly-dead';
+  lastSeenAt: string;
+}
+
 export interface TreePayload {
   stories: TreeStory[];
+  /** Present only when the live store answered AND at least one session is active. */
+  sessions?: TreeSession[];
 }
 
 /** Highlight colour palette for text-anchored comments. */

@@ -26,6 +26,7 @@ import type {
   AssetCategory,
   Comment,
   GuidanceAsset,
+  TreeSession,
   TreeVerdict,
 } from '../src/types';
 
@@ -97,6 +98,13 @@ export interface LibraryBackend {
    * the tree renders without glyphs rather than failing (presence-block discipline).
    */
   latestVerdicts(): Promise<Record<string, TreeVerdict> | null>;
+
+  /**
+   * Active notice-board sessions (events.session projection, ADR-0033) with the
+   * staleness band derived at read time. NEVER throws — `null` for the json backend
+   * or when the DB doesn't answer; presence is advisory and silently absent.
+   */
+  activeSessions(): Promise<TreeSession[] | null>;
 
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
@@ -179,6 +187,10 @@ export class JsonBackend implements LibraryBackend {
     return null; // no events.verdict behind the JSON files — glyphs silently absent
   }
 
+  async activeSessions(): Promise<TreeSession[] | null> {
+    return null; // no events.session behind the JSON files — presence silently absent
+  }
+
   async listComments(filter: CommentFilter): Promise<Comment[]> {
     const comments = await readStore<Comment[]>(this.#commentsFile, []);
     return comments.filter(
@@ -245,6 +257,17 @@ let storeModulePromise: Promise<StoreModule> | null = null;
 /** Load @storytree/store once, on first PgBackend use (never at config-load / build time). */
 function loadStoreModule(): Promise<StoreModule> {
   return (storeModulePromise ??= import('@storytree/store'));
+}
+
+// @storytree/core's ROOT export is Node-only too (signer → node:crypto) and its raw-TS
+// `.js` specifiers hit the same config-load trap — so classifyPresence is loaded just as
+// lazily, on the first presence read.
+type CoreModule = typeof import('@storytree/core');
+
+let coreModulePromise: Promise<CoreModule> | null = null;
+
+function loadCoreModule(): Promise<CoreModule> {
+  return (coreModulePromise ??= import('@storytree/core'));
 }
 
 const DEFAULT_ACTOR = 'operator';
@@ -410,6 +433,39 @@ export class PgBackend implements LibraryBackend {
         };
       }
       return out;
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Active sessions from events.session via PgPresenceStore.listActive(), staleness
+   * classified at read time (classifyPresence, the ADR-0033 fixed thresholds). Same
+   * advisory contract as latestVerdicts(): null on any failure, never a throw.
+   */
+  async activeSessions(): Promise<TreeSession[] | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const { store } = await this.#ready();
+      const handle = this.#handle;
+      if (!handle) return null;
+      const core = await loadCoreModule();
+      const presence = new store.PgPresenceStore(handle.pool);
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('presence probe timed out')), 4000);
+      });
+      const docs = await Promise.race([presence.listActive(), timeout]);
+      const now = new Date();
+      return docs.map((d) => ({
+        sessionId: d.sessionId,
+        branch: d.branch,
+        workingOn: d.workingOn,
+        nodes: d.nodes,
+        band: core.classifyPresence(d.lastSeenAt, now),
+        lastSeenAt: d.lastSeenAt,
+      }));
     } catch {
       return null;
     } finally {
