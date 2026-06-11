@@ -113,7 +113,8 @@ export function App(): React.JSX.Element {
                 <p className="muted">{error}</p>
                 <p className="muted">
                   Is the dev server running? Start it with{' '}
-                  <code>pnpm --filter studio dev</code>.
+                  <code>pnpm studio:up</code> from the repo root (not your home
+                  directory — pnpm needs the workspace).
                 </p>
                 <p className="muted">
                   If the dev server <em>is</em> up, the live store may be stopped — use
