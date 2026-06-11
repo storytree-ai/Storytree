@@ -1,0 +1,237 @@
+/**
+ * `storytree tree [<story-id>]` command (tree-view capability, stories/notice-board).
+ *
+ * Bare view  — all stories: id, title, status, capability count; active-session summary when live.
+ * Focused view — one story's hierarchy, build surface, dependency edges, and the presence block.
+ *
+ * Offline by default; presence is advisory and silently absent on null / errors.
+ */
+
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
+
+import { classifyPresence } from "@storytree/core";
+import { loadNodeSpec } from "@storytree/orchestrator";
+
+import type { PresenceStoreLike } from "./noticeboard.js";
+import type { Envelope } from "./envelope.js";
+
+// ---------------------------------------------------------------------------
+// Public interface
+// ---------------------------------------------------------------------------
+
+export interface TreeDeps {
+  storiesDir: string;
+  /** Registry seam: non-null = registered; `.real !== undefined` = REAL-buildable. */
+  lookupConfig: (id: string) => { real?: unknown } | null;
+  presence: PresenceStoreLike | null;
+  now: () => Date;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+interface StoryEntry {
+  id: string;
+  dir: string;
+}
+
+function discoverStories(storiesDir: string): StoryEntry[] {
+  if (!existsSync(storiesDir)) return [];
+  const result: StoryEntry[] = [];
+  for (const entry of readdirSync(storiesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const storyFile = path.join(storiesDir, entry.name, "story.md");
+    if (existsSync(storyFile)) {
+      result.push({ id: entry.name, dir: path.join(storiesDir, entry.name) });
+    }
+  }
+  return result;
+}
+
+function buildMark(
+  id: string,
+  lookupConfig: (id: string) => { real?: unknown } | null,
+): string {
+  const cfg = lookupConfig(id);
+  if (cfg === null) return "unregistered";
+  if (cfg.real !== undefined) return "REAL-buildable";
+  return "registered";
+}
+
+function formatAge(lastSeenAt: string, now: Date): string {
+  const elapsed = now.getTime() - new Date(lastSeenAt).getTime();
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
+}
+
+// ---------------------------------------------------------------------------
+// treeCommand
+// ---------------------------------------------------------------------------
+
+export async function treeCommand(
+  storyId: string | undefined,
+  deps: TreeDeps,
+): Promise<Envelope> {
+  const stories = discoverStories(deps.storiesDir);
+
+  // -------------------------------------------------------------------------
+  // Bare view (no storyId)
+  // -------------------------------------------------------------------------
+  if (storyId === undefined) {
+    const lines: string[] = ["Stories:"];
+
+    for (const { id, dir } of stories) {
+      const storyFile = path.join(dir, "story.md");
+      let title = "(unknown)";
+      let status = "(unknown)";
+      let capCount = 0;
+      try {
+        const spec = loadNodeSpec(storyFile);
+        title = spec.title;
+        status = spec.status;
+        capCount = spec.capabilities.length;
+      } catch {
+        // tolerate load failures — still list the story
+      }
+      lines.push(`  ${id}  ${title}  status=${status}  caps=${capCount}`);
+    }
+
+    if (deps.presence !== null) {
+      try {
+        const active = await deps.presence.listActive();
+        lines.push(`\nActive sessions: ${active.length}`);
+      } catch {
+        // silently absent
+      }
+    }
+
+    const next: string[] = stories.map(({ id }) => `storytree tree ${id}`);
+    return { ok: true, body: lines.join("\n"), next };
+  }
+
+  // -------------------------------------------------------------------------
+  // Focused view (storyId given)
+  // -------------------------------------------------------------------------
+  const storyEntry = stories.find((s) => s.id === storyId);
+  if (storyEntry === undefined) {
+    return {
+      ok: false,
+      body: `Unknown story "${storyId}". Available: ${
+        stories.map((s) => s.id).join(", ") || "(none)"
+      }`,
+      next: stories.map((s) => `storytree tree ${s.id}`),
+    };
+  }
+
+  const storyFile = path.join(storyEntry.dir, "story.md");
+  let storyTitle = "(unknown)";
+  let storyStatus = "(unknown)";
+  let storyOutcome = "(unknown)";
+  let capIds: string[] = [];
+  try {
+    const spec = loadNodeSpec(storyFile);
+    storyTitle = spec.title;
+    storyStatus = spec.status;
+    storyOutcome = spec.outcome;
+    capIds = spec.capabilities;
+  } catch {
+    // tolerate — render what we can
+  }
+
+  interface CapRow {
+    id: string;
+    title: string;
+    status: string;
+    dependsOn: string[];
+    mark: string;
+  }
+
+  const capRows: CapRow[] = [];
+  for (const capId of capIds) {
+    const capFile = path.join(storyEntry.dir, `${capId}.md`);
+    let title = "(spec missing)";
+    let status = "(spec missing)";
+    let dependsOn: string[] = [];
+    if (existsSync(capFile)) {
+      try {
+        const spec = loadNodeSpec(capFile);
+        title = spec.title;
+        status = spec.status;
+        dependsOn = spec.dependsOn;
+      } catch {
+        // tolerate
+      }
+    }
+    capRows.push({
+      id: capId,
+      title,
+      status,
+      dependsOn,
+      mark: buildMark(capId, deps.lookupConfig),
+    });
+  }
+
+  const lines: string[] = [
+    `Story: ${storyId}`,
+    `  title:   ${storyTitle}`,
+    `  status:  ${storyStatus}`,
+    `  outcome: ${storyOutcome}`,
+    "",
+    "Capabilities:",
+  ];
+  for (const row of capRows) {
+    lines.push(
+      `  ${row.id}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
+    );
+  }
+
+  const edges: string[] = [];
+  for (const row of capRows) {
+    for (const dep of row.dependsOn) {
+      edges.push(`${dep} → ${row.id}`);
+    }
+  }
+  if (edges.length > 0) {
+    lines.push("", "Dependency edges:");
+    for (const edge of edges) {
+      lines.push(`  ${edge}`);
+    }
+  }
+
+  // Presence block — advisory, never throws, silently absent when empty or on error
+  const relevantNodes = new Set<string>([storyId, ...capIds]);
+  if (deps.presence !== null) {
+    try {
+      const active = await deps.presence.listActive();
+      const matching = active.filter((doc) =>
+        doc.nodes.some((n) => relevantNodes.has(n)),
+      );
+      if (matching.length > 0) {
+        lines.push("", "sessions here:");
+        const now = deps.now();
+        for (const doc of matching) {
+          const band = classifyPresence(doc.lastSeenAt, now);
+          const age = formatAge(doc.lastSeenAt, now);
+          lines.push(`  ${doc.sessionId}  [${band}]  ${age}  ${doc.workingOn}`);
+        }
+      }
+    } catch {
+      // silently absent — the view still renders ok: true
+    }
+  }
+
+  // Next pointers
+  const next: string[] = [
+    `storytree noticeboard declare --working-on <prose> --node ${storyId} --pg`,
+  ];
+  const realCap = capRows.find((r) => r.mark === "REAL-buildable");
+  if (realCap !== undefined) {
+    next.push(`storytree node build ${realCap.id} --real`);
+  }
+  next.push("storytree tree");
+
+  return { ok: true, body: lines.join("\n"), next };
+}
