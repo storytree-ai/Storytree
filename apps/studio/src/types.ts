@@ -71,6 +71,7 @@ export type AssetCategory =
   | 'guardrail' // "a deterministically-enforced boundary"
   | 'techstack' // "what we build on"
   | 'process' // "a repeatable operating ceremony"
+  | 'agent' // "a role and its operating discipline"
   | 'template' // "the shape an artifact conforms to"
   | 'adr' // "a decision record"
   | 'open-question'; // "an unresolved decision to settle"
@@ -176,6 +177,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'guardrail',
   'techstack',
   'process',
+  'agent',
   'template',
   'adr',
   'open-question',
@@ -189,6 +191,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   guardrail: 'a deterministically-enforced boundary',
   techstack: 'what we build on',
   process: 'a repeatable operating ceremony',
+  agent: 'a role and its operating discipline',
   template: 'the shape an artifact conforms to',
   adr: 'a decision record',
   'open-question': 'an unresolved decision to settle',

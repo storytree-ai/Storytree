@@ -48,6 +48,7 @@ const KIND_ORDER = [
   "guardrail",
   "techstack",
   "process",
+  "agent",
   "open-question",
   "template",
 ] as const;
