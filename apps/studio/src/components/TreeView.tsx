@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
-import type { TreeCapability, TreeStory, WorkStatus } from '../types';
+import type { TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
 
 // ---------- deterministic pseudo-random ----------
 
@@ -569,13 +569,14 @@ function TopDownTree({
       {caps.map((cap, i) => {
         const p = fruitPos(i, caps.length, t.r, seed + 17);
         const st = cap.status ?? 'unknown';
+        const verdictNote = cap.verdict ? ` · ${cap.verdict.outcome === 'pass' ? '✓ proven' : '✗ last run failed'}` : '';
         return (
           <g
             key={cap.id}
             className={`world-fruit st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
             transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`}
           >
-            <title>{`${cap.id} — ${cap.error ? 'spec error' : st}`}</title>
+            <title>{`${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`}</title>
             {cap.status === 'healthy' &&
               [0, 1, 2, 3, 4].map((k) => (
                 <circle
@@ -587,6 +588,12 @@ function TopDownTree({
                 />
               ))}
             <circle className="world-fruit-dot" r={4.6} />
+            {cap.verdict?.outcome === 'pass' && (
+              <path className="world-fruit-glyph" d="M -2.2 0.2 L -0.6 1.9 L 2.4 -1.9" />
+            )}
+            {cap.verdict?.outcome === 'fail' && (
+              <path className="world-fruit-glyph" d="M -2 -2 L 2 2 M 2 -2 L -2 2" />
+            )}
           </g>
         );
       })}
@@ -601,10 +608,29 @@ function TopDownTree({
           {story.id}
         </text>
         <text className="world-plate-sub" x={plateW / 2} y={25} textAnchor="middle">
-          {story.error ? 'story spec error' : `${statusKey} · ${caps.length} caps`}
+          {story.error
+            ? 'story spec error'
+            : `${statusKey} · ${caps.length} caps${
+                story.verdict ? ` · UAT ${story.verdict.outcome === 'pass' ? '✓' : '✗'}` : ''
+              }`}
         </text>
       </g>
     </g>
+  );
+}
+
+/**
+ * One verdict, ADR-0033 d.3 vocabulary: ✓ proven / ✗ last run failed / – never built.
+ * "Never built" is also what an OFFLINE session sees — glyphs are advisory and the
+ * payload omits them when no live store answered.
+ */
+function VerdictLine({ verdict }: { verdict: TreeVerdict | undefined }): React.JSX.Element {
+  if (!verdict) return <span className="muted">– never built</span>;
+  const when = new Date(verdict.at).toLocaleString();
+  return verdict.outcome === 'pass' ? (
+    <span className="verdict-pass">✓ proven · {when}</span>
+  ) : (
+    <span className="verdict-fail">✗ last run failed · {when}</span>
   );
 }
 
@@ -676,6 +702,10 @@ function StoryPanel({
       <p className="tree-detail-title">{story.title}</p>
       {story.error && <p className="tree-detail-error">{story.error}</p>}
       {story.outcome && <p className="muted small">{story.outcome}</p>}
+      <p className="small">
+        <span className="muted">UAT verdict </span>
+        <VerdictLine verdict={story.verdict} />
+      </p>
       {story.dependsOn.length > 0 && (
         <p className="small">
           <span className="muted">depends on </span>
@@ -720,6 +750,11 @@ function StoryPanel({
                 <text className="tree-card-status" x={7} y={10}>
                   {c.error ? 'spec error' : (c.status ?? 'unknown')}
                 </text>
+                {c.verdict && (
+                  <text className="tree-card-verdict" x={SUB_W - 6} y={10} textAnchor="end">
+                    {c.verdict.outcome === 'pass' ? '✓' : '✗'}
+                  </text>
+                )}
                 {lines.map((line, i) => (
                   <text
                     key={i}
@@ -749,6 +784,10 @@ function StoryPanel({
           {cap.error && <p className="tree-detail-error">{cap.error}</p>}
           {cap.outcome && <p className="muted small">{cap.outcome}</p>}
           <dl>
+            <dt>verdict</dt>
+            <dd>
+              <VerdictLine verdict={cap.verdict} />
+            </dd>
             {cap.proofMode && (
               <>
                 <dt>proof mode</dt>

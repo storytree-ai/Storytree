@@ -238,6 +238,17 @@ export type WorkStatus =
   | 'retired';
 
 /**
+ * The latest signed verdict for a unit, read from `events.verdict` when the studio
+ * runs on the live pg store and the DB answers — SILENTLY ABSENT otherwise
+ * (ADR-0033 owner decision 3 semantics: ✓ proven / ✗ last run failed / – never
+ * built; a story's verdict is its OWN UAT node's, never a roll-up from children).
+ */
+export interface TreeVerdict {
+  outcome: 'pass' | 'fail';
+  at: string;
+}
+
+/**
  * One capability node in the tree view. `status: null` + `error` means the spec
  * file was missing or failed frontmatter validation — the view still renders the
  * node (tolerant, like `storytree tree`) with the reason on its detail panel.
@@ -250,6 +261,7 @@ export interface TreeCapability {
   proofMode: string;
   /** Sibling capability ids this one depends on (the in-story `depends_on` edges). */
   dependsOn: string[];
+  verdict?: TreeVerdict;
   error?: string;
 }
 
@@ -262,6 +274,8 @@ export interface TreeStory {
   proofMode: string;
   /** Story ids this story depends on (frontmatter `depends_on` — consumed cross-story seams). */
   dependsOn: string[];
+  /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
+  verdict?: TreeVerdict;
   capabilities: TreeCapability[];
   error?: string;
 }
