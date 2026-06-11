@@ -662,7 +662,21 @@ export function storytreeDataApi(): Plugin {
               await handleDocs(req, res, url, paths);
             } else if (url.pathname === '/api/tree') {
               if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-              sendJson(res, 200, await readTree(paths.storiesDir));
+              const payload = await readTree(paths.storiesDir);
+              // Advisory verdict glyphs (ADR-0033 d.3): latestVerdicts() never throws —
+              // null (json store / DB down) just means the tree renders without them.
+              const verdicts = await backend.latestVerdicts();
+              if (verdicts) {
+                for (const story of payload.stories) {
+                  const sv = verdicts[story.id];
+                  if (sv) story.verdict = sv; // the story's OWN UAT node, never a roll-up
+                  for (const cap of story.capabilities) {
+                    const cv = verdicts[cap.id];
+                    if (cv) cap.verdict = cv;
+                  }
+                }
+              }
+              sendJson(res, 200, payload);
             } else if (url.pathname === '/api/comments') {
               await handleComments(req, res, url, backend);
             } else if (url.pathname === '/api/assets') {

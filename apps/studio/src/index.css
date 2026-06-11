@@ -1558,6 +1558,13 @@ mark.st-hl.flash {
   fill: #ffffff;
   opacity: 0.9;
 }
+.world-fruit-glyph {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .world-fruit.is-filtered {
   opacity: 0.12;
 }
@@ -1684,6 +1691,19 @@ mark.st-hl.flash {
 }
 .sub-card .tree-card-status {
   font-size: 8.5px;
+}
+.tree-card-verdict {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.verdict-pass {
+  color: var(--good);
+  font-weight: 650;
+}
+.verdict-fail {
+  color: var(--danger);
+  font-weight: 650;
 }
 .sub-card .tree-card-id {
   font-size: 10px;

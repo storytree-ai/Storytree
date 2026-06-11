@@ -26,6 +26,7 @@ import type {
   AssetCategory,
   Comment,
   GuidanceAsset,
+  TreeVerdict,
 } from '../src/types';
 
 /** Fields the API validates from a create/update asset request (no server-stamped timestamps). */
@@ -88,6 +89,14 @@ export interface LibraryBackend {
 
   /** Cheap connectivity + schema-skew probe for /api/health. Never throws. */
   health(): Promise<HealthProbe>;
+
+  /**
+   * Latest signed verdict per unit from `events.verdict`, for the tree view's glyphs
+   * (ADR-0033 owner decision 3: ✓ / ✗ / absent-means-never-built). NEVER throws —
+   * `null` when there is no DB behind this backend (json) or the DB doesn't answer;
+   * the tree renders without glyphs rather than failing (presence-block discipline).
+   */
+  latestVerdicts(): Promise<Record<string, TreeVerdict> | null>;
 
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
@@ -164,6 +173,10 @@ export class JsonBackend implements LibraryBackend {
 
   async health(): Promise<HealthProbe> {
     return { db: 'n/a' }; // no DB behind the JSON files — nothing to probe
+  }
+
+  async latestVerdicts(): Promise<Record<string, TreeVerdict> | null> {
+    return null; // no events.verdict behind the JSON files — glyphs silently absent
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {
@@ -360,6 +373,45 @@ export class PgBackend implements LibraryBackend {
       }
     } catch {
       return { db: 'unreachable' };
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Latest verdict per unit — `SELECT DISTINCT ON (unit_id) … ORDER BY seq DESC` over
+   * events.verdict, raced against the same ~4s timeout as health(). Null on ANY failure
+   * (stopped instance, missing table, pool build error): the glyphs are advisory.
+   */
+  async latestVerdicts(): Promise<Record<string, TreeVerdict> | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await this.#ready();
+      const handle = this.#handle;
+      if (!handle) return null;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('verdict probe timed out')), 4000);
+      });
+      const res = await Promise.race([
+        handle.pool.query(
+          `SELECT DISTINCT ON (unit_id) unit_id, outcome, at
+             FROM events.verdict
+            ORDER BY unit_id, seq DESC`,
+        ),
+        timeout,
+      ]);
+      const out: Record<string, TreeVerdict> = {};
+      for (const raw of (res as { rows: unknown[] }).rows) {
+        const row = raw as { unit_id: string; outcome: string; at: Date | string };
+        if (row.outcome !== 'pass' && row.outcome !== 'fail') continue;
+        out[row.unit_id] = {
+          outcome: row.outcome,
+          at: row.at instanceof Date ? row.at.toISOString() : new Date(row.at).toISOString(),
+        };
+      }
+      return out;
+    } catch {
+      return null;
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }
