@@ -2,16 +2,21 @@
 
 ## Status
 
-proposed (2026-06-10) — adds a seventh `kind` to the Library
+accepted (2026-06-11) — proposed 2026-06-10; ratified with the owner decisions recorded in
+§"Open questions for the owner" below. Adds a new `kind` to the Library
 ([ADR-0017](0017-cross-cutting-knowledge-tier.md) /
 [ADR-0019](0019-library-tier-name-and-defer-dbos.md)) under the schema-driven `KIND_SPECS`
 contract ([ADR-0018](0018-knowledge-tier-phase1-structured-source.md)), reached by the same
 choose-your-own-adventure CLI ([ADR-0023](0023-library-cli-choose-your-own-adventure.md)) and
 governed by the same migration posture ([ADR-0026](0026-library-schema-migrations-and-health-checks.md)).
 Records the V1 (`legacy/Agentic`) agent roster as durable, citable Library units rather than letting
-the roster mapping live only in branch memory. **This is a design proposal only** — it changes no
-code (`packages/core/knowledge.ts`, `packages/store`, `apps/studio`) and seeds no live DB rows; it
-specifies the shape a later, gated build conforms to.
+the roster mapping live only in branch memory. **Built and seeded at ratification:** `KIND_SPECS.agent`
++ the studio taxonomy + the KIND_SPECS↔zod parity test landed, and the eleven roster units were
+written to the live store via the library CLI (and to the `knowledge.json` seed). Note: this ADR was
+drafted when `agent` would have been the *seventh* kind; ADR-0034's `process` landed first, so
+`agent` is the **eighth** — the design is unchanged. The seed content carries the
+[ADR-0032](0032-cite-graduation-mechanism.md) retrofit: the cite-threshold curation step is recast as
+the deferred **signal-synthesis** agent (see the roster-mapping note below).
 
 ## Date
 
@@ -66,8 +71,9 @@ data model.
 
 ## Decision
 
-1. **Add a seventh Library `kind`: `agent`.** It joins
-   `definition | principle | pattern | guardrail | techstack | open-question` as a first-class,
+1. **Add a new Library `kind`: `agent`** (drafted as the seventh; landed as the eighth after
+   ADR-0034's `process`). It joins
+   `definition | principle | pattern | guardrail | techstack | process | open-question` as a first-class,
    zod-validated, CLI-reachable artifact category. An `agent` unit captures **what a v2 agent (or an
    obsolete-V1-agent disposition) is**: its role, the surface it owns, its authority floor, the proof
    it must produce, the context it reads, and its operating discipline — folded down from V1's five
@@ -250,14 +256,28 @@ Eleven `agent` units, one per V1 roster entry, with v2 disposition:
 | build-rust | evolve | owned-loop builder = prove-it-gate IMPLEMENT phase (Rust→TS) |
 | test-builder | evolve | owned-loop test author = AUTHOR_TEST + executor-owned CONFIRM_RED |
 | test-uat | evolve | prove-it-gate CONFIRM_GREEN + the signing GATE phase |
-| trace-explorer | evolve | `friction-analyst` (read-only over the event store, feeding the notice-board) |
+| trace-explorer | evolve | `friction-analyst` (read-only over the event store, feeding the signal → Library graduation loop) |
 | brief-writer | obsolete | the studio (the live web IDE supersedes the static HTML brief) |
 | guidance-writer | evolve → merge | `library-curator` (merged with story-writer; `storytree agents <name>` namespace) |
-| memory-curator | evolve | the notice-board curation step (spine proposes, human approves graduation) |
+| memory-curator | evolve | `agent-signal-synthesis` — the deferred signal-synthesis agent (ADR-0032) |
 
 The full per-entry rationale (why obsolete vs evolve, what discipline carries, which ADR absorbs each
 surface) is the body of each unit; it is supplied to the drafting/authoring phase as the roster JSON in
 the task brief, not re-typed here.
+
+> **ADR-0032 retrofit (2026-06-11, applied at seeding).** The memory-curator row was drafted as "the
+> notice-board curation step (spine proposes on a cite-threshold, human approves graduation)" —
+> [ADR-0032](0032-cite-graduation-mechanism.md) superseded that mechanism before this ADR ratified:
+> a cite is a typed **link** (building a signal-graph), graduation is a (future) **synthesis agent**
+> emitting OQs/proposals into the ADR-0018 OQ→ADR flow, and the cite-stuffing/anti-gaming defences
+> are deliberately not built. The seeded unit is therefore `agent-signal-synthesis` (deferred —
+> named, unbuilt; `stories/feedback-graduation/` is the build vehicle), and `friction-analyst`'s
+> downstream pointer was re-pointed the same way. The seeded ids, for the record:
+> `library-investigator`, `library-curator`, `library-curator-agent-spec-half` (story-writer and
+> guidance-writer landed as two units — the merge stays an open owner call recorded in the units),
+> `agent-owned-loop-builder`, `agent-owned-loop-test-author`, `agent-prove-it-gate-verdict`,
+> `friction-analyst`, `agent-signal-synthesis`, `session-orchestrator`, `escalation-screener`,
+> `brief-writer`.
 
 ## Migration posture (per ADR-0026)
 
@@ -310,37 +330,36 @@ the task brief, not re-typed here.
   candidate units the eight drafts need beyond the existing corpus are drafted in
   `docs/research/agent-guidance-candidates.json`, awaiting ratification alongside the kind itself.
 
-## Open questions for the owner
+## Open questions for the owner — RESOLVED (owner decisions, 2026-06-11)
 
-1. **`agent` vs the `storytree agents <name>` namespace — keep them distinct, or bind them?** This ADR
-   keeps the *kind* (a Library record of a role) and the *namespace* (ADR-0023 §7 context assembly)
-   separate. Should a later build make `storytree agents <name>` read its role's `agent` unit as a
-   context input, and if so is the `agent` unit's `requiredReading`/`rules` the *source* of that
-   assembly or merely a human-readable mirror of it? (ADR-0011 territory; flagged, not decided.)
+1. **`agent` vs the `storytree agents <name>` namespace — keep them distinct, or bind them?**
+   **DECIDED: BIND, with the Library unit as the SOURCE of context assembly, not a mirror.** A later
+   build makes `storytree agents <name>` assemble its context *from* the role's `agent` unit — the
+   unit's `requiredReading`/`rules` are the source of the assembly, never a human-readable copy that
+   could drift. The binding is **not built now**; this records the direction. Prompt-assembly shape
+   when built: **structured fields + a renderer** (the oq-library-doc-shape lesson — option C's
+   fields-are-authoritative, render-is-derived), not a freeform template with placeholders.
 
-2. **Glossary projection for agents?** `commonShape` lets any kind be a glossary member
-   (`glossarySection`/`glossaryTerm`/`glossaryBody`). Should the v2 agent names (`library-curator`,
-   `friction-analyst`, the prove-it-gate phases) become glossary terms, or stay Library-only? (Leaning
-   Library-only — they are roles, not vocabulary — but the owner holds the glossary surface.)
+2. **Glossary projection for agents?** **DECIDED: NO.** Agent names stay Library-only — they are
+   roles, not vocabulary. No `glossarySection`/`glossaryTerm` is set on `agent` units (and the seeded
+   eleven carry none).
 
-3. **Should obsolete-as-agent units live in the `agent` kind at all, or in a `lifecycle-status`-style
-   note?** Recording dissolutions as `agent` units (decision §8) makes the mapping uniform and
-   queryable, but an "obsolete agent" is arguably a *historical* record more than a live role — closer
-   to an ADR than an artifact (ADR-0017: "ADRs are history, not artifacts"). Alternative: record only the
-   six surviving agents as `agent` units and fold the five obsoletions into this ADR's prose. (Leaning
-   "record all eleven" so the mapping is one queryable set, but flagged.)
+3. **Should obsolete-as-agent units live in the `agent` kind at all?** **DECIDED: record all eleven**,
+   including the obsolete-as-agent units (the ADR's lean, decision §8), with `outcome` stating
+   "n/a — obsolete; superseded by <surface>". The dissolution itself is queryable knowledge.
 
-4. **Drift-guard scope.** Is a `KIND_SPECS`↔zod parity test enough, or should there be an additional
-   contract asserting "every `agent` unit's `references` resolves to a real ADR/surface" (the
-   referential-integrity check of ADR-0026 §6, which currently starts as WARN)? Recommend WARN at first,
-   graduating to GATE once the eleven seed units are clean — consistent with ADR-0026's GATE-vs-WARN
-   posture.
+4. **Drift-guard scope.** **DECIDED: the `KIND_SPECS`↔zod parity test lands now**
+   (`packages/core/src/knowledge.test.ts` — kind-enumeration parity, exactly-one-lead, required/optional
+   fail-closed, renderer↔template byte-parity, and the Q5 split pinned for `agent`). The
+   referential-integrity check on `references` **starts as WARN** (the ADR-0026 §6 posture: a
+   non-gating check), **graduating to GATE later** — once the candidate guidance units the eleven seeds
+   cite (`docs/research/agent-guidance-candidates.json`, awaiting separate ratification) are landed
+   and the references resolve clean. Until then the `--check` listing of dangling `(candidate)`
+   `asset:` pointers on the agent units is **expected**, not a defect to "fix".
 
-5. **Required vs optional split.** This draft makes `rules`/`antiPatterns`/`escalation`/`doesNotTouch`
-   optional (an obsolete agent or a thin new role may have none) and the rest required. Confirm the
-   floor — in particular whether `outcome` should be required for an *obsolete* agent (which has no live
-   success criteria); the draft keeps it required and expects an obsolete unit to state "n/a — obsolete;
-   superseded by <surface>" rather than omit it.
+5. **Required vs optional split.** **DECIDED: keep the draft's split.**
+   `rules`/`antiPatterns`/`escalation`/`doesNotTouch` optional, the rest required; `outcome` stays
+   **required even for obsolete units**, stated as "n/a — obsolete; superseded by <surface>".
 
 ## References
 
@@ -351,7 +370,11 @@ the task brief, not re-typed here.
   [ADR-0023](0023-library-cli-choose-your-own-adventure.md) (the CLI surface that reaches it + the
   `agents` namespace it is kept distinct from),
   [ADR-0026](0026-library-schema-migrations-and-health-checks.md) (the migration posture this is
-  measured against — additive, no row upcast).
+  measured against — additive, no row upcast),
+  [ADR-0032](0032-cite-graduation-mechanism.md) (the cite/graduation mechanism the memory-curator
+  unit is recast to — signal-synthesis, not a cite-threshold),
+  [ADR-0034](0034-process-artifacts-ways-of-working.md) (the `process` kind that landed first,
+  making `agent` the eighth).
 - [ADR-0004](0004-orchestrator-agent-boundary.md) / [ADR-0005](0005-orchestration-spine-code-vs-judgment.md)
   (routing is code — why session-orchestrator is obsolete-as-agent),
   [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) (one owned loop — why the authority

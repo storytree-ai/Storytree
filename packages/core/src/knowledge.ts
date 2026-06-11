@@ -5,7 +5,8 @@ import { Markdown } from "./schema.js";
  * The cross-cutting knowledge tier (ADR-0017), encoded as a schema.
  *
  * A knowledge unit is a curated markdown body whose structure is fixed per kind
- * (definition / principle / pattern / guardrail / techstack / process / open-question). Round-1
+ * (definition / principle / pattern / guardrail / techstack / process / open-question / agent).
+ * Round-1
  * authored every body against a per-kind template; Phase 1 makes that template the
  * *derived* artifact rather than the source.
  *
@@ -54,7 +55,8 @@ export type KnowledgeKind =
   | "guardrail"
   | "techstack"
   | "process"
-  | "open-question";
+  | "open-question"
+  | "agent";
 
 /**
  * The per-kind field tables. ORDER IS SIGNIFICANT: the renderer emits fields in this order
@@ -301,6 +303,103 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_The proposed answer and why — explicitly non-binding until the owner decides._",
     },
   ],
+  agent: [
+    {
+      field: "oneLine",
+      lead: true,
+      heading: "**The agent.**",
+      required: true,
+      placeholder: "_The role in one sentence — who it is and the single job it owns._",
+    },
+    {
+      field: "role",
+      lead: false,
+      heading: "Role",
+      required: true,
+      placeholder:
+        "_The full purpose: what this agent is for, what it produces, and the boundary of its job._",
+    },
+    {
+      field: "owns",
+      lead: false,
+      heading: "Owns",
+      required: true,
+      placeholder:
+        "_The surface it is the authority for — the paths / phases / artifacts it may write, and the outputs it produces._",
+    },
+    {
+      field: "doesNotTouch",
+      lead: false,
+      heading: "Does not touch",
+      required: false,
+      placeholder:
+        "_The surfaces explicitly outside its authority — what another owner holds. Omit if the agent owns everything in its scope._",
+    },
+    {
+      field: "authority",
+      lead: false,
+      heading: "Authority",
+      required: true,
+      placeholder:
+        '_The specific writes and promotions it may and may not make — the floor that makes its work falsifiable (e.g. "may flip status proposed→under_construction; may never sign a verdict")._',
+    },
+    {
+      field: "outcome",
+      lead: false,
+      heading: "Outcome",
+      required: true,
+      placeholder:
+        "_The success criteria: the observable, falsifiable condition that means this agent's work is done and correct._",
+    },
+    {
+      field: "requiredReading",
+      lead: false,
+      heading: "Required reading",
+      required: true,
+      placeholder:
+        "_The context it must load before acting — the ADRs, glossary terms, Library units, and live state it reads just-in-time (ADR-0011/0023)._",
+    },
+    {
+      field: "tools",
+      lead: false,
+      heading: "Tools",
+      required: true,
+      placeholder:
+        "_The tool surface and canonical commands it is granted — kept minimal (least-authority), each named with why it is needed._",
+    },
+    {
+      field: "workflow",
+      lead: false,
+      heading: "Workflow",
+      required: true,
+      placeholder:
+        "_The arc it runs: session-start orientation, the ordered steps, and the stop condition._",
+    },
+    {
+      field: "rules",
+      lead: false,
+      heading: "Rules",
+      required: false,
+      placeholder:
+        "_The operating discipline — the judgement rules that carry as this agent's behavioural floor. Cite the Library principle/guardrail each rule graduates into rather than restating it. Omit if none._",
+    },
+    {
+      field: "antiPatterns",
+      lead: false,
+      heading: "Anti-patterns",
+      required: false,
+      placeholder:
+        "_The named failure modes it must refuse, each with the lesson that taught it. Omit if none._",
+    },
+    {
+      field: "escalation",
+      lead: false,
+      heading: "Escalation",
+      required: false,
+      placeholder:
+        "_What it surfaces rather than deciding — the boundary where it stops and routes to the human outer loop or the owning surface. Omit if it never escalates._",
+    },
+  ],
 } as const;
 
 /**
@@ -372,6 +471,7 @@ export const Guardrail = buildKindSchema("guardrail");
 export const TechStack = buildKindSchema("techstack");
 export const Process = buildKindSchema("process");
 export const OpenQuestion = buildKindSchema("open-question");
+export const Agent = buildKindSchema("agent");
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
 export const Knowledge = z.discriminatedUnion("kind", [
@@ -382,6 +482,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   TechStack,
   Process,
   OpenQuestion,
+  Agent,
 ]);
 
 export type Knowledge = z.infer<typeof Knowledge>;
@@ -392,3 +493,4 @@ export type Guardrail = z.infer<typeof Guardrail>;
 export type TechStack = z.infer<typeof TechStack>;
 export type Process = z.infer<typeof Process>;
 export type OpenQuestion = z.infer<typeof OpenQuestion>;
+export type Agent = z.infer<typeof Agent>;
