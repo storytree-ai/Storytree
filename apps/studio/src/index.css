@@ -36,16 +36,22 @@
   --st-retired: #6b7280;
   --st-unknown: #6b7280;
 
-  /* world scenery (#/tree) */
-  --tree-trunk: #8a6d52;
-  --field-light: #dcebcf;
-  --field-dark: #c8ddb8;
-  --field-tuft: #b3cf9f;
-  --field-trail: #9b8463;
-  --field-trail-bed: #e7dfc8;
-  --canopy-1: #4e8f5e;
-  --canopy-2: #61a571;
-  --canopy-3: #79bd84;
+  /* world scenery (#/tree) — Dorfromantik-style hex board */
+  --board-1: #faf2ed; /* blush board backdrop */
+  --board-2: #f3e0d6;
+  --hex-empty: #f2e4dd;
+  --hex-empty-line: #e3cec4;
+  --hex-side: #87985f; /* extruded tile flank */
+  --hex-top-0: #a9c87f; /* grass variants */
+  --hex-top-1: #9fc174;
+  --hex-top-2: #b2cf8b;
+  --hex-wheat: #d6b271;
+  --road: #a98e5f;
+  --road-bed: #ecdfc0;
+  --tree-trunk: #7d5f44;
+  --conifer-0: #3d7a4d;
+  --conifer-1: #4d8a59;
+  --conifer-2: #2f6b45;
 
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -1427,38 +1433,81 @@ mark.st-hl.flash {
   border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow);
-  background: var(--field-dark);
+  background: linear-gradient(160deg, var(--board-1), var(--board-2));
 }
 .world-scene {
   display: block;
   width: 100%;
   height: auto;
 }
-.world-tuft {
-  stroke: var(--field-tuft);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  fill: none;
+
+/* hex board: the pale coast + extruded land tiles */
+.hex-empty {
+  fill: var(--hex-empty);
+  stroke: var(--hex-empty-line);
+  stroke-width: 1;
 }
-.world-patch {
-  fill: #ffffff;
-  opacity: 0.05;
+.hex-tile {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+.hex-side {
+  fill: var(--hex-side);
+}
+.hex-top {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.8;
+}
+.hex-top.v-0 { fill: var(--hex-top-0); }
+.hex-top.v-1 { fill: var(--hex-top-1); }
+.hex-top.v-2 { fill: var(--hex-top-2); }
+.hex-top.is-wheat { fill: var(--hex-wheat); }
+.hex-tile.is-dim {
+  opacity: 0.35;
+}
+.hex-tile.is-ghost {
+  opacity: 0.45;
 }
 
-/* dependency trails on the ground */
+/* territory borders — the focus surface (V1's ring, reshaped to the land) */
+.hex-border line {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transition: stroke 0.18s ease, opacity 0.18s ease;
+  pointer-events: none;
+}
+.hex-border.is-focus line,
+.hex-border.is-selected line {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.hex-border.is-ancestor line {
+  stroke: var(--warn);
+  stroke-width: 2.6;
+}
+.hex-border.is-descendant line {
+  stroke: var(--danger);
+  stroke-width: 2.6;
+}
+.hex-border.is-dim {
+  opacity: 0.25;
+}
+
+/* roads between dependent territories */
 .world-trail {
   transition: opacity 0.18s ease;
 }
 .world-trail-bed {
   fill: none;
-  stroke: var(--field-trail-bed);
-  stroke-width: 7;
+  stroke: var(--road-bed);
+  stroke-width: 8;
   stroke-linecap: round;
-  opacity: 0.5;
+  opacity: 0.85;
 }
 .world-trail-line {
   fill: none;
-  stroke: var(--field-trail);
+  stroke: var(--road);
   stroke-width: 2;
   stroke-dasharray: 7 5;
   stroke-linecap: round;
@@ -1477,97 +1526,71 @@ mark.st-hl.flash {
   opacity: 0.25;
 }
 
-/* top-down trees */
-.world-tree {
+/* flora: the per-territory layer of trees, plates and wisps */
+.hex-flora {
   cursor: pointer;
   transition: opacity 0.18s ease;
 }
-.world-shadow {
-  fill: #1f3c28;
-  opacity: 0.16;
+.hex-flora.is-dim {
+  opacity: 0.32;
 }
-.world-canopy-1 {
-  fill: var(--canopy-1);
+.hex-flora.is-ghost {
+  opacity: 0.45;
 }
-.world-canopy-2 {
-  fill: var(--canopy-2);
-}
-.world-canopy-3 {
-  fill: var(--canopy-3);
-}
-.world-trunk {
-  fill: var(--tree-trunk);
-  stroke: #5e4936;
-  stroke-width: 1;
-}
-.world-ring {
-  fill: none;
-  stroke: var(--st-unknown);
-  stroke-width: 2.4;
-  opacity: 0;
-  transition: opacity 0.18s ease, stroke 0.18s ease;
-}
-.world-ring.st-proposed { stroke: var(--st-proposed); stroke-dasharray: 5 5; opacity: 0.85; }
-.world-ring.st-building { stroke: var(--st-building); stroke-dasharray: 5 5; opacity: 0.9; }
-.world-ring.st-healthy { stroke: var(--st-healthy); opacity: 0.9; }
-.world-ring.st-unhealthy { stroke: var(--st-unhealthy); opacity: 0.95; }
-.world-ring.st-mapped { stroke: var(--st-mapped); opacity: 0.85; }
-.world-ring.st-retired { stroke: var(--st-retired); stroke-dasharray: 2 5; opacity: 0.7; }
-.world-tree.is-focus .world-ring,
-.world-tree.is-selected .world-ring {
-  stroke: var(--accent);
-  stroke-dasharray: none;
-  stroke-width: 3.2;
-  opacity: 1;
-}
-.world-tree.is-ancestor .world-ring {
-  stroke: var(--warn);
-  stroke-dasharray: none;
-  stroke-width: 3;
-  opacity: 1;
-}
-.world-tree.is-descendant .world-ring {
-  stroke: var(--danger);
-  stroke-dasharray: none;
-  stroke-width: 3;
-  opacity: 1;
-}
-.world-tree.is-dim {
-  opacity: 0.38;
-}
-.world-tree.is-ghost {
-  opacity: 0.4;
+.flora-shadow {
+  fill: #243d2a;
+  opacity: 0.18;
 }
 
-/* capability fruits */
-.world-fruit {
+/* decorative conifers (no status meaning) */
+.conifer-body.c-0 { fill: var(--conifer-0); }
+.conifer-body.c-1 { fill: var(--conifer-1); }
+.conifer-body.c-2 { fill: var(--conifer-2); }
+.conifer-snow {
+  fill: #ffffff;
+  opacity: 0.16;
+}
+
+/* capability trees — foliage carries the status */
+.hex-captree {
+  cursor: pointer;
   transition: opacity 0.18s ease;
 }
-.world-fruit-dot {
-  fill: var(--st-unknown);
-  stroke: #ffffff;
-  stroke-width: 1.5;
+.captree-trunk {
+  fill: var(--tree-trunk);
 }
-.world-fruit.st-proposed .world-fruit-dot { fill: var(--st-proposed); }
-.world-fruit.st-building .world-fruit-dot { fill: var(--st-building); }
-.world-fruit.st-healthy .world-fruit-dot { fill: var(--st-healthy); }
-.world-fruit.st-unhealthy .world-fruit-dot { fill: var(--st-unhealthy); }
-.world-fruit.st-mapped .world-fruit-dot { fill: var(--st-mapped); }
-.world-fruit.st-retired .world-fruit-dot { fill: var(--st-retired); }
-.world-petal {
-  fill: #ffffff;
-  opacity: 0.9;
+.hex-captree .captree-lower { fill: #6b7280; }
+.hex-captree .captree-upper { fill: #9ca3af; }
+.hex-captree.st-proposed .captree-lower { fill: #b06a24; }
+.hex-captree.st-proposed .captree-upper { fill: #e09a4b; }
+.hex-captree.st-building .captree-lower { fill: #65a30d; }
+.hex-captree.st-building .captree-upper { fill: #8fcd2d; }
+.hex-captree.st-mapped .captree-lower { fill: #0f766e; }
+.hex-captree.st-mapped .captree-upper { fill: #2da393; }
+.hex-captree.st-healthy .captree-lower { fill: #2f6b3f; }
+.hex-captree.st-healthy .captree-upper { fill: #55a06a; }
+.hex-captree.st-unhealthy .captree-lower { fill: #9f2d22; }
+.hex-captree.st-unhealthy .captree-upper { fill: #c75545; }
+.hex-captree.st-retired .captree-lower { fill: #9ca3af; opacity: 0.7; }
+.hex-captree.st-retired .captree-upper { fill: #c5c9cf; opacity: 0.7; }
+.hex-captree:hover .captree-upper {
+  stroke: var(--accent);
+  stroke-width: 1.2;
 }
-.world-fruit-glyph {
-  fill: none;
-  stroke: #ffffff;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.world-fruit.is-filtered {
+.hex-captree.is-filtered {
   opacity: 0.12;
 }
+.captree-verdict circle {
+  fill: #ffffff;
+  stroke: var(--border-strong);
+  stroke-width: 0.8;
+}
+.captree-verdict text {
+  font-size: 8px;
+  font-weight: 700;
+}
+.captree-verdict.verdict-pass text { fill: var(--good); }
+.captree-verdict.verdict-fail text { fill: var(--danger); }
 
 /* session wisps (notice-board presence orbiting a tree) */
 .world-wisp-glow {
@@ -1609,8 +1632,8 @@ mark.st-hl.flash {
   stroke-width: 1;
   opacity: 0.94;
 }
-.world-tree:hover .world-plate-bg,
-.world-tree.is-selected .world-plate-bg {
+.hex-flora:hover .world-plate-bg,
+.hex-flora.is-selected .world-plate-bg {
   stroke: var(--accent);
   stroke-width: 1.8;
 }

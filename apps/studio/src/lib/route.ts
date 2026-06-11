@@ -11,7 +11,7 @@ export type Route =
   | { name: 'asset'; id: string }
   | { name: 'asset-edit'; id: string }
   | { name: 'asset-new' }
-  | { name: 'tree' };
+  | { name: 'tree'; focus: string | null };
 
 function asCategory(value: string): AssetCategory | null {
   return (ASSET_CATEGORIES as string[]).includes(value) ? (value as AssetCategory) : null;
@@ -20,7 +20,11 @@ function asCategory(value: string): AssetCategory | null {
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '');
   if (path === '' || path === '/') return { name: 'home' };
-  if (path === '/tree') return { name: 'tree' };
+  if (path === '/tree') return { name: 'tree', focus: null };
+  if (path.startsWith('/tree/')) {
+    const focus = decodeURIComponent(path.slice('/tree/'.length));
+    return { name: 'tree', focus: focus || null };
+  }
   if (path === '/library') return { name: 'library', category: null };
   if (path.startsWith('/library/')) {
     return { name: 'library', category: asCategory(path.slice('/library/'.length)) };
@@ -59,6 +63,7 @@ export function navigate(to: string): void {
 
 export const homeHref = '#/';
 export const treeHref = '#/tree';
+export const treeFocusHref = (storyId: string): string => `#/tree/${encodeURIComponent(storyId)}`;
 export const libraryHref = (category?: AssetCategory | null): string =>
   category ? `#/library/${category}` : '#/library';
 export const docHref = (id: string): string => `#/doc/${encodeURIComponent(id)}`;

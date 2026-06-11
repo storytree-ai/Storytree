@@ -147,6 +147,6 @@ function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX
     case 'asset-new':
       return <AssetEditor mode="new" />;
     case 'tree':
-      return <TreeView />;
+      return <TreeView focus={route.focus} />;
   }
 }

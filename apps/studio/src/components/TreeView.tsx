@@ -1,23 +1,27 @@
 // TreeView — the story world (#/tree).
 //
-// An RTS-style top-down map: every story is a tree seen from above, standing on
-// a shared field. The canopy GROWS with the story (radius scales with its
-// capability count) and its capabilities show as fruit dotted around the trunk,
-// colored by status — a story visibly ripens as its capabilities turn healthy.
-// Story-level `depends_on` renders as ground trails between trees (plus any
-// capability dependency that crosses a story boundary), so many-to-many story
-// dependencies read at a glance; hovering a tree lights its upstream chain
-// (gold) and downstream dependents (red) — the focus interaction carried over
-// from V1's visualisations/storytree. Clicking a tree opens the side panel
-// with the story's capability sub-DAG (dagre layout, status-strip cards).
+// A Dorfromantik-style hex-tile world: every story claims a TERRITORY of
+// extruded hexagonal tiles on a shared island board (pale empty hexes fade out
+// at the coast). The territory grows with the story — one tile quota per
+// capability plus a margin — and every capability is planted as a low-poly
+// TREE whose foliage is its status color (proposed reads as autumn orange,
+// healthy as deep green with a verdict badge); capless tiles grow decorative
+// forest clumps and wheat fields, so a story's land visibly ripens as its
+// capabilities move through the gate. Story-level `depends_on` renders as
+// roads between territories; hovering a territory lights its upstream chain
+// (gold) vs downstream dependents (red) — the focus interaction carried from
+// V1's visualisations/storytree. Clicking opens the side panel with the
+// story's capability sub-DAG (dagre layout, status-strip cards).
 //
-// Data is /api/tree — offline, straight from stories/ frontmatter. All the
-// "randomness" (canopy blobs, jitter, trail bows) is hashed from ids so the
-// world renders identically every time.
+// Data is /api/tree — offline, straight from stories/ frontmatter; verdict
+// glyphs and presence wisps are advisory layers that appear only when the
+// live store answers. All "randomness" (tile growth, tree jitter, road bows)
+// is hashed from ids so the world renders identically every time.
 
 import { useEffect, useMemo, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
+import { navigate, treeFocusHref, treeHref } from '../lib/route';
 import type { TreeCapability, TreeSession, TreeStory, TreeVerdict, WorkStatus } from '../types';
 
 // ---------- deterministic pseudo-random ----------
@@ -44,86 +48,314 @@ interface Pt {
   y: number;
 }
 
-// ---------- world geometry ----------
+// ---------- hex grid (pointy-top, axial coordinates) ----------
 
-const FIELD_MIN_W = 960;
-const CELL_W = 300;
-const CELL_H = 260;
-const MARGIN = 70;
+const HEX_R = 27; // centre → corner
+const HEX_W = Math.sqrt(3) * HEX_R;
+const TILE_DEPTH = 8; // extrusion below a claimed tile
 
-/** Canopy radius — the tree grows as the story gains capabilities. */
-function canopyRadius(capCount: number): number {
-  return 26 + 6.5 * Math.sqrt(Math.max(capCount, 1));
+interface Axial {
+  q: number;
+  r: number;
 }
 
-interface WorldTree {
-  story: TreeStory;
+const axialKey = (h: Axial): string => `${h.q},${h.r}`;
+
+/** Neighbour directions, indexed so AXIAL_DIRS[i] faces the edge corner i → i+1. */
+const AXIAL_DIRS: Axial[] = [
+  { q: 1, r: -1 }, // NE  (edge between corners 0 and 1)
+  { q: 1, r: 0 }, //  E  (1 → 2)
+  { q: 0, r: 1 }, //  SE (2 → 3)
+  { q: -1, r: 1 }, // SW (3 → 4)
+  { q: -1, r: 0 }, // W  (4 → 5)
+  { q: 0, r: -1 }, // NW (5 → 0)
+];
+
+function hexCenter(h: Axial): Pt {
+  return { x: HEX_W * (h.q + h.r / 2), y: 1.5 * HEX_R * h.r };
+}
+
+function pixelToHex(p: Pt): Axial {
+  const rf = p.y / (1.5 * HEX_R);
+  const qf = p.x / HEX_W - rf / 2;
+  const sf = -qf - rf;
+  let q = Math.round(qf);
+  let r = Math.round(rf);
+  const s = Math.round(sf);
+  const dq = Math.abs(q - qf);
+  const dr = Math.abs(r - rf);
+  const ds = Math.abs(s - sf);
+  if (dq > dr && dq > ds) q = -r - s;
+  else if (dr > ds) r = -q - s;
+  return { q, r };
+}
+
+function hexDist(a: Axial, b: Axial): number {
+  return (
+    (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2
+  );
+}
+
+/** The six corners around (cx, cy), corner 0 at the top, clockwise. */
+function hexCorners(cx: number, cy: number, R: number): Pt[] {
+  const pts: Pt[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i - 90);
+    pts.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) });
+  }
+  return pts;
+}
+
+function hexPath(cx: number, cy: number, R: number): string {
+  return (
+    hexCorners(cx, cy, R)
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .join(' ') + ' Z'
+  );
+}
+
+// ---------- world building ----------
+
+const CELL_W = 360; // seed-spacing in px before snapping to hexes
+const CELL_H = 320;
+const MARGIN = 60;
+
+interface CapSpot {
+  cap: TreeCapability;
   x: number;
   y: number;
-  r: number;
+}
+
+interface DecorSpot {
+  x: number;
+  y: number;
+  kind: 'forest' | 'wheat';
+  seed: number;
+}
+
+interface BoundarySeg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface Territory {
+  story: TreeStory;
+  tiles: Axial[];
+  centroid: Pt;
+  /** px from centroid to the farthest tile centre, plus the tile radius. */
+  radius: number;
+  caps: CapSpot[];
+  decor: DecorSpot[];
+  wheatTiles: Set<string>;
+  boundary: BoundarySeg[];
+  labelY: number;
 }
 
 interface WorldEdge {
   from: string;
   to: string;
-  /** Capability ids whose depends_on crossed the story boundary (derived edges). */
   via: string[];
   d: string;
 }
 
-interface World {
-  trees: WorldTree[];
+interface HexWorld {
+  territories: Territory[];
+  /** Pale coast tiles (1–2 rings beyond claimed land). */
+  empties: Axial[];
+  /** Claimed tiles in global back-to-front draw order, with territory index. */
+  drawTiles: { h: Axial; owner: number }[];
   edges: WorldEdge[];
   width: number;
   height: number;
+  offset: Pt;
 }
 
-/** A curved ground trail from the dependency tree to the dependent tree. */
-function trailPath(a: WorldTree, b: WorldTree): string {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
+/** A curved road from the dependency territory to the dependent one. */
+function roadPath(a: Territory, b: Territory): string {
+  const dx = b.centroid.x - a.centroid.x;
+  const dy = b.centroid.y - a.centroid.y;
   const dist = Math.hypot(dx, dy) || 1;
   const ux = dx / dist;
   const uy = dy / dist;
-  // Inset the endpoints just outside each canopy.
-  const sx = a.x + ux * (a.r + 8);
-  const sy = a.y + uy * (a.r + 8);
-  const ex = b.x - ux * (b.r + 12);
-  const ey = b.y - uy * (b.r + 12);
-  // Bow the trail perpendicular to the line, direction hashed for variety.
-  const bow = (rand01(hash(`${a.story.id}->${b.story.id}`)) - 0.5) * 0.5 * dist;
+  const sx = a.centroid.x + ux * (a.radius * 0.55);
+  const sy = a.centroid.y + uy * (a.radius * 0.55);
+  const ex = b.centroid.x - ux * (b.radius * 0.7);
+  const ey = b.centroid.y - uy * (b.radius * 0.7);
+  const bow = (rand01(hash(`${a.story.id}->${b.story.id}`)) - 0.5) * 0.4 * dist;
   const mx = (sx + ex) / 2 - uy * bow;
   const my = (sy + ey) / 2 + ux * bow;
   return `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
 }
 
-function buildWorld(stories: TreeStory[]): World {
+function buildWorld(stories: TreeStory[]): HexWorld {
   const n = Math.max(stories.length, 1);
   const cols = Math.max(1, Math.ceil(Math.sqrt(n * 1.6)));
-  const rows = Math.ceil(n / cols);
-  const width = Math.max(FIELD_MIN_W, cols * CELL_W + MARGIN * 2);
-  const height = rows * CELL_H + MARGIN * 2;
-  const innerW = width - MARGIN * 2;
 
-  const trees: WorldTree[] = stories.map((story, i) => {
+  // Seed hex per story: jittered cell grid in px, snapped to the hex lattice.
+  const seeds: Axial[] = [];
+  const taken = new Set<string>();
+  stories.forEach((story, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const seed = hash(story.id);
-    // Centre of the cell, jittered — a planted garden, not a chart.
-    const jx = (rand01(seed) - 0.5) * CELL_W * 0.4;
-    const jy = (rand01(seed + 1) - 0.5) * CELL_H * 0.34;
-    // Odd rows shift half a cell for a staggered orchard look.
+    const seedH = hash(story.id);
     const stagger = row % 2 === 1 ? CELL_W / 2 : 0;
-    const x = MARGIN + ((col + 0.5) * innerW) / cols + jx + stagger * (innerW / (cols * CELL_W));
-    const y = MARGIN + (row + 0.5) * CELL_H + jy;
-    return { story, x, y, r: canopyRadius(story.capabilities.length) };
+    const px = {
+      x: (col + 0.5) * CELL_W + stagger + (rand01(seedH) - 0.5) * CELL_W * 0.3,
+      y: (row + 0.5) * CELL_H + (rand01(seedH + 1) - 0.5) * CELL_H * 0.3,
+    };
+    let h = pixelToHex(px);
+    while (taken.has(axialKey(h))) h = { q: h.q + 1, r: h.r };
+    taken.add(axialKey(h));
+    seeds.push(h);
   });
 
-  const byId = new Map(trees.map((t) => [t.story.id, t]));
+  // Grow territories round-robin: each story claims its cheapest frontier hex
+  // (closest to seed, hash-jittered for organic coastlines) until its quota —
+  // a tile per capability plus breathing room — is met.
+  const owner = new Map<string, number>();
+  const tilesByStory: Axial[][] = stories.map(() => []);
+  const quotas = stories.map((s) => Math.max(3, s.capabilities.length + 2));
+  seeds.forEach((seed, i) => {
+    owner.set(axialKey(seed), i);
+    tilesByStory[i]?.push(seed);
+  });
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (let i = 0; i < stories.length; i++) {
+      const mine = tilesByStory[i];
+      const seed = seeds[i];
+      const story = stories[i];
+      const quota = quotas[i];
+      if (!mine || !seed || !story || quota === undefined || mine.length >= quota) continue;
+      let best: Axial | null = null;
+      let bestCost = Infinity;
+      for (const t of mine) {
+        for (const d of AXIAL_DIRS) {
+          const cand = { q: t.q + d.q, r: t.r + d.r };
+          const key = axialKey(cand);
+          if (owner.has(key)) continue;
+          const cost = hexDist(seed, cand) + rand01(hash(`${story.id}:${key}`)) * 1.4;
+          if (cost < bestCost) {
+            bestCost = cost;
+            best = cand;
+          }
+        }
+      }
+      if (best) {
+        owner.set(axialKey(best), i);
+        mine.push(best);
+        progress = true;
+      }
+    }
+  }
+
+  // Per-territory contents.
+  const territories: Territory[] = stories.map((story, i) => {
+    const tiles = tilesByStory[i] ?? [];
+    const seed = seeds[i] ?? { q: 0, r: 0 };
+    const centers = tiles.map(hexCenter);
+    const centroid: Pt = {
+      x: centers.reduce((s, p) => s + p.x, 0) / Math.max(centers.length, 1),
+      y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
+    };
+    const radius =
+      Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) +
+      HEX_R;
+
+    // Capabilities land on tiles nearest the seed first, one per tile while
+    // they last; leftover tiles grow decoration.
+    const ordered = [...tiles].sort(
+      (a, b) =>
+        hexDist(seed, a) - hexDist(seed, b) ||
+        rand01(hash(`${story.id}:${axialKey(a)}`)) - rand01(hash(`${story.id}:${axialKey(b)}`)),
+    );
+    const caps: CapSpot[] = story.capabilities.map((cap, j) => {
+      const tile = ordered[j % Math.max(ordered.length, 1)] ?? seed;
+      const c = hexCenter(tile);
+      const k = hash(`${story.id}:${cap.id}`);
+      const spread = j < ordered.length ? 5 : 11; // jitter more when tiles are shared
+      return {
+        cap,
+        x: c.x + (rand01(k) - 0.5) * spread * 2,
+        y: c.y + (rand01(k + 3) - 0.5) * spread + 3,
+      };
+    });
+    const capTileKeys = new Set(
+      story.capabilities.map((_, j) => axialKey(ordered[j % Math.max(ordered.length, 1)] ?? seed)),
+    );
+
+    const decor: DecorSpot[] = [];
+    const wheatTiles = new Set<string>();
+    for (const tile of tiles) {
+      const key = axialKey(tile);
+      if (capTileKeys.has(key)) continue;
+      const roll = rand01(hash(`${story.id}:decor:${key}`));
+      const c = hexCenter(tile);
+      if (roll < 0.5) {
+        decor.push({ x: c.x, y: c.y, kind: 'forest', seed: hash(`${key}:f`) });
+      } else if (roll < 0.78) {
+        wheatTiles.add(key);
+        decor.push({ x: c.x, y: c.y, kind: 'wheat', seed: hash(`${key}:w`) });
+      }
+    }
+
+    // Territory boundary: every tile edge whose neighbour is foreign soil.
+    const mineSet = new Set(tiles.map(axialKey));
+    const boundary: BoundarySeg[] = [];
+    for (const tile of tiles) {
+      const c = hexCenter(tile);
+      const corners = hexCorners(c.x, c.y, HEX_R);
+      AXIAL_DIRS.forEach((d, e) => {
+        if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
+        const a = corners[e];
+        const b = corners[(e + 1) % 6];
+        if (a && b) boundary.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      });
+    }
+
+    const labelY = Math.max(...centers.map((p) => p.y), centroid.y) + HEX_R + TILE_DEPTH + 8;
+    return { story, tiles, centroid, radius, caps, decor, wheatTiles, boundary, labelY };
+  });
+
+  // The pale coast: up to two rings of unclaimed hexes around the land.
+  const empties: Axial[] = [];
+  const emptySet = new Set<string>();
+  let ring: Axial[] = [...owner.keys()].map((k) => {
+    const parts = k.split(',');
+    return { q: Number(parts[0]), r: Number(parts[1]) };
+  });
+  for (let depth = 0; depth < 2; depth++) {
+    const next: Axial[] = [];
+    for (const t of ring) {
+      for (const d of AXIAL_DIRS) {
+        const cand = { q: t.q + d.q, r: t.r + d.r };
+        const key = axialKey(cand);
+        if (owner.has(key) || emptySet.has(key)) continue;
+        // Thin the outer ring for an organic coastline.
+        if (depth === 1 && rand01(hash(`coast:${key}`)) < 0.45) continue;
+        emptySet.add(key);
+        empties.push(cand);
+        next.push(cand);
+      }
+    }
+    ring = next;
+  }
+
+  // Global back-to-front tile order so extrusions layer correctly.
+  const drawTiles = [...owner.entries()]
+    .map(([key, idx]) => {
+      const parts = key.split(',');
+      return { h: { q: Number(parts[0]), r: Number(parts[1]) }, owner: idx };
+    })
+    .sort((a, b) => a.h.r - b.h.r || a.h.q - b.h.q);
+
+  // Story-level edges: declared depends_on plus capability deps that cross a story boundary.
+  const byId = new Map(territories.map((t, i) => [t.story.id, i]));
   const capOwner = new Map<string, string>();
   for (const s of stories) for (const c of s.capabilities) capOwner.set(c.id, s.id);
-
-  // Declared story-level depends_on, plus capability deps that cross a story boundary.
   const edgeMap = new Map<string, { from: string; to: string; via: string[] }>();
   for (const s of stories) {
     for (const dep of s.dependsOn) {
@@ -131,22 +363,41 @@ function buildWorld(stories: TreeStory[]): World {
     }
     for (const c of s.capabilities) {
       for (const d of c.dependsOn) {
-        const owner = capOwner.get(d);
-        if (!owner || owner === s.id) continue;
-        const key = `${owner}->${s.id}`;
-        const cur = edgeMap.get(key) ?? { from: owner, to: s.id, via: [] };
+        const ownerId = capOwner.get(d);
+        if (!ownerId || ownerId === s.id) continue;
+        const key = `${ownerId}->${s.id}`;
+        const cur = edgeMap.get(key) ?? { from: ownerId, to: s.id, via: [] };
         cur.via.push(`${c.id} → ${d}`);
         edgeMap.set(key, cur);
       }
     }
   }
   const edges: WorldEdge[] = [...edgeMap.values()].flatMap((e) => {
-    const a = byId.get(e.from);
-    const b = byId.get(e.to);
-    return a && b ? [{ ...e, d: trailPath(a, b) }] : [];
+    const a = territories[byId.get(e.from) ?? -1];
+    const b = territories[byId.get(e.to) ?? -1];
+    return a && b ? [{ ...e, d: roadPath(a, b) }] : [];
   });
 
-  return { trees, edges, width, height };
+  // Scene bounds over every tile (claimed + coast), plus label space.
+  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
+  const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
+  const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
+  const minY = Math.min(...allCenters.map((p) => p.y)) - HEX_R - MARGIN;
+  const maxY =
+    Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + 34)) +
+    HEX_R +
+    TILE_DEPTH +
+    MARGIN / 2;
+
+  return {
+    territories,
+    empties,
+    drawTiles,
+    edges,
+    width: Math.ceil(maxX - minX),
+    height: Math.ceil(maxY - minY),
+    offset: { x: -minX, y: -minY },
+  };
 }
 
 // ---------- focus relations (V1's ancestor/descendant highlighting) ----------
@@ -159,12 +410,12 @@ interface Relations {
 function relationsFor(nodes: { id: string; dependsOn: string[] }[], focusId: string): Relations {
   const depsOf = new Map<string, string[]>();
   const dependentsOf = new Map<string, string[]>();
-  for (const n of nodes) {
-    depsOf.set(n.id, n.dependsOn);
-    for (const d of n.dependsOn) {
+  for (const node of nodes) {
+    depsOf.set(node.id, node.dependsOn);
+    for (const d of node.dependsOn) {
       const list = dependentsOf.get(d);
-      if (list) list.push(n.id);
-      else dependentsOf.set(d, [n.id]);
+      if (list) list.push(node.id);
+      else dependentsOf.set(d, [node.id]);
     }
   }
   const walk = (start: string, next: Map<string, string[]>): Set<string> => {
@@ -178,38 +429,6 @@ function relationsFor(nodes: { id: string; dependsOn: string[] }[], focusId: str
     return seen;
   };
   return { ancestors: walk(focusId, depsOf), descendants: walk(focusId, dependentsOf) };
-}
-
-// ---------- top-down tree drawing ----------
-
-/** A closed organic blob around (cx, cy) — quadratic-smoothed through jittered spokes. */
-function blobPath(cx: number, cy: number, r: number, seed: number, spokes = 9): string {
-  const pts: Pt[] = [];
-  for (let i = 0; i < spokes; i++) {
-    const a = (i / spokes) * Math.PI * 2 + (rand01(seed + i) - 0.5) * 0.4;
-    const rr = r * (0.84 + 0.3 * rand01(seed * 31 + i));
-    pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
-  }
-  const first = pts[0];
-  const last = pts[pts.length - 1];
-  if (!first || !last) return '';
-  // Start at the midpoint of the closing segment, then quad through each spoke.
-  let d = `M ${((last.x + first.x) / 2).toFixed(1)} ${((last.y + first.y) / 2).toFixed(1)}`;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i];
-    const nx = pts[(i + 1) % pts.length];
-    if (!p || !nx) continue;
-    d += ` Q ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${((p.x + nx.x) / 2).toFixed(1)} ${((p.y + nx.y) / 2).toFixed(1)}`;
-  }
-  return `${d} Z`;
-}
-
-/** Phyllotaxis placement of the i-th of n fruits within radius r (golden angle). */
-function fruitPos(i: number, n: number, r: number, seed: number): Pt {
-  const golden = 2.39996;
-  const a = i * golden + rand01(seed) * Math.PI * 2;
-  const rr = 0.66 * r * Math.sqrt((i + 0.62) / Math.max(n, 1));
-  return { x: Math.cos(a) * rr, y: Math.sin(a) * rr };
 }
 
 // ---------- capability sub-DAG (side panel) ----------
@@ -287,6 +506,8 @@ function layoutSubdag(story: TreeStory): SubLayout {
 
 // ---------- view ----------
 
+type Band = TreeSession['band'];
+
 const STATUS_ORDER: (WorkStatus | 'unknown')[] = [
   'healthy',
   'building',
@@ -297,11 +518,19 @@ const STATUS_ORDER: (WorkStatus | 'unknown')[] = [
   'unknown',
 ];
 
-export function TreeView(): React.JSX.Element {
+/** Age since lastSeenAt, compact ("12m" / "3h"). */
+function formatAge(lastSeenAt: string): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60_000));
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
+}
+
+export function TreeView({ focus }: { focus: string | null }): React.JSX.Element {
   const [stories, setStories] = useState<TreeStory[] | null>(null);
   const [sessions, setSessions] = useState<TreeSession[]>([]);
   const [loadError, setLoadError] = useState('');
-  const [selectedStory, setSelectedStory] = useState<string | null>(null);
+  // Selection lives in the URL (#/tree/<storyId>) so a focused territory is
+  // deep-linkable; the route's `focus` IS the selected story.
+  const selectedStory = focus;
   const [hoverStory, setHoverStory] = useState<string | null>(null);
   const [selectedCap, setSelectedCap] = useState<string | null>(null);
   const [hoverCap, setHoverCap] = useState<string | null>(null);
@@ -325,9 +554,6 @@ export function TreeView(): React.JSX.Element {
     [stories, focusStoryId],
   );
 
-  // Which sessions sit at which tree: a session anchors to a story directly (node =
-  // story id) or via any capability the story owns. Unanchored sessions still count
-  // in the toolbar total — they just have no tree to orbit.
   const sessionsByStory = useMemo(() => {
     const capOwner = new Map<string, string>();
     for (const s of stories ?? []) for (const c of s.capabilities) capOwner.set(c.id, s.id);
@@ -336,8 +562,8 @@ export function TreeView(): React.JSX.Element {
       const storyIds = new Set<string>();
       for (const node of session.nodes) {
         if (stories?.some((s) => s.id === node)) storyIds.add(node);
-        const owner = capOwner.get(node);
-        if (owner) storyIds.add(owner);
+        const ownerId = capOwner.get(node);
+        if (ownerId) storyIds.add(ownerId);
       }
       for (const id of storyIds) {
         const list = byStory.get(id);
@@ -379,29 +605,43 @@ export function TreeView(): React.JSX.Element {
     setHidden(next);
   };
 
-  const treeClass = (t: WorldTree): string => {
-    const cls = ['world-tree', `st-${t.story.status ?? 'unknown'}`];
-    if (t.story.status === 'retired') cls.push('is-ghost');
+  const territoryClass = (story: TreeStory): string => {
+    const cls = ['hex-territory', `st-${story.status ?? 'unknown'}`];
+    if (story.status === 'retired') cls.push('is-ghost');
     if (focusStoryId && storyRelations) {
-      if (t.story.id === focusStoryId) cls.push('is-focus');
-      else if (storyRelations.ancestors.has(t.story.id)) cls.push('is-ancestor');
-      else if (storyRelations.descendants.has(t.story.id)) cls.push('is-descendant');
+      if (story.id === focusStoryId) cls.push('is-focus');
+      else if (storyRelations.ancestors.has(story.id)) cls.push('is-ancestor');
+      else if (storyRelations.descendants.has(story.id)) cls.push('is-descendant');
       else cls.push('is-dim');
     }
-    if (t.story.id === selectedStory) cls.push('is-selected');
+    if (story.id === selectedStory) cls.push('is-selected');
     return cls.join(' ');
   };
 
-  const trailClass = (e: WorldEdge): string => {
+  const roadClass = (e: WorldEdge): string => {
     const cls = ['world-trail'];
     if (focusStoryId && storyRelations) {
       const anc = (id: string): boolean => id === focusStoryId || storyRelations.ancestors.has(id);
-      const desc = (id: string): boolean => id === focusStoryId || storyRelations.descendants.has(id);
+      const desc = (id: string): boolean =>
+        id === focusStoryId || storyRelations.descendants.has(id);
       if (storyRelations.ancestors.has(e.from) && anc(e.to)) cls.push('is-ancestor');
       else if (storyRelations.descendants.has(e.to) && desc(e.from)) cls.push('is-descendant');
       else cls.push('is-dim');
     }
     return cls.join(' ');
+  };
+
+  const clearSelection = (): void => {
+    setSelectedCap(null);
+    navigate(treeHref);
+  };
+  const selectStory = (storyId: string, capId: string | null): void => {
+    if (selectedStory === storyId && capId === null) {
+      clearSelection(); // second click on the selected territory toggles it off
+      return;
+    }
+    setSelectedCap(capId);
+    navigate(treeFocusHref(storyId));
   };
 
   return (
@@ -412,8 +652,8 @@ export function TreeView(): React.JSX.Element {
           {stories.length} stories · {capCount} capabilities
           {sessions.length > 0 &&
             ` · ${sessions.length} active session${sessions.length === 1 ? '' : 's'}`}{' '}
-          — trees grow as stories gain capabilities; trails are story dependencies. Click a
-          tree for its capability DAG.
+          — every story holds a territory; its capabilities grow as trees. Click a territory
+          for the capability DAG.
         </span>
         <span className="tree-toolbar-chips">
           {STATUS_ORDER.filter((st) => (statusCounts.get(st) ?? 0) > 0).map((st) => (
@@ -437,24 +677,17 @@ export function TreeView(): React.JSX.Element {
             className="world-scene"
             viewBox={`0 0 ${world.width} ${world.height}`}
             onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setSelectedStory(null);
-                setSelectedCap(null);
-              }
+              if (e.target === e.currentTarget) clearSelection();
             }}
           >
             <defs>
-              <radialGradient id="world-field" cx="50%" cy="42%" r="75%">
-                <stop offset="0%" stopColor="var(--field-light)" />
-                <stop offset="100%" stopColor="var(--field-dark)" />
-              </radialGradient>
               <marker
                 id="trail-arrow"
                 viewBox="0 0 10 10"
                 refX="7.5"
                 refY="5"
-                markerWidth="5.5"
-                markerHeight="5.5"
+                markerWidth="5"
+                markerHeight="5"
                 orient="auto-start-reverse"
               >
                 <path d="M 0 1.2 L 8 5 L 0 8.8 z" fill="context-stroke" />
@@ -472,45 +705,75 @@ export function TreeView(): React.JSX.Element {
               </marker>
             </defs>
 
-            <rect
-              className="world-bg"
-              x="0"
-              y="0"
-              width={world.width}
-              height={world.height}
-              rx="12"
-              fill="url(#world-field)"
-              onClick={() => {
-                setSelectedStory(null);
-                setSelectedCap(null);
-              }}
-            />
-            <FieldTexture width={world.width} height={world.height} />
-
-            {world.edges.map((e) => (
-              <g key={`${e.from}->${e.to}`} className={trailClass(e)}>
-                <title>
-                  {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
-                </title>
-                <path className="world-trail-bed" d={e.d} />
-                <path className="world-trail-line" d={e.d} markerEnd="url(#trail-arrow)" />
+            <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
+              {/* the pale coast */}
+              <g className="hex-coast">
+                {world.empties.map((h) => {
+                  const c = hexCenter(h);
+                  return <path key={axialKey(h)} className="hex-empty" d={hexPath(c.x, c.y, HEX_R - 0.6)} />;
+                })}
               </g>
-            ))}
 
-            {world.trees.map((t) => (
-              <TopDownTree
-                key={t.story.id}
-                tree={t}
-                className={treeClass(t)}
-                hidden={hidden}
-                sessions={sessionsByStory.get(t.story.id) ?? []}
-                onHover={(on) => setHoverStory(on ? t.story.id : null)}
-                onSelect={() => {
-                  setSelectedCap(null);
-                  setSelectedStory((cur) => (cur === t.story.id ? null : t.story.id));
-                }}
-              />
-            ))}
+              {/* claimed land, back-to-front so extrusions layer */}
+              <g className="hex-land">
+                {world.drawTiles.map(({ h, owner }) => {
+                  const territory = world.territories[owner];
+                  if (!territory) return null;
+                  const c = hexCenter(h);
+                  const key = axialKey(h);
+                  const variant = hash(`tile:${key}`) % 3;
+                  const wheat = territory.wheatTiles.has(key);
+                  return (
+                    <g
+                      key={key}
+                      className={`hex-tile ${territoryClass(territory.story)}`}
+                      onMouseEnter={() => setHoverStory(territory.story.id)}
+                      onMouseLeave={() => setHoverStory(null)}
+                      onClick={() => selectStory(territory.story.id, null)}
+                    >
+                      <path className="hex-side" d={hexPath(c.x, c.y + TILE_DEPTH, HEX_R)} />
+                      <path
+                        className={`hex-top ${wheat ? 'is-wheat' : `v-${variant}`}`}
+                        d={hexPath(c.x, c.y, HEX_R)}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+
+              {/* roads between dependent territories */}
+              {world.edges.map((e) => (
+                <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                  <title>
+                    {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
+                  </title>
+                  <path className="world-trail-bed" d={e.d} />
+                  <path className="world-trail-line" d={e.d} markerEnd="url(#trail-arrow)" />
+                </g>
+              ))}
+
+              {/* territory borders (focus-aware) */}
+              {world.territories.map((t) => (
+                <g key={t.story.id} className={`hex-border ${territoryClass(t.story)}`}>
+                  {t.boundary.map((s, i) => (
+                    <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />
+                  ))}
+                </g>
+              ))}
+
+              {/* trees, decoration, nameplates, wisps — per territory */}
+              {world.territories.map((t) => (
+                <TerritoryFlora
+                  key={t.story.id}
+                  territory={t}
+                  className={territoryClass(t.story)}
+                  hidden={hidden}
+                  sessions={sessionsByStory.get(t.story.id) ?? []}
+                  onHover={(on) => setHoverStory(on ? t.story.id : null)}
+                  onSelect={(capId) => selectStory(t.story.id, capId)}
+                />
+              ))}
+            </g>
           </svg>
         </div>
 
@@ -523,10 +786,7 @@ export function TreeView(): React.JSX.Element {
             hidden={hidden}
             onSelectCap={setSelectedCap}
             onHoverCap={setHoverCap}
-            onClose={() => {
-              setSelectedStory(null);
-              setSelectedCap(null);
-            }}
+            onClose={clearSelection}
           />
         )}
       </div>
@@ -534,137 +794,128 @@ export function TreeView(): React.JSX.Element {
   );
 }
 
-/** Deterministic grass tufts + light patches so the field isn't a flat fill. */
-function FieldTexture({ width, height }: { width: number; height: number }): React.JSX.Element {
-  const tufts: Pt[] = [];
-  const n = Math.round((width * height) / 26000);
-  for (let i = 0; i < n; i++) {
-    tufts.push({
-      x: 14 + rand01(i * 7 + 1) * (width - 28),
-      y: 14 + rand01(i * 7 + 4) * (height - 28),
-    });
-  }
+/** A decorative low-poly conifer (no status meaning). */
+function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: number }): React.JSX.Element {
+  const lean = (rand01(seed) - 0.5) * 2;
+  const w = h * 0.42;
   return (
-    <g className="world-texture">
-      {tufts.map((p, i) =>
-        i % 4 === 0 ? (
-          <ellipse key={i} className="world-patch" cx={p.x} cy={p.y} rx={26} ry={14} />
-        ) : (
-          <path
-            key={i}
-            className="world-tuft"
-            d={`M ${p.x} ${p.y} l -2 -5 M ${p.x + 3} ${p.y} l 0 -6 M ${p.x + 6} ${p.y} l 2 -5`}
-          />
-        ),
+    <g className="hex-conifer" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+      <ellipse className="flora-shadow" cx={1} cy={1} rx={w * 0.9} ry={2.4} />
+      <path
+        className={`conifer-body c-${seed % 3}`}
+        d={`M ${lean} ${-h} L ${w} 0 L ${-w} 0 Z`}
+      />
+      <path className="conifer-snow" d={`M ${lean} ${-h} L ${lean + w * 0.45} ${-h * 0.45} L ${lean - w * 0.45} ${-h * 0.45} Z`} />
+    </g>
+  );
+}
+
+/** A capability tree: low-poly, foliage colored by status, verdict badge on top. */
+function CapTree({
+  spot,
+  hidden,
+  onSelect,
+}: {
+  spot: CapSpot;
+  hidden: ReadonlySet<string>;
+  onSelect: () => void;
+}): React.JSX.Element {
+  const { cap, x, y } = spot;
+  const st = cap.status ?? 'unknown';
+  const verdictNote = cap.verdict
+    ? ` · ${cap.verdict.outcome === 'pass' ? '✓ proven' : '✗ last run failed'}`
+    : '';
+  return (
+    <g
+      className={`hex-captree st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
+      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
+      <title>{`${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`}</title>
+      <ellipse className="flora-shadow" cx={1.5} cy={1.5} rx={8} ry={3} />
+      <rect className="captree-trunk" x={-1.6} y={-5} width={3.2} height={7} rx={1.4} />
+      <path className="captree-lower" d="M 0 -23 L 9 -4 L -9 -4 Z" />
+      <path className="captree-upper" d="M 0 -30 L 6.6 -14 L -6.6 -14 Z" />
+      {cap.verdict && (
+        <g className={`captree-verdict verdict-${cap.verdict.outcome}`} transform="translate(0 -34)">
+          <circle r={5} />
+          <text textAnchor="middle" y={2.6}>
+            {cap.verdict.outcome === 'pass' ? '✓' : '✗'}
+          </text>
+        </g>
       )}
     </g>
   );
 }
 
-/** Age since lastSeenAt, compact ("12m" / "3h"). */
-function formatAge(lastSeenAt: string): string {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60_000));
-  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
-}
-
-function TopDownTree({
-  tree: t,
+function TerritoryFlora({
+  territory: t,
   className,
   hidden,
   sessions,
   onHover,
   onSelect,
 }: {
-  tree: WorldTree;
+  territory: Territory;
   className: string;
   hidden: ReadonlySet<string>;
   sessions: TreeSession[];
   onHover: (on: boolean) => void;
-  onSelect: () => void;
+  onSelect: (capId: string | null) => void;
 }): React.JSX.Element {
   const story = t.story;
-  const seed = hash(story.id);
   const statusKey = story.status ?? 'unknown';
-  const caps = story.capabilities;
-  const plateW = Math.max(92, story.id.length * 7.2 + 24);
+  const plateW = Math.max(96, story.id.length * 7.2 + 28);
+
+  // Forest clumps: 3–5 small conifers per forest tile, drawn before cap trees.
+  const forests = t.decor.filter((d) => d.kind === 'forest');
+
+  // Draw flora top-down by y so taller southern trees overlap correctly.
+  const drawables: { y: number; el: React.JSX.Element }[] = [];
+  forests.forEach((f) => {
+    const count = 3 + (f.seed % 3);
+    for (let i = 0; i < count; i++) {
+      const a = rand01(f.seed + i * 7) * Math.PI * 2;
+      const rr = rand01(f.seed + i * 13) * HEX_R * 0.55;
+      const x = f.x + Math.cos(a) * rr;
+      const y = f.y + Math.sin(a) * rr * 0.8 + 4;
+      drawables.push({
+        y,
+        el: (
+          <DecorTree key={`f:${f.seed}:${i}`} x={x} y={y} h={9 + rand01(f.seed + i) * 7} seed={f.seed + i} />
+        ),
+      });
+    }
+  });
+  t.caps.forEach((spot) => {
+    drawables.push({
+      y: spot.y,
+      el: (
+        <CapTree
+          key={`c:${spot.cap.id}`}
+          spot={spot}
+          hidden={hidden}
+          onSelect={() => onSelect(spot.cap.id)}
+        />
+      ),
+    });
+  });
+  drawables.sort((a, b) => a.y - b.y);
 
   return (
     <g
-      className={className}
-      transform={`translate(${t.x.toFixed(1)} ${t.y.toFixed(1)})`}
+      className={`hex-flora ${className}`}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      onClick={onSelect}
+      onClick={() => onSelect(null)}
     >
-      <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
+      {drawables.map((d) => d.el)}
 
-      {/* shadow, status ring, canopy layers */}
-      <ellipse className="world-shadow" cx={t.r * 0.18} cy={t.r * 0.22} rx={t.r * 1.04} ry={t.r * 0.9} />
-      <circle className={`world-ring st-${statusKey}`} r={t.r + 6} />
-      <path className="world-canopy-1" d={blobPath(0, 0, t.r, seed)} />
-      <path className="world-canopy-2" d={blobPath(-t.r * 0.12, -t.r * 0.12, t.r * 0.74, seed + 5)} />
-      <path className="world-canopy-3" d={blobPath(-t.r * 0.2, -t.r * 0.2, t.r * 0.44, seed + 11)} />
-
-      {/* capability fruits — the story ripens as these turn green */}
-      {caps.map((cap, i) => {
-        const p = fruitPos(i, caps.length, t.r, seed + 17);
-        const st = cap.status ?? 'unknown';
-        const verdictNote = cap.verdict ? ` · ${cap.verdict.outcome === 'pass' ? '✓ proven' : '✗ last run failed'}` : '';
-        return (
-          <g
-            key={cap.id}
-            className={`world-fruit st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-            transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`}
-          >
-            <title>{`${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`}</title>
-            {cap.status === 'healthy' &&
-              [0, 1, 2, 3, 4].map((k) => (
-                <circle
-                  key={k}
-                  className="world-petal"
-                  cx={Math.cos((k / 5) * Math.PI * 2) * 5}
-                  cy={Math.sin((k / 5) * Math.PI * 2) * 5}
-                  r={2.6}
-                />
-              ))}
-            <circle className="world-fruit-dot" r={4.6} />
-            {cap.verdict?.outcome === 'pass' && (
-              <path className="world-fruit-glyph" d="M -2.2 0.2 L -0.6 1.9 L 2.4 -1.9" />
-            )}
-            {cap.verdict?.outcome === 'fail' && (
-              <path className="world-fruit-glyph" d="M -2 -2 L 2 2 M 2 -2 L -2 2" />
-            )}
-          </g>
-        );
-      })}
-
-      {/* trunk peeking through the canopy centre */}
-      <circle className="world-trunk" r={3.4} />
-
-      {/* session wisps — live sessions from the notice board orbit the trees they work on */}
-      {sessions.map((s, i) => {
-        const phase = (i * 360) / sessions.length + rand01(hash(s.sessionId)) * 90;
-        return (
-          <g key={s.sessionId} className={`world-wisp band-${s.band}`}>
-            <title>{`${s.sessionId} [${s.band}] ${formatAge(s.lastSeenAt)} — ${s.workingOn}`}</title>
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              from={`${phase} 0 0`}
-              to={`${phase + 360} 0 0`}
-              dur={`${s.band === 'fresh' ? 9 : 16}s`}
-              repeatCount="indefinite"
-            />
-            <g transform={`translate(${t.r + 13} 0)`}>
-              <circle className="world-wisp-glow" r={6.5} />
-              <circle className="world-wisp-dot" r={2.8} />
-            </g>
-          </g>
-        );
-      })}
-
-      {/* nameplate */}
-      <g className="world-plate" transform={`translate(${-plateW / 2} ${t.r + 12})`}>
+      <g className="world-plate" transform={`translate(${t.centroid.x - plateW / 2} ${t.labelY})`}>
+        <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
         <rect className="world-plate-bg" width={plateW} height={30} rx={7} />
         <text className="world-plate-id" x={plateW / 2} y={13} textAnchor="middle">
           {story.id}
@@ -672,10 +923,33 @@ function TopDownTree({
         <text className="world-plate-sub" x={plateW / 2} y={25} textAnchor="middle">
           {story.error
             ? 'story spec error'
-            : `${statusKey} · ${caps.length} caps${
+            : `${statusKey} · ${story.capabilities.length} caps${
                 story.verdict ? ` · UAT ${story.verdict.outcome === 'pass' ? '✓' : '✗'}` : ''
               }`}
         </text>
+      </g>
+
+      <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
+        {sessions.map((s, i) => {
+          const phase = (i * 360) / sessions.length + rand01(hash(s.sessionId)) * 90;
+          return (
+            <g key={s.sessionId} className={`world-wisp band-${s.band satisfies Band}`}>
+              <title>{`${s.sessionId} [${s.band}] ${formatAge(s.lastSeenAt)} — ${s.workingOn}`}</title>
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from={`${phase} 0 0`}
+                to={`${phase + 360} 0 0`}
+                dur={`${s.band === 'fresh' ? 9 : 16}s`}
+                repeatCount="indefinite"
+              />
+              <g transform={`translate(${t.radius * 0.72 + 10} 0)`}>
+                <circle className="world-wisp-glow" r={6.5} />
+                <circle className="world-wisp-dot" r={2.8} />
+              </g>
+            </g>
+          );
+        })}
       </g>
     </g>
   );
