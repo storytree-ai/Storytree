@@ -6,6 +6,8 @@ outcome: "Every session (interactive or spine-driven) is visible on a shared boa
 status: proposed
 proof_mode: UAT
 capabilities: [declare-presence, presence-store, noticeboard-cli, tree-view, ambient-integration]
+# Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams, ADR-0010 §4).
+depends_on: [library, drive-machinery]
 ---
 
 # The notice board — parallel sessions declare presence anchored to story nodes

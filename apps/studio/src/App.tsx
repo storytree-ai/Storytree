@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { AppDataContext, type AppData } from './lib/appData';
 import { useOperator } from './lib/operator';
-import { homeHref, libraryHref, useRoute } from './lib/route';
+import { homeHref, libraryHref, treeHref, useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset } from './types';
 import { Sidebar } from './components/Sidebar';
 import { StoreBanner } from './components/StoreBanner';
@@ -11,6 +11,7 @@ import { DocView } from './components/DocView';
 import { Library } from './components/Library';
 import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
+import { TreeView } from './components/TreeView';
 
 export function App(): React.JSX.Element {
   const route = useRoute();
@@ -88,6 +89,7 @@ export function App(): React.JSX.Element {
           </a>
           <nav className="topnav">
             <a href={homeHref}>Overview</a>
+            <a href={treeHref}>Tree</a>
             <a href={libraryHref()}>Library</a>
           </nav>
           <label className="operator">
@@ -144,5 +146,7 @@ function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX
       return <AssetEditor mode="edit" id={route.id} />;
     case 'asset-new':
       return <AssetEditor mode="new" />;
+    case 'tree':
+      return <TreeView />;
   }
 }

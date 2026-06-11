@@ -36,6 +36,10 @@ import type {
   Comment,
   CommentAnchor,
   DocMeta,
+  TreeCapability,
+  TreePayload,
+  TreeStory,
+  WorkStatus,
 } from '../src/types';
 import {
   createBackend,
@@ -62,6 +66,7 @@ const ASSET_CATEGORIES: AssetCategory[] = [
 interface Paths {
   repoRoot: string;
   docsDir: string;
+  storiesDir: string;
   dataDir: string;
   commentsFile: string;
   assetsFile: string;
@@ -74,6 +79,7 @@ function resolvePaths(config: ResolvedConfig): Paths {
   return {
     repoRoot,
     docsDir: path.join(repoRoot, 'docs'),
+    storiesDir: path.join(repoRoot, 'stories'),
     dataDir,
     commentsFile: path.join(dataDir, 'comments.json'),
     assetsFile: path.join(dataDir, 'assets.json'),
@@ -410,6 +416,94 @@ async function handleAssets(
   throw new HttpError(405, `method ${method} not allowed`);
 }
 
+// ---------- story tree (read-only, live from <repo>/stories) ----------
+//
+// Mirrors the CLI `storytree tree` discovery contract (packages/cli/src/tree.ts):
+// a story is a stories/<dir> with a story.md; capabilities come from the story
+// frontmatter's `capabilities` list, each at <dir>/<capId>.md. Load failures are
+// tolerated per node — the view renders what it can, with the reason attached —
+// because one malformed spec must not blank the whole tree.
+//
+// @storytree/orchestrator (loadNodeSpec) is loaded LAZILY on first /api/tree hit,
+// NOT statically: this module is reached at Vite config-load / `vite build` time,
+// where the loader has no tsx transform and cannot resolve the orchestrator's raw-TS
+// `.js` re-export specifiers (ERR_MODULE_NOT_FOUND) — the same trap, and the same
+// fix, as PgBackend's dynamic import of @storytree/store in libraryBackend.ts.
+
+type OrchestratorModule = typeof import('@storytree/orchestrator');
+type LoadNodeSpec = OrchestratorModule['loadNodeSpec'];
+
+let orchestratorModulePromise: Promise<OrchestratorModule> | null = null;
+
+function loadOrchestrator(): Promise<OrchestratorModule> {
+  return (orchestratorModulePromise ??= import('@storytree/orchestrator'));
+}
+
+const isWorkStatus = (s: string): s is WorkStatus =>
+  ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
+
+function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId: string): TreeCapability {
+  const node: TreeCapability = {
+    id: capId,
+    title: capId,
+    outcome: '',
+    status: null,
+    proofMode: '',
+    dependsOn: [],
+  };
+  const file = path.join(storyDir, `${capId}.md`);
+  if (!existsSync(file)) return { ...node, error: 'spec file missing' };
+  try {
+    const spec = loadNodeSpec(file);
+    return {
+      ...node,
+      title: spec.title,
+      outcome: spec.outcome,
+      status: isWorkStatus(spec.status) ? spec.status : null,
+      proofMode: spec.proofMode,
+      dependsOn: spec.dependsOn,
+    };
+  } catch (err) {
+    return { ...node, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function readTree(storiesDir: string): Promise<TreePayload> {
+  const stories: TreeStory[] = [];
+  if (!existsSync(storiesDir)) return { stories };
+  const { loadNodeSpec } = await loadOrchestrator();
+  for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
+    if (!ent.isDirectory()) continue;
+    const dir = path.join(storiesDir, ent.name);
+    const storyFile = path.join(dir, 'story.md');
+    if (!existsSync(storyFile)) continue;
+    const story: TreeStory = {
+      id: ent.name,
+      title: ent.name,
+      outcome: '',
+      status: null,
+      proofMode: '',
+      dependsOn: [],
+      capabilities: [],
+    };
+    try {
+      const spec = loadNodeSpec(storyFile);
+      story.title = spec.title;
+      story.outcome = spec.outcome;
+      story.status = isWorkStatus(spec.status) ? spec.status : null;
+      story.proofMode = spec.proofMode;
+      story.dependsOn = spec.dependsOn;
+      story.capabilities = spec.capabilities.map((capId) =>
+        loadTreeCapability(loadNodeSpec, dir, capId),
+      );
+    } catch (err) {
+      story.error = err instanceof Error ? err.message : String(err);
+    }
+    stories.push(story);
+  }
+  return { stories };
+}
+
 async function handleDocs(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -566,6 +660,9 @@ export function storytreeDataApi(): Plugin {
               await handleDb(req, res, url);
             } else if (url.pathname.startsWith('/api/docs')) {
               await handleDocs(req, res, url, paths);
+            } else if (url.pathname === '/api/tree') {
+              if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
+              sendJson(res, 200, await readTree(paths.storiesDir));
             } else if (url.pathname === '/api/comments') {
               await handleComments(req, res, url, backend);
             } else if (url.pathname === '/api/assets') {
