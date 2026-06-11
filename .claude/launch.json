@@ -12,9 +12,18 @@
       }
     },
     {
+      "name": "studio-json-5175",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "studio", "dev", "--port", "5175", "--strictPort"],
+      "port": 5175,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "json"
+      }
+    },
+    {
       "name": "studio-5174",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "studio", "dev", "--", "--port", "5174", "--strictPort"],
+      "runtimeArgs": ["--filter", "studio", "dev", "--port", "5174", "--strictPort"],
       "port": 5174,
       "env": {
         "STORYTREE_STUDIO_STORE": "pg",

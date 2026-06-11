@@ -9,6 +9,7 @@ import type {
   GuidanceAsset,
   NewComment,
   StoreHealth,
+  TreePayload,
 } from './types';
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
@@ -37,6 +38,7 @@ const q = encodeURIComponent;
 
 export const api = {
   listDocs: (): Promise<DocMeta[]> => http('/api/docs'),
+  tree: (): Promise<TreePayload> => http('/api/tree'),
   docContent: (id: string): Promise<DocContent> => http(`/api/docs/content?id=${q(id)}`),
 
   listComments: (topicId?: string): Promise<Comment[]> =>

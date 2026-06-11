@@ -226,6 +226,50 @@ export interface LibraryItem {
   description: string;
 }
 
+// ---------- story tree (GET /api/tree) ----------
+
+/** Work-hierarchy status vocabulary (`Status` in @storytree/core schema.ts). */
+export type WorkStatus =
+  | 'proposed'
+  | 'building'
+  | 'healthy'
+  | 'unhealthy'
+  | 'mapped'
+  | 'retired';
+
+/**
+ * One capability node in the tree view. `status: null` + `error` means the spec
+ * file was missing or failed frontmatter validation — the view still renders the
+ * node (tolerant, like `storytree tree`) with the reason on its detail panel.
+ */
+export interface TreeCapability {
+  id: string;
+  title: string;
+  outcome: string;
+  status: WorkStatus | null;
+  proofMode: string;
+  /** Sibling capability ids this one depends on (the in-story `depends_on` edges). */
+  dependsOn: string[];
+  error?: string;
+}
+
+/** One story: its own spec fields, story-level depends_on, and its capability DAG. */
+export interface TreeStory {
+  id: string;
+  title: string;
+  outcome: string;
+  status: WorkStatus | null;
+  proofMode: string;
+  /** Story ids this story depends on (frontmatter `depends_on` — consumed cross-story seams). */
+  dependsOn: string[];
+  capabilities: TreeCapability[];
+  error?: string;
+}
+
+export interface TreePayload {
+  stories: TreeStory[];
+}
+
 /** Highlight colour palette for text-anchored comments. */
 export interface HighlightColor {
   id: string;

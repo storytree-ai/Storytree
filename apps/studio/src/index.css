@@ -27,6 +27,26 @@
   --cat-context: #b45309;
   --cat-glossary: #475569;
 
+  /* work-hierarchy status colors (#/tree; Status in @storytree/core) */
+  --st-proposed: #b45309;
+  --st-building: #2563eb;
+  --st-healthy: #15803d;
+  --st-unhealthy: #b42318;
+  --st-mapped: #0e7490;
+  --st-retired: #6b7280;
+  --st-unknown: #6b7280;
+
+  /* world scenery (#/tree) */
+  --tree-trunk: #8a6d52;
+  --field-light: #dcebcf;
+  --field-dark: #c8ddb8;
+  --field-tuft: #b3cf9f;
+  --field-trail: #9b8463;
+  --field-trail-bed: #e7dfc8;
+  --canopy-1: #4e8f5e;
+  --canopy-2: #61a571;
+  --canopy-3: #79bd84;
+
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
 }
@@ -1333,4 +1353,432 @@ mark.st-hl.flash {
 }
 .field-hint {
   margin: 0;
+}
+
+/* ---------- story grove (#/tree) ---------- */
+
+.tree-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.tree-toolbar {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.tree-toolbar h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.tree-toolbar-chips {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.tree-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.tree-chip:hover {
+  border-color: var(--border-strong);
+}
+.tree-chip.off {
+  opacity: 0.45;
+}
+.tree-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--st-unknown);
+}
+.tree-dot.st-proposed { background: var(--st-proposed); }
+.tree-dot.st-building { background: var(--st-building); }
+.tree-dot.st-healthy { background: var(--st-healthy); }
+.tree-dot.st-unhealthy { background: var(--st-unhealthy); }
+.tree-dot.st-mapped { background: var(--st-mapped); }
+.tree-dot.st-retired { background: var(--st-retired); }
+
+.tree-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.tree-layout.has-detail {
+  grid-template-columns: minmax(0, 1fr) 400px;
+}
+
+/* the world (top-down field) */
+.world-frame {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: var(--field-dark);
+}
+.world-scene {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.world-tuft {
+  stroke: var(--field-tuft);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  fill: none;
+}
+.world-patch {
+  fill: #ffffff;
+  opacity: 0.05;
+}
+
+/* dependency trails on the ground */
+.world-trail {
+  transition: opacity 0.18s ease;
+}
+.world-trail-bed {
+  fill: none;
+  stroke: var(--field-trail-bed);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+.world-trail-line {
+  fill: none;
+  stroke: var(--field-trail);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  stroke-linecap: round;
+}
+.world-trail.is-ancestor .world-trail-line {
+  stroke: var(--warn);
+  stroke-width: 2.8;
+  stroke-dasharray: none;
+}
+.world-trail.is-descendant .world-trail-line {
+  stroke: var(--danger);
+  stroke-width: 2.8;
+  stroke-dasharray: none;
+}
+.world-trail.is-dim {
+  opacity: 0.25;
+}
+
+/* top-down trees */
+.world-tree {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+.world-shadow {
+  fill: #1f3c28;
+  opacity: 0.16;
+}
+.world-canopy-1 {
+  fill: var(--canopy-1);
+}
+.world-canopy-2 {
+  fill: var(--canopy-2);
+}
+.world-canopy-3 {
+  fill: var(--canopy-3);
+}
+.world-trunk {
+  fill: var(--tree-trunk);
+  stroke: #5e4936;
+  stroke-width: 1;
+}
+.world-ring {
+  fill: none;
+  stroke: var(--st-unknown);
+  stroke-width: 2.4;
+  opacity: 0;
+  transition: opacity 0.18s ease, stroke 0.18s ease;
+}
+.world-ring.st-proposed { stroke: var(--st-proposed); stroke-dasharray: 5 5; opacity: 0.85; }
+.world-ring.st-building { stroke: var(--st-building); stroke-dasharray: 5 5; opacity: 0.9; }
+.world-ring.st-healthy { stroke: var(--st-healthy); opacity: 0.9; }
+.world-ring.st-unhealthy { stroke: var(--st-unhealthy); opacity: 0.95; }
+.world-ring.st-mapped { stroke: var(--st-mapped); opacity: 0.85; }
+.world-ring.st-retired { stroke: var(--st-retired); stroke-dasharray: 2 5; opacity: 0.7; }
+.world-tree.is-focus .world-ring,
+.world-tree.is-selected .world-ring {
+  stroke: var(--accent);
+  stroke-dasharray: none;
+  stroke-width: 3.2;
+  opacity: 1;
+}
+.world-tree.is-ancestor .world-ring {
+  stroke: var(--warn);
+  stroke-dasharray: none;
+  stroke-width: 3;
+  opacity: 1;
+}
+.world-tree.is-descendant .world-ring {
+  stroke: var(--danger);
+  stroke-dasharray: none;
+  stroke-width: 3;
+  opacity: 1;
+}
+.world-tree.is-dim {
+  opacity: 0.38;
+}
+.world-tree.is-ghost {
+  opacity: 0.4;
+}
+
+/* capability fruits */
+.world-fruit {
+  transition: opacity 0.18s ease;
+}
+.world-fruit-dot {
+  fill: var(--st-unknown);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+.world-fruit.st-proposed .world-fruit-dot { fill: var(--st-proposed); }
+.world-fruit.st-building .world-fruit-dot { fill: var(--st-building); }
+.world-fruit.st-healthy .world-fruit-dot { fill: var(--st-healthy); }
+.world-fruit.st-unhealthy .world-fruit-dot { fill: var(--st-unhealthy); }
+.world-fruit.st-mapped .world-fruit-dot { fill: var(--st-mapped); }
+.world-fruit.st-retired .world-fruit-dot { fill: var(--st-retired); }
+.world-petal {
+  fill: #ffffff;
+  opacity: 0.9;
+}
+.world-fruit.is-filtered {
+  opacity: 0.12;
+}
+
+/* nameplates */
+.world-plate-bg {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  opacity: 0.94;
+}
+.world-tree:hover .world-plate-bg,
+.world-tree.is-selected .world-plate-bg {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+.world-plate-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text);
+}
+.world-plate-sub {
+  font-size: 9.5px;
+  fill: var(--muted);
+}
+
+/* dependency edges */
+.tree-edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.7;
+  transition: opacity 0.18s ease, stroke 0.18s ease;
+}
+.tree-edge.is-ancestor {
+  stroke: var(--warn);
+  stroke-width: 2.4;
+}
+.tree-edge.is-descendant {
+  stroke: var(--danger);
+  stroke-width: 2.4;
+}
+.tree-edge.is-dim {
+  opacity: 0.16;
+}
+
+/* capability cards */
+.tree-card {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+.tree-card-bg {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+}
+.tree-card-strip {
+  fill: var(--st-unknown);
+}
+.tree-card.st-proposed .tree-card-strip { fill: var(--st-proposed); }
+.tree-card.st-building .tree-card-strip { fill: var(--st-building); }
+.tree-card.st-healthy .tree-card-strip { fill: var(--st-healthy); }
+.tree-card.st-unhealthy .tree-card-strip { fill: var(--st-unhealthy); }
+.tree-card.st-mapped .tree-card-strip { fill: var(--st-mapped); }
+.tree-card.st-retired .tree-card-strip { fill: var(--st-retired); }
+.tree-card-status {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.tree-card-id {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  fill: var(--text);
+}
+.tree-card:hover .tree-card-bg {
+  stroke: var(--accent);
+}
+.tree-card.is-focus .tree-card-bg,
+.tree-card.is-selected .tree-card-bg {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+.tree-card.is-ancestor .tree-card-bg {
+  stroke: var(--warn);
+  stroke-width: 2.2;
+}
+.tree-card.is-descendant .tree-card-bg {
+  stroke: var(--danger);
+  stroke-width: 2.2;
+}
+.tree-card.is-dim {
+  opacity: 0.22;
+}
+.tree-card.is-ghost {
+  opacity: 0.38;
+}
+.tree-card.is-filtered {
+  opacity: 0.1;
+}
+
+/* the capability sub-DAG inside the panel */
+.tree-subdag-title {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.tree-subdag-frame {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 6px;
+  overflow: auto;
+  max-height: 46vh;
+}
+.tree-subdag {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sub-card .tree-card-status {
+  font-size: 8.5px;
+}
+.sub-card .tree-card-id {
+  font-size: 10px;
+}
+.tree-cap-detail {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+/* detail panel */
+.tree-detail {
+  position: sticky;
+  top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  font-size: 13.5px;
+}
+.tree-detail header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.tree-detail h3 {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 14px;
+  word-break: break-word;
+}
+.tree-detail-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.tree-detail-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.tree-detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 10px 0 0;
+}
+.tree-detail dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tree-detail dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-word;
+}
+.tree-badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: var(--st-unknown);
+}
+.tree-badge.st-proposed { background: var(--st-proposed); }
+.tree-badge.st-building { background: var(--st-building); }
+.tree-badge.st-healthy { background: var(--st-healthy); }
+.tree-badge.st-unhealthy { background: var(--st-unhealthy); }
+.tree-badge.st-mapped { background: var(--st-mapped); }
+.tree-badge.st-retired { background: var(--st-retired); }
+.tree-link {
+  display: inline-block;
+  margin: 0 6px 4px 0;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.tree-link:hover {
+  border-color: var(--accent);
+}
+
+@media (max-width: 1080px) {
+  .tree-layout.has-detail {
+    grid-template-columns: 1fr;
+  }
+  .tree-detail {
+    position: static;
+  }
 }
