@@ -162,7 +162,9 @@ three pieces:
 - **Idle-aware auto-stop — BUILT (resolves the deferred Cloud Function).** A Gen2 **Cloud
   Function** (`storytree-pg-idle-stop`, `infra/idle-stop.tf` + `infra/functions/idle-stop/`),
   fired by Cloud Scheduler every 15 min, stops the instance **only after `idle_minutes`
-  (default 60) with zero DB connections** — read from the Cloud Monitoring
+  (default 480 = 8 h — lengthened from 60 on 2026-06-13, owner call: sessions kept finding
+  the instance stopped between same-day bursts; the daily floor still caps a fallow day)
+  with zero DB connections** — read from the Cloud Monitoring
   `database/network/connections` metric. While a session / the Auth Proxy holds a connection
   the timer never fires, so it "counts from the last request" and **does not stop an instance
   in active use** (the failure the blunt hourly cron caused, fixed here). It runs under a

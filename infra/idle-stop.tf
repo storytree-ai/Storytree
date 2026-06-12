@@ -9,7 +9,10 @@
 
 variable "idle_minutes" {
   type        = number
-  default     = 60
+  default     = 480 # 8 h — lengthened from 60 (owner call 2026-06-13): sessions kept finding the
+  # instance stopped between same-day bursts. The daily 04:30 floor (cost-backstop.tf) still
+  # caps a fallow day; an active day now stays up end-to-end. ~$25/mo fully always-on is the
+  # worst-case bound (main.tf tier comment), so the extra idle burn is a few $/mo.
   description = "Stop the instance only after this many minutes with zero DB connections."
 }
 

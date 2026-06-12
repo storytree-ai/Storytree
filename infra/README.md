@@ -48,7 +48,8 @@ Two Terraform-managed mechanisms keep a forgotten instance from bleeding ~$25/mo
 1. **Idle-aware Cloud Function** (`storytree-pg-idle-stop`, source in `functions/idle-stop/`)
    — Cloud Scheduler pings it every 15 min (`idle_check_schedule`). It reads the Cloud
    Monitoring `database/network/connections` metric and stops the instance **only after
-   `idle_minutes` (default 60) with zero DB connections**. While a session / the Cloud SQL
+   `idle_minutes` (default 480 = 8 h; lengthened from 60 on 2026-06-13 — sessions kept
+   finding the instance stopped between same-day bursts) with zero DB connections**. While a session / the Cloud SQL
    Auth Proxy holds a connection, the timer never fires — so it "counts from the last
    request" and won't kill live work. It runs as a least-privilege SA (`sql-idle-stopper`:
    `roles/cloudsql.editor` + `roles/monitoring.viewer`, no keys) and is invoked privately
@@ -65,7 +66,8 @@ Tune via `terraform apply -var=idle_minutes=120` (or set it in `terraform.tfvars
 
 > **Known gap:** an Auth Proxy left running in the background keeps a connection open, so
 > the idle function will treat the instance as "active" indefinitely — the daily floor is
-> what catches that. Close the proxy (or `pnpm db:down`) when you finish a burst.
+> what catches that. Don't `pnpm db:down` at the end of a working session (owner call
+> 2026-06-13 — the automation is the stopper, not sessions); just close any background proxy.
 
 Tear the whole thing down with `terraform destroy`.
 
