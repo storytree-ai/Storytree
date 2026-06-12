@@ -7,10 +7,10 @@ import { Status, Tier, ProofMode } from "@storytree/core";
 
 /**
  * A LIGHT frontmatter loader for the `stories/<story>/<unit>.md` node specs (drive-machinery
- * Phase B). Deliberately NOT `@storytree/core`'s `loadUnit`: that parses a pure-YAML unit and the
- * full `Unit` zod requires body-borne fields (`integration_test`, `contracts`, `uat`) the
- * frontmatter-markdown seed format keeps as prose sections. Here we validate JUST the frontmatter
- * fields the resolver needs and carry the `## Guidance` prose along for prompt assembly.
+ * Phase B). Deliberately NOT `@storytree/core`'s full `Unit` zod: that requires body-borne fields
+ * (`integration_test`, `contracts`, `uat`) the frontmatter-markdown unit format (ADR-0039) keeps
+ * as prose sections. Here we validate JUST the frontmatter fields the resolver needs and carry
+ * the `## Guidance` prose along for prompt assembly.
  */
 
 /** The frontmatter proof-mode vocabulary used by the stories/ seed files. */

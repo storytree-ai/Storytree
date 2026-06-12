@@ -1,12 +1,13 @@
 /**
- * Validate every YAML corpus unit under `stories/` against the work-hierarchy schema
- * (ADR-0013). Wired as `pnpm --filter @storytree/core validate` / `test`; the CI hook that
- * keeps the corpus honest. Exits non-zero on the first invalid unit.
+ * Guard: no standalone YAML unit may exist under `stories/` (ADR-0039). The corpus's
+ * structured source format is JSON; work-hierarchy units are frontmatter-markdown (loaded by
+ * the orchestrator's node-spec loader). A `.yaml`/`.yml` file here is a relapse into the
+ * retired ADR-0013 pure-YAML representation. Wired as `pnpm --filter @storytree/core
+ * validate` / `test`; exits non-zero listing every offender.
  */
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadUnit } from "../src/index.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const storiesDir = join(repoRoot, "stories");
@@ -19,20 +20,9 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
-let ok = 0;
-let failed = 0;
-for (const file of walk(storiesDir)) {
-  const rel = relative(repoRoot, file);
-  try {
-    const unit = loadUnit(file);
-    console.log(`✓ ${rel} — ${unit.tier} ${unit.id}`);
-    ok++;
-  } catch (err) {
-    failed++;
-    console.error(`✗ ${rel}`);
-    console.error(err instanceof Error ? err.message : String(err));
-  }
+const offenders = [...walk(storiesDir)].map((f) => relative(repoRoot, f));
+for (const rel of offenders) {
+  console.error(`✗ ${rel} — standalone YAML units are retired (ADR-0039); author frontmatter-markdown`);
 }
-
-console.log(`\n${ok} valid, ${failed} invalid`);
-if (failed > 0) process.exit(1);
+if (offenders.length > 0) process.exit(1);
+console.log("✓ stories/ holds no standalone YAML units (ADR-0039)");

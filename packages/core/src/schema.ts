@@ -4,7 +4,8 @@ import { z } from "zod";
  * The work-hierarchy schema (ADR-0002 / ADR-0010), encoded as the corpus's
  * source-of-truth validator (ADR-0013).
  *
- * Principle (ADR-0013, owner 2026-06-06): a unit is structured YAML. Context is a
+ * Principle (ADR-0013, owner 2026-06-06): a unit is structured data (on disk the units are
+ * frontmatter-markdown; the structured corpus source format is JSON — ADR-0039). Context is a
  * first-class input/signal, so narrative is NOT a freeform body — it lives in typed,
  * addressable fields (`guidance[]`, walkthrough `steps[]`, `proof_note`). Decompose only
  * where granular pull/query/validate pays; long-form prose stays a single field. Text lives
