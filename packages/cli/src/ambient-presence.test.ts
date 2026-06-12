@@ -1,0 +1,603 @@
+/**
+ * Offline proof for ambient-presence.ts (ADR-0033 Decision 3: advisory-by-construction).
+ *
+ * Every path through the implementation is fail-silent — presence failures must never
+ * surface through fn's result or errors. All fixtures are inline; do NOT read
+ * .claude/settings.json from disk.
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import type { PresenceDeclarationDoc } from "@storytree/core";
+
+import type {
+  AmbientDeps,
+  BuildPresenceInfo,
+  HeartbeatState,
+} from "./ambient-presence.js";
+import {
+  withPresence,
+  sessionHook,
+  statuslineGlance,
+  auditHookConfig,
+} from "./ambient-presence.js";
+
+import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+
+// ---------------------------------------------------------------------------
+// Fixed clock
+// ---------------------------------------------------------------------------
+
+const NOW = new Date("2026-06-13T08:00:00.000Z");
+const nowFn = () => NOW;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeDoc(overrides: Partial<PresenceDeclarationDoc> = {}): PresenceDeclarationDoc {
+  return {
+    sessionId: "wt-test",
+    branch: "claude/real/ambient",
+    workingOn: "testing ambient",
+    nodes: [],
+    status: "active",
+    startedAt: NOW.toISOString(),
+    lastSeenAt: NOW.toISOString(),
+    ...overrides,
+  };
+}
+
+interface CallRecordingStore extends PresenceStoreLike {
+  declareCalls: PresenceDeclarationDoc[];
+  doneCalls: Array<{ sessionId: string; lastSeenAt: string }>;
+  docs: Map<string, PresenceDeclarationDoc>;
+}
+
+function makeRecordingStore(active: PresenceDeclarationDoc[] = []): CallRecordingStore {
+  const docs = new Map<string, PresenceDeclarationDoc>();
+  for (const doc of active) {
+    docs.set(doc.sessionId, doc);
+  }
+  const declareCalls: PresenceDeclarationDoc[] = [];
+  const doneCalls: Array<{ sessionId: string; lastSeenAt: string }> = [];
+  return {
+    declareCalls,
+    doneCalls,
+    docs,
+    async declare(doc: PresenceDeclarationDoc): Promise<PresenceDeclarationDoc> {
+      declareCalls.push(doc);
+      const existing = docs.get(doc.sessionId);
+      const persisted: PresenceDeclarationDoc =
+        existing !== undefined ? { ...doc, startedAt: existing.startedAt } : doc;
+      docs.set(persisted.sessionId, persisted);
+      return persisted;
+    },
+    async done(sessionId: string, lastSeenAt: string): Promise<PresenceDeclarationDoc | null> {
+      doneCalls.push({ sessionId, lastSeenAt });
+      const existing = docs.get(sessionId);
+      if (existing === undefined) return null;
+      const updated: PresenceDeclarationDoc = { ...existing, status: "done", lastSeenAt };
+      docs.set(sessionId, updated);
+      return updated;
+    },
+    async listActive(): Promise<PresenceDeclarationDoc[]> {
+      return Array.from(docs.values()).filter((d) => d.status === "active");
+    },
+    async history(): Promise<Array<{ type: string; doc: unknown; actor: string; at: string }>> {
+      return [];
+    },
+  };
+}
+
+function makeThrowingStore(): PresenceStoreLike {
+  return {
+    async declare(): Promise<PresenceDeclarationDoc> {
+      throw new Error("store error: declare");
+    },
+    async done(): Promise<PresenceDeclarationDoc | null> {
+      throw new Error("store error: done");
+    },
+    async listActive(): Promise<PresenceDeclarationDoc[]> {
+      throw new Error("store error: listActive");
+    },
+    async history(): Promise<Array<{ type: string; doc: unknown; actor: string; at: string }>> {
+      throw new Error("store error: history");
+    },
+  };
+}
+
+function makeHeartbeatState(initial: string | null = null): HeartbeatState & { bumps: string[] } {
+  let stored: string | null = initial;
+  const bumps: string[] = [];
+  return {
+    bumps,
+    readLastBump: () => stored,
+    writeLastBump: (iso: string) => {
+      stored = iso;
+      bumps.push(iso);
+    },
+  };
+}
+
+const IDENTITY: SessionIdentity = {
+  sessionId: "wt-ambient",
+  branch: "claude/real/ambient-integration",
+};
+
+const BUILD_INFO: BuildPresenceInfo = {
+  nodeId: "ambient-integration",
+  runId: "run-42",
+  mode: "dry-run",
+};
+
+// ---------------------------------------------------------------------------
+// withPresence — normal path
+// ---------------------------------------------------------------------------
+
+test("withPresence: declares before fn and marks done in finally", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+
+  const result = await withPresence(deps, BUILD_INFO, async () => "ok");
+
+  assert.equal(result, "ok");
+  assert.ok(store.declareCalls.length >= 1, "declare should have been called");
+  assert.ok(store.doneCalls.length >= 1, "done should have been called in finally");
+});
+
+test("withPresence: declare doc contains nodeId, sessionId, branch, status active", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+
+  await withPresence(deps, BUILD_INFO, async () => "x");
+
+  const declareDoc = store.declareCalls[0];
+  assert.ok(declareDoc !== undefined, "at least one declare call");
+  assert.ok(declareDoc.nodes.includes(BUILD_INFO.nodeId), "nodeId in nodes");
+  assert.equal(declareDoc.sessionId, IDENTITY.sessionId, "sessionId from identity");
+  assert.equal(declareDoc.branch, IDENTITY.branch, "branch from identity");
+  assert.equal(declareDoc.status, "active", "status is active");
+  // workingOn is a non-blank prose line mentioning mode and runId
+  assert.ok(declareDoc.workingOn.length > 0, "workingOn is non-blank");
+  assert.ok(
+    declareDoc.workingOn.includes(BUILD_INFO.mode) || declareDoc.workingOn.includes(BUILD_INFO.runId),
+    "workingOn references mode or runId",
+  );
+});
+
+test("withPresence: done called in finally even when fn throws", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const err = new Error("fn failure");
+
+  await assert.rejects(
+    () => withPresence(deps, BUILD_INFO, async () => { throw err; }),
+    (caught: unknown) => caught === err,
+  );
+
+  assert.ok(store.doneCalls.length >= 1, "done should still be called when fn throws");
+});
+
+test("withPresence: fn error object is passed through unchanged", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const originalErr = new Error("original");
+
+  let caught: unknown;
+  try {
+    await withPresence(deps, BUILD_INFO, async () => { throw originalErr; });
+  } catch (e) {
+    caught = e;
+  }
+  assert.ok(caught === originalErr, "exact same error object re-thrown");
+});
+
+// ---------------------------------------------------------------------------
+// withPresence — null / throwing deps, fail-silent
+// ---------------------------------------------------------------------------
+
+test("withPresence: null store — fn result passes through unchanged", async () => {
+  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
+  const result = await withPresence(deps, BUILD_INFO, async () => "passed");
+  assert.equal(result, "passed");
+});
+
+test("withPresence: null identity — fn result passes through unchanged", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: null, now: nowFn };
+  const result = await withPresence(deps, BUILD_INFO, async () => 42);
+  assert.equal(result, 42);
+});
+
+test("withPresence: throwing store — fn result passes through, nothing escapes", async () => {
+  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
+  const result = await withPresence(deps, BUILD_INFO, async () => "still ok");
+  assert.equal(result, "still ok");
+});
+
+test("withPresence: throwing store + fn throws — fn error propagates, store error swallowed", async () => {
+  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
+  const originalErr = new Error("fn threw");
+  let caught: unknown;
+  try {
+    await withPresence(deps, BUILD_INFO, async () => { throw originalErr; });
+  } catch (e) {
+    caught = e;
+  }
+  assert.ok(caught === originalErr, "fn error propagates even when store also throws");
+});
+
+// ---------------------------------------------------------------------------
+// sessionHook
+// ---------------------------------------------------------------------------
+
+test("sessionHook start: resolves '' on success and calls declare", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const result = await sessionHook("start", deps, { workingOn: "starting session", timeoutMs: 500 });
+  assert.equal(result, "");
+  assert.ok(store.declareCalls.length >= 1, "start should call declare");
+});
+
+test("sessionHook start: nodes are empty (not a node build — just session scope)", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  await sessionHook("start", deps, { workingOn: "exploring", timeoutMs: 500 });
+  const doc = store.declareCalls[0];
+  assert.ok(doc !== undefined, "declare was called");
+  assert.deepEqual(doc.nodes, [], "start hook declares with empty nodes");
+});
+
+test("sessionHook end: resolves '' on success and calls done", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const result = await sessionHook("end", deps, { workingOn: "ending session", timeoutMs: 500 });
+  assert.equal(result, "");
+  assert.ok(store.doneCalls.length >= 1, "end should call done");
+});
+
+test("sessionHook: resolves '' with throwing store on start", async () => {
+  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
+  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
+  assert.equal(result, "");
+});
+
+test("sessionHook: resolves '' with throwing store on end", async () => {
+  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
+  const result = await sessionHook("end", deps, { workingOn: "work", timeoutMs: 500 });
+  assert.equal(result, "");
+});
+
+test("sessionHook: resolves '' with null store", async () => {
+  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
+  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
+  assert.equal(result, "");
+});
+
+test("sessionHook: resolves '' with null identity", async () => {
+  const store = makeRecordingStore();
+  const deps: AmbientDeps = { store, identity: null, now: nowFn };
+  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
+  assert.equal(result, "");
+});
+
+test("sessionHook: resolves '' when store call hangs past timeoutMs", async () => {
+  const hangingStore: PresenceStoreLike = {
+    declare: () => new Promise(() => { /* never resolves */ }),
+    done: () => new Promise(() => { /* never resolves */ }),
+    listActive: () => new Promise(() => { /* never resolves */ }),
+    history: () => new Promise(() => { /* never resolves */ }),
+  };
+  const deps: AmbientDeps = { store: hangingStore, identity: IDENTITY, now: nowFn };
+  // Tiny timeout — should not block the test
+  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 20 });
+  assert.equal(result, "");
+});
+
+// ---------------------------------------------------------------------------
+// statuslineGlance — rendering
+// ---------------------------------------------------------------------------
+
+test("statuslineGlance: returns non-empty line with active count and own node", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+
+  const line = await statuslineGlance(deps, state, 60_000);
+
+  assert.ok(line.length > 0, "should return a non-empty line");
+  // Must mention active session count
+  assert.match(line, /\d+/);
+  // Must mention own node(s)
+  assert.match(line, /ambient-integration/);
+});
+
+test("statuslineGlance: includes overlap warning when another session shares a node", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+    makeDoc({
+      sessionId: "wt-other",
+      branch: "claude/other",
+      workingOn: "other work on same node",
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+
+  const line = await statuslineGlance(deps, state, 60_000);
+
+  // Overlap warning must appear
+  assert.match(line, /overlap|warn|conflict|also|other/i);
+});
+
+test("statuslineGlance: no overlap warning when other session has different nodes", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+    makeDoc({
+      sessionId: "wt-other",
+      branch: "claude/other",
+      workingOn: "working on something else",
+      nodes: ["declare-presence"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  // Provide a prior bump far in the past so heartbeat fires but doesn't mess with the test
+  const state = makeHeartbeatState(NOW.toISOString()); // within window → no heartbeat
+
+  const line = await statuslineGlance(deps, state, 60_000);
+
+  // No overlap warning when nodes don't intersect
+  assert.doesNotMatch(line, /overlap|conflict/i);
+});
+
+// ---------------------------------------------------------------------------
+// statuslineGlance — fail-silent
+// ---------------------------------------------------------------------------
+
+test("statuslineGlance: returns '' when store is null", async () => {
+  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+  const result = await statuslineGlance(deps, state, 60_000);
+  assert.equal(result, "");
+});
+
+test("statuslineGlance: returns '' when identity is null", async () => {
+  const store = makeRecordingStore([]);
+  const deps: AmbientDeps = { store, identity: null, now: nowFn };
+  const state = makeHeartbeatState(null);
+  const result = await statuslineGlance(deps, state, 60_000);
+  assert.equal(result, "");
+});
+
+test("statuslineGlance: returns '' when store throws", async () => {
+  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+  const result = await statuslineGlance(deps, state, 60_000);
+  assert.equal(result, "");
+});
+
+// ---------------------------------------------------------------------------
+// statuslineGlance — heartbeat debounce
+// ---------------------------------------------------------------------------
+
+test("statuslineGlance: null lastBump → heartbeat fires, declare called, writeLastBump called", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+
+  await statuslineGlance(deps, state, 60_000);
+
+  assert.ok(store.declareCalls.length >= 1, "heartbeat should have triggered declare");
+  assert.ok(state.bumps.length >= 1, "writeLastBump should have been called");
+});
+
+test("statuslineGlance: two renders within debounce window — declare called only once total", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null); // null → first call triggers bump
+
+  // First render — heartbeat fires
+  await statuslineGlance(deps, state, 60_000);
+  const countAfterFirst = store.declareCalls.length;
+
+  // Second render — lastBump is NOW.toISOString(), elapsed = 0ms < 60_000ms → no extra bump
+  await statuslineGlance(deps, state, 60_000);
+
+  assert.equal(
+    store.declareCalls.length,
+    countAfterFirst,
+    "no extra declare call within debounce window",
+  );
+  assert.equal(state.bumps.length, 1, "writeLastBump called exactly once for both renders");
+});
+
+test("statuslineGlance: past debounce window — heartbeat fires again", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  // lastBump was 200ms before NOW, debounce = 100ms → expired
+  const pastBump = new Date(NOW.getTime() - 200).toISOString();
+  const state = makeHeartbeatState(pastBump);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+
+  await statuslineGlance(deps, state, 100);
+
+  assert.ok(store.declareCalls.length >= 1, "heartbeat should fire when debounce window expired");
+  assert.ok(state.bumps.length >= 1, "writeLastBump should be called again after window expired");
+});
+
+test("statuslineGlance: within debounce window (non-null lastBump recent enough) — no heartbeat", async () => {
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  // lastBump = NOW itself → elapsed = 0ms < 60_000ms → within window
+  const state = makeHeartbeatState(NOW.toISOString());
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+
+  await statuslineGlance(deps, state, 60_000);
+
+  assert.equal(store.declareCalls.length, 0, "no heartbeat declare when within debounce window");
+  assert.equal(state.bumps.length, 0, "writeLastBump not called within window");
+});
+
+// ---------------------------------------------------------------------------
+// auditHookConfig
+// ---------------------------------------------------------------------------
+
+// Clean: notice-board hooks only on SessionStart/SessionEnd; unrelated PreToolUse → []
+const CLEAN_SETTINGS = JSON.stringify({
+  hooks: {
+    SessionStart: [
+      { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard declare --pg" }] },
+    ],
+    SessionEnd: [
+      { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard done --pg" }] },
+    ],
+    PreToolUse: [
+      { matcher: "", hooks: [{ type: "command", command: "echo unrelated-hook" }] },
+    ],
+  },
+});
+
+test("auditHookConfig: clean settings returns []", () => {
+  const violations = auditHookConfig(CLEAN_SETTINGS);
+  assert.deepEqual(violations, []);
+});
+
+test("auditHookConfig: noticeboard hook under Stop is a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      Stop: [
+        { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard done --pg" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 1, "should flag Stop noticeboard hook");
+  assert.ok(
+    violations.some((v) => /stop/i.test(v)),
+    `violation should mention Stop, got: ${JSON.stringify(violations)}`,
+  );
+});
+
+test("auditHookConfig: ambient-presence hook under PreToolUse is a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "", hooks: [{ type: "command", command: "storytree ambient-presence hook start" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 1, "should flag PreToolUse ambient-presence hook");
+  assert.ok(
+    violations.some((v) => /pretooluse/i.test(v)),
+    `violation should mention PreToolUse, got: ${JSON.stringify(violations)}`,
+  );
+});
+
+test("auditHookConfig: noticeboard hook under UserPromptSubmit is a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      UserPromptSubmit: [
+        { matcher: "", hooks: [{ type: "command", command: "echo noticeboard status check" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 1, "should flag UserPromptSubmit noticeboard hook");
+});
+
+test("auditHookConfig: unrelated PreToolUse hook (not noticeboard-shaped) is NOT a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "", hooks: [{ type: "command", command: "echo check something else" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.deepEqual(violations, []);
+});
+
+test("auditHookConfig: empty hooks object returns []", () => {
+  const violations = auditHookConfig(JSON.stringify({ hooks: {} }));
+  assert.deepEqual(violations, []);
+});
+
+test("auditHookConfig: no hooks key at all returns []", () => {
+  const violations = auditHookConfig(JSON.stringify({}));
+  assert.deepEqual(violations, []);
+});
+
+test("auditHookConfig: multiple violations across events reported individually", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      Stop: [
+        { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard done --pg" }] },
+      ],
+      PreToolUse: [
+        { matcher: "", hooks: [{ type: "command", command: "run ambient-presence hook start" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 2, "should flag both violations separately");
+});
+
+test("auditHookConfig: ambient-presence hook under Stop is a violation", () => {
+  const settings = JSON.stringify({
+    hooks: {
+      Stop: [
+        { matcher: "", hooks: [{ type: "command", command: "node ambient-presence.js" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 1, "should flag ambient-presence hook under Stop");
+});
