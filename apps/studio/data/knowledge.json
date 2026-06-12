@@ -1732,10 +1732,10 @@
       "doc:decisions/0008-ui-drives-agents-approvals.md",
       "asset:trunk",
       "asset:approval-gated-trunk",
-      "asset:real-build-drive"
+      "asset:prove-and-promote-ceremony"
     ],
     "createdAt": "2026-06-11T00:00:00.000Z",
-    "updatedAt": "2026-06-11T00:00:00.000Z",
+    "updatedAt": "2026-06-13T00:00:00.000Z",
     "schemaVersion": 2
   },
   {
@@ -1768,8 +1768,8 @@
   },
   {
     "kind": "process",
-    "id": "real-build-drive",
-    "title": "REAL build drive",
+    "id": "prove-and-promote-ceremony",
+    "title": "Prove-and-promote ceremony",
     "description": "The ceremony for driving a story node through the prove-it-gate for real — register the node, run `node build --real --store pg`, let a signed PASS promote itself, land non-squash.",
     "statement": "Drives one story node through the prove-it-gate for real: a live leaf authors the genuine red→green in a fresh git worktree, the spine signs and persists the verdict, and a PASS promotes its exact proven commit onto a `claude/real/<unit>-<run>` branch that lands non-squash so the attested commit stays an ancestor of `main`.",
     "trigger": "A story node's build is actually **next** — its file-per-unit spec exists in the story tree and the session intends a real, leaf-authored proof (not `--dry-run`, the offline scripted walk, and not `--live`, the subscription-billed smoke). For a whole story, `pnpm storytree story build <story-id>` chains its registered nodes in dependency (topo) order, story UAT node last, with *halted-is-never-a-pass*.",
@@ -1789,7 +1789,7 @@
       "asset:story-tree"
     ],
     "createdAt": "2026-06-11T00:00:00.000Z",
-    "updatedAt": "2026-06-11T00:00:00.000Z",
+    "updatedAt": "2026-06-13T00:00:00.000Z",
     "schemaVersion": 2
   },
   {

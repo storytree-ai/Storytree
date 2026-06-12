@@ -54,7 +54,8 @@ ADR-0017/0019/0023) — but the *ways of working* across them live nowhere a ses
 
 3. **First instances** (authored via a fan-out + adversarial-verify agent workflow, landed to the
    seed and the live store together): `merge-ceremony`, `library-edit-ceremony`,
-   `real-build-drive`. Alongside them, the three missing **surface definitions** — `library`,
+   `real-build-drive` (since renamed `prove-and-promote-ceremony`, 2026-06-13). Alongside them,
+   the three missing **surface definitions** — `library`,
    `noticeboard`, `story-tree` — so the glossary finally names the surfaces sessions work across.
 
 4. **The `CLAUDE.md` cadence line changes** from "Commit only when asked" to: when a unit of work
