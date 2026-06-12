@@ -540,9 +540,12 @@ const GCLOUD_SHELL = process.platform === 'win32';
 
 function spawnGcloud(args: string[]): ChildProcessByStdio<null, Readable, Readable> {
   const stdio: ['ignore', 'pipe', 'pipe'] = ['ignore', 'pipe', 'pipe'];
+  // windowsHide: the detached studio server has no console, so without it every
+  // gcloud spawn pops a visible terminal window for the command's duration — and
+  // an operator closing that window kills the gcloud run out from under the UI.
   return GCLOUD_SHELL
-    ? spawn(['gcloud', ...args].join(' '), { shell: true, stdio })
-    : spawn('gcloud', args, { stdio });
+    ? spawn(['gcloud', ...args].join(' '), { shell: true, stdio, windowsHide: true })
+    : spawn('gcloud', args, { stdio, windowsHide: true });
 }
 
 /** Run gcloud to completion, resolving stdout; reject on spawn failure or non-zero exit. */
