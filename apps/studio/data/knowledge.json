@@ -1359,55 +1359,12 @@
   },
   {
     "kind": "open-question",
-    "id": "oq-library-doc-shape",
-    "title": "How should the studio reconcile structured docs vs rendered edits?",
-    "description": "The DB stores structured Knowledge docs, but the studio writes rendered GuidanceAssets, so editing a unit in the studio converts it to rendered form (one-way). Decide how structure survives editing.",
-    "references": [
-      "doc:decisions/0017-cross-cutting-knowledge-tier.md",
-      "doc:decisions/0013-structured-corpus-markdown-as-view.md",
-      "asset:oq-corpus-source-format",
-      "asset:oq-studio-store-default"
-    ],
-    "createdAt": "2026-06-08T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z",
-    "stakes": "Edit a Library entry in the studio today and it silently loses its structured fields — and because the shared store is now the live source of truth (ADR-0023), that loss lands in the authoritative copy, not a throwaway view. It is the master record itself being overwritten with a freeform note that strips the field labels, with no clean way to rebuild it.",
-    "statement": "The store holds structured Knowledge docs (per-kind fields) and is now the live source of truth (ADR-0023), but the studio writes rendered GuidanceAssets — so editing a unit in the studio collapses it to a rendered markdown body (one-way), degrading the authoritative copy. How should structure survive editing?",
-    "context": "The studio's save path (the `pg` write) stores each entry as a single rendered-markdown `body`; the per-field structure (oneLine / whatItIs / options / …) is rebuilt on read by `renderBody()` and CANNOT be recovered from the rendered body without parsing it back. **ADR-0023 makes the shared store the live source of truth**, with `knowledge.json` only a **seed** and **no DB→seed export path yet** — so a studio edit now degrades the authoritative record itself, and the old escape hatch (re-seed structure from `knowledge.json`) both reverts any other live CLI edits and is explicitly warned against (ADR-0023: do not run `load-corpus` against a live DB that has CLI edits — it reverts them). ADR-0013 (structure-as-source) and ADR-0017 (templates derive from the schema) both want structure preserved; rendered-on-edit fights them, and now there is no clean rebuild.",
-    "diagram": "```\n  studio EDIT --> stores a RENDERED body in the store\n                  (per-kind structure dropped, one-way)\n                        |\n   store = LIVE SOURCE OF TRUTH (ADR-0023);  knowledge.json = seed only\n                        |\n   re-seed from knowledge.json --> reverts ALL live CLI edits (ADR-0023 warns)\n                        |\n   => no clean path back to structure once an entry is edited in the studio\n```\n`renderBody()` = the function that rebuilds the field view on read; there is no inverse (rendered -> structured) and no DB→seed export yet.",
-    "options": "- **A — Accept rendered-on-edit + re-seed**: let studio edits store rendered bodies and re-seed structure from `knowledge.json` on demand. Weakest now that ADR-0023 makes the store authoritative: re-seeding reverts live CLI edits and there is no DB→seed export, so the structured source rots while the store drifts to rendered-only.\n\n- **B — Parse markdown back to structured on write**: the studio write reparses the rendered body into per-kind fields (inverse of `renderBody`) and stores a structured doc. Keeps one structured source of truth; but the parser is fragile and must round-trip every kind exactly.\n\n- **C — Edit structured fields directly**: the studio edits the per-kind fields (not a freeform body), so writes are always structured. Truest to ADR-0013/0017/0023; largest client change (the wire shape the React client sees must carry fields, not just `body`).",
-    "recommendation": "Non-binding: with ADR-0023 making the store authoritative and no DB→seed export, option A (re-seed) is now a weak stopgap — it reverts live edits and lets the structured source rot. Lean toward **C** (edit structured fields directly) as the durable fix, or **B** (parse-back) if the client wire shape must stay `body`-only. The owner decides.",
-    "schemaVersion": 2
-  },
-  {
-    "kind": "open-question",
-    "id": "oq-studio-store-default",
-    "title": "Should STORYTREE_STUDIO_STORE default to json or pg?",
-    "description": "The studio backend is env-toggled between the offline `json` store and the live Cloud SQL `pg` store. Decide the default the toggle ships with.",
-    "references": [
-      "doc:decisions/0015-gcp-hosting-cloud-sql-event-store.md",
-      "doc:decisions/0021-keyless-agent-session-auth-and-db-bootstrap.md",
-      "asset:oq-library-doc-shape",
-      "asset:stack-cloud-sql-keyless-iam"
-    ],
-    "createdAt": "2026-06-08T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z",
-    "stakes": "When you start the studio, should it default to your own private copy of the data — works offline and costs nothing, but every session drifts apart — or the shared company database, where everyone sees the same thing but it must be switched on first and bills while running? `STORYTREE_STUDIO_STORE` is that switch, and we need to pick its default.",
-    "statement": "Should `STORYTREE_STUDIO_STORE` default to `json` (offline-safe — the DB stays stopped, no cost, per-worktree state) or `pg` (shared live state across sessions — requires `pnpm db:up` and bills while up)?",
-    "context": "The studio backend is being made switchable so the same `/api/*` contract serves either the offline `data/*.json` files or the live Postgres store. `STORYTREE_STUDIO_STORE` is that switch, and its default decides what a plain `pnpm dev` does. ADR-0015 keeps the Cloud SQL database STOPPED by default and bills only while it is up (you burst it on with `pnpm db:up`, work, then `pnpm db:down`); keyless IAM auth (ADR-0021) means there are no credentials to configure, but `pg` still needs the instance running. `json` is offline-safe but gives each worktree its own divergent copy — the very thing this migration aims to end.",
-    "diagram": "```\n  pnpm dev (fresh start)\n        │\n        ├── default json ──► offline, $0, the DB stays off\n        │                    BUT each session keeps its own copy → they drift apart\n        │\n        └── default pg ────► shared live state (the migration's goal)\n                             BUT needs `pnpm db:up` first, and bills while up\n```\nThe default trades “just works offline, but everyone diverges” against “shared by default, but costs and needs the DB up.”",
-    "options": "- **A — Default `json`**: offline-safe, zero cost, no DB prerequisite; a fresh clone just works. But shared live state (the migration's goal) is opt-in, so most sessions keep diverging.\n\n- **B — Default `pg`**: sessions share live state by default — the dogfooding win. But `pnpm dev` now fails unless the instance is up (cost + a `db:up` step), breaking offline work.",
-    "recommendation": "Non-binding: default `json` while the pg path is new and human-verified-after-the-fact — it preserves offline dev and the stop-by-default cost posture, and `pg` stays a deliberate opt-in for sessions that want shared state. Revisit once the studio<->store loop is proven and `db:up` is routine. The owner decides.",
-    "schemaVersion": 2
-  },
-  {
-    "kind": "open-question",
     "id": "oq-corpus-source-format",
     "title": "Reconcile the YAML-as-source claim with the JSON/markdown reality?",
     "description": "ADR-0013 says YAML is the source of truth, but the Library's structured source on disk is JSON (knowledge.json) and stories/ are frontmatter-.md. Reconcile the formats or document the split as intended.",
     "references": [
       "doc:decisions/0013-structured-corpus-markdown-as-view.md",
-      "doc:decisions/0017-cross-cutting-knowledge-tier.md",
-      "asset:oq-library-doc-shape"
+      "doc:decisions/0017-cross-cutting-knowledge-tier.md"
     ],
     "createdAt": "2026-06-08T00:00:00.000Z",
     "updatedAt": "2026-06-09T00:00:00.000Z",
@@ -1824,28 +1781,6 @@
       "asset:story-tree",
       "asset:prove-it-gate"
     ],
-    "createdAt": "2026-06-11T00:00:00.000Z",
-    "updatedAt": "2026-06-11T00:00:00.000Z",
-    "schemaVersion": 2
-  },
-  {
-    "kind": "open-question",
-    "id": "oq-artifact-code-backing",
-    "title": "Should artifacts carry code backing — tests that keep their claims honest?",
-    "description": "Open: whether guardrails (first) and other artifacts should link executable backing so the artifact↔code link cannot silently rot.",
-    "stakes": "A guardrail's `enforcedBy` is a claim about code, and nothing re-checks it as the code moves — a stale claim quietly turns a \"deterministically-enforced boundary\" into prose that merely sounds enforced.",
-    "statement": "Should Library artifacts — guardrails first — carry executable backing (a linked test asserting their `enforcedBy` mechanism still refuses), and should other artifact kinds maintain their own test suites where keeping the artifact↔code link honest is worth the upkeep?",
-    "context": "Raised by the owner on 2026-06-11 alongside ADR-0034 (the `process` kind — \"guardrails are mainly prose; maybe artifacts can have their own test suite where it makes sense\"). The `guardrail` kind's defining field is `enforcedBy` — the deterministic mechanism (a gate, a schema, a DB constraint, a code path) that makes the boundary non-bypassable — but that claim is verified once, at authoring time, by the author reading the code. ADR-0016 (knowledge↔code binding and staleness) already designs the adjacent machinery: versioned anchors from knowledge to code, and demotion of undescribed drift. ADR-0026 gives the library a health-check surface (`library doctor`) where an automated check could live. The question is how far to go beyond anchors: from \"the named code still exists\" to \"the named code still refuses\".",
-    "options": "- **A. Per-artifact test backing.** A `backedBy` field naming a test (run in CI) that asserts the guardrail's mechanism still refuses — e.g. a forged-green attempt still aborts. Strongest honesty: semantic drift breaks the build. Cost: a schema change, test upkeep per guardrail, and the risk of stale test *paths* — the same disease one level down.\n- **B. Anchor resolution in the health check.** The ADR-0026 doctor verifies every `enforcedBy` names a file/symbol that still exists, without asserting behaviour. Cheap, catches deletion-drift; blind to semantic drift (the code exists but no longer refuses).\n- **C. Wait for ADR-0016.** Do nothing until the binding/staleness design is implemented, then revisit with real anchors available. Zero cost now vs. the gap staying open — guardrail claims keep aging unchecked.",
-    "recommendation": "Start with **B** as the cheap floor (it slots into the existing `library doctor`), and design **A** against ADR-0016's anchor model rather than ad hoc — a `backedBy` link should be a versioned anchor, not a bare path. Non-binding until the owner decides.",
-    "references": [
-      "doc:decisions/0016-knowledge-code-binding-and-staleness.md",
-      "doc:decisions/0026-library-schema-migrations-and-health-checks.md",
-      "doc:decisions/0034-process-artifacts-ways-of-working.md",
-      "asset:stale-prerequisite-links-are-phantoms",
-      "asset:never-bypass-the-gate"
-    ],
-    "provenance": "Owner idea, 2026-06-11 (raised with ADR-0034). Still open.",
     "createdAt": "2026-06-11T00:00:00.000Z",
     "updatedAt": "2026-06-11T00:00:00.000Z",
     "schemaVersion": 2

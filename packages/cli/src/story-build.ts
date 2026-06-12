@@ -14,6 +14,7 @@ import type { NodeSpec, ProveResult } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
 import { driveNode, repoRoot, rel, resolveVerdictStore } from "./node-build.js";
+import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 
 /**
  * `storytree story build <story-id>` (drive-machinery Phase E): a THIN topo-ordered loop over a
@@ -66,6 +67,8 @@ export interface StoryBuildOpts {
   verdictStore?: string;
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
+  /** Injectable OQ-hygiene row loader for tests (ADR-0037 §5); defaults to the live store. */
+  oqGateDeps?: OqGateDeps;
 }
 
 /** `storytree story build <story-id>` — the whole Phase-E walk, returned as one envelope. */
@@ -166,6 +169,11 @@ export async function storyBuild(
     };
   }
 
+  // ADR-0037 §5: open-question hygiene gates a LIVE build, before any store setup or spend.
+  // An unprocessed operator answer on a deciding ADR's OQ refuses the run; offline never refuses.
+  const hygiene = await oqHygieneGate(story, live, opts.oqGateDeps ?? {});
+  if (hygiene.refusal !== null) return hygiene.refusal;
+
   const storeChoice = await resolveVerdictStore(
     opts.verdictStore,
     mode === "dry-run",
@@ -244,6 +252,7 @@ export async function storyBuild(
       `budget:      ${budgetUsd !== undefined ? `$${budgetUsd.toFixed(2)} total ceiling (each slice capped at $${SLICE_BUDGET_USD.toFixed(2)})` : "none — a dry-run spends nothing"}`,
       `order:       ${order.map((n) => n.id).join(" → ")}`,
       `             (${capabilities.length} capabilities topo-ordered from depends_on, then the story's UAT node)`,
+      ...hygiene.lines,
       "",
       ...nodeLines,
       "",
