@@ -14,15 +14,19 @@ depends_on: [tree-view]
 **Outcome —** `storytree tree` shows one signed-verdict glyph per node — ✓ proven / ✗ last run
 failed / – never built — read from `events.verdict` when the DB is up, silently absent offline.
 
-> **Proof status (honest) — `proposed`, registered for REAL build.** The registered proof
-> (`packages/cli/src/tree-verdicts.test.ts`) proves the pure glyph module OFFLINE against fakes —
-> derivation from signed verdicts, the never-built dash, the offline-silent contract, the
-> no-roll-up rule. The wiring of `tree.ts` to call it is spine work AFTER promotion (`tree.ts` /
-> `tree.test.ts` are `tree-view`'s registered REAL surface — this capability's files are its own,
-> net-new); the live `events.verdict` read over the IAM connection follows the house live-gated,
-> human-verified pattern, never attested by a worktree PASS. The design is fixed by ADR-0033
+> **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
+> `packages/cli/src/tree-verdicts.ts` + its test net-new in a fresh worktree; the spine observed
+> the real red→green and signed a PASS (run `real-mqb1dzg2`, commit `b226b4a`, persisted to
+> `events.verdict`, 2026-06-13). The ADR-0031 typecheck wall withheld the automatic push — the
+> leaf's fixture was runtime-green under tsx but type-illegal under `exactOptionalPropertyTypes`;
+> a one-line spine-side fix landed on top and the verdict's commit stays an ancestor of `main`
+> (merged non-squash, PR #75). The spine then wired `treeCommand` + the `tree` area dispatch to
+> the module (`tree.ts`/`commands.ts`/`main.ts`; `tree-dispatch.test.ts` proves the glue). The
+> authored status stays `proposed` forever: `healthy` is only ever derived from signed verdicts
+> (ADR-0020). The live `events.verdict` read over the IAM connection stays the house live-gated,
+> human-verified pattern — never attested by a worktree PASS. The design is fixed by ADR-0033
 > "Owner decisions (2026-06-11)" decision 4 (story call 3): option (b), a named FOLLOW-UP
-> capability — the built tree-view is deliberately not retrofitted.
+> capability — the built tree-view was deliberately not retrofitted.
 
 ## Guidance
 
@@ -101,17 +105,17 @@ the rendered body is glyph-free and `ok: true`.
 1. **`glyph-is-the-last-signed-verdict`** — ✓/✗ derive from the latest signed verdict per unit id
    - **asserts —** signing events parse as full `Verdict`s, sort by `seq`, last one per unit wins:
      pass → ✓, fail → ✗; out-of-order input derives identically.
-   - **proven by —** would-be `packages/cli/src/tree-verdicts.test.ts`
+   - **proven by —** `packages/cli/src/tree-verdicts.test.ts` (real at HEAD)
 2. **`malformed-grants-nothing`** — only a parseable signed verdict moves a glyph
    - **asserts —** a malformed signing doc, a work-kind event, and another unit's verdict change
      nothing — the rollup's conservative-parsing discipline.
-   - **proven by —** would-be `packages/cli/src/tree-verdicts.test.ts`
+   - **proven by —** `packages/cli/src/tree-verdicts.test.ts` (real at HEAD)
 3. **`offline-silently-absent`** — no reader (or a throwing one) means no glyph column, never an error
    - **asserts —** `readVerdictGlyphs(null)` and a rejecting reader both yield `null`, and
      `glyphFor(null, id)` is the empty string — offline the column simply does not exist; with a
      readable store a verdict-less unit is `"–"` (never built).
-   - **proven by —** would-be `packages/cli/src/tree-verdicts.test.ts`
+   - **proven by —** `packages/cli/src/tree-verdicts.test.ts` (real at HEAD)
 4. **`story-glyph-never-rolls-up`** — a story row reports only its own UAT node's verdict
    - **asserts —** with signed passes for every capability and none for the story id, the story's
      glyph is `"–"` — "all capabilities pass" and "the story passed UAT" are different claims.
-   - **proven by —** would-be `packages/cli/src/tree-verdicts.test.ts`
+   - **proven by —** `packages/cli/src/tree-verdicts.test.ts` (real at HEAD)

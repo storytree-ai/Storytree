@@ -21,10 +21,14 @@ import {
   gateFailures,
   levelCounts,
 } from "./health.js";
+import { lookupNodeBuildConfig } from "@storytree/orchestrator";
+
 import { nodeBuild, nodeHelp } from "./node-build.js";
 import { deriveIdentity, noticeboardCommand } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { storyBuild, storyHelp } from "./story-build.js";
+import { treeCommand } from "./tree.js";
+import type { VerdictReaderLike } from "./tree-verdicts.js";
 
 /**
  * Fields removed by a past migration that must not reappear (design §4 check 2): `seeAlso`
@@ -557,6 +561,7 @@ function topHelp(): Envelope {
       "areas:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
+      "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  agents <name>    (coming soon) an agent's system prompt",
@@ -565,6 +570,23 @@ function topHelp(): Envelope {
       "  storytree library    health + a map of every artifact + the commands",
     ].join("\n"),
     next: ["storytree library"],
+  };
+}
+
+function treeViewHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree tree — the work-hierarchy orientation surface (ADR-0033).",
+      "",
+      "  storytree tree [--pg]              every story, one line each",
+      "  storytree tree <story-id> [--pg]   one story: capabilities, build surface, edges, presence",
+      "",
+      "with --pg the views weave in live presence and one signed-verdict glyph per node",
+      "(✓ proven / ✗ last run failed / – never built, read from events.verdict); offline",
+      "both views render without them — never an error.",
+    ].join("\n"),
+    next: ["storytree tree", "pnpm db:up"],
   };
 }
 
@@ -633,6 +655,13 @@ export interface RunDeps {
     readonly store?: PresenceStoreLike | null;
     readonly identity?: SessionIdentity | null;
   };
+  /**
+   * The verdict event log (verdict-glyphs): the live work-store slice when --pg; null/absent
+   * offline — the tree's glyph column is then silently absent (never an error).
+   */
+  readonly verdicts?: VerdictReaderLike | null;
+  /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
+  readonly storiesDir?: string;
 }
 
 /**
@@ -760,10 +789,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "tree") {
+    if (help) return treeViewHelp();
+    return treeCommand(sub, {
+      storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+      lookupConfig: lookupNodeBuildConfig,
+      presence: deps.presence?.store ?? null,
+      verdicts: deps.verdicts ?? null,
+      now: () => new Date(),
+    });
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, noticeboard, node, story (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, noticeboard, tree, node, story (agents coming soon).`,
       next: ["storytree library"],
     };
   }

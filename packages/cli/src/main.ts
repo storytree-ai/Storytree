@@ -9,12 +9,14 @@ import {
   closePool,
   PgLibraryStore,
   PgPresenceStore,
+  PgWorkStore,
 } from "@storytree/store";
 
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
 import type { PresenceStoreLike } from "./noticeboard.js";
 import { loadLocalSecrets } from "./secrets.js";
+import type { VerdictReaderLike } from "./tree-verdicts.js";
 
 /**
  * The `storytree` CLI entry (ADR-0023). Offline-first: by default it runs against an in-memory store
@@ -25,6 +27,7 @@ import { loadLocalSecrets } from "./secrets.js";
 async function buildStore(usePg: boolean): Promise<{
   store: Store;
   presence: PresenceStoreLike | null;
+  verdicts: VerdictReaderLike | null;
   close: () => Promise<void>;
 }> {
   if (usePg) {
@@ -33,12 +36,15 @@ async function buildStore(usePg: boolean): Promise<{
       store: new PgLibraryStore(pool),
       // The presence board (ADR-0033) shares the live pool; offline there is no presence surface.
       presence: new PgPresenceStore(pool),
+      // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
+      // through the same pool; offline the column is silently absent.
+      verdicts: new PgWorkStore(pool),
       close: () => closePool(pool, connector),
     };
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, close: async () => {} };
+  return { store, presence: null, verdicts: null, close: async () => {} };
 }
 
 async function main(): Promise<void> {
@@ -52,7 +58,7 @@ async function main(): Promise<void> {
   // 2026-06-11: one rotation point that survives sessions and worktrees).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, close } = await buildStore(usePg);
+  const { store, presence, verdicts, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -60,6 +66,7 @@ async function main(): Promise<void> {
       store,
       writable: usePg,
       presence: { store: presence },
+      verdicts,
       ...(actor !== undefined ? { actor } : {}),
     });
     process.stdout.write(formatEnvelope(env));

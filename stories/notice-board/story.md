@@ -26,7 +26,7 @@ already carries cross-session state; what is missing is purely the presence surf
 board always meant to the owner: "a simple declaration of *I exist and I'm working on xyz*".
 
 **Greenfield, through the drive.** Authored first, built through the prove-it-gate
-(`node build`/`story build`, ADR-0030/0031) — four of the six capabilities have now been driven
+(`node build`/`story build`, ADR-0030/0031) — all six capabilities have now been driven
 through it (signed passes, promoted to `main`). Registry entries are NOT
 pre-created — registration is the deliberate act done per node when its build is actually next.
 The capability split deliberately follows REAL-build mechanics (ADR-0031): each node's registered
@@ -56,12 +56,11 @@ attested by a worktree PASS.
 
 ## Capabilities (6)
 
-Listed roots-first. Capabilities 1–4 are **PROVEN and PROMOTED** (gated-leaf builds, signed
-passes in `events.verdict`, merged to `main` — see each file's Proof note for run ids and
-commits); 5 and 6 are registered — 6 ([`verdict-glyphs`](verdict-glyphs.md), owner call 3's
-follow-up) is next to build. The authored status stays `proposed` forever (ADR-0031: health is a
-projection of signed verdicts — promotion lands *code*, never *status*; the studio tree and the
-`verdict-glyphs` capability read proof from `events.verdict` when the DB is up).
+Listed roots-first. All six capabilities are **PROVEN and PROMOTED** (gated-leaf builds, signed
+passes in `events.verdict`, promoted to `main`; 5 and 6 landed 2026-06-13 — PRs #73/#75). The
+authored status stays `proposed` forever (ADR-0031: health is a projection of signed verdicts —
+promotion lands *code*, never *status*; the studio tree and `storytree tree`'s verdict glyphs
+read proof from `events.verdict` when the DB is up).
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|

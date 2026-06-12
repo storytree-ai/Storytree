@@ -15,6 +15,7 @@ import { loadNodeSpec } from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import type { Envelope } from "./envelope.js";
+import { glyphFor, readVerdictGlyphs, type VerdictReaderLike } from "./tree-verdicts.js";
 
 // ---------------------------------------------------------------------------
 // Public interface
@@ -25,6 +26,11 @@ export interface TreeDeps {
   /** Registry seam: non-null = registered; `.real !== undefined` = REAL-buildable. */
   lookupConfig: (id: string) => { real?: unknown } | null;
   presence: PresenceStoreLike | null;
+  /**
+   * The verdict event log (verdict-glyphs capability): the live work-store slice when --pg;
+   * absent/null offline — glyphs are then silently absent, never an error.
+   */
+  verdicts?: VerdictReaderLike | null;
   now: () => Date;
 }
 
@@ -77,6 +83,16 @@ export async function treeCommand(
 ): Promise<Envelope> {
   const stories = discoverStories(deps.storiesDir);
 
+  // Verdict glyphs (verdict-glyphs capability): one signed-verdict glyph per node row —
+  // ✓ proven / ✗ last run failed / – never built. `glyphs` is null offline (or on any read
+  // error), and `mark` is then the empty string: the column simply does not exist. A story
+  // row's glyph is looked up under the STORY's own unit id — never a child roll-up.
+  const glyphs = await readVerdictGlyphs(deps.verdicts ?? null);
+  const mark = (unitId: string): string => {
+    const g = glyphFor(glyphs, unitId);
+    return g === "" ? "" : ` ${g}`;
+  };
+
   // -------------------------------------------------------------------------
   // Bare view (no storyId)
   // -------------------------------------------------------------------------
@@ -96,7 +112,7 @@ export async function treeCommand(
       } catch {
         // tolerate load failures — still list the story
       }
-      lines.push(`  ${id}  ${title}  status=${status}  caps=${capCount}`);
+      lines.push(`  ${id}${mark(id)}  ${title}  status=${status}  caps=${capCount}`);
     }
 
     if (deps.presence !== null) {
@@ -175,7 +191,7 @@ export async function treeCommand(
   }
 
   const lines: string[] = [
-    `Story: ${storyId}`,
+    `Story: ${storyId}${mark(storyId)}`,
     `  title:   ${storyTitle}`,
     `  status:  ${storyStatus}`,
     `  outcome: ${storyOutcome}`,
@@ -184,7 +200,7 @@ export async function treeCommand(
   ];
   for (const row of capRows) {
     lines.push(
-      `  ${row.id}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
+      `  ${row.id}${mark(row.id)}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
     );
   }
 
