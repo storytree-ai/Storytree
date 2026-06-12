@@ -33,9 +33,13 @@ import type {
   ProveResult,
   ResolveOptions,
 } from "@storytree/orchestrator";
-import { applySchema, closePool, createPool, PgWorkStore } from "@storytree/store";
+import { applySchema, closePool, createPool, PgPresenceStore, PgWorkStore } from "@storytree/store";
 
+import { withPresence } from "./ambient-presence.js";
+import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
+import { deriveIdentity } from "./noticeboard.js";
+import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -115,7 +119,18 @@ export function rel(file: string): string {
 // ── The verdict store seam (`--store pg`, PR #29 parked decision 4) ─────────
 
 export type VerdictStoreChoice =
-  | { ok: true; store: Store; persisted: boolean; label: string; close: () => Promise<void> }
+  | {
+      ok: true;
+      store: Store;
+      persisted: boolean;
+      label: string;
+      /**
+       * The presence board over the SAME pool (ADR-0033 Decision 3): live exactly when the
+       * verdicts persist, null in-memory — a null store makes withPresence a silent no-op.
+       */
+      presence: PresenceStoreLike | null;
+      close: () => Promise<void>;
+    }
   | { ok: false; refusal: Envelope };
 
 /**
@@ -136,6 +151,7 @@ export async function resolveVerdictStore(
       store: new InMemoryStore(),
       persisted: false,
       label: "in-memory (nothing persists past this run)",
+      presence: null,
       close: async () => {},
     };
   }
@@ -170,6 +186,7 @@ export async function resolveVerdictStore(
       store: new PgWorkStore(pool),
       persisted: true,
       label: "pg — events.work_event + events.verdict (PERSISTED to the shared store)",
+      presence: new PgPresenceStore(pool),
       close: () => closePool(pool, connector),
     };
   } catch (e) {
@@ -201,6 +218,12 @@ export interface DriveNodeArgs {
   budgetUsd?: number;
   /** Per-authoring-slice turn ceiling, SDK-enforced (live only). Default: 16. */
   maxTurns?: number;
+  /**
+   * The ambient presence deps (ADR-0033 Decision 3): when present, the leaf run is wrapped in
+   * {@link withPresence} — declare before, done in a finally, every failure swallowed. Absent =
+   * no presence surface (the offline default).
+   */
+  presence?: AmbientDeps;
 }
 
 export type DriveNodeResult =
@@ -248,7 +271,17 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     if (!resolved.ok) {
       return { resolved: false, reason: resolved.reason, registered: resolved.registered };
     }
-    const result = await proveUnit(resolved.spec);
+    // Presence around the leaf (ADR-0033 Decision 3): advisory by construction — withPresence
+    // swallows every board failure, so the walk's result is identical with a dead board.
+    const prove = (): Promise<ProveResult> => proveUnit(resolved.spec);
+    const result =
+      args.presence !== undefined
+        ? await withPresence(
+            args.presence,
+            { nodeId: spec.id, runId: args.runId, mode: args.mode },
+            prove,
+          )
+        : await prove();
     return {
       resolved: true,
       result,
@@ -293,6 +326,12 @@ export interface NodeBuildOpts {
   verdictStore?: string;
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
+  /**
+   * Injectable for tests (ADR-0033 Decision 3). Defaults: `store` = the `--store pg` pool's
+   * presence board (null in-memory), `identity` = the enclosing session worktree (null in a
+   * plain checkout) — null on either side makes presence a silent no-op.
+   */
+  presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -401,6 +440,16 @@ export async function nodeBuild(
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
+  // The presence board around the build (ADR-0033 Decision 3, spine-side — no hooks): declare
+  // before the leaf runs, done in a finally, EVERY failure swallowed by withPresence — a board
+  // write failure must never fail a build. Live exactly when the verdicts persist (--store pg).
+  const ambient: AmbientDeps = {
+    store: opts.presence?.store !== undefined ? opts.presence.store : storeChoice.presence,
+    identity:
+      opts.presence?.identity !== undefined ? opts.presence.identity : deriveIdentity(),
+    now: () => new Date(),
+  };
+
   const runId = `${mode}-${Date.now().toString(36)}`;
   try {
     let result: ProveResult;
@@ -443,7 +492,9 @@ export async function nodeBuild(
             next: resolved.registered.map((id) => `storytree node build ${id} --dry-run`),
           };
         }
-        result = await proveUnit(resolved.spec);
+        result = await withPresence(ambient, { nodeId: spec.id, runId, mode }, () =>
+          proveUnit(resolved.spec),
+        );
         liveAuthor = resolved.liveAuthor;
 
         // Promotion (ADR-0031): a signed REAL pass lands, it does not evaporate. The proven
@@ -486,6 +537,7 @@ export async function nodeBuild(
         store,
         runId,
         signer: signer.signer,
+        presence: ambient,
         ...(opts.model !== undefined ? { model: opts.model } : {}),
         ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
         ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),

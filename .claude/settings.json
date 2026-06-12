@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts start",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts end",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts statusline"
+  }
+}

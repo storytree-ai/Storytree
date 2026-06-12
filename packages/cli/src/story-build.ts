@@ -12,8 +12,11 @@ import {
 } from "@storytree/orchestrator";
 import type { NodeSpec, ProveResult } from "@storytree/orchestrator";
 
+import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
 import { driveNode, repoRoot, rel, resolveVerdictStore } from "./node-build.js";
+import { deriveIdentity } from "./noticeboard.js";
+import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 
 /**
@@ -69,6 +72,12 @@ export interface StoryBuildOpts {
   storiesDir?: string;
   /** Injectable OQ-hygiene row loader for tests (ADR-0037 §5); defaults to the live store. */
   oqGateDeps?: OqGateDeps;
+  /**
+   * Injectable for tests (ADR-0033 Decision 3). Defaults: `store` = the `--store pg` pool's
+   * presence board (null in-memory), `identity` = the enclosing session worktree (null in a
+   * plain checkout) — null on either side makes presence a silent no-op.
+   */
+  presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
 }
 
 /** `storytree story build <story-id>` — the whole Phase-E walk, returned as one envelope. */
@@ -182,6 +191,16 @@ export async function storyBuild(
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
+  // The presence board around each node (ADR-0033 Decision 3, spine-side — no hooks): one
+  // declaration doc per session, re-declared per node as the chain advances; every board failure
+  // swallowed by withPresence inside driveNode — presence can never halt a story.
+  const ambient: AmbientDeps = {
+    store: opts.presence?.store !== undefined ? opts.presence.store : storeChoice.presence,
+    identity:
+      opts.presence?.identity !== undefined ? opts.presence.identity : deriveIdentity(),
+    now: () => new Date(),
+  };
+
   const runId = `story-${mode}-${Date.now().toString(36)}`;
   const budgetUsd = live ? (opts.budgetUsd ?? DEFAULT_STORY_BUDGET_USD) : undefined;
 
@@ -199,6 +218,7 @@ export async function storyBuild(
           store,
           runId,
           signer: signer.signer,
+          presence: ambient,
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(live
             ? { budgetUsd: Math.min(SLICE_BUDGET_USD, remainingUsd ?? SLICE_BUDGET_USD) }
