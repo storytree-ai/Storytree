@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0005: Orchestration spine — code sequences, pi judges
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0026/0010/0020.

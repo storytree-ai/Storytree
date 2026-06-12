@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-10
+---
+
 # ADR-0032: The cite + graduation mechanism — a cite is a typed link; graduation is a future synthesis agent
 
 ## Status

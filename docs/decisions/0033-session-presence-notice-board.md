@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-11
+---
+
 # ADR-0033: The notice board is session presence — advisory coordination for parallel sessions
 
 ## Status

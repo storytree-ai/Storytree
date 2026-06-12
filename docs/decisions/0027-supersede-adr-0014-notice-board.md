@@ -1,3 +1,9 @@
+---
+status: accepted
+decided: 2026-06-10
+supersedes: [14]
+---
+
 # ADR-0027: Supersede ADR-0014 — the notice board folds into the Library tier; cite/graduation carried forward
 
 ## Status

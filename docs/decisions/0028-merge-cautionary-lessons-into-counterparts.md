@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-10
+---
+
 # ADR-0028: Merge the v1 cautionary lessons into their positive counterparts — fold the scar evidence, retire the standalone units
 
 ## Status

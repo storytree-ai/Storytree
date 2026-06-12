@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0003: v1→v2 disposition ledger
 
 **Status:** proposed (2026-06-04) — for *why* any call was made, read the cited v1 (Agentic) ADR.

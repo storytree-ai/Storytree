@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-10
+---
+
 # ADR-0031: A signed REAL pass is promoted, not evaporated — branch-per-pass landing + dependency-bearing worktrees
 
 ## Status

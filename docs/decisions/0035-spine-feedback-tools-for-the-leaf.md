@@ -1,3 +1,9 @@
+---
+status: accepted
+decided: 2026-06-11
+amends: [30]
+---
+
 # ADR-0035: The spine lends the leaf its oracle — bounded feedback tools (option A)
 
 ## Status

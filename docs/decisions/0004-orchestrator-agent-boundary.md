@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0004: Orchestrator/agent boundary
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0003/0006/0008/0026.

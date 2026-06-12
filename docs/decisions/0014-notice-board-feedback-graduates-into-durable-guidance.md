@@ -1,3 +1,7 @@
+---
+status: superseded
+---
+
 # ADR-0014: The notice board — anchored prose feedback that graduates into durable guidance
 
 ## Status

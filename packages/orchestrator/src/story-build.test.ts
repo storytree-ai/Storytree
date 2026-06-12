@@ -22,6 +22,7 @@ function spec(
     story: tier === "story" ? undefined : "s",
     dependsOn,
     capabilities,
+    decisions: [],
     guidance: undefined,
     file: `${id}.md`,
   };

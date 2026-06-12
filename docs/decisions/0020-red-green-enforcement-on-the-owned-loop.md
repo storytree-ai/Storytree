@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-08
+---
+
 # ADR-0020: Red-green is enforced spine-side on the owned loop (not by process isolation)
 
 ## Status

@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-08
+---
+
 # ADR-0021: Keyless agent-session auth to GCP/Cloud SQL, and the IAM-user privilege bootstrap
 
 ## Status

@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-08
+---
+
 # ADR-0023: Agents reach the Library through an exploratory, just-in-time CLI
 
 ## Status

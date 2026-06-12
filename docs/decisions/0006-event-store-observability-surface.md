@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0006: Event store & observability surface
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0006/0021/0023 (this **inverts** them).

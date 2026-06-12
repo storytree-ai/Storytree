@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-08
+---
+
 # ADR-0025: Repo-surface allow-list gate — root + docs/ require a justified manifest entry
 
 ## Status

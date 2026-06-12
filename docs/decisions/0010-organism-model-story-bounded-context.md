@@ -1,3 +1,9 @@
+---
+status: accepted
+decided: 2026-06-06
+supersedes_in_part: [2, 7]
+---
+
 # ADR-0010: The organism model — story as bounded context, the proof ladder, and cross-story interfaces
 
 ## Status

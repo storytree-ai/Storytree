@@ -102,6 +102,7 @@ export const Story = z
     ...base,
     proof_mode: z.enum(["UAT", "operator-attested"]),
     capabilities: z.array(z.string()),
+    decisions: z.array(z.number().int().positive()).default([]), // deciding ADR numbers (ADR-0037 §2)
     edges: z.array(Edge).default([]), // the within-story code-derived graph (ADR-0010 §3)
     uat: Walkthrough,
     framing: Markdown.optional(),

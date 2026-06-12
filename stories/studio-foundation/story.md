@@ -9,6 +9,8 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036.
 depends_on: [library, drive-machinery, notice-board]
+# Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36).
+decisions: [8, 36]
 ---
 
 # The studio foundation

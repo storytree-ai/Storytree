@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-06
+---
+
 # ADR-0015: GCP hosting — one Cloud SQL Postgres for the runtime store; corpus stays in git
 
 ## Status

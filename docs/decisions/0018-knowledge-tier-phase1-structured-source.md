@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-08
+---
+
 # ADR-0018: Knowledge tier Phase 1 — structured source of truth, generated views, corpus curation
 
 ## Status

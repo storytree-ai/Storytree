@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-06
+---
+
 # ADR-0012: Tool execution behind a borrowed, pluggable sandbox
 
 ## Status

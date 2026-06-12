@@ -9,6 +9,7 @@ capabilities: [cite-event, archive-with-reason, signal-synthesis]
 # Story-level edges: the "Cross-story boundary" section below, encoded (declared
 # interfaces, ADR-0010 §4; owner call #3 resolved 2026-06-11). ADR-0036.
 depends_on: [studio-foundation, library]
+decisions: [32] # deciding ADR (ADR-0037 §2)
 ---
 
 # Feedback graduation — cites link feedback into a signal-graph a synthesis agent graduates

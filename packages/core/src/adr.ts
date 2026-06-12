@@ -1,0 +1,70 @@
+import { parse } from "yaml";
+import { z } from "zod";
+
+/**
+ * ADR frontmatter (ADR-0037 §1): the queryable summary of a decision record's state.
+ *
+ * Status is HUMAN-flipped — no machine writes it (ADR-0006/0031: status is a projection of
+ * evidence, never a write; here the "evidence" is the prose `## Status` section, and the
+ * frontmatter transcribes it). Edges are OUTGOING only (`supersedes` / `supersedes_in_part` /
+ * `amends`); incoming notes stay prose in the target file, derived — never double-entered.
+ */
+export const AdrStatus = z.enum(["proposed", "accepted", "superseded"]);
+export type AdrStatus = z.infer<typeof AdrStatus>;
+
+const AdrNumber = z.number().int().positive();
+
+/** Strict by design — a typo'd key (`superceded`) must fail loudly, not silently drop an edge. */
+const AdrFrontmatter = z
+  .object({
+    status: AdrStatus,
+    decided: z
+      .union([z.string(), z.date()]) // yaml parses bare ISO dates to Date
+      .transform((d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d))
+      .optional(),
+    supersedes: z.array(AdrNumber).default([]),
+    supersedes_in_part: z.array(AdrNumber).default([]),
+    amends: z.array(AdrNumber).default([]),
+  })
+  .strict();
+
+/** A parsed decision record: filename-derived number + validated frontmatter. */
+export interface AdrMeta {
+  number: number;
+  file: string;
+  status: AdrStatus;
+  decided?: string;
+  supersedes: number[];
+  supersedesInPart: number[];
+  amends: number[];
+}
+
+/**
+ * Parse one `docs/decisions/NNNN-*.md` file's frontmatter. Throws (loud) on a missing block,
+ * a non-numbered filename, or frontmatter that fails {@link AdrFrontmatter} — the same
+ * fail-loud posture as the orchestrator's node-spec loader.
+ */
+export function parseAdrFrontmatter(file: string, content: string): AdrMeta {
+  const numberMatch = /^(\d{4})-.*\.md$/.exec(file);
+  if (numberMatch === null) {
+    throw new Error(`${file}: not an ADR filename (expected NNNN-title.md)`);
+  }
+  if (!content.startsWith("---\n")) {
+    throw new Error(`${file}: no frontmatter block (the file must start with '---')`);
+  }
+  const end = content.indexOf("\n---", 4);
+  if (end === -1) {
+    throw new Error(`${file}: unterminated frontmatter block (no closing '---')`);
+  }
+  const fm = AdrFrontmatter.parse(parse(content.slice(4, end + 1)));
+  const meta: AdrMeta = {
+    number: Number(numberMatch[1]),
+    file,
+    status: fm.status,
+    supersedes: fm.supersedes,
+    supersedesInPart: fm.supersedes_in_part,
+    amends: fm.amends,
+  };
+  if (fm.decided !== undefined) meta.decided = fm.decided;
+  return meta;
+}

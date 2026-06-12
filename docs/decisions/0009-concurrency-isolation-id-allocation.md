@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0009: Concurrency, isolation & ID allocation
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0013/0022/0025/0014.

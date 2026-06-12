@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-07
+---
+
 # ADR-0017: The cross-cutting knowledge tier (resolves open-q §9)
 
 ## Status

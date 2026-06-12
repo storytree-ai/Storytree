@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-08
+---
+
 # ADR-0024: A definition earns its place only if a cold agent can't reconstruct it (the blind-reconstruction test)
 
 ## Status

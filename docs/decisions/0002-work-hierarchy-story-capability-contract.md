@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # ADR-0002: The work hierarchy — story, capability, contract
 
 ## Status

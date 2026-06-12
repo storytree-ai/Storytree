@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-03
+---
+
 # ADR-0001: Foundational stack — pi + a thin durable orchestrator, no framework
 
 ## Status

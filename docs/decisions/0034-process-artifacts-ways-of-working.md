@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-11
+---
+
 # ADR-0034: `process` artifacts — ways-of-working as a downstream library kind
 
 ## Status

@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-09
+---
+
 # ADR-0026: Library schema migrations & health checks — per-row version pin, forward-only migrate-on-write, and a gated health module
 
 ## Status

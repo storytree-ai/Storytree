@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-11
+---
+
 # ADR-0029: The agent roster is a Library artifact category (`agent` kind)
 
 ## Status

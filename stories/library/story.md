@@ -6,6 +6,8 @@ outcome: "An agent grows and curates a schema-validated versioned event-sourced 
 status: mapped
 proof_mode: UAT
 capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli]
+# Deciding ADRs (ADR-0037 §2): the tier (17/18/19), the CLI (23), migrations + health (26).
+decisions: [17, 18, 19, 23, 26]
 ---
 
 # The library tier

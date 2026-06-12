@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-04
+---
+
 # ADR-0007: Proof model
 
 **Status:** proposed (2026-06-04) — full rationale: v1 ADR-0005/0006/0008/0024/0027. **Amended by ADR-0010** (proof table, mock-UAT seam, cold-rebuild).

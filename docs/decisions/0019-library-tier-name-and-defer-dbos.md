@@ -1,3 +1,9 @@
+---
+status: accepted
+decided: 2026-06-08
+supersedes_in_part: [1, 9, 11, 12]
+---
+
 # ADR-0019: The knowledge tier is named "library"; defer DBOS for its store
 
 ## Status

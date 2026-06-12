@@ -1,3 +1,9 @@
+---
+status: accepted
+decided: 2026-06-12
+supersedes_in_part: [1, 11]
+---
+
 # ADR-0036: The story world — the studio renders the work hierarchy as a hex-island world (SVG, not PixiJS)
 
 ## Status

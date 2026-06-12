@@ -1,3 +1,8 @@
+---
+status: proposed
+decided: 2026-06-07
+---
+
 # ADR-0016: Knowledge↔code binding & staleness model
 
 ## Status

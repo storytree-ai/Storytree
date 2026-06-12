@@ -33,6 +33,7 @@ const Frontmatter = z
     story: z.string().optional(),
     depends_on: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
+    decisions: z.array(z.number().int().positive()).default([]),
   })
   .passthrough();
 
@@ -49,6 +50,8 @@ export interface NodeSpec {
   dependsOn: string[];
   /** A story spec's `capabilities` frontmatter list (empty for capability/contract tiers). */
   capabilities: string[];
+  /** A story spec's deciding ADR numbers (ADR-0037 §2; empty for capability/contract tiers). */
+  decisions: number[];
   /** The `## Guidance` section's prose, when the body carries one (feeds prompt assembly). */
   guidance: string | undefined;
   /** The file the spec was loaded from (for honest provenance in CLI output). */
@@ -81,6 +84,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     story: fm.story,
     dependsOn: fm.depends_on,
     capabilities: fm.capabilities,
+    decisions: fm.decisions,
     guidance,
     file,
   };

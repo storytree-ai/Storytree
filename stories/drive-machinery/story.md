@@ -10,6 +10,8 @@ capabilities: []
 # library story's store connection seam — createPool/closePool/applySchema + the narrow
 # Store seam type in packages/cli/src/node-build.ts (events.work_event/verdict are its OWN).
 depends_on: [library]
+# Deciding ADRs (ADR-0037 §2): the gate (20), the SDK leaf (30), promotion (31), leaf tools (35).
+decisions: [20, 30, 31, 35]
 ---
 
 # The drive machinery

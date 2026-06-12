@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-06
+---
+
 # ADR-0013: A structured, schema-validated corpus; markdown as a generated view
 
 ## Status

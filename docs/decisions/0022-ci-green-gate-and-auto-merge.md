@@ -1,3 +1,8 @@
+---
+status: accepted
+decided: 2026-06-08
+---
+
 # ADR-0022: CI green gate + auto-merge-on-green (inside free Actions)
 
 ## Status

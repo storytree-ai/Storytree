@@ -1,3 +1,10 @@
+---
+status: accepted
+decided: 2026-06-10
+supersedes_in_part: [11]
+amends: [12]
+---
+
 # ADR-0030: All-in on the Claude Agent SDK as the live runtime (pivot-out by architecture)
 
 ## Status

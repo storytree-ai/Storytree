@@ -1,3 +1,10 @@
+---
+status: accepted
+decided: 2026-06-06
+supersedes_in_part: [1]
+amends: [4, 5]
+---
+
 # ADR-0011: Own the agent loop and context engineering
 
 ## Status

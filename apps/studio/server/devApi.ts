@@ -120,6 +120,14 @@ function deriveTitle(markdown: string, filename: string): string {
   return m && m[1] ? m[1] : filename.replace(/\.md$/, '');
 }
 
+/** Drop a leading YAML frontmatter block (ADR-0037 structured status) — readers get prose. */
+function stripFrontmatter(markdown: string): string {
+  if (!markdown.startsWith('---\n')) return markdown;
+  const end = markdown.indexOf('\n---', 4);
+  if (end === -1) return markdown;
+  return markdown.slice(end + 4).replace(/^\s*\n/, '');
+}
+
 function deriveGroup(relId: string): string {
   return relId.startsWith('decisions/') ? 'Decisions' : 'Reference';
 }
@@ -154,7 +162,7 @@ async function listDocs(docsDir: string): Promise<DocMeta[]> {
         await walk(full);
       } else if (ent.isFile() && ent.name.endsWith('.md')) {
         const relId = path.relative(docsDir, full).split(path.sep).join('/');
-        const content = await fs.readFile(full, 'utf8');
+        const content = stripFrontmatter(await fs.readFile(full, 'utf8'));
         out.push({
           id: relId,
           title: deriveTitle(content, ent.name),
@@ -517,7 +525,7 @@ async function handleDocs(
     const id = url.searchParams.get('id') ?? '';
     const file = safeDocPath(paths.docsDir, id);
     if (!file || !existsSync(file)) throw new HttpError(404, 'doc not found');
-    const markdown = await fs.readFile(file, 'utf8');
+    const markdown = stripFrontmatter(await fs.readFile(file, 'utf8'));
     return sendJson(res, 200, { id, title: deriveTitle(markdown, path.basename(file)), markdown });
   }
   throw new HttpError(404, 'not found');
