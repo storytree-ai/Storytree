@@ -28,12 +28,17 @@
   --cat-glossary: #475569;
 
   /* work-hierarchy status colors (#/tree; Status in @storytree/core) */
-  --st-proposed: #b45309;
-  --st-building: #2563eb;
-  --st-healthy: #15803d;
-  --st-unhealthy: #b42318;
-  --st-mapped: #0e7490;
-  --st-retired: #6b7280;
+  /* ONE status palette for the whole studio: the world's crown HUES, so card
+     strips / badges / wisp bands can never drift from the foliage colours
+     (pre-2026-06-12 these were a second, diverging palette). proposed/building
+     are darker text-grade stops of the same hue — these surfaces carry white
+     text and the raw crown-lo tones fall below 4.5:1 contrast. */
+  --st-proposed: #9a5a1c; /* text-grade --crown-proposed-lo */
+  --st-building: #4d7c0f; /* text-grade --crown-building-lo */
+  --st-healthy: var(--crown-healthy-lo);
+  --st-unhealthy: var(--crown-unhealthy-lo);
+  --st-mapped: var(--crown-mapped-lo);
+  --st-retired: #6b7280; /* darker than the ghost flora tint — badge text needs contrast */
   --st-unknown: #6b7280;
 
   /* world scenery (#/tree) — Dorfromantik-style hex board */
