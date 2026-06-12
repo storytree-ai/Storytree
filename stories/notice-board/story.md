@@ -25,8 +25,9 @@ already carries cross-session state; what is missing is purely the presence surf
 (ADR-0032) — this story carries the `notice-board` name because presence *is* what the notice
 board always meant to the owner: "a simple declaration of *I exist and I'm working on xyz*".
 
-**Greenfield, through the drive.** Every capability is `proposed` — authored first, built through
-the prove-it-gate (`node build`/`story build`, ADR-0030/0031). Registry entries are NOT
+**Greenfield, through the drive.** Authored first, built through the prove-it-gate
+(`node build`/`story build`, ADR-0030/0031) — four of the five capabilities have now been driven
+through it (signed passes, promoted to `main`). Registry entries are NOT
 pre-created — registration is the deliberate act done per node when its build is actually next.
 The capability split deliberately follows REAL-build mechanics (ADR-0031): each node's registered
 proof is ONE test file that runs OFFLINE in the build worktree, so a signed PASS honestly attests
@@ -55,8 +56,12 @@ attested by a worktree PASS.
 
 ## Capabilities (5)
 
-Listed roots-first. All `proposed` — no code exists; the Proof note in each file is a would-be
-test, not evidence.
+Listed roots-first. Capabilities 1–4 are **PROVEN and PROMOTED** (gated-leaf builds, signed
+passes in `events.verdict`, merged to `main` — see each file's Proof note for run ids and
+commits); 5 is registered and next to build. The authored status stays `proposed` forever
+(ADR-0031: health is a projection of signed verdicts — promotion lands *code*, never *status*;
+the studio tree and the verdict-glyph follow-up read proof from `events.verdict` when the DB is
+up).
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -66,10 +71,11 @@ test, not evidence.
 | 4 | [`tree-view`](tree-view.md) | `storytree tree [<story>]` renders the work hierarchy offline and weaves the presence block in when the live store is reachable. | proposed | `declare-presence`, `presence-store` |
 | 5 | [`ambient-integration`](ambient-integration.md) | Presence declares itself: spine-side around SDK builds, fail-silent session hooks, a statusline glance — never via a blocking-capable hook. | proposed | `noticeboard-cli`, `tree-view` |
 
-## Dependency graph (predicted, not code-derived)
+## Dependency graph (designed; code at HEAD for 1–4)
 
-Greenfield story: these edges are the *designed* couplings the integration tests will assert,
-to be re-derived from real imports once code exists (the `library` story's standard).
+These edges are the *designed* couplings; capabilities 1–4 now have real code at HEAD honouring
+them (e.g. `noticeboard.ts` imports `@storytree/core` presence + the store seam type). A formal
+re-derivation from real imports (the `library` story's standard) is pending work.
 
 - `presence-store` → `declare-presence` — the store persists the core doc shape and reuses its
   pure merge/validation.

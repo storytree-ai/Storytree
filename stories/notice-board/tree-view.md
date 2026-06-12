@@ -14,10 +14,14 @@ depends_on: [declare-presence, presence-store]
 **Outcome —** `storytree tree [<story>]` renders the work hierarchy offline and weaves the
 presence block in when the live store is reachable.
 
-> **Proof status (honest) — `proposed`, greenfield.** Nothing exists: no `tree` CLI area, no
-> renderer, no tests. Every "proven by" below is a would-be test. ADR-0033 Decision 2 fixes the design:
-> the tree is an orientation surface in the ADR-0023 choose-your-own-adventure pattern — the
-> focused story view is the centerpiece where a session zoning into a node sees its neighbours.
+> **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
+> `packages/cli/src/tree.ts` + its test in a fresh worktree; the spine observed the real
+> red→green and signed a PASS (run `real-mq8ozw0d`, commit `e78c1aa`, persisted to
+> `events.verdict`); the spine wired the dispatch after promotion. The authored status stays
+> `proposed` forever: `healthy` is only ever derived from signed verdicts (ADR-0020). The design
+> (ADR-0033 Decision 2): the tree is an orientation surface in the ADR-0023
+> choose-your-own-adventure pattern — the focused story view is the centerpiece where a session
+> zoning into a node sees its neighbours.
 
 ## Guidance
 
@@ -83,7 +87,7 @@ incremental Edits).
   `noticeboard declare` pointer with `--node demo-story` and a `node build` pointer; bare `next`
   carries `storytree tree demo-story`. That is the whole list — do not add more cases.
 
-## Integration test (would-be)
+## Integration test
 
 **Goal —** Against the real `stories/` tree and registry (and a presence store fake/live-gated pg),
 both views render offline without error, the focused view exposes the build surface, presence
@@ -99,17 +103,17 @@ presence block appears, and is silently absent without `--pg`.
 1. **`tree-renders-offline`** — bare and focused views render with no DB
    - **asserts —** both views render from `stories/` frontmatter + the registry with no DB
      reachable and no error; exit 0.
-   - **proven by —** would-be `packages/cli/src/tree.test.ts`
+   - **proven by —** `packages/cli/src/tree.test.ts` (real at HEAD)
 2. **`focus-shows-build-surface`** — the focused view marks what can build next
    - **asserts —** each capability in the focused view is marked registered / REAL-buildable /
      unregistered from `NODE_BUILD_REGISTRY`, so "what can build next" is readable.
-   - **proven by —** would-be `packages/cli/src/tree.test.ts`
+   - **proven by —** `packages/cli/src/tree.test.ts` (real at HEAD)
 3. **`presence-woven-when-live`** — presence appears with `--pg`, degrades silently without
    - **asserts —** with `--pg` the focused view includes the presence block for sessions whose
      `nodes` match the story or its capabilities; without `--pg` (or DB down) the block is
      silently absent — never an error.
-   - **proven by —** would-be `packages/cli/src/tree.test.ts`
+   - **proven by —** `packages/cli/src/tree.test.ts` (real at HEAD)
 4. **`next-pointers-guide`** — the envelope `next` steers the session
    - **asserts —** the focused view's `next` offers `noticeboard declare --node <id>` and
      `node build <id>`; the bare view's `next` offers `tree <story-id>`.
-   - **proven by —** would-be `packages/cli/src/tree.test.ts`
+   - **proven by —** `packages/cli/src/tree.test.ts` (real at HEAD)

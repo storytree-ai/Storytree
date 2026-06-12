@@ -175,6 +175,25 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
       typecheck: pnpmTypecheck("@storytree/cli"),
     },
   },
+  // The notice-board automation rung (ADR-0033 Decision 3): the ambient-presence module — the
+  // withPresence build wrapper, fail-silent session-hook handler, statusline glance/heartbeat,
+  // and the never-blocking-hooks config audit. Pure module legs only; the spine wires node-build,
+  // `.claude/settings.json` hooks, and the statusline AFTER promotion. `install: true`: imports
+  // @storytree/core + ./noticeboard.js seams.
+  "ambient-integration": {
+    command: pnpmTest("@storytree/cli"),
+    scope: pkgScope("cli"),
+    real: {
+      testFile: "packages/cli/src/ambient-presence.test.ts",
+      sourceFile: "packages/cli/src/ambient-presence.ts",
+      scope: {
+        testGlobs: ["packages/cli/src/ambient-presence.test.ts"],
+        sourceGlobs: ["packages/cli/src/ambient-presence.ts"],
+      },
+      install: true,
+      typecheck: pnpmTypecheck("@storytree/cli"),
+    },
+  },
 };
 
 /** Look up a node's build config; a miss returns null (the caller turns it into guidance). */

@@ -14,10 +14,14 @@ depends_on: [declare-presence, presence-store]
 **Outcome —** `storytree noticeboard` lists active sessions grouped by story node with staleness;
 `declare`/`done` write with worktree-derived identity.
 
-> **Proof status (honest) — `proposed`, greenfield.** Nothing exists: no `noticeboard` command, no
-> identity derivation, no board renderer. Every "proven by" below is a would-be test. ADR-0033 Decision 2
-> fixes the design: the board is one of the CLI orientation surfaces, advisory only — it *shows*
-> who is where; nothing refuses on overlap.
+> **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
+> `packages/cli/src/noticeboard.ts` + its test in a fresh worktree; the spine observed the real
+> red→green and signed a PASS (run `real-mq8o0n7p`, commit `eee848b`, persisted to
+> `events.verdict`); the spine wired the `commands.ts` dispatch after promotion
+> (`noticeboard-dispatch.test.ts`). The authored status stays `proposed` forever: `healthy` is
+> only ever derived from signed verdicts (ADR-0020). The design (ADR-0033 Decision 2): the board
+> is one of the CLI orientation surfaces, advisory only — it *shows* who is where; nothing
+> refuses on overlap.
 
 ## Guidance
 
@@ -81,7 +85,7 @@ take already-parsed inputs and injected deps, so everything is testable without 
   entries — never on byte-exact whole bodies (you cannot run this test yourself; brittle
   assertions are how this build dies).
 
-## Integration test (would-be)
+## Integration test
 
 **Goal —** Against the store seam (in-memory), the command surface derives identity, gates writes
 on `--pg`, renders the grouped + aged board, and `done` drops a session from the active view
@@ -97,17 +101,17 @@ and assert the active board shrinks while the session's events remain readable v
 1. **`identity-derived-not-typed`** — declare resolves identity from the worktree, never a flag
    - **asserts —** `declare` derives `sessionId` (worktree name) and `branch` from git; no flag
      exists to supply an identity; outside a recognisable worktree it refuses with guidance.
-   - **proven by —** would-be `packages/cli/src/noticeboard.test.ts`
+   - **proven by —** `packages/cli/src/noticeboard.test.ts` (real at HEAD)
 2. **`writes-need-pg`** — declare/done are refused without `--pg`
    - **asserts —** `declare` and `done` without `--pg` are refused (matching library artifact
      writes), with `pnpm db:up` guidance in the envelope's `next`; nothing is written.
-   - **proven by —** would-be `packages/cli/src/noticeboard.test.ts`
+   - **proven by —** `packages/cli/src/noticeboard.test.ts` (real at HEAD)
 3. **`board-groups-and-ages`** — the board groups by declared node and renders staleness
    - **asserts —** active sessions group under their declared story node, prose-only sessions
      under a no-node group, each row showing its derived staleness band; the default view is
      active-only.
-   - **proven by —** would-be `packages/cli/src/noticeboard.test.ts`
+   - **proven by —** `packages/cli/src/noticeboard.test.ts` (real at HEAD)
 4. **`done-drops-active-keeps-history`** — done leaves the board, history survives
    - **asserts —** after `done`, the session no longer appears on the active board, while its
      full event history remains readable via the store seam.
-   - **proven by —** would-be `packages/cli/src/noticeboard.test.ts`
+   - **proven by —** `packages/cli/src/noticeboard.test.ts` (real at HEAD)

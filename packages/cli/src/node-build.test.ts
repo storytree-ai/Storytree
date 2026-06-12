@@ -107,7 +107,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /--real/);
   assert.match(
     bare.body,
-    /REAL-buildable nodes: {9}declare-presence, noticeboard-cli, presence-store, tree-view, verdict-line/,
+    /REAL-buildable nodes: {9}ambient-integration, declare-presence, noticeboard-cli, presence-store, tree-view, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

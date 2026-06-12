@@ -116,6 +116,7 @@ test("the registry covers the library story + its seven capabilities; a miss is 
 
 test("the verdict-line entry carries a REAL proof config whose write walls really wall", () => {
   assert.deepEqual(realBuildableNodeIds(), [
+    "ambient-integration",
     "declare-presence",
     "noticeboard-cli",
     "presence-store",
@@ -135,6 +136,27 @@ test("the verdict-line entry carries a REAL proof config whose write walls reall
   assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
   assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/core/src/proof.ts"), false);
   assert.equal(scope.isWriteAllowed("GATE", real.sourceFile), false);
+});
+
+test("the ambient-integration entry is REAL-buildable with install and exact-file walls", () => {
+  const real = lookupNodeBuildConfig("ambient-integration")?.real;
+  assert.ok(real !== undefined);
+  assert.equal(real.testFile, "packages/cli/src/ambient-presence.test.ts");
+  assert.equal(real.sourceFile, "packages/cli/src/ambient-presence.ts");
+  assert.equal(real.install, true);
+  assert.deepEqual(real.typecheck, {
+    file: "pnpm",
+    args: ["--filter", "@storytree/cli", "typecheck"],
+  });
+  const scope = new PathWriteScope(real.scope);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
+  // The wiring surfaces stay spine-owned: neither phase may touch dispatch or the hooks config.
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/commands.ts"), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", ".claude/settings.json"), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "package.json"), false);
 });
 
 test("the declare-presence entry is REAL-buildable with install (zod import) and real walls", () => {
@@ -345,6 +367,7 @@ test("real mode fails closed on a registered node WITHOUT a real-proof config", 
   if (result.ok) return;
   assert.match(result.reason, /no REAL proof config/);
   assert.deepEqual(result.registered, [
+    "ambient-integration",
     "declare-presence",
     "noticeboard-cli",
     "presence-store",

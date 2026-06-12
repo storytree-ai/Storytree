@@ -15,17 +15,22 @@ depends_on: []
 upsert-merge semantics — fail-closed on any missing identity or substance field (`sessionId`,
 `branch`, `workingOn`).
 
-> **Proof status (honest) — `proposed`, greenfield.** Nothing exists: no schema, no module, no
-> tests. Every "proven by" below is a would-be test. ADR-0033 Decision 1 fixes the design: one declaration
-> doc per session — `{ sessionId, branch, workingOn, nodes, status, startedAt, lastSeenAt }` —
-> identity is the worktree name (derived, never typed), **no signer chain** (presence is not
-> proof), and staleness replaces release discipline.
+> **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
+> `packages/core/src/presence.ts` + its test in a fresh worktree; the spine observed the real
+> red→green and signed a PASS (run `real-mq8lp5r5`, commit `c958a34`, persisted to
+> `events.verdict`), merged via PR #37 — the second run, after the first (`real-mq8lhxlp`)
+> exposed the tsx type-strip hole and bought the typecheck wall (ADR-0031 §2). The authored
+> status stays `proposed` forever: `healthy` is only ever derived from signed verdicts
+> (ADR-0020). ADR-0033 Decision 1 fixes the design: one declaration doc per session —
+> `{ sessionId, branch, workingOn, nodes, status, startedAt, lastSeenAt }` — identity is the
+> worktree name (derived, never typed), **no signer chain** (presence is not proof), and
+> staleness replaces release discipline.
 
 ## Guidance
 
 This is the story's root: the zod-validated declaration doc plus the **pure** logic every other
 capability reuses — validation, staleness classification, upsert-merge. It lives in
-`@storytree/core` (would-be `packages/core/src/presence.ts`) and does **no I/O**: no store, no
+`@storytree/core` (`packages/core/src/presence.ts`) and does **no I/O**: no store, no
 clock reads (callers pass `now`), no worktree probing — identity *derivation* belongs to the CLI
 node; this node only refuses docs that arrive without it.
 
@@ -50,10 +55,10 @@ node; this node only refuses docs that arrive without it.
   are the two anchors a patch can never move; `nodes`/`status`/`workingOn`/`branch`/`lastSeenAt`
   patch normally (undefined ignored).
 - **REAL-build target (ADR-0031):** ONE test file proves all three contracts, so a signed PASS
-  attests the node. Its registry entry will carry `real.install: true` — the impl imports `zod`,
+  attests the node. Its registry entry carries `real.install: true` — the impl imports `zod`,
   so the build worktree needs the lockfile-only install step.
 
-## Integration test (would-be)
+## Integration test
 
 **Goal —** The doc schema and the pure functions hold their fail-closed, derived, and
 merge-stability promises with no store and no clock — every assertion runs offline.
@@ -67,14 +72,14 @@ and origin survive while activity advances.
 1. **`presence-doc-fail-closed`** — an unattributable or silent declaration is refused
    - **asserts —** parsing a doc with a missing or whitespace-only `workingOn`, `sessionId`, or
      `branch` throws; nothing is defaulted; a fully-specified doc parses and round-trips.
-   - **proven by —** would-be `packages/core/src/presence.test.ts`
+   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)
 2. **`staleness-is-derived`** — freshness is a pure function of `lastSeenAt` vs `now`
    - **asserts —** the classifier returns fresh/stale/possibly-dead bands from `lastSeenAt` and a
      passed `now` alone; the doc schema rejects any stored staleness field; identical inputs give
      identical bands (no hidden clock).
-   - **proven by —** would-be `packages/core/src/presence.test.ts`
+   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)
 3. **`declaration-upsert-merge`** — `mergeDeclaration(existing, patch)` is pure and stable
    - **asserts —** `sessionId` is never patched, `startedAt` survives any overwrite, `lastSeenAt`
      bumps on merge, `undefined` patch fields leave existing values untouched, and inputs are not
      mutated (the `mergeCommentPatch` pattern, `packages/store/src/pg-comment-store.ts`).
-   - **proven by —** would-be `packages/core/src/presence.test.ts`
+   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)

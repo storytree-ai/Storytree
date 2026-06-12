@@ -14,12 +14,15 @@ depends_on: [declare-presence]
 **Outcome —** Declarations persist through the store seam as append-only events plus a
 one-row-per-session projection, atomically.
 
-> **Proof status (honest) — `proposed`, greenfield.** Nothing exists: no DDL, no store class, no
-> tests. Every "proven by" below is a would-be test. ADR-0033 Decision 1 fixes the design: the
-> house event+projection pattern — `events.session_event` (history) + `events.session` (current
-> state), siblings of `events.comment*`, written together atomically. The registered (REAL-build)
-> proof is the OFFLINE leg only — pure helpers + a fake transactional client; live SQL is
-> live-gated and human-verified, never attested by a worktree PASS.
+> **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
+> `packages/store/src/presence-store.ts` + its test in a fresh worktree; the spine observed the
+> real red→green and signed a PASS (run `real-mq8ncq3s`, commit `e0e8ccb`, persisted to
+> `events.verdict`). The authored status stays `proposed` forever: `healthy` is only ever derived
+> from signed verdicts (ADR-0020). The design (ADR-0033 Decision 1): the house event+projection
+> pattern — `events.session_event` (history) + `events.session` (current state), siblings of
+> `events.comment*`, written together atomically. The registered proof was the OFFLINE leg only —
+> pure helpers + a fake transactional client; live SQL stays live-gated and human-verified, never
+> attested by a worktree PASS.
 
 ## Guidance
 
@@ -83,7 +86,7 @@ write scope, do not touch it): history is **`events.session_event`** (`seq BIGSE
   `event-sourced-store-seam` (`createPool`, keyless IAM) — consumed, not absorbed; this module
   never creates pools itself.
 
-## Integration test (would-be)
+## Integration test
 
 **Goal —** OFFLINE, against a fake transactional client (the registered, REAL-buildable proof):
 a declare issues exactly one event insert plus one projection upsert inside one transaction,
@@ -105,14 +108,14 @@ readable in order.
    - **asserts —** against the fake transactional client, a declare issues exactly one
      `events.session_event` insert and the matching `events.session` upsert between one
      BEGIN/COMMIT; an induced mid-write failure rolls back leaving neither (abort-together).
-   - **proven by —** would-be `packages/store/src/presence-store.test.ts` (offline; live parity
+   - **proven by —** `packages/store/src/presence-store.test.ts` (real at HEAD) (offline; live parity
      live-gated per-file)
 2. **`one-row-per-session`** — the projection is keyed by `sessionId`
    - **asserts —** a re-declare for the same `sessionId` updates that projection row, never
      duplicates it; history grows by exactly one event per declare.
-   - **proven by —** would-be `packages/store/src/presence-store.test.ts`
+   - **proven by —** `packages/store/src/presence-store.test.ts` (real at HEAD)
 3. **`history-append-only`** — no update/delete path exists for events
    - **asserts —** the store surface exposes no way to update or delete a `session_event`; `done`
      is one more event plus a projection status flip, and the full ordered history stays readable
      after it.
-   - **proven by —** would-be `packages/store/src/presence-store.test.ts`
+   - **proven by —** `packages/store/src/presence-store.test.ts` (real at HEAD)
