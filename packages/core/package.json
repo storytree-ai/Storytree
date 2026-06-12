@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "storytree core: the work-hierarchy schema (story / capability / contract) and the corpus loader + validator. ADR-0002 / 0010 / 0013.",
+  "description": "storytree core: the work-hierarchy schema (story / capability / contract) and the corpus validator. ADR-0002 / 0010 / 0013 / 0039.",
   "exports": {
     ".": "./src/index.ts",
     "./sources": "./src/knowledge-sources.ts",

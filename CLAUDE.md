@@ -130,7 +130,7 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 ## Load-bearing ADRs
 
-`docs/decisions/` runs **0001–0038 on `main`** — calibrate to what's on disk. Every ADR carries
+`docs/decisions/` runs **0001–0039 on `main`** — calibrate to what's on disk. Every ADR carries
 **structured YAML frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
 `supersedes`/`supersedes_in_part`/`amends` edges; ADR-0037) — CI validates it (`adr-health` in
 `@storytree/cli`), so flip status BY HAND and record supersession as an outgoing edge on the new

@@ -19,6 +19,8 @@ toward its `packages/core` encoding.
 
 > **Scope note (library tier):** "YAML is the source of truth" below scopes the work-hierarchy units. The **library** tier's structured source on disk is **JSON** (`apps/studio/data/knowledge.json`, ADR-0018) — same structured-source / markdown-as-view principle, JSON encoding.
 
+**Superseded-in-part by [ADR-0039](0039-json-structured-source-format.md)** (accepted, 2026-06-13, owner: "Go with A" — JSON everywhere) — the **format call is reversed: JSON** is the single structured corpus source format. The planned corpus-wide YAML conversion (§5 and the "required migration" consequence) is retired: its one artifact (`stories/studio/browse-library.yaml`) is deleted, and work units stay **frontmatter-markdown** deliberately. Everything else below — structure over prose, schema-enforced discipline, markdown as a rendered view, validatable `covers` — stands, carried by JSON.
+
 ## Date
 
 2026-06-06

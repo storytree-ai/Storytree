@@ -1,5 +1,5 @@
 export * from "./schema.js";
-export { loadUnit, parseUnit } from "./loader.js";
+export { parseUnit } from "./loader.js";
 export * from "./knowledge.js";
 export {
   CURRENT_SCHEMA_VERSION,

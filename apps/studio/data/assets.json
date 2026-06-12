@@ -1112,19 +1112,6 @@
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
   {
-    "id": "oq-corpus-source-format",
-    "category": "open-question",
-    "title": "Reconcile the YAML-as-source claim with the JSON/markdown reality?",
-    "description": "ADR-0013 says YAML is the source of truth, but the Library's structured source on disk is JSON (knowledge.json) and stories/ are frontmatter-.md. Reconcile the formats or document the split as intended.",
-    "body": "**Why this matters.** Our filing policy (ADR-0013) once read 'every record is kept in YAML', while the Library actually files in JSON and the stories in markdown — a handbook naming a filing system nobody used. That mismatch has since been documented away.\n\n## The question\n\nADR-0013 said 'YAML is the source of truth', but the Library's structured source on disk is JSON (`knowledge.json`) and `stories/` are frontmatter-`.md` — should the formats be reconciled or the split documented? (Now largely answered — see Recommendation.)\n\n## Context\n\nADR-0013 asserted YAML as the source of truth, but the Library authors in JSON (`knowledge.json`) and stories in frontmatter-markdown (whose frontmatter is itself YAML). Since this was raised, **ADR-0013 was amended with a library-tier scope note**: 'YAML is the source of truth' scopes the work-hierarchy units, while the **library tier's structured source on disk is JSON** (`knowledge.json`, ADR-0018) — same structured-source / markdown-as-view principle, JSON encoding. That is exactly this question's option B (document the split). Separately, **ADR-0023** reframes 'source of truth' away from any file: the **shared store** is the live source of truth and the on-disk files are seeds / export views. Between the two, the original drift is resolved.\n\n## Diagram\n\n```\n  ADR-0013 (amended): work-hierarchy = YAML (story frontmatter)\n                      library tier    = JSON (knowledge.json, ADR-0018)\n  ADR-0023:           live source of truth = the STORE; files are seeds\n\n  => the per-tier split is now DOCUMENTED (option B); no open decision remains\n```\nThe cheap, honest fix was taken: the ADR now describes the per-tier formats rather than forcing a migration.\n\n## Options\n\n- **A — Commit to one format**: pick a single structured source format (e.g. JSON everywhere, or YAML everywhere) and migrate, then ADR-0013 is literally true. Cleanest mental model; real migration cost and churn in build tooling.\n\n- **B — Document the split as intended**: amend ADR-0013 to state that the structured source is JSON for the Library and frontmatter-`.md` for stories (markdown still the rendered view), and that 'YAML' was illustrative. No migration; the ADR matches reality. Accepts heterogeneity.\n\n- **C — Defer**: leave it, accept the drift for now. Cheapest, but the stale ADR keeps misleading readers.\n\n## Recommendation\n\nRESOLVED (non-binding): option B was effectively taken — ADR-0013's library-tier scope note now documents the JSON encoding for the Library (stories stay frontmatter-YAML), and ADR-0023 reframes the source of truth as the shared store rather than any file format. No open decision remains; this entry is retained for lineage and can be retired or graduated to a closed note at the owner's discretion.",
-    "references": [
-      "doc:decisions/0013-structured-corpus-markdown-as-view.md",
-      "doc:decisions/0017-cross-cutting-knowledge-tier.md"
-    ],
-    "createdAt": "2026-06-08T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z"
-  },
-  {
     "id": "doc-vs-implementation-precedence",
     "category": "principle",
     "title": "Doc-vs-implementation precedence",
