@@ -71,22 +71,72 @@ read proof from `events.verdict` when the DB is up).
 | 5 | [`ambient-integration`](ambient-integration.md) | Presence declares itself: spine-side around SDK builds, fail-silent session hooks, a statusline glance — never via a blocking-capable hook. | proposed | `noticeboard-cli`, `tree-view` |
 | 6 | [`verdict-glyphs`](verdict-glyphs.md) | `storytree tree` shows one signed-verdict glyph per node — ✓ proven / ✗ last run failed / – never built — read from `events.verdict` when the DB is up, silently absent offline. | proposed | `tree-view` |
 
-## Dependency graph (designed; code at HEAD for 1–4)
+## Dependency graph (code-derived)
 
-These edges are the *designed* couplings; capabilities 1–4 now have real code at HEAD honouring
-them (e.g. `noticeboard.ts` imports `@storytree/core` presence + the store seam type). A formal
-re-derivation from real imports (the `library` story's standard) is pending work.
+These are **within-story** edges **read off the real source** at HEAD (the imports and the
+injection seams between the six capabilities' modules), never hand-drawn from UAT need
+(ADR-0010 §3) — the `library` story's standard, applied as the formal re-derivation the earlier
+*designed* graph promised (2026-06-13). Two grains show up honestly: a **module-grain import**
+(A's file imports B's exports) and an **injection-grain coupling** (A consumes B only through a
+structural seam closed at the CLI entry — the deliberate offline-testability wall, so the edge
+exists at wiring time, never at module load). The graph is acyclic; `declare-presence` is the
+lone import root (`packages/core/src/presence.ts:1` imports only `zod`).
 
-- `presence-store` → `declare-presence` — the store persists the core doc shape and reuses its
-  pure merge/validation.
-- `noticeboard-cli` → `declare-presence`, `presence-store` — the CLI derives identity, validates
-  via core, reads/writes via the store.
-- `tree-view` → `declare-presence`, `presence-store` — the presence block derives staleness via
-  core and reads the projection.
-- `ambient-integration` → `noticeboard-cli`, `tree-view` — automation invokes the CLI surfaces
-  (hooks, statusline) and the spine declares through the same store path the CLI uses.
-- `verdict-glyphs` → `tree-view` — the glyph column annotates the rows the tree view renders;
-  after promotion the spine wires `treeCommand` to pass each row's unit id through `glyphFor`.
+- `presence-store` → `declare-presence`
+  - `packages/store/src/presence-store.ts:1-2` imports `type PresenceDeclarationDoc` +
+    `mergeDeclaration` from `@storytree/core`; `declare` merges an existing row via
+    `mergeDeclaration` (`presence-store.ts:85`) — the upsert-merge semantics are consumed,
+    never reimplemented.
+- `noticeboard-cli` → `declare-presence`
+  - `packages/cli/src/noticeboard.ts:10-11` imports `type PresenceDeclarationDoc` +
+    `classifyPresence`; the board's staleness bands call `classifyPresence`
+    (`noticeboard.ts:116`) and `declare` constructs the typed doc (`noticeboard.ts:213`).
+- `noticeboard-cli` → `presence-store` *(injection grain)*
+  - `noticeboard.ts` deliberately never imports `@storytree/store` (`noticeboard.ts:6` — the
+    seam keeps the module offline-testable); it OWNS the structural seam `PresenceStoreLike`
+    (`noticeboard.ts:19-26`) that `PgPresenceStore` satisfies. The edge closes at the entry:
+    `main.ts:11`/`:38` constructs the store on the shared pool and the dispatch injects it
+    (`commands.ts:785`).
+- `tree-view` → `declare-presence`
+  - `packages/cli/src/tree.ts:13` imports `classifyPresence`, called for the presence-block
+    bands (`tree.ts:232`) — thresholds never recomputed.
+- `tree-view` → `noticeboard-cli`
+  - an edge the designed graph MISSED: `tree.ts:16` imports `type PresenceStoreLike` from
+    `./noticeboard.js` — the presence seam type is owned by the noticeboard module and consumed
+    type-only.
+- `tree-view` → `presence-store` *(injection grain)*
+  - no store import anywhere in `tree.ts`; the projection is read through the injected
+    `PresenceStoreLike` (`main.ts:38` → the tree dispatch, `commands.ts:797`).
+- `tree-view` → `verdict-glyphs`
+  - the wired glyph column: `tree.ts:18` imports `glyphFor`/`readVerdictGlyphs`/
+    `type VerdictReaderLike` from `./tree-verdicts.js` and passes every row's unit id through
+    `glyphFor` (`tree.ts:92`). NOTE the direction: at the code grain the VIEW consumes the glyph
+    module; `verdict-glyphs`' authored `depends_on: [tree-view]` records the design/build-order
+    dependency (the follow-up annotates this view) — both facts hold, and there is no cycle:
+    `tree-verdicts.ts` imports nothing from `tree.ts`.
+- `ambient-integration` → `declare-presence`
+  - `packages/cli/src/ambient-presence.ts:10` imports `type PresenceDeclarationDoc`; the build
+    wrapper constructs the typed doc (`ambient-presence.ts:57`).
+- `ambient-integration` → `noticeboard-cli`
+  - `ambient-presence.ts:12` imports `type PresenceStoreLike` + `type SessionIdentity` (types
+    only — the module header states the wall), and the hook/statusline entry derives identity
+    through the real `deriveIdentity` (`ambient-presence-entry.ts:9`).
+- `ambient-integration` → `presence-store`
+  - the entry LAZY-imports the store package and constructs `PgPresenceStore` itself, race-boxed
+    and fail-silent (`ambient-presence-entry.ts:54-57`) — a direct code edge the designed graph
+    only implied ("the same store path the CLI uses").
+- `verdict-glyphs` — no outbound within-story import
+  - `packages/cli/src/tree-verdicts.ts:11` imports only `SIGNING_EVENT_KIND` + `Verdict` from
+    `@storytree/core` — the drive machinery's verdict vocabulary (cross-story, declared below);
+    its reader is the structural `VerdictReaderLike` slice of `PgWorkStore`, closed at
+    `main.ts:12`/`:41`. Within the story it is a second code-grain root; its authored
+    `depends_on: [tree-view]` is the build-order/design edge realized by the reverse import
+    (see `tree-view` → `verdict-glyphs` above).
+
+The one designed edge with NO code backing: `ambient-integration` → `tree-view` — nothing in
+`ambient-presence.ts`/`ambient-presence-entry.ts` imports `tree.ts` (the statusline glance
+renders its own line; it never invokes the tree). It stays a design-intent note in the
+capability files only, dropped from the code-derived graph.
 
 **Cross-story boundary (ADR-0010 §4):** `presence-store` consumes the **store connection seam**
 owned by the `library` story (`event-sourced-store-seam` — `createPool`/keyless IAM); `tree-view`
