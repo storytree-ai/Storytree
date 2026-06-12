@@ -172,6 +172,13 @@ export interface StoreHealth {
    * banner turns this into a distinct message instead of a generic API failure.
    */
   schema?: { code: number; db: number };
+  /**
+   * The code stamp (both stores, unlike `schema`): the git HEAD the server process STARTED
+   * on vs the checkout's HEAD on disk now. `stale: true` means the checkout moved under the
+   * running server (a pull/merge landed) — new endpoints 404 and the served bundle is old
+   * until a restart (pnpm studio:down / studio:up). Absent when git can't answer.
+   */
+  code?: { startedAt: string; head: string; stale: boolean };
 }
 
 /** GET /api/db/status — the Cloud SQL instance as gcloud reports it. */

@@ -12,6 +12,11 @@
 // git pull and pnpm studio:down/up instead of blaming the DB. And when
 // /api/health ITSELF stops answering repeatedly, the banner says the studio
 // server is unreachable rather than spinning on a DB phase forever.
+// Independently of all DB phases it watches the health probe's CODE STAMP
+// (server-start HEAD vs the checkout's HEAD now): a moved checkout means the
+// running server is serving stale code — new endpoints 404, the bundle is old
+// (the /api/presence incident) — and that banner outranks everything else,
+// because a stale server makes every other signal suspect.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
@@ -43,6 +48,10 @@ export function StoreBanner({
   const [startError, setStartError] = useState('');
   // The skew pair when phase === 'stale-code' (DB schemaVersion ahead of this server's code).
   const [skew, setSkew] = useState<{ code: number; db: number } | null>(null);
+  // The code stamp when the checkout has MOVED under the running server (health.code.stale).
+  // Deliberately NOT a phase: it is independent of the DB state machine (a server can be
+  // stale while the DB is stopped, starting, or fine) and it outranks every phase render.
+  const [moved, setMoved] = useState<{ startedAt: string; head: string } | null>(null);
 
   // Refs so the interval-driven probe sees current state without re-binding,
   // and so two probes never overlap.
@@ -58,6 +67,12 @@ export function StoreBanner({
     try {
       const health = await api.health();
       healthFailures.current = 0; // the studio server answered — whatever the DB says
+      // Code stamp first, before any phase branch returns: a moved checkout must surface
+      // for the json store and during DB outages alike — and clear when a restarted server
+      // answers with a fresh stamp.
+      setMoved(
+        health.code?.stale ? { startedAt: health.code.startedAt, head: health.code.head } : null,
+      );
       if (health.store === 'json') {
         setPhase('json');
         return;
@@ -121,6 +136,21 @@ export function StoreBanner({
       setPhase('stopped');
     }
   }, []);
+
+  // A moved checkout outranks every phase: until the server restarts, its other answers
+  // (including the DB phases below) come from old code and can't be trusted.
+  if (moved) {
+    return (
+      <div className="store-banner" role="status">
+        <span>
+          This studio server started on commit <code>{moved.startedAt.slice(0, 7)}</code> but the
+          checkout has moved to <code>{moved.head.slice(0, 7)}</code> — it is serving stale code
+          (new endpoints 404, the UI is old). Restart it: <code>pnpm studio:down</code> ·{' '}
+          <code>pnpm studio:up</code>; this page reloads itself when the server returns.
+        </span>
+      </div>
+    );
+  }
 
   if (phase === 'unknown' || phase === 'healthy') return null;
 

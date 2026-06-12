@@ -45,9 +45,12 @@ import {
   type LibraryBackend,
   type AssetInput,
   type CommentPatch,
+  type HealthProbe,
+  type StudioStore,
 } from './libraryBackend';
 import { HttpError, sendJson } from './httpUtil';
 import { handleDb } from './dbControl';
+import { createCodeStampProbe, type CodeStamp } from './codeStamp';
 
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
@@ -499,6 +502,37 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
   return { stories };
 }
 
+/** Everything GET /api/health needs, injectable so the integration test can stub each leg. */
+export interface HealthDeps {
+  store: StudioStore;
+  /** backend.health() — contractually non-throwing ({db:'n/a'} for json). */
+  health: () => Promise<HealthProbe>;
+  /** The code-stamp probe (codeStamp.ts) — contractually non-throwing, null = no stamp. */
+  codeStamp: () => Promise<CodeStamp | null>;
+}
+
+/**
+ * GET /api/health — must NEVER 500: it is what the UI leans on when the DB is down. Beyond
+ * the store probe (+ the pg schema-skew pair) it carries the code stamp: server-start HEAD
+ * vs the checkout's HEAD now, so the UI can say "the checkout moved under this server —
+ * restart it" instead of letting new endpoints 404 silently (the /api/presence incident).
+ * The stamp is omitted (not an error) when git can't answer; a probe rejection is belt-and-
+ * braces flattened to the same absence. Exported for the integration test (the dbControl.ts
+ * pattern).
+ */
+export async function handleHealth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: HealthDeps,
+): Promise<void> {
+  if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
+  const [health, code] = await Promise.all([
+    deps.health(),
+    deps.codeStamp().catch(() => null),
+  ]);
+  sendJson(res, 200, { store: deps.store, ...health, ...(code ? { code } : {}) });
+}
+
 /**
  * GET /api/presence — the active-session layer ALONE, so the client can poll it
  * cheaply (StoreBanner's slow cadence) without re-walking stories/ the way
@@ -541,6 +575,7 @@ async function handleDocs(
 export function storytreeDataApi(): Plugin {
   let paths: Paths;
   let backend: LibraryBackend;
+  let codeProbe: () => Promise<CodeStamp | null>;
   return {
     name: 'storytree-data-api',
     configResolved(config) {
@@ -552,6 +587,10 @@ export function storytreeDataApi(): Plugin {
       });
     },
     configureServer(server) {
+      // Capture the startup HEAD here, not in configResolved: configureServer is dev-only
+      // (no stray git spawn during `vite build`) and runs at server start, before any pull
+      // could move the checkout under us.
+      codeProbe = createCodeStampProbe(paths.repoRoot);
       const store = selectedStore();
       const target =
         store === 'pg'
@@ -572,10 +611,11 @@ export function storytreeDataApi(): Plugin {
         void (async () => {
           try {
             if (url.pathname === '/api/health') {
-              // Health must NEVER throw or 500 — it is what the UI leans on when the DB is
-              // down. backend.health() is contractually non-throwing ({db:'n/a'} for json);
-              // for pg it also carries the schema-skew pair (code vs DB schemaVersion).
-              sendJson(res, 200, { store: selectedStore(), ...(await backend.health()) });
+              await handleHealth(req, res, {
+                store: selectedStore(),
+                health: () => backend.health(),
+                codeStamp: codeProbe,
+              });
             } else if (url.pathname.startsWith('/api/db/')) {
               await handleDb(req, res, url);
             } else if (url.pathname.startsWith('/api/docs')) {

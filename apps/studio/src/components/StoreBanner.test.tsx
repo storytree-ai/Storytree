@@ -27,6 +27,9 @@ const SLOW_POLL_MS = 30_000; // …and the slow one (healthy / no verdict yet)
 const healthy: StoreHealth = { store: 'pg', db: 'ok' };
 const dbDown: StoreHealth = { store: 'pg', db: 'unreachable' };
 const stopped: DbStatus = { state: 'STOPPED', activationPolicy: 'NEVER' };
+// Code stamps: the checkout moved under the running server vs a fresh (restarted) one.
+const movedStamp = { startedAt: 'a'.repeat(40), head: 'b'.repeat(40), stale: true };
+const freshStamp = { startedAt: 'b'.repeat(40), head: 'b'.repeat(40), stale: false };
 
 /** Flush the async probe chain that render/timers kicked off. */
 const flush = () => act(async () => {});
@@ -146,6 +149,39 @@ describe('StoreBanner', () => {
     await tick(FAST_POLL_MS);
     expect(screen.getByText(/studio server itself is unreachable/)).toBeTruthy();
     expect(screen.queryByText(/Starting the live store/)).toBeNull();
+  });
+
+  it('flags a moved checkout even while the DB is healthy (the /api/presence incident)', async () => {
+    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    renderBanner();
+    await flush();
+    expect(screen.getByText(/checkout has moved/)).toBeTruthy();
+    // The remedy and the two stamps (abbreviated) are on the banner.
+    expect(screen.getByText('pnpm studio:down')).toBeTruthy();
+    expect(screen.getByText('pnpm studio:up')).toBeTruthy();
+    expect(screen.getByText(movedStamp.startedAt.slice(0, 7))).toBeTruthy();
+    expect(screen.getByText(movedStamp.head.slice(0, 7))).toBeTruthy();
+  });
+
+  it('the moved-checkout banner outranks a DB outage — stale code makes other signals suspect', async () => {
+    apiMock.health.mockResolvedValue({ ...dbDown, code: movedStamp });
+    apiMock.dbStatus.mockResolvedValue(stopped);
+    renderBanner();
+    await flush();
+    expect(screen.getByText(/checkout has moved/)).toBeTruthy();
+    expect(screen.queryByText('The live store (Cloud SQL) is stopped.')).toBeNull();
+  });
+
+  it('clears the moved-checkout banner when a restarted server answers with a fresh stamp', async () => {
+    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    const { container } = renderBanner();
+    await flush();
+    expect(screen.getByText(/checkout has moved/)).toBeTruthy();
+
+    // pnpm studio:down/up happened: the new process's startedAt matches the disk HEAD.
+    apiMock.health.mockResolvedValue({ ...healthy, code: freshStamp });
+    await tick(SLOW_POLL_MS);
+    expect(container.innerHTML).toBe('');
   });
 
   it('recovers from server-lost when /api/health answers again', async () => {

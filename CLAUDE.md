@@ -120,7 +120,9 @@ file conflicts).
   **Durable background mode:** `pnpm studio:up` / `studio:down` / `studio:status` runs it detached
   (no terminal to babysit; pid/log in `apps/studio/.studio.{pid,log}`). The UI self-reports store
   health (`/api/health`) and shows a banner with a **Start DB** button when the live store is
-  stopped — no need to relaunch the studio after a DB idle-stop; it recovers in place.
+  stopped — no need to relaunch the studio after a DB idle-stop; it recovers in place. It also
+  banners when the checkout MOVES under the running server (a `code` git-HEAD stamp in
+  `/api/health` — the "404 unknown endpoint after a merge" trap): `pnpm studio:down` / `studio:up`.
 
 ## Legacy — `legacy/Agentic/` is REFERENCE-ONLY
 
