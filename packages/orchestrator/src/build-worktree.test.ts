@@ -90,6 +90,7 @@ async function fixtureRepo(): Promise<{ root: string; sha: string }> {
   await git(["init", "-b", "main"], root);
   await git(["config", "user.email", "tester@example.com"], root);
   await git(["config", "user.name", "fixture"], root);
+  await git(["config", "commit.gpgsign", "false"], root);
   await fs.writeFile(path.join(root, "a.txt"), "fixture\n");
   await git(["add", "-A"], root);
   await git(["commit", "-m", "fixture: initial"], root);
