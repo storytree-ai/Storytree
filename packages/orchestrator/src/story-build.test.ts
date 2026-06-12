@@ -19,6 +19,7 @@ function spec(
     outcome: `outcome of ${id}`,
     status: "proposed",
     proofMode: tier === "story" ? "UAT" : tier === "capability" ? "integration-test" : "contract-test",
+    uatWitness: undefined,
     story: tier === "story" ? undefined : "s",
     dependsOn,
     capabilities,

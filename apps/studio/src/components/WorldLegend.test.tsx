@@ -4,7 +4,10 @@
 // vocabulary): these tests pin the grounding rules — which entries appear for
 // an offline frontmatter-only world vs a live one with verdicts/sessions, that
 // absent states render dimmed as "not in world yet", and that the status fan
-// drives the same hidden-status filter the old toolbar chips did.
+// drives the same hidden-status filter the old toolbar chips did. The legend
+// receives the PRESENTED world (worldStatus.ts): hue already carries the
+// signed verdict (ADR-0040), so the proof row speaks hue + signpost, never
+// ✓/✗ badges.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -36,6 +39,7 @@ const story = (
   outcome: '',
   status,
   proofMode: 'UAT',
+  uatWitness: 'human',
   dependsOn: [],
   capabilities,
   ...extra,
@@ -50,7 +54,7 @@ const session = (id: string, band: TreeSession['band']): TreeSession => ({
   lastSeenAt: '2026-06-12T00:00:00.000Z',
 });
 
-/** Today's corpus shape: proposed+mapped only, one sapling, no verdicts. */
+/** Today's corpus shape offline: proposed+mapped only, one sapling, no proof hues. */
 const offlineWorld = (): TreeStory[] => [
   story('library', 'mapped', [cap('library-cli', 'mapped'), cap('seed-corpus', 'proposed')]),
   story('drive-machinery', 'proposed', []),
@@ -84,34 +88,43 @@ describe('legendFacts', () => {
     expect(facts.statusTotals.get('proposed')).toEqual({ stories: 2, caps: 2 });
     expect(facts.statusTotals.get('mapped')).toEqual({ stories: 1, caps: 1 });
     expect(facts.saplingPresent).toBe(true);
-    expect(facts.capPass || facts.capFail || facts.signPass || facts.signFail).toBe(false);
-    expect(facts.anyUnproven).toBe(true);
+    // no presented green, no withered, nothing witnessed — offline under-claims
+    expect(facts.anyProven).toBe(false);
     expect(facts.anyDeadFlora).toBe(false);
+    expect(facts.signWitnessedPass || facts.signWitnessedFail).toBe(false);
+    // every story here is human-witnessed (the default) and unsigned → blank signs
+    expect(facts.signBlank).toBe(true);
     expect([...facts.bands]).toEqual(['fresh']);
   });
 
-  it('a signed ✗ withers flora even when the authored status is fine', () => {
-    const facts = legendFacts(
-      [story('s', 'mapped', [cap('c', 'mapped', { verdict: { outcome: 'fail', at: 'now' } })])],
-      [],
-    );
-    expect(facts.anyDeadFlora).toBe(true);
-    expect(facts.capFail).toBe(true);
+  it('presented healthy = a signed pass painted it — anyProven on either tier', () => {
+    expect(legendFacts([story('s', 'mapped', [cap('c', 'healthy')])], []).anyProven).toBe(true);
+    expect(legendFacts([story('s', 'healthy', [])], []).anyProven).toBe(true);
+    expect(legendFacts([story('s', 'mapped', [cap('c', 'mapped')])], []).anyProven).toBe(false);
   });
 
-  it('status unhealthy withers flora with no verdict at all (the offline arm)', () => {
+  it('a presented-unhealthy capability withers flora (signed ✗ or authored unhealthy)', () => {
     const facts = legendFacts([story('s', 'mapped', [cap('c', 'unhealthy')])], []);
     expect(facts.anyDeadFlora).toBe(true);
-    expect(facts.capFail).toBe(false);
   });
 
-  it('a story UAT verdict is a signpost fact, never a capability-badge fact', () => {
-    const facts = legendFacts(
-      [story('s', 'mapped', [cap('c', 'mapped')], { verdict: { outcome: 'fail', at: 'now' } })],
+  it('the signpost facts follow the human-witness rule (ADR-0040)', () => {
+    const pass = { outcome: 'pass', at: 'now' } as const;
+    const fail = { outcome: 'fail', at: 'now' } as const;
+    // human + signed → witnessed (by outcome); human + unsigned → blank
+    expect(legendFacts([story('s', 'healthy', [], { verdict: pass })], []).signWitnessedPass).toBe(
+      true,
+    );
+    expect(legendFacts([story('s', 'unhealthy', [], { verdict: fail })], []).signWitnessedFail).toBe(
+      true,
+    );
+    expect(legendFacts([story('s', 'mapped', [])], []).signBlank).toBe(true);
+    // a machine-witnessed story contributes NO signpost facts at all
+    const machine = legendFacts(
+      [story('s', 'healthy', [], { uatWitness: 'machine', verdict: pass })],
       [],
     );
-    expect(facts.signFail).toBe(true);
-    expect(facts.capPass || facts.capFail).toBe(false);
+    expect(machine.signBlank || machine.signWitnessedPass || machine.signWitnessedFail).toBe(false);
   });
 
   it('an unhealthy zero-cap story is NOT a sapling (it withers instead)', () => {
@@ -122,52 +135,59 @@ describe('legendFacts', () => {
 });
 
 describe('WorldLegend (adaptive bar)', () => {
-  it('offline world: no sessions entry; proof stays (the no-mark state IS the offline state)', () => {
+  it('offline world: no sessions entry; proof stays and explains the under-claim', () => {
     renderLegend(offlineWorld());
-    for (const label of ['story trees', 'garden plants', 'proof marks', 'decoration']) {
+    for (const label of ['story trees', 'garden plants', 'proof', 'decoration']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
     expect(screen.queryByRole('button', { name: 'sessions' })).toBeNull();
     // roads and focus carry no legend entry — self-explanatory in place (ADR-0038)
     expect(screen.queryByRole('button', { name: 'roads' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'focus' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'proof marks' }));
-    expect(screen.getByText(/also what offline looks like/)).toBeTruthy();
-    // no signed verdicts anywhere — both badge tiles and the signpost are dimmed examples
-    expect(screen.getByText('✓ proven').closest('.legend-tile')?.className).toContain('is-absent');
-    expect(screen.getByText('signpost').closest('.legend-tile')?.className).toContain('is-absent');
-    expect(screen.getByText('never built').closest('.legend-tile')?.className).not.toContain(
+    fireEvent.click(screen.getByRole('button', { name: 'proof' }));
+    expect(screen.getByText(/under-claims/)).toBeTruthy();
+    // no signed verdicts anywhere — proof hues and the witnessed seal are dimmed examples,
+    // while every (default-human) story stands behind a blank signpost
+    expect(screen.getByText('proven green').closest('.legend-tile')?.className).toContain(
+      'is-absent',
+    );
+    expect(screen.getByText('witnessed').closest('.legend-tile')?.className).toContain('is-absent');
+    expect(screen.getByText('awaiting witness').closest('.legend-tile')?.className).not.toContain(
       'is-absent',
     );
   });
 
-  it('verdicts and sessions light their states', () => {
+  it('proof hues and witnessed signposts light their tiles; sessions stay advisory', () => {
     const stories = [
-      story('s', 'mapped', [cap('c', 'mapped', { verdict: { outcome: 'pass', at: 'now' } })], {
+      story('s', 'healthy', [cap('c', 'healthy', { verdict: { outcome: 'pass', at: 'now' } })], {
         verdict: { outcome: 'pass', at: 'now' },
       }),
     ];
     renderLegend(stories, [session('s1', 'stale')]);
-    fireEvent.click(screen.getByRole('button', { name: 'proof marks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'proof' }));
     expect(screen.getByText(/never a roll-up/)).toBeTruthy();
-    expect(screen.getByText('✓ proven').closest('.legend-tile')?.className).not.toContain(
+    expect(screen.getByText('proven green').closest('.legend-tile')?.className).not.toContain(
+      'is-absent',
+    );
+    expect(screen.getByText('witnessed').closest('.legend-tile')?.className).not.toContain(
       'is-absent',
     );
     fireEvent.click(screen.getByRole('button', { name: 'sessions' }));
     expect(screen.getByText(/advisory only/)).toBeTruthy();
   });
 
-  it('a story-only ✗ lights the signpost, not the capability badges', () => {
+  it('a machine-witnessed world has no signpost states at all', () => {
     renderLegend([
-      story('s', 'mapped', [cap('c', 'mapped')], { verdict: { outcome: 'fail', at: 'now' } }),
+      story('s', 'healthy', [cap('c', 'healthy')], {
+        uatWitness: 'machine',
+        verdict: { outcome: 'pass', at: 'now' },
+      }),
     ]);
-    fireEvent.click(screen.getByRole('button', { name: 'proof marks' }));
-    expect(
-      screen.getByText('✗ last run failed').closest('.legend-tile')?.className,
-    ).toContain('is-absent');
-    expect(screen.getByText('signpost').closest('.legend-tile')?.className).not.toContain(
+    fireEvent.click(screen.getByRole('button', { name: 'proof' }));
+    expect(screen.getByText('awaiting witness').closest('.legend-tile')?.className).toContain(
       'is-absent',
     );
+    expect(screen.getByText('witnessed').closest('.legend-tile')?.className).toContain('is-absent');
   });
 
   it('Escape closes the drawer', () => {

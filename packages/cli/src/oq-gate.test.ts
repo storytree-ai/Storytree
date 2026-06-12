@@ -53,6 +53,7 @@ function story(decisions: number[]): NodeSpec {
     outcome: "o",
     status: "proposed",
     proofMode: "UAT",
+    uatWitness: undefined,
     story: undefined,
     dependsOn: [],
     capabilities: [],

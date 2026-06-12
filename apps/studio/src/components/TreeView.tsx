@@ -10,12 +10,17 @@
 // lone sapling when nothing is mapped yet, a young amber tree while proposed
 // (building wears proposed too — wisps carry live work), a full brownfield
 // tree when mapped, deep green when healthy, withered to bare branches when
-// unhealthy. Retired units don't render at all (worldStatus.ts). Capabilities
-// garden around it as small flora (flower beds / berry bushes / saplings); a
-// capability whose last signed run failed — or whose status is unhealthy —
-// withers to a dead plant (ADR-0033 d.3 semantics: glyphs and wither only
-// ever report a SIGNED verdict; absence = never built = also what offline
-// looks like; a story's signpost is its OWN UAT verdict, never a roll-up).
+// unhealthy. Retired units don't render at all (worldStatus.ts). HUE CARRIES
+// PROOF (ADR-0040): deep green only ever derives from a signed pass in
+// events.verdict — authored status can never paint it — and the crown greens
+// only from the story's OWN UAT verdict, never a child roll-up (ADR-0033
+// d.4). Capabilities garden around it as small flora (flower beds / berry
+// bushes / saplings); one whose last signed run failed — or whose status is
+// unhealthy — withers to a dead plant. There are no ✓/✗ badges in the world:
+// the hue IS the verdict (precise facts stay in the panel and tooltips). A
+// signpost marks a HUMAN-witnessed story (uat_witness absent or human):
+// dashed-blank until the operator's UAT ceremony signs a verdict, a filled
+// seal after; machine-witnessed stories carry none.
 // Story-level `depends_on` (∪ derived cross-story capability deps) renders as
 // roads; hovering a territory lights its upstream chain (gold) vs downstream
 // dependents (red) — the focus interaction carried from V1's
@@ -1129,9 +1134,12 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
  * `building` wears in the world) grows a not-yet-full young tree, `mapped` is
  * the full brownfield canopy, `healthy` the full green one; `unhealthy`
  * withers it to a sparse drooped crown with bare branches and leaf-fall.
- * Retired stories never reach this component (worldStatus.ts prunes them).
- * The signpost carries the story's OWN UAT verdict — never a child roll-up,
- * only when signed.
+ * Retired stories never reach this component (worldStatus.ts prunes them),
+ * and the status arrives PROVEN (provenStatus): a green or withered crown is
+ * the story's OWN UAT verdict speaking, never a child roll-up. The signpost
+ * is the human-witness mark (ADR-0040): only uat_witness-human stories carry
+ * one — dashed-blank until their UAT verdict is signed, a filled seal after
+ * (the seal echoes the crown's hue; the FILL is the new bit).
  */
 function StoryTree({
   territory: t,
@@ -1150,7 +1158,11 @@ function StoryTree({
   const young = st === 'proposed' && !sapling;
   const R = crownRadius(caps) * (young ? 0.62 : 1);
   const cy = -1.65 * R;
-  const verdictNote = story.verdict ? ` · UAT ${verdictPhrase(story.verdict)}` : '';
+  const verdictNote = story.verdict
+    ? ` · UAT ${verdictPhrase(story.verdict)}`
+    : story.uatWitness === 'human'
+      ? ' · UAT awaiting its human witness'
+      : '';
 
   // Deterministic per-blob jitter so the five islands' trees aren't clones.
   const jb = (
@@ -1247,17 +1259,16 @@ function StoryTree({
           </g>
         </>
       )}
-      {story.verdict && (
+      {story.uatWitness === 'human' && (
         <g
-          className={`story-sign verdict-${story.verdict.outcome}`}
+          className={`story-sign ${
+            story.verdict ? `sign-witnessed verdict-${story.verdict.outcome}` : 'sign-blank'
+          }`}
           transform={`translate(${(R * 0.7 + 9).toFixed(1)} 0)`}
         >
           <ellipse className="flora-shadow" cx={0.6} cy={0.8} rx={4} ry={1.6} />
           <rect x={-1.3} y={-15} width={2.6} height={15} rx={1.1} />
           <circle cy={-18} r={6.5} />
-          <text textAnchor="middle" y={-15.4}>
-            {story.verdict.outcome === 'pass' ? '✓' : '✗'}
-          </text>
         </g>
       )}
     </g>
@@ -1266,10 +1277,11 @@ function StoryTree({
 
 /**
  * A capability as garden flora (ADR-0036 d.6b/d): a flower bed, berry bush or
- * sapling (hash-picked), tinted by status. A failed last run (signed ✗) or
- * `unhealthy` status withers it to the matching dead silhouette — ADR-0033
- * semantics: wither/badges only ever from a SIGNED verdict or the status
- * field; absence stays silent.
+ * sapling (hash-picked), tinted by the PROVEN status (worldStatus.ts): deep
+ * green means the last signed run passed — the hue IS the verdict (ADR-0040),
+ * so there is no ✓/✗ badge. A failed last run or authored `unhealthy` arrives
+ * here as `unhealthy` and withers it to the matching dead silhouette; absence
+ * of a verdict stays silent (the authored ladder under-claims).
  */
 function GardenPlant({
   spot,
@@ -1283,19 +1295,10 @@ function GardenPlant({
   const { cap, x, y } = spot;
   const st = cap.status ?? 'unknown';
   const variant = hash(`${cap.id}:variant`) % 3;
-  const dead = cap.verdict?.outcome === 'fail' || st === 'unhealthy';
+  // The presented status already folds the verdict in (provenStatus) — the
+  // flora only ever reads the world it was handed.
+  const dead = st === 'unhealthy';
   const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
-  const badge: Pt = dead
-    ? variant === 0
-      ? { x: 2.5, y: -18 }
-      : variant === 1
-        ? { x: 1, y: -18 }
-        : { x: 3, y: -19 }
-    : variant === 0
-      ? { x: 0.2, y: -19 }
-      : variant === 1
-        ? { x: 0, y: -18.5 }
-        : { x: 0, y: -24.5 };
 
   let body: React.JSX.Element;
   if (dead && variant === 0) {
@@ -1424,17 +1427,6 @@ function GardenPlant({
       {dead && <ellipse className="dead-ground" cx={0} cy={0.5} rx={8} ry={3.2} />}
       <ellipse className="flora-shadow" cx={1} cy={1} rx={dead ? 6 : 8} ry={dead ? 2.2 : 2.6} />
       {body}
-      {cap.verdict && (
-        <g
-          className={`captree-verdict verdict-${cap.verdict.outcome}`}
-          transform={`translate(${badge.x} ${badge.y})`}
-        >
-          <circle r={4.5} />
-          <text textAnchor="middle" y={2.4}>
-            {cap.verdict.outcome === 'pass' ? '✓' : '✗'}
-          </text>
-        </g>
-      )}
     </g>
   );
 }
@@ -1520,9 +1512,9 @@ function TerritoryFlora({
         <text className="world-plate-sub" x={plateW / 2} y={25} textAnchor="middle">
           {story.error
             ? 'story spec error'
-            : `${statusKey} · ${story.capabilities.length} caps${
-                story.verdict ? ` · UAT ${story.verdict.outcome === 'pass' ? '✓' : '✗'}` : ''
-              }`}
+            : // No ✓/✗ here — the crown's hue and the signpost carry proof (ADR-0040);
+              // precise verdict facts live in the tooltip and the panel.
+              `${statusKey} · ${story.capabilities.length} caps`}
         </text>
       </g>
 
@@ -1840,6 +1832,7 @@ function StoryPanel({
       <p className="small">
         <span className="muted">UAT verdict </span>
         <VerdictLine verdict={story.verdict} />
+        <span className="muted"> · witness: {story.uatWitness}</span>
       </p>
       {story.dependsOn.length > 0 && (
         <p className="small">

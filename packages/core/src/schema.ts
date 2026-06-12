@@ -89,6 +89,19 @@ export const Edge = z
   })
   .strict();
 
+/** Who witnesses a story's UAT (ADR-0040): the operator, or the machine gate. */
+export const UatWitness = z.enum(["human", "machine"]);
+export type UatWitness = z.infer<typeof UatWitness>;
+
+/**
+ * The effective witness for a story's UAT: absent = `human` — fail-closed toward requiring the
+ * operator (ADR-0040). THE one defaulting seam; both the story-build gate and the studio tree
+ * payload resolve through it, so the default can never fork.
+ */
+export function effectiveUatWitness(declared: UatWitness | undefined): UatWitness {
+  return declared ?? "human";
+}
+
 const base = {
   id: z.string(),
   title: z.string(),
@@ -102,6 +115,7 @@ export const Story = z
     tier: z.literal("story"),
     ...base,
     proof_mode: z.enum(["UAT", "operator-attested"]),
+    uat_witness: UatWitness.optional(), // who witnesses the UAT; absent = human (ADR-0040)
     capabilities: z.array(z.string()),
     decisions: z.array(z.number().int().positive()).default([]), // deciding ADR numbers (ADR-0037 §2)
     edges: z.array(Edge).default([]), // the within-story code-derived graph (ADR-0010 §3)

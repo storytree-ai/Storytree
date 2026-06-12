@@ -15,12 +15,13 @@
 // The status fan doubles as the status filter (it absorbed the old toolbar
 // chips): tiles toggle the same `hidden` set, and the world fades matching
 // trees/flora. Icons reuse the world's OWN css classes (story-tree st-*,
-// garden-flora, captree-verdict, story-sign, world-wisp band-*), so the legend
-// can never drift from the world's palette — it IS the world's palette.
+// garden-flora, story-sign, world-wisp band-*), so the legend can never drift
+// from the world's palette — it IS the world's palette.
 //
 // The captions carry the observability contract's caveats in operator-facing
-// text: signed-verdicts-only, signpost-is-never-a-roll-up, absent-equals-
-// offline, presence-is-advisory (ADR-0033 d.3 / ADR-0036).
+// text: hue-is-the-signed-verdict (ADR-0040 — authored status can never paint
+// green), crown-is-never-a-roll-up, signpost-is-the-human-witness-mark,
+// offline-under-claims, presence-is-advisory (ADR-0033 d.3 / ADR-0036).
 
 import { useEffect, useRef, useState } from 'react';
 import type { TreeSession, TreeStory } from '../types';
@@ -45,20 +46,22 @@ export interface LegendFacts {
   statusTotals: Map<string, { stories: number; caps: number }>;
   /** A claimed-but-empty story renders the lone sapling (caps 0, not unhealthy). */
   saplingPresent: boolean;
-  /** Capability badge states (✓/✗ discs) — distinct from story signposts. */
-  capPass: boolean;
-  capFail: boolean;
-  /** Story signpost states (a story's OWN UAT verdict). */
-  signPass: boolean;
-  signFail: boolean;
-  /** Any unit with NO signed verdict — the no-mark state (= never built = offline). */
-  anyUnproven: boolean;
-  /** Any capability renders the dead silhouette (signed ✗ OR status unhealthy). */
+  /** Any unit wears healthy — which, post ADR-0040, only a signed pass can paint. */
+  anyProven: boolean;
+  /** Human-witness signpost states (ADR-0040): blank = the UAT awaits the operator. */
+  signBlank: boolean;
+  signWitnessedPass: boolean;
+  signWitnessedFail: boolean;
+  /** Any capability renders the dead silhouette (signed ✗ or authored unhealthy). */
   anyDeadFlora: boolean;
   bands: Set<Band>;
 }
 
-/** Ground the legend in the loaded world: which states actually occur right now. */
+/**
+ * Ground the legend in the loaded world: which states actually occur right now.
+ * Receives the PRESENTED world (worldStatus.ts), so `healthy` here already
+ * means "the last signed run passed" — authored paint never reaches it.
+ */
 export function legendFacts(stories: TreeStory[], sessions: TreeSession[]): LegendFacts {
   const statusTotals = new Map<string, { stories: number; caps: number }>();
   const bump = (key: string, tier: 'stories' | 'caps'): void => {
@@ -67,38 +70,35 @@ export function legendFacts(stories: TreeStory[], sessions: TreeSession[]): Lege
     statusTotals.set(key, cur);
   };
   let saplingPresent = false;
-  let capPass = false;
-  let capFail = false;
-  let signPass = false;
-  let signFail = false;
-  let anyUnproven = false;
+  let anyProven = false;
+  let signBlank = false;
+  let signWitnessedPass = false;
+  let signWitnessedFail = false;
   let anyDeadFlora = false;
   for (const s of stories) {
     const st = s.status ?? 'unknown';
     bump(st, 'stories');
+    if (st === 'healthy') anyProven = true;
     if (s.capabilities.length === 0 && st !== 'unhealthy') saplingPresent = true;
-    if (s.verdict) {
-      if (s.verdict.outcome === 'pass') signPass = true;
-      else signFail = true;
-    } else anyUnproven = true;
+    if (s.uatWitness === 'human') {
+      if (!s.verdict) signBlank = true;
+      else if (s.verdict.outcome === 'pass') signWitnessedPass = true;
+      else signWitnessedFail = true;
+    }
     for (const c of s.capabilities) {
       const cst = c.status ?? 'unknown';
       bump(cst, 'caps');
-      if (c.verdict) {
-        if (c.verdict.outcome === 'pass') capPass = true;
-        else capFail = true;
-      } else anyUnproven = true;
-      if (c.verdict?.outcome === 'fail' || cst === 'unhealthy') anyDeadFlora = true;
+      if (cst === 'healthy') anyProven = true;
+      if (cst === 'unhealthy') anyDeadFlora = true;
     }
   }
   return {
     statusTotals,
     saplingPresent,
-    capPass,
-    capFail,
-    signPass,
-    signFail,
-    anyUnproven,
+    anyProven,
+    signBlank,
+    signWitnessedPass,
+    signWitnessedFail,
     anyDeadFlora,
     bands: new Set(sessions.map((s) => s.band)),
   };
@@ -234,35 +234,17 @@ function PlantIcon({
   );
 }
 
-function BadgeIcon({ outcome }: { outcome: 'pass' | 'fail' | 'none' }): React.JSX.Element {
-  if (outcome === 'none') {
-    return (
-      <svg viewBox="-9 -9 18 18" aria-hidden="true">
-        <circle className="legend-nobadge" r={6.5} />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="-9 -9 18 18" aria-hidden="true">
-      <g className={`captree-verdict verdict-${outcome}`}>
-        <circle r={6.5} />
-        <text textAnchor="middle" y={3.2}>
-          {outcome === 'pass' ? '✓' : '✗'}
-        </text>
-      </g>
-    </svg>
-  );
-}
-
-function SignIcon({ outcome }: { outcome: 'pass' | 'fail' }): React.JSX.Element {
+/** The human-witness signpost (ADR-0040): dashed-blank, or a verdict-hued seal. */
+function SignIcon({ state }: { state: 'blank' | 'pass' | 'fail' }): React.JSX.Element {
   return (
     <svg viewBox="-9 -26 18 28" aria-hidden="true">
-      <g className={`story-sign verdict-${outcome}`}>
+      <g
+        className={`story-sign ${
+          state === 'blank' ? 'sign-blank' : `sign-witnessed verdict-${state}`
+        }`}
+      >
         <rect x={-1.3} y={-15} width={2.6} height={15} rx={1.1} />
         <circle cy={-18} r={6.5} />
-        <text textAnchor="middle" y={-15.4}>
-          {outcome === 'pass' ? '✓' : '✗'}
-        </text>
       </g>
     </svg>
   );
@@ -400,7 +382,14 @@ export function WorldLegend({
     const t = totals(st);
     return t.stories > 0 || t.caps > 0;
   };
-  const signOutcome: 'pass' | 'fail' = facts.signPass ? 'pass' : 'fail';
+  const anyWitnessed = facts.signWitnessedPass || facts.signWitnessedFail;
+  const anySign = facts.signBlank || anyWitnessed;
+  // The bar shows the most informative signpost state in the world right now.
+  const signState: 'blank' | 'pass' | 'fail' = facts.signWitnessedPass
+    ? 'pass'
+    : facts.signWitnessedFail
+      ? 'fail'
+      : 'blank';
   const unknownPresent = present('unknown');
   const toggle = (key: RowKey): void => setOpen((cur) => (cur === key ? null : key));
 
@@ -431,18 +420,17 @@ export function WorldLegend({
       ),
     },
     {
-      // Always visible: the no-mark state (= never built = offline) is itself a
-      // state of the world, and it's exactly the one an offline operator needs
-      // the legend to explain (ADR-0033 d.3 / ADR-0036).
+      // Always visible: "no proof on screen" is itself a state of the world —
+      // it's exactly what an offline operator needs the legend to explain
+      // (ADR-0033 d.3 / ADR-0040's under-claim rule).
       key: 'proof',
-      label: 'proof marks',
+      label: 'proof',
       visible: true,
       icons: (
         <>
-          {facts.capPass && <BadgeIcon outcome="pass" />}
-          {facts.capFail && <BadgeIcon outcome="fail" />}
-          {facts.anyUnproven && !facts.capPass && !facts.capFail && <BadgeIcon outcome="none" />}
-          {(facts.signPass || facts.signFail) && <SignIcon outcome={signOutcome} />}
+          {facts.anyProven && <PlantIcon status="healthy" />}
+          {facts.anyDeadFlora && <PlantIcon status="unhealthy" dead />}
+          {anySign && <SignIcon state={signState} />}
         </>
       ),
     },
@@ -535,9 +523,10 @@ export function WorldLegend({
             colour carry the lifecycle. A lone sapling = claimed, nothing mapped yet; a young amber
             tree = <strong>proposed</strong>, still iterating (a story under active build renders
             here too — live work shows as session wisps, not a hue); a full brown tree ={' '}
-            <strong>mapped</strong> brownfield, not yet UAT-proven; deep green ={' '}
-            <strong>healthy</strong>, proven through the gate. Retired stories leave the world.
-            Click a tile to fade that status across the world.
+            <strong>mapped</strong> brownfield — real, not yet proven (an authored “healthy” renders
+            here until the gate signs); deep green = <strong>proven</strong>, a signed pass on the
+            story's own UAT. Retired stories leave the world. Click a tile to fade that status
+            across the world.
           </p>
         </div>
       )}
@@ -559,37 +548,50 @@ export function WorldLegend({
           </div>
           <p className="legend-cap">
             Garden flora are the story's <strong>capabilities</strong> — click one in the world to
-            inspect it. Species is decorative; colour and withering carry the data. A withered plant
-            under a green ✓ means the authored status disagrees with the last proven run.
+            inspect it. Species is decorative; colour and withering carry the data: deep green = the
+            last signed run passed (the only green source, ADR-0040), withered = a signed fail or
+            authored unhealthy, every other hue = the authored ladder, unproven.
           </p>
         </div>
       )}
 
       {openRow?.key === 'proof' && (
-        <div className="legend-drawer" role="region" aria-label="legend — proof marks">
+        <div className="legend-drawer" role="region" aria-label="legend — proof">
           <div className="legend-fan">
-            <Tile icon={<BadgeIcon outcome="pass" />} label="✓ proven" absent={!facts.capPass} />
             <Tile
-              icon={<BadgeIcon outcome="fail" />}
-              label="✗ last run failed"
-              absent={!facts.capFail}
+              icon={<PlantIcon status="healthy" />}
+              label="proven green"
+              note="the last signed run passed"
+              absent={!facts.anyProven}
             />
             <Tile
-              icon={<BadgeIcon outcome="none" />}
-              label="never built"
-              note="also what offline looks like"
-              absent={!facts.anyUnproven}
+              icon={<PlantIcon status="unhealthy" dead />}
+              label="withered"
+              note="failed its last signed run, or authored unhealthy"
+              absent={!facts.anyDeadFlora}
             />
             <Tile
-              icon={<SignIcon outcome={signOutcome} />}
-              label="signpost"
-              note="the story's own UAT — never a roll-up"
-              absent={!facts.signPass && !facts.signFail}
+              icon={<SignIcon state="blank" />}
+              label="awaiting witness"
+              note="a human must see this story's UAT"
+              absent={!facts.signBlank}
+            />
+            <Tile
+              icon={<SignIcon state={facts.signWitnessedPass ? 'pass' : 'fail'} />}
+              label="witnessed"
+              note="the story's own UAT was signed — never a roll-up"
+              absent={!anyWitnessed}
             />
           </div>
           <p className="legend-cap">
-            Marks only ever report a <strong>signed</strong> prove-it-gate verdict — never inferred.
-            “All capabilities pass” and “the story passed UAT” are different claims.
+            Hue only ever reports a <strong>signed</strong> prove-it-gate verdict — authored status
+            can never paint green, and a story's crown answers only to its <strong>own</strong> UAT
+            (“all capabilities pass” and “the story passed UAT” are different claims). Stories with
+            a <strong>human</strong> witness (the default) carry a signpost — dashed-blank until the
+            operator's ceremony, a filled seal once signed (a signed fail also withers the crown);
+            machine-witnessed stories carry none. With the live store down, verdicts are absent and
+            the world <strong>under-claims</strong>: trees fall back to the authored ladder — the
+            store banner is the signal.
           </p>
         </div>
       )}

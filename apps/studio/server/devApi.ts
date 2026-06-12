@@ -469,7 +469,7 @@ function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId:
 async function readTree(storiesDir: string): Promise<TreePayload> {
   const stories: TreeStory[] = [];
   if (!existsSync(storiesDir)) return { stories };
-  const { loadNodeSpec } = await loadOrchestrator();
+  const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -481,6 +481,8 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       outcome: '',
       status: null,
       proofMode: '',
+      // The fail-closed witness default (ADR-0040) — holds even when the spec fails to load.
+      uatWitness: 'human',
       dependsOn: [],
       capabilities: [],
     };
@@ -490,6 +492,7 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       story.outcome = spec.outcome;
       story.status = isWorkStatus(spec.status) ? spec.status : null;
       story.proofMode = spec.proofMode;
+      story.uatWitness = effectiveUatWitness(spec.uatWitness);
       story.dependsOn = spec.dependsOn;
       story.capabilities = spec.capabilities.map((capId) =>
         loadTreeCapability(loadNodeSpec, dir, capId),

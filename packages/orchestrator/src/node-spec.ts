@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { parse } from "yaml";
 import { z } from "zod";
-import { Status, Tier, ProofMode } from "@storytree/core";
+import { Status, Tier, ProofMode, UatWitness } from "@storytree/core";
 
 /**
  * A LIGHT frontmatter loader for the `stories/<story>/<unit>.md` node specs (drive-machinery
@@ -30,6 +30,7 @@ const Frontmatter = z
     outcome: z.string(),
     status: Status,
     proof_mode: FrontmatterProofMode,
+    uat_witness: UatWitness.optional(),
     story: z.string().optional(),
     depends_on: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
@@ -46,6 +47,11 @@ export interface NodeSpec {
   status: z.infer<typeof Status>;
   /** The spec's own proof-mode word, mapped to core's {@link ProofMode} by the resolver. */
   proofMode: z.infer<typeof FrontmatterProofMode>;
+  /**
+   * Who witnesses a story's UAT (ADR-0040). The DECLARED value — absent means human; resolve
+   * through core's `effectiveUatWitness`, never a local `?? "human"`.
+   */
+  uatWitness: z.infer<typeof UatWitness> | undefined;
   story: string | undefined;
   dependsOn: string[];
   /** A story spec's `capabilities` frontmatter list (empty for capability/contract tiers). */
@@ -81,6 +87,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     outcome: fm.outcome,
     status: fm.status,
     proofMode: fm.proof_mode,
+    uatWitness: fm.uat_witness,
     story: fm.story,
     dependsOn: fm.depends_on,
     capabilities: fm.capabilities,

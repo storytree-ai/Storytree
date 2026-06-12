@@ -59,8 +59,8 @@ attested by a worktree PASS.
 Listed roots-first. All six capabilities are **PROVEN and PROMOTED** (gated-leaf builds, signed
 passes in `events.verdict`, promoted to `main`; 5 and 6 landed 2026-06-13 — PRs #73/#75). The
 authored status stays `proposed` forever (ADR-0031: health is a projection of signed verdicts —
-promotion lands *code*, never *status*; the studio tree and `storytree tree`'s verdict glyphs
-read proof from `events.verdict` when the DB is up).
+promotion lands *code*, never *status*; the studio tree's proof hues (ADR-0040) and
+`storytree tree`'s verdict glyphs read proof from `events.verdict` when the DB is up).
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|

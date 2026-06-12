@@ -1593,7 +1593,10 @@ mark.st-hl.flash {
   opacity: 0.85;
 }
 
-/* the story's UAT verdict signpost (ADR-0033 d.3 — only when signed) */
+/* the story's human-witness signpost (ADR-0040): only uat_witness-human stories
+   carry one — a dashed blank disc awaits the operator's UAT ceremony, a filled
+   seal means the story's OWN UAT verdict is signed (the seal echoes the crown's
+   hue; the FILL is the new bit — the ceremony happened) */
 .story-sign rect {
   fill: var(--story-trunk);
 }
@@ -1602,12 +1605,17 @@ mark.st-hl.flash {
   stroke: var(--border-strong);
   stroke-width: 1;
 }
-.story-sign text {
-  font-size: 9.5px;
-  font-weight: 700;
+.story-sign.sign-blank circle {
+  stroke-dasharray: 2.5 2.5;
 }
-.story-sign.verdict-pass text { fill: var(--good); }
-.story-sign.verdict-fail text { fill: var(--danger); }
+.story-sign.sign-witnessed.verdict-pass circle {
+  fill: var(--good);
+  stroke: var(--good);
+}
+.story-sign.sign-witnessed.verdict-fail circle {
+  fill: var(--danger);
+  stroke: var(--danger);
+}
 
 /* capability garden flora — leaves/petals carry the status */
 .garden-flora {
@@ -1663,18 +1671,6 @@ mark.st-hl.flash {
 .garden-flora.is-filtered {
   opacity: 0.12;
 }
-.captree-verdict circle {
-  fill: #ffffff;
-  stroke: var(--border-strong);
-  stroke-width: 0.8;
-}
-.captree-verdict text {
-  font-size: 8px;
-  font-weight: 700;
-}
-.captree-verdict.verdict-pass text { fill: var(--good); }
-.captree-verdict.verdict-fail text { fill: var(--danger); }
-
 /* session wisps (notice-board presence orbiting a tree) */
 .world-wisp {
   cursor: pointer;
@@ -1898,13 +1894,6 @@ button.legend-tile:hover {
   font-size: 10.5px;
   padding: 0 0.25em;
 }
-.legend-nobadge {
-  fill: none;
-  stroke: var(--border-strong);
-  stroke-width: 1;
-  stroke-dasharray: 2.5 2.5;
-}
-
 /* sessions-here block in the panel */
 .tree-sessions {
   margin-top: 10px;

@@ -279,6 +279,12 @@ export interface TreeStory {
   outcome: string;
   status: WorkStatus | null;
   proofMode: string;
+  /**
+   * Who witnesses this story's UAT (ADR-0040) — the EFFECTIVE value, resolved server-side
+   * through core's `effectiveUatWitness` (absent frontmatter = 'human', fail-closed). Only
+   * human-witnessed stories carry a signpost in the world.
+   */
+  uatWitness: 'human' | 'machine';
   /** Story ids this story depends on (frontmatter `depends_on` — consumed cross-story seams). */
   dependsOn: string[];
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */

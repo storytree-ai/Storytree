@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import type { ClaudeAgentAuthor } from "@storytree/agent";
-import { resolveSignerFromEnv, rollupStatus } from "@storytree/core";
+import { effectiveUatWitness, resolveSignerFromEnv, rollupStatus } from "@storytree/core";
 import {
   findNodeSpecFile,
   loadNodeSpec,
@@ -29,6 +29,10 @@ import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
  *
  * Live runs carry a TOTAL budget ceiling (default $10), checked fail-closed before each node;
  * each authoring slice is additionally capped at min($1, remaining) via the SDK's own enforcement.
+ *
+ * The story's own UAT node is driven only when the story declares `uat_witness: machine`
+ * (ADR-0040). Absent or `human` — the fail-closed default — the gate builds the capabilities and
+ * WITHHOLDS the story node: a machine never drives or signs a human-witnessed ceremony.
  */
 
 /** The default TOTAL ceiling for a live story run (ADR-0005's per-node budget, at story grain). */
@@ -165,9 +169,20 @@ export async function storyBuild(
   }
   const order = topo.order;
 
-  // Registry precheck for EVERY node, fail-closed before any node runs (and before any spend):
-  // registration is the deliberate act that makes a node driveable.
-  const unregistered = order.filter((n) => lookupNodeBuildConfig(n.id) === null).map((n) => n.id);
+  // ADR-0040: a story's UAT is a HUMAN-witnessed ceremony unless the story declares
+  // `uat_witness: machine` — the gate refuses to drive or sign it. The capability nodes still
+  // build; the story node (always last in the topo order) is WITHHELD from the chain, so a
+  // machine run can never mint the story's own verdict. Absent = human, fail-closed.
+  const witness = effectiveUatWitness(story.uatWitness);
+  const storyWithheld = witness === "human";
+  const driveOrder = storyWithheld ? order.slice(0, -1) : order;
+
+  // Registry precheck for every node the run will DRIVE, fail-closed before any node runs (and
+  // before any spend): registration is the deliberate act that makes a node driveable. A
+  // withheld story UAT node needs no registry entry — the gate never drives it.
+  const unregistered = driveOrder
+    .filter((n) => lookupNodeBuildConfig(n.id) === null)
+    .map((n) => n.id);
   if (unregistered.length > 0) {
     return {
       ok: false,
@@ -210,7 +225,7 @@ export async function storyBuild(
     const failures = new Map<string, Extract<ProveResult, { ok: false }>>();
 
     const run = await runStoryBuild({
-      order,
+      order: driveOrder,
       ...(budgetUsd !== undefined ? { budgetUsd } : {}),
       buildNode: async (spec, _index, remainingUsd) => {
         const drive = await driveNode(spec, {
@@ -250,6 +265,9 @@ export async function storyBuild(
       const label = `${String(i + 1).padStart(2)}. ${spec.id.padEnd(width)}`;
       const leaf = leaves.get(spec.id);
       const cost = leaf !== undefined ? `  $${leaf.totalCostUsd.toFixed(4)}` : "";
+      if (storyWithheld && spec.tier === "story") {
+        return `  ${label}  WITHHELD — uat_witness: human${story.uatWitness === undefined ? " (the default)" : ""}: a human must witness this UAT; the gate refuses to drive or sign it`;
+      }
       if (i < run.outcomes.length) {
         const derived = rollupStatus(spec.id, events);
         return `  ${label}  PASS   rollup: ${derived ?? "(none)"}${cost}`;
@@ -272,11 +290,12 @@ export async function storyBuild(
       `budget:      ${budgetUsd !== undefined ? `$${budgetUsd.toFixed(2)} total ceiling (each slice capped at $${SLICE_BUDGET_USD.toFixed(2)})` : "none — a dry-run spends nothing"}`,
       `order:       ${order.map((n) => n.id).join(" → ")}`,
       `             (${capabilities.length} capabilities topo-ordered from depends_on, then the story's UAT node)`,
+      `uat witness: ${witness}${story.uatWitness === undefined ? " (undeclared — the fail-closed default, ADR-0040)" : " (declared)"}${storyWithheld ? " — the story UAT node is withheld from the gate" : ""}`,
       ...hygiene.lines,
       "",
       ...nodeLines,
       "",
-      `nodes:       ${run.outcomes.length}/${order.length} signed passes`,
+      `nodes:       ${run.outcomes.length}/${driveOrder.length} signed passes${storyWithheld ? " (the story UAT node awaits its human witness)" : ""}`,
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
     ];
     const framing = live ? honestFramingStoryLive(persisted) : HONEST_FRAMING_STORY_DRY;
@@ -286,11 +305,28 @@ export async function storyBuild(
         ok: false,
         body: [
           ...header,
-          `outcome:     HALTED at node ${(run.haltedAt ?? 0) + 1}/${order.length} — ${run.reason ?? "failed closed"}`,
+          `outcome:     HALTED at node ${(run.haltedAt ?? 0) + 1}/${driveOrder.length} — ${run.reason ?? "failed closed"}`,
           "",
           framing,
         ].join("\n"),
         next: [`storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`],
+      };
+    }
+    if (storyWithheld) {
+      return {
+        ok: true,
+        body: [
+          ...header,
+          `outcome:     capabilities PASSED (${run.outcomes.length}/${driveOrder.length} signed); the story's UAT node was WITHHELD —`,
+          `             uat_witness is human${story.uatWitness === undefined ? " (the undeclared default)" : ""}, so the gate refuses to drive or sign the story UAT.`,
+          `             The story stays unproven until a human witnesses its UAT; declare`,
+          `             uat_witness: machine in the story frontmatter to let the gate drive it.`,
+          "",
+          framing,
+        ].join("\n"),
+        next: [
+          `storytree node build <id> --real   (one node's REAL proof in a fresh worktree)`,
+        ],
       };
     }
     return {
@@ -322,6 +358,10 @@ export function storyHelp(): Envelope {
       "      AUTHOR_TEST → … → GATE with a scripted model, then the story's UAT node last.",
       "      One shared event log; a node that fails closed HALTS the run (never a pass).",
       "      Zero API cost, no live DB.",
+      "",
+      "  uat_witness (ADR-0040): a story's UAT node is driven only when the story frontmatter",
+      "      declares uat_witness: machine. Absent (or human) = a human must witness the UAT —",
+      "      the gate builds the capabilities and WITHHOLDS the story node, fail-closed.",
       "",
       "  storytree story build <story-id> --live [--budget <usd>] [--model <id>] [--actor <email>]",
       "      the same chain with a REAL Claude Agent SDK leaf per node (subscription-funded).",

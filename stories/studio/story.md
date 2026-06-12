@@ -98,8 +98,9 @@ within-story standard applied across the boundary. Encoded as frontmatter `depen
   `src/components/AssetView.tsx`). Consumed, not absorbed. (`PgCommentStore` is NOT an edge —
   the comment substrate is this story's own declared interface.)
 - **`drive-machinery`** — the **node-spec surface**: `/api/tree` loads `stories/` frontmatter
-  via the orchestrator's `loadNodeSpec` (lazy-imported, `server/devApi.ts`), and the verdict
-  glyphs read the gate's `events.verdict` stream (`server/libraryBackend.ts` latestVerdicts).
+  via the orchestrator's `loadNodeSpec` (lazy-imported, `server/devApi.ts`), and the world's
+  proof hues (plus the panel's verdict facts) read the gate's `events.verdict` stream
+  (`server/libraryBackend.ts` latestVerdicts; hue-from-verdict per ADR-0040).
 - **`notice-board`** — the **presence surface**: the world's session wisps read
   `PgPresenceStore.listActive()` and classify bands with `classifyPresence`
   (`server/libraryBackend.ts` activeSessions; ADR-0033 — advisory, silently absent offline).
