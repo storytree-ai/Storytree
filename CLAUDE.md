@@ -130,8 +130,12 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 ## Load-bearing ADRs
 
-`docs/decisions/` runs **0001–0030 on `main`** — calibrate to what's on disk. Read the older ADRs'
-**Status lines first** (many are superseded-in-part). The current-state set:
+`docs/decisions/` runs **0001–0037 on `main`** — calibrate to what's on disk. Every ADR carries
+**structured YAML frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
+`supersedes`/`supersedes_in_part`/`amends` edges; ADR-0037) — CI validates it (`adr-health` in
+`@storytree/cli`), so flip status BY HAND and record supersession as an outgoing edge on the new
+ADR, or the gate goes red. Read the Status sections for the detail (many are superseded-in-part).
+The current-state set:
 
 - **0011** — own the agent loop (pi retired) — *superseded in part by 0030*
 - **0017** — the knowledge/library tier lives in shared Postgres
@@ -143,6 +147,10 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 - **0023** — agent↔Library interaction is a choose-your-own-adventure CLI (`packages/cli`)
 - **0030** — all-in on the Claude Agent SDK as the **live** runtime (subscription auth); the owned
   loop is the offline/deterministic executor + pivot-out fallback, behind the `PhaseAuthor` seam
+- **0037** — decision binding: stories declare deciding ADRs (`decisions:` frontmatter), drift
+  checks fire through CI, and **live story builds are gated on open-question hygiene** — an
+  unprocessed operator answer on a deciding ADR's OQ refuses the build until a session processes
+  it (record in an ADR + retire the OQ, or post a follow-up comment)
 
 ## Conventions
 
