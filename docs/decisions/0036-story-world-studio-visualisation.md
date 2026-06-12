@@ -25,7 +25,12 @@ state, reusing decision 3's glyph semantics verbatim).
 *Numbering note:* per the ADR-0027-collision lesson, `git log --all` across all branches and the
 seed corpus (`assets.json` / `knowledge.json`) were checked 2026-06-12 — highest allocation found
 is 0035, no parallel claim on 0036. The live-DB ref check is pending (instance stopped by
-default); reconcile on next `db:up` if a collision surfaces.
+default); reconcile on next `db:up` if a collision surfaces. *Reconciled 2026-06-13:* the live-DB
+ref check ran (instance up) — zero live library docs referenced ADR-0036; no collision. The
+deferred Library recalibration (Consequences below) landed the same day via the library-edit
+ceremony: `stack-pixijs-react-studio` rewritten to the named-deferred shape and the `studio`
+definition's "live PixiJS web IDE" wording replaced with the shipped SVG world (both now cite
+this ADR).
 
 ## Date
 

@@ -16,7 +16,9 @@ spine-observed, signed out-of-band); realizes ADR-0030 §2's "one tool core, two
 
 *Numbering note:* checked `git log --all` across all remote branches on 2026-06-11 — 0034 is taken
 on a worktree branch (`0034-process-artifacts-ways-of-working.md`), nothing above it; the live-DB
-ref check is pending (instance stopped) per the ADR-0027-collision lesson.
+ref check is pending (instance stopped) per the ADR-0027-collision lesson. *Reconciled 2026-06-13:*
+the live-DB ref check ran (instance up) — zero live library docs reference ADR-0035; no parallel
+claim.
 
 ## Date
 

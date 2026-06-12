@@ -18,7 +18,9 @@ trust base** (spine-observed proof never enters the rented runtime).
 
 *Numbering note:* checked `git log --all` across all 20 remote branches on 2026-06-10 — no
 ADR-0030 exists anywhere; the live-DB ref check is pending (instance stopped) per the
-ADR-0027-collision lesson.
+ADR-0027-collision lesson. *Reconciled 2026-06-13:* the live-DB ref check ran (instance up) —
+six live library docs reference ADR-0030, all matching this ADR's content (the SDK-live-runtime
+pivot); no parallel claim, no stale refs.
 
 ## Date
 
