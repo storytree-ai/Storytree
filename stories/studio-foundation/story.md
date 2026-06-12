@@ -147,11 +147,15 @@ draft cited). The story is proven when that UAT passes against the real running 
 in `pnpm -r test` scope: the db-control spawn contract, `/api/db/*` integration against a
 fake gcloud shim, and the StoreBanner state machine) — and a **scripted shadow of the story
 UAT now exists**: `pnpm --filter studio uat` (Playwright, `apps/studio/uat/story-uat.spec.ts`)
-executes the read-corpus + browse-library slice of the walkthrough above (steps 1-2 and 7-9)
-against the real running studio pinned to the offline json store (the cross-story live-store
-seam stubbed per ADR-0010 §5; in-story collaborators real; one-time setup:
-`pnpm exec playwright install chromium`). The mutating steps (4-6, 10-13:
-annotate/resolve/author/restart) are not yet scripted. Status stays `proposed`: healthy is
+executes the read slice of the walkthrough above (steps 1-2, 7-9) **and the mutating journey
+(steps 4-6, 10-13)** — annotate → reload → resolve with the fan-out assertions, author → edit →
+delete through the editor, cold-restart durability (a second dev-server process spawned from the
+spec, since Playwright's managed webServer can't be bounced mid-run), and UI cleanup proven
+byte-identical to the git-tracked stores' baseline (with a snapshot/restore guard for failed
+runs) — against the real running studio pinned to the offline json store (the cross-story
+live-store seam stubbed per ADR-0010 §5; in-story collaborators real; one-time setup:
+`pnpm exec playwright install chromium`). Only step 3 (the in-corpus cross-link hop) remains
+unscripted. Status stays `proposed`: healthy is
 **earned through the prove-it-gate, never edited** — a scripted UAT existing is not the
 ceremony having run it. The lifecycle status for retro-authored specs over built code is an
 open modeling call — see [`../README.md`](../README.md) § "Open modeling calls".
