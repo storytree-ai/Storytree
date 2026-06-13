@@ -17,8 +17,14 @@ import { promises as fs, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
-import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
-import { createGuestPolicy, parseAdmins, ADMINS_ENV } from './guestPolicy';
+import { handleApiRequest, isConnectionError, resolveStudioPaths, type Paths } from './apiRouter';
+import {
+  createCirclePolicy,
+  createDegradedPolicy,
+  resolveCircleAccess,
+  parseSeedAdmins,
+  ADMINS_ENV,
+} from './guestPolicy';
 import { identityFromRequest } from './identity';
 import type { CodeStamp } from './codeStamp';
 
@@ -81,6 +87,7 @@ export interface StudioServerOptions {
   distDir: string;
   paths: Paths;
   backend: LibraryBackend;
+  /** Bootstrap-admin seed (ADR-0043 d.4) — not the authorization list; the users projection is. */
   admins: ReadonlySet<string>;
   /** Local guarded-mode trial identity; the real IAP header always wins. */
   devIdentity?: string | undefined;
@@ -101,13 +108,30 @@ export function createStudioServer(opts: StudioServerOptions): Server {
     void (async () => {
       if (url.pathname.startsWith('/api/')) {
         const identity = identityFromRequest(req, opts.devIdentity);
+        // Resolve membership from the app's own users projection (ADR-0043). A store outage
+        // during resolution degrades to health/me-only rather than 500-ing the diagnostics.
+        let policy;
+        if (!identity) {
+          policy = createCirclePolicy(null, null);
+        } else {
+          try {
+            const access = await resolveCircleAccess(opts.backend, identity, opts.admins);
+            policy = createCirclePolicy(identity, access);
+          } catch (err) {
+            if (isConnectionError(err)) {
+              policy = createDegradedPolicy(identity);
+            } else {
+              throw err;
+            }
+          }
+        }
         await handleApiRequest(req, res, url, {
           paths: opts.paths,
           backend: opts.backend,
           store: selectedStore(),
           codeStamp,
           allowDbControl: false, // gcloud-on-the-operator's-machine never holds hosted
-          policy: createGuestPolicy(identity, opts.admins),
+          policy,
         });
       } else {
         await serveStatic(res, opts.distDir, url.pathname);
@@ -132,12 +156,13 @@ if (isMain()) {
   const backend = createBackend({
     assetsFile: paths.assetsFile,
     commentsFile: paths.commentsFile,
+    usersFile: paths.usersFile,
   });
   const server = createStudioServer({
     distDir: path.join(STUDIO_ROOT, 'dist'),
     paths,
     backend,
-    admins: parseAdmins(process.env[ADMINS_ENV]),
+    admins: parseSeedAdmins(process.env[ADMINS_ENV]),
     devIdentity: process.env.STORYTREE_STUDIO_DEV_IDENTITY,
   });
   const port = Number(process.env.PORT) || 8080;

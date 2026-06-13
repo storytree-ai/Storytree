@@ -22,6 +22,7 @@
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
+import type { UserDoc } from '@storytree/core';
 import type {
   AssetCategory,
   Comment,
@@ -113,6 +114,19 @@ export interface LibraryBackend {
   /** Returns `true` if a row was removed, `false` if `id` did not exist. */
   deleteComment(id: string): Promise<boolean>;
 
+  // ----- trusted-circle users (ADR-0043) -----
+  // The app-owned directory the hosted server authorizes from. The last-admin guard and zod
+  // validation are enforced at the write boundary; a guard violation throws an error whose
+  // `name` is 'LastAdminError' (mapped to 409 by the route layer).
+  /** The whole directory (one row per lowercased email). */
+  listUsers(): Promise<UserDoc[]>;
+  /** One user by email, or `null` when not in the directory. */
+  getUser(email: string): Promise<UserDoc | null>;
+  /** Invite / re-role / activate (the caller spreads the existing row to preserve unset fields). */
+  upsertUser(doc: UserDoc, actor: string): Promise<UserDoc>;
+  /** Returns `true` if a row was removed, `false` if absent. Throws on a last-admin violation. */
+  removeUser(email: string, actor: string): Promise<boolean>;
+
   /** Release any resources (the pg pool). No-op for the JSON backend. */
   close(): Promise<void>;
 }
@@ -135,10 +149,12 @@ async function writeStore(file: string, data: unknown): Promise<void> {
 export class JsonBackend implements LibraryBackend {
   readonly #assetsFile: string;
   readonly #commentsFile: string;
+  readonly #usersFile: string;
 
-  constructor(opts: { assetsFile: string; commentsFile: string }) {
+  constructor(opts: { assetsFile: string; commentsFile: string; usersFile: string }) {
     this.#assetsFile = opts.assetsFile;
     this.#commentsFile = opts.commentsFile;
+    this.#usersFile = opts.usersFile;
   }
 
   async listAssets(): Promise<GuidanceAsset[]> {
@@ -231,9 +247,61 @@ export class JsonBackend implements LibraryBackend {
     return true;
   }
 
+  // ----- users (data/users.json) — the offline mirror of PgUserStore. Validation + the
+  // last-admin guard run through @storytree/core (lazily loaded, the config-load trap). -----
+
+  async listUsers(): Promise<UserDoc[]> {
+    return readStore<UserDoc[]>(this.#usersFile, []);
+  }
+
+  async getUser(email: string): Promise<UserDoc | null> {
+    const core = await loadCoreModule();
+    const target = core.normalizeEmail(email);
+    return (await this.listUsers()).find((u) => u.email === target) ?? null;
+  }
+
+  async upsertUser(doc: UserDoc, _actor: string): Promise<UserDoc> {
+    const core = await loadCoreModule();
+    const validated = core.User.parse(doc); // role-status-validated at the boundary
+    const users = await this.listUsers();
+    const idx = users.findIndex((u) => u.email === validated.email);
+    let persisted: UserDoc;
+    if (idx !== -1) {
+      const existing = users[idx] as UserDoc;
+      const { email: _e, createdAt: _c, ...patch } = validated;
+      persisted = core.mergeUser(existing, patch);
+      if (core.wouldOrphanAdminsOnRole(users, validated.email, persisted.role)) {
+        throw lastAdminError(`refusing to downgrade ${validated.email}: at least one admin must remain`);
+      }
+      users[idx] = persisted;
+    } else {
+      persisted = validated;
+      users.push(persisted);
+    }
+    await writeStore(this.#usersFile, users);
+    return persisted;
+  }
+
+  async removeUser(email: string, _actor: string): Promise<boolean> {
+    const core = await loadCoreModule();
+    const target = core.normalizeEmail(email);
+    const users = await this.listUsers();
+    if (!users.some((u) => u.email === target)) return false;
+    if (core.wouldOrphanAdminsOnRemove(users, target)) {
+      throw lastAdminError(`refusing to remove ${target}: at least one admin must remain`);
+    }
+    await writeStore(this.#usersFile, users.filter((u) => u.email !== target));
+    return true;
+  }
+
   async close(): Promise<void> {
     /* no resources to release */
   }
+}
+
+/** A last-admin guard violation tagged so the route layer maps it to 409 without importing the store. */
+function lastAdminError(message: string): Error {
+  return Object.assign(new Error(message), { name: 'LastAdminError' });
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +316,7 @@ export class JsonBackend implements LibraryBackend {
 // also Node-only (pg / cloud-sql-connector) and has no place in a browser build. Keeping the import
 // dynamic means the store is only touched when STORYTREE_STUDIO_STORE='pg' actually runs the dev API.
 // Types are `import type` only (fully erased under verbatimModuleSyntax), so they add no runtime import.
-import type { PoolHandle, PgLibraryStore, PgCommentStore } from '@storytree/store';
+import type { PoolHandle, PgLibraryStore, PgCommentStore, PgUserStore } from '@storytree/store';
 
 type StoreModule = typeof import('@storytree/store');
 
@@ -306,22 +374,30 @@ export class PgBackend implements LibraryBackend {
   #handle: PoolHandle | null = null;
   #library: PgLibraryStore | null = null;
   #comments: PgCommentStore | null = null;
+  #users: PgUserStore | null = null;
 
   /** Build the pool + stores on first use (the JSON default must never touch pg). */
   async #ready(): Promise<{
     store: StoreModule;
     library: PgLibraryStore;
     comments: PgCommentStore;
+    users: PgUserStore;
   }> {
-    if (this.#store === null || this.#library === null || this.#comments === null) {
+    if (
+      this.#store === null ||
+      this.#library === null ||
+      this.#comments === null ||
+      this.#users === null
+    ) {
       const store = await loadStoreModule();
       const handle = await store.createPool();
       this.#store = store;
       this.#handle = handle;
       this.#library = new store.PgLibraryStore(handle.pool);
       this.#comments = new store.PgCommentStore(handle.pool);
+      this.#users = new store.PgUserStore(handle.pool);
     }
-    return { store: this.#store, library: this.#library, comments: this.#comments };
+    return { store: this.#store, library: this.#library, comments: this.#comments, users: this.#users };
   }
 
   async listAssets(): Promise<GuidanceAsset[]> {
@@ -521,12 +597,35 @@ export class PgBackend implements LibraryBackend {
     return comments.remove(id, DEFAULT_ACTOR);
   }
 
+  // ----- users (PgUserStore over events."user") -----
+
+  async listUsers(): Promise<UserDoc[]> {
+    const { users } = await this.#ready();
+    return users.list();
+  }
+
+  async getUser(email: string): Promise<UserDoc | null> {
+    const { users } = await this.#ready();
+    return users.get(email);
+  }
+
+  async upsertUser(doc: UserDoc, actor: string): Promise<UserDoc> {
+    const { users } = await this.#ready();
+    return users.upsert(doc, actor);
+  }
+
+  async removeUser(email: string, actor: string): Promise<boolean> {
+    const { users } = await this.#ready();
+    return users.remove(email, actor);
+  }
+
   async close(): Promise<void> {
     if (this.#handle && this.#store) {
       await this.#store.closePool(this.#handle.pool, this.#handle.connector);
       this.#handle = null;
       this.#library = null;
       this.#comments = null;
+      this.#users = null;
       this.#store = null;
     }
   }
@@ -547,8 +646,13 @@ export function selectedStore(): StudioStore {
 export function createBackend(opts: {
   assetsFile: string;
   commentsFile: string;
+  usersFile: string;
 }): LibraryBackend {
   return selectedStore() === 'pg'
     ? new PgBackend()
-    : new JsonBackend({ assetsFile: opts.assetsFile, commentsFile: opts.commentsFile });
+    : new JsonBackend({
+        assetsFile: opts.assetsFile,
+        commentsFile: opts.commentsFile,
+        usersFile: opts.usersFile,
+      });
 }

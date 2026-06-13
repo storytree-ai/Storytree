@@ -66,6 +66,7 @@ export interface Paths {
   dataDir: string;
   commentsFile: string;
   assetsFile: string;
+  usersFile: string;
 }
 
 /** Resolve every repo path the API serves from, given the studio app root. */
@@ -79,6 +80,7 @@ export function resolveStudioPaths(studioRoot: string): Paths {
     dataDir,
     commentsFile: path.join(dataDir, 'comments.json'),
     assetsFile: path.join(dataDir, 'assets.json'),
+    usersFile: path.join(dataDir, 'users.json'),
   };
 }
 
@@ -238,13 +240,32 @@ export interface CommentScope {
 }
 
 /**
+ * The caller's circle membership, as `GET /api/me` reports it to the SPA (ADR-0043):
+ * who they are, their role, and whether they're a member at all (so the client can
+ * render the app or the request-access wall). `storeUnreachable` is the degraded
+ * signal when membership couldn't be resolved because the live store was down.
+ */
+export interface MeInfo {
+  email: string | null;
+  role: 'admin' | 'member' | null;
+  status: 'invited' | 'active' | null;
+  member: boolean;
+  storeUnreachable?: boolean;
+}
+
+/** The open dev posture's `/api/me` — no policy means full local access (the studio works offline). */
+export const DEV_ME: MeInfo = { email: null, role: 'admin', status: 'active', member: true };
+
+/**
  * What the hosted server injects per request. `gate` runs before dispatch and
- * refuses by throwing HttpError (401 identity-less, 403 out-of-scope writes);
- * absent policy = the open dev posture.
+ * refuses by throwing HttpError (401 identity-less, 403 non-member / out-of-scope
+ * write, 503 store-down); `me` answers `GET /api/me`; absent policy = the open dev
+ * posture.
  */
 export interface ApiPolicy {
   gate(method: string, pathname: string): void;
   commentScope: CommentScope | null;
+  me: MeInfo;
 }
 
 // ---------- route handlers ----------
@@ -394,13 +415,23 @@ const PG_CONNECTION_CODES = new Set([
  * their own status) looks like a pg connection failure. Mapped to 503 in the central catch so
  * the UI can tell "DB is down, press Start" apart from a genuine server bug (500).
  */
-function isConnectionError(err: unknown): boolean {
+export function isConnectionError(err: unknown): boolean {
   if (err instanceof HttpError || err instanceof AssetConflictError) return false;
+  if (isLastAdminError(err)) return false;
   if (err && typeof err === 'object' && (err as { name?: unknown }).name === 'ZodError') return false;
   const code = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
   if (typeof code === 'string' && PG_CONNECTION_CODES.has(code)) return true;
   const message = err instanceof Error ? err.message : '';
   return /connect|terminat|timeout/i.test(message);
+}
+
+/**
+ * A last-admin guard violation, identified by `name` alone (`LastAdminError`) so neither
+ * the route layer nor the JSON backend needs to import the store's class — the pg store
+ * throws the real class, the JSON backend throws a tagged Error, both read the same here.
+ */
+function isLastAdminError(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { name?: unknown }).name === 'LastAdminError';
 }
 
 const DB_UNREACHABLE_MESSAGE =
@@ -642,7 +673,13 @@ export async function handleApiRequest(
 ): Promise<void> {
   try {
     ctx.policy?.gate(req.method ?? 'GET', url.pathname);
-    if (url.pathname === '/api/health') {
+    if (url.pathname === '/api/me') {
+      // The caller's circle membership/role (ADR-0043) — the one endpoint a non-member
+      // may reach, so the SPA can render the request-access wall. Open dev posture (no
+      // policy) reports full local access.
+      if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
+      sendJson(res, 200, ctx.policy ? ctx.policy.me : DEV_ME);
+    } else if (url.pathname === '/api/health') {
       await handleHealth(req, res, {
         store: ctx.store,
         health: () => ctx.backend.health(),
@@ -688,7 +725,10 @@ export async function handleApiRequest(
     }
   } catch (err) {
     if (err instanceof HttpError) {
-      sendJson(res, err.status, { error: err.message });
+      sendJson(res, err.status, { error: err.message, ...(err.details ?? {}) });
+    } else if (isLastAdminError(err)) {
+      // A last-admin guard violation from either backend (its `name` is the only tag) → 409.
+      sendJson(res, 409, { error: err instanceof Error ? err.message : String(err) });
     } else if (isConnectionError(err)) {
       // A pg connection failure surfacing here means the live store is down, not a
       // bug — answer 503 with the remedy so the UI can offer the Start DB button.

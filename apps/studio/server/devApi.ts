@@ -30,6 +30,7 @@ export function storytreeDataApi(): Plugin {
       backend = createBackend({
         assetsFile: paths.assetsFile,
         commentsFile: paths.commentsFile,
+        usersFile: paths.usersFile,
       });
     },
     configureServer(server) {
