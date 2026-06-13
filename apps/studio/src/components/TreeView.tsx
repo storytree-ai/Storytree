@@ -38,6 +38,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
+import { verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
 import { navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
@@ -1084,6 +1085,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           <WorldLegend
             stories={stories}
             sessions={sessions}
+            now={now}
             hidden={hidden}
             onToggleStatus={toggleStatus}
             onResetHidden={() => setHidden(new Set())}
@@ -1140,6 +1142,71 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
 }
 
 /**
+ * The recently-landed bloom (ADR-0045): a transient, decaying halo + sparkle
+ * announcing that a signed PASS landed on this territory inside BLOOM_WINDOW.
+ * It is a pure decoration off `verdict.at` (already on the wire) — the durable
+ * record stays the plant HUE (ADR-0040); this layer fades to nothing and never
+ * re-encodes that bit (see lib/activity.ts for the through-line).
+ *
+ * Geometry is seeded by the unit id, so it never jitters between the now-ticker
+ * re-renders (the same purity rule the wisp orbit phase obeys). The CSS pulse
+ * lives on the INNER group; the outer group carries the translate AND the
+ * age-decay opacity — in SVG a CSS transform/opacity replaces the matching
+ * presentation attribute, so the animated and the positioned facts must sit on
+ * different elements (else the scale keyframe would snap the bloom to the origin
+ * and the opacity keyframe would clobber the decay).
+ */
+function LandingBloom({
+  unitId,
+  bloom,
+  cx,
+  cy,
+  r,
+  kind,
+}: {
+  unitId: string;
+  bloom: VerdictBloom;
+  cx: number;
+  cy: number;
+  r: number;
+  kind: 'crown' | 'plant';
+}): React.JSX.Element {
+  // Bright when fresh, dimming with age — but never to zero here: verdictBloom
+  // returns null at the window edge, which unmounts the whole layer.
+  const ageOpacity = (0.3 + 0.65 * bloom.ageRatio).toFixed(2);
+  const sparks = Array.from({ length: kind === 'crown' ? 4 : 3 }, (_, i) => {
+    const a = rand01(hash(`${unitId}:bloom:a${i}`)) * Math.PI * 2;
+    const rr = r * (0.78 + rand01(hash(`${unitId}:bloom:r${i}`)) * 0.5);
+    return {
+      x: Math.cos(a) * rr,
+      y: Math.sin(a) * rr * 0.7, // top-down squash, same as the wisp orbit
+      r: (kind === 'crown' ? 1.5 : 1) * (0.8 + rand01(hash(`${unitId}:bloom:s${i}`)) * 0.5),
+    };
+  });
+  return (
+    <g
+      className="world-bloom-anchor"
+      transform={`translate(${cx.toFixed(1)} ${cy.toFixed(1)})`}
+      opacity={ageOpacity}
+      aria-hidden="true"
+    >
+      <g className={`world-bloom verdict-${bloom.outcome} bloom-${kind}`}>
+        <circle className="bloom-ring" r={r.toFixed(1)} />
+        {sparks.map((s, i) => (
+          <circle
+            key={i}
+            className="bloom-spark"
+            cx={s.x.toFixed(1)}
+            cy={s.y.toFixed(1)}
+            r={s.r.toFixed(1)}
+          />
+        ))}
+      </g>
+    </g>
+  );
+}
+
+/**
  * The central story tree — the story ITSELF (ADR-0036 d.6b, vocabulary
  * recalibrated by ADR-0038). Crown size grows with capability count; GROWTH
  * and foliage carry the lifecycle: zero capabilities grows only a sapling (the
@@ -1157,15 +1224,21 @@ function DecorTree({ x, y, h, seed }: { x: number; y: number; h: number; seed: n
 function StoryTree({
   territory: t,
   hidden,
+  now,
 }: {
   territory: Territory;
   hidden: ReadonlySet<string>;
+  now: Date;
 }): React.JSX.Element {
   const story = t.story;
   const st = story.status ?? 'unknown';
   const caps = story.capabilities.length;
   const withered = st === 'unhealthy';
   const sapling = caps === 0 && !withered;
+  // The recently-landed bloom (ADR-0045): only a PASS within the window blooms,
+  // and never on a withered crown (the rare authored-unhealthy-over-a-pass
+  // disagreement renders the result, not a green announcement).
+  const bloom = withered ? null : verdictBloom(story.verdict, now);
   // Proposed hasn't earned full growth: a young tree, bigger than the
   // claimed-but-empty sapling, smaller than the mapped/healthy canopy.
   const young = st === 'proposed' && !sapling;
@@ -1272,6 +1345,16 @@ function StoryTree({
           </g>
         </>
       )}
+      {bloom && (
+        <LandingBloom
+          unitId={story.id}
+          bloom={bloom}
+          cx={0}
+          cy={sapling ? -17 : cy}
+          r={sapling ? 13 : R * 1.18}
+          kind="crown"
+        />
+      )}
       {story.uatWitness === 'human' && (
         <g
           className={`story-sign ${
@@ -1299,10 +1382,12 @@ function StoryTree({
 function GardenPlant({
   spot,
   hidden,
+  now,
   onSelect,
 }: {
   spot: CapSpot;
   hidden: ReadonlySet<string>;
+  now: Date;
   onSelect: () => void;
 }): React.JSX.Element {
   const { cap, x, y } = spot;
@@ -1311,6 +1396,9 @@ function GardenPlant({
   // The presented status already folds the verdict in (provenStatus) — the
   // flora only ever reads the world it was handed.
   const dead = st === 'unhealthy';
+  // Recently-landed bloom (ADR-0045): a PASS within the window, never on a
+  // withered plant — a smaller sparkle than the crown's, at the plant base.
+  const bloom = dead ? null : verdictBloom(cap.verdict, now);
   const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
 
   let body: React.JSX.Element;
@@ -1440,6 +1528,7 @@ function GardenPlant({
       {dead && <ellipse className="dead-ground" cx={0} cy={0.5} rx={8} ry={3.2} />}
       <ellipse className="flora-shadow" cx={1} cy={1} rx={dead ? 6 : 8} ry={dead ? 2.2 : 2.6} />
       {body}
+      {bloom && <LandingBloom unitId={cap.id} bloom={bloom} cx={0} cy={-5} r={8} kind="plant" />}
     </g>
   );
 }
@@ -1496,6 +1585,7 @@ function TerritoryFlora({
           key={`c:${spot.cap.id}`}
           spot={spot}
           hidden={hidden}
+          now={now}
           onSelect={() => onSelect(spot.cap.id)}
         />
       ),
@@ -1503,7 +1593,7 @@ function TerritoryFlora({
   });
   drawables.push({
     y: t.treeSpot.y,
-    el: <StoryTree key="story-tree" territory={t} hidden={hidden} />,
+    el: <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />,
   });
   drawables.sort((a, b) => a.y - b.y);
 

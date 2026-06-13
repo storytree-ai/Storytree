@@ -25,11 +25,12 @@
 // offline-under-claims, presence-is-advisory (ADR-0033 d.3 / ADR-0036).
 
 import { useEffect, useRef, useState } from 'react';
+import { anyRecentLanding } from '../lib/activity';
 import { isOrbitingBand } from '../lib/presence';
 import type { TreeSession, TreeStory } from '../types';
 
 type Band = TreeSession['band'];
-type RowKey = 'tree' | 'flora' | 'proof' | 'wisps' | 'decor';
+type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'wisps' | 'decor';
 
 /**
  * Status fan order: the growth ladder, then the failure state. `building` and
@@ -263,6 +264,21 @@ function WispIcon({ band }: { band: Band }): React.JSX.Element {
   );
 }
 
+/** The recently-landed bloom (ADR-0045) — the world's `world-bloom` classes, so
+ *  the legend swatch can never drift from the live halo + sparkles. */
+function BloomIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="-11 -11 22 22" aria-hidden="true">
+      <g className="world-bloom verdict-pass bloom-crown">
+        <circle className="bloom-ring" r={7.5} />
+        <circle className="bloom-spark" cx={5} cy={-3} r={1.5} />
+        <circle className="bloom-spark" cx={-4.5} cy={2.5} r={1.3} />
+        <circle className="bloom-spark" cx={-1} cy={-6.5} r={1.2} />
+      </g>
+    </svg>
+  );
+}
+
 function ConiferIcon(): React.JSX.Element {
   return (
     <svg viewBox="-12 -14 24 18" aria-hidden="true">
@@ -349,12 +365,14 @@ function countNote(tot: { stories: number; caps: number }): string {
 export function WorldLegend({
   stories,
   sessions,
+  now,
   hidden,
   onToggleStatus,
   onResetHidden,
 }: {
   stories: TreeStory[];
   sessions: TreeSession[];
+  now: Date;
   hidden: ReadonlySet<string>;
   onToggleStatus: (st: string) => void;
   onResetHidden: () => void;
@@ -393,6 +411,11 @@ export function WorldLegend({
       ? 'fail'
       : 'blank';
   const unknownPresent = present('unknown');
+  // The activity row appears IFF some unit carries a live bloom right now —
+  // read off the same verdict.at the proof facts use, aged by the same `now`
+  // ticker. The row drops the moment the last bloom ages out, exactly like a
+  // model with no instance (ADR-0045 §6).
+  const recentLandings = anyRecentLanding(stories, now);
   const toggle = (key: RowKey): void => setOpen((cur) => (cur === key ? null : key));
 
   const rows: { key: RowKey; label: string; visible: boolean; icons: React.JSX.Element }[] = [
@@ -435,6 +458,15 @@ export function WorldLegend({
           {anySign && <SignIcon state={signState} />}
         </>
       ),
+    },
+    {
+      // The world's live-activity layer (ADR-0045): a signed verdict landing
+      // on a territory in the last few hours. Drops out once the last bloom
+      // ages past the window — the durable record stays the plant hue.
+      key: 'activity',
+      label: 'activity',
+      visible: recentLandings,
+      icons: <BloomIcon />,
     },
     {
       key: 'wisps',
@@ -597,6 +629,26 @@ export function WorldLegend({
             machine-witnessed stories carry none. With the live store down, verdicts are absent and
             the world <strong>under-claims</strong>: trees fall back to the authored ladder — the
             store banner is the signal.
+          </p>
+        </div>
+      )}
+
+      {openRow?.key === 'activity' && (
+        <div className="legend-drawer" role="region" aria-label="legend — activity">
+          <div className="legend-fan">
+            <Tile
+              icon={<BloomIcon />}
+              label="recently landed"
+              note="a signed verdict landed here in the last few hours"
+            />
+          </div>
+          <p className="legend-cap">
+            Activity marks real <strong>signed-verdict</strong> events landing on a territory, not
+            who is online; the bloom <strong>fades as the event ages</strong> and is gone within a
+            few hours. The durable result is the plant <strong>colour</strong> (a signed pass greens
+            it, ADR-0040) — the bloom only announces the moment it landed, so it never re-states what
+            the hue already records. A brand-new verdict blooms on the next world load (the geometry
+            is a one-shot read); aged-out blooms vanish without a refetch.
           </p>
         </div>
       )}

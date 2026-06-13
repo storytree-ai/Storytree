@@ -1697,6 +1697,54 @@ mark.st-hl.flash {
 .world-wisp.band-possibly-dead .world-wisp-dot { fill: var(--st-retired); }
 .world-wisp.band-possibly-dead.is-selected .world-wisp-glow { opacity: 0.4; }
 
+/* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
+   signed verdict just landed on this territory, kin to the hlflash/cflash
+   transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:
+   `verdictBloom`'s ageRatio sets the outer group's inline opacity, and the layer
+   unmounts entirely once the verdict ages past the window. The durable record is
+   the plant HUE (ADR-0040, verdict-derived green) — the bloom never persists, so
+   it can't re-encode the bit the hue already carries (the same-bit-twice ADR-0040
+   used to delete the UAT badges). v1 blooms PASSES only (green); fail withers
+   the plant already, a red bloom is a named owner call left out (ADR-0045 §3).
+   The pulse lives on the INNER group: in SVG a CSS transform/opacity replaces the
+   matching presentation attribute, so position + age-decay sit on the outer group
+   and only the inner one is animated. */
+.world-bloom {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bloom-pulse 2.6s ease-in-out infinite;
+}
+.world-bloom .bloom-ring {
+  fill: none;
+  stroke: var(--bloom-hue, var(--good));
+  stroke-width: 1.4;
+  opacity: 0.55;
+}
+.world-bloom .bloom-spark {
+  fill: var(--bloom-hue, var(--good));
+}
+.world-bloom.verdict-pass {
+  --bloom-hue: var(--crown-healthy-hi);
+}
+@keyframes bloom-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* static faint ring, no animation — the decay still reads via the age opacity */
+  .world-bloom {
+    animation: none;
+  }
+}
+
 /* the session dock — the wisps' clickable detail surface (list / one session) */
 .session-dock {
   position: absolute;

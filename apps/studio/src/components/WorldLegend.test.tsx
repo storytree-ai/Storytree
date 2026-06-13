@@ -64,6 +64,10 @@ const offlineWorld = (): TreeStory[] => [
 ];
 
 const noop = (): void => {};
+// A fixed `now` well after every fixture's verdict.at: the bloom fixtures here
+// use the literal 'now' (an unparseable date that never blooms), so the activity
+// row stays absent unless a test supplies a real recent verdict.at + matching now.
+const NOW = new Date('2026-06-14T00:00:00.000Z');
 const renderLegend = (
   stories: TreeStory[],
   sessions: TreeSession[] = [],
@@ -73,6 +77,7 @@ const renderLegend = (
     <WorldLegend
       stories={stories}
       sessions={sessions}
+      now={NOW}
       hidden={new Set()}
       onToggleStatus={noop}
       onResetHidden={noop}
@@ -174,6 +179,30 @@ describe('WorldLegend (adaptive bar)', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'sessions' }));
     expect(screen.getByText(/advisory only/)).toBeTruthy();
+  });
+
+  it('a recent signed PASS lights the activity row with the honesty caption (ADR-0045)', () => {
+    // a verdict 2 h before NOW is well inside the 6 h window → it blooms
+    const recent = { outcome: 'pass', at: '2026-06-13T22:00:00.000Z' } as const;
+    renderLegend([story('s', 'healthy', [cap('c', 'healthy', { verdict: recent })], { verdict: recent })]);
+    const chip = screen.getByRole('button', { name: 'activity' });
+    expect(chip).toBeTruthy();
+    fireEvent.click(chip);
+    // the honesty contract: real signed-verdict events, NOT presence; fades with age
+    expect(screen.getByText(/not\s+who is online/)).toBeTruthy();
+    expect(screen.getByText(/durable result is the plant/)).toBeTruthy();
+  });
+
+  it('an aged-out verdict (older than the window) shows no activity row', () => {
+    // a pass a full day before NOW is past the 6 h window — nothing to announce
+    const old = { outcome: 'pass', at: '2026-06-13T00:00:00.000Z' } as const;
+    renderLegend([story('s', 'healthy', [cap('c', 'healthy', { verdict: old })], { verdict: old })]);
+    expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
+  });
+
+  it('offline world (no signed verdicts) shows no activity row', () => {
+    renderLegend(offlineWorld());
+    expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
   });
 
   it('a machine-witnessed world has no signpost states at all', () => {
