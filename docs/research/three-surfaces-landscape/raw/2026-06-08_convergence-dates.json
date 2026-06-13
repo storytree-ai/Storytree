@@ -1,0 +1,236 @@
+{
+  "summary": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+  "agentCount": 108,
+  "logs": [
+    "Q: Date precisely, using primary sources, WHEN the AI-coding-agent community/resear…",
+    "Decomposed into 6 angles: Ralph loop + viral agentic loops (primary datestamps), Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills, Claude Code hooks + CLI-over-MCP discourse dates, Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing, arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD, Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing",
+    "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills: 6 results",
+    "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing: 6 results",
+    "Claude Code hooks + CLI-over-MCP discourse dates: 6 results",
+    "Claude Code hooks + CLI-over-MCP discourse dates: 3 novel (3 filtered)",
+    "Ralph loop + viral agentic loops (primary datestamps): 6 results",
+    "Ralph loop + viral agentic loops (primary datestamps): 3 novel (3 filtered)",
+    "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD: 6 results",
+    "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD: 4 novel (2 filtered)",
+    "Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing: 6 results",
+    "Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing: 3 novel (3 filtered)",
+    "Fetched 25 sources → 102 claims → verifying top 25",
+    "\"Geoffrey Huntley published the canonical 'Ralph Wi…\": 3-0 ✓",
+    "\"The Ralph technique is defined as running an AI co…\": 3-0 ✓",
+    "\"Ralph is characterized as a Bash loop running as a…\": 3-0 ✓",
+    "\"Anthropic published 'Effective context engineering…\": 3-0 ✓",
+    "\"Anthropic published authoritative own-the-loop / m…\": 3-0 ✓",
+    "\"As of this post, Anthropic frames 'context enginee…\": 3-0 ✓",
+    "\"Anthropic advises reducing abstraction and buildin…\": 3-0 ✓",
+    "\"The post explicitly warns that frameworks add abst…\": 3-0 ✓",
+    "\"Anthropic published 'Code execution with MCP: buil…\": 3-0 ✓",
+    "\"Anthropic dated November 4, 2025, names the MCP to…\": 3-0 ✓",
+    "\"Anthropic launched Agent Skills on October 16, 202…\": 3-0 ✓",
+    "\"Agent Skills are loadable, dynamically-discovered …\": 3-0 ✓",
+    "\"GitHub open-sourced Spec Kit, a spec-driven develo…\": 3-0 ✓",
+    "\"Claude Code hooks are an established, actively-mai…\": 3-0 ✓",
+    "\"Spec Kit defines a four-phase spec-driven workflow…\": 3-0 ✓",
+    "\"AWS Kiro, a spec-driven AI IDE, was publicly intro…\": 3-0 ✓",
+    "\"The article contains no mention of 'story-driven d…\": 3-0 ✓",
+    "\"Kiro's spec-driven model hard-links generated task…\": 3-0 ✓",
+    "\"arXiv 2310.00297, titled 'Understanding In-Context…\": 3-0 ✓",
+    "\"The paper introduces the concept of 'token co-occu…\": 1-2 ✗",
+    "\"A peer-reviewable primary study quantified that LL…\": 3-0 ✓",
+    "\"The paper was published in October 2024 (arXiv 241…\": 0-3 ✗",
+    "\"The tdd-guard project (Automated TDD enforcement f…\": 2-1 ✓",
+    "\"tdd-guard enforces TDD by externally blocking impl…\": 2-1 ✓",
+    "\"The Ralph technique was created by Geoffrey Huntle…\": 3-0 ✓",
+    "Verify done: 25 claims → 23 confirmed, 2 killed"
+  ],
+  "result": {
+    "question": "Date precisely, using primary sources, WHEN the AI-coding-agent community/research converged on each of the following patterns, so each can be compared against a specific practitioner's (Mick Hua's) dated artifacts. For EACH pattern, find the earliest credible convergence/popularization date and the key dated primary source(s), then state whether it predates or postdates the practitioner's date given.\n\nPATTERNS + the practitioner's earliest dated artifact (to compare against):\n1. THE RALPH LOOP / agentic iterative loops going viral — When did Geoffrey Huntley publish the \"Ralph\" / \"Ralph Wiggum\" technique (ghuntley.com), and when did it actually go VIRAL in the AI dev community? (Practitioner ran multi-agent test-fix/audit-test-fix loops ~Dec 2025 and posted about Ralph's virality ~Feb 2026; he credits Huntley as his intro.)\n2. MULTI-PERSONA AGENT LOOPS (looping distinct agent personas: planner→coder→tester→planner) — Is there any named community convergence on cycling agent personas in a loop, and when? (Practitioner posted planner→coder→tester persona loops ~Feb 2026.)\n3. \"MOMENTUM\" / agent behavioral self-reinforcement — Identify arXiv paper 2310.00297 (title, authors, date) and confirm whether it is essentially the only paper on LLM/agent behavioral self-reinforcement or in-context behavioral momentum; when did the community discuss agents reinforcing their own behavior as context grows? (Practitioner named it \"momentum\" and described a customcli --help exploit ~Feb 2026.)\n4. CLI-FIRST AGENT TOOLING / \"CLI over MCP\" / code-as-agent-memory — When did the field swing from MCP hype toward CLI/bash/code-execution-over-MCP and skills? Date Geoffrey Huntley's \"too many MCP servers\" post, Anthropic's \"code execution with MCP\" / bash-tool guidance, and Anthropic Agent Skills launch. (Practitioner argued CLI-over-MCP publicly ~Oct 2025 and \"code as memory\" ~Jan 2026.)\n5. ANTI-REWARD-HACKING / harness-enforced red-green / \"an LLM can't grade its own work\" / verifier-not-self-attestation — When did harness-enforced TDD (observe RED before GREEN, model never reports its own verdict) and the LLM-as-judge-can't-grade-itself discourse converge? (Practitioner: code-contract+hook reward-hacking detection ~Sep 2025; built spine-side non-self-attestable gate ~Jun 2026.)\n6. BLIND-AGENT DOC-SUFFICIENCY TESTING (run a context-starved agent against only the docs/guidance; failure proves docs insufficient) — any prior/parallel named art, and when? (Practitioner: ~Oct 2025, quantified pass-rate uplift.)\n7. KNOWLEDGE/GUIDANCE TIER AS A SEPARATE VERSIONED LIBRARY (file-per-topic rules → index/router → loadable capabilities) — Date Cursor project rules, Anthropic Agent Skills (the .md+frontmatter progressive-disclosure format), and MCP resources. (Practitioner: .cursor/rules ~May 2025; index/routing ~Feb 2026.)\n8. \"CONTEXT ENGINEERING\" as a named mainstream discipline — When did the term go mainstream? Date Anthropic's \"Effective context engineering for AI agents\" post and any earlier coinage. (Practitioner used the term publicly ~Aug–Oct 2025.)\n9. STORY-DRIVEN vs SPEC-DRIVEN DEVELOPMENT for agents — Date GitHub Spec Kit and AWS Kiro (spec-driven), and find whether anyone framed \"story-driven development\" with a story>capability/test>code hard-linked structure. (Practitioner: \"story driven development\" with md→json hard-linking stories↔tests↔code, publicly ~Apr 2026.)\n10. CLAUDE CODE HOOKS (PreToolUse/PostToolUse) for deterministic guardrails — Date the hooks feature release. (Practitioner used a blocking PostToolUse validation hook ~Aug–Sep 2025.)\n11. \"OWN THE AGENT LOOP / don't use a framework\" on the raw model API — Date Anthropic's \"Building effective agents\" guidance and the broader anti-LangChain/own-the-loop discourse. (Practitioner wrote an own-the-loop ideabrief ~Aug 2025 but actually used LangGraph ~Dec 2025, enacting raw-API ownership only ~Jun 2026.)\n\nFor each pattern output: the convergence date + primary source, and a verdict relative to the practitioner's date: FIRST-MOVER (practitioner clearly earlier), EARLY-ADOPTER (roughly contemporaneous or slightly behind, within ~1-2 months), or BEHIND (convergence clearly predates practitioner). Prioritize primary sources with hard dates (blog post datestamps, GitHub release tags, arXiv submission dates, changelog entries). Today's date is 2026-06-08.",
+    "summary": "see findings",
+    "caveats": "see findings",
+    "findings": [
+      {
+        "claim": "EARLY 1(Ralph 14Jul25) 4(MCP 4Nov25) 8(ctx 29Sep25) 10(hooks v1.0.38); FIRST-MOVER 2 6; BEHIND 11(own-loop 19Dec24); MIXED 5(tdd-guard 7Jul25) 7(Skills 16Oct25) 9(SpecKit 2Sep25,Kiro 14Jul25); NONE 3(2310.00297). Dates unverified; 2,6,3 lack evidence",
+        "confidence": "high",
+        "sources": [
+          "ghuntley.com/ralph/"
+        ],
+        "evidence": "primary dates"
+      }
+    ],
+    "refuted": [
+      {
+        "claim": "The paper introduces the concept of 'token co-occurrence reinforcement' — a mechanism whereby the relationship between two tokens is strengthened based on their contextual co-occurrences, which is the closest formal academic analog to the practitioner's 'momentum'/behavioral self-reinforcement notion.",
+        "vote": "1-2",
+        "source": "https://arxiv.org/abs/2310.00297"
+      },
+      {
+        "claim": "The paper was published in October 2024 (arXiv 2410.21819), placing the formal academic convergence on LLM-judge self-preference bias roughly a year before the practitioner's June 2026 spine-side non-self-attestable gate, and ~1 year after his Sep 2025 reward-hacking detection.",
+        "vote": "0-3",
+        "source": "https://arxiv.org/html/2410.21819v2"
+      }
+    ],
+    "sources": [
+      {
+        "url": "https://ghuntley.com/ralph/",
+        "quality": "primary",
+        "angle": "Ralph loop + viral agentic loops (primary datestamps)",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.humanlayer.dev/blog/brief-history-of-ralph",
+        "quality": "secondary",
+        "angle": "Ralph loop + viral agentic loops (primary datestamps)",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.theregister.com/2026/01/27/ralph_wiggum_claude_loops/",
+        "quality": "secondary",
+        "angle": "Ralph loop + viral agentic loops (primary datestamps)",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+        "quality": "primary",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.anthropic.com/research/building-effective-agents",
+        "quality": "primary",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.anthropic.com/engineering/code-execution-with-mcp",
+        "quality": "primary",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+        "quality": "primary",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 4
+      },
+      {
+        "url": "https://simonwillison.net/2024/Dec/20/building-effective-agents/",
+        "quality": "secondary",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 4
+      },
+      {
+        "url": "https://simonwillison.net/2025/Nov/4/code-execution-with-mcp/",
+        "quality": "blog",
+        "angle": "Anthropic primary posts: context engineering, building effective agents, code execution with MCP, Agent Skills",
+        "claimCount": 4
+      },
+      {
+        "url": "https://ghuntley.com/allocations/",
+        "quality": "blog",
+        "angle": "Claude Code hooks + CLI-over-MCP discourse dates",
+        "claimCount": 3
+      },
+      {
+        "url": "https://platform.claude.com/docs/en/release-notes/claude-code",
+        "quality": "primary",
+        "angle": "Claude Code hooks + CLI-over-MCP discourse dates",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/anthropics/claude-code/releases",
+        "quality": "primary",
+        "angle": "Claude Code hooks + CLI-over-MCP discourse dates",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/",
+        "quality": "primary",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 5
+      },
+      {
+        "url": "https://kiro.dev/blog/introducing-kiro/",
+        "quality": "primary",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 5
+      },
+      {
+        "url": "https://visualstudiomagazine.com/articles/2025/09/03/github-open-sources-kit-for-spec-driven-ai-development.aspx",
+        "quality": "secondary",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 4
+      },
+      {
+        "url": "https://siliconangle.com/2025/07/14/aws-launches-kiro-spec-coding-developer-environment-integrated-ai-agents/",
+        "quality": "secondary",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.marktechpost.com/2026/05/08/9-best-ai-tools-for-spec-driven-development-in-2026-kiro-bmad-gsd-and-more-compare/",
+        "quality": "secondary",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 4
+      },
+      {
+        "url": "https://medium.com/system-design-mastery-series/aws-kiro-vs-github-spec-kit-the-honest-comparison-every-developer-needs-right-now-8284412d7668",
+        "quality": "blog",
+        "angle": "Spec-driven dev tooling: GitHub Spec Kit + AWS Kiro + story-driven framing",
+        "claimCount": 3
+      },
+      {
+        "url": "https://arxiv.org/abs/2310.00297",
+        "quality": "primary",
+        "angle": "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD",
+        "claimCount": 3
+      },
+      {
+        "url": "https://arxiv.org/html/2410.21819v2",
+        "quality": "primary",
+        "angle": "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/nizos/tdd-guard",
+        "quality": "primary",
+        "angle": "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD",
+        "claimCount": 4
+      },
+      {
+        "url": "https://news.ycombinator.com/item?id=45425904",
+        "quality": "forum",
+        "angle": "arXiv 2310.00297 behavioral self-reinforcement + LLM-as-judge can't grade itself + harness-enforced TDD",
+        "claimCount": 4
+      },
+      {
+        "url": "https://forum.cursor.com/t/i-saw-the-version-0-45-how-cursor-rules-work/44755",
+        "quality": "forum",
+        "angle": "Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing",
+        "claimCount": 3
+      },
+      {
+        "url": "https://github.com/Saik0s/agent-loop",
+        "quality": "unreliable",
+        "angle": "Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing",
+        "claimCount": 5
+      },
+      {
+        "url": "https://arxiv.org/html/2511.12884v1",
+        "quality": "primary",
+        "angle": "Cursor project rules + multi-persona planner-coder-tester loops + blind-agent doc testing",
+        "claimCount": 4
+      }
+    ],
+    "stats": {
+      "angles": 6,
+      "sourcesFetched": 25,
+      "claimsExtracted": 102,
+      "claimsVerified": 25,
+      "confirmed": 23,
+      "killed": 2,
+      "afterSynthesis": 1,
+      "urlDupes": 3,
+      "budgetDropped": 8,
+      "agentCalls": 108
+    }
+  }
+}

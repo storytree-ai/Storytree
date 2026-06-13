@@ -1,0 +1,298 @@
+{
+  "summary": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+  "agentCount": 109,
+  "logs": [
+    "Q: Beyond Steve Yegge's gastown/Beads and Geoffrey Huntley's loom, WHO ELSE in the …",
+    "Decomposed into 6 angles: Codebase-map / code-graph surface (primary sources), Library / agent-memory & skills surface, Noticeboard / task-DAG surface for agents, Context engineering & unified multi-surface framing, Spec-driven development as a cross-surface convergence, Practitioner & comparative ecosystem commentary",
+    "Codebase-map / code-graph surface (primary sources): 6 results",
+    "Library / agent-memory & skills surface: 6 results",
+    "Practitioner & comparative ecosystem commentary: 6 results",
+    "Practitioner & comparative ecosystem commentary: 5 novel (1 filtered)",
+    "Noticeboard / task-DAG surface for agents: 6 results",
+    "Noticeboard / task-DAG surface for agents: 3 novel (3 filtered)",
+    "Spec-driven development as a cross-surface convergence: 6 results",
+    "Spec-driven development as a cross-surface convergence: 3 novel (3 filtered)",
+    "Context engineering & unified multi-surface framing: 6 results",
+    "Context engineering & unified multi-surface framing: 3 novel (3 filtered)",
+    "Fetched 26 sources → 124 claims → verifying top 25",
+    "\"Aider's repo map is a list of files plus the key s…\": 3-0 ✓",
+    "\"Aider sends a structured 'repo map' to the LLM wit…\": 3-0 ✓",
+    "\"Aider models the codebase as a dependency graph (f…\": 3-0 ✓",
+    "\"Aider represents the codebase as a graph and ranks…\": 3-0 ✓",
+    "\"Aider provides coding agents a 'repo map' — a stru…\": 3-0 ✓",
+    "\"The repo map is an attention-focusing mechanism: i…\": 3-0 ✓",
+    "\"Augment Code implements a codebase-map / context s…\": 3-0 ✓",
+    "\"As of this article Cody implements only a codebase…\": 3-0 ✓",
+    "\"Cody's primary context-retrieval mechanism is Retr…\": 1-2 ✗",
+    "\"Augment's codebase index is embedding/retrieval-ba…\": 0-3 ✗",
+    "\"CodeGraph builds a per-project, pre-indexed code k…\": 3-0 ✓",
+    "\"CodeGraph is explicitly framed as giving coding ag…\": 3-0 ✓",
+    "\"Anthropic's Agent Skills are file-based, schema-va…\": 3-0 ✓",
+    "\"CodeGraph implements ONLY the code-graph surface, …\": 3-0 ✓",
+    "\"Skills implement progressive disclosure — metadata…\": 3-0 ✓",
+    "\"Anthropic frames 'structured note-taking' (agentic…\": 3-0 ✓",
+    "\"Anthropic released a file-based 'memory tool' in p…\": 3-0 ✓",
+    "\"Letta implements a structured, schema-validated ag…\": 3-0 ✓",
+    "\"Letta's memory blocks are agent-self-editable in-c…\": 3-0 ✓",
+    "\"Beads is a git-backed / distributed graph issue tr…\": 3-0 ✓",
+    "\"Beads explicitly frames itself as a persistent, st…\": 3-0 ✓",
+    "\"Letta's surveyed documentation provides NO codebas…\": 3-0 ✓",
+    "\"Beads is an issue tracker / issue database that se…\": 3-0 ✓",
+    "\"Beads positions its dependency-aware graph as a de…\": 3-0 ✓",
+    "\"The motivating problem Beads solves is that coding…\": 3-0 ✓",
+    "Verify done: 25 claims → 23 confirmed, 2 killed"
+  ],
+  "result": {
+    "question": "Beyond Steve Yegge's gastown/Beads and Geoffrey Huntley's loom, WHO ELSE in the AI coding-agent ecosystem (2025-2026) is independently converging on the pattern of giving coding agents explicit \"attention surfaces\" / a persistent map, specifically these three: (1) a LIBRARY surface — a curated, often schema-validated knowledge/memory tier (knowledge base, semantic memory, RAG corpus, \"skills\"/playbooks, agent memory systems); (2) a CODEBASE-MAP / CODE-GRAPH surface — a structured map of the codebase as a graph/DAG (repo maps, code graphs, AST/symbol indexes, dependency DAGs, \"story/spec\" trees) used to focus agent attention rather than dumping raw files; and (3) a NOTICEBOARD surface — a structured, dependency-aware project/task-management tier as agent external memory (issue graphs, task DAGs, kanban-for-agents). Survey concrete tools, frameworks, papers, and practitioners: e.g. Aider's repo map, Cursor, Cline/Roo, Claude Code skills & subagents, Sourcegraph/Cody & Amp, Devin/Cognition, Factory, OpenHands/Devon, Augment, Windsurf, Anthropic's context-engineering & agent-memory writing, \"spec-driven development\" (GitHub spec-kit, Kiro), Letta/MemGPT and agent-memory startups, GraphRAG, knowledge-graph-for-agents work, and any \"give the agent a map\" or \"three surfaces / three loops\" framings. For each notable example, identify which of the three surfaces it implements, how, and how mature/explicit it is. Then assess: is there a real industry-wide convergence toward these three surfaces, is it converging on only some of them (which?), and is anyone framing all three together as a unified model the way storytree does (library + codebase-DAG + noticeboard)? Prioritize primary sources (project docs/READMEs, official blogs, papers) over secondary commentary.",
+    "summary": "There is a real, broad industry convergence in 2025-2026 toward giving coding agents persistent \"attention surfaces,\" but the convergence is uneven across storytree's three surfaces: nearly every notable player has independently built ONE or TWO of them, while almost no one frames all three together as a single unified model the way storytree does. The CODEBASE-MAP / code-graph surface is the most mature and widely shared (Aider's tree-sitter repo map with PageRank graph ranking, Augment's per-user real-time index, Sourcegraph Cody, CodeGraph's persisted SQLite AST/symbol graph) and explicitly motivated by \"give the agent a map / focus attention instead of dumping raw files.\" The LIBRARY / memory surface is the second locus of convergence, productized by Anthropic (Agent Skills with progressive disclosure, the file-based memory tool, structured note-taking) and Letta/MemGPT (schema-structured, attachable, shareable memory blocks). The NOTICEBOARD / task-DAG surface is the newest and most concentrated, with Beads (Steve Yegge) as the canonical instance — a dependency-aware graph issue tracker explicitly positioned as persistent external memory replacing flat markdown plans. Crucially, every tool surveyed implements only a subset of the three axes (Aider/Augment/Cody/CodeGraph = code-map only; Anthropic/Letta = library only; Beads = noticeboard only), so storytree's explicit three-surface unification (library + codebase-DAG + noticeboard) appears genuinely distinctive: the field is converging on the individual surfaces but not yet on the unified triad.",
+    "findings": [
+      {
+        "claim": "The CODEBASE-MAP / code-graph surface is the most mature and widely converged-upon of the three: multiple independent tools model the codebase as a structured graph/index to focus agent attention rather than dumping raw files. Aider pioneered the 'repo map' — a tree-sitter-built list of files plus key symbols, modeled as a dependency graph (files=nodes, dependency-edges) ranked by a graph algorithm (PageRank) to select the most-relevant parts within a token budget. CodeGraph persists an AST/symbol code-graph in local SQLite (FTS5, incrementally synced) and is explicitly framed as giving agents a pre-built map to query instead of grep/glob/Read. Augment Code runs a per-user real-time codebase index (updated within seconds) to retrieve relevant context. Sourcegraph Cody implements a code-retrieval surface. All explicitly match storytree's 'focus attention rather than dump files' framing.",
+        "confidence": "high",
+        "sources": [
+          "https://aider.chat/2023/10/22/repomap.html",
+          "https://aider.chat/docs/repomap.html",
+          "https://github.com/colbymchenry/codegraph",
+          "https://www.augmentcode.com/blog/a-real-time-index-for-your-codebase-secure-personal-scalable",
+          "https://sourcegraph.com/blog/how-cody-understands-your-codebase"
+        ],
+        "evidence": "Aider primary docs: repo map is 'a concise map of your whole git repository' built 'automatically using tree-sitter to extract symbol definitions,' analyzed 'using a graph ranking algorithm, computed on a graph where each source file is a node and edges connect files which have dependencies,' selecting 'the most important parts of the codebase which will fit into the active token budget' instead of 'sending whole files [which] is a bulky way to send code context, wasting the precious context window.' CodeGraph README: 'CodeGraph gives those agents a pre-indexed knowledge graph — symbol relationships, call graphs, and code structure. Agents query the graph instantly instead of scanning files,' with tree-sitter extraction into '.codegraph/codegraph.db' SQLite + FTS5, incrementally synced; self-benchmarked ~16% cheaper / 47% fewer tokens / 58% fewer tool calls across 7 codebases. Augment: 'we maintain a real-time index of your codebase, for each user' updated 'within a few seconds of any change.' Cody: vector/embedding code retrieval over repos. Six claims (0,1,2,3,4,5) on Aider, three (8,9,10) on CodeGraph, one (6) on Augment, one (7) on Cody — all 3-0 unanimous, all primary sources.",
+        "vote": "unanimous 3-0 across all 11 contributing claims (0,1,2,3,4,5,6,7,8,9,10)"
+      },
+      {
+        "claim": "The LIBRARY / knowledge-memory surface is the second major locus of convergence, productized most explicitly by Anthropic and Letta/MemGPT. Anthropic's Agent Skills are file-based, schema-fronted folders of instructions/scripts/resources that agents discover and load dynamically via progressive disclosure (metadata filters first, full content loads only when relevant — focusing attention rather than dumping everything). Anthropic separately shipped a file-based 'memory tool' (public beta) and frames 'structured note-taking / agentic memory' as writing notes persisted outside the context window. Letta/MemGPT implements a structured agent-memory tier: memory blocks are defined objects (label, description, value, character-limit) that are agent-self-editable, dynamically attachable/detachable, and shareable across agents.",
+        "confidence": "high",
+        "sources": [
+          "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+          "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+          "https://docs.letta.com"
+        ],
+        "evidence": "Anthropic Skills: 'Organized folders of instructions, scripts, and resources that agents can discover and load dynamically'; progressive disclosure described as 'Like a well-organized manual that starts with a table of contents, then specific chapters... skills let Claude load information only as needed' (Level 1 metadata ~30-50 tokens, Level 2 full SKILL.md when relevant). Anthropic context-engineering: 'Structured note-taking, or agentic memory, is a technique where the agent regularly writes notes persisted to memory outside of the context window... Like Claude Code creating a to-do list, or your custom agent maintaining a NOTES.md file'; and 'we released a memory tool in public beta on the Claude Developer Platform... through a file-based system.' Letta: 'A memory block consists of: A label... A description... A value... A limit'; blocks are 'editable by agents via memory tools,' can be 'attached and detached from agents,' and 'attached to multiple agents at once (shared blocks).' Claims 11,12,13,14 (Anthropic) and 15,16 (Letta) all 3-0.",
+        "vote": "unanimous 3-0 across all 6 contributing claims (11,12,13,14,15,16)"
+      },
+      {
+        "claim": "The NOTICEBOARD / task-DAG surface is the newest and most concentrated point of convergence, with Beads (Steve Yegge) as the canonical, explicit instance. Beads is a distributed graph issue tracker built specifically for AI coding agents, deliberately replacing ad-hoc flat markdown TODO/plan files with a dependency-aware graph, and explicitly positioned as persistent, structured external memory for long-horizon agent tasks across sessions. Its motivating problem is that coding agents have no cross-session memory and lose track of work in markdown plans — which it replaces with structured, queryable external memory (dependency links, auto-ready task detection).",
+        "confidence": "high",
+        "sources": [
+          "https://github.com/steveyegge/beads/blob/main/README.md",
+          "https://steve-yegge.medium.com/introducing-beads-a-coding-agent-memory-system-637d7d92514a"
+        ],
+        "evidence": "Beads README: 'Distributed graph issue tracker for AI agents, powered by Dolt. Beads provides a persistent, structured memory for coding agents. It replaces messy markdown plans with a dependency-aware graph, allowing agents to handle long-horizon tasks without losing context'; features include 'Dependency tracking, and auto-ready task detection' and graph links 'relates_to, duplicates, supersedes, replies_to.' Yegge's Medium post titled 'Introducing Beads: A coding agent memory system': 'The problem we all face with coding agents is that they have no memory between sessions'; describes ~600 decaying markdown plan files as 'all 100% useless,' replaced by querying 'bd ready --json.' Claims 18,19,20,21,22 all 3-0 primary (README + author's own blog).",
+        "vote": "unanimous 3-0 across all 5 contributing claims (18,19,20,21,22)"
+      },
+      {
+        "claim": "No surveyed tool implements all three surfaces; each converges on only a subset, and none frames the three together as a unified model the way storytree does. The code-map cohort (Aider, Augment, Cody, CodeGraph) implements ONLY the codebase-map axis — Cody explicitly treats knowledge/library (wikis, docs) and tickets as aspirational future sources, and CodeGraph's roadmap (PR-time impact analysis) stays on the code-graph axis. The library cohort (Anthropic Skills/memory, Letta) implements ONLY the library/memory axis — Letta's surveyed docs contain no codebase-map and no dependency-aware task tier (its 'tasks' pattern is just a memory block). Beads implements ONLY the noticeboard axis. This means the industry is converging on the individual surfaces but not on storytree's explicit three-surface unification (library + codebase-DAG + noticeboard).",
+        "confidence": "high",
+        "sources": [
+          "https://sourcegraph.com/blog/how-cody-understands-your-codebase",
+          "https://github.com/colbymchenry/codegraph",
+          "https://docs.letta.com",
+          "https://github.com/steveyegge/beads/blob/main/README.md"
+        ],
+        "evidence": "Cody (claim 7): wikis/docs/tickets are explicitly FUTURE — 'bring in entirely new sources of context like wikis, docs, and engineering tickets.' CodeGraph (claim 10): 'The CodeGraph platform is coming — for every PR, know exactly what to test, what could break' — still code-graph axis; no library/noticeboard tier in its 8 MCP tools. Letta (claim 17): docs provide 'NO codebase maps, code graphs, or structured task/project management systems distinct from memory blocks'; Letta Code is 'memory-first' (MemFS, no repo map/AST graph); its 'tasks' is a memory block string, not a separate dependency-aware tier. Beads is scoped only to the task tier. Each contributing scope-limiting claim (7,10,17,20) was unanimous 3-0; the cross-tool synthesis that no single tool spans all three follows directly.",
+        "vote": "synthesized from unanimous scope claims (7,10,17,20); each constituent 3-0"
+      },
+      {
+        "claim": "The shared motivating framing across all three surfaces is identical to storytree's: replace raw context dumping / flat prose with a structured, queryable, attention-focused external surface, because the finite context window and lack of cross-session memory are the binding constraints. This common 'give the agent a map / structured external memory instead of dumping' rationale is what makes the convergence real even though the implementations target different axes.",
+        "confidence": "high",
+        "sources": [
+          "https://aider.chat/docs/repomap.html",
+          "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+          "https://github.com/colbymchenry/codegraph",
+          "https://steve-yegge.medium.com/introducing-beads-a-coding-agent-memory-system-637d7d92514a"
+        ],
+        "evidence": "Aider: avoid 'wasting the precious context window' by sending only the most relevant repo-map portions to a token budget. Anthropic: 'agentic memory... persisted to memory outside of the context window' to 'track progress across complex tasks.' CodeGraph: agents 'query the graph instantly instead of scanning files,' avoiding token spend on grep/glob/Read. Beads: cure 'inter-session amnesia' by replacing 'messy markdown plans' with a dependency-aware graph. The same constraint (context window + no persistent memory) and the same response (structured external attention surface) recur verbatim across all three surfaces' primary sources.",
+        "vote": "synthesized from unanimous claims (5,9,13,20,22)"
+      }
+    ],
+    "caveats": "Coverage gaps: the survey's confirmed-claim corpus is concentrated on Aider, CodeGraph, Augment, Cody, Anthropic, Letta, and Beads. Several players named in the research question produced NO surviving confirmed claims — Cursor, Cline/Roo, Devin/Cognition, Factory, OpenHands/Devon, Windsurf, GitHub spec-kit, Kiro, Geoffrey Huntley's loom, GraphRAG, and broader knowledge-graph-for-agents work. Their absence here reflects lack of verified evidence in this pass, NOT evidence of absence; spec-driven-development tools (spec-kit, Kiro) and Huntley's loom are plausible additional noticeboard/library instances that went unverified. Source-quality note: several confirmed claims rest on vendor engineering blogs (Augment, Sourcegraph, CodeGraph, Anthropic) and self-reported benchmarks (CodeGraph's 16%/47%/58% figures are vendor-run medians of 4 runs on single questions per repo, re-validated 2026-06-02 — directionally indicative, not independently reproduced); these are primary but partly marketing-adjacent. Two claims were refuted (3-vote): (1) that Augment is purely embedding/retrieval rather than any graph, and (2) that Cody's mechanism is RAG rather than a structured graph — so the precise embedding-vs-graph characterization of Augment and Cody is genuinely contested and should not be overstated. Time-sensitivity: this is a fast-moving 2025-2026 snapshot; Cody's 'future' library/ticket sources and CodeGraph's hosted platform may have shipped since, and the 'no one unifies all three' conclusion is a point-in-time finding about surveyed sources, not a guarantee no competitor is building the triad. The 'schema-validated' label on Anthropic Skills and Letta blocks is a mild interpretive gloss — both enforce structure/constraints (required frontmatter; character limits, read-only flags) rather than a storytree-style zod validation pass.",
+    "openQuestions": [
+      "Do spec-driven-development tools (GitHub spec-kit, AWS Kiro) and Geoffrey Huntley's loom implement the noticeboard (task/spec-DAG) and/or library surfaces, and how explicitly? They were named in the question but produced no confirmed claims this pass.",
+      "Are Cursor, Cline/Roo, Windsurf, Devin/Cognition, Factory, and OpenHands building any of the three surfaces — particularly codebase-map indexes or task tiers — and at what maturity? They were unverified here.",
+      "Has any single vendor begun unifying two or more surfaces into one product (e.g., CodeGraph adding a memory/task tier, Letta adding a code-graph, or an agent platform bolting Beads-style task DAGs onto a Skills-style library), which would weaken storytree's claim to a distinctive three-surface unification?",
+      "Where does GraphRAG / knowledge-graph-for-agents work fit — is it being used as a LIBRARY surface, a CODE-GRAPH surface, or both, and is anyone explicitly mapping it onto a multi-surface agent-attention model?"
+    ],
+    "refuted": [
+      {
+        "claim": "Augment's codebase index is embedding/retrieval-based (custom context models) rather than an AST/symbol/dependency-graph code-graph, distinguishing its approach from Aider-style structural repo maps.",
+        "vote": "0-3",
+        "source": "https://www.augmentcode.com/blog/a-real-time-index-for-your-codebase-secure-personal-scalable"
+      },
+      {
+        "claim": "Cody's primary context-retrieval mechanism is Retrieval-Augmented Generation (RAG) rather than a persistent structured codebase graph/map; it focuses agent attention by retrieving relevant snippets at query time.",
+        "vote": "1-2",
+        "source": "https://sourcegraph.com/blog/how-cody-understands-your-codebase"
+      }
+    ],
+    "sources": [
+      {
+        "url": "https://aider.chat/2023/10/22/repomap.html",
+        "quality": "primary",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 4
+      },
+      {
+        "url": "https://aider.chat/docs/repomap.html",
+        "quality": "primary",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.augmentcode.com/blog/a-real-time-index-for-your-codebase-secure-personal-scalable",
+        "quality": "primary",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 5
+      },
+      {
+        "url": "https://sourcegraph.com/blog/how-cody-understands-your-codebase",
+        "quality": "primary",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.com/colbymchenry/codegraph",
+        "quality": "primary",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 5
+      },
+      {
+        "url": "https://rywalker.com/research/code-intelligence-tools",
+        "quality": "blog",
+        "angle": "Codebase-map / code-graph surface (primary sources)",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+        "quality": "primary",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+        "quality": "primary",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 4
+      },
+      {
+        "url": "https://mem0.ai/blog/state-of-ai-agent-memory-2026",
+        "quality": "blog",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 5
+      },
+      {
+        "url": "https://docs.letta.com",
+        "quality": "primary",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 5
+      },
+      {
+        "url": "https://neo4j.com/blog/agentic-ai/context-graph-ai-agent-memory/",
+        "quality": "blog",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 4
+      },
+      {
+        "url": "https://atlan.com/know/best-ai-agent-memory-frameworks-2026/",
+        "quality": "blog",
+        "angle": "Library / agent-memory & skills surface",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.com/steveyegge/beads/blob/main/README.md",
+        "quality": "primary",
+        "angle": "Noticeboard / task-DAG surface for agents",
+        "claimCount": 5
+      },
+      {
+        "url": "https://steve-yegge.medium.com/introducing-beads-a-coding-agent-memory-system-637d7d92514a",
+        "quality": "primary",
+        "angle": "Noticeboard / task-DAG surface for agents",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.github.com/spec-kit/",
+        "quality": "primary",
+        "angle": "Noticeboard / task-DAG surface for agents",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/steveyegge/beads",
+        "quality": "primary",
+        "angle": "Context engineering & unified multi-surface framing",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.com/ghuntley/loom/blob/trunk/AGENTS.md",
+        "quality": "primary",
+        "angle": "Context engineering & unified multi-surface framing",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.letta.com/blog/agent-memory",
+        "quality": "primary",
+        "angle": "Context engineering & unified multi-surface framing",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/github/spec-kit",
+        "quality": "primary",
+        "angle": "Spec-driven development as a cross-surface convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://kiro.dev/",
+        "quality": "primary",
+        "angle": "Spec-driven development as a cross-surface convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://cline.bot/",
+        "quality": "primary",
+        "angle": "Spec-driven development as a cross-surface convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.developersdigest.tech/blog/codebase-knowledge-graphs-ai-coding-agents",
+        "quality": "blog",
+        "angle": "Practitioner & comparative ecosystem commentary",
+        "claimCount": 5
+      },
+      {
+        "url": "https://agentpatterns.ai/agent-design/beads-task-graph-agent-memory/",
+        "quality": "blog",
+        "angle": "Practitioner & comparative ecosystem commentary",
+        "claimCount": 5
+      },
+      {
+        "url": "https://www.letta.com/blog/context-repositories",
+        "quality": "primary",
+        "angle": "Practitioner & comparative ecosystem commentary",
+        "claimCount": 5
+      },
+      {
+        "url": "https://paddo.dev/blog/from-beads-to-tasks/",
+        "quality": "blog",
+        "angle": "Practitioner & comparative ecosystem commentary",
+        "claimCount": 5
+      },
+      {
+        "url": "https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html",
+        "quality": "blog",
+        "angle": "Practitioner & comparative ecosystem commentary",
+        "claimCount": 5
+      }
+    ],
+    "stats": {
+      "angles": 6,
+      "sourcesFetched": 26,
+      "claimsExtracted": 124,
+      "claimsVerified": 25,
+      "confirmed": 23,
+      "killed": 2,
+      "afterSynthesis": 5,
+      "urlDupes": 4,
+      "budgetDropped": 6,
+      "agentCalls": 109
+    }
+  }
+}

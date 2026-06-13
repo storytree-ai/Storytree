@@ -1,0 +1,249 @@
+{
+  "summary": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report.",
+  "agentCount": 100,
+  "logs": [
+    "Q: Have Steve Yegge (project \"gastown\"/\"Gas Town\") and Geoffrey Huntley (project \"l…",
+    "Decomposed into 6 angles: loom primary source / repo, gastown primary source / Yegge, agent context/attention management patterns, knowledge library + code-graph surfaces, noticeboard / task-management surface, 2025-2026 talks / convergence",
+    "2025-2026 talks / convergence: 6 results",
+    "gastown primary source / Yegge: 6 results",
+    "gastown primary source / Yegge: 4 novel (2 filtered)",
+    "agent context/attention management patterns: 6 results",
+    "agent context/attention management patterns: 3 novel (3 filtered)",
+    "knowledge library + code-graph surfaces: 6 results",
+    "knowledge library + code-graph surfaces: 2 novel (4 filtered)",
+    "loom primary source / repo: 6 results",
+    "loom primary source / repo: 1 novel (5 filtered)",
+    "noticeboard / task-management surface: 6 results",
+    "noticeboard / task-management surface: 1 novel (5 filtered)",
+    "Fetched 17 sources → 72 claims → verifying top 25",
+    "\"Loom is an AI-powered coding agent written in Rust…\": 3-0 ✓",
+    "\"Loom's code/codebase surface is realized through G…\": 3-0 ✓",
+    "\"Loom's spec index contains NO dedicated knowledge-…\": 3-0 ✓",
+    "\"Steve Yegge's Gas Town is a Go-based orchestrator …\": 3-0 ✓",
+    "\"Gas Town's task-management surface relies on Beads…\": 3-0 ✓",
+    "\"Loom's documented architecture emphasizes LLM inte…\": 3-0 ✓",
+    "\"The article does NOT describe a dedicated knowledg…\": 2-1 ✓",
+    "\"Gas Town is a multi-agent orchestration/workspace-…\": 3-0 ✓",
+    "\"Gas Town has a strong project-management/noticeboa…\": 3-0 ✓",
+    "\"Loom is an AI-powered coding agent built in Rust p…\": 3-0 ✓",
+    "\"Loom's documented context/attention mechanism is a…\": 3-0 ✓",
+    "\"Gas Town manages agent context/attention primarily…\": 3-0 ✓",
+    "\"Loom's core architecture is an agent state machine…\": 3-0 ✓",
+    "\"Geoffrey Huntley advocates maintaining a 'standard…\": 2-1 ✓",
+    "\"As of this June 2025 recap, Huntley's recent work …\": 3-0 ✓",
+    "\"Beads is an issue tracker / external memory system…\": 3-0 ✓",
+    "\"Beads is scoped to task/work orchestration and doe…\": 3-0 ✓",
+    "\"Beads is a dependency-graph issue tracker purpose-…\": 3-0 ✓",
+    "\"Beads is architecturally a dependency graph of iss…\": 3-0 ✓",
+    "\"Beads computes 'ready work' automatically from the…\": 3-0 ✓",
+    "\"Gas Town's project/task-management surface (the no…\": 3-0 ✓",
+    "\"Gas Town is an orchestrator/IDE for managing many …\": 3-0 ✓",
+    "\"The article contains no mention of a dedicated kno…\": 3-0 ✓",
+    "\"Gastown represents units of work as 'beads' groupe…\": 3-0 ✓",
+    "\"Gas City / Gas Town is built on a 'MEOW' (Molecula…\": 3-0 ✓",
+    "Verify done: 25 claims → 25 confirmed, 0 killed"
+  ],
+  "result": {
+    "question": "Have Steve Yegge (project \"gastown\"/\"Gas Town\") and Geoffrey Huntley (project \"loom\", https://github.com/ghuntley/loom) recently landed on the same architectural patterns as the storytree project? Specifically investigate whether their recent work converges on the idea of THREE surfaces to manage agent attention by giving agents a \"map\": (1) a LIBRARY surface for knowledge management, (2) a codebase/code-graph surface (storytree calls it \"storytree\" — a DAG of stories/capabilities/contracts), and (3) a NOTICEBOARD surface for project/task management. For each of the two projects (gastown, loom), find: what the project actually is, its core architecture, how it manages agent context/attention, whether it uses anything resembling a knowledge library, a codebase map/graph, and a project-management/noticeboard surface. Then compare and contrast against storytree's three-surface model and assess how strongly each has converged on the same patterns. Use primary sources: ghuntley.com blog posts, the ghuntley/loom GitHub repo and its README/docs, Steve Yegge's Sourcegraph/Medium/substack writing and talks on gastown, and any conference talks or interviews from 2025-2026.",
+    "summary": "Both gastown (Steve Yegge) and loom (Geoffrey Huntley) have converged with storytree on exactly ONE of its three \"attention surfaces\" — the NOTICEBOARD (project/task-management) surface — and on neither of the other two. Gas Town is a Go-based multi-agent orchestrator (Town > Rigs > Polecats > Mayor) whose entire substrate is the Beads issue-tracker: a git-backed, dependency-aware task graph (the MEOW stack: Beads > Molecules > Convoys/Epics) that is a strong, direct analog of storytree's noticeboard, but it has NO knowledge library and NO codebase/code-graph map (it manages agent attention via persistence/coordination infra — git-worktree Hooks, Seance session-recovery, mailboxes — not a \"map\"). Loom is a Rust AI coding agent organized around principles of modularity/extensibility/reliability and infra subsystems (state machine, tool registry, LLM proxy, Kubernetes \"Weaver\"); its only knowledge-retrieval is FTS5 full-text search over conversation threads plus web search, its code surface is plain Git/VCS tooling, and it has no task-board, no code-graph, and no zod-validated knowledge tier. Thus the convergence thesis holds only partially: storytree's noticeboard idea is strongly and independently corroborated by both (especially Yegge/Beads), but storytree's distinctive three-surface framing — and specifically its LIBRARY and code-graph/DAG surfaces — has NOT been independently arrived at by either project. The one weak parallel to storytree's library is Huntley's ad-hoc \"standard library of prompts\" practice, which is a tactical habit, not an architected knowledge tier.",
+    "findings": [
+      {
+        "claim": "Gas Town is a Go-based multi-agent orchestrator (launched ~Jan 1 2026) coordinating many Claude Code/Copilot/Codex/Gemini instances; its architecture is a hierarchy Town > Rigs (git-repo containers) > Polecats (worker agents) coordinated by a Mayor AI, with git-backed work persistence — NOT a three-surface attention model.",
+        "confidence": "high",
+        "vote": "3-0 (merged from claims 4, 7, 20)",
+        "evidence": "README opening line 'Multi-agent orchestration system for Claude Code, GitHub Copilot, and other AI agents with persistent work tracking'; Yegge: 'launched Gas Town!' (Jan 5 2026 article, 3 days prior); repo is 95% Go; hierarchy Town/Rigs/Polecats/Mayor confirmed verbatim; described as 'a new take on the IDE for 2026.' Corroborated by heise.de, paddo.dev, author's X post.",
+        "sources": [
+          "https://github.com/steveyegge/gastown",
+          "https://steve-yegge.medium.com/the-future-of-coding-agents-e9451a84207c",
+          "https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04"
+        ]
+      },
+      {
+        "claim": "Gas Town's NOTICEBOARD surface is strong and direct: work is structured git-backed issues in a Beads ledger, bundled into Convoys (work-order/ticketing units that 'are basically features'), built on the MEOW stack (Beads > Epics > Molecules > Protomolecules > Formulas > Wisps) making Work a first-class primitive — a versioned knowledge graph of issues/tasks directly analogous to storytree's noticeboard.",
+        "confidence": "high",
+        "vote": "3-0 (merged from claims 5, 8, 21, 23, 24)",
+        "evidence": "README: 'Convoys: Work tracking units. Bundle multiple beads.' Yegge: 'The Convoy is Gas Town's ticketing or work-order system... Convoys are basically features.' Gas City: 'MEOW... places Work front and center, as the first-class system primitive... creating a versioned knowledge graph of all your issues and tasks.' Beads+Mail produce an 'agent village' that divides and farms out work. Corroborated by author's X posts, gastownhall/beads repo, multiple secondary outlets.",
+        "sources": [
+          "https://github.com/steveyegge/gastown",
+          "https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04",
+          "https://steve-yegge.medium.com/welcome-to-gas-city-57f564bb3607",
+          "https://steve-yegge.medium.com/the-future-of-coding-agents-e9451a84207c"
+        ]
+      },
+      {
+        "claim": "Beads (Yegge's standalone tool underpinning Gas Town) is a dependency-graph issue tracker / external-memory system purpose-built for AI agents to maintain continuity across short (~10-min) memoryless sessions; it replaces flat markdown TODOs with a queryable dependency-aware graph (parent/child + blocking pointers, four link types) and auto-computes 'ready work' (bd ready) from the graph — converging on exactly ONE of storytree's three surfaces (the noticeboard).",
+        "confidence": "high",
+        "vote": "3-0 (merged from claims 15, 16, 17, 18, 19)",
+        "evidence": "README: 'persistent, structured memory for coding agents. It replaces messy markdown plans with a dependency-aware graph.' Yegge: 'they have no memory between sessions — sessions that only last about ten minutes'; 'acts like a managed central database, but behind the scenes it's writing the issues into git as JSONL.' 'bd ready' = 'List tasks with no open blockers.' Verifiers confirmed: no knowledge-library surface, no code-graph surface — the dependency graph is purely over tasks. (Note: current repo storage evolved from git-JSONL to Dolt SQL.)",
+        "sources": [
+          "https://github.com/steveyegge/beads",
+          "https://steve-yegge.medium.com/introducing-beads-a-coding-agent-memory-system-637d7d92514a"
+        ]
+      },
+      {
+        "claim": "Gas Town manages agent context/attention via persistence and coordination INFRASTRUCTURE (git-worktree Hooks, Seance session-recovery via .events.jsonl, mailboxes/handoffs) rather than by giving agents a knowledge 'map'; the orchestrator-focused 'Future of Coding Agents' and 'Welcome to Gas Town' articles contain NO dedicated knowledge library, documentation tier, or codebase map/code-graph — its emphasis is task decomposition into micro-workflows. Knowledge and code-graph surfaces are absent.",
+        "confidence": "high",
+        "vote": "3-0 (claim 9, 22) / 2-1 (claim 6)",
+        "evidence": "README: Seance 'Discovers previous agent sessions via .events.jsonl logs.' Term-by-term WebFetch found NONE of: documentation, wiki, library, knowledge base, code graph, code map, AST, embeddings, RAG, semantic search. paddo.dev: Gas Town emphasizes 'external persistence and Git-based coordination rather than knowledge libraries or semantic maps.' The one near-contradiction (secondary sources calling Beads a 'knowledge graph of tasks') is a TASK graph, mapping to the noticeboard, not a knowledge library or code-graph — so it reinforces rather than refutes.",
+        "sources": [
+          "https://github.com/steveyegge/gastown",
+          "https://steve-yegge.medium.com/the-future-of-coding-agents-e9451a84207c",
+          "https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04"
+        ]
+      },
+      {
+        "claim": "Loom (ghuntley/loom) is a Rust AI-powered coding agent — a REPL/terminal interface to LLM agents executing tools — organized around three PRINCIPLES (modularity, extensibility, reliability) and a large modular spec set (~50-60 spec files, 30+ crates), NOT around three attention-management surfaces. Its core architecture is an agent state machine + tool registry + server-side LLM proxy, with remote execution via Kubernetes ('Weaver') — infrastructure-heavy, not a code-graph/DAG map.",
+        "confidence": "high",
+        "vote": "3-0 (merged from claims 0, 3, 10, 12)",
+        "evidence": "README: 'Loom is an AI-powered coding agent built in Rust... REPL interface... three core principles: Modularity, Extensibility, Reliability.' Key components: Core Agent (state machine), Tool System (registry/execution), LLM Proxy (server-side), Weaver (K8s pods). Spec index organized by LLM integration, observability, security/identity (ABAC/SCIM/audit), remote execution — functional subsystems, not surfaces. No code-graph/AST/DAG spec exists.",
+        "sources": [
+          "https://github.com/ghuntley/loom",
+          "https://github.com/ghuntley/loom/blob/trunk/specs/README.md"
+        ]
+      },
+      {
+        "claim": "Loom has NONE of storytree's three surfaces as agent-facing constructs: its knowledge-retrieval is FTS5 full-text search over conversation threads (Thread System) plus external web search (Google CSE) — no zod-validated JSONB knowledge/library tier; its code surface is plain Git/VCS tooling (scm-system, jj-based 'spool', git-metadata, auto-commit, github-app) — no semantic code-graph or DAG of stories/capabilities/contracts; and there is no task-board/noticeboard/kanban surface.",
+        "confidence": "high",
+        "vote": "3-0 (merged from claims 1, 2, 11)",
+        "evidence": "Spec index: search-system.md = 'FTS5 search for threads', web-search-system.md = 'Google CSE integration'; thread-system.md = 'Thread persistence and sync.' Code surface = git tooling (scm-system, spool-system jj-VCS, git-metadata 'Git context tracking in threads', auto-commit, github-app). README Key Components table (8 rows) lists no knowledge-management, code-graph, or task-board surface. docs-system.md (Diátaxis/MDX/Pagefind) is a human-facing docs publisher, not an agent knowledge tier.",
+        "sources": [
+          "https://github.com/ghuntley/loom",
+          "https://github.com/ghuntley/loom/blob/trunk/specs/README.md"
+        ]
+      },
+      {
+        "claim": "Huntley's only practice resembling storytree's LIBRARY surface is an ad-hoc 'standard library of prompts' to enforce consistent LLM outcomes — a tactical habit with no database, schema, versioning, or queryable tier, NOT an architected knowledge surface. His recent work (June 2025 recap) centers on spec-driven workflows, headless agents cloning software (Tailscale, Nomad, Infisical), and a compiler; he describes NO codebase map/code-graph surface for managing agent attention (his teaching emphasizes clearing/transient context, the opposite of a persistent map).",
+        "confidence": "high",
+        "vote": "3-0 (claim 14) / 2-1 (claim 13)",
+        "evidence": "ghuntley.com/six-month-recap: 'Another key practice is maintaining a standard library of prompts'; 'Headless agents cloning Tailscale, HashiCorp Nomad, and Infisical'; '/specs' technique; AI-built compiler. The library-of-prompts parallel is hedged ('parallels') and weak/superficial vs storytree's Postgres-backed zod-validated versioned library. The how-to-build-a-coding-agent workshop teaches using the context window for one activity then CLEARING it — transient, not a map.",
+        "sources": [
+          "https://ghuntley.com/six-month-recap/"
+        ]
+      }
+    ],
+    "caveats": "Convergence is asymmetric and partial: both projects converge strongly on the NOTICEBOARD surface (Yegge/Beads is the strongest, most explicit and independent corroboration of a git-backed dependency-graph task tier), but NEITHER independently arrives at storytree's distinctive LIBRARY (zod-validated JSONB knowledge tier) or codebase code-graph/DAG surfaces, and crucially neither frames its design as a deliberate set of three \"attention surfaces\" / a \"map\" — that framing appears to be storytree-specific. Time-sensitivity is significant: all sources are Jan-June 2026 and both projects move fast (Beads' storage evolved git-JSONL → Dolt SQL between Yegge's announcement article and the current repo; Gas Town extended into \"Gas City\" by April 2026; loom is on an actively developed trunk). Source strength is high for the noticeboard findings (primary repos + author's own writing, unanimous votes) and high for the negative findings about absent surfaces (verified by direct primary-source term searches). The two findings touching storytree's library analog rest on hedged/interpretive bridges: the Beads-as-noticeboard and prompts-as-library mappings are the verifiers' analogical framing, not claims made by Yegge or Huntley themselves. Two claims (the micro-workflow emphasis, and the standard-library-of-prompts parallel) were 2-1 split votes, reflecting that the nearest counter-evidence — secondary sources calling Beads an 'external memory' / 'knowledge graph' — is a task graph, not a knowledge library, so it does not actually refute. One nuance not pursued: loom's deeper specs reportedly contain an OracleTool / server-side knowledge-base component that could loosely map to a library function but is not framed as an attention surface.",
+    "openQuestions": [
+      "Does loom's deeper spec set (e.g. an OracleTool or server-side knowledge-base component hinted at by verifiers) constitute a real curated/validated knowledge tier, and if so how does it compare to storytree's zod-validated JSONB library projection?",
+      "Has either project, in sources after June 2026, introduced a semantic code-graph / codebase-map surface (the surface where convergence is currently weakest for BOTH), e.g. via Gas City extensions or loom trunk evolution?",
+      "Is storytree's explicit 'three surfaces / give the agent a map' framing genuinely novel, or does it merely name and unify primitives (task tracker + docs + VCS) that gastown and loom already have in unintegrated form — i.e. is the convergence at the level of the framing/integration rather than the underlying components?",
+      "Did storytree, gastown, and loom influence each other (shared lineage via Yegge's Beads 'external memory' meme and Huntley's spec-driven/standard-library practices), or are these independent inventions — which matters for whether 'convergence' is evidence of a correct design or just shared discourse?"
+    ],
+    "refuted": [],
+    "sources": [
+      {
+        "url": "https://github.com/ghuntley/loom/blob/trunk/specs/README.md",
+        "quality": "primary",
+        "angle": "loom primary source / repo",
+        "claimCount": 5
+      },
+      {
+        "url": "https://steve-yegge.medium.com/the-future-of-coding-agents-e9451a84207c",
+        "quality": "primary",
+        "angle": "gastown primary source / Yegge",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/steveyegge/gastown",
+        "quality": "primary",
+        "angle": "gastown primary source / Yegge",
+        "claimCount": 5
+      },
+      {
+        "url": "https://thenewstack.io/steve-yegges-ai-agent-orchestration-project-gas-town-comes-to-the-cloud-and-brings-the-wasteland-with-it/",
+        "quality": "unreliable",
+        "angle": "gastown primary source / Yegge",
+        "claimCount": 0
+      },
+      {
+        "url": "https://cloudnativenow.com/features/gas-town-what-kubernetes-for-ai-coding-agents-actually-looks-like/",
+        "quality": "secondary",
+        "angle": "gastown primary source / Yegge",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.com/ghuntley/loom",
+        "quality": "primary",
+        "angle": "agent context/attention management patterns",
+        "claimCount": 5
+      },
+      {
+        "url": "https://ghuntley.com/six-month-recap/",
+        "quality": "primary",
+        "angle": "agent context/attention management patterns",
+        "claimCount": 4
+      },
+      {
+        "url": "https://paddo.dev/blog/gastown-two-kinds-of-multi-agent/",
+        "quality": "blog",
+        "angle": "agent context/attention management patterns",
+        "claimCount": 5
+      },
+      {
+        "url": "https://news.ycombinator.com/item?id=47936461",
+        "quality": "forum",
+        "angle": "knowledge library + code-graph surfaces",
+        "claimCount": 5
+      },
+      {
+        "url": "https://steve-yegge.medium.com/introducing-beads-a-coding-agent-memory-system-637d7d92514a",
+        "quality": "primary",
+        "angle": "knowledge library + code-graph surfaces",
+        "claimCount": 4
+      },
+      {
+        "url": "https://github.com/steveyegge/beads",
+        "quality": "primary",
+        "angle": "noticeboard / task-management surface",
+        "claimCount": 5
+      },
+      {
+        "url": "https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04",
+        "quality": "primary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://steve-yegge.medium.com/welcome-to-gas-city-57f564bb3607",
+        "quality": "primary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://softwareengineeringdaily.com/2026/02/12/gas-town-beads-and-the-rise-of-agentic-development-with-steve-yegge/",
+        "quality": "secondary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://github.com/ghuntley/loom/blob/trunk/AGENTS.md",
+        "quality": "primary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 3
+      },
+      {
+        "url": "https://ghuntley.com/loop/",
+        "quality": "primary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 5
+      },
+      {
+        "url": "https://itrevolution.com/articles/the-three-developer-loops-a-new-framework-for-ai-assisted-coding/",
+        "quality": "secondary",
+        "angle": "2025-2026 talks / convergence",
+        "claimCount": 2
+      }
+    ],
+    "stats": {
+      "angles": 6,
+      "sourcesFetched": 17,
+      "claimsExtracted": 72,
+      "claimsVerified": 25,
+      "confirmed": 25,
+      "killed": 0,
+      "afterSynthesis": 7,
+      "urlDupes": 16,
+      "budgetDropped": 3,
+      "agentCalls": 100
+    }
+  }
+}
