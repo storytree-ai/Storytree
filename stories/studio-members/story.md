@@ -5,7 +5,7 @@ title: "Studio members — real accounts, roles, and invitations from the UI"
 outcome: "An admin invites someone by email from the studio; they sign in with Google and become a tracked user with a role; the API enforces what each role may do, and non-members see nothing but a request-access wall."
 status: proposed
 proof_mode: UAT
-capabilities: [user-directory, app-authorization, invite-ui]
+capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
 depends_on: [studio-cloud, library]
 decisions: [43]
 ---
@@ -31,16 +31,20 @@ model (ADR-0042's IAP allowlist + env admin list).
 - **Two roles.** Admin (manage users, edit assets, attest) and Member (read + comment as self).
 - **Invitations need only the UI.** Invite writes an `invited` row; first sign-in flips it
   `active`. No gcloud, no IAM.
+- **Invitees are notified.** Inviting also emails the invitee the studio link (best-effort,
+  config-gated) so access isn't a silent row they never hear about — the invite itself never
+  depends on the email succeeding.
 - **No lockout.** `STORYTREE_STUDIO_ADMINS` seeds the first admin; the last admin can't be removed
   or down-roled.
 
-## Capabilities (3)
+## Capabilities (4)
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`user-directory`](user-directory.md) | Users persist as append-only events plus a one-row-per-email projection with role + status, validated at the write boundary; the last admin can never be removed. | proposed | — |
 | 2 | [`app-authorization`](app-authorization.md) | Every API request resolves its verified email to a user row and enforces role; non-members are served nothing but a request-access signal. | proposed | `user-directory` |
 | 3 | [`invite-ui`](invite-ui.md) | An admin invites, re-roles, and removes users from the studio; the invitee activates on first Google sign-in. | proposed | `app-authorization` |
+| 4 | [`invite-notify`](invite-notify.md) | Inviting emails the invitee the studio link (best-effort, config-gated) so they learn they have access; the admin sees whether it sent. | proposed | `invite-ui` |
 
 ## Story UAT (would-be)
 
@@ -61,5 +65,7 @@ model (ADR-0042's IAP allowlist + env admin list).
 
 ## Open modeling calls (for the owner)
 
-None blocking — ADR-0043 fixed the model. Per-story or per-artifact roles, and self-serve
-"request access" notifications to admins, are deferred-but-named extensions.
+None blocking — ADR-0043 fixed the model. Inviting now also emails the invitee
+([`invite-notify`](invite-notify.md)). Per-story or per-artifact roles, and self-serve "request
+access" notifications to *admins* (the inbound direction — a stranger asking in), remain
+deferred-but-named extensions.
