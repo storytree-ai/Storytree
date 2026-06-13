@@ -46,6 +46,7 @@ import {
 import { HttpError, sendJson } from './httpUtil';
 import { handleDb } from './dbControl';
 import type { CodeStamp } from './codeStamp';
+import type { InviteMailer } from './inviteMailer';
 
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
@@ -509,6 +510,7 @@ export async function handleUsers(
   url: URL,
   backend: Pick<LibraryBackend, 'listUsers' | 'getUser' | 'upsertUser' | 'removeUser'>,
   caller: string | null,
+  mailer: InviteMailer | null = null,
 ): Promise<void> {
   const method = req.method ?? 'GET';
 
@@ -517,8 +519,10 @@ export async function handleUsers(
   }
 
   if (method === 'POST') {
-    // Invite: write an `invited` row (no GCP/IAM call). Activation happens on the invitee's
-    // first request (resolveMembersAccess). A duplicate email is a 409, not a silent overwrite.
+    // Invite: write an `invited` row, then email the invitee the studio link (best-effort — the row
+    // is already authoritative; a mail failure is reported, not a 500). Activation still happens on
+    // the invitee's first request (resolveMembersAccess). A duplicate email is a 409, not a silent
+    // overwrite. The `notify` field tells the admin whether the email actually went out.
     const input = await readJsonBody<Record<string, unknown>>(req);
     const email = normalizeEmailInput(asString(input.email));
     const role = asRole(input.role);
@@ -530,7 +534,10 @@ export async function handleUsers(
       { email, role, status: 'invited', invitedBy: caller, createdAt: now, lastSeenAt: now },
       caller ?? 'admin',
     );
-    return sendJson(res, 201, created);
+    const notify = mailer
+      ? await mailer.send(email, role, caller)
+      : { status: 'skipped' as const, detail: 'email notifications are not configured' };
+    return sendJson(res, 201, { ...created, notify });
   }
 
   if (method === 'PATCH') {
@@ -803,6 +810,8 @@ export interface ApiContext {
   allowDbControl: boolean;
   /** Hosted-mode policy (gate + comment scoping); absent = the open dev posture. */
   policy?: ApiPolicy | undefined;
+  /** Invite-email sender for POST /api/users; absent = no email (the invite still writes its row). */
+  invites?: InviteMailer | undefined;
 }
 
 /**
@@ -867,7 +876,8 @@ export async function handleApiRequest(
       await handleAssets(req, res, url, ctx.backend);
     } else if (url.pathname === '/api/users') {
       // Admin-gated by the policy; the caller (invitedBy + audit actor) is the verified identity.
-      await handleUsers(req, res, url, ctx.backend, ctx.policy?.me.email ?? null);
+      // The invite mailer (when configured) emails the invitee on POST — see handleUsers.
+      await handleUsers(req, res, url, ctx.backend, ctx.policy?.me.email ?? null, ctx.invites ?? null);
     } else if (url.pathname === '/api/attestations') {
       // GET is member-readable; POST is admin-only by the gate's method rule. The signer is the
       // verified caller (stamped, can't be forged); the open dev posture has no caller (null).

@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
 import { handleApiRequest, isConnectionError, resolveStudioPaths, type Paths } from './apiRouter';
+import { createInviteMailer, disabledInviteMailer, type InviteMailer } from './inviteMailer';
 import {
   createMembersPolicy,
   createDegradedPolicy,
@@ -93,6 +94,8 @@ export interface StudioServerOptions {
   devIdentity?: string | undefined;
   /** Injectable for tests; the hosted default has no git and answers null. */
   codeStamp?: (() => Promise<CodeStamp | null>) | undefined;
+  /** Invite-email sender; absent → a disabled mailer (invites still write their row, no email). */
+  invites?: InviteMailer | undefined;
 }
 
 /**
@@ -103,6 +106,7 @@ export interface StudioServerOptions {
  */
 export function createStudioServer(opts: StudioServerOptions): Server {
   const codeStamp = opts.codeStamp ?? (async (): Promise<CodeStamp | null> => null);
+  const invites = opts.invites ?? disabledInviteMailer();
   return createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     void (async () => {
@@ -132,6 +136,7 @@ export function createStudioServer(opts: StudioServerOptions): Server {
           codeStamp,
           allowDbControl: false, // gcloud-on-the-operator's-machine never holds hosted
           policy,
+          invites,
         });
       } else {
         await serveStatic(res, opts.distDir, url.pathname);
@@ -165,6 +170,7 @@ if (isMain()) {
     backend,
     admins: parseSeedAdmins(process.env[ADMINS_ENV]),
     devIdentity: process.env.STORYTREE_STUDIO_DEV_IDENTITY,
+    invites: createInviteMailer(process.env),
   });
   const port = Number(process.env.PORT) || 8080;
   server.listen(port, () => {

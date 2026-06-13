@@ -14,6 +14,7 @@ import type { Plugin } from 'vite';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
 import { createCodeStampProbe, type CodeStamp } from './codeStamp';
 import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
+import { createInviteMailer, type InviteMailer } from './inviteMailer';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handlePresence, type HealthDeps } from './apiRouter';
@@ -22,6 +23,8 @@ export function storytreeDataApi(): Plugin {
   let paths: Paths;
   let backend: LibraryBackend;
   let codeProbe: () => Promise<CodeStamp | null>;
+  // Disabled unless the SMTP env is set locally; the open dev posture otherwise just writes the row.
+  const invites: InviteMailer = createInviteMailer(process.env);
   return {
     name: 'storytree-data-api',
     configResolved(config) {
@@ -62,6 +65,7 @@ export function storytreeDataApi(): Plugin {
           store: selectedStore(),
           codeStamp: codeProbe,
           allowDbControl: true,
+          invites,
         });
       });
     },

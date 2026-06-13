@@ -370,7 +370,14 @@ describe('invite-ui: admin-only user management (ADR-0043)', () => {
       body: JSON.stringify({ email: NEWBIE, role: 'member' }),
     });
     expect(invite.status).toBe(201);
-    expect(await invite.json()).toMatchObject({ email: NEWBIE, role: 'member', status: 'invited', invitedBy: ADMIN });
+    // No mailer injected → the invite still writes its row, and reports the email as skipped.
+    expect(await invite.json()).toMatchObject({
+      email: NEWBIE,
+      role: 'member',
+      status: 'invited',
+      invitedBy: ADMIN,
+      notify: { status: 'skipped' },
+    });
 
     // duplicate invite → 409
     const dup = await fetch(`${base}/api/users`, {

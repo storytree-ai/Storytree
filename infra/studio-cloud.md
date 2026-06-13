@@ -86,6 +86,50 @@ real serving). Verified: `/api/health` → `{store: pg, db: ok}` (keyless SA →
 `/api/tree` → 6 stories + live presence sessions, API without the header → 401 (the app's own
 fail-closed wall), static `/` → 200. Re-enable with `--iap` after.
 
+## 4c. Invite emails (studio-members `invite-notify`) — optional but recommended
+
+When an admin invites a member in the **Members** panel, the studio emails the invitee the studio
+link so they actually learn they have access (without this, the invite only writes an `invited` row
+and you'd have to tell them out-of-band). Sending is **best-effort**: a mail failure never blocks the
+invite — the panel just shows `Invited …, but the email didn't send (…)`. Off until configured (the
+panel then shows `Invited …. email notifications are off …`).
+
+Sender = a Gmail account + a **Google App Password** (not the account password; needs 2-Step
+Verification on). Deliverability to a small known circle (Google→Google) is fine; recipients can
+mark "not spam" once. The app strips spaces from the password, so paste it as shown.
+
+```powershell
+# 1. Enable Secret Manager (one-time) + create the App Password at myaccount.google.com →
+#    Security → 2-Step Verification → App passwords (pick "Mail"). Then store it (no trailing newline):
+gcloud services enable secretmanager.googleapis.com --project storytree-498613
+[System.IO.File]::WriteAllText("$env:TEMP\smtp-pass.txt", "<16-char app password>")
+gcloud secrets create storytree-studio-smtp-pass --data-file="$env:TEMP\smtp-pass.txt" --project=storytree-498613
+Remove-Item "$env:TEMP\smtp-pass.txt"
+
+# 2. Let the runtime SA read it
+gcloud secrets add-iam-policy-binding storytree-studio-smtp-pass `
+  --member="serviceAccount:storytree-studio-host@storytree-498613.iam.gserviceaccount.com" `
+  --role="roles/secretmanager.secretAccessor" --project=storytree-498613
+
+# 3. The public studio URL the email links to (stable once the service exists)
+gcloud run services describe storytree-studio --region australia-southeast1 --format="value(status.url)"
+```
+
+Then add these to the **§4 deploy** command (env for the non-secret bits, `--set-secrets` for the
+password) — e.g. extend the existing flags:
+
+```powershell
+  --set-env-vars "STORYTREE_STUDIO_STORE=pg,STORYTREE_DB_USER=storytree-studio-host@storytree-498613.iam,STORYTREE_STUDIO_ADMINS=hua.mick@gmail.com,STORYTREE_STUDIO_SMTP_USER=<your-gmail>,STORYTREE_STUDIO_PUBLIC_URL=<service-url-from-step-3>" `
+  --set-secrets "STORYTREE_STUDIO_SMTP_PASS=storytree-studio-smtp-pass:latest" `
+```
+
+(`--set-env-vars` REPLACES the var set, so include the existing four alongside the two new ones, as
+shown.) Rotate the password by adding a new secret version
+(`gcloud secrets versions add storytree-studio-smtp-pass --data-file=…`); `:latest` picks it up on
+the next deploy/restart. Optional overrides: `STORYTREE_STUDIO_SMTP_HOST` (default `smtp.gmail.com`),
+`STORYTREE_STUDIO_SMTP_PORT` (default `465`), `STORYTREE_STUDIO_SMTP_FROM_NAME` (default
+`storytree studio`).
+
 ## 5. The circle — grant / revoke / enumerate
 
 ```powershell

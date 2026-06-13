@@ -210,6 +210,21 @@ export interface Member {
   lastSeenAt: string;
 }
 
+/**
+ * What the invite email attempt did (rides back on POST /api/users). `sent` — the invitee was
+ * emailed the studio link; `skipped` — email isn't configured (share the link manually); `failed` —
+ * configured but the send errored. The invite ROW is written either way (status is advisory).
+ */
+export interface InviteNotice {
+  status: 'sent' | 'skipped' | 'failed';
+  detail?: string;
+}
+
+/** POST /api/users response: the new member row plus the email-notification outcome. */
+export interface InviteResult extends Member {
+  notify: InviteNotice;
+}
+
 /** GET /api/db/status — the Cloud SQL instance as gcloud reports it. */
 export interface DbStatus {
   /** e.g. 'RUNNABLE' | 'STOPPED' */

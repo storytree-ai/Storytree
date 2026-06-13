@@ -6,7 +6,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import type { Member, UserRole } from '../types';
+import type { InviteResult, Member, UserRole } from '../types';
+
+/** One line telling the admin whether the invite email actually reached the new member. */
+function inviteNotice(r: InviteResult): string {
+  if (r.notify.status === 'sent') return `Invited ${r.email} — an invite email is on its way.`;
+  if (r.notify.status === 'failed') {
+    return `Invited ${r.email}, but the email didn't send (${r.notify.detail ?? 'unknown error'}). Share the studio link manually.`;
+  }
+  return `Invited ${r.email}. ${r.notify.detail ?? 'Email is off — share the studio link manually.'}`;
+}
 
 export function MembersPanel(): React.JSX.Element {
   const { me } = useAppData();
@@ -15,6 +24,7 @@ export function MembersPanel(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('member');
+  const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -41,6 +51,7 @@ export function MembersPanel(): React.JSX.Element {
   async function withBusy(fn: () => Promise<void>): Promise<void> {
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       await fn();
     } catch (err) {
@@ -53,7 +64,8 @@ export function MembersPanel(): React.JSX.Element {
   async function invite(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     await withBusy(async () => {
-      await api.inviteUser(email.trim().toLowerCase(), role);
+      const result = await api.inviteUser(email.trim().toLowerCase(), role);
+      setNotice(inviteNotice(result));
       setEmail('');
       setRole('member');
       await refresh();
@@ -101,6 +113,7 @@ export function MembersPanel(): React.JSX.Element {
       </form>
 
       {error && <p className="error-text">{error}</p>}
+      {notice && <p className="muted small members-notice">{notice}</p>}
 
       {users === null ? (
         <p className="muted">Loading members…</p>

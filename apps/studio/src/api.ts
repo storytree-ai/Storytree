@@ -10,6 +10,7 @@ import type {
   DocContent,
   DocMeta,
   GuidanceAsset,
+  InviteResult,
   MeInfo,
   NewComment,
   PresencePayload,
@@ -89,7 +90,8 @@ export const api = {
     http('/api/attestations', jsonInit('POST', input)),
 
   listUsers: (): Promise<Member[]> => http('/api/users'),
-  inviteUser: (email: string, role: UserRole): Promise<Member> =>
+  // Returns the new row plus `notify` — whether the invite email actually went out (see MembersPanel).
+  inviteUser: (email: string, role: UserRole): Promise<InviteResult> =>
     http('/api/users', jsonInit('POST', { email, role })),
   setUserRole: (email: string, role: UserRole): Promise<Member> =>
     http('/api/users', jsonInit('PATCH', { email, role })),
