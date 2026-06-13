@@ -1,7 +1,7 @@
 ---
 id: "guest-scope"
 tier: capability
-story: studio-hosting
+story: studio-cloud
 title: "Guests read everything, comment as themselves, and touch nothing else"
 outcome: "In guarded mode every API request carries a verified identity; guests read everything, comment under their stamped identity, edit only their own comments; admins keep asset writes; db control is refused for everyone."
 status: proposed

@@ -1,7 +1,7 @@
 ---
 id: "circle-onboarding"
 tier: capability
-story: studio-hosting
+story: studio-cloud
 title: "Adding a trusted dev is one grant; removing them is one revoke"
 outcome: "The circle is managed as an enumerable IAM allowlist with a runbook: invite, sign-in, first comment — and revoke — each a single documented step."
 status: proposed

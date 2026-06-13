@@ -1,7 +1,7 @@
 ---
-id: "studio-hosting"
+id: "studio-cloud"
 tier: story
-title: "Studio hosting — the trusted circle interacts with a served studio"
+title: "Studio cloud — the trusted circle interacts with a served studio"
 outcome: "A small circle of trusted devs opens a URL, signs in with their Google account, and interacts with the live studio — world, library, docs — leaving comments under their verified identity; nothing else about the system is exposed."
 status: proposed
 proof_mode: UAT
@@ -11,7 +11,7 @@ depends_on: [studio, library]
 decisions: [42] # deciding ADR (ADR-0037 §2)
 ---
 
-# Studio hosting — the trusted circle interacts with a served studio
+# Studio cloud — the trusted circle interacts with a served studio
 
 **Outcome —** A small circle of trusted devs opens a URL, signs in with their Google account, and
 interacts with the live studio — world, library, docs — leaving comments under their verified

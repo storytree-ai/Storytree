@@ -1,4 +1,4 @@
-# The hosted studio image (ADR-0042 d.1, studio-hosting `container-image`).
+# The hosted studio image (ADR-0042 d.1, studio-cloud `container-image`).
 #
 # Build context = the REPO ROOT (infra/studio-cloudbuild.yaml passes `-f` here):
 # the server needs the workspace packages (raw-TS, tsx-run — the house no-build

@@ -1,7 +1,7 @@
 ---
 id: "cloud-run-iap"
 tier: capability
-story: studio-hosting
+story: studio-cloud
 title: "Cloud Run behind IAP with a least-privilege runtime service account"
 outcome: "Terraform stands up the Cloud Run service gated by IAP; the runtime SA reaches Cloud SQL keylessly; the allowlist is the only door."
 status: proposed
@@ -15,7 +15,7 @@ depends_on: [container-image, guest-scope]
 Cloud SQL keylessly; the allowlist is the only door.
 
 > **Stand-up status (honest).** First deployed **imperatively** on 2026-06-14 via
-> `infra/studio-hosting.md` (the runbook records every command): the direct Cloud Run–IAP
+> `infra/studio-cloud.md` (the runbook records every command): the direct Cloud Run–IAP
 > integration (`gcloud run deploy --iap`) was available, so **no load balancer and no domain**
 > were needed — the ~US$20/mo LB contingency in ADR-0042 was not spent. Terraform codification
 > of exactly that state is what completes this capability; until then the runbook is the

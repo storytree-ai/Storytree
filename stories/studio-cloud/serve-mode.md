@@ -1,7 +1,7 @@
 ---
 id: "serve-mode"
 tier: capability
-story: studio-hosting
+story: studio-cloud
 title: "The studio serves without Vite — static dist plus the one shared API route table"
 outcome: "A standalone node server serves the built SPA and the same /api route table the dev plugin uses — no Vite at runtime, no endpoint defined twice."
 status: proposed

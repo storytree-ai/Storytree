@@ -1,7 +1,7 @@
 // Integration tests for the hosted studio server (serve.ts + guestPolicy +
 // identity) over a REAL node:http server with a STUB backend and a temp dist/
 // — no DB, no Vite, no IAP (the presenceApi.integration.test.ts pattern). The
-// contracts under test are studio-hosting `serve-mode` + `guest-scope`
+// contracts under test are studio-cloud `serve-mode` + `guest-scope`
 // (ADR-0042): static SPA serving with a traversal guard; fail-closed identity;
 // guests read + comment with the author STAMPED from the verified identity and
 // an own-comments-only wall; the admin allowlist gating asset writes; db

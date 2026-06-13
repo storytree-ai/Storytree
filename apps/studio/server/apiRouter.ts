@@ -1,4 +1,4 @@
-// The studio's ONE /api/* route table (ADR-0042 / studio-hosting `serve-mode`):
+// The studio's ONE /api/* route table (ADR-0042 / studio-cloud `serve-mode`):
 // every handler and the central dispatch+error mapping live here, consumed by
 // BOTH fronts — the Vite dev plugin (devApi.ts, the open localhost posture) and
 // the standalone hosted server (serve.ts, the guarded posture). No endpoint is
@@ -226,7 +226,7 @@ function readAnchor(raw: Record<string, unknown>): CommentAnchor {
 // ---------- guarded-mode policy seam (ADR-0042) ----------
 
 /**
- * Comment write scoping for hosted mode (studio-hosting `guest-scope`): the
+ * Comment write scoping for hosted mode (studio-cloud `guest-scope`): the
  * author is STAMPED from the verified identity (the client field is ignored —
  * authorship cannot be forged), and `ownOnly` callers may only PATCH/DELETE
  * comments they authored. `null` scope = the open dev posture (client-supplied

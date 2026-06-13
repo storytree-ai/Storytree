@@ -1,4 +1,4 @@
-// The hosted studio server (ADR-0042 d.1, studio-hosting `serve-mode`): a plain
+// The hosted studio server (ADR-0042 d.1, studio-cloud `serve-mode`): a plain
 // node:http server — the built SPA from dist/ plus the SAME /api/* route table
 // the dev plugin uses (apiRouter.ts), behind the guarded posture (guestPolicy):
 // every API request needs a verified identity (IAP header / local override),
