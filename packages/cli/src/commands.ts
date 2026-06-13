@@ -10,9 +10,11 @@ import {
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
+  resolveSignerFromEnv,
 } from "@storytree/core";
 import { renderStoredDoc } from "@storytree/store";
 
+import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import type { Envelope } from "./envelope.js";
 import {
   libraryHealth,
@@ -562,6 +564,7 @@ function topHelp(): Envelope {
       "  library          explore + curate the Library (the knowledge tier)",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
+      "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  agents <name>    (coming soon) an agent's system prompt",
@@ -660,6 +663,11 @@ export interface RunDeps {
    * offline — the tree's glyph column is then silently absent (never an error).
    */
   readonly verdicts?: VerdictReaderLike | null;
+  /**
+   * The attestation log (ADR-0044 `attestation-signals`): the live store when --pg;
+   * null/absent offline — `storytree attest` then refuses (writes/reads both need it).
+   */
+  readonly attestations?: AttestationStoreLike | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
 }
@@ -689,6 +697,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     store?: string;
     "working-on"?: string;
     node?: string[];
+    outcome?: string;
+    witness?: string;
+    signer?: string;
+    "relayed-by"?: string;
+    note?: string;
   };
   try {
     const parsed = parseArgs({
@@ -711,6 +724,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         store: { type: "string" },
         "working-on": { type: "string" },
         node: { type: "string", multiple: true },
+        outcome: { type: "string" },
+        witness: { type: "string" },
+        signer: { type: "string" },
+        "relayed-by": { type: "string" },
+        note: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -800,10 +818,36 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     });
   }
 
+  if (area === "attest") {
+    if (help || sub === undefined) return attestHelp();
+    // Identity (the scribing agent for relayedBy): injected by tests; else derived from the worktree.
+    const identity =
+      deps.presence !== undefined && deps.presence.identity !== undefined
+        ? deps.presence.identity
+        : deriveIdentity();
+    const isList = sub === "list";
+    return attestCommand(
+      { mode: isList ? "list" : "record", testId: isList ? third : sub },
+      {
+        ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+        ...(values.witness !== undefined ? { witness: values.witness } : {}),
+        ...(values.signer !== undefined ? { signer: values.signer } : {}),
+        ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
+        ...(values.note !== undefined ? { note: values.note } : {}),
+      },
+      {
+        store: deps.attestations ?? null,
+        identity,
+        resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+        now: () => new Date(),
+      },
+    );
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, noticeboard, tree, node, story (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, noticeboard, tree, attest, node, story (agents coming soon).`,
       next: ["storytree library"],
     };
   }

@@ -120,9 +120,28 @@ CREATE TABLE IF NOT EXISTS events.verdict (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Per-UAT-test attestations (ADR-0044): append-only SIGNED signals keyed by test id (`<story>#uat-<n>`).
+-- A vouch is NOT a proof — this is a DELIBERATELY SEPARATE log from events.verdict (the conflation
+-- ADR-0044 d.2 forbids): nothing here ever paints the gate-green hue, and there is NO story roll-up
+-- (d.3). The latest-per-(test_id,witness) projection is derived in JS (deriveAttestations), like the
+-- verdict glyphs, so there is no projection table to keep atomic. `relayed_by` records the agent that
+-- scribed a relayed human attestation ("owner vouched, agent scribed"; d.4). ("attestation" is NOT a
+-- reserved word — no quoting needed, unlike events."user".)
+CREATE TABLE IF NOT EXISTS events.attestation (
+  seq        BIGSERIAL PRIMARY KEY,
+  test_id    TEXT NOT NULL,
+  outcome    TEXT NOT NULL,           -- pass|fail
+  witness    TEXT NOT NULL,           -- human|machine
+  signer     TEXT NOT NULL,
+  relayed_by TEXT,                    -- the agent/session that scribed a relayed human attestation
+  doc        JSONB NOT NULL,          -- the full signed Attestation
+  at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Helpful indexes (ADR-0017).
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
 CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
 CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
+CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);

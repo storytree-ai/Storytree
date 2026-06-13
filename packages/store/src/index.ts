@@ -42,3 +42,5 @@ export type {
   UserPoolClient,
   UserEvent,
 } from "./user-store.js";
+export { PgAttestationStore } from "./attestation-store.js";
+export type { AttestationStoreClient } from "./attestation-store.js";

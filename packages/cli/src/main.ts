@@ -10,8 +10,10 @@ import {
   PgLibraryStore,
   PgPresenceStore,
   PgWorkStore,
+  PgAttestationStore,
 } from "@storytree/store";
 
+import type { AttestationStoreLike } from "./attest.js";
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
 import type { PresenceStoreLike } from "./noticeboard.js";
@@ -28,6 +30,7 @@ async function buildStore(usePg: boolean): Promise<{
   store: Store;
   presence: PresenceStoreLike | null;
   verdicts: VerdictReaderLike | null;
+  attestations: AttestationStoreLike | null;
   close: () => Promise<void>;
 }> {
   if (usePg) {
@@ -39,12 +42,15 @@ async function buildStore(usePg: boolean): Promise<{
       // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
       // through the same pool; offline the column is silently absent.
       verdicts: new PgWorkStore(pool),
+      // The attestation log (ADR-0044): `storytree attest` records/reads events.attestation
+      // through the same pool; offline `attest` refuses (writes/reads both need --pg).
+      attestations: new PgAttestationStore(pool),
       close: () => closePool(pool, connector),
     };
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, verdicts: null, close: async () => {} };
+  return { store, presence: null, verdicts: null, attestations: null, close: async () => {} };
 }
 
 async function main(): Promise<void> {
@@ -58,7 +64,7 @@ async function main(): Promise<void> {
   // 2026-06-11: one rotation point that survives sessions and worktrees).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, verdicts, close } = await buildStore(usePg);
+  const { store, presence, verdicts, attestations, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -67,6 +73,7 @@ async function main(): Promise<void> {
       writable: usePg,
       presence: { store: presence },
       verdicts,
+      attestations,
       ...(actor !== undefined ? { actor } : {}),
     });
     process.stdout.write(formatEnvelope(env));
