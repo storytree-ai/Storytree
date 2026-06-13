@@ -1,6 +1,6 @@
 // storytreeDataApi — the Vite dev-server front of the studio API (the OPEN
 // localhost posture). The whole route table — handlers, dispatch, central error
-// mapping — lives in apiRouter.ts (studio-hosting `serve-mode`: ONE route table
+// mapping — lives in apiRouter.ts (studio-cloud `serve-mode`: ONE route table
 // for this plugin and the hosted server); this file only wires the Vite
 // lifecycle into it: paths from config.root, the backend seam, the dev-only
 // code-stamp probe, and db control enabled (gcloud on the operator's own

@@ -119,7 +119,7 @@ file conflicts).
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving
   `apps/studio/server/serve.ts`: guests read + comment (author stamped from the IAP identity,
   own-comments-only edits), admins (`STORYTREE_STUDIO_ADMINS`) edit assets, db control off.
-  Deploy + circle grant/revoke: `infra/studio-hosting.md` (image:
+  Deploy + circle grant/revoke: `infra/studio-cloud.md` (image:
   `infra/studio-cloudbuild.yaml`; Terraform codification = the open `cloud-run-iap` capability).
   Local guarded trial: `pnpm --filter studio build` then `pnpm --filter studio serve` with
   `STORYTREE_STUDIO_DEV_IDENTITY=<email>`.

@@ -4,7 +4,7 @@ The trusted-circle studio: Cloud Run (`storytree-studio`, australia-southeast1) 
 **direct Cloud Run–IAP integration** (`--iap` — no load balancer, no domain, no LB cost),
 serving the guarded studio (`apps/studio/server/serve.ts`: guests read + comment, admins edit
 assets, db control off). First stand-up was **imperative via this runbook** (2026-06-14);
-Terraform codification completes the `cloud-run-iap` capability (stories/studio-hosting).
+Terraform codification completes the `cloud-run-iap` capability (stories/studio-cloud).
 
 Everything below runs as the owner (`gcloud auth login`, project `storytree-498613`).
 

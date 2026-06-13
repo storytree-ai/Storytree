@@ -1,4 +1,4 @@
-// Verified identity for the hosted studio (ADR-0042 d.2, studio-hosting
+// Verified identity for the hosted studio (ADR-0042 d.2, studio-cloud
 // `guest-scope`): IAP authenticates every request at the edge and injects the
 // signed-in user as `x-goog-authenticated-user-email` ("accounts.google.com:
 // user@example.com"). The deployment invariant — ingress is IAP-only — is what

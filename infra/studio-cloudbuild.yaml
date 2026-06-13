@@ -1,4 +1,4 @@
-# Cloud Build config for the hosted studio image (studio-hosting `container-image`).
+# Cloud Build config for the hosted studio image (studio-cloud `container-image`).
 # Run from the repo root (the upload obeys /.gcloudignore):
 #   gcloud builds submit --config infra/studio-cloudbuild.yaml `
 #     --substitutions=_TAG=$(git rev-parse --short HEAD) .

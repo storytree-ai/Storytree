@@ -1,4 +1,4 @@
-// The hosted studio's guest policy (ADR-0042 d.3, studio-hosting `guest-scope`):
+// The hosted studio's guest policy (ADR-0042 d.3, studio-cloud `guest-scope`):
 // read + comment for the trusted circle, asset writes for the admin allowlist,
 // db control for nobody (that switch is structural — ApiContext.allowDbControl).
 // Fail-closed: in guarded mode an /api/* request without a verified identity is

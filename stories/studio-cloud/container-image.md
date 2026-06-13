@@ -1,7 +1,7 @@
 ---
 id: "container-image"
 tier: capability
-story: studio-hosting
+story: studio-cloud
 title: "The studio builds into a runnable container image"
 outcome: "One image carries dist/, the server, and the docs/stories snapshot; it runs anywhere with only env + ambient credentials — no key file baked in."
 status: proposed
