@@ -18,6 +18,7 @@ export {
 } from "./knowledge-sources.js";
 export * from "./adr.js";
 export * from "./presence.js";
+export * from "./users.js";
 export * from "./proof.js";
 export { verdictLine } from "./verdict-line.js";
 export * from "./signer.js";
