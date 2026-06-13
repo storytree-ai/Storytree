@@ -30,6 +30,10 @@ scoping is the API layer's job.)
 
 ## 3. Build the image (every deploy)
 
+> **Most deploys are now automatic.** A studio-affecting merge to `main` redeploys via CD
+> (`infra/studio-cd.md`, ADR-0046). §3–§4 below are the **break-glass** path: the first stand-up,
+> deploying a non-`main` commit, or any deploy while CD is paused.
+
 From the repo root on the commit you want to serve (the image snapshots docs/ + stories/):
 
 ```powershell

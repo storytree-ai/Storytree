@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-13
 supersedes_in_part: [22]
 ---
 
@@ -7,7 +8,12 @@ supersedes_in_part: [22]
 
 ## Status
 
-**proposed** (2026-06-13) — a research-and-recommend write-up for owner review; **nothing is built**.
+**accepted** (2026-06-13) — the owner chose **Option 2 (GitHub Actions + WIF) with the recommended
+defaults** (conservative `paths:` filter + delegate the image build to Cloud Build) in conversation,
+resolving owner decisions 1–3 below. The implementation landed in the same unit — see *Done in this
+unit*. (Authored first as a proposal; flipped to accepted on the owner's call the same day. Decision 4
+— PR #95 sequencing — and the §Decision-C `/api/health` probe owner-check remain operational
+follow-ups; decision 5 applied only to Option 1 and is now moot.)
 It closes the merge→deploy gap that ADR-0042 left open and that bit us in practice: the
 "Circle"→"Members" rename (`studio-members`, PR #102) merged to `main` but the live Cloud Run
 service kept serving the OLD bundle until someone re-ran the manual runbook.
@@ -169,28 +175,33 @@ a staging environment or canary/approval-gated rollouts ever become a goal.
 | Reuses existing build yaml | ✅ (must guard deploy step) | ✅ unchanged | ✗ re-implements | ✗ |
 | Fit for one service / solo | good | **best** | good | overkill |
 
-## Recommendation (for owner review)
+## Decision (Option 2)
 
 Adopt **Option 2**: a dedicated `deploy-studio.yml` GitHub Actions workflow, keyless via the existing
 WIF pool, delegating the build to Cloud Build and reusing `infra/studio-cloudbuild.yaml` unchanged.
 It is the keyless, single-trust-surface, in-repo, minute-frugal fit for a one-service deploy and it
 leans directly on the WIF investment PR #95 already makes.
 
-Concrete shape:
+Shape (as proposed; the *Done in this unit* section records what was built and where the build
+refined this sketch):
 
 **A. Terraform — `infra/studio-cd.tf` (new), one-time `terraform apply` by the owner.** *References*
 the WIF pool from `ci-presence.tf`; does **not** recreate it.
 
 - `google_service_account.studio_deployer` — `storytree-studio-deployer`.
-- `roles/run.developer` (deploy revisions) — project- or service-scoped.
+- `roles/run.admin` (deploy revisions **and** the `setIamPolicy` that `--iap` re-asserts each deploy —
+  `run.developer` cannot do the latter; this is the one knowingly-wide grant, with tightening options
+  documented in `infra/studio-cd.md`).
 - `roles/iam.serviceAccountUser` **on `storytree-studio-host`** (actAs, so the revision keeps running
   as the runtime SA — the ADR-0042 keyless DB posture).
-- `roles/cloudbuild.builds.editor` + staging-bucket access (`gs://<project>_cloudbuild`) so
-  `gcloud builds submit` works; confirm the Cloud Build runtime SA (post-2024 default) has
-  `roles/artifactregistry.writer` to push to the `storytree` AR repo.
-- `google_service_account_iam_member` binding the deploy SA to the WIF pool's
-  `principalSet://…/attribute.repository/HuaMick/Storytree` with `roles/iam.workloadIdentityUser`
-  (mirrors `ci_presence_wif_user`).
+- `roles/cloudbuild.builds.editor` + `roles/logging.viewer` + `objectAdmin` on a **dedicated** source
+  bucket (`…-studio-cd-build`, not the shared `_cloudbuild` default) so `gcloud builds submit` works;
+  the Cloud Build execution SA already has `artifactregistry.writer` (the owner's manual builds push
+  today), so it is untouched. `roles/artifactregistry.reader` on the `storytree` repo for the deploy
+  to reference the image.
+- `google_service_account_iam_member` binding the deploy SA to the WIF pool's principalSet with
+  `roles/iam.workloadIdentityUser`, scoped to **`attribute.ref/refs/heads/main`** (tighter than
+  ci-presence's repo-wide binding — a deploy SA is privileged, so only `main`-branch runs may assume it).
 - **No DB grants** — the deployer never touches Cloud SQL; the runtime SA already has them.
 
 **B. Workflow — `.github/workflows/deploy-studio.yml` (new).**
@@ -225,24 +236,25 @@ briefly drop the IAP wall. Instead:
    *Owner check needed:* confirm `/api/health`'s status-code semantics (it should be 200 with
    `{db: ok|down}`, never a 5xx on a stopped DB) before pointing a probe at it.
 
-## Owner decisions needed
+## Owner decisions
 
-1. **Approve Option 2** over Option 1 — the trade is *single trust surface + in-repo config* (Option
-   2) vs *zero Actions minutes + native trigger filtering* (Option 1). Recommendation: Option 2.
-2. **Path-filter vs deploy-everything.** Recommendation: the **conservative `paths:` filter** above
-   (errs toward over-deploying). The risk it carries: if the studio's import graph grows a new
-   `packages/**` dependency, the filter still catches it (`packages/**` is wholesale), but any
-   *new* served input outside those globs would silently not trigger — i.e. the very staleness bug
-   we're fixing, reintroduced narrowly. Deploy-everything removes that risk entirely at the cost of a
-   build on every `main` push (Cloud Build free-tier pressure only at high cadence). A judgment call.
-3. **Build delegation:** Cloud Build (`builds submit` — fewer Actions minutes, build SA + deploy SA)
-   vs build-in-Actions 2b (one SA, more Actions minutes). Recommendation: delegate to Cloud Build.
-4. **Sequencing with PR #95.** CD's WIF binding *references* the `github-actions` pool from
-   `ci-presence.tf`. Recommendation: land + `terraform apply` PR #95's WIF first, then CD references
-   it; or consciously promote the pool's ownership into the CD unit. Either way, **one** owner
-   `terraform apply` covers both once decided.
-5. **Cloud Build trigger SA caveat (only if Option 1 is chosen):** confirm which SA Cloud Build runs
-   as post-2024 default and that it can push to Artifact Registry — an easy footgun.
+1. ✅ **RESOLVED — Option 2** over Option 1 (owner, 2026-06-13). The trade was *single trust surface +
+   in-repo config* (Option 2) vs *zero Actions minutes + native trigger filtering* (Option 1).
+2. ✅ **RESOLVED — the conservative `paths:` filter** (owner, 2026-06-13; "recommended defaults"). It
+   errs toward over-deploying. The residual risk: if the studio's import graph grows a new
+   `packages/**` dependency, the filter still catches it (`packages/**` is wholesale), but any *new*
+   served input outside those globs would silently not trigger — the staleness bug reintroduced
+   narrowly. Deploy-everything would remove that risk at the cost of a build per `main` push.
+3. ✅ **RESOLVED — delegate the build to Cloud Build** (owner, 2026-06-13; "recommended defaults"):
+   fewer Actions minutes; the build SA + deploy SA split is accepted.
+4. ⏳ **PENDING (operational) — sequencing with PR #95.** CD's WIF binding *references* the
+   `github-actions` pool from `ci-presence.tf`. Land + `terraform apply` PR #95's WIF first, then this
+   unit references it; or apply both from one `infra/` checkout in a single run. **One** owner
+   `terraform apply` covers both. (Detail: `infra/studio-cd.md`.)
+5. ⛔ **MOOT** — was the Cloud Build trigger SA caveat, which applied only if Option 1 were chosen.
+
+Plus the §Decision-C **owner-check**: confirm `/api/health` returns 200 (not a 5xx) when the DB is
+idle-stopped before pointing the optional startup probe at it.
 
 ## Consequences
 
@@ -258,6 +270,25 @@ briefly drop the IAP wall. Instead:
 - **Not decided here:** verifying the IAP JWT signature, multi-environment/staging, canary or
   approval-gated rollouts (Cloud Deploy territory), and a DB→seed export — all out of scope.
 
+## Done in this unit
+
+- `.github/workflows/deploy-studio.yml` — `push: main` + the conservative `paths:` filter, keyless
+  WIF auth (`storytree-studio-deployer`), `gcloud builds submit` (delegated build, dedicated staging
+  dir), `gcloud run deploy` with the full ADR-0042 flag set, and the Ready-revision smoke check
+  (`latestReadyRevisionName == latestCreatedRevisionName`; no `--no-iap` spoof).
+- `infra/studio-cd.tf` — the deploy SA and its least-privilege IAM, the dedicated source-staging
+  bucket (7-day TTL), and the WIF binding (ref-scoped to `main`). References the `ci-presence.tf` WIF
+  pool by literal path so the two units stay decoupled. Three outputs paste-check the workflow.
+- `infra/studio-cd.md` — the owner runbook: the one-time `terraform apply`, the PR #95 sequencing
+  dependency, the output↔workflow paste-check, the IAM-surface review (incl. the `run.admin` rationale
+  and two tightening options), and the rollback one-liner.
+- **Refinements over the proposal sketch, made during the build:** `run.admin` (not `run.developer`)
+  because `--iap` performs a `setIamPolicy`; a dedicated `…-studio-cd-build` staging bucket (not the
+  shared `_cloudbuild` default) to scope `objectAdmin`; the WIF binding scoped to
+  `attribute.ref/refs/heads/main` (not repo-wide).
+- **Held DRAFT** until the owner runs the apply (decision 4) — a deploy that cannot authenticate fails
+  *loudly* (not fail-soft like the presence retire), so the PR waits rather than red-running `main`.
+
 ## References
 
 - [ADR-0022](0022-ci-green-gate-and-auto-merge.md) (green gate + auto-merge — scope clause narrowed
@@ -269,5 +300,3 @@ briefly drop the IAP wall. Instead:
   the existing WIF pool/provider this CD reuses, and the fail-soft WIF-in-`automerge` precedent.
 - `infra/studio-cloudbuild.yaml`, `apps/studio/Dockerfile` (the build this delegates to).
 - Owner conversation, 2026-06-13 (the `studio-members` PR #102 stale-bundle incident).
-</content>
-</invoke>

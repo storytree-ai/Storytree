@@ -1,0 +1,112 @@
+name: deploy-studio
+
+# Continuous deployment of the hosted studio to Cloud Run (ADR-0046).
+#
+# Fires AFTER a studio-affecting merge lands on `main` (ci.yml's `automerge` job created the
+# merge commit). Keyless via Workload Identity Federation (ADR-0021): GitHub Actions OIDC ->
+# the `github-actions` WIF pool (infra/ci-presence.tf) -> the storytree-studio-deployer SA
+# (infra/studio-cd.tf). No JSON key anywhere.
+#
+# Build is DELEGATED to Cloud Build (reuses infra/studio-cloudbuild.yaml unchanged), so this
+# Actions job only orchestrates (~1-2 min) and stays well inside the free private-repo minute
+# pool (ADR-0022). The deploy passes the FULL ADR-0042 flag set verbatim so the IAP + runtime-SA
+# + env-var posture is re-asserted every time and never drifts.
+#
+# HELD DRAFT until the owner runs `terraform apply` (infra/studio-cd.md) + PR #95's WIF pool is
+# applied — until then the auth step below fails loudly (a deploy that can't happen should be
+# visible, NOT silently skipped). This is on push:main only, not a PR check, so a failure never
+# blocks a merge.
+
+on:
+  push:
+    branches: [main]
+    # Deploy only when the served artifact could have changed. The image is `COPY . .` +
+    # `pnpm --filter studio build` and serves the docs/ + stories/ SNAPSHOT, so the studio-
+    # affecting surface is the app, the workspace packages it imports, the docs/stories it
+    # serves, the dependency closure, and the build/deploy machinery itself. Errs toward
+    # over-deploying (packages/** is wholesale) so a new import can't silently go stale.
+    paths:
+      - "apps/studio/**"
+      - "packages/**"
+      - "docs/**"
+      - "stories/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "apps/studio/Dockerfile"
+      - "infra/studio-cloudbuild.yaml"
+      - ".github/workflows/deploy-studio.yml"
+
+# Serialize deploys: a newer merge waits for the in-flight rollout rather than racing or
+# aborting it (cancel-in-progress:false — never leave a half-finished rollout).
+concurrency:
+  group: deploy-studio
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # mint the WIF OIDC token for keyless GCP auth
+    env:
+      PROJECT_ID: storytree-498613
+      REGION: australia-southeast1
+      SERVICE: storytree-studio
+      IMAGE_REPO: australia-southeast1-docker.pkg.dev/storytree-498613/storytree/studio
+      RUNTIME_SA: storytree-studio-host@storytree-498613.iam.gserviceaccount.com
+      STAGING_DIR: gs://storytree-498613-studio-cd-build/source
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (keyless WIF — ADR-0021)
+        uses: google-github-actions/auth@v2
+        with:
+          # Must match infra/studio-cd.tf outputs (project NUMBER 635716509357, not id).
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-studio-deployer@storytree-498613.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve image tag (short SHA — matches the manual runbook)
+        id: tag
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the image (Cloud Build — reuses infra/studio-cloudbuild.yaml)
+        run: |
+          gcloud builds submit \
+            --config infra/studio-cloudbuild.yaml \
+            --substitutions=_TAG=${{ steps.tag.outputs.tag }} \
+            --gcs-source-staging-dir="${STAGING_DIR}" \
+            --project "${PROJECT_ID}" \
+            .
+
+      - name: Deploy to Cloud Run (full ADR-0042 posture — IAP, runtime SA, env vars)
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE_REPO}:${{ steps.tag.outputs.tag }}" \
+            --region "${REGION}" --project "${PROJECT_ID}" \
+            --service-account "${RUNTIME_SA}" \
+            --set-env-vars "STORYTREE_STUDIO_STORE=pg,STORYTREE_DB_USER=storytree-studio-host@storytree-498613.iam,STORYTREE_STUDIO_ADMINS=hua.mick@gmail.com" \
+            --memory 1Gi --max-instances 2 \
+            --no-allow-unauthenticated --iap
+
+      # Safe smoke check — the site is IAP-locked, so we do NOT curl it (no --no-iap spoof; that
+      # would drop the wall). `gcloud run deploy` already blocks until the revision is Ready and
+      # fails this job if the container crashes on boot. Here we additionally confirm the newest
+      # CREATED revision is the newest READY one (no broken revision sitting unready) — i.e. the
+      # rollout actually took. Cloud Run routes 100% to the new revision by default.
+      - name: Smoke check — newest revision is Ready and serving
+        run: |
+          set -euo pipefail
+          ready=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.latestReadyRevisionName)')
+          created=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.latestCreatedRevisionName)')
+          url=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --project "${PROJECT_ID}" --format='value(status.url)')
+          echo "latest ready=${ready}  latest created=${created}  url=${url}"
+          if [ "${ready}" != "${created}" ]; then
+            echo "::error::newest revision (${created}) is not Ready (${ready}) — rollout did not take"
+            exit 1
+          fi
+          echo "Deployed ${created} — serving. (Behind IAP; the /api/health code stamp confirms the bundle to a signed-in viewer.)"
