@@ -4,7 +4,12 @@
 import type { ServerResponse } from 'node:http';
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    /** Extra fields merged into the JSON error body (e.g. `{ requestAccess: true }`). */
+    public details?: Record<string, unknown>,
+  ) {
     super(message);
   }
 }

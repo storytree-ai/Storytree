@@ -1,11 +1,15 @@
-// Integration tests for the hosted studio server (serve.ts + guestPolicy +
-// identity) over a REAL node:http server with a STUB backend and a temp dist/
-// — no DB, no Vite, no IAP (the presenceApi.integration.test.ts pattern). The
-// contracts under test are studio-cloud `serve-mode` + `guest-scope`
-// (ADR-0042): static SPA serving with a traversal guard; fail-closed identity;
-// guests read + comment with the author STAMPED from the verified identity and
-// an own-comments-only wall; the admin allowlist gating asset writes; db
-// control structurally off.
+// Integration tests for the hosted studio server (serve.ts + guestPolicy + identity) over a
+// REAL node:http server with a STUB backend and a temp dist/ — no DB, no Vite, no IAP (the
+// presenceApi.integration.test.ts pattern). The contracts under test are trusted-circle-users
+// `app-authorization` (ADR-0043, superseding ADR-0042's allowlist): IAP authenticates and the APP
+// authorizes from its own users projection —
+//   - identity is fail-closed (no email → 401, every route);
+//   - a non-member is served NOTHING but GET /api/me (403 + requestAccess on the whole corpus);
+//   - a member reads + comments as self; an admin additionally writes assets + reaches user mgmt;
+//   - an invited row activates on first request;
+//   - the bootstrap-admin seed (STORYTREE_STUDIO_ADMINS) is an effective active admin;
+//   - a store outage during membership resolution degrades to health/me-only (503 elsewhere);
+//   - db control stays structurally off.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
@@ -13,16 +17,29 @@ import type { Server } from 'node:http';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { UserDoc } from '@storytree/core';
 import { createStudioServer } from './serve';
-import { parseAdmins } from './guestPolicy';
+import { parseSeedAdmins } from './guestPolicy';
 import { emailFromIapHeader, IAP_EMAIL_HEADER } from './identity';
 import type { LibraryBackend } from './libraryBackend';
 import type { Comment } from '../src/types';
 
-const GUEST = 'guest@example.com';
-const ADMIN = 'owner@example.com';
+const ADMIN = 'owner@example.com'; // bootstrap seed admin (no row needed)
+const MEMBER = 'member@example.com'; // an active member row
+const INVITED = 'invited@example.com'; // an invited row — activates on first request
+const STRANGER = 'stranger@example.com'; // no row, not seeded → non-member
+
 const iap = (email: string): Record<string, string> => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
+});
+
+const userRow = (over: Partial<UserDoc> & { email: string }): UserDoc => ({
+  role: 'member',
+  status: 'active',
+  invitedBy: ADMIN,
+  createdAt: '2026-06-14T00:00:00.000Z',
+  lastSeenAt: '2026-06-14T00:00:00.000Z',
+  ...over,
 });
 
 /** A comment owned by `author` (anchor fields irrelevant to the policy under test). */
@@ -50,7 +67,15 @@ function comment(id: string, author: string): Comment {
 }
 
 /** What each backend method last received — the stub records instead of persisting. */
-const seen: { createdComment?: Comment; updatedCommentId?: string; assetCreated?: boolean } = {};
+const seen: { createdComment?: Comment; updatedCommentId?: string; assetCreated?: boolean; upserts: UserDoc[] } = {
+  upserts: [],
+};
+
+/** A mutable in-memory users projection so activation actually mutates (the realistic shape). */
+const usersDb: UserDoc[] = [
+  userRow({ email: MEMBER, role: 'member', status: 'active' }),
+  userRow({ email: INVITED, role: 'member', status: 'invited' }),
+];
 
 const stubBackend: LibraryBackend = {
   listAssets: async () => [],
@@ -63,16 +88,31 @@ const stubBackend: LibraryBackend = {
   health: async () => ({ db: 'n/a' as const }),
   latestVerdicts: async () => null,
   activeSessions: async () => null,
-  listComments: async () => [comment('mine', GUEST), comment('theirs', 'someone-else@example.com')],
+  listComments: async () => [comment('mine', MEMBER), comment('theirs', 'someone-else@example.com')],
   createComment: async (c) => {
     seen.createdComment = c;
     return c;
   },
   updateComment: async (id) => {
     seen.updatedCommentId = id;
-    return comment(id, GUEST);
+    return comment(id, MEMBER);
   },
   deleteComment: async () => true,
+  listUsers: async () => usersDb.map((u) => ({ ...u })),
+  getUser: async (email) => usersDb.find((u) => u.email === email.toLowerCase()) ?? null,
+  upsertUser: async (doc) => {
+    seen.upserts.push(doc);
+    const idx = usersDb.findIndex((u) => u.email === doc.email);
+    if (idx === -1) usersDb.push(doc);
+    else usersDb[idx] = { ...usersDb[idx], ...doc } as UserDoc;
+    return doc;
+  },
+  removeUser: async (email) => {
+    const idx = usersDb.findIndex((u) => u.email === email.toLowerCase());
+    if (idx === -1) return false;
+    usersDb.splice(idx, 1);
+    return true;
+  },
   close: async () => {},
 };
 
@@ -96,9 +136,10 @@ beforeAll(async () => {
       dataDir: distDir,
       commentsFile: path.join(distDir, 'comments.json'),
       assetsFile: path.join(distDir, 'assets.json'),
+      usersFile: path.join(distDir, 'users.json'),
     },
     backend: stubBackend,
-    admins: parseAdmins(` ${ADMIN.toUpperCase()}, `), // exercises trim + case-folding
+    admins: parseSeedAdmins(` ${ADMIN.toUpperCase()}, `), // exercises trim + case-folding of the seed
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -118,7 +159,7 @@ describe('identity parsing', () => {
 });
 
 describe('static SPA serving', () => {
-  it('serves index.html at / and real assets by path', async () => {
+  it('serves index.html at / and real assets by path (no identity needed)', async () => {
     const root = await fetch(`${base}/`);
     expect(root.status).toBe(200);
     expect(await root.text()).toContain('studio spa');
@@ -127,17 +168,13 @@ describe('static SPA serving', () => {
     expect(asset.headers.get('content-type')).toContain('text/javascript');
   });
 
-  it('falls back to index.html for unknown paths (hash routing) — no identity needed', async () => {
+  it('falls back to index.html for unknown paths (hash routing)', async () => {
     const res = await fetch(`${base}/some/deep/link`);
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('studio spa');
   });
 
   it('refuses encoded-slash traversal with a hard 404', async () => {
-    // Plain ".." and whole-segment "%2e%2e" never reach the resolver — WHATWG URL
-    // parsing clamps dot segments at the root. The vector the guard exists for is
-    // ENCODED SLASHES: "%2f" survives URL parsing as one opaque segment and only
-    // becomes "/" at our decodeURIComponent — re-introducing "..", which must 404.
     const secret = path.join(distDir, '..', 'studio-serve-secret.txt');
     await fs.writeFile(secret, 'not yours');
     try {
@@ -149,75 +186,93 @@ describe('static SPA serving', () => {
   });
 });
 
-describe('fail-closed identity (guarded mode)', () => {
-  it('refuses identity-less /api/* with 401 — every route, health included', async () => {
-    for (const p of ['/api/assets', '/api/health', '/api/tree', '/api/db/status']) {
+describe('identity is fail-closed (ADR-0043 — IAP authenticates)', () => {
+  it('refuses identity-less /api/* with 401 — every route, health and me included', async () => {
+    for (const p of ['/api/assets', '/api/health', '/api/tree', '/api/me', '/api/db/status']) {
       const res = await fetch(`${base}${p}`);
       expect(res.status, p).toBe(401);
     }
   });
+});
 
-  it('an identified guest reads', async () => {
-    const assets = await fetch(`${base}/api/assets`, { headers: iap(GUEST) });
-    expect(assets.status).toBe(200);
-    const health = await fetch(`${base}/api/health`, { headers: iap(GUEST) });
-    expect(health.status).toBe(200);
+describe('membership gates the corpus (non-member served nothing)', () => {
+  it('a stranger gets 403 + requestAccess on the whole corpus; only /api/me answers', async () => {
+    for (const p of ['/api/tree', '/api/assets', '/api/comments', '/api/docs', '/api/docs/content?id=x']) {
+      const res = await fetch(`${base}${p}`, { headers: iap(STRANGER) });
+      expect(res.status, p).toBe(403);
+      const body = (await res.json()) as { requestAccess?: boolean };
+      expect(body.requestAccess, p).toBe(true);
+    }
+    const me = await fetch(`${base}/api/me`, { headers: iap(STRANGER) });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({ email: STRANGER, member: false, role: null });
   });
 });
 
-describe('guest scope (ADR-0042 d.3)', () => {
-  it('guest asset writes → 403; admin asset writes pass through', async () => {
-    const payload = JSON.stringify({
-      id: 'new-asset',
-      category: 'pattern',
-      title: 't',
-      description: 'd',
-      body: 'b',
-      references: [],
+describe('roles: member vs admin reach', () => {
+  it('a member reads, comments as self, but cannot write assets or reach user mgmt', async () => {
+    expect((await fetch(`${base}/api/assets`, { headers: iap(MEMBER) })).status).toBe(200);
+    expect((await fetch(`${base}/api/me`, { headers: iap(MEMBER) })).status).toBe(200);
+    expect(await (await fetch(`${base}/api/me`, { headers: iap(MEMBER) })).json()).toMatchObject({
+      email: MEMBER,
+      role: 'member',
+      member: true,
     });
-    const guest = await fetch(`${base}/api/assets`, {
+
+    const write = await fetch(`${base}/api/assets`, {
       method: 'POST',
-      headers: iap(GUEST),
-      body: payload,
+      headers: iap(MEMBER),
+      body: JSON.stringify({ id: 'x', category: 'pattern', title: 't', description: 'd', body: 'b', references: [] }),
     });
-    expect(guest.status).toBe(403);
+    expect(write.status).toBe(403);
     expect(seen.assetCreated).toBeUndefined();
 
-    const admin = await fetch(`${base}/api/assets`, {
+    // user management is admin-only — a member is refused before any handler (404) runs
+    expect((await fetch(`${base}/api/users`, { headers: iap(MEMBER) })).status).toBe(403);
+  });
+
+  it('the bootstrap-seed admin writes assets (becomes an effective active admin)', async () => {
+    const res = await fetch(`${base}/api/assets`, {
       method: 'POST',
       headers: iap(ADMIN),
-      body: payload,
+      body: JSON.stringify({ id: 'y', category: 'pattern', title: 't', description: 'd', body: 'b', references: [] }),
     });
-    expect(admin.status).toBe(201);
+    expect(res.status).toBe(201);
     expect(seen.assetCreated).toBe(true);
+    // resolution persisted the seed admin as an active admin row
+    expect(seen.upserts.some((u) => u.email === ADMIN && u.role === 'admin' && u.status === 'active')).toBe(true);
+    expect(await (await fetch(`${base}/api/me`, { headers: iap(ADMIN) })).json()).toMatchObject({
+      email: ADMIN,
+      role: 'admin',
+      member: true,
+    });
   });
+});
 
-  it('db control is off for guest AND admin (structurally, not by allowlist)', async () => {
-    for (const who of [GUEST, ADMIN]) {
-      const res = await fetch(`${base}/api/db/status`, { headers: iap(who) });
-      expect(res.status, who).toBe(403);
-    }
+describe('activation (invited → active on first request)', () => {
+  it('an invited member is reported active and persisted active on first sign-in', async () => {
+    const me = await fetch(`${base}/api/me`, { headers: iap(INVITED) });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({ email: INVITED, role: 'member', status: 'active', member: true });
+    expect(seen.upserts.some((u) => u.email === INVITED && u.status === 'active')).toBe(true);
   });
+});
 
+describe('comment scope (preserved from ADR-0042 d.3)', () => {
   it('comment authorship is stamped from the verified identity — the client field is ignored', async () => {
     const res = await fetch(`${base}/api/comments`, {
       method: 'POST',
-      headers: iap(GUEST),
-      body: JSON.stringify({
-        topicKind: 'asset',
-        topicId: 'some-asset',
-        body: 'hello from the circle',
-        author: 'forged-operator', // must not survive
-      }),
+      headers: iap(MEMBER),
+      body: JSON.stringify({ topicKind: 'asset', topicId: 'some-asset', body: 'hi', author: 'forged' }),
     });
     expect(res.status).toBe(201);
-    expect(seen.createdComment?.author).toBe(GUEST);
+    expect(seen.createdComment?.author).toBe(MEMBER);
   });
 
-  it("a guest edits their own comment but not another author's", async () => {
+  it("a member edits their own comment but not another author's; an admin may touch any", async () => {
     const own = await fetch(`${base}/api/comments?id=mine`, {
       method: 'PATCH',
-      headers: iap(GUEST),
+      headers: iap(MEMBER),
       body: JSON.stringify({ resolved: true }),
     });
     expect(own.status).toBe(200);
@@ -225,24 +280,61 @@ describe('guest scope (ADR-0042 d.3)', () => {
 
     const theirs = await fetch(`${base}/api/comments?id=theirs`, {
       method: 'PATCH',
-      headers: iap(GUEST),
+      headers: iap(MEMBER),
       body: JSON.stringify({ resolved: true }),
     });
     expect(theirs.status).toBe(403);
 
-    const deleted = await fetch(`${base}/api/comments?id=theirs`, {
-      method: 'DELETE',
-      headers: iap(GUEST),
-    });
-    expect(deleted.status).toBe(403);
-  });
-
-  it('an admin may touch any comment (still identity-stamped on create)', async () => {
-    const res = await fetch(`${base}/api/comments?id=theirs`, {
+    const adminAny = await fetch(`${base}/api/comments?id=theirs`, {
       method: 'PATCH',
       headers: iap(ADMIN),
       body: JSON.stringify({ resolved: true }),
     });
-    expect(res.status).toBe(200);
+    expect(adminAny.status).toBe(200);
+  });
+});
+
+describe('db control is off (structurally, not by role)', () => {
+  it('db control is 403 for member AND admin', async () => {
+    for (const who of [MEMBER, ADMIN]) {
+      const res = await fetch(`${base}/api/db/status`, { headers: iap(who) });
+      expect(res.status, who).toBe(403);
+    }
+  });
+});
+
+describe('store outage degrades to health/me only', () => {
+  it('a backend that cannot list users keeps /api/health + /api/me alive and 503s the corpus', async () => {
+    const downBackend: LibraryBackend = {
+      ...stubBackend,
+      listUsers: async () => {
+        throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      },
+    };
+    const down = createStudioServer({
+      distDir,
+      paths: {
+        repoRoot: distDir,
+        docsDir: path.join(distDir, 'docs'),
+        storiesDir: path.join(distDir, 'stories'),
+        dataDir: distDir,
+        commentsFile: path.join(distDir, 'comments.json'),
+        assetsFile: path.join(distDir, 'assets.json'),
+        usersFile: path.join(distDir, 'users.json'),
+      },
+      backend: downBackend,
+      admins: parseSeedAdmins(ADMIN),
+    });
+    await new Promise<void>((resolve) => down.listen(0, '127.0.0.1', resolve));
+    const dbase = `http://127.0.0.1:${(down.address() as AddressInfo).port}`;
+    try {
+      expect((await fetch(`${dbase}/api/health`, { headers: iap(MEMBER) })).status).toBe(200);
+      const me = await fetch(`${dbase}/api/me`, { headers: iap(MEMBER) });
+      expect(me.status).toBe(200);
+      expect(await me.json()).toMatchObject({ storeUnreachable: true });
+      expect((await fetch(`${dbase}/api/tree`, { headers: iap(MEMBER) })).status).toBe(503);
+    } finally {
+      await new Promise<void>((resolve, reject) => down.close((e) => (e ? reject(e) : resolve())));
+    }
   });
 });
