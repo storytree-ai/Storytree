@@ -35,3 +35,10 @@ export type {
   CommentPatch,
   CommentFilter,
 } from "./pg-comment-store.js";
+export { PgUserStore, LastAdminError } from "./user-store.js";
+export type {
+  UserClient,
+  UserPool,
+  UserPoolClient,
+  UserEvent,
+} from "./user-store.js";

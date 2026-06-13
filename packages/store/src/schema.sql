@@ -62,6 +62,26 @@ CREATE TABLE IF NOT EXISTS events.session (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Trusted-circle users (ADR-0043): app-owned identity. IAP authenticates; the app authorizes from
+-- here. History append-only; current = a one-row-per-email projection keyed by the lowercased,
+-- verified email. The doc is zod-validated in @storytree/core at the write boundary; the last-admin
+-- guard (no lockout) is enforced in PgUserStore's transaction. ("user" is a reserved word — quoted.)
+CREATE TABLE IF NOT EXISTS events.user_event (
+  seq   BIGSERIAL PRIMARY KEY,
+  id    TEXT NOT NULL,
+  type  TEXT NOT NULL,            -- created|updated|removed
+  doc   JSONB,
+  actor TEXT NOT NULL,
+  at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS events."user" (
+  id         TEXT PRIMARY KEY,    -- the lowercased, verified email
+  doc        JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Schema-migration ledger (design §3 "DB ledger row", Phase 3): the human-facing "which migration
 -- ran + when + by whom" audit, complementing the per-row `schemaVersion` stamp inside the docs.
 -- Append-only / additive: never alters the tables above.
@@ -105,3 +125,4 @@ CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact 
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
 CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
 CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
+CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
