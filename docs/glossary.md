@@ -212,7 +212,7 @@ on this.
 it violates (reverting it to `building`), rather than spawning a new unit.
 
 **fail-closed-on-dirty-tree** — A command that writes attestable evidence refuses
-to run on a dirty working tree (writes nothing, distinct exit code).
+to run on a dirty working tree (writes nothing, non-zero exit code).
 
 **standalone-resilient-library** — Structure a unit as a library with minimal
 load-bearing deps, exercised end-to-end by integration tests, with a thin
