@@ -96,6 +96,17 @@ resource "google_project_iam_member" "studio_deployer_logging_viewer" {
   member  = "serviceAccount:${google_service_account.studio_deployer.email}"
 }
 
+# "Use" the project's services / consume its quota. REQUIRED for a service account to run
+# `gcloud builds submit`: without `serviceusage.services.use` the staging-bucket access is rejected
+# with "The user is forbidden from accessing the bucket … if the user has the
+# serviceusage.services.use permission" (observed on the first live deploy run, 2026-06-13). This is
+# the documented prerequisite for SA-driven Cloud Build submits.
+resource "google_project_iam_member" "studio_deployer_serviceusage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.studio_deployer.email}"
+}
+
 # Reference the built image at deploy time. `gcloud run deploy --image <AR ref>` validates the
 # image exists; the deploy principal needs read on the storytree AR repo (created imperatively,
 # studio-cloud.md §1 — referenced here by location + name, not managed).
@@ -109,7 +120,7 @@ resource "google_artifact_registry_repository_iam_member" "studio_deployer_ar_re
 
 # ── A dedicated source-staging bucket for `gcloud builds submit` ──────────────────────────────
 # Avoids depending on / over-granting the default `<project>_cloudbuild` bucket: the deploy SA
-# gets objectAdmin on THIS bucket only, and the workflow passes --gcs-source-staging-dir to it.
+# gets full control of THIS bucket only, and the workflow passes --gcs-source-staging-dir to it.
 # Short TTL so source tarballs don't accumulate (the build only needs the latest upload).
 resource "google_storage_bucket" "studio_cd_build_staging" {
   name                        = "${var.project_id}-studio-cd-build"
@@ -127,9 +138,12 @@ resource "google_storage_bucket" "studio_cd_build_staging" {
   }
 }
 
-resource "google_storage_bucket_iam_member" "studio_deployer_staging_objectadmin" {
+# storage.admin (not just objectAdmin) on this bucket ONLY: `gcloud builds submit` also does a
+# `storage.buckets.get` existence check, which objectAdmin lacks. Bucket-scoped, so the blast radius
+# is just this throwaway staging bucket.
+resource "google_storage_bucket_iam_member" "studio_deployer_staging_admin" {
   bucket = google_storage_bucket.studio_cd_build_staging.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.studio_deployer.email}"
 }
 

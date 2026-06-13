@@ -86,8 +86,9 @@ The deploy SA `storytree-studio-deployer` gets:
 | `roles/iam.serviceAccountUser` | on `storytree-studio-host` | actAs at deploy → the revision runs as the keyless runtime SA |
 | `roles/run.admin` | **project** | deploy revisions **and** the `setIamPolicy` that `--iap` performs (binds the IAP service agent as sole invoker) |
 | `roles/cloudbuild.builds.editor` | project | submit + watch the image build |
+| `roles/serviceusage.serviceUsageConsumer` | project | **required for SA-driven `gcloud builds submit`** — `serviceusage.services.use` (without it the staging-bucket access is refused; hit on the first live run) |
 | `roles/logging.viewer` | project | stream `CLOUD_LOGGING_ONLY` build logs for a clean success/fail signal |
-| `roles/storage.objectAdmin` | the `…-studio-cd-build` bucket only | upload build source |
+| `roles/storage.admin` | the `…-studio-cd-build` bucket only | upload build source + the `buckets.get` existence check `submit` does |
 | `roles/artifactregistry.reader` | the `storytree` repo | reference the image at deploy |
 
 **The one knowingly-wide grant is project `roles/run.admin`** (vs the narrower `run.developer`). It
