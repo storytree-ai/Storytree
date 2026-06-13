@@ -18,6 +18,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/core';
+import { mergeUser, wouldOrphanAdminsOnRemove, wouldOrphanAdminsOnRole } from '@storytree/core';
 import { createStudioServer } from './serve';
 import { parseSeedAdmins } from './guestPolicy';
 import { emailFromIapHeader, IAP_EMAIL_HEADER } from './identity';
@@ -100,16 +101,34 @@ const stubBackend: LibraryBackend = {
   deleteComment: async () => true,
   listUsers: async () => usersDb.map((u) => ({ ...u })),
   getUser: async (email) => usersDb.find((u) => u.email === email.toLowerCase()) ?? null,
+  // Guard-aware, like the real backends — so the API-level last-admin contract is meaningful.
   upsertUser: async (doc) => {
     seen.upserts.push(doc);
     const idx = usersDb.findIndex((u) => u.email === doc.email);
-    if (idx === -1) usersDb.push(doc);
-    else usersDb[idx] = { ...usersDb[idx], ...doc } as UserDoc;
+    if (idx !== -1) {
+      const existing = usersDb[idx] as UserDoc;
+      const merged = mergeUser(existing, {
+        role: doc.role,
+        status: doc.status,
+        invitedBy: doc.invitedBy,
+        lastSeenAt: doc.lastSeenAt,
+      });
+      if (wouldOrphanAdminsOnRole(usersDb, doc.email, merged.role)) {
+        throw Object.assign(new Error('last admin'), { name: 'LastAdminError' });
+      }
+      usersDb[idx] = merged;
+      return merged;
+    }
+    usersDb.push(doc);
     return doc;
   },
   removeUser: async (email) => {
-    const idx = usersDb.findIndex((u) => u.email === email.toLowerCase());
+    const target = email.toLowerCase();
+    const idx = usersDb.findIndex((u) => u.email === target);
     if (idx === -1) return false;
+    if (wouldOrphanAdminsOnRemove(usersDb, target)) {
+      throw Object.assign(new Error('last admin'), { name: 'LastAdminError' });
+    }
     usersDb.splice(idx, 1);
     return true;
   },
@@ -300,6 +319,91 @@ describe('db control is off (structurally, not by role)', () => {
       const res = await fetch(`${base}/api/db/status`, { headers: iap(who) });
       expect(res.status, who).toBe(403);
     }
+  });
+});
+
+describe('invite-ui: admin-only user management (ADR-0043)', () => {
+  const NEWBIE = 'newbie@example.com';
+
+  it('refuses every /api/users verb for a member (403, no mutation)', async () => {
+    const get = await fetch(`${base}/api/users`, { headers: iap(MEMBER) });
+    expect(get.status).toBe(403);
+    const post = await fetch(`${base}/api/users`, {
+      method: 'POST',
+      headers: iap(MEMBER),
+      body: JSON.stringify({ email: 'x@y.com', role: 'member' }),
+    });
+    expect(post.status).toBe(403);
+    const patch = await fetch(`${base}/api/users`, {
+      method: 'PATCH',
+      headers: iap(MEMBER),
+      body: JSON.stringify({ email: MEMBER, role: 'admin' }),
+    });
+    expect(patch.status).toBe(403);
+    const del = await fetch(`${base}/api/users?email=${ADMIN}`, { method: 'DELETE', headers: iap(MEMBER) });
+    expect(del.status).toBe(403);
+  });
+
+  it('an admin lists, invites, re-roles and removes; invite then activates on first request', async () => {
+    // list
+    const list = await fetch(`${base}/api/users`, { headers: iap(ADMIN) });
+    expect(list.status).toBe(200);
+    const rows = (await list.json()) as UserDoc[];
+    expect(rows.map((u) => u.email)).toContain(MEMBER);
+
+    // invite → an invited row, invitedBy stamped from the caller
+    const invite = await fetch(`${base}/api/users`, {
+      method: 'POST',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: NEWBIE, role: 'member' }),
+    });
+    expect(invite.status).toBe(201);
+    expect(await invite.json()).toMatchObject({ email: NEWBIE, role: 'member', status: 'invited', invitedBy: ADMIN });
+
+    // duplicate invite → 409
+    const dup = await fetch(`${base}/api/users`, {
+      method: 'POST',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: NEWBIE, role: 'member' }),
+    });
+    expect(dup.status).toBe(409);
+
+    // first request from the invitee activates the row
+    const me = await fetch(`${base}/api/me`, { headers: iap(NEWBIE) });
+    expect(await me.json()).toMatchObject({ email: NEWBIE, status: 'active', member: true });
+
+    // re-role up then back
+    const up = await fetch(`${base}/api/users`, {
+      method: 'PATCH',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: NEWBIE, role: 'admin' }),
+    });
+    expect(up.status).toBe(200);
+    expect(await up.json()).toMatchObject({ email: NEWBIE, role: 'admin' });
+    const down = await fetch(`${base}/api/users`, {
+      method: 'PATCH',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: NEWBIE, role: 'member' }),
+    });
+    expect(down.status).toBe(200);
+
+    // remove → gone; a request from that account then hits the wall
+    const removed = await fetch(`${base}/api/users?email=${NEWBIE}`, { method: 'DELETE', headers: iap(ADMIN) });
+    expect(removed.status).toBe(200);
+    const after = await fetch(`${base}/api/me`, { headers: iap(NEWBIE) });
+    expect(await after.json()).toMatchObject({ member: false });
+  });
+
+  it('the last admin cannot be removed or down-roled (409)', async () => {
+    // ADMIN is now the sole admin in the directory
+    const remove = await fetch(`${base}/api/users?email=${ADMIN}`, { method: 'DELETE', headers: iap(ADMIN) });
+    expect(remove.status).toBe(409);
+    const downRole = await fetch(`${base}/api/users`, {
+      method: 'PATCH',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: ADMIN, role: 'member' }),
+    });
+    expect(downRole.status).toBe(409);
   });
 });
 

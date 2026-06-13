@@ -34,6 +34,11 @@ playwright-report/
 .dbos/
 pgdata/
 
+# Trusted-circle users (ADR-0043) are app-owned runtime state, not seed: the offline JSON
+# backend writes apps/studio/data/users.json on the fly (the live source of truth is the
+# events."user" projection in Cloud SQL). Never committed.
+apps/studio/data/users.json
+
 # Editor / OS
 .DS_Store
 Thumbs.db

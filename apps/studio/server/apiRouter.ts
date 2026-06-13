@@ -484,6 +484,77 @@ export async function handleAssets(
   throw new HttpError(405, `method ${method} not allowed`);
 }
 
+// ---------- users (admin-only, ADR-0043 invite-ui) ----------
+//
+// The gate (createCirclePolicy) restricts /api/users to admins; these handlers carry the CRUD.
+// invitedBy + the audit actor come from the verified caller (ctx.policy.me.email). The last-admin
+// guard lives at the store's write boundary — a violation throws a name-tagged LastAdminError that
+// the central catch maps to 409. Email is normalised locally (trim + lowercase) for lookups; the
+// store re-validates through @storytree/core's zod schema on every write.
+
+function normalizeEmailInput(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+function asRole(v: unknown): 'admin' | 'member' | null {
+  return v === 'admin' || v === 'member' ? v : null;
+}
+
+export async function handleUsers(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  backend: Pick<LibraryBackend, 'listUsers' | 'getUser' | 'upsertUser' | 'removeUser'>,
+  caller: string | null,
+): Promise<void> {
+  const method = req.method ?? 'GET';
+
+  if (method === 'GET') {
+    return sendJson(res, 200, await backend.listUsers());
+  }
+
+  if (method === 'POST') {
+    // Invite: write an `invited` row (no GCP/IAM call). Activation happens on the invitee's
+    // first request (resolveCircleAccess). A duplicate email is a 409, not a silent overwrite.
+    const input = await readJsonBody<Record<string, unknown>>(req);
+    const email = normalizeEmailInput(asString(input.email));
+    const role = asRole(input.role);
+    if (!email || !email.includes('@')) throw new HttpError(400, 'a valid email is required');
+    if (!role) throw new HttpError(400, 'role must be "admin" or "member"');
+    if (await backend.getUser(email)) throw new HttpError(409, `${email} is already in the directory`);
+    const now = new Date().toISOString();
+    const created = await backend.upsertUser(
+      { email, role, status: 'invited', invitedBy: caller, createdAt: now, lastSeenAt: now },
+      caller ?? 'admin',
+    );
+    return sendJson(res, 201, created);
+  }
+
+  if (method === 'PATCH') {
+    // Re-role. Spread the existing row so status/invitedBy/createdAt survive; the guard refuses a
+    // downgrade of the last admin (→ 409).
+    const input = await readJsonBody<Record<string, unknown>>(req);
+    const email = normalizeEmailInput(asString(input.email));
+    const role = asRole(input.role);
+    if (!email) throw new HttpError(400, 'a valid email is required');
+    if (!role) throw new HttpError(400, 'role must be "admin" or "member"');
+    const existing = await backend.getUser(email);
+    if (!existing) throw new HttpError(404, 'user not found');
+    const updated = await backend.upsertUser({ ...existing, role }, caller ?? 'admin');
+    return sendJson(res, 200, updated);
+  }
+
+  if (method === 'DELETE') {
+    // Remove. History is retained (comment authorship stays attributed); the last admin can't go.
+    const email = normalizeEmailInput(url.searchParams.get('email') ?? '');
+    if (!email) throw new HttpError(400, 'email query param is required');
+    if (!(await backend.removeUser(email, caller ?? 'admin'))) throw new HttpError(404, 'user not found');
+    return sendJson(res, 200, { ok: true });
+  }
+
+  throw new HttpError(405, `method ${method} not allowed`);
+}
+
 // ---------- story tree (read-only, live from <repo>/stories) ----------
 //
 // Mirrors the CLI `storytree tree` discovery contract (packages/cli/src/tree.ts):
@@ -720,6 +791,9 @@ export async function handleApiRequest(
       await handleComments(req, res, url, ctx.backend, ctx.policy?.commentScope ?? null);
     } else if (url.pathname === '/api/assets') {
       await handleAssets(req, res, url, ctx.backend);
+    } else if (url.pathname === '/api/users') {
+      // Admin-gated by the policy; the caller (invitedBy + audit actor) is the verified identity.
+      await handleUsers(req, res, url, ctx.backend, ctx.policy?.me.email ?? null);
     } else {
       throw new HttpError(404, 'unknown endpoint');
     }

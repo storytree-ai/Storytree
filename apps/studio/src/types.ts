@@ -181,6 +181,35 @@ export interface StoreHealth {
   code?: { startedAt: string; head: string; stale: boolean };
 }
 
+// ---------- trusted-circle users (ADR-0043) ----------
+
+export type UserRole = 'admin' | 'member';
+export type UserStatus = 'invited' | 'active';
+
+/**
+ * GET /api/me — the caller's circle membership, so the SPA can render the app or the
+ * request-access wall. `member` is false for an un-invited account; `storeUnreachable`
+ * is the degraded signal when membership couldn't be resolved (the live store was down).
+ */
+export interface MeInfo {
+  email: string | null;
+  role: UserRole | null;
+  status: UserStatus | null;
+  member: boolean;
+  storeUnreachable?: boolean;
+}
+
+/** A row in the directory (GET /api/users) — the app-owned user projection. */
+export interface CircleUser {
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  /** The admin who invited this user; null for a bootstrap-seeded admin. */
+  invitedBy: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
 /** GET /api/db/status — the Cloud SQL instance as gcloud reports it. */
 export interface DbStatus {
   /** e.g. 'RUNNABLE' | 'STOPPED' */

@@ -2,15 +2,18 @@
 
 import type {
   AssetInput,
+  CircleUser,
   Comment,
   DbStatus,
   DocContent,
   DocMeta,
   GuidanceAsset,
+  MeInfo,
   NewComment,
   PresencePayload,
   StoreHealth,
   TreePayload,
+  UserRole,
 } from './types';
 
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
@@ -71,4 +74,15 @@ export const api = {
     http('/api/presence', { signal: AbortSignal.timeout(10_000) }),
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),
+
+  // Trusted-circle users (ADR-0043). /api/me is the one endpoint a non-member may reach;
+  // /api/users is admin-only (the server enforces; the panel is also hidden for members).
+  me: (): Promise<MeInfo> => http('/api/me'),
+  listUsers: (): Promise<CircleUser[]> => http('/api/users'),
+  inviteUser: (email: string, role: UserRole): Promise<CircleUser> =>
+    http('/api/users', jsonInit('POST', { email, role })),
+  setUserRole: (email: string, role: UserRole): Promise<CircleUser> =>
+    http('/api/users', jsonInit('PATCH', { email, role })),
+  removeUser: (email: string): Promise<{ ok: true }> =>
+    http(`/api/users?email=${q(email)}`, { method: 'DELETE' }),
 };

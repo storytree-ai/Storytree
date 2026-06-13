@@ -191,8 +191,13 @@ code {
   text-decoration: none;
 }
 
-.operator {
+.topbar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.operator {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -205,6 +210,95 @@ code {
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 13px;
+}
+
+/* ---------- verified identity + trusted circle (ADR-0043) ---------- */
+
+.identity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 240px;
+}
+.identity-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Role + status badges (the bare .badge is the pill; these set the hue). */
+.badge.role-admin {
+  background: var(--accent);
+  color: #fff;
+}
+.badge.role-member,
+.badge.status-invited {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.badge.status-active {
+  background: var(--good);
+  color: #fff;
+}
+.badge.you {
+  margin-left: 6px;
+}
+
+.wall {
+  max-width: 560px;
+}
+.wall h1 {
+  margin-bottom: 12px;
+}
+
+.circle {
+  max-width: 880px;
+}
+.circle-invite {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 6px;
+}
+.circle-invite input[type='email'] {
+  flex: 1 1 auto;
+  max-width: 320px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.circle-invite select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.circle-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.circle-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.circle-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.circle-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .body {

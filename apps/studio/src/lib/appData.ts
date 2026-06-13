@@ -3,7 +3,7 @@
 // Loaded and refreshed by <App>.
 
 import { createContext, useContext } from 'react';
-import type { Comment, DocMeta, GuidanceAsset } from '../types';
+import type { Comment, DocMeta, GuidanceAsset, MeInfo } from '../types';
 
 export interface AppData {
   docs: DocMeta[];
@@ -11,6 +11,8 @@ export interface AppData {
   docTitles: Map<string, string>;
   assets: GuidanceAsset[];
   comments: Comment[];
+  /** The signed-in caller's circle membership/role (ADR-0043). Drives admin-only UI. */
+  me: MeInfo;
   refreshComments: () => Promise<void>;
   refreshAssets: () => Promise<void>;
 }
