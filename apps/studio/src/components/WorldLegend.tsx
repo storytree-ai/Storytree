@@ -6,8 +6,9 @@
 // single caption. Clicking an entry expands a drawer fanning out that model's
 // FULL state vocabulary — states that don't occur in the current world render
 // dimmed ("not in world yet"), and entries whose model has no instance at all
-// (no verdicts, no sessions) drop out of the bar entirely, so the legend only
-// ever describes what's on screen. Roads and the focus tints carry no legend
+// (no verdicts, no orbiting sessions — possibly-dead ones park in the session
+// dock, ADR-0041) drop out of the bar entirely, so the legend only ever
+// describes what's on screen. Roads and the focus tints carry no legend
 // entry — they're self-explanatory in place (ADR-0038). The legend receives
 // the PRESENTED world (worldStatus.ts): retired is pruned and building wears
 // proposed before anything reaches here.
@@ -24,6 +25,7 @@
 // offline-under-claims, presence-is-advisory (ADR-0033 d.3 / ADR-0036).
 
 import { useEffect, useRef, useState } from 'react';
+import { isOrbitingBand } from '../lib/presence';
 import type { TreeSession, TreeStory } from '../types';
 
 type Band = TreeSession['band'];
@@ -437,10 +439,13 @@ export function WorldLegend({
     {
       key: 'wisps',
       label: 'sessions',
-      visible: sessions.length > 0,
+      // Wisps = fresh/stale only (ADR-0041): a world holding nothing but
+      // possibly-dead sessions shows no wisps, so the entry drops out — the
+      // parked sessions live in the toolbar's session list, not the world.
+      visible: sessions.some((s) => isOrbitingBand(s.band)),
       icons: (
         <>
-          {BAND_ORDER.filter((b) => facts.bands.has(b)).map((b) => (
+          {BAND_ORDER.filter((b) => isOrbitingBand(b) && facts.bands.has(b)).map((b) => (
             <WispIcon key={b} band={b} />
           ))}
         </>
@@ -614,13 +619,15 @@ export function WorldLegend({
             <Tile
               icon={<WispIcon band="possibly-dead" />}
               label="possibly dead"
-              note="quiet ≥ 4 h"
+              note="quiet ≥ 4 h — parked in the session list, not orbiting"
               absent={!facts.bands.has('possibly-dead')}
             />
           </div>
           <p className="legend-cap">
             An orbiting wisp is a session that declared work on this story — advisory only, it never
-            blocks anything. Hover a wisp for who it is and what they're doing.
+            blocks anything. Hover a wisp for who it is and what they're doing. A session quiet ≥ 4 h
+            stops orbiting (its worktree may already be gone — the board can't tell) and parks in
+            the toolbar's session list instead.
           </p>
         </div>
       )}

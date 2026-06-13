@@ -23,6 +23,8 @@ import {
   usePresence,
   rebandSessions,
   formatAge,
+  isOrbitingBand,
+  splitSessions,
   notifyStoreRecovered,
   PRESENCE_POLL_MS,
   REBAND_TICK_MS,
@@ -71,6 +73,17 @@ describe('rebandSessions', () => {
     expect(rebandSessions(fresh, BASE)).toBe(fresh); // identity — no spurious re-renders
     const aged = rebandSessions([session('a', 61), session('b', 241, 'fresh')], BASE);
     expect(aged.map((s) => s.band)).toEqual(['stale', 'possibly-dead']);
+  });
+});
+
+describe('splitSessions', () => {
+  it('parks possibly-dead sessions; fresh and stale keep orbiting (ADR-0041)', () => {
+    const [fresh, stale, dead] = [session('f', 5), session('s', 90), session('d', 300)];
+    const { orbiting, parked } = splitSessions(rebandSessions([fresh, stale, dead], BASE));
+    expect(orbiting.map((s) => s.sessionId)).toEqual(['f', 's']);
+    expect(parked.map((s) => s.sessionId)).toEqual(['d']);
+    expect(isOrbitingBand('stale')).toBe(true);
+    expect(isOrbitingBand('possibly-dead')).toBe(false);
   });
 });
 
@@ -145,6 +158,25 @@ describe('usePresence', () => {
     expect(apiMock.presence).toHaveBeenCalled(); // polls fired…
     expect(result.current.sessions[0]?.band).toBe('stale'); // …but the TICKER aged it
     expect(result.current.now.getTime()).toBeGreaterThan(BASE.getTime());
+  });
+
+  it('a wisp crossing possibly-dead on a reband tick leaves the orbiting set with ZERO fetches', async () => {
+    // The permanent-zombie shape (ADR-0041): a worktree deleted before SessionEnd
+    // leaves a status=active row forever — the WORLD must drop its wisp from the
+    // client-recomputed band the moment it crosses 4 h, not at the next fetch.
+    apiMock.presence.mockRejectedValue(new Error('offline')); // polls contribute nothing
+    const { result, rerender } = renderPresence();
+    rerender({ s: [session('zombie', 239, 'stale')] }); // one minute shy of possibly-dead
+    expect(splitSessions(result.current.sessions).orbiting.map((s) => s.sessionId)).toEqual([
+      'zombie',
+    ]);
+
+    await tick(REBAND_TICK_MS * 2); // now 241m old — the TICKER crossed the threshold
+    expect(result.current.sessions[0]?.band).toBe('possibly-dead');
+    expect(splitSessions(result.current.sessions).orbiting).toEqual([]); // wisp unmounts
+    expect(splitSessions(result.current.sessions).parked.map((s) => s.sessionId)).toEqual([
+      'zombie', // still listed in the dock — parked, not erased
+    ]);
   });
 
   it('client re-banding overrides a stale server-sent band', async () => {

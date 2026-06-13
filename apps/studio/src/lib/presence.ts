@@ -42,6 +42,32 @@ export function formatAge(lastSeenAt: string, now: Date): string {
 }
 
 /**
+ * Bands the WORLD renders as orbiting wisps (ADR-0041): possibly-dead sessions
+ * stop orbiting and park in the session dock/panel lists instead. A session
+ * whose worktree is deleted before its SessionEnd hook fires can never be
+ * marked done (identity is worktree-derived; the hook is fail-silent by
+ * contract), so without this cutoff its wisp would orbit forever. Display-level
+ * only — the data and the owner-set thresholds (packages/core presence.ts)
+ * are untouched. Consumers drive this from the CLIENT-recomputed band
+ * (rebandSessions), so a wisp vanishes the moment the ticker crosses 4 h,
+ * not at the next fetch.
+ */
+export function isOrbitingBand(band: TreeSession['band']): boolean {
+  return band !== 'possibly-dead';
+}
+
+/** Split sessions into the orbiting (fresh/stale) and parked (possibly-dead) groups. */
+export function splitSessions(sessions: TreeSession[]): {
+  orbiting: TreeSession[];
+  parked: TreeSession[];
+} {
+  const orbiting: TreeSession[] = [];
+  const parked: TreeSession[] = [];
+  for (const s of sessions) (isOrbitingBand(s.band) ? orbiting : parked).push(s);
+  return { orbiting, parked };
+}
+
+/**
  * PURE: re-derive every session's staleness band at `now` (classifyPresence,
  * the ADR-0033 fixed thresholds). Returns the SAME array when nothing changed
  * so memoized consumers don't re-render on every tick.

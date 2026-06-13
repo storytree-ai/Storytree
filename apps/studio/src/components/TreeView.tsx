@@ -38,7 +38,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
-import { formatAge, usePresence } from '../lib/presence';
+import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
 import { navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
 import { WorldLegend } from './WorldLegend.js';
@@ -881,6 +881,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
 
   const capCount = stories.reduce((n, s) => n + s.capabilities.length, 0);
   const selected = selectedStory ? stories.find((s) => s.id === selectedStory) : undefined;
+  // ADR-0041: only fresh/stale sessions count as "active" and orbit as wisps;
+  // possibly-dead sessions park in the dock (the history/debugging surface).
+  const { orbiting, parked } = splitSessions(sessions);
 
   const toggleStatus = (st: string): void => {
     const next = new Set(hidden);
@@ -941,7 +944,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 className="tree-link"
                 onClick={() => setSessionDock({ kind: 'list' })}
               >
-                {sessions.length} active session{sessions.length === 1 ? '' : 's'}
+                {orbiting.length > 0
+                  ? `${orbiting.length} active session${orbiting.length === 1 ? '' : 's'}${
+                      parked.length > 0 ? ` (+${parked.length} aged)` : ''
+                    }`
+                  : `${parked.length} aged session${parked.length === 1 ? '' : 's'}`}
               </button>
             </>
           )}{' '}
@@ -1057,7 +1064,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   territory={t}
                   className={territoryClass(t.story)}
                   hidden={hidden}
-                  sessions={sessionsByStory.get(t.story.id) ?? []}
+                  // Wisps orbit for fresh/stale only (ADR-0041) — the band is the
+                  // client-recomputed one, so a session crossing 4 h vanishes on
+                  // the reband tick, not at the next fetch. Parked sessions stay
+                  // reachable in the dock and the story panel.
+                  sessions={(sessionsByStory.get(t.story.id) ?? []).filter((s) =>
+                    isOrbitingBand(s.band),
+                  )}
                   now={now}
                   selectedSessionId={sessionDock?.kind === 'detail' ? sessionDock.id : null}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
@@ -1562,8 +1575,11 @@ function TerritoryFlora({
  * declared nodes resolve to no loaded story (nodes:[] hook declarations) and so
  * orbit nowhere; detail mode shows one session's identity, work, anchors, and a
  * live-updating age/band (the `now` ticker re-renders it between polls).
- * Advisory like the wisps: a session that vanishes from the poll renders an
- * honest "no longer active" note rather than a stale card.
+ * Possibly-dead sessions no longer orbit as wisps (ADR-0041) but stay listed
+ * here, parked after the live ones — the dock is the history/debugging surface
+ * (a worktree deleted before SessionEnd leaves a row that can never be marked
+ * done). Advisory like the wisps: a session that vanishes from the poll renders
+ * an honest "no longer active" note rather than a stale card.
  */
 function SessionDock({
   dock,
@@ -1588,10 +1604,34 @@ function SessionDock({
 }): React.JSX.Element {
   const detail =
     dock.kind === 'detail' ? sessions.find((s) => s.sessionId === dock.id) : undefined;
+  const { orbiting, parked } = splitSessions(sessions);
+  const row = (s: TreeSession): React.JSX.Element => {
+    const anchored = anchors.get(s.sessionId) ?? [];
+    return (
+      <button
+        key={s.sessionId}
+        type="button"
+        className={`session-row${isOrbitingBand(s.band) ? '' : ' is-parked'}`}
+        onClick={() => {
+          onShowDetail(s.sessionId);
+          // A row that maps to a territory also focuses it on the map.
+          const first = anchored[0];
+          if (first) onFocusStory(first);
+        }}
+      >
+        <span className={`tree-session-band band-${s.band}`} title={s.band} />
+        <code>{s.sessionId}</code>
+        <span className="muted small">
+          {formatAge(s.lastSeenAt, now)}
+          {anchored.length === 0 ? ' · no territory' : ''}
+        </span>
+      </button>
+    );
+  };
   return (
     <div className="session-dock" role="dialog" aria-label="active sessions">
       <header>
-        <h4>{dock.kind === 'list' ? `active sessions (${sessions.length})` : 'session'}</h4>
+        <h4>{dock.kind === 'list' ? `active sessions (${orbiting.length})` : 'session'}</h4>
         <button type="button" className="btn" onClick={onClose} aria-label="close sessions">
           ✕
         </button>
@@ -1600,29 +1640,17 @@ function SessionDock({
         sessions.length === 0 ? (
           <p className="muted small">No active sessions right now.</p>
         ) : (
-          sessions.map((s) => {
-            const anchored = anchors.get(s.sessionId) ?? [];
-            return (
-              <button
-                key={s.sessionId}
-                type="button"
-                className="session-row"
-                onClick={() => {
-                  onShowDetail(s.sessionId);
-                  // A row that maps to a territory also focuses it on the map.
-                  const first = anchored[0];
-                  if (first) onFocusStory(first);
-                }}
-              >
-                <span className={`tree-session-band band-${s.band}`} title={s.band} />
-                <code>{s.sessionId}</code>
-                <span className="muted small">
-                  {formatAge(s.lastSeenAt, now)}
-                  {anchored.length === 0 ? ' · no territory' : ''}
-                </span>
-              </button>
-            );
-          })
+          <>
+            {orbiting.map(row)}
+            {parked.length > 0 && (
+              <>
+                <p className="session-parked-label muted small">
+                  possibly dead — quiet ≥ 4 h, no longer orbiting
+                </p>
+                {parked.map(row)}
+              </>
+            )}
+          </>
         )
       ) : detail ? (
         <div className="session-detail">
@@ -1736,6 +1764,20 @@ function StoryPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
+  const panelSessions = splitSessions(sessions);
+  const sessionLine = (s: TreeSession): React.JSX.Element => (
+    <p
+      key={s.sessionId}
+      className={`tree-session small${isOrbitingBand(s.band) ? '' : ' is-parked'}`}
+    >
+      <span className={`tree-session-band band-${s.band}`} title={s.band} />
+      <button type="button" className="tree-link" onClick={() => onSelectSession(s.sessionId)}>
+        <code>{s.sessionId}</code>
+      </button>
+      <span className="muted"> {formatAge(s.lastSeenAt, now)} · </span>
+      {s.workingOn}
+    </p>
+  );
   const [panelW, setPanelW] = useState(savedPanelWidth);
   const [resizing, setResizing] = useState(false);
   const dragFrom = useRef<{ x: number; w: number } | null>(null);
@@ -1858,21 +1900,19 @@ function StoryPanel({
 
       {sessions.length > 0 && (
         <div className="tree-sessions">
-          <h4 className="tree-subdag-title">sessions here ({sessions.length})</h4>
-          {sessions.map((s) => (
-            <p key={s.sessionId} className="tree-session small">
-              <span className={`tree-session-band band-${s.band}`} title={s.band} />
-              <button
-                type="button"
-                className="tree-link"
-                onClick={() => onSelectSession(s.sessionId)}
-              >
-                <code>{s.sessionId}</code>
-              </button>
-              <span className="muted"> {formatAge(s.lastSeenAt, now)} · </span>
-              {s.workingOn}
-            </p>
-          ))}
+          {/* The panel is a detail surface like the dock (ADR-0041): the count
+              speaks live sessions only; parked (possibly-dead) rows stay listed
+              after them — they no longer orbit the territory as wisps. */}
+          <h4 className="tree-subdag-title">sessions here ({panelSessions.orbiting.length})</h4>
+          {panelSessions.orbiting.map(sessionLine)}
+          {panelSessions.parked.length > 0 && (
+            <>
+              <p className="session-parked-label muted small">
+                possibly dead — quiet ≥ 4 h, no longer orbiting
+              </p>
+              {panelSessions.parked.map(sessionLine)}
+            </>
+          )}
         </div>
       )}
 

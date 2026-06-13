@@ -1751,6 +1751,15 @@ mark.st-hl.flash {
   flex: none;
   margin-right: 0;
 }
+/* Parked (possibly-dead, ADR-0041): listed for history/debugging, visually aged
+   so live sessions read first — in the dock and the story panel alike. */
+.session-row.is-parked,
+.tree-session.is-parked {
+  opacity: 0.55;
+}
+.session-parked-label {
+  margin: 8px 0 2px;
+}
 .session-detail-id {
   margin: 2px 0 8px;
   overflow-wrap: anywhere;

@@ -190,6 +190,25 @@ describe('WorldLegend (adaptive bar)', () => {
     expect(screen.getByText('witnessed').closest('.legend-tile')?.className).toContain('is-absent');
   });
 
+  it('a world with only possibly-dead sessions drops the sessions entry (ADR-0041)', () => {
+    // No wisps orbit for parked sessions, so the legend has nothing to key —
+    // the aged rows live in the toolbar's session dock instead.
+    renderLegend(offlineWorld(), [session('s1', 'possibly-dead')]);
+    expect(screen.queryByRole('button', { name: 'sessions' })).toBeNull();
+  });
+
+  it('possibly-dead never reaches the bar icons; the fan parks it as a dock pointer', () => {
+    renderLegend(offlineWorld(), [session('s1', 'fresh'), session('s2', 'possibly-dead')]);
+    const chip = screen.getByRole('button', { name: 'sessions' });
+    expect(chip.querySelector('.band-fresh')).toBeTruthy();
+    expect(chip.querySelector('.band-possibly-dead')).toBeNull();
+    fireEvent.click(chip);
+    const tile = screen.getByText('possibly dead').closest('.legend-tile');
+    expect(tile?.className).not.toContain('is-absent'); // it exists — just parked
+    expect(tile?.textContent).toContain('parked in the session list');
+    expect(screen.getByText(/stops orbiting/)).toBeTruthy();
+  });
+
   it('Escape closes the drawer', () => {
     renderLegend(offlineWorld());
     fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
