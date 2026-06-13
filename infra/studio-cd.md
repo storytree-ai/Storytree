@@ -21,24 +21,29 @@ Wired in three pieces:
 
 Creating a service account + project IAM bindings needs Owner-level ADC an agent session lacks, so
 this is owner-run, once. Run as the owner (`gcloud auth login`, `gcloud auth application-default
-login`, project `storytree-498613`):
+login`, project `storytree-498613`). **Run from a checkout that has BOTH `infra/ci-presence.tf` and
+`infra/studio-cd.tf`** so one apply creates the WIF pool (PR #95) and the CD resources together.
 
-```bash
-cd infra
-terraform init     # picks up studio-cd.tf (and ci-presence.tf if not yet applied)
-terraform apply    # creates the deploy SA, its IAM, the staging bucket, and the WIF binding
+PowerShell (Windows — note `;`, NOT `&&`, separates statements in PowerShell 5.1; `terraform` is the
+command, there is no `terraform` folder to `cd` into):
+
+```powershell
+Set-Location C:\path\to\checkout\infra
+terraform init     # downloads providers + wires the GCS backend
+terraform apply    # creates the deploy SA, its IAM, the staging bucket, the WIF binding (+ the PR #95 pool if not yet applied)
 ```
 
-**Dependency — the WIF pool must exist first.** `studio-cd.tf` references the `github-actions` WIF
-pool created by `ci-presence.tf` (PR #95). If that pool is not applied yet, either:
+bash:
 
-- land + `terraform apply` PR #95 first (it creates the pool), **then** apply this; or
-- apply both together from one `infra/` checkout that contains both `.tf` files (one `terraform
-  apply` creates the pool and this unit's bindings in the same run).
+```bash
+cd infra && terraform init && terraform apply
+```
 
-The deploy SA's WIF binding only references the pool *path* (a literal string), so `terraform
-validate`/`plan` for this file does not itself require `ci-presence.tf` to be present — but a real
-deploy cannot authenticate until the pool exists in GCP.
+**Dependency — the WIF pool must exist.** `studio-cd.tf` references the `github-actions` WIF pool
+defined by `ci-presence.tf` (PR #95, merged to `main`). Applying from a checkout that has both `.tf`
+files creates the pool and this unit's bindings in one run. (The binding references the pool by
+literal *path*, so `terraform validate`/`plan` for `studio-cd.tf` does not require `ci-presence.tf`
+to be present — but a real deploy cannot authenticate until the pool exists in GCP.)
 
 ### Verify the apply matches the workflow
 
