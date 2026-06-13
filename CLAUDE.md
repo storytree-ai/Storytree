@@ -90,6 +90,13 @@ file conflicts).
 
 ## How to run
 
+- **Remote (web) sessions** run in an ephemeral, offline container (Claude Code on the web): no
+  `gcloud`, no Cloud SQL, GitHub only via MCP. The offline gate (`pnpm -r typecheck && pnpm -r test`)
+  is fully runnable and is your green signal; the Node `>=24` engine warning is harmless (the
+  container ships v22). What you **can't** do here: `pnpm db:up`, live/`--pg` library writes, or live
+  story builds — those need a session with DB credentials. Don't burn time trying. *(Durable home for
+  this kind of ways-of-working is a `process` artifact, ADR-0034 — write it from a session that has
+  the DB.)*
 - Install: `corepack enable pnpm` · `pnpm install`
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (SDK leaf) and
