@@ -37,6 +37,44 @@ function sortedIds(docs: { id: string }[]): string[] {
   return docs.map((d) => d.id).sort();
 }
 
+export interface AgentDiff {
+  /** The canonical agent ids from the source/seed (sorted). */
+  readonly seed: readonly string[];
+  /** The agent ids currently in the target (sorted). */
+  readonly live: readonly string[];
+  /** Seed agent ids absent from the target (a sync would CREATE these). */
+  readonly missing: readonly string[];
+  /** Target agent ids absent from the seed (a sync would DELETE these). */
+  readonly extra: readonly string[];
+  /** True iff the target's agent tier equals the source's exactly (id-set parity). */
+  readonly inSync: boolean;
+}
+
+/**
+ * READ-ONLY id-set comparison of the `agent` tier between `source` and `target` — the diff a sync
+ * would close, with no writes. Used by the best-effort live drift check (`check:agents-sync`).
+ */
+export async function diffAgents(source: Store, target: Store): Promise<AgentDiff> {
+  const seed = sortedIds(await source.queryDocs({ kind: AGENT_KIND }));
+  const live = sortedIds(await target.queryDocs({ kind: AGENT_KIND }));
+  const seedSet = new Set(seed);
+  const liveSet = new Set(live);
+  return {
+    seed,
+    live,
+    missing: seed.filter((id) => !liveSet.has(id)),
+    extra: live.filter((id) => !seedSet.has(id)),
+    inSync: seed.length === live.length && seed.every((id, i) => id === live[i]),
+  };
+}
+
+/** Convenience over {@link diffAgents}: compare `target` against the SEED corpus (read-only). */
+export async function diffSeedAgents(target: Store): Promise<AgentDiff> {
+  const seed = new InMemoryStore();
+  await loadCorpus(seed);
+  return diffAgents(seed, target);
+}
+
 /**
  * Make `target`'s `agent` tier equal `source`'s: upsert every source agent, then delete every
  * target agent whose id is NOT in the source. ONLY touches `kind === "agent"` — docs of any other

@@ -81,7 +81,9 @@ file conflicts).
   the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
   live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
   deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
-  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script.
+  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with a
+  best-effort `check:agents-sync` that **WARNs** (never blocks) if the live tier drifted while the DB
+  is up — your nudge to run the sync; it SKIPs silently offline (CI is DB-free, so it's local-only).
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.
