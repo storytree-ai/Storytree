@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
+import { renderDoctrine } from "./doctrine.js";
 import type { Envelope } from "./envelope.js";
 import {
   libraryHealth,
@@ -44,9 +45,13 @@ import type { VerdictReaderLike } from "./tree-verdicts.js";
  */
 const RETIRED_FIELDS = ["seeAlso", "owns", "doesNotTouch", "authority", "requiredReading"];
 
-/** The edit-first-curation pointer, reused wherever a write surface should nudge search-before-write. */
-const EDIT_FIRST =
-  "edit-first-curation — search before you write; edit beats create.  (storytree library artifact edit-first-curation)";
+/**
+ * The Library artifact whose doctrine every write surface surfaces (search-before-write). Rendered
+ * on demand via {@link renderDoctrine} so the pointer's gloss is SOURCED from the artifact — edit
+ * `edit-first-curation` and the CLI's nudge updates, with no hard-coded restatement to drift
+ * (reference-don't-restate, ADR-0029 §7). The old hand-copied literal lived here.
+ */
+const EDIT_FIRST_ID = "edit-first-curation";
 
 /**
  * The Library commands (ADR-0023). Read-only walking skeleton: `library` (dashboard), `artifact <id>`
@@ -282,7 +287,7 @@ export async function listCategory(store: Store, category: string | undefined): 
   return {
     ok: true,
     body,
-    doctrine: [EDIT_FIRST],
+    doctrine: [await renderDoctrine(store, EDIT_FIRST_ID)],
     next: ["storytree library artifact <id>"],
   };
 }
@@ -338,7 +343,7 @@ export async function newArtifact(
     return {
       ok: false,
       body: "new needs the artifact as JSON: --json '<doc>' or --file <path>.",
-      doctrine: [EDIT_FIRST],
+      doctrine: [await renderDoctrine(deps.store, EDIT_FIRST_ID)],
       next: ["storytree library artifact list <category>   (search before you write)"],
     };
   }
@@ -364,7 +369,7 @@ export async function newArtifact(
     return {
       ok: false,
       body: `"${id}" already exists — edit it, don't recreate it.`,
-      doctrine: [EDIT_FIRST],
+      doctrine: [await renderDoctrine(deps.store, EDIT_FIRST_ID)],
       next: [`storytree library artifact edit ${id} --set <field>=<value>`],
     };
   }
