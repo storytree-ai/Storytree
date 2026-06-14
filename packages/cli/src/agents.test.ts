@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/core";
 
-import { renderAgentPrompt, renderAgentDigest, agentsCommand } from "./agents.js";
+import {
+  renderAgentPrompt,
+  renderAgentDigest,
+  agentsCommand,
+  renderAgentFile,
+  delegatableAgentIds,
+  DEDICATED_SURFACE_AGENTS,
+  GENERATED_AGENT_MARKER,
+} from "./agents.js";
 import { run } from "./commands.js";
 
 /** A store seeded with a principle + two agents (one clean, one with a dangling ref). */
@@ -142,4 +150,77 @@ test("the `agents` area is wired into the dispatch", async () => {
   // bare `agents` needs a name and lists what exists
   const bare = await run(["agents"], { store });
   assert.equal(bare.ok, false);
+});
+
+// ── .claude/agents push surface (ADR-0052) ──────────────────────────────────────────────────────
+
+test("renderAgentFile wraps the assembled prompt in Claude Code subagent frontmatter + marker", async () => {
+  const store = await seeded();
+  const res = await renderAgentFile(store, "clean-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.match(res.content, /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\n---\n\n/);
+  assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
+  assert.match(res.content, /The clean agent does one thing\./); // the assembled prompt body
+  assert.match(res.content, /Always assemble from the library\./); // injected ref content
+  assert.ok(res.content.endsWith("\n"));
+  assert.ok(!res.content.endsWith("\n\n"));
+  assert.deepEqual(res.missingRefs, []);
+});
+
+test("renderAgentFile surfaces a dangling ref via missingRefs (the build:agents fail-closed guard)", async () => {
+  const store = await seeded();
+  const res = await renderAgentFile(store, "broken-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.deepEqual(res.missingRefs, ["asset:ghost-ref"]);
+});
+
+test("renderAgentFile escapes quotes in the description for valid YAML frontmatter", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "quoty",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Quoty",
+      description: 'has a "quote" and a: colon',
+      oneLine: "o",
+      role: "r",
+      outcome: "o",
+      context: ["asset:test-principle"],
+      tools: "t",
+      workflow: "w",
+      references: [],
+    },
+  });
+  const res = await renderAgentFile(store, "quoty");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.match(res.content, /description: "has a \\"quote\\" and a: colon"/);
+});
+
+test("delegatableAgentIds excludes agents that own a dedicated surface (CLAUDE.md / SDK leaf)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "session-orchestrator",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Session Orchestrator",
+      description: "the main loop",
+      oneLine: "o",
+      role: "r",
+      outcome: "o",
+      context: ["asset:test-principle"],
+      tools: "t",
+      workflow: "w",
+      references: [],
+    },
+  });
+  const ids = await delegatableAgentIds(store);
+  assert.ok(!ids.includes("session-orchestrator"), "the orchestrator owns CLAUDE.md, not a subagent file");
+  assert.ok(ids.includes("clean-agent"));
+  assert.ok(ids.includes("broken-agent"));
+  assert.equal(DEDICATED_SURFACE_AGENTS.has("session-orchestrator"), true);
 });

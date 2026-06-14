@@ -66,6 +66,11 @@ jobs:
       - name: CLAUDE.md in sync
         run: pnpm check:claude
 
+      # .claude/agents/*.md are GENERATED subagent files — a view of the delegatable library
+      # agents (ADR-0052). Fail if they have drifted (edit the agent artifact + `pnpm build:agents`).
+      - name: .claude/agents in sync
+        run: pnpm check:agents
+
       - name: Typecheck
         run: pnpm -r typecheck
 

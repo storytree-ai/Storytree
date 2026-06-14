@@ -35,6 +35,8 @@ function refIds(doc: Record<string, unknown>, field: string): string[] {
 export interface AgentPrompt {
   name: string;
   title: string;
+  /** The agent's one-line description (the `.claude/agents` frontmatter / delegation hint). */
+  description: string;
   /** The assembled system prompt (the agent's own body + the injected ref content). */
   prompt: string;
   /** Refs that pointed at a missing artifact — a dangling agent manifest (flagged, never silent). */
@@ -101,7 +103,7 @@ export async function renderAgentPrompt(store: Store, name: string | undefined):
 
   return {
     ok: true,
-    agent: { name: stored.id, title, prompt: parts.join("\n"), missingRefs },
+    agent: { name: stored.id, title, description, prompt: parts.join("\n"), missingRefs },
   };
 }
 
@@ -197,6 +199,69 @@ export async function agentsCommand(store: Store, name: string | undefined): Pro
         : ""),
     next: [`storytree library artifact ${agent.name}   (the raw agent artifact)`],
   };
+}
+
+// ── .claude/agents push surface (ADR-0052) ──────────────────────────────────────────────────────
+// The same library agents, rendered as Claude Code subagent FILES so a session can DELEGATE to the
+// authored story-writers (the harness only auto-binds an agent type from `.claude/agents/<id>.md`;
+// the pull `storytree agents <name>` doesn't). One source (the library), another generated surface.
+
+/**
+ * Agents that already own a dedicated runtime surface, so they are NOT also emitted as `.claude/agents`
+ * subagent files: `session-orchestrator` shapes CLAUDE.md (ADR-0051 §3); `red-builder` / `green-builder`
+ * ARE the SDK leaf prompt (§4). The REST are delegatable subagent roles.
+ */
+export const DEDICATED_SURFACE_AGENTS: ReadonlySet<string> = new Set([
+  "session-orchestrator",
+  "red-builder",
+  "green-builder",
+]);
+
+/** Stamped into every generated `.claude/agents` file so an editor knows not to hand-edit it. */
+export const GENERATED_AGENT_MARKER =
+  "<!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->";
+
+/** Quote a one-line string as a YAML double-quoted scalar (escape `\` and `"`, fold newlines). */
+function yamlDoubleQuoted(s: string): string {
+  return '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
+}
+
+export type RenderAgentFileResult =
+  | { ok: true; name: string; content: string; missingRefs: string[] }
+  | { ok: false; reason: string; available: string[] };
+
+/**
+ * Render the committed `.claude/agents/<id>.md` view of an agent: Claude Code subagent frontmatter
+ * (`name` / `description`) + the generated marker + the assembled system prompt (via the shared
+ * {@link renderAgentPrompt}). One trailing newline, for deterministic on-disk content. `tools` is
+ * intentionally OMITTED — the subagent inherits the full surface and the prose Tools section carries
+ * the guidance; mapping the prose grant to a structured allow-list is future work (ADR-0052).
+ */
+export async function renderAgentFile(store: Store, name: string): Promise<RenderAgentFileResult> {
+  const res = await renderAgentPrompt(store, name);
+  if (!res.ok) return res;
+  const { agent } = res;
+  const frontmatter = [
+    "---",
+    `name: ${agent.name}`,
+    `description: ${yamlDoubleQuoted(agent.description)}`,
+    "---",
+  ].join("\n");
+  return {
+    ok: true,
+    name: agent.name,
+    content: `${frontmatter}\n\n${GENERATED_AGENT_MARKER}\n\n${agent.prompt}\n`,
+    missingRefs: agent.missingRefs,
+  };
+}
+
+/** The ids that render to `.claude/agents` — every `agent` artifact minus the dedicated-surface roles. */
+export async function delegatableAgentIds(store: Store): Promise<string[]> {
+  const docs = await store.queryDocs({ kind: "agent" });
+  return docs
+    .map((d) => d.id)
+    .filter((id) => !DEDICATED_SURFACE_AGENTS.has(id))
+    .sort();
 }
 
 /** `storytree agents` help. */
