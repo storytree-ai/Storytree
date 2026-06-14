@@ -35,6 +35,12 @@ locals {
   # The deployed revision keeps running AS this SA (keyless Cloud SQL, ADR-0042), so the deploy
   # SA must be allowed to actAs it.
   studio_runtime_sa = "storytree-studio-host@${var.project_id}.iam.gserviceaccount.com"
+
+  # Cloud Build's EXECUTION SA = the project's DEFAULT COMPUTE SA (project NUMBER-based — the same
+  # 635716509357 the WIF pool path embeds). `gcloud builds submit` runs the build AS this SA, so the
+  # SUBMITTER (the deploy SA) must be allowed to actAs it. (Google's current default for new builds;
+  # NOT the legacy <num>@cloudbuild SA the comment below once assumed.)
+  studio_build_sa = "635716509357-compute@developer.gserviceaccount.com"
 }
 
 # ── The dedicated, least-privilege deploy service account ────────────────────────────────────
@@ -78,13 +84,26 @@ resource "google_project_iam_member" "studio_deployer_run_admin" {
 }
 
 # Submit + watch Cloud Build builds (the image build is delegated to Cloud Build, reusing
-# infra/studio-cloudbuild.yaml). The build EXECUTION SA (the project's default Cloud Build SA)
-# already has artifactregistry.writer — the owner's manual `gcloud builds submit` pushes today —
-# so nothing new is granted to it here; only the SUBMITTER (this SA) is enabled.
+# infra/studio-cloudbuild.yaml). The build EXECUTION SA (the default compute SA, see studio_build_sa)
+# already has artifactregistry.writer — the owner's manual `gcloud builds submit` pushes today — so
+# nothing new is granted to it; the SUBMITTER (this SA) gets builds.editor here AND actAs on the
+# build SA just below.
 resource "google_project_iam_member" "studio_deployer_cloudbuild" {
   project = var.project_id
   role    = "roles/cloudbuild.builds.editor"
   member  = "serviceAccount:${google_service_account.studio_deployer.email}"
+}
+
+# actAs the Cloud Build EXECUTION SA. `gcloud builds submit` runs the build AS Cloud Build's
+# execution SA (the default compute SA, studio_build_sa), so the submitter needs serviceAccountUser
+# on it. Without this the submit fails "caller does not have permission to act as service account
+# …-compute@…" (observed on the 2026-06-13 deploy run, AFTER the staging upload succeeds). Scoped to
+# that one build SA, nothing else. (Applied imperatively to unblock CD; codified here so it isn't
+# drift — `terraform apply` is a no-op against the existing binding.)
+resource "google_service_account_iam_member" "studio_deployer_actas_build" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.studio_build_sa}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.studio_deployer.email}"
 }
 
 # Stream build logs. studio-cloudbuild.yaml sets `logging: CLOUD_LOGGING_ONLY`, so

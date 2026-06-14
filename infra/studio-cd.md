@@ -17,7 +17,26 @@ Wired in three pieces:
   `ci-presence.tf` (a project singleton — not recreated here).
 - **This runbook.**
 
-## ⚠️ ONE-TIME OWNER STEP (BLOCKING — the deploy PR is held draft until this is done)
+## STATUS (2026-06-14): LIVE — IAM applied, one fix added
+
+The deploy SA, its WIF binding, and the rest of the IAM below were applied; `deploy-studio.yml` is
+merged and on `main`. One binding was **missing** and broke the first real run: the deploy SA could
+not `actAs` the Cloud Build **execution** SA (the default compute SA), so `gcloud builds submit`
+failed `PERMISSION_DENIED: caller does not have permission to act as service account …-compute@`.
+That grant has been applied (and codified in `studio-cd.tf` as `studio_deployer_actas_build`); a
+fresh `terraform apply` is a no-op against it.
+
+### Triggering a deploy
+
+- **On demand (reliable):** `gh workflow run deploy-studio.yml --ref main` (a user/PAT token always
+  fires). Use this to deploy a studio-affecting auto-merge, or to verify.
+- **Auto on `push: main` works only for *owner manual* merges.** ci.yml's `automerge` job merges with
+  `GITHUB_TOKEN`, and GitHub does not cascade a `push`-triggered workflow from a `GITHUB_TOKEN` push
+  (anti-recursion) — so an **auto-merged** PR does not auto-deploy. To close that gap fully, wire a
+  deploy **PAT** (or GitHub App token) into the merge/dispatch step; until then, dispatch manually
+  after a studio-affecting auto-merge.
+
+## (historical) ONE-TIME OWNER STEP — the IAM apply (now done)
 
 Creating a service account + project IAM bindings needs Owner-level ADC an agent session lacks, so
 this is owner-run, once. Run as the owner (`gcloud auth login`, `gcloud auth application-default
@@ -86,6 +105,7 @@ The deploy SA `storytree-studio-deployer` gets:
 | `roles/iam.serviceAccountUser` | on `storytree-studio-host` | actAs at deploy → the revision runs as the keyless runtime SA |
 | `roles/run.admin` | **project** | deploy revisions **and** the `setIamPolicy` that `--iap` performs (binds the IAP service agent as sole invoker) |
 | `roles/cloudbuild.builds.editor` | project | submit + watch the image build |
+| `roles/iam.serviceAccountUser` | on the default compute SA (`635716509357-compute@`) | actAs the Cloud Build **execution** SA — `gcloud builds submit` runs the build as it; without this the submit fails `cannot act as …-compute@` (the 2026-06-13 failure) |
 | `roles/serviceusage.serviceUsageConsumer` | project | **required for SA-driven `gcloud builds submit`** — `serviceusage.services.use` (without it the staging-bucket access is refused; hit on the first live run) |
 | `roles/logging.viewer` | project | stream `CLOUD_LOGGING_ONLY` build logs for a clean success/fail signal |
 | `roles/storage.admin` | the `…-studio-cd-build` bucket only | upload build source + the `buckets.get` existence check `submit` does |
