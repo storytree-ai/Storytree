@@ -24,6 +24,7 @@ function spec(
     dependsOn,
     capabilities,
     decisions: [],
+    buildConfig: undefined,
     guidance: undefined,
     uatTests: [],
     file: `${id}.md`,

@@ -7,6 +7,27 @@ outcome: "storytree tree shows one signed-verdict glyph per node — ✓ proven 
 status: proposed
 proof_mode: integration-test
 depends_on: [tree-view]
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). NET-NEW file pair ON PURPOSE (tree.ts is tree-view's surface): the spine wires
+# tree.ts to call these after promotion. install:true (imports @storytree/core).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/**/*.test.ts"]
+    sourceGlobs: ["packages/cli/src/**/*.ts"]
+  real:
+    testFile: "packages/cli/src/tree-verdicts.test.ts"
+    sourceFile: "packages/cli/src/tree-verdicts.ts"
+    scope:
+      testGlobs: ["packages/cli/src/tree-verdicts.test.ts"]
+      sourceGlobs: ["packages/cli/src/tree-verdicts.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
 ---
 
 # The tree shows signed proof — one verdict glyph per node, silently absent offline

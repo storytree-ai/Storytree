@@ -6,7 +6,9 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore, rollupStatus, workEvent } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
+import type { ToolExecutor } from "@storytree/agent";
 
 import { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
 import {
@@ -16,6 +18,7 @@ import {
 } from "./test-command-registry.js";
 import {
   resolveProveSpec,
+  resolveBuildConfig,
   assemblePrompts,
   feedbackCommandsFor,
   realPrompts,
@@ -23,6 +26,7 @@ import {
 } from "./resolve-prove-spec.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
 import { PathWriteScope } from "./phase-machine.js";
+import { WriteScopedToolExecutor } from "./write-scoped-executor.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { createBuildWorktree } from "./build-worktree.js";
 
@@ -78,6 +82,40 @@ test("loadNodeSpec is loud on a file without frontmatter", async () => {
     const bad = path.join(dir, "bad.md");
     await fs.writeFile(bad, "# no frontmatter here\n");
     assert.throws(() => loadNodeSpec(bad), /no frontmatter block/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadNodeSpec wraps a malformed 'proof:' block with the file path (contract 1, the loader leg)", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-nodespec-"));
+  try {
+    const bad = path.join(dir, "bad-proof.md");
+    // Valid frontmatter, but the proof block's scope is missing sourceGlobs → loud at load.
+    await fs.writeFile(
+      bad,
+      [
+        "---",
+        'id: "bad-proof"',
+        "tier: capability",
+        'title: "x"',
+        'outcome: "y"',
+        "status: proposed",
+        "proof_mode: integration-test",
+        "proof:",
+        "  command:",
+        "    file: pnpm",
+        '    args: ["test"]',
+        "  scope:",
+        '    testGlobs: ["a.test.ts"]',
+        "---",
+        "# x",
+        "",
+      ].join("\n"),
+    );
+    assert.throws(() => loadNodeSpec(bad), /invalid 'proof:' block/);
+    // The throw is attributed to the file (the loader's honest posture).
+    assert.throws(() => loadNodeSpec(bad), /bad-proof\.md/);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -267,8 +305,10 @@ test("assemblePrompts builds authorTest/implement briefs from the node's outcome
 
 // ── the resolver: all 14 fields, fail-closed on an unregistered node ─────────────────────────────
 
-test("resolveProveSpec refuses an unregistered node with the buildable ids", () => {
+test("resolveProveSpec refuses a node with NEITHER a spec block NOR a registry entry (contract 5)", () => {
+  // library-cli has no spec-borne `proof:` block; re-id it to something the registry doesn't know.
   const spec = loadNodeSpec(path.join(STORIES_DIR, "library", "library-cli.md"));
+  assert.equal(spec.buildConfig, undefined, "library-cli is registry-only (no spec block)");
   const result = resolveProveSpec(
     { ...spec, id: "not-registered" },
     {
@@ -281,7 +321,10 @@ test("resolveProveSpec refuses an unregistered node with the buildable ids", () 
   );
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.reason, /no test-command registry entry/);
+  // The refusal names BOTH routes out (spec-borne block / registry) — fail-closed, never a guess.
+  assert.match(result.reason, /no proof config/);
+  assert.match(result.reason, /proof:/);
+  assert.match(result.reason, /registry/);
   assert.ok(result.registered.includes("library-cli"));
 });
 
@@ -604,4 +647,183 @@ test("REAL mode offline walk: fresh worktree + real proof command + spine commit
   } finally {
     await worktree.remove();
   }
+});
+
+// ── ADR-0057 keystone: node-borne proof config resolves; registry is fallback; walls still hold ──
+
+/** The 7 nodes migrated to a spec-borne `proof:` block (their registry twins are kept as the oracle). */
+const PARITY_IDS = [
+  "verdict-line",
+  "declare-presence",
+  "presence-store",
+  "noticeboard-cli",
+  "tree-view",
+  "ambient-integration",
+  "verdict-glyphs",
+] as const;
+
+/** Load a real migrated spec by id (capability or contract layout). */
+function loadById(id: string) {
+  const file = findNodeSpecFile(STORIES_DIR, id);
+  assert.ok(file !== null, `${id} spec file exists`);
+  return loadNodeSpec(file);
+}
+
+// Contract 4 — existing-entries-migrate-without-drift (the migration correctness / parity oracle).
+test("contract 4 — the 7 migrated specs resolve IDENTICALLY to their live registry twin (no drift)", () => {
+  for (const id of PARITY_IDS) {
+    const spec = loadById(id);
+    assert.ok(spec.buildConfig !== undefined, `${id} declares a spec-borne proof: block`);
+    const registry = lookupNodeBuildConfig(id);
+    assert.ok(registry !== null, `${id} keeps its registry twin during the transition`);
+    assert.deepEqual(spec.buildConfig, registry, `${id}: spec-borne config == registry twin`);
+  }
+});
+
+test("contract 4 — the migrated set equals the registry's realBuildableNodeIds (which nodes are real-buildable)", () => {
+  assert.deepEqual([...PARITY_IDS].sort(), realBuildableNodeIds());
+});
+
+// Contract 2 — spec-config-feeds-resolution (resolution off the spec, with NO registry entry).
+test("contract 2 — a spec-borne node with NO registry entry resolves (dry-run glue, source=spec)", () => {
+  const specOnly = { ...loadById("verdict-line"), id: "spec-only-fixture" };
+  assert.equal(lookupNodeBuildConfig("spec-only-fixture"), null, "not in the registry");
+  const resolved = resolveBuildConfig(specOnly);
+  assert.ok(resolved !== null);
+  assert.equal(resolved.source, "spec");
+
+  const result = resolveProveSpec(specOnly, {
+    mode: "dry-run",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "spec-1",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true, "a node is buildable from its spec alone — no registry entry");
+  if (!result.ok) return;
+  assert.equal(result.spec.unitId, "spec-only-fixture");
+});
+
+test("contract 2 — real-mode arms the leaf off a spec-borne install config (run_proof + run_typecheck)", () => {
+  const specOnly = { ...loadById("declare-presence"), id: "spec-only-install" };
+  assert.equal(lookupNodeBuildConfig("spec-only-install"), null, "not in the registry");
+  const result = resolveProveSpec(specOnly, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "spec-real-1",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.liveAuthor?.feedbackToolNames, [
+    "mcp__spine__run_proof",
+    "mcp__spine__run_typecheck",
+  ]);
+});
+
+test("contract 2 — real-mode off a spec-borne NO-install config arms run_proof only", () => {
+  const specOnly = { ...loadById("verdict-line"), id: "spec-only-noinstall" };
+  const result = resolveProveSpec(specOnly, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "spec-real-2",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.liveAuthor?.feedbackToolNames, ["mcp__spine__run_proof"]);
+});
+
+// Contract 3 — registry-becomes-fallback (+ spec-wins-on-conflict).
+test("contract 3 — a registry-only spec (no proof: block) still resolves via the registry fallback", () => {
+  const spec = loadById("library-cli");
+  assert.equal(spec.buildConfig, undefined, "library-cli has no spec-borne block");
+  const resolved = resolveBuildConfig(spec);
+  assert.ok(resolved !== null);
+  assert.equal(resolved.source, "registry");
+  const result = resolveProveSpec(spec, {
+    mode: "dry-run",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "fallback-1",
+    signerInputs: { flag: "tester@example.com" },
+  });
+  assert.equal(result.ok, true);
+});
+
+test("contract 3 — spec-borne config WINS on conflict with a registry entry of the same id", () => {
+  // verdict-line is in BOTH the registry and (now) its spec. Override the spec-borne block with a
+  // deliberately DIFFERENT config and assert the resolver returns the SPEC's, not the registry's.
+  const base = loadById("verdict-line");
+  const conflicting = {
+    ...base,
+    buildConfig: {
+      command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+      scope: {
+        testGlobs: ["packages/core/src/elsewhere.test.ts"],
+        sourceGlobs: ["packages/core/src/elsewhere.ts"],
+      },
+      real: {
+        testFile: "packages/core/src/elsewhere.test.ts",
+        sourceFile: "packages/core/src/elsewhere.ts",
+        scope: {
+          testGlobs: ["packages/core/src/elsewhere.test.ts"],
+          sourceGlobs: ["packages/core/src/elsewhere.ts"],
+        },
+      },
+    },
+  };
+  const resolved = resolveBuildConfig(conflicting);
+  assert.ok(resolved !== null);
+  assert.equal(resolved.source, "spec");
+  assert.equal(resolved.config.real?.testFile, "packages/core/src/elsewhere.test.ts");
+  assert.notDeepEqual(resolved.config, lookupNodeBuildConfig("verdict-line"));
+});
+
+// Contract 6 — scope-source-moves-walls-hold (the honesty proof: enforcement stays spine-side
+// regardless of WHERE the scope was declared; only the declaration site moved).
+test("contract 6 — a spec-declared scope walls exactly like a registry scope (the predicate matrix)", () => {
+  const real = loadById("verdict-line").buildConfig?.real;
+  assert.ok(real !== undefined);
+  const scope = new PathWriteScope(real.scope);
+  // test writable ONLY in AUTHOR_TEST; source ONLY in IMPLEMENT; the test author is never the code author.
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
+  // an out-of-scope source path, and the observe-only phases, deny all.
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/core/src/proof.ts"), false);
+  assert.equal(scope.isWriteAllowed("GATE", real.sourceFile), false);
+  assert.equal(scope.isWriteAllowed("CONFIRM_RED", real.testFile), false);
+});
+
+test("contract 6 — the ENFORCEMENT path refuses an out-of-phase write from a spec-sourced scope", async () => {
+  const real = loadById("verdict-line").buildConfig?.real;
+  assert.ok(real !== undefined);
+  const calls: ToolUseBlock[] = [];
+  const recordingInner: ToolExecutor = {
+    async execute(call: ToolUseBlock): Promise<ToolResultBlock> {
+      calls.push(call);
+      return { type: "tool_result", tool_use_id: call.id, content: "ok" };
+    },
+  };
+  const executor = new WriteScopedToolExecutor({
+    inner: recordingInner,
+    scope: new PathWriteScope(real.scope),
+    writeTools: FILE_WRITE_TOOLS,
+    phase: "AUTHOR_TEST",
+  });
+  // In AUTHOR_TEST, writing the SOURCE file is refused — the spine-side wall, scope sourced from the spec.
+  const result = await executor.execute({
+    type: "tool_use",
+    id: "w1",
+    name: "write_file",
+    input: { path: real.sourceFile, content: "export const x = 1;" },
+  });
+  assert.equal(result.is_error, true);
+  assert.equal(calls.length, 0, "the inner executor was never reached (fail-closed)");
+  assert.equal(executor.violations.length, 1);
+  assert.equal(executor.violations[0]?.path, real.sourceFile);
 });

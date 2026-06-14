@@ -7,6 +7,27 @@ outcome: "A session's presence declaration is a validated doc with derived stale
 status: proposed
 proof_mode: integration-test
 depends_on: []
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). install:true (the impl imports zod): the worktree gets a lockfile-only install,
+# and install:true REQUIRES a typecheck command (tsx strips types; only tsc --noEmit catches them).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/core", "test"]
+  scope:
+    testGlobs: ["packages/core/src/**/*.test.ts"]
+    sourceGlobs: ["packages/core/src/**/*.ts"]
+  real:
+    testFile: "packages/core/src/presence.test.ts"
+    sourceFile: "packages/core/src/presence.ts"
+    scope:
+      testGlobs: ["packages/core/src/presence.test.ts"]
+      sourceGlobs: ["packages/core/src/presence.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/core", "typecheck"]
 ---
 
 # A presence declaration is a validated doc; staleness derived, merge pure

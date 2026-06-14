@@ -1,63 +1,23 @@
 import type { ShellCommand } from "./shell-test-executor.js";
 import type { PathWriteScopeConfig } from "./phase-machine.js";
+import type { NodeBuildConfig, RealProofConfig } from "./proof-config.js";
 
 /**
- * The EXPLICIT node→build-config registry (drive-machinery Phase B, plan §3): for each buildable
- * node id, the REAL shell command that proves it and the per-phase write-scope globs the gate
- * walls writes with. Explicit by design — a small map keyed by node id, not magic discovery; a
- * node is buildable only once someone deliberately registers how to prove it.
+ * The node→build-config registry. Once the SOURCE OF TRUTH for "how to prove a node", it is now a
+ * VALIDATION/FALLBACK layer (ADR-0057): a node's proof config lives primarily in its own spec's
+ * `proof:` block ({@link import("./proof-config.js").parseNodeBuildConfig}), and the resolver
+ * consults the registry only when a spec declares none. The 7 entries with a `real:` arm are kept
+ * here during the time-boxed transition as a LIVE PARITY ORACLE — a test asserts each spec-borne
+ * config deep-equals its registry twin (no drift) — and to keep the un-migrated `library`-tier
+ * entries (the fallback path) buildable.
  *
- * Seeded with the stories/library tree (the first authored story with real test evidence). The
- * commands are the LIVE proof commands (what `--live` would run); the dry-run path swaps in a
- * synthetic temp-workspace executor and only uses the registry as the buildable-node gate.
+ * The {@link NodeBuildConfig}/{@link RealProofConfig} shape lives in `proof-config.ts` now; it is
+ * re-exported here so existing path-importers and the package index keep working unchanged.
  *
  * Commands are file+argv (execFile, never a shell). `pnpm` on Windows is `pnpm.cmd`-shimmed, so
- * live spawning may need a platform shim — acceptable while only dry-run exists.
+ * live spawning may need a platform shim.
  */
-export interface NodeBuildConfig {
-  /** The proof command `ShellTestExecutor` would spawn for this node in a live build. */
-  command: ShellCommand;
-  /** Per-phase write walls: tests writable only in AUTHOR_TEST, source only in IMPLEMENT. */
-  scope: PathWriteScopeConfig;
-  /** REAL-mode proof config (Phase F). Absent = the node is dry-run/live-smoke buildable only. */
-  real?: RealProofConfig;
-}
-
-/**
- * What `--real` (drive-machinery Phase F) needs to drive a node's ACTUAL proof in a fresh git
- * worktree of this repo: the real test file the spine runs (`node --import tsx --test <testFile>`
- * at the worktree root) and the per-phase write walls over REAL repo-relative paths.
- *
- * Dependencies (ADR-0031 §2): without `install`, the worktree gets NO `pnpm install`, so the
- * authored test/impl may import ONLY `node:` builtins and relative files (type-only imports are
- * erased and fine) — the right shape for NET-NEW, dependency-free leaves. With `install: true`,
- * the worktree gets a LOCKFILE-ONLY `pnpm install` first (shared-store cheap), the authored files
- * may import workspace dependencies, and promotion additionally requires the node's package suite
- * (the registry `command`) AND the package typecheck (`typecheck`) green in the worktree — a green
- * leaf must not break its package, and the proof run is tsx-driven (types STRIPPED), so only a
- * real `tsc --noEmit` can see type-illegal-but-runtime-green code. The leaf can never ADD a
- * dependency either way: `package.json`/`pnpm-lock.yaml` sit outside every write scope
- * (deny-by-default).
- */
-export interface RealProofConfig {
-  /** Repo-relative TS test file the REAL proof runs. AUTHOR_TEST may write exactly this. */
-  testFile: string;
-  /** Repo-relative implementation file named in the leaf brief. IMPLEMENT may write per scope. */
-  sourceFile: string;
-  /** Per-phase write walls over REAL repo-relative paths. */
-  scope: PathWriteScopeConfig;
-  /** Lockfile-only `pnpm install` in the worktree first (dependency-bearing targets, ADR-0031). */
-  install?: boolean;
-  /**
-   * The package typecheck command (`tsc --noEmit` via the package's `typecheck` script), run in the
-   * installed worktree alongside the regression suite before a promotion may push. REQUIRED when
-   * `install` is true (the CLI refuses an install-bearing entry without it): the proof command runs
-   * under tsx, which strips types, so a leaf can author runtime-green code that violates the repo's
-   * strict flags (it happened — exactOptionalPropertyTypes, declare-presence, 2026-06-11) and only
-   * a worktree `tsc` catches it before the PR-time CI does. Needs node_modules, hence install-only.
-   */
-  typecheck?: ShellCommand;
-}
+export type { NodeBuildConfig, RealProofConfig } from "./proof-config.js";
 
 const pnpmTest = (pkg: string): ShellCommand => ({
   file: "pnpm",

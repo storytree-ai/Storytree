@@ -5,6 +5,9 @@ import { parse } from "yaml";
 import { z } from "zod";
 import { Status, Tier, ProofMode, UatWitness, parseUatTests, type UatTest } from "@storytree/core";
 
+import { parseNodeBuildConfig } from "./proof-config.js";
+import type { NodeBuildConfig } from "./proof-config.js";
+
 /**
  * A LIGHT frontmatter loader for the `stories/<story>/<unit>.md` node specs (drive-machinery
  * Phase B). Deliberately NOT `@storytree/core`'s full `Unit` zod: that requires body-borne fields
@@ -35,6 +38,10 @@ const Frontmatter = z
     depends_on: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
     decisions: z.array(z.number().int().positive()).default([]),
+    // The spec-borne proof config (ADR-0057 keystone). Captured as unknown here and validated by
+    // the strict `parseNodeBuildConfig` in `loadNodeSpec` (with the file path on the throw) — the
+    // outer frontmatter stays passthrough/light, but the proof block is the load-bearing part.
+    proof: z.unknown().optional(),
   })
   .passthrough();
 
@@ -58,6 +65,13 @@ export interface NodeSpec {
   capabilities: string[];
   /** A story spec's deciding ADR numbers (ADR-0037 §2; empty for capability/contract tiers). */
   decisions: number[];
+  /**
+   * The node's spec-borne proof config (ADR-0057 keystone): the proof command + per-phase write
+   * scope + optional `real:` arm, declared in the spec's own `proof:` frontmatter block. `undefined`
+   * = no block → the resolver falls back to the test-command registry. Authoring this block is what
+   * makes a node buildable, with no orchestrator edit.
+   */
+  buildConfig: NodeBuildConfig | undefined;
   /** The `## Guidance` section's prose, when the body carries one (feeds prompt assembly). */
   guidance: string | undefined;
   /**
@@ -86,6 +100,17 @@ export function loadNodeSpec(file: string): NodeSpec {
   const fm = Frontmatter.parse(parse(raw.slice(4, end + 1)));
   const body = raw.slice(end + 5);
   const guidance = guidanceSection(body);
+  // The spec-borne proof config (ADR-0057): validate the optional `proof:` block here so a
+  // malformed block fails LOUD with the file path (the loader's existing posture). Absent = the
+  // node carries no build config (fail-closed default; the resolver falls back to the registry).
+  let buildConfig: NodeBuildConfig | undefined;
+  if (fm.proof !== undefined) {
+    try {
+      buildConfig = parseNodeBuildConfig(fm.proof);
+    } catch (e) {
+      throw new Error(`${file}: invalid 'proof:' block — ${(e as Error).message}`);
+    }
+  }
   return {
     id: fm.id,
     tier: fm.tier,
@@ -98,6 +123,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     dependsOn: fm.depends_on,
     capabilities: fm.capabilities,
     decisions: fm.decisions,
+    buildConfig,
     guidance,
     // Parsed off the same body — the join key the attestation surface (ADR-0044) writes against.
     uatTests: parseUatTests(fm.id, body),

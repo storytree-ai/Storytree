@@ -23,7 +23,7 @@ import {
   realBuildableNodeIds,
   registeredNodeIds,
 } from "./test-command-registry.js";
-import type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
+import type { NodeBuildConfig, RealProofConfig } from "./proof-config.js";
 import { commitAuthored, platformShellCommand } from "./build-worktree.js";
 
 /**
@@ -207,22 +207,43 @@ export type ResolveResult =
   | { ok: false; reason: string; registered: string[] };
 
 /**
+ * Resolve a node's build config (ADR-0057 keystone): SPEC-BORNE first (the node's own `proof:`
+ * block), the test-command registry as FALLBACK, fail-closed (`null`) when neither exists.
+ * Spec-wins-on-conflict by construction — the registry is consulted only when the spec declares no
+ * block. `source` is honest provenance for CLI/error output, never a behavioural switch. This is the
+ * one joint the keystone moves: the SOURCE of the config, not its enforcement (the spine still
+ * constructs the scope + command from whatever this returns).
+ */
+export function resolveBuildConfig(
+  spec: NodeSpec,
+): { config: NodeBuildConfig; source: "spec" | "registry" } | null {
+  if (spec.buildConfig !== undefined) return { config: spec.buildConfig, source: "spec" };
+  const registry = lookupNodeBuildConfig(spec.id);
+  if (registry !== null) return { config: registry, source: "registry" };
+  return null;
+}
+
+/**
  * Fill every {@link ProveSpec} field for one node (plan §2 table). Fail-closed: a node with no
- * registry entry is not buildable, even dry — registration is the deliberate act that makes a
- * node driveable.
+ * proof config — neither a spec-borne `proof:` block nor a registry entry — is not buildable, even
+ * dry. Declaring how to prove it (spec block, ADR-0057, or the residual registry) is the deliberate
+ * act that makes a node driveable.
  */
 export function resolveProveSpec(
   spec: NodeSpec,
   opts: ResolveOptions,
 ): ResolveResult {
-  const config = lookupNodeBuildConfig(spec.id);
-  if (config === null) {
+  const resolved = resolveBuildConfig(spec);
+  if (resolved === null) {
     return {
       ok: false,
-      reason: `node "${spec.id}" has no test-command registry entry — register how to prove it first`,
+      reason:
+        `node "${spec.id}" has no proof config — declare a 'proof:' block in its spec ` +
+        `(${spec.file}) or register how to prove it in the test-command registry`,
       registered: registeredNodeIds(),
     };
   }
+  const config = resolved.config;
 
   if (opts.mode === "real") {
     return resolveReal(spec, config, opts);
@@ -306,8 +327,9 @@ function resolveReal(
     return {
       ok: false,
       reason:
-        `node "${spec.id}" is registered but has no REAL proof config ` +
-        `(registry real.testFile/sourceFile/scope) — it is dry-run/live-smoke buildable only`,
+        `node "${spec.id}" has no REAL proof config ` +
+        `(the real.testFile/sourceFile/scope arm) in its spec \`proof:\` block or registry entry — ` +
+        `it is dry-run/live-smoke buildable only`,
       registered: realBuildableNodeIds(),
     };
   }

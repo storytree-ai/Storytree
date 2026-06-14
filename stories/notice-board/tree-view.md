@@ -7,6 +7,27 @@ outcome: "storytree tree [<story>] renders the work hierarchy offline and weaves
 status: proposed
 proof_mode: integration-test
 depends_on: [declare-presence, presence-store]
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). Self-contained module; dispatch wired spine-side after promotion. install:true
+# (imports @storytree/core + @storytree/orchestrator).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/**/*.test.ts"]
+    sourceGlobs: ["packages/cli/src/**/*.ts"]
+  real:
+    testFile: "packages/cli/src/tree.test.ts"
+    sourceFile: "packages/cli/src/tree.ts"
+    scope:
+      testGlobs: ["packages/cli/src/tree.test.ts"]
+      sourceGlobs: ["packages/cli/src/tree.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
 ---
 
 # The tree is the orientation surface — offline hierarchy, presence woven in when live

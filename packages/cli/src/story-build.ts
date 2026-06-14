@@ -5,8 +5,8 @@ import { effectiveUatWitness, resolveSignerFromEnv, rollupStatus } from "@storyt
 import {
   findNodeSpecFile,
   loadNodeSpec,
-  lookupNodeBuildConfig,
   registeredNodeIds,
+  resolveBuildConfig,
   runStoryBuild,
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
@@ -177,18 +177,21 @@ export async function storyBuild(
   const storyWithheld = witness === "human";
   const driveOrder = storyWithheld ? order.slice(0, -1) : order;
 
-  // Registry precheck for every node the run will DRIVE, fail-closed before any node runs (and
-  // before any spend): registration is the deliberate act that makes a node driveable. A
-  // withheld story UAT node needs no registry entry — the gate never drives it.
+  // Build-config precheck for every node the run will DRIVE, fail-closed before any node runs (and
+  // before any spend): declaring how to prove a node is the deliberate act that makes it driveable.
+  // Spec-borne first (ADR-0057), registry fallback — same resolver the build path uses, so a story
+  // of self-registered nodes (spec `proof:` blocks, no registry entries) is no longer falsely
+  // refused here. A withheld story UAT node needs no proof config — the gate never drives it.
   const unregistered = driveOrder
-    .filter((n) => lookupNodeBuildConfig(n.id) === null)
+    .filter((n) => resolveBuildConfig(n) === null)
     .map((n) => n.id);
   if (unregistered.length > 0) {
     return {
       ok: false,
       body:
-        `story "${story.id}" has nodes with no test-command registry entry: ${unregistered.join(", ")}\n` +
-        `register how to prove them first. registered: ${registeredNodeIds().join(", ")}`,
+        `story "${story.id}" has nodes with no proof config: ${unregistered.join(", ")}\n` +
+        `declare a \`proof:\` block in each node's spec (ADR-0057) or register it. ` +
+        `registered: ${registeredNodeIds().join(", ")}`,
       next: ["storytree node build <id> --dry-run"],
     };
   }

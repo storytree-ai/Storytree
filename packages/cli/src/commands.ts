@@ -895,6 +895,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (help) return treeViewHelp();
     return treeCommand(sub, {
       storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+      // Display-only buildable glyph, registry-based (ADR-0057 follow-up: make it spec-aware off the
+      // already-loaded spec's `proof:` block so a self-registered node also glyphs as buildable; the
+      // BUILD path is already spec-first via resolveBuildConfig — this is a cosmetic understatement).
       lookupConfig: lookupNodeBuildConfig,
       presence: deps.presence?.store ?? null,
       verdicts: deps.verdicts ?? null,

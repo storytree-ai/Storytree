@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Node-borne proof config (self-registering nodes)"
 outcome: "An authored node carries its own proof config, so authoring it is the single act that makes it inner-loop-buildable."
-status: proposed
+status: mapped
 proof_mode: integration-test
 depends_on: [prove-spec-resolution]
 ---
@@ -15,14 +15,21 @@ depends_on: [prove-spec-resolution]
 
 **Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md)
 
-> **Proof status (honest) — `proposed`, UNBUILT.** This is the keystone expansion decided in
-> [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md):
-> the code does not exist yet, and per the bootstrap caveat it must be built **outer-loop first** (the
-> loop cannot self-register until this capability exists). The contracts below are the PROPOSED proof
-> obligations, not a standing suite. They become `mapped`/`healthy` only once the change lands and is
-> driven through the gate. The honesty walls of [`prove-it-gate`](prove-it-gate.md) and
-> [`phase-scoped-write-wall`](phase-scoped-write-wall.md) are PRESERVED unchanged — only the *source*
-> of a node's write scope moves (spec, not registry); enforcement stays spine-side.
+> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** The change is BUILT and
+> its dominant behaviour is observationally verified by a real, passing, OFFLINE suite
+> (`packages/orchestrator/src/proof-config.test.ts` — the schema legs — plus the spec-borne
+> resolution/parity/wall legs in `resolve-prove-spec.test.ts`; `@storytree/orchestrator` 119/119,
+> ran 2026-06-14). Per the bootstrap caveat in
+> [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+> it had to be built **outer-loop first** (the loop cannot self-register until this exists) and is a
+> MULTI-FILE change (proof-config.ts + node-spec.ts + resolve-prove-spec.ts + the 7 specs + the CLI),
+> which the single-file inner loop cannot yet drive — so it is `mapped`, not `healthy`. The
+> `proposed` pocket: re-running these proofs UNDER the gate (the bootstrap rung toward `healthy`) is
+> open work, and awaits expansion C (multi-file builds). The honesty walls of
+> [`prove-it-gate`](prove-it-gate.md) and [`phase-scoped-write-wall`](phase-scoped-write-wall.md) are
+> PRESERVED unchanged — only the *source* of a node's write scope moves (spec, not registry);
+> enforcement stays spine-side (contract 6 proves the wall predicate AND the enforcement path hold
+> from a spec-sourced scope).
 
 ## Guidance
 
@@ -59,6 +66,19 @@ scope is still enforced spine-side by `phase-scoped-write-wall` and the SDK `Pre
 the *declaration site* moves. The fail-closed default (a node with no `proof:` block is not
 buildable) is preserved — silence is never a green light.
 
+> **Open owner call (surfaced, not decided) — bounding an over-declared spec scope.** Moving the
+> declaration site into the spec means a node author writes its own `sourceGlobs`. Enforcement is
+> unchanged (the phase predicate still walls every write; one build = one unitId = one spec; a leaf
+> can never write a test in IMPLEMENT or author the verdict), and over-declaration is bounded by the
+> SAME control the registry always had: PR-diff review on the landing rail (ADR-0057 point 4). For
+> the 7 migrated nodes the parity guard (contract 4) is the bound. A *new* spec-borne-only node has
+> no registry twin to diff against — so whether a self-registered node's scope needs a STRUCTURAL
+> bound (e.g. a lint that a `sourceGlobs` entry stays within the node's own package, rejecting a bare
+> `**/*`) or whether PR review of the spec diff is the accepted control is a deliberate **owner
+> decision**, the same family as the deferred approval-gated-trunk question. It is NOT load-bearing
+> for this keystone (which ships matching the registry status quo); it is the gating call for the
+> FIRST spec-borne-only node (expansion B/C territory) and should be raised before that lands.
+
 ## Integration test
 
 **Goal —** An authored node with a spec-borne `proof:` block resolves into a runnable `ProveSpec`
@@ -67,29 +87,29 @@ registry is no longer required to make a node buildable. Mirror `prove-spec-reso
 walks (dry-run glue + the REAL-mode worktree walk via the `authorOverride` seam), keyed off a spec's
 own proof config rather than the hand-map.
 
-## Contracts (6, PROPOSED)
+## Contracts (6)
 
 1. **`spec-proof-block-parses`** — the loader reads + zod-validates an optional `proof:` block off a node spec
-   - **asserts —** a well-formed block yields a typed build config; a malformed block is LOUD; absent = not buildable (fail-closed).
-   - **covers —** `packages/orchestrator/src/node-spec.ts` (proposed)
-   - **proven by —** (proposed; unbuilt)
+   - **asserts —** a well-formed block yields a typed build config; a malformed block is LOUD (`.strict()` rejects a typo'd key, an empty glob, an empty command, `install:true` without `typecheck`); absent = not buildable (fail-closed).
+   - **covers —** `packages/orchestrator/src/proof-config.ts` (the schema + `parseNodeBuildConfig`), `packages/orchestrator/src/node-spec.ts` (the loader populates `spec.buildConfig`, loud with the file path)
+   - **proven by —** `packages/orchestrator/src/proof-config.test.ts` (REAL, passing — the schema/malformed legs); `resolve-prove-spec.test.ts` (the loader leg, via `loadById`)
 2. **`spec-config-feeds-resolution`** — `resolveProveSpec` fills every ProveSpec field from the spec-borne config
-   - **asserts —** command, scope, prompts, feedback arming match the spec, with no registry lookup.
-   - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` (proposed)
-   - **proven by —** (proposed; unbuilt)
+   - **asserts —** a spec-borne node with NO registry entry resolves (dry-run glue, `source: "spec"`); real-mode arms the leaf's feedback tools off the spec (run_proof + run_typecheck for install, run_proof only otherwise).
+   - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` (`resolveBuildConfig` + `resolveProveSpec`)
+   - **proven by —** `resolve-prove-spec.test.ts` (the three "contract 2 —" tests, REAL, passing)
 3. **`registry-becomes-fallback`** — a spec without a `proof:` block falls back to a registry entry if one exists; spec-borne wins on conflict
-   - **asserts —** the migration is non-breaking; the residual registry still resolves un-migrated nodes.
-   - **covers —** `packages/orchestrator/src/test-command-registry.ts` (proposed)
-   - **proven by —** (proposed; unbuilt)
-4. **`existing-entries-migrate-without-drift`** — the 7 current `real:` entries, moved into their specs, resolve identically
-   - **asserts —** a parity check: spec-borne config == the old registry config for verdict-line, declare-presence, presence-store, noticeboard-cli, tree-view, ambient-integration, verdict-glyphs.
-   - **covers —** the 7 specs + the parity guard (proposed)
-   - **proven by —** (proposed; unbuilt)
+   - **asserts —** a registry-only spec (no block) resolves via the registry (`source: "registry"`); a spec-borne block of the same id WINS over the registry twin.
+   - **covers —** `packages/orchestrator/src/resolve-prove-spec.ts` (`resolveBuildConfig`), `test-command-registry.ts` (demoted to fallback)
+   - **proven by —** `resolve-prove-spec.test.ts` (the two "contract 3 —" tests, REAL, passing)
+4. **`existing-entries-migrate-without-drift`** — the 7 current `real:` entries, mirrored into their specs, resolve identically
+   - **asserts —** a parity check: each spec-borne config `deepEqual`s its live registry twin for verdict-line, declare-presence, presence-store, noticeboard-cli, tree-view, ambient-integration, verdict-glyphs; the migrated set == `realBuildableNodeIds()`.
+   - **covers —** the 7 specs + the kept registry twins (the live parity oracle)
+   - **proven by —** `resolve-prove-spec.test.ts` (the two "contract 4 —" tests, REAL, passing)
 5. **`unregistered-still-fails-closed`** — a node with neither a spec block nor a registry entry refuses with guidance
-   - **asserts —** the fail-closed posture and the buildable-ids guidance are unchanged.
-   - **covers —** `resolve-prove-spec.ts` (proposed)
-   - **proven by —** (proposed; unbuilt)
+   - **asserts —** the fail-closed posture holds; the refusal names BOTH routes out (declare a `proof:` block / register it) and lists the buildable ids.
+   - **covers —** `resolve-prove-spec.ts` (the `resolveBuildConfig === null` branch), `packages/cli/src/node-build.ts` (the CLI envelope)
+   - **proven by —** `resolve-prove-spec.test.ts` ("contract 5") + `packages/cli/src/node-build.test.ts` (REAL, passing)
 6. **`scope-source-moves-walls-hold`** — a spec-declared scope is enforced spine-side exactly as a registry scope is
-   - **asserts —** an out-of-phase write is still refused by the phase wall / PreToolUse hook regardless of where the scope was declared (the honesty property is preserved).
-   - **covers —** `phase-machine.ts` + `write-scoped-executor.ts` (unchanged) driven from spec-borne scope
-   - **proven by —** (proposed; unbuilt)
+   - **asserts —** the `PathWriteScope` predicate matrix (test only in AUTHOR_TEST; source only in IMPLEMENT; observe-only phases deny all) AND the `WriteScopedToolExecutor` enforcement path (an out-of-phase write is refused, the inner executor never reached, the violation recorded) both hold when the scope is sourced from a spec's `proof:` block — identical to a registry scope.
+   - **covers —** `phase-machine.ts` + `write-scoped-executor.ts` (UNCHANGED) driven from spec-borne scope
+   - **proven by —** `resolve-prove-spec.test.ts` (the two "contract 6 —" tests, REAL, passing)
