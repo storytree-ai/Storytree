@@ -1,3 +1,6 @@
 [submodule "legacy/Agentic"]
 	path = legacy/Agentic
 	url = git@github.com:HuaMick/Agentic.git
+[submodule "web"]
+	path = web
+	url = git@github.com:HuaMick/storytree-web.git
