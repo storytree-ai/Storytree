@@ -7,6 +7,26 @@ outcome: "Declarations persist through the store seam as append-only events plus
 status: proposed
 proof_mode: integration-test
 depends_on: [declare-presence]
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). install:true (the impl imports @storytree/core); typecheck REQUIRED when install.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/store", "test"]
+  scope:
+    testGlobs: ["packages/store/src/**/*.test.ts"]
+    sourceGlobs: ["packages/store/src/**/*.ts"]
+  real:
+    testFile: "packages/store/src/presence-store.test.ts"
+    sourceFile: "packages/store/src/presence-store.ts"
+    scope:
+      testGlobs: ["packages/store/src/presence-store.test.ts"]
+      sourceGlobs: ["packages/store/src/presence-store.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/store", "typecheck"]
 ---
 
 # Declarations persist as append-only events plus a one-row-per-session projection

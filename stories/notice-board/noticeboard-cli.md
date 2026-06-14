@@ -7,6 +7,27 @@ outcome: "`storytree noticeboard` lists active sessions grouped by story node wi
 status: proposed
 proof_mode: integration-test
 depends_on: [declare-presence, presence-store]
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). Self-contained handler file; the spine wires commands.ts dispatch AFTER
+# promotion (the leaf's scope deliberately excludes it). install:true (imports @storytree/core).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/**/*.test.ts"]
+    sourceGlobs: ["packages/cli/src/**/*.ts"]
+  real:
+    testFile: "packages/cli/src/noticeboard.test.ts"
+    sourceFile: "packages/cli/src/noticeboard.ts"
+    scope:
+      testGlobs: ["packages/cli/src/noticeboard.test.ts"]
+      sourceGlobs: ["packages/cli/src/noticeboard.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
 ---
 
 # The noticeboard command family — the board, declare, done

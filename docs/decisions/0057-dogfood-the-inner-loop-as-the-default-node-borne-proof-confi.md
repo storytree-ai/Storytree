@@ -102,6 +102,14 @@ into a decided direction.
 - Trust boundary shift: proof config moving into the spec means a node author declares its own write
   scope. The honesty walls (spine observes red/green; test-author ≠ code-author) must hold regardless
   of where the config is declared — the scope is still spine-enforced, only its *source* moves.
+  **Escalation surfaced when A was built (2026-06-14):** for the 7 migrated nodes the kept registry
+  twins are a parity bound (the keystone's contract 4); a *new* spec-borne-only node has no twin to
+  diff against, so whether a self-registered node's `sourceGlobs` needs a STRUCTURAL bound (a lint
+  that it stays within the node's own package, rejecting a bare `**/*`) or whether PR-diff review is
+  the accepted control (the registry status quo) is a genuine **owner call** — the same family as the
+  deferred approval-gated-trunk question. A (the keystone) deliberately ships with NO new control,
+  matching the status quo; this call is gating for the FIRST spec-borne-only node (B/C territory) and
+  is raised here, not decided. Tracked in [`spec-borne-proof-config`](../../stories/drive-machinery/spec-borne-proof-config.md).
 - The PR/CI rail stays load-bearing for landing (point 4); "inner loop for everything" is **not**
   "no PR" until/unless the deferred approval-gated-trunk question is taken up.
 

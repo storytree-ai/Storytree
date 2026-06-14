@@ -7,6 +7,23 @@ outcome: "A pure function renders a signed verdict as a single human-readable li
 status: proposed
 proof_mode: contract-test
 depends_on: []
+# Node-borne proof config (ADR-0057): authoring this block is what makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. It mirrors the registry's NodeBuildConfig shape EXACTLY; a parity guard
+# asserts spec == the old registry entry during the time-boxed transition. NET-NEW, dependency-free
+# (no install): the impl imports only node: builtins + relative files, so the red is genuine.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/core", "test"]
+  scope:
+    testGlobs: ["packages/core/src/**/*.test.ts"]
+    sourceGlobs: ["packages/core/src/**/*.ts"]
+  real:
+    testFile: "packages/core/src/verdict-line.test.ts"
+    sourceFile: "packages/core/src/verdict-line.ts"
+    scope:
+      testGlobs: ["packages/core/src/verdict-line.test.ts"]
+      sourceGlobs: ["packages/core/src/verdict-line.ts"]
 ---
 
 # Render a signed verdict as one human-readable line

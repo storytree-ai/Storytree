@@ -16,12 +16,12 @@ import {
   createBuildWorktree,
   findNodeSpecFile,
   loadNodeSpec,
-  lookupNodeBuildConfig,
   mapProofMode,
   promoteRealPass,
   proveUnit,
   realBuildableNodeIds,
   registeredNodeIds,
+  resolveBuildConfig,
   resolveProveSpec,
   runRegressionSuite,
   runWorktreeTypecheck,
@@ -476,16 +476,19 @@ export async function nodeBuild(
   }
 
   // REAL mode fail-closed precheck BEFORE any worktree is cut: the node must carry a real-proof
-  // registry config (the resolver re-checks this; the precheck just keeps the refusal cheap).
-  const buildConfig = lookupNodeBuildConfig(spec.id);
+  // config — spec-borne first (ADR-0057), registry fallback (the resolver re-checks this; the
+  // precheck just keeps the refusal cheap). Using the same resolver as the build path is what lets
+  // a self-registered node (a spec `proof:` block, no registry entry) actually build via the CLI.
+  const buildConfig = resolveBuildConfig(spec)?.config ?? null;
   const realConfig = buildConfig?.real;
   if (real && realConfig === undefined) {
     const buildable = realBuildableNodeIds();
     return {
       ok: false,
       body:
-        `node "${spec.id}" is not REAL-buildable — its registry entry has no real-proof config ` +
-        `(real.testFile/sourceFile/scope).\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
+        `node "${spec.id}" is not REAL-buildable — its proof config has no \`real:\` arm ` +
+        `(real.testFile/sourceFile/scope). Add one to the node's spec \`proof:\` block (ADR-0057) ` +
+        `or its registry entry.\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
       next: buildable.map((id) => `storytree node build ${id} --real`),
     };
   }
@@ -497,9 +500,10 @@ export async function nodeBuild(
     return {
       ok: false,
       body:
-        `node "${spec.id}" has install:true but no real.typecheck command registered — an installed ` +
-        `worktree's promotion requires the package typecheck observed green (tsx strips types; the ` +
-        `proof run cannot see type errors). Register real.typecheck in the test-command registry.`,
+        `node "${spec.id}" has install:true but no real.typecheck command — an installed worktree's ` +
+        `promotion requires the package typecheck observed green (tsx strips types; the proof run ` +
+        `cannot see type errors). Add real.typecheck to the node's spec \`proof:\` block (ADR-0057) ` +
+        `or its registry entry. (A spec \`proof:\` block fails LOUD at load if install:true lacks typecheck.)`,
       next: [],
     };
   }

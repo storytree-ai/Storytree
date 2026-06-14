@@ -168,14 +168,15 @@ test("story build with no mode (or both modes) is refused", async () => {
   assert.match(both.body, /pick exactly one mode/);
 });
 
-test("story build on a story with unregistered nodes fails closed BEFORE any node runs", async () => {
+test("story build on a story with nodes lacking proof config fails closed BEFORE any node runs", async () => {
   const env = await run(
     ["story", "build", "studio", "--dry-run", "--actor", "t@e.c"],
     deps,
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /no test-command registry entry/);
-  // It names the unregistered nodes rather than dying mid-run.
+  assert.match(env.body, /no proof config/);
+  assert.match(env.body, /proof:/);
+  // It names the nodes lacking config rather than dying mid-run.
   assert.match(env.body, /browse-library/);
   assert.doesNotMatch(env.body, /phase trail/);
 });

@@ -67,6 +67,10 @@ export {
   realBuildableNodeIds,
 } from "./test-command-registry.js";
 
+// The spec-borne proof-config shape (ADR-0057 keystone): the zod schema + parser a node's own
+// `proof:` block validates through (the loader uses it; tests assert it directly).
+export { NodeBuildConfigSchema, parseNodeBuildConfig } from "./proof-config.js";
+
 export type {
   DryRunResolveOptions,
   LiveSmokeResolveOptions,
@@ -77,6 +81,7 @@ export type {
 } from "./resolve-prove-spec.js";
 export {
   resolveProveSpec,
+  resolveBuildConfig,
   assemblePrompts,
   liveSmokePrompts,
   realPrompts,

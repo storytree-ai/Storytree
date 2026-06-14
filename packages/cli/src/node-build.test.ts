@@ -90,14 +90,16 @@ test("node build with an unknown id is guidance listing the buildable nodes", as
   assert.ok(env.next?.some((n) => n.includes("library-cli")));
 });
 
-test("node build on a spec that exists but is NOT registered fails closed", async () => {
-  // studio/browse-library.md is a real spec with no test-command registry entry.
+test("node build on a spec that exists but has NO proof config fails closed", async () => {
+  // studio/browse-library.md is a real spec with neither a spec-borne `proof:` block nor a
+  // registry entry (ADR-0057) — so it fails closed, naming both routes out.
   const env = await run(
     ["node", "build", "browse-library", "--dry-run", "--actor", "t@e.c"],
     deps,
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /no test-command registry entry/);
+  assert.match(env.body, /no proof config/);
+  assert.match(env.body, /proof:/);
 });
 
 test("node build without an id, and bare `node`, are help/guidance", async () => {

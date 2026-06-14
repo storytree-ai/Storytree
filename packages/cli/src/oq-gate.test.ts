@@ -58,6 +58,7 @@ function story(decisions: number[]): NodeSpec {
     dependsOn: [],
     capabilities: [],
     decisions,
+    buildConfig: undefined,
     guidance: undefined,
     uatTests: [],
     file: "s/story.md",

@@ -7,6 +7,27 @@ outcome: "Presence declares itself: spine-side around SDK builds, fail-silent se
 status: proposed
 proof_mode: integration-test
 depends_on: [noticeboard-cli, tree-view]
+# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
+# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
+# asserts equality). Pure module legs only; the spine wires node-build, .claude/settings.json hooks,
+# and the statusline AFTER promotion (excluded from scope). install:true (imports @storytree/core).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/**/*.test.ts"]
+    sourceGlobs: ["packages/cli/src/**/*.ts"]
+  real:
+    testFile: "packages/cli/src/ambient-presence.test.ts"
+    sourceFile: "packages/cli/src/ambient-presence.ts"
+    scope:
+      testGlobs: ["packages/cli/src/ambient-presence.test.ts"]
+      sourceGlobs: ["packages/cli/src/ambient-presence.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
 ---
 
 # Presence declares itself — spine-side, fail-silent hooks, a statusline glance
