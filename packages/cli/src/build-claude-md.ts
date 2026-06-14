@@ -17,10 +17,9 @@ import { InMemoryStore } from "@storytree/core";
 import { loadCorpus } from "@storytree/store";
 
 import { renderAgentDigest } from "./agents.js";
+import { syncClaudeRegion } from "./claude-region.js";
 
 const AGENT = "session-orchestrator";
-const START = `<!-- AGENT:${AGENT} START`; // the rest of the marker line is preserved verbatim
-const END = `<!-- AGENT:${AGENT} END -->`;
 
 /** Repo root: packages/cli/src/build-claude-md.ts → four dirs up (the commands.ts repoRoot pattern). */
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -42,27 +41,20 @@ async function main(): Promise<void> {
     fail(`${AGENT} has dangling refs: ${res.agent.missingRefs.join(", ")} — fix the agent artifact.`);
   }
 
-  const md = await fs.readFile(claudePath, "utf8");
-  const startIdx = md.indexOf(START);
-  const endIdx = md.indexOf(END);
-  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
-    fail(`markers not found in CLAUDE.md — expected a "${START} … -->" line and "${END}".`);
-  }
-  const startLineEnd = md.indexOf("\n", startIdx);
-  const startMarkerLine = md.slice(startIdx, startLineEnd === -1 ? md.length : startLineEnd);
-  const next =
-    md.slice(0, startIdx) +
-    `${startMarkerLine}\n\n${res.agent.digest}\n\n${END}` +
-    md.slice(endIdx + END.length);
+  const rawMd = await fs.readFile(claudePath, "utf8");
+  // EOL-robust splice + compare (claude-region.ts): work in LF space, re-apply the file's EOL on
+  // write. A naive `next === md` went spuriously STALE on Windows (CRLF checkout) — see the module.
+  const region = syncClaudeRegion(rawMd, AGENT, res.agent.digest);
+  if (!region.ok) fail(region.error);
 
-  if (next === md) {
+  if (region.inSync) {
     console.log(`build:claude — CLAUDE.md ${AGENT} region in sync.`);
     return;
   }
   if (check) {
     fail("CLAUDE.md is STALE — the library agent changed. Regenerate with `pnpm build:claude` and commit.");
   }
-  await fs.writeFile(claudePath, next, "utf8");
+  await fs.writeFile(claudePath, region.next, "utf8");
   console.log(`build:claude — wrote the ${AGENT} region into CLAUDE.md.`);
 }
 
