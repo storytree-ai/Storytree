@@ -12,12 +12,19 @@ name: deploy-studio
 # pool (ADR-0022). The deploy passes the FULL ADR-0042 flag set verbatim so the IAP + runtime-SA
 # + env-var posture is re-asserted every time and never drifts.
 #
-# HELD DRAFT until the owner runs `terraform apply` (infra/studio-cd.md) + PR #95's WIF pool is
-# applied — until then the auth step below fails loudly (a deploy that can't happen should be
-# visible, NOT silently skipped). This is on push:main only, not a PR check, so a failure never
-# blocks a merge.
+# IAM PREREQUISITES ARE NOW APPLIED (infra/studio-cd.tf): the deploy SA, its WIF binding, and the
+# build-SA actAs grant all exist, so the auth + build steps work. This runs on push:main /
+# workflow_dispatch only — never a PR check — so a deploy failure never blocks a merge.
+#
+# TRIGGER NOTE: an auto deploy on push:main does NOT fire for AUTO-MERGED PRs. ci.yml's automerge
+# merges with GITHUB_TOKEN, and GitHub will not cascade a push-triggered workflow from a
+# GITHUB_TOKEN push (anti-recursion). Owner *manual* merges do cascade. Until a deploy PAT is wired
+# (infra/studio-cd.md), deploy a studio-affecting auto-merge with `gh workflow run deploy-studio.yml
+# --ref main` (a user/PAT token always fires).
 
 on:
+  # The reliable, on-demand path (works around the GITHUB_TOKEN no-cascade limitation above).
+  workflow_dispatch:
   push:
     branches: [main]
     # Deploy only when the served artifact could have changed. The image is `COPY . .` +
