@@ -18,7 +18,7 @@ import { storyBuild } from "./story-build.js";
 /** The story area never touches the library store; an empty InMemoryStore keeps the tests fast. */
 const deps = { store: new InMemoryStore() };
 
-test("story build library --dry-run drives the capabilities topo-ordered and WITHHOLDS the undeclared (= human-witnessed) story UAT node", async () => {
+test("story build library --dry-run drives the capabilities topo-ordered and SIGNS the (machine-witnessed) story UAT node", async () => {
   const env = await run(
     ["story", "build", "library", "--dry-run", "--actor", "tester@example.com"],
     deps,
@@ -43,13 +43,14 @@ test("story build library --dry-run drives the capabilities topo-ordered and WIT
     "depends_on edges are honoured",
   );
 
-  // ADR-0040: library declares no uat_witness → human (the default) → the gate builds every
-  // capability but never drives or signs the story's own UAT node.
-  assert.match(env.body, /uat witness: human \(undeclared — the fail-closed default/);
-  assert.match(env.body, /nodes: {7}7\/7 signed passes/);
-  assert.match(env.body, /library +WITHHELD — uat_witness: human/);
-  assert.match(env.body, /outcome: {5}capabilities PASSED \(7\/7 signed\); the story's UAT node was WITHHELD/);
-  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 7);
+  // ADR-0044/0040: library now declares uat_witness: machine (every Story UAT leg is an agent
+  // exercise) → the gate drives AND signs the story's own UAT node, not just its capabilities.
+  assert.match(env.body, /uat witness: machine \(declared\)/);
+  assert.match(env.body, /nodes: {7}8\/8 signed passes/);
+  assert.match(env.body, /library +PASS {3}rollup: healthy/);
+  assert.doesNotMatch(env.body, /WITHHELD/);
+  assert.match(env.body, /outcome: {5}PASSED — every node signed/);
+  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 8);
 
   // The honest framing is part of the output.
   assert.match(env.body, /proves the CHAINING/);
