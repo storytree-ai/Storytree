@@ -17,6 +17,7 @@ import { renderStoredDoc } from "@storytree/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
+import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import type { Envelope } from "./envelope.js";
 import {
@@ -572,7 +573,7 @@ function topHelp(): Envelope {
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  adr              allocate the next ADR number from the live store (ADR-0050) — no collisions",
-      "  agents <name>    (coming soon) an agent's system prompt",
+      "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "",
       "start here:",
       "  storytree library    health + a map of every artifact + the commands",
@@ -894,11 +895,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "agents") {
+    if (help) return agentsHelp();
+    return agentsCommand(deps.store, sub);
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, noticeboard, tree, attest, node, story, adr (agents coming soon).`,
-      next: ["storytree library"],
+      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, node, story, adr.`,
+      next: ["storytree library", "storytree agents <name>"],
     };
   }
 

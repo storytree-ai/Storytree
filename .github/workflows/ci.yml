@@ -60,6 +60,12 @@ jobs:
       - name: Repo manifest
         run: pnpm check:manifest
 
+      # CLAUDE.md's operating-discipline region is a GENERATED VIEW of the
+      # `session-orchestrator` library agent (ADR-0051) — fail if it has drifted
+      # from the artifact (edit the artifact + `pnpm build:claude`, don't hand-edit).
+      - name: CLAUDE.md in sync
+        run: pnpm check:claude
+
       - name: Typecheck
         run: pnpm -r typecheck
 
