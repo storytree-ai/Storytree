@@ -1616,13 +1616,14 @@
     "references": [
       "asset:recursive-decomposition-patterns",
       "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
-      "asset:signal-and-noise"
+      "asset:signal-and-noise",
+      "doc:decisions/0053-cli-builds-its-guidance-prose-from-the-library.md"
     ],
     "createdAt": "2026-06-08T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "statement": "Give an agent a thin bootstrap and let it pull exactly the context its current step needs — minimal initial load, fetched on demand, always read from the live source — rather than pushing a large static brief at session start.",
     "problem": "The push model — pre-loading a big static brief covering every situation the agent might hit — pays three costs every turn: a context tax (a large brief consumes the attention budget even when most is irrelevant), staleness (a brief loaded at session start does not reflect later changes; the agent reasons over a snapshot), and one-size-fits-all (every step gets the whole brief; no step gets context tailored to it).",
-    "approach": "Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition.",
+    "approach": "Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition. The CLI is one such pull surface: it renders its doctrine prose from the Library on demand — the choose-your-own-adventure CLI (ADR-0023/ADR-0053) — instead of carrying a fat static brief, because static instruction is followed less reliably than context pulled at the step that needs it.",
     "tradeoffs": "You trade a guaranteed-complete upfront snapshot for freshness and a small initial load; the agent makes extra fetches, but each reads live state instead of a stale cache. In storytree the event store is the single source of truth and the orchestrator briefs each node — this argues for those briefs to be pointers into live state, not fat snapshots.",
     "provenance": "A context-engineering principle for how agents are briefed, not a code spec for any subsystem. Composes with `signal-and-noise` (at the briefing layer) and `recursive-decomposition-patterns`. See ADR-0011 (pull-based just-in-time context). Imported from legacy AgenticEngineering `AgenticGuidance`.",
     "schemaVersion": 2
@@ -2154,7 +2155,7 @@
     "description": "Durable discipline lives once in the Library; every other surface cites it via a typed reference, never copies it.",
     "statement": "Durable discipline lives ONCE as a Library unit; every consumer — an agent spec, a work unit, a report — cites it via a typed `asset:`/`doc:` reference, never restates it in prose.",
     "why": "Restated prose drifts: when doctrine is copied into N bodies, an edit to the source leaves N-1 stale copies, and no consumer knows which copy is canonical. V1 learned this the hard way and encoded it twice — `agents/README.md` lists \"reference don't restate\" among its ten non-negotiable principles (\"a single edit propagates rather than drifting across copies\"), and `agents/planner/story-writer/inputs.yml` `required_reading` entries say literally \"See assets/definitions/story-schema-contract.yml … Reference rather than re-paraphrase in story prose\". In v2 the pointer is even cheaper to follow: the Library is the durable DRY layer (ADR-0017/0019/0023) and the owned loop's context engine (ADR-0011) injects a referenced unit just-in-time at the step that needs it, so a citation costs nothing at read time and buys one-edit propagation.",
-    "howToApply": "Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit.",
+    "howToApply": "Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit. This binds runtime surfaces, not just documents: the CLI is a guidance surface, so build its doctrine prose from the Library and render it on demand (renderDoctrine / the agent renderer) rather than restating it in code — only the command grammar (usage syntax, flags, subcommand lists) stays in code (ADR-0053).",
     "references": [
       "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
       "doc:decisions/0017-cross-cutting-knowledge-tier.md",
@@ -2162,7 +2163,8 @@
       "doc:decisions/0029-agents-as-library-artifact-category.md",
       "asset:signal-and-noise",
       "asset:edit-first-curation",
-      "asset:pull-based-context-architecture"
+      "asset:pull-based-context-architecture",
+      "doc:decisions/0053-cli-builds-its-guidance-prose-from-the-library.md"
     ],
     "provenance": "The v2 form of V1's `inputs.yml required_reading` + `assets/` mechanism; graduated for v2 (owner call, 2026-06-14). Consumers: every authored agent + curator (cite, don't restate).",
     "createdAt": "2026-06-10T00:00:00Z",
