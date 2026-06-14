@@ -3,7 +3,7 @@ import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ClaudeAgentAuthor } from "@storytree/agent";
+import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
 import type { Store } from "@storytree/core";
 import {
   InMemoryStore,
@@ -29,9 +29,11 @@ import {
 } from "@storytree/orchestrator";
 import type {
   BuildWorktree,
+  NodeBuildConfig,
   NodeSpec,
   PromotionResult,
   ProveResult,
+  RealProofConfig,
   ResolveOptions,
 } from "@storytree/orchestrator";
 import type { LeafPhasePrompts } from "@storytree/orchestrator";
@@ -380,6 +382,166 @@ export function liveLeafLines(liveAuthor: ClaudeAgentAuthor): string[] {
   ];
 }
 
+// ── The single-node REAL build (shared by `node build --real` and `story build --real`) ────────
+
+/**
+ * The two REAL-mode fail-closed prechecks, shared by `node build --real` and the `story build --real`
+ * chain so both refuse IDENTICALLY before any worktree is cut: the node must carry a `real:` arm
+ * (spec-borne, ADR-0057, or registry), and an install-bearing arm must register a typecheck (tsx
+ * strips types — only a worktree `tsc --noEmit` catches type-illegal-but-runtime-green code). Returns
+ * a refusal Envelope, or null when the node is real-buildable.
+ */
+export function realConfigRefusal(spec: NodeSpec, buildConfig: NodeBuildConfig | null): Envelope | null {
+  const realConfig = buildConfig?.real;
+  if (realConfig === undefined) {
+    const buildable = realBuildableNodeIds();
+    return {
+      ok: false,
+      body:
+        `node "${spec.id}" is not REAL-buildable — its proof config has no \`real:\` arm ` +
+        `(real.testFile/sourceFile/scope). Add one to the node's spec \`proof:\` block (ADR-0057) ` +
+        `or its registry entry.\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
+      next: buildable.map((id) => `storytree node build ${id} --real`),
+    };
+  }
+  if (realConfig.install === true && realConfig.typecheck === undefined) {
+    return {
+      ok: false,
+      body:
+        `node "${spec.id}" has install:true but no real.typecheck command — an installed worktree's ` +
+        `promotion requires the package typecheck observed green (tsx strips types; the proof run ` +
+        `cannot see type errors). Add real.typecheck to the node's spec \`proof:\` block (ADR-0057) ` +
+        `or its registry entry. (A spec \`proof:\` block fails LOUD at load if install:true lacks typecheck.)`,
+      next: [],
+    };
+  }
+  return null;
+}
+
+/** Inputs to {@link buildNodeReal} — the caller owns the worktree, store, runId, and signer. */
+export interface RealBuildArgs {
+  spec: NodeSpec;
+  /** Caller-owned worktree — `buildNodeReal` NEVER cuts or removes it (that is the caller's lifecycle). */
+  worktree: BuildWorktree;
+  /**
+   * The HEAD this node builds ON TOP of: the prior node's commit in a chain, or `worktree.headSha`
+   * for a single build / the first chain node. "Nothing authored" is measured against THIS, never
+   * the stale original cut (`worktree.headSha`) — the chain bug-trap.
+   */
+  baseSha: string;
+  /** The node's build config (for the package regression command) and its resolved real arm. */
+  buildConfig: NodeBuildConfig;
+  realConfig: RealProofConfig;
+  store: Store;
+  runId: string;
+  signer: string;
+  phasePrompts: LeafPhasePrompts;
+  presence: AmbientDeps;
+  repoRoot: string;
+  model?: string;
+  budgetUsd?: number;
+  maxTurns?: number;
+  /** Offline test seam: a scripted {@link PhaseAuthor}; defaults to the live SDK leaf. */
+  authorOverride?: PhaseAuthor;
+  /**
+   * Promote a signed pass (default true). The story chain passes `false`: it drives + signs +
+   * commits each node into the shared worktree, then promotes ONCE at the stacked HEAD (so a halt
+   * never leaves a pushed partial story). `false` also skips the per-node typecheck/regression
+   * backstop — the chain re-observes it once at the final HEAD.
+   */
+  promote?: boolean;
+}
+
+/** Outcome of {@link buildNodeReal}: the gate result plus the promotion/backstop facts (when promoting). */
+export interface RealBuildResult {
+  result: ProveResult;
+  liveAuthor?: ClaudeAgentAuthor;
+  /** The verdict's commit (= the new worktree HEAD) on a pass that authored; undefined otherwise. */
+  commitSha?: string;
+  promotion?: PromotionResult;
+  promotionSkipped?: string;
+  regression?: "green" | "red";
+  typecheck?: "green" | "red";
+}
+
+/**
+ * Drive ONE node through the REAL gate in a caller-owned worktree: append `building`, resolve the
+ * REAL ProveSpec (the leaf authors the node's real test/impl at real paths under hook-enforced
+ * scope), walk `proveUnit` (the spine observes red/green and commits the authored files itself), and
+ * — when `promote !== false` — re-observe the package typecheck + suite (install-bearing) and park
+ * the proven commit on a `claude/real/<id>-<run>` branch (ADR-0031). Honesty walls are unchanged:
+ * one `unitId`, one `PathWriteScope`, the spine's own observation; `buildNodeReal` orchestrates, it
+ * never reaches inside `proveUnit`.
+ */
+export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResult> {
+  const { spec, worktree, baseSha, buildConfig, realConfig, store, runId, signer } = args;
+  await store.appendEvent(
+    workEvent({ unitId: spec.id, event: "building", runId, tier: spec.tier }, signer),
+  );
+  const resolveOptions: ResolveOptions = {
+    mode: "real",
+    workspace: worktree.root,
+    store,
+    runId,
+    signerInputs: { flag: signer },
+    phasePrompts: args.phasePrompts,
+    ...(args.authorOverride !== undefined ? { authorOverride: args.authorOverride } : {}),
+    ...(args.model !== undefined ? { model: args.model } : {}),
+    ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
+    ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
+  };
+  const resolved = resolveProveSpec(spec, resolveOptions);
+  if (!resolved.ok) {
+    // The caller prechecked real-buildability, so this is belt-and-braces; surface it as a
+    // fail-closed ProveResult so a chain HALTS honestly rather than throwing.
+    return {
+      result: { ok: false, failedAt: "AUTHOR_TEST", reason: resolved.reason, phasesVisited: [] },
+    };
+  }
+  const result = await withPresence(args.presence, { nodeId: spec.id, runId, mode: "real" }, () =>
+    proveUnit(resolved.spec),
+  );
+  const out: RealBuildResult = {
+    result,
+    ...(resolved.liveAuthor !== undefined ? { liveAuthor: resolved.liveAuthor } : {}),
+  };
+  if (!result.ok) return out;
+  out.commitSha = result.verdict.commitSha;
+
+  // Nothing authored — the verdict attests the unchanged HEAD this node entered at (baseSha, NOT the
+  // stale original cut). No promotion (there is nothing new to park).
+  if (result.verdict.commitSha === baseSha) {
+    out.promotionSkipped = "nothing authored — the verdict attests the unchanged HEAD";
+    return out;
+  }
+  // The chain defers the backstop + promotion to ONE pass at the stacked HEAD.
+  if (args.promote === false) return out;
+
+  // node build --real: the ADR-0031 backstop (install-bearing) + single-node promotion. The worktree
+  // is installed iff the node declared install, so realConfig.install governs the backstop here.
+  let regression: "green" | "red" | undefined;
+  let typecheck: "green" | "red" | undefined;
+  if (realConfig.install === true) {
+    if (realConfig.typecheck !== undefined) {
+      typecheck = (
+        await runWorktreeTypecheck({ command: realConfig.typecheck, cwd: worktree.root })
+      ).result;
+      out.typecheck = typecheck;
+    }
+    regression = (await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root }))
+      .result;
+    out.regression = regression;
+  }
+  out.promotion = await promoteRealPass({
+    repoRoot: args.repoRoot,
+    unitId: spec.id,
+    runId,
+    commitSha: result.verdict.commitSha,
+    ...(regression === "red" || typecheck === "red" ? { push: false } : {}),
+  });
+  return out;
+}
+
 // ── `storytree node build` ───────────────────────────────────────────────────
 
 export interface NodeBuildOpts {
@@ -480,33 +642,13 @@ export async function nodeBuild(
   // config — spec-borne first (ADR-0057), registry fallback (the resolver re-checks this; the
   // precheck just keeps the refusal cheap). Using the same resolver as the build path is what lets
   // a self-registered node (a spec `proof:` block, no registry entry) actually build via the CLI.
+  // The two refusals (no real arm; install-without-typecheck) are SHARED with `story build --real`
+  // via realConfigRefusal, so both surfaces refuse identically.
   const buildConfig = resolveBuildConfig(spec)?.config ?? null;
   const realConfig = buildConfig?.real;
-  if (real && realConfig === undefined) {
-    const buildable = realBuildableNodeIds();
-    return {
-      ok: false,
-      body:
-        `node "${spec.id}" is not REAL-buildable — its proof config has no \`real:\` arm ` +
-        `(real.testFile/sourceFile/scope). Add one to the node's spec \`proof:\` block (ADR-0057) ` +
-        `or its registry entry.\nREAL-buildable nodes: ${buildable.join(", ") || "(none yet)"}`,
-      next: buildable.map((id) => `storytree node build ${id} --real`),
-    };
-  }
-  // Install-bearing targets must also register the package typecheck (fail-closed, before any
-  // worktree is cut): the proof run and the regression suite are tsx-driven — types STRIPPED — so
-  // without a worktree `tsc --noEmit` a type-illegal-but-runtime-green leaf would push and only
-  // PR-time CI would catch it (it did, once).
-  if (real && realConfig?.install === true && realConfig.typecheck === undefined) {
-    return {
-      ok: false,
-      body:
-        `node "${spec.id}" has install:true but no real.typecheck command — an installed worktree's ` +
-        `promotion requires the package typecheck observed green (tsx strips types; the proof run ` +
-        `cannot see type errors). Add real.typecheck to the node's spec \`proof:\` block (ADR-0057) ` +
-        `or its registry entry. (A spec \`proof:\` block fails LOUD at load if install:true lacks typecheck.)`,
-      next: [],
-    };
+  if (real) {
+    const refusal = realConfigRefusal(spec, buildConfig);
+    if (refusal !== null) return refusal;
   }
 
   // ADR-0051 §4: the live SDK leaf's per-phase system prompt IS the rendered Library agent
@@ -558,67 +700,35 @@ export async function nodeBuild(
         realConfig?.install === true ? { install: true } : {},
       );
       try {
-        await store.appendEvent(
-          workEvent(
-            { unitId: spec.id, event: "building", runId, tier: spec.tier },
-            signer.signer,
-          ),
-        );
-        const resolveOptions: ResolveOptions = {
-          mode: "real",
-          workspace: worktree.root,
+        // The single-node real lifecycle (resolve → proveUnit → spine commit → ADR-0031 backstop +
+        // promotion) is buildNodeReal — the same function story build --real chains. baseSha is the
+        // worktree cut (a single node builds on HEAD), promote: true (the default).
+        if (buildConfig === null || realConfig === undefined || phasePrompts === undefined) {
+          // Unreachable past realConfigRefusal + the live/real prompt assembly, but fail-closed.
+          return { ok: false, body: `internal: real build prerequisites missing for "${spec.id}"`, next: [] };
+        }
+        const built = await buildNodeReal({
+          spec,
+          worktree,
+          baseSha: worktree.headSha,
+          buildConfig,
+          realConfig,
           store,
           runId,
-          signerInputs: { flag: signer.signer },
-          ...(phasePrompts !== undefined ? { phasePrompts } : {}),
+          signer: signer.signer,
+          phasePrompts,
+          presence: ambient,
+          repoRoot: repoRoot(),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
-          ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
+          ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
           ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-        };
-        const resolved = resolveProveSpec(spec, resolveOptions);
-        if (!resolved.ok) {
-          return {
-            ok: false,
-            body: `${resolved.reason}\n(spec loaded fine: ${rel(specFile)})`,
-            next: resolved.registered.map((id) => `storytree node build ${id} --dry-run`),
-          };
-        }
-        result = await withPresence(ambient, { nodeId: spec.id, runId, mode }, () =>
-          proveUnit(resolved.spec),
-        );
-        liveAuthor = resolved.liveAuthor;
-
-        // Promotion (ADR-0031): a signed REAL pass lands, it does not evaporate. The proven
-        // commit is parked on a claude/real/<id>-<run> branch BEFORE the worktree goes away;
-        // an installed worktree first re-observes the package typecheck (tsx strips types — the
-        // proof run cannot see type errors) AND the whole package suite (a green leaf must not
-        // break its package) — a red of either keeps the branch local-only (forensics, no PR).
-        if (result.ok) {
-          if (result.verdict.commitSha === worktree.headSha) {
-            promotionSkipped = "nothing authored — the verdict attests the unchanged HEAD";
-          } else {
-            if (realConfig?.install === true && buildConfig !== null) {
-              if (realConfig.typecheck !== undefined) {
-                typecheck = (
-                  await runWorktreeTypecheck({
-                    command: realConfig.typecheck,
-                    cwd: worktree.root,
-                  })
-                ).result;
-              }
-              regression = (
-                await runRegressionSuite({ command: buildConfig.command, cwd: worktree.root })
-              ).result;
-            }
-            promotion = await promoteRealPass({
-              repoRoot: repoRoot(),
-              unitId: spec.id,
-              runId,
-              commitSha: result.verdict.commitSha,
-              ...(regression === "red" || typecheck === "red" ? { push: false } : {}),
-            });
-          }
-        }
+        });
+        result = built.result;
+        liveAuthor = built.liveAuthor;
+        promotion = built.promotion;
+        promotionSkipped = built.promotionSkipped;
+        regression = built.regression;
+        typecheck = built.typecheck;
       } finally {
         await worktree.remove();
       }

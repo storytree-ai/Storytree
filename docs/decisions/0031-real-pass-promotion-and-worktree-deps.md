@@ -144,7 +144,12 @@ exactly the junk-becomes-noise risk the owner flagged. Disposition: **fold in, b
   the feedback-graduation story's nodes (the first feature story authored after this ADR, as
   `notice-board`; renamed 2026-06-11 — the name moved to the session-presence story, ADR-0033).
 - Chaining promotion through `story build --real` (one branch per story run vs per node) is named
-  future work, not designed here.
+  future work, not designed here. **RESOLVED 2026-06-15 (ADR-0057 §3 expansion D,
+  [`story-real-chain`](../../stories/drive-machinery/story-real-chain.md)): D landed with ONE branch
+  per story run — the chain drives each node real over one shared worktree (stacked commits in
+  dependency order) and promotes ONCE at the stacked HEAD (every node's verdict commit an ancestor;
+  land NON-SQUASH); a halt parks the proven prefix LOCAL-ONLY, never pushed (the preservation rule).
+  Whether a green partial prefix should instead be a pushed landing candidate remains an owner call.**
 - Offline coverage: promotion (fixture repos, bare-origin push, withheld push), install seam
   (injected runner, fail-closed teardown), platform shim — all in
   `packages/orchestrator/src/build-worktree.test.ts`; the live `pnpm install` path is exercised

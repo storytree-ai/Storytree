@@ -863,8 +863,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return storyBuild(third, {
       dryRun: values["dry-run"] === true,
       live: values.live === true,
+      real: values.real === true,
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
       ...(values.actor !== undefined ? { actor: values.actor } : {}),
       ...(values.store !== undefined ? { verdictStore: values.store } : {}),
     });

@@ -1,20 +1,38 @@
 import path from "node:path";
 
-import type { ClaudeAgentAuthor } from "@storytree/agent";
+import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
 import { effectiveUatWitness, resolveSignerFromEnv, rollupStatus } from "@storytree/core";
 import {
+  createBuildWorktree,
   findNodeSpecFile,
   loadNodeSpec,
+  promoteRealPass,
   registeredNodeIds,
   resolveBuildConfig,
+  runRegressionSuite,
   runStoryBuild,
+  runWorktreeTypecheck,
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
-import type { LeafPhasePrompts, NodeSpec, ProveResult } from "@storytree/orchestrator";
+import type {
+  BuildWorktree,
+  LeafPhasePrompts,
+  NodeSpec,
+  PromotionResult,
+  ProveResult,
+} from "@storytree/orchestrator";
 
 import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
-import { driveNode, renderLeafPhasePrompts, repoRoot, rel, resolveVerdictStore } from "./node-build.js";
+import {
+  buildNodeReal,
+  driveNode,
+  realConfigRefusal,
+  renderLeafPhasePrompts,
+  repoRoot,
+  rel,
+  resolveVerdictStore,
+} from "./node-build.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
@@ -60,20 +78,63 @@ function honestFramingStoryLive(persisted: boolean): string {
   );
 }
 
+function honestFramingStoryReal(persisted: boolean, promotion: PromotionResult | undefined): string {
+  const landing =
+    promotion === undefined
+      ? "nothing was promoted (see the promotion line above)"
+      : promotion.pushed
+        ? `the whole proven chain is PARKED on ${promotion.branch} and pushed — land it via ONE\nNON-SQUASH PR (every node's verdict commit must stay an ancestor of main, ADR-0031)`
+        : `the proven chain is PARKED LOCAL-ONLY on ${promotion.branch} (not pushed — ${promotion.detail});\na partial/halted or backstop-red chain is preserved for forensics, never offered as a landing candidate`;
+  return (
+    "honest framing: a REAL story build (ADR-0057 §3 expansion D). Each node was driven through the\n" +
+    "FULL prove-it-gate for real — the leaf authored its REAL test/impl at real paths under\n" +
+    "hook-enforced write scope, the spine observed the genuine red→green and committed the authored\n" +
+    "files — in ONE shared worktree in dependency order, so each node built on the committed result of\n" +
+    "the nodes before it (the story grows). Halt-is-never-a-pass holds: a node failing closed halts the\n" +
+    `chain and later nodes never run. ${landing}.` +
+    (persisted
+      ? "\nThe signed verdicts PERSISTED to the shared store (events.verdict — the rollup derives each\nnode's status across sessions)."
+      : "\nThe verdicts landed in an in-memory store and are gone.")
+  );
+}
+
 export interface StoryBuildOpts {
   dryRun: boolean;
   /** `--live` — a real SDK leaf per node, subscription-funded, under the total budget ceiling. */
   live?: boolean;
-  /** `--model` — the SDK leaf's model (live only). */
+  /**
+   * `--real` (ADR-0057 §3 expansion D) — chain `node build --real` over the WHOLE story: each node
+   * authored for real in ONE shared worktree in dependency order, signed, then the proven chain
+   * promoted ONCE at the stacked HEAD. Subscription-funded, under the total budget ceiling.
+   */
+  real?: boolean;
+  /** `--model` — the SDK leaf's model (live/real only). */
   model?: string;
-  /** `--budget` — TOTAL USD ceiling across every node (live only). Default: 10. */
+  /** `--budget` — TOTAL USD ceiling across every node (live/real only). Default: 10. */
   budgetUsd?: number;
+  /** `--max-turns` — per-authoring-slice turn ceiling, SDK-enforced (live/real only). */
+  maxTurns?: number;
   /** `--actor` — the signer chain's flag tier. */
   actor?: string;
-  /** `--store` — the verdict store: absent = in-memory, `pg` = the live work tables (live only). */
+  /** `--store` — the verdict store: absent = in-memory, `pg` = the live work tables (live/real only). */
   verdictStore?: string;
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
+  /** Injectable repo root for `--real` worktree + promotion (tests use a fixture repo); defaults to repoRoot(). */
+  repoRoot?: string;
+  /**
+   * Injectable per-node leaf factory for OFFLINE `--real` tests (a scripted {@link PhaseAuthor} per
+   * node, via the resolver's authorOverride seam); defaults to the live SDK leaf. Receives the
+   * shared worktree root so the scripted author can write into it (the worktree is cut inside this
+   * function, so the test cannot construct the author beforehand).
+   */
+  authorOverride?: (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined;
+  /**
+   * Promote a green `--real` chain (default true). Tests that exercise the chain WITHOUT touching a
+   * remote pass `false` (drive + sign + commit, no branch/push); the promotion path is proven
+   * separately against a fixture bare-origin repo.
+   */
+  promote?: boolean;
   /** Injectable OQ-hygiene row loader for tests (ADR-0037 §5); defaults to the live store. */
   oqGateDeps?: OqGateDeps;
   /**
@@ -92,27 +153,34 @@ export async function storyBuild(
   if (storyId === undefined) {
     return {
       ok: false,
-      body: "story build needs a story id: storytree story build <story-id> --dry-run | --live",
+      body: "story build needs a story id: storytree story build <story-id> --dry-run | --live | --real",
       next: ["storytree story build library --dry-run"],
     };
   }
   const live = opts.live === true;
-  const picked = [opts.dryRun, live].filter(Boolean).length;
+  const real = opts.real === true;
+  const picked = [opts.dryRun, live, real].filter(Boolean).length;
   if (picked !== 1) {
     return {
       ok: false,
       body:
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk of every node, topo-ordered (zero cost)\n" +
-        "  --live      a real Claude Agent SDK leaf per node (subscription-funded) under a TOTAL\n" +
-        "              budget ceiling (--budget, default $10; each slice capped at $1)",
+        "  --live      a real Claude Agent SDK leaf per node (subscription-funded), SYNTHETIC task,\n" +
+        "              under a TOTAL budget ceiling (--budget, default $10; each slice capped at $1)\n" +
+        "  --real      ADR-0057 §3 expansion D: chain node build --real over the WHOLE story —\n" +
+        "              each node authored for real in ONE shared worktree in dependency order, signed,\n" +
+        "              the proven chain promoted ONCE at the stacked HEAD (a halt parks the prefix\n" +
+        "              local-only). Subscription-funded; same total budget ceiling",
       next: [
         `storytree story build ${storyId} --dry-run`,
         `storytree story build ${storyId} --live`,
+        `storytree story build ${storyId} --real`,
       ],
     };
   }
-  const mode = live ? "live" : "dry-run";
+  const mode = real ? "real" : live ? "live" : "dry-run";
+  const rootDir = opts.repoRoot ?? repoRoot();
 
   // Fail-closed before any work: a verdict must be attributable.
   const signer = resolveSignerFromEnv(
@@ -196,16 +264,28 @@ export async function storyBuild(
     };
   }
 
-  // ADR-0037 §5: open-question hygiene gates a LIVE build, before any store setup or spend.
+  // REAL mode additionally requires every DRIVEN node to be real-buildable (a `real:` arm, and
+  // install⇒typecheck), checked before any worktree is cut — the SAME realConfigRefusal node build
+  // --real uses. NOTE: a `uat_witness: machine` story whose story node lacks a `real:` arm is
+  // refused HERE (its UAT is not a test-file red→green — that is gate-as-proof, expansion E), so D
+  // refuses rather than pretends.
+  if (real) {
+    for (const n of driveOrder) {
+      const refusal = realConfigRefusal(n, resolveBuildConfig(n)?.config ?? null);
+      if (refusal !== null) return refusal;
+    }
+  }
+
+  // ADR-0037 §5: open-question hygiene gates a LIVE/REAL build, before any store setup or spend.
   // An unprocessed operator answer on a deciding ADR's OQ refuses the run; offline never refuses.
-  const hygiene = await oqHygieneGate(story, live, opts.oqGateDeps ?? {});
+  const hygiene = await oqHygieneGate(story, live || real, opts.oqGateDeps ?? {});
   if (hygiene.refusal !== null) return hygiene.refusal;
 
   // ADR-0051 §4: assemble the live SDK leaf's per-phase system prompt from the Library once for the
   // whole chain (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Fail-loud before any spend —
-  // a live build runs the Library agent, never a generic. The dry-run owned loop needs no leaf prompt.
+  // a live/real build runs the Library agent, never a generic. The dry-run owned loop needs no prompt.
   let phasePrompts: LeafPhasePrompts | undefined;
-  if (live) {
+  if (live || real) {
     const rendered = await renderLeafPhasePrompts();
     if (!rendered.ok) return rendered.refusal;
     phasePrompts = rendered.prompts;
@@ -214,7 +294,7 @@ export async function storyBuild(
   const storeChoice = await resolveVerdictStore(
     opts.verdictStore,
     mode === "dry-run",
-    `storytree story build ${story.id} --live`,
+    `storytree story build ${story.id} ${real ? "--real" : "--live"}`,
   );
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
@@ -230,17 +310,82 @@ export async function storyBuild(
   };
 
   const runId = `story-${mode}-${Date.now().toString(36)}`;
-  const budgetUsd = live ? (opts.budgetUsd ?? DEFAULT_STORY_BUDGET_USD) : undefined;
+  const budgetUsd = live || real ? (opts.budgetUsd ?? DEFAULT_STORY_BUDGET_USD) : undefined;
 
+  // The verdict store (and its pg pool/connector) is already open; cut the worktree INSIDE the try
+  // so its `finally` ALWAYS closes the store — `createBuildWorktree` can throw (a failed `git
+  // worktree add`, or a `pnpm install` failure it tears down and rethrows), and a throw before this
+  // try would leak the Cloud SQL pool for the process lifetime.
+  let worktree: BuildWorktree | undefined;
   try {
+    // REAL mode: ONE shared worktree for the whole chain — each node authors + commits into it in
+    // dependency order, so a later node sees earlier nodes' spine-committed source (intra-story deps
+    // resolve; a fresh-per-node worktree off HEAD could not). Installed once iff ANY driven node
+    // declares install (story-grain). Removed in this `finally` — AFTER the end-of-chain promotion,
+    // whose branch lives in the shared object store and survives the worktree's removal.
+    if (real) {
+      const anyInstall = driveOrder.some(
+        (n) => resolveBuildConfig(n)?.config.real?.install === true,
+      );
+      worktree = await createBuildWorktree(rootDir, anyInstall ? { install: true } : {});
+    }
+
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
     const leaves = new Map<string, ClaudeAgentAuthor>();
     const failures = new Map<string, Extract<ProveResult, { ok: false }>>();
+    // The REAL chain's stacked HEAD: advances to each node's verdict commit as it passes, so the
+    // next node builds on top. Promotion at chain end points at THIS, not the stale worktree cut.
+    let currentHead = worktree?.headSha ?? "";
 
     const run = await runStoryBuild({
       order: driveOrder,
       ...(budgetUsd !== undefined ? { budgetUsd } : {}),
       buildNode: async (spec, _index, remainingUsd) => {
+        if (real) {
+          // The REAL per-node build in the SHARED worktree (promote:false — the chain promotes once
+          // at the end). Each node walks the full prove-it-gate; honesty walls are per node.
+          const cfg = resolveBuildConfig(spec)?.config ?? null;
+          if (cfg === null || cfg.real === undefined || worktree === undefined || phasePrompts === undefined) {
+            // Unreachable past the real precheck + prompt assembly, but stays fail-closed.
+            const result: ProveResult = {
+              ok: false,
+              failedAt: "AUTHOR_TEST",
+              reason: `real build prerequisites missing for "${spec.id}"`,
+              phasesVisited: [],
+            };
+            failures.set(spec.id, result);
+            return { result };
+          }
+          // Resolve the test-only scripted leaf ONCE (a stateful factory must not be called twice).
+          const override = opts.authorOverride?.(spec, worktree.root);
+          const built = await buildNodeReal({
+            spec,
+            worktree,
+            baseSha: currentHead,
+            buildConfig: cfg,
+            realConfig: cfg.real,
+            store,
+            runId,
+            signer: signer.signer,
+            phasePrompts,
+            presence: ambient,
+            repoRoot: rootDir,
+            promote: false,
+            ...(override !== undefined ? { authorOverride: override } : {}),
+            ...(opts.model !== undefined ? { model: opts.model } : {}),
+            budgetUsd: Math.min(SLICE_BUDGET_USD, remainingUsd ?? SLICE_BUDGET_USD),
+            ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+          });
+          if (built.liveAuthor !== undefined) leaves.set(spec.id, built.liveAuthor);
+          if (!built.result.ok) failures.set(spec.id, built.result);
+          // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
+          // when nothing was authored, which is a harmless no-op advance).
+          if (built.commitSha !== undefined) currentHead = built.commitSha;
+          return {
+            result: built.result,
+            ...(built.liveAuthor !== undefined ? { costUsd: built.liveAuthor.totalCostUsd } : {}),
+          };
+        }
         const drive = await driveNode(spec, {
           mode: live ? "live-smoke" : "dry-run",
           store,
@@ -271,6 +416,62 @@ export async function storyBuild(
         };
       },
     });
+
+    // REAL chain-end promotion (ADR-0031 at story grain): ONE branch at the stacked HEAD.
+    let promotion: PromotionResult | undefined;
+    let promotionSkipped: string | undefined;
+    const backstopLines: string[] = [];
+    if (real && worktree !== undefined) {
+      if (currentHead === worktree.headSha) {
+        promotionSkipped = run.passed
+          ? "nothing authored across the chain — every verdict attests the unchanged HEAD"
+          : "the chain halted before any node signed a commit — nothing to park";
+      } else if (run.passed && (opts.promote ?? true)) {
+        // Backstop ONCE at the final stacked HEAD: re-observe each DISTINCT install-bearing node's
+        // typecheck + package suite over the whole stack (tsx strips types — only tsc sees them; a
+        // green leaf must not break its package). A red of either keeps the branch LOCAL-ONLY.
+        let anyRed = false;
+        const seen = new Set<string>();
+        for (const n of driveOrder) {
+          const cfg = resolveBuildConfig(n)?.config;
+          const rc = cfg?.real;
+          if (cfg === undefined || rc?.install !== true) continue;
+          if (rc.typecheck !== undefined) {
+            const key = `tc:${rc.typecheck.file} ${rc.typecheck.args.join(" ")}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              const tc = (await runWorktreeTypecheck({ command: rc.typecheck, cwd: worktree.root })).result;
+              if (tc === "red") anyRed = true;
+              backstopLines.push(`typecheck:   ${key.slice(3)} ${tc.toUpperCase()} at the stacked HEAD`);
+            }
+          }
+          const skey = `suite:${cfg.command.file} ${cfg.command.args.join(" ")}`;
+          if (!seen.has(skey)) {
+            seen.add(skey);
+            const reg = (await runRegressionSuite({ command: cfg.command, cwd: worktree.root })).result;
+            if (reg === "red") anyRed = true;
+            backstopLines.push(`regression:  ${skey.slice(6)} ${reg.toUpperCase()} at the stacked HEAD`);
+          }
+        }
+        promotion = await promoteRealPass({
+          repoRoot: rootDir,
+          unitId: story.id,
+          runId,
+          commitSha: currentHead,
+          ...(anyRed ? { push: false } : {}),
+        });
+      } else if (!run.passed) {
+        // HALT with a proven prefix: park LOCAL-ONLY (preservation over loss, ADR-0031), NEVER
+        // pushed — a partial story is never a landing candidate (no `gh pr create` next-line below).
+        promotion = await promoteRealPass({
+          repoRoot: rootDir,
+          unitId: story.id,
+          runId,
+          commitSha: currentHead,
+          push: false,
+        });
+      }
+    }
 
     // Per-node report lines off the ONE shared event log.
     const events = await store.readEvents();
@@ -311,8 +512,20 @@ export async function storyBuild(
       "",
       `nodes:       ${run.outcomes.length}/${driveOrder.length} signed passes${storyWithheld ? " (the story UAT node awaits its human witness)" : ""}`,
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
+      ...(real && worktree !== undefined
+        ? [`worktree:    ${worktree.root} (ONE shared worktree, stacked commits in dependency order, removed after)`]
+        : []),
+      ...backstopLines,
+      ...(promotion !== undefined
+        ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]
+        : []),
+      ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
-    const framing = live ? honestFramingStoryLive(persisted) : HONEST_FRAMING_STORY_DRY;
+    const framing = real
+      ? honestFramingStoryReal(persisted, promotion)
+      : live
+        ? honestFramingStoryLive(persisted)
+        : HONEST_FRAMING_STORY_DRY;
 
     if (!run.passed) {
       return {
@@ -320,10 +533,13 @@ export async function storyBuild(
         body: [
           ...header,
           `outcome:     HALTED at node ${(run.haltedAt ?? 0) + 1}/${driveOrder.length} — ${run.reason ?? "failed closed"}`,
+          ...(real && promotion !== undefined
+            ? [`             the proven prefix is parked LOCAL-ONLY (${promotion.branch}) — not a landing candidate`]
+            : []),
           "",
           framing,
         ].join("\n"),
-        next: [`storytree story build ${story.id} ${live ? "--live" : "--dry-run"}`],
+        next: [`storytree story build ${story.id} ${real ? "--real" : live ? "--live" : "--dry-run"}`],
       };
     }
     if (storyWithheld) {
@@ -339,6 +555,14 @@ export async function storyBuild(
           framing,
         ].join("\n"),
         next: [
+          // A --real chain's capabilities are real-built + promoted even though the story UAT is
+          // withheld — surface the landing candidate (this is the main --real success shape, since a
+          // story UAT node has no real: arm).
+          ...(real && promotion !== undefined && promotion.pushed
+            ? [
+                `gh pr create --head ${promotion.branch} --title "real: ${story.id} capabilities proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
+              ]
+            : []),
           `storytree node build <id> --real   (one node's REAL proof in a fresh worktree)`,
         ],
       };
@@ -352,11 +576,19 @@ export async function storyBuild(
         framing,
       ].join("\n"),
       next: [
-        `storytree story build ${story.id} --live   (a real SDK leaf per node, budget-ceilinged)`,
+        ...(real && promotion !== undefined && promotion.pushed
+          ? [
+              `gh pr create --head ${promotion.branch} --title "real: ${story.id} story proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
+            ]
+          : []),
+        ...(real
+          ? []
+          : [`storytree story build ${story.id} --real   (chain the WHOLE story for real)`]),
         "storytree node build <id> --real   (one node's REAL proof in a fresh worktree)",
       ],
     };
   } finally {
+    if (worktree !== undefined) await worktree.remove();
     await storeChoice.close();
   }
 }
@@ -378,11 +610,19 @@ export function storyHelp(): Envelope {
       "      the gate builds the capabilities and WITHHOLDS the story node, fail-closed.",
       "",
       "  storytree story build <story-id> --live [--budget <usd>] [--model <id>] [--actor <email>]",
-      "      the same chain with a REAL Claude Agent SDK leaf per node (subscription-funded).",
-      "      --budget is the TOTAL ceiling across every node (default $10), enforced fail-closed",
-      "      before each node; each authoring slice is additionally capped at $1.",
+      "      the same chain with a REAL Claude Agent SDK leaf per node (subscription-funded), but the",
+      "      TASK per node is still the synthetic add(2,3) pair. --budget is the TOTAL ceiling across",
+      "      every node (default $10), enforced fail-closed before each node; each slice capped at $1.",
       "",
-      "  --store pg   (--live only) persist building marks + signed verdicts to the live work",
+      "  storytree story build <story-id> --real [--budget <usd>] [--model <id>] [--max-turns <n>] [--actor <email>]",
+      "      ADR-0057 §3 expansion D — chain node build --real over the WHOLE story: each node",
+      "      authored for real in ONE shared worktree in dependency order (a later node builds on",
+      "      earlier nodes' committed source), signed, the proven chain promoted ONCE at the stacked",
+      "      HEAD (land via a NON-SQUASH PR). A node failing closed HALTS the chain; the proven prefix",
+      "      is parked LOCAL-ONLY (never pushed). Every driven node must be REAL-buildable (a real:",
+      "      arm). Same total budget ceiling. The default $10 may be low for a multi-node real chain.",
+      "",
+      "  --store pg   (--live/--real only) persist building marks + signed verdicts to the live work",
       "      tables (events.work_event/events.verdict). Refused for --dry-run (forged-healthy guard).",
       "",
       "buildable stories: those whose story + capabilities all have registry entries (today: library).",
