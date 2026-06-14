@@ -39,12 +39,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { verdictBloom, type VerdictBloom } from '../lib/activity.js';
+import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
+import { useBuildActivity } from '../lib/buildActivity';
 import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
 import { navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
 import { WorldLegend } from './WorldLegend.js';
-import type { AttestationMark, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { AttestationMark, BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
 // ---------- deterministic pseudo-random ----------
 
@@ -747,6 +748,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // the /api/presence poll; `now` ticks so wisps age between polls (lib/presence.ts).
   const [seedSessions, setSeedSessions] = useState<TreeSession[] | undefined>(undefined);
   const { sessions, now } = usePresence(seedSessions);
+  // In-flight builds (ADR-0048): the harness signal the orbiting wisp is sourced
+  // from. Seeded from the tree payload, then polled; aged by the SAME `now`
+  // ticker usePresence publishes.
+  const [seedBuilds, setSeedBuilds] = useState<BuildActivity[] | undefined>(undefined);
+  const rawBuilds = useBuildActivity(seedBuilds);
   // The session dock: the board-level list (toolbar count click) or one session's
   // detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
   // including nodes:[] hook declarations — are reachable ONLY through the list.
@@ -771,6 +777,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       .then((p) => {
         setStories(presentStories(p.stories));
         setSeedSessions(p.sessions ?? []);
+        setSeedBuilds(p.builds ?? []);
       })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -862,6 +869,25 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     }
     return byStory;
   }, [sessions, sessionAnchors]);
+
+  /**
+   * In-flight builds grouped by the story territory their unit resolves to
+   * (ADR-0048). TTL-aged against the shared `now` ticker so a build's wisp
+   * vanishes the instant it crosses BUILD_IN_FLIGHT_TTL_MS, not at the next
+   * poll. A build whose unit no loaded story owns anchors nowhere (no wisp).
+   */
+  const buildsByStory = useMemo(() => {
+    const byStory = new Map<string, BuildActivity[]>();
+    for (const b of rawBuilds) {
+      if (!isBuildInFlight(b.at, now)) continue;
+      const storyId = storyIds.has(b.unitId) ? b.unitId : capOwner.get(b.unitId);
+      if (storyId === undefined) continue;
+      const list = byStory.get(storyId);
+      if (list) list.push(b);
+      else byStory.set(storyId, [b]);
+    }
+    return byStory;
+  }, [rawBuilds, now, storyIds, capOwner]);
 
   if (loadError) {
     return (
@@ -1073,6 +1099,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   sessions={(sessionsByStory.get(t.story.id) ?? []).filter((s) =>
                     isOrbitingBand(s.band),
                   )}
+                  builds={buildsByStory.get(t.story.id) ?? []}
                   now={now}
                   selectedSessionId={sessionDock?.kind === 'detail' ? sessionDock.id : null}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
@@ -1086,6 +1113,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           <WorldLegend
             stories={stories}
             sessions={sessions}
+            builds={rawBuilds}
             now={now}
             hidden={hidden}
             onToggleStatus={toggleStatus}
@@ -1539,6 +1567,7 @@ function TerritoryFlora({
   className,
   hidden,
   sessions,
+  builds,
   now,
   selectedSessionId,
   onHover,
@@ -1549,6 +1578,7 @@ function TerritoryFlora({
   className: string;
   hidden: ReadonlySet<string>;
   sessions: TreeSession[];
+  builds: BuildActivity[];
   now: Date;
   selectedSessionId: string | null;
   onHover: (on: boolean) => void;
@@ -1645,6 +1675,31 @@ function TerritoryFlora({
                 from={`${phase} 0 0`}
                 to={`${phase + 360} 0 0`}
                 dur={`${s.band === 'fresh' ? 9 : 16}s`}
+                repeatCount="indefinite"
+              />
+              <g transform={`translate(${t.radius * 0.72 + 10} 0)`}>
+                <circle className="world-wisp-hit" r={12} fill="transparent" />
+                <circle className="world-wisp-glow" r={6.5} />
+                <circle className="world-wisp-dot" r={2.8} />
+              </g>
+            </g>
+          );
+        })}
+        {/* In-flight BUILD wisps (ADR-0048): a leaf agent is mechanically building
+            this unit right now. Distinct band (teal pulse), faster orbit, keyed by
+            runId (its own identity). Informational — the tooltip carries the unit +
+            run; clicking falls through to selecting the story (no session detail). */}
+        {builds.map((b) => {
+          const phase = rand01(hash(b.runId)) * 360;
+          return (
+            <g key={`build:${b.runId}`} className="world-wisp band-building">
+              <title>{`${b.unitId} — building (${b.tier}) · ${formatAge(b.at, now)} · run ${b.runId}`}</title>
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from={`${phase} 0 0`}
+                to={`${phase + 360} 0 0`}
+                dur="6s"
                 repeatCount="indefinite"
               />
               <g transform={`translate(${t.radius * 0.72 + 10} 0)`}>

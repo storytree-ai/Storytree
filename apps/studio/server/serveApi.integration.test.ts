@@ -95,6 +95,7 @@ const stubBackend: LibraryBackend = {
   health: async () => ({ db: 'n/a' as const }),
   latestVerdicts: async () => null,
   activeSessions: async () => null,
+  inFlightBuilds: async () => null,
   listComments: async () => [comment('mine', MEMBER), comment('theirs', 'someone-else@example.com')],
   createComment: async (c) => {
     seen.createdComment = c;

@@ -18,7 +18,7 @@
 // badges. So activity must be transient-only: a bloom that has aged out returns
 // null and the territory is back to carrying its result in colour alone.
 
-import type { TreeVerdict } from '../types';
+import { BUILD_IN_FLIGHT_TTL_MS, type BuildActivity, type TreeVerdict } from '../types';
 
 /**
  * How long a signed verdict reads as "recently landed". Owner-tunable
@@ -81,4 +81,36 @@ export function anyRecentLanding(
     }
   }
   return false;
+}
+
+// ---------- in-flight build activity (ADR-0048) ----------
+
+/**
+ * Is this build still in flight at `now`? True while the `building` event is
+ * younger than the TTL (ADR-0048 §2). The server already drops builds whose run
+ * produced a verdict; this is the SUB-POLL aging — a build vanishes the instant
+ * the `now` ticker crosses the TTL, not at the next fetch (the same purity rule
+ * `classifyPresence` / `verdictBloom` obey: the caller supplies `now`).
+ *
+ * A future-dated `at` (clock skew at the just-started instant) still reads as
+ * in-flight; an unparseable `at` (NaN) does not — a malformed timestamp is not
+ * live work.
+ */
+export function isBuildInFlight(
+  at: string,
+  now: Date,
+  ttlMs: number = BUILD_IN_FLIGHT_TTL_MS,
+): boolean {
+  const elapsed = now.getTime() - new Date(at).getTime();
+  if (!Number.isFinite(elapsed)) return false;
+  return elapsed < ttlMs;
+}
+
+/** Are ANY builds in flight at `now`? Drives the legend's 'building' row visibility. */
+export function anyInFlight(
+  builds: BuildActivity[],
+  now: Date,
+  ttlMs: number = BUILD_IN_FLIGHT_TTL_MS,
+): boolean {
+  return builds.some((b) => isBuildInFlight(b.at, now, ttlMs));
 }

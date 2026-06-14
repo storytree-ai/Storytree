@@ -23,12 +23,14 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Attestation, UserDoc } from '@storytree/core';
-import type {
-  AssetCategory,
-  Comment,
-  GuidanceAsset,
-  TreeSession,
-  TreeVerdict,
+import {
+  BUILD_IN_FLIGHT_TTL_MS,
+  type AssetCategory,
+  type BuildActivity,
+  type Comment,
+  type GuidanceAsset,
+  type TreeSession,
+  type TreeVerdict,
 } from '../src/types';
 
 /** Latest-per-(testId,witness) attestation marks for one story's tests, keyed by test id. */
@@ -109,6 +111,14 @@ export interface LibraryBackend {
    * or when the DB doesn't answer; presence is advisory and silently absent.
    */
   activeSessions(): Promise<TreeSession[] | null>;
+
+  /**
+   * In-flight builds (ADR-0048): the latest `events.work_event` `building` row per
+   * unit whose run has not yet produced a signed verdict, within the TTL — the
+   * harness signal the orbiting wisp is sourced from. Same advisory contract as
+   * {@link activeSessions}: NEVER throws — `null` for json / a down DB.
+   */
+  inFlightBuilds(): Promise<BuildActivity[] | null>;
 
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
@@ -225,6 +235,10 @@ export class JsonBackend implements LibraryBackend {
 
   async activeSessions(): Promise<TreeSession[] | null> {
     return null; // no events.session behind the JSON files — presence silently absent
+  }
+
+  async inFlightBuilds(): Promise<BuildActivity[] | null> {
+    return null; // no events.work_event behind the JSON files — activity silently absent
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {
@@ -619,6 +633,65 @@ export class PgBackend implements LibraryBackend {
         band: core.classifyPresence(d.lastSeenAt, now),
         lastSeenAt: d.lastSeenAt,
       }));
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * In-flight builds (ADR-0048): the latest `building` work-event per unit whose
+   * run has NOT produced a signed verdict, then TTL-filtered in JS so a dangling
+   * build (a hard-killed run) clears in minutes. Keyed by `runId` (the build's
+   * own identity, never a session's). Same advisory contract / 4s race as
+   * latestVerdicts: null on any failure, never a throw.
+   *
+   * "No verdict for (unit_id, run_id)" is the authoritative terminal: a signed
+   * pass for this run clears the wisp (it hands off to the ADR-0045 bloom). A
+   * FAILED run signs no verdict, so the TTL is what clears it (ADR-0048 §2).
+   */
+  async inFlightBuilds(): Promise<BuildActivity[] | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('activity probe timed out')), 4000);
+      });
+      const res = await Promise.race([
+        (async () => {
+          await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error('no pool');
+          // latest `building` per unit, dropped if its run already has a verdict.
+          return handle.pool.query(
+            `WITH latest_building AS (
+               SELECT DISTINCT ON (unit_id)
+                 unit_id, tier, doc->>'runId' AS run_id, at
+               FROM events.work_event
+               WHERE type = 'building'
+               ORDER BY unit_id, seq DESC
+             )
+             SELECT lb.unit_id, lb.tier, lb.run_id, lb.at
+               FROM latest_building lb
+              WHERE lb.run_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM events.verdict v
+                   WHERE v.unit_id = lb.unit_id AND v.run_id = lb.run_id
+                )`,
+          );
+        })(),
+        timeout,
+      ]);
+      const now = new Date();
+      const out: BuildActivity[] = [];
+      for (const raw of (res as { rows: unknown[] }).rows) {
+        const row = raw as { unit_id: string; tier: string; run_id: string; at: Date | string };
+        const at = row.at instanceof Date ? row.at.toISOString() : new Date(row.at).toISOString();
+        // TTL in JS (mirrors classifyPresence): a dangling building clears here.
+        if (now.getTime() - new Date(at).getTime() >= BUILD_IN_FLIGHT_TTL_MS) continue;
+        out.push({ unitId: row.unit_id, tier: row.tier, runId: row.run_id, at });
+      }
+      return out;
     } catch {
       return null;
     } finally {

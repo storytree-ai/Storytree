@@ -1854,6 +1854,26 @@ mark.st-hl.flash {
 .world-wisp.band-possibly-dead .world-wisp-dot { fill: var(--st-retired); }
 .world-wisp.band-possibly-dead.is-selected .world-wisp-glow { opacity: 0.4; }
 
+/* in-flight BUILD wisp (ADR-0048): a leaf agent is mechanically building this
+   unit right now (an events.work_event 'building' with no terminal verdict, within
+   BUILD_IN_FLIGHT_TTL_MS). A pulsing TEAL "work in progress" wisp — distinct from
+   session presence (indigo fresh / amber stale) and from the green verdict bloom.
+   It self-clears when the build lands or the TTL passes. v1 is coarse (one
+   'building' state); phase-resolved red→green is ADR-0048 v2. */
+.world-wisp.band-building .world-wisp-glow {
+  fill: #0d9488;
+  opacity: 0.3;
+  animation: build-pulse 1.6s ease-in-out infinite;
+}
+.world-wisp.band-building .world-wisp-dot { fill: #0d9488; }
+@keyframes build-pulse {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-wisp.band-building .world-wisp-glow { animation: none; opacity: 0.4; }
+}
+
 /* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
    signed verdict just landed on this territory, kin to the hlflash/cflash
    transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:

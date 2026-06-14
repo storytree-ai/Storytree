@@ -775,6 +775,22 @@ export async function handlePresence(
   sendJson(res, 200, { sessions: await backend.activeSessions() });
 }
 
+/**
+ * GET /api/activity — the in-flight-build layer ALONE (ADR-0048), polled cheaply
+ * by the world (sibling to /api/presence). inFlightBuilds() is contractually
+ * non-throwing: a down DB / json backend answers 200 `{builds: null}` (advisory
+ * absence, never a 503), so the only error path is the 405 method guard.
+ * Exported for the integration test (the handlePresence pattern).
+ */
+export async function handleActivity(
+  req: IncomingMessage,
+  res: ServerResponse,
+  backend: Pick<LibraryBackend, 'inFlightBuilds'>,
+): Promise<void> {
+  if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
+  sendJson(res, 200, { builds: await backend.inFlightBuilds() });
+}
+
 async function handleDocs(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -849,12 +865,15 @@ export async function handleApiRequest(
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
       const payload = await readTree(ctx.paths.storiesDir);
-      // Advisory enrichments (ADR-0033): neither call ever throws — null (json
-      // store / DB down) just means the tree renders without that layer. Run in
-      // parallel so a down DB costs one 4s budget, not two.
-      const [verdicts, sessions] = await Promise.all([
+      // Advisory enrichments (ADR-0033 / ADR-0048): no call ever throws — null
+      // (json store / DB down) just means the tree renders without that layer.
+      // Run in parallel so a down DB costs one 4s budget, not three. `builds`
+      // seeds the in-flight wisp layer so the world paints it on first load
+      // (the poll then keeps it fresh) — parity with `sessions`.
+      const [verdicts, sessions, builds] = await Promise.all([
         ctx.backend.latestVerdicts(),
         ctx.backend.activeSessions(),
+        ctx.backend.inFlightBuilds(),
       ]);
       if (verdicts) {
         for (const story of payload.stories) {
@@ -867,9 +886,12 @@ export async function handleApiRequest(
         }
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;
+      if (builds && builds.length > 0) payload.builds = builds;
       sendJson(res, 200, payload);
     } else if (url.pathname === '/api/presence') {
       await handlePresence(req, res, ctx.backend);
+    } else if (url.pathname === '/api/activity') {
+      await handleActivity(req, res, ctx.backend);
     } else if (url.pathname === '/api/comments') {
       await handleComments(req, res, url, ctx.backend, ctx.policy?.commentScope ?? null);
     } else if (url.pathname === '/api/assets') {

@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { WorldLegend, legendFacts } from './WorldLegend';
-import type { TreeCapability, TreeSession, TreeStory, WorkStatus } from '../types';
+import type { BuildActivity, TreeCapability, TreeSession, TreeStory, WorkStatus } from '../types';
 
 const cap = (
   id: string,
@@ -203,6 +203,37 @@ describe('WorldLegend (adaptive bar)', () => {
   it('offline world (no signed verdicts) shows no activity row', () => {
     renderLegend(offlineWorld());
     expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
+  });
+
+  it('an in-flight build lights the building row with the harness honesty caption (ADR-0048)', () => {
+    const build: BuildActivity = {
+      unitId: 'studio',
+      tier: 'capability',
+      runId: 'live-smoke-abc',
+      at: '2026-06-13T23:55:00.000Z', // 5 min before NOW — well inside the TTL
+    };
+    renderLegend(offlineWorld(), [], { builds: [build] });
+    const chip = screen.getByRole('button', { name: 'building' });
+    expect(chip).toBeTruthy();
+    fireEvent.click(chip);
+    expect(screen.getByText(/work, not who is online/)).toBeTruthy();
+    expect(screen.getByText(/self-clears/)).toBeTruthy();
+  });
+
+  it('an aged-out build (older than the TTL) shows no building row', () => {
+    const stale: BuildActivity = {
+      unitId: 'studio',
+      tier: 'capability',
+      runId: 'old',
+      at: '2026-06-13T00:00:00.000Z', // a full day before NOW — past the TTL
+    };
+    renderLegend(offlineWorld(), [], { builds: [stale] });
+    expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
+  });
+
+  it('no builds → no building row', () => {
+    renderLegend(offlineWorld());
+    expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
   });
 
   it('a machine-witnessed world has no signpost states at all', () => {

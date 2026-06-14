@@ -25,12 +25,12 @@
 // offline-under-claims, presence-is-advisory (ADR-0033 d.3 / ADR-0036).
 
 import { useEffect, useRef, useState } from 'react';
-import { anyRecentLanding } from '../lib/activity';
+import { anyInFlight, anyRecentLanding } from '../lib/activity';
 import { isOrbitingBand } from '../lib/presence';
-import type { TreeSession, TreeStory } from '../types';
+import type { BuildActivity, TreeSession, TreeStory } from '../types';
 
 type Band = TreeSession['band'];
-type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'wisps' | 'decor';
+type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'building' | 'wisps' | 'decor';
 
 /**
  * Status fan order: the growth ladder, then the failure state. `building` and
@@ -264,6 +264,19 @@ function WispIcon({ band }: { band: Band }): React.JSX.Element {
   );
 }
 
+/** The in-flight build wisp (ADR-0048) — the world's `world-wisp band-building`
+ *  classes, so the swatch can never drift from the live teal pulse. */
+function BuildWispIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="-8 -8 16 16" aria-hidden="true">
+      <g className="world-wisp band-building">
+        <circle className="world-wisp-glow" r={5.5} />
+        <circle className="world-wisp-dot" r={2.4} />
+      </g>
+    </svg>
+  );
+}
+
 /** The recently-landed bloom (ADR-0045) — the world's `world-bloom` classes, so
  *  the legend swatch can never drift from the live halo + sparkles. */
 function BloomIcon(): React.JSX.Element {
@@ -365,6 +378,7 @@ function countNote(tot: { stories: number; caps: number }): string {
 export function WorldLegend({
   stories,
   sessions,
+  builds = [],
   now,
   hidden,
   onToggleStatus,
@@ -372,6 +386,7 @@ export function WorldLegend({
 }: {
   stories: TreeStory[];
   sessions: TreeSession[];
+  builds?: BuildActivity[];
   now: Date;
   hidden: ReadonlySet<string>;
   onToggleStatus: (st: string) => void;
@@ -416,6 +431,10 @@ export function WorldLegend({
   // ticker. The row drops the moment the last bloom ages out, exactly like a
   // model with no instance (ADR-0045 §6).
   const recentLandings = anyRecentLanding(stories, now);
+  // The building row appears IFF a leaf agent is mechanically building a unit
+  // right now (ADR-0048) — an in-flight build, aged by the same `now` ticker.
+  // It drops the moment the last build lands or times out.
+  const building = anyInFlight(builds, now);
   const toggle = (key: RowKey): void => setOpen((cur) => (cur === key ? null : key));
 
   const rows: { key: RowKey; label: string; visible: boolean; icons: React.JSX.Element }[] = [
@@ -467,6 +486,14 @@ export function WorldLegend({
       label: 'activity',
       visible: recentLandings,
       icons: <BloomIcon />,
+    },
+    {
+      // The in-flight harness layer (ADR-0048): a wisp orbits while a leaf agent
+      // drives a unit through the red-green gate. Drops out when nothing builds.
+      key: 'building',
+      label: 'building',
+      visible: building,
+      icons: <BuildWispIcon />,
     },
     {
       key: 'wisps',
@@ -649,6 +676,25 @@ export function WorldLegend({
             it, ADR-0040) — the bloom only announces the moment it landed, so it never re-states what
             the hue already records. A brand-new verdict blooms on the next world load (the geometry
             is a one-shot read); aged-out blooms vanish without a refetch.
+          </p>
+        </div>
+      )}
+
+      {openRow?.key === 'building' && (
+        <div className="legend-drawer" role="region" aria-label="legend — building">
+          <div className="legend-fan">
+            <Tile
+              icon={<BuildWispIcon />}
+              label="building"
+              note="a leaf agent is driving this unit through the gate right now"
+            />
+          </div>
+          <p className="legend-cap">
+            A teal wisp orbits a story while the <strong>harness</strong> is mechanically building one
+            of its units — a leaf agent walking the red-green prove-it-gate (ADR-0048). Unlike a
+            session wisp it tracks <strong>work, not who is online</strong>: it appears when a build
+            starts and <strong>self-clears</strong> when the verdict lands (a pass then blooms green)
+            or after a few minutes if the run died — so it can never become a stale false positive.
           </p>
         </div>
       )}

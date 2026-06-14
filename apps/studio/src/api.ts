@@ -1,6 +1,7 @@
 // Typed client for the dev-server /api/* endpoints (see server/devApi.ts).
 
 import type {
+  ActivityPayload,
   AssetInput,
   AttestationMark,
   AttestationsPayload,
@@ -75,6 +76,10 @@ export const api = {
   // so a wedged request must not pin the poll's in-flight guard.
   presence: (): Promise<PresencePayload> =>
     http('/api/presence', { signal: AbortSignal.timeout(10_000) }),
+  // In-flight build activity (see lib/buildActivity.ts, ADR-0048). Same advisory
+  // contract + abort backstop as presence: a down DB answers {builds: null}.
+  activity: (): Promise<ActivityPayload> =>
+    http('/api/activity', { signal: AbortSignal.timeout(10_000) }),
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),
 

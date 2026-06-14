@@ -357,6 +357,8 @@ export interface TreePayload {
   stories: TreeStory[];
   /** Present only when the live store answered AND at least one session is active. */
   sessions?: TreeSession[];
+  /** Present only when the live store answered AND at least one build is in flight (ADR-0048). */
+  builds?: BuildActivity[];
 }
 
 // ---------- per-UAT-test attestations (ADR-0044) ----------
@@ -405,6 +407,47 @@ export interface AttestationsPayload {
  */
 export interface PresencePayload {
   sessions: TreeSession[] | null;
+}
+
+// ---------- in-flight build activity (GET /api/activity, ADR-0048) ----------
+
+/**
+ * How long an `events.work_event` `building` row reads as "a leaf agent is
+ * building this unit right now" before it's treated as stale and stops orbiting
+ * (ADR-0048 §2). MUCH tighter than the 4 h session staleness: a build is bounded
+ * and self-terminating, so a dangling `building` (a hard-killed run that never
+ * produced a terminal verdict) clears in minutes, not hours — no multi-hour
+ * false positives. Applied both server-side (bounds the read) and client-side
+ * (the ticker ages it between polls).
+ */
+export const BUILD_IN_FLIGHT_TTL_MS = 20 * 60 * 1_000; // 20 minutes
+
+/**
+ * A build the harness is driving through the prove-it-gate right now (ADR-0048):
+ * the latest `building` work-event for a unit whose run has not yet produced a
+ * signed verdict, within {@link BUILD_IN_FLIGHT_TTL_MS}. This is the signal the
+ * orbiting wisp is sourced from — mechanical work, not session presence. Keyed
+ * by `runId` so it has its own identity (never a session's), self-clearing when
+ * the verdict lands (pass → hands off to the ADR-0045 bloom) or the TTL passes.
+ */
+export interface BuildActivity {
+  /** The unit being built — a story or capability id (resolves to a territory). */
+  unitId: string;
+  /** The work tier (story | capability | contract). */
+  tier: string;
+  /** The build run id — the wisp's stable identity (orbit phase, react key). */
+  runId: string;
+  /** When the `building` event was appended (ISO) — drives TTL aging. */
+  at: string;
+}
+
+/**
+ * GET /api/activity — the in-flight-build layer alone (ADR-0048), polled like
+ * /api/presence. Always a 200: `null` is the advisory-absent answer (down DB /
+ * json store), never a 503; `[]` means nothing is building right now.
+ */
+export interface ActivityPayload {
+  builds: BuildActivity[] | null;
 }
 
 /** Highlight colour palette for text-anchored comments. */

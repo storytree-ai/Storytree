@@ -17,7 +17,7 @@ import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
 
 // Re-exported for the existing integration tests (the route table's real home).
-export { handleHealth, handlePresence, type HealthDeps } from './apiRouter';
+export { handleHealth, handlePresence, handleActivity, type HealthDeps } from './apiRouter';
 
 export function storytreeDataApi(): Plugin {
   let paths: Paths;
