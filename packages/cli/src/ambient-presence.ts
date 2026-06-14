@@ -235,8 +235,13 @@ export async function statuslineGlance(
 /** Hook events that must never host noticeboard / ambient-presence commands. */
 const BLOCKING_EVENTS = ["Stop", "PreToolUse", "UserPromptSubmit"] as const;
 
-/** Keywords that identify a presence-related hook command. */
-const PRESENCE_KEYWORDS = ["noticeboard", "ambient-presence"] as const;
+/**
+ * Keywords that identify a presence-related hook command. Includes `presence-hook` so the
+ * worktree-safe launcher (`scripts/presence-hook.sh`, which is what the shared settings.json
+ * actually invokes) is still recognised by the never-blocking-hooks audit even though its
+ * command string never names `ambient-presence` directly.
+ */
+const PRESENCE_KEYWORDS = ["noticeboard", "ambient-presence", "presence-hook"] as const;
 
 /**
  * Audit `.claude/settings.json` text for never-blocking-hooks violations.

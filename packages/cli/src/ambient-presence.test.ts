@@ -605,6 +605,24 @@ test("auditHookConfig: ambient-presence hook under PreToolUse is a violation", (
   );
 });
 
+test("auditHookConfig: the presence-hook launcher under a blocking event is a violation", () => {
+  // The shared settings.json invokes `bash scripts/presence-hook.sh <mode>` — its command
+  // string never names `ambient-presence`, so the audit must catch it by the launcher name.
+  const settings = JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "", hooks: [{ type: "command", command: "bash scripts/presence-hook.sh statusline" }] },
+      ],
+    },
+  });
+  const violations = auditHookConfig(settings);
+  assert.ok(violations.length >= 1, "should flag PreToolUse presence-hook launcher");
+  assert.ok(
+    violations.some((v) => /pretooluse/i.test(v)),
+    `violation should mention PreToolUse, got: ${JSON.stringify(violations)}`,
+  );
+});
+
 test("auditHookConfig: noticeboard hook under UserPromptSubmit is a violation", () => {
   const settings = JSON.stringify({
     hooks: {
