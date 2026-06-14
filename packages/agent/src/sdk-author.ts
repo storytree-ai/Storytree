@@ -99,6 +99,16 @@ export interface ClaudeAgentAuthorArgs {
   feedbackCommands?: FeedbackCommand[];
   /** Per-authoring-slice cap on feedback runs, shared across commands. Default: 5. */
   maxFeedbackRuns?: number;
+  /**
+   * The per-phase system prompt the leaf runs on (ADR-0051 §4): the RENDERED `red-builder` agent
+   * for AUTHOR_TEST, the RENDERED `green-builder` agent for IMPLEMENT, assembled by the CLI from
+   * the Library and threaded down. When present it REPLACES the generic base (the feedback closing
+   * is still composed on). On the live SDK path it is REQUIRED — see {@link author}: a live leaf
+   * with no injected prompt fails closed rather than silently falling back to the generic base
+   * (the anti-blindside guarantee). Absent is legal ONLY behind an injected `queryFn` (offline
+   * test double), which keeps the generic fallback.
+   */
+  phasePrompts?: { AUTHOR_TEST: string; IMPLEMENT: string };
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
 }
@@ -137,9 +147,24 @@ const SYSTEM_PROMPT_WITH_FEEDBACK =
   "input is itself wrong (e.g. the test you must satisfy but may not edit), stop and say so " +
   "plainly instead of working around it. When the brief's deliverable is written and checked, stop.";
 
-/** Build the per-slice system prompt (the closing differs with/without feedback tools). */
+/** The runtime closing the leaf always gets (red/green is the spine's, feedback ≠ verdict). */
+function leafClosing(hasFeedback: boolean): string {
+  return hasFeedback ? SYSTEM_PROMPT_WITH_FEEDBACK : SYSTEM_PROMPT_NO_FEEDBACK;
+}
+
+/** The GENERIC per-slice system prompt (no library agent injected — the scripted/test fallback). */
 export function leafSystemPrompt(hasFeedback: boolean): string {
-  return SYSTEM_PROMPT_BASE + (hasFeedback ? SYSTEM_PROMPT_WITH_FEEDBACK : SYSTEM_PROMPT_NO_FEEDBACK);
+  return SYSTEM_PROMPT_BASE + leafClosing(hasFeedback);
+}
+
+/**
+ * Compose the per-slice system prompt from an INJECTED agent body (the rendered `red-builder` /
+ * `green-builder`, ADR-0051 §4) plus the runtime closing. The agent body carries the role and the
+ * write-scope discipline; the closing nails the runtime mechanic the body describes generically —
+ * that the spine observes red/green out-of-band and the leaf's own claim is never the proof.
+ */
+export function composeLeafSystemPrompt(agentBody: string, hasFeedback: boolean): string {
+  return `${agentBody.trim()}\n\n${leafClosing(hasFeedback)}`;
 }
 
 /**
@@ -271,6 +296,8 @@ function isResult(message: unknown): message is ResultLike {
 export class ClaudeAgentAuthor implements PhaseAuthor {
   readonly #args: ClaudeAgentAuthorArgs;
   readonly #queryFn: SdkQueryFn;
+  /** True when no `queryFn` was injected — i.e. this leaf runs the REAL Agent SDK (live/real). */
+  readonly #usesRealSdk: boolean;
 
   /** Every fail-closed refusal the scope hook made, in order (the wall held). */
   readonly violations: SdkWriteViolation[] = [];
@@ -283,7 +310,35 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
 
   constructor(args: ClaudeAgentAuthorArgs) {
     this.#args = args;
+    this.#usesRealSdk = args.queryFn === undefined;
     this.#queryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
+  }
+
+  /**
+   * The per-slice base system prompt: the INJECTED rendered agent for this phase (`red-builder` →
+   * AUTHOR_TEST, `green-builder` → IMPLEMENT, ADR-0051 §4). Fail-loud on the real SDK path when the
+   * injection is absent — the anti-blindside guarantee: a live leaf must run the library agent, NOT
+   * a silent generic fallback. The generic base is allowed ONLY behind an injected `queryFn` (the
+   * offline test double), so the scripted unit tests keep working without a Library.
+   */
+  #resolveBasePrompt(
+    phase: AuthoringPhase,
+  ): { ok: true; base: string } | { ok: false; error: string } {
+    const injected = this.#args.phasePrompts?.[phase]?.trim();
+    if (injected !== undefined && injected.length > 0) {
+      return { ok: true, base: injected };
+    }
+    if (this.#usesRealSdk) {
+      const agent = phase === "AUTHOR_TEST" ? "red-builder" : "green-builder";
+      return {
+        ok: false,
+        error:
+          `live leaf has no injected system prompt for phase ${phase}: the rendered ${agent} ` +
+          `agent (ADR-0051 §4) was not threaded in. A live SDK leaf MUST run the Library agent, ` +
+          `not a generic fallback — wire phasePrompts through resolveProveSpec (no silent fallback).`,
+      };
+    }
+    return { ok: true, base: SYSTEM_PROMPT_BASE };
   }
 
   /** Total SDK-reported cost across slices (USD). Subscription-billed, but always surfaced. */
@@ -302,6 +357,13 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     // The per-SLICE feedback budget: a fresh counter per author() call, shared across commands.
     let feedbackUsed = 0;
 
+    // The system prompt: the injected library agent for this phase + the runtime closing. Resolved
+    // BEFORE the SDK loop so a live leaf with no injected prompt fails closed without any spend.
+    const base = this.#resolveBasePrompt(phase);
+    if (!base.ok) {
+      return { ok: false, error: base.error };
+    }
+
     const options: Options = {
       cwd: this.#args.cwd,
       model: this.#args.model ?? "claude-sonnet-4-6",
@@ -310,7 +372,7 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       tools: LEAF_TOOLS,
       allowedTools: [...LEAF_TOOLS, ...this.feedbackToolNames],
       permissionMode: "bypassPermissions",
-      systemPrompt: leafSystemPrompt(feedback.length > 0),
+      systemPrompt: composeLeafSystemPrompt(base.base, feedback.length > 0),
       ...(feedback.length > 0
         ? {
             mcpServers: {

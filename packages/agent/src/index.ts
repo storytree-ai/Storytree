@@ -37,6 +37,7 @@ export {
   executeFeedback,
   formatFeedbackOutput,
   leafSystemPrompt,
+  composeLeafSystemPrompt,
 } from "./sdk-author.js";
 
 export type { WriteToolSpec } from "./fs-tools.js";

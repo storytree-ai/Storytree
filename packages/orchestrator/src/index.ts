@@ -73,6 +73,7 @@ export type {
   RealResolveOptions,
   ResolveOptions,
   ResolveResult,
+  LeafPhasePrompts,
 } from "./resolve-prove-spec.js";
 export {
   resolveProveSpec,

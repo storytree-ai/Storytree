@@ -4,6 +4,7 @@ import * as path from "node:path";
 
 import {
   ClaudeAgentAuthor,
+  composeLeafSystemPrompt,
   decideWrite,
   executeFeedback,
   formatFeedbackOutput,
@@ -242,6 +243,66 @@ test("leafSystemPrompt: the blind leaf cannot run tests; the feedback leaf is to
   assert.match(leafSystemPrompt(true), /mcp__spine__/);
   assert.match(leafSystemPrompt(true), /FEEDBACK ONLY/);
   assert.match(leafSystemPrompt(true), /stop and say so/);
+});
+
+test("composeLeafSystemPrompt: the INJECTED agent body leads, the runtime closing follows", () => {
+  const composed = composeLeafSystemPrompt("RED-BUILDER AGENT BODY", true);
+  // the library agent's body is the head of the prompt, not a generic preamble
+  assert.match(composed, /^RED-BUILDER AGENT BODY/);
+  // the runtime mechanic is still composed on (feedback ≠ verdict)
+  assert.match(composed, /FEEDBACK ONLY/);
+  // the generic base is GONE — the injected body replaces it
+  assert.doesNotMatch(composed, /You are the leaf agent inside storytree/);
+});
+
+// ── ADR-0051 §4: the rendered library agent IS the SDK leaf's per-phase system prompt ───────────
+
+test("author INJECTS the per-phase agent prompt as the SDK systemPrompt (red-builder/green-builder)", async () => {
+  let captured: string | undefined;
+  const make = (): ClaudeAgentAuthor =>
+    new ClaudeAgentAuthor({
+      cwd: CWD,
+      isWriteAllowed: () => true,
+      phasePrompts: {
+        AUTHOR_TEST: "RED-BUILDER body: write the one failing test, then stop.",
+        IMPLEMENT: "GREEN-BUILDER body: minimum source to pass, then stop.",
+      },
+      queryFn: (args) => {
+        captured = String((args.options as { systemPrompt?: unknown }).systemPrompt);
+        return scripted([
+          { type: "result", subtype: "success", is_error: false, num_turns: 1, total_cost_usd: 0 },
+        ])(args);
+      },
+    });
+
+  await make().author("AUTHOR_TEST", "p");
+  assert.match(captured ?? "", /RED-BUILDER body: write the one failing test/);
+  // the generic base is NOT used when an agent is injected
+  assert.doesNotMatch(captured ?? "", /You are the leaf agent inside storytree/);
+
+  captured = undefined;
+  await make().author("IMPLEMENT", "p");
+  assert.match(captured ?? "", /GREEN-BUILDER body: minimum source to pass/);
+});
+
+test("a LIVE leaf (real SDK, no injected prompt) FAILS CLOSED — never a silent generic fallback (anti-blindside)", async () => {
+  // No queryFn → the REAL Agent SDK path; no phasePrompts → the injection is missing.
+  const author = new ClaudeAgentAuthor({ cwd: CWD, isWriteAllowed: () => true });
+  const r = await author.author("AUTHOR_TEST", "author the failing test");
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.error, /red-builder/);
+  assert.match(r.error, /no silent fallback|MUST run the Library agent/);
+  // Critically, the SDK was NEVER invoked — author() returned before the query loop.
+  assert.equal(author.runs.length, 0);
+});
+
+test("the green phase fail-closed message names the green-builder agent", async () => {
+  const author = new ClaudeAgentAuthor({ cwd: CWD, isWriteAllowed: () => true });
+  const r = await author.author("IMPLEMENT", "implement it");
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.error, /green-builder/);
 });
 
 test("author wires feedback commands as an in-process MCP server + allowlisted tools", async () => {

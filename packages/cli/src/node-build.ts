@@ -33,8 +33,17 @@ import type {
   ProveResult,
   ResolveOptions,
 } from "@storytree/orchestrator";
-import { applySchema, closePool, createPool, PgPresenceStore, PgWorkStore } from "@storytree/store";
+import type { LeafPhasePrompts } from "@storytree/orchestrator";
+import {
+  applySchema,
+  closePool,
+  createPool,
+  loadCorpus,
+  PgPresenceStore,
+  PgWorkStore,
+} from "@storytree/store";
 
+import { renderAgentPrompt } from "./agents.js";
 import { withPresence } from "./ambient-presence.js";
 import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
@@ -114,6 +123,63 @@ export function repoRoot(): string {
 /** Repo-relative display path (forward slashes, stable across platforms). */
 export function rel(file: string): string {
   return path.relative(repoRoot(), file).replace(/\\/g, "/");
+}
+
+// ── The live SDK leaf's per-phase system prompt = the rendered Library agent (ADR-0051 §4) ──
+
+/** The Library agent that drives the red phase (AUTHOR_TEST): writes the one failing test, stops. */
+export const RED_BUILDER_AGENT = "red-builder";
+/** The Library agent that drives the green phase (IMPLEMENT): minimum source to pass, stops. */
+export const GREEN_BUILDER_AGENT = "green-builder";
+
+export type LeafPhasePromptResult =
+  | { ok: true; prompts: LeafPhasePrompts }
+  | { ok: false; refusal: Envelope };
+
+/**
+ * Assemble the live SDK leaf's per-phase system prompts from the Library (ADR-0051 §4): the
+ * `red-builder` agent IS the AUTHOR_TEST system prompt, the `green-builder` agent IS the IMPLEMENT
+ * system prompt. Offline by construction — `loadCorpus` seeds an in-memory store, the same seed
+ * every other read command uses — so live/real builds run the LIBRARY agent, never a hard-coded
+ * generic (the SDK leaf's old `SYSTEM_PROMPT_BASE`). Fail-loud is the anti-blindside guarantee: a
+ * missing agent or a dangling manifest ref REFUSES the build, never degrades it silently.
+ */
+export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
+  const store = new InMemoryStore();
+  await loadCorpus(store);
+  const problems: string[] = [];
+  const rendered: Partial<Record<keyof LeafPhasePrompts, string>> = {};
+  for (const [phase, agentId] of [
+    ["AUTHOR_TEST", RED_BUILDER_AGENT],
+    ["IMPLEMENT", GREEN_BUILDER_AGENT],
+  ] as const) {
+    const res = await renderAgentPrompt(store, agentId);
+    if (!res.ok) {
+      problems.push(`agent "${agentId}" (${phase}) did not render: ${res.reason}`);
+    } else if (res.agent.missingRefs.length > 0) {
+      problems.push(`agent "${agentId}" (${phase}) has dangling refs: ${res.agent.missingRefs.join(", ")}`);
+    } else {
+      rendered[phase] = res.agent.prompt;
+    }
+  }
+  if (problems.length > 0 || rendered.AUTHOR_TEST === undefined || rendered.IMPLEMENT === undefined) {
+    return {
+      ok: false,
+      refusal: {
+        ok: false,
+        body:
+          "the live SDK leaf's system prompt could not be assembled from the Library (ADR-0051 §4):\n" +
+          problems.join("\n") +
+          "\nA live build runs the Library agent as the leaf's system prompt — fix the red-builder /\n" +
+          "green-builder agent artifact (live store / knowledge.json), it must not fall back to a generic.",
+        next: [
+          `storytree agents ${RED_BUILDER_AGENT}`,
+          `storytree agents ${GREEN_BUILDER_AGENT}`,
+        ],
+      },
+    };
+  }
+  return { ok: true, prompts: { AUTHOR_TEST: rendered.AUTHOR_TEST, IMPLEMENT: rendered.IMPLEMENT } };
 }
 
 // ── The verdict store seam (`--store pg`, PR #29 parked decision 4) ─────────
@@ -219,6 +285,12 @@ export interface DriveNodeArgs {
   /** Per-authoring-slice turn ceiling, SDK-enforced (live only). Default: 16. */
   maxTurns?: number;
   /**
+   * The rendered red-builder/green-builder system prompts the live SDK leaf runs on (ADR-0051 §4),
+   * assembled once by the caller and passed down. Required for live-smoke; the dry-run owned loop
+   * ignores it.
+   */
+  phasePrompts?: LeafPhasePrompts;
+  /**
    * The ambient presence deps (ADR-0033 Decision 3): when present, the leaf run is wrapped in
    * {@link withPresence} — declare before, done in a finally, every failure swallowed. Absent =
    * no presence surface (the offline default).
@@ -258,6 +330,7 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
             store: args.store,
             runId: args.runId,
             signerInputs: { flag: args.signer },
+            ...(args.phasePrompts !== undefined ? { phasePrompts: args.phasePrompts } : {}),
             ...sdkOpts,
           }
         : {
@@ -431,6 +504,18 @@ export async function nodeBuild(
     };
   }
 
+  // ADR-0051 §4: the live SDK leaf's per-phase system prompt IS the rendered Library agent
+  // (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Assemble it offline and fail-loud on a
+  // missing agent / dangling ref BEFORE any spend or worktree — a live build runs the Library agent,
+  // never the SDK's old hard-coded generic (the anti-blindside guarantee). The dry-run owned loop
+  // needs no leaf prompt, so only live/real renders it.
+  let phasePrompts: LeafPhasePrompts | undefined;
+  if (live || real) {
+    const rendered = await renderLeafPhasePrompts();
+    if (!rendered.ok) return rendered.refusal;
+    phasePrompts = rendered.prompts;
+  }
+
   const modeFlag = real ? "--real" : live ? "--live" : "--dry-run";
   const storeChoice = await resolveVerdictStore(
     opts.verdictStore,
@@ -480,6 +565,7 @@ export async function nodeBuild(
           store,
           runId,
           signerInputs: { flag: signer.signer },
+          ...(phasePrompts !== undefined ? { phasePrompts } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(opts.budgetUsd !== undefined ? { maxBudgetUsd: opts.budgetUsd } : {}),
           ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
@@ -538,6 +624,7 @@ export async function nodeBuild(
         runId,
         signer: signer.signer,
         presence: ambient,
+        ...(phasePrompts !== undefined ? { phasePrompts } : {}),
         ...(opts.model !== undefined ? { model: opts.model } : {}),
         ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
         ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),

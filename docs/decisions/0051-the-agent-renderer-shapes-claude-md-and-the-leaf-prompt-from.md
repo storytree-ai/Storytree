@@ -16,6 +16,13 @@ applies [ADR-0030](0030-all-in-on-claude-agent-sdk.md) (pull-based, harness-agno
 [ADR-0023](0023-agent-library-cli.md) (the CLI is the context surface), and
 [ADR-0034](0034-process-artifacts-ways-of-working.md) (the ceremonies an agent points at).
 
+**Update 2026-06-14 — Decision 4 (the SDK-leaf binding) is now BUILT.** The renderer + CLAUDE.md slice
+landed first (PR #120); this follow-up hard-wired the live Claude Agent SDK leaf's per-phase system
+prompt to the rendered library agents `red-builder` (AUTHOR_TEST) and `green-builder` (IMPLEMENT),
+renamed from `leaf-test-author` / `leaf-implementer` (owner steer: a renamed-but-unwired artifact is
+the blindside to avoid). The leaf prompt is no longer hard-coded; a live leaf with no injected prompt
+fails closed. See Decision 4 and Consequences below.
+
 ## Context
 
 A guidance slip exposed the gap: a finished, green unit sat in a draft PR instead of going non-draft
@@ -36,7 +43,8 @@ Eight exist. But:
 - **CLAUDE.md is hand-authored**, not a generated view (unlike `docs/glossary.md`, which
   `build-corpus.mjs` generates). It drifts from the Library by construction.
 - **The SDK leaf prompt is hard-coded** (`packages/agent/src/sdk-author.ts` `SYSTEM_PROMPT_BASE`) —
-  it ignores the `leaf-test-author` / `leaf-implementer` artifacts that describe it.
+  it ignores the `red-builder` / `green-builder` artifacts (renamed 2026-06-14 from
+  `leaf-test-author` / `leaf-implementer`) that describe it.
 
 The corpus is the source of truth for everything else (ADR-0017); the agent's operating discipline is
 the one thing that escaped it. The fix is to make every runtime surface a **generated view of a Library
@@ -65,10 +73,19 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
    is stale (the glossary's drift-guard pattern) — so the discipline can never silently diverge from
    the Library again.
 
-4. **The SDK leaf prompt becomes a generated view too** — `sdk-author.ts` renders its system text from
-   the `leaf-test-author` / `leaf-implementer` artifacts through the same renderer, replacing the
-   hard-coded string. (Recorded here as one binding; implemented as a follow-up unit so the CLAUDE.md
-   slice lands first.)
+4. **The SDK leaf prompt IS a generated view too — BUILT** (2026-06-14, the follow-up unit after the
+   CLAUDE.md slice). The live Claude Agent SDK leaf's per-phase system prompt is the RENDERED library
+   agent, not the hard-coded `SYSTEM_PROMPT_BASE`: **`red-builder`** is the AUTHOR_TEST prompt (write
+   the one failing test, stop), **`green-builder`** is the IMPLEMENT prompt (minimum source to pass,
+   stop). The CLI assembles them offline via `renderAgentPrompt` (the same renderer, reference-don't-
+   restate), threads them through `resolveProveSpec` into `ClaudeAgentAuthor.phasePrompts`, and the
+   runtime composes `agent body + the feedback closing` (the closing keeps the spine-observes-red/green
+   runtime mechanic). The dependency floor is respected — `@storytree/agent` stays core-only; the
+   renderer/store live in the CLI and pass strings down. **Fail-loud, no silent fallback** (the anti-
+   blindside guarantee): a live/real leaf with no injected prompt fails CLOSED rather than running the
+   generic base; a missing agent or a dangling manifest ref refuses the build before any spend. The
+   generic base survives ONLY behind an injected `queryFn` (the offline scripted test double). The
+   **merge-ceremony stays orchestrator-only** — it is never referenced by a leaf agent.
 
 5. **One agent population, many rendered surfaces** (the owner's reframe): the Library `agent` unit is
    the single source of truth; CLAUDE.md (the interactive/orchestrator surface), the SDK leaf prompt
@@ -89,8 +106,9 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
 - The operating discipline has **one source of truth** (the orchestrator `agent` unit) and reaches
   **every session** through a generated CLAUDE.md region — no more hand-copy drift, and the exact rule
   that bit us (hold-is-temporary) is captured where it propagates.
-- The same renderer later gives the SDK leaf its prompt from the Library, closing the last hard-coded
-  guidance surface (ADR-0030's deferred binding).
+- The same renderer now gives the SDK leaf its prompt from the Library (Decision 4, BUILT), closing the
+  last hard-coded guidance surface (ADR-0030's deferred binding): `red-builder` and `green-builder` ARE
+  the live leaf's per-phase system prompts, fail-loud if absent.
 - New cost: a generation step + a CI staleness check; editing the discipline now means editing the
   Library artifact (the live store / `knowledge.json` seed) and regenerating — which is the point.
 - `storytree agents <name>` becomes a real, testable command — useful on its own for inspecting any
@@ -99,7 +117,9 @@ the one thing that escaped it. The fix is to make every runtime surface a **gene
 ## Named-deferred
 
 - **`.claude/agents/*` generation** for subagents from the same population.
-- **The SDK-leaf wiring** (Decision 4) as its own unit after the CLAUDE.md slice.
+- ~~**The SDK-leaf wiring** (Decision 4) as its own unit after the CLAUDE.md slice.~~ **DONE 2026-06-14**
+  — `red-builder` / `green-builder` are rendered by the CLI and threaded into `ClaudeAgentAuthor`
+  (`phasePrompts`); fail-loud, no generic fallback on live.
 
 ## References
 

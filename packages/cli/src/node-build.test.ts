@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { InMemoryStore } from "@storytree/core";
 
 import { run } from "./commands.js";
+import { renderLeafPhasePrompts } from "./node-build.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C), driven through `run` exactly as
@@ -113,6 +114,27 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   const noId = await run(["node", "build", "--dry-run"], deps);
   assert.equal(noId.ok, false);
   assert.match(noId.body, /needs an id/);
+});
+
+test("renderLeafPhasePrompts assembles the live leaf's per-phase prompts from the Library (ADR-0051 §4)", async () => {
+  // The live/real SDK leaf's system prompt IS the rendered red-builder (AUTHOR_TEST) /
+  // green-builder (IMPLEMENT) agent — assembled offline from the seed corpus, fail-loud on a
+  // missing agent or a dangling ref. This pins that the wiring resolves the renamed agents and
+  // injects their bodies (the anti-blindside guarantee: never a generic fallback).
+  const res = await renderLeafPhasePrompts();
+  assert.equal(res.ok, true, res.ok ? "" : res.refusal.body);
+  if (!res.ok) return;
+  // The AUTHOR_TEST prompt is the red-builder agent, the IMPLEMENT prompt is the green-builder.
+  assert.match(res.prompts.AUTHOR_TEST, /red-builder/);
+  assert.match(res.prompts.AUTHOR_TEST, /AUTHOR_TEST/);
+  assert.match(res.prompts.IMPLEMENT, /green-builder/);
+  assert.match(res.prompts.IMPLEMENT, /IMPLEMENT/);
+  // The renderer INJECTS the ref bodies (reference-don't-restate) — the prove-it-gate context is
+  // present, not just a list of asset ids.
+  assert.match(res.prompts.AUTHOR_TEST, /## Context/);
+  // The OLD ids are gone from the assembled prompt — the rename actually took.
+  assert.doesNotMatch(res.prompts.AUTHOR_TEST, /leaf-test-author/);
+  assert.doesNotMatch(res.prompts.IMPLEMENT, /leaf-implementer/);
 });
 
 test("the story node (library) dry-runs too, with the UAT → story proof-mode mapping", async () => {

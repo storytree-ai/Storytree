@@ -140,6 +140,18 @@ interface BaseResolveOptions {
   treeState?: () => Promise<TreeState>;
 }
 
+/**
+ * The rendered per-phase leaf system prompts (ADR-0051 §4): the `red-builder` agent drives
+ * AUTHOR_TEST, the `green-builder` agent drives IMPLEMENT. The CLI assembles these from the Library
+ * offline and threads them down so the LIVE SDK leaf's system prompt IS the library agent — never a
+ * hard-coded generic. The owned-loop (dry-run) leaf ignores them; an SDK leaf with no injected
+ * prompt fails closed (the anti-blindside guarantee, see {@link ClaudeAgentAuthor}).
+ */
+export interface LeafPhasePrompts {
+  AUTHOR_TEST: string;
+  IMPLEMENT: string;
+}
+
 /** Dry-run: the scripted owned loop (offline, zero cost). */
 export interface DryRunResolveOptions extends BaseResolveOptions {
   mode: "dry-run";
@@ -154,6 +166,8 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   maxBudgetUsd?: number;
   /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
   maxTurns?: number;
+  /** The rendered red-builder/green-builder system prompts the live SDK leaf runs on (ADR-0051 §4). */
+  phasePrompts?: LeafPhasePrompts;
 }
 
 /**
@@ -170,6 +184,8 @@ export interface RealResolveOptions extends BaseResolveOptions {
   maxBudgetUsd?: number;
   /** Per-authoring-slice turn ceiling (SDK-enforced). Default: 16. */
   maxTurns?: number;
+  /** The rendered red-builder/green-builder system prompts the live SDK leaf runs on (ADR-0051 §4). */
+  phasePrompts?: LeafPhasePrompts;
   /**
    * Injected leaf for OFFLINE wiring tests (a scripted {@link OwnedLoopAuthor}); defaults to the
    * live {@link ClaudeAgentAuthor}. The executor seam (ADR-0030 §2), used as the test seam here.
@@ -248,6 +264,7 @@ export function resolveProveSpec(
       cwd: opts.workspace,
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
       feedbackCommands: feedbackCommandsFor(syntheticProofCmd, `node ${DRY_RUN_TEST_REL}`),
+      ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
       ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
@@ -331,6 +348,7 @@ function resolveReal(
       cwd: opts.workspace,
       isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
       feedbackCommands,
+      ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
       ...(opts.model !== undefined ? { model: opts.model } : {}),
       ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
       ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),

@@ -1920,7 +1920,7 @@
       "asset:red-green",
       "asset:deep-modules"
     ],
-    "provenance": "Harvested from V1 `build-rust` 'slow growth' guidance; graduated for v2 (owner call, 2026-06-14). Consumers: leaf-implementer.",
+    "provenance": "Harvested from V1 `build-rust` 'slow growth' guidance; graduated for v2 (owner call, 2026-06-14). Consumers: green-builder.",
     "createdAt": "2026-06-10T00:00:00Z",
     "updatedAt": "2026-06-14T00:00:00.000Z",
     "schemaVersion": 2
@@ -1938,7 +1938,7 @@
       "asset:red-green",
       "asset:no-proof-preservation"
     ],
-    "provenance": "Harvested from V1 `build-rust` (baseline preservation) + `test-builder` (preserve-existing); graduated for v2 (owner call, 2026-06-14). Consumers: leaf-implementer, leaf-test-author.",
+    "provenance": "Harvested from V1 `build-rust` (baseline preservation) + `test-builder` (preserve-existing); graduated for v2 (owner call, 2026-06-14). Consumers: green-builder, red-builder.",
     "createdAt": "2026-06-10T00:00:00Z",
     "updatedAt": "2026-06-14T00:00:00.000Z",
     "schemaVersion": 2
@@ -1956,20 +1956,20 @@
       "doc:decisions/0020-red-green-enforcement-on-the-owned-loop.md",
       "asset:red-green"
     ],
-    "provenance": "Harvested from V1 `test-builder` (right-kind red); graduated for v2 (owner call, 2026-06-14). Its enforcement (defaultClassifyKind + nextPhase) is live spine code. Consumers: leaf-test-author.",
+    "provenance": "Harvested from V1 `test-builder` (right-kind red); graduated for v2 (owner call, 2026-06-14). Its enforcement (defaultClassifyKind + nextPhase) is live spine code. Consumers: red-builder.",
     "createdAt": "2026-06-10T00:00:00Z",
     "updatedAt": "2026-06-14T00:00:00.000Z",
     "schemaVersion": 2
   },
   {
     "kind": "agent",
-    "id": "leaf-test-author",
-    "title": "leaf-test-author",
+    "id": "red-builder",
+    "title": "red-builder",
     "description": "The red-state author time-sliced into the prove-it gate's AUTHOR_TEST phase: it writes the single failing test that pins the new behaviour and stops — it never records or claims the red, because the spine observes it.",
     "schemaVersion": 2,
-    "oneLine": "The red-state author time-sliced into the prove-it gate's AUTHOR_TEST phase: it writes the single failing test that pins the new behaviour and stops — the spine, not the leaf, observes the red.",
-    "role": "Time-sliced by the spine into the prove-it gate's AUTHOR_TEST phase, `leaf-test-author` writes the ONE failing test that pins the phase brief's new behaviour, then stops. It works only inside the workspace and writes ONLY the test file(s) the brief allows — an out-of-scope write is refused by the fail-closed `PreToolUse` scope hook, and that refusal is final for the phase. It does not implement, and it never records or claims the red: RED is data the spine derives from the test process's own exit, not a thing the leaf asserts.",
-    "outcome": "The test file the brief names is written within scope and fails for the RIGHT reason — the missing symbol or the assertion the new behaviour requires, never a syntax error or an unrelated breakage. The spine's own out-of-band run is the red; the leaf's claim is never the proof. The leaf stops when the test is written — no implementation, no claim of red, no spawning.",
+    "oneLine": "The red-state author time-sliced into the prove-it gate's AUTHOR_TEST phase: it writes the single failing test that pins the new behaviour and stops — the spine, not this agent, observes the red.",
+    "role": "Time-sliced by the spine into the prove-it gate's AUTHOR_TEST phase, `red-builder` writes the ONE failing test that pins the phase brief's new behaviour, then stops. It works only inside the workspace and writes ONLY the test file(s) the brief allows — an out-of-scope write is refused by the fail-closed `PreToolUse` scope hook, and that refusal is final for the phase. It does not implement, and it never records or claims the red: RED is data the spine derives from the test process's own exit, not a thing this agent asserts.",
+    "outcome": "The test file the brief names is written within scope and fails for the RIGHT reason — the missing symbol or the assertion the new behaviour requires, never a syntax error or an unrelated breakage. The spine's own out-of-band run is the red; this agent's claim is never the proof. It stops when the test is written — no implementation, no claim of red, no spawning.",
     "context": [
       "asset:prove-it-gate",
       "asset:red-green",
@@ -2005,19 +2005,19 @@
       "asset:faked-uat-theatre",
       "asset:agent-never-self-exempts"
     ],
-    "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. The runtime still injects ONE phase-agnostic prompt today; making sdk-author select the per-phase prompt is the injection step, deferred until the owner is ready (ADR-0030 territory). Supersedes the retired `agent-owned-loop-test-author` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library.",
+    "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. Renamed from `leaf-test-author` (owner steer 2026-06-14) AND hard-wired: the SDK leaf's AUTHOR_TEST system prompt IS this rendered agent (ADR-0051 §4) — the CLI assembles it via `renderAgentPrompt`, threads it through `resolveProveSpec` into `ClaudeAgentAuthor.phasePrompts`, and a live leaf with no injected prompt fails closed (no generic fallback). Supersedes the retired `agent-owned-loop-test-author` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library.",
     "createdAt": "2026-06-14T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z"
   },
   {
     "kind": "agent",
-    "id": "leaf-implementer",
-    "title": "leaf-implementer",
-    "description": "The implementer leaf time-sliced into the prove-it gate's IMPLEMENT phase: it writes the minimum source that turns the red test green without regression, and never edits the test it must satisfy.",
+    "id": "green-builder",
+    "title": "green-builder",
+    "description": "The implementer time-sliced into the prove-it gate's IMPLEMENT phase: it writes the minimum source that turns the red test green without regression, and never edits the test it must satisfy.",
     "schemaVersion": 2,
-    "oneLine": "The implementer leaf time-sliced into the prove-it gate's IMPLEMENT phase: it writes the minimum source that turns the red test green without regression, and never claims its own green.",
-    "role": "Time-sliced by the spine into the prove-it gate's IMPLEMENT phase, `leaf-implementer` writes the minimum source that turns the brief's red test green without breaking anything already green. It works only inside the workspace and writes ONLY the source file(s) the brief allows — out-of-scope writes (including the test it must satisfy) are refused by the fail-closed `PreToolUse` scope hook, final for the phase. GREEN is the spine's observation, not the leaf's assertion.",
-    "outcome": "The brief's deliverable source is written within scope; the spine's own out-of-band re-run is green with no regression against the session baseline. The leaf's claim of green is never the proof. The leaf stops when the deliverable is written (and checked, if feedback tools exist).",
+    "oneLine": "The implementer time-sliced into the prove-it gate's IMPLEMENT phase: it writes the minimum source that turns the red test green without regression, and never claims its own green.",
+    "role": "Time-sliced by the spine into the prove-it gate's IMPLEMENT phase, `green-builder` writes the minimum source that turns the brief's red test green without breaking anything already green. It works only inside the workspace and writes ONLY the source file(s) the brief allows — out-of-scope writes (including the test it must satisfy) are refused by the fail-closed `PreToolUse` scope hook, final for the phase. GREEN is the spine's observation, not this agent's assertion.",
+    "outcome": "The brief's deliverable source is written within scope; the spine's own out-of-band re-run is green with no regression against the session baseline. This agent's claim of green is never the proof. It stops when the deliverable is written (and checked, if feedback tools exist).",
     "context": [
       "asset:prove-it-gate",
       "asset:red-green",
@@ -2051,7 +2051,7 @@
       "asset:faked-uat-theatre",
       "asset:agent-never-self-exempts"
     ],
-    "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. The runtime still injects ONE phase-agnostic prompt today; making sdk-author select the per-phase prompt is the injection step, deferred until the owner is ready (ADR-0030 territory). Supersedes the retired `agent-owned-loop-builder` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library.",
+    "provenance": "Captured from the LIVE leaf system prompt — `leafSystemPrompt()` / `SYSTEM_PROMPT_BASE` plus the no-feedback / feedback closings in packages/agent/src/sdk-author.ts — and split by phase per the owner's call (2026-06-14) that test-authoring and flipping-to-green want separate prompts. Renamed from `leaf-implementer` (owner steer 2026-06-14) AND hard-wired: the SDK leaf's IMPLEMENT system prompt IS this rendered agent (ADR-0051 §4) — the CLI assembles it via `renderAgentPrompt`, threads it through `resolveProveSpec` into `ClaudeAgentAuthor.phasePrompts`, and a live leaf with no injected prompt fails closed (no generic fallback). Supersedes the retired `agent-owned-loop-builder` draft, which cited ungraduated candidate refs. No ADRs are injected: this role searches ADRs just-in-time via the library.",
     "createdAt": "2026-06-14T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z"
   },

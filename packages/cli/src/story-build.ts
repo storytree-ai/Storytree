@@ -10,11 +10,11 @@ import {
   runStoryBuild,
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
-import type { NodeSpec, ProveResult } from "@storytree/orchestrator";
+import type { LeafPhasePrompts, NodeSpec, ProveResult } from "@storytree/orchestrator";
 
 import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
-import { driveNode, repoRoot, rel, resolveVerdictStore } from "./node-build.js";
+import { driveNode, renderLeafPhasePrompts, repoRoot, rel, resolveVerdictStore } from "./node-build.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
@@ -198,6 +198,16 @@ export async function storyBuild(
   const hygiene = await oqHygieneGate(story, live, opts.oqGateDeps ?? {});
   if (hygiene.refusal !== null) return hygiene.refusal;
 
+  // ADR-0051 §4: assemble the live SDK leaf's per-phase system prompt from the Library once for the
+  // whole chain (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Fail-loud before any spend —
+  // a live build runs the Library agent, never a generic. The dry-run owned loop needs no leaf prompt.
+  let phasePrompts: LeafPhasePrompts | undefined;
+  if (live) {
+    const rendered = await renderLeafPhasePrompts();
+    if (!rendered.ok) return rendered.refusal;
+    phasePrompts = rendered.prompts;
+  }
+
   const storeChoice = await resolveVerdictStore(
     opts.verdictStore,
     mode === "dry-run",
@@ -234,6 +244,7 @@ export async function storyBuild(
           runId,
           signer: signer.signer,
           presence: ambient,
+          ...(phasePrompts !== undefined ? { phasePrompts } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           ...(live
             ? { budgetUsd: Math.min(SLICE_BUDGET_USD, remainingUsd ?? SLICE_BUDGET_USD) }
