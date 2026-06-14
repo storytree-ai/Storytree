@@ -187,3 +187,12 @@ The current-state set:
   a PR for review: mark it draft or add the `hold` label. `claude/real/*` promotion branches merge
   **non-squash** (ADR-0031 — the verdict's commit must stay an ancestor of `main`). Don't commit
   red/WIP work to a non-draft PR; finish the unit or mark it draft.
+- **A PR is not "done" until CI is green — WATCH it, don't open-and-walk-away.** CI
+  (`.github/workflows/ci.yml`) runs `check:manifest` + `pnpm -r typecheck` + `pnpm -r test` +
+  `pnpm -r build` against the **merge of your branch with `main`**, so a green local `pnpm gate` does
+  NOT guarantee a green CI: a clean branch can fail on something that landed on `main` *after* you cut
+  it (e.g. a new root entry the `repo-surface-allowlist` manifest must list — this exact case stranded
+  three PRs at once). After opening, check `gh pr checks <n>`; on a `verify` failure read the cause
+  (`gh run view --job=<id> --log-failed`), fix it, and push — never leave a red PR sitting unmerged.
+  **First suspect a stale branch:** `git fetch origin && git merge origin/main`, re-gate, push (a
+  branch many commits behind `main` is the usual reason a local-green PR is CI-red).

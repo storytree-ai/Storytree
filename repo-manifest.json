@@ -12,10 +12,11 @@
       ".env.example": "Sample env (ANTHROPIC_API_KEY); DB auth is keyless.",
       ".gitignore": "Ignored paths.",
       ".gitattributes": "Git attributes (eol/diff).",
-      ".gitmodules": "Submodule wiring (legacy/Agentic, read-only).",
+      ".gitmodules": "Submodule wiring (legacy/Agentic read-only; web → storytree-web).",
       ".editorconfig": "Editor formatting baseline.",
       ".nvmrc": "Pinned Node version (24).",
-      ".gcloudignore": "Upload filter for `gcloud builds submit` (the hosted studio image, ADR-0042); must sit at the upload root, which is the repo root."
+      ".gcloudignore": "Upload filter for `gcloud builds submit` (the hosted studio image, ADR-0042); must sit at the upload root, which is the repo root.",
+      "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
       "packages": "Workspace packages (core / agent / orchestrator / store / cli).",

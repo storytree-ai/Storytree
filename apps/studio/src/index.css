@@ -1711,63 +1711,75 @@ mark.st-hl.flash {
   stroke: var(--danger);
 }
 
-/* Per-UAT-test attestation marks in the story detail (ADR-0044 attestation-surface).
-   A VOUCH is not a proof: these deliberately avoid the crown-green verdict hue (--good) — a human
-   seal is ink/indigo (--accent), a machine mark is muted, a fail tints danger, an un-attested slot
-   is a faint dotted ring. They echo the signpost's seal vocabulary (a filled disc = witnessed) but
-   never read as a gate-proven pass, and they live in the panel only — the world hue is untouched. */
+/* Per-UAT-test attestation table in the story detail (ADR-0044 attestation-surface). Each test is
+   a row with ONE click-to-flag-green control. The flag's hue carries the per-test vouch state —
+   GREEN (--good) a pass, RED (--danger) a fail, AMBER (--warn) an un-flagged test you may vouch,
+   muted a test awaiting a machine run. CRUCIAL: the green here is a VOUCH, not a proof — it paints
+   one detail ROW and never the crown/island (only a signed gate verdict greens a story, ADR-0040). */
 .uat-tests {
-  margin-top: 10px;
+  margin-top: 14px;
 }
-.attest-list {
-  list-style: none;
+.uat-table {
+  width: 100%;
+  border-collapse: collapse;
   margin: 6px 0 4px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.attest-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 12.5px;
 }
-.attest-marks {
-  flex: 0 0 auto;
-  display: inline-flex;
-  gap: 3px;
-  min-width: 16px;
+.uat-row {
+  border-top: 1px solid var(--border);
 }
-.attest-seal {
-  font-size: 13px;
+.uat-row:first-child {
+  border-top: none;
+}
+.uat-flag-cell {
+  width: 24px;
+  padding: 5px 0;
+  text-align: center;
+  vertical-align: top;
+}
+.uat-flag {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  font-size: 15px;
   line-height: 1;
+  color: var(--border-strong); /* un-flagged, awaiting a machine run — a faint outline flag */
 }
-.attest-seal.witness-human {
-  color: var(--accent); /* the human SEAL — ink/indigo, NOT crown-green */
+.uat-flag.state-pass {
+  color: var(--good); /* GREEN — a pass vouch, this ROW only (never the island) */
 }
-.attest-seal.witness-machine {
-  color: var(--muted); /* a distinct, quieter machine mark */
-}
-.attest-seal.outcome-fail {
+.uat-flag.state-fail {
   color: var(--danger); /* a witnessed FAIL, either kind */
 }
-.attest-seal.blank {
-  color: var(--border-strong); /* un-attested — a faint dotted ring */
+.uat-flag.is-clickable {
+  cursor: pointer;
+  color: var(--warn); /* amber — un-flagged but you MAY flip it green */
 }
-.attest-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.uat-flag.is-clickable:hover {
+  color: var(--good); /* hover previews the green flip */
+}
+.uat-flag:disabled {
+  cursor: default;
+}
+.uat-test-cell {
+  padding: 5px 6px;
+  vertical-align: top;
+}
+.uat-test-title {
+  display: block;
+}
+.uat-test-who {
+  display: block;
+  font-size: 10.5px;
+  margin-top: 1px;
+}
+.uat-witness-cell {
+  width: 1%;
   white-space: nowrap;
-}
-.attest-witness {
-  flex: 0 0 auto;
+  vertical-align: top;
+  padding: 5px 0 5px 6px;
   font-size: 11px;
-}
-.attest-record {
-  flex: 0 0 auto;
 }
 .attest-note {
   font-size: 11px;
