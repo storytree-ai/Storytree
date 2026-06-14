@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore, rollupStatus, workEvent } from "@storytree/core";
@@ -914,6 +916,9 @@ test("B — every migrated real node stays the node:test default (no proofComman
     const real = loadById(id).buildConfig?.real;
     assert.ok(real !== undefined, `${id} has a real arm`);
     assert.equal("proofCommand" in real, false, `${id} declares no custom proof command`);
+    // C (ADR-0057 §3): the 7 net-new nodes never carry editsExisting — the key must be ABSENT (not
+    // undefined) so the contract-4 deepEqual against the registry twins holds byte-for-byte.
+    assert.equal("editsExisting" in real, false, `${id} is net-new (no editsExisting)`);
     assert.match(realProofCommand(real, "/ws").display, /^node --import tsx --test /);
   }
 });
@@ -956,5 +961,248 @@ test("B — a trivially-green declared proofCommand still fails CONFIRM_RED (no 
     assert.equal(result.failedAt, "CONFIRM_RED");
   } finally {
     await worktree.remove();
+  }
+});
+
+// ── ADR-0057 §3 expansion C: editsExisting (multi-file & edit-existing-source) ──────────────────
+
+const execFileP = promisify(execFile);
+
+/**
+ * A throwaway git repo with an EXISTING (committed) source file — so an edit-existing build's leaf
+ * EDITS source that already lives at HEAD, never creates it. `package.json {type:module}` lets the
+ * absolute-tsx-loader run the authored .ts test as ESM with no node_modules (mirrors story-real-build).
+ */
+async function editExistingFixture(): Promise<{ root: string; testFile: string; sourceFile: string }> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-edit-existing-"));
+  await execFileP("git", ["init", "-b", "main"], { cwd: root });
+  await execFileP("git", ["config", "user.email", "fixture@storytree.invalid"], { cwd: root });
+  await execFileP("git", ["config", "user.name", "fixture"], { cwd: root });
+  await fs.writeFile(path.join(root, "package.json"), '{\n  "type": "module"\n}\n');
+  const sourceFile = "widget.ts";
+  const testFile = "widget.test.ts";
+  // The EXISTING behaviour to regress against: widget(n) returns n (we will fix it to n*2).
+  await fs.writeFile(
+    path.join(root, sourceFile),
+    "export function widget(n: number): number {\n  return n;\n}\n",
+  );
+  await execFileP("git", ["add", "-A"], { cwd: root });
+  // -c commit.gpgsign=false: the fixture must never block on a passphrase prompt on a contributor
+  // machine whose global config signs commits (the test commits a throwaway fixture, never signs).
+  await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: existing widget"], {
+    cwd: root,
+  });
+  return { root, testFile, sourceFile };
+}
+
+/** Build a spec-borne edit-existing buildConfig over the fixture's existing single source file. */
+function editExistingSpec(fix: { testFile: string; sourceFile: string }, id: string) {
+  const scope = { testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] };
+  return {
+    ...loadById("verdict-line"),
+    id,
+    buildConfig: {
+      command: { file: "node", args: ["--version"] },
+      scope,
+      real: {
+        testFile: fix.testFile,
+        sourceFile: fix.sourceFile,
+        scope,
+        editsExisting: true,
+      },
+    },
+  };
+}
+
+// Contract 5 — existing-source-brief: realPrompts drops "must NOT exist yet" and names the set.
+test("C — realPrompts for an editsExisting node drops the net-new assumption and steers to a regression red", () => {
+  const spec = loadById("verdict-line");
+  const real = {
+    testFile: "packages/core/src/widget.test.ts",
+    sourceFile: "packages/core/src/widget.ts",
+    scope: {
+      testGlobs: ["packages/core/src/widget.test.ts"],
+      sourceGlobs: ["packages/core/src/widget.ts"],
+    },
+    editsExisting: true,
+  };
+  const prompts = realPrompts(spec, real, realProofCommand(real, "/ws").display);
+  // The net-new assumption is GONE; the edit-existing framing is present.
+  assert.doesNotMatch(prompts.authorTest, /must NOT exist yet/);
+  assert.doesNotMatch(prompts.authorTest, /importing the missing implementation/);
+  assert.match(prompts.authorTest, /ALREADY EXIST/);
+  assert.match(prompts.authorTest, /REGRESSION test/);
+  assert.match(prompts.authorTest, /NOT a missing-symbol import/);
+  // IMPLEMENT says EDIT the existing source, not "write ONLY".
+  assert.match(prompts.implement, /EDIT the existing source/);
+  // Single-file (sourceGlobs === [sourceFile]) → the brief names just the spotlight, NOT the
+  // multi-file set phrasing (the sourcesNamed singular branch).
+  assert.doesNotMatch(prompts.implement, /the other source files in your scope/);
+});
+
+test("C — a NET-NEW node's brief is UNCHANGED (the parity-of-prose guard holds)", () => {
+  const spec = loadById("verdict-line");
+  const real = lookupNodeBuildConfig("verdict-line")?.real;
+  assert.ok(real !== undefined);
+  const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
+  // editsExisting absent → the original net-new strings, byte-for-byte.
+  assert.match(prompts.authorTest, /must NOT exist yet/);
+  assert.doesNotMatch(prompts.authorTest, /ALREADY EXIST/);
+});
+
+test("C — realPrompts NAMES the multi-file set off scope.sourceGlobs when broader than the spotlight", () => {
+  const spec = loadById("verdict-line");
+  const real = {
+    testFile: "packages/cli/src/feature.test.ts",
+    sourceFile: "packages/cli/src/feature.ts",
+    scope: {
+      testGlobs: ["packages/cli/src/feature.test.ts"],
+      sourceGlobs: ["packages/cli/src/feature.ts", "packages/cli/src/feature-helper.ts"],
+    },
+    install: true,
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/cli", "typecheck"] },
+    proofCommand: { file: "pnpm", args: ["--filter", "@storytree/cli", "test"] },
+    editsExisting: true,
+  };
+  const prompts = realPrompts(spec, real, realProofCommand(real, "/ws").display);
+  // The IMPLEMENT brief names the spotlight AND the rest of the set (derived from sourceGlobs).
+  assert.match(prompts.implement, /feature\.ts/);
+  assert.match(prompts.implement, /feature-helper\.ts/);
+  assert.match(prompts.implement, /the other source files in your scope/);
+});
+
+// Contract 1 — multi-file-scope-permits-a-set: a 2-literal sourceGlobs permits >1 IMPLEMENT write;
+// AUTHOR_TEST still refuses every source path.
+test("C — a multi-file sourceGlobs set permits >1 IMPLEMENT write; AUTHOR_TEST refuses every source", () => {
+  const scope = new PathWriteScope({
+    testGlobs: ["packages/cli/src/feature.test.ts"],
+    sourceGlobs: ["packages/cli/src/feature.ts", "packages/cli/src/feature-helper.ts"],
+  });
+  // IMPLEMENT: both source files writable.
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/feature.ts"), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/feature-helper.ts"), true);
+  // AUTHOR_TEST: neither source file writable (the test author is never the code author).
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", "packages/cli/src/feature.ts"), false);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", "packages/cli/src/feature-helper.ts"), false);
+  // The test file: writable in AUTHOR_TEST only.
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", "packages/cli/src/feature.test.ts"), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/feature.test.ts"), false);
+});
+
+// Contract 4 — right-red-runtime-assertion-accepted: the gate accepts a runtime red (not just a
+// missing symbol); the edit-existing brief steers the leaf to a behaviour assertion.
+test("C — a runtime-assertion red is accepted by the gate (kind is never gated), and the brief steers to it", () => {
+  // The gate already accepts a runtime red — proven by the offline walk below reaching a pass off a
+  // regression (runtime-assertion) red. Here we assert the brief STEERS to that kind of red.
+  const spec = loadById("verdict-line");
+  const real = {
+    testFile: "packages/core/src/widget.test.ts",
+    sourceFile: "packages/core/src/widget.ts",
+    scope: {
+      testGlobs: ["packages/core/src/widget.test.ts"],
+      sourceGlobs: ["packages/core/src/widget.ts"],
+    },
+    editsExisting: true,
+  };
+  const prompts = realPrompts(spec, real, realProofCommand(real, "/ws").display);
+  assert.match(prompts.authorTest, /behaviour-assertion failure, not a syntax error/);
+});
+
+// Contract 2 — edit-existing-source-red-green: an EXISTING source is edited + a regression test added;
+// the red is a new failing runtime assertion, the green is the edit — through the REAL gate offline.
+test("C — REAL edit-existing offline walk: a regression test (red) + an EDIT of existing source (green) → signed pass", async () => {
+  const fix = await editExistingFixture();
+  const store = new InMemoryStore();
+  try {
+    const spec = editExistingSpec(fix, "edit-existing-probe");
+    // The scripted leaf: AUTHOR_TEST authors a regression test that fails against the EXISTING
+    // widget(n)=n (asserts widget(2)===4); IMPLEMENT EDITS the existing widget.ts to n*2 (overwrite).
+    const REGRESSION_TEST =
+      'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+      'import { widget } from "./widget.js";\ntest("widget doubles", () => assert.equal(widget(2), 4));\n';
+    const FIXED_IMPL = "export function widget(n: number): number {\n  return n * 2;\n}\n";
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([
+        { path: fix.testFile, content: REGRESSION_TEST },
+        { path: fix.sourceFile, content: FIXED_IMPL },
+      ]),
+      tools: new FileToolExecutor({ rootDir: fix.root }),
+      scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: fix.root,
+      store,
+      runId: "edit-existing-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+      // NO treeState injected: the default real seam commits spine-side and reads real git.
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, true, result.ok ? "" : `${result.failedAt}: ${result.reason}`);
+    if (!result.ok) return;
+    // The red was a runtime assertion against UNCHANGED existing source; the green was the edit.
+    assert.deepEqual(result.phasesVisited, [
+      "AUTHOR_TEST",
+      "CONFIRM_RED",
+      "IMPLEMENT",
+      "CONFIRM_GREEN",
+      "GATE",
+    ]);
+    assert.deepEqual(
+      result.verdict.evidence.map((e) => e.kind),
+      ["observation:red", "observation:green"],
+    );
+  } finally {
+    await fs.rm(fix.root, { recursive: true, force: true });
+  }
+});
+
+// Contract 3 — author-test-wall-holds-for-existing-source: the AUTHOR_TEST wall refuses an edit of
+// the EXISTING source; a forged already-green regression test fails closed at CONFIRM_RED.
+test("C — edit-existing: the AUTHOR_TEST wall refuses the EXISTING source path (test-author ≠ code-author)", () => {
+  const scope = new PathWriteScope({ testGlobs: ["widget.test.ts"], sourceGlobs: ["widget.ts"] });
+  // The source ALREADY EXISTS, but AUTHOR_TEST is test-globs-only: a leaf cannot edit it while
+  // "authoring the test" — the genuinely-new property C must preserve.
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", "widget.ts"), false);
+  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", "widget.test.ts"), true);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "widget.ts"), true);
+});
+
+test("C — edit-existing: a forged already-green regression test fails closed at CONFIRM_RED", async () => {
+  const fix = await editExistingFixture();
+  const store = new InMemoryStore();
+  try {
+    const spec = editExistingSpec(fix, "edit-existing-forge");
+    // A "regression" test that is already GREEN against the EXISTING widget(n)=n (asserts
+    // widget(2)===2): no real regression → CONFIRM_RED observes GREEN → the gate fails closed.
+    const ALREADY_GREEN =
+      'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+      'import { widget } from "./widget.js";\ntest("no-op", () => assert.equal(widget(2), 2));\n';
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([{ path: fix.testFile, content: ALREADY_GREEN }]),
+      tools: new FileToolExecutor({ rootDir: fix.root }),
+      scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: fix.root,
+      store,
+      runId: "edit-existing-forge-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, false, "an already-green forged regression test must NOT yield a pass");
+    if (result.ok) return;
+    assert.equal(result.failedAt, "CONFIRM_RED");
+  } finally {
+    await fs.rm(fix.root, { recursive: true, force: true });
   }
 });

@@ -486,6 +486,16 @@ export function realPrompts(
     spec.guidance !== undefined ? `\n\nGuidance from the node spec:\n${spec.guidance}` : "";
   const header = `Unit "${spec.id}" (${spec.tier}): ${spec.title}.\nOutcome: ${spec.outcome}`;
   const customProof = real.proofCommand !== undefined;
+  // C (ADR-0057 §3): an edit-existing node flips the brief (read+regress+edit, not net-new), and a
+  // multi-file scope is NAMED off the existing `scope.sourceGlobs` — no new config field carries the
+  // set. Singular `sourceGlobs === [sourceFile]` → name just the spotlight file (a net-new node's
+  // brief is unchanged); a broader scope → name the spotlight plus the rest of the set.
+  const editsExisting = real.editsExisting === true;
+  const sourcesNamed =
+    real.scope.sourceGlobs.length === 1 && real.scope.sourceGlobs[0] === real.sourceFile
+      ? `\`${real.sourceFile}\``
+      : `\`${real.sourceFile}\` and the other source files in your scope (matching ` +
+        `${real.scope.sourceGlobs.map((g) => `\`${g}\``).join(", ")})`;
   const depsLine =
     real.install === true
       ? `- the worktree HAS its workspace dependencies installed (lockfile-only): you may import ` +
@@ -516,8 +526,39 @@ export function realPrompts(
     `the \`run_proof\` feedback tool (bounded runs; its output is feedback, never the verdict). ` +
     `You cannot run shell commands.\n` +
     proofLine +
-    `- the IMPLEMENTATION file is \`${real.sourceFile}\`.\n` +
+    // C (ADR-0057 §3): name the SET (via sourcesNamed) so the conventions line never contradicts the
+    // multi-file IMPLEMENT brief. For a single-file node (sourceGlobs === [sourceFile], all 7 migrated
+    // nodes) this is byte-identical to the old `\`${real.sourceFile}\`` — parity-of-prose preserved.
+    `- the IMPLEMENTATION file is ${sourcesNamed}.\n` +
     depsLine;
+  // C (ADR-0057 §3): the EDIT-EXISTING arm drops the net-new "must NOT exist yet" assumption and
+  // steers the leaf to a regression red (a new failing assertion against existing behaviour, not a
+  // missing symbol) then an EDIT of the existing source(s). Only the brief changes — the gate, the
+  // scope wall, and the proof command are unchanged (the gate already accepts a runtime red; the
+  // AUTHOR_TEST wall is still test-globs-only, so a leaf still cannot edit source while authoring
+  // the test). The NET-NEW arm below is kept BYTE-FOR-BYTE (the 7 migrated nodes never set the flag).
+  if (editsExisting) {
+    return {
+      authorTest:
+        `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+        `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD — this is a ` +
+        `regression/refactor, not a net-new file; do NOT recreate them, and do NOT edit any source ` +
+        `in this phase (source writes are refused here). READ the existing source(s) first, then ` +
+        `author a REGRESSION test that FAILS against their CURRENT behaviour: a NEW failing ` +
+        `assertion about what they SHOULD do, NOT a missing-symbol import (the symbols already ` +
+        `exist). After writing it, use \`run_proof\` to confirm it fails for the RIGHT reason — a ` +
+        `behaviour-assertion failure, not a syntax error and not a "module not found". The spine ` +
+        `observes the official red itself. When the test file is written and checked, stop.`,
+      implement:
+        `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, ` +
+        `then EDIT the existing source file(s) ${sourcesNamed} so that test passes (you may write ` +
+        `more than one — every path under your source scope is writable; writes to the test file ` +
+        `are refused). Iterate: edit, \`run_proof\`, fix — until the proof is green` +
+        `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
+        `then stop; the spine observes the official green itself. If you conclude the test itself ` +
+        `is wrong, stop and say so plainly instead of working around it.`,
+    };
+  }
   return {
     authorTest:
       `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +

@@ -267,3 +267,113 @@ test("B — malformed: a pnpm proofCommand WITHOUT install:true is loud (worktre
     /pnpm proof command requires real\.install:true/,
   );
 });
+
+// ── ADR-0057 §3 expansion C: editsExisting (multi-file & edit-existing-source) ──────────────────
+
+/** A single-file edit-existing arm: `sourceGlobs === [sourceFile]`, so the default node:test proof is legal. */
+const EDIT_EXISTING_SINGLE = {
+  command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  scope: {
+    testGlobs: ["packages/core/src/widget.test.ts"],
+    sourceGlobs: ["packages/core/src/widget.ts"],
+  },
+  real: {
+    testFile: "packages/core/src/widget.test.ts",
+    sourceFile: "packages/core/src/widget.ts",
+    scope: {
+      testGlobs: ["packages/core/src/widget.test.ts"],
+      sourceGlobs: ["packages/core/src/widget.ts"],
+    },
+    editsExisting: true,
+  },
+};
+
+test("C — an editsExisting single-file arm parses and round-trips (default node:test proof legal)", () => {
+  const cfg = parseNodeBuildConfig(EDIT_EXISTING_SINGLE);
+  assert.deepEqual(cfg, EDIT_EXISTING_SINGLE);
+  assert.equal(cfg.real?.editsExisting, true);
+  // No proofCommand needed when sourceGlobs is exactly the spotlight file.
+  assert.equal("proofCommand" in (cfg.real ?? {}), false);
+});
+
+test("C — editsExisting is ABSENT (not undefined) when not declared — the net-new parity drift-lock", () => {
+  // The 7 migrated net-new nodes never declare editsExisting; the key must not materialize, or the
+  // deepEqual parity against the registry twins (which omit it) would break.
+  const cfg = parseNodeBuildConfig(NO_INSTALL_BLOCK);
+  assert.ok(cfg.real !== undefined);
+  assert.equal("editsExisting" in cfg.real, false);
+});
+
+test("C — honesty refine: editsExisting + a source scope BROADER than sourceFile + no proofCommand is LOUD", () => {
+  // The default node:test runs ONE file; it cannot observe a regression across other edited files,
+  // so a multi-file edit-existing node MUST declare a suite proofCommand.
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...EDIT_EXISTING_SINGLE,
+        real: {
+          ...EDIT_EXISTING_SINGLE.real,
+          scope: {
+            testGlobs: ["packages/core/src/widget.test.ts"],
+            sourceGlobs: ["packages/core/src/widget.ts", "packages/core/src/helper.ts"],
+          },
+        },
+      }),
+    /must declare real\.proofCommand/,
+  );
+});
+
+test("C — honesty refine: editsExisting + a single BROAD glob (≠ sourceFile) + no proofCommand is LOUD", () => {
+  // The exemption is a LITERAL string equality (sourceGlobs[0] === sourceFile), not a glob match — a
+  // single `**/*.ts` glob is length-1 yet matches many files, so it must NOT exempt. Lock this so a
+  // future "helpful" refactor to a glob-match cannot silently reopen the proof-coverage hole.
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...EDIT_EXISTING_SINGLE,
+        real: {
+          ...EDIT_EXISTING_SINGLE.real,
+          scope: {
+            testGlobs: ["packages/core/src/widget.test.ts"],
+            sourceGlobs: ["packages/core/src/**/*.ts"],
+          },
+        },
+      }),
+    /must declare real\.proofCommand/,
+  );
+});
+
+test("C — editsExisting + a broader source scope + a declared suite proofCommand is ACCEPTED", () => {
+  const cfg = parseNodeBuildConfig({
+    ...EDIT_EXISTING_SINGLE,
+    real: {
+      ...EDIT_EXISTING_SINGLE.real,
+      scope: {
+        testGlobs: ["packages/core/src/widget.test.ts"],
+        sourceGlobs: ["packages/core/src/widget.ts", "packages/core/src/helper.ts"],
+      },
+      install: true,
+      typecheck: { file: "pnpm", args: ["--filter", "@storytree/core", "typecheck"] },
+      proofCommand: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+    },
+  });
+  assert.equal(cfg.real?.editsExisting, true);
+  assert.equal(cfg.real?.proofCommand?.file, "pnpm");
+});
+
+test("C — a NET-NEW node may carry a broad source scope with no proofCommand (the refine is editsExisting-only)", () => {
+  // The refine must NOT fire on a net-new node — only editsExisting:true gates the suite requirement.
+  const cfg = parseNodeBuildConfig({
+    ...EDIT_EXISTING_SINGLE,
+    real: {
+      testFile: "packages/core/src/widget.test.ts",
+      sourceFile: "packages/core/src/widget.ts",
+      scope: {
+        testGlobs: ["packages/core/src/widget.test.ts"],
+        sourceGlobs: ["packages/core/src/**/*.ts"],
+      },
+      // no editsExisting, no proofCommand — net-new is unaffected
+    },
+  });
+  assert.equal("editsExisting" in (cfg.real ?? {}), false);
+});

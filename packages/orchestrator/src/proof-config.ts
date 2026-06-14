@@ -78,6 +78,26 @@ export interface RealProofConfig {
    * vocabulary, never the authoring surface.
    */
   proofCommand?: ShellCommand;
+  /**
+   * C (ADR-0057 §3): this node EDITS source that already exists at HEAD (a bug-fix / refactor /
+   * regression) rather than authoring a net-new file. ABSENT/false = the net-new status quo (the
+   * brief asserts `sourceFile` must NOT exist yet; the red is a missing-symbol import). true = the
+   * brief drops that assumption and steers the leaf to: read the existing source(s) in
+   * `scope.sourceGlobs`, add a regression test that FAILS against CURRENT behaviour (a runtime
+   * assertion, not a missing symbol), then EDIT the source(s). MULTI-FILE is NOT a separate flag —
+   * it is read off `scope.sourceGlobs` (a glob set already permits >1 IMPLEMENT write, ADR-0057 A)
+   * plus an optional suite `proofCommand` (B); this flag governs ONLY the net-new↔edit-existing
+   * brief axis. The 7 migrated net-new nodes never carry it (absent → the parity deepEqual holds).
+   * Honesty: the AUTHOR_TEST wall is still test-globs-only (a leaf cannot edit existing source while
+   * "authoring the test"), and CONFIRM_RED still observes the new test failing against the UNCHANGED
+   * source — a forged already-green regression test self-defeats. The one genuinely-new hole (a
+   * default single-file proof not exercising edited code in a sibling file) is NARROWED by the refine
+   * below: edit-existing + a source scope broader than `sourceFile` REQUIRES an explicit
+   * `proofCommand` declaration (it forces the author to NAME a proof for the multi-file edit; whether
+   * that command actually exercises every edited file is the same PR-diff-review bound A/B took for
+   * scope/command — surfaced, not structurally verified).
+   */
+  editsExisting?: boolean;
 }
 
 /**
@@ -124,6 +144,7 @@ const RealProofConfigSchema = z
     install: z.boolean().optional(),
     typecheck: ShellCommandSchema.optional(),
     proofCommand: ShellCommandSchema.optional(),
+    editsExisting: z.boolean().optional(),
   })
   .strict()
   .refine((r) => !(r.install === true && r.typecheck === undefined), {
@@ -149,7 +170,32 @@ const RealProofConfigSchema = z
       "it (and install:true then requires real.typecheck). Use a node-based command for an " +
       "install-free proof.",
     path: ["proofCommand"],
-  });
+  })
+  // C (ADR-0057 §3, expansion C): the default node:test proof runs ONE file (`testFile`) and cannot
+  // OBSERVE a regression that lives in a DIFFERENT edited source. So an edit-existing node whose
+  // source scope reaches BEYOND the single spotlight `sourceFile` MUST declare an explicit
+  // `real.proofCommand` rather than ride the default single-file proof — forcing the author to NAME a
+  // proof for the multi-file edit. (This forces author INTENT; it does NOT structurally verify the
+  // declared command exercises every edited file — that residual bound is PR-diff review, the same
+  // control A/B took for scope/command.) Single-file edit-existing (`sourceGlobs === [sourceFile]`)
+  // stays legal on the default command (the one test file imports the one edited file, exactly as a
+  // net-new node does). Scoped to editsExisting:true, so it never fires on a net-new node — the 7
+  // migrated nodes (no `editsExisting`) keep resolving byte-for-byte, parity intact.
+  .refine(
+    (r) =>
+      !(
+        r.editsExisting === true &&
+        r.proofCommand === undefined &&
+        !(r.scope.sourceGlobs.length === 1 && r.scope.sourceGlobs[0] === r.sourceFile)
+      ),
+    {
+      message:
+        "an edits-existing node whose source scope is broader than `sourceFile` must declare " +
+        "real.proofCommand (a suite) — the default node:test on the single test file cannot observe " +
+        "a regression across the other edited source files (the proof must exercise the edited code).",
+      path: ["proofCommand"],
+    },
+  );
 
 /** The spec-borne `proof:` block schema — mirrors {@link NodeBuildConfig} 1:1. */
 export const NodeBuildConfigSchema = z
@@ -187,6 +233,9 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
     ...(raw.install !== undefined ? { install: raw.install } : {}),
     ...(raw.typecheck !== undefined ? { typecheck: buildShellCommand(raw.typecheck) } : {}),
     ...(raw.proofCommand !== undefined ? { proofCommand: buildShellCommand(raw.proofCommand) } : {}),
+    // C (ADR-0057 §3): spread ONLY when present — absent-not-undefined, so a net-new node's config
+    // stays byte-for-byte deepEqual to its registry twin (the established parity drift-lock idiom).
+    ...(raw.editsExisting !== undefined ? { editsExisting: raw.editsExisting } : {}),
   };
 }
 
