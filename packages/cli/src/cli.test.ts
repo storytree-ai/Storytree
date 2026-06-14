@@ -42,6 +42,23 @@ test("artifact list <category> returns rows and a doctrine pointer", async () =>
   assert.ok(env.doctrine && env.doctrine.length > 0, "list emits a doctrine pointer");
 });
 
+test("the doctrine pointers are library-sourced (not restated prose) — top help, library help, dashboard", async () => {
+  const store = await seeded();
+  for (const argv of [[], ["library", "--help"], ["library"]]) {
+    const env = await run(argv, { store });
+    assert.equal(env.ok, true, `ok: storytree ${argv.join(" ")}`);
+    // each surfaces the just-in-time doctrine as a POINTER into the library, with the explore command
+    const doctrine = (env.doctrine ?? []).join("\n");
+    assert.match(
+      doctrine,
+      /pull-based-context-architecture — .+ {2}\(storytree library artifact pull-based-context-architecture\)/,
+      `storytree ${argv.join(" ")} surfaces a library-sourced doctrine pointer`,
+    );
+    // the old inline doctrine sentence is gone from the body (no restated prose)
+    assert.doesNotMatch(env.body, /choose-your-own-adventure/);
+  }
+});
+
 test("unknown id is guidance (ok:false + next), not a throw", async () => {
   const env = await run(["library", "artifact", "does-not-exist"], { store: await seeded() });
   assert.equal(env.ok, false);
@@ -101,6 +118,11 @@ test("a write without --pg is refused with guidance (not an ephemeral write)", a
   });
   assert.equal(env.ok, false);
   assert.match(env.body, /writes go to the shared store/);
+  // the WHY is a library-sourced doctrine pointer, not restated prose
+  assert.match(
+    (env.doctrine ?? []).join("\n"),
+    /live-store-is-the-edit-surface — .+ {2}\(storytree library artifact live-store-is-the-edit-surface\)/,
+  );
 });
 
 test("artifact new creates a validated artifact in a writable store", async () => {

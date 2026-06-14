@@ -162,6 +162,9 @@ export async function dashboard(store: Store): Promise<Envelope> {
   return {
     ok: true,
     body: lines.join("\n"),
+    // The just-in-time / drill-in-to-earn-the-detail stance is library doctrine, surfaced as a
+    // pointer rather than restated here (ADR-0023 §4, ADR-0029 §7).
+    doctrine: [await renderDoctrine(store, "pull-based-context-architecture")],
     next: [
       "storytree library artifact <id>",
       `storytree library artifact list ${kinds[0] ?? "<category>"}`,
@@ -293,10 +296,13 @@ export async function listCategory(store: Store, category: string | undefined): 
 }
 
 /** Guidance returned when a write is attempted against the offline (ephemeral) store. */
-function notWritable(): Envelope {
+async function notWritable(store: Store): Promise<Envelope> {
   return {
     ok: false,
     body: "writes go to the shared store, not the offline copy — run with --pg (and bring the DB up first: pnpm db:up).",
+    // The WHY is library doctrine, sourced not restated (ADR-0029 §7): the live store is the edit
+    // surface; the body above is just the mechanical how-to.
+    doctrine: [await renderDoctrine(store, "live-store-is-the-edit-surface")],
     next: [
       "pnpm db:up",
       "STORYTREE_DB_USER=<iam-email> storytree library artifact edit <id> --pg --set <field>=<value>",
@@ -325,7 +331,7 @@ export async function newArtifact(
   deps: RunDeps,
   opts: { json: string | undefined; file: string | undefined },
 ): Promise<Envelope> {
-  if (deps.writable !== true) return notWritable();
+  if (deps.writable !== true) return notWritable(deps.store);
 
   let raw = opts.json;
   if (raw === undefined && opts.file !== undefined) {
@@ -392,7 +398,7 @@ export async function editArtifact(
   id: string | undefined,
   opts: { sets: readonly string[]; json: string | undefined; file: string | undefined },
 ): Promise<Envelope> {
-  if (deps.writable !== true) return notWritable();
+  if (deps.writable !== true) return notWritable(deps.store);
   if (id === undefined) {
     return {
       ok: false,
@@ -564,7 +570,7 @@ function treeHelp(): Envelope {
   };
 }
 
-function topHelp(): Envelope {
+async function topHelp(store: Store): Promise<Envelope> {
   return {
     ok: true,
     body: [
@@ -583,6 +589,9 @@ function topHelp(): Envelope {
       "start here:",
       "  storytree library    health + a map of every artifact + the commands",
     ].join("\n"),
+    // The "how to use this CLI" doctrine is library-sourced, not restated here (ADR-0029 §7): pull
+    // context just-in-time, drill in to earn the detail (the choose-your-own-adventure stance, ADR-0023).
+    doctrine: [await renderDoctrine(store, "pull-based-context-architecture")],
     next: ["storytree library"],
   };
 }
@@ -621,20 +630,23 @@ function noticeboardHelp(): Envelope {
   };
 }
 
-function libraryHelp(): Envelope {
+async function libraryHelp(store: Store): Promise<Envelope> {
   return {
     ok: true,
     body: [
-      "storytree library — explore the Library, choose-your-own-adventure style.",
-      "context is just-in-time: drill in to earn the detail.",
+      "storytree library — explore + curate the Library (the knowledge tier).",
       "",
       "  storytree library                          health + dashboard + commands",
       "  storytree library --check [--pg]           full health report (gate-fails exit non-zero)",
       "  storytree library artifact <id>            view one artifact",
       "  storytree library artifact list <category> list a category",
+      "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
-      "  (coming soon: artifact new|edit|comment)",
+      "  (coming soon: artifact comment)",
     ].join("\n"),
+    // The "explore just-in-time, drill in to earn the detail" stance is the library's doctrine, not
+    // prose restated here (ADR-0029 §7) — surfaced as a pointer the agent can drill into (ADR-0023).
+    doctrine: [await renderDoctrine(store, "pull-based-context-architecture")],
     next: ["storytree library"],
   };
 }
@@ -780,7 +792,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   const [area, sub, third, fourth] = positionals;
 
-  if (area === undefined) return topHelp();
+  if (area === undefined) return topHelp(deps.store);
 
   if (area === "node") {
     if (sub === undefined || help) return nodeHelp();
@@ -914,7 +926,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (sub === undefined) {
-    if (help) return libraryHelp();
+    if (help) return libraryHelp(deps.store);
     if (values.check === true) return libraryCheck(deps.store);
     return dashboard(deps.store);
   }
