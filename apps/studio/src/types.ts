@@ -197,6 +197,12 @@ export interface MeInfo {
   status: UserStatus | null;
   member: boolean;
   storeUnreachable?: boolean;
+  /**
+   * Whether this caller may wake the idle-stopped DB from the hosted studio (ADR-0049) — drives the
+   * StoreBanner's "Wake the database" button. True for admins (seed admins even while the store is
+   * down); false in the open dev posture (local uses the gcloud Start DB button).
+   */
+  canWakeDb?: boolean;
 }
 
 /** A member row (GET /api/users) — the app-owned user projection. */

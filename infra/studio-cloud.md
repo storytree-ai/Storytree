@@ -156,13 +156,43 @@ Send the dev the service URL (`gcloud run services describe storytree-studio --r
 australia-southeast1 --format="value(status.url)"`). They sign in with the granted Google
 account and land in the studio — no other setup.
 
+## 6. Wake the DB from the site (ADR-0049) — one-time grant + deploy
+
+The shared Cloud SQL instance idle-stops for cost (ADR-0015). When it's stopped, hosted members hit
+the store-unreachable wall — and the old `/api/db/*` Start DB path is off hosted (it needs the
+operator's gcloud). ADR-0049 adds a keyless, container-native wake: an **admin** presses "Wake the
+database" and the runtime SA (`storytree-studio-host`) PATCHes the Cloud SQL Admin API directly. Two
+owner steps turn it on.
+
+**6a. One-time, PRIVILEGED — grant the runtime SA a scoped Cloud SQL role (`infra/studio-db-wake.tf`).**
+The Terraform adds a custom role `storytreeStudioDbWake` (exactly `cloudsql.instances.get` +
+`cloudsql.instances.update` — narrower than `cloudsql.admin`/`cloudsql.editor`) and binds it to the
+runtime SA. Review the IAM surface, then apply (needs your Owner ADC, project `storytree-498613`):
+
+```powershell
+cd infra; terraform init; terraform apply   # creates the custom role + the binding
+```
+
+Until applied, "Wake the database" answers a clear 502 ("Cloud SQL Admin API 403:
+cloudsql.instances.update denied") — it fails loud and safe, never a silent no-op.
+
+**6b. Deploy the new image.** The wake code ships in `apps/studio` + `serve.ts`; redeploy via §3–§4
+(no new env vars). Verify on the live site: idle-stop the DB (or wait for the nightly stop), open the
+studio as an admin, and the banner shows "Wake the database"; pressing it brings the page back within
+~a minute. A member sees the degraded banner with no button.
+
+The wake is **admin-only**: in normal operation by role; while the store is down (membership
+unresolvable) by the bootstrap-admin seed (`STORYTREE_STUDIO_ADMINS`). IAP is `allAuthenticatedUsers`
+(ADR-0043), so this narrow gate is what keeps a random signed-in account from firing a billable start.
+
 ## What the circle sees (set expectations in the invite)
 
 - The story world, library, and docs — live verdict hues, presence wisps, the works.
 - They can comment everywhere (attributed to their email — the server stamps it); they can
   edit/resolve only their own comments.
-- Artifact editing answers 403 (owner-side); the Start DB button answers 403 — if the DB is
-  idle-stopped they see the honest degraded banner until the owner runs `pnpm db:up`.
+- Artifact editing answers 403 (owner-side). If the DB is idle-stopped, **admins** see a
+  "Wake the database" button that brings it back from the site (§6, ADR-0049) and the page
+  self-recovers; **members** see the honest degraded banner until an admin (or `pnpm db:up`) wakes it.
 - docs/stories are a deploy-time snapshot; library/comments/verdicts/presence are live.
 
 ## Costs

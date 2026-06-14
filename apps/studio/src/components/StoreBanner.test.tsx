@@ -16,6 +16,7 @@ const apiMock = vi.hoisted(() => ({
   health: vi.fn<() => Promise<StoreHealth>>(),
   dbStatus: vi.fn<() => Promise<DbStatus>>(),
   dbStart: vi.fn<() => Promise<{ ok: true }>>(),
+  dbWake: vi.fn<() => Promise<{ ok: true }>>(),
 }));
 vi.mock('../api', () => ({ api: apiMock }));
 
@@ -43,6 +44,7 @@ beforeEach(() => {
   apiMock.health.mockReset();
   apiMock.dbStatus.mockReset();
   apiMock.dbStart.mockReset();
+  apiMock.dbWake.mockReset();
   onRecovered = vi.fn();
 });
 
@@ -182,6 +184,41 @@ describe('StoreBanner', () => {
     apiMock.health.mockResolvedValue({ ...healthy, code: freshStamp });
     await tick(SLOW_POLL_MS);
     expect(container.innerHTML).toBe('');
+  });
+
+  // ── hosted DB wake (ADR-0049): canWake swaps the gcloud Start DB for the keyless wake ──
+  it('canWake: shows "Wake the database"; click → api.dbWake → starting → health ok → recovered', async () => {
+    apiMock.health.mockResolvedValue(dbDown);
+    apiMock.dbStatus.mockRejectedValue(new Error('403')); // hosted: /api/db/status is structurally off
+    apiMock.dbWake.mockResolvedValue({ ok: true });
+    const { container } = render(<StoreBanner onRecovered={onRecovered} canWake />);
+    await flush();
+    expect(screen.getByRole('button', { name: 'Wake the database' })).toBeTruthy();
+    expect(screen.getByText(/isn.t responding — it may be idle-stopped/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wake the database' }));
+    await flush();
+    expect(apiMock.dbWake).toHaveBeenCalledTimes(1);
+    expect(apiMock.dbStart).not.toHaveBeenCalled(); // the gcloud path is NOT used hosted
+    expect(screen.getByText(/Starting the live store/)).toBeTruthy();
+
+    apiMock.health.mockResolvedValue(healthy);
+    await tick(FAST_POLL_MS);
+    expect(container.innerHTML).toBe('');
+    expect(onRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it('canWake: a 403 from dbWake (non-seed admin during an outage) surfaces the reason', async () => {
+    apiMock.health.mockResolvedValue(dbDown);
+    apiMock.dbStatus.mockRejectedValue(new Error('403'));
+    apiMock.dbWake.mockRejectedValue(new Error('only an admin can wake the database — ask an admin to bring it up'));
+    render(<StoreBanner onRecovered={onRecovered} canWake />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Wake the database' }));
+    await flush();
+    expect(screen.getByText(/only an admin can wake the database/)).toBeTruthy();
+    // …and the affordance stays so they can hand off / retry.
+    expect(screen.getByRole('button', { name: 'Wake the database' })).toBeTruthy();
   });
 
   it('recovers from server-lost when /api/health answers again', async () => {

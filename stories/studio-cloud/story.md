@@ -5,10 +5,10 @@ title: "Studio cloud — the trusted circle interacts with a served studio"
 outcome: "A small circle of trusted devs opens a URL, signs in with their Google account, and interacts with the live studio — world, library, docs — leaving comments under their verified identity; nothing else about the system is exposed."
 status: proposed
 proof_mode: UAT
-capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding]
+capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake]
 # Story-level edges: the studio UI being served, and the library story's store seam (ADR-0010 §4).
 depends_on: [studio, library]
-decisions: [42] # deciding ADR (ADR-0037 §2)
+decisions: [42, 49] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB
 ---
 
 # Studio cloud — the trusted circle interacts with a served studio
@@ -40,7 +40,7 @@ differences are a policy layer, not a second backend.
 - **Local dev is untouched.** `vite dev` keeps the open localhost behaviour, json fallback
   included.
 
-## Capabilities (5)
+## Capabilities (6)
 
 Listed roots-first.
 
@@ -51,6 +51,7 @@ Listed roots-first.
 | 3 | [`container-image`](container-image.md) | The studio builds into a container image carrying dist/, the server, and the docs/stories snapshot — runnable anywhere with only env + ADC. | proposed | `serve-mode` |
 | 4 | [`cloud-run-iap`](cloud-run-iap.md) | Terraform stands up the Cloud Run service behind IAP with a least-privilege runtime service account reaching Cloud SQL keylessly. | proposed | `container-image`, `guest-scope` |
 | 5 | [`circle-onboarding`](circle-onboarding.md) | Adding a trusted dev is one IAM grant plus a runbook link; removing them is one revoke; the circle's access is enumerable at a glance. | proposed | `cloud-run-iap` |
+| 6 | [`hosted-db-wake`](hosted-db-wake.md) | When the shared DB idle-stops, an admin wakes it from the site — keyless, container-native, no gcloud; the page self-recovers, non-admins are refused. | proposed | `serve-mode`, `guest-scope` |
 
 ## Story UAT (would-be)
 

@@ -154,12 +154,15 @@ export function App(): React.JSX.Element {
 
         {meStatus === 'ready' && me && me.storeUnreachable && (
           <>
-            <StoreBanner onRecovered={onStoreRecovered} />
+            <StoreBanner onRecovered={onStoreRecovered} canWake={me.canWakeDb === true} />
             <div className="pad error-box">
               <h2>The studio’s store is unreachable</h2>
               <p className="muted">
-                Your membership can’t be resolved right now. This page recovers on its own when the
-                store returns. <button className="btn small" onClick={() => void loadMe()}>Retry</button>
+                Your membership can’t be resolved right now.{' '}
+                {me.canWakeDb === true
+                  ? 'Use the “Wake the database” button above to bring it back.'
+                  : 'An admin needs to wake it; this page recovers on its own once the store returns.'}{' '}
+                <button className="btn small" onClick={() => void loadMe()}>Retry</button>
               </p>
             </div>
           </>
@@ -171,7 +174,7 @@ export function App(): React.JSX.Element {
 
         {meStatus === 'ready' && isMember && (
           <>
-            <StoreBanner onRecovered={onStoreRecovered} />
+            <StoreBanner onRecovered={onStoreRecovered} canWake={me.canWakeDb === true} />
             <div className="body">
               <Sidebar route={route} />
               <main className="content">

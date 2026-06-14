@@ -45,6 +45,7 @@ import {
 } from './libraryBackend';
 import { HttpError, sendJson } from './httpUtil';
 import { handleDb } from './dbControl';
+import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
 import type { InviteMailer } from './inviteMailer';
 
@@ -255,10 +256,17 @@ export interface MeInfo {
   status: 'invited' | 'active' | null;
   member: boolean;
   storeUnreachable?: boolean;
+  /**
+   * Whether this caller may wake the idle-stopped DB from the hosted studio (studio-cloud
+   * `hosted-db-wake`, ADR-0049) — drives the StoreBanner's "Wake the database" button. Seed admins
+   * (degraded mode) or resolved admins (normal mode); false for the open dev posture (local uses
+   * the gcloud Start DB button instead).
+   */
+  canWakeDb?: boolean;
 }
 
 /** The open dev posture's `/api/me` — no policy means full local access (the studio works offline). */
-export const DEV_ME: MeInfo = { email: null, role: 'admin', status: 'active', member: true };
+export const DEV_ME: MeInfo = { email: null, role: 'admin', status: 'active', member: true, canWakeDb: false };
 
 /**
  * What the hosted server injects per request. `gate` runs before dispatch and
@@ -808,6 +816,12 @@ export interface ApiContext {
    * sets false and the endpoints answer 403 (ADR-0042 d.3).
    */
   allowDbControl: boolean;
+  /**
+   * Hosted-native DB wake (studio-cloud `hosted-db-wake`, ADR-0049): the keyless Cloud SQL Admin
+   * REST waker (dbWake.ts). Unlike `/api/db/*` (gcloud, operator's machine), this works IN the
+   * container, so it is served regardless of `allowDbControl`. Absent (the dev plugin) → 404.
+   */
+  dbWake?: DbWaker | undefined;
   /** Hosted-mode policy (gate + comment scoping); absent = the open dev posture. */
   policy?: ApiPolicy | undefined;
   /** Invite-email sender for POST /api/users; absent = no email (the invite still writes its row). */
@@ -839,6 +853,12 @@ export async function handleApiRequest(
         health: () => ctx.backend.health(),
         codeStamp: ctx.codeStamp,
       });
+    } else if (url.pathname === '/api/db/wake') {
+      // Hosted-native wake (ADR-0049): keyless Cloud SQL Admin REST, so it works in the container
+      // — served REGARDLESS of allowDbControl (the gcloud `/api/db/*` premise below doesn't hold
+      // hosted). The policy gate already authorized it (seed admin in degraded mode / admin in
+      // normal mode); absent waker (dev plugin) → 404 inside the handler.
+      await handleDbWake(req, res, ctx.dbWake ?? null);
     } else if (url.pathname.startsWith('/api/db/')) {
       if (!ctx.allowDbControl) {
         throw new HttpError(403, 'db control is not served in hosted mode (ADR-0042)');

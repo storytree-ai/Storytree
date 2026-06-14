@@ -77,6 +77,9 @@ export const api = {
     http('/api/presence', { signal: AbortSignal.timeout(10_000) }),
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),
+  // Hosted-native DB wake (ADR-0049): keyless Cloud SQL Admin REST, so it works on Cloud Run where
+  // gcloud-based dbStart() answers 403. Admin-gated server-side; 202 fire-and-forget like dbStart.
+  dbWake: (): Promise<{ ok: true }> => http('/api/db/wake', { method: 'POST' }),
 
   // Members (app-owned users, ADR-0043). /api/me is the one endpoint a non-member may reach;
   // /api/users is admin-only (the server enforces; the panel is also hidden for members).

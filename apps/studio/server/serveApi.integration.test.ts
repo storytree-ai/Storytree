@@ -74,9 +74,14 @@ const seen: {
   assetCreated?: boolean;
   upserts: UserDoc[];
   recordedAttestation?: Attestation;
+  wakeCount: number;
 } = {
   upserts: [],
+  wakeCount: 0,
 };
+
+/** A stub hosted DB waker — records the call instead of hitting the metadata server / Cloud SQL. */
+const stubWaker = { wake: async (): Promise<void> => { seen.wakeCount += 1; } };
 
 /** A mutable in-memory users projection so activation actually mutates (the realistic shape). */
 const usersDb: UserDoc[] = [
@@ -171,6 +176,7 @@ beforeAll(async () => {
     },
     backend: stubBackend,
     admins: parseSeedAdmins(` ${ADMIN.toUpperCase()}, `), // exercises trim + case-folding of the seed
+    dbWake: stubWaker,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -331,6 +337,30 @@ describe('db control is off (structurally, not by role)', () => {
       const res = await fetch(`${base}/api/db/status`, { headers: iap(who) });
       expect(res.status, who).toBe(403);
     }
+  });
+});
+
+describe('hosted DB wake (ADR-0049) — admin-only, even though /api/db/* is off', () => {
+  it('an admin wakes the DB (202, the waker fires); a member is refused before any wake', async () => {
+    seen.wakeCount = 0;
+    const member = await fetch(`${base}/api/db/wake`, { method: 'POST', headers: iap(MEMBER) });
+    expect(member.status).toBe(403); // admin-only by the gate's method rule (POST, not a comment)
+    expect(seen.wakeCount).toBe(0);
+
+    const admin = await fetch(`${base}/api/db/wake`, { method: 'POST', headers: iap(ADMIN) });
+    expect(admin.status).toBe(202);
+    expect(await admin.json()).toEqual({ ok: true });
+    expect(seen.wakeCount).toBe(1);
+  });
+
+  it('refuses non-POST (405) and identity-less wake (401)', async () => {
+    expect((await fetch(`${base}/api/db/wake`, { headers: iap(ADMIN) })).status).toBe(405); // GET
+    expect((await fetch(`${base}/api/db/wake`, { method: 'POST' })).status).toBe(401); // no identity
+  });
+
+  it('reports canWakeDb on /api/me — true for the admin, false for the member', async () => {
+    expect(await (await fetch(`${base}/api/me`, { headers: iap(ADMIN) })).json()).toMatchObject({ canWakeDb: true });
+    expect(await (await fetch(`${base}/api/me`, { headers: iap(MEMBER) })).json()).toMatchObject({ canWakeDb: false });
   });
 });
 
@@ -498,6 +528,7 @@ describe('store outage degrades to health/me only', () => {
       },
       backend: downBackend,
       admins: parseSeedAdmins(ADMIN),
+      dbWake: stubWaker,
     });
     await new Promise<void>((resolve) => down.listen(0, '127.0.0.1', resolve));
     const dbase = `http://127.0.0.1:${(down.address() as AddressInfo).port}`;
@@ -507,6 +538,28 @@ describe('store outage degrades to health/me only', () => {
       expect(me.status).toBe(200);
       expect(await me.json()).toMatchObject({ storeUnreachable: true });
       expect((await fetch(`${dbase}/api/tree`, { headers: iap(MEMBER) })).status).toBe(503);
+
+      // The chicken-and-egg: with the store down, membership can't be resolved — yet a SEED admin
+      // can still wake it (authorized off the env seed, not the projection), so the studio recovers
+      // instead of staying walled (ADR-0049). A non-seed member cannot trigger a billable start.
+      seen.wakeCount = 0;
+      const memberWake = await fetch(`${dbase}/api/db/wake`, { method: 'POST', headers: iap(MEMBER) });
+      expect(memberWake.status).toBe(403);
+      expect(seen.wakeCount).toBe(0);
+
+      const adminWake = await fetch(`${dbase}/api/db/wake`, { method: 'POST', headers: iap(ADMIN) });
+      expect(adminWake.status).toBe(202);
+      expect(seen.wakeCount).toBe(1);
+
+      // canWakeDb rides /api/me even while degraded: true for the seed admin, false for the member.
+      expect(await (await fetch(`${dbase}/api/me`, { headers: iap(ADMIN) })).json()).toMatchObject({
+        storeUnreachable: true,
+        canWakeDb: true,
+      });
+      expect(await (await fetch(`${dbase}/api/me`, { headers: iap(MEMBER) })).json()).toMatchObject({
+        storeUnreachable: true,
+        canWakeDb: false,
+      });
     } finally {
       await new Promise<void>((resolve, reject) => down.close((e) => (e ? reject(e) : resolve())));
     }

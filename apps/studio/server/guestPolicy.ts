@@ -62,10 +62,24 @@ export async function resolveMembersAccess(
   return access;
 }
 
+/**
+ * PURE: may this identity wake the idle-stopped DB (studio-cloud `hosted-db-wake`, ADR-0049)?
+ * Gated on the bootstrap-admin SEED, not the projection: when the store is down, membership can't
+ * be resolved (chicken-and-egg), so seed admins — env-resolvable without the DB — are the only
+ * identities we can authorize a billable instance start for. IAP was widened to allAuthenticatedUsers
+ * (ADR-0043), so this MUST stay narrow: any authenticated Google user could otherwise trigger a
+ * paid start. Used both to gate POST /api/db/wake in degraded mode and to advertise `canWakeDb`.
+ */
+export function mayWakeDb(identity: string | null, seedAdmins: ReadonlySet<string>): boolean {
+  return !!identity && seedAdmins.has(identity);
+}
+
 /** The `/api/me` payload for a resolved (or unresolved) caller. */
 function meFromAccess(identity: string | null, access: ResolvedAccess | null): MeInfo {
-  if (access === null) return { email: identity, role: null, status: null, member: false };
-  return { email: access.email, role: access.role, status: access.status, member: true };
+  if (access === null) return { email: identity, role: null, status: null, member: false, canWakeDb: false };
+  // A resolved admin can wake the DB; surfaced so the StoreBanner shows the button (the gate also
+  // permits it — a POST that isn't a comment is admin-only in createMembersPolicy).
+  return { email: access.email, role: access.role, status: access.status, member: true, canWakeDb: access.role === 'admin' };
 }
 
 /**
@@ -102,19 +116,26 @@ export function createMembersPolicy(identity: string | null, access: ResolvedAcc
 
 /**
  * The degraded policy when the live store can't be reached to resolve membership: keep the
- * diagnostic endpoints alive (`/api/health` drives the store banner; `/api/me` reports the outage)
- * and 503 everything else, rather than 500-ing or silently locking members out.
+ * diagnostic endpoints alive (`/api/health` drives the store banner; `/api/me` reports the outage),
+ * ALSO let a seed admin wake the DB (studio-cloud `hosted-db-wake`, ADR-0049 — so a stopped store can
+ * self-recover instead of staying walled), and 503 everything else, rather than 500-ing or silently
+ * locking members out. The wake is the ONE write reachable while membership is unresolved, so it is
+ * authorized off the env seed (`mayWakeDb`), never the projection.
  */
-export function createDegradedPolicy(identity: string | null): ApiPolicy {
+export function createDegradedPolicy(identity: string | null, seedAdmins: ReadonlySet<string>): ApiPolicy {
   return {
-    gate(_method: string, pathname: string): void {
+    gate(method: string, pathname: string): void {
       if (!identity) {
         throw new HttpError(401, 'identity required — this studio is served behind IAP');
       }
       if (pathname === '/api/health' || pathname === '/api/me') return;
+      if (pathname === '/api/db/wake' && method === 'POST') {
+        if (mayWakeDb(identity, seedAdmins)) return;
+        throw new HttpError(403, 'only an admin can wake the database — ask an admin to bring it up');
+      }
       throw new HttpError(503, 'live store unreachable — membership cannot be resolved right now');
     },
     commentScope: null,
-    me: { email: identity, role: null, status: null, member: false, storeUnreachable: true },
+    me: { email: identity, role: null, status: null, member: false, storeUnreachable: true, canWakeDb: mayWakeDb(identity, seedAdmins) },
   };
 }

@@ -41,8 +41,15 @@ type Phase =
 
 export function StoreBanner({
   onRecovered,
+  canWake = false,
 }: {
   onRecovered: () => void;
+  /**
+   * Hosted-mode admins (ADR-0049): show a "Wake the database" button that calls the keyless
+   * Cloud SQL Admin REST endpoint, instead of the local gcloud Start DB. False (the default, and
+   * the local dev posture) keeps the existing gcloud flow untouched.
+   */
+  canWake?: boolean;
 }): React.JSX.Element | null {
   const [phase, setPhase] = useState<Phase>('unknown');
   const [startError, setStartError] = useState('');
@@ -137,6 +144,20 @@ export function StoreBanner({
     }
   }, []);
 
+  // Hosted wake (ADR-0049): the keyless Cloud SQL Admin REST path. Same recovery loop as startDb —
+  // set 'starting', fire, let the health poll flip to recovery. A non-seed admin during an outage
+  // is refused server-side (403); surface that message instead of silently failing.
+  const wakeDb = useCallback(async (): Promise<void> => {
+    setStartError('');
+    setPhase('starting');
+    try {
+      await api.dbWake();
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : String(e));
+      setPhase('unreachable');
+    }
+  }, []);
+
   // A moved checkout outranks every phase: until the server restarts, its other answers
   // (including the DB phases below) come from old code and can't be trusted.
   if (moved) {
@@ -181,6 +202,16 @@ export function StoreBanner({
           (<code>pnpm studio:status</code>), restart it (<code>pnpm studio:up</code>), then
           reload this page.
         </span>
+      ) : canWake ? (
+        // Hosted admin (ADR-0049): the keyless wake button. Takes precedence over the local
+        // stopped/unreachable split — on Cloud Run /api/db/status 403s, so the phase is
+        // 'unreachable', but the instance is idle-stopped and an admin can bring it back.
+        <>
+          <span>The live store (Cloud SQL) isn’t responding — it may be idle-stopped.</span>
+          <button className="btn small" onClick={() => void wakeDb()}>
+            Wake the database
+          </button>
+        </>
       ) : phase === 'stopped' ? (
         <>
           <span>The live store (Cloud SQL) is stopped.</span>
