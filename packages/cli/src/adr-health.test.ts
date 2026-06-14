@@ -58,6 +58,25 @@ test("adr-frontmatter: parse errors FAIL, a clean load PASSes", () => {
   );
 });
 
+test("adr-number-unique: two files sharing a number FAIL (the parallel-authoring collision)", () => {
+  // distinct numbers -> PASS
+  const clean = adrHealth(inputs({ adrs: [adr(48, "proposed"), adr(49, "proposed")] }));
+  assert.equal(levelOf(clean, "adr-number-unique"), "PASS");
+  // two files both numbered 0048 -> FAIL, and it is a GATE failure
+  const dupA: AdrMeta = { ...adr(48, "proposed"), file: "0048-hosted-db-wake.md" };
+  const dupB: AdrMeta = { ...adr(48, "proposed"), file: "0048-in-flight-wisp.md" };
+  const collide = adrHealth(inputs({ adrs: [dupA, dupB, adr(49, "proposed")] }));
+  assert.equal(levelOf(collide, "adr-number-unique"), "FAIL");
+  assert.ok(
+    adrGateFailures(collide).some((r) => r.name === "adr-number-unique"),
+    "a duplicate ADR number gates the merge",
+  );
+  // the message names both colliding files so the fix is obvious
+  const line = collide.find((r) => r.name === "adr-number-unique")?.lines.join(" ") ?? "";
+  assert.match(line, /0048-hosted-db-wake\.md/);
+  assert.match(line, /0048-in-flight-wisp\.md/);
+});
+
 test("adr-edge-integrity: a dangling edge target FAILs", () => {
   const ok = adrHealth(inputs({ adrs: [adr(1, "accepted"), adr(2, "accepted", { amends: [1] })] }));
   assert.equal(levelOf(ok, "adr-edge-integrity"), "PASS");

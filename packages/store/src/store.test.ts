@@ -26,6 +26,9 @@ test("schema.sql declares the events schema and all six tables", async () => {
   // Drive-machinery Phase A: the work-hierarchy lifecycle + signed-verdict homes (additive only).
   assert.match(sql, /events\.work_event/);
   assert.match(sql, /events\.verdict\b/);
+  // ADR-0050: the ADR-number allocator table (number is the PK — the unique-violation retry hinges on it).
+  assert.match(sql, /events\.adr_number/);
+  assert.match(sql, /number INT PRIMARY KEY/);
   // The event `type` is constrained to the three lifecycle kinds.
   assert.match(sql, /CHECK \(type IN \('created', 'updated', 'deleted'\)\)/);
   // No foreign keys at this layer (ADR-0017: relationships are ID refs in docs).

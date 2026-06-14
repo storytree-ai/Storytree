@@ -14,6 +14,8 @@ import type { CheckResult } from "./health.js";
  *
  * Checks:
  *   1 adr-frontmatter      — every docs/decisions file parses with a known status (GATE)
+ *   1b adr-number-unique   — no two ADR files share a number (the parallel-authoring collision the
+ *                            DB allocator + this gate close, ADR-0050) (GATE)
  *   2 adr-edge-integrity   — every supersedes / supersedes_in_part / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
@@ -26,6 +28,7 @@ import type { CheckResult } from "./health.js";
 
 export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-frontmatter",
+  "adr-number-unique",
   "adr-edge-integrity",
   "supersede-consistency",
   "story-decisions",
@@ -83,6 +86,27 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   results.push(
     result("adr-frontmatter", parseErrors, `${adrs.length} ADRs parsed, statuses known`),
   );
+
+  // 1b adr-number-unique — two files sharing a number is the parallel-authoring collision (ADR-0050).
+  // The DB allocator (`storytree adr new`) prevents it proactively; this makes any slip un-mergeable:
+  // CI runs on the PR's merge-into-main ref, so a number already on main fails the PR, and a
+  // concurrent pair fails the gate on main the moment the second lands (it can never silently stay).
+  const byNumberFiles = new Map<number, string[]>();
+  for (const a of adrs) {
+    const arr = byNumberFiles.get(a.number);
+    if (arr) arr.push(a.file);
+    else byNumberFiles.set(a.number, [a.file]);
+  }
+  const collisions: string[] = [];
+  for (const [num, files] of byNumberFiles) {
+    if (files.length > 1) {
+      collisions.push(
+        `ADR-${pad(num)} is claimed by ${files.length} files: ${[...files].sort().join(", ")} ` +
+          `— renumber all but one (\`storytree adr new\` reserves a free number).`,
+      );
+    }
+  }
+  results.push(result("adr-number-unique", collisions, `${byNumberFiles.size} ADR numbers, all unique`));
 
   // 2 adr-edge-integrity
   const dangling: string[] = [];

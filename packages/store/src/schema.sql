@@ -138,6 +138,23 @@ CREATE TABLE IF NOT EXISTS events.attestation (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ADR-number allocator (ADR-0050): hand out the next ADR number ATOMICALLY so two parallel sessions
+-- can't pick the same one (the recurring collision the `storytree adr new` command + the CI dup gate
+-- close). Append-only allocation log — one row per number ever handed out (slug/branch/actor for the
+-- "who took 0050" audit). A row is never updated or reused, so an abandoned branch's number stays
+-- BURNED, never recycled (holes are fine). `number` is the PRIMARY KEY, so a racing double-allocation
+-- hits a unique violation and the allocator simply recomputes + retries. The next number is
+-- GREATEST(the caller's on-disk max ADR, the max already handed out) + 1 — so it RECONCILES against
+-- ADRs that landed on main without going through the allocator (an offline-fallback author), never
+-- re-handing a number already used. Append-only / additive: never alters the tables above.
+CREATE TABLE IF NOT EXISTS events.adr_number (
+  number INT PRIMARY KEY,
+  slug   TEXT,
+  branch TEXT,
+  actor  TEXT NOT NULL,
+  at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Helpful indexes (ADR-0017).
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);

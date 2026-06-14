@@ -20,11 +20,26 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
+    # contents: read for checkout; pull-requests: read for the ADR cross-PR collision check (ADR-0050).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       # legacy/Agentic is a private submodule and not part of the pnpm workspace,
       # so the default no-submodule checkout is correct (and avoids needing creds).
       - name: Checkout
         uses: actions/checkout@v4
+
+      # ADR-number collision check across OPEN PRs (ADR-0050, Layer 2). The adr-health
+      # `adr-number-unique` gate (in `pnpm -r test` below) catches a number already on main / on this
+      # merge ref; this fast PR-only step additionally catches a truly-concurrent pair before either
+      # merges. Fail-OPEN on gh/network errors, fail-CLOSED only on a real clash (the script's contract).
+      - name: ADR number collision (open PRs)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bash scripts/adr-pr-collision-check.sh
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

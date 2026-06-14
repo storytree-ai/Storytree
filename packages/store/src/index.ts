@@ -46,3 +46,5 @@ export type {
 } from "./user-store.js";
 export { PgAttestationStore } from "./attestation-store.js";
 export type { AttestationStoreClient } from "./attestation-store.js";
+export { PgAdrStore } from "./adr-store.js";
+export type { AdrAllocatorClient, AdrAllocation } from "./adr-store.js";

@@ -14,6 +14,9 @@ import {
 } from "@storytree/core";
 import { renderStoredDoc } from "@storytree/store";
 
+import { execFileSync } from "node:child_process";
+
+import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import type { Envelope } from "./envelope.js";
 import {
@@ -567,6 +570,7 @@ function topHelp(): Envelope {
       "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
+      "  adr              allocate the next ADR number from the live store (ADR-0050) — no collisions",
       "  agents <name>    (coming soon) an agent's system prompt",
       "",
       "start here:",
@@ -670,6 +674,25 @@ export interface RunDeps {
   readonly attestations?: AttestationStoreLike | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
+  /**
+   * The ADR-number allocator (ADR-0050): the live store when --pg; null/absent offline — `storytree
+   * adr new` then falls back to max+1 with a loud "not reserved" warning. Injectable for tests.
+   */
+  readonly adr?: AdrAllocatorLike | null;
+  /** The docs/decisions dir `storytree adr` scans + scaffolds into. Injectable for tests. */
+  readonly adrDecisionsDir?: string;
+}
+
+/** Best-effort current git branch (recorded on an ADR allocation for audit); "unknown" if git can't answer. */
+function currentBranch(): string {
+  try {
+    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 /**
@@ -702,6 +725,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     signer?: string;
     "relayed-by"?: string;
     note?: string;
+    title?: string;
+    supersedes?: string;
+    amends?: string;
   };
   try {
     const parsed = parseArgs({
@@ -729,6 +755,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         signer: { type: "string" },
         "relayed-by": { type: "string" },
         note: { type: "string" },
+        title: { type: "string" },
+        supersedes: { type: "string" },
+        amends: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -845,10 +874,29 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "adr") {
+    if (help) return adrHelp();
+    return adrCommand(
+      sub,
+      {
+        ...(values.title !== undefined ? { title: values.title } : {}),
+        ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
+        ...(values.amends !== undefined ? { amends: values.amends } : {}),
+      },
+      {
+        allocator: deps.adr ?? null,
+        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+        // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
+        branch: deps.adr ? currentBranch() : "offline",
+        actor: deps.actor ?? "cli",
+      },
+    );
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, noticeboard, tree, attest, node, story (agents coming soon).`,
+      body: `unknown area "${area}". areas: library, noticeboard, tree, attest, node, story, adr (agents coming soon).`,
       next: ["storytree library"],
     };
   }
