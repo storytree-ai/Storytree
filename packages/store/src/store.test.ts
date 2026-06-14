@@ -83,10 +83,12 @@ test("connection + store modules import without throwing", async () => {
  * parity run starts clean. Only ever invoked when STORYTREE_DB_LIVE === '1'.
  */
 async function makePgStore(): Promise<Store> {
-  const { createPool } = await import("./connection.js");
+  const { createTestPool } = await import("./test-db.js");
   const { applySchema } = await import("./migrate.js");
   const { PgLibraryStore } = await import("./pg-store.js");
-  const { pool } = await createPool();
+  // createTestPool fails closed unless STORYTREE_DB_NAME names a disposable DB — the TRUNCATE below
+  // can never reach production (ADR-0054).
+  const { pool } = await createTestPool();
   await applySchema(pool);
   await pool.query(
     "TRUNCATE events.library_event, events.library_artifact RESTART IDENTITY",

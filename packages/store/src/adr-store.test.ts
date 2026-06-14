@@ -88,9 +88,11 @@ test("allocate propagates a NON-unique error immediately (no retry, no swallow)"
 
 if (LIVE) {
   test("live: allocate hands out monotonic numbers and reconciles against localMax", async () => {
-    const { createPool, closePool } = await import("./connection.js");
+    const { createTestPool } = await import("./test-db.js");
+    const { closePool } = await import("./connection.js");
     const { applySchema } = await import("./migrate.js");
-    const { pool, connector } = await createPool();
+    // Fail-closed against production — the TRUNCATE below can never wipe the live allocator (ADR-0054).
+    const { pool, connector } = await createTestPool();
     try {
       await applySchema(pool);
       await pool.query("TRUNCATE events.adr_number");
