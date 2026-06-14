@@ -71,6 +71,23 @@ jobs:
       - name: .claude/agents in sync
         run: pnpm check:agents
 
+      # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
+      # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
+      # why the checkout above takes no submodules). ADR-0056.
+      - name: Check out the pinned web submodule
+        run: |
+          sha=$(git ls-tree HEAD web | awk '{print $3}')
+          if [ -z "$sha" ]; then echo "no web gitlink in HEAD"; exit 1; fi
+          rm -rf web
+          git clone --quiet https://github.com/HuaMick/storytree-web.git web
+          git -C web checkout --quiet "$sha"
+
+      # The public site's load-bearing claims carry data-grounds="ADR-…" refs; fail if any cites a
+      # missing or superseded ADR — the doctrine-drift guard (ADR-0056). storytree-web can't
+      # self-check; only this repo sees the ADR corpus.
+      - name: web claims grounded
+        run: pnpm check:web-grounding
+
       - name: Typecheck
         run: pnpm -r typecheck
 
