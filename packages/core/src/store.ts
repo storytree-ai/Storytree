@@ -221,6 +221,29 @@ export function upcastAndValidate(input: unknown): LibraryDoc {
 }
 
 /**
+ * A minimal VALID {@link LibraryDoc} (a {@link LibraryAsset}) for the parity fixtures. The Postgres
+ * {@link Store} validates every `upsertDoc` doc at the ADR-0017 write boundary
+ * ({@link upcastAndValidate}), so the SHARED parity suite must feed docs BOTH implementations accept:
+ * the in-memory reference stores any `doc: unknown` raw, but Postgres rejects a non-LibraryDoc (e.g.
+ * the old `{ v: 1 }` fixture, which only InMemoryStore ever accepted). `body` is the observable
+ * payload the replace test asserts on. (This suite proves the GENERIC store behaviours — replace,
+ * timestamps, query, delete, event order — on valid input; it is NOT a validation-parity suite.
+ * Write-boundary validation is a library-store concern layered ON TOP of the narrow seam, whose
+ * contract is `doc: unknown`, not part of it — InMemoryStore is also used to hold non-library docs
+ * like the prove-it-gate's `signing` rows and work-event verdicts.)
+ */
+function parityFixtureDoc(id: string, body: string): LibraryAsset {
+  return {
+    id,
+    category: "template",
+    title: `parity ${id}`,
+    description: "a parity-suite fixture",
+    body,
+    references: [],
+  };
+}
+
+/**
  * A REUSABLE behavioural-parity suite (node:test). Registers the 5 Store contracts so any
  * implementation — InMemoryStore here, Postgres in packages/store — can be held to the same bar.
  *
@@ -232,12 +255,20 @@ export function storeParitySuite(
 ): void {
   test(`${name} parity: upsertDoc replaces on same id and bumps updatedAt`, async () => {
     const store = await makeStore();
-    const first = await store.upsertDoc({ id: "u1", kind: "note", doc: { v: 1 } });
+    const first = await store.upsertDoc({
+      id: "u1",
+      kind: "template",
+      doc: parityFixtureDoc("u1", "first"),
+    });
     // Force a clock tick so updatedAt is observably newer.
     await new Promise((r) => setTimeout(r, 2));
-    const second = await store.upsertDoc({ id: "u1", kind: "note", doc: { v: 2 } });
+    const second = await store.upsertDoc({
+      id: "u1",
+      kind: "template",
+      doc: parityFixtureDoc("u1", "second"),
+    });
     const current = await store.getDoc("u1");
-    assert.equal(current?.doc && (current.doc as { v: number }).v, 2);
+    assert.equal(current?.doc && (current.doc as { body: string }).body, "second");
     assert.equal(second.createdAt, first.createdAt, "createdAt preserved on replace");
     assert.ok(
       second.updatedAt >= first.updatedAt,
@@ -281,7 +312,7 @@ export function storeParitySuite(
 
   test(`${name} parity: deleteDoc is idempotent (true then false)`, async () => {
     const store = await makeStore();
-    await store.upsertDoc({ id: "d1", kind: "note", doc: {} });
+    await store.upsertDoc({ id: "d1", kind: "template", doc: parityFixtureDoc("d1", "to delete") });
     assert.equal(await store.deleteDoc("d1"), true, "first delete reports true");
     assert.equal(await store.deleteDoc("d1"), false, "second delete reports false");
   });

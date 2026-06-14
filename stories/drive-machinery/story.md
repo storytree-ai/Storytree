@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: mapped
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, story-topo-build, oq-hygiene-gate, build-drive-cli]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, story-topo-build, oq-hygiene-gate, build-drive-cli]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/cli/src/node-build.ts:36 (events.work_event/verdict are its OWN tables), and the
@@ -13,8 +13,9 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # (packages/cli/src/oq-gate.ts:110-119).
 depends_on: [library]
 # Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the SDK leaf (30),
-# promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37).
-decisions: [5, 20, 30, 31, 35, 37]
+# promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), and the
+# inner-loop-expansion keystone — node-borne proof config (57).
+decisions: [5, 20, 30, 31, 35, 37, 57]
 ---
 
 # The drive machinery
@@ -75,7 +76,7 @@ exists, the seam becomes its declared cross-story interface (ADR-0010 §4) and t
 frontmatter gains that story-level edge. Until then the coupling is documented here and in each
 consuming capability, not hidden.
 
-## Capabilities (12)
+## Capabilities (13)
 
 Listed roots-first (a capability appears after everything it depends on). `mapped` = a real
 passing offline suite observationally verifies the dominant behaviour; the Proof blockquote in
@@ -95,6 +96,7 @@ each file pins the `proposed` pockets.
 | 10 | [`story-topo-build`](story-topo-build.md) | A story's nodes drive through the gate in dependency order with the story's UAT node last and a halt never reported as a pass. | mapped | `halt-aware-sequence`, `prove-spec-resolution`, `prove-it-gate` |
 | 11 | [`oq-hygiene-gate`](oq-hygiene-gate.md) | A live story build is refused while an operator answer on a deciding ADR's open question sits unprocessed. | mapped | `prove-spec-resolution` |
 | 12 | [`build-drive-cli`](build-drive-cli.md) | An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back. | mapped | `prove-spec-resolution`, `prove-it-gate`, `real-build-worktree`, `story-topo-build`, `oq-hygiene-gate`, `work-verdict-event-log` |
+| 13 | [`spec-borne-proof-config`](spec-borne-proof-config.md) | A node carries its own proof config, so authoring it is the single act that makes it inner-loop-buildable. | proposed | `prove-spec-resolution` |
 
 ## Dependency graph (code-derived)
 
@@ -162,6 +164,11 @@ coupling) and marked.
   - `node-build.ts:8-14` imports `workEvent` + `rollupStatus` + `verdictLine` (building marks
     `:219-224`, report rollups `:504`); `:36` imports `PgWorkStore` (the `--store pg` swap,
     `:165-174`).
+- `spec-borne-proof-config` → `prove-spec-resolution` *(PROPOSED — ADR-0057, no code edge yet)*
+  - extends the resolution layer: `node-spec.ts` will read a spec-borne `proof:` block,
+    `test-command-registry.ts` demotes to a validation/fallback layer, and `resolve-prove-spec.ts`
+    reads the build config off the loaded `NodeSpec`. Unbuilt — the edge is a planned coupling, not
+    an observed import.
 
 **Cross-story:** the `library` edge in the frontmatter (the store-connection seam +
 the OQ loader's library stores). **Cross-package, consumed:** the `PhaseAuthor` seam — see the
@@ -251,7 +258,10 @@ node with one is `verdict-line` (whose authored status stays `proposed` forever,
    — §3–4 on the contributor PR (ci-cd), §5 on the live `story build` drive (here) — kept with each
    trigger rather than merged. A future `decision-binding` substrate story could still absorb both;
    the owner deferred that, so this capability stays.
-5. **Registering the machinery's own nodes.** None of the 12 capabilities has a test-command
-   registry entry yet, so `story build drive-machinery` refuses at the precheck. Registering them
-   (each package suite is an obvious proof command) would make the machinery self-driveable — the
+5. **Registering the machinery's own nodes — BEING ADDRESSED (ADR-0057).** None of the 13
+   capabilities has a test-command registry entry yet, so `story build drive-machinery` refuses at
+   the precheck. The keystone fix is [`spec-borne-proof-config`](spec-borne-proof-config.md): a node
+   declares its own proof command + write scope in its spec, so *authoring* a node is what makes it
+   buildable (no orchestrator-registry edit). Proposed/unbuilt — it must be built outer-loop first
+   (the bootstrap caveat), after which the machinery's own capabilities become self-driveable: the
    natural next bootstrap rung toward `healthy`.
