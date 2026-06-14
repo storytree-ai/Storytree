@@ -244,10 +244,13 @@ node with one is `verdict-line` (whose authored status stays `proposed` forever,
    and the pg event store as ONE capability (one vocabulary, one parity bar — the library's
    store-seam shape). The alternative is splitting the pg half out so the live-SQL `proposed`
    pocket is visible at capability grain.
-4. **`oq-hygiene-gate`'s home.** It lives here because the build drive consumes it (the gate fires
-   inside `story build --live`), but it implements ADR-0037 §5, whose sibling machinery
-   (`adr-health`, the CI repo gate) is currently story-less. If a decision-binding story is ever
-   authored, this capability could move there.
+4. **`oq-hygiene-gate`'s home (RESOLVED 2026-06-14).** It lives here because the build drive consumes
+   it (the gate fires inside `story build --live`), implementing ADR-0037 §5. Its sibling machinery
+   (`adr-health` + ADR-number allocation, the CI repo-path checks) is now owned by `stories/ci-cd`'s
+   [`adr-health-gate`](../ci-cd/adr-health-gate.md): ADR-0037 enforcement is split by TRIGGER SURFACE
+   — §3–4 on the contributor PR (ci-cd), §5 on the live `story build` drive (here) — kept with each
+   trigger rather than merged. A future `decision-binding` substrate story could still absorb both;
+   the owner deferred that, so this capability stays.
 5. **Registering the machinery's own nodes.** None of the 12 capabilities has a test-command
    registry entry yet, so `story build drive-machinery` refuses at the precheck. Registering them
    (each package suite is an obvious proof command) would make the machinery self-driveable — the

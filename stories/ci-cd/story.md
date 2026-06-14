@@ -11,7 +11,7 @@ proof_mode: UAT
 # FORWARD to sibling stories (merge-presence-retire → notice-board, deploy-on-merge → studio-cloud);
 # the story ROOT stays edgeless. Verified acyclic: neither notice-board (depends_on: [library,
 # drive-machinery]) nor studio-cloud (depends_on: [studio, library]) depends on ci-cd.
-capabilities: [green-gate, repo-surface-manifest, adr-number-hygiene, gate-ci-parity, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
+capabilities: [green-gate, repo-surface-manifest, adr-health-gate, gate-ci-parity, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
 depends_on: []
 # Deciding ADRs (ADR-0037 §2): the green gate + auto-merge (22), repo-surface manifest (25),
 # decision binding + adr-health (37), the ADR-number allocator (50), session presence the retire
@@ -78,7 +78,7 @@ reaches forward to a sibling story.
 |---|---|---|---|---|
 | 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — manifest, CLAUDE.md/agents sync, typecheck, test, build — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
-| 3 | [`adr-number-hygiene`](adr-number-hygiene.md) | ADR numbers are allocated atomically and any duplicate is refused — on the merge ref and across concurrently-open PRs. | proposed | — |
+| 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
 | 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship (gate = CI − build, HEAD vs merge-ref); a stale-behind-main branch is surfaced. | proposed | `green-gate` |
 | 5 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
 | 6 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
