@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: mapped
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, oq-hygiene-gate, build-drive-cli]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/cli/src/node-build.ts:36 (events.work_event/verdict are its OWN tables), and the
@@ -13,9 +13,9 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # (packages/cli/src/oq-gate.ts:110-119).
 depends_on: [library]
 # Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the SDK leaf (30),
-# promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), and the
-# inner-loop-expansion keystone — node-borne proof config (57).
-decisions: [5, 20, 30, 31, 35, 37, 57]
+# promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), the
+# inner-loop-expansion keystone — node-borne proof config (57) — and gate-as-proof authoring (59).
+decisions: [5, 20, 30, 31, 35, 37, 57, 59]
 ---
 
 # The drive machinery
@@ -78,7 +78,7 @@ exists, the seam becomes its declared cross-story interface (ADR-0010 §4) and t
 frontmatter gains that story-level edge. Until then the coupling is documented here and in each
 consuming capability, not hidden.
 
-## Capabilities (16)
+## Capabilities (17)
 
 Listed roots-first (a capability appears after everything it depends on). `mapped` = a real
 passing offline suite observationally verifies the dominant behaviour; the Proof blockquote in
@@ -101,7 +101,8 @@ each file pins the `proposed` pockets.
 | 13 | [`spec-borne-proof-config`](spec-borne-proof-config.md) | A node carries its own proof config, so authoring it is the single act that makes it inner-loop-buildable. | mapped | `prove-spec-resolution` |
 | 14 | [`proof-command-vocabulary`](proof-command-vocabulary.md) | A node declares its own proof command, so the same gate drives non-node:test work red→green. | mapped | `spec-borne-proof-config` |
 | 15 | [`story-real-chain`](story-real-chain.md) | A whole story grows to signed verdicts: capabilities real-built in dependency order over one worktree, promoted once. | mapped | `story-topo-build`, `real-build-worktree`, `spec-borne-proof-config` |
-| 16 | [`multi-file-existing-source`](multi-file-existing-source.md) | A node declares a multi-file scope + an edit-existing-source regression red→green (bug-fixes/refactors), keeping test-author ≠ code-author. | proposed | `spec-borne-proof-config`, `proof-command-vocabulary` |
+| 16 | [`multi-file-existing-source`](multi-file-existing-source.md) | A node declares a multi-file scope + an edit-existing-source regression red→green (bug-fixes/refactors), keeping test-author ≠ code-author. | mapped | `spec-borne-proof-config`, `proof-command-vocabulary` |
+| 17 | [`gate-as-proof-authoring`](gate-as-proof-authoring.md) | Authoring an ADR earns a signed verdict through the unchanged gate by reducing to edit-existing with a structural-completeness check — the machine witnesses hygiene, never acceptance. | mapped | `multi-file-existing-source`, `spec-borne-proof-config` |
 
 ## Dependency graph (code-derived)
 
@@ -183,7 +184,8 @@ coupling) and marked.
     and resolves each node's `real:` arm via `resolveBuildConfig` (spec-borne-proof-config); the
     single-node REAL lifecycle is extracted into `node-build.ts:buildNodeReal` (shared with
     `node build --real`). No orchestrator code change; the spine is reused verbatim.
-- `multi-file-existing-source` → `spec-borne-proof-config`, `proof-command-vocabulary` *(PROPOSED — ADR-0057 §3 expansion C, no code edge yet)*
+- `multi-file-existing-source` → `spec-borne-proof-config`, `proof-command-vocabulary` *(ADR-0057 §3 expansion C; reuses A's glob-set scope + B's suite — no new code edge)*
+- `gate-as-proof-authoring` → `multi-file-existing-source`, `spec-borne-proof-config` *(ADR-0059 expansion E; reduces to C's edit-existing over a doc + the `adr-completeness` checker — no orchestrator edge)*
   - the queued next expansion (a design note, not built): widen the write scope to a glob SET and
     support edit-existing-source regression red→green. Most structure already exists (A's glob scope,
     the gate's runtime-red acceptance, B's `proofCommand` suite) — the work is the leaf brief + the
