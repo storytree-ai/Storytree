@@ -56,6 +56,7 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'techstack',
   'process',
   'agent',
+  'proposal',
   'template',
   'adr',
   'open-question',

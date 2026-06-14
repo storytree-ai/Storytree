@@ -60,6 +60,7 @@ const KIND_ORDER = [
   "techstack",
   "process",
   "agent",
+  "proposal",
   "open-question",
   "template",
 ] as const;
