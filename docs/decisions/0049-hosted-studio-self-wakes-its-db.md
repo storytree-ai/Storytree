@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 amends: [42]
 ---
@@ -8,10 +8,10 @@ amends: [42]
 
 ## Status
 
-**proposed** (2026-06-14) — authored as a proposal; the implementation landed in the same unit
-(see *Done in this unit*), but it is **held for owner review** because it needs a one-time
-**privileged Terraform IAM grant** and a **manual deploy** (there is no CD trigger yet — that is
-draft PR #103 / ADR-0046). Flip to **accepted** on the owner's call once the grant is reviewed.
+**accepted** (2026-06-14) — the implementation landed in the same unit (see *Done in this unit*);
+the owner reviewed the privileged Terraform IAM grant and gave the go-ahead to land it (2026-06-14).
+The one-time `terraform apply` + manual deploy are tracked operationally (`infra/studio-cloud.md` §6);
+merging does not redeploy (no CD trigger yet — ADR-0046 is draft PR #103).
 
 **Amends [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)** (the hosted studio posture). ADR-0042
 d.3 ruled that `/api/db/*` is refused for everyone hosted — "its gcloud-on-the-operator's-machine
@@ -100,16 +100,16 @@ Two constraints frame the fix:
 
 ## Owner decisions
 
-1. ⏳ **OPEN CALL — is seed-admin-only the right floor for the degraded wake, or should any prior
-   member be allowed too?** During an outage the projection is unreadable, so the only DB-free
-   authorization is the env seed (`STORYTREE_STUDIO_ADMINS`, today just the owner). Seed-admin-only
-   means only an admin (in practice, the owner) can trigger a billable start; everyone else resolves
-   automatically once it's up. Widening to "any prior member" would require a cache/snapshot of the
-   members list survivable across an outage — more machinery, and it lets more identities spend money.
-   **Recommendation:** keep seed-admin-only; revisit if the circle regularly needs to self-wake when no
-   admin is around.
-2. ⏳ **OPERATIONAL (BLOCKING) — the one-time `terraform apply`** for `infra/studio-db-wake.tf` (the
-   custom role + binding). Owner-run, reviewed; the PR is held draft until then.
+1. ✅ **RESOLVED (owner call, 2026-06-14) — keep seed-admin-only.** During an outage the projection is
+   unreadable, so the only DB-free authorization is the env seed (`STORYTREE_STUDIO_ADMINS`, today just
+   the owner). Seed-admin-only means only an admin (in practice, the owner) can trigger a billable
+   start; everyone else resolves automatically once it's up. Widening to "any prior member" would
+   require a cache/snapshot of the members list survivable across an outage — more machinery, and it
+   lets more identities spend money. Revisit if the circle regularly needs to self-wake when no admin
+   is around.
+2. ✅ **APPROVED (owner, 2026-06-14) — the one-time `terraform apply`** for `infra/studio-db-wake.tf`
+   (the custom role + binding). Owner-run; being applied as part of landing this unit. Until applied,
+   wake answers a clear 502 — loud and safe, never a silent no-op.
 3. ⏳ **OPERATIONAL (BLOCKING) — a manual deploy.** There is no live CD trigger (ADR-0046 is draft
    PR #103), so merging does not redeploy. The wake only works once the new image is deployed with the
    ADR-0042 flag set (`infra/studio-cloud.md` §3–§4).
