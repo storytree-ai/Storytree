@@ -30,31 +30,41 @@ test("the shared .claude/settings.json exists and passes the never-blocking-hook
   );
 });
 
-test("the presence wrappers ARE wired: SessionStart/SessionEnd hooks + the statusline glance", () => {
+test("the presence wrappers ARE wired through the worktree-safe launcher: SessionStart/SessionEnd hooks + the statusline glance", () => {
   const settings = JSON.parse(fs.readFileSync(settingsFile, "utf8")) as {
     hooks?: Record<string, Array<{ hooks?: Array<{ command?: string; timeout?: number }> }>>;
     statusLine?: { type?: string; command?: string };
   };
   for (const event of ["SessionStart", "SessionEnd"]) {
-    const commands = (settings.hooks?.[event] ?? [])
-      .flatMap((entry) => entry.hooks ?? [])
-      .map((hook) => hook.command ?? "");
+    const hooks = (settings.hooks?.[event] ?? []).flatMap((entry) => entry.hooks ?? []);
+    const presenceHooks = hooks.filter((hook) => (hook.command ?? "").includes("presence-hook"));
     assert.ok(
-      commands.some((c) => c.includes("ambient-presence")),
-      `${event} must carry the ambient-presence wrapper (owner decision 3: shared hooks)`,
+      presenceHooks.length >= 1,
+      `${event} must carry the ambient-presence wrapper via scripts/presence-hook.sh (owner decision 3: shared hooks)`,
+    );
+    // REGRESSION LOCK — the "5 sessions, nothing on the tree" bug (2026-06-14): a bare
+    // `pnpm --filter @storytree/cli exec tsx …ambient-presence-entry…` dies with
+    // "'tsx' is not recognized" in a FRESH worktree (no node_modules), so the hook — and
+    // its statusline self-heal — never run and the session never lands a presence row.
+    // The launcher resolves tsx from the primary checkout. Lock the routing in: a presence
+    // command must NOT invoke tsx directly.
+    assert.ok(
+      hooks.every((hook) => {
+        const command = hook.command ?? "";
+        const isPresence = command.includes("presence-hook") || command.includes("ambient-presence");
+        return !isPresence || !/exec\s+tsx/.test(command);
+      }),
+      `${event} presence hook must route through scripts/presence-hook.sh, not a bare \`pnpm exec tsx\` (which fails in fresh worktrees)`,
     );
     // The fail-silent contract is bounded time too — a hook without a timeout can hang a session.
-    const presenceHooks = (settings.hooks?.[event] ?? [])
-      .flatMap((entry) => entry.hooks ?? [])
-      .filter((hook) => (hook.command ?? "").includes("ambient-presence"));
     assert.ok(
       presenceHooks.every((hook) => typeof hook.timeout === "number" && hook.timeout <= 60),
       `${event} presence hooks must declare a short timeout`,
     );
   }
   assert.ok(
-    (settings.statusLine?.command ?? "").includes("ambient-presence"),
-    "the statusline glance (owner decision 2: heartbeat ships) must be configured",
+    (settings.statusLine?.command ?? "").includes("presence-hook"),
+    "the statusline glance (owner decision 2: heartbeat ships) must route through scripts/presence-hook.sh",
   );
 });
 

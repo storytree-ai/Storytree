@@ -10,7 +10,7 @@
           },
           {
             "type": "command",
-            "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts start",
+            "command": "bash scripts/presence-hook.sh start",
             "timeout": 20
           }
         ]
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts end",
+            "command": "bash scripts/presence-hook.sh end",
             "timeout": 20
           }
         ]
@@ -30,6 +30,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "pnpm --silent --filter @storytree/cli exec tsx src/ambient-presence-entry.ts statusline"
+    "command": "bash scripts/presence-hook.sh statusline"
   }
 }

@@ -12,7 +12,7 @@ import {
   KIND_SPECS,
   resolveSignerFromEnv,
 } from "@storytree/core";
-import { renderStoredDoc } from "@storytree/store";
+import { renderStoredDoc, syncSeedAgents } from "@storytree/store";
 
 import { execFileSync } from "node:child_process";
 
@@ -157,6 +157,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  artifact list <category>      list a category",
     "  artifact new | edit <id>      create / edit (writes need --pg)",
     "  tree focus <id>               the local DAG of one artifact",
+    "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
     "  (coming soon: artifact comment)",
   );
   return {
@@ -489,6 +490,40 @@ export async function editArtifact(
 }
 
 /**
+ * `storytree library sync-agents --pg` — reconcile the live `agent` tier to the SEED (ADR-0055).
+ *
+ * The agent tier is **seed-canonical**: agents are authored in `apps/studio/data/knowledge.json` and
+ * the renderer (`storytree agents`, the generated CLAUDE.md region per ADR-0051, the `.claude/agents`
+ * files per ADR-0052) reads the seed offline. That makes it the exception to ADR-0023's
+ * live-store-is-the-edit-surface default — so an agent-tier seed edit must be re-synced or the live
+ * store (which powers `storytree agents --pg` and the studio) drifts stale. This upserts every seed
+ * agent and deletes any live agent absent from the seed; agent-kind only, idempotent. Needs --pg —
+ * a sync against the ephemeral offline store would be a no-op.
+ */
+export async function syncAgentsCommand(deps: RunDeps): Promise<Envelope> {
+  if (deps.writable !== true) return notWritable(deps.store);
+  const r = await syncSeedAgents(deps.store, { actor: deps.actor ?? "cli" });
+  const lines = [
+    r.inSync
+      ? `IN SYNC — the live agent tier equals the seed's ${r.seed.length} agents.`
+      : "NOT IN SYNC after reconcile — investigate (a write may have failed).",
+    "",
+    `before  (${r.before.length}): ${r.before.join(", ") || "(none)"}`,
+    `upserted (${r.upserted.length}): ${r.upserted.join(", ")}`,
+    `deleted (${r.deleted.length}): ${r.deleted.join(", ") || "(none)"}`,
+    `after   (${r.after.length}): ${r.after.join(", ")}`,
+  ];
+  return {
+    ok: r.inSync,
+    body: lines.join("\n"),
+    next: [
+      "storytree library artifact list agent",
+      "storytree agents <name> --pg   (verify it renders clean)",
+    ],
+  };
+}
+
+/**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
  * references (intra-library `asset:` edges + `doc:` source/ADR pointers, the latter surfaced on
  * demand) and the inbound `asset:` edges that point at it (a derived back-edge scan). Honest about
@@ -642,6 +677,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
+      "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
     // The "explore just-in-time, drill in to earn the detail" stance is the library's doctrine, not
@@ -930,6 +966,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.check === true) return libraryCheck(deps.store);
     return dashboard(deps.store);
   }
+
+  if (sub === "sync-agents") return syncAgentsCommand(deps);
 
   if (sub === "tree") {
     if (third === undefined || help) return treeHelp();
