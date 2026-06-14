@@ -66,10 +66,18 @@ live agent tier equal the seed on demand.
   is covered offline (`sync-agents.test.ts`, `cli.test.ts`) with no DB, so it can't rot.
 - **Scope is fenced to agents.** Other kinds remain live-canonical; `sync-agents` will never clobber a
   live `principle`/`pattern`/`open-question` edit, because it only reads and writes `kind: "agent"`.
-- **Still manual.** Nothing forces the sync after a seed edit — the offline gate has no DB to check
-  against, so prevention stays a discipline (this ADR + the CLAUDE.md note), not a gate. A genuinely
-  automatic close would need either a DB→seed export (then the seed is generated and never hand-edited)
-  or making the live store the agent edit surface; both are larger and named as later work.
+- **Best-effort gate nudge, not a hard block.** `pnpm gate` ends with `check:agents-sync`
+  (`packages/cli/src/check-agents-sync.ts`) — a read-only, WARN-only step that, *when the DB is
+  reachable*, compares the live agent tier against the seed and prints a `sync-agents --pg` nudge on
+  drift; it SKIPs (never fails, never hangs — bounded by a timeout) when the DB is down or creds are
+  absent. It lives in `pnpm gate`, **not CI**, because CI's `verify` job is deliberately DB-free — and
+  since all real work happens with the DB up, the local gate is where drift surfaces before a push. It
+  is a WARN, not a block, because live-DB agent drift only stales a **human-facing projection** (the
+  studio / `storytree agents --pg`): everything that RUNS — the CLAUDE.md region, `.claude/agents`, the
+  live leaf prompts — renders from the **seed** and is already hard-gated by `check:claude`/`check:agents`.
+- **A genuinely automatic close is still future work** — a DB→seed export (then the seed is generated,
+  never hand-edited, and this whole agent-tier exception disappears) or making the live store the agent
+  edit surface; both are larger and named as later work.
 - **A re-sync re-stamps all agents** (one `library_event` per agent, `updated_at` bumped) even when
   content is unchanged — a harmless, idempotent audit cost, acceptable for an occasional operation.
 

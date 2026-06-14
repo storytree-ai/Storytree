@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryStore } from "@storytree/core";
-import { reconcileAgents, syncSeedAgents } from "./sync-agents.js";
+import { reconcileAgents, syncSeedAgents, diffAgents, diffSeedAgents } from "./sync-agents.js";
 
 /**
  * Offline agent-tier reconciliation tests (ADR-0055). Run against InMemoryStore — NO Cloud SQL, NO
@@ -70,6 +70,45 @@ test("reconcileAgents: idempotent — a second run upserts the same set and dele
   assert.deepEqual(second.deleted, [], "nothing stale left to delete");
   assert.deepEqual(second.after, ["a1", "a2"]);
   assert.equal(second.inSync, true);
+});
+
+test("diffAgents: read-only — reports missing/extra/inSync and writes NOTHING", async () => {
+  const source = new InMemoryStore();
+  await seed(source, [agent("a1"), agent("a2"), { id: "p1", kind: "principle" }]);
+  const target = new InMemoryStore();
+  await seed(target, [agent("a1"), agent("gone")]);
+
+  const diff = await diffAgents(source, target);
+  assert.deepEqual(diff.seed, ["a1", "a2"]);
+  assert.deepEqual(diff.live, ["a1", "gone"]);
+  assert.deepEqual(diff.missing, ["a2"], "in seed, absent from target");
+  assert.deepEqual(diff.extra, ["gone"], "in target, absent from seed");
+  assert.equal(diff.inSync, false);
+
+  // Read-only: the target is untouched (a2 NOT created, gone NOT deleted).
+  assert.equal(await target.getDoc("a2"), null);
+  assert.ok(await target.getDoc("gone"));
+});
+
+test("diffAgents: identical agent tiers report inSync with no missing/extra", async () => {
+  const source = new InMemoryStore();
+  await seed(source, [agent("a1"), agent("a2")]);
+  const target = new InMemoryStore();
+  await seed(target, [agent("a2"), agent("a1")]); // order-independent
+  const diff = await diffAgents(source, target);
+  assert.equal(diff.inSync, true);
+  assert.deepEqual(diff.missing, []);
+  assert.deepEqual(diff.extra, []);
+});
+
+test("diffSeedAgents: a target holding exactly the seed's agents is inSync", async () => {
+  // Reconcile a fresh target to the real seed, then diff — must report inSync.
+  const target = new InMemoryStore();
+  await syncSeedAgents(target);
+  const diff = await diffSeedAgents(target);
+  assert.equal(diff.inSync, true, "after a sync, the diff is clean");
+  assert.deepEqual(diff.missing, []);
+  assert.deepEqual(diff.extra, []);
 });
 
 test("syncSeedAgents: brings a target in line with the REAL seed corpus and removes a stale agent", async () => {
