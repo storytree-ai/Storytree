@@ -63,7 +63,8 @@ export type KnowledgeKind =
   | "techstack"
   | "process"
   | "open-question"
-  | "agent";
+  | "agent"
+  | "proposal";
 
 /**
  * The per-kind field tables. ORDER IS SIGNIFICANT: the renderer emits fields in this order
@@ -391,6 +392,70 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_What it surfaces rather than deciding — the boundary where it stops and routes to the human outer loop or the owning surface. Omit if it never escalates._",
     },
   ],
+  // A `proposal` captures the INTENT of a change worth doing later — a rename, a
+  // migration, a restructuring — so it can be parked in the library now and "kicked
+  // off when ready" (typically a quiet window with no active sessions). It is forward-
+  // looking like an open-question, but it is NOT a question: the decision is made, only
+  // the EXECUTION is deferred. The fields carry everything the executing session needs:
+  // the before→after change, the blast radius, the ordered migration steps, and the
+  // readiness preconditions that say it is safe to start.
+  proposal: [
+    {
+      field: "summary",
+      lead: true,
+      heading: "**The proposal.**",
+      required: true,
+      placeholder: "_The change being proposed, in one sentence — the decision is made; execution is deferred._",
+    },
+    {
+      field: "motivation",
+      lead: false,
+      heading: "Motivation",
+      required: true,
+      placeholder:
+        "_What prompts this — the friction it removes or the improvement it buys, and the cost of NOT doing it._",
+    },
+    {
+      field: "change",
+      lead: false,
+      heading: "The change",
+      required: true,
+      placeholder:
+        "_What concretely changes — the before→after mapping (renames, moved surfaces, new vocabulary). Name the old and the new term for each, exactly._",
+    },
+    {
+      field: "scope",
+      lead: false,
+      heading: "Scope",
+      required: true,
+      placeholder:
+        "_The blast radius: the surfaces, files, identifiers, and stored data the migration touches — and, explicitly, what it leaves UNCHANGED (the non-goals)._",
+    },
+    {
+      field: "migration",
+      lead: false,
+      heading: "Migration plan",
+      required: true,
+      placeholder:
+        "_The ordered steps to execute when this is kicked off — each step names the command, surface, or file it changes and how it is verified green._",
+    },
+    {
+      field: "readiness",
+      lead: false,
+      heading: "Readiness",
+      required: true,
+      placeholder:
+        "_The preconditions for safely running it (e.g. no active sessions on the noticeboard, the DB quiet, the gate green) and how a session knows it is time to start._",
+    },
+    {
+      field: "risks",
+      lead: false,
+      heading: "Risks",
+      required: false,
+      placeholder:
+        "_What could go wrong and the mitigation — half-applied renames, dangling references, data loss. Omit only if genuinely low-risk._",
+    },
+  ],
 } as const;
 
 /**
@@ -479,6 +544,7 @@ export const TechStack = buildKindSchema("techstack");
 export const Process = buildKindSchema("process");
 export const OpenQuestion = buildKindSchema("open-question");
 export const Agent = buildKindSchema("agent");
+export const Proposal = buildKindSchema("proposal");
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
 export const Knowledge = z.discriminatedUnion("kind", [
@@ -490,6 +556,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Process,
   OpenQuestion,
   Agent,
+  Proposal,
 ]);
 
 export type Knowledge = z.infer<typeof Knowledge>;
@@ -501,3 +568,4 @@ export type TechStack = z.infer<typeof TechStack>;
 export type Process = z.infer<typeof Process>;
 export type OpenQuestion = z.infer<typeof OpenQuestion>;
 export type Agent = z.infer<typeof Agent>;
+export type Proposal = z.infer<typeof Proposal>;

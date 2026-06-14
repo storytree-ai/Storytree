@@ -72,6 +72,7 @@ export type AssetCategory =
   | 'techstack' // "what we build on"
   | 'process' // "a repeatable operating ceremony"
   | 'agent' // "a role and its operating discipline"
+  | 'proposal' // "a planned change to roll out when ready"
   | 'template' // "the shape an artifact conforms to"
   | 'adr' // "a decision record"
   | 'open-question'; // "an unresolved decision to settle"
@@ -247,6 +248,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'techstack',
   'process',
   'agent',
+  'proposal',
   'template',
   'adr',
   'open-question',
@@ -261,6 +263,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   techstack: 'what we build on',
   process: 'a repeatable operating ceremony',
   agent: 'a role and its operating discipline',
+  proposal: 'a planned change to roll out when ready',
   template: 'the shape an artifact conforms to',
   adr: 'a decision record',
   'open-question': 'an unresolved decision to settle',

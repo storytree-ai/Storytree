@@ -59,6 +59,7 @@ const GENERATED_TEMPLATE_KINDS = new Set([
   'template-process',
   'template-open-question',
   'template-agent',
+  'template-proposal',
 ]);
 
 // One-line gloss per generated template's description ("Fillable scaffold for a new
@@ -72,6 +73,7 @@ const TEMPLATE_GLOSS = {
   process: 'a repeatable operating ceremony',
   'open-question': 'an unresolved decision to settle',
   agent: 'a role and its operating discipline',
+  proposal: 'a planned change to roll out when ready',
 };
 
 // ---------------------------------------------------------------------------
