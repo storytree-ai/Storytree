@@ -75,6 +75,13 @@ file conflicts).
   CLI edits — it reverts them.**
   *(Invocation note: `pnpm storytree …` forwards every flag EXCEPT `--json` — pnpm reserves that —
   so pass a doc via `--file`, or use inline `--json` only via `npx tsx packages/cli/src/main.ts …`.)*
+- **AGENT TIER = seed-canonical (the exception, ADR-0055):** agents are authored in `knowledge.json`
+  and rendered offline (`storytree agents`, the generated CLAUDE.md region per ADR-0051, the
+  `.claude/agents/*.md` files per ADR-0052), so for the `agent` kind the **seed is the edit surface** —
+  the inverse of the live-canonical default above. After editing an agent in the seed, reconcile the
+  live store: `pnpm db:up && pnpm storytree library sync-agents --pg` (upserts every seed agent,
+  deletes any live agent absent from the seed; agent-kind only, idempotent) — else `storytree agents
+  --pg` and the studio go stale. Don't hand-reconcile with a throwaway script.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

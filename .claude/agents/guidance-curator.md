@@ -106,7 +106,7 @@ Restated prose drifts: when doctrine is copied into N bodies, an edit to the sou
 
 ## How to apply
 
-Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit.
+Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit. This binds runtime surfaces, not just documents: the CLI is a guidance surface, so build its doctrine prose from the Library and render it on demand (renderDoctrine / the agent renderer) rather than restating it in code — only the command grammar (usage syntax, flags, subcommand lists) stays in code (ADR-0053).
 
 ### Least-authority tool grants  [principle]
 **The principle.** An agent's tool grant lists only the tools a named workflow step actually uses; every grant names the step that demands it, and silent widening is a defect.

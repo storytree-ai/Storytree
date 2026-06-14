@@ -88,7 +88,7 @@ The push model — pre-loading a big static brief covering every situation the a
 
 ## Approach
 
-Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition.
+Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition. The CLI is one such pull surface: it renders its doctrine prose from the Library on demand — the choose-your-own-adventure CLI (ADR-0023/ADR-0053) — instead of carrying a fat static brief, because static instruction is followed less reliably than context pulled at the step that needs it.
 
 ## Tradeoffs
 

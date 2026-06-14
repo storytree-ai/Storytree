@@ -177,6 +177,30 @@ test("artifact edit on a missing id is guidance", async () => {
   assert.match(env.body, /no artifact "ghost" to edit/);
 });
 
+test("sync-agents without --pg is refused with the write-surface guidance", async () => {
+  const env = await run(["library", "sync-agents"], { store: await seeded() });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /writes go to the shared store/);
+});
+
+test("sync-agents (writable) reconciles the agent tier to the seed and removes a stale agent", async () => {
+  const store = await seeded();
+  // A stale agent not present in the seed — sync-agents must delete it.
+  await store.upsertDoc({
+    id: "stale-agent",
+    kind: "agent",
+    doc: { id: "stale-agent", kind: "agent" },
+  });
+  const env = await run(["library", "sync-agents", "--pg"], { store, writable: true });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /IN SYNC — the live agent tier equals the seed/);
+
+  const agents = (await store.queryDocs({ kind: "agent" })).map((d) => d.id);
+  assert.ok(!agents.includes("stale-agent"), "the stale agent was deleted");
+  assert.ok(agents.includes("session-orchestrator"), "a known seed agent is present");
+  assert.equal(await store.getDoc("stale-agent"), null);
+});
+
 test("artifact edit that breaks the schema is refused, not persisted", async () => {
   const store = await seeded();
   const env = await run(

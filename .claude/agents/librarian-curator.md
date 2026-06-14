@@ -63,7 +63,7 @@ The push model — pre-loading a big static brief covering every situation the a
 
 ## Approach
 
-Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition.
+Thin bootstrap — the starting brief carries the agent’s role, current objective, and how to fetch more; pointers, not payloads. Pull on demand — the agent fetches operational context when it needs it, and what it fetches is paths to read, not embedded blobs, always reading current state. Progressive disclosure — each step’s result points at the next thing to fetch. Keep briefs lean: name the surface and link its authoritative source instead of inlining it (self-contained means complete pointers, not complete payloads). When a single context to pull would still exceed the window, escalate to recursive decomposition. The CLI is one such pull surface: it renders its doctrine prose from the Library on demand — the choose-your-own-adventure CLI (ADR-0023/ADR-0053) — instead of carrying a fat static brief, because static instruction is followed less reliably than context pulled at the step that needs it.
 
 ## Tradeoffs
 
@@ -117,7 +117,7 @@ Restated prose drifts: when doctrine is copied into N bodies, an edit to the sou
 
 ## How to apply
 
-Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit.
+Before writing rule prose into any body, ask: does a Library unit cover this? If yes, cite it (`asset:<id>`) with at most a one-line gloss naming why it binds here. If no, draft the unit and cite it — the prose belongs in the unit, not in the consumer. A consumer body keeps only what is its own: role, authority boundary, workflow shape, and pointers. The smell test: if two bodies could share a paragraph, that paragraph is a unit. This binds runtime surfaces, not just documents: the CLI is a guidance surface, so build its doctrine prose from the Library and render it on demand (renderDoctrine / the agent renderer) rather than restating it in code — only the command grammar (usage syntax, flags, subcommand lists) stays in code (ADR-0053).
 
 ### When a term is in question, the glossary wins  [pattern]
 **The pattern.** When a term's meaning is in question, `docs/glossary.md` is authoritative — it wins, and the reasoning lives in the cited ADR.
