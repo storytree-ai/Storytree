@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 
 /**
@@ -113,14 +112,28 @@ export function normalizeSpan(span: string): string {
     .trim();
 }
 
+// FNV-1a 128-bit constants (the canonical offset basis + prime). A content FINGERPRINT, not a
+// cryptographic hash — drift detection needs collision-resistance, not security (and a fingerprint
+// is exactly the AST-fingerprint direction d.3 names). Chosen over `node:crypto` deliberately:
+// `@storytree/core` is bundled into the BROWSER studio, so this module must be browser-safe — a
+// `node:crypto` import broke the studio's `vite build` (createHash is not browser-resolvable). FNV
+// needs only `TextEncoder` + `BigInt` (universal globals), stays sync, and pulls no `node:` import.
+const FNV_OFFSET_128 = 0x6c62272e07bb014262b821756295c58dn;
+const FNV_PRIME_128 = 0x0000000001000000000000000000013bn;
+const MASK_128 = (1n << 128n) - 1n;
+
 /**
- * The content-hash SEAM (ADR-0016 d.3): a hex SHA-256 of the {@link normalizeSpan}'d span, so the
- * hash changes IFF the span meaningfully changed. This is the seam the canonical AST-fingerprint
- * swaps in behind later (per language, with this normalized-text hasher as the fallback) — no
- * caller changes when it does.
+ * The content-hash SEAM (ADR-0016 d.3): a 128-bit FNV-1a fingerprint (32 hex chars) of the
+ * {@link normalizeSpan}'d span, so the hash changes IFF the span meaningfully changed. This is the
+ * seam the canonical AST-fingerprint swaps in behind later (per language, with this normalized-text
+ * hasher as the fallback) — no caller changes when it does. Sync, zero-dependency, browser-safe.
  */
 export function hashSpan(span: string): string {
-  return createHash("sha256").update(normalizeSpan(span), "utf8").digest("hex");
+  let h = FNV_OFFSET_128;
+  for (const byte of new TextEncoder().encode(normalizeSpan(span))) {
+    h = ((h ^ BigInt(byte)) * FNV_PRIME_128) & MASK_128;
+  }
+  return h.toString(16).padStart(32, "0");
 }
 
 // ---------------------------------------------------------------------------

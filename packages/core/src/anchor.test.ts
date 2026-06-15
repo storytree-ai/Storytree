@@ -85,8 +85,10 @@ test("hashSpan: a MEANINGFUL change trips it (the safe direction for a human UAT
   assert.notEqual(hashSpan(base), hashSpan("function f() {\n    return 1;\n}"));
 });
 
-test("hashSpan is hex sha256 (64 hex chars)", () => {
-  assert.match(hashSpan("x"), /^[0-9a-f]{64}$/);
+test("hashSpan is a 128-bit FNV-1a fingerprint (32 hex chars)", () => {
+  assert.match(hashSpan("x"), /^[0-9a-f]{32}$/);
+  // Distinct inputs → distinct fingerprints (basic distribution sanity).
+  assert.notEqual(hashSpan("x"), hashSpan("y"));
 });
 
 // ---------------------------------------------------------------------------
