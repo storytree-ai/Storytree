@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
+import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
 import type { Envelope } from "./envelope.js";
 import {
@@ -618,6 +619,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
+      "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              allocate the next ADR number from the live store (ADR-0050) — no collisions",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "",
@@ -783,6 +785,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     title?: string;
     supersedes?: string;
     amends?: string;
+    bound?: string;
+    change?: string[];
   };
   try {
     const parsed = parseArgs({
@@ -813,6 +817,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         title: { type: "string" },
         supersedes: { type: "string" },
         amends: { type: "string" },
+        bound: { type: "string" },
+        change: { type: "string", multiple: true },
       },
     });
     positionals = parsed.positionals;
@@ -936,6 +942,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         now: () => new Date(),
       },
     );
+  }
+
+  if (area === "drift") {
+    if (help) return driftHelp();
+    return runDrift({
+      ...(values.file !== undefined ? { file: values.file } : {}),
+      ...(values.bound !== undefined ? { bound: values.bound } : {}),
+      ...(values.change !== undefined ? { changes: values.change } : {}),
+      ...(sub !== undefined ? { label: sub } : {}),
+    });
   }
 
   if (area === "adr") {
