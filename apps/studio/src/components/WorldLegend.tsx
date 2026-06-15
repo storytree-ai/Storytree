@@ -558,8 +558,8 @@ export function WorldLegend({
             here too — live work shows as session wisps, not a hue); a full brown tree ={' '}
             <strong>mapped</strong> brownfield — real, not yet proven (an authored “healthy” renders
             here until the gate signs); deep green = <strong>proven</strong>, a signed pass on the
-            story's own UAT. Retired stories leave the world. Click a tile to fade that status
-            across the world.
+            story's own UAT. Retired stories leave the forest. Click a tile to fade that status
+            across the forest.
           </p>
         </div>
       )}

@@ -52,8 +52,14 @@
   --hex-top-1: #9fc174;
   --hex-top-2: #b2cf8b;
   --hex-wheat: #d6b271;
-  --road: #a98e5f;
-  --road-bed: #ecdfc0;
+  /* rivers (dependency edges) + island moats — Dorfromantik cartoon water.
+     --river-bank doubles as the bridge-gap "knockout" casing where one river
+     crosses another (a light band reads as the over-river passing over). */
+  --river: #5aa9d6;
+  --river-deep: #3a7fb0; /* the merged tributary trunk — deeper, load-bearing */
+  --river-bank: #d7eef8;
+  --river-glint: #ffffff;
+  --river-ring: #6fbbe0; /* the moat that rings each island */
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1563,61 +1569,114 @@ mark.st-hl.flash {
   opacity: 0.35;
 }
 
-/* territory borders — the focus surface (V1's ring, reshaped to the land) */
-.hex-border line {
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  transition: stroke 0.18s ease, opacity 0.18s ease;
-  pointer-events: none;
-}
-.hex-border.is-focus line,
-.hex-border.is-selected line {
-  stroke: var(--accent);
-  stroke-width: 3;
-}
-.hex-border.is-ancestor line {
-  stroke: var(--warn);
-  stroke-width: 2.6;
-}
-.hex-border.is-descendant line {
-  stroke: var(--danger);
-  stroke-width: 2.6;
-}
-.hex-border.is-dim {
-  opacity: 0.25;
-}
+/* (Territory borders are now the water moat — see .hex-water-border below.) */
 
-/* roads between dependent territories */
+/* rivers between dependent territories (dep → dependent), animated cartoon water.
+   Three stacked strokes per river: a light BANK casing (also the bridge-gap
+   knockout where rivers cross), the WATER body, and a dashed GLINT that flows
+   in the dependency direction (the current). A merged tributary trunk wears
+   `is-trunk` for a deeper, wider channel. */
 .world-trail {
   transition: opacity 0.18s ease;
 }
-.world-trail-bed {
+.world-trail-bank {
   fill: none;
-  stroke: var(--road-bed);
-  stroke-width: 8;
+  stroke: var(--river-bank);
+  stroke-width: 8.5;
   stroke-linecap: round;
-  opacity: 0.85;
+  stroke-linejoin: round;
+  opacity: 0.95;
 }
-.world-trail-line {
+.world-trail-water {
   fill: none;
-  stroke: var(--road);
-  stroke-width: 2;
-  stroke-dasharray: 7 5;
+  stroke: var(--river);
+  stroke-width: 4.2;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.world-trail.is-ancestor .world-trail-line {
+.world-trail.is-trunk .world-trail-water {
+  stroke: var(--river-deep);
+  stroke-width: 5.6;
+}
+.world-trail-glint {
+  fill: none;
+  stroke: var(--river-glint);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 5 16;
+  opacity: 0.7;
+  animation: river-flow 2.6s linear infinite;
+}
+.world-trail.is-ancestor .world-trail-water {
   stroke: var(--warn);
-  stroke-width: 2.8;
-  stroke-dasharray: none;
 }
-.world-trail.is-descendant .world-trail-line {
+.world-trail.is-descendant .world-trail-water {
   stroke: var(--danger);
-  stroke-width: 2.8;
-  stroke-dasharray: none;
 }
 .world-trail.is-dim {
-  opacity: 0.25;
+  opacity: 0.3;
+}
+
+/* island water-ring border — the moat that surrounds each island (ADR-0036
+   borders, reshaped to water). The group carries focus (mirrors .hex-border);
+   the children are the calm water ring + a slow glint. */
+.hex-water-border {
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.hex-water-border .moat-bank {
+  fill: none;
+  stroke: var(--river-bank);
+  stroke-width: 10.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+.hex-water-border .moat-water {
+  fill: none;
+  stroke: var(--river-ring);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  transition: stroke 0.18s ease;
+}
+.hex-water-border .moat-glint {
+  fill: none;
+  stroke: var(--river-glint);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 4 22;
+  opacity: 0.5;
+  animation: river-flow 9s linear infinite;
+}
+.hex-water-border.is-focus .moat-water,
+.hex-water-border.is-selected .moat-water {
+  stroke: var(--accent);
+  opacity: 0.95;
+}
+.hex-water-border.is-ancestor .moat-water {
+  stroke: var(--warn);
+}
+.hex-water-border.is-descendant .moat-water {
+  stroke: var(--danger);
+}
+.hex-water-border.is-dim {
+  opacity: 0.2;
+}
+
+/* the flowing current — one dash period of travel, so the loop is seamless;
+   the path runs dependency→dependent, so the glint flows downstream. */
+@keyframes river-flow {
+  to {
+    stroke-dashoffset: -21;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-trail-glint,
+  .hex-water-border .moat-glint {
+    animation: none;
+  }
 }
 
 /* flora: the per-territory layer of trees, plates and wisps */

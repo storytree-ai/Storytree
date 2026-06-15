@@ -140,8 +140,8 @@ function hexPath(cx: number, cy: number, R: number): string {
 // ---------- world building ----------
 
 const MARGIN = 60;
-const RANK_GAP = 58; // vertical clearance between grown territories of adjacent ranks
-const ISLAND_GAP = 72; // horizontal clearance between territories sharing a rank
+const RANK_GAP = 78; // vertical clearance between grown territories of adjacent ranks (gives rivers room)
+const ISLAND_GAP = 96; // horizontal clearance between territories sharing a rank (gives rivers room)
 const RANK_SWING = 235; // lateral swing for a lone island, so its roads read as diagonals
 
 interface CapSpot {
@@ -176,6 +176,8 @@ interface Territory {
   decor: DecorSpot[];
   wheatTiles: Set<string>;
   boundary: BoundarySeg[];
+  /** The boundary chained into closed ring path(s) — the island's water moat. */
+  waterRing: string[];
   labelY: number;
 }
 
@@ -184,6 +186,11 @@ interface WorldEdge {
   to: string;
   via: string[];
   d: string;
+  /** Set on the merged tributary trunk (confluence → destination mouth); the
+   *  string is the destination story id, used for focus highlighting. */
+  trunkFor?: string;
+  /** Whether this river ends at a destination island (draw the inflow arrow). */
+  arrow?: boolean;
 }
 
 interface HexWorld {
@@ -302,35 +309,107 @@ function verdictPhrase(v: TreeVerdict): string {
   return v.outcome === 'pass' ? '✓ proven' : '✗ last run failed';
 }
 
+/** A point on territory `t`'s coast in the direction of `toward` (centroid-out). */
+function coastDock(t: Territory, toward: Pt, frac: number): Pt {
+  const dx = toward.x - t.centroid.x;
+  const dy = toward.y - t.centroid.y;
+  const d = Math.hypot(dx, dy) || 1;
+  return {
+    x: t.centroid.x + (dx / d) * t.radius * frac,
+    y: t.centroid.y + (dy / d) * t.radius * frac,
+  };
+}
+
 /**
- * A curved road from the dependency territory to the dependent one. Docks at
- * the coast (the central story tree owns the centroid now); an edge spanning
- * ≥2 ranks takes a guaranteed outward bow so it hugs the outside of the fan
- * instead of piercing the territories between.
+ * How far, and which way, to bow a river so it sweeps AROUND any island sitting
+ * in the corridor between its endpoints (the river replacement for ADR-0036's
+ * span bow, now actively island-aware). Scans the middle stretch for the
+ * worst-intruding territory and bows to the opposite side, clearing it plus a
+ * margin; with nothing in the way it returns a gentle hashed meander so parallel
+ * rivers stay visually distinct. Deterministic — no Math.random.
  */
-function roadPath(a: Territory, b: Territory, rankSpan: number): string {
-  const dx = b.centroid.x - a.centroid.x;
-  const dy = b.centroid.y - a.centroid.y;
+function avoidanceBow(
+  src: Pt,
+  dst: Pt,
+  territories: Territory[],
+  skip: ReadonlySet<string>,
+  seed: number,
+): number {
+  const dx = dst.x - src.x;
+  const dy = dst.y - src.y;
   const dist = Math.hypot(dx, dy) || 1;
   const ux = dx / dist;
   const uy = dy / dist;
-  const sx = a.centroid.x + ux * (a.radius * 0.8);
-  const sy = a.centroid.y + uy * (a.radius * 0.8);
-  const ex = b.centroid.x - ux * (b.radius * 0.85);
-  const ey = b.centroid.y - uy * (b.radius * 0.85);
-  const r = rand01(hash(`${a.story.id}->${b.story.id}`));
-  let bow: number;
-  if (rankSpan >= 2) {
-    // Span-scaled: intermediate islands swing up to ~RANK_SWING off the trunk,
-    // so the apex must clear that far out on the leaning side.
-    const side = Math.sign((a.centroid.x + b.centroid.x) / 2) || (r < 0.5 ? -1 : 1);
-    bow = side * Math.min(0.45, 0.18 + 0.07 * rankSpan + 0.06 * r) * dist;
-  } else {
-    bow = (r - 0.5) * 0.4 * dist;
+  let worst = 0; // signed perpendicular of the most-intruding island
+  for (const t of territories) {
+    if (skip.has(t.story.id)) continue;
+    const vx = t.centroid.x - src.x;
+    const vy = t.centroid.y - src.y;
+    const along = vx * ux + vy * uy;
+    if (along < dist * 0.12 || along > dist * 0.88) continue; // only the middle stretch
+    const perp = vx * -uy + vy * ux; // signed offset from the straight line
+    const clearance = t.radius + HEX_W;
+    const intrusion = clearance - Math.abs(perp);
+    if (intrusion <= 0) continue; // already clear of this island
+    if (intrusion > Math.abs(worst)) worst = (perp >= 0 ? 1 : -1) * intrusion;
   }
-  const mx = (sx + ex) / 2 - uy * bow;
-  const my = (sy + ey) / 2 + ux * bow;
-  return `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+  if (worst === 0) return (rand01(seed) - 0.5) * 0.16 * dist;
+  return -(worst >= 0 ? 1 : -1) * Math.min(dist * 0.5, Math.abs(worst) + HEX_W + 14);
+}
+
+/** A quadratic d-string from a→b, bowed `bow` px perpendicular to the chord. */
+function bowedQuad(a: Pt, b: Pt, bow: number): string {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const mx = (a.x + b.x) / 2 - uy * bow;
+  const my = (a.y + b.y) / 2 + ux * bow;
+  return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+}
+
+/**
+ * Chain a territory's per-tile-edge boundary segments into closed ring path(s) —
+ * the island's water moat. Endpoints are exact hex corners, so we key on rounded
+ * coords and walk edge→edge until each loop closes. Returns one `d` string per
+ * loop (territories are contiguous, so it's almost always exactly one).
+ */
+function boundaryRingPaths(segs: BoundarySeg[]): string[] {
+  if (segs.length === 0) return [];
+  const k = (x: number, y: number): string => `${x.toFixed(1)},${y.toFixed(1)}`;
+  const adj = new Map<string, BoundarySeg[]>();
+  const push = (key: string, s: BoundarySeg): void => {
+    const list = adj.get(key);
+    if (list) list.push(s);
+    else adj.set(key, [s]);
+  };
+  for (const s of segs) {
+    push(k(s.x1, s.y1), s);
+    push(k(s.x2, s.y2), s);
+  }
+  const used = new Set<BoundarySeg>();
+  const loops: string[] = [];
+  for (const start of segs) {
+    if (used.has(start)) continue;
+    used.add(start);
+    const startKey = k(start.x1, start.y1);
+    let d = `M ${start.x1.toFixed(1)} ${start.y1.toFixed(1)} L ${start.x2.toFixed(1)} ${start.y2.toFixed(1)}`;
+    let endKey = k(start.x2, start.y2);
+    for (let guard = 0; guard < segs.length && endKey !== startKey; guard++) {
+      const next = (adj.get(endKey) ?? []).find((s) => !used.has(s));
+      if (!next) break;
+      used.add(next);
+      const continues = k(next.x1, next.y1) === endKey;
+      const nx = continues ? next.x2 : next.x1;
+      const ny = continues ? next.y2 : next.y1;
+      d += ` L ${nx.toFixed(1)} ${ny.toFixed(1)}`;
+      endKey = k(nx, ny);
+    }
+    if (endKey === startKey) d += ' Z';
+    loops.push(d);
+  }
+  return loops;
 }
 
 function buildWorld(stories: TreeStory[]): HexWorld {
@@ -560,7 +639,20 @@ function buildWorld(stories: TreeStory[]): HexWorld {
     }
 
     const labelY = Math.max(...centers.map((p) => p.y), centroid.y) + HEX_R + TILE_DEPTH + 8;
-    return { story, tiles, centroid, radius, treeSpot, caps, decor, wheatTiles, boundary, labelY };
+    const waterRing = boundaryRingPaths(boundary);
+    return {
+      story,
+      tiles,
+      centroid,
+      radius,
+      treeSpot,
+      caps,
+      decor,
+      wheatTiles,
+      boundary,
+      waterRing,
+      labelY,
+    };
   });
 
   // The pale coast: up to two rings of unclaimed hexes around the land.
@@ -595,15 +687,64 @@ function buildWorld(stories: TreeStory[]): HexWorld {
     })
     .sort((a, b) => a.h.r - b.h.r || a.h.q - b.h.q);
 
-  // Roads render the SAME edge set the ranking used (declared ∪ derived).
+  // Rivers render the SAME edge set the ranking used (declared ∪ derived), but
+  // grouped by DESTINATION so several dependencies of one story MERGE into a
+  // single tributary trunk before reaching it (confluence) — rivers that share
+  // a destination join instead of crossing, which removes the densest crossings
+  // by construction. A lone dependency stays one island-avoiding river.
   const byId = new Map(territories.map((t, i) => [t.story.id, i]));
-  const edges: WorldEdge[] = edgeList.flatMap((e) => {
-    const a = territories[byId.get(e.from) ?? -1];
-    const b = territories[byId.get(e.to) ?? -1];
-    if (!a || !b) return [];
-    const span = Math.abs((ranks.get(e.to) ?? 0) - (ranks.get(e.from) ?? 0));
-    return [{ ...e, d: roadPath(a, b, span) }];
-  });
+  const incomingByTo = new Map<string, { from: string; to: string; via: string[] }[]>();
+  for (const e of edgeList) {
+    const list = incomingByTo.get(e.to);
+    if (list) list.push(e);
+    else incomingByTo.set(e.to, [e]);
+  }
+  const edges: WorldEdge[] = [];
+  for (const [toId, incoming] of incomingByTo) {
+    const b = territories[byId.get(toId) ?? -1];
+    if (!b) continue;
+    const sources = incoming
+      .map((e) => ({ e, a: territories[byId.get(e.from) ?? -1] }))
+      .filter((s): s is { e: (typeof incoming)[number]; a: Territory } => Boolean(s.a));
+    if (sources.length === 0) continue;
+    // The mouth: the destination's coast facing the barycentre of its deps (below).
+    const bary: Pt = {
+      x: sources.reduce((s, x) => s + x.a.centroid.x, 0) / sources.length,
+      y: sources.reduce((s, x) => s + x.a.centroid.y, 0) / sources.length,
+    };
+    const mouth = coastDock(b, bary, 0.9);
+    if (sources.length === 1) {
+      const only = sources[0];
+      if (!only) continue;
+      const src = coastDock(only.a, mouth, 0.9);
+      const skip = new Set([only.a.story.id, b.story.id]);
+      const bow = avoidanceBow(src, mouth, territories, skip, hash(`${only.e.from}->${toId}`));
+      edges.push({ ...only.e, d: bowedQuad(src, mouth, bow), arrow: true });
+      continue;
+    }
+    // Confluence: a hub partway from the mouth toward the deps; tributaries run
+    // to the hub, one wider trunk runs hub → mouth.
+    const conf: Pt = {
+      x: mouth.x + (bary.x - mouth.x) * 0.42,
+      y: mouth.y + (bary.y - mouth.y) * 0.42,
+    };
+    for (const { e, a } of sources) {
+      const src = coastDock(a, conf, 0.9);
+      const skip = new Set([a.story.id, b.story.id]);
+      const bow = avoidanceBow(src, conf, territories, skip, hash(`${e.from}->${toId}`)) * 0.7;
+      edges.push({ ...e, d: bowedQuad(src, conf, bow), arrow: false });
+    }
+    const trunkBow =
+      avoidanceBow(conf, mouth, territories, new Set([b.story.id]), hash(`trunk:${toId}`)) * 0.5;
+    edges.push({
+      from: '',
+      to: toId,
+      via: sources.map((s) => s.e.from),
+      d: bowedQuad(conf, mouth, trunkBow),
+      trunkFor: toId,
+      arrow: true,
+    });
+  }
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -892,7 +1033,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   if (loadError) {
     return (
       <div className="pad">
-        <h2>Story world</h2>
+        <h2>Story forest</h2>
         <p className="muted">Couldn’t load the tree: {loadError}</p>
       </div>
     );
@@ -901,7 +1042,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   if (stories.length === 0) {
     return (
       <div className="pad">
-        <h2>Story world</h2>
+        <h2>Story forest</h2>
         <p className="muted">No stories yet — the world appears once stories/ holds one.</p>
       </div>
     );
@@ -945,6 +1086,20 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return cls.join(' ');
   };
 
+  // The merged trunk carries every dependency's flow into one destination, so it
+  // can't key off a single `from`. It is upstream of focus when the destination
+  // IS focus or an ancestor of it (gold); downstream when the destination is a
+  // descendant of focus (red); dim otherwise.
+  const trunkClass = (toId: string): string => {
+    const cls = ['world-trail', 'is-trunk'];
+    if (focusStoryId && storyRelations) {
+      if (toId === focusStoryId || storyRelations.ancestors.has(toId)) cls.push('is-ancestor');
+      else if (storyRelations.descendants.has(toId)) cls.push('is-descendant');
+      else cls.push('is-dim');
+    }
+    return cls.join(' ');
+  };
+
   const clearSelection = (): void => {
     setSelectedCap(null);
     navigate(treeHref);
@@ -961,7 +1116,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   return (
     <div className="tree-wrap pad">
       <div className="tree-toolbar">
-        <h2>Story world</h2>
+        <h2>Story forest</h2>
         <span className="muted small">
           {stories.length} stories · {capCount} capabilities
           {sessions.length > 0 && (
@@ -980,8 +1135,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               </button>
             </>
           )}{' '}
-          — foundations at the bottom, dependents fan upward. Every story grows one tree on
-          its island; its capabilities garden around it. Click an island for the capability DAG.
+          — foundations at the bottom, dependents fan upward. Each story is one tree in the forest;
+          its capabilities garden around its island. Click an island for the capability DAG.
         </span>
       </div>
 
@@ -991,7 +1146,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             className="world-scroll"
             ref={frameRef}
             tabIndex={0}
-            aria-label="story world map (scrollable)"
+            aria-label="story forest map (scrollable)"
             onClick={(e) => {
               if (e.target === e.currentTarget) clearSelection(); // gutters beside the capped scene
             }}
@@ -1065,22 +1220,44 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 })}
               </g>
 
-              {/* roads between dependent territories */}
-              {world.edges.map((e) => (
-                <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                  <title>
-                    {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
-                  </title>
-                  <path className="world-trail-bed" d={e.d} />
-                  <path className="world-trail-line" d={e.d} markerEnd="url(#trail-arrow)" />
-                </g>
-              ))}
+              {/* rivers between dependent territories (dep → dependent): a light
+                  bank casing (also the bridge-gap where rivers cross), the water
+                  body, and a dashed glint that flows downstream. Tributaries
+                  sharing a destination merge at a confluence into one trunk. */}
+              {world.edges.map((e) => {
+                const isTrunk = e.trunkFor !== undefined;
+                const title = isTrunk
+                  ? `${e.to} draws from ${e.via.join(', ')}`
+                  : `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`;
+                return (
+                  <g
+                    key={isTrunk ? `trunk->${e.to}` : `${e.from}->${e.to}`}
+                    className={isTrunk && e.trunkFor ? trunkClass(e.trunkFor) : roadClass(e)}
+                  >
+                    <title>{title}</title>
+                    <path className="world-trail-bank" d={e.d} />
+                    <path
+                      className="world-trail-water"
+                      d={e.d}
+                      markerEnd={e.arrow ? 'url(#trail-arrow)' : undefined}
+                    />
+                    <path className="world-trail-glint" d={e.d} />
+                  </g>
+                );
+              })}
 
-              {/* territory borders (focus-aware) */}
+              {/* island water-ring moats (the territory border, reshaped to water):
+                  drawn over the rivers so each river mouths cleanly into the moat. */}
               {world.territories.map((t) => (
-                <g key={t.story.id} className={`hex-border ${territoryClass(t.story)}`}>
-                  {t.boundary.map((s, i) => (
-                    <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />
+                <g key={t.story.id} className={`hex-water-border ${territoryClass(t.story)}`}>
+                  {t.waterRing.map((d, i) => (
+                    <path key={`b${i}`} className="moat-bank" d={d} />
+                  ))}
+                  {t.waterRing.map((d, i) => (
+                    <path key={`w${i}`} className="moat-water" d={d} />
+                  ))}
+                  {t.waterRing.map((d, i) => (
+                    <path key={`g${i}`} className="moat-glint" d={d} />
                   ))}
                 </g>
               ))}
