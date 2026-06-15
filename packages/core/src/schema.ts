@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Anchor } from "./anchor.js";
 
 /**
  * The work-hierarchy schema (ADR-0002 / ADR-0010), encoded as the corpus's
@@ -28,13 +29,12 @@ export const Status = z.enum([
   "retired",
 ]);
 
-/** A structured pointer into real source — validatable (the file/line can be checked). */
-export const Covers = z
-  .object({
-    file: z.string(), // repo-relative path, e.g. apps/studio/src/components/Library.tsx
-    lines: z.string(), // e.g. "16-17" or "15,18-20"
-  })
-  .strict();
+/**
+ * A binding into real source. The brittle `Covers = {file, lines}` line-pointer is RETIRED
+ * (ADR-0016): line numbers rotted on any edit above the span. It is replaced by the re-anchorable,
+ * content-hashed {@link Anchor} (`anchor.ts`) so drift localises per binding and is driven by the
+ * span's CONTENT, not its line numbers. Contracts and contract units carry it as `anchor`.
+ */
 
 /**
  * A discrete, addressable guidance note — the granular unit the context engine pulls
@@ -76,7 +76,7 @@ export const Contract = z
     id: z.string(),
     title: z.string().optional(),
     asserts: Markdown,
-    covers: Covers,
+    anchor: Anchor, // the re-anchorable code binding (ADR-0016; replaces the retired `covers`)
   })
   .strict();
 
@@ -144,7 +144,7 @@ export const ContractUnit = z
     capability: z.string(),
     proof_mode: z.enum(["contract-test", "operator-attested"]),
     asserts: Markdown,
-    covers: Covers,
+    anchor: Anchor, // the re-anchorable code binding (ADR-0016; replaces the retired `covers`)
   })
   .strict();
 

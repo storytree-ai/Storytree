@@ -1,3 +1,4 @@
+export * from "./anchor.js";
 export * from "./schema.js";
 export { parseUnit } from "./loader.js";
 export * from "./knowledge.js";
