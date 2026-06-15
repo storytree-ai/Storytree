@@ -120,6 +120,7 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write # mint the WIF OIDC token for keyless GCP auth (presence-retire below)
+      actions: write # dispatch deploy-studio.yml after a studio-affecting merge (ADR-0061)
     steps:
       - name: Merge now that the gate is green
         env:
@@ -198,3 +199,40 @@ jobs:
         # Package-scoped exec resolves the workspace's pinned tsx (a @storytree/store devDep) —
         # `npx tsx` from root would download tsx fresh (no root .bin in this pnpm workspace).
         run: pnpm --filter @storytree/store exec tsx src/ingest-merge.ts
+
+      # -----------------------------------------------------------------------
+      # CD trigger for auto-merged studio changes (ADR-0061, amends ADR-0046).
+      #
+      # The GITHUB_TOKEN merge above does NOT cascade the push-triggered
+      # deploy-studio.yml (GitHub anti-recursion), so a studio change that
+      # AUTO-merges would silently not deploy. `workflow_dispatch` is the
+      # documented exception — it fires even from GITHUB_TOKEN given the
+      # `actions: write` scope granted on this job — and a dispatch on `--ref
+      # main` runs as a `refs/heads/main` OIDC token, which the deploy SA's
+      # main-scoped WIF binding (infra/studio-cd.tf) already accepts. So this
+      # closes the gap with NO new secret and NO new IAM. Gated to the ADR-0046
+      # studio-affecting path set so a non-studio merge doesn't deploy.
+      #
+      # MUST stay the LAST step in this job. Unlike the fail-soft presence-retire
+      # above, a missed deploy is the bug being fixed, so this is deliberately
+      # LOUD (no continue-on-error). The presence steps default to if: success(),
+      # so a dispatch failure here must not be able to skip them — keeping it last
+      # guarantees that. Runs for every auto-merged PR (not just `claude/*`); the
+      # path gate, not a branch gate, decides whether to deploy.
+      # -----------------------------------------------------------------------
+      - name: Dispatch studio deploy on a studio-affecting merge (ADR-0061)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The PR record (and its file list) persists after the merge above.
+          files=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --json files --jq '.files[].path')
+          echo "Merged PR touched:"; echo "$files"
+          # The ADR-0046 studio-affecting path set (mirrors deploy-studio.yml's paths:).
+          if echo "$files" | grep -qE '^(apps/studio/|packages/|docs/|stories/|pnpm-lock\.yaml$|package\.json$|infra/studio-cloudbuild\.yaml$|\.github/workflows/deploy-studio\.yml$)'; then
+            echo "Studio-affecting — dispatching deploy-studio.yml on main."
+            gh workflow run deploy-studio.yml --ref main --repo ${{ github.repository }}
+          else
+            echo "No studio-affecting paths — skipping deploy dispatch."
+          fi

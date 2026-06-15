@@ -28,13 +28,17 @@ fresh `terraform apply` is a no-op against it.
 
 ### Triggering a deploy
 
-- **On demand (reliable):** `gh workflow run deploy-studio.yml --ref main` (a user/PAT token always
-  fires). Use this to deploy a studio-affecting auto-merge, or to verify.
-- **Auto on `push: main` works only for *owner manual* merges.** ci.yml's `automerge` job merges with
-  `GITHUB_TOKEN`, and GitHub does not cascade a `push`-triggered workflow from a `GITHUB_TOKEN` push
-  (anti-recursion) — so an **auto-merged** PR does not auto-deploy. To close that gap fully, wire a
-  deploy **PAT** (or GitHub App token) into the merge/dispatch step; until then, dispatch manually
-  after a studio-affecting auto-merge.
+- **Auto-merged studio PRs (ADR-0061): dispatched, no PAT.** ci.yml's `automerge` job, after it
+  merges, runs `gh workflow run deploy-studio.yml --ref main` whenever the merged PR touched the
+  studio-affecting path set. `workflow_dispatch` is the documented anti-recursion exception (it fires
+  even from `GITHUB_TOKEN`, given `actions: write` on the job), and a dispatch on `--ref main`
+  authenticates with the **same `main`-scoped deploy-SA WIF binding** below — so this closes the
+  auto-merge gap with **no new secret and no new IAM**. A deploy **PAT is deliberately NOT used**.
+- **Auto on `push: main` covers *owner manual* merges.** A user-token merge cascades the
+  `push: main` trigger directly (anti-recursion only blocks `GITHUB_TOKEN` pushes), so manual merges
+  deploy via that path; the dispatch above does not run for them.
+- **On demand / break-glass:** `gh workflow run deploy-studio.yml --ref main` (any time, e.g. to
+  redeploy a specific state or verify). This is the same call the `automerge` job now makes.
 
 ## (historical) ONE-TIME OWNER STEP — the IAM apply (now done)
 
