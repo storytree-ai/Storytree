@@ -21,6 +21,15 @@
       }
     },
     {
+      "name": "studio-json-5176",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "studio", "dev", "--port", "5176", "--strictPort", "--host", "127.0.0.1"],
+      "port": 5176,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "json"
+      }
+    },
+    {
       "name": "studio-5174",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "studio", "dev", "--port", "5174", "--strictPort"],
