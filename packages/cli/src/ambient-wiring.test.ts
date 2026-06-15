@@ -153,3 +153,41 @@ test("a null presence identity (plain checkout) is a silent no-op, not an error"
   assert.equal(env.ok, true, env.body);
   assert.deepEqual(presence.calls, [], "no identity → nothing declared (never guessed)");
 });
+
+// ── ADR-0060: the live/real DB-preflight wiring (default --store pg + ensureDb) ──
+
+test("a live build whose DB preflight fails refuses fail-closed, pointing at --store memory (ADR-0060)", async () => {
+  // --live defaults the store to pg, so the preflight runs; an injected ensureDb reporting the DB
+  // could not be brought up must REFUSE the build (no silent in-memory fallback) before the leaf runs.
+  const env = await nodeBuild("library-cli", {
+    dryRun: false,
+    live: true,
+    actor: "tester@example.com",
+    ensureDb: async () => ({ ok: false, reason: "instance unreachable (test stub)" }),
+    presence: { store: null, identity: null },
+  });
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /could not be brought up/);
+  assert.match(env.body, /instance unreachable \(test stub\)/);
+  assert.ok(
+    (env.next ?? []).some((n) => n.includes("--store memory")),
+    `the refusal must offer the --store memory opt-out, got: ${JSON.stringify(env.next)}`,
+  );
+});
+
+test("a --dry-run build never runs the DB preflight — it stays in-memory (ADR-0060/0020)", async () => {
+  // The preflight is gated to live/real; a scripted dry-run must reach its in-memory walk without ever
+  // touching the DB (guarding the dry-run+pg-hang regression this gating fixed).
+  let preflightRan = false;
+  const env = await nodeBuild("library-cli", {
+    dryRun: true,
+    actor: "tester@example.com",
+    ensureDb: async () => {
+      preflightRan = true;
+      return { ok: true, started: false };
+    },
+    presence: { store: null, identity: null },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal(preflightRan, false, "a dry-run must never invoke the DB preflight");
+});
