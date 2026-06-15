@@ -30,7 +30,7 @@ import {
 } from "./health.js";
 import { lookupNodeBuildConfig } from "@storytree/orchestrator";
 
-import { nodeBuild, nodeHelp } from "./node-build.js";
+import { nodeBuild, nodeHelp, nodeResolve } from "./node-build.js";
 import { deriveIdentity, noticeboardCommand } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { storyBuild, storyHelp } from "./story-build.js";
@@ -832,11 +832,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "node") {
     if (sub === undefined || help) return nodeHelp();
+    if (sub === "resolve") {
+      // FREE, read-only: how a node spec resolves (no build, no spend). ADR-0057 A discoverability.
+      return nodeResolve(third);
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run`,
-        next: ["storytree node build <id> --dry-run"],
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id>`,
+        next: ["storytree node resolve <id>", "storytree node build <id> --dry-run"],
       };
     }
     return nodeBuild(third, {

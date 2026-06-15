@@ -51,6 +51,7 @@ import { renderAgentPrompt } from "./agents.js";
 import { withPresence } from "./ambient-presence.js";
 import type { AmbientDeps } from "./ambient-presence.js";
 import type { Envelope } from "./envelope.js";
+import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 
@@ -885,6 +886,125 @@ export async function nodeBuild(
   }
 }
 
+// ── `storytree node resolve` (free, read-only — ADR-0057 A discoverability) ──────────────────────
+
+export interface NodeResolveOpts {
+  /** Injectable for tests; defaults to `<repoRoot>/stories`. */
+  storiesDir?: string;
+}
+
+/**
+ * `storytree node resolve <id>` — show how a node spec RESOLVES, without building or spending
+ * anything. It loads the spec and resolves it the SAME way a build does ({@link resolveReport} →
+ * {@link resolveBuildConfig}), then renders an honest report: provenance (`source: spec` vs
+ * `registry` vs not-buildable), the proof command + per-phase write scope, and the `real:` arm
+ * (incl. the resolved REAL proof command display). The gap it closes (blind dogfood, 2026-06-15):
+ * an agent authoring a self-registering node had no FREE, dry way to confirm it resolved correctly
+ * before committing to a paid `--real` build. Fail-closed (mirroring {@link nodeBuild}): an unknown
+ * id, a malformed spec, or a node with no proof config refuses cleanly, naming what is wrong.
+ */
+export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = {}): Envelope {
+  const storiesDir = opts.storiesDir ?? defaultStoriesDir();
+  const discover = (): string[] =>
+    buildableNodeIds(storiesDir).buildable.map((id) => `storytree node resolve ${id}`);
+
+  if (unitId === undefined) {
+    return {
+      ok: false,
+      body: "node resolve needs an id: storytree node resolve <id>",
+      next: discover(),
+    };
+  }
+  const specFile = findNodeSpecFile(storiesDir, unitId);
+  if (specFile === null) {
+    return {
+      ok: false,
+      body: `no node spec "${unitId}" under ${storiesDir} (looked for <story>/${unitId}.md and ${unitId}/story.md).`,
+      next: discover(),
+    };
+  }
+  let spec: NodeSpec;
+  try {
+    spec = loadNodeSpec(specFile);
+  } catch (e) {
+    return {
+      ok: false,
+      body: `node spec ${rel(specFile)} failed to load:\n${(e as Error).message}`,
+      next: [`storytree node resolve ${unitId}`],
+    };
+  }
+
+  const report = resolveReport(spec);
+  const head = [
+    `spec:          ${rel(specFile)}`,
+    `tier:          ${report.tier}`,
+    `proof mode:    ${report.proofModeWord} → ${report.proofMode}`,
+  ];
+
+  // Not buildable — fail-closed, naming BOTH routes out (mirrors the resolveProveSpec refusal).
+  if (!report.buildable) {
+    return {
+      ok: false,
+      body: [
+        `node resolve ${report.id} — NOT BUILDABLE`,
+        "",
+        ...head,
+        "",
+        `node "${report.id}" has no proof config — it cannot be driven through the gate, even dry.`,
+        "Declare how to prove it by either:",
+        `  - authoring a 'proof:' block in its spec (${rel(specFile)}) — ADR-0057 keystone A; or`,
+        "  - adding an entry to the test-command registry (packages/orchestrator/src/test-command-registry.ts).",
+      ].join("\n"),
+      next: [`storytree node resolve ${report.id}   (re-run after declaring how to prove it)`],
+    };
+  }
+
+  // command/scope are non-null whenever buildable (resolveReport's invariant).
+  const command = report.command;
+  const scope = report.scope;
+  const provenance =
+    report.source === "spec"
+      ? "spec-borne proof: block — ADR-0057 A; authoring it is what made the node buildable"
+      : "the test-command registry fallback";
+  const lines = [
+    `node resolve ${report.id}`,
+    "",
+    ...head,
+    `buildable:     yes — source: ${report.source} (${provenance})`,
+    `proof command: ${command?.display ?? "(none)"}`,
+    `write scope:   test   ${scope?.testGlobs.join(", ") ?? "(none)"}`,
+    `               source ${scope?.sourceGlobs.join(", ") ?? "(none)"}`,
+  ];
+  if (report.real !== null) {
+    const r = report.real;
+    lines.push(
+      "",
+      "REAL-buildable: yes (`--real` authors the node's real proof in a fresh worktree)",
+      `  test file:    ${r.testFile}`,
+      `  source file:  ${r.sourceFile}`,
+      `  install:      ${r.install} (lockfile-only worktree install)`,
+      `  edits source: ${r.editsExisting} (false = net-new file pair; true = edit-existing regression)`,
+      `  typecheck:    ${r.typecheck ?? "(none — builtins-only, no install)"}`,
+      `  proof cmd:    ${r.proofCommand ?? "(default: node:test on the test file)"}`,
+      `  real proof:   ${r.proofDisplay}`,
+    );
+  } else {
+    lines.push(
+      "",
+      "REAL-buildable: no — the config has no `real:` arm (dry-run / live-smoke buildable only).",
+      "                add a real.testFile/sourceFile/scope arm to make it `--real`-buildable.",
+    );
+  }
+
+  const next = [`storytree node build ${report.id} --dry-run   (free — prove the glue, scripted walk)`];
+  if (report.realBuildable) {
+    next.push(
+      `storytree node build ${report.id} --real   (paid — the live leaf authors the node's real proof)`,
+    );
+  }
+  return { ok: true, body: lines.join("\n"), next };
+}
+
 export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
   // Discovery includes SPEC-BORNE nodes (ADR-0057 A), not just the registry — authoring a node makes
   // it visible here, not only buildable.
@@ -893,6 +1013,11 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
     ok: true,
     body: [
       "storytree node — drive a node through the prove-it-gate (ADR-0020).",
+      "",
+      "  storytree node resolve <id>",
+      "      FREE, read-only: show how a node spec RESOLVES (source: spec vs registry vs",
+      "      not-buildable, the proof command + write scope, the real: arm, REAL-buildability)",
+      "      without building or spending anything. Run this before a paid --real build.",
       "",
       "  storytree node build <id> --dry-run [--actor <email>]",
       "      walk a real node spec through AUTHOR_TEST → … → GATE with a scripted model in a",

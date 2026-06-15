@@ -209,6 +209,15 @@ section above.
   **folded into the system by promotion** (ADR-0031 §3): the exact proven commit is in this
   branch's ancestry, the function is exported from `@storytree/core`, and the CLI node-build
   envelope is its live consumer.
+- [`node-resolve-report`](node-resolve-report.md) — contract grain, file-per-unit, **spec-borne**
+  (ADR-0057 A — its own `proof:` block makes it inner-loop-buildable with no registry edit). The
+  pure core of the FREE, read-only `storytree node resolve <id>` command (the gap the blind dogfood
+  test surfaced, 2026-06-15: agents had no dry way to confirm a self-registered node resolved before
+  a paid `--real` build). REAL-built through the inner loop: the live leaf authored
+  `packages/cli/src/resolve-report.{ts,test.ts}` in a worktree, the spine observed the genuine
+  red→green and signed a PASS (run `real-mqelrhoj`, commit `47c9e43`, persisted to `events.verdict`);
+  the `nodeResolve` CLI dispatch was wired spine-side AFTER promotion (the leaf's walls exclude
+  `commands.ts`).
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention

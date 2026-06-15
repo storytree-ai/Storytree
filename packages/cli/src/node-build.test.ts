@@ -248,3 +248,52 @@ test("nodeHelp lists spec-borne nodes; a malformed spec is SKIPPED, never blanks
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+// ── `node resolve` (FREE, read-only — the gap the blind dogfood test surfaced) ───────────────────
+
+test("node resolve on a spec-borne REAL node shows source=spec, REAL-buildable + the real proof display", async () => {
+  const env = await run(["node", "resolve", "verdict-line"], deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /node resolve verdict-line/);
+  assert.match(env.body, /stories\/drive-machinery\/verdict-line\.md/);
+  assert.match(env.body, /contract-test → contract/);
+  assert.match(env.body, /buildable: +yes — source: spec/);
+  assert.match(env.body, /REAL-buildable: yes/);
+  // The real proof display is the orchestrator's one-true display, not hand-formatted.
+  assert.match(env.body, /real proof: +node --import tsx --test packages\/core\/src\/verdict-line\.test\.ts/);
+  // Read-only: zero-cost next steps, no spend implied by the resolve itself.
+  assert.ok(env.next?.some((n) => n.includes("--dry-run")));
+  assert.ok(env.next?.some((n) => n.includes("--real")));
+});
+
+test("node resolve on the dogfood node (node-resolve-report) resolves spec-borne + REAL-buildable", async () => {
+  const env = await run(["node", "resolve", "node-resolve-report"], deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /buildable: +yes — source: spec/);
+  assert.match(env.body, /REAL-buildable: yes/);
+  assert.match(env.body, /packages\/cli\/src\/resolve-report\.test\.ts/);
+});
+
+test("node resolve on a registry-only node shows source=registry and REAL-buildable=no", async () => {
+  const env = await run(["node", "resolve", "library-cli"], deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /buildable: +yes — source: registry/);
+  assert.match(env.body, /REAL-buildable: no/);
+});
+
+test("node resolve on a non-buildable node fails closed, naming BOTH routes out", async () => {
+  // browse-library: a real spec with neither a spec-borne proof: block nor a registry entry.
+  const env = await run(["node", "resolve", "browse-library"], deps);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /NOT BUILDABLE/);
+  assert.match(env.body, /has no proof config/);
+  assert.match(env.body, /'proof:' block/);
+  assert.match(env.body, /test-command registry/);
+});
+
+test("node resolve on an unknown id is guidance listing buildable nodes", async () => {
+  const env = await run(["node", "resolve", "no-such-node"], deps);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no node spec "no-such-node"/);
+  assert.ok(env.next?.some((n) => n.includes("storytree node resolve")));
+});
