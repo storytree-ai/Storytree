@@ -54,14 +54,16 @@
   --hex-wheat: #d6b271;
   --coast-sand: #ecdcb4; /* the organic beach rim filling each island out to its shore */
   --coast-sand-edge: #ddc79a;
-  /* rivers (dependency edges) + island moats — Dorfromantik cartoon water.
-     --river-bank doubles as the bridge-gap "knockout" casing where one river
-     crosses another (a light band reads as the over-river passing over). */
-  --river: #5aa9d6;
-  --river-deep: #3a7fb0; /* the merged tributary trunk — deeper, load-bearing */
-  --river-bank: #d7eef8;
+  /* rivers (dependency edges) + island moats — Dorfromantik cartoon water, drawn
+     as ONE land+water network via global stacked passes: every river AND every
+     island moat shares a sand LAND CASING (so a river reads as carved into terrain
+     with banks, and fuses seamlessly into the island beach), a pale shallows rim,
+     ONE water-body colour (river bodies and moats match, so a river mouth dissolves
+     into the moat with no seam), and a flowing glint. */
+  --river-land: #d8be8c; /* the sand banks casing both sides of every river/moat — a notch darker than --coast-sand so the channel reads as carved terrain */
+  --river: #5aa9d6; /* the one water colour: river bodies AND island moats */
+  --river-bank: #cfeaf6; /* pale shallows between the sand bank and the open water */
   --river-glint: #ffffff;
-  --river-ring: #6fbbe0; /* the moat that rings each island */
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1589,17 +1591,30 @@ mark.st-hl.flash {
 /* (Territory borders are now the smoothed water coastline — see .hex-water-border below.) */
 
 /* rivers between dependent territories (dep → dependent), animated cartoon water.
-   Three stacked strokes per river: a light BANK casing (also the bridge-gap
-   knockout where rivers cross), the WATER body, and a dashed GLINT that flows
-   in the dependency direction (the current). A merged tributary trunk wears
-   `is-trunk` for a deeper, wider channel. */
+   Drawn as global stacked passes shared with the island moats (see the JSX
+   `water-net-*` layers): a sand LAND casing, a pale SHALLOWS rim, the WATER body,
+   and a dashed GLINT that flows in the dependency direction (the current). Because
+   every river's casing is painted before any water, the banks fuse into one sandy
+   coast and a river mouth dissolves into the moat — no per-river seam. */
 .world-trail {
   transition: opacity 0.18s ease;
 }
+/* the sand bank casing — the widest, bottom-most stroke; gives every river two
+   banks so it reads as a channel carved into terrain, fuses with the island beach
+   and with the other rivers into one continuous sandy coast, and ends any open
+   river in a rounded sand nub (never a floating blue tip). */
+.world-trail-land {
+  fill: none;
+  stroke: var(--river-land);
+  stroke-width: 12.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* pale shallows between the sand bank and the open-water body. */
 .world-trail-bank {
   fill: none;
   stroke: var(--river-bank);
-  stroke-width: 8.5;
+  stroke-width: 7.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.95;
@@ -1611,10 +1626,6 @@ mark.st-hl.flash {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.world-trail.is-trunk .world-trail-water {
-  stroke: var(--river-deep);
-  stroke-width: 5.6;
-}
 .world-trail-glint {
   fill: none;
   stroke: var(--river-glint);
@@ -1623,6 +1634,13 @@ mark.st-hl.flash {
   stroke-dasharray: 5 16;
   opacity: 0.7;
   animation: river-flow 2.6s linear infinite;
+}
+/* only the water body carries the hover tooltip; the casing/glint passes are
+   inert so the title resolves to one river, not whichever layer is on top. */
+.world-trail-land,
+.world-trail-bank,
+.world-trail-glint {
+  pointer-events: none;
 }
 .world-trail.is-ancestor .world-trail-water {
   stroke: var(--warn);
@@ -1641,21 +1659,30 @@ mark.st-hl.flash {
   pointer-events: none;
   transition: opacity 0.18s ease;
 }
+/* the island's own sand bank — the SAME casing the rivers wear, so the moat and
+   every river mouth read as one continuous sandy shore. */
+.hex-water-border .moat-land {
+  fill: none;
+  stroke: var(--river-land);
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .hex-water-border .moat-bank {
   fill: none;
   stroke: var(--river-bank);
-  stroke-width: 10.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.85;
-}
-.hex-water-border .moat-water {
-  fill: none;
-  stroke: var(--river-ring);
-  stroke-width: 6;
+  stroke-width: 9.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.9;
+}
+.hex-water-border .moat-water {
+  fill: none;
+  stroke: var(--river);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
   transition: stroke 0.18s ease;
 }
 .hex-water-border .moat-glint {
