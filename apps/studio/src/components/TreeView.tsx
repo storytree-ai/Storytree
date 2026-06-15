@@ -147,6 +147,8 @@ const COAST_OUTSET = 7; // px the smoothed coast sits beyond the hex tiles — a
 const COAST_SMOOTH_ITERS = 2; // Chaikin passes: 2 rounds the hex silhouette into an organic blob
 const COAST_NOISE_AMP = 0.5; // per-vertex outset wobble (fraction of COAST_OUTSET) — non-uniform coasts
 const COAST_NOISE_WAVES = 3; // low-frequency lobes around the shore (gentle bays, not jaggedness)
+const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
+const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
 
 interface CapSpot {
   cap: TreeCapability;
@@ -938,6 +940,26 @@ function buildWorld(stories: TreeStory[]): HexWorld {
     else incomingByTo.set(e.to, [e]);
   }
   const edges: WorldEdge[] = [];
+
+  // A river that leaves an island coast. Its SOURCE dock is fixed in a SECOND
+  // pass: a heavily-depended-upon island has many dependents — all ranked above
+  // it — so every outgoing river would dock at nearly the same northward point,
+  // piling into an ugly starburst. We collect the rivers here, then fan each
+  // source's docks across its shore (a delta). `aim` is where the river heads (a
+  // destination mouth or a confluence hub); `emit` builds the path once the dock
+  // is known. Confluence TRUNKS leave a mid-water hub, not a coast, so they emit
+  // straight away (collected last so they draw on top of their tributaries).
+  interface RiverStub {
+    srcT: Territory;
+    aim: Pt;
+    seed: number;
+    skip: Set<string>;
+    bowScale: number;
+    emit: (src: Dock, bow: number) => WorldEdge;
+  }
+  const stubs: RiverStub[] = [];
+  const trunkEdges: WorldEdge[] = [];
+
   for (const [toId, incoming] of incomingByTo) {
     const b = territories[byId.get(toId) ?? -1];
     if (!b) continue;
@@ -956,10 +978,14 @@ function buildWorld(stories: TreeStory[]): HexWorld {
     if (sources.length === 1) {
       const only = sources[0];
       if (!only) continue;
-      const src = coastDock(only.a, mouth, 0.96);
-      const skip = new Set([only.a.story.id, b.story.id]);
-      const bow = avoidanceBow(src, mouth, territories, skip, hash(`${only.e.from}->${toId}`));
-      edges.push({ ...only.e, d: rivermouthCubic(src, mouth, bow) });
+      stubs.push({
+        srcT: only.a,
+        aim: mouth,
+        seed: hash(`${only.e.from}->${toId}`),
+        skip: new Set([only.a.story.id, b.story.id]),
+        bowScale: 1,
+        emit: (src, bow) => ({ ...only.e, d: rivermouthCubic(src, mouth, bow) }),
+      });
       continue;
     }
     // Confluence: a hub partway from the mouth toward the deps; tributaries dock
@@ -970,14 +996,18 @@ function buildWorld(stories: TreeStory[]): HexWorld {
       y: mouth.y + (bary.y - mouth.y) * 0.42,
     };
     for (const { e, a } of sources) {
-      const src = coastDock(a, conf, 0.96);
-      const skip = new Set([a.story.id, b.story.id]);
-      const bow = avoidanceBow(src, conf, territories, skip, hash(`${e.from}->${toId}`)) * 0.7;
-      edges.push({ ...e, d: bowedQuad(src, conf, bow) });
+      stubs.push({
+        srcT: a,
+        aim: conf,
+        seed: hash(`${e.from}->${toId}`),
+        skip: new Set([a.story.id, b.story.id]),
+        bowScale: 0.7,
+        emit: (src, bow) => ({ ...e, d: bowedQuad(src, conf, bow) }),
+      });
     }
     const trunkBow =
       avoidanceBow(conf, mouth, territories, new Set([b.story.id]), hash(`trunk:${toId}`)) * 0.5;
-    edges.push({
+    trunkEdges.push({
       from: '',
       to: toId,
       via: sources.map((s) => s.e.from),
@@ -985,6 +1015,54 @@ function buildWorld(stories: TreeStory[]): HexWorld {
       trunkFor: toId,
     });
   }
+
+  // Second pass — fan each source island's outgoing mouths along its shore so the
+  // delta reads as separate strands instead of a starburst. Rivers are ordered by
+  // aim angle and spread evenly around their circular-mean direction, so they
+  // never cross near the source. A lone outgoing river keeps its direct dock.
+  const stubsBySrc = new Map<string, RiverStub[]>();
+  for (const s of stubs) {
+    const list = stubsBySrc.get(s.srcT.story.id);
+    if (list) list.push(s);
+    else stubsBySrc.set(s.srcT.story.id, [s]);
+  }
+  for (const group of stubsBySrc.values()) {
+    const srcT = group[0]?.srcT;
+    if (!srcT) continue;
+    const c = srcT.centroid;
+    if (group.length === 1) {
+      const s = group[0];
+      if (!s) continue;
+      const src = coastDock(srcT, s.aim, 0.96);
+      const bow = avoidanceBow(src, s.aim, territories, s.skip, s.seed) * s.bowScale;
+      edges.push(s.emit(src, bow));
+      continue;
+    }
+    const angs = group.map((s) => Math.atan2(s.aim.y - c.y, s.aim.x - c.x));
+    const mean = Math.atan2(
+      angs.reduce((p, a) => p + Math.sin(a), 0),
+      angs.reduce((p, a) => p + Math.cos(a), 0),
+    );
+    const ordered = group
+      .map((s, i) => ({
+        s,
+        rel: Math.atan2(Math.sin((angs[i] ?? 0) - mean), Math.cos((angs[i] ?? 0) - mean)),
+      }))
+      .sort((a, b) => a.rel - b.rel);
+    const n = ordered.length;
+    const spread = Math.min(RIVER_FAN_MAX, (n - 1) * RIVER_FAN_STEP);
+    ordered.forEach(({ s }, i) => {
+      const ang = mean - spread / 2 + (spread * i) / (n - 1);
+      const toward: Pt = {
+        x: c.x + Math.cos(ang) * srcT.radius * 2,
+        y: c.y + Math.sin(ang) * srcT.radius * 2,
+      };
+      const src = coastDock(srcT, toward, 0.96);
+      const bow = avoidanceBow(src, s.aim, territories, s.skip, s.seed) * s.bowScale;
+      edges.push(s.emit(src, bow));
+    });
+  }
+  edges.push(...trunkEdges);
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
