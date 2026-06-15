@@ -1,0 +1,52 @@
+name: Reap orphaned claude/real branches
+
+# Reclaim orphaned `claude/real/<id>-<run>` promotion branches (ADR-0031). A `--real` build pushes
+# such a branch to origin; when a PR follows, the automerge job already deletes the head
+# (`gh pr merge --delete-branch`, ci.yml). This sweep handles the gap: branches that merged outside
+# that path, and — the dogfood case — branches where NO PR ever followed. See
+# scripts/reap-real-branches.sh for the conservative delete conditions (merged-into-main, or
+# no-open-PR-and-older-than-TTL; never a branch with an open PR; only ever claude/real/*).
+on:
+  schedule:
+    # Daily at 16:17 UTC (~02:17 Sydney) — off-peak, and off the top of the hour to dodge cron congestion.
+    - cron: '17 16 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Log what would be deleted without deleting (default true for manual runs — flip to false to actually reap)'
+        type: boolean
+        default: true
+      ttl_days:
+        description: 'TTL in days for the secondary no-PR sweep'
+        type: string
+        default: '7'
+
+# Pure branch deletion on this same repo via the default GITHUB_TOKEN — no WIF/GCP needed.
+permissions:
+  contents: write      # delete branch refs
+  pull-requests: read  # check for open PRs before deleting
+
+concurrency:
+  group: reap-real-branches
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    name: reap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history, for merge-into-main detection)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reap orphaned claude/real/* branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          # The schedule has no inputs, so dry_run is unset there → a real sweep (DRY_RUN=false).
+          # A manual workflow_dispatch honours its dry_run input, which DEFAULTS TO TRUE — so the
+          # owner can dispatch once, read the log, and only then trust the daily schedule.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          TTL_DAYS: ${{ inputs.ttl_days || '7' }}
+        run: bash scripts/reap-real-branches.sh
