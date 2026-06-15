@@ -114,7 +114,7 @@ export function App(): React.JSX.Element {
           {isMember && (
             <nav className="topnav">
               <a href={homeHref}>Overview</a>
-              <a href={treeHref}>Tree</a>
+              <a href={treeHref}>Forest</a>
               <a href={libraryHref()}>Library</a>
               {me?.role === 'admin' && <a href={membersHref}>Members</a>}
             </nav>

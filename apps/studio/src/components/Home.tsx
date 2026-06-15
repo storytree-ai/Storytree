@@ -12,7 +12,7 @@ export function Home(): React.JSX.Element {
       <p className="lede">
         The foundation surface — a <strong>forum</strong> over the project’s record. Documents and
         Library artifacts are <em>topics</em>; comments are <em>posts</em>. The{' '}
-        <a href="#/tree">story world</a> renders the work hierarchy itself (ADR-0036).
+        <a href="#/tree">story forest</a> renders the work hierarchy itself (ADR-0036).
       </p>
 
       <div className="stat-row">
