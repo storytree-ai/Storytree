@@ -224,7 +224,9 @@ drives a registered node from spec to a landed, signed, persisted proof.
 > proof command, persistence, promotion, and the non-squash landing — happened ONCE for real
 > (verdict-line: run `real-mq7ky4ck`, commit `0e8f4ba` now in `main`'s ancestry) and has a
 > scripted offline twin for the mechanics, but the live legs are operator-attested history, not a
-> standing test. So the story's own acceptance proof is **part-scripted, part-attested**.
+> standing test. Step 7 (an agent actually USES it without coaching) is likewise operator-attested —
+> the paid blind dogfood, 2026-06-15, 3/3 probes end to end. So the story's own acceptance proof is
+> **part-scripted, part-attested**.
 
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
 through the merge gate, refusing every dishonest shortcut along the way.
@@ -253,8 +255,20 @@ through the merge gate, refusing every dishonest shortcut along the way.
    persisted would be a forged healthy); a live story build with an unprocessed operator answer on
    a deciding ADR's OQ is refused with the three paths out. *(proven:
    `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
+7. **An agent actually USES it end to end (the dogfood acceptance):** a fresh orchestrator agent,
+   onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
+   1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
+   coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner
+   loop, authors a self-registering node, and reaches a real `--real` signed verdict over real
+   behaviour (net-new OR edit-existing). *(operator-attested — the paid blind dogfood, 2026-06-15:
+   3/3 blind probes completed end to end, verified on origin — `roundTo` @14c4509, `ordinal`
+   @4c0dbf3, and the edit-existing `verdictLine` @d043863 live-proving expansion C. NOT a standing
+   scripted test: proving REAL authoring needs the paid live leaf — the free/offline path is the
+   scripted glue only. An OFFLINE run first surfaced the gap that every probe stalled at the paid
+   edge; allowing spend reversed it cleanly.)*
 
-End state — a genuine proof earned, signed, persisted, promoted, and landed; every shortcut walled.
+End state — a genuine proof earned, signed, persisted, promoted, landed, AND shown to be usable by a
+fresh agent without coaching; every shortcut walled.
 
 ## Proof
 
