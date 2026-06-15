@@ -91,5 +91,6 @@ element; an island's complexity emerges from the stack.**
 - [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — hue carries proof.
 - PR [#156](https://github.com/HuaMick/Storytree/pull/156) — the relaxed-substrate spike that surfaced
   this; the substrate behind `?substrate=relaxed-quad|relaxed-hex`.
-- Library principle `one-element-per-signal` (the pullable form of this decision — authored in the
-  live store; see follow-up).
+- Library principle `one-element-per-signal` — the pullable form of this decision, now live in the
+  library store (`storytree library artifact one-element-per-signal`); the rendering-side counterpart
+  to the `observability-first` principle.
