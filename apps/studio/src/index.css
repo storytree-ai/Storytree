@@ -52,6 +52,8 @@
   --hex-top-1: #9fc174;
   --hex-top-2: #b2cf8b;
   --hex-wheat: #d6b271;
+  --coast-sand: #ecdcb4; /* the organic beach rim filling each island out to its shore */
+  --coast-sand-edge: #ddc79a;
   /* rivers (dependency edges) + island moats — Dorfromantik cartoon water.
      --river-bank doubles as the bridge-gap "knockout" casing where one river
      crosses another (a light band reads as the over-river passing over). */
@@ -1569,7 +1571,22 @@ mark.st-hl.flash {
   opacity: 0.35;
 }
 
-/* (Territory borders are now the water moat — see .hex-water-border below.) */
+/* organic island land: the smoothed coastline filled as a sandy beach, drawn
+   UNDER the hex tiles so each island reads as one solid blob with a shore rim
+   instead of loose tiles ringed by a hexagonal moat. */
+.coast-fill {
+  fill: var(--coast-sand);
+  stroke: var(--coast-sand-edge);
+  stroke-width: 1;
+}
+.coast-fill-group {
+  transition: opacity 0.18s ease;
+}
+.coast-fill-group.is-dim {
+  opacity: 0.4;
+}
+
+/* (Territory borders are now the smoothed water coastline — see .hex-water-border below.) */
 
 /* rivers between dependent territories (dep → dependent), animated cartoon water.
    Three stacked strokes per river: a light BANK casing (also the bridge-gap
