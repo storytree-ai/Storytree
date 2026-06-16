@@ -13,6 +13,8 @@ export interface ResolveRealReport {
   editsExisting: boolean;
   /** DB-backed proof (ADR-0064): the worktree proof gets an isolated test-DB connection. */
   db: boolean;
+  /** Spine-driven dependency adds (ADR-0064 §2): NEW deps the spine `pnpm add`s before authoring. */
+  addDeps: string[];
   /** The declared typecheck command shown as one string, or null when none is declared. */
   typecheck: string | null;
   /** The DECLARED proof command shown as one string, or null when the default node:test is used. */
@@ -124,6 +126,7 @@ export function resolveReport(spec: NodeSpec): ResolveReport {
     install: realConfig.install === true,
     editsExisting: realConfig.editsExisting === true,
     db: realConfig.db === true,
+    addDeps: realConfig.addDeps !== undefined ? [...realConfig.addDeps] : [],
     typecheck,
     proofCommand: proofCommandStr,
     proofDisplay,

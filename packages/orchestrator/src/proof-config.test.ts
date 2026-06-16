@@ -430,3 +430,74 @@ test("ADR-0064 — malformed: db:true WITHOUT install:true is LOUD (the proof ca
     /real\.db:true requires real\.install:true/,
   );
 });
+
+// ── ADR-0064 §2: guarded dependency adds (real.addDeps) ──────────────────────────────────────────
+
+/** An addDeps arm: declared NEW deps the spine adds; requires install+typecheck. */
+const ADD_DEPS_BLOCK = {
+  command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  scope: {
+    testGlobs: ["packages/core/src/**/*.test.ts"],
+    sourceGlobs: ["packages/core/src/**/*.ts"],
+  },
+  real: {
+    testFile: "packages/core/src/anchor.test.ts",
+    sourceFile: "packages/core/src/anchor.ts",
+    scope: {
+      testGlobs: ["packages/core/src/anchor.test.ts"],
+      sourceGlobs: ["packages/core/src/anchor.ts"],
+    },
+    install: true,
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/core", "typecheck"] },
+    addDeps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
+  },
+};
+
+test("ADR-0064 §2 — an addDeps arm with install+typecheck parses and round-trips", () => {
+  const cfg = parseNodeBuildConfig(ADD_DEPS_BLOCK);
+  assert.deepEqual(cfg, ADD_DEPS_BLOCK);
+  assert.deepEqual(cfg.real?.addDeps, ["tree-sitter", "tree-sitter-typescript@0.21.0"]);
+});
+
+test("ADR-0064 §2 — addDeps is ABSENT (not undefined) when not declared — the parity drift-lock", () => {
+  const cfg = parseNodeBuildConfig(NO_INSTALL_BLOCK);
+  assert.ok(cfg.real !== undefined);
+  assert.equal("addDeps" in cfg.real, false);
+});
+
+test("ADR-0064 §2 — malformed: addDeps WITHOUT install:true is LOUD (`pnpm add` needs the workspace installed)", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        command: { file: "pnpm", args: ["test"] },
+        scope: { testGlobs: ["a.test.ts"], sourceGlobs: ["a.ts"] },
+        real: {
+          testFile: "a.test.ts",
+          sourceFile: "a.ts",
+          scope: { testGlobs: ["a.test.ts"], sourceGlobs: ["a.ts"] },
+          addDeps: ["tree-sitter"],
+        },
+      }),
+    /real\.addDeps requires real\.install:true/,
+  );
+});
+
+test("ADR-0064 §2 — malformed: an addDeps entry starting with `-` is LOUD (no flag injection)", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...ADD_DEPS_BLOCK,
+        real: { ...ADD_DEPS_BLOCK.real, addDeps: ["tree-sitter", "--registry=evil"] },
+      }),
+    /must be package specs/,
+  );
+});
+
+test("ADR-0064 §2 — an empty addDeps entry is LOUD (.min(1))", () => {
+  assert.throws(() =>
+    parseNodeBuildConfig({
+      ...ADD_DEPS_BLOCK,
+      real: { ...ADD_DEPS_BLOCK.real, addDeps: [""] },
+    }),
+  );
+});

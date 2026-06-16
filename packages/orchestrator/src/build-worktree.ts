@@ -31,6 +31,18 @@ export interface BuildWorktree {
   remove(): Promise<void>;
 }
 
+/**
+ * One spine-driven dependency-add group (ADR-0064 §2): the NEW deps to `pnpm add` into a specific
+ * workspace package of the worktree, BEFORE the leaf authors. The leaf still cannot touch
+ * `package.json`/`pnpm-lock.yaml` — the spine performs the add, declared in the node's spec.
+ */
+export interface AddDepsGroup {
+  /** The workspace package the deps are added to (`pnpm add <deps> --filter <packageName>`). */
+  packageName: string;
+  /** The `pnpm add` package specs (each non-empty, no leading dash — validated upstream). */
+  deps: string[];
+}
+
 /** Options for {@link createBuildWorktree} (ADR-0031 §2: dependency-bearing REAL targets). */
 export interface CreateBuildWorktreeOptions {
   /**
@@ -43,6 +55,16 @@ export interface CreateBuildWorktreeOptions {
   install?: boolean;
   /** Injectable installer (offline tests); defaults to spawning the real pnpm. */
   installRunner?: (root: string) => Promise<void>;
+  /**
+   * Spine-driven dependency adds (ADR-0064 §2): NEW deps the SPINE runs `pnpm add` for AFTER the
+   * base install and BEFORE the leaf authors. Declared in the node spec, performed by the spine, the
+   * leaf is unprivileged — `package.json`/`pnpm-lock.yaml` stay outside every write scope. The
+   * resulting lockfile change lands in the PR's diff (the spine commits it with the authored files).
+   * Requires `install: true` (validated upstream). A failed add tears the worktree down and throws.
+   */
+  addDeps?: AddDepsGroup[];
+  /** Injectable dep-adder (offline tests); defaults to spawning the real `pnpm add`. */
+  addDepsRunner?: (root: string, groups: AddDepsGroup[]) => Promise<void>;
 }
 
 /**
@@ -61,21 +83,38 @@ export async function createBuildWorktree(
   await runGit(["worktree", "add", "--detach", root, "HEAD"], repoRoot);
   const headSha = (await runGit(["rev-parse", "HEAD"], root)).trim();
 
+  // Tear the half-provisioned worktree down + rethrow — a worktree whose install/add failed must
+  // never look buildable (the ADR-0031 fail-closed posture, shared by install and addDeps).
+  const teardownAndThrow = async (label: string, e: unknown): Promise<never> => {
+    try {
+      await runGit(["worktree", "remove", "--force", root], repoRoot);
+    } catch {
+      // Best-effort; the directory removal below still runs.
+    }
+    await fs.rm(parent, { recursive: true, force: true });
+    throw new Error(`worktree ${label} failed (the worktree was torn down): ${(e as Error).message}`, {
+      cause: e,
+    });
+  };
+
   if (options.install === true) {
     const installRunner = options.installRunner ?? defaultPnpmInstall;
     try {
       await installRunner(root);
     } catch (e) {
-      try {
-        await runGit(["worktree", "remove", "--force", root], repoRoot);
-      } catch {
-        // Best-effort; the directory removal below still runs.
-      }
-      await fs.rm(parent, { recursive: true, force: true });
-      throw new Error(
-        `worktree dependency install failed (the worktree was torn down): ${(e as Error).message}`,
-        { cause: e },
-      );
+      await teardownAndThrow("dependency install", e);
+    }
+  }
+
+  // ADR-0064 §2: the spine adds the node's declared NEW dependencies AFTER the base install and
+  // BEFORE the leaf enters — the leaf never touches package.json/pnpm-lock.yaml, the spine does, and
+  // the lockfile change becomes part of the PR diff. A failed add tears the worktree down (above).
+  if (options.addDeps !== undefined && options.addDeps.length > 0) {
+    const addDepsRunner = options.addDepsRunner ?? defaultPnpmAdd;
+    try {
+      await addDepsRunner(root, options.addDeps);
+    } catch (e) {
+      await teardownAndThrow("spine dependency add (pnpm add)", e);
     }
   }
 
@@ -276,6 +315,41 @@ export function platformShellCommand(
     // Preserve any per-command env overrides through the win32 rewrap (ADR-0064 DB-backed proof).
     ...(cmd.env !== undefined ? { env: cmd.env } : {}),
   };
+}
+
+/**
+ * The default dep-adder (ADR-0064 §2): `pnpm add <deps> --filter <packageName>` per group, run at
+ * the worktree root. Sequential (each group resolves + writes the lockfile), `--prefer-offline` so a
+ * spec already in the shared store hard-links. The package specs are an `execFile` arg vector (no
+ * shell), and leading-dash specs are refused upstream — so an author can never inject a flag.
+ */
+async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<void> {
+  for (const group of groups) {
+    const cmd = platformShellCommand({
+      file: "pnpm",
+      args: ["add", "--filter", group.packageName, "--prefer-offline", ...group.deps],
+      cwd: root,
+    });
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        cmd.file,
+        cmd.args,
+        { cwd: cmd.cwd, maxBuffer: 64 * 1024 * 1024 },
+        (error, _stdout, stderr) => {
+          if (error === null) {
+            resolve();
+            return;
+          }
+          reject(
+            new Error(
+              `pnpm add ${group.deps.join(" ")} --filter ${group.packageName} failed: ${error.message}\n${stderr}`,
+              { cause: error },
+            ),
+          );
+        },
+      );
+    });
+  }
 }
 
 /** The default installer: a lockfile-only, shared-store-preferring pnpm install in the worktree. */

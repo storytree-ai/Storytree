@@ -109,6 +109,19 @@ export interface RealProofConfig {
    * nothing else; `db` provisions the proof's ENVIRONMENT, it does not widen the write surface.
    */
   db?: boolean;
+  /**
+   * Guarded dependency adds (ADR-0064 §2): NEW dependencies the SPINE installs into the worktree via
+   * `pnpm add <dep...> --filter <pkg>` BEFORE the leaf authors — a deliberate, narrow relaxation of
+   * the ADR-0031 §2 rule that the leaf may never touch `package.json`/`pnpm-lock.yaml`. The leaf
+   * STILL cannot write either file; the dep set is declared HERE (explicit, auditable), the spine
+   * performs the add, and the change lands in the PR's lockfile diff (the spine commits it with the
+   * authored files). The target package is derived from `sourceFile`. REQUIRES `install: true` (the
+   * lockfile-only base install runs first, then `pnpm add` resolves the new deps). Each entry is a
+   * `pnpm add` package spec (`tree-sitter`, `tree-sitter@0.21.0`); a leading `-` is refused — the
+   * spine controls the flags, not the author (no flag injection). A new dependency is explicit STORY
+   * work declared in the spec, never a leaf's workaround.
+   */
+  addDeps?: string[];
 }
 
 /**
@@ -157,8 +170,27 @@ const RealProofConfigSchema = z
     proofCommand: ShellCommandSchema.optional(),
     editsExisting: z.boolean().optional(),
     db: z.boolean().optional(),
+    addDeps: z.array(z.string().min(1)).optional(),
   })
   .strict()
+  // ADR-0064 §2: a `pnpm add` needs the workspace installed first, and a freshly-added dependency
+  // must be typecheckable — so addDeps requires install:true (which in turn requires real.typecheck).
+  .refine((r) => !(r.addDeps !== undefined && r.addDeps.length > 0 && r.install !== true), {
+    message:
+      "real.addDeps requires real.install:true — `pnpm add` runs after the lockfile-only base " +
+      "install, and the added dependency must be typecheckable (install:true requires real.typecheck, " +
+      "ADR-0064 §2).",
+    path: ["addDeps"],
+  })
+  // ADR-0064 §2: a dep spec starting with `-` would inject a `pnpm add` flag — the spine controls the
+  // flags, the author declares package specs only. Refuse leading-dash entries (defence in depth; the
+  // add is an execFile arg vector, never a shell string, so this is belt-and-braces honesty).
+  .refine((r) => (r.addDeps ?? []).every((d) => !d.startsWith("-")), {
+    message:
+      "real.addDeps entries must be package specs (e.g. `tree-sitter`, `tree-sitter@0.21.0`), not " +
+      "flags — a leading `-` is refused (the spine controls the `pnpm add` flags, ADR-0064 §2).",
+    path: ["addDeps"],
+  })
   // ADR-0064: a db-backed proof imports @storytree/store / pg / the Cloud SQL connector from
   // node_modules — a bare (no-install) worktree has none, so the proof would crash before it could
   // connect. db:true therefore requires install:true (which in turn requires real.typecheck).
@@ -261,6 +293,8 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
     // ADR-0064: same absent-not-undefined idiom, so the 7 migrated nodes (no `db`) stay deepEqual
     // to their registry twins (the contract-4 parity oracle holds byte-for-byte).
     ...(raw.db !== undefined ? { db: raw.db } : {}),
+    // ADR-0064 §2: spread (a fresh copy) only when present — absent stays absent for the parity lock.
+    ...(raw.addDeps !== undefined ? { addDeps: [...raw.addDeps] } : {}),
   };
 }
 

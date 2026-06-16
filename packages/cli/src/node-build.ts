@@ -1,5 +1,5 @@
 import * as fs from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,7 @@ import {
   runWorktreeTypecheck,
 } from "@storytree/orchestrator";
 import type {
+  AddDepsGroup,
   BuildWorktree,
   NodeBuildConfig,
   NodeSpec,
@@ -361,6 +362,54 @@ export function resolveDbProofEnv():
   const dbUser = process.env["STORYTREE_DB_USER"]?.trim();
   if (dbUser !== undefined && dbUser !== "") env["STORYTREE_DB_USER"] = dbUser;
   return { ok: true, env, dbName };
+}
+
+// ── Guarded dependency adds (ADR-0064 §2) ───────────────────────────────────
+
+/**
+ * Resolve the workspace package a node's REAL `sourceFile` belongs to (ADR-0064 §2) — the
+ * `pnpm add --filter` target for a spine-driven dependency add. Reads `packages/<dir>/package.json`'s
+ * `name` (the honest source, not a path-convention guess). Returns null when the source file is not
+ * under a workspace package (an addDeps node must live in one).
+ */
+export function workspacePackageForSource(sourceFile: string): string | null {
+  const m = /^packages\/([^/]+)\//.exec(sourceFile.replace(/\\/g, "/"));
+  if (m === null || m[1] === undefined) return null;
+  try {
+    const pkgPath = path.join(repoRoot(), "packages", m[1], "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: unknown };
+    return typeof pkg.name === "string" ? pkg.name : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a node's spine-driven dep-add group (ADR-0064 §2): null when it declares none, the
+ * {@link AddDepsGroup} (target package + declared specs) when it does, or a fail-closed refusal when
+ * the target package can't be derived from `sourceFile` (an addDeps node must live in a workspace
+ * package — the spine needs a `--filter` target so the dep lands in the right `package.json`).
+ */
+export function resolveAddDepsGroup(
+  real: RealProofConfig,
+): { ok: true; group: AddDepsGroup | null } | { ok: false; refusal: Envelope } {
+  const deps = real.addDeps;
+  if (deps === undefined || deps.length === 0) return { ok: true, group: null };
+  const packageName = workspacePackageForSource(real.sourceFile);
+  if (packageName === null) {
+    return {
+      ok: false,
+      refusal: {
+        ok: false,
+        body:
+          `real.addDeps is declared but the target workspace package could not be derived from ` +
+          `sourceFile "${real.sourceFile}" — an addDeps node's source must live under ` +
+          `packages/<pkg>/ so the spine knows which package.json to \`pnpm add --filter\` into (ADR-0064 §2).`,
+        next: [],
+      },
+    };
+  }
+  return { ok: true, group: { packageName, deps: [...deps] } };
 }
 
 // ── The single-node drive (shared by `node build` and `story build`) ────────
@@ -773,6 +822,15 @@ export async function nodeBuild(
     dbProofEnv = resolved.env;
   }
 
+  // ADR-0064 §2: resolve the spine-driven dep-add group (the `--filter` target derived from the
+  // node's sourceFile). Fail-closed BEFORE any worktree if the package can't be derived.
+  let addDepsGroup: AddDepsGroup | null = null;
+  if (real && realConfig !== undefined) {
+    const resolvedDeps = resolveAddDepsGroup(realConfig);
+    if (!resolvedDeps.ok) return resolvedDeps.refusal;
+    addDepsGroup = resolvedDeps.group;
+  }
+
   // ADR-0051 §4: the live SDK leaf's per-phase system prompt IS the rendered Library agent
   // (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Assemble it offline and fail-loud on a
   // missing agent / dangling ref BEFORE any spend or worktree — a live build runs the Library agent,
@@ -843,10 +901,10 @@ export async function nodeBuild(
     if (real) {
       // The REAL walk: a fresh DETACHED git worktree of this repo (the node's real source at
       // real paths); the spine commits the authored files before the GATE reads the real tree.
-      worktree = await createBuildWorktree(
-        repoRoot(),
-        realConfig?.install === true ? { install: true } : {},
-      );
+      worktree = await createBuildWorktree(repoRoot(), {
+        ...(realConfig?.install === true ? { install: true } : {}),
+        ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
+      });
       try {
         // The single-node real lifecycle (resolve → proveUnit → spine commit → ADR-0031 backstop +
         // promotion) is buildNodeReal — the same function story build --real chains. baseSha is the
@@ -922,6 +980,11 @@ export async function nodeBuild(
             ...(dbProofEnv !== undefined
               ? [
                   `db proof:    isolated test DB "${dbProofEnv[TEST_DB_ENV]}" — ${TEST_DB_ENV} forced; refuses production (ADR-0064/0054)`,
+                ]
+              : []),
+            ...(addDepsGroup !== null
+              ? [
+                  `spine deps:  pnpm add ${addDepsGroup.deps.join(" ")} --filter ${addDepsGroup.packageName} (spine-driven; the leaf cannot touch package.json — ADR-0064 §2)`,
                 ]
               : []),
           ]
@@ -1092,6 +1155,7 @@ export function nodeResolve(unitId: string | undefined, opts: NodeResolveOpts = 
       `  source file:  ${r.sourceFile}`,
       `  install:      ${r.install} (lockfile-only worktree install)`,
       `  db proof:     ${r.db} (true = the proof gets an isolated test-DB connection, never prod — ADR-0064)`,
+      `  add deps:     ${r.addDeps.length > 0 ? r.addDeps.join(", ") + " (spine-driven pnpm add — leaf cannot, ADR-0064 §2)" : "(none)"}`,
       `  edits source: ${r.editsExisting} (false = net-new file pair; true = edit-existing regression)`,
       `  typecheck:    ${r.typecheck ?? "(none — builtins-only, no install)"}`,
       `  proof cmd:    ${r.proofCommand ?? "(default: node:test on the test file)"}`,

@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { InMemoryStore } from "@storytree/core";
+import type { RealProofConfig } from "@storytree/orchestrator";
 
 import { run } from "./commands.js";
 import {
@@ -12,7 +13,9 @@ import {
   DEFAULT_TEST_DB_NAME,
   nodeHelp,
   renderLeafPhasePrompts,
+  resolveAddDepsGroup,
   resolveDbProofEnv,
+  workspacePackageForSource,
 } from "./node-build.js";
 
 /**
@@ -354,4 +357,57 @@ test("resolveDbProofEnv REFUSES production (STORYTREE_DB_NAME=storytree) — fai
     if (saved === undefined) delete process.env["STORYTREE_DB_NAME"];
     else process.env["STORYTREE_DB_NAME"] = saved;
   }
+});
+
+// ── ADR-0064 §2: guarded dependency adds — the CLI derivation + group resolution ─────────────────
+
+test("workspacePackageForSource derives the workspace package name from a packages/<dir> source file", () => {
+  // Reads the real packages/<dir>/package.json name (the honest source, not a path-convention guess).
+  assert.equal(workspacePackageForSource("packages/core/src/anchor.ts"), "@storytree/core");
+  assert.equal(workspacePackageForSource("packages/store/src/change-store.ts"), "@storytree/store");
+  // Not under a workspace package → null (the caller refuses).
+  assert.equal(workspacePackageForSource("docs/decisions/x.md"), null);
+  assert.equal(workspacePackageForSource("apps/studio/src/x.ts"), null);
+});
+
+test("resolveAddDepsGroup: none declared → null; declared → a group targeting the derived package", () => {
+  const noDeps: RealProofConfig = {
+    testFile: "packages/core/src/x.test.ts",
+    sourceFile: "packages/core/src/x.ts",
+    scope: { testGlobs: ["packages/core/src/x.test.ts"], sourceGlobs: ["packages/core/src/x.ts"] },
+  };
+  const none = resolveAddDepsGroup(noDeps);
+  assert.equal(none.ok, true);
+  if (none.ok) assert.equal(none.group, null);
+
+  const withDeps: RealProofConfig = {
+    testFile: "packages/core/src/anchor.test.ts",
+    sourceFile: "packages/core/src/anchor.ts",
+    scope: { testGlobs: ["packages/core/src/anchor.test.ts"], sourceGlobs: ["packages/core/src/anchor.ts"] },
+    install: true,
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/core", "typecheck"] },
+    addDeps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
+  };
+  const grouped = resolveAddDepsGroup(withDeps);
+  assert.equal(grouped.ok, true);
+  if (grouped.ok) {
+    assert.deepEqual(grouped.group, {
+      packageName: "@storytree/core",
+      deps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
+    });
+  }
+});
+
+test("resolveAddDepsGroup REFUSES when the target package can't be derived (source not under packages/)", () => {
+  const badSource: RealProofConfig = {
+    testFile: "scripts/x.test.ts",
+    sourceFile: "scripts/x.ts",
+    scope: { testGlobs: ["scripts/x.test.ts"], sourceGlobs: ["scripts/x.ts"] },
+    install: true,
+    typecheck: { file: "pnpm", args: ["-r", "typecheck"] },
+    addDeps: ["tree-sitter"],
+  };
+  const res = resolveAddDepsGroup(badSource);
+  assert.equal(res.ok, false);
+  if (!res.ok) assert.match(res.refusal.body, /target workspace package could not be derived/);
 });

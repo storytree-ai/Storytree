@@ -193,6 +193,42 @@ test("createBuildWorktree install seam: the injected installer runs in the workt
   );
 });
 
+test("createBuildWorktree addDeps seam: the injected dep-adder runs AFTER install; a failure tears the worktree down and throws (ADR-0064 §2)", async () => {
+  const order: string[] = [];
+  let addRoot: string | undefined;
+  const wt = await createBuildWorktree(REPO_ROOT, {
+    install: true,
+    installRunner: async () => {
+      order.push("install");
+    },
+    addDeps: [{ packageName: "@storytree/core", deps: ["tree-sitter", "tree-sitter-typescript"] }],
+    addDepsRunner: async (root, groups) => {
+      addRoot = root;
+      order.push("add:" + groups.map((g) => `${g.packageName}=${g.deps.join(",")}`).join("|"));
+    },
+  });
+  try {
+    // The dep-adder ran in the worktree root, AFTER install, with the exact group forwarded.
+    assert.equal(addRoot, wt.root, "the dep-adder runs in the worktree root");
+    assert.deepEqual(order, ["install", "add:@storytree/core=tree-sitter,tree-sitter-typescript"]);
+  } finally {
+    await wt.remove();
+  }
+
+  // A failed `pnpm add` tears the worktree down + throws (fail-closed, same posture as install).
+  await assert.rejects(
+    createBuildWorktree(REPO_ROOT, {
+      install: true,
+      installRunner: async () => {},
+      addDeps: [{ packageName: "@storytree/core", deps: ["does-not-exist"] }],
+      addDepsRunner: async () => {
+        throw new Error("simulated pnpm add failure");
+      },
+    }),
+    /spine dependency add.*failed.*torn down/s,
+  );
+});
+
 test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", async () => {
   // The same honest observation the gate makes — exit 0 is the only green channel. Offline by
   // construction: the command IS the seam (any file+argv), so a `node -e` stands in for tsc/pnpm.

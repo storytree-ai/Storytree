@@ -94,6 +94,7 @@ export {
 } from "./resolve-prove-spec.js";
 
 export type {
+  AddDepsGroup,
   BuildWorktree,
   CreateBuildWorktreeOptions,
   PromotionResult,

@@ -15,6 +15,7 @@ import {
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
 import type {
+  AddDepsGroup,
   BuildWorktree,
   LeafPhasePrompts,
   NodeSpec,
@@ -33,6 +34,7 @@ import {
   renderLeafPhasePrompts,
   repoRoot,
   rel,
+  resolveAddDepsGroup,
   resolveDbProofEnv,
   resolveVerdictStore,
 } from "./node-build.js";
@@ -297,6 +299,20 @@ export async function storyBuild(
     dbProofEnv = resolvedDb.env;
   }
 
+  // ADR-0064 §2: aggregate spine-driven dep-add groups across the chain's nodes (resolved BEFORE any
+  // worktree; the ONE shared worktree gets every group). Fail-closed if any node's target package
+  // can't be derived from its sourceFile.
+  const addDepsGroups: AddDepsGroup[] = [];
+  if (real) {
+    for (const n of driveOrder) {
+      const r = resolveBuildConfig(n)?.config.real;
+      if (r === undefined) continue;
+      const resolvedDeps = resolveAddDepsGroup(r);
+      if (!resolvedDeps.ok) return resolvedDeps.refusal;
+      if (resolvedDeps.group !== null) addDepsGroups.push(resolvedDeps.group);
+    }
+  }
+
   // ADR-0060: a live/real story chain OWNS the database — `--store` defaults to `pg`, and the
   // preflight ENSURES the instance is up (probe → `db:up` + wait if down) BEFORE anything that
   // touches it: the oq-hygiene gate's live loader composes the PgLibraryStore, and the verdict store
@@ -374,7 +390,10 @@ export async function storyBuild(
       const anyInstall = driveOrder.some(
         (n) => resolveBuildConfig(n)?.config.real?.install === true,
       );
-      worktree = await createBuildWorktree(rootDir, anyInstall ? { install: true } : {});
+      worktree = await createBuildWorktree(rootDir, {
+        ...(anyInstall ? { install: true } : {}),
+        ...(addDepsGroups.length > 0 ? { addDeps: addDepsGroups } : {}),
+      });
     }
 
     // Per-node side data for the report (the loop itself only sees ProveResults + costs).
