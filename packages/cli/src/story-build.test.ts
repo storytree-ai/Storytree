@@ -6,8 +6,10 @@ import path from "node:path";
 
 import { InMemoryStore } from "@storytree/core";
 
+import type { SdkCuratorResult } from "@storytree/agent";
+
 import { run } from "./commands.js";
-import { ScriptedCuratorRunner } from "./curate.js";
+import { ScriptedCuratorRunner, SdkCuratorRunner } from "./curate.js";
 import { storyBuild } from "./story-build.js";
 
 /**
@@ -82,6 +84,33 @@ test("storyBuild runs the curation pass only on green and enacts an injected cur
   // The retire rationale is durable on the terminal event.
   const deleted = (await library.readEvents({ id: "oq-demo" })).find((e) => e.type === "deleted");
   assert.equal((deleted?.doc as { retiredReason?: string }).retiredReason, "overtaken by ADR-0067");
+});
+
+test("storyBuild drives the full SDK-curator path: serialize -> (fake) SDK -> parse -> enact (ADR-0067)", async () => {
+  const library = new InMemoryStore();
+  await library.upsertDoc({ id: "oq-sdk", kind: "open-question", doc: { id: "oq-sdk", kind: "open-question" } });
+
+  // A fake SDK that returns the curator's structured JSON — the real query() is never touched.
+  const runner = new SdkCuratorRunner({
+    systemPrompt: "rendered librarian-curator",
+    runSdk: async (): Promise<SdkCuratorResult> => ({
+      ok: true,
+      text: '```json\n[{"type":"retire-open-question","id":"oq-sdk","reason":"the SDK curator judged it overtaken"}]\n```',
+      costUsd: 0.02,
+      turns: 3,
+    }),
+  });
+
+  const env = await storyBuild("library", {
+    dryRun: true,
+    actor: "tester@example.com",
+    curatorRunner: runner,
+    curationStores: { library },
+  });
+
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /retired open-question oq-sdk/);
+  assert.equal(await library.getDoc("oq-sdk"), null, "the SDK curator's parsed retire was enacted by the spine");
 });
 
 test("storyBuild does NOT run curation on a HALT (the curation pass is green-only, ADR-0067)", async () => {

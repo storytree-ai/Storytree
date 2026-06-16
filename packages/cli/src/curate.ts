@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+import { runSdkCurator } from "@storytree/agent";
+import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { AdrMeta, Store, StoredDoc } from "@storytree/core";
-import { upcastAndValidate } from "@storytree/core";
+import { InMemoryStore, upcastAndValidate } from "@storytree/core";
 import type { Comment, CommentAnchor } from "@storytree/store";
+import { loadCorpus } from "@storytree/store";
+
+import { renderAgentPrompt } from "./agents.js";
 
 /**
  * The curation pass that runs at the END of a green story build (ADR-0065): a librarian-curator,
@@ -340,6 +345,240 @@ export async function runCurationPass(input: CurationPassInput): Promise<string[
     return [
       `curation:    skipped — ${(e as Error).message} (best-effort; the build is unaffected, ADR-0067)`,
     ];
+  }
+}
+
+// ----------------------------------------------------------------------------------------------
+// The live SDK-spawned librarian-curator (ADR-0067): renders the agent, serializes the
+// neighbourhood, runs one read-only SDK session, and parses its structured output into intents.
+// The judgment is the agent's; enactment + the kind-fence stay the spine's (enactCuration above).
+// ----------------------------------------------------------------------------------------------
+
+/** The Library agent rendered as the curator's system prompt (agent-kind = seed-canonical, ADR-0055). */
+export const CURATOR_AGENT_ID = "librarian-curator";
+
+/**
+ * The structured-output contract appended to the rendered agent body — the curator emits ONLY a
+ * JSON array of intents (no write tools exist), and the spine enacts them kind-fenced. The retire
+ * discipline (confident-only, with a cited reason) and the write fence (OQ + proposal only) are
+ * stated here so the prompt and {@link enactCuration} agree.
+ */
+const CURATOR_OUTPUT_CONTRACT = [
+  "## How you run (the post-build curation pass)",
+  "",
+  "You are spawned once, after a story's build goes green, to clean up the open-questions and",
+  "proposals connected to that story. The user message gives you the neighbourhood: the story's",
+  "nodes, its deciding ADRs (with current status), and the open-questions + proposals around it.",
+  "Judge ONLY that neighbourhood.",
+  "",
+  "Emit your decisions as a SINGLE fenced ```json block containing an array of action objects, and",
+  "NOTHING else (no prose before or after). Each object is one of:",
+  '  { "type": "retire-open-question", "id": "<oq-id>", "reason": "<why it is clearly overtaken — cite what landed>", "supersededBy": "<doc:decisions/NNNN-... | optional>" }',
+  '  { "type": "reframe-open-question", "id": "<oq-id>", "set": { "<field>": "<new value>" } }',
+  '  { "type": "raise-open-question", "doc": { "id": "...", "kind": "open-question", "title": "...", "description": "...", "stakes": "...", "statement": "...", "context": "...", "options": "...", "createdAt": "<iso>", "updatedAt": "<iso>" } }',
+  '  { "type": "create-proposal", "doc": { "id": "...", "kind": "proposal", "title": "...", "description": "...", "summary": "...", "motivation": "...", "change": "...", "scope": "...", "migration": "...", "readiness": "...", "createdAt": "<iso>", "updatedAt": "<iso>" } }',
+  '  { "type": "edit-proposal", "id": "<id>", "set": { "<field>": "<new value>" } }',
+  '  { "type": "comment", "artifactId": "<id>", "body": "<observation>" }',
+  '  { "type": "escalate", "artifactId": "<id>", "body": "<discrepancy the owner should decide>" }',
+  "",
+  "Rules:",
+  "- RETIRE only an open-question you are CONFIDENT is overtaken — its blocking premise has been",
+  "  settled by a landed decision. Give a concrete reason naming what overtook it. When unsure,",
+  "  REFRAME or COMMENT instead; never retire on a hunch.",
+  "- You may WRITE only open-question and proposal artifacts. Any concern about a definition /",
+  "  principle / guardrail / techstack / process / agent is a COMMENT, and an ESCALATE if it needs an",
+  "  owner decision — never an edit.",
+  "- If nothing needs doing, emit an empty array: []",
+].join("\n");
+
+/** Compose the curator system prompt: the rendered Library agent body + the output contract. */
+export function composeCuratorSystemPrompt(agentBody: string): string {
+  return `${agentBody.trim()}\n\n${CURATOR_OUTPUT_CONTRACT}`;
+}
+
+/**
+ * Render the `librarian-curator` system prompt from the Library seed (offline, agent-kind is
+ * seed-canonical — ADR-0055), mirroring the leaf's renderLeafPhasePrompts. Fail-soft: a render
+ * problem returns `{ ok: false, reason }` so the caller can skip curation with a line, never throw.
+ */
+export async function renderCuratorPrompt(): Promise<
+  { ok: true; systemPrompt: string } | { ok: false; reason: string }
+> {
+  try {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+    const res = await renderAgentPrompt(store, CURATOR_AGENT_ID);
+    if (!res.ok) return { ok: false, reason: res.reason };
+    if (res.agent.missingRefs.length > 0) {
+      return { ok: false, reason: `dangling refs: ${res.agent.missingRefs.join(", ")}` };
+    }
+    return { ok: true, systemPrompt: composeCuratorSystemPrompt(res.agent.prompt) };
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message };
+  }
+}
+
+function bodyField(doc: unknown, key: string): string {
+  if (typeof doc === "object" && doc !== null) {
+    const v = (doc as Record<string, unknown>)[key];
+    if (typeof v === "string") return v;
+  }
+  return "";
+}
+
+/** Serialize the story neighbourhood into the curator's user prompt — everything it judges over. */
+export function serializeCurationContext(ctx: CurationContext): string {
+  const lines: string[] = [
+    `# Story just built: ${ctx.storyId}`,
+    `nodes: ${ctx.nodeIds.join(", ") || "(none)"}`,
+  ];
+  const byNumber = new Map(ctx.adrs.map((a) => [a.number, a]));
+  const decisionLines = ctx.decisions.map((n) => {
+    const a = byNumber.get(n);
+    return `  - ADR-${String(n).padStart(4, "0")}: ${a ? a.status : "(not found on disk)"}`;
+  });
+  lines.push(
+    "deciding ADRs (current status):",
+    ...(decisionLines.length > 0 ? decisionLines : ["  (none declared)"]),
+    "",
+    `## Open-questions in this neighbourhood (${ctx.openQuestions.length})`,
+  );
+  if (ctx.openQuestions.length === 0) lines.push("  (none)");
+  for (const oq of ctx.openQuestions) {
+    lines.push(
+      `### ${oq.id}`,
+      `title: ${bodyField(oq.doc, "title")}`,
+      `stakes: ${bodyField(oq.doc, "stakes")}`,
+      `statement: ${bodyField(oq.doc, "statement")}`,
+      `context: ${bodyField(oq.doc, "context")}`,
+      `options: ${bodyField(oq.doc, "options")}`,
+      `recommendation: ${bodyField(oq.doc, "recommendation")}`,
+      `references: ${(Array.isArray((oq.doc as Record<string, unknown>)?.references) ? ((oq.doc as Record<string, unknown>).references as unknown[]) : []).join(", ")}`,
+      "",
+    );
+  }
+  lines.push(`## Proposals in this neighbourhood (${ctx.proposals.length})`);
+  if (ctx.proposals.length === 0) lines.push("  (none)");
+  for (const p of ctx.proposals) {
+    lines.push(`### ${p.id}`, `title: ${bodyField(p.doc, "title")}`, `summary: ${bodyField(p.doc, "summary")}`, "");
+  }
+  lines.push("Now emit your JSON array of curation actions (or [] if nothing needs doing).");
+  return lines.join("\n");
+}
+
+const ACTION_TYPES = new Set<CurationAction["type"]>([
+  "retire-open-question",
+  "raise-open-question",
+  "reframe-open-question",
+  "create-proposal",
+  "edit-proposal",
+  "comment",
+  "escalate",
+]);
+
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+function obj(v: unknown): Record<string, unknown> | null {
+  return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** Validate ONE raw action object into a {@link CurationAction}, or null if malformed (dropped). */
+function coerceAction(raw: unknown): CurationAction | null {
+  const o = obj(raw);
+  if (o === null) return null;
+  const type = o.type;
+  if (typeof type !== "string" || !ACTION_TYPES.has(type as CurationAction["type"])) return null;
+  switch (type) {
+    case "retire-open-question": {
+      const id = str(o.id);
+      const reason = str(o.reason);
+      if (id === null || reason === null) return null;
+      const supersededBy = str(o.supersededBy);
+      return { type, id, reason, ...(supersededBy !== null ? { supersededBy } : {}) };
+    }
+    case "raise-open-question":
+    case "create-proposal": {
+      const doc = obj(o.doc);
+      return doc === null ? null : { type, doc };
+    }
+    case "reframe-open-question":
+    case "edit-proposal": {
+      const id = str(o.id);
+      const set = obj(o.set);
+      return id === null || set === null ? null : { type, id, set };
+    }
+    case "comment":
+    case "escalate": {
+      const artifactId = str(o.artifactId);
+      const body = str(o.body);
+      return artifactId === null || body === null ? null : { type, artifactId, body };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Parse the curator's final message into curation actions. Tolerant + never throws: it pulls the
+ * JSON array out of a ```json fence (or the first bracketed array), parses it, and keeps only the
+ * well-formed action objects (a malformed entry is dropped, not fatal). Malformed/empty → [].
+ */
+export function parseCuratorActions(text: string): CurationAction[] {
+  if (typeof text !== "string" || text.trim() === "") return [];
+  let jsonText = text;
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  if (fenced?.[1] !== undefined) {
+    jsonText = fenced[1];
+  } else {
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
+    if (start !== -1 && end > start) jsonText = text.slice(start, end + 1);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText.trim());
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map(coerceAction).filter((a): a is CurationAction => a !== null);
+}
+
+/**
+ * A live {@link CuratorRunner} backed by the SDK librarian-curator: serialize the neighbourhood,
+ * run ONE read-only SDK session, parse its structured output into intents. The SDK call is injectable
+ * (`runSdk`) so the runner is offline-testable; `onResult` surfaces the session's cost for the build
+ * report. A failed/empty session yields no actions (best-effort — curation never fails the build).
+ */
+export interface SdkCuratorRunnerArgs {
+  systemPrompt: string;
+  model?: string;
+  cwd?: string;
+  maxBudgetUsd?: number;
+  /** Injected for offline tests; defaults to the real {@link runSdkCurator}. */
+  runSdk?: (args: SdkCuratorArgs) => Promise<SdkCuratorResult>;
+  /** Observe the SDK run (cost/turns/ok) so the build can report curator spend. */
+  onResult?: (result: SdkCuratorResult) => void;
+}
+
+export class SdkCuratorRunner implements CuratorRunner {
+  readonly #args: SdkCuratorRunnerArgs;
+  readonly #runSdk: (args: SdkCuratorArgs) => Promise<SdkCuratorResult>;
+  constructor(args: SdkCuratorRunnerArgs) {
+    this.#args = args;
+    this.#runSdk = args.runSdk ?? runSdkCurator;
+  }
+  async run(ctx: CurationContext): Promise<CurationAction[]> {
+    const result = await this.#runSdk({
+      systemPrompt: this.#args.systemPrompt,
+      userPrompt: serializeCurationContext(ctx),
+      ...(this.#args.model !== undefined ? { model: this.#args.model } : {}),
+      ...(this.#args.cwd !== undefined ? { cwd: this.#args.cwd } : {}),
+      ...(this.#args.maxBudgetUsd !== undefined ? { maxBudgetUsd: this.#args.maxBudgetUsd } : {}),
+    });
+    this.#args.onResult?.(result);
+    return result.ok ? parseCuratorActions(result.text) : [];
   }
 }
 
