@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
-import type { Store, StoredDoc, StoreEvent } from "@storytree/core";
-import { upcastAndValidate } from "@storytree/core";
+import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "@storytree/core";
+import { retiredEventDoc, upcastAndValidate } from "@storytree/core";
 
 /**
  * The Postgres-backed {@link Store} (ADR-0017): history = `events.library_event`, current-state =
@@ -162,7 +162,7 @@ export class PgLibraryStore implements Store {
     return Number(res.rows[0]?.max ?? 0);
   }
 
-  async deleteDoc(id: string): Promise<boolean> {
+  async deleteDoc(id: string, opts?: DeleteDocOpts): Promise<boolean> {
     const client: PoolClient = await this.#pool.connect();
     try {
       await client.query("BEGIN");
@@ -178,10 +178,13 @@ export class PgLibraryStore implements Store {
         return false;
       }
 
+      // Retire-with-rationale (ADR-0065): when a reason is given, the terminal `deleted` event
+      // records the retiring actor and folds `retiredReason` / `supersededBy` into its doc, so the
+      // append-only history carries WHY. The projection row is dropped either way.
       await client.query(
         `INSERT INTO events.library_event (id, kind, type, doc, actor)
          VALUES ($1, $2, 'deleted', $3::jsonb, $4)`,
-        [row.id, row.kind, JSON.stringify(row.doc), DEFAULT_ACTOR],
+        [row.id, row.kind, JSON.stringify(retiredEventDoc(row.doc, opts)), opts?.actor ?? DEFAULT_ACTOR],
       );
       await client.query("DELETE FROM events.library_artifact WHERE id = $1", [id]);
 

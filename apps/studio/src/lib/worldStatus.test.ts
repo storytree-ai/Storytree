@@ -5,8 +5,8 @@
 // sits behind.
 
 import { describe, it, expect } from 'vitest';
-import { presentStories, provenStatus, worldStatus } from './worldStatus';
-import type { TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
+import { driftBadge, presentStories, provenStatus, worldStatus } from './worldStatus';
+import type { DriftState, TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
 
 const pass: TreeVerdict = { outcome: 'pass', at: '2026-06-14T00:00:00.000Z' };
 const fail: TreeVerdict = { outcome: 'fail', at: '2026-06-14T00:00:00.000Z' };
@@ -15,6 +15,7 @@ const cap = (
   id: string,
   status: WorkStatus | null,
   verdict?: TreeVerdict,
+  drift?: DriftState,
 ): TreeCapability => ({
   id,
   title: id,
@@ -23,6 +24,7 @@ const cap = (
   proofMode: 'red-green',
   dependsOn: [],
   ...(verdict ? { verdict } : {}),
+  ...(drift ? { drift } : {}),
 });
 
 const story = (
@@ -30,6 +32,7 @@ const story = (
   status: WorkStatus | null,
   capabilities: TreeCapability[] = [],
   verdict?: TreeVerdict,
+  drift?: DriftState,
 ): TreeStory => ({
   id,
   title: id,
@@ -40,6 +43,7 @@ const story = (
   dependsOn: [],
   capabilities,
   ...(verdict ? { verdict } : {}),
+  ...(drift ? { drift } : {}),
 });
 
 describe('worldStatus', () => {
@@ -130,5 +134,61 @@ describe('presentStories', () => {
     expect(out[0]?.uatWitness).toBe('human');
     // and never mutates its input
     expect(input[0]?.capabilities).toHaveLength(1);
+  });
+});
+
+describe('driftBadge (ADR-0016 §3: the distinct, additive drift marker)', () => {
+  it('fresh and absent wear NO badge (a current proof renders as its plain proven hue)', () => {
+    expect(driftBadge('fresh')).toBeUndefined();
+    expect(driftBadge(undefined)).toBeUndefined();
+  });
+
+  it('stale and drifted-undescribed each wear their OWN distinct badge (never collapsed)', () => {
+    expect(driftBadge('stale')).toBe('stale');
+    expect(driftBadge('drifted-undescribed')).toBe('drifted-undescribed');
+  });
+});
+
+describe('presentStories: drift rides ALONGSIDE the proven hue (ADR-0040 §7, never a silent green→brown)', () => {
+  it('a signed-green capability that drifts STAYS green and wears the stale badge — never reverts to brown', () => {
+    const out = presentStories([story('s', 'proposed', [cap('proven', 'proposed', pass, 'stale')])]);
+    const c = out[0]?.capabilities[0];
+    // the proven hue is preserved (the "proven once, at commit X" record), NOT downgraded to mapped
+    expect(c?.status).toBe('healthy');
+    // and the distinct stale marker rides alongside it
+    expect(c?.drift).toBe('stale');
+  });
+
+  it('drifted-undescribed is surfaced DISTINCTLY (demoted, but never silently green) on a proven unit', () => {
+    const out = presentStories([
+      story('s', 'proposed', [cap('proven', 'proposed', pass, 'drifted-undescribed')]),
+    ]);
+    const c = out[0]?.capabilities[0];
+    expect(c?.status).toBe('healthy');
+    expect(c?.drift).toBe('drifted-undescribed');
+  });
+
+  it('a fresh proof wears no badge — the drift field is normalised away', () => {
+    const out = presentStories([story('s', 'proposed', [cap('proven', 'proposed', pass, 'fresh')])]);
+    const c = out[0]?.capabilities[0];
+    expect(c?.status).toBe('healthy');
+    expect(c?.drift).toBeUndefined();
+  });
+
+  it('a story crown carries its own drift badge alongside its UAT-pass green', () => {
+    const out = presentStories([story('s', 'proposed', [], pass, 'stale')]);
+    expect(out[0]?.status).toBe('healthy');
+    expect(out[0]?.drift).toBe('stale');
+  });
+
+  it('drift never resurrects a retired unit (prune still wins) and never mutates its input', () => {
+    const input = [story('gone', 'retired', [], pass, 'stale'), story('s', 'mapped', [cap('c', 'mapped', undefined, 'stale')])];
+    const out = presentStories(input);
+    expect(out.map((s) => s.id)).toEqual(['s']);
+    // a non-proven (mapped) unit still surfaces its drift marker, status untouched
+    expect(out[0]?.capabilities[0]?.status).toBe('mapped');
+    expect(out[0]?.capabilities[0]?.drift).toBe('stale');
+    // input untouched (the raw drift is read, not mutated)
+    expect(input[1]?.capabilities[0]?.drift).toBe('stale');
   });
 });

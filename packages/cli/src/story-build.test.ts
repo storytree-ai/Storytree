@@ -7,6 +7,7 @@ import path from "node:path";
 import { InMemoryStore } from "@storytree/core";
 
 import { run } from "./commands.js";
+import { ScriptedCuratorRunner } from "./curate.js";
 import { storyBuild } from "./story-build.js";
 
 /**
@@ -55,6 +56,50 @@ test("story build library --dry-run drives the capabilities topo-ordered and SIG
   // The honest framing is part of the output.
   assert.match(env.body, /proves the CHAINING/);
   assert.match(env.body, /NOT the nodes' actual proofs/);
+
+  // ADR-0067: the curation pass runs after the green build (here against an empty in-memory store).
+  assert.match(env.body, /curation: /);
+});
+
+test("storyBuild runs the curation pass only on green and enacts an injected curator's retire (ADR-0067)", async () => {
+  const library = new InMemoryStore();
+  // A minimal OQ — retire only checks the kind + deletes, no validation needed.
+  await library.upsertDoc({ id: "oq-demo", kind: "open-question", doc: { id: "oq-demo", kind: "open-question" } });
+
+  const env = await storyBuild("library", {
+    dryRun: true,
+    actor: "tester@example.com",
+    curatorRunner: new ScriptedCuratorRunner([
+      { type: "retire-open-question", id: "oq-demo", reason: "overtaken by ADR-0067" },
+    ]),
+    curationStores: { library },
+  });
+
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /retired open-question oq-demo/);
+  assert.equal(await library.getDoc("oq-demo"), null, "the curator retired the OQ via the green build");
+
+  // The retire rationale is durable on the terminal event.
+  const deleted = (await library.readEvents({ id: "oq-demo" })).find((e) => e.type === "deleted");
+  assert.equal((deleted?.doc as { retiredReason?: string }).retiredReason, "overtaken by ADR-0067");
+});
+
+test("storyBuild does NOT run curation on a HALT (the curation pass is green-only, ADR-0067)", async () => {
+  // A scripted curator that would retire if ever run; the build must halt before it can.
+  const library = new InMemoryStore();
+  await library.upsertDoc({ id: "oq-keep", kind: "open-question", doc: { id: "oq-keep", kind: "open-question" } });
+  // An unknown story id fails before any node runs — a clean way to assert curation never fired.
+  const env = await storyBuild("does-not-exist", {
+    dryRun: true,
+    actor: "tester@example.com",
+    curatorRunner: new ScriptedCuratorRunner([
+      { type: "retire-open-question", id: "oq-keep", reason: "should never happen" },
+    ]),
+    curationStores: { library },
+  });
+  assert.equal(env.ok, false);
+  assert.ok(await library.getDoc("oq-keep"), "no curation ran — the OQ is untouched");
+  assert.doesNotMatch(env.body, /curation: /);
 });
 
 /**

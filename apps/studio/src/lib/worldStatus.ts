@@ -20,7 +20,10 @@
 //   ladder, so a proven world UNDER-claims — the StoreBanner is the global
 //   "proof layer absent" signal.
 
-import type { TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
+import type { DriftState, TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
+
+/** The drift states that wear a DISTINCT marker in the world (everything but `fresh`). */
+export type DriftBadge = Exclude<DriftState, 'fresh'>;
 
 /** The authored-ladder fold alone (ADR-0038): building reads as proposed. */
 export function worldStatus(status: WorkStatus | null): WorkStatus | null {
@@ -45,19 +48,51 @@ export function provenStatus(
 }
 
 /**
+ * The DISTINCT drift marker a unit wears in the world (ADR-0016 §3 + ADR-0040 §7) — a SEPARATE
+ * dimension from the proven hue ({@link provenStatus}), never a replacement for it. A once-green unit
+ * that drifts keeps its green status AND gains this badge, so the "proven once, at commit X" record
+ * is preserved and drift is NEVER a silent green→brown reversion (the whole point of ADR-0040 §7):
+ *   - `fresh` / no signal → no badge (the proved span is unchanged — render as the plain proven hue).
+ *   - `stale` → a described change moved the proved code; re-prove THIS unit — the prominent marker.
+ *   - `drifted-undescribed` → changed but unexplained; DEMOTED (audit-only, never a re-UAT trigger) —
+ *     a subtler marker, but still DISTINCT and never silently green.
+ * Returning the badge (vs folding it into status) is what keeps the fold one-directional: status is
+ * the proof's, drift rides alongside.
+ */
+export function driftBadge(drift: DriftState | undefined): DriftBadge | undefined {
+  return drift === undefined || drift === 'fresh' ? undefined : drift;
+}
+
+/**
  * The stories the world renders: retired pruned (both tiers), building folded
- * into proposed, and proof folded into the hue ({@link provenStatus}).
- * Everything downstream of the fetch — layout, roads, focus, legend, panel —
- * sees only this presented world.
+ * into proposed, proof folded into the hue ({@link provenStatus}), and the
+ * binding-staleness drift surfaced as a DISTINCT badge ({@link driftBadge}) that
+ * rides ALONGSIDE the proven hue — never downgrading it (ADR-0040 §7). Everything
+ * downstream of the fetch — layout, roads, focus, legend, panel — sees only this
+ * presented world. `fresh`/absent drift is normalised away, so a unit carries a
+ * `drift` field ONLY when it wears a marker.
  */
 export function presentStories(stories: TreeStory[]): TreeStory[] {
   return stories
     .filter((s) => s.status !== 'retired')
-    .map((s) => ({
-      ...s,
-      status: provenStatus(s.status, s.verdict),
-      capabilities: s.capabilities
-        .filter((c) => c.status !== 'retired')
-        .map((c): TreeCapability => ({ ...c, status: provenStatus(c.status, c.verdict) })),
-    }));
+    .map((s): TreeStory => {
+      const { drift: _drift, ...rest } = s;
+      const badge = driftBadge(s.drift);
+      return {
+        ...rest,
+        status: provenStatus(s.status, s.verdict),
+        ...(badge !== undefined ? { drift: badge } : {}),
+        capabilities: s.capabilities
+          .filter((c) => c.status !== 'retired')
+          .map((c): TreeCapability => {
+            const { drift: _cDrift, ...cRest } = c;
+            const cBadge = driftBadge(c.drift);
+            return {
+              ...cRest,
+              status: provenStatus(c.status, c.verdict),
+              ...(cBadge !== undefined ? { drift: cBadge } : {}),
+            };
+          }),
+      };
+    });
 }
