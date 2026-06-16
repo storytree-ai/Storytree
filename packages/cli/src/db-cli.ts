@@ -1,9 +1,9 @@
 // Entry for the db:* npm scripts (ADR-0063): up / down / status over the Cloud SQL Admin REST API
-// (no gcloud subprocess on the default path, so they never feed the credential-lock cascade),
-// reusing db-control.ts's REST-first effects with a gcloud fallback for up/down. Thin I/O shell —
-// the decisions it calls are unit-tested in db-control.ts; this is just argv → effect → stdout.
+// (no gcloud subprocess, so they never feed the credential-lock cascade), reusing db-control.ts's
+// REST effects. Thin I/O shell — the decisions it calls are unit-tested in db-control.ts; this is
+// just argv → effect → stdout.
 
-import { ensureLiveDb, statusLiveDbViaRest, stopLiveDb } from "./db-control.js";
+import { ensureLiveDb, statusLiveDbViaRest, stopLiveDbViaRest } from "./db-control.js";
 
 async function main(): Promise<void> {
   // Root scripts delegate via `pnpm --filter @storytree/cli db -- <action>` (the storytree-script
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
       return;
     }
     case "down": {
-      await stopLiveDb(log);
+      await stopLiveDbViaRest();
       console.log("activationPolicy=NEVER requested (the instance stops shortly)");
       return;
     }

@@ -1,14 +1,13 @@
 // db-control — the live-build DB preflight (ADR-0060): a `--real`/`--live` build OWNS the database.
 // The build defaults to the live store and, before connecting, ENSURES the instance is up: probe it,
-// and if it is unreachable, run the `db:up` equivalent (gcloud patch → activation-policy ALWAYS) and
-// poll until it accepts connections — or refuse the build with a clear reason. `--dry-run` never comes
-// here (it stays in-memory: offline, and a scripted PASS must not persist, ADR-0020), and the offline
-// gate (`pnpm -r test`) / CI never touch this path.
+// and if it is unreachable, run the `db:up` equivalent (Cloud SQL Admin REST patch → activation-policy
+// ALWAYS, ADR-0063 — no gcloud subprocess) and poll until it accepts connections — or refuse the build
+// with a clear reason. `--dry-run` never comes here (it stays in-memory: offline, and a scripted PASS
+// must not persist, ADR-0020), and the offline gate (`pnpm -r test`) / CI never touch this path.
 //
 // The core decision flow `ensureDbUp` takes its effects as INJECTED deps (probe/start/sleep/now), so it
-// is unit-tested with a fake clock and no real DB or gcloud; `ensureLiveDb` wires the real effects.
+// is unit-tested with a fake clock and no real DB or REST; `ensureLiveDb` wires the real effects.
 
-import { spawn } from "node:child_process";
 import { closePool, createAdcCloudSqlAdmin, createPool } from "@storytree/store";
 import type { InstanceStatus, PoolHandle } from "@storytree/store";
 
@@ -20,7 +19,7 @@ const DB_PROJECT = "storytree-498613";
 export interface EnsureDbDeps {
   /** Can the live store be reached right now? Must never throw (a stopped instance answers `false`). */
   probe: () => Promise<boolean>;
-  /** Bring the instance up (the `db:up` equivalent). Throws on failure (e.g. gcloud missing). */
+  /** Bring the instance up (the `db:up` equivalent). Throws on failure (e.g. no ADC token). */
   start: () => Promise<void>;
   /** Sleep between connectivity polls. */
   sleep: (ms: number) => Promise<void>;
@@ -101,43 +100,6 @@ export async function probeLiveDb(timeoutMs = 10_000): Promise<boolean> {
 }
 
 /**
- * The exact gcloud spawn for this host, as data (testable on any platform). On Windows gcloud is a
- * `.cmd` shim Node refuses to spawn without a shell (CVE-2024-27980), so route through the shell as
- * ONE pre-joined string there; shell:false elsewhere. Mirrors apps/studio/server/dbControl.ts (kept
- * separate to avoid an app→package dependency); every arg is a static literal, so joining is safe.
- */
-export function gcloudInvocation(
-  args: string[],
-  platform: NodeJS.Platform = process.platform,
-): { command: string; args: string[]; shell: boolean } {
-  return platform === "win32"
-    ? { command: ["gcloud", ...args].join(" "), args: [], shell: true }
-    : { command: "gcloud", args, shell: false };
-}
-
-/** Run gcloud to completion; resolve on exit 0, reject with stderr on a non-zero exit or spawn error. */
-function runGcloud(args: string[]): Promise<void> {
-  const { command, args: spawnArgs, shell } = gcloudInvocation(args);
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, spawnArgs, { shell, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-    let stderr = "";
-    child.stderr?.on("data", (c: Buffer) => (stderr += c.toString("utf8")));
-    child.on("error", reject);
-    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`gcloud exited ${code ?? "null"}: ${stderr.trim()}`))));
-  });
-}
-
-/** The `db:up` effect: `gcloud sql instances patch … --activation-policy ALWAYS` (idempotent). */
-export function startLiveDb(): Promise<void> {
-  return runGcloud([
-    "sql", "instances", "patch", DB_INSTANCE,
-    "--project", DB_PROJECT,
-    "--activation-policy", "ALWAYS",
-    "--quiet",
-  ]);
-}
-
-/**
  * The `db:up` effect over the Cloud SQL Admin REST API (ADR-0063): no gcloud subprocess, so it never
  * feeds the Python-cold-start credential-lock cascade. Keyless — an ambient ADC token (local) or the
  * runtime SA (Cloud Run). Idempotent: patching an already-ALWAYS instance is a harmless no-op.
@@ -146,44 +108,9 @@ export function startLiveDbViaRest(): Promise<void> {
   return createAdcCloudSqlAdmin({ project: DB_PROJECT, instance: DB_INSTANCE }).setActivationPolicy("ALWAYS");
 }
 
-/**
- * Run a REST-first db-control effect, falling back to gcloud if the REST/ADC path errors (ADR-0063).
- * The `rest`/`gcloud` effects are injected so the fallback DECISION is unit-testable; a REST failure
- * is logged (not fatal) and the gcloud path is tried — only if BOTH fail does this throw (so e.g.
- * {@link ensureDbUp} reports "could not start"). The fallback is a transition guard: it goes once the
- * REST path has proven itself in daily use (ADR-0063).
- */
-export async function withRestFallback(
-  rest: () => Promise<void>,
-  gcloud: () => Promise<void>,
-  log: (message: string) => void,
-): Promise<void> {
-  try {
-    await rest();
-  } catch (e) {
-    log(`Cloud SQL Admin REST call failed (${(e as Error).message}) — falling back to gcloud.`);
-    await gcloud();
-  }
-}
-
 /** The `db:down` effect over REST (ADR-0063): settings.activationPolicy = NEVER (no gcloud subprocess). */
 export function stopLiveDbViaRest(): Promise<void> {
   return createAdcCloudSqlAdmin({ project: DB_PROJECT, instance: DB_INSTANCE }).setActivationPolicy("NEVER");
-}
-
-/** The `db:down` gcloud fallback: `gcloud sql instances patch … --activation-policy NEVER`. */
-export function stopLiveDbViaGcloud(): Promise<void> {
-  return runGcloud([
-    "sql", "instances", "patch", DB_INSTANCE,
-    "--project", DB_PROJECT,
-    "--activation-policy", "NEVER",
-    "--quiet",
-  ]);
-}
-
-/** Stop the live DB REST-first with a gcloud fallback (the `db:down` effect, ADR-0063). */
-export function stopLiveDb(log: (message: string) => void): Promise<void> {
-  return withRestFallback(stopLiveDbViaRest, stopLiveDbViaGcloud, log);
 }
 
 /** `db:status` over REST (ADR-0063): the instance state + activation policy, no gcloud subprocess. */
@@ -195,8 +122,8 @@ export function statusLiveDbViaRest(): Promise<InstanceStatus> {
 export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbResult> {
   return ensureDbUp({
     probe: () => probeLiveDb(),
-    // REST-first (ADR-0063), gcloud fallback — the build preflight no longer shells gcloud by default.
-    start: () => withRestFallback(startLiveDbViaRest, startLiveDb, log),
+    // REST-only (ADR-0063): the build preflight no longer shells gcloud.
+    start: () => startLiveDbViaRest(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log,
     now: () => Date.now(),
