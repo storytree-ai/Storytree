@@ -3,7 +3,16 @@
 // the forest map can't silently drift when the river geometry is refactored.
 
 import { describe, it, expect } from 'vitest';
-import { offsetCurve, quadPt, rampWidth, smoothOpenPath, type Vec2 } from './riverGeometry';
+import {
+  offsetCurve,
+  quadPt,
+  rampWidth,
+  smoothOpenPath,
+  rayPolyIntersect,
+  pointInPoly,
+  polyCentroid,
+  type Vec2,
+} from './riverGeometry';
 
 /** Pull every coordinate pair out of an SVG path d-string. */
 function coords(d: string): Vec2[] {
@@ -92,6 +101,85 @@ describe('quadPt', () => {
     expect(quadPt(p0, c, p1, 1)).toEqual(p1);
     // midpoint of a quadratic = 0.25·P0 + 0.5·C + 0.25·P1
     expect(quadPt(p0, c, p1, 0.5)).toEqual({ x: 10, y: 10 });
+  });
+});
+
+describe('rayPolyIntersect', () => {
+  // a unit-ish square pond centred at the origin
+  const square: Vec2[] = [
+    { x: -10, y: -10 },
+    { x: 10, y: -10 },
+    { x: 10, y: 10 },
+    { x: -10, y: 10 },
+  ];
+
+  it('docks on the near edge a river entering from outside', () => {
+    // origin to the left of the pond, aiming at its centre → hits x=-10 edge
+    const dock = rayPolyIntersect({ x: -30, y: 0 }, { x: 0, y: 0 }, square);
+    expect(dock).not.toBeNull();
+    expect(dock!.x).toBeCloseTo(-10, 5);
+    expect(dock!.y).toBeCloseTo(0, 5);
+    // outward normal faces back toward the approaching river (−x)
+    expect(dock!.nx).toBeCloseTo(-1, 5);
+    expect(dock!.ny).toBeCloseTo(0, 5);
+  });
+
+  it('picks the NEAREST forward crossing, not the far edge', () => {
+    const dock = rayPolyIntersect({ x: 0, y: -30 }, { x: 0, y: 0 }, square);
+    expect(dock!.y).toBeCloseTo(-10, 5); // near edge, not +10
+    expect(dock!.ny).toBeCloseTo(-1, 5); // outward normal faces the river (−y)
+  });
+
+  it('returns null when the ray misses the loop', () => {
+    // aiming parallel to and well outside the square
+    expect(rayPolyIntersect({ x: -30, y: 50 }, { x: 30, y: 50 }, square)).toBeNull();
+  });
+
+  it('is deterministic', () => {
+    const a = rayPolyIntersect({ x: -30, y: 3 }, { x: 0, y: 0 }, square);
+    const b = rayPolyIntersect({ x: -30, y: 3 }, { x: 0, y: 0 }, square);
+    expect(a).toEqual(b);
+  });
+});
+
+describe('pointInPoly', () => {
+  const square: Vec2[] = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  it('is true for an interior point', () => {
+    expect(pointInPoly({ x: 5, y: 5 }, square)).toBe(true);
+  });
+  it('is false for an exterior point', () => {
+    expect(pointInPoly({ x: 15, y: 5 }, square)).toBe(false);
+    expect(pointInPoly({ x: -1, y: 5 }, square)).toBe(false);
+  });
+  it('handles a concave loop', () => {
+    // an L-shape: the notch corner is outside
+    const L: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 4 },
+      { x: 4, y: 4 },
+      { x: 4, y: 10 },
+      { x: 0, y: 10 },
+    ];
+    expect(pointInPoly({ x: 2, y: 2 }, L)).toBe(true);
+    expect(pointInPoly({ x: 8, y: 8 }, L)).toBe(false); // in the notch
+  });
+});
+
+describe('polyCentroid', () => {
+  it('averages the vertices', () => {
+    expect(polyCentroid([{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 0, y: 4 }])).toEqual({
+      x: 2,
+      y: 2,
+    });
+  });
+  it('degenerates to the origin for an empty loop', () => {
+    expect(polyCentroid([])).toEqual({ x: 0, y: 0 });
   });
 });
 

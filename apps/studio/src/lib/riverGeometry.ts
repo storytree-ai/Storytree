@@ -9,6 +9,92 @@ export interface Vec2 {
   y: number;
 }
 
+/** A dock on a loop: the point plus the loop's outward unit normal there. */
+export interface LoopDock extends Vec2 {
+  nx: number;
+  ny: number;
+}
+
+/**
+ * Where the ray from `origin` toward `toward` first crosses a closed point `loop`,
+ * with the loop's OUTWARD unit normal there (oriented back toward `origin`, so for a
+ * river docking onto a pond from OUTSIDE the pond the normal faces the approaching
+ * river — exactly what rivermouthCubic's outward handle wants). This is the inland
+ * cousin of rayCoastIntersect: it lets a river mouth dock on a pond's smoothed rim
+ * the same way it docks on a coastline. Returns null when the ray misses the loop.
+ * Pure, deterministic — no Math.random.
+ */
+export function rayPolyIntersect(origin: Vec2, toward: Vec2, loop: Vec2[]): LoopDock | null {
+  const dirx = toward.x - origin.x;
+  const diry = toward.y - origin.y;
+  const dl = Math.hypot(dirx, diry) || 1;
+  const ux = dirx / dl;
+  const uy = diry / dl;
+  let bestS = Infinity;
+  let best: LoopDock | null = null;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const a = loop[i];
+    const b = loop[(i + 1) % n];
+    if (!a || !b) continue;
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const det = ex * uy - ux * ey;
+    if (Math.abs(det) < 1e-6) continue; // parallel
+    const wx = a.x - origin.x;
+    const wy = a.y - origin.y;
+    const s = (ex * wy - wx * ey) / det; // distance along the ray
+    const r = (ux * wy - wx * uy) / det; // position along the segment
+    if (s <= 0 || r < 0 || r > 1 || s >= bestS) continue;
+    bestS = s;
+    const el = Math.hypot(ex, ey) || 1;
+    let nx = ey / el;
+    let ny = -ex / el;
+    // orient the normal AGAINST the ray (i.e. back toward the origin) → outward
+    // from a loop whose interior the ray is entering.
+    if (nx * ux + ny * uy > 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    best = { x: origin.x + ux * s, y: origin.y + uy * s, nx, ny };
+  }
+  return best;
+}
+
+/**
+ * Even-odd ray-cast point-in-polygon test against a closed point `loop`. Used to
+ * decide which relaxed substrate cells a pond/channel covers (so they can be
+ * re-tinted as water — "cells become water"). Pure, deterministic.
+ */
+export function pointInPoly(p: Vec2, loop: Vec2[]): boolean {
+  let inside = false;
+  const n = loop.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const a = loop[i];
+    const b = loop[j];
+    if (!a || !b) continue;
+    const intersects =
+      a.y > p.y !== b.y > p.y &&
+      p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y || 1e-12) + a.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+/** Centroid (vertex average) of a point loop — a stable interior aim point. */
+export function polyCentroid(loop: Vec2[]): Vec2 {
+  let x = 0;
+  let y = 0;
+  let k = 0;
+  for (const p of loop) {
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    k++;
+  }
+  return k ? { x: x / k, y: y / k } : { x: 0, y: 0 };
+}
+
 /**
  * A river segment's stroke width as a function of how much flow it carries.
  * `flow` 1 (or less) returns `base`; each extra unit of flow adds `step`, clamped

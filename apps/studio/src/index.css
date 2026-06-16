@@ -1763,9 +1763,46 @@ mark.st-hl.flash {
 }
 @media (prefers-reduced-motion: reduce) {
   .world-trail-glint,
-  .hex-water-border .moat-glint {
+  .hex-water-border .moat-glint,
+  .inland-pond-glint {
     animation: none;
   }
+}
+
+/* INLAND WATER (?water=pond|through) — drawn ABOVE the island tiles. The channels
+   reuse the .world-trail-* river stack; the ponds are a banked, filled pool: a
+   sand shore (wide stroke + sand fill), the water body (fill + a pale shallow rim),
+   and a slow rim glint. Stacked so a feeding channel fuses into the pond's shore. */
+.inland-water {
+  transition: opacity 0.18s ease;
+}
+.inland-pond-sand {
+  fill: var(--river-land);
+  stroke: var(--river-land);
+  stroke-width: 8;
+  stroke-linejoin: round;
+}
+.inland-pond-water {
+  fill: var(--river);
+  stroke: var(--river-bank);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  opacity: 0.97;
+}
+.inland-pond-glint {
+  fill: none;
+  stroke: var(--river-glint);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-dasharray: 4 20;
+  opacity: 0.5;
+  animation: river-flow 8s linear infinite;
+}
+/* focus dimming, mirroring .world-trail.is-dim on the channels */
+.inland-pond-sand.is-dim,
+.inland-pond-water.is-dim,
+.inland-pond-glint.is-dim {
+  opacity: 0.25;
 }
 
 /* flora: the per-territory layer of trees, plates and wisps */
