@@ -22,9 +22,9 @@
     "check:web-grounding": "pnpm --filter @storytree/cli exec node --import tsx src/check-web-grounding.ts",
     "gate": "pnpm check:manifest && pnpm check:claude && pnpm check:agents && pnpm check:web-grounding && pnpm -r typecheck && pnpm -r test && pnpm check:agents-sync",
     "sync": "git fetch origin && git rebase origin/main",
-    "db:up": "gcloud sql instances patch storytree-pg --project storytree-498613 --activation-policy ALWAYS --quiet",
-    "db:down": "gcloud sql instances patch storytree-pg --project storytree-498613 --activation-policy NEVER --quiet",
-    "db:status": "gcloud sql instances describe storytree-pg --project storytree-498613 --format=\"value(state,settings.activationPolicy)\"",
+    "db:up": "pnpm --filter @storytree/cli run db -- up",
+    "db:down": "pnpm --filter @storytree/cli run db -- down",
+    "db:status": "pnpm --filter @storytree/cli run db -- status",
     "studio:up": "node scripts/studio.mjs up",
     "studio:down": "node scripts/studio.mjs down",
     "studio:status": "node scripts/studio.mjs status"

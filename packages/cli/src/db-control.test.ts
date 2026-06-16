@@ -5,7 +5,7 @@ import {
   effectiveVerdictStore,
   ensureDbUp,
   gcloudInvocation,
-  startWithFallback,
+  withRestFallback,
   type EnsureDbDeps,
 } from "./db-control.js";
 
@@ -101,18 +101,18 @@ test("gcloudInvocation routes through the shell on Windows (.cmd shim), direct e
   assert.deepEqual(nix.args, ["sql", "instances", "patch"]);
 });
 
-test("startWithFallback: REST start succeeds → gcloud is never invoked, nothing is logged", async () => {
+test("withRestFallback: REST start succeeds → gcloud is never invoked, nothing is logged", async () => {
   let gcloud = 0;
   const logs: string[] = [];
-  await startWithFallback(async () => {}, async () => void gcloud++, (m) => logs.push(m));
+  await withRestFallback(async () => {}, async () => void gcloud++, (m) => logs.push(m));
   assert.equal(gcloud, 0, "REST succeeded — the gcloud fallback must not run");
   assert.deepEqual(logs, [], "no fallback log on the happy path");
 });
 
-test("startWithFallback: a REST failure logs the reason and falls back to gcloud", async () => {
+test("withRestFallback: a REST failure logs the reason and falls back to gcloud", async () => {
   let gcloud = 0;
   const logs: string[] = [];
-  await startWithFallback(
+  await withRestFallback(
     async () => {
       throw new Error("no ADC token");
     },
@@ -121,13 +121,13 @@ test("startWithFallback: a REST failure logs the reason and falls back to gcloud
   );
   assert.equal(gcloud, 1, "the gcloud fallback ran exactly once");
   assert.equal(logs.length, 1);
-  assert.match(logs[0] ?? "", /REST start failed \(no ADC token\) — falling back to gcloud/);
+  assert.match(logs[0] ?? "", /REST call failed \(no ADC token\) — falling back to gcloud/);
 });
 
-test("startWithFallback: rejects when BOTH REST and gcloud fail (ensureDbUp then reports it)", async () => {
+test("withRestFallback: rejects when BOTH REST and gcloud fail (ensureDbUp then reports it)", async () => {
   await assert.rejects(
     () =>
-      startWithFallback(
+      withRestFallback(
         async () => {
           throw new Error("rest down");
         },

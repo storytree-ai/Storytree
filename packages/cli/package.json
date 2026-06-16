@@ -13,7 +13,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "storytree": "tsx src/main.ts"
+    "storytree": "tsx src/main.ts",
+    "db": "tsx src/db-cli.ts"
   },
   "dependencies": {
     "@storytree/agent": "workspace:*",

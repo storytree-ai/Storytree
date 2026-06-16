@@ -10,7 +10,7 @@
 
 import { spawn } from "node:child_process";
 import { closePool, createAdcCloudSqlAdmin, createPool } from "@storytree/store";
-import type { PoolHandle } from "@storytree/store";
+import type { InstanceStatus, PoolHandle } from "@storytree/store";
 
 /** The Cloud SQL instance the storytree work tables live on (mirrors `pnpm db:up`, ADR-0015). */
 const DB_INSTANCE = "storytree-pg";
@@ -147,23 +147,48 @@ export function startLiveDbViaRest(): Promise<void> {
 }
 
 /**
- * Start the DB REST-first (ADR-0063), falling back to gcloud if the REST/ADC path errors. The
- * `restStart`/`gcloudStart` effects are injected so the fallback DECISION is unit-testable; a REST
- * failure is logged (not fatal) and the gcloud path is tried — only if BOTH fail does this throw
- * (so {@link ensureDbUp} reports "could not start"). The fallback is a transition guard: it goes once
- * the REST path has proven itself in daily use (ADR-0063).
+ * Run a REST-first db-control effect, falling back to gcloud if the REST/ADC path errors (ADR-0063).
+ * The `rest`/`gcloud` effects are injected so the fallback DECISION is unit-testable; a REST failure
+ * is logged (not fatal) and the gcloud path is tried — only if BOTH fail does this throw (so e.g.
+ * {@link ensureDbUp} reports "could not start"). The fallback is a transition guard: it goes once the
+ * REST path has proven itself in daily use (ADR-0063).
  */
-export async function startWithFallback(
-  restStart: () => Promise<void>,
-  gcloudStart: () => Promise<void>,
+export async function withRestFallback(
+  rest: () => Promise<void>,
+  gcloud: () => Promise<void>,
   log: (message: string) => void,
 ): Promise<void> {
   try {
-    await restStart();
+    await rest();
   } catch (e) {
-    log(`Cloud SQL Admin REST start failed (${(e as Error).message}) — falling back to gcloud.`);
-    await gcloudStart();
+    log(`Cloud SQL Admin REST call failed (${(e as Error).message}) — falling back to gcloud.`);
+    await gcloud();
   }
+}
+
+/** The `db:down` effect over REST (ADR-0063): settings.activationPolicy = NEVER (no gcloud subprocess). */
+export function stopLiveDbViaRest(): Promise<void> {
+  return createAdcCloudSqlAdmin({ project: DB_PROJECT, instance: DB_INSTANCE }).setActivationPolicy("NEVER");
+}
+
+/** The `db:down` gcloud fallback: `gcloud sql instances patch … --activation-policy NEVER`. */
+export function stopLiveDbViaGcloud(): Promise<void> {
+  return runGcloud([
+    "sql", "instances", "patch", DB_INSTANCE,
+    "--project", DB_PROJECT,
+    "--activation-policy", "NEVER",
+    "--quiet",
+  ]);
+}
+
+/** Stop the live DB REST-first with a gcloud fallback (the `db:down` effect, ADR-0063). */
+export function stopLiveDb(log: (message: string) => void): Promise<void> {
+  return withRestFallback(stopLiveDbViaRest, stopLiveDbViaGcloud, log);
+}
+
+/** `db:status` over REST (ADR-0063): the instance state + activation policy, no gcloud subprocess. */
+export function statusLiveDbViaRest(): Promise<InstanceStatus> {
+  return createAdcCloudSqlAdmin({ project: DB_PROJECT, instance: DB_INSTANCE }).describe();
 }
 
 /** Wire the real effects into {@link ensureDbUp}: probe the live store, `db:up` if down, poll until up. */
@@ -171,7 +196,7 @@ export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbRe
   return ensureDbUp({
     probe: () => probeLiveDb(),
     // REST-first (ADR-0063), gcloud fallback — the build preflight no longer shells gcloud by default.
-    start: () => startWithFallback(startLiveDbViaRest, startLiveDb, log),
+    start: () => withRestFallback(startLiveDbViaRest, startLiveDb, log),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log,
     now: () => Date.now(),
