@@ -15,6 +15,10 @@ export { createTestPool, assertTestDatabase, TEST_DB_ENV } from "./test-db.js";
 export { PgLibraryStore } from "./pg-store.js";
 export { PgWorkStore } from "./pg-work-store.js";
 export type { WorkStoreClient } from "./pg-work-store.js";
+// The Postgres home for the ADR-0016 binding-staleness change log (the @storytree/core ChangeStore
+// seam), proven by a DB-backed round-trip against an isolated storytree_test (ADR-0064 §1).
+export { PgChangeStore } from "./pg-change-store.js";
+export type { ChangeStoreClient } from "./pg-change-store.js";
 export { loadCorpus, loadComments } from "./load-corpus.js";
 export type { LoadCorpusResult } from "./load-corpus.js";
 export { reconcileAgents, syncSeedAgents, diffAgents, diffSeedAgents, AGENT_KIND } from "./sync-agents.js";
