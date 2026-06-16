@@ -1805,6 +1805,38 @@ mark.st-hl.flash {
   opacity: 0.25;
 }
 
+/* THINNER RIVERS (flag-gated; default world is untouched). The pond-junction
+   channels (`?water=pond`) read as delicate STREAMS linking the lakes, so the
+   through-node water is the slimmest of all. The whole channel is thinned — sand
+   casing included — since the wide sand bank, not the water, was what made the
+   network read as fat roads. */
+.inland-water .world-trail-land {
+  stroke-width: 4.6;
+}
+.inland-water .world-trail-bank {
+  stroke-width: 2.8;
+}
+.inland-water .world-trail-water {
+  stroke-width: 1.8;
+}
+.inland-water .world-trail-glint {
+  stroke-width: 0.9;
+}
+/* `?rivers=merge` over-sea rivers run much thinner too, so the braided network
+   reads as slim channels rather than wide sandy roads. Scoped to the over-sea
+   `water-net-*` passes so the pond streams above keep their own (thinner) widths;
+   merged TRUNKS keep their flow-scaled INLINE width (now also slim, see FLOW_W),
+   so a fork still shows a fatter stem feeding slim branches. */
+.world-scene.rivers-merge .water-net-land .world-trail-land {
+  stroke-width: 7;
+}
+.world-scene.rivers-merge .water-net-shallow .world-trail-bank {
+  stroke-width: 4.2;
+}
+.world-scene.rivers-merge .water-net-water .world-trail-water {
+  stroke-width: 2.6;
+}
+
 /* flora: the per-territory layer of trees, plates and wisps */
 .hex-flora {
   cursor: pointer;

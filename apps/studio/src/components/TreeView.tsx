@@ -1412,30 +1412,62 @@ function buildWorld(
   // inland geometry here is rendered in its own ABOVE-tiles passes.
   const inland: InlandWater = { ponds: [], channels: [] };
   if (waterMode === 'pond') {
+    // POND-JUNCTION NETWORK: every node a river touches gets ONE pond hub, and the
+    // dependency rivers connect THROUGH it — incoming rivers end at the pond,
+    // OUTGOING rivers leave from it — so the map reads as lakes linked by streams
+    // (water flows in → pond → out) and the pond is where a node's flows gather.
+    // Each coast seam (an incoming mouth or an outgoing trunk dock) is recorded
+    // against its node; the channel that carries it inland keeps the river's real
+    // from/to so focus dimming matches the over-sea rivers.
+    interface CoastSeam {
+      pt: Dock;
+      from: string;
+      to: string;
+    }
+    const seamsByNode = new Map<string, CoastSeam[]>();
+    const addSeam = (id: string, seam: CoastSeam): void => {
+      const list = seamsByNode.get(id);
+      if (list) list.push(seam);
+      else seamsByNode.set(id, [seam]);
+    };
+    // Incoming: each destination's mouth(s). Merge mode shares ONE mouth per dest.
     for (const [dstId, bundle] of riversByDst) {
-      const b = bundle[0]?.dstT;
-      if (!b || bundle.length === 0) continue;
-      const meanMouth: Pt = {
-        x: bundle.reduce((s, r) => s + r.mouth.x, 0) / bundle.length,
-        y: bundle.reduce((s, r) => s + r.mouth.y, 0) / bundle.length,
-      };
-      const aim = unit(b.treeSpot, meanMouth);
-      const pond = placePond(b, aim);
-      if (!pond) continue;
-      inland.ponds.push({ story: dstId, d: smoothLoopPath(pond.loop), loop: pond.loop });
-      // Each incoming river continues from its coast mouth to the pond rim,
-      // meeting it head-on (rivermouthCubic + the rim's outward normal). In merge
-      // mode the bundle shares ONE mouth, so ONE channel feeds the pond (not N
-      // identical strands stacked on top of each other).
       const feeders = riverMode === 'merge' ? bundle.slice(0, 1) : bundle;
-      for (const r of feeders) {
-        const dock = rayPolyIntersect(r.mouth, pond.center, pond.loop);
+      for (const r of feeders) addSeam(dstId, { pt: r.mouth, from: r.srcT.story.id, to: dstId });
+    }
+    // Outgoing: each source's coast outflow dock (the merge trunk's outDock, else
+    // the source dock). Merge mode emits ONE outflow per source; strands one each.
+    for (const [srcId, group] of riversBySrc) {
+      if (riverMode === 'merge') {
+        const r0 = group[0];
+        if (!r0) continue;
+        addSeam(srcId, { pt: (r0.outDock ?? r0.srcDock) as Dock, from: srcId, to: r0.dstT.story.id });
+      } else {
+        for (const r of group) addSeam(srcId, { pt: r.srcDock, from: srcId, to: r.dstT.story.id });
+      }
+    }
+    for (const [id, seams] of seamsByNode) {
+      const t = territories[byId.get(id) ?? -1];
+      if (!t || seams.length === 0) continue;
+      // Aim the pond toward the mean of every coast seam it serves (both the
+      // incoming and the outgoing sides), so a mid-DAG junction's pool sits where
+      // the water actually flows through rather than only on its entry shore.
+      const mean: Pt = {
+        x: seams.reduce((s, c) => s + c.pt.x, 0) / seams.length,
+        y: seams.reduce((s, c) => s + c.pt.y, 0) / seams.length,
+      };
+      const pond = placePond(t, unit(t.treeSpot, mean));
+      if (!pond) continue;
+      inland.ponds.push({ story: id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      // Each seam continues from its coast point to the pond rim, head-on.
+      for (const c of seams) {
+        const dock = rayPolyIntersect(c.pt, pond.center, pond.loop);
         if (!dock) continue;
         inland.channels.push({
-          from: r.srcT.story.id,
-          to: dstId,
+          from: c.from,
+          to: c.to,
           via: [],
-          d: rivermouthCubic(r.mouth, dock as Dock, 0, 8),
+          d: rivermouthCubic(c.pt, dock as Dock, 0, 8),
         });
       }
     }
@@ -2105,13 +2137,15 @@ const RIVER_TUNING: RiverTuning = {
   routeMargin: 20,
 };
 
-/** Per-water-layer stroke width as a function of flow load (merged trunks). flow=1
- *  reproduces the CSS defaults so member strands are unchanged; trunks fatten. */
+/** Per-water-layer stroke width as a function of flow load (merged trunks, merge
+ *  mode only — only flow≥2 stubs carry an inline width). Slim, so a merged trunk
+ *  reads as a fat-ish STEM feeding slim branches rather than a wide sand road; the
+ *  base widths align with the thinned `?rivers=merge` CSS strands. */
 const FLOW_W = {
-  land: { base: 12.5, step: 3.0, max: 26 },
-  bank: { base: 7.5, step: 2.0, max: 17 },
-  water: { base: 4.2, step: 1.4, max: 11 },
-  glint: { base: 1.5, step: 0, max: 1.5 },
+  land: { base: 7, step: 1.6, max: 15 },
+  bank: { base: 4.2, step: 1.0, max: 9 },
+  water: { base: 2.6, step: 0.9, max: 6.5 },
+  glint: { base: 1.2, step: 0, max: 1.2 },
 } as const;
 
 function readRiverMode(): RiverMode {
@@ -2583,7 +2617,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           >
           <svg
             ref={svgRef}
-            className="world-scene"
+            className={`world-scene${riverMode === 'merge' ? ' rivers-merge' : ''}${
+              waterMode === 'pond' ? ' water-pond' : ''
+            }`}
             viewBox={`0 0 ${world.width} ${world.height}`}
             onClick={(e) => {
               if (e.target === e.currentTarget) clearSelection();
