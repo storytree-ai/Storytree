@@ -1,15 +1,21 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-16
 ---
 # ADR-0063: db-control over the Cloud SQL Admin REST API (retire the gcloud subprocess)
 
 ## Status
 
-proposed — authored 2026-06-16 by the session that investigated the gcloud "credential-lock
-cascade" on the Windows dev box; the owner directed "wire it now, ADR first". Proposed because the
-substitution is landing incrementally: the typed client (unit 1) is already on `main`
-([PR #164](https://github.com/HuaMick/Storytree/pull/164)); the consumer wiring follows. Flip to
-**accepted** when the db-control surfaces run on the REST client by default.
+accepted (2026-06-16) — authored and landed in the same workstream by the session that investigated
+the gcloud "credential-lock cascade" on the Windows dev box; the owner directed "wire it now, ADR
+first". The substitution shipped incrementally and is now complete: the typed client (unit 1,
+[PR #164](https://github.com/HuaMick/Storytree/pull/164)), the production factory + exports (2a,
+[PR #166](https://github.com/HuaMick/Storytree/pull/166)), the build preflight `ensureLiveDb` (2b,
+[PR #167](https://github.com/HuaMick/Storytree/pull/167)), the `db:*` scripts (2c,
+[PR #168](https://github.com/HuaMick/Storytree/pull/168)), and the studio `/api/db/*` handlers (2d,
+[PR #170](https://github.com/HuaMick/Storytree/pull/170)). Every db-control surface now runs on the
+REST client **by default** — the accept condition. The gcloud fallback remains a transition guard;
+the one open follow-up is to drop it (and the gcloud helpers) once REST has proven itself in daily use.
 
 ## Context
 
