@@ -1150,10 +1150,12 @@ function buildWorld(stories: TreeStory[]): HexWorld {
 
 // ---------- relaxed substrate (VISUAL SPIKE, ADR-pending) ----------
 //
-// A prototype that swaps the regular hex-tile interiors for an irregular,
-// relaxed grid (Oskar Stålberg / Townscaper style) so each island reads as one
-// organic landmass instead of a cluster of hexagons. Gated behind the
-// `?substrate=…` query param — the default world is untouched. Three techniques:
+// Swaps the regular hex-tile interiors for an irregular, relaxed grid (Oskar
+// Stålberg / Townscaper style) so each island reads as one organic landmass
+// instead of a cluster of hexagons. `mesh` (path B) is now the DEFAULT world
+// (owner look-decision 2026-06-16); `?substrate=hex` (aliases `none`/`default`/
+// `classic`) returns the original extruded hex world, and `?substrate=…` selects
+// any of the three relaxed techniques:
 //
 //   `relaxed-hex`  — cheap path: relax the SHARED hex-corner lattice (dedupe each
 //                    unique corner, hash-jitter + Laplacian-relax the interior
@@ -1635,15 +1637,21 @@ function polyPath(pts: Pt[]): string {
   );
 }
 
-/** Read the substrate spike mode from the URL
- *  (`?substrate=relaxed|relaxed-hex|relaxed-quad|mesh|path-b`). */
+/**
+ * Which substrate the forest map renders. The irregular Townscaper `mesh` is the
+ * DEFAULT (owner look-decision 2026-06-16) — so no param renders mesh. Escapes:
+ * `?substrate=hex` (aliases `none`/`default`/`classic`) → the original extruded
+ * hex world (null); `?substrate=relaxed-quad|relaxed|relaxed-hex` → the earlier
+ * spike modes. Returns null only for the explicit classic-world escape.
+ */
 function readSubstrateMode(): SubstrateMode | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return 'mesh';
   const raw = new URLSearchParams(window.location.search).get('substrate');
+  if (raw === 'hex' || raw === 'none' || raw === 'default' || raw === 'classic') return null;
   if (raw === 'relaxed-hex') return 'relaxed-hex';
   if (raw === 'relaxed-quad' || raw === 'relaxed') return 'relaxed-quad';
   if (raw === 'mesh' || raw === 'path-b') return 'mesh';
-  return null;
+  return 'mesh';
 }
 
 /** Live tuning overrides from the URL — let the owner dial the look in directly. */
