@@ -50,3 +50,19 @@ export { PgAttestationStore } from "./attestation-store.js";
 export type { AttestationStoreClient } from "./attestation-store.js";
 export { PgAdrStore } from "./adr-store.js";
 export type { AdrAllocatorClient, AdrAllocation } from "./adr-store.js";
+// Cloud SQL Admin REST client (ADR-0063): db-control over REST instead of the gcloud subprocess.
+export {
+  createCloudSqlAdmin,
+  instanceUrl,
+  parseInstanceStatus,
+  SQLADMIN_BASE,
+} from "./cloud-sql-admin.js";
+export type {
+  ActivationPolicy,
+  InstanceStatus,
+  HttpResponse,
+  CloudSqlAdminDeps,
+  CloudSqlAdmin,
+} from "./cloud-sql-admin.js";
+export { createAdcCloudSqlAdmin } from "./cloud-sql-admin-adc.js";
+export type { AdcCloudSqlAdminOptions } from "./cloud-sql-admin-adc.js";
