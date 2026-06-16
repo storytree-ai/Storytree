@@ -14,8 +14,15 @@ first". The substitution shipped incrementally and is now complete: the typed cl
 [PR #167](https://github.com/HuaMick/Storytree/pull/167)), the `db:*` scripts (2c,
 [PR #168](https://github.com/HuaMick/Storytree/pull/168)), and the studio `/api/db/*` handlers (2d,
 [PR #170](https://github.com/HuaMick/Storytree/pull/170)). Every db-control surface now runs on the
-REST client **by default** — the accept condition. The gcloud fallback remains a transition guard;
-the one open follow-up is to drop it (and the gcloud helpers) once REST has proven itself in daily use.
+REST client **by default** — the accept condition.
+
+**Follow-up done (2026-06-16): the gcloud fallback is retired — db-control is now REST-only.** Decision
+point 4's transition guard (the gcloud fallback in `ensureLiveDb`, the `db:*` scripts, and the studio
+`/api/db/*` handlers, plus the now-dead `gcloudInvocation`/`runGcloud`/`spawnGcloud` helpers) has been
+removed. The owner approved doing it now: the site works, it's active dev with no users, and it's
+trivially revertible via git history if an ADC/REST issue surfaces. A REST/ADC failure now surfaces
+directly (the build preflight refuses with a clear reason; the studio handlers answer 502) rather than
+silently degrading to gcloud. The ADR stays `accepted`.
 
 ## Context
 

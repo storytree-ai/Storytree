@@ -4,8 +4,6 @@ import assert from "node:assert/strict";
 import {
   effectiveVerdictStore,
   ensureDbUp,
-  gcloudInvocation,
-  withRestFallback,
   type EnsureDbDeps,
 } from "./db-control.js";
 
@@ -68,12 +66,12 @@ test("ensureDbUp fails closed (and never polls) when starting the DB throws", as
     deps({
       probe: p.probe,
       start: async () => {
-        throw new Error("gcloud not found");
+        throw new Error("no ADC token");
       },
     }),
   );
   assert.equal(res.ok, false);
-  assert.match((res as { reason: string }).reason, /could not start the database: gcloud not found/);
+  assert.match((res as { reason: string }).reason, /could not start the database: no ADC token/);
   assert.equal(p.calls(), 1, "only the fast-path probe ran — no polling after a failed start");
 });
 
@@ -87,55 +85,4 @@ test("effectiveVerdictStore: a live/real build defaults an unset --store to pg, 
   assert.equal(effectiveVerdictStore(undefined, false), "pg", "the build owns the DB (ADR-0060)");
   assert.equal(effectiveVerdictStore("memory", false), "memory", "explicit opt-out is honoured");
   assert.equal(effectiveVerdictStore("pg", false), "pg");
-});
-
-test("gcloudInvocation routes through the shell on Windows (.cmd shim), direct elsewhere", () => {
-  const win = gcloudInvocation(["sql", "instances", "patch"], "win32");
-  assert.equal(win.shell, true);
-  assert.equal(win.command, "gcloud sql instances patch");
-  assert.deepEqual(win.args, []);
-
-  const nix = gcloudInvocation(["sql", "instances", "patch"], "linux");
-  assert.equal(nix.shell, false);
-  assert.equal(nix.command, "gcloud");
-  assert.deepEqual(nix.args, ["sql", "instances", "patch"]);
-});
-
-test("withRestFallback: REST start succeeds → gcloud is never invoked, nothing is logged", async () => {
-  let gcloud = 0;
-  const logs: string[] = [];
-  await withRestFallback(async () => {}, async () => void gcloud++, (m) => logs.push(m));
-  assert.equal(gcloud, 0, "REST succeeded — the gcloud fallback must not run");
-  assert.deepEqual(logs, [], "no fallback log on the happy path");
-});
-
-test("withRestFallback: a REST failure logs the reason and falls back to gcloud", async () => {
-  let gcloud = 0;
-  const logs: string[] = [];
-  await withRestFallback(
-    async () => {
-      throw new Error("no ADC token");
-    },
-    async () => void gcloud++,
-    (m) => logs.push(m),
-  );
-  assert.equal(gcloud, 1, "the gcloud fallback ran exactly once");
-  assert.equal(logs.length, 1);
-  assert.match(logs[0] ?? "", /REST call failed \(no ADC token\) — falling back to gcloud/);
-});
-
-test("withRestFallback: rejects when BOTH REST and gcloud fail (ensureDbUp then reports it)", async () => {
-  await assert.rejects(
-    () =>
-      withRestFallback(
-        async () => {
-          throw new Error("rest down");
-        },
-        async () => {
-          throw new Error("gcloud not found");
-        },
-        () => {},
-      ),
-    /gcloud not found/,
-  );
 });
