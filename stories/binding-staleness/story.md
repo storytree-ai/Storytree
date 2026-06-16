@@ -53,7 +53,9 @@ cannot drive, and are owned by a parallel session building ON the contracts this
 - **`events.change_event` SQL schema + `PgChangeStore`** — the Postgres adapter of
   [`change-event-store`](change-event-store.md)'s `ChangeStore` contract. This story lands the OFFLINE
   contract (the `ChangeStore` interface + `InMemoryStore` + the reusable `changeStoreParitySuite`); the
-  pg adapter is the parallel session's follow-on, held to the SAME parity bar.
+  pg adapter is the parallel session's follow-on, held to the SAME parity bar. **DELIVERED by
+  [`change-store-pg`](change-store-pg.md)** (this follow-on session, ADR-0064 §1 DB-backed proof —
+  proven by a real round-trip against an isolated `storytree_test`, never prod).
 - **The AST-fingerprint swap** behind `hashSpan()` (ADR-0016 Fork C) — needs the tree-sitter dependency.
 - **The studio "stale" hue** (ADR-0040 §7's distinct visual) — a frontend slice.
 - **Production wiring** of a real `Anchor` onto each live unit + a real `boundHash`/`changeStore` into

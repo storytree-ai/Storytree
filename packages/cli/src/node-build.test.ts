@@ -121,12 +121,13 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /library-cli/);
   assert.match(bare.body, /--real/);
   // Spec-borne REAL nodes (ADR-0057 A) join the registry reals in this list: node-resolve-report
-  // and cloud-sql-admin-rest, plus the five binding-staleness slices (ADR-0016; their proof: blocks
+  // and cloud-sql-admin-rest, plus the binding-staleness slices (ADR-0016; their proof: blocks
   // live in stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store,
-  // drift-reads-store, gate-emits-change, source-drift.
+  // change-store-pg (the ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store,
+  // gate-emits-change, source-drift.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, cloud-sql-admin-rest, declare-presence, drift-reads-store, gate-emits-change, node-resolve-report, noticeboard-cli, presence-store, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, gate-emits-change, node-resolve-report, noticeboard-cli, presence-store, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
