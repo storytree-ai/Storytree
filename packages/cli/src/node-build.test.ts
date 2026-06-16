@@ -111,11 +111,12 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /node build <id> --dry-run/);
   assert.match(bare.body, /library-cli/);
   assert.match(bare.body, /--real/);
-  // node-resolve-report is a spec-borne REAL node (ADR-0057 A; its proof: block lives in
-  // stories/drive-machinery/node-resolve-report.md), so it joins the registry reals in this list.
+  // node-resolve-report and cloud-sql-admin-rest are spec-borne REAL nodes (ADR-0057 A; their
+  // proof: blocks live in stories/drive-machinery/node-resolve-report.md and
+  // stories/studio-cloud/cloud-sql-admin-rest.md), so they join the registry reals in this list.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, declare-presence, node-resolve-report, noticeboard-cli, presence-store, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, cloud-sql-admin-rest, declare-presence, node-resolve-report, noticeboard-cli, presence-store, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
