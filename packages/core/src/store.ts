@@ -36,6 +36,20 @@ export interface StoreEvent {
 }
 
 /**
+ * Optional retire metadata for {@link Store.deleteDoc} — the "retire with a recorded rationale"
+ * path (the curator's auto-retire of a clearly-overtaken open-question, ADR-0065). When `reason`
+ * (and optionally `supersededBy`) is given, the terminal `deleted` event records `actor` and folds
+ * `retiredReason` / `supersededBy` into its event `doc`, so WHY a doc left the projection is durable
+ * in the append-only history (ADR-0017: history = events). Absent = a plain delete (default actor,
+ * the doc's last state verbatim) — every existing caller is unaffected.
+ */
+export interface DeleteDocOpts {
+  actor?: string;
+  reason?: string;
+  supersededBy?: string;
+}
+
+/**
  * The Store seam. KEPT NARROW on purpose.
  *
  * `upsertDoc` does TWO things atomically (ADR-0017): it appends a `created`/`updated` event to
@@ -52,7 +66,7 @@ export interface Store {
   }): Promise<StoredDoc>;
   getDoc(id: string): Promise<StoredDoc | null>;
   queryDocs(filter?: { kind?: string }): Promise<StoredDoc[]>;
-  deleteDoc(id: string): Promise<boolean>;
+  deleteDoc(id: string, opts?: DeleteDocOpts): Promise<boolean>;
   appendEvent(e: {
     id: string;
     kind: string;
@@ -76,6 +90,23 @@ export interface ChangeStore {
 }
 
 const DEFAULT_ACTOR = "system";
+
+/**
+ * The `doc` payload of a `deleted` event: the doc's last state verbatim, plus `retiredReason` /
+ * `supersededBy` folded in WHEN a retire rationale was given and the body is an object — so the
+ * append-only history records WHY the doc was retired (ADR-0065). The projection has already
+ * dropped the row, so these extra keys never reach a live read or the `.strict()` write boundary;
+ * they live only on the terminal event. A plain delete (no opts / non-object body) is untouched.
+ */
+export function retiredEventDoc(doc: unknown, opts?: DeleteDocOpts): unknown {
+  if (opts?.reason === undefined && opts?.supersededBy === undefined) return doc;
+  if (typeof doc !== "object" || doc === null) return doc;
+  return {
+    ...(doc as Record<string, unknown>),
+    ...(opts.reason !== undefined ? { retiredReason: opts.reason } : {}),
+    ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
+  };
+}
 
 /**
  * In-memory {@link Store}: a Map for the current-state projection and an array for the event
@@ -125,7 +156,7 @@ export class InMemoryStore implements Store, ChangeStore {
     return all.filter((d) => d.kind === filter.kind);
   }
 
-  async deleteDoc(id: string): Promise<boolean> {
+  async deleteDoc(id: string, opts?: DeleteDocOpts): Promise<boolean> {
     const existing = this.#docs.get(id);
     if (!existing) return false;
     this.#docs.delete(id);
@@ -133,8 +164,8 @@ export class InMemoryStore implements Store, ChangeStore {
       id,
       kind: existing.kind,
       type: "deleted",
-      doc: existing.doc,
-      actor: DEFAULT_ACTOR,
+      doc: retiredEventDoc(existing.doc, opts),
+      actor: opts?.actor ?? DEFAULT_ACTOR,
     });
     return true;
   }
@@ -339,6 +370,27 @@ export function storeParitySuite(
     await store.upsertDoc({ id: "d1", kind: "template", doc: parityFixtureDoc("d1", "to delete") });
     assert.equal(await store.deleteDoc("d1"), true, "first delete reports true");
     assert.equal(await store.deleteDoc("d1"), false, "second delete reports false");
+  });
+
+  test(`${name} parity: deleteDoc records a retire rationale on the terminal event (ADR-0065)`, async () => {
+    const store = await makeStore();
+    await store.upsertDoc({ id: "r1", kind: "template", doc: parityFixtureDoc("r1", "overtaken") });
+    assert.equal(
+      await store.deleteDoc("r1", {
+        actor: "librarian-curator",
+        reason: "overtaken by ADR-9999",
+        supersededBy: "doc:decisions/9999-x.md",
+      }),
+      true,
+    );
+    // The row is gone from the projection, but the WHY is durable on the deleted event.
+    assert.equal(await store.getDoc("r1"), null, "retired row dropped from the projection");
+    const deleted = (await store.readEvents({ id: "r1" })).find((e) => e.type === "deleted");
+    assert.ok(deleted, "a deleted event was appended");
+    assert.equal(deleted?.actor, "librarian-curator", "retire actor recorded");
+    const body = deleted?.doc as { retiredReason?: string; supersededBy?: string };
+    assert.equal(body.retiredReason, "overtaken by ADR-9999", "retiredReason folded into the event doc");
+    assert.equal(body.supersededBy, "doc:decisions/9999-x.md", "supersededBy folded in");
   });
 }
 
