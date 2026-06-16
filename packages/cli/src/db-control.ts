@@ -9,7 +9,7 @@
 // is unit-tested with a fake clock and no real DB or gcloud; `ensureLiveDb` wires the real effects.
 
 import { spawn } from "node:child_process";
-import { closePool, createPool } from "@storytree/store";
+import { closePool, createAdcCloudSqlAdmin, createPool } from "@storytree/store";
 import type { PoolHandle } from "@storytree/store";
 
 /** The Cloud SQL instance the storytree work tables live on (mirrors `pnpm db:up`, ADR-0015). */
@@ -137,11 +137,41 @@ export function startLiveDb(): Promise<void> {
   ]);
 }
 
+/**
+ * The `db:up` effect over the Cloud SQL Admin REST API (ADR-0063): no gcloud subprocess, so it never
+ * feeds the Python-cold-start credential-lock cascade. Keyless — an ambient ADC token (local) or the
+ * runtime SA (Cloud Run). Idempotent: patching an already-ALWAYS instance is a harmless no-op.
+ */
+export function startLiveDbViaRest(): Promise<void> {
+  return createAdcCloudSqlAdmin({ project: DB_PROJECT, instance: DB_INSTANCE }).setActivationPolicy("ALWAYS");
+}
+
+/**
+ * Start the DB REST-first (ADR-0063), falling back to gcloud if the REST/ADC path errors. The
+ * `restStart`/`gcloudStart` effects are injected so the fallback DECISION is unit-testable; a REST
+ * failure is logged (not fatal) and the gcloud path is tried — only if BOTH fail does this throw
+ * (so {@link ensureDbUp} reports "could not start"). The fallback is a transition guard: it goes once
+ * the REST path has proven itself in daily use (ADR-0063).
+ */
+export async function startWithFallback(
+  restStart: () => Promise<void>,
+  gcloudStart: () => Promise<void>,
+  log: (message: string) => void,
+): Promise<void> {
+  try {
+    await restStart();
+  } catch (e) {
+    log(`Cloud SQL Admin REST start failed (${(e as Error).message}) — falling back to gcloud.`);
+    await gcloudStart();
+  }
+}
+
 /** Wire the real effects into {@link ensureDbUp}: probe the live store, `db:up` if down, poll until up. */
 export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbResult> {
   return ensureDbUp({
     probe: () => probeLiveDb(),
-    start: startLiveDb,
+    // REST-first (ADR-0063), gcloud fallback — the build preflight no longer shells gcloud by default.
+    start: () => startWithFallback(startLiveDbViaRest, startLiveDb, log),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log,
     now: () => Date.now(),
