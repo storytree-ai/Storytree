@@ -17,6 +17,8 @@ import { execFile } from "node:child_process";
 
 import type { PhaseAuthor } from "@storytree/agent";
 import type {
+  ChangeEvent,
+  ChangeStore,
   EvidenceRef,
   ProofMode,
   Store,
@@ -44,6 +46,21 @@ export interface PhasePrompts {
   implement: string;
 }
 
+/**
+ * ADR-0016: the binding being proved. When present on a {@link ProveSpec}, the gate stamps
+ * `verdict.boundHash` with `boundHash` and — if a {@link ProveSpec.changeStore} is also present —
+ * emits a {@link ChangeEvent} recording the proof's content baseline. Absent on every pre-ADR-0016
+ * caller, so the gate's existing behaviour is unchanged.
+ */
+export interface ProvenBinding {
+  /** The content-hash (hashSpan) of the proved span at proof time → verdict.boundHash + the event's hashAfter. */
+  boundHash: string;
+  /** The prior signed boundHash this re-proof advances FROM; absent on a first proof (hashBefore = hashAfter). */
+  priorHash?: string;
+  /** The described "changed: why" for the emitted ChangeEvent; absent = an undescribed (demoted) change. */
+  description?: string;
+}
+
 /** The full input to {@link proveUnit}. Every seam the gate touches is injected for determinism. */
 export interface ProveSpec {
   unitId: string;
@@ -69,6 +86,10 @@ export interface ProveSpec {
   prompts: PhasePrompts;
   /** The owned-loop run id this verdict is tied to. */
   runId: string;
+  /** ADR-0016 (optional): the binding proved — stamps verdict.boundHash + emits a ChangeEvent. Absent = unchanged. */
+  binding?: ProvenBinding;
+  /** ADR-0016 (optional): the change-log sink the emitted ChangeEvent is appended to. Absent = no emission. */
+  changeStore?: ChangeStore;
 }
 
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
@@ -163,6 +184,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     runId: spec.runId,
     evidence: [toEvidence(redObs), toEvidence(greenObs)],
     at: spec.now(),
+    ...(spec.binding !== undefined ? { boundHash: spec.binding.boundHash } : {}),
   };
 
   // The signed promotion event: healthy/proven is reachable ONLY through this append (never authored).
@@ -173,6 +195,22 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     doc: verdict,
     actor: signer.signer,
   });
+
+  // ADR-0016: record WHAT code this proof attests — a ChangeEvent advancing the unit's bound hash
+  // (provenance: the attested commit). Only when a binding AND a change-log sink are present; both are
+  // absent for every pre-ADR-0016 caller, so existing behaviour is unchanged.
+  if (spec.binding !== undefined && spec.changeStore !== undefined) {
+    const change: ChangeEvent = {
+      unitId: spec.unitId,
+      hashBefore: spec.binding.priorHash ?? spec.binding.boundHash,
+      hashAfter: spec.binding.boundHash,
+      ...(spec.binding.description !== undefined ? { description: spec.binding.description } : {}),
+      author: signer.signer,
+      at: spec.now(),
+      commitSha: tree.commitSha,
+    };
+    await spec.changeStore.appendChangeEvent(change);
+  }
 
   return { ok: true, verdict, phasesVisited: visited };
 }

@@ -53,6 +53,12 @@ export const Verdict = z
     commitSha: z.string(),
     signer: z.string(),
     runId: z.string(),
+    /**
+     * ADR-0016 binding anchor: the content-hash (hashSpan) of the proved span at sign time — what lets a
+     * verdict know WHICH code it proved, so drift is computable later. OPTIONAL for back-compat: verdicts
+     * predating ADR-0016 (and every current caller until gate-emits-change wires it) carry none.
+     */
+    boundHash: z.string().optional(),
     evidence: z.array(EvidenceRef).default([]),
     at: z.string(),
   })

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { Knowledge } from "./knowledge.js";
 import { upcast } from "./migrations.js";
+import type { ChangeEvent } from "./anchor.js";
 
 /**
  * The narrow Store seam + an in-memory implementation + a REUSABLE parity suite
@@ -62,6 +63,18 @@ export interface Store {
   readEvents(filter?: { id?: string }): Promise<StoreEvent[]>;
 }
 
+/**
+ * The binding-staleness change log (ADR-0016 §2). A SEPARATE seam from {@link Store} — a backend
+ * implements both — so the narrow doc/event store is not widened for every implementer at once (the
+ * Postgres `PgChangeStore` is a parallel follow-on, held to {@link changeStoreParitySuite}).
+ */
+export interface ChangeStore {
+  /** Append one ADR-0016 change event to the unit's change log. */
+  appendChangeEvent(change: ChangeEvent): Promise<void>;
+  /** Read change events, newest-appended last (insertion order); filter by `unitId` when given. */
+  readChangeEvents(filter?: { unitId?: string }): Promise<ChangeEvent[]>;
+}
+
 const DEFAULT_ACTOR = "system";
 
 /**
@@ -69,10 +82,11 @@ const DEFAULT_ACTOR = "system";
  * history. `appendEvent` assigns a monotonic `seq`; `upsertDoc` appends the event and updates
  * the projection together, in-process (no await between the two -> atomic for this impl).
  */
-export class InMemoryStore implements Store {
+export class InMemoryStore implements Store, ChangeStore {
   #docs = new Map<string, StoredDoc>();
   #events: StoreEvent[] = [];
   #seq = 0;
+  #changes: ChangeEvent[] = [];
 
   async upsertDoc(input: {
     id: string;
@@ -138,6 +152,16 @@ export class InMemoryStore implements Store {
   async readEvents(filter?: { id?: string }): Promise<StoreEvent[]> {
     if (filter?.id === undefined) return [...this.#events];
     return this.#events.filter((ev) => ev.id === filter.id);
+  }
+
+  async appendChangeEvent(change: ChangeEvent): Promise<void> {
+    this.#changes.push(change);
+  }
+
+  async readChangeEvents(filter?: { unitId?: string }): Promise<ChangeEvent[]> {
+    const all = [...this.#changes];
+    if (filter?.unitId === undefined) return all;
+    return all.filter((c) => c.unitId === filter.unitId);
   }
 
   #appendEventSync(e: {
@@ -315,5 +339,60 @@ export function storeParitySuite(
     await store.upsertDoc({ id: "d1", kind: "template", doc: parityFixtureDoc("d1", "to delete") });
     assert.equal(await store.deleteDoc("d1"), true, "first delete reports true");
     assert.equal(await store.deleteDoc("d1"), false, "second delete reports false");
+  });
+}
+
+/**
+ * A REUSABLE behavioural-parity suite (node:test) for any {@link ChangeStore} (ADR-0016 §2): the same
+ * bar InMemoryStore meets here and the parallel session's PgChangeStore must meet. EXPORTED on purpose.
+ */
+export function changeStoreParitySuite(
+  name: string,
+  makeStore: () => (Store & ChangeStore) | Promise<Store & ChangeStore>,
+): void {
+  const change = (unitId: string, why?: string): ChangeEvent => ({
+    unitId,
+    hashBefore: "aaaa",
+    hashAfter: "bbbb",
+    ...(why !== undefined ? { description: why } : {}),
+    author: "tester",
+    at: "2026-06-16T00:00:00.000Z",
+  });
+
+  test(`${name} change parity: empty store returns [] (never throws)`, async () => {
+    const store = await makeStore();
+    assert.deepEqual(await store.readChangeEvents(), []);
+    assert.deepEqual(await store.readChangeEvents({ unitId: "nope" }), []);
+  });
+
+  test(`${name} change parity: round-trip — event stored and read back unchanged`, async () => {
+    const store = await makeStore();
+    const c = change("unit-1");
+    await store.appendChangeEvent(c);
+    const result = await store.readChangeEvents();
+    assert.deepEqual(result, [c]);
+  });
+
+  test(`${name} change parity: filter by unitId returns only matching events`, async () => {
+    const store = await makeStore();
+    const ca = change("a", "fix a");
+    const cb = change("b", "fix b");
+    await store.appendChangeEvent(ca);
+    await store.appendChangeEvent(cb);
+    assert.deepEqual(await store.readChangeEvents({ unitId: "a" }), [ca]);
+    assert.deepEqual(await store.readChangeEvents({ unitId: "b" }), [cb]);
+    const all = await store.readChangeEvents();
+    assert.equal(all.length, 2);
+  });
+
+  test(`${name} change parity: insertion order preserved`, async () => {
+    const store = await makeStore();
+    const c1 = change("u", "first");
+    const c2 = change("u", "second");
+    const c3 = change("u", "third");
+    await store.appendChangeEvent(c1);
+    await store.appendChangeEvent(c2);
+    await store.appendChangeEvent(c3);
+    assert.deepEqual(await store.readChangeEvents({ unitId: "u" }), [c1, c2, c3]);
   });
 }
