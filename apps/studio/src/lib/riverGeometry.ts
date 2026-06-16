@@ -15,6 +15,12 @@ export interface LoopDock extends Vec2 {
   ny: number;
 }
 
+/** An obstacle the river network routes AROUND: a centre with a keep-out radius
+ *  (an island territory the river must not cut across). */
+export interface Disk extends Vec2 {
+  r: number;
+}
+
 /**
  * Where the ray from `origin` toward `toward` first crosses a closed point `loop`,
  * with the loop's OUTWARD unit normal there (oriented back toward `origin`, so for a
@@ -185,4 +191,146 @@ export function offsetCurve(curve: (t: number) => Vec2, dOf: (t: number) => numb
     out.push({ x: cur.x + nx * d, y: cur.y + ny * d });
   }
   return smoothOpenPath(out);
+}
+
+/** Perpendicular distance from `p` to the segment a→b, the foot point on the
+ *  segment, and the clamped parameter t∈[0,1] of that foot. */
+function segFoot(p: Vec2, a: Vec2, b: Vec2): { dist: number; foot: Vec2; t: number } {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby || 1e-9;
+  let t = ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const foot = { x: a.x + abx * t, y: a.y + aby * t };
+  return { dist: Math.hypot(p.x - foot.x, p.y - foot.y), foot, t };
+}
+
+/**
+ * A polyline from `a` to `b` that detours AROUND a set of obstacle keep-out disks
+ * (third-party island territories) so a river hugs the open water between islands
+ * instead of cutting across an island that is neither its source nor its
+ * destination. The worst-intruded obstacle whose nearest point lies strictly
+ * WITHIN the span is detoured first — the path is pushed out past that disk on the
+ * side it already favours (the smaller detour) — then each half is routed
+ * recursively, so a whole CLUSTER of islands is skirted one disk at a time (where
+ * `avoidanceBow`'s single bow gives up). Endpoints are preserved exactly.
+ *
+ * The detour vertex is pushed to `2·r − dist` from the centre, not just `r`: a
+ * quadratic smoothing of the returned polyline (smoothOpenPath) pulls the curve
+ * about halfway back toward the chord, so over-pushing by the intrusion keeps the
+ * SMOOTHED river clear of the disk. Deterministic — no Math.random; the degenerate
+ * "segment runs through the centre" case picks the chord's left normal, so the
+ * detour side is stable rather than coin-flipped.
+ */
+export function routeAround(a: Vec2, b: Vec2, obstacles: Disk[], maxDepth = 6): Vec2[] {
+  const worst = (p: Vec2, q: Vec2): { d: Disk; foot: Vec2; intr: number } | null => {
+    let best: { d: Disk; foot: Vec2; intr: number } | null = null;
+    for (const d of obstacles) {
+      const { dist, foot, t } = segFoot(d, p, q);
+      if (t <= 0.001 || t >= 0.999) continue; // grazes an endpoint — the neighbour span owns it
+      const intr = d.r - dist;
+      if (intr <= 0) continue; // already clear of this island
+      if (!best || intr > best.intr) best = { d, foot, intr };
+    }
+    return best;
+  };
+  const route = (p: Vec2, q: Vec2, depth: number): Vec2[] => {
+    const w = worst(p, q);
+    if (!w || depth <= 0) return [p, q];
+    const cx = w.d.x;
+    const cy = w.d.y;
+    const dist = Math.hypot(w.foot.x - cx, w.foot.y - cy);
+    let dirx: number;
+    let diry: number;
+    if (dist < 1e-6) {
+      // the segment runs through the centre — push along its left normal.
+      const sx = q.x - p.x;
+      const sy = q.y - p.y;
+      const sl = Math.hypot(sx, sy) || 1;
+      dirx = -sy / sl;
+      diry = sx / sl;
+    } else {
+      dirx = (w.foot.x - cx) / dist;
+      diry = (w.foot.y - cy) / dist;
+    }
+    const push = 2 * w.d.r - dist; // over-push so the smoothed curve still clears r
+    const wp: Vec2 = { x: cx + dirx * push, y: cy + diry * push };
+    return [...route(p, wp, depth - 1), ...route(wp, q, depth - 1).slice(1)];
+  };
+  return route(a, b, maxDepth);
+}
+
+/** A confluence-tree edge: water flows a→b carrying `flow` source tributaries
+ *  (== how many of the network's rivers share this edge — which drives its width). */
+export interface ConfluenceEdge {
+  a: Vec2;
+  b: Vec2;
+  flow: number;
+}
+
+export interface ConfluenceNet {
+  edges: ConfluenceEdge[];
+  /** For each input head (by index) the edge indices its water traverses, in
+   *  head→sink order. A downstream edge appears in EVERY head that fused into it —
+   *  that shared geometry IS the merge (tributaries braiding into one stem). */
+  routeOf: number[][];
+}
+
+/**
+ * Build a drainage/confluence tree that MERGES a set of source `heads` into a
+ * single trunk reaching `sink`. Repeatedly the two NEAREST active heads fuse at a
+ * confluence point placed downstream (their midpoint pulled `pullFrac` of the way
+ * toward the sink); the fused head carries their combined flow, and the loop
+ * continues until one trunk runs to the sink. Rivers that fuse early then share
+ * every edge below their confluence, so the network reads as tributaries braiding
+ * into a main stem — the replacement for the parallel metro lanes that read as a
+ * criss-cross tangle. Deterministic: nearest-pair ties break by index, no
+ * Math.random. Returns empty for no heads; a lone head yields one head→sink edge.
+ */
+export function confluenceTree(heads: Vec2[], sink: Vec2, pullFrac = 0.3): ConfluenceNet {
+  const edges: ConfluenceEdge[] = [];
+  const routeOf: number[][] = heads.map(() => []);
+  interface Cluster {
+    pt: Vec2;
+    flow: number;
+    members: number[];
+  }
+  let active: Cluster[] = heads.map((h, i) => ({ pt: { x: h.x, y: h.y }, flow: 1, members: [i] }));
+  const pushEdge = (from: Cluster, to: Vec2): void => {
+    const idx = edges.length;
+    edges.push({ a: from.pt, b: to, flow: from.flow });
+    for (const k of from.members) routeOf[k]?.push(idx);
+  };
+  while (active.length > 1) {
+    let bi = 0;
+    let bj = 1;
+    let bd = Infinity;
+    for (let i = 0; i < active.length; i++) {
+      const A = active[i];
+      if (!A) continue;
+      for (let j = i + 1; j < active.length; j++) {
+        const B = active[j];
+        if (!B) continue;
+        const d2 = (A.pt.x - B.pt.x) ** 2 + (A.pt.y - B.pt.y) ** 2;
+        if (d2 < bd) {
+          bd = d2;
+          bi = i;
+          bj = j;
+        }
+      }
+    }
+    const A = active[bi];
+    const B = active[bj];
+    if (!A || !B) break;
+    const midx = (A.pt.x + B.pt.x) / 2;
+    const midy = (A.pt.y + B.pt.y) / 2;
+    const m: Vec2 = { x: midx + (sink.x - midx) * pullFrac, y: midy + (sink.y - midy) * pullFrac };
+    pushEdge(A, m);
+    pushEdge(B, m);
+    active = active.filter((_, idx) => idx !== bi && idx !== bj);
+    active.push({ pt: m, flow: A.flow + B.flow, members: [...A.members, ...B.members] });
+  }
+  const root = active[0];
+  if (root) pushEdge(root, sink);
+  return { edges, routeOf };
 }

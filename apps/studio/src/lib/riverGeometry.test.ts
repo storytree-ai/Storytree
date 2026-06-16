@@ -11,6 +11,9 @@ import {
   rayPolyIntersect,
   pointInPoly,
   polyCentroid,
+  routeAround,
+  confluenceTree,
+  type Disk,
   type Vec2,
 } from './riverGeometry';
 
@@ -23,6 +26,27 @@ function coords(d: string): Vec2[] {
     const y = nums[i + 1];
     if (x !== undefined && y !== undefined) out.push({ x, y });
   }
+  return out;
+}
+
+/** Densely sample the SMOOTHED open curve through `points`, reconstructing the
+ *  exact quadratic segments smoothOpenPath emits (control = interior vertex,
+ *  on-curve points = the segment midpoints, pinned at the ends), so a test can
+ *  assert the whole CURVE — not just the polyline vertices — clears an obstacle. */
+function sampleSmoothed(points: Vec2[], per = 14): Vec2[] {
+  const n = points.length;
+  if (n < 2) return [...points];
+  const mid = (a: Vec2, b: Vec2): Vec2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const out: Vec2[] = [];
+  let start = points[0] as Vec2;
+  for (let i = 1; i <= n - 2; i++) {
+    const c = points[i] as Vec2;
+    const nxt = points[i + 1] as Vec2;
+    const end = i === n - 2 ? nxt : mid(c, nxt);
+    for (let k = 0; k <= per; k++) out.push(quadPt(start, c, end, k / per));
+    start = end;
+  }
+  if (n === 2) out.push(points[0] as Vec2, points[1] as Vec2);
   return out;
 }
 
@@ -200,5 +224,114 @@ describe('smoothOpenPath', () => {
     expect(smoothOpenPath([])).toEqual('');
     expect(smoothOpenPath([{ x: 1, y: 2 }])).toEqual('M 1.0 2.0');
     expect(smoothOpenPath([{ x: 1, y: 2 }, { x: 3, y: 4 }])).toEqual('M 1.0 2.0 L 3.0 4.0');
+  });
+});
+
+describe('routeAround', () => {
+  const dist = (p: Vec2, q: Vec2): number => Math.hypot(p.x - q.x, p.y - q.y);
+
+  it('returns the straight segment when nothing is in the way', () => {
+    expect(routeAround({ x: 0, y: 0 }, { x: 100, y: 0 }, [])).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ]);
+    // an obstacle well off to the side is ignored
+    const clear: Disk[] = [{ x: 50, y: 80, r: 20 }];
+    expect(routeAround({ x: 0, y: 0 }, { x: 100, y: 0 }, clear)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ]);
+  });
+
+  it('detours around an island straddling the line — the SMOOTHED curve clears it', () => {
+    const island: Disk[] = [{ x: 50, y: 0, r: 22 }];
+    const poly = routeAround({ x: 0, y: 0 }, { x: 100, y: 0 }, island);
+    expect(poly.length).toBeGreaterThan(2); // a waypoint was inserted
+    // endpoints preserved exactly
+    expect(poly[0]).toEqual({ x: 0, y: 0 });
+    expect(poly[poly.length - 1]).toEqual({ x: 100, y: 0 });
+    // every sample of the smoothed river stays outside the keep-out radius
+    for (const s of sampleSmoothed(poly)) {
+      expect(dist(s, { x: 50, y: 0 })).toBeGreaterThanOrEqual(22 - 0.5);
+    }
+  });
+
+  it('skirts a CLUSTER of islands (where a single bow would give up)', () => {
+    const cluster: Disk[] = [
+      { x: 30, y: 6, r: 16 },
+      { x: 60, y: -6, r: 16 },
+      { x: 85, y: 4, r: 14 },
+    ];
+    const poly = routeAround({ x: -10, y: 0 }, { x: 120, y: 0 }, cluster, 8);
+    for (const s of sampleSmoothed(poly)) {
+      for (const d of cluster) {
+        expect(dist(s, d)).toBeGreaterThanOrEqual(d.r - 1.0);
+      }
+    }
+  });
+
+  it('detours a dead-centre obstacle on a stable (deterministic) side', () => {
+    const thru: Disk[] = [{ x: 50, y: 0, r: 18 }];
+    const a = routeAround({ x: 0, y: 0 }, { x: 100, y: 0 }, thru);
+    const b = routeAround({ x: 0, y: 0 }, { x: 100, y: 0 }, thru);
+    expect(a).toEqual(b); // deterministic, not a coin flip
+    expect(a.length).toBeGreaterThan(2);
+  });
+});
+
+describe('confluenceTree', () => {
+  it('a lone head runs straight to the sink', () => {
+    const net = confluenceTree([{ x: 0, y: 0 }], { x: 0, y: 100 });
+    expect(net.edges).toHaveLength(1);
+    expect(net.edges[0]).toMatchObject({ flow: 1, b: { x: 0, y: 100 } });
+    expect(net.routeOf).toEqual([[0]]);
+  });
+
+  it('two heads fuse into one trunk to the sink', () => {
+    const net = confluenceTree([{ x: -40, y: 0 }, { x: 40, y: 0 }], { x: 0, y: 120 });
+    // two tributary edges + one trunk edge
+    expect(net.edges).toHaveLength(3);
+    const trunk = net.edges[2];
+    expect(trunk?.flow).toBe(2); // the trunk carries BOTH rivers
+    expect(trunk?.b).toEqual({ x: 0, y: 120 }); // and reaches the sink
+    // each head's route ends on the shared trunk edge (index 2)
+    expect(net.routeOf[0]?.at(-1)).toBe(2);
+    expect(net.routeOf[1]?.at(-1)).toBe(2);
+  });
+
+  it('nearby heads MERGE first, so they share every downstream edge', () => {
+    // two heads tight together on the left, one far to the right
+    const net = confluenceTree(
+      [{ x: -50, y: 0 }, { x: -46, y: 4 }, { x: 60, y: 0 }],
+      { x: 0, y: 140 },
+    );
+    const [r0, r1, r2] = net.routeOf;
+    // the two near heads (0,1) fuse before the far one (2) joins, so they share
+    // a downstream edge that head 2 does NOT traverse at that depth.
+    const shared0_1 = (r0 ?? []).filter((e) => (r1 ?? []).includes(e));
+    expect(shared0_1.length).toBeGreaterThan(0);
+    // all three meet at the final trunk into the sink
+    const root = net.edges.length - 1;
+    expect(r0?.includes(root)).toBe(true);
+    expect(r1?.includes(root)).toBe(true);
+    expect(r2?.includes(root)).toBe(true);
+    expect(net.edges[root]?.flow).toBe(3); // root carries every tributary
+  });
+
+  it('places each confluence DOWNSTREAM (closer to the sink than the midpoint)', () => {
+    const sink = { x: 0, y: 200 };
+    const net = confluenceTree([{ x: -40, y: 0 }, { x: 40, y: 0 }], sink, 0.3);
+    // the confluence point is where the two tributaries end (edges 0 and 1 .b)
+    const conf = net.edges[0]?.b;
+    expect(conf).toBeDefined();
+    // midpoint of the heads is y=0; the confluence is pulled toward the sink (y>0)
+    expect(conf!.y).toBeGreaterThan(0);
+    expect(conf!.y).toBeCloseTo(60, 5); // 0 + (200-0)*0.3
+  });
+
+  it('is deterministic and handles no heads', () => {
+    expect(confluenceTree([], { x: 0, y: 0 })).toEqual({ edges: [], routeOf: [] });
+    const args: [Vec2[], Vec2] = [[{ x: 1, y: 2 }, { x: 9, y: 3 }, { x: 4, y: 8 }], { x: 5, y: 50 }];
+    expect(confluenceTree(...args)).toEqual(confluenceTree(...args));
   });
 });

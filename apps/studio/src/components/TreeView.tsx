@@ -51,6 +51,9 @@ import {
   smoothOpenPath,
   rayPolyIntersect,
   pointInPoly,
+  routeAround,
+  confluenceTree,
+  type Disk,
   type LoopDock,
 } from '../lib/riverGeometry.js';
 import { WorldLegend } from './WorldLegend.js';
@@ -160,6 +163,7 @@ const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mout
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
 const LANE_GAP = 13; // px centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
 const LANE_WINDOW = 0.4; // fraction of each river's length over which it blends from its true dock/mouth into the shared corridor
+const MOUTH_FLARE = 14; // px offshore the merged trunk fuses before diving head-on into the single coast mouth
 
 interface CapSpot {
   cap: TreeCapability;
@@ -1185,6 +1189,14 @@ function buildWorld(
       record(only.e, only.a, coastDock(b, bary, 0.96, mouthInset));
       continue;
     }
+    if (riverMode === 'merge') {
+      // MERGE: the incoming rivers braid into ONE trunk offshore and land at a
+      // SINGLE shared mouth (the confluence inlet), instead of a fanned delta of
+      // separate mouths — so the destination reads as fed by one channel.
+      const mouth = coastDock(b, bary, 0.96, mouthInset);
+      for (const s of sources) record(s.e, s.a, mouth);
+      continue;
+    }
     // Fan a mouth per dep along the destination coast, ordered by approach angle.
     const c = b.centroid;
     const baryAng = Math.atan2(bary.y - c.y, bary.x - c.x);
@@ -1273,8 +1285,10 @@ function buildWorld(
     });
   }
 
-  // Pass C — paths: a lone river meets its mouth head-on; a co-destination group
-  // becomes parallel metro lanes (one shared bowed corridor, see laneBundle).
+  // Pass C — paths. STRANDS (default): a lone river meets its mouth head-on; a
+  // co-destination group becomes parallel metro lanes (laneBundle). MERGE: a
+  // co-destination group is fused into a CONFLUENCE TREE (tributaries braiding
+  // into one stem) and every edge is routed AROUND third-party islands.
   const edges: WorldEdge[] = [];
   const riversByDst = new Map<string, RiverRec[]>();
   for (const r of rivers) {
@@ -1282,15 +1296,91 @@ function buildWorld(
     if (list) list.push(r);
     else riversByDst.set(r.dstT.story.id, [r]);
   }
-  for (const bundle of riversByDst.values()) {
-    if (bundle.length === 1) {
-      const r = bundle[0];
-      if (!r) continue;
-      const bow = avoidanceBow(r.srcDock, r.mouth, territories, r.skip, r.seed);
-      edges.push({ ...r.edge, d: rivermouthCubic(r.srcDock, r.mouth, bow) });
-      continue;
+  // Island obstacles for the merge-mode router: each territory as a keep-out disk
+  // (its hull radius plus a margin), minus a per-route skip set (a river never
+  // avoids its OWN source or destination island).
+  const diskOf = (t: Territory): Disk => ({
+    x: t.centroid.x,
+    y: t.centroid.y,
+    r: t.radius + tuning.routeMargin,
+  });
+  const obstaclesExcept = (skip: ReadonlySet<string>): Disk[] =>
+    territories.filter((t) => !skip.has(t.story.id)).map(diskOf);
+  /** A point a short flare offshore of a coast mouth (along its outward normal),
+   *  where the merged trunk fuses before diving head-on into the single mouth. */
+  const offshore = (m: Dock): Pt => ({ x: m.x + m.nx * MOUTH_FLARE, y: m.y + m.ny * MOUTH_FLARE });
+
+  if (riverMode === 'merge') {
+    for (const bundle of riversByDst.values()) {
+      const b = bundle[0]?.dstT;
+      if (!b || bundle.length === 0) continue;
+      const mouth = bundle[0]?.mouth;
+      if (!mouth) continue;
+      const sink = offshore(mouth); // fuse just offshore, then one head-on dive
+      if (bundle.length === 1) {
+        const r = bundle[0];
+        if (!r) continue;
+        const pts = routeAround(r.srcDock, sink, obstaclesExcept(r.skip));
+        edges.push({ ...r.edge, d: smoothOpenPath([...pts, mouth]) });
+        continue;
+      }
+      const net = confluenceTree(
+        bundle.map((r) => r.srcDock),
+        sink,
+        tuning.confluencePull,
+      );
+      // Which source islands share each tree edge (for obstacle exclusion).
+      const edgeSrc: Set<string>[] = net.edges.map(() => new Set<string>());
+      bundle.forEach((r, ri) => {
+        for (const ei of net.routeOf[ri] ?? []) edgeSrc[ei]?.add(r.srcT.story.id);
+      });
+      // Route each tree edge around third-party islands ONCE, so the rivers and
+      // the fat trunk that covers them share identical geometry on shared edges.
+      const routed: Pt[][] = net.edges.map((e, ei) => {
+        const skip = new Set<string>([b.story.id, ...(edgeSrc[ei] ?? [])]);
+        return routeAround(e.a, e.b, obstaclesExcept(skip));
+      });
+      const rootIdx = net.edges.length - 1;
+      // Each river: its head→sink chain of routed edges, then the head-on mouth.
+      bundle.forEach((r, ri) => {
+        const chain: Pt[] = [r.srcDock];
+        for (const ei of net.routeOf[ri] ?? []) {
+          const seg = routed[ei] ?? [];
+          for (let k = 1; k < seg.length; k++) {
+            const p = seg[k];
+            if (p) chain.push(p);
+          }
+        }
+        chain.push(mouth); // chain ends offshore at `sink`; dive into the mouth
+        edges.push({ ...r.edge, d: smoothOpenPath(chain) });
+      });
+      // Confluence TRUNK stubs (flow ≥ 2) fatten the shared stems — drawn last so
+      // a fat fused channel covers the base-width tributaries braiding into it.
+      net.edges.forEach((e, ei) => {
+        if (e.flow < 2) return;
+        const seg = [...(routed[ei] ?? [e.a, e.b])];
+        if (ei === rootIdx) seg.push(mouth); // the root trunk reaches the coast
+        edges.push({
+          from: b.story.id,
+          to: `${b.story.id}#conf-${ei}`,
+          via: [],
+          d: smoothOpenPath(seg),
+          flow: e.flow,
+          kind: 'trunk',
+        });
+      });
     }
-    edges.push(...laneBundle(bundle, territories));
+  } else {
+    for (const bundle of riversByDst.values()) {
+      if (bundle.length === 1) {
+        const r = bundle[0];
+        if (!r) continue;
+        const bow = avoidanceBow(r.srcDock, r.mouth, territories, r.skip, r.seed);
+        edges.push({ ...r.edge, d: rivermouthCubic(r.srcDock, r.mouth, bow) });
+        continue;
+      }
+      edges.push(...laneBundle(bundle, territories));
+    }
   }
 
   // Merge mode — emit the shared TRUNK stubs LAST (drawn on top within each water
@@ -1301,21 +1391,15 @@ function buildWorld(
     for (const group of riversBySrc.values()) {
       const r0 = group[0];
       if (!r0 || group.length < 2 || !r0.outDock) continue;
-      const out = r0.outDock;
-      const tip = r0.srcDock;
-      // Bow the trunk around any island sitting in its corridor (it runs most of
-      // the way to the destinations, so it can't be assumed straight-and-clear).
+      // Route the source trunk (shore dock → offshore tip) around any island in
+      // its corridor, the same router the confluence edges use.
       const skip = new Set<string>([r0.srcT.story.id, ...group.map((r) => r.dstT.story.id)]);
-      const bow = avoidanceBow(out, tip, territories, skip, hash(`trunk:${r0.srcT.story.id}`));
-      const tx = tip.x - out.x;
-      const ty = tip.y - out.y;
-      const tl = Math.hypot(tx, ty) || 1;
-      const ctrl: Pt = { x: (out.x + tip.x) / 2 - (ty / tl) * bow, y: (out.y + tip.y) / 2 + (tx / tl) * bow };
+      const pts = routeAround(r0.outDock, r0.srcDock, obstaclesExcept(skip));
       edges.push({
         from: r0.srcT.story.id,
         to: `${r0.srcT.story.id}#trunk`,
         via: [],
-        d: smoothOpenPath([out, ctrl, tip]),
+        d: smoothOpenPath(pts),
         flow: group.length,
         kind: 'trunk',
       });
@@ -1340,8 +1424,11 @@ function buildWorld(
       if (!pond) continue;
       inland.ponds.push({ story: dstId, d: smoothLoopPath(pond.loop), loop: pond.loop });
       // Each incoming river continues from its coast mouth to the pond rim,
-      // meeting it head-on (rivermouthCubic + the rim's outward normal).
-      for (const r of bundle) {
+      // meeting it head-on (rivermouthCubic + the rim's outward normal). In merge
+      // mode the bundle shares ONE mouth, so ONE channel feeds the pond (not N
+      // identical strands stacked on top of each other).
+      const feeders = riverMode === 'merge' ? bundle.slice(0, 1) : bundle;
+      for (const r of feeders) {
         const dock = rayPolyIntersect(r.mouth, pond.center, pond.loop);
         if (!dock) continue;
         inland.channels.push({
@@ -1960,14 +2047,23 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 
 // ---------- river network mode (VISUAL SPIKE, flag-gated, ADR-pending) ----------
 //
-// The default world still draws one strand per dependency edge (`?rivers=strands`,
-// the pre-spike behaviour). `?rivers=merge` collapses each SOURCE island's outgoing
-// fan into one shared TRUNK that branches only after it has left the shore — the
-// fix for the "library starburst" (a heavily-depended island spraying a dozen
-// near-parallel strands). `?moat=off` drops the island water RING and seats river
-// mouths further onto the beach so they meet land cleanly without the moat to hide
-// the seam. Live knobs (`?trunkFrac=`, `?trunkW=`, `?mouthInset=`) let the owner
-// dial the look in without a rebuild, exactly like the substrate spike.
+// The default world draws one strand per dependency edge, and co-destination
+// strands run as parallel METRO LANES (`?rivers=strands`, the pre-spike behaviour).
+// `?rivers=merge` reworks the network so it BRAIDS and MERGES instead of running
+// parallel:
+//   • each SOURCE island's outgoing fan collapses into one shared TRUNK (fixes the
+//     "library starburst" — a heavily-depended island spraying a dozen strands);
+//   • each DESTINATION's incoming rivers fuse into a CONFLUENCE TREE (nearest
+//     tributaries join first, braiding into one stem that lands at a single shared
+//     mouth) instead of parallel lanes — the core fix for the mid-map tangle;
+//   • every channel is ROUTED AROUND any third-party island (routeAround), so a
+//     river hugs the open water between islands and never cuts across an island
+//     that is neither its source nor its destination (where avoidanceBow's single
+//     bow gave up on clusters).
+// `?moat=off` drops the island water RING and seats river mouths further onto the
+// beach so they meet land cleanly without the moat to hide the seam. Live knobs
+// (`?trunkFrac=`, `?trunkW=`, `?mouthInset=`, `?confluencePull=`, `?routeMargin=`)
+// let the owner dial the look in without a rebuild, exactly like the substrate spike.
 type RiverMode = 'strands' | 'merge';
 
 // Inland water (VISUAL SPIKE, flag-gated). The default world rings each island in a
@@ -1992,9 +2088,22 @@ interface RiverTuning {
   /** px a river mouth sits inside the coast when the moat is OFF (so the tip lands
    *  on the beach, not floating past the shore the moat used to cover). */
   mouthInset: number;
+  /** How far toward the destination a confluence sits, as a fraction of the
+   *  midpoint→sink distance (`?rivers=merge`). Lower = tributaries fuse EARLIER and
+   *  share a longer trunk (more braid); higher = they fuse late (more parallel). */
+  confluencePull: number;
+  /** px a routed river keeps clear of a third-party island's hull (radius) when
+   *  skirting it. Higher = wider berth; lower = threads tighter gaps. */
+  routeMargin: number;
 }
 
-const RIVER_TUNING: RiverTuning = { trunkFrac: 0.78, trunkW: 1, mouthInset: 7 };
+const RIVER_TUNING: RiverTuning = {
+  trunkFrac: 0.78,
+  trunkW: 1,
+  mouthInset: 7,
+  confluencePull: 0.26,
+  routeMargin: 20,
+};
 
 /** Per-water-layer stroke width as a function of flow load (merged trunks). flow=1
  *  reproduces the CSS defaults so member strands are unchanged; trunks fatten. */
@@ -2043,9 +2152,13 @@ function readRiverTuning(): RiverTuning {
   const tf = num('trunkFrac');
   const tw = num('trunkW');
   const mi = num('mouthInset');
+  const cp = num('confluencePull');
+  const rm = num('routeMargin');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
+  if (cp !== null) out.confluencePull = Math.max(0, Math.min(1, cp));
+  if (rm !== null) out.routeMargin = Math.max(0, rm);
   return out;
 }
 
