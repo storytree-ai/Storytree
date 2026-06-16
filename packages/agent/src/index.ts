@@ -40,6 +40,9 @@ export {
   composeLeafSystemPrompt,
 } from "./sdk-author.js";
 
+export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";
+export { runSdkCurator } from "./sdk-curator.js";
+
 export type { WriteToolSpec } from "./fs-tools.js";
 export {
   FileToolExecutor,

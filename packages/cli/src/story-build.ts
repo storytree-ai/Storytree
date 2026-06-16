@@ -39,8 +39,16 @@ import {
   resolveDbProofEnv,
   resolveVerdictStore,
 } from "./node-build.js";
+import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/store";
+
 import { loadAdrMetas } from "./adr-health.js";
-import { CURATOR_ACTOR, ScriptedCuratorRunner, runCurationPass } from "./curate.js";
+import {
+  CURATOR_ACTOR,
+  ScriptedCuratorRunner,
+  SdkCuratorRunner,
+  renderCuratorPrompt,
+  runCurationPass,
+} from "./curate.js";
 import type { CommentSink, CuratorRunner } from "./curate.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
@@ -105,6 +113,65 @@ function honestFramingStoryReal(persisted: boolean, promotion: PromotionResult |
       ? "\nThe signed verdicts PERSISTED to the shared store (events.verdict — the rollup derives each\nnode's status across sessions)."
       : "\nThe verdicts landed in an in-memory store and are gone.")
   );
+}
+
+/**
+ * ADR-0067 — the LIVE curation pass for `--live`/`--real`: spawn the SDK librarian-curator against
+ * the live library + comment stores. Entirely best-effort: it opens its OWN pool (the verdict store
+ * keeps its own), renders the agent from the seed, runs ONE read-only SDK session, enacts kind-fenced
+ * — and any failure (unrenderable agent, unreachable store, SDK error) returns a single `skipped`
+ * line, NEVER a thrown build. Curation runs only after the gate has already signed green.
+ */
+async function runLiveCuration(
+  story: NodeSpec,
+  driveOrder: NodeSpec[],
+  rootDir: string,
+  model: string | undefined,
+): Promise<string[]> {
+  const prompt = await renderCuratorPrompt();
+  if (!prompt.ok) {
+    return [`curation:    skipped — could not render the librarian-curator agent (${prompt.reason})`];
+  }
+  let pool: Awaited<ReturnType<typeof createPool>>["pool"];
+  let connector: Awaited<ReturnType<typeof createPool>>["connector"];
+  try {
+    ({ pool, connector } = await createPool());
+  } catch (e) {
+    return [`curation:    skipped — live store unreachable (${(e as Error).message})`];
+  }
+  try {
+    let curatorCostUsd = 0;
+    const runner = new SdkCuratorRunner({
+      systemPrompt: prompt.systemPrompt,
+      ...(model !== undefined ? { model } : {}),
+      onResult: (r) => {
+        curatorCostUsd += r.costUsd;
+      },
+    });
+    let adrs: AdrMeta[] = [];
+    try {
+      adrs = loadAdrMetas(path.join(rootDir, "docs", "decisions")).adrs;
+    } catch {
+      adrs = [];
+    }
+    const lines = await runCurationPass({
+      runner,
+      library: new PgLibraryStore(pool),
+      comments: new PgCommentStore(pool),
+      context: {
+        storyId: story.id,
+        nodeIds: driveOrder.map((n) => n.id),
+        decisions: story.decisions,
+        adrs,
+      },
+      actor: CURATOR_ACTOR,
+    });
+    return curatorCostUsd > 0
+      ? [...lines, `             curator spend: $${curatorCostUsd.toFixed(4)} SDK-reported`]
+      : lines;
+  } finally {
+    await closePool(pool, connector);
+  }
 }
 
 export interface StoryBuildOpts {
@@ -630,35 +697,42 @@ export async function storyBuild(
     // holds: curation happens AFTER the gate signed). Dry-run exercises the GLUE against an in-memory
     // library store; --live/--real defer to the live SDK curator (follow-up slice) unless stores are
     // injected. A scoped librarian-curator judges the story's open-questions / proposals.
-    const curationLibrary: Store | null =
-      opts.curationStores?.library !== undefined
-        ? opts.curationStores.library
-        : mode === "dry-run"
-          ? new InMemoryStore()
-          : null;
-    // Load the ADR context ONLY when there is a library to curate (a deferred run never uses it), and
-    // best-effort: a `--real` build runs in a fixture/worktree repo that may have no docs/decisions —
-    // a missing dir means no ADR context, never a thrown build.
-    let curationAdrs: AdrMeta[] = [];
-    if (curationLibrary !== null) {
-      try {
-        curationAdrs = loadAdrMetas(opts.decisionsDir ?? path.join(rootDir, "docs", "decisions")).adrs;
-      } catch {
-        curationAdrs = [];
+    let curationLines: string[];
+    const curationInjected = opts.curationStores !== undefined || opts.curatorRunner !== undefined;
+    if (!curationInjected && (live || real)) {
+      // Live/real default: the SDK-spawned librarian-curator against the live library/comment stores.
+      curationLines = await runLiveCuration(story, driveOrder, rootDir, opts.model);
+    } else {
+      // Dry-run default exercises the GLUE against a fresh in-memory store; tests inject the stores +
+      // a scripted/SDK runner. Load the ADR context only when there is a library (best-effort: a
+      // fixture repo may have no docs/decisions — a missing dir is no ADR context, never a throw).
+      const curationLibrary: Store | null =
+        opts.curationStores?.library !== undefined
+          ? opts.curationStores.library
+          : mode === "dry-run"
+            ? new InMemoryStore()
+            : null;
+      let curationAdrs: AdrMeta[] = [];
+      if (curationLibrary !== null) {
+        try {
+          curationAdrs = loadAdrMetas(opts.decisionsDir ?? path.join(rootDir, "docs", "decisions")).adrs;
+        } catch {
+          curationAdrs = [];
+        }
       }
+      curationLines = await runCurationPass({
+        runner: opts.curatorRunner ?? new ScriptedCuratorRunner(),
+        library: curationLibrary,
+        comments: opts.curationStores?.comments ?? null,
+        context: {
+          storyId: story.id,
+          nodeIds: driveOrder.map((n) => n.id),
+          decisions: story.decisions,
+          adrs: curationAdrs,
+        },
+        actor: CURATOR_ACTOR,
+      });
     }
-    const curationLines = await runCurationPass({
-      runner: opts.curatorRunner ?? new ScriptedCuratorRunner(),
-      library: curationLibrary,
-      comments: opts.curationStores?.comments ?? null,
-      context: {
-        storyId: story.id,
-        nodeIds: driveOrder.map((n) => n.id),
-        decisions: story.decisions,
-        adrs: curationAdrs,
-      },
-      actor: CURATOR_ACTOR,
-    });
 
     if (storyWithheld) {
       return {
