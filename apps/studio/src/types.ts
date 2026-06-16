@@ -298,6 +298,16 @@ export type WorkStatus =
   | 'retired';
 
 /**
+ * Binding-staleness drift state (ADR-0016 §3 `DriftState`, mirrored locally like {@link WorkStatus}):
+ * `fresh` (the proved span's hash is unchanged), `stale` (it changed AND a described change explains
+ * it → re-prove THIS unit), `drifted-undescribed` (changed but unexplained → DEMOTED, audit-only,
+ * never a re-UAT trigger). Drift is a SEPARATE dimension from {@link WorkStatus}: it rides ALONGSIDE
+ * the proven hue and never replaces it (ADR-0040 §7 — a once-green unit that drifts stays green AND
+ * wears a distinct stale marker; never a silent green→brown reversion).
+ */
+export type DriftState = 'fresh' | 'stale' | 'drifted-undescribed';
+
+/**
  * The latest signed verdict for a unit, read from `events.verdict` when the studio
  * runs on the live pg store and the DB answers — SILENTLY ABSENT otherwise
  * (ADR-0033 owner decision 3 semantics: ✓ proven / ✗ last run failed / – never
@@ -322,6 +332,13 @@ export interface TreeCapability {
   /** Sibling capability ids this one depends on (the in-story `depends_on` edges). */
   dependsOn: string[];
   verdict?: TreeVerdict;
+  /**
+   * Binding-staleness drift of the code this unit's proof was signed against (ADR-0016 §3), present
+   * only when the live store carries the unit's anchor + change log (the data-wiring is a deferred
+   * slice; absent today). It rides ALONGSIDE `status`/`verdict`, never replacing them — see
+   * `worldStatus.driftBadge`.
+   */
+  drift?: DriftState;
   error?: string;
 }
 
@@ -342,6 +359,8 @@ export interface TreeStory {
   dependsOn: string[];
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
+  /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
+  drift?: DriftState;
   capabilities: TreeCapability[];
   error?: string;
 }
