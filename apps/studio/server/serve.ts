@@ -102,6 +102,37 @@ export interface StudioServerOptions {
    * metadata-token waker; tests inject a stub. Absent → /api/db/wake answers 404.
    */
   dbWake?: DbWaker | undefined;
+  /** Membership-resolution deadline; absent → MEMBERS_RESOLVE_TIMEOUT_MS. Tests shorten it. */
+  membersResolveTimeoutMs?: number | undefined;
+}
+
+/**
+ * Membership resolution reads the live store. If the DB is idle-stopped, the Cloud SQL connector
+ * handshake can HANG for minutes rather than fail fast — so without a deadline `GET /api/me` never
+ * answers and the SPA sits on "Resolving access…" indefinitely (it never reaches the storeUnreachable
+ * banner the fast-fail path produces). This bounds the wait; on expiry it rejects with a
+ * connection-shaped error (message carries "timeout", which `isConnectionError` matches) so the caller
+ * degrades exactly like a refused connection. Kept under the client's /api/me abort (api.ts, 10s) so
+ * the server answers with the wake banner before the browser gives up.
+ */
+const MEMBERS_RESOLVE_TIMEOUT_MS = 5_000;
+
+/** Reject with a timeout error if `p` hasn't settled within `ms`; never leaves a dangling rejection. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    timer.unref?.(); // a hung DB attempt must not keep the process alive
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
+  });
 }
 
 /**
@@ -113,6 +144,7 @@ export interface StudioServerOptions {
 export function createStudioServer(opts: StudioServerOptions): Server {
   const codeStamp = opts.codeStamp ?? (async (): Promise<CodeStamp | null> => null);
   const invites = opts.invites ?? disabledInviteMailer();
+  const membersResolveTimeoutMs = opts.membersResolveTimeoutMs ?? MEMBERS_RESOLVE_TIMEOUT_MS;
   return createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     void (async () => {
@@ -125,11 +157,16 @@ export function createStudioServer(opts: StudioServerOptions): Server {
           policy = createMembersPolicy(null, null);
         } else {
           try {
-            const access = await resolveMembersAccess(opts.backend, identity, opts.admins);
+            const access = await withTimeout(
+              resolveMembersAccess(opts.backend, identity, opts.admins),
+              membersResolveTimeoutMs,
+              'membership resolution',
+            );
             policy = createMembersPolicy(identity, access);
           } catch (err) {
             if (isConnectionError(err)) {
-              // Store down: a seed admin may still wake it (the degraded policy authorizes the
+              // Store down (refused) OR wedged (the timeout above, which `isConnectionError` matches
+              // on "timeout"): a seed admin may still wake it (the degraded policy authorizes the
               // wake off the env seed — membership can't be resolved to do it from the projection).
               policy = createDegradedPolicy(identity, opts.admins);
             } else {

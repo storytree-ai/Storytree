@@ -565,4 +565,44 @@ describe('store outage degrades to health/me only', () => {
       await new Promise<void>((resolve, reject) => down.close((e) => (e ? reject(e) : resolve())));
     }
   });
+
+  it('a backend whose user-listing HANGS degrades (not wedges /api/me) via the resolution deadline', async () => {
+    // The idle-stopped-DB trap behind the eternal "Resolving access…": the Cloud SQL connector
+    // handshake HANGS rather than refusing, so listUsers never settles. Without the membership
+    // deadline (serve.ts), /api/me would never answer and the SPA would spin forever. With it, a
+    // seed admin still gets storeUnreachable + canWakeDb — fast — so the wake banner appears.
+    const hangBackend: LibraryBackend = {
+      ...stubBackend,
+      listUsers: () => new Promise<never>(() => {}), // never resolves — the handshake hang
+    };
+    const hung = createStudioServer({
+      distDir,
+      paths: {
+        repoRoot: distDir,
+        docsDir: path.join(distDir, 'docs'),
+        storiesDir: path.join(distDir, 'stories'),
+        dataDir: distDir,
+        commentsFile: path.join(distDir, 'comments.json'),
+        assetsFile: path.join(distDir, 'assets.json'),
+        usersFile: path.join(distDir, 'users.json'),
+        attestationsFile: path.join(distDir, 'attestations.json'),
+      },
+      backend: hangBackend,
+      admins: parseSeedAdmins(ADMIN),
+      dbWake: stubWaker,
+      membersResolveTimeoutMs: 50, // short deadline → deterministic, fast test
+    });
+    await new Promise<void>((resolve) => hung.listen(0, '127.0.0.1', resolve));
+    const hbase = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;
+    try {
+      const started = Date.now();
+      const me = await fetch(`${hbase}/api/me`, { headers: iap(ADMIN) });
+      expect(me.status).toBe(200);
+      expect(await me.json()).toMatchObject({ storeUnreachable: true, canWakeDb: true });
+      // Proves it degraded on the deadline rather than blocking on the never-settling listUsers.
+      expect(Date.now() - started).toBeLessThan(2_000);
+    } finally {
+      await new Promise<void>((resolve, reject) => hung.close((e) => (e ? reject(e) : resolve())));
+    }
+  });
 });

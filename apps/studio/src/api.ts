@@ -88,7 +88,11 @@ export const api = {
 
   // Members (app-owned users, ADR-0043). /api/me is the one endpoint a non-member may reach;
   // /api/users is admin-only (the server enforces; the panel is also hidden for members).
-  me: (): Promise<MeInfo> => http('/api/me'),
+  // Same 10s abort backstop as health/presence/activity: resolving membership reads the live
+  // store, so an idle-stopped DB can wedge the request — without this the SPA sits on "Resolving
+  // access…" forever instead of surfacing the error/wake path. The server degrades sooner (see
+  // serve.ts MEMBERS_RESOLVE_TIMEOUT_MS), so the happy outcome is a storeUnreachable banner, not this.
+  me: (): Promise<MeInfo> => http('/api/me', { signal: AbortSignal.timeout(10_000) }),
 
   // Per-UAT-test attestations (ADR-0044). GET is member-readable; POST (record) is admin-only
   // (the server stamps the signer from the verified identity — the client `signer` is ignored).
