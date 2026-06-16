@@ -14,6 +14,14 @@ where provable web logic physically lives) is recommended here but surfaced as O
 for the owner to confirm before the home story (`stories/website`) is authored by the `story-author`
 role. Nothing is built by this ADR; it decides the shape.
 
+**Refined 2026-06-17** — the owner set the **content register** (Open call #6, now RESOLVED): the
+load-bearing facts/claims become **citable library artifacts cited via native library-id references**,
+and the explainer **prose stays hand-authored in the repo** in its crafted public voice. The more
+ambitious option floated this session — lifting the public copy into a new `narrative` library *kind*
+so the site renders its pages from the library — was weighed and **declined**: keep the library a
+*knowledge* tier (doctrine register) rather than a marketing-copy store, and keep the site's voice
+human. Decision 4 below is sharpened accordingly.
+
 ## Context
 
 The public website — **`storytree-web`**, a separate *public* repo vendored as the (uninitialised)
@@ -103,16 +111,29 @@ materials is routed to the proof that fits it. Concretely:
    via a parent gate that runs the web tests at submodule-bump time, *or* keep the site logic-light
    and forgo engine-proving — are weaker on the "inner loop" ask; weighed in Open call #1.)
 
-4. **Content → generated-from-source + drift gates (the real anti-staleness fix).** Generate the
-   load-bearing content from the live system and gate its drift parent-side, exactly as
-   [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) /
-   [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md) do for CLAUDE.md and
-   the agent files: derive `roadmap.json` from real story statuses (`storytree tree`) with a
-   `check:web-roadmap` that reddens on drift, and **extend `data-grounds` to resolve library-ids** (the
-   follow-up [ADR-0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) named) so
-   claims can cite principles / capabilities, not just ADRs. Generation widens the *cited* surface;
-   the gate keeps it honest. Authoring these gates is itself inner-loop-shaped (gate-as-proof, the
-   ADR-0057 E pattern) — the check is the proof.
+4. **Content → corpus-grounded, drift-gated; prose stays human (the real anti-staleness fix).** The
+   owner's register call (§Status, 2026-06-17) scopes this to **facts and structure, not prose**.
+   Three moves, all the existing generated-view + drift-gate pattern
+   ([ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) /
+   [ADR-0052](0052-render-delegatable-agents-to-claude-agents-subagent-files.md)) pointed parent-side:
+   - **(a) Load-bearing claims get a citable library home.** Each factual claim the site stands on
+     resolves to an *existing* doctrine artifact (a `principle` / `definition` / ADR) where one exists,
+     or is authored as the appropriate **existing kind** where it doesn't — **no new `narrative` /
+     copy kind** (the declined option). The library stays doctrine-pure.
+   - **(b) Grounding becomes a native library edge.** Extend the `data-grounds` gate
+     ([`check-web-grounding.ts`](../../packages/cli/src/check-web-grounding.ts)) to resolve library
+     `asset:` ids against the live library — not just `ADR-NNNN` — the follow-up
+     [ADR-0056](0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md) named. A cited
+     unit that goes missing or is retired reddens the gate; the **prose itself stays hand-authored in
+     the repo**, citing these ids, in the site's public voice.
+   - **(c) The roadmap is generated from the story tier.** `roadmap.json` becomes a projection of the
+     real story DAG + statuses (public subset) behind a `check:web-roadmap` drift gate — the sharpest
+     drift-kill, and literally the corpus rendering itself.
+
+   Generation widens the *grounded* surface and the gate keeps it honest; the crafted explainer copy
+   remains a human deliverable (Decision 5). Authoring these gates is itself inner-loop-shaped
+   (gate-as-proof, the [ADR-0057](0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+   E pattern) — the check is the proof.
 
 5. **Visual / copy / design stay human + orchestrator — explicitly fenced.** The Astro pages, the
    prose register (the constitution is rendered byte-for-byte verbatim by owner standing rule), and the
@@ -187,9 +208,12 @@ Surfaced rather than guessed — the load-bearing forks this design leaves open.
    inner-loop engine machinery is homed)? Direction per
    [ADR-0058](0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md), settled when the
    story is authored.
-6. **Generation register — how much copy is generated vs. hand-authored?** Decision 4 scopes generation
-   to structured content (roadmap, cited claims) and leaves prose human. Confirm that line, or push
-   generation deeper into the explainer copy (at the cost of voice).
+6. **RESOLVED (owner, 2026-06-17).** Generation register: **facts/claims only.** The load-bearing
+   claims become citable library artifacts cited via native library-id references, and the public
+   roadmap is generated from the story tier; the explainer **prose stays hand-authored in the repo**.
+   The more ambitious option — lifting the public copy into a new `narrative` library *kind* and
+   rendering the site's pages from the library — was weighed and **declined** (keep the library a
+   knowledge tier, not a copy store; protect the crafted voice). Folded into Decision 4 (a/b/c).
 
 ## References
 
