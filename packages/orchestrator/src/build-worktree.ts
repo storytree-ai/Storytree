@@ -325,9 +325,11 @@ export function platformShellCommand(
  */
 async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<void> {
   for (const group of groups) {
+    // Canonical filter form: `pnpm --filter <pkg> add …` (the filter selects the package the `add`
+    // command runs in). `--prefer-offline` hard-links specs already in the shared store.
     const cmd = platformShellCommand({
       file: "pnpm",
-      args: ["add", "--filter", group.packageName, "--prefer-offline", ...group.deps],
+      args: ["--filter", group.packageName, "add", "--prefer-offline", ...group.deps],
       cwd: root,
     });
     await new Promise<void>((resolve, reject) => {
@@ -342,7 +344,7 @@ async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<voi
           }
           reject(
             new Error(
-              `pnpm add ${group.deps.join(" ")} --filter ${group.packageName} failed: ${error.message}\n${stderr}`,
+              `pnpm --filter ${group.packageName} add ${group.deps.join(" ")} failed: ${error.message}\n${stderr}`,
               { cause: error },
             ),
           );
