@@ -167,6 +167,36 @@ An edit/write tool can return success without the content landing on disk (files
 
 First locate your write surface. On the **live SDK leaf**, the SDK's Write/Edit handle persistence and there is no shell fallback to slip into (Bash is not in the leaf tool surface) — the gate's downstream re-read is your backstop, so this principle is a non-mandate there. On the **owned-loop file tools** (`fs-tools.ts`), or any path where you issue the write and own the read-back, apply it directly. Contract-bearing = any write whose persistence your return summary implicitly claims (the discriminator: would my summary lie if this file were not on disk?) — source files, test scaffolds, evidence rows, schema changes, spec amendments; throwaway scratch is out of scope. Issue the write, immediately read the path, verify the read reflects the intent. On failure (unchanged/absent/truncated/pre-call content): do NOT silently fall back; record an assumption-violation in your return (`{ briefed, observed, severity }`) the orchestrator parses programmatically; only after that record exists is a fallback (e.g. a heredoc) permitted as recovery. The contract pinned is the visibility of the failure, not the success of the recovery.
 
+### Pair the fence with the affordance  [pattern]
+**The pattern.** Every affordance granted to an agent — a tool, a command, a permitted move — ships with its matching fence: at least one explicit condition under which the agent should NOT take it, co-located with the grant.
+
+## Problem
+
+Guidance written as a bare affordance over-fires. An agent told only when to reach for a tool has no signal for when to withhold it, so it fires on weak matches; the boundary, if it exists at all, lives in a distant 'when not to' section that drifts out of sync with the grant.
+
+## Approach
+
+This is the concrete authoring move behind `guidance-quality`'s 'fence': do not state an affordance without its negative space, and keep the two adjacent. A CLI line, tool grant, or permitted move is incomplete until it names the condition(s) under which the agent must not take it. The discipline is visible across well-built tool prompts, where nearly every 'when to use' carries a paired 'when NOT to use'.
+
+## Tradeoffs
+
+You trade brevity — each affordance gets a clause longer — for precision: fewer false fires and a boundary that cannot drift away from the thing it bounds. A fence kept in a separate section reads cleaner but rots; co-location is the cost of keeping it true.
+
+### An example carries its discriminator  [pattern]
+**The pattern.** A worked example earns its place only when it carries the discriminating rationale — why the shown move is right and the tempting alternative is wrong; an example without that rationale teaches surface mimicry, not the rule.
+
+## Problem
+
+Examples that show only the correct action let an agent pattern-match the incidentals instead of the principle, so it fails to generalise to the cases the example did not enumerate — and may copy the example's irrelevant specifics. A worked case is high-attention real estate spent without buying discriminatory power.
+
+## Approach
+
+Use the `input -> action -> rationale` shape, where the rationale states the discriminating reason (why A, not B). Reserve examples for the judgement calls agents actually miss — `signal-and-noise` says spend the attention where discriminatory power is highest. The rationale line, not the action, is the part that transfers.
+
+## Tradeoffs
+
+You trade the effort of articulating the discriminator precisely against examples that look instructive but do not transfer — and against burning attention on cases the agent already gets right.
+
 ## Anti-patterns — failure modes you must refuse
 
 ### The live store is the edit surface  [guardrail]
