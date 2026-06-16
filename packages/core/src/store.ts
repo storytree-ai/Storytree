@@ -344,11 +344,18 @@ export function storeParitySuite(
 
 /**
  * A REUSABLE behavioural-parity suite (node:test) for any {@link ChangeStore} (ADR-0016 §2): the same
- * bar InMemoryStore meets here and the parallel session's PgChangeStore must meet. EXPORTED on purpose.
+ * bar InMemoryStore meets here and packages/store's PgChangeStore must meet. EXPORTED on purpose —
+ * `change-event-store.test.ts` runs it for InMemoryStore and `pg-change-store.test.ts` runs it for
+ * PgChangeStore (over a fake pg client offline, the real pool when live-gated).
+ *
+ * Takes a bare {@link ChangeStore} (not `Store & ChangeStore`): the suite exercises ONLY the change
+ * log (`appendChangeEvent`/`readChangeEvents`), so a backend that implements `ChangeStore` alone —
+ * like PgChangeStore, the change log's dedicated Postgres home — can be held to the same bar without
+ * also being a full doc/event {@link Store}.
  */
 export function changeStoreParitySuite(
   name: string,
-  makeStore: () => (Store & ChangeStore) | Promise<Store & ChangeStore>,
+  makeStore: () => ChangeStore | Promise<ChangeStore>,
 ): void {
   const change = (unitId: string, why?: string): ChangeEvent => ({
     unitId,

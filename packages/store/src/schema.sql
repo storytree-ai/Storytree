@@ -138,6 +138,28 @@ CREATE TABLE IF NOT EXISTS events.attestation (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Binding-staleness change log (ADR-0016 §2, the `change` event the ADR adds to the vocabulary):
+-- one append-only row per described/undescribed change to a proof unit's bound code, the Postgres
+-- home for the `ChangeStore` seam (@storytree/core). The full signed-shape ADR-0016 `ChangeEvent`
+-- lives in `doc` (so a read round-trips it byte-for-byte, including an absent description/commitSha);
+-- the scalar columns are the queryable spine. `seq` is the TRANSACTION-time order the change log is
+-- read back in; `at` defaults to the insertion wall-clock — the doc's own `at` is the VALID-time
+-- (ADR-0016 §5 bitemporal) and is NOT necessarily a timestamp (the `storytree drift` CLI uses opaque
+-- ordering strings), so it stays inside the JSONB doc, never a TIMESTAMPTZ column. Append-only /
+-- additive: never alters the tables above; the latest-per-unit projection is a deferred optimization
+-- (the contract `readChangeEvents` returns the full log, which `classifyDrift` consumes).
+CREATE TABLE IF NOT EXISTS events.change_event (
+  seq         BIGSERIAL PRIMARY KEY,
+  unit_id     TEXT NOT NULL,
+  hash_before TEXT NOT NULL,
+  hash_after  TEXT NOT NULL,
+  description TEXT,                  -- present + non-blank ⇒ DESCRIBED (drift); absent ⇒ demoted
+  author      TEXT NOT NULL,
+  commit_sha  TEXT,                  -- PROVENANCE only — a pointer to the diff, never the drift driver
+  doc         JSONB NOT NULL,        -- the full ADR-0016 ChangeEvent (valid-time `at` lives inside)
+  at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ADR-number allocator (ADR-0050): hand out the next ADR number ATOMICALLY so two parallel sessions
 -- can't pick the same one (the recurring collision the `storytree adr new` command + the CI dup gate
 -- close). Append-only allocation log — one row per number ever handed out (slug/branch/actor for the
@@ -162,3 +184,4 @@ CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
 CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
 CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
+CREATE INDEX IF NOT EXISTS change_event_unit_idx ON events.change_event (unit_id);
