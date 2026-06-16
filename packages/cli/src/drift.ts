@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs";
 import {
   hashSpan,
   classifyDrift,
+  Anchor,
   type ChangeEvent,
   type DriftFlag,
   type DriftState,
+  type Store,
+  type ChangeStore,
 } from "@storytree/core";
 
 import type { Envelope } from "./envelope.js";
@@ -152,4 +155,47 @@ export function driftHelp(): Envelope {
     ].join("\n"),
     next: ['storytree drift --file <path> --bound <hash> --change "<why>"'],
   };
+}
+
+/**
+ * `storytree drift <unit>` (ADR-0016): the STORE-reading drift surface. Reads the unit's stored
+ * {@link Anchor} (kind `"anchor"`, id = the unit id) and its change log, re-fingerprints the bound file
+ * with {@link hashSpan}, and classifies via the same {@link classifyDrift} + {@link driftEnvelope} the
+ * flag-driven {@link runDrift} uses — so drift runs on a LIVE unit's stored binding, not explicit args.
+ * `readFile` is injectable for tests. The anchor is stored as a doc (a later "bind" surface writes it);
+ * an absent anchor is a clean usage error, never a crash.
+ */
+export async function runDriftFromStore(
+  unitId: string,
+  store: Store & ChangeStore,
+  readFile: (path: string) => string = (path) => readFileSync(path, "utf8"),
+): Promise<Envelope> {
+  const id = unitId.trim();
+  if (id === "") return usage("missing <unit> (the unit id whose stored anchor to read)");
+
+  const doc = await store.getDoc(id);
+  if (doc === null) {
+    return {
+      ok: false,
+      body: `drift: no stored anchor for "${id}" — bind it first (no Anchor doc in the store).`,
+      next: ['storytree drift --file <path> --bound <hash>   (the explicit-args surface)'],
+    };
+  }
+  let anchor: Anchor;
+  try {
+    anchor = Anchor.parse(doc.doc);
+  } catch (err) {
+    return { ok: false, body: `drift: the stored anchor for "${id}" is malformed — ${(err as Error).message}`, next: [] };
+  }
+
+  let content: string;
+  try {
+    content = readFile(anchor.file);
+  } catch (err) {
+    return { ok: false, body: `drift: cannot read ${anchor.file} — ${(err as Error).message}`, next: [] };
+  }
+
+  const currentHash = hashSpan(content);
+  const changes: ChangeEvent[] = await store.readChangeEvents({ unitId: id });
+  return driftEnvelope(id, classifyDrift(anchor.boundHash, currentHash, changes));
 }
