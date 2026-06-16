@@ -2,7 +2,7 @@ import path from "node:path";
 
 import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore, effectiveUatWitness, resolveSignerFromEnv, rollupStatus } from "@storytree/core";
-import type { Store } from "@storytree/core";
+import type { AdrMeta, Store } from "@storytree/core";
 import {
   createBuildWorktree,
   findNodeSpecFile,
@@ -636,6 +636,17 @@ export async function storyBuild(
         : mode === "dry-run"
           ? new InMemoryStore()
           : null;
+    // Load the ADR context ONLY when there is a library to curate (a deferred run never uses it), and
+    // best-effort: a `--real` build runs in a fixture/worktree repo that may have no docs/decisions —
+    // a missing dir means no ADR context, never a thrown build.
+    let curationAdrs: AdrMeta[] = [];
+    if (curationLibrary !== null) {
+      try {
+        curationAdrs = loadAdrMetas(opts.decisionsDir ?? path.join(rootDir, "docs", "decisions")).adrs;
+      } catch {
+        curationAdrs = [];
+      }
+    }
     const curationLines = await runCurationPass({
       runner: opts.curatorRunner ?? new ScriptedCuratorRunner(),
       library: curationLibrary,
@@ -644,7 +655,7 @@ export async function storyBuild(
         storyId: story.id,
         nodeIds: driveOrder.map((n) => n.id),
         decisions: story.decisions,
-        adrs: loadAdrMetas(opts.decisionsDir ?? path.join(rootDir, "docs", "decisions")).adrs,
+        adrs: curationAdrs,
       },
       actor: CURATOR_ACTOR,
     });
