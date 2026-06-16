@@ -1607,6 +1607,23 @@ mark.st-hl.flash {
 .coast-fill-group.is-dim {
   opacity: 0.4;
 }
+/* When the moat ring is OFF (?moat=off) the island loses its water-ring focus
+   accent — relocate the selection/focus ring onto the island's own shore line so
+   a focused territory still reads. Harmless when the moat is on (mostly hidden
+   under the tiles). */
+.coast-fill-group.is-focus .coast-fill,
+.coast-fill-group.is-selected .coast-fill {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+.coast-fill-group.is-ancestor .coast-fill {
+  stroke: var(--warn);
+  stroke-width: 2;
+}
+.coast-fill-group.is-descendant .coast-fill {
+  stroke: var(--danger);
+  stroke-width: 2;
+}
 
 /* (Territory borders are now the smoothed water coastline — see .hex-water-border below.) */
 
@@ -1654,6 +1671,14 @@ mark.st-hl.flash {
   stroke-dasharray: 5 16;
   opacity: 0.7;
   animation: river-flow 2.6s linear infinite;
+}
+/* A merged TRUNK carries more flow — its current runs faster and its dashes sit
+   a touch longer, so at the fork you SEE a fast fat trunk feeding slower branches:
+   the animation, not spacing, conveys where the water goes (?rivers=merge). */
+.world-trail.is-trunk .world-trail-glint {
+  stroke-dasharray: 7 13;
+  opacity: 0.8;
+  animation-duration: 1.7s;
 }
 /* only the water body carries the hover tooltip; the casing/glint passes are
    inert so the title resolves to one river, not whichever layer is on top. */

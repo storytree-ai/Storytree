@@ -9,6 +9,17 @@ export interface Vec2 {
   y: number;
 }
 
+/**
+ * A river segment's stroke width as a function of how much flow it carries.
+ * `flow` 1 (or less) returns `base`; each extra unit of flow adds `step`, clamped
+ * at `max`. This is what lets a MERGED trunk fatten with the number of tributaries
+ * it gathers while a lone strand stays at the base width — the visual that sells a
+ * confluence as a merge rather than as bundled parallel strands. Pure, deterministic.
+ */
+export function rampWidth(flow: number, base: number, step: number, max: number): number {
+  return Math.min(max, base + Math.max(0, flow - 1) * step);
+}
+
 /** Evaluate a quadratic bézier P0→C→P1 at parameter t ∈ [0,1]. */
 export function quadPt(p0: Vec2, c: Vec2, p1: Vec2, t: number): Vec2 {
   const u = 1 - t;

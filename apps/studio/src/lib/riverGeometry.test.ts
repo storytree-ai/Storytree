@@ -3,7 +3,7 @@
 // the forest map can't silently drift when the river geometry is refactored.
 
 import { describe, it, expect } from 'vitest';
-import { offsetCurve, quadPt, smoothOpenPath, type Vec2 } from './riverGeometry';
+import { offsetCurve, quadPt, rampWidth, smoothOpenPath, type Vec2 } from './riverGeometry';
 
 /** Pull every coordinate pair out of an SVG path d-string. */
 function coords(d: string): Vec2[] {
@@ -67,6 +67,19 @@ describe('offsetCurve', () => {
       expect(Math.abs(p.x)).toBeLessThan(260);
       expect(Math.abs(p.y)).toBeLessThan(260);
     }
+  });
+});
+
+describe('rampWidth', () => {
+  it('returns the base width for a lone strand (flow ≤ 1)', () => {
+    expect(rampWidth(1, 4, 1.5, 12)).toBe(4);
+    expect(rampWidth(0, 4, 1.5, 12)).toBe(4); // flow never narrows below base
+  });
+  it('adds one step per extra unit of flow', () => {
+    expect(rampWidth(3, 4, 1.5, 12)).toBeCloseTo(7); // 4 + 2·1.5
+  });
+  it('clamps a fat trunk at max so banks never run away', () => {
+    expect(rampWidth(100, 4, 1.5, 12)).toBe(12);
   });
 });
 
