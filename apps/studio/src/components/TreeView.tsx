@@ -903,15 +903,19 @@ function buildBasin(
     y: t.centroid.y,
     r: t.radius + opts.tuning.routeMargin,
   }));
-  const docksByIsland: Dock[][] = territories.map(() => []);
+  const docksByIsland: { dock: Dock; flow: number }[][] = territories.map(() => []);
   for (const fe of flowEdges) {
     const ta = territories[fe.a];
     const tb = territories[fe.b];
     if (!ta || !tb) continue;
     const da = coastDock(ta, tb.centroid, 0.96, opts.mouthInset);
     const db = coastDock(tb, ta.centroid, 0.96, opts.mouthInset);
-    docksByIsland[fe.a]?.push(da);
-    docksByIsland[fe.b]?.push(db);
+    // Remember each dock's trunk flow, so the inland channel that continues this
+    // trunk past the coast carries the SAME flow-width — no pinch where a fat
+    // over-sea trunk emerges from under the tiles into its lake.
+    const chFlow = Math.max(1, fe.flow);
+    docksByIsland[fe.a]?.push({ dock: da, flow: chFlow });
+    docksByIsland[fe.b]?.push({ dock: db, flow: chFlow });
     const obstacles = disks.filter((_, i) => i !== fe.a && i !== fe.b);
     const pts = routeAround(da, db, obstacles);
     // Wander the routed centreline so the over-sea river meanders like a real
@@ -943,8 +947,8 @@ function buildBasin(
       const aim =
         ds.length > 0
           ? unit(t.treeSpot, {
-              x: ds.reduce((s, d) => s + d.x, 0) / ds.length,
-              y: ds.reduce((s, d) => s + d.y, 0) / ds.length,
+              x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
+              y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
             })
           : { x: 0, y: 1 };
       let flow = 0;
@@ -954,13 +958,17 @@ function buildBasin(
       if (!pond) return;
       inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
       for (const dk of ds) {
-        const dock = rayPolyIntersect(dk, pond.center, pond.loop);
+        const dock = rayPolyIntersect(dk.dock, pond.center, pond.loop);
         if (!dock) continue;
+        // Flare the channel into the lake (estuary mouth): a longer outward handle
+        // at the pond rim so the stream widens and curls into the pool tangentially
+        // instead of butting in head-on; flow carries the trunk width for continuity.
         inland.channels.push({
           from: t.story.id,
           to: t.story.id,
           via: [],
-          d: rivermouthCubic(dk, dock as Dock, 0, 8),
+          d: rivermouthCubic(dk.dock, dock as Dock, 0, 14),
+          flow: dk.flow,
         });
       }
     });
@@ -2933,30 +2941,30 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   the pond it feeds. */}
               {(world.inland.ponds.length > 0 || world.inland.channels.length > 0) && (
                 <g className="inland-water">
-                  {world.inland.channels.map((e) => (
-                    <g key={`il-l-${e.from}->${e.to}`} className={roadClass(e)}>
-                      <path className="world-trail-land" d={e.d} />
+                  {world.inland.channels.map((e, i) => (
+                    <g key={`il-l-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-land" d={e.d} style={flowStyle(e, 'land')} />
                     </g>
                   ))}
                   {world.inland.ponds.map((p) => (
                     <path key={`p-l-${p.story}`} className={`inland-pond-sand ${pondClass(p)}`} d={p.d} />
                   ))}
-                  {world.inland.channels.map((e) => (
-                    <g key={`il-b-${e.from}->${e.to}`} className={roadClass(e)}>
-                      <path className="world-trail-bank" d={e.d} />
+                  {world.inland.channels.map((e, i) => (
+                    <g key={`il-b-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
                     </g>
                   ))}
-                  {world.inland.channels.map((e) => (
-                    <g key={`il-w-${e.from}->${e.to}`} className={roadClass(e)}>
-                      <path className="world-trail-water" d={e.d} />
+                  {world.inland.channels.map((e, i) => (
+                    <g key={`il-w-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-water" d={e.d} style={flowStyle(e, 'water')} />
                     </g>
                   ))}
                   {world.inland.ponds.map((p) => (
                     <path key={`p-w-${p.story}`} className={`inland-pond-water ${pondClass(p)}`} d={p.d} />
                   ))}
-                  {world.inland.channels.map((e) => (
-                    <g key={`il-g-${e.from}->${e.to}`} className={roadClass(e)}>
-                      <path className="world-trail-glint" d={e.d} />
+                  {world.inland.channels.map((e, i) => (
+                    <g key={`il-g-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-glint" d={e.d} style={flowStyle(e, 'glint')} />
                     </g>
                   ))}
                   {world.inland.ponds.map((p) => (
