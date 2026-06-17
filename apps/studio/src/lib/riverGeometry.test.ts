@@ -12,6 +12,8 @@ import {
   pointInPoly,
   polyCentroid,
   distToLoop,
+  euclideanMST,
+  treeDrainage,
   routeAround,
   confluenceTree,
   type Disk,
@@ -354,5 +356,73 @@ describe('confluenceTree', () => {
     expect(confluenceTree([], { x: 0, y: 0 })).toEqual({ edges: [], routeOf: [] });
     const args: [Vec2[], Vec2] = [[{ x: 1, y: 2 }, { x: 9, y: 3 }, { x: 4, y: 8 }], { x: 5, y: 50 }];
     expect(confluenceTree(...args)).toEqual(confluenceTree(...args));
+  });
+});
+
+describe('euclideanMST', () => {
+  it('returns n−1 edges and connects every node', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 20, y: 0 },
+      { x: 30, y: 0 },
+    ];
+    const mst = euclideanMST(pts);
+    expect(mst).toHaveLength(3);
+    const touched = new Set(mst.flat());
+    expect(touched.size).toBe(4); // every node appears
+  });
+  it('links nearest neighbours (a collinear chain links adjacent points)', () => {
+    const mst = euclideanMST([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 21, y: 0 }]);
+    // expect 0-1 and 1-2, never the long 0-2
+    const has = (a: number, b: number): boolean => mst.some(([x, y]) => x === a && y === b);
+    expect(has(0, 1)).toBe(true);
+    expect(has(1, 2)).toBe(true);
+    expect(has(0, 2)).toBe(false);
+  });
+  it('is empty for <2 points and deterministic', () => {
+    expect(euclideanMST([])).toEqual([]);
+    expect(euclideanMST([{ x: 1, y: 1 }])).toEqual([]);
+    const pts: Vec2[] = [{ x: 0, y: 0 }, { x: 5, y: 9 }, { x: 9, y: 1 }, { x: 2, y: 7 }];
+    expect(euclideanMST(pts)).toEqual(euclideanMST(pts));
+  });
+});
+
+describe('treeDrainage', () => {
+  // a 4-node path tree: 0—1—2—3 (edges indexed 0,1,2)
+  const path: Array<[number, number]> = [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+  ];
+  it('accumulates monotonically toward the root', () => {
+    // rooted at 0: edge 0 (0—1) drains nodes {1,2,3}=3, edge 1 drains {2,3}=2, edge 2 drains {3}=1
+    const f = treeDrainage(4, path, 0);
+    expect(f.map((e) => e.flow)).toEqual([3, 2, 1]);
+  });
+  it('a star root drains every leaf at one unit', () => {
+    // 0 is the centre joined to 1,2,3; every spoke drains its single leaf
+    const star: Array<[number, number]> = [
+      [0, 1],
+      [0, 2],
+      [0, 3],
+    ];
+    const f = treeDrainage(4, star, 0);
+    expect(f.map((e) => e.flow)).toEqual([1, 1, 1]);
+  });
+  it('a branching tree sums its sub-branches at the trunk', () => {
+    // 3 is the root; 3—2 trunk drains {2,0,1}=3; 2—0 and 2—1 each drain one leaf
+    const tree: Array<[number, number]> = [
+      [0, 2],
+      [1, 2],
+      [2, 3],
+    ];
+    const f = treeDrainage(4, tree, 3);
+    expect(f[2]?.flow).toBe(3); // 2—3 trunk carries the whole basin above it
+    expect(f[0]?.flow).toBe(1);
+    expect(f[1]?.flow).toBe(1);
+  });
+  it('is deterministic', () => {
+    expect(treeDrainage(4, path, 0)).toEqual(treeDrainage(4, path, 0));
   });
 });
