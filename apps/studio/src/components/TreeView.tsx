@@ -2891,7 +2891,10 @@ const RIVER_TUNING: RiverTuning = {
   bundleDMax: 2,
   crescentMinDegree: 5,
   bundleFar: 300,
-  deltaPull: 0.05,
+  // owner default 2026-06-17: fork the source delta right at the source → a clean
+  // radial fan with no mid-map merge knots (the `?deltaPull=1.10` look, clamped to
+  // the [0,1] max at parse). Directional bundling later reintroduces smart merging.
+  deltaPull: 1.0,
   fusedPondMouth: false,
 };
 
