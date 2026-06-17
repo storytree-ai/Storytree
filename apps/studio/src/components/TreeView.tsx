@@ -2731,14 +2731,15 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 // further onto the beach. Live knobs (`?trunkFrac=`, `?trunkW=`, `?mouthInset=`,
 // `?confluencePull=`, `?routeMargin=`) dial the look without a rebuild.
 //
-// DEFAULT = `merge` = the global BASIN network (owner 2026-06-17, "merge ANY nearby
-// rivers into a thicker river or even a lake; flow shown later by hover/animation"):
-// a Euclidean MST over the island hubs is the river SKELETON, every dependency is
-// routed along the unique tree path, and each skeleton segment's stroke fattens with
-// the number of paths it carries — so the map reads as ONE connected watershed of
-// thick trunks (near the foundations) thinning to leaf twigs, with a lake at every
-// node, instead of a tangle of parallel strands. Comparison modes:
-//   `?rivers=bundle`     — DISTANCE-AWARE bundling. SHORT edges braid through a near
+// DEFAULT = `bundle` (owner call 2026-06-17 — "flip it"): the DISTANCE-AWARE bundle
+// described just below. The other networks are COMPARISON modes reachable by flag:
+//   `?rivers=merge`      — the global BASIN network (the prior default): a Euclidean MST
+//                          over the island hubs is the river SKELETON, every dependency
+//                          routes along the unique tree path, and each segment's stroke
+//                          fattens with the paths it carries — ONE connected watershed of
+//                          thick trunks thinning to leaf twigs, a lake at every node. The
+//                          only mode that honours `?coast=crescent`.
+//   `?rivers=bundle`     — (DEFAULT) DISTANCE-AWARE bundling. SHORT edges braid through a near
 //                          hub via edge-path bundling (Wallinger 2021) — a hub becomes
 //                          a fat trunk many edges flow ALONG. FAR edges (span over
 //                          `?bundleFar=`px) instead leave their source as one geometric
@@ -2857,18 +2858,21 @@ const FLOW_W = {
   glint: { base: 1.2, step: 0, max: 1.2 },
 } as const;
 
-// DEFAULTS FLIPPED (owner call 2026-06-17 — "go all in on rivers and ponds with no
-// moats"): the merged river network, dropped moats and inland ponds are now the
-// DEFAULT world. The flags remain as OVERRIDES so the old look is still reachable
-// for comparison: `?rivers=strands` (one strand per edge / metro lanes),
-// `?moat=on` (restore the island water rings), `?water=off` (no inland ponds).
+// DEFAULT = `bundle` (owner call 2026-06-17 — "flip it"): the DISTANCE-AWARE bundle
+// (real-graph edge-path braiding for short edges + a geometric SOURCE DELTA that routes
+// far edges AROUND third-party islands and forks near the dests, with convergence-seated
+// ponds) is now the DEFAULT world. The other networks remain as OVERRIDES for comparison:
+// `?rivers=merge` (the global MST basin — and the only mode that honours `?coast=crescent`),
+// `?rivers=confluence` (per-source-trunk + per-dest confluence), `?rivers=strands` (one
+// strand per edge / metro lanes). Moats stay OFF by default (`?moat=on` restores the rings),
+// inland ponds stay ON (`?water=off` drops them).
 function readRiverMode(): RiverMode {
-  if (typeof window === 'undefined') return 'merge';
+  if (typeof window === 'undefined') return 'bundle';
   const raw = new URLSearchParams(window.location.search).get('rivers');
   if (raw === 'strands') return 'strands';
   if (raw === 'confluence') return 'confluence';
-  if (raw === 'bundle') return 'bundle';
-  return 'merge';
+  if (raw === 'merge') return 'merge';
+  return 'bundle';
 }
 
 function readMoat(): boolean {
