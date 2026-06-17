@@ -353,3 +353,115 @@ export function confluenceTree(heads: Vec2[], sink: Vec2, pullFrac = 0.3): Confl
   if (root) pushEdge(root, sink);
   return { edges, routeOf };
 }
+
+/**
+ * The Euclidean minimum spanning tree over `pts` (Prim's algorithm, dense O(n²)),
+ * returned as `n−1` index-pair edges `[i, j]` with `i < j`. This is the SKELETON of
+ * the global river basin: it links every island to its nearest neighbours in one
+ * connected, acyclic, organic network (a real watershed shape) — no parallel
+ * strands, no crossings introduced by the tree itself. Deterministic: distance ties
+ * break toward the lower index, so the tree never depends on Math.random. Returns
+ * empty for fewer than two points.
+ */
+export function euclideanMST(pts: Vec2[]): Array<[number, number]> {
+  const n = pts.length;
+  if (n < 2) return [];
+  const inTree = new Array<boolean>(n).fill(false);
+  const best = new Array<number>(n).fill(Infinity); // min dist² from each node to the tree
+  const from = new Array<number>(n).fill(-1);
+  best[0] = 0;
+  const edges: Array<[number, number]> = [];
+  for (let it = 0; it < n; it++) {
+    let u = -1;
+    let bd = Infinity;
+    for (let v = 0; v < n; v++) {
+      if (!inTree[v] && (best[v] ?? Infinity) < bd) {
+        bd = best[v] ?? Infinity;
+        u = v;
+      }
+    }
+    if (u === -1) break;
+    inTree[u] = true;
+    const fu = from[u] ?? -1;
+    if (fu >= 0) edges.push(fu < u ? [fu, u] : [u, fu]);
+    const pu = pts[u];
+    if (!pu) continue;
+    for (let v = 0; v < n; v++) {
+      if (inTree[v]) continue;
+      const pv = pts[v];
+      if (!pv) continue;
+      const d2 = (pu.x - pv.x) ** 2 + (pu.y - pv.y) ** 2;
+      if (d2 < (best[v] ?? Infinity)) {
+        best[v] = d2;
+        from[v] = u;
+      }
+    }
+  }
+  return edges;
+}
+
+/** One stream of the basin skeleton: tree edge (hub `a` → hub `b`) carrying `flow`
+ *  accumulated drainage — the count drives the stroke width, so trunks near the
+ *  foundations fatten and leaf twigs stay thin. */
+export interface FlowEdge {
+  a: number;
+  b: number;
+  flow: number;
+}
+
+/**
+ * Per-edge DRAINAGE of a spanning `tree` (index-pair edges, e.g. from euclideanMST)
+ * rooted at `root`: each edge carries the number of nodes in the subtree on its
+ * far-from-root side, so the flow grows MONOTONICALLY toward the root. Rooted at the
+ * map's foundation, this is exactly the classic river look — a fat main stem near
+ * the base draining the whole basin, thinning to one-node twigs at the leaves —
+ * which is what sells the merge as "thicker rivers where flow accumulates" rather
+ * than as bundled strands of equal weight. Deterministic (DFS; no Math.random).
+ * Nodes unreachable from `root` (a disconnected tree) get flow 0.
+ */
+export function treeDrainage(
+  hubCount: number,
+  tree: Array<[number, number]>,
+  root: number,
+): FlowEdge[] {
+  const adj: Array<Array<{ to: number; e: number }>> = Array.from({ length: hubCount }, () => []);
+  tree.forEach(([a, b], e) => {
+    adj[a]?.push({ to: b, e });
+    adj[b]?.push({ to: a, e });
+  });
+  const parent = new Array<number>(hubCount).fill(-1);
+  const parentEdge = new Array<number>(hubCount).fill(-1);
+  const seen = new Array<boolean>(hubCount).fill(false);
+  const order: number[] = [];
+  if (root >= 0 && root < hubCount) {
+    seen[root] = true;
+    const stack = [root];
+    while (stack.length > 0) {
+      const x = stack.pop();
+      if (x === undefined) break;
+      order.push(x);
+      for (const { to, e } of adj[x] ?? []) {
+        if (!seen[to]) {
+          seen[to] = true;
+          parent[to] = x;
+          parentEdge[to] = e;
+          stack.push(to);
+        }
+      }
+    }
+  }
+  const size = new Array<number>(hubCount).fill(1);
+  // Roll subtree sizes up from the leaves (reverse discovery order).
+  for (let i = order.length - 1; i >= 0; i--) {
+    const v = order[i];
+    if (v === undefined) continue;
+    const p = parent[v];
+    if (p !== undefined && p >= 0) size[p] = (size[p] ?? 1) + (size[v] ?? 1);
+  }
+  const flow = new Array<number>(tree.length).fill(0);
+  for (let v = 0; v < hubCount; v++) {
+    const e = parentEdge[v];
+    if (e !== undefined && e >= 0) flow[e] = size[v] ?? 1;
+  }
+  return tree.map(([a, b], e) => ({ a, b, flow: flow[e] ?? 0 }));
+}

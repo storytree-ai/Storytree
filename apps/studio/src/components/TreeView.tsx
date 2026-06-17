@@ -52,6 +52,8 @@ import {
   rayPolyIntersect,
   pointInPoly,
   distToLoop,
+  euclideanMST,
+  treeDrainage,
   routeAround,
   confluenceTree,
   type Disk,
@@ -790,7 +792,12 @@ function pondRing(center: Pt, rx: number, ry: number, seed: number): Pt[] {
  * than give up. Returns the smoothed loop + centre; null only for a degenerate
  * coastless territory (never happens for a grown island). Deterministic.
  */
-function placePond(t: Territory, aimDir: Pt, flow: number): { center: Pt; loop: Pt[] } | null {
+function placePond(
+  t: Territory,
+  aimDir: Pt,
+  flow: number,
+  aimBias = 0,
+): { center: Pt; loop: Pt[] } | null {
   const coast = t.coastLoops[0];
   if (!coast) return null;
   const baseAng = Math.atan2(aimDir.y, aimDir.x);
@@ -814,16 +821,23 @@ function placePond(t: Territory, aimDir: Pt, flow: number): { center: Pt; loop: 
     }
     return r;
   };
-  // Pick the centre that affords the biggest pond. A visible pool on every island
-  // is what matters here; the fan is centred on the entry side, so the roomiest
-  // candidate already leans toward where the rivers connect.
+  // Pick the centre that affords the biggest pond. `aimBias` (px penalty per radian
+  // off the entry direction) leans the lake toward where its streams actually dock,
+  // so a river flows INTO the lake instead of blunt-ending at the coast while the
+  // pool drifts to an empty corner; with aimBias 0 it's pure max-room (a visible
+  // pool on every island, the only thing that matters for the no-stream nodes).
   let best: { c: Pt; r: number } | null = null;
+  let bestScore = -Infinity;
   for (let d = Math.max(maxD - POND_RX_MIN, crownR); d >= crownR * 0.6; d -= 4) {
     for (const da of fan) {
       const ang = baseAng + da;
       const c = { x: t.treeSpot.x + Math.cos(ang) * d, y: t.treeSpot.y + Math.sin(ang) * d };
       const r = fitR(c);
-      if (!best || r > best.r) best = { c, r };
+      const score = r - Math.abs(da) * aimBias;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { c, r };
+      }
     }
   }
   // Tight island: no candidate held a real pool. Seat a minimum pond at a point
@@ -845,6 +859,102 @@ function unit(a: Pt, b: Pt): Pt {
   const dy = b.y - a.y;
   const d = Math.hypot(dx, dy) || 1;
   return { x: dx / d, y: dy / d };
+}
+
+/**
+ * Build the global BASIN river network (the default `merge` mode). The skeleton is
+ * a Euclidean MST over the island centroids; every dependency edge is routed along
+ * its unique tree path and each MST segment's stroke fattens with how much flow it
+ * carries — so the map reads as ONE connected watershed (thick trunks near the
+ * foundations thinning to leaf twigs) instead of a tangle of parallel strands.
+ * Each segment docks on each endpoint's coast facing the other island (so a stream
+ * never cuts across its own island), routes AROUND every third-party island, and
+ * ends exactly on a coast dock; every island gets a lake wired to each of its
+ * incident streams — so there are no loose ends and no phantom near-misses.
+ * Deterministic (hash/MST only, no Math.random).
+ */
+function buildBasin(
+  territories: Territory[],
+  opts: { mouthInset: number; tuning: RiverTuning; waterMode: WaterMode },
+): { edges: WorldEdge[]; inland: InlandWater } {
+  const edges: WorldEdge[] = [];
+  const inland: InlandWater = { ponds: [], channels: [] };
+  const n = territories.length;
+  if (n === 0) return { edges, inland };
+  const centroids = territories.map((t) => t.centroid);
+  const mst = euclideanMST(centroids);
+  // Root the drainage at the foundation (the lowest island on the map, max y), so
+  // the main stem is fattest at the base and thins to twigs at the leaf stories —
+  // the watershed reads bottom-up, matching the dependency layout.
+  let root = 0;
+  let rootY = -Infinity;
+  centroids.forEach((c, i) => {
+    if (c.y > rootY) {
+      rootY = c.y;
+      root = i;
+    }
+  });
+  const flowEdges = treeDrainage(n, mst, root);
+
+  // Island keep-out disks: every stream routes around the third-party islands.
+  const disks: Disk[] = territories.map((t) => ({
+    x: t.centroid.x,
+    y: t.centroid.y,
+    r: t.radius + opts.tuning.routeMargin,
+  }));
+  const docksByIsland: Dock[][] = territories.map(() => []);
+  for (const fe of flowEdges) {
+    const ta = territories[fe.a];
+    const tb = territories[fe.b];
+    if (!ta || !tb) continue;
+    const da = coastDock(ta, tb.centroid, 0.96, opts.mouthInset);
+    const db = coastDock(tb, ta.centroid, 0.96, opts.mouthInset);
+    docksByIsland[fe.a]?.push(da);
+    docksByIsland[fe.b]?.push(db);
+    const obstacles = disks.filter((_, i) => i !== fe.a && i !== fe.b);
+    const pts = routeAround(da, db, obstacles);
+    edges.push({
+      from: ta.story.id,
+      to: tb.story.id,
+      via: [],
+      d: smoothOpenPath(pts),
+      flow: Math.max(1, fe.flow),
+      kind: 'trunk',
+    });
+  }
+
+  // A lake at every node, wired to each of its incident streams — water reads as
+  // flowing lake → stream → lake through the whole basin. The pool sizes to the
+  // flow it gathers (a busy junction pools into a bigger lake).
+  if (opts.waterMode === 'pond') {
+    territories.forEach((t, i) => {
+      const ds = docksByIsland[i] ?? [];
+      const aim =
+        ds.length > 0
+          ? unit(t.treeSpot, {
+              x: ds.reduce((s, d) => s + d.x, 0) / ds.length,
+              y: ds.reduce((s, d) => s + d.y, 0) / ds.length,
+            })
+          : { x: 0, y: 1 };
+      let flow = 0;
+      for (const fe of flowEdges) if (fe.a === i || fe.b === i) flow += Math.max(1, fe.flow);
+      // Bias the lake toward the stream-entry side so the rivers flow INTO it.
+      const pond = placePond(t, aim, flow, 4);
+      if (!pond) return;
+      inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      for (const dk of ds) {
+        const dock = rayPolyIntersect(dk, pond.center, pond.loop);
+        if (!dock) continue;
+        inland.channels.push({
+          from: t.story.id,
+          to: t.story.id,
+          via: [],
+          d: rivermouthCubic(dk, dock as Dock, 0, 8),
+        });
+      }
+    });
+  }
+  return { edges, inland };
 }
 
 function buildWorld(
@@ -1167,6 +1277,17 @@ function buildWorld(
     if (list) list.push(e);
     else incomingByTo.set(e.to, [e]);
   }
+  // RIVER NETWORK. DEFAULT (`merge`) = the global BASIN (MST skeleton + flow-weighted
+  // trunks, built by buildBasin). The comparison modes (`confluence`, `strands`) build
+  // one strand per dependency edge in the three passes below.
+  let edges: WorldEdge[] = [];
+  let inland: InlandWater = { ponds: [], channels: [] };
+
+  if (riverMode === 'merge') {
+    ({ edges, inland } = buildBasin(territories, { mouthInset, tuning, waterMode }));
+  }
+
+  if (riverMode !== 'merge') {
   const rivers: RiverRec[] = [];
 
   // Pass A — destination mouths.
@@ -1205,8 +1326,8 @@ function buildWorld(
       record(only.e, only.a, coastDock(b, bary, 0.96, mouthInset));
       continue;
     }
-    if (riverMode === 'merge') {
-      // MERGE: the incoming rivers braid into ONE trunk offshore and land at a
+    if (riverMode === 'confluence') {
+      // CONFLUENCE: the incoming rivers braid into ONE trunk offshore and land at a
       // SINGLE shared mouth (the confluence inlet), instead of a fanned delta of
       // separate mouths — so the destination reads as fed by one channel.
       const mouth = coastDock(b, bary, 0.96, mouthInset);
@@ -1253,8 +1374,8 @@ function buildWorld(
       if (r) r.srcDock = coastDock(srcT, r.aim, 0.96);
       continue;
     }
-    if (riverMode === 'merge') {
-      // MERGE: collapse the whole outgoing fan into ONE trunk. Leave through a
+    if (riverMode === 'confluence') {
+      // CONFLUENCE: collapse the whole outgoing fan into ONE trunk. Leave through a
       // single dock aimed at the barycentre of the mouths, run out perpendicular
       // to the shore for a trunk length, and hand every river the SHARED tip as
       // its source — so they all branch from one fat channel instead of spraying
@@ -1301,11 +1422,11 @@ function buildWorld(
     });
   }
 
-  // Pass C — paths. STRANDS (default): a lone river meets its mouth head-on; a
-  // co-destination group becomes parallel metro lanes (laneBundle). MERGE: a
-  // co-destination group is fused into a CONFLUENCE TREE (tributaries braiding
-  // into one stem) and every edge is routed AROUND third-party islands.
-  const edges: WorldEdge[] = [];
+  // Pass C — paths. STRANDS: a lone river meets its mouth head-on; a co-destination
+  // group becomes parallel metro lanes (laneBundle). CONFLUENCE: a co-destination
+  // group is fused into a CONFLUENCE TREE (tributaries braiding into one stem) and
+  // every edge is routed AROUND third-party islands.
+  edges = [];
   const riversByDst = new Map<string, RiverRec[]>();
   for (const r of rivers) {
     const list = riversByDst.get(r.dstT.story.id);
@@ -1326,7 +1447,7 @@ function buildWorld(
    *  where the merged trunk fuses before diving head-on into the single mouth. */
   const offshore = (m: Dock): Pt => ({ x: m.x + m.nx * MOUTH_FLARE, y: m.y + m.ny * MOUTH_FLARE });
 
-  if (riverMode === 'merge') {
+  if (riverMode === 'confluence') {
     for (const bundle of riversByDst.values()) {
       const b = bundle[0]?.dstT;
       if (!b || bundle.length === 0) continue;
@@ -1399,11 +1520,11 @@ function buildWorld(
     }
   }
 
-  // Merge mode — emit the shared TRUNK stubs LAST (drawn on top within each water
-  // pass), so a source's fat trunk fuses over the tails of the rivers branching
+  // Confluence mode — emit the shared TRUNK stubs LAST (drawn on top within each
+  // water pass), so a source's fat trunk fuses over the tails of the rivers branching
   // from its tip: the island reads as emitting one channel that forks downstream,
   // not a starburst. flow = how many rivers the trunk gathers (drives its width).
-  if (riverMode === 'merge') {
+  if (riverMode === 'confluence') {
     for (const group of riversBySrc.values()) {
       const r0 = group[0];
       if (!r0 || group.length < 2 || !r0.outDock) continue;
@@ -1426,7 +1547,7 @@ function buildWorld(
   // coast mouth is the seam the inland flow continues from. The over-sea river
   // edges are left untouched (they still bank into the beach below the tiles); the
   // inland geometry here is rendered in its own ABOVE-tiles passes.
-  const inland: InlandWater = { ponds: [], channels: [] };
+  inland = { ponds: [], channels: [] };
   if (waterMode === 'pond') {
     // POND-JUNCTION NETWORK: every node a river touches gets ONE pond hub, and the
     // dependency rivers connect THROUGH it — incoming rivers end at the pond,
@@ -1446,15 +1567,15 @@ function buildWorld(
       if (list) list.push(seam);
       else seamsByNode.set(id, [seam]);
     };
-    // Incoming: each destination's mouth(s). Merge mode shares ONE mouth per dest.
+    // Incoming: each destination's mouth(s). Confluence shares ONE mouth per dest.
     for (const [dstId, bundle] of riversByDst) {
-      const feeders = riverMode === 'merge' ? bundle.slice(0, 1) : bundle;
+      const feeders = riverMode === 'confluence' ? bundle.slice(0, 1) : bundle;
       for (const r of feeders) addSeam(dstId, { pt: r.mouth, from: r.srcT.story.id, to: dstId });
     }
-    // Outgoing: each source's coast outflow dock (the merge trunk's outDock, else
-    // the source dock). Merge mode emits ONE outflow per source; strands one each.
+    // Outgoing: each source's coast outflow dock (the confluence trunk's outDock,
+    // else the source dock). Confluence emits ONE outflow per source; strands one each.
     for (const [srcId, group] of riversBySrc) {
-      if (riverMode === 'merge') {
+      if (riverMode === 'confluence') {
         const r0 = group[0];
         if (!r0) continue;
         addSeam(srcId, { pt: (r0.outDock ?? r0.srcDock) as Dock, from: srcId, to: r0.dstT.story.id });
@@ -1539,6 +1660,7 @@ function buildWorld(
       });
     }
   }
+  } // end comparison-mode (strands / confluence) river construction
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -2116,13 +2238,17 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 // further onto the beach. Live knobs (`?trunkFrac=`, `?trunkW=`, `?mouthInset=`,
 // `?confluencePull=`, `?routeMargin=`) dial the look without a rebuild.
 //
-// NOTE (in-progress, owner 2026-06-17): the visual is still being iterated in a
-// chipped-off session — remove the glint animation, fix loose-end stubs and the
-// phantom binding-staleness arc, globally MERGE nearby rivers into thicker
-// rivers/lakes (drop the keep-separate rule), and make pond placement a robust
-// PROCEDURAL system so every node gets a pond. An ADR should record this default
-// once the design settles.
-type RiverMode = 'strands' | 'merge';
+// DEFAULT = `merge` = the global BASIN network (owner 2026-06-17, "merge ANY nearby
+// rivers into a thicker river or even a lake; flow shown later by hover/animation"):
+// a Euclidean MST over the island hubs is the river SKELETON, every dependency is
+// routed along the unique tree path, and each skeleton segment's stroke fattens with
+// the number of paths it carries — so the map reads as ONE connected watershed of
+// thick trunks (near the foundations) thinning to leaf twigs, with a lake at every
+// node, instead of a tangle of parallel strands. Comparison modes:
+//   `?rivers=confluence` — the previous per-source-trunk + per-destination
+//                          confluence merge (#187/#188), kept for A/B.
+//   `?rivers=strands`    — the oldest one-strand-per-edge / metro-lane look.
+type RiverMode = 'strands' | 'merge' | 'confluence';
 
 // Inland water (VISUAL SPIKE, flag-gated). The default world rings each island in a
 // water MOAT (`?moat=on`). `?water=pond|through` instead carries the dependency
@@ -2163,14 +2289,16 @@ const RIVER_TUNING: RiverTuning = {
   routeMargin: 20,
 };
 
-/** Per-water-layer stroke width as a function of flow load (merged trunks, merge
- *  mode only — only flow≥2 stubs carry an inline width). Slim, so a merged trunk
- *  reads as a fat-ish STEM feeding slim branches rather than a wide sand road; the
- *  base widths align with the thinned `?rivers=merge` CSS strands. */
+/** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
+ *  BASIN: a leaf twig (flow 1) is a delicate stream, and the main stem near the
+ *  foundations (flow ≈ node count) fattens into a clear river — so the watershed
+ *  reads as thick trunks gathering thin tributaries, the "thicker where flow
+ *  accumulates" look. The confluence comparison mode reuses these at its lower
+ *  flows (2–3), where they land close to its old slim widths. */
 const FLOW_W = {
-  land: { base: 7, step: 1.6, max: 15 },
-  bank: { base: 4.2, step: 1.0, max: 9 },
-  water: { base: 2.6, step: 0.9, max: 6.5 },
+  land: { base: 5.5, step: 1.9, max: 19 },
+  bank: { base: 3.4, step: 1.1, max: 11 },
+  water: { base: 2.3, step: 0.8, max: 7.8 },
   glint: { base: 1.2, step: 0, max: 1.2 },
 } as const;
 
@@ -2181,9 +2309,10 @@ const FLOW_W = {
 // `?moat=on` (restore the island water rings), `?water=off` (no inland ponds).
 function readRiverMode(): RiverMode {
   if (typeof window === 'undefined') return 'merge';
-  return new URLSearchParams(window.location.search).get('rivers') === 'strands'
-    ? 'strands'
-    : 'merge';
+  const raw = new URLSearchParams(window.location.search).get('rivers');
+  if (raw === 'strands') return 'strands';
+  if (raw === 'confluence') return 'confluence';
+  return 'merge';
 }
 
 function readMoat(): boolean {
@@ -2577,9 +2706,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       const desc = (id: string): boolean =>
         id === focusStoryId || storyRelations.descendants.has(id);
       if (e.kind === 'trunk') {
-        // A trunk has no real `to`; key its relation on the source island alone.
-        if (anc(e.from)) cls.push('is-ancestor');
-        else if (desc(e.from)) cls.push('is-descendant');
+        // A merged trunk/basin segment carries many dependencies; light it when
+        // EITHER island it joins is on the focus path (the confluence source-trunk
+        // stub has from===to, so this still keys on its one island).
+        if (anc(e.from) || anc(e.to)) cls.push('is-ancestor');
+        else if (desc(e.from) || desc(e.to)) cls.push('is-descendant');
         else cls.push('is-dim');
       } else if (storyRelations.ancestors.has(e.from) && anc(e.to)) cls.push('is-ancestor');
       else if (storyRelations.descendants.has(e.to) && desc(e.from)) cls.push('is-descendant');
