@@ -56,6 +56,7 @@ import {
   treeDrainage,
   routeAround,
   confluenceTree,
+  meanderPath,
   type Disk,
   type LoopDock,
 } from '../lib/riverGeometry.js';
@@ -913,11 +914,21 @@ function buildBasin(
     docksByIsland[fe.b]?.push(db);
     const obstacles = disks.filter((_, i) => i !== fe.a && i !== fe.b);
     const pts = routeAround(da, db, obstacles);
+    // Wander the routed centreline so the over-sea river meanders like a real
+    // watercourse instead of reading as a routed pipe; seeded per-edge so every
+    // river wiggles differently but identically on every render (endpoints pinned,
+    // so the dock and mouth stay put). amp 0 ⇒ the old straight-smoothed path.
+    const wander = meanderPath(
+      pts,
+      hash(`${ta.story.id}>${tb.story.id}`),
+      opts.tuning.meanderAmp,
+      opts.tuning.meanderFreq,
+    );
     edges.push({
       from: ta.story.id,
       to: tb.story.id,
       via: [],
-      d: smoothOpenPath(pts),
+      d: smoothOpenPath(wander),
       flow: Math.max(1, fe.flow),
       kind: 'trunk',
     });
@@ -2279,6 +2290,12 @@ interface RiverTuning {
   /** px a routed river keeps clear of a third-party island's hull (radius) when
    *  skirting it. Higher = wider berth; lower = threads tighter gaps. */
   routeMargin: number;
+  /** px a basin trunk's centreline wanders sideways under the deterministic
+   *  value-noise meander (Red Blob Games' river-meander idea) — so an over-sea
+   *  river reads as a winding watercourse, not a routed pipe. 0 disables it. */
+  meanderAmp: number;
+  /** Roughly how many meander lobes run along one river (the noise frequency). */
+  meanderFreq: number;
 }
 
 const RIVER_TUNING: RiverTuning = {
@@ -2287,6 +2304,8 @@ const RIVER_TUNING: RiverTuning = {
   mouthInset: 7,
   confluencePull: 0.26,
   routeMargin: 20,
+  meanderAmp: 18,
+  meanderFreq: 3.5,
 };
 
 /** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
@@ -2350,11 +2369,15 @@ function readRiverTuning(): RiverTuning {
   const mi = num('mouthInset');
   const cp = num('confluencePull');
   const rm = num('routeMargin');
+  const ma = num('meanderAmp');
+  const mf = num('meanderFreq');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
   if (cp !== null) out.confluencePull = Math.max(0, Math.min(1, cp));
   if (rm !== null) out.routeMargin = Math.max(0, rm);
+  if (ma !== null) out.meanderAmp = Math.max(0, ma);
+  if (mf !== null) out.meanderFreq = Math.max(0, mf);
   return out;
 }
 
