@@ -368,6 +368,162 @@ export function routeAround(a: Vec2, b: Vec2, obstacles: Disk[], maxDepth = 6): 
   return route(a, b, maxDepth);
 }
 
+/** A coarse crowding field over a set of routed channel polylines: every channel
+ *  point is bucketed into a `cell`-sized grid hash, and {@link DensityField.sample}
+ *  returns the point COUNT in the sample's cell plus its 8 neighbours — a cheap proxy
+ *  for "how many rivers already run near here". Used by {@link routeAroundBiased} to
+ *  prefer the more OPEN side of an island when it has a choice. Pure, deterministic —
+ *  no Math.random, no wall-clock; an empty field samples 0 everywhere. */
+export interface DensityField {
+  sample(p: Vec2): number;
+}
+
+/**
+ * Build a {@link DensityField} over `lines` (the already-routed channel polylines)
+ * with grid cell size `cell` px. Every point of every line is hashed into its cell;
+ * `sample(p)` sums the counts of p's cell and its 8 neighbours, so a probe reads the
+ * crowding of the ~3×3-cell neighbourhood around it (matching the way `routeAround`
+ * detours feel an island from a cell or so away). Deterministic and allocation-light:
+ * the grid is a `Map<"gx,gy", count>` keyed by integer cell coordinates. `cell <= 0`
+ * is treated as 1 to avoid a divide-by-zero. Pure — safe for the browser bundle.
+ */
+export function densityField(lines: Vec2[][], cell: number): DensityField {
+  const c = cell > 0 ? cell : 1;
+  const counts = new Map<string, number>();
+  const key = (gx: number, gy: number): string => `${gx},${gy}`;
+  for (const line of lines) {
+    if (!line) continue;
+    for (const p of line) {
+      if (!p) continue;
+      const gx = Math.floor(p.x / c);
+      const gy = Math.floor(p.y / c);
+      const k = key(gx, gy);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return {
+    sample(p: Vec2): number {
+      const cx = Math.floor(p.x / c);
+      const cy = Math.floor(p.y / c);
+      let total = 0;
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          total += counts.get(key(gx, gy)) ?? 0;
+        }
+      }
+      return total;
+    },
+  };
+}
+
+/** Tuning for {@link routeAroundBiased}: the crowding lookup, how strongly open space
+ *  is preferred, the recursion depth, and how many points to sample a detour's density at. */
+export interface BiasedRouteOpts {
+  /** Crowding at a point — typically `densityField(pass1Channels, cell).sample`. */
+  density: (p: Vec2) => number;
+  /** How strongly the router prefers the LESS-crowded side. `bias <= 0` makes the
+   *  router return EXACTLY {@link routeAround}'s output (the OFF / byte-identical
+   *  guarantee); larger values make a river take a noticeably longer path to use
+   *  emptier water. */
+  bias: number;
+  /** Recursion depth, like routeAround's `maxDepth` (default 6). */
+  maxDepth?: number;
+  /** Points sampled along each candidate detour to average its density (default 5). */
+  samples?: number;
+}
+
+/**
+ * The OPEN-SPACE-aware cousin of {@link routeAround}: same recursion and clearance,
+ * but at each detour it evaluates BOTH candidate waypoints — pushing `+dir` AND
+ * `−dir` around the worst-intruding obstacle — scores each side by
+ * `detourLength + bias · avgDensity(sampled along that side)`, and takes the
+ * LOWER-scoring (= the more OPEN) side when `bias > 0`. This lets a river FLIP to the
+ * far, emptier side of an island — a routing decision the purely-local inter-river
+ * repulsion (`repelChannels`) can never make. The density is supplied by the caller
+ * (a {@link densityField} built from a first plain-routed pass), so "crowded" reflects
+ * where rivers actually are.
+ *
+ * OFF GUARANTEE: when `bias <= 0` this returns EXACTLY what `routeAround` returns —
+ * same side, same points — so a default of 0 leaves the world byte-identical. Ties
+ * (equal scores) break to the natural `+dir` side `routeAround` already picks, so a
+ * flat density field also yields the routeAround path. Endpoints are preserved
+ * exactly. Deterministic — no Math.random, no wall-clock.
+ */
+export function routeAroundBiased(
+  a: Vec2,
+  b: Vec2,
+  obstacles: Disk[],
+  opts: BiasedRouteOpts,
+): Vec2[] {
+  const maxDepth = opts.maxDepth ?? 6;
+  const samples = Math.max(2, opts.samples ?? 5);
+  const bias = opts.bias;
+  const worst = (p: Vec2, q: Vec2): { d: Disk; foot: Vec2; intr: number } | null => {
+    let best: { d: Disk; foot: Vec2; intr: number } | null = null;
+    for (const d of obstacles) {
+      const { dist, foot, t } = segFoot(d, p, q);
+      if (t <= 0.001 || t >= 0.999) continue; // grazes an endpoint — the neighbour span owns it
+      const intr = d.r - dist;
+      if (intr <= 0) continue; // already clear of this island
+      if (!best || intr > best.intr) best = { d, foot, intr };
+    }
+    return best;
+  };
+  // Average density sampled at `samples` evenly-spaced points along the two legs
+  // p→wp→q of a candidate detour — the crowding a river would pass through that side.
+  const detourDensity = (p: Vec2, wp: Vec2, q: Vec2): number => {
+    let sum = 0;
+    let count = 0;
+    const leg = (s: Vec2, e: Vec2): void => {
+      for (let i = 0; i <= samples; i++) {
+        const t = i / samples;
+        sum += opts.density({ x: s.x + (e.x - s.x) * t, y: s.y + (e.y - s.y) * t });
+        count++;
+      }
+    };
+    leg(p, wp);
+    leg(wp, q);
+    return count > 0 ? sum / count : 0;
+  };
+  const route = (p: Vec2, q: Vec2, depth: number): Vec2[] => {
+    const w = worst(p, q);
+    if (!w || depth <= 0) return [p, q];
+    const cx = w.d.x;
+    const cy = w.d.y;
+    const dist = Math.hypot(w.foot.x - cx, w.foot.y - cy);
+    let dirx: number;
+    let diry: number;
+    if (dist < 1e-6) {
+      // the segment runs through the centre — push along its left normal.
+      const sx = q.x - p.x;
+      const sy = q.y - p.y;
+      const sl = Math.hypot(sx, sy) || 1;
+      dirx = -sy / sl;
+      diry = sx / sl;
+    } else {
+      dirx = (w.foot.x - cx) / dist;
+      diry = (w.foot.y - cy) / dist;
+    }
+    const push = 2 * w.d.r - dist; // over-push so the smoothed curve still clears r
+    // The NATURAL side (exactly routeAround's waypoint) and its mirror across the centre.
+    const wpPos: Vec2 = { x: cx + dirx * push, y: cy + diry * push };
+    let wp = wpPos;
+    if (bias > 0) {
+      const wpNeg: Vec2 = { x: cx - dirx * push, y: cy - diry * push };
+      const score = (mid: Vec2): number =>
+        Math.hypot(mid.x - p.x, mid.y - p.y) +
+        Math.hypot(q.x - mid.x, q.y - mid.y) +
+        bias * detourDensity(p, mid, q);
+      const sPos = score(wpPos);
+      const sNeg = score(wpNeg);
+      // Take the lower-scoring (more OPEN) side; ties keep the natural side (≤, not <).
+      wp = sNeg < sPos ? wpNeg : wpPos;
+    }
+    return [...route(p, wp, depth - 1), ...route(wp, q, depth - 1).slice(1)];
+  };
+  return route(a, b, maxDepth);
+}
+
 /** The smallest unsigned angle between two bearings, in [0, π]. Wraps correctly
  *  across ±π, so it's the right "how far off the bay direction is this vertex"
  *  metric for the crescent-coast Gaussian. Pure, deterministic. */

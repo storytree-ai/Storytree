@@ -69,6 +69,8 @@ import {
   carvePondInlets,
   loopGapArcs,
   repelChannels,
+  densityField,
+  routeAroundBiased,
   type Disk,
   type LoopDock,
   type DistributarySegment,
@@ -1336,6 +1338,29 @@ function buildBundle(
     (far ? deltaEdges : directEdges).push(e);
   }
 
+  // ---- OPEN-SPACE BIAS (`?riverOpenBias=`) ---------------------------------------
+  // The whole channel-building below (DIRECT + DELTA layers) is wrapped in `buildLayers`
+  // so it can run with a swappable island router. `routeAround` detours every river
+  // around the SAME (geometrically-determined) side of an island, so on a crowded hub
+  // rivers can PILE UP on one side while open water sits on the other. When
+  // `riverOpenBias > 0` we run TWO passes: pass 1 routes with plain `routeAround`
+  // (today's geometry) and we measure where rivers actually are (a `densityField` over
+  // pass-1's channel points); pass 2 re-routes with `routeAroundBiased`, which at each
+  // detour weighs BOTH sides of an island by `detourLength + bias·avgDensity` and takes
+  // the more OPEN side — letting some rivers flip to the empty water. A higher
+  // `riverOpenBias` makes a river accept a noticeably longer path to use open space. The
+  // bundle stays coherent because every channel (tributary + the trunk over it) is cut
+  // from the SAME routed polylines via the same `route` fn, so swapping the router
+  // consistently keeps coincident geometry identical. `riverOpenBias <= 0` (the default)
+  // runs a SINGLE plain pass → byte-identical to today's world.
+  type IslandRouter = (a: Pt, b: Pt, obstacles: Disk[]) => Pt[];
+  const buildLayers = (router: IslandRouter): void => {
+    // Reset the accumulators so a second (biased) pass replaces the first cleanly; on a
+    // single pass these are already empty, so the OFF path is untouched.
+    channels.length = 0;
+    docksByIsland.forEach((d) => (d.length = 0));
+    repelGroupSeq = 0;
+
   // ---- DIRECT layer: EDGE-PATH BUNDLING over the SHORT edges only (#194) --------
   // A short edge reachable via a near hub braids ALONG that hub (the watershed look);
   // a direct short edge stays its own channel. Excluding the far edges from the graph
@@ -1369,7 +1394,7 @@ function buildBundle(
       docksByIsland[lo]?.push({ dock: dlo, flow: chFlow });
       docksByIsland[hi]?.push({ dock: dhi, flow: chFlow });
       const obstacles = disks.filter((_, i) => i !== lo && i !== hi);
-      const routed = routeAround(dlo, dhi, obstacles);
+      const routed = router(dlo, dhi, obstacles);
       const wander = meanderPath(
         routed,
         hash(`seg:${tlo.story.id}~${thi.story.id}`),
@@ -1478,7 +1503,7 @@ function buildBundle(
           if (isl !== undefined && isl >= 0) skipIdx.add(isl);
         }
         const obstacles = disks.filter((_, idx) => !skipIdx.has(idx));
-        const routed = routeAround(a, b, obstacles);
+        const routed = router(a, b, obstacles);
         return meanderPath(
           routed,
           hash(`delta:${a.x.toFixed(1)},${a.y.toFixed(1)}~${b.x.toFixed(1)},${b.y.toFixed(1)}`),
@@ -1546,6 +1571,26 @@ function buildBundle(
         emitDelta(subset, subset.length, opts.tuning.deltaConePull);
       }
     }
+  }
+  }; // end buildLayers
+
+  // Dispatch: a single plain pass (byte-identical) when the bias is OFF, else a two-pass
+  // density-aware build — measure where rivers crowd, then re-route around open space.
+  if (opts.tuning.riverOpenBias > 0) {
+    // PASS 1 — today's geometry, so the density reflects where rivers ACTUALLY are.
+    buildLayers((a, b, obstacles) => routeAround(a, b, obstacles));
+    const field = densityField(
+      channels.map((c) => c.pts),
+      opts.tuning.riverOpenCell,
+    );
+    // PASS 2 — re-route preferring the more OPEN side of each island. The reset at the
+    // top of buildLayers discards pass-1's channels/docks so only this pass survives.
+    const bias = opts.tuning.riverOpenBias;
+    buildLayers((a, b, obstacles) =>
+      routeAroundBiased(a, b, obstacles, { density: (p) => field.sample(p), bias }),
+    );
+  } else {
+    buildLayers((a, b, obstacles) => routeAround(a, b, obstacles));
   }
 
   // ---- INTER-RIVER REPULSION + FLUSH (`?riverRepel=`) ----------------------------
@@ -3105,6 +3150,25 @@ interface RiverTuning {
   /** Repulsion relaxation passes (`?riverRepelIters=`): more passes spread a dense
    *  cluster further apart. Only read when `riverRepel > 0`. */
   riverRepelIters: number;
+  /** OPEN-SPACE BIAS strength (`?riverOpenBias=`, `?rivers=bundle`): how strongly a
+   *  river prefers the more OPEN side of an island it must detour. `routeAround` always
+   *  detours every river around the SAME (geometrically-determined) side, so rivers can
+   *  pile up on one flank of a crowded hub while open water sits on the other. A positive
+   *  bias runs a TWO-PASS build — measure where rivers crowd (a density field over a
+   *  first plain pass), then re-route weighing each island side by
+   *  `detourLength + bias·avgDensity` and taking the emptier one — so some rivers flip to
+   *  the open water. LOW = subtle redistribution; HIGH = rivers take a noticeably longer
+   *  path to use empty space. Unlike `riverRepel` (a local force that only bows a pile-up
+   *  outward) this is a ROUTING decision and CAN flip a river to the far side of an
+   *  island. `0` (the default) SKIPS the second pass entirely → byte-identical to today's
+   *  single-pass bundle world. Only rivers that actually DETOUR an island move; a river
+   *  merely running alongside an island without intruding it is unaffected. */
+  riverOpenBias: number;
+  /** Density-grid cell size for the open-space bias (`?riverOpenCell=`, px). The crowding
+   *  field buckets channel points into cells this size and a sample reads its 3×3
+   *  neighbourhood, so larger cells feel crowding from further off (coarser, smoother
+   *  redistribution). Only read when `riverOpenBias > 0`. */
+  riverOpenCell: number;
 }
 
 const RIVER_TUNING: RiverTuning = {
@@ -3133,6 +3197,12 @@ const RIVER_TUNING: RiverTuning = {
   riverRepel: 0,
   riverRepelRadius: 56,
   riverRepelIters: 12,
+  // Open-space bias OFF by default (single-pass, byte-identical world). A positive
+  // `?riverOpenBias=` turns on the two-pass density-aware reroute; ~600 with the 50px
+  // cell visibly redistributes a crowded hub's rivers toward open water without
+  // shoving any river off a path it doesn't need to detour.
+  riverOpenBias: 0,
+  riverOpenCell: 50,
 };
 
 /** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
@@ -3223,6 +3293,8 @@ function readRiverTuning(): RiverTuning {
   const rr = num('riverRepel');
   const rrr = num('riverRepelRadius');
   const rri = num('riverRepelIters');
+  const rob = num('riverOpenBias');
+  const roc = num('riverOpenCell');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
@@ -3243,6 +3315,9 @@ function readRiverTuning(): RiverTuning {
   if (rr !== null) out.riverRepel = Math.max(0, rr);
   if (rrr !== null) out.riverRepelRadius = Math.max(1, rrr);
   if (rri !== null) out.riverRepelIters = Math.max(0, Math.round(rri));
+  // Open-space bias: strength ≥ 0 (0 = OFF, single-pass byte-identical), cell size > 0.
+  if (rob !== null) out.riverOpenBias = Math.max(0, rob);
+  if (roc !== null) out.riverOpenCell = Math.max(1, roc);
   // `?pondMouth=fused` — opt-in fused river→pond mouth (default OFF, byte-identical).
   out.fusedPondMouth = q.get('pondMouth') === 'fused';
   return out;

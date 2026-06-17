@@ -31,6 +31,8 @@ import {
   carvePondInlets,
   loopGapArcs,
   repelChannels,
+  densityField,
+  routeAroundBiased,
   type BundleEdge,
   type Disk,
   type Vec2,
@@ -1372,5 +1374,198 @@ describe('repelChannels', () => {
     const [ra, rb] = repelChannels([a, b], [0, 1], OPTS);
     expect(ra).toEqual(a);
     expect(rb).toEqual(b);
+  });
+});
+
+describe('densityField', () => {
+  /** A horizontal polyline at height `y` from x0 to x1 with `n`+1 points. */
+  const lineSeg = (y: number, x0: number, x1: number, n = 10): Vec2[] =>
+    Array.from({ length: n + 1 }, (_, i) => ({ x: x0 + (i / n) * (x1 - x0), y }));
+
+  it('samples HIGHER in a crowded cell than in empty space', () => {
+    // A dense clump of channel points around (0, 0); empty around (500, 500).
+    const crowded = [lineSeg(0, -30, 30), lineSeg(5, -30, 30), lineSeg(-5, -30, 30)];
+    const field = densityField(crowded, 50);
+    const dense = field.sample({ x: 0, y: 0 });
+    const empty = field.sample({ x: 500, y: 500 });
+    expect(dense).toBeGreaterThan(empty);
+    expect(empty).toBe(0); // nothing within a cell of (500,500)
+  });
+
+  it('is deterministic — same input, same samples', () => {
+    const lines = [lineSeg(0, -30, 30), lineSeg(20, -30, 30)];
+    const f1 = densityField(lines, 40);
+    const f2 = densityField(lines, 40);
+    const probes: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 0, y: 20 },
+      { x: 100, y: 100 },
+    ];
+    for (const p of probes) expect(f1.sample(p)).toBe(f2.sample(p));
+  });
+
+  it('counts neighbour cells (a point near a busy neighbour reads crowded)', () => {
+    // All points live in the cell around x∈[0,40); a probe in the EMPTY adjacent cell
+    // still picks them up via the 3×3 neighbourhood, so it reads non-zero.
+    const lines = [lineSeg(20, 0, 39)];
+    const field = densityField(lines, 40);
+    const adjacent = field.sample({ x: 60, y: 20 }); // next cell over (40..80)
+    const farAway = field.sample({ x: 500, y: 20 });
+    expect(adjacent).toBeGreaterThan(0);
+    expect(farAway).toBe(0);
+  });
+
+  it('is safe on empty input (every sample is 0)', () => {
+    const field = densityField([], 40);
+    expect(field.sample({ x: 0, y: 0 })).toBe(0);
+    expect(field.sample({ x: 999, y: -999 })).toBe(0);
+  });
+});
+
+describe('routeAroundBiased', () => {
+  const dist = (p: Vec2, q: Vec2): number => Math.hypot(p.x - q.x, p.y - q.y);
+  const a: Vec2 = { x: 0, y: 0 };
+  const b: Vec2 = { x: 100, y: 0 };
+  const zeroDensity = (): number => 0;
+
+  it('with bias=0 returns EXACTLY routeAround output (several configs) — the OFF guarantee', () => {
+    const configs: Disk[][] = [
+      [], // nothing in the way
+      [{ x: 50, y: 80, r: 20 }], // off to the side, ignored
+      [{ x: 50, y: 0, r: 22 }], // dead-centre obstacle
+      [
+        { x: 30, y: 6, r: 16 },
+        { x: 60, y: -6, r: 16 },
+        { x: 85, y: 4, r: 14 },
+      ], // a cluster
+    ];
+    for (const obstacles of configs) {
+      const biased = routeAroundBiased(a, b, obstacles, { density: zeroDensity, bias: 0 });
+      const plain = routeAround(a, b, obstacles);
+      expect(biased).toEqual(plain);
+    }
+  });
+
+  it('with a NEGATIVE bias also returns exactly routeAround (clamped OFF)', () => {
+    const island: Disk[] = [{ x: 50, y: 0, r: 22 }];
+    expect(routeAroundBiased(a, b, island, { density: zeroDensity, bias: -5 })).toEqual(
+      routeAround(a, b, island),
+    );
+  });
+
+  it('routes around the OPEN side while routeAround takes the crowded side (core behaviour)', () => {
+    // One obstacle straddling the chord. routeAround pushes the waypoint to the side
+    // the foot already favours; with a SHALLOW foot offset that is the +y side.
+    const island: Disk[] = [{ x: 50, y: 0.5, r: 22 }];
+    const plain = routeAround(a, b, island);
+    // The crowded side is wherever routeAround's waypoint went; the OPEN side is the
+    // opposite. Make density HIGH on the routeAround side, ZERO on the far side.
+    const plainMid = plain[Math.floor(plain.length / 2)]!;
+    const crowdedSign = Math.sign(plainMid.y) || 1;
+    const density = (p: Vec2): number => (Math.sign(p.y) === crowdedSign ? 100 : 0);
+    const biased = routeAroundBiased(a, b, island, { density, bias: 1 });
+    const biasedMid = biased[Math.floor(biased.length / 2)]!;
+    // The biased router flipped to the OPEN (zero-density) side.
+    expect(Math.sign(biasedMid.y)).toBe(-crowdedSign);
+    // …and still clears the island on that side.
+    for (const s of sampleSmoothed(biased)) {
+      expect(dist(s, { x: 50, y: 0.5 })).toBeGreaterThanOrEqual(22 - 1.0);
+    }
+    // endpoints preserved exactly
+    expect(biased[0]).toEqual(a);
+    expect(biased[biased.length - 1]).toEqual(b);
+  });
+
+  it('falls back to the natural (routeAround) side when density is comparable both sides', () => {
+    const island: Disk[] = [{ x: 50, y: 0, r: 22 }];
+    const flat = (): number => 7; // identical density everywhere → no reason to flip
+    const biased = routeAroundBiased(a, b, island, { density: flat, bias: 1 });
+    expect(biased).toEqual(routeAround(a, b, island));
+  });
+
+  it('preserves endpoints exactly and is deterministic', () => {
+    const island: Disk[] = [{ x: 50, y: 3, r: 20 }];
+    const density = (p: Vec2): number => (p.y > 0 ? 50 : 0);
+    const r1 = routeAroundBiased(a, b, island, { density, bias: 2 });
+    const r2 = routeAroundBiased(a, b, island, { density, bias: 2 });
+    expect(r1).toEqual(r2);
+    expect(r1[0]).toEqual(a);
+    expect(r1[r1.length - 1]).toEqual(b);
+  });
+
+  it('returns the straight segment with no obstacles, whatever the bias', () => {
+    expect(routeAroundBiased(a, b, [], { density: () => 99, bias: 5 })).toEqual([a, b]);
+  });
+
+  // The two-pass composition buildBundle wires: PASS 1 routes with plain routeAround,
+  // a densityField is built from pass-1's channels, PASS 2 re-routes biased. These
+  // pin the two integration guarantees the wiring promises.
+  describe('two-pass open-space composition (the buildBundle dispatch)', () => {
+    const island: Disk = { x: 200, y: 200, r: 60 };
+    // Five co-directional rivers whose routeAround foot all favours the SAME (+y) side →
+    // a one-sided pile-up, the exact symptom the bias addresses.
+    const pile: [Vec2, Vec2][] = [210, 214, 218, 222, 226].map((y) => [
+      { x: 0, y },
+      { x: 400, y },
+    ]);
+    const sideOf = (path: Vec2[]): number =>
+      Math.sign(path[Math.floor(path.length / 2)]!.y - island.y);
+
+    it('PASS 1 (plain routeAround) piles every river on one side', () => {
+      const pass1 = pile.map(([s, e]) => routeAround(s, e, [island]));
+      const sides = pass1.map(sideOf);
+      expect(sides.every((x) => x === sides[0])).toBe(true); // all the same side
+    });
+
+    it('bias=0 second pass is byte-identical to PASS 1 (the OFF guarantee, end to end)', () => {
+      const pass1 = pile.map(([s, e]) => routeAround(s, e, [island]));
+      const field = densityField(pass1, 50);
+      const pass2 = pile.map(([s, e]) =>
+        routeAroundBiased(s, e, [island], { density: (p) => field.sample(p), bias: 0 }),
+      );
+      expect(pass2).toEqual(pass1);
+    });
+
+    it('bias>0 second pass moves rivers OFF the crowded side toward open water', () => {
+      const pass1 = pile.map(([s, e]) => routeAround(s, e, [island]));
+      const crowdedSide = sideOf(pass1[0]!);
+      const field = densityField(pass1, 50);
+      const pass2 = pile.map(([s, e]) =>
+        routeAroundBiased(s, e, [island], { density: (p) => field.sample(p), bias: 600 }),
+      );
+      // At least one river left the crowded side for the open side.
+      const movedOff = pass2.filter((p) => sideOf(p) !== crowdedSide).length;
+      expect(movedOff).toBeGreaterThan(0);
+      // Endpoints still pinned end to end.
+      pass2.forEach((p, i) => {
+        expect(p[0]).toEqual(pile[i]![0]);
+        expect(p[p.length - 1]).toEqual(pile[i]![1]);
+      });
+    });
+  });
+
+  it('inherits routeAround clearance on the side it picks (biased flip ≡ mirror of natural)', () => {
+    // The biased router reuses routeAround's EXACT recursion/clearance — only the SIDE
+    // can differ. So routing the biased path to the −y (open) side must clear islands
+    // exactly as well as plain routeAround clears the MIRROR config on the +y side. This
+    // pins "the bias never degrades clearance" without over-claiming a clearance the
+    // routeAround heuristic itself doesn't give on stacked islands.
+    const obstacles: Disk[] = [
+      { x: 50, y: 0, r: 20 },
+      { x: 50, y: -34, r: 16 }, // stacked on the open (−y) side
+    ];
+    const mirror: Disk[] = obstacles.map((d) => ({ x: d.x, y: -d.y, r: d.r })); // +y twins
+    const density = (p: Vec2): number => (p.y > 0 ? 200 : 0); // push to the −y side
+    const biased = routeAroundBiased(a, b, obstacles, { density, bias: 1, maxDepth: 8 });
+    const plain = routeAround(a, b, mirror, 8);
+    // It flipped to the open (−y) side.
+    expect(biased[Math.floor(biased.length / 2)]!.y).toBeLessThan(0);
+    // Per-island min clearance matches the mirror's (the same recursion, mirrored).
+    const minClear = (path: Vec2[], d: Disk): number =>
+      Math.min(...path.map((s) => dist(s, d)));
+    obstacles.forEach((d, i) => {
+      expect(minClear(biased, d)).toBeCloseTo(minClear(plain, mirror[i]!), 6);
+    });
+    expect(biased.length).toBeGreaterThan(3); // ≥2 waypoints (both islands detoured)
   });
 });
