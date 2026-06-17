@@ -440,6 +440,23 @@ export function embayCoast(
   });
 }
 
+/**
+ * Whether an island's lake should grow into the degree-scaled crescent BAY
+ * (`?coast=crescent`) rather than an ordinary inland pond. Only HUBS qualify — an
+ * island whose connection `degree` (its real dependency edges, in + out) meets
+ * `minDegree` — so a busy hub like the library gets the big lake wrapped by a C of
+ * coast, while low-degree (small) islands keep the plain pond, which reads better at
+ * small scale (owner call 2026-06-17: "the crescent only comes into play where you
+ * have many connections to an island, for example the library"). `degree` is the real
+ * dependency count, NOT the basin's spanning-tree river count — the library is a
+ * one-river leaf in the MST but is depended on by ~everything, so it's a hub here. A
+ * `degree` of 0 never embays, so `minDegree` 0 means "every connected island". Pure,
+ * deterministic.
+ */
+export function crescentApplies(degree: number, minDegree: number): boolean {
+  return degree > 0 && degree >= minDegree;
+}
+
 /** A confluence-tree edge: water flows a→b carrying `flow` source tributaries
  *  (== how many of the network's rivers share this edge — which drives its width). */
 export interface ConfluenceEdge {

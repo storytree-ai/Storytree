@@ -22,6 +22,7 @@ import {
   circularMeanAngle,
   pondRadiusForDegree,
   embayCoast,
+  crescentApplies,
   edgePathBundle,
   segmentKey,
   type BundleEdge,
@@ -627,6 +628,28 @@ describe('pondRadiusForDegree', () => {
   it('is monotonic and clamps to max', () => {
     expect(pondRadiusForDegree(3, 10, 5, 100)).toBeGreaterThan(pondRadiusForDegree(1, 10, 5, 100));
     expect(pondRadiusForDegree(100, 10, 5, 18)).toBe(18); // capped
+  });
+});
+
+describe('crescentApplies', () => {
+  it('only hubs at/above the threshold embay (the library, not small islands)', () => {
+    const minDegree = 5;
+    expect(crescentApplies(7, minDegree)).toBe(true); // the library (dep-degree 7)
+    expect(crescentApplies(6, minDegree)).toBe(true); // studio (dep-degree 6)
+    expect(crescentApplies(5, minDegree)).toBe(true); // exactly the threshold
+    expect(crescentApplies(4, minDegree)).toBe(false); // a degree-4 mid node — plain pond
+    expect(crescentApplies(2, minDegree)).toBe(false); // a small island
+    expect(crescentApplies(1, minDegree)).toBe(false); // a leaf island
+  });
+
+  it('never embays a degree-0 island, even at minDegree 0', () => {
+    expect(crescentApplies(0, 5)).toBe(false);
+    expect(crescentApplies(0, 0)).toBe(false);
+  });
+
+  it('minDegree 0 means every connected island (the pre-threshold behaviour)', () => {
+    expect(crescentApplies(1, 0)).toBe(true);
+    expect(crescentApplies(2, 0)).toBe(true);
   });
 });
 
