@@ -1042,7 +1042,11 @@ function buildBundle(
   // the shared stretch (the confluence-mode trick that makes the trunk cover the
   // braid). Coast docks are gathered here too, for the per-island ponds.
   const segGeom = new Map<string, Pt[]>();
-  const docksByIsland: Dock[][] = territories.map(() => []);
+  // Each dock remembers its segment's flow, so the inland channel that continues the
+  // trunk past the coast carries the SAME flow-width — no pinch where a fat trunk
+  // emerges into its lake (the estuary continuity #193 added to the basin).
+  const flowByKey = new Map(bundle.segments.map((s) => [segmentKey(s.a, s.b), s.flow]));
+  const docksByIsland: { dock: Dock; flow: number }[][] = territories.map(() => []);
   const segGeometry = (u: number, v: number): Pt[] => {
     const lo = Math.min(u, v);
     const hi = Math.max(u, v);
@@ -1057,8 +1061,9 @@ function buildBundle(
     }
     const dlo = coastDock(tlo, thi.centroid, 0.96, opts.mouthInset);
     const dhi = coastDock(thi, tlo.centroid, 0.96, opts.mouthInset);
-    docksByIsland[lo]?.push(dlo);
-    docksByIsland[hi]?.push(dhi);
+    const chFlow = Math.max(1, flowByKey.get(key) ?? 1);
+    docksByIsland[lo]?.push({ dock: dlo, flow: chFlow });
+    docksByIsland[hi]?.push({ dock: dhi, flow: chFlow });
     const obstacles = disks.filter((_, i) => i !== lo && i !== hi);
     const routed = routeAround(dlo, dhi, obstacles);
     const wander = meanderPath(
@@ -1133,21 +1138,23 @@ function buildBundle(
       const aim =
         ds.length > 0
           ? unit(t.treeSpot, {
-              x: ds.reduce((s, d) => s + d.x, 0) / ds.length,
-              y: ds.reduce((s, d) => s + d.y, 0) / ds.length,
+              x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
+              y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
             })
           : { x: 0, y: 1 };
       const pond = placePond(t, aim, islandFlow[i] ?? 0, 4);
       if (!pond) return;
       inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
       for (const dk of ds) {
-        const dock = rayPolyIntersect(dk, pond.center, pond.loop);
+        const dock = rayPolyIntersect(dk.dock, pond.center, pond.loop);
         if (!dock) continue;
+        // Flare into the lake and carry the trunk's flow-width for continuity (#193).
         inland.channels.push({
           from: t.story.id,
           to: t.story.id,
           via: [],
-          d: rivermouthCubic(dk, dock as Dock, 0, 8),
+          d: rivermouthCubic(dk.dock, dock as Dock, 0, 14),
+          flow: dk.flow,
         });
       }
     });
