@@ -368,6 +368,78 @@ export function routeAround(a: Vec2, b: Vec2, obstacles: Disk[], maxDepth = 6): 
   return route(a, b, maxDepth);
 }
 
+/** The smallest unsigned angle between two bearings, in [0, π]. Wraps correctly
+ *  across ±π, so it's the right "how far off the bay direction is this vertex"
+ *  metric for the crescent-coast Gaussian. Pure, deterministic. */
+export function angularDistance(a: number, b: number): number {
+  let d = Math.abs(a - b) % (Math.PI * 2);
+  if (d > Math.PI) d = Math.PI * 2 - d;
+  return d;
+}
+
+/** The circular MEAN of a set of bearings — `atan2(Σ sinθ, Σ cosθ)`. Used to aim a
+ *  bay at the average direction the island's rivers enter from, robust across the
+ *  ±π wrap where a plain arithmetic mean would point the wrong way. Returns 0 for
+ *  no angles. Pure, deterministic. */
+export function circularMeanAngle(angles: number[]): number {
+  let sx = 0;
+  let sy = 0;
+  for (const a of angles) {
+    sx += Math.cos(a);
+    sy += Math.sin(a);
+  }
+  if (sx === 0 && sy === 0) return 0;
+  return Math.atan2(sy, sx);
+}
+
+/**
+ * How big an island's lake should be for its river `degree` (the number of
+ * connections — in + out — incident on the island). Area reads as proportional to
+ * degree, so the RADIUS grows with `sqrt(degree)`: a degree-9 hub holds a clearly
+ * bigger pool than a leaf without being nine times wider. `base` is the floor (a
+ * degree-0 island still gets a visible pond), `gain` the px per unit √degree, `max`
+ * the cap the land/aesthetics allow. Pure, deterministic.
+ */
+export function pondRadiusForDegree(degree: number, base: number, gain: number, max: number): number {
+  const r = base + gain * Math.sqrt(Math.max(0, degree));
+  return Math.min(max, Math.max(base, r));
+}
+
+/**
+ * Grow a closed coast `loop` into a C of land that WRAPS an island's degree-sized
+ * lake — the "create a c shape coastline / increase the land mass you need" owner
+ * call, robust at any lake size. Every coast vertex nearer than `pondR + beach` to
+ * `pondCenter` is pushed radially OUT (away from the lake centre) to exactly that
+ * distance, so the shore bulges around the lake and holds it with a beach margin —
+ * EXCEPT vertices in the seaward MOUTH sector (within `openHalf` radians of
+ * `thetaBay` as seen from the lake centre), which are left untouched so the lake
+ * stays OPEN to the sea on the side its rivers enter. The result is a crescent of
+ * land hugging the lake with a river-entry mouth — a true C. Vertices already clear
+ * of the lake are untouched, so a lake that fits leaves the coast unchanged. Meant
+ * to be re-smoothed (Chaikin) by the caller. Pure, deterministic — no Math.random.
+ */
+export function embayCoast(
+  loop: Vec2[],
+  pondCenter: Vec2,
+  pondR: number,
+  beach: number,
+  thetaBay: number,
+  openHalf: number,
+): Vec2[] {
+  const want = pondR + beach;
+  if (want <= 0) return loop.map((p) => ({ x: p.x, y: p.y }));
+  return loop.map((p) => {
+    const dx = p.x - pondCenter.x;
+    const dy = p.y - pondCenter.y;
+    const d = Math.hypot(dx, dy);
+    if (d >= want || d < 1e-6) return { x: p.x, y: p.y };
+    const bearing = Math.atan2(dy, dx);
+    if (angularDistance(bearing, thetaBay) < openHalf) return { x: p.x, y: p.y }; // the mouth
+    const s = want / d;
+    return { x: pondCenter.x + dx * s, y: pondCenter.y + dy * s };
+  });
+}
+
 /** A confluence-tree edge: water flows a→b carrying `flow` source tributaries
  *  (== how many of the network's rivers share this edge — which drives its width). */
 export interface ConfluenceEdge {
@@ -553,4 +625,163 @@ export function treeDrainage(
     if (e !== undefined && e >= 0) flow[e] = size[v] ?? 1;
   }
   return tree.map(([a, b], e) => ({ a, b, flow: flow[e] ?? 0 }));
+}
+
+/** A graph edge to bundle: an index pair into the `nodes` array. */
+export interface BundleEdge {
+  a: number;
+  b: number;
+}
+
+/** Accumulated flow on one graph segment (a real edge `a`–`b`, `a < b`): how many
+ *  of the network's edge paths route ALONG it — the Shreve-like count that drives a
+ *  shared trunk's stroke width. */
+export interface BundleSegment {
+  a: number;
+  b: number;
+  flow: number;
+}
+
+export interface EdgeBundle {
+  /** Per input edge (same order): its routed node-index path `[a, …hubs, b]`. A
+   *  straight edge is `[a, b]`; a bundled edge has ≥1 intermediate hub. The
+   *  endpoints are ALWAYS the input edge's own `a` and `b` — no edge is dropped or
+   *  re-pointed, so every real dependency keeps its true endpoints (the property the
+   *  MST basin threw away). */
+  paths: number[][];
+  /** Per input edge (same order): whether it was rerouted through hub(s). */
+  bundled: boolean[];
+  /** Per shared graph segment, the accumulated flow (≥1). Keyed elsewhere by
+   *  `min-max` node pair; here returned as a stable, index-sorted list. */
+  segments: BundleSegment[];
+}
+
+/** Deterministic Dijkstra over an undirected weighted graph, EXCLUDING one edge
+ *  (by its index), so an edge can be tested for a detour through the rest of the
+ *  graph. Dense O(V²); ties break toward the lower node index, and a node's
+ *  predecessor only updates on a STRICT improvement, so equal-cost alternatives
+ *  never flip the result. Returns the node path src→dst and its total weight, or
+ *  null when dst is unreachable. */
+function dijkstraExcluding(
+  n: number,
+  adj: Array<Array<{ to: number; ei: number; w: number }>>,
+  src: number,
+  dst: number,
+  excludeEi: number,
+): { path: number[]; cost: number } | null {
+  const dist = new Array<number>(n).fill(Infinity);
+  const prev = new Array<number>(n).fill(-1);
+  const done = new Array<boolean>(n).fill(false);
+  dist[src] = 0;
+  for (let it = 0; it < n; it++) {
+    let u = -1;
+    let bd = Infinity;
+    for (let v = 0; v < n; v++) {
+      if (!done[v] && (dist[v] ?? Infinity) < bd) {
+        bd = dist[v] ?? Infinity;
+        u = v;
+      }
+    }
+    if (u === -1) break;
+    done[u] = true;
+    if (u === dst) break;
+    for (const { to, ei, w } of adj[u] ?? []) {
+      if (ei === excludeEi || done[to]) continue;
+      const nd = (dist[u] ?? Infinity) + w;
+      if (nd < (dist[to] ?? Infinity)) {
+        dist[to] = nd;
+        prev[to] = u;
+      }
+    }
+  }
+  if ((dist[dst] ?? Infinity) === Infinity) return null;
+  const path: number[] = [];
+  for (let v = dst; v !== -1; v = prev[v] ?? -1) {
+    path.push(v);
+    if (v === src) break;
+  }
+  path.reverse();
+  if (path[0] !== src) return null;
+  return { path, cost: dist[dst] ?? Infinity };
+}
+
+/**
+ * EDGE-PATH BUNDLING over the REAL dependency graph (Wallinger et al. 2021): merge
+ * nearby edges into shared trunks WITHOUT inventing false adjacencies. Every input
+ * edge keeps its own endpoints `a` and `b`; a LONG edge whose two islands are also
+ * reachable along a short chain through a shared hub is REROUTED to flow along that
+ * chain (so a hub like the library becomes a fat trunk many edges run along), while
+ * a direct edge with no cheaper detour stays STRAIGHT (its own channel) — which is
+ * exactly the owner's "merge when close, but still signal a direct connection".
+ *
+ * Algorithm: weight each edge `len^d` (d≈2 penalises long edges so they prefer a
+ * hub detour); process edges LONGEST-first (ties → lower index, the same
+ * determinism euclideanMST uses); for each edge run Dijkstra from a to b through the
+ * REMAINING edges (the edge itself excluded, so a genuine detour is found) and
+ * BUNDLE it along that path when the detour's total weight ≤ `dMax · len(e)^d` and
+ * it has ≥1 intermediate hub. Finally accumulate, per shared graph segment, how many
+ * edge paths traverse it (the trunk-width signal). Deterministic — no Math.random,
+ * no wall-clock; O(|E|²·log|V|)-ish (here a dense O(|E|·|V|²)), trivial at 10–30
+ * islands. Returns empty paths for empty edges.
+ */
+export function edgePathBundle(
+  nodes: Vec2[],
+  edges: BundleEdge[],
+  opts: { d: number; dMax: number },
+): EdgeBundle {
+  const n = nodes.length;
+  const len = edges.map((e) => {
+    const A = nodes[e.a];
+    const B = nodes[e.b];
+    return A && B ? Math.hypot(B.x - A.x, B.y - A.y) : 0;
+  });
+  const w = len.map((L) => Math.pow(L, opts.d));
+  const adj: Array<Array<{ to: number; ei: number; w: number }>> = Array.from(
+    { length: n },
+    () => [],
+  );
+  edges.forEach((e, ei) => {
+    if (e.a === e.b || e.a < 0 || e.b < 0 || e.a >= n || e.b >= n) return;
+    const wi = w[ei] ?? 0;
+    adj[e.a]?.push({ to: e.b, ei, w: wi });
+    adj[e.b]?.push({ to: e.a, ei, w: wi });
+  });
+  // Longest edge first — a long edge is the one most worth rerouting through a hub.
+  const order = edges.map((_, i) => i).sort((i, j) => (len[j] ?? 0) - (len[i] ?? 0) || i - j);
+  const paths: number[][] = edges.map((e) => [e.a, e.b]);
+  const bundled: boolean[] = edges.map(() => false);
+  for (const ei of order) {
+    const e = edges[ei];
+    if (!e || e.a === e.b) continue;
+    const res = dijkstraExcluding(n, adj, e.a, e.b, ei);
+    if (res && res.path.length >= 3 && res.cost <= opts.dMax * (w[ei] ?? 0)) {
+      paths[ei] = res.path;
+      bundled[ei] = true;
+    }
+  }
+  // Shreve-like accumulation: every segment a path traverses gains one unit of flow.
+  const segFlow = new Map<string, number>();
+  for (const p of paths) {
+    for (let k = 0; k < p.length - 1; k++) {
+      const x = p[k];
+      const y = p[k + 1];
+      if (x === undefined || y === undefined) continue;
+      const key = x < y ? `${x}-${y}` : `${y}-${x}`;
+      segFlow.set(key, (segFlow.get(key) ?? 0) + 1);
+    }
+  }
+  const segments: BundleSegment[] = [...segFlow.entries()]
+    .map(([key, flow]) => {
+      const [a, b] = key.split('-').map(Number);
+      return { a: a ?? 0, b: b ?? 0, flow };
+    })
+    .sort((p, q) => p.a - q.a || p.b - q.b);
+  return { paths, bundled, segments };
+}
+
+/** Stable `min-max` key for a graph segment between node indices `a` and `b` — the
+ *  same key edgePathBundle accumulates flow under, so a caller can look a segment's
+ *  flow up from the returned list. */
+export function segmentKey(a: number, b: number): string {
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
 }
