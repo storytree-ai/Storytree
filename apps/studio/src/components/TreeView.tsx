@@ -57,6 +57,8 @@ import {
   routeAround,
   confluenceTree,
   meanderPath,
+  edgePathBundle,
+  segmentKey,
   type Disk,
   type LoopDock,
 } from '../lib/riverGeometry.js';
@@ -976,6 +978,190 @@ function buildBasin(
   return { edges, inland };
 }
 
+/**
+ * Build the EDGE-PATH-BUNDLED river network (`?rivers=bundle`). Unlike the basin
+ * (an MST that keeps n−1 edges and discards every other real adjacency), this keeps
+ * the WHOLE dependency graph: a long edge whose islands are also reachable via a
+ * short hub chain is REROUTED to braid along that chain (so a hub like the library
+ * fattens into a trunk many edges flow along), while a direct edge with no cheaper
+ * detour stays its own straight channel. Two layers compose the look:
+ *   • a THIN tributary per real edge — its endpoints are ALWAYS its own source and
+ *     destination docks (the direct-connection signal the MST threw away), so a
+ *     dependency can always be traced end to end; and
+ *   • a FAT trunk over every shared segment (flow ≥ 2), drawn ON TOP so it covers
+ *     the strands braiding along it — the "rivers merge when close" watershed look.
+ * Both layers reuse ONE meandered, island-skirting polyline per shared segment, so a
+ * trunk covers its tributaries exactly. Ponds are wired per node exactly as the
+ * basin does (each coast seam docks into the node's lake). Deterministic.
+ */
+function buildBundle(
+  territories: Territory[],
+  edgeList: { from: string; to: string; via: string[] }[],
+  opts: {
+    mouthInset: number;
+    tuning: RiverTuning;
+    waterMode: WaterMode;
+    bundleD: number;
+    bundleDMax: number;
+  },
+): { edges: WorldEdge[]; inland: InlandWater } {
+  const edges: WorldEdge[] = [];
+  const inland: InlandWater = { ponds: [], channels: [] };
+  const n = territories.length;
+  if (n === 0) return { edges, inland };
+  const byId = new Map(territories.map((t, i) => [t.story.id, i]));
+  const centroids = territories.map((t) => t.centroid);
+
+  // Real depends_on edges as node-index pairs (declared ∪ derived — NOT an MST, so
+  // every adjacency survives, the property the basin skeleton destroyed).
+  const idxEdges: { a: number; b: number; via: string[] }[] = [];
+  for (const e of edgeList) {
+    const a = byId.get(e.from);
+    const b = byId.get(e.to);
+    if (a === undefined || b === undefined || a === b) continue;
+    idxEdges.push({ a, b, via: e.via });
+  }
+  if (idxEdges.length === 0) return { edges, inland };
+
+  const bundle = edgePathBundle(
+    centroids,
+    idxEdges.map((e) => ({ a: e.a, b: e.b })),
+    { d: opts.bundleD, dMax: opts.bundleDMax },
+  );
+
+  // Every channel skirts third-party islands (a river hugs the open water between).
+  const disks: Disk[] = territories.map((t) => ({
+    x: t.centroid.x,
+    y: t.centroid.y,
+    r: t.radius + opts.tuning.routeMargin,
+  }));
+
+  // ONE meandered, island-skirting polyline per shared graph segment, coast→coast
+  // (stored low→high index). Both the tributary that runs through a segment and the
+  // fat trunk that covers it read from this cache, so their geometry is IDENTICAL on
+  // the shared stretch (the confluence-mode trick that makes the trunk cover the
+  // braid). Coast docks are gathered here too, for the per-island ponds.
+  const segGeom = new Map<string, Pt[]>();
+  // Each dock remembers its segment's flow, so the inland channel that continues the
+  // trunk past the coast carries the SAME flow-width — no pinch where a fat trunk
+  // emerges into its lake (the estuary continuity #193 added to the basin).
+  const flowByKey = new Map(bundle.segments.map((s) => [segmentKey(s.a, s.b), s.flow]));
+  const docksByIsland: { dock: Dock; flow: number }[][] = territories.map(() => []);
+  const segGeometry = (u: number, v: number): Pt[] => {
+    const lo = Math.min(u, v);
+    const hi = Math.max(u, v);
+    const key = segmentKey(lo, hi);
+    const cached = segGeom.get(key);
+    if (cached) return cached;
+    const tlo = territories[lo];
+    const thi = territories[hi];
+    if (!tlo || !thi) {
+      segGeom.set(key, []);
+      return [];
+    }
+    const dlo = coastDock(tlo, thi.centroid, 0.96, opts.mouthInset);
+    const dhi = coastDock(thi, tlo.centroid, 0.96, opts.mouthInset);
+    const chFlow = Math.max(1, flowByKey.get(key) ?? 1);
+    docksByIsland[lo]?.push({ dock: dlo, flow: chFlow });
+    docksByIsland[hi]?.push({ dock: dhi, flow: chFlow });
+    const obstacles = disks.filter((_, i) => i !== lo && i !== hi);
+    const routed = routeAround(dlo, dhi, obstacles);
+    const wander = meanderPath(
+      routed,
+      hash(`seg:${tlo.story.id}~${thi.story.id}`),
+      opts.tuning.meanderAmp,
+      opts.tuning.meanderFreq,
+    );
+    segGeom.set(key, wander);
+    return wander;
+  };
+  // Pre-route every shared segment so docks are gathered before the ponds are placed.
+  for (const s of bundle.segments) segGeometry(s.a, s.b);
+
+  // TRIBUTARY LAYER (one per real edge) — concatenate the routed segments along the
+  // edge's path, bridging each interior hub through its centroid (water dips into the
+  // hub and out the far side), so the edge reads as ONE channel from its true source
+  // dock to its true destination dock: a dependency you can always trace end to end.
+  idxEdges.forEach((e, i) => {
+    const path = bundle.paths[i] ?? [e.a, e.b];
+    const srcId = territories[e.a]?.story.id ?? '';
+    const dstId = territories[e.b]?.story.id ?? '';
+    const pts: Pt[] = [];
+    for (let k = 0; k < path.length - 1; k++) {
+      const u = path[k];
+      const v = path[k + 1];
+      if (u === undefined || v === undefined) continue;
+      const geom = segGeometry(u, v);
+      if (geom.length < 2) continue;
+      const dir = u <= v ? geom : [...geom].reverse();
+      if (k === 0) {
+        pts.push(...dir);
+      } else {
+        const cu = centroids[u];
+        if (cu) pts.push(cu); // bridge the hub junction through its centroid
+        pts.push(...dir);
+      }
+    }
+    if (pts.length < 2) return;
+    edges.push({ from: srcId, to: dstId, via: e.via, d: smoothOpenPath(pts) });
+  });
+
+  // TRUNK LAYER — a fat channel over every shared segment (flow ≥ 2), pushed AFTER
+  // the tributaries so it draws on top and covers the strands braiding along it. The
+  // width ramps with the accumulated flow (clamped, so a busy hub trunk reads fat
+  // without dwarfing the lone twigs).
+  for (const s of bundle.segments) {
+    if (s.flow < 2) continue;
+    const geom = segGeometry(s.a, s.b);
+    if (geom.length < 2) continue;
+    edges.push({
+      from: territories[s.a]?.story.id ?? '',
+      to: territories[s.b]?.story.id ?? '',
+      via: [],
+      d: smoothOpenPath(geom),
+      flow: s.flow,
+      kind: 'trunk',
+    });
+  }
+
+  // A lake at every node (the basin's pond wiring), each incident stream docking into
+  // its rim — water reads as lake → stream → lake, and an edge's mouth docking at its
+  // destination's pond is the unambiguous "A depends on this hub" signal.
+  if (opts.waterMode === 'pond') {
+    const islandFlow = new Array<number>(n).fill(0);
+    for (const s of bundle.segments) {
+      islandFlow[s.a] = (islandFlow[s.a] ?? 0) + s.flow;
+      islandFlow[s.b] = (islandFlow[s.b] ?? 0) + s.flow;
+    }
+    territories.forEach((t, i) => {
+      const ds = docksByIsland[i] ?? [];
+      const aim =
+        ds.length > 0
+          ? unit(t.treeSpot, {
+              x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
+              y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
+            })
+          : { x: 0, y: 1 };
+      const pond = placePond(t, aim, islandFlow[i] ?? 0, 4);
+      if (!pond) return;
+      inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      for (const dk of ds) {
+        const dock = rayPolyIntersect(dk.dock, pond.center, pond.loop);
+        if (!dock) continue;
+        // Flare into the lake and carry the trunk's flow-width for continuity (#193).
+        inland.channels.push({
+          from: t.story.id,
+          to: t.story.id,
+          via: [],
+          d: rivermouthCubic(dk.dock, dock as Dock, 0, 14),
+          flow: dk.flow,
+        });
+      }
+    });
+  }
+  return { edges, inland };
+}
+
 function buildWorld(
   stories: TreeStory[],
   opts?: {
@@ -1304,9 +1490,17 @@ function buildWorld(
 
   if (riverMode === 'merge') {
     ({ edges, inland } = buildBasin(territories, { mouthInset, tuning, waterMode }));
+  } else if (riverMode === 'bundle') {
+    ({ edges, inland } = buildBundle(territories, edgeList, {
+      mouthInset,
+      tuning,
+      waterMode,
+      bundleD: tuning.bundleD,
+      bundleDMax: tuning.bundleDMax,
+    }));
   }
 
-  if (riverMode !== 'merge') {
+  if (riverMode !== 'merge' && riverMode !== 'bundle') {
   const rivers: RiverRec[] = [];
 
   // Pass A — destination mouths.
@@ -2264,10 +2458,16 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 // the number of paths it carries — so the map reads as ONE connected watershed of
 // thick trunks (near the foundations) thinning to leaf twigs, with a lake at every
 // node, instead of a tangle of parallel strands. Comparison modes:
+//   `?rivers=bundle`     — EDGE-PATH BUNDLING over the REAL graph (Wallinger 2021):
+//                          a hub like the library becomes a fat trunk many edges flow
+//                          ALONG, yet EVERY dependency keeps its own endpoints (a thin
+//                          tributary you can trace end to end) — "merge when close, but
+//                          still show the direct connection". `?bundleD=`/`?bundleDMax=`
+//                          tune how aggressively long edges braid through a hub.
 //   `?rivers=confluence` — the previous per-source-trunk + per-destination
 //                          confluence merge (#187/#188), kept for A/B.
 //   `?rivers=strands`    — the oldest one-strand-per-edge / metro-lane look.
-type RiverMode = 'strands' | 'merge' | 'confluence';
+type RiverMode = 'strands' | 'merge' | 'confluence' | 'bundle';
 
 // Inland water (VISUAL SPIKE, flag-gated). The default world rings each island in a
 // water MOAT (`?moat=on`). `?water=pond|through` instead carries the dependency
@@ -2304,6 +2504,13 @@ interface RiverTuning {
   meanderAmp: number;
   /** Roughly how many meander lobes run along one river (the noise frequency). */
   meanderFreq: number;
+  /** Edge-path bundling (`?rivers=bundle`) — the length exponent `d`: higher
+   *  penalises long edges more, so they prefer to braid through a hub. */
+  bundleD: number;
+  /** Edge-path bundling detour budget: an edge bundles through a hub when the
+   *  detour's weight ≤ `bundleDMax · the edge's own weight`. Higher = more
+   *  aggressive merging (more edges braid); lower = more edges stay direct. */
+  bundleDMax: number;
 }
 
 const RIVER_TUNING: RiverTuning = {
@@ -2314,6 +2521,8 @@ const RIVER_TUNING: RiverTuning = {
   routeMargin: 20,
   meanderAmp: 18,
   meanderFreq: 3.5,
+  bundleD: 2,
+  bundleDMax: 2,
 };
 
 /** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
@@ -2339,6 +2548,7 @@ function readRiverMode(): RiverMode {
   const raw = new URLSearchParams(window.location.search).get('rivers');
   if (raw === 'strands') return 'strands';
   if (raw === 'confluence') return 'confluence';
+  if (raw === 'bundle') return 'bundle';
   return 'merge';
 }
 
@@ -2379,6 +2589,8 @@ function readRiverTuning(): RiverTuning {
   const rm = num('routeMargin');
   const ma = num('meanderAmp');
   const mf = num('meanderFreq');
+  const bd = num('bundleD');
+  const bdm = num('bundleDMax');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
@@ -2386,6 +2598,8 @@ function readRiverTuning(): RiverTuning {
   if (rm !== null) out.routeMargin = Math.max(0, rm);
   if (ma !== null) out.meanderAmp = Math.max(0, ma);
   if (mf !== null) out.meanderFreq = Math.max(0, mf);
+  if (bd !== null) out.bundleD = Math.max(0, bd);
+  if (bdm !== null) out.bundleDMax = Math.max(0, bdm);
   return out;
 }
 
@@ -2812,9 +3026,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           >
           <svg
             ref={svgRef}
-            className={`world-scene${riverMode === 'merge' ? ' rivers-merge' : ''}${
-              waterMode === 'pond' ? ' water-pond' : ''
-            }`}
+            className={`world-scene${
+              riverMode === 'merge' || riverMode === 'bundle' ? ' rivers-merge' : ''
+            }${waterMode === 'pond' ? ' water-pond' : ''}`}
             viewBox={`0 0 ${world.width} ${world.height}`}
             onClick={(e) => {
               if (e.target === e.currentTarget) clearSelection();

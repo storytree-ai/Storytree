@@ -17,6 +17,9 @@ import {
   routeAround,
   confluenceTree,
   meanderPath,
+  edgePathBundle,
+  segmentKey,
+  type BundleEdge,
   type Disk,
   type Vec2,
 } from './riverGeometry';
@@ -475,5 +478,92 @@ describe('meanderPath', () => {
     const a = meanderPath(line, 1, 10, 2, 24);
     const b = meanderPath(line, 2, 10, 2, 24);
     expect(a).not.toEqual(b);
+  });
+});
+
+describe('edgePathBundle', () => {
+  // A star around a "library" hub at the origin: three dependents hug it, and a
+  // LONG A–B edge spans across it. The long edge should reroute (bundle) through
+  // the hub, fattening the hub's two incident segments, while the short direct
+  // edges stay as their own straight channels — the exact "merge when close but
+  // keep the direct signal" the basin MST destroyed.
+  const nodes: Vec2[] = [
+    { x: 0, y: 0 }, // 0 library (hub)
+    { x: -10, y: 0 }, // 1 A
+    { x: 10, y: 0 }, // 2 B (opposite A)
+    { x: 0, y: 10 }, // 3 C
+  ];
+  const edges: BundleEdge[] = [
+    { a: 1, b: 0 }, // e0 A→library  (len 10)
+    { a: 2, b: 0 }, // e1 B→library  (len 10)
+    { a: 3, b: 0 }, // e2 C→library  (len 10)
+    { a: 1, b: 2 }, // e3 A→B        (len 20, long — bundles via library)
+  ];
+
+  it('reroutes the long edge through the hub but keeps the short edges straight', () => {
+    const { paths, bundled } = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    // short edges: straight, exactly their own two endpoints
+    expect(paths[0]).toEqual([1, 0]);
+    expect(paths[1]).toEqual([2, 0]);
+    expect(paths[2]).toEqual([3, 0]);
+    expect(bundled.slice(0, 3)).toEqual([false, false, false]);
+    // long edge: bundled through the hub, still ENDING at its own A and B
+    expect(bundled[3]).toBe(true);
+    expect(paths[3]).toEqual([1, 0, 2]);
+  });
+
+  it('EVERY real edge keeps its true endpoints — no edge is dropped (the MST guard)', () => {
+    const { paths } = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    expect(paths).toHaveLength(edges.length);
+    edges.forEach((e, i) => {
+      const p = paths[i] as number[];
+      expect(p.length).toBeGreaterThanOrEqual(2);
+      expect(p[0]).toBe(e.a);
+      expect(p[p.length - 1]).toBe(e.b);
+    });
+  });
+
+  it('accumulates Shreve-like flow: the hub trunk fattens, twigs stay thin', () => {
+    const { segments } = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    const flowOf = new Map(segments.map((s) => [segmentKey(s.a, s.b), s.flow]));
+    // A–library and B–library each carry the direct dep PLUS the bundled A→B
+    expect(flowOf.get(segmentKey(1, 0))).toBe(2);
+    expect(flowOf.get(segmentKey(2, 0))).toBe(2);
+    // C–library is a lone twig
+    expect(flowOf.get(segmentKey(3, 0))).toBe(1);
+    // the absorbed long edge leaves NO direct A–B segment behind
+    expect(flowOf.has(segmentKey(1, 2))).toBe(false);
+  });
+
+  it('is deterministic — same graph yields identical paths and flows', () => {
+    const a = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    const b = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    expect(a).toEqual(b);
+  });
+
+  it('the bundle/straight decision is stable under the dMax threshold', () => {
+    // A tight detour budget refuses the reroute: the long edge stays straight.
+    const tight = edgePathBundle(nodes, edges, { d: 2, dMax: 0.4 });
+    expect(tight.bundled[3]).toBe(false);
+    expect(tight.paths[3]).toEqual([1, 2]);
+    // A generous budget bundles it.
+    const loose = edgePathBundle(nodes, edges, { d: 2, dMax: 2 });
+    expect(loose.bundled[3]).toBe(true);
+  });
+
+  it('leaves an edge straight when its endpoints have no alternate path', () => {
+    // Add a pendant node E reachable ONLY via A: excluding the E–A edge, E is
+    // unreachable, so Dijkstra finds no detour and the edge stays direct.
+    const withPendant: Vec2[] = [...nodes, { x: -100, y: 100 }]; // 4 = E
+    const pendantEdges: BundleEdge[] = [...edges, { a: 4, b: 1 }]; // e4 E→A
+    const { paths, bundled } = edgePathBundle(withPendant, pendantEdges, { d: 2, dMax: 5 });
+    expect(bundled[4]).toBe(false);
+    expect(paths[4]).toEqual([4, 1]);
+  });
+
+  it('returns empty for an empty edge set', () => {
+    const { paths, segments } = edgePathBundle(nodes, [], { d: 2, dMax: 2 });
+    expect(paths).toEqual([]);
+    expect(segments).toEqual([]);
   });
 });
