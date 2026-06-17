@@ -45,10 +45,11 @@ makes the node buildable, and the prove-it-gate observes a genuine red→green a
 story flips toward `healthy` per-unit as each lands a signed verdict. The `proposed` pockets, recorded
 below, are the **DB-backed half** deliberately split to a parallel session.
 
-## Out of scope (a parallel session is building these — do NOT do them here)
+## Out of scope of THIS story's offline slices (the follow-on session handled these — status noted)
 
 These need inner-loop capabilities (a DB-backed proof mode, a new runtime dependency) the offline gate
-cannot drive, and are owned by a parallel session building ON the contracts this story lands:
+cannot drive, so they were split to the follow-on session that built ON the contracts this story lands.
+Their status is now recorded inline (do not re-do them):
 
 - **`events.change_event` SQL schema + `PgChangeStore`** — the Postgres adapter of
   [`change-event-store`](change-event-store.md)'s `ChangeStore` contract. This story lands the OFFLINE
@@ -57,7 +58,14 @@ cannot drive, and are owned by a parallel session building ON the contracts this
   [`change-store-pg`](change-store-pg.md)** (this follow-on session, ADR-0064 §1 DB-backed proof —
   proven by a real round-trip against an isolated `storytree_test`, never prod).
 - **The AST-fingerprint swap** behind `hashSpan()` (ADR-0016 Fork C) — needs the tree-sitter dependency.
-- **The studio "stale" hue** (ADR-0040 §7's distinct visual) — a frontend slice.
+  **DEFERRED + designed in [ADR-0071](../../docs/decisions/0071-ast-fingerprint-binding-hash-behind-a-node-only-seam-adr-001.md)**:
+  it cannot live in the browser-bundled core (tree-sitter is a native addon), so the design is a
+  node-only seam + a versioned hash scheme; not built (no live anchors → no measured false-positive
+  rate to justify it yet).
+- **The studio "stale" hue** (ADR-0040 §7's distinct visual) — **computed-state LOGIC DELIVERED**
+  (the `drift` dimension + the never-green→brown invariant, PR #181); the canvas hue + the data-wiring
+  that populates it (anchors-on-units + `/api/tree` drift) are deferred (the visual needs a human
+  witness against real drift).
 - **Production wiring** of a real `Anchor` onto each live unit + a real `boundHash`/`changeStore` into
   the live build path. This story lands the gate's *capability* (stamp + emit when a binding is present,
   proven offline); threading a real binding through `node-build.ts`/`story-build.ts` against the live DB
