@@ -470,6 +470,47 @@ describe('distributaryChains', () => {
       distributaryChains(source, dests, 0.3, straight),
     );
   });
+
+  it('a LOW pull bundles same-direction dests into a fat trunk; pull≈1.0 forks at the source', () => {
+    // The within-sector contract behind ?deltaConePull: a directional cluster of dests
+    // (all heading the same way) must merge into a real shared stem (flow ≥ 2 with
+    // length) when the fork is late, and degenerate to one strand per dest when the fork
+    // sits at the source. This is the exact regression a deltaPull=1.0 default introduced:
+    // clustering by direction is useless if the per-sector delta still forks at the source.
+    const dests: Vec2[] = [
+      { x: -30, y: 300 },
+      { x: 0, y: 310 },
+      { x: 30, y: 300 },
+    ];
+    const len = (pts: Vec2[]): number => {
+      let s = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1] as Vec2;
+        const b = pts[i] as Vec2;
+        s += Math.hypot(b.x - a.x, b.y - a.y);
+      }
+      return s;
+    };
+    // The total length of the SHARED (flow ≥ 2) stems — the visible "fat trunk" the
+    // bundle reads as. Zero ⇒ no bundle, just leaves.
+    const fatLen = (trunks: { pts: Vec2[]; flow: number }[]): number =>
+      trunks.filter((t) => t.flow >= 2).reduce((s, t) => s + len(t.pts), 0);
+
+    const late = distributaryChains(source, dests, 0.1, straight);
+    const atSource = distributaryChains(source, dests, 1.0, straight);
+    // Late fork → a substantial shared trunk gathers the cluster.
+    expect(fatLen(late.trunks)).toBeGreaterThan(20);
+    // Fork at the source → every confluence collapses onto the source, so the shared
+    // stems have ~no length and the delta reads as one thin strand per dest.
+    expect(fatLen(atSource.trunks)).toBeLessThan(1);
+    // Either way every dependency stays traceable end to end.
+    [late, atSource].forEach((d) => {
+      d.chains.forEach((chain, i) => {
+        expect(chain[0]).toEqual(source);
+        expect(chain.at(-1)).toEqual(dests[i]);
+      });
+    });
+  });
 });
 
 describe('bearingClusters', () => {

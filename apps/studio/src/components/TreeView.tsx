@@ -1347,7 +1347,7 @@ function buildBundle(
     // flow stamped on the source outflow dock — the whole group for the single delta, or
     // the sector's edge count when clustered. The body is identical either way, so the
     // OFF path (a single call over every dest) is byte-for-byte the pre-clustering delta.
-    const emitDelta = (subset: DeltaDest[], srcFlow: number): void => {
+    const emitDelta = (subset: DeltaDest[], srcFlow: number, pull: number): void => {
       if (subset.length === 0) return;
       // One source dock aimed at the barycentre of the far dependents (a single outflow
       // point the whole delta leaves through); each dependent docks facing the source.
@@ -1379,7 +1379,7 @@ function buildBundle(
           opts.tuning.meanderFreq,
         );
       };
-      const delta = distributaryChains(sourceDock, destDocks, opts.tuning.deltaPull, route);
+      const delta = distributaryChains(sourceDock, destDocks, pull, route);
       // Tributary per far edge — its chain ends are its TRUE source and dest docks.
       subset.forEach((d, di) => {
         const chain = delta.chains[di];
@@ -1409,12 +1409,18 @@ function buildBundle(
     };
 
     if (opts.tuning.deltaConeDeg <= 0) {
-      // CLUSTERING OFF — the exact pre-clustering single delta over EVERY far dependent.
-      emitDelta(destTs, group.length);
+      // CLUSTERING OFF — the exact pre-clustering single delta over EVERY far dependent,
+      // forking at the global `deltaPull` (the default radial fan when that is 1.0).
+      emitDelta(destTs, group.length, opts.tuning.deltaPull);
     } else {
       // CLUSTERING ON — group the far dependents into directional sectors by bearing FROM
       // the source, and run one fat-trunk delta per sector, so the hub fans as ≈ the
-      // number of distinct outgoing directions rather than one fork-everywhere splay.
+      // number of distinct outgoing directions rather than one fork-everywhere splay. Each
+      // sector forks LATE (its own `deltaConePull`, not the global `deltaPull`): a sector
+      // is directionally coherent, so merging its dests into one trunk that breaks near the
+      // dests reads as a watershed with no cross-direction knots — whereas `deltaPull=1.0`
+      // (the radial-fan default) would collapse every confluence onto the source and emit
+      // one thin strand per dest, defeating the bundling.
       const coneRad = (opts.tuning.deltaConeDeg * Math.PI) / 180;
       const clusters = bearingClusters(
         srcT.centroid,
@@ -1425,7 +1431,7 @@ function buildBundle(
         const subset = cluster
           .map((i) => destTs[i])
           .filter((d): d is DeltaDest => Boolean(d));
-        emitDelta(subset, subset.length);
+        emitDelta(subset, subset.length, opts.tuning.deltaConePull);
       }
     }
   }
@@ -2911,8 +2917,20 @@ interface RiverTuning {
    *  bearings sit within this many degrees of a neighbour share a sector; a wider gap
    *  starts a new one. `0` (the default) DISABLES clustering — buildBundle takes the
    *  EXACT single-delta path, so the bundle world is byte-identical until a positive
-   *  cone is set. Separate from `deltaPull` (the within-sector fork point). */
+   *  cone is set. The within-sector fork point is `deltaConePull` (NOT the global
+   *  `deltaPull`, whose 1.0 radial-fan default would fork at the source and defeat the
+   *  bundle). Tune the cone DOWN for MORE trunks, UP for fewer/fatter ones. */
   deltaConeDeg: number;
+  /** Within-sector fork point for the angular-clustered delta (`?rivers=bundle` +
+   *  `?deltaCone>0`, `?deltaConePull=`): how far toward the SOURCE each sector's
+   *  distributary fork sits, as a fraction of the dest-midpoint→source span (same
+   *  meaning as `deltaPull`, but applied PER directional sector). LOW (the default)
+   *  keeps a sector merged into one bold trunk almost up to its dests and forks late —
+   *  "merge then break off where they diverge"; HIGH approaches a fork at the source.
+   *  Deliberately separate from `deltaPull` so the clustered bundle forks late even
+   *  while the un-clustered default fan forks at the source (`deltaPull=1.0`). Only read
+   *  when clustering is on, so the OFF world stays byte-identical regardless. */
+  deltaConePull: number;
   /** Fuse the river→pond transition (`?pondMouth=fused`): instead of the in-pond
    *  channel raying through the pond CENTRE and stopping dead ON the rim (a stub mouth
    *  that butts the over-sea edge at the coast with a mismatched tangent), dock on the
@@ -2940,6 +2958,7 @@ const RIVER_TUNING: RiverTuning = {
   // merging on top of this — grouping the radial fan into a few fat trunks per sector.
   deltaPull: 1.0,
   deltaConeDeg: 0,
+  deltaConePull: 0.1,
   fusedPondMouth: false,
 };
 
@@ -3027,6 +3046,7 @@ function readRiverTuning(): RiverTuning {
   const bf = num('bundleFar');
   const dp = num('deltaPull');
   const dc = num('deltaCone');
+  const dcp = num('deltaConePull');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
@@ -3041,6 +3061,8 @@ function readRiverTuning(): RiverTuning {
   if (dp !== null) out.deltaPull = Math.max(0, Math.min(1, dp));
   // Cone width in degrees; clamp to [0, 360]. 0 keeps clustering OFF (single delta).
   if (dc !== null) out.deltaConeDeg = Math.max(0, Math.min(360, dc));
+  // Within-sector fork point; clamp to [0, 1]. Only used when clustering is on.
+  if (dcp !== null) out.deltaConePull = Math.max(0, Math.min(1, dcp));
   // `?pondMouth=fused` — opt-in fused river→pond mouth (default OFF, byte-identical).
   out.fusedPondMouth = q.get('pondMouth') === 'fused';
   return out;
