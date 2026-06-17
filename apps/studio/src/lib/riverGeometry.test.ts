@@ -16,6 +16,7 @@ import {
   treeDrainage,
   routeAround,
   confluenceTree,
+  meanderPath,
   type Disk,
   type Vec2,
 } from './riverGeometry';
@@ -424,5 +425,55 @@ describe('treeDrainage', () => {
   });
   it('is deterministic', () => {
     expect(treeDrainage(4, path, 0)).toEqual(treeDrainage(4, path, 0));
+  });
+});
+
+describe('meanderPath', () => {
+  // a straight horizontal river — the cleanest case to reason about displacement.
+  const line: Vec2[] = [
+    { x: 0, y: 100 },
+    { x: 100, y: 100 },
+    { x: 200, y: 100 },
+  ];
+
+  it('pins both endpoints exactly (a river still starts on its dock, ends on its mouth)', () => {
+    const out = meanderPath(line, 7, 12, 1.6, 24);
+    expect(out[0]).toEqual({ x: 0, y: 100 });
+    const last = out[out.length - 1];
+    expect(last?.x).toBeCloseTo(200, 6);
+    expect(last?.y).toBeCloseTo(100, 6);
+  });
+
+  it('is a no-op when amplitude is zero or non-positive', () => {
+    expect(meanderPath(line, 7, 0)).toBe(line);
+    expect(meanderPath(line, 7, -5)).toBe(line);
+  });
+
+  it('is a no-op for fewer than two points', () => {
+    const one: Vec2[] = [{ x: 1, y: 2 }];
+    expect(meanderPath(one, 7, 12)).toBe(one);
+  });
+
+  it('is deterministic — same (geometry, seed) gives an identical path', () => {
+    expect(meanderPath(line, 42, 10, 2, 20)).toEqual(meanderPath(line, 42, 10, 2, 20));
+  });
+
+  it('keeps every displaced point within amplitude of the centreline', () => {
+    const amp = 9;
+    const out = meanderPath(line, 3, amp, 2.2, 24);
+    // tangent is horizontal ⇒ all displacement is in y; bound it by amp (+ε).
+    for (const p of out) expect(Math.abs(p.y - 100)).toBeLessThanOrEqual(amp + 1e-6);
+  });
+
+  it('actually moves the interior (the wiggle is non-trivial)', () => {
+    const out = meanderPath(line, 5, 10, 2, 24);
+    const maxOff = Math.max(...out.map((p) => Math.abs(p.y - 100)));
+    expect(maxOff).toBeGreaterThan(1);
+  });
+
+  it('a different seed gives a different wiggle', () => {
+    const a = meanderPath(line, 1, 10, 2, 24);
+    const b = meanderPath(line, 2, 10, 2, 24);
+    expect(a).not.toEqual(b);
   });
 });

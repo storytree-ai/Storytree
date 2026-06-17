@@ -193,6 +193,95 @@ export function offsetCurve(curve: (t: number) => Vec2, dOf: (t: number) => numb
   return smoothOpenPath(out);
 }
 
+/** A deterministic [0,1) hash of an integer lattice index `i` under `seed`
+ *  (mulberry32-style integer mix). Local to the meander noise so riverGeometry
+ *  stays a pure module with no Math.random and no shared RNG state. */
+function latticeHash(i: number, seed: number): number {
+  let t = (Math.floor(i) + Math.imul(seed | 0, 0x9e3779b1) + 0x6d2b79f5) | 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/** Smooth 1-D value noise in [-1, 1] at position `p`, lattice seeded by `seed`:
+ *  smoothstep-interpolated hashed values at the integer lattice points. */
+function valueNoise1D(p: number, seed: number): number {
+  const i = Math.floor(p);
+  const f = p - i;
+  const u = f * f * (3 - 2 * f); // smoothstep
+  const a = latticeHash(i, seed) * 2 - 1;
+  const b = latticeHash(i + 1, seed) * 2 - 1;
+  return a + (b - a) * u;
+}
+
+/**
+ * Displace a routed river polyline sideways with smooth deterministic value-noise so
+ * the channel MEANDERS like a real river instead of reading as a routed pipe — Red
+ * Blob Games' river-meander idea ported to our SVG basin. The polyline is resampled
+ * to `samples`+1 evenly arc-spaced points; each INTERIOR sample is pushed along its
+ * local normal by `amp · noise(t·freq) · taper`, where `taper = sin(π·t)` pins BOTH
+ * endpoints EXACTLY (a river still starts on its dock and ends on its mouth) and fades
+ * the wiggle to zero at the ends so nothing kinks at a junction. `freq` is roughly the
+ * number of meander lobes along the river; the seed (e.g. a hash of the edge's two
+ * story ids) makes every river wiggle differently but identically on every render. The
+ * result is meant to feed smoothOpenPath. `amp <= 0` (or fewer than two points) returns
+ * the input UNCHANGED, so meander is a clean no-op when disabled. Deterministic.
+ */
+export function meanderPath(
+  pts: Vec2[],
+  seed: number,
+  amp: number,
+  freq = 1.6,
+  samples = 24,
+): Vec2[] {
+  if (amp <= 0 || pts.length < 2) return pts;
+  // cumulative arc length along the input polyline
+  const cum: number[] = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const prev = cum[i - 1] ?? 0;
+    cum.push(a && b ? prev + Math.hypot(b.x - a.x, b.y - a.y) : prev);
+  }
+  const total = cum[cum.length - 1] ?? 0;
+  if (total < 1e-6) return pts;
+  // resample evenly by arc length
+  const base: Vec2[] = [];
+  let seg = 0;
+  for (let s = 0; s <= samples; s++) {
+    const d = (s / samples) * total;
+    while (seg < pts.length - 2 && (cum[seg + 1] ?? 0) < d) seg++;
+    const a = pts[seg];
+    const b = pts[seg + 1] ?? a;
+    if (!a || !b) continue;
+    const segLen = (cum[seg + 1] ?? 0) - (cum[seg] ?? 0) || 1;
+    const t = (d - (cum[seg] ?? 0)) / segLen;
+    base.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  // displace interior samples along the local (left) normal of the resampled curve
+  const out: Vec2[] = [];
+  const n = base.length - 1;
+  for (let s = 0; s <= n; s++) {
+    const p = base[s];
+    if (!p) continue;
+    const prev = base[s - 1];
+    const next = base[s + 1];
+    if (s === 0 || s === n || !prev || !next) {
+      out.push(p); // endpoints (and degenerate neighbours) stay put
+      continue;
+    }
+    let tx = next.x - prev.x;
+    let ty = next.y - prev.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    const u = s / n;
+    const w = valueNoise1D(u * freq, seed) * amp * Math.sin(Math.PI * u);
+    out.push({ x: p.x - ty * w, y: p.y + tx * w }); // left normal = (−ty, tx)
+  }
+  return out;
+}
+
 /** Perpendicular distance from `p` to the segment a→b, the foot point on the
  *  segment, and the clamped parameter t∈[0,1] of that foot. */
 function segFoot(p: Vec2, a: Vec2, b: Vec2): { dist: number; foot: Vec2; t: number } {
