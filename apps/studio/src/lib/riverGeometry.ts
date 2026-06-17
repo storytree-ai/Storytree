@@ -515,6 +515,80 @@ export function confluenceTree(heads: Vec2[], sink: Vec2, pullFrac = 0.3): Confl
   return { edges, routeOf };
 }
 
+/** One distributary of a source delta: the routed polyline of a confluence-tree
+ *  edge (drawn source-ward → dest-ward) and the number of dests that share it —
+ *  the Shreve count that drives a trunk's width, so the stem nearest the source
+ *  (carrying every distributary) is the fattest. */
+export interface DistributaryTrunk {
+  pts: Vec2[];
+  flow: number;
+}
+
+export interface Distributary {
+  /** Per dest (same order as `dests`): the routed point chain SOURCE → … → dest,
+   *  threading the shared confluence points. `chain[0]` is EXACTLY `source` and
+   *  `chain.at(-1)` is EXACTLY `dests[i]` — so a far dependency rerouted into the
+   *  delta is still traceable end to end (the endpoint guard the MST/hub-reroute
+   *  threw away). A chain has ≥ 2 points. */
+  chains: Vec2[][];
+  /** Per confluence segment: its routed polyline (source-ward → dest-ward) and the
+   *  flow it carries. The tributary chains and these trunks are cut from the SAME
+   *  routed polylines, so on a shared stem their geometry is identical and a fat
+   *  trunk drawn on top covers the braided tributaries exactly. */
+  trunks: DistributaryTrunk[];
+}
+
+/**
+ * A DISTRIBUTARY DELTA — the reverse of a confluence: ONE source fanning to many
+ * `dests`, MERGING into a shared trunk near the source and FORKING toward the
+ * destinations ("merge then break off at a point"). It runs confluenceTree with the
+ * roles swapped (the dests are the heads, the source is the sink) and re-expresses
+ * every head's route as a source→dest polyline, so the network reads as a river
+ * leaving the source as one fat stem that progressively splits to reach each dest.
+ *
+ * Island avoidance is INJECTED: each confluence segment is handed to `route(a, b)`
+ * (in production `routeAround` against the third-party islands, so the trunk skirts a
+ * hub like the central drive-machinery chain instead of plowing through it — the
+ * owner's "if the distance is far enough the river should opt to go around"); a test
+ * can pass the identity `(a, b) => [a, b]` for straight segments. `route` MUST
+ * preserve its endpoints (every router here does) — that's what keeps each chain's
+ * ends pinned exactly on the source and the dest. Deterministic when `route` is.
+ * Empty dests → empty delta; a lone dest → one source→dest chain.
+ */
+export function distributaryChains(
+  source: Vec2,
+  dests: Vec2[],
+  pullFrac: number,
+  route: (a: Vec2, b: Vec2) => Vec2[],
+): Distributary {
+  if (dests.length === 0) return { chains: [], trunks: [] };
+  const net = confluenceTree(dests, source, pullFrac);
+  // Route each tree edge ONCE, source-ward (`b`) → dest-ward (`a`), and cache it so
+  // the tributary chains and the fat trunks read identical geometry on shared stems.
+  const routed = net.edges.map((e) => {
+    const seg = route(e.b, e.a);
+    return seg.length >= 2 ? seg : [e.b, e.a];
+  });
+  const chains = dests.map((_, di) => {
+    const eis = net.routeOf[di] ?? []; // dest → source order
+    const pts: Vec2[] = [{ x: source.x, y: source.y }]; // start EXACTLY at the source
+    for (let k = eis.length - 1; k >= 0; k--) {
+      // walk source → dest
+      const seg = routed[eis[k] ?? -1] ?? [];
+      for (let j = 1; j < seg.length; j++) {
+        const p = seg[j];
+        if (p) pts.push(p); // skip the shared first point of each segment
+      }
+    }
+    return pts; // ends EXACTLY at dests[di] (the head's tributary edge `a`)
+  });
+  const trunks: DistributaryTrunk[] = net.edges.map((e, ei) => ({
+    pts: routed[ei] ?? [e.b, e.a],
+    flow: e.flow,
+  }));
+  return { chains, trunks };
+}
+
 /**
  * The Euclidean minimum spanning tree over `pts` (Prim's algorithm, dense O(n²)),
  * returned as `n−1` index-pair edges `[i, j]` with `i < j`. This is the SKELETON of

@@ -16,6 +16,7 @@ import {
   treeDrainage,
   routeAround,
   confluenceTree,
+  distributaryChains,
   meanderPath,
   angularDistance,
   circularMeanAngle,
@@ -364,6 +365,90 @@ describe('confluenceTree', () => {
     expect(confluenceTree([], { x: 0, y: 0 })).toEqual({ edges: [], routeOf: [] });
     const args: [Vec2[], Vec2] = [[{ x: 1, y: 2 }, { x: 9, y: 3 }, { x: 4, y: 8 }], { x: 5, y: 50 }];
     expect(confluenceTree(...args)).toEqual(confluenceTree(...args));
+  });
+});
+
+describe('distributaryChains', () => {
+  const straight = (a: Vec2, b: Vec2): Vec2[] => [a, b]; // identity router (no islands)
+  const source: Vec2 = { x: 0, y: 0 };
+
+  it('a lone dest runs straight from the source to that dest', () => {
+    const dest: Vec2 = { x: 100, y: 0 };
+    const { chains, trunks } = distributaryChains(source, [dest], 0.3, straight);
+    expect(chains).toHaveLength(1);
+    expect(chains[0]?.[0]).toEqual(source);
+    expect(chains[0]?.at(-1)).toEqual(dest);
+    // one trunk edge carrying the single distributary
+    expect(trunks.map((t) => t.flow)).toEqual([1]);
+  });
+
+  it('EVERY dest chain is pinned EXACTLY on the source and its own dest (the endpoint guard)', () => {
+    // a fan of five dests around the top — the library-style delta. No island skip
+    // needed for the contract: the router is identity, so we test the assembly.
+    const dests: Vec2[] = [
+      { x: -80, y: 200 },
+      { x: -30, y: 220 },
+      { x: 20, y: 215 },
+      { x: 70, y: 205 },
+      { x: 120, y: 190 },
+    ];
+    const { chains } = distributaryChains(source, dests, 0.28, straight);
+    expect(chains).toHaveLength(dests.length);
+    dests.forEach((d, i) => {
+      const chain = chains[i] as Vec2[];
+      expect(chain.length).toBeGreaterThanOrEqual(2);
+      expect(chain[0]).toEqual(source); // leaves the source
+      expect(chain.at(-1)).toEqual(d); // and reaches its OWN dest, not a hub
+    });
+  });
+
+  it('merges near the source: the fattest trunk carries every distributary', () => {
+    const dests: Vec2[] = [
+      { x: -50, y: 160 },
+      { x: -46, y: 168 },
+      { x: 60, y: 150 },
+    ];
+    const { trunks } = distributaryChains(source, dests, 0.3, straight);
+    // the stem nearest the source gathers all three dests (Shreve count == 3)
+    expect(Math.max(...trunks.map((t) => t.flow))).toBe(dests.length);
+    // and leaf distributaries stay at flow 1
+    expect(trunks.some((t) => t.flow === 1)).toBe(true);
+  });
+
+  it('the trunk and the tributaries braiding through it share IDENTICAL geometry', () => {
+    const dests: Vec2[] = [
+      { x: -40, y: 180 },
+      { x: 40, y: 180 },
+    ];
+    const { chains, trunks } = distributaryChains(source, dests, 0.3, straight);
+    // the fat (flow 2) trunk is the source→confluence stem; both chains begin with
+    // exactly that stem's points, so a trunk drawn on top covers them.
+    const trunk = trunks.find((t) => t.flow === 2);
+    expect(trunk).toBeDefined();
+    const stem = trunk?.pts ?? [];
+    for (const chain of chains) {
+      stem.forEach((p, i) => expect(chain[i]).toEqual(p));
+    }
+  });
+
+  it('honours the injected router (an island detour reaches the dest with a waypoint)', () => {
+    const dest: Vec2 = { x: 200, y: 0 };
+    const island: Disk[] = [{ x: 100, y: 0, r: 30 }];
+    const routed = distributaryChains(source, [dest], 0.3, (a, b) =>
+      routeAround(a, b, island),
+    );
+    const chain = routed.chains[0] as Vec2[];
+    expect(chain.length).toBeGreaterThan(2); // a detour waypoint was inserted
+    expect(chain[0]).toEqual(source); // still pinned at both ends
+    expect(chain.at(-1)).toEqual(dest);
+  });
+
+  it('is deterministic and handles no dests', () => {
+    expect(distributaryChains(source, [], 0.3, straight)).toEqual({ chains: [], trunks: [] });
+    const dests: Vec2[] = [{ x: -30, y: 90 }, { x: 40, y: 100 }, { x: 5, y: 130 }];
+    expect(distributaryChains(source, dests, 0.3, straight)).toEqual(
+      distributaryChains(source, dests, 0.3, straight),
+    );
   });
 });
 
