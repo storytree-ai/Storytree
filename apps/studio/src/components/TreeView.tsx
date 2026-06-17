@@ -56,6 +56,7 @@ import {
   treeDrainage,
   routeAround,
   confluenceTree,
+  distributaryChains,
   meanderPath,
   circularMeanAngle,
   pondRadiusForDegree,
@@ -1098,8 +1099,9 @@ function buildBundle(
   const byId = new Map(territories.map((t, i) => [t.story.id, i]));
   const centroids = territories.map((t) => t.centroid);
 
-  // Real depends_on edges as node-index pairs (declared ∪ derived — NOT an MST, so
-  // every adjacency survives, the property the basin skeleton destroyed).
+  // Real depends_on edges as node-index pairs (a = the dependency/source end —
+  // `from` in storyEdges, e.g. the heavily-depended library; b = the dependent).
+  // NOT an MST, so every adjacency survives — the property the basin destroyed.
   const idxEdges: { a: number; b: number; via: string[] }[] = [];
   for (const e of edgeList) {
     const a = byId.get(e.from);
@@ -1109,118 +1111,201 @@ function buildBundle(
   }
   if (idxEdges.length === 0) return { edges, inland };
 
-  const bundle = edgePathBundle(
-    centroids,
-    idxEdges.map((e) => ({ a: e.a, b: e.b })),
-    { d: opts.bundleD, dMax: opts.bundleDMax },
-  );
-
   // Every channel skirts third-party islands (a river hugs the open water between).
   const disks: Disk[] = territories.map((t) => ({
     x: t.centroid.x,
     y: t.centroid.y,
     r: t.radius + opts.tuning.routeMargin,
   }));
-
-  // ONE meandered, island-skirting polyline per shared graph segment, coast→coast
-  // (stored low→high index). Both the tributary that runs through a segment and the
-  // fat trunk that covers it read from this cache, so their geometry is IDENTICAL on
-  // the shared stretch (the confluence-mode trick that makes the trunk cover the
-  // braid). Coast docks are gathered here too, for the per-island ponds.
-  const segGeom = new Map<string, Pt[]>();
-  // Each dock remembers its segment's flow, so the inland channel that continues the
-  // trunk past the coast carries the SAME flow-width — no pinch where a fat trunk
-  // emerges into its lake (the estuary continuity #193 added to the basin).
-  const flowByKey = new Map(bundle.segments.map((s) => [segmentKey(s.a, s.b), s.flow]));
+  // Per-island dock ledger — gathered across BOTH layers below, so the single pond
+  // pass docks every incident stream (a direct tributary AND a delta distributary)
+  // into the node's lake. Each dock remembers its flow for estuary continuity (#193).
   const docksByIsland: { dock: Dock; flow: number }[][] = territories.map(() => []);
-  const segGeometry = (u: number, v: number): Pt[] => {
-    const lo = Math.min(u, v);
-    const hi = Math.max(u, v);
-    const key = segmentKey(lo, hi);
-    const cached = segGeom.get(key);
-    if (cached) return cached;
-    const tlo = territories[lo];
-    const thi = territories[hi];
-    if (!tlo || !thi) {
-      segGeom.set(key, []);
-      return [];
-    }
-    const dlo = coastDock(tlo, thi.centroid, 0.96, opts.mouthInset);
-    const dhi = coastDock(thi, tlo.centroid, 0.96, opts.mouthInset);
-    const chFlow = Math.max(1, flowByKey.get(key) ?? 1);
-    docksByIsland[lo]?.push({ dock: dlo, flow: chFlow });
-    docksByIsland[hi]?.push({ dock: dhi, flow: chFlow });
-    const obstacles = disks.filter((_, i) => i !== lo && i !== hi);
-    const routed = routeAround(dlo, dhi, obstacles);
-    const wander = meanderPath(
-      routed,
-      hash(`seg:${tlo.story.id}~${thi.story.id}`),
-      opts.tuning.meanderAmp,
-      opts.tuning.meanderFreq,
+
+  // DISTANCE TRIGGER (the owner's "if the distance is far enough the river should opt
+  // to go around"): a FAR edge — straight source→dest span over `bundleFar` — is
+  // pulled OUT of the graph-detour bundler (which reroutes it ALONG the dependency
+  // chain, threading it through an intermediate hub's centroid — "library going
+  // through drive-machinery") and routed instead as part of a geometric SOURCE DELTA
+  // that goes AROUND the islands in the way and MERGES with its co-source siblings.
+  // Short edges stay in the graph bundler, where a small hub detour reads as the tidy
+  // "merge when close". `bundleFar ≤ 0` (or huge) recovers the pure #194 bundle.
+  const farThresh = opts.tuning.bundleFar;
+  const directEdges: { a: number; b: number; via: string[] }[] = [];
+  const deltaEdges: { a: number; b: number; via: string[] }[] = [];
+  for (const e of idxEdges) {
+    const ca = centroids[e.a];
+    const cb = centroids[e.b];
+    const far =
+      Boolean(ca) && Boolean(cb) && farThresh > 0 && Math.hypot(cb!.x - ca!.x, cb!.y - ca!.y) > farThresh;
+    (far ? deltaEdges : directEdges).push(e);
+  }
+
+  // ---- DIRECT layer: EDGE-PATH BUNDLING over the SHORT edges only (#194) --------
+  // A short edge reachable via a near hub braids ALONG that hub (the watershed look);
+  // a direct short edge stays its own channel. Excluding the far edges from the graph
+  // means a short edge can never reroute through a FAR hub — only nearby ones.
+  if (directEdges.length > 0) {
+    const bundle = edgePathBundle(
+      centroids,
+      directEdges.map((e) => ({ a: e.a, b: e.b })),
+      { d: opts.bundleD, dMax: opts.bundleDMax },
     );
-    segGeom.set(key, wander);
-    return wander;
-  };
-  // Pre-route every shared segment so docks are gathered before the ponds are placed.
-  for (const s of bundle.segments) segGeometry(s.a, s.b);
-
-  // TRIBUTARY LAYER (one per real edge) — concatenate the routed segments along the
-  // edge's path, bridging each interior hub through its centroid (water dips into the
-  // hub and out the far side), so the edge reads as ONE channel from its true source
-  // dock to its true destination dock: a dependency you can always trace end to end.
-  idxEdges.forEach((e, i) => {
-    const path = bundle.paths[i] ?? [e.a, e.b];
-    const srcId = territories[e.a]?.story.id ?? '';
-    const dstId = territories[e.b]?.story.id ?? '';
-    const pts: Pt[] = [];
-    for (let k = 0; k < path.length - 1; k++) {
-      const u = path[k];
-      const v = path[k + 1];
-      if (u === undefined || v === undefined) continue;
-      const geom = segGeometry(u, v);
-      if (geom.length < 2) continue;
-      const dir = u <= v ? geom : [...geom].reverse();
-      if (k === 0) {
-        pts.push(...dir);
-      } else {
-        const cu = centroids[u];
-        if (cu) pts.push(cu); // bridge the hub junction through its centroid
-        pts.push(...dir);
+    // ONE meandered, island-skirting polyline per shared graph segment, coast→coast
+    // (low→high index). Both the tributary through a segment and the trunk covering
+    // it read from this cache, so their geometry is IDENTICAL on the shared stretch.
+    const segGeom = new Map<string, Pt[]>();
+    const flowByKey = new Map(bundle.segments.map((s) => [segmentKey(s.a, s.b), s.flow]));
+    const segGeometry = (u: number, v: number): Pt[] => {
+      const lo = Math.min(u, v);
+      const hi = Math.max(u, v);
+      const key = segmentKey(lo, hi);
+      const cached = segGeom.get(key);
+      if (cached) return cached;
+      const tlo = territories[lo];
+      const thi = territories[hi];
+      if (!tlo || !thi) {
+        segGeom.set(key, []);
+        return [];
       }
-    }
-    if (pts.length < 2) return;
-    edges.push({ from: srcId, to: dstId, via: e.via, d: smoothOpenPath(pts) });
-  });
+      const dlo = coastDock(tlo, thi.centroid, 0.96, opts.mouthInset);
+      const dhi = coastDock(thi, tlo.centroid, 0.96, opts.mouthInset);
+      const chFlow = Math.max(1, flowByKey.get(key) ?? 1);
+      docksByIsland[lo]?.push({ dock: dlo, flow: chFlow });
+      docksByIsland[hi]?.push({ dock: dhi, flow: chFlow });
+      const obstacles = disks.filter((_, i) => i !== lo && i !== hi);
+      const routed = routeAround(dlo, dhi, obstacles);
+      const wander = meanderPath(
+        routed,
+        hash(`seg:${tlo.story.id}~${thi.story.id}`),
+        opts.tuning.meanderAmp,
+        opts.tuning.meanderFreq,
+      );
+      segGeom.set(key, wander);
+      return wander;
+    };
+    // Pre-route every shared segment so docks are gathered before the ponds.
+    for (const s of bundle.segments) segGeometry(s.a, s.b);
 
-  // TRUNK LAYER — a fat channel over every shared segment (flow ≥ 2), pushed AFTER
-  // the tributaries so it draws on top and covers the strands braiding along it. The
-  // width ramps with the accumulated flow (clamped, so a busy hub trunk reads fat
-  // without dwarfing the lone twigs).
-  for (const s of bundle.segments) {
-    if (s.flow < 2) continue;
-    const geom = segGeometry(s.a, s.b);
-    if (geom.length < 2) continue;
-    edges.push({
-      from: territories[s.a]?.story.id ?? '',
-      to: territories[s.b]?.story.id ?? '',
-      via: [],
-      d: smoothOpenPath(geom),
-      flow: s.flow,
-      kind: 'trunk',
+    // TRIBUTARY LAYER — concatenate the routed segments along each edge's path,
+    // bridging an interior hub through its centroid, so the edge reads as ONE channel
+    // from its true source dock to its true destination dock (traceable end to end).
+    directEdges.forEach((e, i) => {
+      const path = bundle.paths[i] ?? [e.a, e.b];
+      const srcId = territories[e.a]?.story.id ?? '';
+      const dstId = territories[e.b]?.story.id ?? '';
+      const pts: Pt[] = [];
+      for (let k = 0; k < path.length - 1; k++) {
+        const u = path[k];
+        const v = path[k + 1];
+        if (u === undefined || v === undefined) continue;
+        const geom = segGeometry(u, v);
+        if (geom.length < 2) continue;
+        const dir = u <= v ? geom : [...geom].reverse();
+        if (k === 0) {
+          pts.push(...dir);
+        } else {
+          const cu = centroids[u];
+          if (cu) pts.push(cu); // bridge the hub junction through its centroid
+          pts.push(...dir);
+        }
+      }
+      if (pts.length < 2) return;
+      edges.push({ from: srcId, to: dstId, via: e.via, d: smoothOpenPath(pts) });
+    });
+
+    // TRUNK LAYER — a fat channel over every shared segment (flow ≥ 2), on top of the
+    // tributaries so it covers the strands braiding along it.
+    for (const s of bundle.segments) {
+      if (s.flow < 2) continue;
+      const geom = segGeometry(s.a, s.b);
+      if (geom.length < 2) continue;
+      edges.push({
+        from: territories[s.a]?.story.id ?? '',
+        to: territories[s.b]?.story.id ?? '',
+        via: [],
+        d: smoothOpenPath(geom),
+        flow: s.flow,
+        kind: 'trunk',
+      });
+    }
+  }
+
+  // ---- DELTA layer: far co-source edges MERGE into a trunk, then FORK -----------
+  // Group the far edges by their SOURCE island; each group becomes a DISTRIBUTARY
+  // delta leaving that source as one fat stem (routed AROUND the third-party islands
+  // in the way) and forking to reach each dependent — the owner's "get enough of
+  // these rivers going around and they merge then break off at a point".
+  const deltaBySrc = new Map<number, { a: number; b: number; via: string[] }[]>();
+  for (const e of deltaEdges) {
+    const list = deltaBySrc.get(e.a);
+    if (list) list.push(e);
+    else deltaBySrc.set(e.a, [e]);
+  }
+  for (const [srcIdx, group] of deltaBySrc) {
+    const srcT = territories[srcIdx];
+    if (!srcT || group.length === 0) continue;
+    const destTs = group
+      .map((e) => ({ e, t: territories[e.b] }))
+      .filter((d): d is { e: (typeof group)[number]; t: Territory } => Boolean(d.t));
+    if (destTs.length === 0) continue;
+    // One source dock aimed at the barycentre of the far dependents (a single outflow
+    // point the whole delta leaves through); each dependent docks facing the source.
+    const bary: Pt = {
+      x: destTs.reduce((s, d) => s + d.t.centroid.x, 0) / destTs.length,
+      y: destTs.reduce((s, d) => s + d.t.centroid.y, 0) / destTs.length,
+    };
+    const sourceDock = coastDock(srcT, bary, 0.96, opts.mouthInset);
+    const destDocks = destTs.map((d) => coastDock(d.t, srcT.centroid, 0.96, opts.mouthInset));
+    // Obstacles = every island EXCEPT this delta's own source and dests, so the
+    // distributaries dock cleanly on their own dests yet skirt the central chain.
+    const skip = new Set<number>([srcIdx, ...destTs.map((d) => byId.get(d.t.story.id) ?? -1)]);
+    const obstacles = disks.filter((_, i) => !skip.has(i));
+    const route = (a: Pt, b: Pt): Pt[] => {
+      const routed = routeAround(a, b, obstacles);
+      return meanderPath(
+        routed,
+        hash(`delta:${a.x.toFixed(1)},${a.y.toFixed(1)}~${b.x.toFixed(1)},${b.y.toFixed(1)}`),
+        opts.tuning.meanderAmp,
+        opts.tuning.meanderFreq,
+      );
+    };
+    const delta = distributaryChains(sourceDock, destDocks, opts.tuning.deltaPull, route);
+    // Tributary per far edge — its chain ends are its TRUE source and dest docks.
+    destTs.forEach((d, di) => {
+      const chain = delta.chains[di];
+      if (!chain || chain.length < 2) return;
+      edges.push({ from: srcT.story.id, to: d.t.story.id, via: d.e.via, d: smoothOpenPath(chain) });
+    });
+    // Fat trunks over the shared stems (flow ≥ 2), on top to cover the braid.
+    for (const trunk of delta.trunks) {
+      if (trunk.flow < 2 || trunk.pts.length < 2) continue;
+      edges.push({
+        from: srcT.story.id,
+        to: `${srcT.story.id}#delta`,
+        via: [],
+        d: smoothOpenPath(trunk.pts),
+        flow: trunk.flow,
+        kind: 'trunk',
+      });
+    }
+    // Ledger docks for the pond pass: the source outflow carries the whole delta's
+    // flow; each dependent inflow is a leaf.
+    docksByIsland[srcIdx]?.push({ dock: sourceDock, flow: group.length });
+    destTs.forEach((d, di) => {
+      const dock = destDocks[di];
+      const bi = byId.get(d.t.story.id);
+      if (dock && bi !== undefined) docksByIsland[bi]?.push({ dock, flow: 1 });
     });
   }
 
-  // A lake at every node (the basin's pond wiring), each incident stream docking into
-  // its rim — water reads as lake → stream → lake, and an edge's mouth docking at its
+  // ---- PONDS: a lake at every node, each incident stream docking into its rim ----
+  // Water reads as lake → stream → lake, and an edge's mouth docking at its
   // destination's pond is the unambiguous "A depends on this hub" signal.
   if (opts.waterMode === 'pond') {
-    const islandFlow = new Array<number>(n).fill(0);
-    for (const s of bundle.segments) {
-      islandFlow[s.a] = (islandFlow[s.a] ?? 0) + s.flow;
-      islandFlow[s.b] = (islandFlow[s.b] ?? 0) + s.flow;
-    }
     territories.forEach((t, i) => {
       const ds = docksByIsland[i] ?? [];
+      const islandFlow = ds.reduce((s, d) => s + d.flow, 0);
       const aim =
         ds.length > 0
           ? unit(t.treeSpot, {
@@ -1228,13 +1313,13 @@ function buildBundle(
               y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
             })
           : { x: 0, y: 1 };
-      const pond = placePond(t, aim, islandFlow[i] ?? 0, 4);
+      const pond = placePond(t, aim, islandFlow, 4);
       if (!pond) return;
       inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
       for (const dk of ds) {
         const dock = rayPolyIntersect(dk.dock, pond.center, pond.loop);
         if (!dock) continue;
-        // Flare into the lake and carry the trunk's flow-width for continuity (#193).
+        // Flare into the lake and carry the stream's flow-width for continuity (#193).
         inland.channels.push({
           from: t.story.id,
           to: t.story.id,
@@ -2546,12 +2631,19 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 // the number of paths it carries — so the map reads as ONE connected watershed of
 // thick trunks (near the foundations) thinning to leaf twigs, with a lake at every
 // node, instead of a tangle of parallel strands. Comparison modes:
-//   `?rivers=bundle`     — EDGE-PATH BUNDLING over the REAL graph (Wallinger 2021):
-//                          a hub like the library becomes a fat trunk many edges flow
-//                          ALONG, yet EVERY dependency keeps its own endpoints (a thin
-//                          tributary you can trace end to end) — "merge when close, but
-//                          still show the direct connection". `?bundleD=`/`?bundleDMax=`
-//                          tune how aggressively long edges braid through a hub.
+//   `?rivers=bundle`     — DISTANCE-AWARE bundling. SHORT edges braid through a near
+//                          hub via edge-path bundling (Wallinger 2021) — a hub becomes
+//                          a fat trunk many edges flow ALONG. FAR edges (span over
+//                          `?bundleFar=`px) instead leave their source as one geometric
+//                          SOURCE DELTA that goes AROUND the islands in the way (not
+//                          THROUGH a hub's centroid) and forks near the dests — the
+//                          owner's "if the distance is far enough the river should opt
+//                          to go around… they merge then break off". EVERY dependency
+//                          still keeps its own endpoints (traceable end to end).
+//                          `?bundleD=`/`?bundleDMax=` tune the short-edge braid;
+//                          `?bundleFar=` the far/near split (0 or huge = the old #194
+//                          all-hub-bundle); `?deltaPull=` how late the delta forks
+//                          (low = one bold trunk, fork near the dests).
 //   `?rivers=confluence` — the previous per-source-trunk + per-destination
 //                          confluence merge (#187/#188), kept for A/B.
 //   `?rivers=strands`    — the oldest one-strand-per-edge / metro-lane look.
@@ -2607,6 +2699,20 @@ interface RiverTuning {
    *  detour's weight ≤ `bundleDMax · the edge's own weight`. Higher = more
    *  aggressive merging (more edges braid); lower = more edges stay direct. */
   bundleDMax: number;
+  /** Edge-path bundling DISTANCE TRIGGER (`?rivers=bundle`, `?bundleFar=`, px): an
+   *  edge whose straight source→dest span exceeds this is a FAR edge — pulled out of
+   *  the graph-detour bundler (which would thread it through a hub's centroid) and
+   *  routed instead as a geometric SOURCE DELTA that goes AROUND the islands in the
+   *  way and merges with its co-source siblings, then forks near the dests. `0` (or a
+   *  span larger than the map) disables the trigger → the pure #194 hub-bundle look. */
+  bundleFar: number;
+  /** Source-delta fork point (`?rivers=bundle`, `?deltaPull=`): how far toward the
+   *  SOURCE a distributary fork sits, as a fraction of the dest-midpoint→source span.
+   *  LOW keeps the delta merged into one bold trunk almost up to the dests and forks
+   *  late ("merge then break off at a point"); HIGH forks early near the source. It's
+   *  the delta's own pull — separate from `confluencePull` (which the byte-identical
+   *  `merge` basin owns) — so tuning the bundle never disturbs the default world. */
+  deltaPull: number;
 }
 
 const RIVER_TUNING: RiverTuning = {
@@ -2619,6 +2725,8 @@ const RIVER_TUNING: RiverTuning = {
   meanderFreq: 3.5,
   bundleD: 2,
   bundleDMax: 2,
+  bundleFar: 300,
+  deltaPull: 0.12,
 };
 
 /** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
@@ -2696,6 +2804,8 @@ function readRiverTuning(): RiverTuning {
   const mf = num('meanderFreq');
   const bd = num('bundleD');
   const bdm = num('bundleDMax');
+  const bf = num('bundleFar');
+  const dp = num('deltaPull');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
@@ -2705,6 +2815,8 @@ function readRiverTuning(): RiverTuning {
   if (mf !== null) out.meanderFreq = Math.max(0, mf);
   if (bd !== null) out.bundleD = Math.max(0, bd);
   if (bdm !== null) out.bundleDMax = Math.max(0, bdm);
+  if (bf !== null) out.bundleFar = Math.max(0, bf);
+  if (dp !== null) out.deltaPull = Math.max(0, Math.min(1, dp));
   return out;
 }
 
