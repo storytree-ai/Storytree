@@ -57,6 +57,7 @@ import {
   routeAround,
   confluenceTree,
   distributaryChains,
+  bearingClusters,
   meanderPath,
   circularMeanAngle,
   pondRadiusForDegree,
@@ -1324,63 +1325,93 @@ function buildBundle(
       .map((e) => ({ e, t: territories[e.b] }))
       .filter((d): d is { e: (typeof group)[number]; t: Territory } => Boolean(d.t));
     if (destTs.length === 0) continue;
-    // One source dock aimed at the barycentre of the far dependents (a single outflow
-    // point the whole delta leaves through); each dependent docks facing the source.
-    const bary: Pt = {
-      x: destTs.reduce((s, d) => s + d.t.centroid.x, 0) / destTs.length,
-      y: destTs.reduce((s, d) => s + d.t.centroid.y, 0) / destTs.length,
-    };
-    const sourceDock = coastDock(srcT, bary, 0.96, opts.mouthInset);
-    const destDocks = destTs.map((d) => coastDock(d.t, srcT.centroid, 0.96, opts.mouthInset));
-    const destIslandIdx = destTs.map((d) => byId.get(d.t.story.id) ?? -1);
-    // A segment may ENTER only the island it docks at — its source end, or its own
-    // terminal dest — and treats EVERY other island as an obstacle to skirt. So a
-    // through-trunk routes AROUND a sibling dest (e.g. notice-board) instead of cutting
-    // across it; only that sibling's OWN leaf river enters it to reach its pond (owner:
-    // "rivers shouldn't cut through islands unless to reach a pond").
-    const route = (a: Pt, b: Pt, seg: DistributarySegment): Pt[] => {
-      const skipIdx = new Set<number>();
-      if (seg.bIsSource) skipIdx.add(srcIdx);
-      if (seg.aDestIndex >= 0) {
-        const isl = destIslandIdx[seg.aDestIndex];
-        if (isl !== undefined && isl >= 0) skipIdx.add(isl);
-      }
-      const obstacles = disks.filter((_, idx) => !skipIdx.has(idx));
-      const routed = routeAround(a, b, obstacles);
-      return meanderPath(
-        routed,
-        hash(`delta:${a.x.toFixed(1)},${a.y.toFixed(1)}~${b.x.toFixed(1)},${b.y.toFixed(1)}`),
-        opts.tuning.meanderAmp,
-        opts.tuning.meanderFreq,
-      );
-    };
-    const delta = distributaryChains(sourceDock, destDocks, opts.tuning.deltaPull, route);
-    // Tributary per far edge — its chain ends are its TRUE source and dest docks.
-    destTs.forEach((d, di) => {
-      const chain = delta.chains[di];
-      if (!chain || chain.length < 2) return;
-      edges.push({ from: srcT.story.id, to: d.t.story.id, via: d.e.via, d: smoothOpenPath(chain) });
-    });
-    // Fat trunks over the shared stems (flow ≥ 2), on top to cover the braid.
-    for (const trunk of delta.trunks) {
-      if (trunk.flow < 2 || trunk.pts.length < 2) continue;
-      edges.push({
-        from: srcT.story.id,
-        to: `${srcT.story.id}#delta`,
-        via: [],
-        d: smoothOpenPath(trunk.pts),
-        flow: trunk.flow,
-        kind: 'trunk',
+    type DeltaDest = (typeof destTs)[number];
+    // One distributary delta over a SUBSET of this source's far dependents (the whole
+    // set when clustering is off, one directional sector when it's on). `srcFlow` is the
+    // flow stamped on the source outflow dock — the whole group for the single delta, or
+    // the sector's edge count when clustered. The body is identical either way, so the
+    // OFF path (a single call over every dest) is byte-for-byte the pre-clustering delta.
+    const emitDelta = (subset: DeltaDest[], srcFlow: number): void => {
+      if (subset.length === 0) return;
+      // One source dock aimed at the barycentre of the far dependents (a single outflow
+      // point the whole delta leaves through); each dependent docks facing the source.
+      const bary: Pt = {
+        x: subset.reduce((s, d) => s + d.t.centroid.x, 0) / subset.length,
+        y: subset.reduce((s, d) => s + d.t.centroid.y, 0) / subset.length,
+      };
+      const sourceDock = coastDock(srcT, bary, 0.96, opts.mouthInset);
+      const destDocks = subset.map((d) => coastDock(d.t, srcT.centroid, 0.96, opts.mouthInset));
+      const destIslandIdx = subset.map((d) => byId.get(d.t.story.id) ?? -1);
+      // A segment may ENTER only the island it docks at — its source end, or its own
+      // terminal dest — and treats EVERY other island as an obstacle to skirt. So a
+      // through-trunk routes AROUND a sibling dest (e.g. notice-board) instead of cutting
+      // across it; only that sibling's OWN leaf river enters it to reach its pond (owner:
+      // "rivers shouldn't cut through islands unless to reach a pond").
+      const route = (a: Pt, b: Pt, seg: DistributarySegment): Pt[] => {
+        const skipIdx = new Set<number>();
+        if (seg.bIsSource) skipIdx.add(srcIdx);
+        if (seg.aDestIndex >= 0) {
+          const isl = destIslandIdx[seg.aDestIndex];
+          if (isl !== undefined && isl >= 0) skipIdx.add(isl);
+        }
+        const obstacles = disks.filter((_, idx) => !skipIdx.has(idx));
+        const routed = routeAround(a, b, obstacles);
+        return meanderPath(
+          routed,
+          hash(`delta:${a.x.toFixed(1)},${a.y.toFixed(1)}~${b.x.toFixed(1)},${b.y.toFixed(1)}`),
+          opts.tuning.meanderAmp,
+          opts.tuning.meanderFreq,
+        );
+      };
+      const delta = distributaryChains(sourceDock, destDocks, opts.tuning.deltaPull, route);
+      // Tributary per far edge — its chain ends are its TRUE source and dest docks.
+      subset.forEach((d, di) => {
+        const chain = delta.chains[di];
+        if (!chain || chain.length < 2) return;
+        edges.push({ from: srcT.story.id, to: d.t.story.id, via: d.e.via, d: smoothOpenPath(chain) });
       });
+      // Fat trunks over the shared stems (flow ≥ 2), on top to cover the braid.
+      for (const trunk of delta.trunks) {
+        if (trunk.flow < 2 || trunk.pts.length < 2) continue;
+        edges.push({
+          from: srcT.story.id,
+          to: `${srcT.story.id}#delta`,
+          via: [],
+          d: smoothOpenPath(trunk.pts),
+          flow: trunk.flow,
+          kind: 'trunk',
+        });
+      }
+      // Ledger docks for the pond pass: the source outflow carries this delta's flow;
+      // each dependent inflow is a leaf.
+      docksByIsland[srcIdx]?.push({ dock: sourceDock, flow: srcFlow });
+      subset.forEach((d, di) => {
+        const dock = destDocks[di];
+        const bi = byId.get(d.t.story.id);
+        if (dock && bi !== undefined) docksByIsland[bi]?.push({ dock, flow: 1 });
+      });
+    };
+
+    if (opts.tuning.deltaConeDeg <= 0) {
+      // CLUSTERING OFF — the exact pre-clustering single delta over EVERY far dependent.
+      emitDelta(destTs, group.length);
+    } else {
+      // CLUSTERING ON — group the far dependents into directional sectors by bearing FROM
+      // the source, and run one fat-trunk delta per sector, so the hub fans as ≈ the
+      // number of distinct outgoing directions rather than one fork-everywhere splay.
+      const coneRad = (opts.tuning.deltaConeDeg * Math.PI) / 180;
+      const clusters = bearingClusters(
+        srcT.centroid,
+        destTs.map((d) => d.t.centroid),
+        coneRad,
+      );
+      for (const cluster of clusters) {
+        const subset = cluster
+          .map((i) => destTs[i])
+          .filter((d): d is DeltaDest => Boolean(d));
+        emitDelta(subset, subset.length);
+      }
     }
-    // Ledger docks for the pond pass: the source outflow carries the whole delta's
-    // flow; each dependent inflow is a leaf.
-    docksByIsland[srcIdx]?.push({ dock: sourceDock, flow: group.length });
-    destTs.forEach((d, di) => {
-      const dock = destDocks[di];
-      const bi = byId.get(d.t.story.id);
-      if (dock && bi !== undefined) docksByIsland[bi]?.push({ dock, flow: 1 });
-    });
   }
 
   // ---- PONDS: a lake at every node, each incident stream docking into its rim ----
@@ -2828,6 +2859,18 @@ interface RiverTuning {
    *  the delta's own pull — separate from `confluencePull` (which the byte-identical
    *  `merge` basin owns) — so tuning the bundle never disturbs the default world. */
   deltaPull: number;
+  /** Source-delta ANGULAR CLUSTERING cone (`?rivers=bundle`, `?deltaCone=`, DEGREES):
+   *  before a source's far edges merge into ONE delta, group them into directional
+   *  SECTORS by the bearing from the source to each dest, and run a SEPARATE
+   *  distributary delta per sector — so a hub that fans to many dependents in a few
+   *  broad directions reads as a few fat trunks (≈ the number of distinct outgoing
+   *  directions), each forking only within its own cone, instead of one
+   *  fork-everywhere splay of thin strands. The value is the cone WIDTH: dests whose
+   *  bearings sit within this many degrees of a neighbour share a sector; a wider gap
+   *  starts a new one. `0` (the default) DISABLES clustering — buildBundle takes the
+   *  EXACT single-delta path, so the bundle world is byte-identical until a positive
+   *  cone is set. Separate from `deltaPull` (the within-sector fork point). */
+  deltaConeDeg: number;
 }
 
 const RIVER_TUNING: RiverTuning = {
@@ -2843,6 +2886,7 @@ const RIVER_TUNING: RiverTuning = {
   crescentMinDegree: 5,
   bundleFar: 300,
   deltaPull: 0.05,
+  deltaConeDeg: 0,
 };
 
 /** Per-water-layer stroke width as a function of accumulated flow. Tuned for the
@@ -2928,6 +2972,7 @@ function readRiverTuning(): RiverTuning {
   const cmd = num('crescentMinDegree');
   const bf = num('bundleFar');
   const dp = num('deltaPull');
+  const dc = num('deltaCone');
   if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
@@ -2940,6 +2985,8 @@ function readRiverTuning(): RiverTuning {
   if (cmd !== null) out.crescentMinDegree = Math.max(0, cmd);
   if (bf !== null) out.bundleFar = Math.max(0, bf);
   if (dp !== null) out.deltaPull = Math.max(0, Math.min(1, dp));
+  // Cone width in degrees; clamp to [0, 360]. 0 keeps clustering OFF (single delta).
+  if (dc !== null) out.deltaConeDeg = Math.max(0, Math.min(360, dc));
   return out;
 }
 

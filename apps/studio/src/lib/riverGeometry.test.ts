@@ -17,6 +17,7 @@ import {
   routeAround,
   confluenceTree,
   distributaryChains,
+  bearingClusters,
   meanderPath,
   angularDistance,
   circularMeanAngle,
@@ -466,6 +467,123 @@ describe('distributaryChains', () => {
     expect(distributaryChains(source, dests, 0.3, straight)).toEqual(
       distributaryChains(source, dests, 0.3, straight),
     );
+  });
+});
+
+describe('bearingClusters', () => {
+  const origin: Vec2 = { x: 0, y: 0 };
+  const cone = (deg: number): number => (deg * Math.PI) / 180;
+  /** A dest at `deg` degrees and `r` px from the origin (atan2 uses screen-y, so this
+   *  is just polar placement — the radius never affects the bearing). */
+  const at = (deg: number, r = 100): Vec2 => ({
+    x: r * Math.cos(cone(deg)),
+    y: r * Math.sin(cone(deg)),
+  });
+  /** Re-key a cluster partition to the SET of bearings (deg) so a test reads by
+   *  direction, not by raw index — bearingClusters returns original indices. */
+  const byDirection = (dests: Vec2[], groups: number[][]): number[][] =>
+    groups.map((g) =>
+      g
+        .map((i) => {
+          const d = dests[i] as Vec2;
+          return Math.round((Math.atan2(d.y, d.x) * 180) / Math.PI);
+        })
+        .sort((a, b) => a - b),
+    );
+
+  it('empty dests → no clusters; a lone dest → one cluster', () => {
+    expect(bearingClusters(origin, [], cone(30))).toEqual([]);
+    expect(bearingClusters(origin, [at(40)], cone(30))).toEqual([[0]]);
+  });
+
+  it('dests all in one tight direction collapse to a SINGLE cluster', () => {
+    // five dependents fanned within a ~16° arc — one fat trunk, not five strands.
+    const dests = [at(40), at(44), at(48), at(52), at(56)];
+    const clusters = bearingClusters(origin, dests, cone(30));
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual([0, 1, 2, 3, 4]); // every dest, ascending
+  });
+
+  it('dests in 3 well-separated directions yield 3 clusters', () => {
+    // three sectors ~120° apart, each a tight pair → three trunks.
+    // atan2 reports 240°/248° as their −120°/−112° equivalents (range −180…180).
+    const dests = [at(0), at(8), at(120), at(126), at(240), at(248)];
+    const clusters = bearingClusters(origin, dests, cone(30));
+    expect(clusters).toHaveLength(3);
+    // each cluster is one of the three direction-pairs (read by bearing, not index)
+    const dirs = byDirection(dests, clusters).sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0));
+    expect(dirs).toEqual([
+      [-120, -112],
+      [0, 8],
+      [120, 126],
+    ]);
+  });
+
+  it('WRAPAROUND: dests near +350° and +10° join the SAME cluster (across ±π)', () => {
+    // atan2 maps these to ~−10° and ~+10°: a plain sort would split them at the ±π
+    // seam; the ring cut at the widest gap keeps them together.
+    const dests = [at(350), at(10), at(180)];
+    const clusters = bearingClusters(origin, dests, cone(30));
+    expect(clusters).toHaveLength(2); // {350,10} together, 180 alone
+    const dirs = byDirection(dests, clusters);
+    // the wrap pair lands in one cluster (−10 and +10 by atan2), 180 in the other
+    const wrapCluster = dirs.find((g) => g.length === 2);
+    expect(wrapCluster).toBeDefined();
+    expect(new Set(wrapCluster)).toEqual(new Set([-10, 10]));
+    expect(dirs.some((g) => g.length === 1 && Math.abs(g[0] ?? 0) === 180)).toBe(true);
+  });
+
+  it('a single wide cone keeps everything in ONE cluster regardless of spread', () => {
+    const dests = [at(0), at(90), at(180), at(270)];
+    // 95° gaps, cone 100° > every gap → one cluster
+    expect(bearingClusters(origin, dests, cone(100))).toEqual([[0, 1, 2, 3]]);
+  });
+
+  it('coneRad <= 0 splits to per-direction clusters (maximally split)', () => {
+    const dests = [at(0), at(90), at(200)];
+    const clusters = bearingClusters(origin, dests, 0);
+    expect(clusters).toHaveLength(3);
+    // every dest is its own cluster
+    expect(clusters.map((c) => c.length)).toEqual([1, 1, 1]);
+  });
+
+  it('is deterministic and breaks bearing ties by the lower index', () => {
+    const dests = [at(40), at(120), at(40), at(122)];
+    const a = bearingClusters(origin, dests, cone(30));
+    const b = bearingClusters(origin, dests, cone(30));
+    expect(a).toEqual(b); // same input → same partition
+    // the two exactly-collinear dests (indices 0 and 2) share a cluster, listed ascending
+    const together = a.find((g) => g.includes(0));
+    expect(together).toEqual([0, 2]);
+  });
+
+  it('every dest appears in EXACTLY one cluster (a partition, no drops or dupes)', () => {
+    const dests = [at(5), at(15), at(70), at(75), at(200), at(330)];
+    const clusters = bearingClusters(origin, dests, cone(25));
+    const all = clusters.flat().sort((x, y) => x - y);
+    expect(all).toEqual(dests.map((_, i) => i));
+  });
+
+  it('per-cluster distributaryChains keeps every chain pinned to the TRUE source and dest', () => {
+    // The whole point: clustering must NOT break traceability. Run the production
+    // assembly — bearingClusters then distributaryChains per cluster — and assert each
+    // dest's chain still starts EXACTLY at the source and ends EXACTLY at that dest.
+    const straight = (a: Vec2, b: Vec2): Vec2[] => [a, b];
+    const src: Vec2 = { x: 0, y: 0 };
+    const dests = [at(40, 200), at(48, 220), at(150, 210), at(158, 190), at(265, 205)];
+    const clusters = bearingClusters(src, dests, cone(30));
+    expect(clusters.length).toBeGreaterThan(1); // genuinely multi-sector
+    for (const cluster of clusters) {
+      const destDocks = cluster.map((i) => dests[i] as Vec2);
+      const { chains } = distributaryChains(src, destDocks, 0.05, straight);
+      expect(chains).toHaveLength(cluster.length);
+      cluster.forEach((destIdx, ci) => {
+        const chain = chains[ci] as Vec2[];
+        expect(chain.length).toBeGreaterThanOrEqual(2);
+        expect(chain[0]).toEqual(src); // leaves the TRUE source
+        expect(chain.at(-1)).toEqual(dests[destIdx]); // reaches its TRUE dest
+      });
+    }
   });
 });
 

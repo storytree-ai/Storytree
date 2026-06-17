@@ -393,6 +393,83 @@ export function circularMeanAngle(angles: number[]): number {
 }
 
 /**
+ * Cluster a source's destinations into DIRECTIONAL SECTORS by the bearing from the
+ * `source` to each dest, so a hub that fans to many dependents in (say) three broad
+ * directions yields THREE fat trunks instead of one fork-everywhere delta. Each dest's
+ * bearing `atan2(dy, dx)` is taken, the dests are ordered by bearing, and a new sector
+ * starts wherever the angular GAP between consecutive bearings (around the full circle)
+ * exceeds `coneRad`: dests packed within `coneRad` of a neighbour stay in one sector,
+ * a clear gap splits them. WRAPAROUND is handled — the circle is closed, so a dest near
+ * +π and one near −π are adjacent and join the same sector when their gap ≤ `coneRad`
+ * (the split is placed at the LARGEST gap on the circle and clusters read off from
+ * there). Returns groups of DEST INDICES into the original `dests` array.
+ *
+ * Deterministic: bearings are sorted with ties broken by the lower original index, and
+ * each returned group lists its indices in ascending order, so the same input always
+ * yields the same partition with no Math.random. Empty dests → `[]`; one dest → one
+ * cluster `[[0]]`; `coneRad <= 0` collapses to per-dest clusters (every dest its own
+ * sector, the maximally-split degenerate case) while a `coneRad >= 2π` keeps everything
+ * in a single cluster. Pure (Vec2 in, index groups out) — safe for the browser bundle.
+ */
+export function bearingClusters(source: Vec2, dests: Vec2[], coneRad: number): number[][] {
+  const n = dests.length;
+  if (n === 0) return [];
+  if (n === 1) return [[0]];
+  // Bearing of each dest from the source, paired with its original index.
+  const bearings = dests.map((d, i) => ({
+    i,
+    a: Math.atan2(d.y - source.y, d.x - source.x),
+  }));
+  // Sort by bearing; ties (same direction) break toward the lower index → determinism.
+  bearings.sort((p, q) => (p.a !== q.a ? p.a - q.a : p.i - q.i));
+  // Walk the sorted ring and find the LARGEST angular gap between consecutive bearings
+  // (including the wrap gap from the last bearing back to the first across ±π). The ring
+  // is then "cut" at every gap that exceeds coneRad; cutting at the largest gap first
+  // guarantees wraparound directions (e.g. 350° and 10°) land together when they should.
+  const gapAfter = (k: number): number => {
+    const cur = bearings[k]?.a ?? 0;
+    const nxt = bearings[(k + 1) % n]?.a ?? 0;
+    let g = nxt - cur;
+    if (k === n - 1) g += Math.PI * 2; // wrap gap from the last bearing to the first
+    return g;
+  };
+  // Choose the start of the FIRST cluster as the index just AFTER the largest gap, so the
+  // ring is unrolled at its widest break — the natural place to separate two sectors and
+  // the key to wraparound (a small wrap gap is never a boundary, a big interior gap is).
+  let cutAt = 0;
+  let widest = -Infinity;
+  for (let k = 0; k < n; k++) {
+    const g = gapAfter(k);
+    if (g > widest) {
+      widest = g;
+      cutAt = k; // a boundary sits AFTER position k
+    }
+  }
+  const start = (cutAt + 1) % n;
+  // Unroll the ring from `start` and split wherever the gap after a position exceeds
+  // coneRad. Because we start just after the widest gap, the wrap is already a boundary
+  // when it is large and a non-boundary when small — no special wrap handling needed here.
+  const clusters: number[][] = [];
+  let cur: number[] = [];
+  for (let step = 0; step < n; step++) {
+    const k = (start + step) % n;
+    const entry = bearings[k];
+    if (entry) cur.push(entry.i);
+    const g = gapAfter(k);
+    const isLastStep = step === n - 1;
+    if (!isLastStep && g > coneRad) {
+      clusters.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length > 0) clusters.push(cur);
+  // List each cluster's indices ascending so the output is canonical regardless of where
+  // on the ring the cluster began.
+  for (const c of clusters) c.sort((x, y) => x - y);
+  return clusters;
+}
+
+/**
  * How big an island's lake should be for its river `degree` (the number of
  * connections — in + out — incident on the island). Area reads as proportional to
  * degree, so the RADIUS grows with `sqrt(degree)`: a degree-9 hub holds a clearly
