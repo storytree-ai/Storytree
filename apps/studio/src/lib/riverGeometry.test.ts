@@ -28,6 +28,8 @@ import {
   segmentKey,
   nearestRimDock,
   fusedMouthPath,
+  carvePondInlets,
+  loopGapArcs,
   type BundleEdge,
   type Disk,
   type Vec2,
@@ -1087,5 +1089,143 @@ describe('fusedMouthPath', () => {
 
   it('returns null when no rim can be found (degenerate loop)', () => {
     expect(fusedMouthPath(coastDock, arrivalDir, { center: { x: 0, y: 0 }, loop: [] }, { overshoot: 6 })).toBeNull();
+  });
+});
+
+describe('carvePondInlets', () => {
+  const center: Vec2 = { x: 0, y: 0 };
+  // A ring of 24 points on a circle of radius 20 — a clean blob to bulge.
+  const ring = (r = 20, n = 24): Vec2[] => {
+    const out: Vec2[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    }
+    return out;
+  };
+  const distFromCenter = (p: Vec2): number => Math.hypot(p.x - center.x, p.y - center.y);
+  /** The loop vertex whose bearing-from-center is closest to `bearing`. */
+  const vertNearestBearing = (loop: Vec2[], bearing: number): Vec2 => {
+    let best = loop[0]!;
+    let bestD = Infinity;
+    for (const p of loop) {
+      const b = Math.atan2(p.y - center.y, p.x - center.x);
+      let d = Math.abs(b - bearing);
+      d = Math.min(d, Math.PI * 2 - d);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    return best;
+  };
+
+  it('pulls a vertex near the inlet bearing OUTWARD (farther from centre)', () => {
+    const loop = ring();
+    const bearing = 0; // +x
+    const before = vertNearestBearing(loop, bearing);
+    const carved = carvePondInlets(loop, center, [{ bearing, halfAngle: 0.6, reach: 15 }]);
+    // same vertex count — carve only displaces, never adds/drops points.
+    expect(carved.length).toBe(loop.length);
+    const after = vertNearestBearing(carved, bearing);
+    expect(distFromCenter(after)).toBeGreaterThan(distFromCenter(before) + 5);
+  });
+
+  it('leaves a vertex in the OPPOSITE direction unchanged (within tol)', () => {
+    const loop = ring();
+    const bearing = 0; // bulge toward +x
+    const carved = carvePondInlets(loop, center, [{ bearing, halfAngle: 0.6, reach: 15 }]);
+    // The vertex pointing the OTHER way (-x, bearing ≈ π) must be untouched.
+    const beforeOpp = vertNearestBearing(loop, Math.PI);
+    const afterOpp = vertNearestBearing(carved, Math.PI);
+    expect(afterOpp.x).toBeCloseTo(beforeOpp.x, 6);
+    expect(afterOpp.y).toBeCloseTo(beforeOpp.y, 6);
+  });
+
+  it('tapers the bulge to ~zero at the sector edge', () => {
+    const loop = ring();
+    const carved = carvePondInlets(loop, center, [{ bearing: 0, halfAngle: 0.6, reach: 15 }]);
+    // a vertex JUST OUTSIDE the ±halfAngle sector should be (near) unmoved.
+    const justOutside = 0.6 + 0.3;
+    const before = vertNearestBearing(loop, justOutside);
+    const after = vertNearestBearing(carved, justOutside);
+    expect(distFromCenter(after) - distFromCenter(before)).toBeLessThan(2);
+  });
+
+  it('is deterministic — identical inputs give an identical loop', () => {
+    const loop = ring();
+    const inlets = [{ bearing: 1.2, halfAngle: 0.5, reach: 12 }];
+    expect(carvePondInlets(loop, center, inlets)).toEqual(carvePondInlets(loop, center, inlets));
+  });
+
+  it('no inlets is a no-op (loop unchanged)', () => {
+    const loop = ring();
+    expect(carvePondInlets(loop, center, [])).toEqual(loop);
+  });
+});
+
+describe('loopGapArcs', () => {
+  const center: Vec2 = { x: 0, y: 0 };
+  const ring = (r = 20, n = 24): Vec2[] => {
+    const out: Vec2[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    }
+    return out;
+  };
+  const bearingOf = (p: Vec2): number => Math.atan2(p.y - center.y, p.x - center.x);
+  const inGap = (p: Vec2, bearing: number, halfAngle: number): boolean => {
+    let d = Math.abs(bearingOf(p) - bearing);
+    d = Math.min(d, Math.PI * 2 - d);
+    return d < halfAngle;
+  };
+
+  it('one gap yields exactly one OPEN arc', () => {
+    const loop = ring();
+    const arcs = loopGapArcs(loop, center, [{ bearing: 0, halfAngle: 0.5 }]);
+    expect(arcs.length).toBe(1);
+    const arc = arcs[0]!;
+    expect(arc.length).toBeGreaterThan(0);
+    // open: first vertex differs from last.
+    const first = arc[0]!;
+    const last = arc[arc.length - 1]!;
+    expect(first.x !== last.x || first.y !== last.y).toBe(true);
+  });
+
+  it('excludes every vertex whose bearing lies inside the gap sector', () => {
+    const loop = ring();
+    const gap = { bearing: Math.PI / 2, halfAngle: 0.5 };
+    const arcs = loopGapArcs(loop, center, [gap]);
+    for (const arc of arcs) {
+      for (const p of arc) {
+        expect(inGap(p, gap.bearing, gap.halfAngle)).toBe(false);
+      }
+    }
+    // and at least one loop vertex really did fall inside the gap (so we removed some).
+    expect(loop.some((p) => inGap(p, gap.bearing, gap.halfAngle))).toBe(true);
+  });
+
+  it('two gaps yield two arcs', () => {
+    const loop = ring();
+    const arcs = loopGapArcs(loop, center, [
+      { bearing: 0, halfAngle: 0.4 },
+      { bearing: Math.PI, halfAngle: 0.4 },
+    ]);
+    expect(arcs.length).toBe(2);
+    for (const arc of arcs) expect(arc.length).toBeGreaterThan(0);
+  });
+
+  it('no gaps yields a single arc spanning the whole loop', () => {
+    const loop = ring();
+    const arcs = loopGapArcs(loop, center, []);
+    expect(arcs.length).toBe(1);
+    expect(arcs[0]!.length).toBe(loop.length);
+  });
+
+  it('is deterministic — identical inputs give identical arcs', () => {
+    const loop = ring();
+    const gaps = [{ bearing: 0.7, halfAngle: 0.5 }];
+    expect(loopGapArcs(loop, center, gaps)).toEqual(loopGapArcs(loop, center, gaps));
   });
 });

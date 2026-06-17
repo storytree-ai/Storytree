@@ -615,6 +615,117 @@ export function fusedMouthPath(
   return `M ${f(coastDock.x)} ${f(coastDock.y)} C ${f(c1.x)} ${f(c1.y)} ${f(c2.x)} ${f(c2.y)} ${f(end.x)} ${f(end.y)}`;
 }
 
+/** Smallest signed angular distance between two bearings, in [0, π]. */
+function bearingDelta(a: number, b: number): number {
+  let d = Math.abs(a - b) % (Math.PI * 2);
+  if (d > Math.PI) d = Math.PI * 2 - d;
+  return d;
+}
+
+/** A pond inlet: a bay bulged OUTWARD toward `bearing` (from the pond centre)
+ *  within ±`halfAngle`, reaching up to `reach` px at the bearing and tapering to
+ *  zero at the sector edges. */
+export interface PondInlet {
+  bearing: number;
+  halfAngle: number;
+  reach: number;
+}
+
+/**
+ * Carve a bay/inlet into a closed pond `loop` toward each {@link PondInlet}'s
+ * bearing (measured FROM `center`), so the pond gapes a small funnel toward an
+ * incident river mouth — the visual that makes the river read as flowing INTO the
+ * pond rather than touching a sealed blob (`?pondMouth=fused`). For every loop
+ * vertex we measure its angular distance from each inlet's bearing; within ±halfAngle
+ * the vertex is pushed OUTWARD along its own radial (away from `center`) by
+ * `reach · taper`, where `taper = cos²(½π · Δ/halfAngle)` is 1 on the bearing and
+ * eases smoothly to 0 at the sector edge so the bulge blends into the rim with no
+ * cusp. A vertex inside several sectors takes the LARGEST bulge (one bay per dock,
+ * but a vertex between two near docks still blends). The vertex COUNT is preserved
+ * (carve only displaces points — never adds or drops them), so the result feeds the
+ * same chaikin/smoothLoopPath pipeline. No inlets ⇒ the loop is returned unchanged
+ * (the `?pondMouth=fused`-off no-op). Pure, deterministic — no Math.random.
+ */
+export function carvePondInlets(loop: Vec2[], center: Vec2, inlets: PondInlet[]): Vec2[] {
+  if (inlets.length === 0) return loop;
+  return loop.map((p) => {
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    const r = Math.hypot(dx, dy) || 1;
+    const theta = Math.atan2(dy, dx);
+    let bulge = 0;
+    for (const inl of inlets) {
+      if (inl.halfAngle <= 0 || inl.reach <= 0) continue;
+      const delta = bearingDelta(theta, inl.bearing);
+      if (delta >= inl.halfAngle) continue;
+      const t = delta / inl.halfAngle; // 0 on bearing → 1 at sector edge
+      const c = Math.cos((Math.PI / 2) * t);
+      const taper = c * c; // smooth 1→0, zero slope at the edge
+      const b = inl.reach * taper;
+      if (b > bulge) bulge = b;
+    }
+    if (bulge <= 0) return { x: p.x, y: p.y };
+    const ux = dx / r;
+    const uy = dy / r;
+    return { x: p.x + ux * bulge, y: p.y + uy * bulge };
+  });
+}
+
+/** A rim gap: an angular sector (centred on `bearing`, ±`halfAngle`, measured from
+ *  the pond centre) where the pale rim stroke BREAKS so the river leads the water
+ *  through unbroken. */
+export interface RimGap {
+  bearing: number;
+  halfAngle: number;
+}
+
+/**
+ * Split a closed pond `loop` into OPEN polyline arcs, dropping every vertex whose
+ * bearing-from-`center` falls inside any {@link RimGap} sector — the pale rim
+ * rendered as broken arcs that SKIP each river mouth (`?pondMouth=fused`), instead
+ * of one closed ring stroked straight across the inlet. With `gaps` empty the whole
+ * loop comes back as a single arc (every vertex kept, in order). With N disjoint
+ * gaps the rim breaks into N arcs. Each arc is a contiguous run of kept vertices;
+ * because the loop is cyclic, a run that straddles the seam (index 0) is stitched to
+ * the trailing run so it isn't split spuriously. Arcs are OPEN (first ≠ last) — feed
+ * each through {@link smoothOpenPath} for a d-string. Pure, deterministic.
+ */
+export function loopGapArcs(loop: Vec2[], center: Vec2, gaps: RimGap[]): Vec2[][] {
+  const n = loop.length;
+  if (n === 0) return [];
+  const inAnyGap = (p: Vec2): boolean => {
+    const theta = Math.atan2(p.y - center.y, p.x - center.x);
+    for (const g of gaps) {
+      if (g.halfAngle <= 0) continue;
+      if (bearingDelta(theta, g.bearing) < g.halfAngle) return true;
+    }
+    return false;
+  };
+  const kept = loop.map((p) => !inAnyGap(p));
+  // No vertex dropped → one arc spanning the whole loop (kept in order).
+  if (kept.every(Boolean)) return [loop.map((p) => ({ x: p.x, y: p.y }))];
+  // Every vertex dropped → no rim at all.
+  if (kept.every((k) => !k)) return [];
+  // Find a dropped index to start AFTER, so no run straddles the cyclic seam.
+  let start = 0;
+  while (start < n && kept[start]) start++;
+  const arcs: Vec2[][] = [];
+  let cur: Vec2[] = [];
+  for (let s = 0; s < n; s++) {
+    const i = (start + s) % n;
+    const p = loop[i];
+    if (!p) continue;
+    if (kept[i]) {
+      cur.push({ x: p.x, y: p.y });
+    } else if (cur.length > 0) {
+      arcs.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length > 0) arcs.push(cur);
+  return arcs;
+}
+
 /** A confluence-tree edge: water flows a→b carrying `flow` source tributaries
  *  (== how many of the network's rivers share this edge — which drives its width). */
 export interface ConfluenceEdge {

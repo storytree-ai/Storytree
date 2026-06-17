@@ -1798,9 +1798,28 @@ mark.st-hl.flash {
   opacity: 0.5;
   animation: river-flow 8s linear infinite;
 }
+/* FUSED pond mouth (`?pondMouth=fused`): the pond water as a FILL-only body (no
+   closed rim stroke) so the carved bay reads as one water body with the feeding
+   river; the pale border is drawn separately as `.inland-pond-rim` open arcs that
+   BREAK at each river mouth. Default world (flag off) never emits these. */
+.inland-pond-water-fill {
+  fill: var(--river);
+  stroke: none;
+  opacity: 0.97;
+}
+.inland-pond-rim {
+  fill: none;
+  stroke: var(--river-bank);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.97;
+}
 /* focus dimming, mirroring .world-trail.is-dim on the channels */
 .inland-pond-sand.is-dim,
 .inland-pond-water.is-dim,
+.inland-pond-water-fill.is-dim,
+.inland-pond-rim.is-dim,
 .inland-pond-glint.is-dim {
   opacity: 0.25;
 }

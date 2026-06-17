@@ -66,9 +66,13 @@ import {
   edgePathBundle,
   segmentKey,
   fusedMouthPath,
+  carvePondInlets,
+  loopGapArcs,
   type Disk,
   type LoopDock,
   type DistributarySegment,
+  type PondInlet,
+  type RimGap,
 } from '../lib/riverGeometry.js';
 import { WorldLegend } from './WorldLegend.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
@@ -238,6 +242,13 @@ interface PondShape {
   story: string;
   d: string;
   loop: Pt[];
+  /** OPEN pale-rim arc d-strings (`?pondMouth=fused` only): the pond's pale border
+   *  rendered as broken arcs that SKIP each river-mouth inlet, so the rim never
+   *  strokes across the mouth and the river leads the water through the gap. When
+   *  set, the pond water renders FILL-only (no closed rim stroke) and `d` is the
+   *  CARVED loop (gaped toward each dock). Undefined when the flag is off — the OFF
+   *  render branch stays byte-identical. */
+  rim?: string[];
 }
 
 /** Inland water carried by `?water=pond|through`: per-island ponds and/or the
@@ -835,6 +846,63 @@ function pondRing(center: Pt, rx: number, ry: number, seed: number): Pt[] {
   return out;
 }
 
+// ---- fused pond mouth (`?pondMouth=fused`) — round-2: the pond GAPES + the rim BREAKS ----
+// Owner feedback on round-1 (which only fixed the channel path): "still looks
+// disconnected — the light blue border doesn't break and the pond doesn't gape to let
+// the river in like a normal pond would." So per incident dock we (a) bulge a bay into
+// the pond loop toward the dock so the shoreline pokes a funnel toward the river mouth
+// (the channel's overshoot lands INSIDE the bay → one water body), and (b) BREAK the
+// pale rim there (render it as open arcs that skip the mouth) so no closed ring strokes
+// across the river. All deterministic; only built when the flag is on.
+/** half-angle (rad) of the bay sector bulged toward each dock. */
+const POND_INLET_HALF_ANGLE = 0.52;
+/** half-angle (rad) of the pale-rim GAP at each dock — a touch tighter than the bay so
+ *  the broken rim sits exactly across the mouth, the bay's flanks keep their pale edge. */
+const POND_RIM_GAP_HALF_ANGLE = 0.42;
+/** how far (px) a bay reaches toward its dock before coast-clamping. */
+const POND_INLET_REACH = HEX_R * 0.5;
+/** px of beach a bay tip keeps clear of the island coast (never spill onto land). */
+const POND_INLET_COAST_CLEAR = 5;
+
+/**
+ * Build the FUSED pond shape (`?pondMouth=fused`): the pond loop GAPED toward each
+ * incident river dock and its pale rim BROKEN at each mouth. For every dock we take
+ * the bearing FROM the pond centre toward the dock and (a) carve a bay there
+ * ({@link carvePondInlets}) so the shore pokes a funnel toward the river — its reach
+ * is clamped per dock so the bay tip stays `POND_INLET_COAST_CLEAR` px short of the
+ * island coast (the lake never spills onto land) — and (b) drop the pale rim in a
+ * gap sector there ({@link loopGapArcs}) so the pale border never strokes across the
+ * mouth. Returns the CARVED-loop fill `d` (water becomes fill-only) plus the open
+ * pale-rim arc `d`-strings. `coast` is the island's smoothed coastline (for the
+ * clamp); pass an empty array to skip clamping. Pure given its inputs; deterministic.
+ */
+function fusedPondShape(
+  pond: { center: Pt; loop: Pt[] },
+  docks: Pt[],
+  coast: Pt[],
+): { d: string; rim: string[] } {
+  const { center, loop } = pond;
+  const inlets: PondInlet[] = [];
+  const gaps: RimGap[] = [];
+  for (const dk of docks) {
+    const bearing = Math.atan2(dk.y - center.y, dk.x - center.x);
+    // Clamp the reach so the bay tip stops short of the coast — the lake must never
+    // spill onto land. `distToLoop(center, coast)` is the room from the pond centre to
+    // the nearest coast edge; the rim already sits part-way out, so bounding the bulge
+    // by (that room − a beach margin) is a safe lower bound that keeps the bay on water.
+    let reach = POND_INLET_REACH;
+    if (coast.length >= 3) {
+      const tipRoom = distToLoop(center, coast) - POND_INLET_COAST_CLEAR;
+      if (tipRoom < reach) reach = Math.max(0, tipRoom);
+    }
+    inlets.push({ bearing, halfAngle: POND_INLET_HALF_ANGLE, reach });
+    gaps.push({ bearing, halfAngle: POND_RIM_GAP_HALF_ANGLE });
+  }
+  const carved = carvePondInlets(loop, center, inlets);
+  const rim = loopGapArcs(carved, center, gaps).map(smoothOpenPath);
+  return { d: smoothLoopPath(carved), rim };
+}
+
 /**
  * PROCEDURAL POND PLACER — every island gets a lake, systematically, never an
  * ad-hoc null. The pond is seated on the side its rivers enter from (`aimDir`),
@@ -1122,7 +1190,15 @@ function buildBasin(
         pond = placePond(t, aim, flow, 4);
       }
       if (!pond) return;
-      inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      if (opts.tuning.fusedPondMouth && ds.length > 0) {
+        // FUSED (`?pondMouth=fused`): gape the pond toward each dock and BREAK the pale
+        // rim there, so the river flows into a bay through a gap instead of touching a
+        // sealed ring (round-2 owner feedback).
+        const shape = fusedPondShape(pond, ds.map((dk) => dk.dock), t.coastLoops[0] ?? []);
+        inland.ponds.push({ story: t.story.id, d: shape.d, loop: pond.loop, rim: shape.rim });
+      } else {
+        inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      }
       for (const dk of ds) {
         if (opts.tuning.fusedPondMouth) {
           // FUSED mouth (`?pondMouth=fused`): one continuous channel that departs the
@@ -1458,7 +1534,13 @@ function buildBundle(
             )
           : placePond(t, { x: 0, y: 1 }, islandFlow, 4);
       if (!pond) return;
-      inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      if (opts.tuning.fusedPondMouth && ds.length > 0) {
+        // FUSED (`?pondMouth=fused`): gape toward each dock + break the pale rim (see buildBasin).
+        const shape = fusedPondShape(pond, ds.map((dk) => dk.dock), t.coastLoops[0] ?? []);
+        inland.ponds.push({ story: t.story.id, d: shape.d, loop: pond.loop, rim: shape.rim });
+      } else {
+        inland.ponds.push({ story: t.story.id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      }
       for (const dk of ds) {
         if (opts.tuning.fusedPondMouth) {
           // FUSED mouth (`?pondMouth=fused`): see buildBasin — one continuous channel,
@@ -2158,7 +2240,13 @@ function buildWorld(
         : { x: t.treeSpot.x, y: t.treeSpot.y + 100 };
       const pond = placePond(t, unit(t.treeSpot, mean), seams.length);
       if (!pond) continue;
-      inland.ponds.push({ story: id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      if (tuning.fusedPondMouth && seams.length > 0) {
+        // FUSED (`?pondMouth=fused`): gape toward each seam + break the pale rim (see buildBasin).
+        const shape = fusedPondShape(pond, seams.map((c) => c.pt), t.coastLoops[0] ?? []);
+        inland.ponds.push({ story: id, d: shape.d, loop: pond.loop, rim: shape.rim });
+      } else {
+        inland.ponds.push({ story: id, d: smoothLoopPath(pond.loop), loop: pond.loop });
+      }
       // Each seam continues from its coast point to the pond rim, head-on.
       for (const c of seams) {
         if (tuning.fusedPondMouth) {
@@ -3640,9 +3728,22 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                       <path className="world-trail-water" d={e.d} style={flowStyle(e, 'water')} />
                     </g>
                   ))}
-                  {world.inland.ponds.map((p) => (
-                    <path key={`p-w-${p.story}`} className={`inland-pond-water ${pondClass(p)}`} d={p.d} />
-                  ))}
+                  {world.inland.ponds.map((p) =>
+                    p.rim ? (
+                      // FUSED (`?pondMouth=fused`): the pond WATER is FILL-only (the
+                      // carved, gaped loop) and the pale rim is rendered SEPARATELY as
+                      // open arcs that skip each river mouth — so no closed ring strokes
+                      // across the inlet and the river leads the water through the gap.
+                      <g key={`p-w-${p.story}`}>
+                        <path className={`inland-pond-water-fill ${pondClass(p)}`} d={p.d} />
+                        {p.rim.map((arc, ai) => (
+                          <path key={`p-rim-${p.story}-${ai}`} className={`inland-pond-rim ${pondClass(p)}`} d={arc} />
+                        ))}
+                      </g>
+                    ) : (
+                      <path key={`p-w-${p.story}`} className={`inland-pond-water ${pondClass(p)}`} d={p.d} />
+                    ),
+                  )}
                   {world.inland.channels.map((e, i) => (
                     <g key={`il-g-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
                       <path className="world-trail-glint" d={e.d} style={flowStyle(e, 'glint')} />
