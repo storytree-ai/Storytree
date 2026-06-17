@@ -1801,7 +1801,8 @@ mark.st-hl.flash {
 /* FUSED pond mouth (`?pondMouth=fused`): the pond water as a FILL-only body (no
    closed rim stroke) so the carved bay reads as one water body with the feeding
    river; the pale border is drawn separately as `.inland-pond-rim` open arcs that
-   BREAK at each river mouth. Default world (flag off) never emits these. */
+   BREAK at each river mouth. Now the DEFAULT (owner flip 2026-06-18); `?pondMouth=off`
+   restores the old closed `.inland-pond-water` ring and never emits these. */
 .inland-pond-water-fill {
   fill: var(--river);
   stroke: none;
