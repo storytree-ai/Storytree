@@ -457,6 +457,87 @@ export function crescentApplies(degree: number, minDegree: number): boolean {
   return degree > 0 && degree >= minDegree;
 }
 
+/**
+ * Where a river that ARRIVES at `coastDock` heading `arrivalDir` (its inward unit
+ * bearing — the same direction the over-sea edge is travelling as it reaches the
+ * coast) should dock on a pond's smoothed rim. We cast a ray from the coast dock
+ * ALONG that bearing and take the first rim crossing — so the in-pond channel
+ * continues the river's own line into the pool, instead of bending toward the pond
+ * CENTRE (the old `rayPolyIntersect(coastDock, center, loop)`, which forces an ugly
+ * ~90° cross-island cut whenever the coast dock is off the centre axis). When the
+ * bearing ray MISSES the loop (the dock faces away from the lake), fall back to the
+ * nearest rim VERTEX so the channel still finds the pool. The returned LoopDock's
+ * normal points OUTWARD from the pond (back toward the coast dock) — exactly what a
+ * head-on estuary handle wants. Returns null only for a degenerate (<2-vertex) loop.
+ * Pure, deterministic — no Math.random.
+ */
+export function nearestRimDock(coastDock: Vec2, arrivalDir: Vec2, loop: Vec2[]): LoopDock | null {
+  if (loop.length < 2) return null;
+  const dl = Math.hypot(arrivalDir.x, arrivalDir.y) || 1;
+  const ux = arrivalDir.x / dl;
+  const uy = arrivalDir.y / dl;
+  // First choice: the rim crossing along the arrival bearing.
+  const along = rayPolyIntersect(coastDock, { x: coastDock.x + ux, y: coastDock.y + uy }, loop);
+  if (along) return along;
+  // Fallback: the nearest rim VERTEX, with an outward normal pointing back toward the
+  // coast dock (so the channel meets the rim head-on even off-bearing).
+  let best: Vec2 | null = null;
+  let bestD = Infinity;
+  for (const p of loop) {
+    if (!p) continue;
+    const d = Math.hypot(p.x - coastDock.x, p.y - coastDock.y);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  if (!best) return null;
+  let nx = coastDock.x - best.x;
+  let ny = coastDock.y - best.y;
+  const nl = Math.hypot(nx, ny) || 1;
+  nx /= nl;
+  ny /= nl;
+  return { x: best.x, y: best.y, nx, ny };
+}
+
+/**
+ * One CONTINUOUS river→pond channel d-string (`?pondMouth=fused`): a cubic that
+ * starts EXACTLY at `coastDock`, DEPARTS along the river's inward arrival bearing
+ * `arrivalDir` (so it leaves the coast on the same tangent the over-sea edge arrived
+ * on — no kink at the seam where the two render layers butt), and ends just PAST the
+ * pond rim INSIDE the pool body (it reads as flowing IN, not stubbing on the edge).
+ * The rim dock is chosen by {@link nearestRimDock} along the bearing (not through the
+ * pond centre), the end overshoots the rim by `overshoot` px along the rim's inward
+ * normal, and the final handle sits `flare` px OUTSIDE the rim so the curve sweeps in
+ * head-on (mirroring the estuary handle the coast mouth uses). `startLen` is the
+ * length of the departure handle along `arrivalDir`. Returns null when no rim dock can
+ * be found (degenerate loop). Pure, deterministic — no Math.random.
+ */
+export function fusedMouthPath(
+  coastDock: Vec2,
+  arrivalDir: Vec2,
+  pond: { center: Vec2; loop: Vec2[] },
+  opts: { overshoot?: number; flare?: number; startLen?: number } = {},
+): string | null {
+  const rim = nearestRimDock(coastDock, arrivalDir, pond.loop);
+  if (!rim) return null;
+  const overshoot = opts.overshoot ?? 6;
+  const flare = opts.flare ?? 12;
+  const startLen = opts.startLen ?? 12;
+  // Inward unit bearing for the departure handle.
+  const dl = Math.hypot(arrivalDir.x, arrivalDir.y) || 1;
+  const ux = arrivalDir.x / dl;
+  const uy = arrivalDir.y / dl;
+  // End: overshoot PAST the rim into the pool, along the rim's INWARD normal.
+  const end: Vec2 = { x: rim.x - rim.nx * overshoot, y: rim.y - rim.ny * overshoot };
+  // c1: leave the coast along the river's own arrival tangent (continuity at the seam).
+  const c1: Vec2 = { x: coastDock.x + ux * startLen, y: coastDock.y + uy * startLen };
+  // c2: sit OUTSIDE the rim along its outward normal so the curve meets the pool head-on.
+  const c2: Vec2 = { x: rim.x + rim.nx * flare, y: rim.y + rim.ny * flare };
+  const f = (v: number): string => v.toFixed(1);
+  return `M ${f(coastDock.x)} ${f(coastDock.y)} C ${f(c1.x)} ${f(c1.y)} ${f(c2.x)} ${f(c2.y)} ${f(end.x)} ${f(end.y)}`;
+}
+
 /** A confluence-tree edge: water flows a→b carrying `flow` source tributaries
  *  (== how many of the network's rivers share this edge — which drives its width). */
 export interface ConfluenceEdge {

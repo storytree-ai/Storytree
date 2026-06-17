@@ -25,6 +25,8 @@ import {
   crescentApplies,
   edgePathBundle,
   segmentKey,
+  nearestRimDock,
+  fusedMouthPath,
   type BundleEdge,
   type Disk,
   type Vec2,
@@ -811,5 +813,120 @@ describe('edgePathBundle', () => {
     const { paths, segments } = edgePathBundle(nodes, [], { d: 2, dMax: 2 });
     expect(paths).toEqual([]);
     expect(segments).toEqual([]);
+  });
+});
+
+// nearestRimDock + fusedMouthPath are the FUSED-POND-MOUTH primitives
+// (`?pondMouth=fused`): they replace the two-stroke stub-mouth wiring (an over-sea
+// edge ending at the coast dock + a SEPARATE in-pond channel rayed through the pond
+// CENTRE, stopping dead ON the rim) with ONE continuous channel that departs the
+// coast along the river's own arrival bearing (no kink) and overshoots PAST the rim
+// into the pool body (reads as flowing in). These tests pin that contract.
+describe('nearestRimDock', () => {
+  // A square pond centred on the origin, vertices CCW.
+  const square: Vec2[] = [
+    { x: -20, y: -20 },
+    { x: 20, y: -20 },
+    { x: 20, y: 20 },
+    { x: -20, y: 20 },
+  ];
+
+  it('docks along the ARRIVAL BEARING, not through the pond centre', () => {
+    // A coast dock OFF the centre axis, arriving heading straight DOWN (+y). The
+    // bearing ray must hit the TOP edge directly below the dock (x ≈ dock.x), which
+    // is NOT where a ray through the centre would land (that one fans toward x=0).
+    const coastDock: Vec2 = { x: 12, y: -60 };
+    const arrivalDir: Vec2 = { x: 0, y: 1 }; // inward, straight down
+    const hit = nearestRimDock(coastDock, arrivalDir, square);
+    expect(hit).not.toBeNull();
+    expect(hit!.y).toBeCloseTo(-20, 5); // on the top rim
+    expect(hit!.x).toBeCloseTo(12, 5); // straight below the dock, NOT pulled to x=0
+
+    const throughCentre = rayPolyIntersect(coastDock, { x: 0, y: 0 }, square);
+    expect(throughCentre).not.toBeNull();
+    // The two strategies must genuinely disagree for an off-axis dock.
+    expect(Math.abs(hit!.x - throughCentre!.x)).toBeGreaterThan(2);
+  });
+
+  it('returns a rim point that lies ON the pond loop', () => {
+    const coastDock: Vec2 = { x: -8, y: -50 };
+    const hit = nearestRimDock(coastDock, { x: 0, y: 1 }, square);
+    expect(hit).not.toBeNull();
+    expect(hit!.y).toBeCloseTo(-20, 5); // exactly on the top edge
+    expect(Math.abs(hit!.x)).toBeLessThanOrEqual(20 + 1e-6); // within the edge span
+  });
+
+  it('falls back to the nearest rim VERTEX when the bearing ray misses the loop', () => {
+    // A dock to the upper-right, arriving heading AWAY from the pond (up-right): the
+    // ray never crosses the loop, so the helper falls back to the nearest rim point.
+    const coastDock: Vec2 = { x: 60, y: -60 };
+    const hit = nearestRimDock(coastDock, { x: 1, y: -1 }, square); // away from pond
+    expect(hit).not.toBeNull();
+    // nearest square vertex to (60,-60) is the top-right corner (20,-20).
+    expect(hit!.x).toBeCloseTo(20, 5);
+    expect(hit!.y).toBeCloseTo(-20, 5);
+  });
+
+  it("orients the dock normal OUTWARD from the pond (back toward the coast dock)", () => {
+    const coastDock: Vec2 = { x: 0, y: -60 };
+    const hit = nearestRimDock(coastDock, { x: 0, y: 1 }, square);
+    expect(hit).not.toBeNull();
+    // top edge: outward normal points up (-y), i.e. back toward the coast dock above.
+    expect(hit!.ny).toBeLessThan(0);
+    expect(Math.abs(hit!.nx)).toBeLessThan(1e-6);
+  });
+});
+
+describe('fusedMouthPath', () => {
+  const square: Vec2[] = [
+    { x: -20, y: -20 },
+    { x: 20, y: -20 },
+    { x: 20, y: 20 },
+    { x: -20, y: 20 },
+  ];
+  const pond = { center: { x: 0, y: 0 } as Vec2, loop: square };
+  const coastDock: Vec2 = { x: 8, y: -60 };
+  const arrivalDir: Vec2 = { x: 0, y: 1 }; // inward (straight down)
+
+  it('starts EXACTLY at the coast dock', () => {
+    const d = fusedMouthPath(coastDock, arrivalDir, pond, { overshoot: 6, flare: 12, startLen: 10 });
+    expect(d).not.toBeNull();
+    const pts = coords(d!);
+    expect(pts[0]!.x).toBeCloseTo(coastDock.x, 1);
+    expect(pts[0]!.y).toBeCloseTo(coastDock.y, 1);
+  });
+
+  it('departs the coast along the river ARRIVAL TANGENT (no kink at the seam)', () => {
+    const d = fusedMouthPath(coastDock, arrivalDir, pond, { overshoot: 6, flare: 12, startLen: 10 });
+    const pts = coords(d!); // M a C c1 c2 end  ⇒ [a, c1, c2, end]
+    const a = pts[0]!;
+    const c1 = pts[1]!;
+    // departure tangent = c1 - a; must align with arrivalDir (dot ≈ 1, cross ≈ 0).
+    let tx = c1.x - a.x;
+    let ty = c1.y - a.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    const dot = tx * arrivalDir.x + ty * arrivalDir.y;
+    const cross = tx * arrivalDir.y - ty * arrivalDir.x;
+    expect(dot).toBeCloseTo(1, 5);
+    expect(cross).toBeCloseTo(0, 5);
+  });
+
+  it('OVERSHOOTS past the rim — its final point is INSIDE the pond loop', () => {
+    const d = fusedMouthPath(coastDock, arrivalDir, pond, { overshoot: 6, flare: 12, startLen: 10 });
+    const pts = coords(d!);
+    const end = pts[pts.length - 1]!;
+    expect(pointInPoly(end, square)).toBe(true); // past the rim, not butting on it
+  });
+
+  it('is deterministic — identical inputs give an identical d-string', () => {
+    const a = fusedMouthPath(coastDock, arrivalDir, pond, { overshoot: 6, flare: 12, startLen: 10 });
+    const b = fusedMouthPath(coastDock, arrivalDir, pond, { overshoot: 6, flare: 12, startLen: 10 });
+    expect(a).toEqual(b);
+  });
+
+  it('returns null when no rim can be found (degenerate loop)', () => {
+    expect(fusedMouthPath(coastDock, arrivalDir, { center: { x: 0, y: 0 }, loop: [] }, { overshoot: 6 })).toBeNull();
   });
 });
