@@ -11,6 +11,7 @@ import {
   rayPolyIntersect,
   pointInPoly,
   polyCentroid,
+  distToLoop,
   routeAround,
   confluenceTree,
   type Disk,
@@ -204,6 +205,26 @@ describe('polyCentroid', () => {
   });
   it('degenerates to the origin for an empty loop', () => {
     expect(polyCentroid([])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('distToLoop', () => {
+  const square: Vec2[] = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  it('returns the distance to the nearest edge for an interior point', () => {
+    // centre of a 10×10 square: nearest edge is 5 away on every side.
+    expect(distToLoop({ x: 5, y: 5 }, square)).toBeCloseTo(5, 5);
+  });
+  it('is small near an edge', () => {
+    expect(distToLoop({ x: 1, y: 5 }, square)).toBeCloseTo(1, 5);
+    expect(distToLoop({ x: 5, y: 9 }, square)).toBeCloseTo(1, 5);
+  });
+  it('is deterministic', () => {
+    expect(distToLoop({ x: 3, y: 7 }, square)).toBe(distToLoop({ x: 3, y: 7 }, square));
   });
 });
 

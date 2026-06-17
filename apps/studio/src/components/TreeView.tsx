@@ -51,6 +51,7 @@ import {
   smoothOpenPath,
   rayPolyIntersect,
   pointInPoly,
+  distToLoop,
   routeAround,
   confluenceTree,
   type Disk,
@@ -750,8 +751,12 @@ function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; pat
   return { loops, paths: loops.map(smoothLoopPath) };
 }
 
-/** px an inland pond keeps clear of any capability plant on its island. */
-const POND_CLEAR = 9;
+/** px a pond keeps clear of any capability plant on its island. */
+const POND_PLANT_CLEAR = 7;
+/** smallest visible pond radius (x) — the procedural placer never goes below this. */
+const POND_RX_MIN = HEX_R * 0.52;
+/** largest pond radius (x) a high-flow lake grows to when the land affords it. */
+const POND_RX_MAX = HEX_R * 1.3;
 /** points around a pond's raw rim before Chaikin-smoothing. */
 const POND_RING_N = 14;
 
@@ -772,16 +777,20 @@ function pondRing(center: Pt, rx: number, ry: number, seed: number): Pt[] {
 }
 
 /**
- * Place a small pond on territory `t`, offset toward `aimDir` (the side its rivers
- * enter from). The capability plants ring the tree's FRONT 240° arc, so the clear
- * water-able land is the band BETWEEN that ring and the shore: we scan INWARD from
- * just inside the coast, fanning the angle around `aimDir`, and take the first spot
- * that fits fully on land and clears every plant. That seats the pond on the rivers'
- * entry side near the shore (a short inland flow that never crosses the garden).
- * Returns the smoothed loop + centre, or null when no clear spot fits (tiny/crowded
- * island → those rivers stay on the coast). Deterministic.
+ * PROCEDURAL POND PLACER — every island gets a lake, systematically, never an
+ * ad-hoc null. The pond is seated on the side its rivers enter from (`aimDir`),
+ * sized to the open water-able land found there: we scan a fan of candidate
+ * centres on the entry side, and at each ON-LAND centre the largest pond that fits
+ * is bounded by three obstacles — the nearest coast edge (`distToLoop`), the tree
+ * crown, and the nearest capability plant. We keep the centre that affords the
+ * BIGGEST pond, then grow toward `flow` (a hub gathering more rivers pools into a
+ * larger lake) but never past what the land allows. If the island is so tight that
+ * nothing roomy fits, we still seat a minimum pond at a guaranteed-on-land anchor
+ * between the tree and the entry shore — shrink/relocate deterministically rather
+ * than give up. Returns the smoothed loop + centre; null only for a degenerate
+ * coastless territory (never happens for a grown island). Deterministic.
  */
-function placePond(t: Territory, aimDir: Pt): { center: Pt; loop: Pt[] } | null {
+function placePond(t: Territory, aimDir: Pt, flow: number): { center: Pt; loop: Pt[] } | null {
   const coast = t.coastLoops[0];
   if (!coast) return null;
   const baseAng = Math.atan2(aimDir.y, aimDir.x);
@@ -791,36 +800,43 @@ function placePond(t: Territory, aimDir: Pt): { center: Pt; loop: Pt[] } | null 
     y: t.treeSpot.y + aimDir.y * 2000,
   });
   const maxD = far ? Math.hypot(far.x - t.treeSpot.x, far.y - t.treeSpot.y) : t.radius;
-  const fan = [0, 0.22, -0.22, 0.45, -0.45, 0.7, -0.7, 1.0, -1.0];
-  const rx0 = Math.max(HEX_R * 0.7, Math.min(HEX_R * 1.2, t.radius * 0.22));
-  // Try a full-size pond first, then shrink so even a thin coastal band between the
-  // plant ring and the shore can hold a (smaller) pool — every island that takes a
-  // river still gets one, none pushed into the garden.
-  for (const scale of [1, 0.78, 0.58]) {
-    const rx = rx0 * scale;
-    const ry = rx * 0.66;
-    const clear = POND_CLEAR * scale;
-    const fitsOnLand = (c: Pt): boolean => {
-      if (!pointInPoly(c, coast)) return false;
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        if (!pointInPoly({ x: c.x + Math.cos(a) * rx, y: c.y + Math.sin(a) * ry }, coast)) return false;
-      }
-      return true;
-    };
-    const clearOfCaps = (c: Pt): boolean =>
-      t.caps.every((cap) => Math.hypot(cap.x - c.x, cap.y - c.y) > rx + clear);
-    for (let d = maxD - rx; d >= crownR + ry * 0.5; d -= 4) {
-      for (const da of fan) {
-        const ang = baseAng + da;
-        const c = { x: t.treeSpot.x + Math.cos(ang) * d, y: t.treeSpot.y + Math.sin(ang) * d };
-        if (fitsOnLand(c) && clearOfCaps(c)) {
-          return { center: c, loop: chaikinClosed(pondRing(c, rx, ry, hash(t.story.id)), 2) };
-        }
-      }
+  // Desired radius grows with the flow this lake gathers, capped by POND_RX_MAX.
+  const want = Math.min(POND_RX_MAX, HEX_R * (0.72 + Math.min(flow, 5) * 0.1));
+  const fan = [0, 0.22, -0.22, 0.45, -0.45, 0.7, -0.7, 1.0, -1.0, 1.4, -1.4];
+  // The largest pond that fits at a candidate centre `c` (or ≤0 when `c` is off
+  // land or too pinched between coast, crown and plants to hold any pool).
+  const fitR = (c: Pt): number => {
+    if (!pointInPoly(c, coast)) return -1;
+    let r = Math.min(want, distToLoop(c, coast), Math.hypot(c.x - t.treeSpot.x, c.y - t.treeSpot.y) - crownR);
+    for (const cap of t.caps) {
+      r = Math.min(r, Math.hypot(cap.x - c.x, cap.y - c.y) - POND_PLANT_CLEAR);
+      if (r <= 0) break;
+    }
+    return r;
+  };
+  // Pick the centre that affords the biggest pond. A visible pool on every island
+  // is what matters here; the fan is centred on the entry side, so the roomiest
+  // candidate already leans toward where the rivers connect.
+  let best: { c: Pt; r: number } | null = null;
+  for (let d = Math.max(maxD - POND_RX_MIN, crownR); d >= crownR * 0.6; d -= 4) {
+    for (const da of fan) {
+      const ang = baseAng + da;
+      const c = { x: t.treeSpot.x + Math.cos(ang) * d, y: t.treeSpot.y + Math.sin(ang) * d };
+      const r = fitR(c);
+      if (!best || r > best.r) best = { c, r };
     }
   }
-  return null;
+  // Tight island: no candidate held a real pool. Seat a minimum pond at a point
+  // between the tree and the entry shore (on land by construction), shrunk to
+  // whatever the coast allows there — a sensible small lake, never a dropped node.
+  if (!best || best.r < POND_RX_MIN) {
+    const d = Math.max(crownR + POND_RX_MIN, (crownR + maxD) / 2);
+    const c = { x: t.treeSpot.x + Math.cos(baseAng) * d, y: t.treeSpot.y + Math.sin(baseAng) * d };
+    const rx = Math.max(POND_RX_MIN * 0.78, Math.min(want, pointInPoly(c, coast) ? distToLoop(c, coast) : POND_RX_MIN));
+    return { center: c, loop: chaikinClosed(pondRing(c, rx, rx * 0.66, hash(t.story.id)), 2) };
+  }
+  const rx = Math.max(POND_RX_MIN, best.r);
+  return { center: best.c, loop: chaikinClosed(pondRing(best.c, rx, rx * 0.66, hash(t.story.id)), 2) };
 }
 
 /** Unit vector a→b (zero-safe). */
@@ -1446,17 +1462,21 @@ function buildWorld(
         for (const r of group) addSeam(srcId, { pt: r.srcDock, from: srcId, to: r.dstT.story.id });
       }
     }
-    for (const [id, seams] of seamsByNode) {
-      const t = territories[byId.get(id) ?? -1];
-      if (!t || seams.length === 0) continue;
-      // Aim the pond toward the mean of every coast seam it serves (both the
-      // incoming and the outgoing sides), so a mid-DAG junction's pool sits where
-      // the water actually flows through rather than only on its entry shore.
-      const mean: Pt = {
-        x: seams.reduce((s, c) => s + c.pt.x, 0) / seams.length,
-        y: seams.reduce((s, c) => s + c.pt.y, 0) / seams.length,
-      };
-      const pond = placePond(t, unit(t.treeSpot, mean));
+    // EVERY territory gets a pond (the procedural placer never fails) — the map
+    // reads as a network of lakes, one per node, linked by streams. A node's pond
+    // is aimed at the mean of its coast seams (both incoming and outgoing sides) so
+    // a mid-DAG junction pools where the water flows through; a node with no rivers
+    // opens its lake toward the south shore (where the network generally enters).
+    for (const t of territories) {
+      const id = t.story.id;
+      const seams = seamsByNode.get(id) ?? [];
+      const mean: Pt = seams.length
+        ? {
+            x: seams.reduce((s, c) => s + c.pt.x, 0) / seams.length,
+            y: seams.reduce((s, c) => s + c.pt.y, 0) / seams.length,
+          }
+        : { x: t.treeSpot.x, y: t.treeSpot.y + 100 };
+      const pond = placePond(t, unit(t.treeSpot, mean), seams.length);
       if (!pond) continue;
       inland.ponds.push({ story: id, d: smoothLoopPath(pond.loop), loop: pond.loop });
       // Each seam continues from its coast point to the pond rim, head-on.

@@ -1837,6 +1837,18 @@ mark.st-hl.flash {
   stroke-width: 2.6;
 }
 
+/* NO FLOW DASHES in the default merged/pond world (owner 2026-06-17: "remove the
+   white dash animations"). The moving white glint is hidden on every default-world
+   river, channel and pond; flow direction will be reintroduced via hover/animation
+   later. The `?rivers=strands` / `?moat=on` comparison world keeps its glint, so the
+   old look is still faithful. */
+.world-scene.rivers-merge .world-trail-glint {
+  display: none;
+}
+.world-scene.water-pond .inland-pond-glint {
+  display: none;
+}
+
 /* flora: the per-territory layer of trees, plates and wisps */
 .hex-flora {
   cursor: pointer;

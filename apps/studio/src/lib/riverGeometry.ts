@@ -206,6 +206,25 @@ function segFoot(p: Vec2, a: Vec2, b: Vec2): { dist: number; foot: Vec2; t: numb
 }
 
 /**
+ * Shortest distance from point `p` to a closed point `loop`'s boundary — the
+ * distance to its nearest edge. Used by the procedural pond placer to size a pond
+ * to the open space at a candidate centre (the largest circle that fits on land is
+ * bounded by the nearest coast edge). Pure, deterministic.
+ */
+export function distToLoop(p: Vec2, loop: Vec2[]): number {
+  let best = Infinity;
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const a = loop[i];
+    const b = loop[(i + 1) % n];
+    if (!a || !b) continue;
+    const d = segFoot(p, a, b).dist;
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/**
  * A polyline from `a` to `b` that detours AROUND a set of obstacle keep-out disks
  * (third-party island territories) so a river hugs the open water between islands
  * instead of cutting across an island that is neither its source nor its
