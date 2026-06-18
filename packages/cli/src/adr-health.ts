@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { parseAdrFrontmatter, type AdrMeta } from "@storytree/core";
+import { parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
 import type { CheckResult } from "./health.js";

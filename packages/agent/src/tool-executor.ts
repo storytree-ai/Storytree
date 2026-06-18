@@ -1,4 +1,4 @@
-import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "./model-events.js";
 
 /**
  * The tool seam (ADR-0005: the spine owns control flow, the leaf judges). The owned loop

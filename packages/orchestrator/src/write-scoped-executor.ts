@@ -11,7 +11,7 @@
  */
 
 import type { ToolExecutor } from "@storytree/agent";
-import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 
 import type { Phase, WriteScope } from "./phase-machine.js";
 

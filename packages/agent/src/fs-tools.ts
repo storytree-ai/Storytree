@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
 
-import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "./model-events.js";
 import { z } from "zod";
 
 import type { ModelTool } from "./model.js";

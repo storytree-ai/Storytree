@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ToolUseBlock } from "@storytree/core";
+import type { ToolUseBlock } from "./model-events.js";
 import { MapToolExecutor } from "./tool-executor.js";
 
 function call(name: string, input: unknown, id = "c1"): ToolUseBlock {

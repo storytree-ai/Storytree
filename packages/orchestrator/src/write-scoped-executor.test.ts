@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { MapToolExecutor } from "@storytree/agent";
 import type { ToolExecutor } from "@storytree/agent";
-import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 
 import { PathWriteScope } from "./phase-machine.js";
 import type { Phase } from "./phase-machine.js";

@@ -50,3 +50,8 @@ export {
   FILE_TOOLS,
   FILE_WRITE_TOOLS,
 } from "./fs-tools.js";
+
+// The model-event vocabulary (ContentBlock / ToolUseBlock / ToolResultBlock / isTextBlock /
+// isToolUseBlock / parseContentBlock …) — the agent leaf organism's declared `port` (ADR-0068
+// step 6). Moved here from the dissolving @storytree/core; orchestrator consumes it across the seam.
+export * from "./model-events.js";

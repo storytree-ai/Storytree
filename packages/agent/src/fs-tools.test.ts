@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { after, before, test } from "node:test";
 
-import type { ToolUseBlock } from "@storytree/core";
+import type { ToolUseBlock } from "./model-events.js";
 
 import {
   FILE_TOOLS,
