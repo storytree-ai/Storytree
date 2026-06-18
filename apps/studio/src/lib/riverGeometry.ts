@@ -1333,3 +1333,96 @@ export function repelChannels(lines: Vec2[][], groups: number[], opts: RepelOpts
     return line;
   });
 }
+
+// ---- ?weld (round-3) — weld river segments, lift the pond above the crown, de-spike ----
+
+/**
+ * The TRUE crown-occlusion disk of a story tree, given its base point `treeSpot` and
+ * its bare `crownR` (= crownRadius(capCount)). The pond placers only keep clear of a
+ * disk AT `treeSpot` of radius `crownR`, but the StoryTree canopy renders translated
+ * to `treeSpot` with its blob cluster centred ABOVE the base at `cy = -1.65·crownR`
+ * and spreading to ~`crownR` around that centre (the bare branches reach up to
+ * ≈ −2.64·crownR). So a pond seated on the river-entry side at exactly `crownR` from
+ * the base still slides UNDER the canopy. This returns the disk that actually covers
+ * the canopy: centre lifted to `cy` above `treeSpot` and radius grown so it reaches
+ * DOWN past `treeSpot.y` (covers the canopy's lower blobs) and UP to the crown top.
+ * Used as an extra pond/river keep-out when `?weld` is on. Pure, deterministic.
+ */
+export function crownDisk(treeSpot: Vec2, crownR: number): Disk {
+  // Canopy centre sits 1.65·crownR above the base (matches StoryTree's cy).
+  const lift = 1.65 * crownR;
+  // The disk must reach from the canopy TOP (≈ −2.64·crownR from the base, the bare
+  // branches) down to (and a touch past) the base, so a keep-out fully clears the
+  // canopy. With the centre at −lift, a radius of (lift + crownR) reaches down to
+  // +crownR·... — pick the radius that spans from the top to just below the base.
+  // top of canopy ≈ −(lift + crownR); we want centre.y − r ≤ top and centre.y + r ≥ 0.
+  // centre.y = −lift, so r ≥ lift (reaches the base) AND r ≥ crownR (reaches the top).
+  // lift = 1.65·crownR > crownR, so r = lift + a small margin covers BOTH.
+  const r = lift + crownR * 0.25;
+  return { x: treeSpot.x, y: treeSpot.y - lift, r };
+}
+
+/** A merged pond inlet opening: a bearing (from the pond centre) and the half-angle
+ *  of ONE wide mouth that spans a whole cluster of nearby docks — the de-spike of the
+ *  per-dock star (one sharp bay per incident river). */
+export interface InletOpening {
+  bearing: number;
+  halfAngle: number;
+}
+
+/**
+ * Merge a pond's incident dock `bearings` (each measured FROM the pond centre) into a
+ * FEW WIDE openings instead of one sharp bay per dock — the de-spike that stops a
+ * smallish pond with several incident rivers from reading as a star. Bearings within
+ * `mergeWithin` radians of a neighbour (circular, wrap-correct like {@link bearingClusters})
+ * join ONE cluster; a clear gap starts a new one. Each cluster yields one opening whose
+ * `bearing` is the cluster's circular mean and whose `halfAngle` covers the cluster's
+ * full angular span (half the spread) PLUS a `mergeWithin/2` margin so the mouth is a
+ * genuinely WIDE single opening, not a tight slit. A lone dock keeps its own (margin-wide)
+ * opening at its bearing. Deterministic: clusters are read off in canonical order and the
+ * circular mean is wrap-stable; empty input → no openings. Pure — no Math.random.
+ */
+export function mergeInletBearings(bearings: number[], mergeWithin: number): InletOpening[] {
+  const n = bearings.length;
+  if (n === 0) return [];
+  // Reuse bearingClusters' ring-cut logic by feeding it unit-circle points at each
+  // bearing from a centre at the origin: the bearing of (cosθ, sinθ) from origin IS θ.
+  const dests: Vec2[] = bearings.map((a) => ({ x: Math.cos(a), y: Math.sin(a) }));
+  const groups = bearingClusters({ x: 0, y: 0 }, dests, mergeWithin);
+  const margin = Math.max(0, mergeWithin) / 2;
+  const openings: InletOpening[] = [];
+  for (const grp of groups) {
+    const angs = grp.map((i) => bearings[i]!);
+    const mean = circularMeanAngle(angs);
+    // Cluster spread = the max angular distance of any member from the circular mean.
+    let spread = 0;
+    for (const a of angs) {
+      const d = angularDistance(a, mean);
+      if (d > spread) spread = d;
+    }
+    openings.push({ bearing: mean, halfAngle: spread + margin });
+  }
+  return openings;
+}
+
+/**
+ * Lengthen a polyline's TERMINAL point by `byPx` along its final-segment direction, so
+ * an adjacent river segment that docks at the shared node OVERLAPS it by a few px and
+ * the two read as one continuous stroke (no tan-background gap at the junction). Only
+ * the last point moves — every interior point is preserved exactly — and the extension
+ * follows the true end tangent (last − previous, normalised). `byPx ≤ 0` or fewer than
+ * two points returns the input UNCHANGED (the weld-off no-op). Pure, deterministic.
+ */
+export function extendEndpoint(pts: Vec2[], byPx: number): Vec2[] {
+  if (byPx <= 0 || pts.length < 2) return pts;
+  const last = pts[pts.length - 1]!;
+  const prev = pts[pts.length - 2]!;
+  const dx = last.x - prev.x;
+  const dy = last.y - prev.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const ux = dx / d;
+  const uy = dy / d;
+  const out = pts.map((p) => ({ x: p.x, y: p.y }));
+  out[out.length - 1] = { x: last.x + ux * byPx, y: last.y + uy * byPx };
+  return out;
+}
