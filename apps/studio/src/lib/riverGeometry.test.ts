@@ -31,6 +31,9 @@ import {
   carvePondInlets,
   loopGapArcs,
   repelChannels,
+  crownDisk,
+  mergeInletBearings,
+  extendEndpoint,
   densityField,
   routeAroundBiased,
   type BundleEdge,
@@ -1374,6 +1377,182 @@ describe('repelChannels', () => {
     const [ra, rb] = repelChannels([a, b], [0, 1], OPTS);
     expect(ra).toEqual(a);
     expect(rb).toEqual(b);
+  });
+});
+
+// ---- ?weld round-3 helpers: crownDisk, mergeInletBearings, extendEndpoint ----
+
+describe('crownDisk', () => {
+  // The crown renders translated to treeSpot with its canopy centred ABOVE the
+  // tree base (cy = -1.65·R) over a disk that spans ~1.5·R — but the pond placers
+  // only keep clear of a disk AT treeSpot of radius crownR, so a river-entry-side
+  // pond ends up under the canopy. crownDisk returns the TRUE occlusion disk.
+  it('centres the occlusion disk ABOVE treeSpot (smaller y) — where the canopy sits', () => {
+    const treeSpot: Vec2 = { x: 100, y: 200 };
+    const disk = crownDisk(treeSpot, 30);
+    expect(disk.y).toBeLessThan(treeSpot.y);
+  });
+
+  it('keeps the same x as treeSpot (the canopy is centred over the trunk)', () => {
+    const treeSpot: Vec2 = { x: 100, y: 200 };
+    const disk = crownDisk(treeSpot, 30);
+    expect(disk.x).toBeCloseTo(treeSpot.x, 6);
+  });
+
+  it('grows the occlusion radius BEYOND the bare crownR (the canopy spreads wider)', () => {
+    const crownR = 30;
+    const disk = crownDisk({ x: 0, y: 0 }, crownR);
+    expect(disk.r).toBeGreaterThan(crownR);
+  });
+
+  it('covers the canopy bottom: treeSpot.y lies within the disk (no gap under the tree)', () => {
+    // The lowest canopy blobs reach down to ≈ cy + 0.9·R; with cy = -1.65·R that is
+    // ≈ -0.75·R above treeSpot, so the disk centred at cy with radius r must reach
+    // DOWN to (or past) treeSpot.y for the pond keep-out to fully clear the canopy.
+    const treeSpot: Vec2 = { x: 0, y: 0 };
+    const crownR = 30;
+    const disk = crownDisk(treeSpot, crownR);
+    const reachDown = disk.y + disk.r; // bottom of the disk (larger y)
+    expect(reachDown).toBeGreaterThanOrEqual(treeSpot.y);
+  });
+
+  it('reaches UP to cover the canopy top (≈ -1.65·R − R from treeSpot)', () => {
+    const treeSpot: Vec2 = { x: 0, y: 0 };
+    const crownR = 30;
+    const disk = crownDisk(treeSpot, crownR);
+    const top = disk.y - disk.r; // top of the disk (smaller y)
+    // canopy top blob centre ≈ -1.65·R with radius R → top ≈ -2.65·R.
+    expect(top).toBeLessThanOrEqual(-2.6 * crownR + 1);
+  });
+
+  it('scales with crownR (a bigger crown → a bigger, higher disk)', () => {
+    const small = crownDisk({ x: 0, y: 0 }, 18);
+    const big = crownDisk({ x: 0, y: 0 }, 40);
+    expect(big.r).toBeGreaterThan(small.r);
+    expect(big.y).toBeLessThan(small.y); // bigger canopy sits higher above treeSpot
+  });
+
+  it('is deterministic — identical inputs give an identical disk', () => {
+    expect(crownDisk({ x: 7, y: 9 }, 22)).toEqual(crownDisk({ x: 7, y: 9 }, 22));
+  });
+});
+
+describe('mergeInletBearings', () => {
+  /** Smallest angular distance between two bearings, in [0, π]. */
+  const angDist = (a: number, b: number): number => {
+    let d = Math.abs(a - b) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    return d;
+  };
+
+  it('collapses docks within one cone into a SINGLE wide opening', () => {
+    // Three docks all within ~0.3 rad of each other.
+    const bearings = [0.0, 0.15, 0.3];
+    const out = mergeInletBearings(bearings, 0.6);
+    expect(out.length).toBe(1);
+    // The opening's half-angle covers the cluster's angular spread (0.3 rad → ≥0.15).
+    expect(out[0]!.halfAngle).toBeGreaterThanOrEqual(0.15);
+  });
+
+  it('keeps TWO well-separated clusters as two openings', () => {
+    const bearings = [0.0, 0.1, Math.PI, Math.PI + 0.1];
+    const out = mergeInletBearings(bearings, 0.5);
+    expect(out.length).toBe(2);
+  });
+
+  it('a single dock yields one opening at that bearing (unchanged direction)', () => {
+    const out = mergeInletBearings([1.2], 0.6);
+    expect(out.length).toBe(1);
+    expect(angDist(out[0]!.bearing, 1.2)).toBeLessThan(1e-6);
+  });
+
+  it('aims each opening at the circular MEAN of its cluster', () => {
+    const bearings = [0.2, 0.4]; // mean ≈ 0.3
+    const out = mergeInletBearings(bearings, 0.6);
+    expect(out.length).toBe(1);
+    expect(out[0]!.bearing).toBeCloseTo(0.3, 3);
+  });
+
+  it('handles the ±π wrap — docks at +π and −π join one cluster', () => {
+    const bearings = [Math.PI - 0.05, -Math.PI + 0.05]; // adjacent across the seam
+    const out = mergeInletBearings(bearings, 0.5);
+    expect(out.length).toBe(1);
+  });
+
+  it('the merged half-angle is at least the cluster spread (a WIDER single mouth)', () => {
+    const bearings = [0.0, 0.5]; // spread 0.5 → merged half-angle ≥ 0.25
+    const out = mergeInletBearings(bearings, 1.0);
+    expect(out.length).toBe(1);
+    expect(out[0]!.halfAngle).toBeGreaterThanOrEqual(0.25);
+  });
+
+  it('empty input yields no openings', () => {
+    expect(mergeInletBearings([], 0.6)).toEqual([]);
+  });
+
+  it('is deterministic — identical inputs give identical openings', () => {
+    const bearings = [0.1, 0.2, 1.9, 2.0];
+    expect(mergeInletBearings(bearings, 0.5)).toEqual(mergeInletBearings(bearings, 0.5));
+  });
+});
+
+describe('extendEndpoint', () => {
+  it('lengthens the terminal point by byPx along the final segment direction', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 20, y: 0 }, // final direction is +x
+    ];
+    const out = extendEndpoint(pts, 5);
+    const last = out[out.length - 1]!;
+    expect(last.x).toBeCloseTo(25, 6); // 20 + 5 along +x
+    expect(last.y).toBeCloseTo(0, 6);
+  });
+
+  it('leaves every INTERIOR point unchanged (only the terminal moves)', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 20, y: 10 },
+    ];
+    const out = extendEndpoint(pts, 4);
+    expect(out.length).toBe(pts.length);
+    expect(out[0]).toEqual(pts[0]);
+    expect(out[1]).toEqual(pts[1]);
+  });
+
+  it('extends along the true end tangent of a diagonal terminal segment', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 3, y: 4 }, // direction (3,4)/5 = (0.6, 0.8)
+    ];
+    const out = extendEndpoint(pts, 10);
+    const last = out[out.length - 1]!;
+    expect(last.x).toBeCloseTo(3 + 6, 6); // +10·0.6
+    expect(last.y).toBeCloseTo(4 + 8, 6); // +10·0.8
+  });
+
+  it('is a no-op for byPx <= 0 (returns the input unchanged)', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ];
+    expect(extendEndpoint(pts, 0)).toEqual(pts);
+    expect(extendEndpoint(pts, -3)).toEqual(pts);
+  });
+
+  it('is a no-op for fewer than 2 points', () => {
+    expect(extendEndpoint([{ x: 1, y: 2 }], 5)).toEqual([{ x: 1, y: 2 }]);
+    expect(extendEndpoint([], 5)).toEqual([]);
+  });
+
+  it('is deterministic — identical inputs give identical output', () => {
+    const pts: Vec2[] = [
+      { x: 0, y: 0 },
+      { x: 7, y: 3 },
+      { x: 9, y: 11 },
+    ];
+    expect(extendEndpoint(pts, 6)).toEqual(extendEndpoint(pts, 6));
   });
 });
 

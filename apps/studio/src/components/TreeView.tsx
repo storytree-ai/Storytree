@@ -69,6 +69,9 @@ import {
   carvePondInlets,
   loopGapArcs,
   repelChannels,
+  crownDisk,
+  mergeInletBearings,
+  extendEndpoint,
   densityField,
   routeAroundBiased,
   type Disk,
@@ -252,6 +255,12 @@ interface PondShape {
    *  CARVED loop (gaped toward each dock). Undefined when the flag is off — the OFF
    *  render branch stays byte-identical. */
   rim?: string[];
+  /** WELD (`?weld`): draw this river-fed pond ABOVE the tree crown (in a separate
+   *  render group after the flora) so the canopy never occludes it, and SUPPRESS it
+   *  from the ordinary inland-water pass (so it isn't painted twice / under the crown).
+   *  Set only when `?weld` is on and the pond has incident rivers; undefined otherwise,
+   *  so the off render is byte-identical. */
+  aboveCrown?: boolean;
 }
 
 /** Inland water carried by `?water=pond|through`: per-island ponds and/or the
@@ -906,6 +915,130 @@ function fusedPondShape(
   return { d: smoothLoopPath(carved), rim };
 }
 
+// ---- WELD (`?weld`, round-3): de-spike + above-crown pond geometry ----
+// `mergeWithin` (rad): dock bearings closer than this around the pond centre fuse into
+// ONE wide opening (de-spike). Tuned so the studio star (several rivers, smallish pond)
+// reads as a rounded pool with one or two wide mouths, while genuinely opposite rivers
+// still get their own bay.
+const WELD_MERGE_WITHIN = 1.15;
+/** Floor on a merged mouth's half-angle so even a lone dock gets a soft WIDE bay
+ *  (not the tight per-dock slit) — the rounded-pool look. */
+const WELD_OPENING_MIN_HALF = 0.62;
+/** px a welded in-pond channel is EXTENDED past the rim so it overlaps the pond fill —
+ *  no tan gap at the mouth (the above-crown pond fill then covers the overlap). */
+const WELD_CHANNEL_OVERSHOOT = 14;
+/** px each over-sea river segment is extended past BOTH endpoints so adjacent segments
+ *  overlap at a confluence/junction (no tan gap where two strands butt). */
+const WELD_SEGMENT_OVERLAP = 6;
+
+/** WELD (`?weld`): extend a polyline a few px past BOTH its endpoints along its end
+ *  tangents, so adjacent segments that share a junction OVERLAP. Reuses the pure,
+ *  unit-tested {@link extendEndpoint} (tail) sandwiched by a reverse for the head. */
+function weldBothEnds(pts: Pt[], byPx: number): Pt[] {
+  if (byPx <= 0 || pts.length < 2) return pts;
+  const tailExt = extendEndpoint(pts, byPx); // lengthen the last point
+  const headExt = extendEndpoint([...tailExt].reverse(), byPx).reverse(); // and the first
+  return headExt;
+}
+
+/**
+ * Build the WELDED, DE-SPIKED pond shape (`?weld`): instead of one sharp bay + rim-gap
+ * per incident dock (which stars a small pond), the dock bearings are first MERGED into
+ * a FEW WIDE openings ({@link mergeInletBearings}) and one bay + one rim-gap is carved
+ * per OPENING. Each opening's bay reaches toward its (mean) bearing and its rim-gap is
+ * a touch tighter so the pale border breaks cleanly across the wide mouth. Reach is
+ * coast-clamped exactly like {@link fusedPondShape} so the lake never spills onto land.
+ * Returns the carved fill `d` + open rim arcs. Pure given its inputs; deterministic.
+ */
+function weldPondShape(
+  pond: { center: Pt; loop: Pt[] },
+  docks: Pt[],
+  coast: Pt[],
+): { d: string; rim: string[] } {
+  const { center, loop } = pond;
+  const bearings = docks.map((dk) => Math.atan2(dk.y - center.y, dk.x - center.x));
+  const openings = mergeInletBearings(bearings, WELD_MERGE_WITHIN);
+  const inlets: PondInlet[] = [];
+  const gaps: RimGap[] = [];
+  let reachCap = POND_INLET_REACH;
+  if (coast.length >= 3) {
+    const tipRoom = distToLoop(center, coast) - POND_INLET_COAST_CLEAR;
+    if (tipRoom < reachCap) reachCap = Math.max(0, tipRoom);
+  }
+  for (const op of openings) {
+    const half = Math.max(op.halfAngle, WELD_OPENING_MIN_HALF);
+    inlets.push({ bearing: op.bearing, halfAngle: half, reach: reachCap });
+    // Rim gap a touch tighter than the bay so the pale edge keeps the bay's flanks.
+    gaps.push({ bearing: op.bearing, halfAngle: Math.max(0.1, half * 0.82) });
+  }
+  const carved = carvePondInlets(loop, center, inlets);
+  const rim = loopGapArcs(carved, center, gaps).map(smoothOpenPath);
+  return { d: smoothLoopPath(carved), rim };
+}
+
+/**
+ * WELD (`?weld`): seat a river-fed pond CLEAR of the TRUE crown-occlusion disk
+ * ({@link crownDisk}) on the river-ARRIVAL side, then return the pond shifted so its
+ * whole body sits outside that disk. The placers only keep clear of a disk AT treeSpot
+ * of radius crownR, but the canopy renders centred ABOVE treeSpot — so a river-entry
+ * pond slides under it. Here we (1) seat the pond at `target` (the dock centroid, where
+ * the rivers converge) on land via {@link placePondAt}, then (2) if the pond's centre is
+ * inside the crown disk + its radius, push the WHOLE pond radially OUTWARD from the
+ * crown-disk centre until it clears, re-projecting the loop by the same translation
+ * (a rigid shift preserves the smoothed silhouette). Because the pond is also drawn
+ * ABOVE the crown, a residual overlap is no longer occluded — this nudge just keeps the
+ * pond from sitting visually on top of the trunk. Falls back to the placed pond when no
+ * clearance is needed. Deterministic — no Math.random.
+ */
+function placeWeldPond(
+  t: Territory,
+  target: Pt,
+  flow: number,
+): { center: Pt; loop: Pt[] } | null {
+  const placed = placePondAt(t, target, flow);
+  if (!placed) return null;
+  const crownR = crownRadius(t.story.capabilities.length);
+  const disk = crownDisk(t.treeSpot, crownR);
+  // Estimate the pond radius from its loop (max vertex distance from centre).
+  let pondR = 0;
+  for (const p of placed.loop) {
+    const d = Math.hypot(p.x - placed.center.x, p.y - placed.center.y);
+    if (d > pondR) pondR = d;
+  }
+  const dx = placed.center.x - disk.x;
+  const dy = placed.center.y - disk.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const need = disk.r + pondR * 0.6; // allow a little overlap (the pond is drawn on top)
+  if (dist >= need) return placed; // already clear
+  // Push the whole pond outward from the crown-disk centre along the arrival direction
+  // (away from the trunk) so it clears the canopy.
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const shift = need - dist;
+  const center = { x: placed.center.x + ux * shift, y: placed.center.y + uy * shift };
+  const loop = placed.loop.map((p) => ({ x: p.x + ux * shift, y: p.y + uy * shift }));
+  return { center, loop };
+}
+
+/**
+ * WELD (`?weld`): the in-pond channel d-string, EXTENDED past the rim so it overlaps the
+ * pond fill (no tan gap at the mouth). It reuses {@link fusedMouthPath} for the fused
+ * tangent-continuous curve, then re-docks with a larger overshoot via {@link nearestRimDock}
+ * so the curve's end sits well inside the pool — the above-crown pond fill covers the
+ * overlap, welding channel→pond into one water body. Returns null on a degenerate loop.
+ */
+function weldMouthPath(
+  coastDock: Dock,
+  pond: { center: Pt; loop: Pt[] },
+): string | null {
+  return fusedMouthPath(
+    coastDock,
+    { x: -coastDock.nx, y: -coastDock.ny },
+    pond,
+    { overshoot: WELD_CHANNEL_OVERSHOOT, flare: 14, startLen: 12 },
+  );
+}
+
 /**
  * PROCEDURAL POND PLACER — every island gets a lake, systematically, never an
  * ad-hoc null. The pond is seated on the side its rivers enter from (`aimDir`),
@@ -1142,6 +1275,35 @@ function buildBasin(
           : { x: 0, y: 1 };
       let flow = 0;
       for (const fe of flowEdges) if (fe.a === i || fe.b === i) flow += Math.max(1, fe.flow);
+      // WELD (`?weld`): for a river-fed island, seat the pond CLEAR of the true crown disk,
+      // DE-SPIKE its mouths into a few wide openings, draw it ABOVE the crown, and extend
+      // its channels past the rim. Takes precedence over the crescent/plain branches; off
+      // (the default) skips this entirely so the world is byte-identical.
+      if (opts.tuning.weld && ds.length > 0) {
+        const wp = placeWeldPond(
+          t,
+          {
+            x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
+            y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
+          },
+          flow,
+        );
+        if (!wp) return;
+        const shape = weldPondShape(wp, ds.map((dk) => dk.dock), t.coastLoops[0] ?? []);
+        inland.ponds.push({
+          story: t.story.id,
+          d: shape.d,
+          loop: wp.loop,
+          rim: shape.rim,
+          aboveCrown: true,
+        });
+        for (const dk of ds) {
+          const d = weldMouthPath(dk.dock, wp);
+          if (!d) continue;
+          inland.channels.push({ from: t.story.id, to: t.story.id, via: [], d, flow: dk.flow });
+        }
+        return;
+      }
       // CRESCENT MODE (`?coast=crescent`): size the lake by the island's CONNECTION
       // degree (its real dependency edges, in + out) and grow a C of land around it (a
       // bay open toward the rivers) — but ONLY for HUBS whose degree meets the
@@ -1612,6 +1774,16 @@ function buildBundle(
       c.pts = repelled[i] ?? c.pts;
     });
   }
+  // WELD (`?weld`): extend each over-sea channel a few px PAST both its endpoints along
+  // its end tangents, so adjacent segments that meet at a confluence/junction OVERLAP
+  // (no tan-background gap where two separately-smoothed strands butt). Both ends are
+  // extended because a junction joins a downstream segment's HEAD to its upstream
+  // segments' TAILS. OFF (the default) leaves c.pts untouched → byte-identical.
+  if (opts.tuning.weld) {
+    for (const c of channels) {
+      c.pts = weldBothEnds(c.pts, WELD_SEGMENT_OVERLAP);
+    }
+  }
   for (const c of channels) {
     const edge: WorldEdge = { from: c.from, to: c.to, via: c.via, d: smoothOpenPath(c.pts) };
     if (c.flow !== undefined) edge.flow = c.flow;
@@ -1626,19 +1798,38 @@ function buildBundle(
     territories.forEach((t, i) => {
       const ds = docksByIsland[i] ?? [];
       const islandFlow = ds.reduce((s, d) => s + d.flow, 0);
+      const dockCentroid = (): Pt => ({
+        x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
+        y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
+      });
+      // WELD (`?weld`): a river-fed pond is seated CLEAR of the true crown disk on the
+      // arrival side, DE-SPIKED into a few wide openings, marked aboveCrown (drawn over
+      // the flora), and its channels extended past the rim. Everything else off-path
+      // stays byte-identical.
+      if (opts.tuning.weld && ds.length > 0) {
+        const pond = placeWeldPond(t, dockCentroid(), islandFlow);
+        if (!pond) return;
+        const shape = weldPondShape(pond, ds.map((dk) => dk.dock), t.coastLoops[0] ?? []);
+        inland.ponds.push({
+          story: t.story.id,
+          d: shape.d,
+          loop: pond.loop,
+          rim: shape.rim,
+          aboveCrown: true,
+        });
+        for (const dk of ds) {
+          const d = weldMouthPath(dk.dock, pond);
+          if (!d) continue;
+          inland.channels.push({ from: t.story.id, to: t.story.id, via: [], d, flow: dk.flow });
+        }
+        return;
+      }
       // Seat the lake at the MIDPOINT of where this island's rivers converge (the
       // incident dock centroid) so each stream meets the near rim; an island with no
       // rivers keeps the ordinary max-room placer aimed downward.
       const pond =
         ds.length > 0
-          ? placePondAt(
-              t,
-              {
-                x: ds.reduce((s, d) => s + d.dock.x, 0) / ds.length,
-                y: ds.reduce((s, d) => s + d.dock.y, 0) / ds.length,
-              },
-              islandFlow,
-            )
+          ? placePondAt(t, dockCentroid(), islandFlow)
           : placePond(t, { x: 0, y: 1 }, islandFlow, 4);
       if (!pond) return;
       if (opts.tuning.fusedPondMouth && ds.length > 0) {
@@ -2345,6 +2536,20 @@ function buildWorld(
             y: seams.reduce((s, c) => s + c.pt.y, 0) / seams.length,
           }
         : { x: t.treeSpot.x, y: t.treeSpot.y + 100 };
+      // WELD (`?weld`): seat a river-fed pond clear of the true crown disk, de-spike it,
+      // draw it above the crown, and extend its channels past the rim. Off ⇒ skipped.
+      if (tuning.weld && seams.length > 0) {
+        const wp = placeWeldPond(t, mean, seams.length);
+        if (!wp) continue;
+        const shape = weldPondShape(wp, seams.map((c) => c.pt), t.coastLoops[0] ?? []);
+        inland.ponds.push({ story: id, d: shape.d, loop: wp.loop, rim: shape.rim, aboveCrown: true });
+        for (const c of seams) {
+          const d = weldMouthPath(c.pt, wp);
+          if (!d) continue;
+          inland.channels.push({ from: c.from, to: c.to, via: [], d });
+        }
+        continue;
+      }
       const pond = placePond(t, unit(t.treeSpot, mean), seams.length);
       if (!pond) continue;
       if (tuning.fusedPondMouth && seams.length > 0) {
@@ -3151,6 +3356,18 @@ interface RiverTuning {
   /** Repulsion relaxation passes (`?riverRepelIters=`): more passes spread a dense
    *  cluster further apart. Only read when `riverRepel > 0`. */
   riverRepelIters: number;
+  /** WELD the water network (`?weld`, round-3, default OFF, PURE ADDITIVE over the
+   *  current fused-mouth world). Three fixes, all gated on this flag so `?weld=off`
+   *  is byte-identical to today: (a) WELD river segments — each in-pond channel is
+   *  EXTENDED a few px past the rim so it overlaps the pond fill with no tan-gap at the
+   *  mouth, and the river-fed pond is drawn ABOVE the tree crown (a separate render
+   *  group after the flora) so it is never occluded; (b) PLACE every river-fed pond on
+   *  the river-ARRIVAL side with a TRUE crown-disk keep-out (crownDisk), so a pond no
+   *  longer slides under the canopy; (c) DE-SPIKE multi-river ponds — the per-dock
+   *  bays/rim-gaps are MERGED into a few WIDE openings (mergeInletBearings) so a small
+   *  pond with several incident rivers reads as a rounded pool with one wide mouth, not
+   *  a star. `false` ⇒ every weld branch is skipped → the world is unchanged. */
+  weld: boolean;
   /** OPEN-SPACE BIAS strength (`?riverOpenBias=`, `?rivers=bundle`): how strongly a
    *  river prefers the more OPEN side of an island it must detour. `routeAround` always
    *  detours every river around the SAME (geometrically-determined) side, so rivers can
@@ -3198,6 +3415,9 @@ const RIVER_TUNING: RiverTuning = {
   riverRepel: 0,
   riverRepelRadius: 56,
   riverRepelIters: 12,
+  // Weld OFF by default (byte-identical world). `?weld` (or =on/1/true/fused/yes)
+  // turns on the round-3 weld/above-crown/de-spike layer (owner-attested).
+  weld: false,
   // Open-space bias OFF by default (single-pass, byte-identical world). A positive
   // `?riverOpenBias=` turns on the two-pass density-aware reroute; ~600 with the 50px
   // cell visibly redistributes a crowded hub's rivers toward open water without
@@ -3324,6 +3544,10 @@ function readRiverTuning(): RiverTuning {
   // closed-pond look. Any other value (incl. the historical `fused`) keeps it on.
   const pm = q.get('pondMouth');
   if (pm !== null) out.fusedPondMouth = !['off', 'legacy', 'closed', '0', 'false'].includes(pm);
+  // `?weld` (round-3): turn on the weld/above-crown/de-spike layer. Default OFF — the
+  // off world stays byte-identical. Truthy spellings: bare `?weld`, on/1/true/fused/yes.
+  const wl = q.get('weld');
+  if (wl !== null) out.weld = ['', 'on', '1', 'true', 'fused', 'yes'].includes(wl);
   return out;
 }
 
@@ -3754,7 +3978,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             ref={svgRef}
             className={`world-scene${
               riverMode === 'merge' || riverMode === 'bundle' ? ' rivers-merge' : ''
-            }${waterMode === 'pond' ? ' water-pond' : ''}`}
+            }${waterMode === 'pond' ? ' water-pond' : ''}${riverTuning.weld ? ' weld-on' : ''}`}
             viewBox={`0 0 ${world.width} ${world.height}`}
             onClick={(e) => {
               if (e.target === e.currentTarget) clearSelection();
@@ -3886,9 +4110,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                       <path className="world-trail-land" d={e.d} style={flowStyle(e, 'land')} />
                     </g>
                   ))}
-                  {world.inland.ponds.map((p) => (
-                    <path key={`p-l-${p.story}`} className={`inland-pond-sand ${pondClass(p)}`} d={p.d} />
-                  ))}
+                  {/* WELD (`?weld`): a river-fed pond marked `aboveCrown` is rendered in
+                      the separate above-the-flora group below (so the canopy never
+                      occludes it). It is SKIPPED here so it isn't painted twice / under
+                      the crown. Its CHANNELS still render here (the above-crown pond fill
+                      covers their mouths → the weld). OFF ponds keep `aboveCrown`
+                      undefined, so this filter is a no-op when the flag is off. */}
+                  {world.inland.ponds
+                    .filter((p) => !p.aboveCrown)
+                    .map((p) => (
+                      <path key={`p-l-${p.story}`} className={`inland-pond-sand ${pondClass(p)}`} d={p.d} />
+                    ))}
                   {world.inland.channels.map((e, i) => (
                     <g key={`il-b-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
                       <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
@@ -3899,30 +4131,34 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                       <path className="world-trail-water" d={e.d} style={flowStyle(e, 'water')} />
                     </g>
                   ))}
-                  {world.inland.ponds.map((p) =>
-                    p.rim ? (
-                      // FUSED (`?pondMouth=fused`): the pond WATER is FILL-only (the
-                      // carved, gaped loop) and the pale rim is rendered SEPARATELY as
-                      // open arcs that skip each river mouth — so no closed ring strokes
-                      // across the inlet and the river leads the water through the gap.
-                      <g key={`p-w-${p.story}`}>
-                        <path className={`inland-pond-water-fill ${pondClass(p)}`} d={p.d} />
-                        {p.rim.map((arc, ai) => (
-                          <path key={`p-rim-${p.story}-${ai}`} className={`inland-pond-rim ${pondClass(p)}`} d={arc} />
-                        ))}
-                      </g>
-                    ) : (
-                      <path key={`p-w-${p.story}`} className={`inland-pond-water ${pondClass(p)}`} d={p.d} />
-                    ),
-                  )}
+                  {world.inland.ponds
+                    .filter((p) => !p.aboveCrown)
+                    .map((p) =>
+                      p.rim ? (
+                        // FUSED (`?pondMouth=fused`): the pond WATER is FILL-only (the
+                        // carved, gaped loop) and the pale rim is rendered SEPARATELY as
+                        // open arcs that skip each river mouth — so no closed ring strokes
+                        // across the inlet and the river leads the water through the gap.
+                        <g key={`p-w-${p.story}`}>
+                          <path className={`inland-pond-water-fill ${pondClass(p)}`} data-story={p.story} d={p.d} />
+                          {p.rim.map((arc, ai) => (
+                            <path key={`p-rim-${p.story}-${ai}`} className={`inland-pond-rim ${pondClass(p)}`} d={arc} />
+                          ))}
+                        </g>
+                      ) : (
+                        <path key={`p-w-${p.story}`} className={`inland-pond-water ${pondClass(p)}`} data-story={p.story} d={p.d} />
+                      ),
+                    )}
                   {world.inland.channels.map((e, i) => (
                     <g key={`il-g-${i}-${e.from}->${e.to}`} className={roadClass(e)}>
                       <path className="world-trail-glint" d={e.d} style={flowStyle(e, 'glint')} />
                     </g>
                   ))}
-                  {world.inland.ponds.map((p) => (
-                    <path key={`p-g-${p.story}`} className={`inland-pond-glint ${pondClass(p)}`} d={p.d} />
-                  ))}
+                  {world.inland.ponds
+                    .filter((p) => !p.aboveCrown)
+                    .map((p) => (
+                      <path key={`p-g-${p.story}`} className={`inland-pond-glint ${pondClass(p)}`} d={p.d} />
+                    ))}
                 </g>
               )}
 
@@ -4006,6 +4242,47 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   onSelect={(capId) => selectStory(t.story.id, capId)}
                 />
               ))}
+
+              {/* WELD (`?weld`) — river-fed ponds ABOVE the crown. The TerritoryFlora
+                  canopy is drawn LAST and would paint over a pond seated on the
+                  river-entry side; so when a pond is marked `aboveCrown` we render its
+                  fill + broken rim + glint (NOT the sand, which belongs on land beneath
+                  the tiles) HERE, after the flora, so the lake is always visible and the
+                  channel mouths (drawn in inland-water above) are covered → one welded
+                  water body. Empty (no aboveCrown ponds) when `?weld` is off, so this
+                  group renders nothing and the world is byte-identical. */}
+              {world.inland.ponds.some((p) => p.aboveCrown) && (
+                <g className="weld-pond-above">
+                  {world.inland.ponds
+                    .filter((p) => p.aboveCrown)
+                    .map((p) =>
+                      p.rim ? (
+                        <g key={`wp-${p.story}`} className={pondClass(p)}>
+                          <path
+                            className={`inland-pond-water-fill ${pondClass(p)}`}
+                            data-story={p.story}
+                            d={p.d}
+                          />
+                          {p.rim.map((arc, ai) => (
+                            <path
+                              key={`wp-rim-${p.story}-${ai}`}
+                              className={`inland-pond-rim ${pondClass(p)}`}
+                              d={arc}
+                            />
+                          ))}
+                          <path className={`inland-pond-glint ${pondClass(p)}`} d={p.d} />
+                        </g>
+                      ) : (
+                        <path
+                          key={`wp-${p.story}`}
+                          className={`inland-pond-water ${pondClass(p)}`}
+                          data-story={p.story}
+                          d={p.d}
+                        />
+                      ),
+                    )}
+                </g>
+              )}
             </g>
           </svg>
           </div>
