@@ -205,9 +205,9 @@
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "statement": "Every model call is confined behind one orchestrator-driven boundary, so model-unavailability is a *local* failure, never a system outage.",
-    "rule": "- The model runtime is reached **only** through `packages/agent` — the sole place a model runtime is imported.\n\n- **Only** `packages/orchestrator` drives `packages/agent`; `packages/core` and `apps/studio` have no path to a model runtime.\n\n- **Run ≠ node:** an owned-loop run/attempt is an execution event, never a new tree node.\n\n- The orchestrator is the **sole fan-out point** — owned-loop nodes never schedule child nodes.",
-    "enforcedBy": "A package-boundary dependency rule: `packages/agent` is the only module that may import a model runtime, and only `packages/orchestrator` may import `packages/agent` — `packages/core` and `apps/studio` have no build-graph path to either.",
-    "failureMode": "If the boundary is crossed, a model runtime leaks into `packages/core` or `apps/studio`, model calls fan out from arbitrary places, and model-unavailability becomes a system-wide outage rather than a single contained failure.",
+    "rule": "- The model runtime is reached **only** through `packages/agent` — the sole place a model runtime is imported.\n\n- **Only** `packages/orchestrator` drives `packages/agent`; `packages/base` and `apps/studio` have no path to a model runtime.\n\n- **Run ≠ node:** an owned-loop run/attempt is an execution event, never a new tree node.\n\n- The orchestrator is the **sole fan-out point** — owned-loop nodes never schedule child nodes.",
+    "enforcedBy": "A package-boundary dependency rule: `packages/agent` is the only module that may import a model runtime, and only `packages/orchestrator` may import `packages/agent` — `packages/base` and `apps/studio` have no build-graph path to either.",
+    "failureMode": "If the boundary is crossed, a model runtime leaks into `packages/base` or `apps/studio`, model calls fan out from arbitrary places, and model-unavailability becomes a system-wide outage rather than a single contained failure.",
     "schemaVersion": 2
   },
   {
@@ -378,7 +378,7 @@
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "statement": "An owned-loop run/attempt is an execution event (many per node), never a new tree node — the execution environment is not the coordination structure.",
     "rule": "An owned-loop **run** (attempt) is recorded as an execution **event**, many-per-node — it is **never** a new node on the DAG. The coordination/scheduling grain (the node) is kept distinct from the execution grain (the run).",
-    "enforcedBy": "The `packages/core` schema: a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
+    "enforcedBy": "The event-store schema (`packages/store/src/schema.sql`): a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
     "failureMode": "If the boundary is crossed, execution attempts proliferate as DAG nodes, conflating the execution grain with the coordination/scheduling grain and corrupting the tree the orchestrator schedules over.",
     "schemaVersion": 2
   },
