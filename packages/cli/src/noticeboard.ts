@@ -7,8 +7,8 @@
  */
 import { execFileSync } from "node:child_process";
 
-import type { PresenceDeclarationDoc } from "@storytree/core";
-import { classifyPresence } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import { classifyPresence } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
 

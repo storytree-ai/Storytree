@@ -396,15 +396,25 @@ function loadStoreModule(): Promise<StoreModule> {
   return (storeModulePromise ??= import('@storytree/store'));
 }
 
-// @storytree/core's ROOT export is Node-only too (signer → node:crypto) and its raw-TS
-// `.js` specifiers hit the same config-load trap — so classifyPresence is loaded just as
-// lazily, on the first presence read.
+// @storytree/core is raw-TS (its `.js` specifiers hit vite's config-load trap) — so the users
+// last-admin guard compute (mergeUser / wouldOrphanAdmins*) is loaded lazily, on first use.
 type CoreModule = typeof import('@storytree/core');
 
 let coreModulePromise: Promise<CoreModule> | null = null;
 
 function loadCoreModule(): Promise<CoreModule> {
   return (coreModulePromise ??= import('@storytree/core'));
+}
+
+// @storytree/notice-board is raw-TS too (same `.js` config-load trap), so classifyPresence is
+// loaded lazily on the first presence read — even though it is browser-safe (zod-only, no node:).
+// (ADR-0068 step 6b: presence moved out of core into the notice-board organism.)
+type NoticeBoardModule = typeof import('@storytree/notice-board');
+
+let noticeBoardModulePromise: Promise<NoticeBoardModule> | null = null;
+
+function loadNoticeBoardModule(): Promise<NoticeBoardModule> {
+  return (noticeBoardModulePromise ??= import('@storytree/notice-board'));
 }
 
 // @storytree/orchestrator hosts the farmer's proof COMPUTE (ADR-0068 step 1) — deriveAttestations
@@ -650,14 +660,14 @@ export class PgBackend implements LibraryBackend {
         })(),
         timeout,
       ]);
-      const core = await loadCoreModule();
+      const noticeBoard = await loadNoticeBoardModule();
       const now = new Date();
       return docs.map((d) => ({
         sessionId: d.sessionId,
         branch: d.branch,
         workingOn: d.workingOn,
         nodes: d.nodes,
-        band: core.classifyPresence(d.lastSeenAt, now),
+        band: noticeBoard.classifyPresence(d.lastSeenAt, now),
         lastSeenAt: d.lastSeenAt,
       }));
     } catch {

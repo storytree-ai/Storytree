@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { PresenceDeclarationDoc } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 import {
   PgPresenceStore,
   type PresenceEvent,

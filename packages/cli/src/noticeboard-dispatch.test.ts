@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/base";
-import type { PresenceDeclarationDoc } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
 import { run } from "./commands.js";
 import type { PresenceStoreLike } from "./noticeboard.js";
