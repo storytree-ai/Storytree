@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { UserDoc } from "@storytree/core";
+import type { UserDoc } from "@storytree/studio-members";
 import { PgUserStore, LastAdminError, type UserEvent } from "./user-store.js";
 
 /**

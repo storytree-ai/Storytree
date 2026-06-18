@@ -45,8 +45,8 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
     },
   },
   // Capabilities, each proven by its host package's suite (stories/library/story.md table).
-  "library-schema-and-write-validation": { command: pnpmTest("@storytree/core"), scope: pkgScope("core") },
-  "migrate-on-write-upcaster": { command: pnpmTest("@storytree/core"), scope: pkgScope("core") },
+  "library-schema-and-write-validation": { command: pnpmTest("@storytree/library"), scope: pkgScope("library") },
+  "migrate-on-write-upcaster": { command: pnpmTest("@storytree/library"), scope: pkgScope("library") },
   "event-sourced-store-seam": { command: pnpmTest("@storytree/store"), scope: pkgScope("store") },
   "eager-batch-migrate": { command: pnpmTest("@storytree/store"), scope: pkgScope("store") },
   "seed-corpus-scripts": { command: pnpmTest("@storytree/store"), scope: pkgScope("store") },
@@ -68,27 +68,28 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
       },
     },
   },
-  // The notice-board story's first node (ADR-0033): the core presence module — zod schema +
-  // pure staleness/merge logic. `install: true` (ADR-0031 §2): the impl imports zod, so the
-  // worktree gets a lockfile-only install and promotion requires the core suite green.
+  // The notice-board story's first node (ADR-0033): the presence module — zod schema +
+  // pure staleness/merge logic. MOVED from @storytree/core to @storytree/notice-board
+  // (ADR-0068 step 6b). `install: true` (ADR-0031 §2): the impl imports zod, so the
+  // worktree gets a lockfile-only install and promotion requires the notice-board suite green.
   "declare-presence": {
-    command: pnpmTest("@storytree/core"),
-    scope: pkgScope("core"),
+    command: pnpmTest("@storytree/notice-board"),
+    scope: pkgScope("notice-board"),
     real: {
-      testFile: "packages/core/src/presence.test.ts",
-      sourceFile: "packages/core/src/presence.ts",
+      testFile: "packages/notice-board/src/presence.test.ts",
+      sourceFile: "packages/notice-board/src/presence.ts",
       scope: {
-        testGlobs: ["packages/core/src/presence.test.ts"],
-        sourceGlobs: ["packages/core/src/presence.ts"],
+        testGlobs: ["packages/notice-board/src/presence.test.ts"],
+        sourceGlobs: ["packages/notice-board/src/presence.ts"],
       },
       install: true,
-      typecheck: pnpmTypecheck("@storytree/core"),
+      typecheck: pnpmTypecheck("@storytree/notice-board"),
     },
   },
   // The notice-board store node (ADR-0033): the pg presence store — event+projection mirroring
   // PgCommentStore, proven OFFLINE against a fake transactional client (the live SQL leg is
   // live-gated/human-verified, never attested by a worktree PASS). `install: true`: the impl
-  // imports @storytree/core (presence merge/validation).
+  // imports @storytree/notice-board (presence merge/validation).
   "presence-store": {
     command: pnpmTest("@storytree/store"),
     scope: pkgScope("store"),
@@ -105,7 +106,7 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   },
   // The notice-board CLI node (ADR-0033): the `storytree noticeboard` command module — a
   // self-contained handler file (the spine wires commands.ts dispatch AFTER promotion; the leaf's
-  // walls deliberately exclude it). `install: true`: imports @storytree/core + ./envelope.js.
+  // walls deliberately exclude it). `install: true`: imports @storytree/notice-board + ./envelope.js.
   "noticeboard-cli": {
     command: pnpmTest("@storytree/cli"),
     scope: pkgScope("cli"),
@@ -122,7 +123,7 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   },
   // The notice-board orientation surface (ADR-0033): `storytree tree` — offline hierarchy with
   // the presence block woven in when live. Self-contained module; dispatch wired spine-side
-  // after promotion. `install: true`: imports @storytree/core + @storytree/orchestrator.
+  // after promotion. `install: true`: imports @storytree/notice-board + @storytree/orchestrator.
   "tree-view": {
     command: pnpmTest("@storytree/cli"),
     scope: pkgScope("cli"),
@@ -141,7 +142,7 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   // withPresence build wrapper, fail-silent session-hook handler, statusline glance/heartbeat,
   // and the never-blocking-hooks config audit. Pure module legs only; the spine wires node-build,
   // `.claude/settings.json` hooks, and the statusline AFTER promotion. `install: true`: imports
-  // @storytree/core + ./noticeboard.js seams.
+  // @storytree/notice-board + ./noticeboard.js seams.
   "ambient-integration": {
     command: pnpmTest("@storytree/cli"),
     scope: pkgScope("cli"),
@@ -160,7 +161,7 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   // ✓/✗/– per unit id from signed verdicts, plus the offline-silent reader wrapper. NET-NEW file
   // pair ON PURPOSE: tree.ts/tree.test.ts are tree-view's registered REAL surface above, so this
   // capability's proof lives in its own files and the spine wires tree.ts to call them after
-  // promotion. `install: true`: imports @storytree/core (Verdict, SIGNING_EVENT_KIND).
+  // promotion. `install: true`: imports @storytree/verdict-contract (Verdict, SIGNING_EVENT_KIND).
   "verdict-glyphs": {
     command: pnpmTest("@storytree/cli"),
     scope: pkgScope("cli"),

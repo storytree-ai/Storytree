@@ -14,20 +14,20 @@ depends_on: []
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/core", "test"]
+    args: ["--filter", "@storytree/notice-board", "test"]
   scope:
-    testGlobs: ["packages/core/src/**/*.test.ts"]
-    sourceGlobs: ["packages/core/src/**/*.ts"]
+    testGlobs: ["packages/notice-board/src/**/*.test.ts"]
+    sourceGlobs: ["packages/notice-board/src/**/*.ts"]
   real:
-    testFile: "packages/core/src/presence.test.ts"
-    sourceFile: "packages/core/src/presence.ts"
+    testFile: "packages/notice-board/src/presence.test.ts"
+    sourceFile: "packages/notice-board/src/presence.ts"
     scope:
-      testGlobs: ["packages/core/src/presence.test.ts"]
-      sourceGlobs: ["packages/core/src/presence.ts"]
+      testGlobs: ["packages/notice-board/src/presence.test.ts"]
+      sourceGlobs: ["packages/notice-board/src/presence.ts"]
     install: true
     typecheck:
       file: pnpm
-      args: ["--filter", "@storytree/core", "typecheck"]
+      args: ["--filter", "@storytree/notice-board", "typecheck"]
 ---
 
 # A presence declaration is a validated doc; staleness derived, merge pure
@@ -51,7 +51,7 @@ upsert-merge semantics — fail-closed on any missing identity or substance fiel
 
 This is the story's root: the zod-validated declaration doc plus the **pure** logic every other
 capability reuses — validation, staleness classification, upsert-merge. It lives in
-`@storytree/core` (`packages/core/src/presence.ts`) and does **no I/O**: no store, no
+`@storytree/notice-board` (`packages/notice-board/src/presence.ts`) and does **no I/O**: no store, no
 clock reads (callers pass `now`), no worktree probing — identity *derivation* belongs to the CLI
 node; this node only refuses docs that arrive without it.
 
@@ -93,14 +93,14 @@ and origin survive while activity advances.
 1. **`presence-doc-fail-closed`** — an unattributable or silent declaration is refused
    - **asserts —** parsing a doc with a missing or whitespace-only `workingOn`, `sessionId`, or
      `branch` throws; nothing is defaulted; a fully-specified doc parses and round-trips.
-   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)
+   - **proven by —** `packages/notice-board/src/presence.test.ts` (real at HEAD)
 2. **`staleness-is-derived`** — freshness is a pure function of `lastSeenAt` vs `now`
    - **asserts —** the classifier returns fresh/stale/possibly-dead bands from `lastSeenAt` and a
      passed `now` alone; the doc schema rejects any stored staleness field; identical inputs give
      identical bands (no hidden clock).
-   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)
+   - **proven by —** `packages/notice-board/src/presence.test.ts` (real at HEAD)
 3. **`declaration-upsert-merge`** — `mergeDeclaration(existing, patch)` is pure and stable
    - **asserts —** `sessionId` is never patched, `startedAt` survives any overwrite, `lastSeenAt`
      bumps on merge, `undefined` patch fields leave existing values untouched, and inputs are not
      mutated (the `mergeCommentPatch` pattern, `packages/store/src/pg-comment-store.ts`).
-   - **proven by —** `packages/core/src/presence.test.ts` (real at HEAD)
+   - **proven by —** `packages/notice-board/src/presence.test.ts` (real at HEAD)

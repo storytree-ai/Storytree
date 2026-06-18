@@ -205,14 +205,14 @@ test("the ambient-integration entry is REAL-buildable with install and exact-fil
 test("the declare-presence entry is REAL-buildable with install (zod import) and real walls", () => {
   const real = lookupNodeBuildConfig("declare-presence")?.real;
   assert.ok(real !== undefined);
-  assert.equal(real.testFile, "packages/core/src/presence.test.ts");
-  assert.equal(real.sourceFile, "packages/core/src/presence.ts");
+  assert.equal(real.testFile, "packages/notice-board/src/presence.test.ts");
+  assert.equal(real.sourceFile, "packages/notice-board/src/presence.ts");
   assert.equal(real.install, true);
   // install:true implies the typecheck wall (tsx strips types — the proof run cannot see type
   // errors; the 2026-06-11 exactOptionalPropertyTypes escape is the lesson).
   assert.deepEqual(real.typecheck, {
     file: "pnpm",
-    args: ["--filter", "@storytree/core", "typecheck"],
+    args: ["--filter", "@storytree/notice-board", "typecheck"],
   });
   const scope = new PathWriteScope(real.scope);
   assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
