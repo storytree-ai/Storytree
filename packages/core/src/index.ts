@@ -1,29 +1,10 @@
-export * from "./knowledge.js";
-export {
-  CURRENT_SCHEMA_VERSION,
-  type Migration,
-  MIGRATIONS,
-  upcast,
-} from "./migrations.js";
-export { renderBody, generateTemplate } from "./knowledge-render.js";
-export {
-  groupSources,
-  SOURCE_GROUP_ORDER,
-  type SourceGroup,
-  type SourceGroupName,
-  type ResolvedSource,
-  type AssetTarget,
-} from "./knowledge-sources.js";
+// The knowledge/library schema (`knowledge.ts`, `knowledge-render.ts`, `knowledge-sources.ts`,
+// `migrations.ts`, `library-doc.ts`) MOVED to `@storytree/library` (ADR-0068 step 4) — its namesake
+// competence: schema-validated, versioned knowledge documents. Consumers now import those symbols
+// (KIND_SPECS, renderBody, validateLibraryDoc, upcast, groupSources, …) from `@storytree/library`.
 export * from "./adr.js";
 export * from "./presence.js";
 export * from "./users.js";
 export * from "./model-events.js";
 export * from "./store.js";
-export {
-  LibraryAsset,
-  LibraryTemplate,
-  LibraryDoc,
-  validateLibraryDoc,
-  upcastAndValidate,
-} from "./library-doc.js";
 export { storeParitySuite, changeStoreParitySuite } from "./store-parity.js";

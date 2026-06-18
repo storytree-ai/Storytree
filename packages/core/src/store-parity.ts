@@ -2,7 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ChangeEvent } from "@storytree/verdict-contract";
 import type { Store, ChangeStore } from "./store.js";
-import type { LibraryAsset } from "./library-doc.js";
+
+/**
+ * The minimal valid-library-doc shape this parity suite feeds to `upsertDoc`. Structurally a
+ * `LibraryAsset` (category: 'template'), but typed LOCALLY here: the full `LibraryAsset` schema
+ * MOVED to `@storytree/library` (ADR-0068 step 4), and the narrow `Store` seam must NOT depend on
+ * the library organism (that would re-introduce a core→library edge). The seam's contract is
+ * `doc: unknown`; this local type just keeps the fixture honest.
+ */
+interface ParityFixtureDoc {
+  id: string;
+  category: "template";
+  title: string;
+  description: string;
+  body: string;
+  references: readonly string[];
+}
 
 /**
  * The REUSABLE behavioural-parity suites (node:test) for the {@link Store} and {@link ChangeStore}
@@ -25,7 +40,7 @@ import type { LibraryAsset } from "./library-doc.js";
  * `doc: unknown`, not part of it — InMemoryStore is also used to hold non-library docs like the
  * prove-it-gate's `signing` rows and work-event verdicts.)
  */
-function parityFixtureDoc(id: string, body: string): LibraryAsset {
+function parityFixtureDoc(id: string, body: string): ParityFixtureDoc {
   return {
     id,
     category: "template",

@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "@storytree/core";
-import { retiredEventDoc, upcastAndValidate } from "@storytree/core";
+import { retiredEventDoc } from "@storytree/core";
+import { upcastAndValidate } from "@storytree/library";
 
 /**
  * The Postgres-backed {@link Store} (ADR-0017): history = `events.library_event`, current-state =

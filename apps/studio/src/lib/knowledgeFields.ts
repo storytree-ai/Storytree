@@ -1,12 +1,13 @@
 // The per-kind structured field set the editor renders for a structured Knowledge unit
 // (option C of oq-library-doc-shape). The single source of truth is KIND_SPECS in
-// packages/core — imported via the `@storytree/core/knowledge` subpath so the browser bundle
-// never pulls the node:test-laden core root barrel (the same reason AssetView uses
-// `@storytree/core/sources`). renderBody (the `@storytree/core/knowledge-render` subpath) gives
-// the editor a byte-identical preview / derived body without re-implementing the layout.
+// packages/library — imported via the `@storytree/library/knowledge` subpath so the browser bundle
+// never pulls a node:-laden root barrel (the same reason AssetView uses `@storytree/library/sources`).
+// renderBody (the `@storytree/library/knowledge-render` subpath) gives the editor a byte-identical
+// preview / derived body without re-implementing the layout. (The knowledge schema MOVED from
+// `@storytree/core` to `@storytree/library` in ADR-0068 step 4.)
 
-import { KIND_SPECS, type KnowledgeKind } from '@storytree/core/knowledge';
-import { renderBody } from '@storytree/core/knowledge-render';
+import { KIND_SPECS, type KnowledgeKind } from '@storytree/library/knowledge';
+import { renderBody } from '@storytree/library/knowledge-render';
 import type { AssetCategory } from '../types';
 
 /** One editable per-kind field, as the editor renders it. */

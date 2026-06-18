@@ -5,7 +5,7 @@ import {
   renderBody,
   type Knowledge,
   type KnowledgeKind,
-} from "@storytree/core";
+} from "@storytree/library";
 
 /**
  * The READ + WRITE adapter pair between the runtime store's {@link StoredDoc} and the GuidanceAsset

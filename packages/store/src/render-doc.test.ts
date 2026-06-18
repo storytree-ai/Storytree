@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { StoredDoc } from "@storytree/core";
-import { CURRENT_SCHEMA_VERSION, renderBody, upcastAndValidate } from "@storytree/core";
+import { CURRENT_SCHEMA_VERSION, renderBody, upcastAndValidate } from "@storytree/library";
 import { renderStoredDoc, buildLibraryDoc } from "./render-doc.js";
 
 /**

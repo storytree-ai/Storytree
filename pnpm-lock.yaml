@@ -136,9 +136,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@storytree/library':
-        specifier: workspace:*
-        version: link:../library
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract
@@ -217,6 +214,9 @@ importers:
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract

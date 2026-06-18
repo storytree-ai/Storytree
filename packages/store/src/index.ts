@@ -30,8 +30,8 @@ export type { BatchMigrateResult } from "./batch-migrate.js";
 export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";
 export type { RenderedAsset, AssetWriteInput } from "./render-doc.js";
 // Re-exported for the studio's lazily-imported pg backend (its health skew probe compares the
-// DB's max schemaVersion against this; a static @storytree/core import breaks vite config load).
-export { CURRENT_SCHEMA_VERSION } from "@storytree/core";
+// DB's max schemaVersion against this; a static @storytree/library import breaks vite config load).
+export { CURRENT_SCHEMA_VERSION } from "@storytree/library";
 export { PgPresenceStore } from "./presence-store.js";
 export type {
   PresenceClient,

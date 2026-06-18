@@ -1,5 +1,5 @@
 import type { StoredDoc } from "@storytree/core";
-import { upcastAndValidate, KIND_SPECS } from "@storytree/core";
+import { upcastAndValidate, KIND_SPECS } from "@storytree/library";
 
 /**
  * The Library health checks — ONE pure, testable module surfaced three ways (design §4,

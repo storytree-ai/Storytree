@@ -10,7 +10,7 @@ import {
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
-} from "@storytree/core";
+} from "@storytree/library";
 import { resolveSignerFromEnv } from "@storytree/orchestrator";
 import { renderStoredDoc, syncSeedAgents } from "@storytree/store";
 

@@ -14,3 +14,32 @@
 export * from "./schema.js";
 export { parseUnit } from "./loader.js";
 export * from "./uat-tests.js";
+
+// The cross-cutting knowledge tier (ADR-0017) — the library's namesake competence: schema-
+// validated, versioned knowledge documents. Moved out of `@storytree/core` (ADR-0068 step 4) so
+// consumers read the knowledge schema across the built ADR-0010 §4 boundary. Pure zod, browser-safe
+// (re-exported here AND via the `/knowledge`, `/knowledge-render`, `/sources` subpaths the studio
+// browser imports directly so it never pulls a node:-laden root barrel).
+export * from "./knowledge.js";
+export {
+  CURRENT_SCHEMA_VERSION,
+  type Migration,
+  MIGRATIONS,
+  upcast,
+} from "./migrations.js";
+export { renderBody, generateTemplate } from "./knowledge-render.js";
+export {
+  groupSources,
+  SOURCE_GROUP_ORDER,
+  type SourceGroup,
+  type SourceGroupName,
+  type ResolvedSource,
+  type AssetTarget,
+} from "./knowledge-sources.js";
+export {
+  LibraryAsset,
+  LibraryTemplate,
+  LibraryDoc,
+  validateLibraryDoc,
+  upcastAndValidate,
+} from "./library-doc.js";

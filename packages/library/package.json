@@ -5,7 +5,10 @@
   "type": "module",
   "description": "The library organism (ADR-0068 step 3): the work-hierarchy schema (story / capability / contract) as schema-validated versioned documents. Pure zod, browser-safe, no node: imports in the main entry. ADR-0002 / 0010 / 0013.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./sources": "./src/knowledge-sources.ts",
+    "./knowledge": "./src/knowledge.ts",
+    "./knowledge-render": "./src/knowledge-render.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

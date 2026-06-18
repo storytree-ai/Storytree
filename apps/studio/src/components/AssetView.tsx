@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { groupSources } from '@storytree/core/sources';
+import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { useOperator } from '../lib/operator';
