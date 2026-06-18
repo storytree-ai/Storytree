@@ -3356,9 +3356,9 @@ interface RiverTuning {
   /** Repulsion relaxation passes (`?riverRepelIters=`): more passes spread a dense
    *  cluster further apart. Only read when `riverRepel > 0`. */
   riverRepelIters: number;
-  /** WELD the water network (`?weld`, round-3, default OFF, PURE ADDITIVE over the
-   *  current fused-mouth world). Three fixes, all gated on this flag so `?weld=off`
-   *  is byte-identical to today: (a) WELD river segments — each in-pond channel is
+  /** WELD the water network (`?weld`, round-3, now DEFAULT ON, PURE ADDITIVE over the
+   *  fused-mouth world; owner flip 2026-06-18). Three fixes, all gated on this flag so
+   *  `?weld=off` restores the prior (fused-mouth-only) world: (a) WELD river segments — each in-pond channel is
    *  EXTENDED a few px past the rim so it overlaps the pond fill with no tan-gap at the
    *  mouth, and the river-fed pond is drawn ABOVE the tree crown (a separate render
    *  group after the flora) so it is never occluded; (b) PLACE every river-fed pond on
@@ -3415,9 +3415,11 @@ const RIVER_TUNING: RiverTuning = {
   riverRepel: 0,
   riverRepelRadius: 56,
   riverRepelIters: 12,
-  // Weld OFF by default (byte-identical world). `?weld` (or =on/1/true/fused/yes)
-  // turns on the round-3 weld/above-crown/de-spike layer (owner-attested).
-  weld: false,
+  // Weld ON by default (owner flip 2026-06-18 — the round-3 weld/above-crown/de-spike
+  // layer is now the bare `#/tree` world). `?weld=off` restores the prior fused-mouth-only
+  // look. Note: rivers/ponds is being superseded by a roads world (separate session);
+  // this lands the best rivers/ponds version as the baseline default until roads replaces it.
+  weld: true,
   // Open-space bias OFF by default (single-pass, byte-identical world). A positive
   // `?riverOpenBias=` turns on the two-pass density-aware reroute; ~600 with the 50px
   // cell visibly redistributes a crowded hub's rivers toward open water without
@@ -3544,8 +3546,10 @@ function readRiverTuning(): RiverTuning {
   // closed-pond look. Any other value (incl. the historical `fused`) keeps it on.
   const pm = q.get('pondMouth');
   if (pm !== null) out.fusedPondMouth = !['off', 'legacy', 'closed', '0', 'false'].includes(pm);
-  // `?weld` (round-3): turn on the weld/above-crown/de-spike layer. Default OFF — the
-  // off world stays byte-identical. Truthy spellings: bare `?weld`, on/1/true/fused/yes.
+  // `?weld` (round-3): the weld/above-crown/de-spike layer is now DEFAULT ON (owner flip
+  // 2026-06-18). Any value toggles BOTH ways — truthy spellings (bare `?weld`,
+  // on/1/true/fused/yes) force it on; anything else (`?weld=off`/0/false/…) restores the
+  // prior fused-mouth-only world.
   const wl = q.get('weld');
   if (wl !== null) out.weld = ['', 'on', '1', 'true', 'fused', 'yes'].includes(wl);
   return out;
