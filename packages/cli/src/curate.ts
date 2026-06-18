@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { runSdkCurator } from "@storytree/agent";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
-import type { AdrMeta, Store, StoredDoc } from "@storytree/core";
-import { InMemoryStore } from "@storytree/core";
+import type { AdrMeta } from "@storytree/core";
+import type { Store, StoredDoc } from "@storytree/base";
+import { InMemoryStore } from "@storytree/base";
 import { upcastAndValidate } from "@storytree/library";
 import type { Comment, CommentAnchor } from "@storytree/store";
 import { loadCorpus } from "@storytree/store";

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@storytree/agent": "workspace:*",
+    "@storytree/base": "workspace:*",
     "@storytree/core": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",

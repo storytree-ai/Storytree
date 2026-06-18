@@ -1,4 +1,4 @@
-import type { StoredDoc } from "@storytree/core";
+import type { StoredDoc } from "@storytree/base";
 import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,

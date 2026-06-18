@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { Verdict } from "@storytree/verdict-contract";
 import { SIGNING_EVENT_KIND } from "@storytree/verdict-contract";
-import type { Store } from "@storytree/core";
+import type { Store } from "@storytree/base";
 import { rollupStatus, workEvent } from "./rollup.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { Store, StoredDoc, StoreEvent } from "@storytree/core";
+import type { Store, StoredDoc, StoreEvent } from "@storytree/base";
 import {
   SIGNING_EVENT_KIND,
   Verdict,

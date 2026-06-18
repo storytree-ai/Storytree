@@ -7,7 +7,7 @@ import {
   type DriftFlag,
   type DriftState,
 } from "@storytree/verdict-contract";
-import type { Store, ChangeStore } from "@storytree/core";
+import type { Store, ChangeStore } from "@storytree/base";
 
 import type { Envelope } from "./envelope.js";
 

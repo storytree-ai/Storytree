@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import { hashSpan } from "@storytree/orchestrator";
 import type { DriftFlag } from "@storytree/verdict-contract";
 

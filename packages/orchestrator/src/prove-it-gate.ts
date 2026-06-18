@@ -16,7 +16,7 @@
 import { execFile } from "node:child_process";
 
 import type { PhaseAuthor } from "@storytree/agent";
-import type { ChangeStore, Store } from "@storytree/core";
+import type { ChangeStore, Store } from "@storytree/base";
 import type {
   ChangeEvent,
   EvidenceRef,

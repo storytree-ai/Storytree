@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import type { Verdict } from "@storytree/verdict-contract";
 import { WORK_EVENT_KIND, SIGNING_EVENT_KIND } from "@storytree/verdict-contract";
-import { InMemoryStore } from "@storytree/core";
-import type { StoreEvent } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
+import type { StoreEvent } from "@storytree/base";
 
 import { rollupStatus, workEvent } from "./rollup.js";
 import { rollupParitySuite } from "./rollup-parity.js";

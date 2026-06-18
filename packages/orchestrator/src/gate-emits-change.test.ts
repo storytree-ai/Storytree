@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import type { SignerInputs } from "./proof/signer.js";
 import type { PhaseAuthor } from "@storytree/agent";
 import { RecordingTestExecutor } from "./phase-machine.js";

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { changeStoreParitySuite } from "@storytree/core";
+import { changeStoreParitySuite } from "@storytree/base/parity";
 import type { ChangeEvent } from "@storytree/verdict-contract";
 
 import { PgChangeStore } from "./pg-change-store.js";

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import { hashSpan } from "@storytree/orchestrator";
 import { runDriftFromStore } from "./drift.js";
 

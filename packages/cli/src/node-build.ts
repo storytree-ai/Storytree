@@ -5,8 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
-import type { Store } from "@storytree/core";
-import { InMemoryStore } from "@storytree/core";
+import type { Store } from "@storytree/base";
+import { InMemoryStore } from "@storytree/base";
 import {
   createBuildWorktree,
   findNodeSpecFile,

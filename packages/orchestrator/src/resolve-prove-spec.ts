@@ -7,7 +7,7 @@ import {
   ScriptedModel,
 } from "@storytree/agent";
 import type { FeedbackCommand, ModelResponse, PhaseAuthor } from "@storytree/agent";
-import type { Store } from "@storytree/core";
+import type { Store } from "@storytree/base";
 
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";

@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import type { RealProofConfig } from "@storytree/orchestrator";
 
 import { run } from "./commands.js";

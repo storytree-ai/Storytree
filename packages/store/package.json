@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.4.0",
+    "@storytree/base": "workspace:*",
     "@storytree/core": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",

@@ -1,5 +1,5 @@
-import type { Store } from "@storytree/core";
-import { InMemoryStore } from "@storytree/core";
+import type { Store } from "@storytree/base";
+import { InMemoryStore } from "@storytree/base";
 import { loadCorpus } from "./load-corpus.js";
 
 /**

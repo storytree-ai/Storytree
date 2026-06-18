@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import {
   OwnedLoopAuthor,

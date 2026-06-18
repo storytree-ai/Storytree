@@ -103,11 +103,30 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
+  packages/base:
+    dependencies:
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../verdict-contract
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
   packages/cli:
     dependencies:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
@@ -136,9 +155,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@storytree/verdict-contract':
-        specifier: workspace:*
-        version: link:../verdict-contract
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -180,6 +196,9 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
@@ -211,6 +230,9 @@ importers:
       '@google-cloud/cloud-sql-connector':
         specifier: ^1.4.0
         version: 1.11.1
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
       '@storytree/core':
         specifier: workspace:*
         version: link:../core

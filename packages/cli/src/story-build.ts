@@ -1,8 +1,9 @@
 import path from "node:path";
 
 import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
-import { InMemoryStore } from "@storytree/core";
-import type { AdrMeta, Store } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
+import type { AdrMeta } from "@storytree/core";
+import type { Store } from "@storytree/base";
 import { effectiveUatWitness } from "@storytree/library";
 import {
   createBuildWorktree,

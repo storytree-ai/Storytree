@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import type { StoredDoc } from "@storytree/core";
+import type { StoredDoc } from "@storytree/base";
 import type { NodeSpec } from "@storytree/orchestrator";
 import type { Comment } from "@storytree/store";
 

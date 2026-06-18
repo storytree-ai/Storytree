@@ -1,4 +1,4 @@
-import type { StoredDoc } from "@storytree/core";
+import type { StoredDoc } from "@storytree/base";
 import { upcastAndValidate, KIND_SPECS } from "@storytree/library";
 
 /**

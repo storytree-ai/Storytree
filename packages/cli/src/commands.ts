@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import type { Store, StoredDoc } from "@storytree/core";
+import type { Store, StoredDoc } from "@storytree/base";
 import {
   upcastAndValidate,
   groupSources,

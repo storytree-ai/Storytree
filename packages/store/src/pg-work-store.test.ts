@@ -2,7 +2,7 @@ import test, { after } from "node:test";
 import assert from "node:assert/strict";
 
 import { rollupParitySuite, rollupStatus, workEvent } from "@storytree/orchestrator";
-import type { Store } from "@storytree/core";
+import type { Store } from "@storytree/base";
 import type { Verdict } from "@storytree/verdict-contract";
 
 import { PgWorkStore } from "./pg-work-store.js";

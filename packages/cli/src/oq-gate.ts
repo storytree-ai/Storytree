@@ -1,4 +1,4 @@
-import type { StoredDoc } from "@storytree/core";
+import type { StoredDoc } from "@storytree/base";
 import type { NodeSpec } from "@storytree/orchestrator";
 import type { Comment } from "@storytree/store";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/store";

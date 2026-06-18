@@ -1,0 +1,23 @@
+{
+  "name": "@storytree/base",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The universal browser-safe base seam (ADR-0068 step 5): the narrow Store/ChangeStore document-event store contract, the InMemoryStore reference impl, and StoredDoc/StoreEvent/DeleteDocOpts/retiredEventDoc. The reusable node:test parity suites live behind the ./parity subpath so the main entry carries NO node: import — browser-safe. ADR-0017.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./parity": "./src/store-parity.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@storytree/verdict-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}

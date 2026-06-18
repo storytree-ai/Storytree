@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { AdrMeta } from "@storytree/core";
-import { InMemoryStore } from "@storytree/core";
+import { InMemoryStore } from "@storytree/base";
 import { loadCorpus } from "@storytree/store";
 
 import {

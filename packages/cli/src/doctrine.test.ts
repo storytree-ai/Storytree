@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import type { Store, StoredDoc } from "@storytree/core";
-import { InMemoryStore } from "@storytree/core";
+import type { Store, StoredDoc } from "@storytree/base";
+import { InMemoryStore } from "@storytree/base";
 import { loadCorpus } from "@storytree/store";
 
 import { renderDoctrine, renderDoctrines } from "./doctrine.js";

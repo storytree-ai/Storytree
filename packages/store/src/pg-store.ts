@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
-import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "@storytree/core";
-import { retiredEventDoc } from "@storytree/core";
+import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "@storytree/base";
+import { retiredEventDoc } from "@storytree/base";
 import { upcastAndValidate } from "@storytree/library";
 
 /**
