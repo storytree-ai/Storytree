@@ -22,7 +22,7 @@
       "packages": "Workspace packages (verdict-contract / base / library / notice-board / studio-members / agent / orchestrator / store / cli; @storytree/core dissolved per ADR-0068).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + generated glossary + open-questions backlog + research notes (see docs.* below).",
-      "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/core.",
+      "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
       "infra": "Terraform / GCP infra (Cloud SQL, idle-stop).",
       "scripts": "Repo-level maintenance scripts (e.g. this manifest check).",
       "legacy": "Read-only V1 Rust submodule (legacy/Agentic); reference only.",
@@ -39,5 +39,17 @@
       "glossary.md": "GENERATED from the Library (knowledge.json) by apps/studio/data/build-corpus.mjs; read by the studio. Not hand-authored — a Library projection, not a standalone doc.",
       "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the generated glossary, the ADRs, and Library units' references. A threaded cross-reference ledger, not atomic Library units."
     }
+  },
+  "packageOwnership": {
+    "$comment": "The organism-boundary ownership map (ADR-0074), read by packages/cli/src/check-boundaries.ts (`pnpm check:boundaries`, wired into `pnpm gate` + the CI verify job). Every @storytree/* package under packages/* is classified EXACTLY once. The gate asserts the real runtime cross-organism dependency graph (each package.json `dependencies`; devDeps are test scaffolding and excluded, ADR-0010 §5) is a SUBGRAPH of the declared cross-story `depends_on` graph (stories/*/story.md) — so cross-organism coupling can't be added without a declared edge, and because the studio forest renders `depends_on`, every coupling is therefore UI-visible. organisms = owned by exactly one story (the boundary rule applies between them); substrate = the shared seam/ports anyone may depend on, held minimal; compositionRoots = the wiring layer that may depend on anything but that nothing may depend on.",
+    "organisms": {
+      "@storytree/library": "library",
+      "@storytree/orchestrator": "drive-machinery",
+      "@storytree/agent": "drive-machinery",
+      "@storytree/notice-board": "notice-board",
+      "@storytree/studio-members": "studio-members"
+    },
+    "substrate": ["@storytree/base", "@storytree/verdict-contract"],
+    "compositionRoots": ["@storytree/store", "@storytree/cli"]
   }
 }

@@ -60,6 +60,13 @@ jobs:
       - name: Repo manifest
         run: pnpm check:manifest
 
+      # Organism boundary (ADR-0074): the real cross-organism code-dependency graph must be a
+      # subgraph of the declared cross-story `depends_on` graph (substrate/ports excepted). Refuses
+      # an undeclared cross-story coupling or a dependency cycle — so coupling can't be added without
+      # a declared edge, which the studio forest then renders (no invisible coupling).
+      - name: Organism boundary
+        run: pnpm check:boundaries
+
       # CLAUDE.md's operating-discipline region is a GENERATED VIEW of the
       # `session-orchestrator` library agent (ADR-0051) — fail if it has drifted
       # from the artifact (edit the artifact + `pnpm build:claude`, don't hand-edit).
