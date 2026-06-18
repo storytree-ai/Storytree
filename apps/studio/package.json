@@ -15,11 +15,11 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
-    "@storytree/core": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
     "@storytree/store": "workspace:*",
+    "@storytree/studio-members": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

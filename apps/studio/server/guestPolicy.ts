@@ -14,7 +14,7 @@
 // an `invited` row flips to `active` on first request. Pure decisions over (method, path, access);
 // the one impure step — reading the projection + the activation upsert — is `resolveMembersAccess`.
 
-import { resolveAccess, parseSeedAdmins, type ResolvedAccess } from '@storytree/core';
+import { resolveAccess, parseSeedAdmins, type ResolvedAccess } from '@storytree/studio-members';
 import { HttpError } from './httpUtil';
 import type { ApiPolicy, MeInfo } from './apiRouter';
 import type { LibraryBackend } from './libraryBackend';

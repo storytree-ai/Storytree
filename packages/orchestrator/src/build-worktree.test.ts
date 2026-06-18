@@ -31,7 +31,7 @@ test("createBuildWorktree cuts a detached worktree at HEAD; commitAuthored earns
     // A real checkout of this repo at a real commit.
     assert.match(wt.headSha, /^[0-9a-f]{40}$/);
     await fs.access(path.join(wt.root, "package.json"));
-    await fs.access(path.join(wt.root, "packages", "core", "src"));
+    await fs.access(path.join(wt.root, "packages", "base", "src"));
 
     // Fresh = clean, at the same commit the worktree was cut from.
     const fresh = await gitTreeState(wt.root)();
@@ -39,7 +39,7 @@ test("createBuildWorktree cuts a detached worktree at HEAD; commitAuthored earns
     assert.equal(fresh.commitSha, wt.headSha);
 
     // An authored (leaf-shaped) change dirties the REAL tree — no faking involved.
-    const authored = path.join(wt.root, "packages", "core", "src", "wt-probe.txt");
+    const authored = path.join(wt.root, "packages", "base", "src", "wt-probe.txt");
     await fs.writeFile(authored, "authored inside the build worktree\n");
     const dirty = await gitTreeState(wt.root)();
     assert.equal(dirty.clean, false);

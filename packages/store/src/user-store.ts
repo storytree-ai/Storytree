@@ -1,11 +1,11 @@
-import type { UserDoc } from "@storytree/core";
+import type { UserDoc } from "@storytree/studio-members";
 import {
   User,
   mergeUser,
   normalizeEmail,
   wouldOrphanAdminsOnRemove,
   wouldOrphanAdminsOnRole,
-} from "@storytree/core";
+} from "@storytree/studio-members";
 
 /**
  * ADR-0043 `user-directory`: the Postgres-backed app-owned user (member) store. History

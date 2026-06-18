@@ -22,7 +22,7 @@
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
-import type { UserDoc } from '@storytree/core';
+import type { UserDoc } from '@storytree/studio-members';
 import type { Attestation } from '@storytree/verdict-contract';
 import {
   BUILD_IN_FLIGHT_TTL_MS,
@@ -283,29 +283,29 @@ export class JsonBackend implements LibraryBackend {
   }
 
   // ----- users (data/users.json) — the offline mirror of PgUserStore. Validation + the
-  // last-admin guard run through @storytree/core (lazily loaded, the config-load trap). -----
+  // last-admin guard run through @storytree/studio-members (lazily loaded, the config-load trap). -----
 
   async listUsers(): Promise<UserDoc[]> {
     return readStore<UserDoc[]>(this.#usersFile, []);
   }
 
   async getUser(email: string): Promise<UserDoc | null> {
-    const core = await loadCoreModule();
-    const target = core.normalizeEmail(email);
+    const members = await loadStudioMembersModule();
+    const target = members.normalizeEmail(email);
     return (await this.listUsers()).find((u) => u.email === target) ?? null;
   }
 
   async upsertUser(doc: UserDoc, _actor: string): Promise<UserDoc> {
-    const core = await loadCoreModule();
-    const validated = core.User.parse(doc); // role-status-validated at the boundary
+    const members = await loadStudioMembersModule();
+    const validated = members.User.parse(doc); // role-status-validated at the boundary
     const users = await this.listUsers();
     const idx = users.findIndex((u) => u.email === validated.email);
     let persisted: UserDoc;
     if (idx !== -1) {
       const existing = users[idx] as UserDoc;
       const { email: _e, createdAt: _c, ...patch } = validated;
-      persisted = core.mergeUser(existing, patch);
-      if (core.wouldOrphanAdminsOnRole(users, validated.email, persisted.role)) {
+      persisted = members.mergeUser(existing, patch);
+      if (members.wouldOrphanAdminsOnRole(users, validated.email, persisted.role)) {
         throw lastAdminError(`refusing to downgrade ${validated.email}: at least one admin must remain`);
       }
       users[idx] = persisted;
@@ -318,11 +318,11 @@ export class JsonBackend implements LibraryBackend {
   }
 
   async removeUser(email: string, _actor: string): Promise<boolean> {
-    const core = await loadCoreModule();
-    const target = core.normalizeEmail(email);
+    const members = await loadStudioMembersModule();
+    const target = members.normalizeEmail(email);
     const users = await this.listUsers();
     if (!users.some((u) => u.email === target)) return false;
-    if (core.wouldOrphanAdminsOnRemove(users, target)) {
+    if (members.wouldOrphanAdminsOnRemove(users, target)) {
       throw lastAdminError(`refusing to remove ${target}: at least one admin must remain`);
     }
     await writeStore(this.#usersFile, users.filter((u) => u.email !== target));
@@ -330,7 +330,7 @@ export class JsonBackend implements LibraryBackend {
   }
 
   // ----- attestations (data/attestations.json) — the offline mirror of PgAttestationStore.
-  // Append-only array; the display projection is derived via @storytree/core (lazy). -----
+  // Append-only array; the display projection is derived via @storytree/orchestrator (lazy). -----
 
   async listAttestations(storyId: string): Promise<StoryAttestations> {
     // deriveAttestations is the farmer's projection compute — it MOVED to @storytree/orchestrator
@@ -396,14 +396,14 @@ function loadStoreModule(): Promise<StoreModule> {
   return (storeModulePromise ??= import('@storytree/store'));
 }
 
-// @storytree/core is raw-TS (its `.js` specifiers hit vite's config-load trap) — so the users
-// last-admin guard compute (mergeUser / wouldOrphanAdmins*) is loaded lazily, on first use.
-type CoreModule = typeof import('@storytree/core');
+// @storytree/studio-members is raw-TS (its `.js` specifiers hit vite's config-load trap) — so the
+// users last-admin guard compute (mergeUser / wouldOrphanAdmins*) is loaded lazily, on first use.
+type StudioMembersModule = typeof import('@storytree/studio-members');
 
-let coreModulePromise: Promise<CoreModule> | null = null;
+let studioMembersModulePromise: Promise<StudioMembersModule> | null = null;
 
-function loadCoreModule(): Promise<CoreModule> {
-  return (coreModulePromise ??= import('@storytree/core'));
+function loadStudioMembersModule(): Promise<StudioMembersModule> {
+  return (studioMembersModulePromise ??= import('@storytree/studio-members'));
 }
 
 // @storytree/notice-board is raw-TS too (same `.js` config-load trap), so classifyPresence is
