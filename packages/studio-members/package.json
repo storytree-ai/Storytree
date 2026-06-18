@@ -1,0 +1,14 @@
+{
+  "name": "@storytree/studio-members",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The studio-members organism (ADR-0068 step 6): the member/user schema + access-control compute (UserDoc / User / mergeUser / resolveAccess / parseSeedAdmins / wouldOrphanAdmins* / last-admin guard), extracted from the dissolving @storytree/core. Pure zod, browser-safe, no node: imports.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": { "zod": "^3.24.1" },
+  "devDependencies": { "@types/node": "^22.10.7", "tsx": "^4.19.2", "typescript": "~5.7.3" }
+}

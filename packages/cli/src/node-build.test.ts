@@ -365,7 +365,7 @@ test("resolveDbProofEnv REFUSES production (STORYTREE_DB_NAME=storytree) — fai
 
 test("workspacePackageForSource derives the workspace package name from a packages/<dir> source file", () => {
   // Reads the real packages/<dir>/package.json name (the honest source, not a path-convention guess).
-  assert.equal(workspacePackageForSource("packages/core/src/anchor.ts"), "@storytree/core");
+  assert.equal(workspacePackageForSource("packages/verdict-contract/src/anchor.ts"), "@storytree/verdict-contract");
   assert.equal(workspacePackageForSource("packages/store/src/change-store.ts"), "@storytree/store");
   // Not under a workspace package → null (the caller refuses).
   assert.equal(workspacePackageForSource("docs/decisions/x.md"), null);
@@ -383,18 +383,18 @@ test("resolveAddDepsGroup: none declared → null; declared → a group targetin
   if (none.ok) assert.equal(none.group, null);
 
   const withDeps: RealProofConfig = {
-    testFile: "packages/core/src/anchor.test.ts",
-    sourceFile: "packages/core/src/anchor.ts",
-    scope: { testGlobs: ["packages/core/src/anchor.test.ts"], sourceGlobs: ["packages/core/src/anchor.ts"] },
+    testFile: "packages/verdict-contract/src/anchor.test.ts",
+    sourceFile: "packages/verdict-contract/src/anchor.ts",
+    scope: { testGlobs: ["packages/verdict-contract/src/anchor.test.ts"], sourceGlobs: ["packages/verdict-contract/src/anchor.ts"] },
     install: true,
-    typecheck: { file: "pnpm", args: ["--filter", "@storytree/core", "typecheck"] },
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/verdict-contract", "typecheck"] },
     addDeps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
   };
   const grouped = resolveAddDepsGroup(withDeps);
   assert.equal(grouped.ok, true);
   if (grouped.ok) {
     assert.deepEqual(grouped.group, {
-      packageName: "@storytree/core",
+      packageName: "@storytree/verdict-contract",
       deps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
     });
   }

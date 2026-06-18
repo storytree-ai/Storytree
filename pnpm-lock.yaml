@@ -13,9 +13,6 @@ importers:
       '@dagrejs/dagre':
         specifier: ^1.1.4
         version: 1.1.8
-      '@storytree/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library
@@ -28,6 +25,9 @@ importers:
       '@storytree/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@storytree/studio-members':
+        specifier: workspace:*
+        version: link:../../packages/studio-members
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../../packages/verdict-contract
@@ -159,22 +159,6 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
-  packages/core:
-    dependencies:
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.19
-      tsx:
-        specifier: ^4.19.2
-        version: 4.22.4
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-
   packages/library:
     dependencies:
       '@storytree/verdict-contract':
@@ -249,15 +233,15 @@ importers:
       '@storytree/base':
         specifier: workspace:*
         version: link:../base
-      '@storytree/core':
-        specifier: workspace:*
-        version: link:../core
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
       '@storytree/notice-board':
         specifier: workspace:*
         version: link:../notice-board
+      '@storytree/studio-members':
+        specifier: workspace:*
+        version: link:../studio-members
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract
@@ -280,6 +264,22 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.20.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
+  packages/studio-members:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
