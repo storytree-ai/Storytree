@@ -128,7 +128,7 @@ With multiple layers each speaking the same vocabulary, a contested term can mea
 
 ## Approach
 
-Every layer — `packages/core` types, the orchestrator, the studio, the ADRs — uses the glossary's terms as defined. When a term's meaning is in question, `docs/glossary.md` wins; the reasoning behind the definition lives in the cited ADR.
+Every layer — the organism packages' types, the orchestrator, the studio, the ADRs — uses the glossary's terms as defined. When a term's meaning is in question, `docs/glossary.md` wins; the reasoning behind the definition lives in the cited ADR.
 
 ## Tradeoffs
 
