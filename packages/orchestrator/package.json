@@ -14,6 +14,7 @@
   "dependencies": {
     "@storytree/agent": "workspace:*",
     "@storytree/core": "workspace:*",
+    "@storytree/verdict-contract": "workspace:*",
     "yaml": "^2.6.1",
     "zod": "^3.24.1"
   },

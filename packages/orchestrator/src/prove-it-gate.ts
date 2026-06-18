@@ -16,16 +16,15 @@
 import { execFile } from "node:child_process";
 
 import type { PhaseAuthor } from "@storytree/agent";
+import type { ChangeStore, Store } from "@storytree/core";
 import type {
   ChangeEvent,
-  ChangeStore,
   EvidenceRef,
   ProofMode,
-  Store,
   Verdict,
-} from "@storytree/core";
-import { resolveSigner } from "@storytree/core";
-import type { SignerInputs } from "@storytree/core";
+} from "@storytree/verdict-contract";
+import { resolveSigner } from "./proof/signer.js";
+import type { SignerInputs } from "./proof/signer.js";
 
 import { advancePhase, nextPhase } from "./phase-machine.js";
 import type {
@@ -182,6 +181,9 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     commitSha: tree.commitSha,
     signer: signer.signer,
     runId: spec.runId,
+    // ADR-0068 §3: the verdict-data output-format version. The gate stamps the current `v1`
+    // explicitly (the contract's Verdict OUTPUT type requires it; the default applies only on parse).
+    outputVersion: "v1",
     evidence: [toEvidence(redObs), toEvidence(greenObs)],
     at: spec.now(),
     ...(spec.binding !== undefined ? { boundHash: spec.binding.boundHash } : {}),

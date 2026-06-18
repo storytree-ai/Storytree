@@ -6,7 +6,8 @@ import * as path from "node:path";
 
 import { FileToolExecutor, FILE_WRITE_TOOLS, ScriptedModel } from "@storytree/agent";
 import type { ModelResponse } from "@storytree/agent";
-import { InMemoryStore, type SignerInputs } from "@storytree/core";
+import { InMemoryStore } from "@storytree/core";
+import type { SignerInputs } from "./proof/signer.js";
 
 import { PathWriteScope } from "./phase-machine.js";
 import { ShellTestExecutor } from "./shell-test-executor.js";

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { classifySourceDrift } from "./source-drift.js";
-import type { SourceRef, SourceDriftFlag } from "./source-drift.js";
+import type { SourceRef } from "./source-drift.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — build typed inputs without pulling zod into the runtime

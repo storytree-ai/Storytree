@@ -4,7 +4,7 @@ import {
   Verdict,
   WORK_EVENT_KIND,
   WorkEventDoc,
-} from "@storytree/core";
+} from "@storytree/verdict-contract";
 
 /**
  * The Postgres work-hierarchy event store (drive-machinery Phase A's tables, finally written to —

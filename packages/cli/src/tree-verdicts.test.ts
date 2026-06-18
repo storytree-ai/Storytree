@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { SIGNING_EVENT_KIND, Verdict } from "@storytree/core";
+import { SIGNING_EVENT_KIND, Verdict } from "@storytree/verdict-contract";
 
 import {
   deriveVerdictGlyphs,
@@ -45,6 +45,7 @@ function signingEvent(
     runId: "run-1",
     evidence: [],
     at: "2026-06-13T00:00:00.000Z",
+    outputVersion: "v1",
   };
   return { kind: SIGNING_EVENT_KIND, seq, doc };
 }

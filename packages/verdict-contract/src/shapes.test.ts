@@ -15,6 +15,9 @@ import {
   ChangeEvent,
   DriftState,
   Attestation,
+  WorkEventDoc,
+  WORK_EVENT_KIND,
+  SIGNING_EVENT_KIND,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +84,24 @@ test("Verdict round-trips a valid doc and rejects a malformed one", () => {
   assert.equal(Verdict.safeParse({ ...valid, outcome: "maybe" }).success, false);
   // unknown field (strict)
   assert.equal(Verdict.safeParse({ ...valid, rogue: true }).success, false);
+});
+
+test("Verdict: boundHash is preserved when present and absent when omitted (ADR-0016 back-compat)", () => {
+  const base = {
+    unitId: "u1",
+    proofMode: "contract" as const,
+    outcome: "pass" as const,
+    commitSha: "abc1234",
+    signer: "tester@example.com",
+    runId: "run-1",
+    evidence: [],
+    at: "2026-06-16T00:00:00.000Z",
+  };
+  // present → preserved
+  const hash = "fnv1a:deadbeef";
+  assert.equal(Verdict.parse({ ...base, boundHash: hash }).boundHash, hash);
+  // absent → undefined (a pre-ADR-0016 verdict round-trips)
+  assert.equal(Verdict.parse(base).boundHash, undefined);
 });
 
 test("Verdict.outputVersion defaults cleanly to v1 when omitted (additive/back-compat)", () => {
@@ -170,4 +191,28 @@ test("Attestation round-trips a valid doc and rejects a malformed one", () => {
   assert.equal(Attestation.safeParse({ ...valid, signer: "   " }).success, false);
   // unknown field (strict) rejects
   assert.equal(Attestation.safeParse({ ...valid, sneaky: 1 }).success, false);
+});
+
+test("WorkEventDoc round-trips a valid doc and rejects a malformed one", () => {
+  const valid = {
+    unitId: "stories/library",
+    event: "building" as const,
+    runId: "run-1",
+    tier: "story" as const,
+  };
+  assert.deepEqual(WorkEventDoc.parse(valid), valid);
+  // a minimal doc (only the required fields) round-trips
+  assert.deepEqual(WorkEventDoc.parse({ unitId: "u", event: "proposed" }), {
+    unitId: "u",
+    event: "proposed",
+  });
+  // unknown lifecycle event rejects
+  assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "shipped" }).success, false);
+  // unknown field (strict) rejects
+  assert.equal(WorkEventDoc.safeParse({ ...valid, rogue: 1 }).success, false);
+});
+
+test("the work/signing store kinds are the published literals", () => {
+  assert.equal(WORK_EVENT_KIND, "work");
+  assert.equal(SIGNING_EVENT_KIND, "signing");
 });

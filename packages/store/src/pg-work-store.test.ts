@@ -1,8 +1,9 @@
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 
-import { rollupParitySuite, rollupStatus, workEvent } from "@storytree/core";
-import type { Store, Verdict } from "@storytree/core";
+import { rollupParitySuite, rollupStatus, workEvent } from "@storytree/orchestrator";
+import type { Store } from "@storytree/core";
+import type { Verdict } from "@storytree/verdict-contract";
 
 import { PgWorkStore } from "./pg-work-store.js";
 import type { WorkStoreClient } from "./pg-work-store.js";
@@ -22,6 +23,7 @@ const PASS_VERDICT: Verdict = {
   commitSha: "cafebabe",
   signer: "tester@example.com",
   runId: "run-1",
+  outputVersion: "v1",
   evidence: [],
   at: "2026-06-10T00:00:00.000Z",
 };

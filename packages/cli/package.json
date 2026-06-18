@@ -20,7 +20,8 @@
     "@storytree/agent": "workspace:*",
     "@storytree/core": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
-    "@storytree/store": "workspace:*"
+    "@storytree/store": "workspace:*",
+    "@storytree/verdict-contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

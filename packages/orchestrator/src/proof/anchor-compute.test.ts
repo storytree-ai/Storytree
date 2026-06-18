@@ -1,53 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  TextQuote,
-  Anchor,
-  normalizeSpan,
-  hashSpan,
-  ChangeEvent,
-  isDescribed,
-  DriftState,
-  classifyDrift,
-} from "./anchor.js";
-
-// ---------------------------------------------------------------------------
-// Schema
-// ---------------------------------------------------------------------------
-
-test("TextQuote: exact required, prefix/suffix optional", () => {
-  assert.deepEqual(TextQuote.parse({ exact: "return x;" }), { exact: "return x;" });
-  const q = TextQuote.parse({ exact: "return x;", prefix: "  ", suffix: "\n}" });
-  assert.equal(q.prefix, "  ");
-  assert.equal(q.suffix, "\n}");
-  assert.throws(() => TextQuote.parse({ prefix: "x" }), /exact/i);
-});
-
-test("Anchor: file + boundHash required; symbol/quote/boundCommit optional; strict", () => {
-  const a = Anchor.parse({ file: "packages/cli/src/commands.ts", boundHash: "deadbeef" });
-  assert.equal(a.file, "packages/cli/src/commands.ts");
-  assert.equal(a.boundHash, "deadbeef");
-  assert.equal(a.symbol, undefined);
-  assert.equal(a.quote, undefined);
-  // boundHash is the whole point — a binding with no content hash can't detect drift.
-  assert.throws(() => Anchor.parse({ file: "x.ts" }), /boundHash/i);
-  assert.throws(() => Anchor.parse({ boundHash: "h" }), /file/i);
-  // strict: unknown keys (e.g. the retired `lines`) are rejected.
-  assert.throws(() => Anchor.parse({ file: "x.ts", boundHash: "h", lines: "1-2" }));
-});
-
-test("Anchor carries the structural + fuzzy re-locators and the commit provenance", () => {
-  const a = Anchor.parse({
-    file: "packages/core/src/anchor.ts",
-    symbol: "classifyDrift",
-    quote: { exact: "const drifted", prefix: "{\n  ", suffix: " = currentHash" },
-    boundHash: "abc123",
-    boundCommit: "f11ae7d",
-  });
-  assert.equal(a.symbol, "classifyDrift");
-  assert.equal(a.quote?.exact, "const drifted");
-  assert.equal(a.boundCommit, "f11ae7d");
-});
+import { ChangeEvent } from "@storytree/verdict-contract";
+import { normalizeSpan, hashSpan, isDescribed, classifyDrift } from "./anchor-compute.js";
 
 // ---------------------------------------------------------------------------
 // normalizeSpan / hashSpan — cosmetic edits don't trip; real edits do
@@ -92,7 +46,7 @@ test("hashSpan is a 128-bit FNV-1a fingerprint (32 hex chars)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ChangeEvent / isDescribed — the described-change gate
+// isDescribed — the described-change gate
 // ---------------------------------------------------------------------------
 
 const change = (over: Partial<ChangeEvent> = {}): ChangeEvent =>
@@ -105,14 +59,6 @@ const change = (over: Partial<ChangeEvent> = {}): ChangeEvent =>
     ...over,
   });
 
-test("ChangeEvent: required core fields, strict, optional description/commitSha", () => {
-  const c = change();
-  assert.equal(c.description, undefined);
-  assert.equal(c.commitSha, undefined);
-  assert.throws(() => ChangeEvent.parse({ unitId: "u", hashBefore: "a", hashAfter: "b" }));
-  assert.throws(() => ChangeEvent.parse({ ...c, surprise: true }));
-});
-
 test("isDescribed: non-blank description ⇒ described; absent/blank ⇒ demoted", () => {
   assert.equal(isDescribed(change()), false);
   assert.equal(isDescribed(change({ description: "" })), false);
@@ -123,10 +69,6 @@ test("isDescribed: non-blank description ⇒ described; absent/blank ⇒ demoted
 // ---------------------------------------------------------------------------
 // classifyDrift — fresh / stale / drifted-undescribed
 // ---------------------------------------------------------------------------
-
-test("DriftState enum is the three honest end-states", () => {
-  assert.deepEqual(DriftState.options, ["fresh", "stale", "drifted-undescribed"]);
-});
 
 test("fresh: currentHash === boundHash, regardless of the change log", () => {
   const flag = classifyDrift("h1", "h1", [change({ description: "noise" })]);

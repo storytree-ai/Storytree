@@ -1,7 +1,9 @@
-import type { Verdict } from "./proof.js";
+import type { Verdict } from "@storytree/verdict-contract";
 
 /**
- * Render a signed verdict as a single human-readable line (no trailing newline).
+ * Render a signed verdict as a single human-readable line (no trailing newline). MOVED here from
+ * `@storytree/core` (ADR-0068 step 1): rendering a verdict is the farmer organism's compute; the
+ * {@link Verdict} shape it reads is the verdict CONTRACT's.
  *
  * Format:
  *   <OUTCOME> <unitId> (<proofMode>) — signed by <signer> @ <short commitSha>, <at>

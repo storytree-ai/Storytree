@@ -18,6 +18,7 @@
     "@storytree/core": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
     "@storytree/store": "workspace:*",
+    "@storytree/verdict-contract": "workspace:*",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^9.1.0",

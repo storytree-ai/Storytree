@@ -13,8 +13,8 @@
  * DO NOT import from @storytree/store — the seam keeps this module offline-testable.
  */
 
-import type { Attestation } from "@storytree/core";
-import { resolveSignerFromEnv, type SignerResult } from "@storytree/core";
+import type { Attestation } from "@storytree/verdict-contract";
+import { resolveSignerFromEnv, type SignerResult } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "./noticeboard.js";

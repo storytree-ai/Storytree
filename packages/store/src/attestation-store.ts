@@ -1,5 +1,5 @@
-import type { Attestation } from "@storytree/core";
-import { Attestation as AttestationDoc } from "@storytree/core";
+import type { Attestation } from "@storytree/verdict-contract";
+import { Attestation as AttestationDoc } from "@storytree/verdict-contract";
 
 /**
  * ADR-0044 `attestation-signals`: the Postgres-backed per-UAT-test attestation log.

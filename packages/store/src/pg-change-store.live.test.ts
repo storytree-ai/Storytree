@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashSpan } from "@storytree/core";
-import type { ChangeEvent } from "@storytree/core";
+import { hashSpan } from "@storytree/orchestrator";
+import type { ChangeEvent } from "@storytree/verdict-contract";
 import { createTestPool } from "./test-db.js";
 import { closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";

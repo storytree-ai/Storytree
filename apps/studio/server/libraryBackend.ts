@@ -22,7 +22,8 @@
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
-import type { Attestation, UserDoc } from '@storytree/core';
+import type { UserDoc } from '@storytree/core';
+import type { Attestation } from '@storytree/verdict-contract';
 import {
   BUILD_IN_FLIGHT_TTL_MS,
   type AssetCategory,
@@ -332,9 +333,11 @@ export class JsonBackend implements LibraryBackend {
   // Append-only array; the display projection is derived via @storytree/core (lazy). -----
 
   async listAttestations(storyId: string): Promise<StoryAttestations> {
-    const core = await loadCoreModule();
+    // deriveAttestations is the farmer's projection compute — it MOVED to @storytree/orchestrator
+    // (ADR-0068 step 1), loaded lazily like the other Node-only farmer modules.
+    const orchestrator = await loadOrchestratorModule();
     const stored = await readStore<Attestation[]>(this.#attestationsFile, []);
-    const map = core.deriveAttestations(stored.map((doc, i) => ({ seq: i + 1, doc })));
+    const map = orchestrator.deriveAttestations(stored.map((doc, i) => ({ seq: i + 1, doc })));
     const out: StoryAttestations = {};
     for (const [testId, entry] of map) {
       if (testId.startsWith(`${storyId}#`)) out[testId] = entry;
@@ -343,8 +346,11 @@ export class JsonBackend implements LibraryBackend {
   }
 
   async recordAttestation(att: Attestation, _actor: string): Promise<Attestation> {
-    const core = await loadCoreModule();
-    const validated = core.Attestation.parse(att); // fail-closed at the write boundary
+    // The Attestation SHAPE is the verdict CONTRACT's. Though the contract is browser-safe (zod-only),
+    // its raw-TS `.js` specifiers hit the same vite config-load trap as core/store, so the schema is
+    // loaded lazily on first write — fail-closed at the write boundary.
+    const { Attestation: AttestationDoc } = await loadContractModule();
+    const validated = AttestationDoc.parse(att);
     const all = await readStore<Attestation[]>(this.#attestationsFile, []);
     all.push(validated);
     await writeStore(this.#attestationsFile, all);
@@ -399,6 +405,27 @@ let coreModulePromise: Promise<CoreModule> | null = null;
 
 function loadCoreModule(): Promise<CoreModule> {
   return (coreModulePromise ??= import('@storytree/core'));
+}
+
+// @storytree/orchestrator hosts the farmer's proof COMPUTE (ADR-0068 step 1) — deriveAttestations
+// and friends. Node-only and raw-TS like core/store, so it is loaded just as lazily, on first use.
+type OrchestratorModule = typeof import('@storytree/orchestrator');
+
+let orchestratorModulePromise: Promise<OrchestratorModule> | null = null;
+
+function loadOrchestratorModule(): Promise<OrchestratorModule> {
+  return (orchestratorModulePromise ??= import('@storytree/orchestrator'));
+}
+
+// @storytree/verdict-contract is raw-TS too: its `.js` specifiers don't resolve under vite's
+// config-load (no tsx transform), so the Attestation SCHEMA is loaded lazily on first write —
+// even though the contract is browser-safe (zod-only, no node:).
+type ContractModule = typeof import('@storytree/verdict-contract');
+
+let contractModulePromise: Promise<ContractModule> | null = null;
+
+function loadContractModule(): Promise<ContractModule> {
+  return (contractModulePromise ??= import('@storytree/verdict-contract'));
 }
 
 const DEFAULT_ACTOR = 'operator';
@@ -755,8 +782,8 @@ export class PgBackend implements LibraryBackend {
 
   async listAttestations(storyId: string): Promise<StoryAttestations> {
     const { attestations } = await this.#ready();
-    const core = await loadCoreModule();
-    const map = core.deriveAttestations(await attestations.readEvents());
+    const orchestrator = await loadOrchestratorModule();
+    const map = orchestrator.deriveAttestations(await attestations.readEvents());
     const out: StoryAttestations = {};
     for (const [testId, entry] of map) {
       if (testId.startsWith(`${storyId}#`)) out[testId] = entry;

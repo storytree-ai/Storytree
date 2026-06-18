@@ -272,7 +272,7 @@ test("node resolve on a spec-borne REAL node shows source=spec, REAL-buildable +
   assert.match(env.body, /buildable: +yes — source: spec/);
   assert.match(env.body, /REAL-buildable: yes/);
   // The real proof display is the orchestrator's one-true display, not hand-formatted.
-  assert.match(env.body, /real proof: +node --import tsx --test packages\/core\/src\/verdict-line\.test\.ts/);
+  assert.match(env.body, /real proof: +node --import tsx --test packages\/orchestrator\/src\/proof\/verdict-line\.test\.ts/);
   // Read-only: zero-cost next steps, no spend implied by the resolve itself.
   assert.ok(env.next?.some((n) => n.includes("--dry-run")));
   assert.ok(env.next?.some((n) => n.includes("--real")));

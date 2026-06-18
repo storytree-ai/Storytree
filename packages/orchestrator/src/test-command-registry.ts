@@ -52,17 +52,19 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   "seed-corpus-scripts": { command: pnpmTest("@storytree/store"), scope: pkgScope("store") },
   "library-health-gate": { command: pnpmTest("@storytree/cli"), scope: pkgScope("cli") },
   "library-cli": { command: pnpmTest("@storytree/cli"), scope: pkgScope("cli") },
-  // The first REAL-buildable node (Phase F): a NET-NEW, dependency-free core behaviour, so the
-  // red is genuine (the test imports an implementation that does not exist at HEAD).
+  // The first REAL-buildable node (Phase F): a NET-NEW, dependency-free behaviour, so the red is
+  // genuine (the test imports an implementation that does not exist at HEAD). MOVED from
+  // @storytree/core to @storytree/orchestrator's proof/ subdir (ADR-0068 step 1): verdictLine is the
+  // farmer's render COMPUTE, so it lives with the gate that signs the verdict it renders.
   "verdict-line": {
-    command: pnpmTest("@storytree/core"),
-    scope: pkgScope("core"),
+    command: pnpmTest("@storytree/orchestrator"),
+    scope: pkgScope("orchestrator"),
     real: {
-      testFile: "packages/core/src/verdict-line.test.ts",
-      sourceFile: "packages/core/src/verdict-line.ts",
+      testFile: "packages/orchestrator/src/proof/verdict-line.test.ts",
+      sourceFile: "packages/orchestrator/src/proof/verdict-line.ts",
       scope: {
-        testGlobs: ["packages/core/src/verdict-line.test.ts"],
-        sourceGlobs: ["packages/core/src/verdict-line.ts"],
+        testGlobs: ["packages/orchestrator/src/proof/verdict-line.test.ts"],
+        sourceGlobs: ["packages/orchestrator/src/proof/verdict-line.ts"],
       },
     },
   },

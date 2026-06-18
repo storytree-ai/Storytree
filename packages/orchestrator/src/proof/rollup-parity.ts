@@ -1,18 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Verdict } from "./proof.js";
-import type { Store } from "./store.js";
-import { rollupStatus, workEvent, SIGNING_EVENT_KIND } from "./rollup.js";
+import type { Verdict } from "@storytree/verdict-contract";
+import { SIGNING_EVENT_KIND } from "@storytree/verdict-contract";
+import type { Store } from "@storytree/core";
+import { rollupStatus, workEvent } from "./rollup.js";
 
 /**
- * The REUSABLE rollup-parity suite (node:test). Split out of `rollup.ts` (ADR-0068 step 0) so the
- * pure rollup projection carries NO `node:test` import; the suite is re-exported through the
- * `@storytree/core` barrel unchanged.
- *
- * Mirrors `storeParitySuite`'s discipline: the projection must read identically off ANY
- * {@link Store} implementation — events are appended through the seam and the rollup is computed
- * over `readEvents()`. Run against `InMemoryStore` here; packages/store can hold the pg impl to the
- * same bar once the work tables are wired.
+ * The REUSABLE rollup-parity suite (node:test). MOVED here from `@storytree/core` with the rollup
+ * compute (ADR-0068 step 1). Mirrors `storeParitySuite`'s discipline: the projection must read
+ * identically off ANY {@link Store} implementation — events are appended through the seam and the
+ * rollup is computed over `readEvents()`. Run against `InMemoryStore` in core's parity tests;
+ * packages/store holds the pg impl to the same bar.
  */
 export function rollupParitySuite(
   name: string,
@@ -25,6 +23,7 @@ export function rollupParitySuite(
     commitSha: "cafebabe",
     signer: "tester@example.com",
     runId: "run-1",
+    outputVersion: "v1",
     evidence: [],
     at: "2026-06-10T00:00:00.000Z",
   });

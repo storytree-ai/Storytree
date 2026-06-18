@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ChangeEvent } from "./anchor.js";
+import type { ChangeEvent } from "@storytree/verdict-contract";
 import type { Store, ChangeStore } from "./store.js";
 import type { LibraryAsset } from "./library-doc.js";
 

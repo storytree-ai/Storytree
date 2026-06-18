@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Attestation } from "@storytree/core";
+import type { Attestation } from "@storytree/verdict-contract";
 import { PgAttestationStore } from "./attestation-store.js";
 
 /**

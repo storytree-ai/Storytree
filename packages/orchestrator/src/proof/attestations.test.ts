@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Attestation, deriveAttestations, type TestAttestations } from "./attestations.js";
+import type { Attestation, TestAttestations } from "@storytree/verdict-contract";
+import { deriveAttestations } from "./attestations.js";
 
 /**
- * Offline unit tests for the `attestation-signals` capability (ADR-0044 d.2/d.3): the
- * signed signal doc + the conservative `deriveAttestations` projection. The
- * verdict-untouched half of `separate-from-verdicts` is proven store-side
- * (`attestation-store.test.ts`); here we cover the model and the no-roll-up rule.
+ * Offline unit tests for the `deriveAttestations` projection (ADR-0044 d.2/d.3): the conservative
+ * latest-per-(testId, witness) reducer. The `Attestation` DATA shape is validated in the verdict
+ * contract's `shapes.test.ts`; here we cover the derivation compute and the no-roll-up rule.
  */
 
 function att(over: Partial<Attestation> = {}): Attestation {
@@ -19,31 +19,6 @@ function att(over: Partial<Attestation> = {}): Attestation {
     ...over,
   };
 }
-
-// ── signed-with-provenance (the doc half) ────────────────────────────────────
-
-test("Attestation: a valid human relay carries signer + relayedBy", () => {
-  const parsed = Attestation.parse(att({ relayedBy: "nice-wright-3a8133" }));
-  assert.equal(parsed.signer, "owner@example.com");
-  assert.equal(parsed.relayedBy, "nice-wright-3a8133");
-  assert.equal(parsed.witness, "human");
-});
-
-test("Attestation: a machine attestation needs no relayedBy", () => {
-  const parsed = Attestation.parse(att({ witness: "machine", signer: "uat-runner", relayedBy: undefined }));
-  assert.equal(parsed.witness, "machine");
-  assert.equal(parsed.relayedBy, undefined);
-});
-
-test("Attestation: a blank signer is refused (fail-closed)", () => {
-  assert.throws(() => Attestation.parse(att({ signer: "   " })), "blank signer refused");
-});
-
-test("Attestation: unknown witness / outcome refused; strict rejects unknown fields", () => {
-  assert.throws(() => Attestation.parse(att({ witness: "either" as never })), "either is not a recorded witness");
-  assert.throws(() => Attestation.parse(att({ outcome: "maybe" as never })), "unknown outcome");
-  assert.throws(() => Attestation.parse({ ...att(), extra: 1 } as never), "unknown field");
-});
 
 // ── deriveAttestations: latest per (testId, witness) ─────────────────────────
 

@@ -1,4 +1,5 @@
-import type { ChangeEvent, ChangeStore } from "@storytree/core";
+import type { ChangeEvent } from "@storytree/verdict-contract";
+import type { ChangeStore } from "@storytree/core";
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
 export interface ChangeStoreClient {

@@ -13,3 +13,4 @@ export * from "./enums.js";
 export * from "./proof.js";
 export * from "./anchor.js";
 export * from "./attestations.js";
+export * from "./work-event.js";

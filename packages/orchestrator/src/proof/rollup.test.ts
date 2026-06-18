@@ -1,16 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { Verdict } from "./proof.js";
-import {
-  rollupStatus,
-  workEvent,
-  WORK_EVENT_KIND,
-  SIGNING_EVENT_KIND,
-} from "./rollup.js";
+import type { Verdict } from "@storytree/verdict-contract";
+import { WORK_EVENT_KIND, SIGNING_EVENT_KIND } from "@storytree/verdict-contract";
+import { InMemoryStore } from "@storytree/core";
+import type { StoreEvent } from "@storytree/core";
+
+import { rollupStatus, workEvent } from "./rollup.js";
 import { rollupParitySuite } from "./rollup-parity.js";
-import { InMemoryStore } from "./store.js";
-import type { StoreEvent } from "./store.js";
 
 /**
  * The rollup truth table (ADR-0006/0020): status is DERIVED off the event log, `healthy` only via
@@ -40,6 +37,7 @@ function verdict(unitId: string, outcome: "pass" | "fail"): Verdict {
     commitSha: "cafebabe",
     signer: "tester@example.com",
     runId: "run-1",
+    outputVersion: "v1",
     evidence: [],
     at: "2026-06-10T00:00:00.000Z",
   };

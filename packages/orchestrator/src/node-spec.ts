@@ -3,7 +3,8 @@ import path from "node:path";
 
 import { parse } from "yaml";
 import { z } from "zod";
-import { Status, Tier, ProofMode, UatWitness, parseUatTests, type UatTest } from "@storytree/core";
+import { Status, Tier, UatWitness, parseUatTests, type UatTest } from "@storytree/core";
+import { ProofMode } from "@storytree/verdict-contract";
 
 import { parseNodeBuildConfig } from "./proof-config.js";
 import type { NodeBuildConfig } from "./proof-config.js";

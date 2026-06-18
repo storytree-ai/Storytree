@@ -14,16 +14,16 @@ depends_on: []
 proof:
   command:
     file: pnpm
-    args: ["--filter", "@storytree/core", "test"]
+    args: ["--filter", "@storytree/orchestrator", "test"]
   scope:
-    testGlobs: ["packages/core/src/**/*.test.ts"]
-    sourceGlobs: ["packages/core/src/**/*.ts"]
+    testGlobs: ["packages/orchestrator/src/**/*.test.ts"]
+    sourceGlobs: ["packages/orchestrator/src/**/*.ts"]
   real:
-    testFile: "packages/core/src/verdict-line.test.ts"
-    sourceFile: "packages/core/src/verdict-line.ts"
+    testFile: "packages/orchestrator/src/proof/verdict-line.test.ts"
+    sourceFile: "packages/orchestrator/src/proof/verdict-line.ts"
     scope:
-      testGlobs: ["packages/core/src/verdict-line.test.ts"]
-      sourceGlobs: ["packages/core/src/verdict-line.ts"]
+      testGlobs: ["packages/orchestrator/src/proof/verdict-line.test.ts"]
+      sourceGlobs: ["packages/orchestrator/src/proof/verdict-line.ts"]
 ---
 
 # Render a signed verdict as one human-readable line
@@ -35,8 +35,10 @@ outcome, unit, proof mode, signer, short commit, and timestamp.
 > Chosen as a NET-NEW, dependency-free behaviour so the prove-it-gate's red was GENUINE at build
 > time. The live leaf authored both files in a fresh worktree, the spine observed the real
 > red→green, signed a PASS (run `real-mq7ky4ck`, persisted to `events.verdict`), and the exact
-> proven commit (`0e8f4ba`) was folded into the tree by promotion — the function now ships in
-> `@storytree/core` with the CLI node-build envelope as its live consumer. The authored status
+> proven commit (`0e8f4ba`) was folded into the tree by promotion. ADR-0068 step 1 then MOVED the
+> function from `@storytree/core` to `@storytree/orchestrator`'s `proof/` subdir (the farmer's render
+> COMPUTE lives with the gate that signs the verdict it renders) — the CLI node-build envelope stays
+> its live consumer. The authored status
 > stays `proposed` forever: `healthy` is only ever derived from signed verdicts (ADR-0020).
 >
 > *Placement (resolved, ADR-0031 §3):* it lives here, under the `drive-machinery` story
@@ -48,16 +50,17 @@ outcome, unit, proof mode, signer, short commit, and timestamp.
 
 ## Guidance
 
-ONE dependency-free pure function in `packages/core/src/verdict-line.ts`:
+ONE dependency-free pure function in `packages/orchestrator/src/proof/verdict-line.ts`:
 
 ```ts
 export function verdictLine(verdict: Verdict): string;
 ```
 
-The input is core's `Verdict` shape (see `packages/core/src/proof.ts`): `unitId`, `proofMode`,
-`outcome` (`"pass" | "fail"`), `commitSha`, `signer`, `runId`, `evidence[]`, `at`. Use
-`import type { Verdict } from "./proof.js"` — type-only, so the function stays dependency-free at
-runtime (no zod, no I/O).
+The input is the verdict contract's `Verdict` shape (see
+`packages/verdict-contract/src/proof.ts`): `unitId`, `proofMode`, `outcome` (`"pass" | "fail"`),
+`commitSha`, `signer`, `runId`, `evidence[]`, `at`. Use
+`import type { Verdict } from "@storytree/verdict-contract"` — type-only, so the function stays
+dependency-free at runtime (no zod, no I/O).
 
 Render EXACTLY one line (no trailing newline), in this format:
 
@@ -78,5 +81,5 @@ which today formats its verdict line inline.
    - **asserts —** a pass verdict renders the exact format above (upper-cased outcome, 7-char short
      sha); a fail verdict renders `FAIL …`; the result contains no newline; a short commitSha is
      used as-is.
-   - **proven by —** `packages/core/src/verdict-line.test.ts` (authored by the leaf inside the
-     gate's AUTHOR_TEST phase; red observed by the spine before any implementation exists).
+   - **proven by —** `packages/orchestrator/src/proof/verdict-line.test.ts` (authored by the leaf
+     inside the gate's AUTHOR_TEST phase; red observed by the spine before any implementation exists).

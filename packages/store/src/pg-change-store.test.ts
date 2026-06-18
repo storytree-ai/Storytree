@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import { changeStoreParitySuite } from "@storytree/core";
-import type { ChangeEvent } from "@storytree/core";
+import type { ChangeEvent } from "@storytree/verdict-contract";
 
 import { PgChangeStore } from "./pg-change-store.js";
 import type { ChangeStoreClient } from "./pg-change-store.js";

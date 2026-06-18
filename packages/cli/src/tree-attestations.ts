@@ -8,7 +8,8 @@
  * marks read differently and never claim a verdict.
  */
 
-import { deriveAttestations, type TestAttestations } from "@storytree/core";
+import { deriveAttestations } from "@storytree/orchestrator";
+import type { TestAttestations } from "@storytree/verdict-contract";
 
 /** Human attestation seal (filled) · machine mark (boxed) — distinct from the ✓/✗ verdict glyphs. */
 export const HUMAN_SEAL = "◉";

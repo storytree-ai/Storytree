@@ -22,6 +22,9 @@ importers:
       '@storytree/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../../packages/verdict-contract
       react:
         specifier: ^19.1.1
         version: 19.2.7
@@ -111,6 +114,9 @@ importers:
       '@storytree/store':
         specifier: workspace:*
         version: link:../store
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../verdict-contract
     devDependencies:
       '@types/node':
         specifier: ^22.10.7
@@ -124,6 +130,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../verdict-contract
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -149,6 +158,9 @@ importers:
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../verdict-contract
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -174,6 +186,9 @@ importers:
       '@storytree/core':
         specifier: workspace:*
         version: link:../core
+      '@storytree/verdict-contract':
+        specifier: workspace:*
+        version: link:../verdict-contract
       google-auth-library:
         specifier: ^10.7.0
         version: 10.7.0
@@ -184,6 +199,9 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      '@storytree/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19

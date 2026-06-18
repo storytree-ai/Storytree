@@ -47,19 +47,19 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
   // Proof command rendered off the spec (not spawned — just the file/args/display triple)
   assert.ok(report.command !== null);
   assert.equal(report.command.file, "pnpm");
-  assert.deepEqual(report.command.args, ["--filter", "@storytree/core", "test"]);
-  assert.equal(report.command.display, "pnpm --filter @storytree/core test");
+  assert.deepEqual(report.command.args, ["--filter", "@storytree/orchestrator", "test"]);
+  assert.equal(report.command.display, "pnpm --filter @storytree/orchestrator test");
 
   // Per-phase write scope (test-only vs source-only walls)
   assert.ok(report.scope !== null);
-  assert.deepEqual(report.scope.testGlobs, ["packages/core/src/**/*.test.ts"]);
-  assert.deepEqual(report.scope.sourceGlobs, ["packages/core/src/**/*.ts"]);
+  assert.deepEqual(report.scope.testGlobs, ["packages/orchestrator/src/**/*.test.ts"]);
+  assert.deepEqual(report.scope.sourceGlobs, ["packages/orchestrator/src/**/*.ts"]);
 
   // REAL arm present
   assert.equal(report.realBuildable, true);
   assert.ok(report.real !== null);
-  assert.equal(report.real.testFile, "packages/core/src/verdict-line.test.ts");
-  assert.equal(report.real.sourceFile, "packages/core/src/verdict-line.ts");
+  assert.equal(report.real.testFile, "packages/orchestrator/src/proof/verdict-line.test.ts");
+  assert.equal(report.real.sourceFile, "packages/orchestrator/src/proof/verdict-line.ts");
   assert.equal(report.real.install, false);      // absent in spec → normalised to false
   assert.equal(report.real.editsExisting, false); // absent in spec → normalised to false
   assert.equal(report.real.db, false);            // absent in spec → normalised to false (ADR-0064)
@@ -70,7 +70,7 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
   // proofDisplay delegates to realProofCommand — the one-true display, not hand-formatted
   assert.equal(
     report.real.proofDisplay,
-    "node --import tsx --test packages/core/src/verdict-line.test.ts",
+    "node --import tsx --test packages/orchestrator/src/proof/verdict-line.test.ts",
   );
 });
 

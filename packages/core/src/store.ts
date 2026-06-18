@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "./anchor.js";
+import type { ChangeEvent } from "@storytree/verdict-contract";
 
 /**
  * The narrow Store seam + an in-memory implementation

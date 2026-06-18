@@ -1,15 +1,13 @@
 import { readFileSync } from "node:fs";
 
+import { hashSpan, classifyDrift } from "@storytree/orchestrator";
 import {
-  hashSpan,
-  classifyDrift,
   Anchor,
   type ChangeEvent,
   type DriftFlag,
   type DriftState,
-  type Store,
-  type ChangeStore,
-} from "@storytree/core";
+} from "@storytree/verdict-contract";
+import type { Store, ChangeStore } from "@storytree/core";
 
 import type { Envelope } from "./envelope.js";
 

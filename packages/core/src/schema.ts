@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Anchor } from "./anchor.js";
+import { Anchor } from "@storytree/verdict-contract";
 
 /**
  * The work-hierarchy schema (ADR-0002 / ADR-0010), encoded as the corpus's

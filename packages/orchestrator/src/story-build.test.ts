@@ -41,6 +41,7 @@ function pass(unitId: string): ProveResult {
       commitSha: "cafebabe",
       signer: "tester@example.com",
       runId: "run-1",
+      outputVersion: "v1",
       evidence: [],
       at: "2026-06-10T00:00:00.000Z",
     },

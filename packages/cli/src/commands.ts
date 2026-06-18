@@ -10,8 +10,8 @@ import {
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
-  resolveSignerFromEnv,
 } from "@storytree/core";
+import { resolveSignerFromEnv } from "@storytree/orchestrator";
 import { renderStoredDoc, syncSeedAgents } from "@storytree/store";
 
 import { execFileSync } from "node:child_process";

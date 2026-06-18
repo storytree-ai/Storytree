@@ -1,4 +1,11 @@
-import type { ChangeEvent, DriftState } from "./anchor.js";
+import type { ChangeEvent, DriftState } from "@storytree/verdict-contract";
+
+/**
+ * The source-drift COMPUTE (ADR-0016 §4). MOVED here from `@storytree/core`'s `source-drift.ts`
+ * (ADR-0068 step 1): classifying whether an artifact's UPSTREAM sources drifted is the farmer
+ * organism's ruler. The DATA it reads ({@link ChangeEvent}, {@link DriftState}) is the verdict
+ * CONTRACT's; {@link SourceRef}/{@link SourceDriftFlag} are this compute's own result shapes.
+ */
 
 /** One `derives_from` upstream of an artifact: its id + the content-hash bound when the artifact derived from it. */
 export interface SourceRef {
@@ -43,7 +50,6 @@ export function classifySourceDrift(
   }
 
   // 4. Described-change gate: changes that explain a changed upstream.
-  //    (Inline — no value import of isDescribed to avoid pulling zod.)
   const described = changes.filter(
     (c) =>
       changedSources.includes(c.unitId) &&

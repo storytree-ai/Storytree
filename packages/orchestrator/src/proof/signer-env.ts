@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process";
 import { resolveSigner, type SignerInputs, type SignerResult } from "./signer.js";
 
 /**
- * The IMPURE tier of the fail-closed signer chain (ADR-0020 §4). Split out of `signer.ts`
- * (ADR-0068 step 0) so the pure {@link resolveSigner} carries NO `node:` import; this thin wrapper
- * reads `process.env` and shells out to git, then delegates to the pure resolver. Re-exported
- * through the `@storytree/core` barrel unchanged.
+ * The IMPURE tier of the fail-closed signer chain (ADR-0020 §4). MOVED here from `@storytree/core`
+ * with the pure resolver (ADR-0068 step 1). Split from `signer.ts` so the pure {@link resolveSigner}
+ * carries NO `node:` import; this thin wrapper reads `process.env` and shells out to git, then
+ * delegates to the pure resolver. Re-exported through the `@storytree/orchestrator` barrel.
  */
 
 /**

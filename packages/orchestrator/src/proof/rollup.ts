@@ -1,14 +1,22 @@
-import { z } from "zod";
-import { Status, Tier } from "./schema.js";
-import { Verdict } from "./proof.js";
-import type { StoreEvent } from "./store.js";
+import {
+  SIGNING_EVENT_KIND,
+  Verdict,
+  WORK_EVENT_KIND,
+  WorkEventDoc,
+} from "@storytree/verdict-contract";
+import type { Status } from "@storytree/verdict-contract";
+import type { StoreEvent } from "@storytree/core";
 
 /**
- * The node-rollup projection (ADR-0006 / ADR-0020, glossary "node rollup"): a unit's lifecycle
- * status DERIVED as a pure function over the event log, never hand-maintained. `healthy` is
- * reachable ONLY through a signed pass {@link Verdict} (the prove-it-gate's `kind:"signing"`
- * append); a lifecycle work event marks `building`; NO events means the projection abstains
- * (returns `null`) so the authored frontmatter status stands.
+ * The node-rollup COMPUTE (ADR-0006 / ADR-0020, glossary "node rollup"): a unit's lifecycle status
+ * DERIVED as a pure function over the event log, never hand-maintained. MOVED here from
+ * `@storytree/core`'s `rollup.ts` (ADR-0068 step 1): deriving status is the farmer organism's ruler.
+ * The DATA shapes it reads ({@link Verdict}, {@link WorkEventDoc}, the kind literals, {@link Status})
+ * are the verdict CONTRACT's; `StoreEvent` is the base store seam (still core, ADR-0068 step 8).
+ *
+ * `healthy` is reachable ONLY through a signed pass {@link Verdict} (the prove-it-gate's
+ * `kind:"signing"` append); a lifecycle work event marks `building`; NO events means the projection
+ * abstains (returns `null`) so the authored frontmatter status stands.
  *
  * CONSERVATIVE BY CONSTRUCTION — never over-claim `healthy`:
  *  - a signing event whose doc does not parse as a {@link Verdict} grants nothing;
@@ -16,28 +24,6 @@ import type { StoreEvent } from "./store.js";
  *  - a `fail` verdict never grants progress (it only demotes a prior `healthy` to `unhealthy`);
  *  - any work event AFTER a pass (a rebuild started) supersedes the pass — last event wins.
  */
-
-/** The store `kind` for lifecycle work events (the `events.work_event` stream, drive-machinery Phase A). */
-export const WORK_EVENT_KIND = "work";
-
-/** The store `kind` the prove-it-gate appends signed verdicts under (prove-it-gate.ts SIGNING_KIND). */
-export const SIGNING_EVENT_KIND = "signing";
-
-/**
- * The doc carried by a lifecycle work event. `event` is the lifecycle change (NOT the StoreEvent
- * `type`, which stays in the created/updated/deleted vocabulary); `runId` ties a `building` mark
- * to the owned-loop run that picked the unit up; `tier` feeds the `events.work_event.tier`
- * column when the event lands in the pg work store (optional — old events have none).
- */
-export const WorkEventDoc = z
-  .object({
-    unitId: z.string(),
-    event: z.enum(["proposed", "building", "retired"]),
-    runId: z.string().optional(),
-    tier: Tier.optional(),
-  })
-  .strict();
-export type WorkEventDoc = z.infer<typeof WorkEventDoc>;
 
 /** Build the appendEvent payload for one lifecycle work event (validated before it is shaped). */
 export function workEvent(
@@ -64,8 +50,8 @@ export function workEvent(
 export function rollupStatus(
   unitId: string,
   events: readonly StoreEvent[],
-): z.infer<typeof Status> | null {
-  let status: z.infer<typeof Status> | null = null;
+): Status | null {
+  let status: Status | null = null;
   const ordered = [...events].sort((a, b) => a.seq - b.seq);
   for (const e of ordered) {
     if (e.kind === WORK_EVENT_KIND) {

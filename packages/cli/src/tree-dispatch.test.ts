@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { InMemoryStore, SIGNING_EVENT_KIND } from "@storytree/core";
+import { InMemoryStore } from "@storytree/core";
+import { SIGNING_EVENT_KIND } from "@storytree/verdict-contract";
 
 import { run } from "./commands.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";

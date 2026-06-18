@@ -7,8 +7,9 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { InMemoryStore, rollupStatus, workEvent } from "@storytree/core";
+import { InMemoryStore } from "@storytree/core";
 import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import { rollupStatus, workEvent } from "./proof/rollup.js";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import type { PhaseAuthor, ToolExecutor } from "@storytree/agent";
 
@@ -168,8 +169,8 @@ test("the verdict-line entry carries a REAL proof config whose write walls reall
   const real = lookupNodeBuildConfig("verdict-line")?.real;
   assert.ok(real !== undefined);
   // Repo-relative REAL paths, not temp-workspace synthetics.
-  assert.equal(real.testFile, "packages/core/src/verdict-line.test.ts");
-  assert.equal(real.sourceFile, "packages/core/src/verdict-line.ts");
+  assert.equal(real.testFile, "packages/orchestrator/src/proof/verdict-line.test.ts");
+  assert.equal(real.sourceFile, "packages/orchestrator/src/proof/verdict-line.ts");
   // The per-phase walls: test writable ONLY in AUTHOR_TEST, source ONLY in IMPLEMENT.
   const scope = new PathWriteScope(real.scope);
   assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
@@ -429,12 +430,12 @@ test("realPrompts names the REAL files, the REAL proof command, and the no-node_
   const real = lookupNodeBuildConfig("verdict-line")?.real;
   assert.ok(real !== undefined);
   const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
-  assert.match(prompts.authorTest, /packages\/core\/src\/verdict-line\.test\.ts/);
+  assert.match(prompts.authorTest, /packages\/orchestrator\/src\/proof\/verdict-line\.test\.ts/);
   assert.match(prompts.authorTest, /node --import tsx --test/);
   assert.match(prompts.authorTest, /must NOT exist yet/);
   assert.match(prompts.authorTest, /NO node_modules/);
   assert.match(prompts.authorTest, /Guidance from the node spec/);
-  assert.match(prompts.implement, /packages\/core\/src\/verdict-line\.ts/);
+  assert.match(prompts.implement, /packages\/orchestrator\/src\/proof\/verdict-line\.ts/);
   assert.match(prompts.implement, /Writes to the test file are refused/);
 });
 
@@ -878,7 +879,7 @@ test("B — real-mode arms run_proof with the declared command (spec-borne, no r
       ...bc,
       real: {
         ...bc.real,
-        proofCommand: { file: "node", args: ["--test", "packages/core/src/verdict-line.test.ts"] },
+        proofCommand: { file: "node", args: ["--test", "packages/orchestrator/src/proof/verdict-line.test.ts"] },
       },
     },
   };

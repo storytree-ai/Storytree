@@ -2,17 +2,19 @@
  * The fail-closed signer-identity chain (ported from
  * legacy/Agentic/crates/agentic-signer/src/lib.rs — ADR-0020 §4).
  *
- * A verdict must be attributed to a resolved identity. The chain walks, in strict order,
- * flag -> env -> git email, returning the FIRST value that survives trimming. There is NO
- * default fallback (no "unknown", no unix user, no hostname): if every tier is empty the
+ * MOVED here from `@storytree/core` (ADR-0068 step 1): signing is the farmer organism's COMPUTE —
+ * it constructs the identity a verdict is attributed to — so it lives with the gate that signs, not
+ * in the schema package. A verdict must be attributed to a resolved identity. The chain walks, in
+ * strict order, flag -> env -> git email, returning the FIRST value that survives trimming. There is
+ * NO default fallback (no "unknown", no unix user, no hostname): if every tier is empty the
  * resolution FAILS CLOSED. The core resolver is pure so the whole chain is table-testable.
  *
  * Validation rule: trimmed length > 0. No email-shape regex, no length cap, no character
  * whitelist — the sandbox convention `sandbox:<model>@<run_id>` must pass.
  *
- * PURE by construction (ADR-0068 step 0): this file carries NO `node:` import. The impure
- * env/git tier (`resolveSignerFromEnv`) lives in `signer-env.ts`; both are re-exported through
- * the `@storytree/core` barrel unchanged.
+ * PURE by construction: this file carries NO `node:` import. The impure env/git tier
+ * (`resolveSignerFromEnv`) lives in `signer-env.ts`; both are re-exported through the
+ * `@storytree/orchestrator` barrel.
  */
 
 /** The resolver inputs, one per tier. A missing tier is `undefined`; an empty/blank value falls through. */

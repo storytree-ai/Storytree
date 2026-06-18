@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { verdictLine } from "./verdict-line.js";
-import type { Verdict } from "./proof.js";
+import type { Verdict } from "@storytree/verdict-contract";
 
 const base: Verdict = {
   unitId: "verdict-line",
@@ -10,6 +10,7 @@ const base: Verdict = {
   commitSha: "abc1234def",
   signer: "hua.mick@gmail.com",
   runId: "run-001",
+  outputVersion: "v1",
   evidence: [],
   at: "2026-06-10T00:00:00.000Z",
 };
