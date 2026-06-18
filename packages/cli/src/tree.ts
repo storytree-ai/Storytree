@@ -10,7 +10,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import { classifyPresence, type UatTest } from "@storytree/core";
+import { classifyPresence } from "@storytree/core";
+import type { UatTest } from "@storytree/library";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";

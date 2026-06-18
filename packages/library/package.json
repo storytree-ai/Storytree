@@ -1,9 +1,9 @@
 {
-  "name": "@storytree/verdict-contract",
+  "name": "@storytree/library",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The published verdict SHAPE (ADR-0068 §3): DATA shapes + zod validators only — the contract readers validate verdict-DATA against, across the built ADR-0010 §4 boundary. No proof machinery, no node: imports, browser-safe, zod-only runtime dep.",
+  "description": "The library organism (ADR-0068 step 3): the work-hierarchy schema (story / capability / contract) as schema-validated versioned documents. Pure zod, browser-safe, no node: imports in the main entry. ADR-0002 / 0010 / 0013.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -12,10 +12,10 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@storytree/verdict-contract": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@storytree/library": "workspace:*",
     "@types/node": "^22.10.7",
     "tsx": "^4.19.2",
     "typescript": "~5.7.3"

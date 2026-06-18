@@ -4,15 +4,16 @@ import { z } from "zod";
  * The published verdict-contract enum vocabulary (ADR-0068 §3): the small set of
  * fixed-option enums the verdict DATA shapes are built from.
  *
- * `Tier` and `Status` are DELIBERATELY DUPLICATED from `@storytree/core`'s `schema.ts`
- * (the locked owner decision, ADR-0068): the contract is the published SHAPE readers
- * validate verdict-DATA against, so it must not import the farmer organism's package to
- * read its own enums. A parity guard in the tests imports core's enums (TEST ONLY) and
- * asserts an IDENTICAL option set, so this duplicate can never silently drift from core.
+ * `Tier` and `Status` are DELIBERATELY DUPLICATED from `@storytree/library`'s `schema.ts`
+ * (the locked owner decision, ADR-0068; the canonical enums moved core→library in step 3): the
+ * contract is the published SHAPE readers validate verdict-DATA against, so it must not import the
+ * library organism's package to read its own enums. A parity guard in the tests imports the
+ * library's enums (TEST ONLY) and asserts an IDENTICAL option set, so this duplicate can never
+ * silently drift from the canonical definition.
  */
 
 // ---------------------------------------------------------------------------
-// Duplicated from @storytree/core/schema.ts (ADR-0068; parity-guarded in tests)
+// Duplicated from @storytree/library/schema.ts (ADR-0068; parity-guarded in tests)
 // ---------------------------------------------------------------------------
 
 /** The three work-hierarchy tiers (story / capability / contract). Duplicated from core. */

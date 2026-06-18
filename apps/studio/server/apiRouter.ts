@@ -24,7 +24,7 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { UatTest } from '@storytree/core';
+import type { UatTest } from '@storytree/library';
 import type { Attestation } from '@storytree/verdict-contract';
 import type {
   AssetCategory,

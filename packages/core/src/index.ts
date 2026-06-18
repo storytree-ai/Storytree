@@ -1,5 +1,3 @@
-export * from "./schema.js";
-export { parseUnit } from "./loader.js";
 export * from "./knowledge.js";
 export {
   CURRENT_SCHEMA_VERSION,
@@ -19,7 +17,6 @@ export {
 export * from "./adr.js";
 export * from "./presence.js";
 export * from "./users.js";
-export * from "./uat-tests.js";
 export * from "./model-events.js";
 export * from "./store.js";
 export {

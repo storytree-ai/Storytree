@@ -54,10 +54,10 @@ export { OwnedLoopAuthor } from "./owned-loop-author.js";
 
 export type { NodeSpec } from "./node-spec.js";
 export { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
-// Re-exported from core so the studio dev server — which lazy-imports ONLY the orchestrator
-// (devApi.ts's raw-TS trap) — resolves the uat_witness default through the same single helper
-// the story-build gate uses (ADR-0040).
-export { effectiveUatWitness, type UatWitness } from "@storytree/core";
+// Re-exported from the library organism (ADR-0068 step 3) so the studio dev server — which
+// lazy-imports ONLY the orchestrator (devApi.ts's raw-TS trap) — resolves the uat_witness default
+// through the same single helper the story-build gate uses (ADR-0040).
+export { effectiveUatWitness, type UatWitness } from "@storytree/library";
 
 export type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
 export {

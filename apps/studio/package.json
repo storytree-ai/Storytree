@@ -16,6 +16,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
     "@storytree/core": "workspace:*",
+    "@storytree/library": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
     "@storytree/store": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",

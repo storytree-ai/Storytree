@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Markdown } from "./schema.js";
+import { Markdown } from "@storytree/library";
 
 /**
  * The cross-cutting knowledge tier (ADR-0017), encoded as a schema.
