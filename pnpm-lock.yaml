@@ -86,9 +86,6 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
         version: 0.39.0
-      '@storytree/core':
-        specifier: workspace:*
-        version: link:../core
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -142,6 +139,12 @@ importers:
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.10.7
@@ -155,9 +158,6 @@ importers:
 
   packages/core:
     dependencies:
-      yaml:
-        specifier: ^2.6.1
-        version: 2.9.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -199,9 +199,6 @@ importers:
       '@storytree/base':
         specifier: workspace:*
         version: link:../base
-      '@storytree/core':
-        specifier: workspace:*
-        version: link:../core
       '@storytree/library':
         specifier: workspace:*
         version: link:../library

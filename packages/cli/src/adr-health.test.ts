@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { AdrMeta } from "@storytree/core";
+import type { AdrMeta } from "./adr-frontmatter.js";
 import { InMemoryStore } from "@storytree/base";
 import { loadCorpus } from "@storytree/store";
 

@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   ContentBlock,
   StopReason,
-} from "@storytree/core";
-import { parseContentBlock } from "@storytree/core";
+} from "./model-events.js";
+import { parseContentBlock } from "./model-events.js";
 
 /**
  * The thin Model seam (ADR-0011 §3). The owned loop calls the model through this one

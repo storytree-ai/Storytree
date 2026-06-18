@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryStore } from "@storytree/base";
-import type { ToolResultBlock, ToolUseBlock } from "@storytree/core";
+import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 import { rollupStatus, workEvent } from "./proof/rollup.js";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import type { PhaseAuthor, ToolExecutor } from "@storytree/agent";

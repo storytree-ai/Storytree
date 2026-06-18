@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseAdrFrontmatter } from "./adr.js";
+import { parseAdrFrontmatter } from "./adr-frontmatter.js";
 
 const FILE = "0042-example-decision.md";
 

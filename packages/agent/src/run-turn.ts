@@ -1,5 +1,5 @@
-import type { ContentBlock, ToolResultBlock, ToolUseBlock } from "@storytree/core";
-import { isTextBlock, isToolUseBlock } from "@storytree/core";
+import type { ContentBlock, ToolResultBlock, ToolUseBlock } from "./model-events.js";
+import { isTextBlock, isToolUseBlock } from "./model-events.js";
 import type { Model, ModelMessage, ModelRequest } from "./model.js";
 import type { ToolExecutor } from "./tool-executor.js";
 

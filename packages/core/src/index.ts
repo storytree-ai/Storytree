@@ -7,7 +7,11 @@
 // the universal, browser-safe base: the narrow Store/ChangeStore document-event contract, the
 // InMemoryStore reference impl, StoredDoc/StoreEvent/DeleteDocOpts/retiredEventDoc, and the reusable
 // node:test parity suites (storeParitySuite / changeStoreParitySuite, behind `@storytree/base/parity`).
-export * from "./adr.js";
+//
+// The ADR frontmatter parser (`adr.ts`) MOVED to `@storytree/cli` (ADR-0068 step 6) — its namesake
+// competence (the ADR tooling owns parseAdrFrontmatter / AdrMeta). The model-event vocabulary
+// (`model-events.ts`) MOVED to `@storytree/agent` (ADR-0068 step 6) — the agent leaf organism's
+// declared `port` (ContentBlock / ToolUseBlock / parseContentBlock …); orchestrator now imports it
+// from `@storytree/agent` across the seam.
 export * from "./presence.js";
 export * from "./users.js";
-export * from "./model-events.js";
