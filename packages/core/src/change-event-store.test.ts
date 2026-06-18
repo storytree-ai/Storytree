@@ -6,6 +6,7 @@
  * exported suite — rather than re-asserting the contracts inline — is what makes the suite the single
  * source of the ChangeStore contract both backends meet.
  */
-import { InMemoryStore, changeStoreParitySuite } from "./store.js";
+import { InMemoryStore } from "./store.js";
+import { changeStoreParitySuite } from "./store-parity.js";
 
 changeStoreParitySuite("InMemoryStore", () => new InMemoryStore());

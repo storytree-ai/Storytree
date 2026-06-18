@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryStore, storeParitySuite, validateLibraryDoc } from "./store.js";
+import { InMemoryStore } from "./store.js";
+import { storeParitySuite } from "./store-parity.js";
+import { validateLibraryDoc } from "./library-doc.js";
 
 // Run the reusable behavioural-parity suite against the in-memory implementation.
 storeParitySuite("InMemoryStore", () => new InMemoryStore());

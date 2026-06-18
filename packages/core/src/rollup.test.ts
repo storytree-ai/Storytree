@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import type { Verdict } from "./proof.js";
 import {
   rollupStatus,
-  rollupParitySuite,
   workEvent,
   WORK_EVENT_KIND,
   SIGNING_EVENT_KIND,
 } from "./rollup.js";
+import { rollupParitySuite } from "./rollup-parity.js";
 import { InMemoryStore } from "./store.js";
 import type { StoreEvent } from "./store.js";
 

@@ -25,13 +25,22 @@ export * from "./attestations.js";
 export * from "./proof.js";
 export { verdictLine } from "./verdict-line.js";
 export * from "./signer.js";
+export { resolveSignerFromEnv } from "./signer-env.js";
 export * from "./model-events.js";
 export * from "./store.js";
 export {
+  LibraryAsset,
+  LibraryTemplate,
+  LibraryDoc,
+  validateLibraryDoc,
+  upcastAndValidate,
+} from "./library-doc.js";
+export { storeParitySuite, changeStoreParitySuite } from "./store-parity.js";
+export {
   rollupStatus,
-  rollupParitySuite,
   workEvent,
   WorkEventDoc,
   WORK_EVENT_KIND,
   SIGNING_EVENT_KIND,
 } from "./rollup.js";
+export { rollupParitySuite } from "./rollup-parity.js";

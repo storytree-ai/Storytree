@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveSigner, resolveSignerFromEnv } from "./signer.js";
+import { resolveSigner } from "./signer.js";
 import type { SignerInputs } from "./signer.js";
+import { resolveSignerFromEnv } from "./signer-env.js";
 
 interface Case {
   name: string;

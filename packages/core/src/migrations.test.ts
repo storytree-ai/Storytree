@@ -5,7 +5,7 @@ import {
   MIGRATIONS,
   upcast,
 } from "./migrations.js";
-import { validateLibraryDoc, upcastAndValidate } from "./store.js";
+import { validateLibraryDoc, upcastAndValidate } from "./library-doc.js";
 
 /**
  * Migration-registry + write-boundary upcaster tests (design §5:

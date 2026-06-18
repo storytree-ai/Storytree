@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { KIND_SPECS, Knowledge, type KnowledgeKind } from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
-import { validateLibraryDoc } from "./store.js";
+import { validateLibraryDoc } from "./library-doc.js";
 
 /**
  * KIND_SPECS ↔ zod parity (ADR-0018 one-table-three-consumers; ADR-0029 Q4 drift guard).

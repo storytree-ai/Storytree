@@ -1,5 +1,3 @@
-import { execFileSync } from "node:child_process";
-
 /**
  * The fail-closed signer-identity chain (ported from
  * legacy/Agentic/crates/agentic-signer/src/lib.rs — ADR-0020 §4).
@@ -11,6 +9,10 @@ import { execFileSync } from "node:child_process";
  *
  * Validation rule: trimmed length > 0. No email-shape regex, no length cap, no character
  * whitelist — the sandbox convention `sandbox:<model>@<run_id>` must pass.
+ *
+ * PURE by construction (ADR-0068 step 0): this file carries NO `node:` import. The impure
+ * env/git tier (`resolveSignerFromEnv`) lives in `signer-env.ts`; both are re-exported through
+ * the `@storytree/core` barrel unchanged.
  */
 
 /** The resolver inputs, one per tier. A missing tier is `undefined`; an empty/blank value falls through. */
@@ -47,31 +49,4 @@ export function resolveSigner(inputs: SignerInputs): SignerResult {
     error:
       "signer could not be resolved; consulted sources: flag, env (STORYTREE_SIGNER), gitEmail (git config user.email). No default fallback (fail-closed).",
   };
-}
-
-/**
- * Thin IMPURE wrapper: reads `process.env.STORYTREE_SIGNER` and `git config user.email`
- * (tolerant of failure -> ''), then delegates to the pure {@link resolveSigner}.
- */
-export function resolveSignerFromEnv(opts?: { flag?: string }): SignerResult {
-  const inputs: SignerInputs = { gitEmail: readGitEmail() };
-  const env = process.env.STORYTREE_SIGNER;
-  if (env !== undefined) {
-    inputs.env = env;
-  }
-  if (opts?.flag !== undefined) {
-    inputs.flag = opts.flag;
-  }
-  return resolveSigner(inputs);
-}
-
-/** Read `git config user.email`, returning '' on any failure (no repo, unset, git missing). */
-function readGitEmail(): string {
-  try {
-    return execFileSync("git", ["config", "user.email"], {
-      encoding: "utf8",
-    }).trim();
-  } catch {
-    return "";
-  }
 }
