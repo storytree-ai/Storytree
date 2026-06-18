@@ -54,27 +54,16 @@
   --hex-wheat: #d6b271;
   --coast-sand: #ecdcb4; /* the organic beach rim filling each island out to its shore */
   --coast-sand-edge: #ddc79a;
-  /* rivers (dependency edges) + island moats — Dorfromantik cartoon water, drawn
-     as ONE land+water network via global stacked passes: every river AND every
-     island moat shares a sand LAND CASING (so a river reads as carved into terrain
-     with banks, and fuses seamlessly into the island beach), a pale shallows rim,
-     ONE water-body colour (river bodies and moats match, so a river mouth dissolves
-     into the moat with no seam), and a flowing glint. */
-  --river-land: #d8be8c; /* the sand banks casing both sides of every river/moat — a notch darker than --coast-sand so the channel reads as carved terrain */
-  --river: #5aa9d6; /* the one water colour: river bodies AND island moats */
-  --river-bank: #cfeaf6; /* pale shallows between the sand bank and the open water */
-  --river-glint: #ffffff;
-  /* ROADS world (?world=roads, ADR-0072) — the SAME stacked edge passes restyled
-     as soft worn DIRT FOOTPATHS instead of rivers. NEW vars only; the --river* defaults
-     above are untouched, so the off (water) world is byte-identical. NOT a paved road:
-     no grey asphalt, no painted centre-line, no dark dots. The whole stack is ONE warm
-     sandy-gold tonal family that FADES into the board (translucent, soft-edged): a wide
-     faint MARGIN halo, a soft sandy trail BODY, and a same-tone BEADED texture (short
-     soft segments, not dark pinpoint dots) running down it. Tuned to sit on the
-     sand/grass board and read as a faded trodden trail. */
-  --trail-margin: #dccaa3; /* soft sandy halo that fades the trail edge into the board */
-  --trail-bed: #c7b083; /* the worn sandy trail body — warm gold, translucent */
-  --trail-bead: #d8c293; /* the beaded texture down the trail — SAME warm tone, a touch lighter (never dark) */
+  /* ROADS world (ADR-0073: roads is the ONE world — rivers/ponds/moats retired).
+     Dependency edges are soft, cozy DIRT/COBBLE country LANES in the Dorfromantik
+     palette: NOT a paved road (no grey asphalt, no painted centre-line, no dark dots,
+     no animation). The whole lane is ONE warm earthy-tan tonal family that FADES into
+     the board (translucent, soft-edged): a wide faint sandy MARGIN halo, a warm dirt
+     ROADBED body, and a same-tone COBBLE texture (short soft beads, never dark) down it.
+     Tuned to sit cozily on the sand/grass board and read as a worn trodden lane. */
+  --trail-margin: #e2d2ab; /* soft sandy halo that fades the lane edge into the board */
+  --trail-bed: #c2a677; /* the warm dirt roadbed body — earthy tan, a notch darker than the beach so the lane reads as trodden ground */
+  --trail-bead: #d4bb87; /* the cobble texture down the lane — SAME warm tone, a touch lighter (never dark) */
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1618,10 +1607,8 @@ mark.st-hl.flash {
 .coast-fill-group.is-dim {
   opacity: 0.4;
 }
-/* When the moat ring is OFF (?moat=off) the island loses its water-ring focus
-   accent — relocate the selection/focus ring onto the island's own shore line so
-   a focused territory still reads. Harmless when the moat is on (mostly hidden
-   under the tiles). */
+/* The selection/focus accent rides the island's own shore line so a focused
+   territory reads at a glance (the roads world has no water ring; ADR-0073). */
 .coast-fill-group.is-focus .coast-fill,
 .coast-fill-group.is-selected .coast-fill {
   stroke: var(--accent);
@@ -1636,309 +1623,94 @@ mark.st-hl.flash {
   stroke-width: 2;
 }
 
-/* (Territory borders are now the smoothed water coastline — see .hex-water-border below.) */
+/* ======================================================================
+   ROADS world (ADR-0073: roads is the ONE world — rivers/ponds/moats retired).
+   Dependency edges are drawn as soft, cozy DIRT/COBBLE country LANES in the
+   Dorfromantik palette — warm, low-saturation, hand-drawn, NO hard dark
+   centre-line and NO animation. The same routed `world.edges` d-strings are
+   rendered in three stacked passes (markup in TreeView's road-net-* groups):
 
-/* rivers between dependent territories (dep → dependent), animated cartoon water.
-   Drawn as global stacked passes shared with the island moats (see the JSX
-   `water-net-*` layers): a sand LAND casing, a pale SHALLOWS rim, the WATER body,
-   and a dashed GLINT that flows in the dependency direction (the current). Because
-   every river's casing is painted before any water, the banks fuse into one sandy
-   coast and a river mouth dissolves into the moat — no per-river seam. */
+     world-trail-land  (pass 1, BENEATH the tiles) → a wide, faint sandy MARGIN
+                         halo that fades the lane edge into the board/beach so
+                         crossing lanes share one continuous soft shoulder.
+     world-trail-bank  (pass 2, above the tiles)   → the warm dirt ROADBED body
+                         (the lane itself), gently rounded with a soft shoulder.
+     world-trail-water (pass 3, above the bed)     → a faint same-tone COBBLE
+                         texture (short soft rounded beads down the lane).
+
+   Layer widths come INLINE from flowStyle (FLOW_W), so a busy trunk lane reads
+   wider/warmer than a minor lane; the CSS sets colour, dash, cap and the focus
+   tints. A gentle blur softens the whole lane so it melts into the terrain. */
 .world-trail {
   transition: opacity 0.18s ease;
 }
-/* the sand bank casing — the widest, bottom-most stroke; gives every river two
-   banks so it reads as a channel carved into terrain, fuses with the island beach
-   and with the other rivers into one continuous sandy coast, and ends any open
-   river in a rounded sand nub (never a floating blue tip). */
+/* the soft sandy MARGIN halo — the widest, faintest stroke, drawn beneath the
+   tiles so a lane's edge fuses into the island beach and the board with no seam. */
 .world-trail-land {
   fill: none;
-  stroke: var(--river-land);
+  stroke: var(--trail-margin);
   stroke-width: 12.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: 0.4;
 }
-/* pale shallows between the sand bank and the open-water body. */
+/* the warm dirt ROADBED — the lane body. A soft, slightly darker shoulder tone
+   reads as a gently sunken trodden path on the grass. */
 .world-trail-bank {
   fill: none;
-  stroke: var(--river-bank);
+  stroke: var(--trail-bed);
   stroke-width: 7.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.95;
+  opacity: 0.92;
 }
+/* the worn COBBLE texture: short same-tone rounded beads down the lane (a touch
+   lighter than the bed, translucent) — worn surface, NOT a dark centre-line. */
 .world-trail-water {
   fill: none;
-  stroke: var(--river);
+  stroke: var(--trail-bead);
   stroke-width: 4.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.world-trail-glint {
-  fill: none;
-  stroke: var(--river-glint);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-dasharray: 5 16;
+  stroke-dasharray: 2.5 5;
   opacity: 0.7;
-  animation: river-flow 2.6s linear infinite;
 }
-/* A merged TRUNK carries more flow — its current runs faster and its dashes sit
-   a touch longer, so at the fork you SEE a fast fat trunk feeding slower branches:
-   the animation, not spacing, conveys where the water goes (?rivers=merge). */
-.world-trail.is-trunk .world-trail-glint {
-  stroke-dasharray: 7 13;
-  opacity: 0.8;
-  animation-duration: 1.7s;
-}
-/* only the water body carries the hover tooltip; the casing/glint passes are
-   inert so the title resolves to one river, not whichever layer is on top. */
+/* the margin + texture passes are inert; the roadbed body carries the hover
+   tooltip, so the title resolves to one lane (not whichever layer is on top). */
 .world-trail-land,
-.world-trail-bank,
-.world-trail-glint {
+.world-trail-water {
   pointer-events: none;
 }
-.world-trail.is-ancestor .world-trail-water {
+/* A busier TRUNK lane (more dependencies flow along it) carries a slightly
+   bigger, longer cobble bead so a major road reads distinctly from the lanes it
+   gathers — the road hierarchy the flow-scaled widths (FLOW_W) also convey. */
+.world-trail.is-trunk .world-trail-water {
+  stroke-dasharray: 3.5 5;
+  opacity: 0.8;
+}
+/* focus dimming + the ancestor (gold) / descendant (red) highlight, carried from
+   the river world onto the lanes (the roadbed body takes the tint). */
+.world-trail.is-ancestor .world-trail-bank {
   stroke: var(--warn);
 }
-.world-trail.is-descendant .world-trail-water {
+.world-trail.is-descendant .world-trail-bank {
   stroke: var(--danger);
 }
 .world-trail.is-dim {
   opacity: 0.3;
 }
-
-/* island water-ring border — the moat that surrounds each island (ADR-0036
-   borders, reshaped to water). The group carries focus (mirrors .hex-border);
-   the children are the calm water ring + a slow glint. */
-.hex-water-border {
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-/* the island's own sand bank — the SAME casing the rivers wear, so the moat and
-   every river mouth read as one continuous sandy shore. */
-.hex-water-border .moat-land {
-  fill: none;
-  stroke: var(--river-land);
-  stroke-width: 14;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.hex-water-border .moat-bank {
-  fill: none;
-  stroke: var(--river-bank);
-  stroke-width: 9.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.9;
-}
-.hex-water-border .moat-water {
-  fill: none;
-  stroke: var(--river);
-  stroke-width: 6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.95;
-  transition: stroke 0.18s ease;
-}
-.hex-water-border .moat-glint {
-  fill: none;
-  stroke: var(--river-glint);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-dasharray: 4 22;
-  opacity: 0.5;
-  animation: river-flow 9s linear infinite;
-}
-.hex-water-border.is-focus .moat-water,
-.hex-water-border.is-selected .moat-water {
-  stroke: var(--accent);
-  opacity: 0.95;
-}
-.hex-water-border.is-ancestor .moat-water {
-  stroke: var(--warn);
-}
-.hex-water-border.is-descendant .moat-water {
-  stroke: var(--danger);
-}
-.hex-water-border.is-dim {
-  opacity: 0.2;
-}
-
-/* the flowing current — one dash period of travel, so the loop is seamless;
-   the path runs dependency→dependent, so the glint flows downstream. */
-@keyframes river-flow {
-  to {
-    stroke-dashoffset: -21;
-  }
+/* a soft blur melts the whole lane into the terrain (Dorfromantik painterly edge). */
+.road-net-margin,
+.road-net-bed,
+.road-net-texture {
+  filter: blur(0.6px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .world-trail-glint,
-  .hex-water-border .moat-glint,
-  .inland-pond-glint {
-    animation: none;
+  .road-net-margin,
+  .road-net-bed,
+  .road-net-texture {
+    filter: none;
   }
-}
-
-/* INLAND WATER (?water=pond|through) — drawn ABOVE the island tiles. The channels
-   reuse the .world-trail-* river stack; the ponds are a banked, filled pool: a
-   sand shore (wide stroke + sand fill), the water body (fill + a pale shallow rim),
-   and a slow rim glint. Stacked so a feeding channel fuses into the pond's shore. */
-.inland-water {
-  transition: opacity 0.18s ease;
-}
-.inland-pond-sand {
-  fill: var(--river-land);
-  stroke: var(--river-land);
-  stroke-width: 8;
-  stroke-linejoin: round;
-}
-.inland-pond-water {
-  fill: var(--river);
-  stroke: var(--river-bank);
-  stroke-width: 3;
-  stroke-linejoin: round;
-  opacity: 0.97;
-}
-.inland-pond-glint {
-  fill: none;
-  stroke: var(--river-glint);
-  stroke-width: 1.2;
-  stroke-linejoin: round;
-  stroke-dasharray: 4 20;
-  opacity: 0.5;
-  animation: river-flow 8s linear infinite;
-}
-/* FUSED pond mouth (`?pondMouth=fused`): the pond water as a FILL-only body (no
-   closed rim stroke) so the carved bay reads as one water body with the feeding
-   river; the pale border is drawn separately as `.inland-pond-rim` open arcs that
-   BREAK at each river mouth. Now the DEFAULT (owner flip 2026-06-18); `?pondMouth=off`
-   restores the old closed `.inland-pond-water` ring and never emits these. */
-.inland-pond-water-fill {
-  fill: var(--river);
-  stroke: none;
-  opacity: 0.97;
-}
-.inland-pond-rim {
-  fill: none;
-  stroke: var(--river-bank);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.97;
-}
-/* focus dimming, mirroring .world-trail.is-dim on the channels */
-.inland-pond-sand.is-dim,
-.inland-pond-water.is-dim,
-.inland-pond-water-fill.is-dim,
-.inland-pond-rim.is-dim,
-.inland-pond-glint.is-dim {
-  opacity: 0.25;
-}
-
-/* THINNER RIVERS (flag-gated; default world is untouched). The pond-junction
-   channels (`?water=pond`) read as delicate STREAMS linking the lakes, so the
-   through-node water is the slimmest of all. The whole channel is thinned — sand
-   casing included — since the wide sand bank, not the water, was what made the
-   network read as fat roads. */
-.inland-water .world-trail-land {
-  stroke-width: 4.6;
-}
-.inland-water .world-trail-bank {
-  stroke-width: 2.8;
-}
-.inland-water .world-trail-water {
-  stroke-width: 1.8;
-}
-.inland-water .world-trail-glint {
-  stroke-width: 0.9;
-}
-/* `?rivers=merge` over-sea rivers run much thinner too, so the braided network
-   reads as slim channels rather than wide sandy roads. Scoped to the over-sea
-   `water-net-*` passes so the pond streams above keep their own (thinner) widths;
-   merged TRUNKS keep their flow-scaled INLINE width (now also slim, see FLOW_W),
-   so a fork still shows a fatter stem feeding slim branches. */
-.world-scene.rivers-merge .water-net-land .world-trail-land {
-  stroke-width: 7;
-}
-.world-scene.rivers-merge .water-net-shallow .world-trail-bank {
-  stroke-width: 4.2;
-}
-.world-scene.rivers-merge .water-net-water .world-trail-water {
-  stroke-width: 2.6;
-}
-
-/* NO FLOW DASHES in the default merged/pond world (owner 2026-06-17: "remove the
-   white dash animations"). The moving white glint is hidden on every default-world
-   river, channel and pond; flow direction will be reintroduced via hover/animation
-   later. The `?rivers=strands` / `?moat=on` comparison world keeps its glint, so the
-   old look is still faithful. */
-.world-scene.rivers-merge .world-trail-glint {
-  display: none;
-}
-.world-scene.water-pond .inland-pond-glint {
-  display: none;
-}
-
-/* ======================================================================
-   ROADS world (?world=roads, ADR-0072) — a pure CSS RE-SKIN of the same
-   stacked edge passes as worn DIRT FOOTPATHS. The geometry (`world.edges`
-   d-strings) and the `world-trail-*` markup are IDENTICAL to the water
-   world; only the paint changes, scoped under `.world-scene.world-roads`,
-   so the off (water) world is byte-identical. The layers become a soft,
-   FADED, sandy dirt-trail stack — NOT a paved road, and NOT thin dark dots
-   (owner 2026-06-18: "faded pathways, same-tone beads, not dark dots"):
-
-     world-trail-land  → wide faint sandy MARGIN halo (fades the edge into the board)
-     world-trail-bank  → the soft sandy trail BODY (warm gold, translucent)
-     world-trail-water → a SAME-TONE BEADED texture (soft segments, never dark)
-     world-trail-glint → HIDDEN (no painted centre-line)
-
-   The layer widths are set INLINE via `flowStyle` (FLOW_W), so we re-size them
-   with `!important` — that override only applies in roads mode, so the water
-   world stays byte-identical. A gentle blur on the whole roads trail softens
-   the stroke edges so the path fades into the terrain. The inland pond network
-   is absent in roads
-   mode (the `inland` seam forces it empty), so no `.inland-pond-*` overrides
-   are needed. ====================================================== */
-/* faded soft edges — blur the whole roads trail a touch so it melts into the
-   board (scoped to roads, so the water world is untouched). */
-.world-scene.world-roads .world-trail {
-  filter: blur(0.7px);
-}
-.world-scene.world-roads .world-trail-land {
-  stroke: var(--trail-margin);
-  stroke-width: 9 !important;
-  opacity: 0.35;
-}
-.world-scene.world-roads .world-trail-bank {
-  stroke: var(--trail-bed);
-  stroke-width: 5.5 !important;
-  opacity: 0.55;
-}
-/* The worn beaded texture: short soft segments in the SAME warm sandy tone
-   (a touch lighter), NOT dark pinpoint dots. `stroke-linecap: round` rounds
-   each bead; the dash/gap pair sets bead length + spacing. Translucent so it
-   reads as worn texture on the trail body, not a contrasting marking. */
-.world-scene.world-roads .world-trail-water {
-  stroke: var(--trail-bead);
-  stroke-width: 4 !important;
-  stroke-linecap: round;
-  stroke-dasharray: 3 4;
-  opacity: 0.7;
-}
-/* No painted centre-line — the dotted surface IS the marking. The default
-   merged/bundle world already hides the glint; this rule (equal specificity,
-   later in source) keeps it hidden in roads mode too. */
-.world-scene.world-roads .world-trail-glint {
-  display: none;
-}
-/* A busier TRUNK trail carries more flow — give its body slightly bigger,
-   longer beads so a fat trunk still reads distinctly from the lanes it feeds,
-   mirroring the trunk emphasis the water world conveyed via flow. */
-.world-scene.world-roads .world-trail.is-trunk .world-trail-water {
-  stroke-width: 5 !important;
-  stroke-dasharray: 4 4;
 }
 
 /* flora: the per-territory layer of trees, plates and wisps */
@@ -2564,17 +2336,20 @@ button.legend-tile:hover {
   text-transform: uppercase;
   color: var(--muted);
 }
+/* Every control is a vertical stack: the control (label + slider/select/toggle)
+   then a visible plain-English HINT beneath it (owner ask 2026-06-18 / ADR-0073 —
+   the description is shown UNDER each control, not only as a hover tooltip). */
 .world-gear-row {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 5px 0;
+  padding: 6px 0;
   font-size: 12px;
   color: var(--text);
 }
-.world-gear-row.toggle,
-.world-gear-row.select {
-  flex-direction: row;
+/* toggle/select: the label and the control sit on one row, the hint below. */
+.world-gear-control {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -2590,6 +2365,12 @@ button.legend-tile:hover {
   font-size: 11.5px;
   color: var(--accent);
   font-weight: 600;
+}
+/* the visible description under each control */
+.world-gear-hint {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--muted);
 }
 .world-gear-row input[type='range'] {
   width: 100%;

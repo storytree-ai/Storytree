@@ -182,32 +182,38 @@ function ControlRow({
   if (control.kind === 'toggle') {
     const on = readControlValue(search, control) as boolean;
     return (
-      <label className="world-gear-row toggle" title={control.hint ?? ''}>
-        <span className="world-gear-label">{control.label}</span>
-        <input
-          type="checkbox"
-          checked={on}
-          onChange={(e) => onChange(setControlValue(search, control, e.target.checked))}
-        />
-      </label>
+      <div className="world-gear-row toggle">
+        <label className="world-gear-control">
+          <span className="world-gear-label">{control.label}</span>
+          <input
+            type="checkbox"
+            checked={on}
+            onChange={(e) => onChange(setControlValue(search, control, e.target.checked))}
+          />
+        </label>
+        {control.hint && <span className="world-gear-hint">{control.hint}</span>}
+      </div>
     );
   }
   // select
   const value = readControlValue(search, control) as string;
   return (
-    <label className="world-gear-row select" title={control.hint ?? ''}>
-      <span className="world-gear-label">{control.label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(setControlValue(search, control, e.target.value))}
-      >
-        {control.options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="world-gear-row select">
+      <label className="world-gear-control">
+        <span className="world-gear-label">{control.label}</span>
+        <select
+          value={value}
+          onChange={(e) => onChange(setControlValue(search, control, e.target.value))}
+        >
+          {control.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {control.hint && <span className="world-gear-hint">{control.hint}</span>}
+    </div>
   );
 }
 
@@ -250,7 +256,7 @@ function NumberRow({
   };
 
   return (
-    <label className="world-gear-row number" title={control.hint ?? ''}>
+    <div className="world-gear-row number">
       <span className="world-gear-label">
         {control.label}
         <span className="world-gear-value">{fmtNumber(control, local)}</span>
@@ -276,7 +282,8 @@ function NumberRow({
           commit(Number((e.target as HTMLInputElement).value));
         }}
       />
-    </label>
+      {control.hint && <span className="world-gear-hint">{control.hint}</span>}
+    </div>
   );
 }
 

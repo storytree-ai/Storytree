@@ -5,6 +5,9 @@
 // world's URL stays clean / the world stays byte-identical), unrelated params survive,
 // clamps mirror the TreeView parser exactly, and the shareable URL puts params BEFORE
 // the #hash. Pure string/URL math — no React, no DOM — so the suite runs in node env.
+//
+// ADR-0073 (roads is the one world): the river/pond dials were RETIRED. The schema is
+// now a small road-named set in two groups (Ground / Roads), each with a visible hint.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -24,20 +27,21 @@ function ctl(key: string): ControlSpec {
   return c;
 }
 
-describe('worldSettings — schema', () => {
-  it('exposes the owner-listed dials, each with a key/label/group/kind/default', () => {
+describe('worldSettings — schema (roads world, ADR-0073)', () => {
+  it('exposes exactly the road-world dials, each with a key/label/group/kind/default', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // The owner's listed set, grouped (World / Pathway routing / Spread / Coast & ponds).
-    for (const k of [
+    // The road-world set, grouped (Ground / Roads). A small, intuitive set.
+    const expected = ['substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
+    for (const k of expected) {
+      expect(keys, `missing control ${k}`).toContain(k);
+    }
+    // The retired river/pond dials must be GONE (genuinely stripped, not shelved).
+    for (const gone of [
       'world',
-      'substrate',
-      'bundleFar',
       'deltaCone',
       'deltaConePull',
-      'deltaPull',
       'meanderAmp',
       'meanderFreq',
-      'riverRepel',
       'riverRepelRadius',
       'riverOpenBias',
       'riverOpenCell',
@@ -46,14 +50,24 @@ describe('worldSettings — schema', () => {
       'pondMouth',
       'weld',
     ]) {
-      expect(keys, `missing control ${k}`).toContain(k);
+      expect(keys, `retired control still present: ${gone}`).not.toContain(gone);
     }
     for (const c of CONTROLS) {
       expect(c.key.length).toBeGreaterThan(0);
       expect(c.label.length).toBeGreaterThan(0);
       expect(c.group.length).toBeGreaterThan(0);
       expect(['number', 'toggle', 'select']).toContain(c.kind);
+      // Every control carries a visible plain-English description (rendered as a
+      // sub-label under the row, ADR-0073 / owner ask 2026-06-18).
+      expect((c.hint ?? '').length, `control ${c.key} needs a hint`).toBeGreaterThan(0);
     }
+  });
+
+  it('groups controls under Ground and Roads only', () => {
+    const groups = new Set(CONTROLS.map((c) => c.group));
+    expect(groups.has('Ground')).toBe(true);
+    expect(groups.has('Roads')).toBe(true);
+    expect(groups.size).toBe(2);
   });
 
   it('keys are unique', () => {
@@ -64,43 +78,35 @@ describe('worldSettings — schema', () => {
 
 describe('worldSettings — setControlValue (numeric)', () => {
   it('writes a non-default numeric param onto an empty search', () => {
-    expect(setControlValue('', ctl('deltaCone'), 7)).toBe('?deltaCone=7');
+    expect(setControlValue('', ctl('bundleFar'), 500)).toBe('?bundleFar=500');
   });
 
   it('removes a numeric param when set back to its DEFAULT', () => {
-    // deltaCone default is 0 → writing 0 must drop it (clean default URL).
-    expect(setControlValue('?deltaCone=7', ctl('deltaCone'), 0)).toBe('');
+    // bundleFar default is 300 → writing 300 must drop it (clean default URL).
+    expect(setControlValue('?bundleFar=500', ctl('bundleFar'), 300)).toBe('');
   });
 
   it('preserves UNRELATED params when setting a numeric', () => {
-    const out = setControlValue('?world=roads', ctl('deltaCone'), 7);
-    expect(out).toContain('world=roads');
-    expect(out).toContain('deltaCone=7');
+    const out = setControlValue('?debug=1', ctl('bundleFar'), 500);
+    expect(out).toContain('debug=1');
+    expect(out).toContain('bundleFar=500');
   });
 });
 
-describe('worldSettings — setControlValue (toggle)', () => {
-  it('weld defaults ON → turning OFF writes weld=off', () => {
-    // From a clean default URL, turning weld OFF means value=false.
-    expect(setControlValue('', ctl('weld'), false)).toBe('?weld=off');
+describe('worldSettings — roadStraighten control', () => {
+  it('defaults to DIRT_PATH_STRAIGHTEN (0.28) and removing on default', () => {
+    expect(readControlValue('', ctl('roadStraighten'))).toBe(0.28);
+    expect(setControlValue('?roadStraighten=0.6', ctl('roadStraighten'), 0.28)).toBe('');
   });
 
-  it('weld back ON removes the param (default is ON)', () => {
-    expect(setControlValue('?weld=off', ctl('weld'), true)).toBe('');
-  });
-
-  it('pondMouth defaults ON → OFF writes pondMouth=off, ON removes it', () => {
-    expect(setControlValue('', ctl('pondMouth'), false)).toBe('?pondMouth=off');
-    expect(setControlValue('?pondMouth=off', ctl('pondMouth'), true)).toBe('');
+  it('writes a non-default value and clamps to [0,1]', () => {
+    expect(setControlValue('', ctl('roadStraighten'), 0.6)).toBe('?roadStraighten=0.6');
+    expect(readControlValue('?roadStraighten=5', ctl('roadStraighten'))).toBe(1);
+    expect(readControlValue('?roadStraighten=-1', ctl('roadStraighten'))).toBe(0);
   });
 });
 
 describe('worldSettings — setControlValue (select)', () => {
-  it('world: roads writes world=roads, water (default) removes it', () => {
-    expect(setControlValue('', ctl('world'), 'roads')).toBe('?world=roads');
-    expect(setControlValue('?world=roads', ctl('world'), 'water')).toBe('');
-  });
-
   it('substrate: mesh (default) removes the param, others write substrate=<value>', () => {
     expect(setControlValue('?substrate=hex', ctl('substrate'), 'mesh')).toBe('');
     expect(setControlValue('', ctl('substrate'), 'hex')).toBe('?substrate=hex');
@@ -114,40 +120,28 @@ describe('worldSettings — readControlValue clamps mirror the parser', () => {
     expect(readControlValue('?deltaPull=5', ctl('deltaPull'))).toBe(1);
   });
 
-  it('riverRepelRadius clamps to its min (>= 1)', () => {
-    const v = readControlValue('?riverRepelRadius=0', ctl('riverRepelRadius'));
+  it('riverRepel clamps to its min (>= 0)', () => {
+    const v = readControlValue('?riverRepel=-2', ctl('riverRepel'));
     expect(typeof v).toBe('number');
-    expect(v as number).toBeGreaterThanOrEqual(1);
-  });
-
-  it('deltaCone clamps to [0,360] max', () => {
-    expect(readControlValue('?deltaCone=999', ctl('deltaCone'))).toBe(360);
+    expect(v as number).toBeGreaterThanOrEqual(0);
   });
 
   it('an absent param reads the default', () => {
-    expect(readControlValue('', ctl('deltaCone'))).toBe(0);
+    expect(readControlValue('', ctl('bundleFar'))).toBe(300);
     expect(readControlValue('', ctl('deltaPull'))).toBe(1);
-    expect(readControlValue('', ctl('weld'))).toBe(true);
-    expect(readControlValue('', ctl('pondMouth'))).toBe(true);
-    expect(readControlValue('', ctl('world'))).toBe('water');
+    expect(readControlValue('', ctl('riverRepel'))).toBe(0);
     expect(readControlValue('', ctl('substrate'))).toBe('mesh');
   });
 
-  it('reads a present toggle as OFF', () => {
-    expect(readControlValue('?weld=off', ctl('weld'))).toBe(false);
-    expect(readControlValue('?pondMouth=off', ctl('pondMouth'))).toBe(false);
-  });
-
   it('reads a present select', () => {
-    expect(readControlValue('?world=roads', ctl('world'))).toBe('roads');
     expect(readControlValue('?substrate=relaxed-quad', ctl('substrate'))).toBe('relaxed-quad');
   });
 });
 
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
-    const url = buildShareUrl('https://x.test/', '?deltaCone=7', '#/tree');
-    expect(url).toBe('https://x.test/?deltaCone=7#/tree');
+    const url = buildShareUrl('https://x.test/', '?bundleFar=500', '#/tree');
+    expect(url).toBe('https://x.test/?bundleFar=500#/tree');
   });
 
   it('omits the ? when there are no params', () => {
@@ -155,19 +149,19 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   });
 
   it('keeps a focused deep-link hash intact', () => {
-    const url = buildShareUrl('https://x.test/', '?world=roads', '#/tree/some-story');
-    expect(url).toBe('https://x.test/?world=roads#/tree/some-story');
+    const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree/some-story');
+    expect(url).toBe('https://x.test/?substrate=hex#/tree/some-story');
   });
 });
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?deltaCone=7&world=roads&weld=off')).toBe('');
+    expect(resetControls('?bundleFar=500&substrate=hex&deltaPull=0.5')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
-    const out = resetControls('?deltaCone=7&debug=1');
-    expect(out).not.toContain('deltaCone');
+    const out = resetControls('?bundleFar=500&debug=1');
+    expect(out).not.toContain('bundleFar');
     expect(out).toContain('debug=1');
   });
 });

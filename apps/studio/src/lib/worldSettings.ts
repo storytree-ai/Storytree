@@ -3,18 +3,18 @@
 // binding.
 //
 // Why a standalone, framework-free module:
-//   • One source of truth. The TreeView readers (readWorldMode / readSubstrateMode /
-//     readRiverTuning) and the gear panel BOTH consume the defaults + clamps declared
-//     here, so a default or a clamp can never drift between "what the world renders"
-//     and "what the panel shows / writes".
+//   • One source of truth. The TreeView readers (readSubstrateMode / readRiverTuning)
+//     and the gear panel BOTH consume the defaults + clamps declared here, so a default
+//     or a clamp can never drift between "what the world renders" and "what the panel
+//     shows / writes".
 //   • Byte-identical default world. Writing a control AT its default REMOVES the param
 //     (setControlValue), and resetControls drops every managed param — so an untouched
 //     world's URL stays clean and the geometry is unchanged by construction.
 //   • Pure string/URL math (no React, no DOM) so the contract is unit-testable in the
 //     node-env vitest suite (worldSettings.test.ts) — Stage-1 red-green of the gear.
 //
-// The clamps here MIRROR the TreeView parser (readRiverTuning ~3591, readWorldMode,
-// readSubstrateMode). When the panel writes a value it is already UI-bounded; on READ
+// The clamps here MIRROR the TreeView parser (readRiverTuning, readSubstrateMode).
+// When the panel writes a value it is already UI-bounded; on READ
 // the value is re-clamped to the parser's open-ended clamp, exactly as the URL path is.
 
 /** A select option: the stored URL token and its human label. */
@@ -63,7 +63,7 @@ export interface ToggleControl extends ControlBase {
   kind: 'toggle';
   default: boolean;
   /** The token written when the value is OFF and OFF is non-default (default-ON
-   *  toggles like weld/pondMouth). */
+   *  toggles). */
   offToken: string;
   /** The token written when the value is ON and ON is non-default (default-OFF
    *  toggles). */
@@ -92,10 +92,8 @@ export type ControlValue = number | boolean | string;
 // The schema. Defaults + clamps MIRROR TreeView's RIVER_TUNING / the readers.
 // ---------------------------------------------------------------------------
 
-const GROUP_WORLD = 'World';
-const GROUP_ROUTING = 'Pathway routing';
-const GROUP_SPREAD = 'Spread';
-const GROUP_COAST = 'Coast & ponds';
+const GROUP_GROUND = 'Ground';
+const GROUP_ROADS = 'Roads';
 
 /** substrate aliases, mirroring readSubstrateMode. */
 function normalizeSubstrate(raw: string | null): string {
@@ -106,33 +104,19 @@ function normalizeSubstrate(raw: string | null): string {
   return 'mesh';
 }
 
-/** world selector, mirroring readWorldMode (the primary `world=roads` token; the
- *  bare `?roads` alias is left to the URL path — the panel writes the canonical key). */
-function normalizeWorld(raw: string | null): string {
-  return raw === 'roads' ? 'roads' : 'water';
-}
-
+// ADR-0073: roads is the ONE world (rivers/ponds/moats retired). The dials are a
+// small, road-named set in two groups (Ground / Roads); the river-network routing
+// knobs that genuinely shape how roads run between islands are KEPT under new names,
+// and every river/pond-only dial is GONE. Each control's `hint` is the visible
+// plain-English description shown UNDER the control (owner ask 2026-06-18).
 export const CONTROLS: readonly ControlSpec[] = [
-  // ---- World ----
-  {
-    kind: 'select',
-    key: 'world',
-    label: 'World',
-    group: GROUP_WORLD,
-    hint: 'Dependency edges as rivers, or as roads (ponds off).',
-    default: 'water',
-    options: [
-      { value: 'water', label: 'Water' },
-      { value: 'roads', label: 'Roads' },
-    ],
-    normalize: normalizeWorld,
-  },
+  // ---- Ground ----
   {
     kind: 'select',
     key: 'substrate',
-    label: 'Substrate',
-    group: GROUP_WORLD,
-    hint: 'The island interior tiling.',
+    label: 'Ground tiling',
+    group: GROUP_GROUND,
+    hint: 'How the island ground is tiled.',
     default: 'mesh',
     options: [
       { value: 'mesh', label: 'Mesh' },
@@ -143,13 +127,27 @@ export const CONTROLS: readonly ControlSpec[] = [
     normalize: normalizeSubstrate,
   },
 
-  // ---- Pathway routing ----
+  // ---- Roads ----
+  {
+    kind: 'number',
+    key: 'roadStraighten',
+    label: 'Road straightness',
+    group: GROUP_ROADS,
+    hint: 'How straight roads run between islands (low = winding lanes, high = direct).',
+    // Mirrors DIRT_PATH_STRAIGHTEN (riverGeometry.ts) — the default trail straighten.
+    default: 0.28,
+    min: 0,
+    max: 1,
+    step: 0.02,
+    clampMin: 0,
+    clampMax: 1,
+  },
   {
     kind: 'number',
     key: 'bundleFar',
-    label: 'Bundle far split',
-    group: GROUP_ROUTING,
-    hint: 'Edges longer than this route as a source delta around islands.',
+    label: 'Long-route split',
+    group: GROUP_ROADS,
+    hint: 'Long roads split off and fan out around islands past this distance.',
     default: 300,
     min: 0,
     max: 1200,
@@ -159,36 +157,10 @@ export const CONTROLS: readonly ControlSpec[] = [
   },
   {
     kind: 'number',
-    key: 'deltaCone',
-    label: 'Delta cone width',
-    group: GROUP_ROUTING,
-    hint: 'Degrees: group a source’s far edges into directional trunks (0 = off).',
-    default: 0,
-    min: 0,
-    max: 360,
-    step: 5,
-    clampMin: 0,
-    clampMax: 360,
-  },
-  {
-    kind: 'number',
-    key: 'deltaConePull',
-    label: 'Delta cone fork',
-    group: GROUP_ROUTING,
-    hint: 'Per-sector fork point (low = fork late, near the dests).',
-    default: 0.1,
-    min: 0,
-    max: 1,
-    step: 0.05,
-    clampMin: 0,
-    clampMax: 1,
-  },
-  {
-    kind: 'number',
     key: 'deltaPull',
-    label: 'Delta fork',
-    group: GROUP_ROUTING,
-    hint: 'How far toward the source the delta forks (1 = radial fan).',
+    label: 'Junction spread',
+    group: GROUP_ROADS,
+    hint: 'How early roads fan out from a shared junction (high = fan at the source).',
     default: 1.0,
     min: 0,
     max: 1,
@@ -198,136 +170,16 @@ export const CONTROLS: readonly ControlSpec[] = [
   },
   {
     kind: 'number',
-    key: 'meanderAmp',
-    label: 'Meander amplitude',
-    group: GROUP_ROUTING,
-    hint: 'px a river centreline wanders sideways (0 = straight).',
-    default: 18,
-    min: 0,
-    max: 60,
-    step: 1,
-    clampMin: 0,
-    clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'meanderFreq',
-    label: 'Meander frequency',
-    group: GROUP_ROUTING,
-    hint: 'Roughly how many meander lobes run along one river.',
-    default: 3.5,
-    min: 0,
-    max: 10,
-    step: 0.1,
-    clampMin: 0,
-    clampMax: null,
-  },
-
-  // ---- Spread ----
-  {
-    kind: 'number',
     key: 'riverRepel',
-    label: 'River repulsion',
-    group: GROUP_SPREAD,
-    hint: 'Fans close parallel rivers apart (0 = off).',
+    label: 'Road spacing',
+    group: GROUP_ROADS,
+    hint: 'Pushes close parallel roads apart into separate lanes (0 = off).',
     default: 0,
     min: 0,
     max: 3,
     step: 0.1,
     clampMin: 0,
     clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'riverRepelRadius',
-    label: 'Repulsion radius',
-    group: GROUP_SPREAD,
-    hint: 'px zone of influence for river repulsion.',
-    default: 56,
-    min: 1,
-    max: 150,
-    step: 1,
-    clampMin: 1,
-    clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'riverOpenBias',
-    label: 'Open-space bias',
-    group: GROUP_SPREAD,
-    hint: 'Reroute crowded rivers toward open water (0 = off).',
-    default: 0,
-    min: 0,
-    max: 1200,
-    step: 50,
-    clampMin: 0,
-    clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'riverOpenCell',
-    label: 'Open-bias cell',
-    group: GROUP_SPREAD,
-    hint: 'px density-grid cell for the open-space bias.',
-    default: 50,
-    min: 1,
-    max: 150,
-    step: 1,
-    clampMin: 1,
-    clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'trunkFrac',
-    label: 'Trunk fraction',
-    group: GROUP_SPREAD,
-    hint: 'Trunk length as a fraction of mean source→mouth distance.',
-    default: 0.78,
-    min: 0,
-    max: 1.5,
-    step: 0.01,
-    clampMin: 0,
-    clampMax: null,
-  },
-
-  // ---- Coast & ponds ----
-  {
-    kind: 'number',
-    key: 'crescentMinDegree',
-    label: 'Crescent min degree',
-    group: GROUP_COAST,
-    hint: 'Min dependency degree for a crescent bay (with ?coast=crescent).',
-    default: 5,
-    min: 0,
-    max: 12,
-    step: 1,
-    clampMin: 0,
-    clampMax: null,
-  },
-  {
-    kind: 'toggle',
-    key: 'pondMouth',
-    label: 'Fused pond mouth',
-    group: GROUP_COAST,
-    hint: 'River flows into the pond on its arrival bearing.',
-    default: true,
-    offToken: 'off',
-    onToken: 'on',
-    offReads: ['off', 'legacy', 'closed', '0', 'false'],
-  },
-  {
-    kind: 'toggle',
-    key: 'weld',
-    label: 'Weld water network',
-    group: GROUP_COAST,
-    hint: 'Weld river→pond joins, ponds above the crown, de-spiked mouths.',
-    default: true,
-    offToken: 'off',
-    onToken: 'on',
-    // The parser reads weld as ON only for the truthy spellings; anything else is OFF.
-    // For READ purposes the OFF set is "not one of the truthy spellings", so we record
-    // the truthy set inverted at read time (see readControlValue).
-    offReads: ['off', '0', 'false'],
   },
 ] as const;
 
@@ -345,9 +197,6 @@ export const MANAGED_KEYS: readonly string[] = CONTROLS.map((c) => c.key);
 // Read / write
 // ---------------------------------------------------------------------------
 
-/** The truthy spellings the weld parser accepts as ON (mirrors readRiverTuning). */
-const WELD_ON_SPELLINGS = new Set(['', 'on', '1', 'true', 'fused', 'yes']);
-
 /** Parse + clamp a control's value out of a `?…` search string, falling back to
  *  the control's default when the param is absent or unparseable. Mirrors the
  *  TreeView parser exactly so panel and world never disagree. */
@@ -363,8 +212,6 @@ export function readControlValue(search: string, c: ControlSpec): ControlValue {
     }
     case 'toggle': {
       if (raw === null) return c.default;
-      // weld has bespoke ON spellings; everything else uses offReads.
-      if (c.key === 'weld') return WELD_ON_SPELLINGS.has(raw);
       return !c.offReads.includes(raw);
     }
     case 'select': {
