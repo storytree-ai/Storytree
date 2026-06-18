@@ -83,7 +83,47 @@ import {
   type RimGap,
 } from '../lib/riverGeometry.js';
 import { WorldLegend } from './WorldLegend.js';
+import {
+  controlByKey,
+  readControlValue,
+  type ControlSpec,
+} from '../lib/worldSettings.js';
+import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+
+// The current `?…` search string, SSR-guarded ('' when there is no window). The
+// panel-exposed readers default to this so non-panel call sites (and SSR) keep
+// working unchanged; the panel threads a state-held search string instead so the
+// world re-renders live without a reload.
+function defaultSearch(): string {
+  return typeof window === 'undefined' ? '' : window.location.search;
+}
+
+// Resolve the panel-exposed controls ONCE from the worldSettings schema (the single
+// source of truth for their defaults + clamps). The readers above consume these so
+// the literals live in exactly one place. `controlByKey` is total over these keys —
+// they are declared in CONTROLS — so a miss is a programmer error, surfaced loudly.
+function requireControl(key: string): ControlSpec {
+  const c = controlByKey(key);
+  if (!c) throw new Error(`worldSettings: missing control "${key}"`);
+  return c;
+}
+const WORLD_CTL = requireControl('world');
+const SUBSTRATE_CTL = requireControl('substrate');
+const TRUNK_FRAC_CTL = requireControl('trunkFrac');
+const MEANDER_AMP_CTL = requireControl('meanderAmp');
+const MEANDER_FREQ_CTL = requireControl('meanderFreq');
+const CRESCENT_MIN_DEGREE_CTL = requireControl('crescentMinDegree');
+const BUNDLE_FAR_CTL = requireControl('bundleFar');
+const DELTA_PULL_CTL = requireControl('deltaPull');
+const DELTA_CONE_CTL = requireControl('deltaCone');
+const DELTA_CONE_PULL_CTL = requireControl('deltaConePull');
+const RIVER_REPEL_CTL = requireControl('riverRepel');
+const RIVER_REPEL_RADIUS_CTL = requireControl('riverRepelRadius');
+const RIVER_OPEN_BIAS_CTL = requireControl('riverOpenBias');
+const RIVER_OPEN_CELL_CTL = requireControl('riverOpenCell');
+const POND_MOUTH_CTL = requireControl('pondMouth');
+const WELD_CTL = requireControl('weld');
 
 // ---------- deterministic pseudo-random ----------
 
@@ -3197,13 +3237,14 @@ function polyPath(pts: Pt[]): string {
  * hex world (null); `?substrate=relaxed-quad|relaxed|relaxed-hex` → the earlier
  * spike modes. Returns null only for the explicit classic-world escape.
  */
-function readSubstrateMode(): SubstrateMode | null {
-  if (typeof window === 'undefined') return 'mesh';
-  const raw = new URLSearchParams(window.location.search).get('substrate');
-  if (raw === 'hex' || raw === 'none' || raw === 'default' || raw === 'classic') return null;
-  if (raw === 'relaxed-hex') return 'relaxed-hex';
-  if (raw === 'relaxed-quad' || raw === 'relaxed') return 'relaxed-quad';
-  if (raw === 'mesh' || raw === 'path-b') return 'mesh';
+function readSubstrateMode(search: string = defaultSearch()): SubstrateMode | null {
+  // SINGLE SOURCE OF TRUTH: the panel + this reader both resolve `substrate` through
+  // worldSettings (its normalize mirrors the historical aliases). `hex` ⇒ null (the
+  // classic-world escape); every other canonical value maps straight through.
+  const v = readControlValue(search, SUBSTRATE_CTL) as string;
+  if (v === 'hex') return null;
+  if (v === 'relaxed-hex') return 'relaxed-hex';
+  if (v === 'relaxed-quad') return 'relaxed-quad';
   return 'mesh';
 }
 
@@ -3546,11 +3587,11 @@ function readCoastMode(): CoastMode {
  *  — swaps the river world for the ROADS world: dependency edges drawn as paved roads
  *  and the inland pond network omitted. Default `'water'` (byte-identical bare `#/tree`).
  *  SSR-guarded like the other readers. */
-function readWorldMode(): WorldMode {
-  if (typeof window === 'undefined') return 'water';
-  const q = new URLSearchParams(window.location.search);
-  if (q.get('world') === 'roads') return 'roads';
-  const r = q.get('roads');
+function readWorldMode(search: string = defaultSearch()): WorldMode {
+  // SINGLE SOURCE OF TRUTH for the canonical `world` key via worldSettings; the bare
+  // `?roads` alias (panel-unexposed, kept for back-compat) is resolved here.
+  if ((readControlValue(search, WORLD_CTL) as string) === 'roads') return 'roads';
+  const r = new URLSearchParams(search).get('roads');
   if (r !== null && ['', 'on', '1', 'true', 'yes'].includes(r)) return 'roads';
   return 'water';
 }
@@ -3561,9 +3602,8 @@ function readPlantsScatter(): boolean {
   return new URLSearchParams(window.location.search).get('plants') === 'scatter';
 }
 
-function readRiverTuning(): RiverTuning {
-  if (typeof window === 'undefined') return RIVER_TUNING;
-  const q = new URLSearchParams(window.location.search);
+function readRiverTuning(search: string = defaultSearch()): RiverTuning {
+  const q = new URLSearchParams(search);
   const out: RiverTuning = { ...RIVER_TUNING };
   const num = (key: string): number | null => {
     const raw = q.get(key);
@@ -3571,59 +3611,39 @@ function readRiverTuning(): RiverTuning {
     const v = Number(raw);
     return Number.isFinite(v) ? v : null;
   };
-  const tf = num('trunkFrac');
+  // ── PANEL-EXPOSED keys: consumed from worldSettings (SINGLE SOURCE OF TRUTH for
+  //    their defaults + clamps), so the gear panel and this reader can never drift.
+  //    readControlValue returns the default when the param is absent and re-clamps
+  //    exactly as the literals below used to. ──────────────────────────────────────
+  out.trunkFrac = readControlValue(search, TRUNK_FRAC_CTL) as number;
+  out.meanderAmp = readControlValue(search, MEANDER_AMP_CTL) as number;
+  out.meanderFreq = readControlValue(search, MEANDER_FREQ_CTL) as number;
+  out.crescentMinDegree = readControlValue(search, CRESCENT_MIN_DEGREE_CTL) as number;
+  out.bundleFar = readControlValue(search, BUNDLE_FAR_CTL) as number;
+  out.deltaPull = readControlValue(search, DELTA_PULL_CTL) as number;
+  out.deltaConeDeg = readControlValue(search, DELTA_CONE_CTL) as number;
+  out.deltaConePull = readControlValue(search, DELTA_CONE_PULL_CTL) as number;
+  out.riverRepel = readControlValue(search, RIVER_REPEL_CTL) as number;
+  out.riverRepelRadius = readControlValue(search, RIVER_REPEL_RADIUS_CTL) as number;
+  out.riverOpenBias = readControlValue(search, RIVER_OPEN_BIAS_CTL) as number;
+  out.riverOpenCell = readControlValue(search, RIVER_OPEN_CELL_CTL) as number;
+  out.fusedPondMouth = readControlValue(search, POND_MOUTH_CTL) as boolean;
+  out.weld = readControlValue(search, WELD_CTL) as boolean;
+  // ── NON-EXPOSED keys: parsed EXACTLY as before (not surfaced in the panel). ──────
   const tw = num('trunkW');
   const mi = num('mouthInset');
   const cp = num('confluencePull');
   const rm = num('routeMargin');
-  const ma = num('meanderAmp');
-  const mf = num('meanderFreq');
   const bd = num('bundleD');
   const bdm = num('bundleDMax');
-  const cmd = num('crescentMinDegree');
-  const bf = num('bundleFar');
-  const dp = num('deltaPull');
-  const dc = num('deltaCone');
-  const dcp = num('deltaConePull');
-  const rr = num('riverRepel');
-  const rrr = num('riverRepelRadius');
   const rri = num('riverRepelIters');
-  const rob = num('riverOpenBias');
-  const roc = num('riverOpenCell');
-  if (tf !== null) out.trunkFrac = Math.max(0, tf);
   if (tw !== null) out.trunkW = Math.max(0, tw);
   if (mi !== null) out.mouthInset = mi;
   if (cp !== null) out.confluencePull = Math.max(0, Math.min(1, cp));
   if (rm !== null) out.routeMargin = Math.max(0, rm);
-  if (ma !== null) out.meanderAmp = Math.max(0, ma);
-  if (mf !== null) out.meanderFreq = Math.max(0, mf);
   if (bd !== null) out.bundleD = Math.max(0, bd);
   if (bdm !== null) out.bundleDMax = Math.max(0, bdm);
-  if (cmd !== null) out.crescentMinDegree = Math.max(0, cmd);
-  if (bf !== null) out.bundleFar = Math.max(0, bf);
-  if (dp !== null) out.deltaPull = Math.max(0, Math.min(1, dp));
-  // Cone width in degrees; clamp to [0, 360]. 0 keeps clustering OFF (single delta).
-  if (dc !== null) out.deltaConeDeg = Math.max(0, Math.min(360, dc));
-  // Within-sector fork point; clamp to [0, 1]. Only used when clustering is on.
-  if (dcp !== null) out.deltaConePull = Math.max(0, Math.min(1, dcp));
-  // Inter-river repulsion: strength ≥ 0 (0 = OFF, byte-identical), radius > 0, iters ≥ 0.
-  if (rr !== null) out.riverRepel = Math.max(0, rr);
-  if (rrr !== null) out.riverRepelRadius = Math.max(1, rrr);
   if (rri !== null) out.riverRepelIters = Math.max(0, Math.round(rri));
-  // Open-space bias: strength ≥ 0 (0 = OFF, single-pass byte-identical), cell size > 0.
-  if (rob !== null) out.riverOpenBias = Math.max(0, rob);
-  if (roc !== null) out.riverOpenCell = Math.max(1, roc);
-  // `?pondMouth` — the fused river→pond mouth is the DEFAULT now (owner flip
-  // 2026-06-18); `?pondMouth=off` (or legacy/closed/0/false) restores the old
-  // closed-pond look. Any other value (incl. the historical `fused`) keeps it on.
-  const pm = q.get('pondMouth');
-  if (pm !== null) out.fusedPondMouth = !['off', 'legacy', 'closed', '0', 'false'].includes(pm);
-  // `?weld` (round-3): the weld/above-crown/de-spike layer is now DEFAULT ON (owner flip
-  // 2026-06-18). Any value toggles BOTH ways — truthy spellings (bare `?weld`,
-  // on/1/true/fused/yes) force it on; anything else (`?weld=off`/0/false/…) restores the
-  // prior fused-mouth-only world.
-  const wl = q.get('weld');
-  if (wl !== null) out.weld = ['', 'on', '1', 'true', 'fused', 'yes'].includes(wl);
   return out;
 }
 
@@ -3787,8 +3807,15 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const waterMode = useMemo(() => readWaterMode(), []);
   const plantsScatter = useMemo(() => readPlantsScatter(), []);
   const coastMode = useMemo(() => readCoastMode(), []);
-  const worldMode = useMemo(() => readWorldMode(), []);
-  const riverTuning = useMemo(() => readRiverTuning(), []);
+  // The REACTIVE seam: the gear panel (WorldSettingsPanel) writes the panel-exposed
+  // dials into the URL query string (params BEFORE the #hash) and updates this state,
+  // so the world re-renders LIVE without a full reload. Seeded from the URL at mount
+  // (SSR-guarded). Only the panel-exposed readers (world / substrate / riverTuning)
+  // are keyed on it — the others (riverMode/moat/water/coast/plants) the panel never
+  // touches, so they stay mount-once.
+  const [search, setSearch] = useState<string>(() => defaultSearch());
+  const worldMode = useMemo(() => readWorldMode(search), [search]);
+  const riverTuning = useMemo(() => readRiverTuning(search), [search]);
   const world = useMemo(
     () =>
       stories
@@ -3812,11 +3839,24 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return { strokeWidth: rampWidth(e.flow, c.base, c.step * riverTuning.trunkW, c.max) };
   };
 
+  // The gear panel commits a new search string here: write it into the URL with the
+  // params placed BEFORE the #hash (replaceState — never pushState, so dragging a
+  // slider doesn't spam history), then push it into state so the world re-renders
+  // live. SSR-guarded (no window ⇒ state-only). The panel itself debounces slider
+  // drags before calling this, so buildWorld doesn't rebuild on every pixel.
+  const commitSearch = useCallback((nextSearch: string): void => {
+    if (typeof window !== 'undefined') {
+      const url = `${window.location.pathname}${nextSearch}${window.location.hash}`;
+      window.history.replaceState(null, '', url);
+    }
+    setSearch(nextSearch);
+  }, []);
+
   // VISUAL SPIKE (do not land): swap the regular hex interiors for an irregular
   // relaxed grid when `?substrate=…` is set. Null = the default hex world.
   // Tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is read from the URL so the
   // owner can dial the look in live without a rebuild.
-  const substrateMode = useMemo(() => readSubstrateMode(), []);
+  const substrateMode = useMemo(() => readSubstrateMode(search), [search]);
   const substrateTuning = useMemo(() => readSubstrateTuning(), []);
   const relaxedCells = useMemo(
     () => (world && substrateMode ? buildRelaxedCells(world, substrateMode, substrateTuning) : null),
@@ -4387,6 +4427,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               onClose={() => setSessionDock(null)}
             />
           )}
+          {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
+              the URL dials. Closed by default ⇒ no params written ⇒ today's world is
+              byte-identical. */}
+          <WorldSettingsPanel search={search} onCommit={commitSearch} />
         </div>
 
         {selected && (
