@@ -1,7 +1,7 @@
 # Glossary
 
-Authoritative terminology for storytree. Every layer — `packages/core` types,
-the orchestrator, the studio UI, and the ADRs — uses these words as defined
+Authoritative terminology for storytree. Every layer — the library schema, the
+orchestrator, the studio UI, and the ADRs — uses these words as defined
 here. When a term's meaning is in question, **this file wins**. The reasoning
 and the tier-boundary rules live in
 [ADR-0002](decisions/0002-work-hierarchy-story-capability-contract.md).
