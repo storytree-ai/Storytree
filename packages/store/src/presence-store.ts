@@ -1,5 +1,5 @@
-import type { PresenceDeclarationDoc } from "@storytree/core";
-import { mergeDeclaration } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import { mergeDeclaration } from "@storytree/notice-board";
 
 /**
  * ADR-0033: the Postgres-backed presence store. History lives in

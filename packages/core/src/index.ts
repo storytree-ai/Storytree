@@ -13,5 +13,9 @@
 // (`model-events.ts`) MOVED to `@storytree/agent` (ADR-0068 step 6) — the agent leaf organism's
 // declared `port` (ContentBlock / ToolUseBlock / parseContentBlock …); orchestrator now imports it
 // from `@storytree/agent` across the seam.
-export * from "./presence.js";
+//
+// The session-presence schema (`presence.ts`) MOVED to `@storytree/notice-board` (ADR-0068 step 6) —
+// the notice-board organism's namesake competence (PresenceDeclarationDoc / classifyPresence /
+// mergeDeclaration / staleness thresholds); consumers now import those symbols from
+// `@storytree/notice-board` across the seam.
 export * from "./users.js";

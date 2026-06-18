@@ -16,6 +16,7 @@
     "@storytree/base": "workspace:*",
     "@storytree/core": "workspace:*",
     "@storytree/library": "workspace:*",
+    "@storytree/notice-board": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",
     "google-auth-library": "^10.7.0",
     "pg": "^8.13.1",

@@ -19,6 +19,9 @@ importers:
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library
+      '@storytree/notice-board':
+        specifier: workspace:*
+        version: link:../../packages/notice-board
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
@@ -124,12 +127,12 @@ importers:
       '@storytree/base':
         specifier: workspace:*
         version: link:../base
-      '@storytree/core':
-        specifier: workspace:*
-        version: link:../core
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
+      '@storytree/notice-board':
+        specifier: workspace:*
+        version: link:../notice-board
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
@@ -191,6 +194,22 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
+  packages/notice-board:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
   packages/orchestrator:
     dependencies:
       '@storytree/agent':
@@ -236,6 +255,9 @@ importers:
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
+      '@storytree/notice-board':
+        specifier: workspace:*
+        version: link:../notice-board
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract

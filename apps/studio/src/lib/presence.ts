@@ -15,7 +15,7 @@
 // problem, and the reband ticker honestly ages the stale wisps meanwhile.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { classifyPresence } from '@storytree/core/presence';
+import { classifyPresence } from '@storytree/notice-board';
 import { api } from '../api';
 import type { TreeSession } from '../types';
 

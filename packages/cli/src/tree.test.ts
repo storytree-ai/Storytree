@@ -19,7 +19,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import type { PresenceDeclarationDoc } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import { treeCommand, type TreeDeps } from "./tree.js";

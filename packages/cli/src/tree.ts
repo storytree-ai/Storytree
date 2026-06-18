@@ -10,7 +10,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import { classifyPresence } from "@storytree/core";
+import { classifyPresence } from "@storytree/notice-board";
 import type { UatTest } from "@storytree/library";
 import { loadNodeSpec } from "@storytree/orchestrator";
 

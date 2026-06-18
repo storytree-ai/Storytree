@@ -5,8 +5,7 @@
   "type": "module",
   "description": "storytree core: the work-hierarchy schema (story / capability / contract) and the corpus validator. ADR-0002 / 0010 / 0013 / 0039.",
   "exports": {
-    ".": "./src/index.ts",
-    "./presence": "./src/presence.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

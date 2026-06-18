@@ -7,7 +7,7 @@
  * This module is self-contained — no Envelope, no commands.ts wiring.
  * It imports only types from ./noticeboard.js (never the pg store).
  */
-import type { PresenceDeclarationDoc } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 

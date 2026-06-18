@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import path from "node:path";
 
-import type { PresenceDeclarationDoc } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
 import { auditHookConfig } from "./ambient-presence.js";
 import { nodeBuild, repoRoot } from "./node-build.js";

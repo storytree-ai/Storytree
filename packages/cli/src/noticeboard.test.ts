@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { PresenceDeclarationDoc } from "@storytree/core";
-import { STALE_THRESHOLD_MS, POSSIBLY_DEAD_THRESHOLD_MS } from "@storytree/core";
+import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import { STALE_THRESHOLD_MS, POSSIBLY_DEAD_THRESHOLD_MS } from "@storytree/notice-board";
 
 import {
   deriveIdentity,
