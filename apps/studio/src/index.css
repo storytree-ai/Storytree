@@ -65,15 +65,16 @@
   --river-bank: #cfeaf6; /* pale shallows between the sand bank and the open water */
   --river-glint: #ffffff;
   /* ROADS world (?world=roads, ADR-0072) — the SAME stacked edge passes restyled
-     as worn DIRT FOOTPATHS instead of rivers. NEW vars only; the --river* defaults
+     as soft worn DIRT FOOTPATHS instead of rivers. NEW vars only; the --river* defaults
      above are untouched, so the off (water) world is byte-identical. NOT a paved road:
-     no grey asphalt, no painted centre-line. The stack reads bottom-up as a trodden
-     trail: a soft worn-earth MARGIN (the trodden grass→dirt halo), a packed-earth trail
-     BODY in warm tan, and a darker-brown DOTTED texture running down the trail — like a
-     dotted brown footpath map symbol. Tuned to sit on the sand/grass board. */
-  --trail-margin: #c9b48f; /* soft worn-earth margin — the trodden grass→dirt halo at the trail's edge */
-  --trail-bed: #b89a6b; /* the packed-earth trail body — warm tan, NO grey */
-  --trail-dirt: #7a5d3c; /* darker dirt — the dotted worn texture running down the trail */
+     no grey asphalt, no painted centre-line, no dark dots. The whole stack is ONE warm
+     sandy-gold tonal family that FADES into the board (translucent, soft-edged): a wide
+     faint MARGIN halo, a soft sandy trail BODY, and a same-tone BEADED texture (short
+     soft segments, not dark pinpoint dots) running down it. Tuned to sit on the
+     sand/grass board and read as a faded trodden trail. */
+  --trail-margin: #dccaa3; /* soft sandy halo that fades the trail edge into the board */
+  --trail-bed: #c7b083; /* the worn sandy trail body — warm gold, translucent */
+  --trail-bead: #d8c293; /* the beaded texture down the trail — SAME warm tone, a touch lighter (never dark) */
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1884,39 +1885,47 @@ mark.st-hl.flash {
    stacked edge passes as worn DIRT FOOTPATHS. The geometry (`world.edges`
    d-strings) and the `world-trail-*` markup are IDENTICAL to the water
    world; only the paint changes, scoped under `.world-scene.world-roads`,
-   so the off (water) world is byte-identical. The layers become a thin,
-   soft, DOTTED dirt-trail stack — NOT a paved road (no grey, no painted
-   centre-line):
+   so the off (water) world is byte-identical. The layers become a soft,
+   FADED, sandy dirt-trail stack — NOT a paved road, and NOT thin dark dots
+   (owner 2026-06-18: "faded pathways, same-tone beads, not dark dots"):
 
-     world-trail-land  → faint wide worn-earth MARGIN (trodden grass→dirt halo)
-     world-trail-bank  → the packed-earth trail BODY (warm tan)
-     world-trail-water → the worn DOTTED texture (round darker-brown dirt dots)
-     world-trail-glint → HIDDEN (the dotted surface IS the marking)
+     world-trail-land  → wide faint sandy MARGIN halo (fades the edge into the board)
+     world-trail-bank  → the soft sandy trail BODY (warm gold, translucent)
+     world-trail-water → a SAME-TONE BEADED texture (soft segments, never dark)
+     world-trail-glint → HIDDEN (no painted centre-line)
 
-   The layer widths are set INLINE via `flowStyle` (FLOW_W), so we thin them
+   The layer widths are set INLINE via `flowStyle` (FLOW_W), so we re-size them
    with `!important` — that override only applies in roads mode, so the water
-   world stays byte-identical. The inland pond network is absent in roads
+   world stays byte-identical. A gentle blur on the whole roads trail softens
+   the stroke edges so the path fades into the terrain. The inland pond network
+   is absent in roads
    mode (the `inland` seam forces it empty), so no `.inland-pond-*` overrides
    are needed. ====================================================== */
+/* faded soft edges — blur the whole roads trail a touch so it melts into the
+   board (scoped to roads, so the water world is untouched). */
+.world-scene.world-roads .world-trail {
+  filter: blur(0.7px);
+}
 .world-scene.world-roads .world-trail-land {
   stroke: var(--trail-margin);
-  stroke-width: 6 !important;
-  opacity: 0.3;
+  stroke-width: 9 !important;
+  opacity: 0.35;
 }
 .world-scene.world-roads .world-trail-bank {
   stroke: var(--trail-bed);
-  stroke-width: 3.4 !important;
-  opacity: 0.85;
+  stroke-width: 5.5 !important;
+  opacity: 0.55;
 }
-/* The worn dotted texture: short round dirt dots running down the trail —
-   a dotted brown footpath, NOT a paved surface. `stroke-linecap: round`
-   turns each near-zero dash into a dot; the gap sets the dot spacing. */
+/* The worn beaded texture: short soft segments in the SAME warm sandy tone
+   (a touch lighter), NOT dark pinpoint dots. `stroke-linecap: round` rounds
+   each bead; the dash/gap pair sets bead length + spacing. Translucent so it
+   reads as worn texture on the trail body, not a contrasting marking. */
 .world-scene.world-roads .world-trail-water {
-  stroke: var(--trail-dirt);
-  stroke-width: 2.2 !important;
+  stroke: var(--trail-bead);
+  stroke-width: 4 !important;
   stroke-linecap: round;
-  stroke-dasharray: 0.1 5.5;
-  opacity: 0.9;
+  stroke-dasharray: 3 4;
+  opacity: 0.7;
 }
 /* No painted centre-line — the dotted surface IS the marking. The default
    merged/bundle world already hides the glint; this rule (equal specificity,
@@ -1924,12 +1933,12 @@ mark.st-hl.flash {
 .world-scene.world-roads .world-trail-glint {
   display: none;
 }
-/* A busier TRUNK trail carries more flow — give its dotted body slightly
-   bigger, denser dots so a fat trunk still reads distinctly from the lanes
-   it feeds, mirroring the trunk emphasis the water world conveyed via flow. */
+/* A busier TRUNK trail carries more flow — give its body slightly bigger,
+   longer beads so a fat trunk still reads distinctly from the lanes it feeds,
+   mirroring the trunk emphasis the water world conveyed via flow. */
 .world-scene.world-roads .world-trail.is-trunk .world-trail-water {
-  stroke-width: 2.8 !important;
-  stroke-dasharray: 0.1 4.5;
+  stroke-width: 5 !important;
+  stroke-dasharray: 4 4;
 }
 
 /* flora: the per-territory layer of trees, plates and wisps */
