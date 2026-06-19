@@ -149,11 +149,37 @@ function idOrder(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** One node's wiring declaration: its id + the ids that CONSUME it (ADR-0074 §4). */
+export interface SpokeNode {
+  id: string;
+  /** Provider-side inbound edges: the story ids that import/consume this organism. */
+  consumedBy: string[];
+}
+
 /**
- * A faint hub SPOKE path from an orbiting island centre to a central hub — a gentle
- * cubic bowed perpendicular to the chord so neighbouring spokes don't stack into one
- * hard line. Low-salience by CSS; NEVER dropped (ADR-0074 §1 — density is de-noised,
- * not hidden). Returns an SVG path `d`. Pure.
+ * The provider-side wiring edges (ADR-0074 §4) the radial world draws as faint hub
+ * SPOKES: for each node, one `consumer → node` edge per entry in its `consumedBy`. This
+ * is the REAL cross-package wiring the forest's `depends_on` roads omit (Gap B) — e.g.
+ * every organism that declares `consumed_by: [cli]` yields a `cli → organism` spoke, so
+ * the dense cli hub is rendered VISIBLE but low-salience, never dropped (§1). The
+ * complement of `depends_on`, so a spoke is never also a road. Deterministic, pure.
+ */
+export function spokeEdges(nodes: SpokeNode[]): { from: string; to: string }[] {
+  const ids = new Set(nodes.map((n) => n.id));
+  const out: { from: string; to: string }[] = [];
+  for (const n of nodes) {
+    for (const c of n.consumedBy) {
+      if (c !== n.id && ids.has(c)) out.push({ from: c, to: n.id });
+    }
+  }
+  return out;
+}
+
+/**
+ * A faint hub SPOKE path from a central hub to the organism it wires — a gentle cubic
+ * bowed perpendicular to the chord so neighbouring spokes don't stack into one hard
+ * line. Low-salience by CSS; NEVER dropped (ADR-0074 §1 — density is de-noised, not
+ * hidden). Returns an SVG path `d`. Pure.
  */
 export function spokePath(from: Pt, to: Pt): string {
   const dx = to.x - from.x;

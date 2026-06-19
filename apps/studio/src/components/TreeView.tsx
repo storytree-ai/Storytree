@@ -71,7 +71,7 @@ import {
   readControlValue,
   type ControlSpec,
 } from '../lib/worldSettings.js';
-import { solarSeeds, spokePath, type SolarNode } from '../lib/solarLayout.js';
+import { solarSeeds, spokePath, spokeEdges, type SolarNode } from '../lib/solarLayout.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
@@ -1250,11 +1250,10 @@ function buildWorld(
   const layoutMode = opts?.layoutMode ?? 'dag';
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
   const mouthInset = tuning.mouthInset;
-  // Hubs (solar mode) get a bigger tile quota so the cli/store islands read as the
-  // prominent centre everything orbits, rather than two small islands among many.
-  const quotas = stories.map((s) =>
-    hubIds.has(s.id) ? 8 : Math.max(3, s.capabilities.length + 2),
-  );
+  // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
+  // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
+  // (centred, everything orbits + spokes converge), not by a distinct size/skin.
+  const quotas = stories.map((s) => Math.max(3, s.capabilities.length + 2));
 
   // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
   const edgeList = storyEdges(stories);
@@ -1847,17 +1846,19 @@ function buildWorld(
   } // end comparison-mode (strands / confluence) river construction
 
 
-  // ADR-0074 §6: in solar mode, a faint hub SPOKE from each orbiting island to EVERY
-  // central hub — the dense wiring layer rendered VISIBLE but de-noised (low-salience
-  // CSS), never dropped (§1). cli/store sit together at the centre so the two spokes
-  // from an island nearly overlap; this is the placeholder for the real per-organism
-  // connection edges the sibling §4 declaration model will feed in. Empty in DAG mode.
+  // ADR-0074 §6: in solar mode, draw the REAL provider-side wiring (`consumed_by`, §4)
+  // as faint hub SPOKES — e.g. each organism declaring `consumed_by: [cli]` yields a
+  // `cli → organism` spoke, so the dense cli hub is VISIBLE but de-noised (low-salience
+  // CSS), never dropped (§1). The complement of `depends_on`, so a spoke is never also a
+  // road. This is the real cross-package graph the forest's roads omit (Gap B). Empty in
+  // DAG mode (the default world is byte-identical).
   const spokes: string[] = [];
   if (layoutMode === 'solar') {
-    const hubTerr = territories.filter((t) => hubIds.has(t.story.id));
-    for (const t of territories) {
-      if (hubIds.has(t.story.id)) continue;
-      for (const h of hubTerr) spokes.push(spokePath(t.centroid, h.centroid));
+    const centroidById = new Map(territories.map((t) => [t.story.id, t.centroid]));
+    for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
+      const from = centroidById.get(e.from);
+      const to = centroidById.get(e.to);
+      if (from && to) spokes.push(spokePath(from, to));
     }
   }
 
@@ -2645,10 +2646,13 @@ function readLayoutMode(search: string = defaultSearch()): LayoutMode {
 /**
  * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
  * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
- * architecturally important relationships). `cli` / `store` are organisms WITHOUT a
- * story yet (their lightweight hub UATs + the per-organism connection declaration are
- * the sibling ADR-0074 §3/§4 slices), so the world injects them as synthetic central
- * islands. They carry no verdict/flora and are not selectable.
+ * architecturally important relationships). `cli` / `store` are now FIRST-CLASS hub
+ * organisms with real stories + capabilities + lightweight UATs (ADR-0074 §3, landed
+ * PR #234), so `/api/tree` returns them like any island — they render with their real
+ * capability trees and are fully selectable. `HUB_IDS` is used only to LAY THEM OUT
+ * centrally; the synthetic `makeHubStory` below is a fallback for the edge case where
+ * a hub story is absent from the payload (offline / pre-#234), kept so the radial world
+ * still has a centre.
  */
 const HUB_DEFS: readonly { id: string; title: string }[] = [
   { id: 'store', title: 'store' },
@@ -2656,7 +2660,8 @@ const HUB_DEFS: readonly { id: string; title: string }[] = [
 ];
 const HUB_IDS: ReadonlySet<string> = new Set(HUB_DEFS.map((h) => h.id));
 
-/** A synthetic hub story — a bare central island (no caps, no verdict). */
+/** A synthetic FALLBACK hub story — a bare central island, used only when the real
+ *  cli/store story is missing from the payload (normally they come from /api/tree). */
 function makeHubStory(def: { id: string; title: string }): TreeStory {
   return {
     id: def.id,
@@ -2666,6 +2671,7 @@ function makeHubStory(def: { id: string; title: string }): TreeStory {
     proofMode: '',
     uatWitness: 'human',
     dependsOn: [],
+    consumedBy: [],
     capabilities: [],
   };
 }
@@ -3116,7 +3122,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     navigate(treeHref);
   };
   const selectStory = (storyId: string, capId: string | null): void => {
-    if (HUB_IDS.has(storyId)) return; // hubs are synthetic — no story panel
+    // Real cli/store stories (ADR-0074 §3) are selectable like any island and show their
+    // capability trees. Only a SYNTHETIC fallback hub (absent from the story payload) has
+    // no panel to open, so guard that case alone.
+    if (HUB_IDS.has(storyId) && !stories?.some((s) => s.id === storyId)) return;
     if (selectedStory === storyId && capId === null) {
       clearSelection(); // second click on the selected territory toggles it off
       return;

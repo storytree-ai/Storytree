@@ -1734,27 +1734,10 @@ mark.st-hl.flash {
   }
 }
 
-/* the central wiring HUBS (cli / store) in solar mode read as warm, glowing islands
-   so the eye lands on the centre everything orbits. A gentle gold halo + a warmer
-   beach; the look is owner-attested (ADR-0070), so this is the first pass to nod on. */
-.coast-fill-group.is-hub .coast-fill {
-  fill: var(--warn);
-  opacity: 0.5;
-}
-/* the hub land itself, warm gold — across BOTH substrates (mesh relaxed-cells is the
-   default world; hex tiles are the `?substrate=hex` escape). */
-.relaxed-tile.is-hub .relaxed-cell {
-  fill: var(--warn);
-  opacity: 0.5;
-}
-.hex-tile.is-hub .hex-top {
-  fill: var(--warn);
-  opacity: 0.62;
-}
-.hex-flora.is-hub {
-  filter: drop-shadow(0 0 11px var(--warn));
-  cursor: default;
-}
+/* The cli/store hubs render like any other island for now (owner call 2026-06-19 —
+   "make them like any other island; work out the look later"). Their hub-ness is the
+   LAYOUT (centred, spokes converging), not a skin. The `.is-hub` class is still set on
+   their territory, so a distinct hub look can be re-added here later without touching TS. */
 
 /* flora: the per-territory layer of trees, plates and wisps */
 .hex-flora {

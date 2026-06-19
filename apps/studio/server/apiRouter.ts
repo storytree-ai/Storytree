@@ -716,6 +716,7 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       // The fail-closed witness default (ADR-0040) — holds even when the spec fails to load.
       uatWitness: 'human',
       dependsOn: [],
+      consumedBy: [],
       capabilities: [],
     };
     try {
@@ -726,6 +727,7 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       story.proofMode = spec.proofMode;
       story.uatWitness = effectiveUatWitness(spec.uatWitness);
       story.dependsOn = spec.dependsOn;
+      story.consumedBy = spec.consumedBy;
       story.capabilities = spec.capabilities.map((capId) =>
         loadTreeCapability(loadNodeSpec, dir, capId),
       );

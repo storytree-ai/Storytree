@@ -5,7 +5,14 @@
 // APPEARANCE is owner-attested (ADR-0070), NOT asserted here.
 
 import { describe, it, expect } from 'vitest';
-import { solarSeeds, spokePath, SOLAR_OPTS, type SolarNode, type Pt } from './solarLayout';
+import {
+  solarSeeds,
+  spokePath,
+  spokeEdges,
+  SOLAR_OPTS,
+  type SolarNode,
+  type Pt,
+} from './solarLayout';
 
 const dist = (p: Pt): number => Math.hypot(p.x, p.y);
 
@@ -98,6 +105,40 @@ describe('solarSeeds — deterministic + order-independent', () => {
     for (const id of ['cli', 'x', 'y', 'z']) {
       expect(posB.get(id)).toEqual(posA.get(id));
     }
+  });
+});
+
+describe('spokeEdges — the real consumed_by wiring (ADR-0074 §4)', () => {
+  it('yields one consumer→node edge per consumedBy entry', () => {
+    // the real corpus shape: spokes declare consumed_by:[cli]; cli is the edgeless hub
+    const nodes = [
+      { id: 'cli', consumedBy: [] },
+      { id: 'store', consumedBy: ['cli'] },
+      { id: 'library', consumedBy: ['cli'] },
+      { id: 'notice-board', consumedBy: ['cli'] },
+      { id: 'drive-machinery', consumedBy: ['cli'] },
+      { id: 'studio', consumedBy: [] },
+    ];
+    const edges = spokeEdges(nodes);
+    expect(edges).toEqual([
+      { from: 'cli', to: 'store' },
+      { from: 'cli', to: 'library' },
+      { from: 'cli', to: 'notice-board' },
+      { from: 'cli', to: 'drive-machinery' },
+    ]);
+  });
+
+  it('drops edges to unknown consumers and self-edges', () => {
+    const edges = spokeEdges([
+      { id: 'a', consumedBy: ['ghost'] }, // unknown consumer → dropped
+      { id: 'b', consumedBy: ['b'] }, // self → dropped
+      { id: 'cli', consumedBy: [] },
+    ]);
+    expect(edges).toEqual([]);
+  });
+
+  it('is empty when nothing declares consumedBy (the common case)', () => {
+    expect(spokeEdges([{ id: 'x', consumedBy: [] }, { id: 'y', consumedBy: [] }])).toEqual([]);
   });
 });
 

@@ -41,6 +41,7 @@ const story = (
   proofMode: 'UAT',
   uatWitness: 'human',
   dependsOn: [],
+  consumedBy: [],
   capabilities,
   ...(verdict ? { verdict } : {}),
   ...(drift ? { drift } : {}),

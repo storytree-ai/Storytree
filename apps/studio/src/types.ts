@@ -357,6 +357,13 @@ export interface TreeStory {
   uatWitness: 'human' | 'machine';
   /** Story ids this story depends on (frontmatter `depends_on` — consumed cross-story seams). */
   dependsOn: string[];
+  /**
+   * Provider-side inbound edges (frontmatter `consumed_by`, ADR-0074 §4): the story ids that
+   * CONSUME this organism — the complement of `dependsOn`. The radial world (ADR-0074 §6) draws
+   * these as the faint hub SPOKES (e.g. a spoke per organism declaring `consumed_by: [cli]`); the
+   * forest's `depends_on` roads omit them. `[]` for the common case.
+   */
+  consumedBy: string[];
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
