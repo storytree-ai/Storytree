@@ -11,8 +11,8 @@ import type { ChangeEvent } from "@storytree/verdict-contract";
  *
  * PURE by construction (ADR-0068 step 0): this file carries NO `node:` import. The reusable
  * `node:test` parity suites live in `store-parity.ts`; the library write-boundary schema (which
- * pulls in `knowledge.ts` / `migrations.ts`) lives in `library-doc.ts`. Both are re-exported through
- * the `@storytree/core` barrel unchanged.
+ * pulls in `knowledge.ts` / `migrations.ts`) lives in `library-doc.ts`. The parity suites are exported
+ * from this package's `./parity` subpath; the write-boundary schema now lives in `@storytree/library`.
  */
 
 /** The current-state projection of a document. */

@@ -5,8 +5,8 @@ import { upcast } from "./migrations.js";
 /**
  * The library write-boundary schema (ADR-0017: JSONB docs, zod-validated at write). Split out of
  * `store.ts` (ADR-0068 step 0) so the narrow {@link import("./store.js").Store} seam carries no
- * dependency on the library schema (`knowledge.ts` / `migrations.ts`); these symbols are re-exported
- * through the `@storytree/core` barrel unchanged.
+ * dependency on the library schema (`knowledge.ts` / `migrations.ts`); these symbols are exported
+ * from `@storytree/library`'s entry (`index.ts`).
  */
 
 /**

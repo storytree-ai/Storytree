@@ -5,7 +5,7 @@
 // Reads apps/studio/data/knowledge.json (the structured source of truth) and
 // regenerates:
 //   (a) apps/studio/data/assets.json — each knowledge unit's `body` rendered via
-//       packages/core renderBody (category = kind, id/references/timestamps kept);
+//       @storytree/library renderBody (category = kind, id/references/timestamps kept);
 //       PLUS the generated template-<kind> units (definition / principle / pattern /
 //       guardrail / techstack / open-question) via generateTemplate, and template-adr
 //       kept verbatim (it scaffolds the ADR source layer, not a knowledge kind).
@@ -40,7 +40,7 @@ import {
   KIND_SPECS,
   renderBody,
   generateTemplate,
-} from '../../../packages/core/src/index.ts';
+} from '../../../packages/library/src/index.ts';
 
 const dataDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(dataDir, '..', '..', '..');
@@ -170,8 +170,8 @@ function buildAssets() {
 // first term section.
 const GLOSSARY_PREAMBLE = `# Glossary
 
-Authoritative terminology for storytree. Every layer — \`packages/core\` types,
-the orchestrator, the studio UI, and the ADRs — uses these words as defined
+Authoritative terminology for storytree. Every layer — the library schema, the
+orchestrator, the studio UI, and the ADRs — uses these words as defined
 here. When a term's meaning is in question, **this file wins**. The reasoning
 and the tier-boundary rules live in
 [ADR-0002](decisions/0002-work-hierarchy-story-capability-contract.md).`;

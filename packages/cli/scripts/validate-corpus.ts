@@ -2,8 +2,7 @@
  * Guard: no standalone YAML unit may exist under `stories/` (ADR-0039). The corpus's
  * structured source format is JSON; work-hierarchy units are frontmatter-markdown (loaded by
  * the orchestrator's node-spec loader). A `.yaml`/`.yml` file here is a relapse into the
- * retired ADR-0013 pure-YAML representation. Wired as `pnpm --filter @storytree/core
- * validate` / `test`; exits non-zero listing every offender.
+ * retired ADR-0013 pure-YAML representation. Wired into `pnpm --filter @storytree/cli test`; exits non-zero listing every offender.
  */
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";

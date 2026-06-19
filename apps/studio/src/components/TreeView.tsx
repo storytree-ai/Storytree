@@ -1080,6 +1080,13 @@ function buildBundle(
     // set when clustering is off, one directional sector when it's on). The body is
     // identical either way, so the OFF path (a single call over every dest) is
     // byte-for-byte the pre-clustering delta.
+    // Per-source running index so each emitted delta-trunk gets a UNIQUE synthetic
+    // `to` id: a source with several trunks — multiple directional sectors, or several
+    // shared stems in one delta — otherwise emits two edges with the SAME `to`
+    // (`${id}#delta`), colliding on the React render key `${from}->${to}`
+    // (`library->library#delta`). The prefix stays the REAL source id so roadClass's
+    // focus-dimming keys on it unchanged; only the suffix disambiguates.
+    let deltaTrunkSeq = 0;
     const emitDelta = (subset: DeltaDest[], pull: number): void => {
       if (subset.length === 0) return;
       // One source dock aimed at the barycentre of the far dependents (a single outflow
@@ -1130,7 +1137,7 @@ function buildBundle(
         if (trunk.flow < 2 || trunk.pts.length < 2) continue;
         channels.push({
           from: srcT.story.id,
-          to: `${srcT.story.id}#delta`,
+          to: `${srcT.story.id}#delta-${deltaTrunkSeq++}`,
           via: [],
           pts: trunk.pts,
           group: deltaGroup,

@@ -105,7 +105,7 @@ Derived sources lag and drift, and in v2 the staleness runs both ways: prose (CL
 
 ## How to apply
 
-The v2 precedence chain: the live `--pg` Library projection beats the offline seed / `knowledge.json`; the zod schema (`packages/core/knowledge.ts`) beats any prose about valid fields/kinds; an artifact's own row beats a doc that mentions it; the ADR text beats CLAUDE.md/README's reference to it; the event log / node rollup beats any hand-written status. When two sources disagree, NAME the disagreement and resolve to the enforced one.
+The v2 precedence chain: the live `--pg` Library projection beats the offline seed / `knowledge.json`; the zod schema (`packages/library/src/knowledge.ts`) beats any prose about valid fields/kinds; an artifact's own row beats a doc that mentions it; the ADR text beats CLAUDE.md/README's reference to it; the event log / node rollup beats any hand-written status. When two sources disagree, NAME the disagreement and resolve to the enforced one.
 
 ### No claim without evidence  [principle]
 **The principle.** A claim is admissible only with the evidence that proves it — a verbatim runner summary, a citable path and line, a named command and field, an event id — never a paraphrase, an impression, or a guess.

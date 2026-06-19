@@ -22,7 +22,7 @@ interface ParityFixtureDoc {
 /**
  * The REUSABLE behavioural-parity suites (node:test) for the {@link Store} and {@link ChangeStore}
  * seams. Split out of `store.ts` (ADR-0068 step 0) so the pure store seam carries NO `node:test`
- * import; the suites live here and are re-exported through the `@storytree/core` barrel unchanged.
+ * import; the suites live here and are exported from `@storytree/base` via the `./parity` subpath.
  *
  * EXPORTED on purpose: packages/store calls `storeParitySuite('PostgresStore', () => ...)` and
  * `changeStoreParitySuite('PgChangeStore', () => ...)` to prove behavioural equivalence.
