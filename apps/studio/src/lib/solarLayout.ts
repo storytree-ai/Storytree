@@ -192,3 +192,72 @@ export function spokePath(from: Pt, to: Pt): string {
   const cy = (from.y + to.y) / 2 + ny * bow;
   return `M ${r2(from.x)} ${r2(from.y)} Q ${r2(cx)} ${r2(cy)} ${r2(to.x)} ${r2(to.y)}`;
 }
+
+// ---------- the solar "circle-grid" refresh (perimeter docking + orbit rings) ----------
+//
+// The owner's steer (2026-06-20): the solar world's connections all converge on each
+// island's CENTRE ("forced to a single point"), and the pathways read messy. The
+// website (web/src/lib/world.ts) docks each road at a point on the island PERIMETER in
+// the DIRECTION of its neighbour and draws thin, bowed curves with no arrowheads — so a
+// hub's many edges fan around its rim instead of piling on one point. We adopt that
+// model here, plus a faint concentric ORBIT GRID the islands sit on.
+
+/** An island as an edge endpoint: its centre and the radius to dock an edge at. */
+export interface DockNode {
+  x: number;
+  y: number;
+  /** The dock radius — where an edge meets this island (its rim, usually inset a touch). */
+  r: number;
+}
+
+/**
+ * A thin, no-arrow connection between two islands, docked at each PERIMETER in the
+ * direction of the other (NOT centre-to-centre) — the website's road model. A hub's
+ * edges therefore leave/arrive at different rim points by bearing, so they fan out
+ * instead of converging on one point. `bowFrac` bows the midpoint perpendicular to the
+ * chord (0 ⇒ a straight rim-to-rim line, e.g. radial hub spokes); a small fraction
+ * gives organism↔organism roads a gentle curve so parallel edges separate. Returns an
+ * SVG path `d`. Pure + deterministic.
+ */
+export function dockedEdgePath(from: DockNode, to: DockNode, bowFrac = 0): string {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  // dock on each rim, in the bearing of the other island
+  const sx = from.x + ux * from.r;
+  const sy = from.y + uy * from.r;
+  const ex = to.x - ux * to.r;
+  const ey = to.y - uy * to.r;
+  // perpendicular bow at the midpoint (0 ⇒ the control point sits on the chord = straight)
+  const bow = bowFrac * len;
+  const mx = (sx + ex) / 2 - uy * bow;
+  const my = (sy + ey) / 2 + ux * bow;
+  return `M ${r2(sx)} ${r2(sy)} Q ${r2(mx)} ${r2(my)} ${r2(ex)} ${r2(ey)}`;
+}
+
+/** One orbit of the circle grid: a dependency rank and the radius the ring is drawn at. */
+export interface OrbitRing {
+  rank: number;
+  radius: number;
+}
+
+/**
+ * The concentric ORBIT GRID radii, derived from where the islands ACTUALLY landed
+ * (centroid distance from the hub centre) rather than the pre-snap seed radii — so each
+ * faint ring passes through its rank's islands after the hex snap/grow shifts them. One
+ * ring per distinct rank present, at that rank's MEAN island distance, sorted inner →
+ * outer. Pass only the orbiting (non-hub) islands; an empty input yields no rings. Pure.
+ */
+export function orbitRings(items: { rank: number; dist: number }[]): OrbitRing[] {
+  const byRank = new Map<number, number[]>();
+  for (const it of items) {
+    const list = byRank.get(it.rank);
+    if (list) list.push(it.dist);
+    else byRank.set(it.rank, [it.dist]);
+  }
+  return [...byRank.entries()]
+    .map(([rank, ds]) => ({ rank, radius: r2(ds.reduce((a, b) => a + b, 0) / ds.length) }))
+    .sort((a, b) => a.rank - b.rank);
+}

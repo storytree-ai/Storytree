@@ -9,6 +9,8 @@ import {
   solarSeeds,
   spokePath,
   spokeEdges,
+  dockedEdgePath,
+  orbitRings,
   SOLAR_OPTS,
   type SolarNode,
   type Pt,
@@ -139,6 +141,73 @@ describe('spokeEdges — the real consumed_by wiring (ADR-0074 §4)', () => {
 
   it('is empty when nothing declares consumedBy (the common case)', () => {
     expect(spokeEdges([{ id: 'x', consumedBy: [] }, { id: 'y', consumedBy: [] }])).toEqual([]);
+  });
+});
+
+describe('dockedEdgePath — perimeter docking (the website road model)', () => {
+  it('docks on each island`s RIM in the bearing of the other, not at the centre', () => {
+    // two islands on the x-axis, radius 10 each, 100 apart
+    const d = dockedEdgePath({ x: 0, y: 0, r: 10 }, { x: 100, y: 0, r: 10 });
+    // start at from-rim toward to (x=+10), end at to-rim toward from (x=90)
+    expect(d.startsWith('M 10 0')).toBe(true);
+    expect(d.trimEnd().endsWith('90 0')).toBe(true);
+  });
+
+  it('a hub`s edges leave at DIFFERENT rim points by bearing (no single-point convergence)', () => {
+    const hub = { x: 0, y: 0, r: 10 };
+    const east = dockedEdgePath(hub, { x: 100, y: 0, r: 8 });
+    const north = dockedEdgePath(hub, { x: 0, y: -100, r: 8 });
+    // east edge starts on the hub`s east rim, north edge on its north rim — distinct docks
+    expect(east.startsWith('M 10 0')).toBe(true);
+    expect(north.startsWith('M 0 -10')).toBe(true);
+  });
+
+  it('is a single quadratic segment, straight when bowFrac is 0', () => {
+    const d = dockedEdgePath({ x: 0, y: 0, r: 5 }, { x: 50, y: 0, r: 5 }, 0);
+    expect((d.match(/Q/g) ?? []).length).toBe(1);
+    // control point sits on the chord midpoint of the docked rims (5..45 → x 25, y 0)
+    expect(d).toBe('M 5 0 Q 25 0 45 0');
+  });
+
+  it('bows the midpoint perpendicular to the chord when asked', () => {
+    const straight = dockedEdgePath({ x: 0, y: 0, r: 5 }, { x: 100, y: 0, r: 5 });
+    const bowed = dockedEdgePath({ x: 0, y: 0, r: 5 }, { x: 100, y: 0, r: 5 }, 0.2);
+    expect(bowed).not.toBe(straight);
+    // a horizontal chord bowed → the control point gains a non-zero y
+    expect(/Q [\d.-]+ 0 /.test(bowed)).toBe(false);
+  });
+
+  it('is deterministic', () => {
+    const a = { x: 12.3, y: -4.5, r: 7 };
+    const b = { x: -8, y: 30, r: 9 };
+    expect(dockedEdgePath(a, b, 0.15)).toBe(dockedEdgePath(a, b, 0.15));
+  });
+});
+
+describe('orbitRings — the concentric circle grid', () => {
+  it('one ring per distinct rank, at that rank`s MEAN island distance, inner→outer', () => {
+    const rings = orbitRings([
+      { rank: 1, dist: 300 },
+      { rank: 1, dist: 320 }, // rank 1 mean = 310
+      { rank: 2, dist: 500 },
+    ]);
+    expect(rings).toEqual([
+      { rank: 1, radius: 310 },
+      { rank: 2, radius: 500 },
+    ]);
+  });
+
+  it('is empty when no islands orbit', () => {
+    expect(orbitRings([])).toEqual([]);
+  });
+
+  it('orders rings inner→outer by rank regardless of input order', () => {
+    const rings = orbitRings([
+      { rank: 3, dist: 700 },
+      { rank: 1, dist: 300 },
+      { rank: 2, dist: 500 },
+    ]);
+    expect(rings.map((r) => r.rank)).toEqual([1, 2, 3]);
   });
 });
 
