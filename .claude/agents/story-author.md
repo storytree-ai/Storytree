@@ -130,6 +130,17 @@ Before drafting the unit, write its proof at the tier's rung: for a STORY, the i
 
 You spend walkthrough effort on units that may not survive sizing, against discovering unprovability after the unit is authored and cited — when re-tiering means rework across every consumer.
 
+### UAT proves the goal, not the surface  [principle]
+**The principle.** A UAT proves the story's outcome — it does not cover the surface. Author the minimal walkthrough that proves the goal; never speculative breadth. The list grows error-driven: each real defect earns a permanent UAT/regression case so it cannot recur. A surface an agent cannot exercise (typically a UI) is not skipped but flagged a human-witness action, so the gap is recorded, not hidden.
+
+## Why
+
+Chasing surface coverage authors unproven breadth — UATs the red-green cycle never demanded — whereas a defect-driven list keeps every case earned by a real failure. And silently skipping an un-automatable surface would hide a real gap; flagging it a human-witness action records the gap honestly instead of pretending it is proven.
+
+## How to apply
+
+Ship one UAT that proves the story's goal end-to-end against real collaborators (for a CLI, an agent runs a few core commands; for a store, a successful data pull). Add a case only when a real defect surfaces, and make it permanent so it guards against regression. For a surface an agent cannot drive, mark it a human-witness UAT action rather than dropping it.
+
 ### Edit-first curation  [pattern]
 **The pattern.** Edit is the default; authoring a new artifact is the justified exception, taken only after searching for what already exists.
 

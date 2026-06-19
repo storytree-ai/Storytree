@@ -1996,6 +1996,25 @@
     "schemaVersion": 2
   },
   {
+    "id": "uat-proves-the-goal-not-the-surface",
+    "kind": "principle",
+    "title": "UAT proves the goal, not the surface",
+    "description": "A UAT proves the story's outcome, not surface coverage; author the minimal walkthrough and grow the list one case per real defect.",
+    "statement": "A UAT proves the story's outcome — it does not cover the surface. Author the minimal walkthrough that proves the goal; never speculative breadth. The list grows error-driven: each real defect earns a permanent UAT/regression case so it cannot recur. A surface an agent cannot exercise (typically a UI) is not skipped but flagged a human-witness action, so the gap is recorded, not hidden.",
+    "why": "Chasing surface coverage authors unproven breadth — UATs the red-green cycle never demanded — whereas a defect-driven list keeps every case earned by a real failure. And silently skipping an un-automatable surface would hide a real gap; flagging it a human-witness action records the gap honestly instead of pretending it is proven.",
+    "howToApply": "Ship one UAT that proves the story's goal end-to-end against real collaborators (for a CLI, an agent runs a few core commands; for a store, a successful data pull). Add a case only when a real defect surfaces, and make it permanent so it guards against regression. For a surface an agent cannot drive, mark it a human-witness UAT action rather than dropping it.",
+    "references": [
+      "doc:decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md",
+      "asset:uat",
+      "asset:slow-growth-minimum-to-green",
+      "asset:operator-attested",
+      "asset:defects-amend-the-owning-story"
+    ],
+    "createdAt": "2026-06-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "id": "baseline-preservation",
     "kind": "principle",
     "title": "Baseline preservation",
@@ -2380,6 +2399,7 @@
       "asset:splitting-rule",
       "asset:cross-story-dependency",
       "asset:proof-walkthrough-first",
+      "asset:uat-proves-the-goal-not-the-surface",
       "asset:edit-first-curation",
       "asset:defects-amend-the-owning-story",
       "asset:verify-edit-write-persisted-or-escalate",
