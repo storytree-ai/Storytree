@@ -2690,6 +2690,21 @@ button.legend-tile:hover {
 .tree-link:hover {
   border-color: var(--accent);
 }
+/* the panel's two-way wiring block (ADR-0074 §4): depends on / consumed by */
+.tree-connections {
+  margin: 2px 0 4px;
+}
+.tree-conn-row {
+  margin: 4px 0;
+  line-height: 1.9;
+}
+.tree-conn-row .muted {
+  margin-right: 2px;
+}
+/* a declared edge with no matching story — inert, reads as muted not navigable */
+.tree-conn-dangling {
+  color: var(--muted);
+}
 
 @media (max-width: 1080px) {
   /* small screens: the panel stacks below the world instead of overlaying it */

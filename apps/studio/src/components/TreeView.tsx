@@ -72,6 +72,8 @@ import {
   type ControlSpec,
 } from '../lib/worldSettings.js';
 import { solarSeeds, spokePath, spokeEdges, type SolarNode } from '../lib/solarLayout.js';
+import { fullConnectionSet } from '../lib/connectionSet.js';
+import { ConnectionsSection } from './ConnectionsSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
@@ -3374,6 +3376,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         {selected && (
           <StoryPanel
             story={selected}
+            stories={stories}
             storyIds={storyIds}
             sessions={sessionsByStory.get(selected.id) ?? []}
             now={now}
@@ -4203,6 +4206,7 @@ function UatTestsSection({ storyId }: { storyId: string }): React.JSX.Element | 
 
 function StoryPanel({
   story,
+  stories,
   storyIds,
   sessions,
   now,
@@ -4215,6 +4219,7 @@ function StoryPanel({
   onClose,
 }: {
   story: TreeStory;
+  stories: TreeStory[];
   storyIds: ReadonlySet<string>;
   sessions: TreeSession[];
   now: Date;
@@ -4227,6 +4232,11 @@ function StoryPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
+  // The node's FULL declared connection set (ADR-0074 §4): outbound depends_on AND
+  // the unioned/derived inbound — own consumed_by ∪ every story whose depends_on
+  // names it. Resolved from the whole story list so the inverse is recovered (the
+  // de-noised cli hub declares none of its own spokes). See lib/connectionSet.ts.
+  const connections = useMemo(() => fullConnectionSet(stories, story.id), [stories, story.id]);
   const panelSessions = splitSessions(sessions);
   const sessionLine = (s: TreeSession): React.JSX.Element => (
     <p
@@ -4339,27 +4349,14 @@ function StoryPanel({
         <VerdictLine verdict={story.verdict} />
         <span className="muted"> · witness: {story.uatWitness}</span>
       </p>
-      {story.dependsOn.length > 0 && (
-        <p className="small">
-          <span className="muted">depends on </span>
-          {story.dependsOn.map((d) =>
-            storyIds.has(d) ? (
-              <button
-                key={d}
-                type="button"
-                className="tree-link"
-                onClick={() => navigate(treeFocusHref(d))}
-              >
-                {d}
-              </button>
-            ) : (
-              <code key={d} title="declared, but no such story in the world">
-                {d}{' '}
-              </code>
-            ),
-          )}
-        </p>
-      )}
+      {/* The node's full two-way wiring (ADR-0074 §4): depends_on (outbound) AND
+          consumed_by ∪ derived-inverse (inbound) — so a reader sees how the organism
+          is wired without leaving the panel. */}
+      <ConnectionsSection
+        connections={connections}
+        storyIds={storyIds}
+        onNavigate={(d) => navigate(treeFocusHref(d))}
+      />
 
       {sessions.length > 0 && (
         <div className="tree-sessions">
