@@ -71,7 +71,16 @@ import {
   readControlValue,
   type ControlSpec,
 } from '../lib/worldSettings.js';
-import { solarSeeds, spokePath, spokeEdges, type SolarNode } from '../lib/solarLayout.js';
+import {
+  solarSeeds,
+  spokeEdges,
+  dockedEdgePath,
+  orbitRings,
+  type SolarNode,
+  type DockNode,
+} from '../lib/solarLayout.js';
+import { fullConnectionSet } from '../lib/connectionSet.js';
+import { ConnectionsSection } from './ConnectionsSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
@@ -267,10 +276,22 @@ interface HexWorld {
   /** Claimed tiles in global back-to-front draw order, with territory index. */
   drawTiles: { h: Axial; owner: number }[];
   edges: WorldEdge[];
-  /** Solar mode only (ADR-0074 §6): faint hub SPOKE paths (island → central hub),
-   *  rendered low-salience so the dense wiring layer stays VISIBLE, never dropped.
-   *  Empty in the DAG world. */
+  /** Legacy centre-to-centre hub SPOKE paths — superseded by `solar.spokes` (perimeter-
+   *  docked); always empty now. Kept for the DAG-world type shape. */
   spokes: string[];
+  /** Solar mode only (ADR-0074 §6 + the 2026-06-20 path refresh): the concentric orbit
+   *  GRID + perimeter-docked thin connections that REPLACE the river-trail roads and
+   *  centre-to-centre spokes in solar mode. Absent in the DAG world (byte-identical). */
+  solar?: {
+    /** The hub-cluster centre the orbit rings are concentric about. */
+    center: Pt;
+    /** Faint orbit-ring radii, inner → outer — the circle grid the islands sit on. */
+    rings: number[];
+    /** `depends_on` edges as perimeter-docked, gently-bowed thin curves. */
+    roads: WorldEdge[];
+    /** Provider-side `consumed_by` wiring (hub → organism), perimeter-docked + straight. */
+    spokes: { from: string; to: string; d: string }[];
+  };
   width: number;
   height: number;
   offset: Pt;
@@ -1846,20 +1867,54 @@ function buildWorld(
   } // end comparison-mode (strands / confluence) river construction
 
 
-  // ADR-0074 §6: in solar mode, draw the REAL provider-side wiring (`consumed_by`, §4)
-  // as faint hub SPOKES — e.g. each organism declaring `consumed_by: [cli]` yields a
-  // `cli → organism` spoke, so the dense cli hub is VISIBLE but de-noised (low-salience
-  // CSS), never dropped (§1). The complement of `depends_on`, so a spoke is never also a
-  // road. This is the real cross-package graph the forest's roads omit (Gap B). Empty in
-  // DAG mode (the default world is byte-identical).
+  // ADR-0074 §6 + the 2026-06-20 path refresh: in solar mode the connections are drawn
+  // as the website does (web/src/lib/world.ts) — thin, no-arrow curves docked on each
+  // island's PERIMETER in the bearing of its neighbour, NOT centre-to-centre, so a hub's
+  // many edges fan around its rim instead of converging on one point. Two layers, both
+  // PERIMETER-DOCKED and disjoint (a spoke is never also a road, §4):
+  //   • roads  — the `depends_on` edges (organism ↔ organism), gently bowed.
+  //   • spokes — the provider-side `consumed_by` wiring (hub → organism), radial/straight,
+  //     low-salience so the dense cli hub stays VISIBLE but de-noised (§1).
+  // Plus a faint concentric ORBIT GRID the islands sit on. All EMPTY/absent in DAG mode,
+  // so the default forest world stays byte-identical.
   const spokes: string[] = [];
+  let solar: HexWorld['solar'];
   if (layoutMode === 'solar') {
-    const centroidById = new Map(territories.map((t) => [t.story.id, t.centroid]));
-    for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
-      const from = centroidById.get(e.from);
-      const to = centroidById.get(e.to);
-      if (from && to) spokes.push(spokePath(from, to));
+    const terrById = new Map(territories.map((t) => [t.story.id, t]));
+    // hub centre = mean of the central hub islands' centroids (fallback: all islands)
+    const orbiting = territories.filter((t) => !hubIds.has(t.story.id));
+    const ref = territories.filter((t) => hubIds.has(t.story.id));
+    const refSet = ref.length ? ref : territories;
+    const center: Pt = {
+      x: refSet.reduce((s, t) => s + t.centroid.x, 0) / refSet.length,
+      y: refSet.reduce((s, t) => s + t.centroid.y, 0) / refSet.length,
+    };
+    // the orbit grid: one faint ring per rank, at that rank's mean island distance
+    const rings = orbitRings(
+      orbiting.map((t) => ({
+        rank: ranks.get(t.story.id) ?? 0,
+        dist: Math.hypot(t.centroid.x - center.x, t.centroid.y - center.y),
+      })),
+    ).map((r) => r.radius);
+    // dock a touch inside each island's bounding radius so the line meets the coast
+    const dockOf = (t: Territory): DockNode => ({
+      x: t.centroid.x,
+      y: t.centroid.y,
+      r: t.radius * 0.82,
+    });
+    const roads: WorldEdge[] = [];
+    for (const e of edgeList) {
+      const a = terrById.get(e.from);
+      const b = terrById.get(e.to);
+      if (a && b) roads.push({ from: e.from, to: e.to, via: e.via, d: dockedEdgePath(dockOf(a), dockOf(b), 0.08) });
     }
+    const spokeLines: { from: string; to: string; d: string }[] = [];
+    for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
+      const a = terrById.get(e.from);
+      const b = terrById.get(e.to);
+      if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(dockOf(a), dockOf(b), 0) });
+    }
+    solar = { center, rings, roads, spokes: spokeLines };
   }
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
@@ -1883,6 +1938,7 @@ function buildWorld(
     drawTiles,
     edges,
     spokes,
+    ...(solar ? { solar } : {}),
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
     offset: { x: -minX, y: -minY },
@@ -3195,6 +3251,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             </defs>
 
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
+              {/* SOLAR ORBIT GRID — the rings are still COMPUTED (`world.solar.rings` /
+                  `.center`, machinery kept) but NOT DRAWN: the owner's steer (2026-06-20)
+                  is to keep the orbit structure invisible and the islands loosely placed.
+                  Re-enable by mapping `world.solar.rings` to faint `.solar-orbit-ring`
+                  circles centred on `world.solar.center`. */}
+
               {/* the pale coast */}
               <g className="hex-coast">
                 {world.empties.map((h) => {
@@ -3207,14 +3269,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   stroke), drawn here BENEATH the island land + tiles so a road's edge
                   fades into the island beach with no seam and crossing roads share one
                   continuous soft margin. The remaining passes (the trail bed + the worn
-                  texture) are drawn ABOVE the land, after the tiles. */}
-              <g className="road-net-margin">
-                {world.edges.map((e) => (
-                  <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                    <path className="world-trail-land" d={e.d} style={flowStyle(e, 'land')} />
-                  </g>
-                ))}
-              </g>
+                  texture) are drawn ABOVE the land, after the tiles. SOLAR mode swaps the
+                  whole river-trail road system for the thin perimeter-docked layer below. */}
+              {!world.solar && (
+                <g className="road-net-margin">
+                  {world.edges.map((e) => (
+                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-land" d={e.d} style={flowStyle(e, 'land')} />
+                    </g>
+                  ))}
+                </g>
+              )}
 
               {/* organic island land: the smoothed coast filled as sand, UNDER the
                   hex tiles, so each island reads as one solid blob with a beach
@@ -3284,47 +3349,69 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 </g>
               )}
 
-              {/* HUB SPOKES (solar mode, ADR-0074 §6) — the dense wiring layer to the
-                  central cli/store hubs, drawn ABOVE the land but BENEATH the real
-                  dependency roads + flora, at low salience. VISIBLE, never dropped (§1);
-                  empty in the DAG world. */}
-              {world.spokes.length > 0 && (
-                <g className="spoke-net">
-                  {world.spokes.map((d, i) => (
-                    <path key={i} className="world-spoke" d={d} />
-                  ))}
-                </g>
+              {/* SOLAR connections (solar mode) — thin, no-arrow, PERIMETER-DOCKED curves
+                  the website-way (web/src/lib/world.ts): spokes first (the de-noised
+                  hub→organism `consumed_by` wiring, low salience), then the `depends_on`
+                  roads above them. Both dock on each island's rim by bearing, so a hub's
+                  edges fan around it instead of piling on one point (the owner's steer). */}
+              {world.solar && (
+                <>
+                  <g className="solar-spoke-net">
+                    {world.solar.spokes.map((s) => (
+                      <path
+                        key={`${s.from}->${s.to}`}
+                        className="solar-spoke"
+                        d={s.d}
+                      />
+                    ))}
+                  </g>
+                  <g className="solar-road-net">
+                    {world.solar.roads.map((e) => (
+                      <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                        <title>
+                          {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
+                        </title>
+                        <path className="solar-road" d={e.d} />
+                      </g>
+                    ))}
+                  </g>
+                </>
               )}
 
               {/* ROAD pass 2/3 — the trail BED: the soft warm roadbed body, drawn
-                  ABOVE the tiles so the road reads as worn earth ON the land. */}
-              <g className="road-net-bed">
-                {world.edges.map((e) =>
-                  e.kind === 'trunk' ? (
-                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                      <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
-                    </g>
-                  ) : (
-                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                      <title>
-                        {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
-                      </title>
-                      <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
-                    </g>
-                  ),
-                )}
-              </g>
+                  ABOVE the tiles so the road reads as worn earth ON the land. (DAG world
+                  only; solar swaps in the thin perimeter-docked layer above.) */}
+              {!world.solar && (
+                <g className="road-net-bed">
+                  {world.edges.map((e) =>
+                    e.kind === 'trunk' ? (
+                      <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                        <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
+                      </g>
+                    ) : (
+                      <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                        <title>
+                          {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
+                        </title>
+                        <path className="world-trail-bank" d={e.d} style={flowStyle(e, 'bank')} />
+                      </g>
+                    ),
+                  )}
+                </g>
+              )}
 
               {/* ROAD pass 3/3 — the worn cobble TEXTURE: short same-tone beads down
                   the trail (no hard dark centre-line, no animation), on top of the bed.
-                  A busier trunk road gets fatter, longer beads (CSS). */}
-              <g className="road-net-texture">
-                {world.edges.map((e) => (
-                  <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                    <path className="world-trail-water" d={e.d} style={flowStyle(e, 'water')} />
-                  </g>
-                ))}
-              </g>
+                  A busier trunk road gets fatter, longer beads (CSS). (DAG world only.) */}
+              {!world.solar && (
+                <g className="road-net-texture">
+                  {world.edges.map((e) => (
+                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                      <path className="world-trail-water" d={e.d} style={flowStyle(e, 'water')} />
+                    </g>
+                  ))}
+                </g>
+              )}
 
               {/* trees, decoration, nameplates, wisps — per territory */}
               {world.territories.map((t) => (
@@ -3374,6 +3461,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         {selected && (
           <StoryPanel
             story={selected}
+            stories={stories}
             storyIds={storyIds}
             sessions={sessionsByStory.get(selected.id) ?? []}
             now={now}
@@ -4203,6 +4291,7 @@ function UatTestsSection({ storyId }: { storyId: string }): React.JSX.Element | 
 
 function StoryPanel({
   story,
+  stories,
   storyIds,
   sessions,
   now,
@@ -4215,6 +4304,7 @@ function StoryPanel({
   onClose,
 }: {
   story: TreeStory;
+  stories: TreeStory[];
   storyIds: ReadonlySet<string>;
   sessions: TreeSession[];
   now: Date;
@@ -4227,6 +4317,11 @@ function StoryPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
+  // The node's FULL declared connection set (ADR-0074 §4): outbound depends_on AND
+  // the unioned/derived inbound — own consumed_by ∪ every story whose depends_on
+  // names it. Resolved from the whole story list so the inverse is recovered (the
+  // de-noised cli hub declares none of its own spokes). See lib/connectionSet.ts.
+  const connections = useMemo(() => fullConnectionSet(stories, story.id), [stories, story.id]);
   const panelSessions = splitSessions(sessions);
   const sessionLine = (s: TreeSession): React.JSX.Element => (
     <p
@@ -4339,27 +4434,14 @@ function StoryPanel({
         <VerdictLine verdict={story.verdict} />
         <span className="muted"> · witness: {story.uatWitness}</span>
       </p>
-      {story.dependsOn.length > 0 && (
-        <p className="small">
-          <span className="muted">depends on </span>
-          {story.dependsOn.map((d) =>
-            storyIds.has(d) ? (
-              <button
-                key={d}
-                type="button"
-                className="tree-link"
-                onClick={() => navigate(treeFocusHref(d))}
-              >
-                {d}
-              </button>
-            ) : (
-              <code key={d} title="declared, but no such story in the world">
-                {d}{' '}
-              </code>
-            ),
-          )}
-        </p>
-      )}
+      {/* The node's full two-way wiring (ADR-0074 §4): depends_on (outbound) AND
+          consumed_by ∪ derived-inverse (inbound) — so a reader sees how the organism
+          is wired without leaving the panel. */}
+      <ConnectionsSection
+        connections={connections}
+        storyIds={storyIds}
+        onNavigate={(d) => navigate(treeFocusHref(d))}
+      />
 
       {sessions.length > 0 && (
         <div className="tree-sessions">

@@ -1734,6 +1734,55 @@ mark.st-hl.flash {
   }
 }
 
+/* SOLAR PATH REFRESH (2026-06-20, `?layout=solar`) — the orbit GRID + thin, no-arrow,
+   PERIMETER-DOCKED connections that replace the river-trail roads and centre-to-centre
+   spokes in solar mode (the website's road model, web/src/lib/world.ts; owner steer:
+   connections must fan around each island's rim, not converge on one point). Thinner
+   than the website's lanes, no arrowheads. All absent in the default DAG world. */
+.solar-orbit-ring {
+  fill: none;
+  stroke: var(--trail-bed);
+  stroke-width: 1.1;
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+  opacity: 0.34;
+}
+.solar-spoke {
+  fill: none;
+  stroke: var(--trail-bed);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.16;
+  pointer-events: none;
+}
+/* the depends_on roads: a thin smooth curve docked rim-to-rim, no bed/cobble/arrow. */
+.solar-road {
+  fill: none;
+  stroke: var(--trail-bed);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+/* reuse the river world's focus tint (the wrapping group is still `world-trail …`). */
+.world-trail.is-ancestor .solar-road {
+  stroke: var(--warn);
+  opacity: 0.85;
+}
+.world-trail.is-descendant .solar-road {
+  stroke: var(--danger);
+  opacity: 0.85;
+}
+.solar-spoke-net,
+.solar-road-net {
+  filter: blur(0.3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .solar-spoke-net,
+  .solar-road-net {
+    filter: none;
+  }
+}
+
 /* The cli/store hubs render like any other island for now (owner call 2026-06-19 —
    "make them like any other island; work out the look later"). Their hub-ness is the
    LAYOUT (centred, spokes converging), not a skin. The `.is-hub` class is still set on
@@ -2689,6 +2738,21 @@ button.legend-tile:hover {
 }
 .tree-link:hover {
   border-color: var(--accent);
+}
+/* the panel's two-way wiring block (ADR-0074 §4): depends on / consumed by */
+.tree-connections {
+  margin: 2px 0 4px;
+}
+.tree-conn-row {
+  margin: 4px 0;
+  line-height: 1.9;
+}
+.tree-conn-row .muted {
+  margin-right: 2px;
+}
+/* a declared edge with no matching story — inert, reads as muted not navigable */
+.tree-conn-dangling {
+  color: var(--muted);
 }
 
 @media (max-width: 1080px) {
