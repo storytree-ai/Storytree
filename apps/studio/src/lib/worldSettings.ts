@@ -94,6 +94,7 @@ export type ControlValue = number | boolean | string;
 
 const GROUP_GROUND = 'Ground';
 const GROUP_ROADS = 'Roads';
+const GROUP_LAYOUT = 'Layout';
 
 /** substrate aliases, mirroring readSubstrateMode. */
 function normalizeSubstrate(raw: string | null): string {
@@ -104,12 +105,37 @@ function normalizeSubstrate(raw: string | null): string {
   return 'mesh';
 }
 
+/** layout aliases, mirroring readLayoutMode. Default = `dag` (the byte-identical world). */
+function normalizeLayout(raw: string | null): string {
+  if (raw === 'solar' || raw === 'solar-system' || raw === 'radial') return 'solar';
+  // 'dag' | 'rows' | 'tree' | unknown | null → dag (the current world).
+  return 'dag';
+}
+
 // ADR-0073: roads is the ONE world (rivers/ponds/moats retired). The dials are a
 // small, road-named set in two groups (Ground / Roads); the river-network routing
 // knobs that genuinely shape how roads run between islands are KEPT under new names,
 // and every river/pond-only dial is GONE. Each control's `hint` is the visible
 // plain-English description shown UNDER the control (owner ask 2026-06-18).
 export const CONTROLS: readonly ControlSpec[] = [
+  // ---- Layout ----
+  // ADR-0074 §6 / `solar-system-world`: the RADIAL hub-and-spoke world (cli/store at
+  // the centre, organisms orbiting by rank). Default `dag` writes NO param, so the
+  // current world stays byte-identical until the owner picks `solar`.
+  {
+    kind: 'select',
+    key: 'layout',
+    label: 'Layout',
+    group: GROUP_LAYOUT,
+    hint: 'How islands are arranged — DAG rows, or a solar-system with the cli/store hubs at the centre.',
+    default: 'dag',
+    options: [
+      { value: 'dag', label: 'DAG rows' },
+      { value: 'solar', label: 'Solar system' },
+    ],
+    normalize: normalizeLayout,
+  },
+
   // ---- Ground ----
   {
     kind: 'select',

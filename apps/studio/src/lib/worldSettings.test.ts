@@ -30,8 +30,8 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (roads world, ADR-0073)', () => {
   it('exposes exactly the road-world dials, each with a key/label/group/kind/default', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // The road-world set, grouped (Ground / Roads). A small, intuitive set.
-    const expected = ['substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
+    // The road-world set, grouped (Layout / Ground / Roads). A small, intuitive set.
+    const expected = ['layout', 'substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
     for (const k of expected) {
       expect(keys, `missing control ${k}`).toContain(k);
     }
@@ -63,11 +63,12 @@ describe('worldSettings — schema (roads world, ADR-0073)', () => {
     }
   });
 
-  it('groups controls under Ground and Roads only', () => {
+  it('groups controls under Layout, Ground and Roads only', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
+    expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
     expect(groups.has('Roads')).toBe(true);
-    expect(groups.size).toBe(2);
+    expect(groups.size).toBe(3);
   });
 
   it('keys are unique', () => {
@@ -112,6 +113,24 @@ describe('worldSettings — setControlValue (select)', () => {
     expect(setControlValue('', ctl('substrate'), 'hex')).toBe('?substrate=hex');
     expect(setControlValue('', ctl('substrate'), 'relaxed-quad')).toBe('?substrate=relaxed-quad');
     expect(setControlValue('', ctl('substrate'), 'relaxed-hex')).toBe('?substrate=relaxed-hex');
+  });
+});
+
+describe('worldSettings — layout control (solar-system, ADR-0074 §6)', () => {
+  it('defaults to dag and writing dag REMOVES the param (byte-identical world)', () => {
+    expect(readControlValue('', ctl('layout'))).toBe('dag');
+    expect(setControlValue('?layout=solar', ctl('layout'), 'dag')).toBe('');
+  });
+
+  it('writes layout=solar when the radial world is picked', () => {
+    expect(setControlValue('', ctl('layout'), 'solar')).toBe('?layout=solar');
+    expect(readControlValue('?layout=solar', ctl('layout'))).toBe('solar');
+  });
+
+  it('normalizes aliases and unknowns to dag', () => {
+    expect(readControlValue('?layout=radial', ctl('layout'))).toBe('solar');
+    expect(readControlValue('?layout=rows', ctl('layout'))).toBe('dag');
+    expect(readControlValue('?layout=whatever', ctl('layout'))).toBe('dag');
   });
 });
 

@@ -1713,6 +1713,49 @@ mark.st-hl.flash {
   }
 }
 
+/* HUB SPOKES — the radial "solar-system" layout (ADR-0074 §6, `?layout=solar`): the
+   dense wiring layer joining every organism to the central cli/store hubs, rendered
+   VISIBLE but LOW-SALIENCE (a hair-thin faint thread). Density is de-noised here, NEVER
+   dropped (ADR-0074 §1). Empty / absent in the default DAG world. */
+.spoke-net {
+  filter: blur(0.4px);
+}
+.world-spoke {
+  fill: none;
+  stroke: var(--trail-bed);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  opacity: 0.16;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spoke-net {
+    filter: none;
+  }
+}
+
+/* the central wiring HUBS (cli / store) in solar mode read as warm, glowing islands
+   so the eye lands on the centre everything orbits. A gentle gold halo + a warmer
+   beach; the look is owner-attested (ADR-0070), so this is the first pass to nod on. */
+.coast-fill-group.is-hub .coast-fill {
+  fill: var(--warn);
+  opacity: 0.5;
+}
+/* the hub land itself, warm gold — across BOTH substrates (mesh relaxed-cells is the
+   default world; hex tiles are the `?substrate=hex` escape). */
+.relaxed-tile.is-hub .relaxed-cell {
+  fill: var(--warn);
+  opacity: 0.5;
+}
+.hex-tile.is-hub .hex-top {
+  fill: var(--warn);
+  opacity: 0.62;
+}
+.hex-flora.is-hub {
+  filter: drop-shadow(0 0 11px var(--warn));
+  cursor: default;
+}
+
 /* flora: the per-territory layer of trees, plates and wisps */
 .hex-flora {
   cursor: pointer;

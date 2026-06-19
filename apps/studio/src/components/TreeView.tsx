@@ -71,6 +71,7 @@ import {
   readControlValue,
   type ControlSpec,
 } from '../lib/worldSettings.js';
+import { solarSeeds, spokePath, type SolarNode } from '../lib/solarLayout.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
@@ -92,10 +93,14 @@ function requireControl(key: string): ControlSpec {
   return c;
 }
 const SUBSTRATE_CTL = requireControl('substrate');
+const LAYOUT_CTL = requireControl('layout');
 const ROAD_STRAIGHTEN_CTL = requireControl('roadStraighten');
 const BUNDLE_FAR_CTL = requireControl('bundleFar');
 const DELTA_PULL_CTL = requireControl('deltaPull');
 const RIVER_REPEL_CTL = requireControl('riverRepel');
+
+/** Shared empty id-set (the DAG path passes no hub ids). */
+const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
 // ---------- deterministic pseudo-random ----------
 
@@ -262,6 +267,10 @@ interface HexWorld {
   /** Claimed tiles in global back-to-front draw order, with territory index. */
   drawTiles: { h: Axial; owner: number }[];
   edges: WorldEdge[];
+  /** Solar mode only (ADR-0074 §6): faint hub SPOKE paths (island → central hub),
+   *  rendered low-salience so the dense wiring layer stays VISIBLE, never dropped.
+   *  Empty in the DAG world. */
+  spokes: string[];
   width: number;
   height: number;
   offset: Pt;
@@ -1228,13 +1237,24 @@ function buildWorld(
     riverMode?: RiverMode;
     tuning?: RiverTuning;
     plantsScatter?: boolean;
+    /** ADR-0074 §6: `solar` seeds islands on rank-keyed orbits around the hubs;
+     *  `dag` (default) keeps the bottom-up dependency rows. */
+    layoutMode?: LayoutMode;
+    /** Ids of the synthetic central hubs in `stories` (solar mode only). */
+    hubIds?: ReadonlySet<string>;
   },
 ): HexWorld {
   const riverMode = opts?.riverMode ?? 'strands';
   const tuning = opts?.tuning ?? RIVER_TUNING;
   const plantsScatter = opts?.plantsScatter ?? false;
+  const layoutMode = opts?.layoutMode ?? 'dag';
+  const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
   const mouthInset = tuning.mouthInset;
-  const quotas = stories.map((s) => Math.max(3, s.capabilities.length + 2));
+  // Hubs (solar mode) get a bigger tile quota so the cli/store islands read as the
+  // prominent centre everything orbits, rather than two small islands among many.
+  const quotas = stories.map((s) =>
+    hubIds.has(s.id) ? 8 : Math.max(3, s.capabilities.length + 2),
+  );
 
   // One edge set drives BOTH the roads and the ranking (declared ∪ derived).
   const edgeList = storyEdges(stories);
@@ -1281,7 +1301,18 @@ function buildWorld(
       .map((j) => seedPx.get(j)?.x ?? 0);
     return xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : 0;
   };
-  for (let r = 0; r <= maxRank; r++) {
+  if (layoutMode === 'solar') {
+    // ADR-0074 §6: hubs at the centre, organisms on rank-keyed orbits. Seeds flow
+    // into the SAME snap/grow/coast/edge pipeline below, so the islands and roads
+    // read as the existing forest world — only WHERE they sit changes.
+    const solarNodes: SolarNode[] = stories.map((s, i) => ({
+      id: s.id,
+      rank: ranks.get(s.id) ?? 0,
+      hub: hubIds.has(s.id),
+      radius: estRadius(quotas[i] ?? 3),
+    }));
+    for (const [i, p] of solarSeeds(solarNodes)) seedPx.set(i, p);
+  } else for (let r = 0; r <= maxRank; r++) {
     const row = byRank[r] ?? [];
     const ordered = [...row].sort((a, b) => {
       const sa = stories[a];
@@ -1816,6 +1847,20 @@ function buildWorld(
   } // end comparison-mode (strands / confluence) river construction
 
 
+  // ADR-0074 §6: in solar mode, a faint hub SPOKE from each orbiting island to EVERY
+  // central hub — the dense wiring layer rendered VISIBLE but de-noised (low-salience
+  // CSS), never dropped (§1). cli/store sit together at the centre so the two spokes
+  // from an island nearly overlap; this is the placeholder for the real per-organism
+  // connection edges the sibling §4 declaration model will feed in. Empty in DAG mode.
+  const spokes: string[] = [];
+  if (layoutMode === 'solar') {
+    const hubTerr = territories.filter((t) => hubIds.has(t.story.id));
+    for (const t of territories) {
+      if (hubIds.has(t.story.id)) continue;
+      for (const h of hubTerr) spokes.push(spokePath(t.centroid, h.centroid));
+    }
+  }
+
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
   const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
@@ -1836,6 +1881,7 @@ function buildWorld(
     empties,
     drawTiles,
     edges,
+    spokes,
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
     offset: { x: -minX, y: -minY },
@@ -2585,6 +2631,45 @@ function readPlantsScatter(): boolean {
   return new URLSearchParams(window.location.search).get('plants') === 'scatter';
 }
 
+// ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
+
+type LayoutMode = 'dag' | 'solar';
+
+/** `?layout=solar` ⇒ the RADIAL hub-and-spoke world; default `dag` = the current
+ *  world (byte-identical — the param is absent). Gear-panel managed (worldSettings,
+ *  the single source of truth for the default), so the panel + this reader never drift. */
+function readLayoutMode(search: string = defaultSearch()): LayoutMode {
+  return readControlValue(search, LAYOUT_CTL) === 'solar' ? 'solar' : 'dag';
+}
+
+/**
+ * The central wiring hubs everything orbits in solar mode (ADR-0074 §2 — the wiring
+ * layer is VISIBLE, not exempt: hiding the most-connected nodes hides the most
+ * architecturally important relationships). `cli` / `store` are organisms WITHOUT a
+ * story yet (their lightweight hub UATs + the per-organism connection declaration are
+ * the sibling ADR-0074 §3/§4 slices), so the world injects them as synthetic central
+ * islands. They carry no verdict/flora and are not selectable.
+ */
+const HUB_DEFS: readonly { id: string; title: string }[] = [
+  { id: 'store', title: 'store' },
+  { id: 'cli', title: 'cli' },
+];
+const HUB_IDS: ReadonlySet<string> = new Set(HUB_DEFS.map((h) => h.id));
+
+/** A synthetic hub story — a bare central island (no caps, no verdict). */
+function makeHubStory(def: { id: string; title: string }): TreeStory {
+  return {
+    id: def.id,
+    title: def.title,
+    outcome: 'wiring hub — every organism connects here',
+    status: null,
+    proofMode: '',
+    uatWitness: 'human',
+    dependsOn: [],
+    capabilities: [],
+  };
+}
+
 function readRiverTuning(search: string = defaultSearch()): RiverTuning {
   const q = new URLSearchParams(search);
   const out: RiverTuning = { ...RIVER_TUNING };
@@ -2800,16 +2885,29 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // and plants the panel never touches, so they stay mount-once.
   const [search, setSearch] = useState<string>(() => defaultSearch());
   const riverTuning = useMemo(() => readRiverTuning(search), [search]);
+  // ADR-0074 §6: `?layout=solar` reskins the world radially with cli/store hubs at the
+  // centre. Gear-panel managed, so it's reactive on `search` (live, no reload). In solar
+  // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
+  // component's `stories` state (panel / selection / verdicts) stays clean.
+  const layoutMode = useMemo(() => readLayoutMode(search), [search]);
+  const worldStories = useMemo(() => {
+    if (layoutMode !== 'solar' || !stories) return stories;
+    const present = new Set(stories.map((s) => s.id));
+    const hubs = HUB_DEFS.filter((h) => !present.has(h.id)).map(makeHubStory);
+    return [...stories, ...hubs];
+  }, [stories, layoutMode]);
   const world = useMemo(
     () =>
-      stories
-        ? buildWorld(stories, {
+      worldStories
+        ? buildWorld(worldStories, {
             riverMode,
             tuning: riverTuning,
             plantsScatter,
+            layoutMode,
+            hubIds: HUB_IDS,
           })
         : null,
-    [stories, riverMode, plantsScatter, riverTuning],
+    [worldStories, riverMode, plantsScatter, riverTuning, layoutMode],
   );
 
   /** Per-road-layer flow-scaled stroke width, or undefined (CSS default). */
@@ -2981,6 +3079,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
 
   const territoryClass = (story: TreeStory): string => {
     const cls = ['hex-territory', `st-${story.status ?? 'unknown'}`];
+    if (HUB_IDS.has(story.id)) cls.push('is-hub'); // solar-mode central wiring hub
     if (focusStoryId && storyRelations) {
       if (story.id === focusStoryId) cls.push('is-focus');
       else if (storyRelations.ancestors.has(story.id)) cls.push('is-ancestor');
@@ -3017,6 +3116,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     navigate(treeHref);
   };
   const selectStory = (storyId: string, capId: string | null): void => {
+    if (HUB_IDS.has(storyId)) return; // hubs are synthetic — no story panel
     if (selectedStory === storyId && capId === null) {
       clearSelection(); // second click on the selected territory toggles it off
       return;
@@ -3172,6 +3272,18 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                       </g>
                     );
                   })}
+                </g>
+              )}
+
+              {/* HUB SPOKES (solar mode, ADR-0074 §6) — the dense wiring layer to the
+                  central cli/store hubs, drawn ABOVE the land but BENEATH the real
+                  dependency roads + flora, at low salience. VISIBLE, never dropped (§1);
+                  empty in the DAG world. */}
+              {world.spokes.length > 0 && (
+                <g className="spoke-net">
+                  {world.spokes.map((d, i) => (
+                    <path key={i} className="world-spoke" d={d} />
+                  ))}
                 </g>
               )}
 
