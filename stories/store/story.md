@@ -14,13 +14,17 @@ capabilities: [keyless-store-connection, shared-events-schema]
 # persistence seams owned by these organisms — the library Store (PgLibraryStore), notice-board's
 # presence store (PgPresenceStore), and studio-members' user store (PgUserStore). See the
 # code-derived graph below.
-depends_on: [library, notice-board, studio-members]
+# ADR-0075: pg-store reads verdict-DATA (Verdict.parse) and implements the base Store/ChangeStore
+# seam, so the base + verdict-contract ROOT ports are now declared cross-story edges (they were exempt
+# substrate dependencies before ADR-0075 collapsed that class).
+depends_on: [library, notice-board, studio-members, base, verdict-contract]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB imports @storytree/store (buildStore swaps
 # PgLibraryStore in under `--pg`). Declared here so store owns its full connection set in one place.
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the tier lives in shared Postgres (17), DBOS deferred → plain pg
-# (19), keyless Cloud SQL IAM via ADC (21), and store-as-a-first-class-hub-organism (74).
-decisions: [17, 19, 21, 74]
+# (19), keyless Cloud SQL IAM via ADC (21), store-as-a-first-class-hub-organism (74), and the ports
+# as declared root organisms — store's base/verdict-contract edges are now declared (75).
+decisions: [17, 19, 21, 74, 75]
 ---
 
 # The store — one keyless Postgres data layer every organism persists through
@@ -85,10 +89,12 @@ realizes seams owned by other organisms) — the consumer-side `depends_on` abov
 - `store → studio-members` — `user-store.ts` imports the member/user schema and persists the user
   directory projection (`PgUserStore`).
 
-Substrate edges (always allowed, ADR-0074 §5): `store → base` (the `Store`/`ChangeStore` document-
-event seam) and `store → verdict-contract` (reads verdict-DATA via `Verdict.parse` — the `port`).
-The `store → orchestrator` edge is a **devDependency** (a test-only rollup/hashSpan parity reuse),
-excluded from the boundary graph (ADR-0010 §5). Inbound: `cli → store` (declared `consumed_by: [cli]`).
+Foundational-port edges — now **declared**, not exempt ([ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)
+collapsed the `substrate` class): `store → base` (the `Store`/`ChangeStore` document-event seam) and
+`store → verdict-contract` (reads verdict-DATA via `Verdict.parse`), both declared in `depends_on`
+above so the dependency on the root ports is a visible, rendered edge. The `store → orchestrator` edge
+is a **devDependency** (a test-only rollup/hashSpan parity reuse), excluded from the boundary graph
+(ADR-0010 §5). Inbound: `cli → store` (declared `consumed_by: [cli]`).
 
 The merged declared graph (depends_on ∪ consumed_by) is **acyclic** (ADR-0058): library/notice-board/
 studio-members never reach back to store.

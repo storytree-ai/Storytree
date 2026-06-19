@@ -151,8 +151,17 @@ This increment is the **data model** that world depends on; it does not build th
   always a *flagged smell* or merely a declared edge.
 - Whether the radial world is a **wholesale reskin** or a **hub-layout within the forest** (the
   `solar-system-world` proposal's open fork).
-- The narrow cross-package **relative-import** escape — caught by a v2 import scan (the v1 gate reads
-  the package.json dep graph; `devDependencies` = test scaffolding, excluded per ADR-0010 §5).
+- ~~The narrow cross-package **relative-import** escape — caught by a v2 import scan (the v1 gate reads
+  the package.json dep graph; `devDependencies` = test scaffolding, excluded per ADR-0010 §5).~~
+  **CLOSED (2026-06-19, the v2 source-import scan).** `check:boundaries` now also scans every
+  `packages/<x>/src/**.ts` for import/export specifiers (`packages/cli/src/check-boundaries.ts`
+  gathers; the pure judge `packages/cli/src/boundaries.ts` classifies) and fails on two couplings the
+  dep-graph rule can't see: **(a)** a cross-package **relative** import (`../../<other>/src/…`) that
+  sidesteps both the `package.json` declaration and the `exports` barrel, and **(b)** a runtime
+  (non-test) source file value-importing `@storytree/x` where `x` is only a `devDependency` (or
+  undeclared) — a real runtime coupling invisible to the runtime dep graph. Test files and parity
+  suites stay sanctioned scaffolding (ADR-0010 §5, skipped), and type-only imports (erased) are not
+  treated as runtime couplings for rule (b).
 
 ## References
 

@@ -9,6 +9,11 @@ proof_mode: UAT
 # machine-witnessed — overrides the ADR-0040 fail-closed `human` default, no operator signpost.
 uat_witness: machine
 capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli]
+# Consumer-side outbound edge (ADR-0075): the library validates/upcasts every doc against the verdict
+# vocabulary's Tier/Status, so it imports the verdict-contract ROOT port — now a declared edge (was an
+# exempt substrate dependency before ADR-0075 collapsed that class). library is no longer the graph
+# TRUNK; verdict-contract is the bottom root.
+depends_on: [verdict-contract]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports @storytree/library
 # (commands.ts validates/upcasts on every write). The store hub also imports it, but that edge is
 # declared consumer-side in stories/store/story.md depends_on; the cli edge is declared here to
@@ -63,7 +68,7 @@ Listed roots-first (a capability appears after everything it depends on). The `s
 
 ## Dependency graph (code-derived)
 
-These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` is the lone root. (No cross-story edges apply: `library` is one of two stories with no declared cross-story interface — ADR-0010 §4.)
+These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` is the lone root. One **cross-story** edge applies: `library → verdict-contract` (the schema validates docs against the verdict vocabulary's `Tier`/`Status`), declared `depends_on: [verdict-contract]` since [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) made the ports root organisms rather than an exempt substrate class.
 
 - `migrate-on-write-upcaster` → `library-schema-and-write-validation`
   - `migrations.ts:1` imports `KIND_SPECS` from `knowledge.ts` (`isStructuredKnowledge`, `migrations.ts:55-58`, gates on whether the kind is a structured key), and `store.ts:219-221` composes `upcast` INTO the validator: `upcastAndValidate = validateLibraryDoc(upcast(...))` — a genuine code call, not a UAT inference.

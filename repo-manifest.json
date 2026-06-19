@@ -41,7 +41,7 @@
     }
   },
   "packageOwnership": {
-    "$comment": "The organism-boundary ownership map (ADR-0074), read by packages/cli/src/check-boundaries.ts (`pnpm check:boundaries`, wired into `pnpm gate` + the CI verify job). Every @storytree/* package under packages/* is classified EXACTLY once into ONE of TWO classes. The gate asserts every real runtime cross-organism dependency edge (each package.json `dependencies`; devDeps are test scaffolding and excluded, ADR-0010 §5) is COVERED by a declared cross-story edge — consumer-side in the consumer story's `depends_on`, OR provider-side in the provider story's `consumed_by` (stories/*/story.md, ADR-0074 §4) — so cross-organism coupling can't be added without a declared edge, and because the studio forest renders `depends_on`, every coupling is therefore UI-visible. organisms = owned by exactly one story (the boundary rule applies between them); substrate = the shared seam/ports anyone may depend on, held minimal. NOTE (ADR-0074 §2, the hub increment, 2026-06-19): cli/store are NO LONGER exempt 'composition roots' — they are first-class VISIBLE hub organisms (story stories/cli + stories/store, lightweight expandable UATs §3), enforced like any other organism; the wiring layer being the most-connected nodes is exactly the signal the observability world wants, so it is gated, not trusted.",
+    "$comment": "The organism-boundary ownership map (ADR-0074, amended by ADR-0075), read by packages/cli/src/check-boundaries.ts (`pnpm check:boundaries`, wired into `pnpm gate` + the CI verify job). Every @storytree/* package under packages/* is classified EXACTLY once as an `organism` (owned by one story). The gate asserts every real runtime cross-organism dependency edge (each package.json `dependencies`; devDeps are test scaffolding and excluded, ADR-0010 §5) is COVERED by a declared cross-story edge — consumer-side in the consumer story's `depends_on`, OR provider-side in the provider story's `consumed_by` (stories/*/story.md, ADR-0074 §4) — so cross-organism coupling can't be added without a declared edge, and because the studio forest renders `depends_on`, every coupling is therefore UI-visible. NOTE (ADR-0075, 2026-06-19): the shared ports base/verdict-contract are NO LONGER an exempt `substrate` class — they are ordinary ROOT organisms (stories/base + stories/verdict-contract, depends_on [] / [verdict-contract]) that every consumer DECLARES depends_on, exactly like cli/store stopped being exempt 'composition roots' in ADR-0074 §2. They stay listed in `foundational` (a SUBSET of organisms, not a class) to carry ONE minimality rule the gate enforces — a foundational port may only depend on another foundational port — which keeps them zod-only / node+pg-free so the studio's browser bundle works. So a port dependency is a visible declared+rendered edge, not an invisible exemption.",
     "organisms": {
       "@storytree/library": "library",
       "@storytree/orchestrator": "drive-machinery",
@@ -49,8 +49,10 @@
       "@storytree/notice-board": "notice-board",
       "@storytree/studio-members": "studio-members",
       "@storytree/store": "store",
-      "@storytree/cli": "cli"
+      "@storytree/cli": "cli",
+      "@storytree/base": "base",
+      "@storytree/verdict-contract": "verdict-contract"
     },
-    "substrate": ["@storytree/base", "@storytree/verdict-contract"]
+    "foundational": ["@storytree/base", "@storytree/verdict-contract"]
   }
 }
