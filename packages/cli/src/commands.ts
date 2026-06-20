@@ -11,7 +11,8 @@ import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
 } from "@storytree/library";
-import { resolveSignerFromEnv } from "@storytree/orchestrator";
+import type { UatTest } from "@storytree/library";
+import { loadNodeSpec, resolveSignerFromEnv } from "@storytree/orchestrator";
 import { renderStoredDoc, syncSeedAgents } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
@@ -38,6 +39,13 @@ import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "./story-build.js";
 import { treeCommand } from "./tree.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
+import {
+  uatCommand,
+  uatHelp,
+  type GitState,
+  type UatDeps,
+  type UatVerdictStoreLike,
+} from "./uat.js";
 
 /**
  * Fields removed by a past migration that must not reappear (design §4 check 2): `seeAlso`
@@ -710,6 +718,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
       "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
+      "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
@@ -823,6 +832,12 @@ export interface RunDeps {
    * null/absent offline — `storytree attest` then refuses (writes/reads both need it).
    */
   readonly attestations?: AttestationStoreLike | null;
+  /**
+   * The verdict event log as a WRITE surface (ADR-0082 `uat attest`): the live work store when --pg
+   * (the same PgWorkStore as `verdicts`, here typed to expose `appendEvent`); null/absent offline —
+   * `storytree uat attest` then refuses (a verdict that does not persist greens nothing).
+   */
+  readonly uatStore?: UatVerdictStoreLike | null;
   /** The stories/ root the tree view reads. Injectable for tests; defaults to the repo's. */
   readonly storiesDir?: string;
   /**
@@ -843,6 +858,39 @@ function currentBranch(): string {
     }).trim() || "unknown";
   } catch {
     return "unknown";
+  }
+}
+
+/**
+ * The session repo's git state an operator attestation pins itself to (ADR-0082): the HEAD it attests
+ * and whether the tree is clean. Null when git can't answer (no repo / git missing) — `uat attest`
+ * then refuses, because a verdict must pin a real commit.
+ */
+function readGitState(): GitState | null {
+  try {
+    const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (commitSha.length === 0) return null;
+    const porcelain = execFileSync("git", ["status", "--porcelain"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return { commitSha, clean: porcelain.trim().length === 0 };
+  } catch {
+    return null;
+  }
+}
+
+/** A story's declared UAT tests (parsed from `stories/<id>/story.md`); `[]` for a missing/odd spec. */
+function loadStoryUatTests(storiesDir: string, storyId: string): UatTest[] {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return [];
+  try {
+    return loadNodeSpec(file).uatTests;
+  } catch {
+    return [];
   }
 }
 
@@ -1066,6 +1114,35 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "uat") {
+    // ADR-0082 — the per-test UAT proof surface: `uat list <story>` (read) + `uat attest <test>` (write
+    // a signed operator-attested verdict). Identity (the no-self-attest guard) is injected by tests,
+    // else derived from the worktree; git state pins the attested commit.
+    if (help || sub === undefined) return uatHelp();
+    const identity =
+      deps.presence !== undefined && deps.presence.identity !== undefined
+        ? deps.presence.identity
+        : deriveIdentity();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    const uatDeps: UatDeps = {
+      store: deps.uatStore ?? null,
+      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+      gitState: readGitState,
+      identity,
+      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+      now: () => new Date(),
+    };
+    const uatOpts = {
+      ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+      ...(values.signer !== undefined ? { signer: values.signer } : {}),
+      ...(values.note !== undefined ? { note: values.note } : {}),
+    };
+    if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
+    if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
+    // bare: `storytree uat <story-id>` lists that story's tests.
+    return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
+  }
+
   if (area === "drift") {
     if (help) return driftHelp();
     return runDrift({
@@ -1103,7 +1180,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, node, story, adr.`,
+      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, uat, node, story, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
