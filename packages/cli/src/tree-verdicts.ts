@@ -95,3 +95,21 @@ export async function readVerdictGlyphs(
     return null;
   }
 }
+
+/**
+ * Read the RAW verdict event stream (`{ kind, seq, doc }`), silently null when the store is
+ * unavailable / the read fails — the same offline-silent contract as {@link readVerdictGlyphs}. The
+ * focused tree view needs the events themselves (not just glyphs) to roll a story's per-test UAT
+ * verdicts up into its crown (ADR-0082, `rollupStoryUat`); the events feed the orchestrator's rollup
+ * compute directly (its `RollupEvent` param is exactly this shape).
+ */
+export async function readVerdictEvents(
+  reader: VerdictReaderLike | null,
+): Promise<ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null> {
+  if (reader === null) return null;
+  try {
+    return await reader.readEvents();
+  } catch {
+    return null;
+  }
+}

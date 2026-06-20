@@ -14,6 +14,7 @@ import {
   resolveBuildConfig,
   resolveSignerFromEnv,
   rollupStatus,
+  rollupStoryUat,
   runRegressionSuite,
   runStoryBuild,
   runWorktreeTypecheck,
@@ -57,6 +58,27 @@ import type { CommentSink, CuratorRunner } from "./curate.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
+
+/**
+ * ADR-0082: the story's OWN UAT crown rolled up from its per-test signed verdicts, as a report line.
+ * Pure — the AND over each per-test verdict (`rollupStoryUat`). A story's UAT greens ONLY when every
+ * declared per-test verdict passes (signed by each test's witness); this build chain proves the
+ * capabilities, the per-test verdicts come from `storytree uat attest` / machine proofs.
+ */
+function storyUatProofLine(
+  tests: readonly { readonly id: string }[],
+  events: readonly { kind: string; seq: number; doc: unknown }[],
+): string {
+  const rolled = rollupStoryUat(tests, events);
+  const n = tests.length;
+  const word =
+    rolled === "healthy"
+      ? "GREEN — every per-test UAT verdict passed (the story's UAT is proven)"
+      : rolled === "unhealthy"
+        ? "WITHERED — a proven per-test UAT verdict regressed to a signed fail"
+        : "unproven — not every per-test UAT verdict is a signed pass yet";
+  return `${word} (per-test roll-up of ${n} test${n === 1 ? "" : "s"}, ADR-0082)`;
+}
 
 /**
  * `storytree story build <story-id>` (drive-machinery Phase E): a THIN topo-ordered loop over a
@@ -663,6 +685,12 @@ export async function storyBuild(
       ...nodeLines,
       "",
       `nodes:       ${run.outcomes.length}/${driveOrder.length} signed passes${storyWithheld ? " (the story UAT node awaits its human witness)" : ""}`,
+      // ADR-0082: the story's OWN UAT greens from the AND-roll-up of its per-test verdicts (signed by
+      // each test's declared witness — `storytree uat attest` for human tests, a machine proof for
+      // machine tests), NOT from this build chain. Surface it so the report reflects the real crown.
+      ...(story.uatTests.length > 0
+        ? [`uat proof:   ${storyUatProofLine(story.uatTests, events)}`]
+        : []),
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
       ...(real && worktree !== undefined
         ? [`worktree:    ${worktree.root} (ONE shared worktree, stacked commits in dependency order, removed after)`]

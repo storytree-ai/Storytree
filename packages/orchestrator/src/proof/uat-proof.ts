@@ -1,8 +1,7 @@
 import type { Status, Verdict } from "@storytree/proof-protocol";
-import type { StoreEvent } from "@storytree/storage-protocol";
 import type { UatTestWitness } from "@storytree/library";
 
-import { rollupStatus } from "./rollup.js";
+import { rollupStatus, type RollupEvent } from "./rollup.js";
 
 /**
  * The per-test UAT proof COMPUTE (ADR-0082): a story's UAT decomposes into per-test units
@@ -113,7 +112,7 @@ export function checkUatProof({
  */
 export function rollupStoryUat(
   tests: readonly { readonly id: string }[],
-  events: readonly StoreEvent[],
+  events: readonly RollupEvent[],
 ): Status | null {
   if (tests.length === 0) return null;
   let allHealthy = true;

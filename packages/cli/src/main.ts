@@ -20,6 +20,7 @@ import { formatEnvelope } from "./envelope.js";
 import type { PresenceStoreLike } from "./noticeboard.js";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
+import type { UatVerdictStoreLike } from "./uat.js";
 
 /**
  * The `storytree` CLI entry (ADR-0023). Offline-first: by default it runs against an in-memory store
@@ -31,19 +32,27 @@ async function buildStore(usePg: boolean): Promise<{
   store: Store;
   presence: PresenceStoreLike | null;
   verdicts: VerdictReaderLike | null;
+  uatStore: UatVerdictStoreLike | null;
   attestations: AttestationStoreLike | null;
   adr: AdrAllocatorLike | null;
   close: () => Promise<void>;
 }> {
   if (usePg) {
     const { pool, connector } = await createPool();
+    // One PgWorkStore over the live pool serves both reads (verdict glyphs, rollup) and the
+    // `uat attest` WRITE — it satisfies the read-only VerdictReaderLike and the write-capable
+    // UatVerdictStoreLike alike, so the same instance is passed under both seams.
+    const work = new PgWorkStore(pool);
     return {
       store: new PgLibraryStore(pool),
       // The presence board (ADR-0033) shares the live pool; offline there is no presence surface.
       presence: new PgPresenceStore(pool),
       // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
       // through the same pool; offline the column is silently absent.
-      verdicts: new PgWorkStore(pool),
+      verdicts: work,
+      // The per-test UAT write surface (ADR-0082): `uat attest` appends a signed operator-attested
+      // verdict to events.verdict through the same work store; offline `uat attest` refuses.
+      uatStore: work,
       // The attestation log (ADR-0044): `storytree attest` records/reads events.attestation
       // through the same pool; offline `attest` refuses (writes/reads both need --pg).
       attestations: new PgAttestationStore(pool),
@@ -55,7 +64,7 @@ async function buildStore(usePg: boolean): Promise<{
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, verdicts: null, attestations: null, adr: null, close: async () => {} };
+  return { store, presence: null, verdicts: null, uatStore: null, attestations: null, adr: null, close: async () => {} };
 }
 
 async function main(): Promise<void> {
@@ -69,7 +78,7 @@ async function main(): Promise<void> {
   // 2026-06-11: one rotation point that survives sessions and worktrees).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, verdicts, attestations, adr, close } = await buildStore(usePg);
+  const { store, presence, verdicts, uatStore, attestations, adr, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -78,6 +87,7 @@ async function main(): Promise<void> {
       writable: usePg,
       presence: { store: presence },
       verdicts,
+      uatStore,
       attestations,
       adr,
       ...(actor !== undefined ? { actor } : {}),

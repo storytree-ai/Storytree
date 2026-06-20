@@ -12,11 +12,16 @@ import path from "node:path";
 
 import { classifyPresence } from "@storytree/notice-board";
 import type { UatTest } from "@storytree/library";
-import { loadNodeSpec } from "@storytree/orchestrator";
+import { loadNodeSpec, rollupStatus, rollupStoryUat } from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import type { Envelope } from "./envelope.js";
-import { glyphFor, readVerdictGlyphs, type VerdictReaderLike } from "./tree-verdicts.js";
+import {
+  deriveVerdictGlyphs,
+  glyphFor,
+  readVerdictEvents,
+  type VerdictReaderLike,
+} from "./tree-verdicts.js";
 import {
   attestationMark,
   readAttestations,
@@ -96,13 +101,22 @@ export async function treeCommand(
   const stories = discoverStories(deps.storiesDir);
 
   // Verdict glyphs (verdict-glyphs capability): one signed-verdict glyph per node row —
-  // ✓ proven / ✗ last run failed / – never built. `glyphs` is null offline (or on any read
-  // error), and `mark` is then the empty string: the column simply does not exist. A story
-  // row's glyph is looked up under the STORY's own unit id — never a child roll-up.
-  const glyphs = await readVerdictGlyphs(deps.verdicts ?? null);
+  // ✓ proven / ✗ last run failed / – never built. The raw events are read ONCE: `glyphs` is the
+  // per-unit latest-verdict map (null offline / on any read error → `mark` is the empty string, the
+  // column simply absent), and the same events feed the per-test UAT roll-up below (ADR-0082). A
+  // capability/legacy row's glyph is its own unit id; a story crown rolls its per-test UAT up.
+  const verdictEvents = await readVerdictEvents(deps.verdicts ?? null);
+  const glyphs = verdictEvents === null ? null : deriveVerdictGlyphs(verdictEvents);
   const mark = (unitId: string): string => {
     const g = glyphFor(glyphs, unitId);
     return g === "" ? "" : ` ${g}`;
+  };
+  // The PROVEN glyph for one unit derived from the SIGNED verdicts (✓ pass / ✗ fail / – none) — the
+  // gate verdict, distinct from the ADR-0044 attestation vouch marks. Offline (no events) → "".
+  const provenMark = (unitId: string): string => {
+    if (verdictEvents === null) return "";
+    const s = rollupStatus(unitId, verdictEvents);
+    return s === "healthy" ? "✓" : s === "unhealthy" ? "✗" : "–";
   };
 
   // -------------------------------------------------------------------------
@@ -204,14 +218,37 @@ export async function treeCommand(
     });
   }
 
+  // The story crown's PROVEN state (ADR-0082): a story that declares per-test UAT tests greens from
+  // the AND-roll-up of their SIGNED verdicts (rollupStoryUat) — never the story's own unit-id verdict
+  // and never a child-capability roll-up. A legacy story with no per-test tests keeps the own-unit
+  // glyph. Offline (no verdict events) there is no proof column, exactly like the capability glyphs.
+  const storyUatRollup =
+    uatTests.length > 0 && verdictEvents !== null
+      ? rollupStoryUat(uatTests, verdictEvents)
+      : undefined;
+  const crownMark = (): string => {
+    if (uatTests.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
+    if (verdictEvents === null) return ""; // offline: no proof column
+    const g = storyUatRollup === "healthy" ? "✓" : storyUatRollup === "unhealthy" ? "✗" : "–";
+    return ` ${g}`;
+  };
+
   const lines: string[] = [
-    `Story: ${storyId}${mark(storyId)}`,
+    `Story: ${storyId}${crownMark()}`,
     `  title:   ${storyTitle}`,
     `  status:  ${storyStatus}`,
     `  outcome: ${storyOutcome}`,
-    "",
-    "Capabilities:",
   ];
+  if (uatTests.length > 0 && verdictEvents !== null) {
+    const word =
+      storyUatRollup === "healthy"
+        ? "GREEN — every UAT test has a signed pass (the story's UAT is proven, ADR-0082)"
+        : storyUatRollup === "unhealthy"
+          ? "WITHERED — a proven UAT test regressed to a signed fail"
+          : "unproven — not every UAT test has a signed pass yet (under-claims)";
+    lines.push(`  UAT proof: ${word}`);
+  }
+  lines.push("", "Capabilities:");
   for (const row of capRows) {
     lines.push(
       `  ${row.id}${mark(row.id)}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
@@ -231,18 +268,23 @@ export async function treeCommand(
     }
   }
 
-  // UAT-tests block (attestation-surface, ADR-0044): the story's addressable UAT tests with their
-  // per-test attestation marks — human seal / machine mark / – never built, or "" offline (the mark
-  // column drops, like the verdict glyphs; the test list itself still renders from the spec). The
-  // marks are a VOUCH, not the gate-proven ✓/✗, and never roll up to the story (d.3).
+  // UAT-tests block (ADR-0044 attestation-surface + ADR-0082 per-test proof): the story's addressable
+  // UAT tests, each with TWO distinct, never-conflated signals — `proven=` is the SIGNED verdict
+  // (✓/✗/– the gate proof, ADR-0082, present only with --pg) and the trailing mark (◉/▣) is the
+  // lower-rigor ADR-0044 attestation VOUCH. Both drop silently offline (the test list still renders
+  // from the spec). The vouch never rolls up to the story; the verdicts do (rollupStoryUat above).
   if (uatTests.length > 0) {
     const marks = await readAttestations(deps.attestations ?? null);
     lines.push("", "UAT tests:");
     const idWidth = Math.max(...uatTests.map((t) => t.id.length));
     for (const t of uatTests) {
-      const mark = attestationMark(marks, t.id);
-      const markCol = mark === "" ? "" : `  ${mark}`;
-      lines.push(`  ${t.id.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}  ${t.title}${markCol}`);
+      const proven = provenMark(t.id);
+      const provenCol = proven === "" ? "" : `  proven=${proven}`;
+      const vouch = attestationMark(marks, t.id);
+      const vouchCol = vouch === "" ? "" : `  ${vouch}`;
+      lines.push(
+        `  ${t.id.padEnd(idWidth)}  witness=${t.witness.padEnd(7)}${provenCol}  ${t.title}${vouchCol}`,
+      );
     }
   }
 

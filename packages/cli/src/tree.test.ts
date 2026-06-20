@@ -20,9 +20,27 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import { treeCommand, type TreeDeps } from "./tree.js";
+
+/** A signed-verdict event for a per-test UAT id, shaped for the verdict reader seam. */
+function verdictEvent(seq: number, unitId: string, outcome: "pass" | "fail") {
+  return {
+    seq,
+    kind: SIGNING_EVENT_KIND,
+    doc: {
+      unitId,
+      proofMode: "operator-attested",
+      outcome,
+      commitSha: "cafebabe",
+      signer: "owner@example.com",
+      runId: `run-${seq}`,
+      at: "2026-06-20T00:00:00.000Z",
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -318,6 +336,41 @@ test("focused view shows attestation marks when the reader answers (human seal v
   // uat-1 has no attestation → the never-voucht dash; and the marks are never the gate ✓/✗.
   assert.ok(/demo-story#uat-1\s+witness=machine\s+First check\s+–/.test(env.body), "unvoucht test → –");
   assert.ok(!env.body.includes("✓") && !env.body.includes("✗"), "attestation marks are not the verdict glyphs");
+});
+
+// (8) per-test PROVEN + crown roll-up (ADR-0082): with a verdict reader, each test gets a signed
+// proven glyph and the story crown greens from the AND-roll-up of its per-test verdicts.
+test("focused view: a story crown greens from the AND-roll-up of its per-test UAT verdicts", async () => {
+  const verdicts = {
+    async readEvents() {
+      return [
+        verdictEvent(1, "demo-story#uat-1", "pass"),
+        verdictEvent(2, "demo-story#uat-2", "pass"),
+      ];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const env = await treeCommand("demo-story", deps);
+  assert.equal(env.ok, true);
+  assert.match(env.body, /Story: demo-story ✓/, "the crown wears the proven glyph");
+  assert.match(env.body, /UAT proof: GREEN/, "the story UAT rolled up green");
+  assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "uat-1 proven ✓");
+  assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=✓/, "uat-2 proven ✓");
+});
+
+test("focused view: a story with one unproven test under-claims (crown –, the test proven=–)", async () => {
+  const verdicts = {
+    async readEvents() {
+      return [verdictEvent(1, "demo-story#uat-1", "pass")];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const env = await treeCommand("demo-story", deps);
+  assert.equal(env.ok, true);
+  assert.match(env.body, /Story: demo-story –/, "the crown under-claims (not every test proven)");
+  assert.match(env.body, /UAT proof: unproven/, "the story UAT under-claims");
+  assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "the proven test → ✓");
+  assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=–/, "the unproven test → –");
 });
 
 // (5) focused next pointers
