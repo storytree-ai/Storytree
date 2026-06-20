@@ -14,7 +14,7 @@
 // an `invited` row flips to `active` on first request. Pure decisions over (method, path, access);
 // the one impure step — reading the projection + the activation upsert — is `resolveMembersAccess`.
 
-import { resolveAccess, parseSeedAdmins, type ResolvedAccess } from '@storytree/studio-members';
+import { resolveAccess, parseSeedAdmins, normalizeEmail, type ResolvedAccess } from '@storytree/studio-members';
 import { HttpError } from './httpUtil';
 import type { ApiPolicy, MeInfo } from './apiRouter';
 import type { LibraryBackend } from './libraryBackend';
@@ -69,9 +69,14 @@ export async function resolveMembersAccess(
  * identities we can authorize a billable instance start for. IAP was widened to allAuthenticatedUsers
  * (ADR-0043), so this MUST stay narrow: any authenticated Google user could otherwise trigger a
  * paid start. Used both to gate POST /api/db/wake in degraded mode and to advertise `canWakeDb`.
+ *
+ * The identity is normalised before the lookup (trimmed + lowercased) — `parseSeedAdmins` already
+ * normalises the seed set, and `resolveAccess` normalises its verified email, so this keeps the wake
+ * authorization case-insensitive on BOTH sides rather than trusting the caller to pre-fold. (In the
+ * live path `identityFromRequest` lowercases already, so this is defence-in-depth, not a live fix.)
  */
 export function mayWakeDb(identity: string | null, seedAdmins: ReadonlySet<string>): boolean {
-  return !!identity && seedAdmins.has(identity);
+  return !!identity && seedAdmins.has(normalizeEmail(identity));
 }
 
 /** The `/api/me` payload for a resolved (or unresolved) caller. */
