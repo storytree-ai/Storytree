@@ -21,7 +21,9 @@ import type { CheckResult } from "./health.js";
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
- *                            the human flips the ADR — no machine ever writes a status)
+ *                            resolve by flipping the ADR `proposed → accepted` — an agent MAY now
+ *                            perform that green flip, ADR-0084, so this is self-resolvable, not an
+ *                            escalation; flipping to `superseded` stays a human call)
  *   6 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
  */

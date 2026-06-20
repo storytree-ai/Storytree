@@ -1,15 +1,18 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-21
 amends: [7, 40, 82]
 ---
 # ADR-0083: Author-defined story green: declared obligations, machine per-test UAT, mapped as a bootstrap shortcut
 
 ## Status
 
-proposed — drafted from a direct owner realignment in conversation (2026-06-21), pending the owner's
-flip to `accepted`. It carries two explicit owner-ratification **forks** (A and B below) written here
-so the decision is made in one place. On acceptance it **amends [ADR-0007](0007-proof-model.md)** (the
-`mapped` framing), **[ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) §2** and
+accepted (2026-06-21) — drafted from a direct owner realignment in conversation, and ratified the same
+day: the owner adopted **Fork A** and authorised agents to perform the green flip (recorded by
+[ADR-0084](0084-agents-may-flip-an-adr-green.md)). It carried two explicit owner-ratification **forks**
+(A and B below); **Fork A is RESOLVED (adopt)** and built (see below), **Fork B remains open** (a
+separate session). It **amends [ADR-0007](0007-proof-model.md)** (the `mapped` framing),
+**[ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) §2** and
 **[ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)** (story-green
 composition); it overturns no honesty wall (`green = a signed verdict` stands).
 
@@ -21,9 +24,10 @@ zero capabilities satisfying the capability clause vacuously. The READ-TIME comp
 `rollupStoryGreen` ([uat-proof.ts](../../packages/orchestrator/src/proof/uat-proof.ts), red→green
 tested) beside the existing `rollupStoryUat`, wired into the CLI `story build` / `storytree tree` crown
 and the studio crown (`applyUatCrowns`). This adds a necessary precondition to the read-time roll-up
-ONLY; it signs nothing (the honesty walls of ADR-0020 are untouched). This Status note records the
-resolution; the `status:` flip to `accepted` remains the owner's hand-flip. **Fork B stays open** (the
-brownfield / foundational machine observe-and-sign path is a separate follow-on).
+ONLY; it signs nothing (the honesty walls of ADR-0020 are untouched). The owner ratified this and the
+`status:` flip to `accepted` in conversation (2026-06-21); per [ADR-0084](0084-agents-may-flip-an-adr-green.md)
+the flip was applied by this session. **Fork B stays open** (the brownfield / foundational machine
+observe-and-sign path is a separate follow-on).
 
 ## Context
 
@@ -97,7 +101,8 @@ two ports) satisfies the capability clause **vacuously** — its green is entire
 > uat green." (The alternative — keep ADR-0082 unchanged, UAT-roll-up only — was declined.) This
 > affects only stories *with* capabilities; the two ports are unaffected either way. The read-time
 > compute (`rollupStoryGreen`) and its crown wiring are **built** (see Status); ADR-0082's reference
-> entry below is amended accordingly. The `status:` flip to `accepted` is the owner's hand-flip.
+> entry below is amended accordingly. The owner ratified the adoption and the `status:` flip to
+> `accepted` in conversation (applied per [ADR-0084](0084-agents-may-flip-an-adr-green.md)).
 
 **4. A machine per-test UAT earns its verdict by observe-and-sign when no red→green is available — the
 brownfield / foundational "adopted" path.** The spine runs the test's declared machine proof command at
