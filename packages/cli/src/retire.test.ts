@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { InMemoryStore } from "@storytree/base";
-import type { StoredDoc } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
+import type { StoredDoc } from "@storytree/storage-protocol";
 
 import { run } from "./commands.js";
 import { findDependents, referencedAssetIds } from "./retire.js";

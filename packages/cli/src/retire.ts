@@ -1,4 +1,4 @@
-import type { StoredDoc } from "@storytree/base";
+import type { StoredDoc } from "@storytree/storage-protocol";
 
 /**
  * The reference-integrity scan behind `storytree library artifact retire` (owner call, 2026-06-20):
