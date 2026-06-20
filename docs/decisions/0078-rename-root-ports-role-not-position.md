@@ -65,11 +65,11 @@ the immutable record of what was decided then; this ADR is the pointer from the 
 - **A one-time mechanical rename** across ~50+ source files + the manifest + the two stories; pure
   identifier churn, gated green by the offline gate (`pnpm -r typecheck && pnpm -r test`, including
   `check:boundaries` + `check:manifest`).
-- **The phantom-dependency cleanup is unblocked but separate.** `notice-board` and `studio-members`
-  declare `@storytree/storage-protocol` (and the matching `depends_on` edge) yet do **not** import it
-  — they roll their own duck-typed pool seam (the event-sourcing *pattern*, duplicated not shared).
-  Removing those stale deps + edges alters the rendered forest graph, so it is its own change, not part
-  of this rename.
+- **The phantom-dependency cleanup is bundled here (owner call, 2026-06-20).** `notice-board` and
+  `studio-members` declared `@storytree/storage-protocol` (and the matching `depends_on` edge) yet do
+  **not** import it — they roll their own duck-typed pool seam (the event-sourcing *pattern*, duplicated
+  not shared). This PR removes those stale deps + edges, so the forest no longer renders the false
+  coupling, and the declared story graph now matches the real import graph for these two organisms.
 
 ## What this does NOT change
 

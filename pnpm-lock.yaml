@@ -179,9 +179,6 @@ importers:
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
-      '@storytree/storage-protocol':
-        specifier: workspace:*
-        version: link:../storage-protocol
       google-auth-library:
         specifier: ^10.7.0
         version: 10.7.0
@@ -291,9 +288,6 @@ importers:
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
-      '@storytree/storage-protocol':
-        specifier: workspace:*
-        version: link:../storage-protocol
       google-auth-library:
         specifier: ^10.7.0
         version: 10.7.0
