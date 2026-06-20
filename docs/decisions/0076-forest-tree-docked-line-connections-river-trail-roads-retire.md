@@ -34,8 +34,16 @@ Two things then happened:
    liked these lines (PR #243 brought them onto the tree layout behind `?roads=lines`).
 2. The `library` story is a heavily-depended foundation whose many edges clutter the centre
    of the map regardless of routing. The owner wants it **off the graph entirely** — moved
-   aside, its connections removed, and drawn as a **building** sitting on an island (a
-   per-territory art element like the trees/flora), not a connected node.
+   aside, its connections removed, and drawn as a **building** (a per-territory art element
+   like the trees/flora), not a connected node.
+
+A first pass (PR #245) drew the building as a single house on the library's own island. On
+seeing it the owner refined the model (2026-06-20): the building should be a recognisable
+**bookshelf** (a weathered, crammed old-library shelf), and rather than keeping its own
+island it should be **distributed** — *"we put the library on every island it connects to, so
+each island connected to the library shows a building on it."* So the library's island is
+removed and its icon is stamped, in miniature, on each of its consumers; a bottom legend maps
+the icon to its meaning. This is what §2 below records (superseding the single-house pass).
 
 Open question raised and settled with the owner at session start: *how do we decide whether
 something is a "building" (on an island, no connections) vs an island/organism node?* The
@@ -54,22 +62,36 @@ This becomes the **default and only** road rendering. The river-trail subsystem 
 their docking/meander helpers, the `riverGeometry` module, and the four trail-routing gear
 dials all go. (Solar mode already drew docked lines and is unchanged.)
 
-**2. Foundation utilities render as buildings, by a manual agent-authored tag.**
-A story may carry a frontmatter render hint marking it a **building**: it is drawn as a
-building on the map (a per-territory art element) and **all of its connection lines are
-omitted** (both its outgoing `depends_on` roads and its inbound edges). The distinction is
-**explicit and curated** — set by the story-author / reviewer agents during story writing or
-review — never derived from degree, kind, tier, or the port/substrate class. `library` is
-the first (and, for now, only) tagged building; the first visual pass may hard-code it to
-prove the look before the tag is wired.
+**2. A building-tagged utility is DISTRIBUTED as an icon on every island it connects to.**
+A story may carry a frontmatter render hint (`render: building`) marking it a **building**.
+Rather than drawing it as its own (de-connected) island, the map:
+
+- **removes the building's own island** from the layout — it does not render as a node, and
+  because it leaves the laid-out story set its connection lines never enter the road/rank
+  graph (so nothing to drop); and
+- **stamps a small building icon on every island that connects to it** — its *consumer set*:
+  every story whose `depends_on` names the building **∪** the building's own `consumed_by`,
+  resolved symmetrically from both declaration styles (ADR-0074 §4 / `fullConnectionSet`).
+  The icon sits beside that island's story tree (a per-territory art element), it does not
+  replace the tree.
+
+So a heavily-depended foundation "moves to the side" by appearing, in miniature, on each of
+its users instead of crowding the centre with edges. For `library` the icon is a weathered
+**bookshelf** crammed with old books. A bottom **building legend** (separate from the top
+world legend) maps each on-island icon → its meaning, extensible to future buildings. The
+distinction stays **explicit and curated** — set by the story-author / reviewer agents during
+story writing or review — never derived from degree, kind, tier, or the port/substrate class.
+`library` is the first (and, for now, only) tagged building.
 
 ## Consequences
 
 - **Good.** One connection style across both layouts (tree + solar share `dockedRoads`).
-  The map decongests: a heavily-depended foundation drawn as a de-connected building stops
-  its edges from crowding the centre. The trail subsystem (a large, intricate routing layer)
-  leaves the codebase, shrinking surface area. The building rule is predictable — no node
-  silently changes class; an agent decides, visible in frontmatter.
+  The map decongests sharply: a heavily-depended foundation leaves the graph entirely and its
+  many edges go with it, while it stays *legible* as a small icon repeated on each user — the
+  relationship is shown by co-location rather than a line. A bottom legend keeps the new icon
+  vocabulary self-explanatory. The trail subsystem (a large, intricate routing layer) leaves
+  the codebase, shrinking surface area. The building rule is predictable — no node silently
+  changes class; an agent decides, visible in frontmatter.
 - **Cost / risk.** Retiring the trail machinery is a large deletion (`riverGeometry.ts` + its
   suite, `buildBasin`/`buildBundle`, the strands passes, four gear dials). The docked lines
   carry less routing nuance than the trails did (no island-skirting, no flow-fattening) — an
@@ -89,3 +111,4 @@ prove the look before the tag is wired.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — two-stage visual proof (geometry red-green + owner-attested appearance) this work follows.
 - [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) — one-element-per-signal: the building is a render class, not a new signal.
 - Code: `apps/studio/src/lib/solarLayout.ts` (`dockedEdgePath`/`dockedRoads`), `apps/studio/src/components/TreeView.tsx` (`buildWorld`), PR #243 (the docked-line layer behind `?roads=lines`).
+- Code (§2 distributed model): `apps/studio/src/lib/buildingLayout.ts` (`bookshelfConsumers` over `fullConnectionSet`, `shelfBooks` icon geometry) + its `*.test.ts`; `apps/studio/src/components/TreeView.tsx` (`BookshelfGlyph`/`StoryBookshelf`/`BuildingLegend`, the `buildWorld` building-filter + consumer stamp). Behind the default-OFF `?buildings=on` flag; PR #245 was the single-house first pass this supersedes.

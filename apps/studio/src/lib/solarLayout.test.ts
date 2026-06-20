@@ -244,7 +244,8 @@ describe('dockedRoads — the DAG/tree world docked-line layer (owner steer 2026
       { from: 'b', to: 'library', via: [] }, // into the building
       { from: 'a', to: 'c', via: [] }, // unrelated road — survives
     ];
-    // exclude the building from the dock map (what buildWorld does for `asBuilding` territories)
+    // exclude the building from the dock map — the drop-on-missing-dock seam (ADR-0076 §2 now
+    // also keeps a building out of the laid-out territories entirely, so its edges never enter)
     const without = new Map([...all].filter(([id]) => id !== 'library'));
     const roads = dockedRoads(edges, without);
     expect(roads.map((r) => `${r.from}->${r.to}`)).toEqual(['a->c']);
