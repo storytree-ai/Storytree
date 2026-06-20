@@ -3,7 +3,7 @@
 A declared cross-story interface per [ADR-0010 §4](../../docs/decisions/0010-organism-model-story-bounded-context.md)
 (declared 2026-06-11, resolving `feedback-graduation` owner call #3). ADR-0010 leaves the schema
 term provisional (`boundary` / `port`) and names no canonical location, so this one-pager lives
-with the owning story; ratify shape and home when `packages/core` formalises the entity.
+with the owning story; ratify shape and home when `packages/library` formalises the entity.
 
 ## Name
 
@@ -22,12 +22,12 @@ CLI surface are all its capabilities (`library-schema-and-write-validation`,
 ## What constitutes the interface
 
 - The **`open-question`** kind in `KIND_SPECS` and its **`OpenQuestion`** schema
-  ([`packages/core/src/knowledge.ts`](../../packages/core/src/knowledge.ts)) — the validated doc
+  ([`packages/library/src/knowledge.ts`](../../packages/library/src/knowledge.ts)) — the validated doc
   shape an authored OQ/proposal must satisfy.
 - The Store seam's validated write boundary — **`upsertDoc`** through
   **`upcastAndValidate`** / **`validateLibraryDoc`**
-  ([`packages/core/src/store.ts`](../../packages/core/src/store.ts),
-  [`packages/store/src/pg-store.ts`](../../packages/store/src/pg-store.ts)) — every authored unit
+  ([`packages/library/src/library-doc.ts`](../../packages/library/src/library-doc.ts),
+  [`packages/library/src/store/pg-store.ts`](../../packages/library/src/store/pg-store.ts)) — every authored unit
   enters as an event + projection write, zod-validated.
 - The CLI authoring surface (ADR-0023): `storytree library artifact new --file <doc.json> --pg` ·
   `storytree library artifact edit <id> --set <field>=<value> --pg`.
