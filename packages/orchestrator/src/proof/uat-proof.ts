@@ -1,5 +1,5 @@
-import type { Status, Verdict } from "@storytree/verdict-contract";
-import type { StoreEvent } from "@storytree/base";
+import type { Status, Verdict } from "@storytree/proof-protocol";
+import type { StoreEvent } from "@storytree/storage-protocol";
 import type { UatTestWitness } from "@storytree/library";
 
 import { rollupStatus } from "./rollup.js";
