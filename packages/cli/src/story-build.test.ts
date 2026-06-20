@@ -320,3 +320,49 @@ test("node build --dry-run still reports the in-memory verdict store in the head
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /store: {7}in-memory/);
 });
+
+// ── --emit-wisp: the dry-run wisp SMOKE (ADR-0080) ────────────────────────────
+
+test("story build --emit-wisp WITHOUT --dry-run is refused (live/real already light real wisps)", async () => {
+  const env = await run(
+    ["story", "build", "library", "--live", "--emit-wisp", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /DRY-RUN smoke/);
+});
+
+test("story build --dry-run --emit-wisp drives the smoke for the STORY unit: building appended + deleted, never a verdict", async () => {
+  const kinds: string[] = [];
+  const deleted: Array<[string, string]> = [];
+  const store = {
+    appendEvent: async (e: { kind: string }) => {
+      kinds.push(e.kind);
+      return e;
+    },
+    deleteWorkEvent: async (unitId: string, runId: string) => {
+      deleted.push([unitId, runId]);
+      return 1;
+    },
+  };
+  const env = await storyBuild("library", {
+    dryRun: true,
+    emitWisp: true,
+    dwellSec: 1,
+    actor: "tester@example.com",
+    wispDeps: {
+      ensureDb: async () => ({ ok: true, started: false }),
+      openStore: async () => ({ store, close: async () => {} }),
+      sleep: async () => {}, // no-op: the dwell decrements its own budget, so it terminates instantly
+      log: () => {},
+      installSigintCleanup: () => () => {},
+      studioUrl: "http://localhost:5173",
+    },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /wisp smoke library — DRY-RUN/);
+  assert.deepEqual(kinds, ["work"], "only a work event is appended — never a verdict");
+  assert.equal(deleted.length, 1);
+  assert.equal(deleted[0]![0], "library", "the wisp anchors to the STORY unit");
+  assert.match(deleted[0]![1]!, /^wisp-smoke-/);
+});

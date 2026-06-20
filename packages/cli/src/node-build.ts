@@ -54,6 +54,8 @@ import type { AmbientDeps } from "./ambient-presence.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
+import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
+import type { EmitWispDeps } from "./wisp-smoke.js";
 import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
@@ -724,6 +726,17 @@ export interface NodeBuildOpts {
    * persist. Default = {@link ensureLiveDb} (probe → `db:up` + wait when the instance is down).
    */
   ensureDb?: (log: (message: string) => void) => Promise<EnsureDbResult>;
+  /**
+   * `--emit-wisp` (ADR-0080) — the dry-run wisp SMOKE: append ONE transient `building` mark for the
+   * real unit to the LIVE store, dwell, then hard-delete it (never a verdict). Valid only with
+   * `--dry-run`; REQUIRES the live DB. Verifies the in-flight-build wisp pipeline without a billed
+   * build (ADR-0048).
+   */
+  emitWisp?: boolean;
+  /** `--dwell <sec>` — how long the wisp smoke holds the mark (default 75s, spans the 30s poll). */
+  dwellSec?: number;
+  /** Injectable for tests (ADR-0080): the wisp-smoke deps (fake ensureDb / store / clock). */
+  wispDeps?: EmitWispDeps;
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
   /**
@@ -800,6 +813,29 @@ export async function nodeBuild(
       body: `node spec ${specFile} failed to load:\n${(e as Error).message}`,
       next: ["storytree node build <id> --dry-run"],
     };
+  }
+
+  // ADR-0080: `--emit-wisp` is the dry-run wisp SMOKE — it short-circuits the scripted gate walk and
+  // instead lights a transient `building` mark for the REAL unit in the live store, dwells, then
+  // hard-deletes it (never a verdict). It is a DRY-RUN-only smoke that REQUIRES the live DB.
+  if (opts.emitWisp === true) {
+    const gate = gateEmitWisp({
+      dryRun: opts.dryRun,
+      ...(opts.dwellSec !== undefined ? { dwellSec: opts.dwellSec } : {}),
+      retryCmd: `storytree node build ${spec.id} --dry-run --emit-wisp`,
+    });
+    if (!gate.ok) return gate.refusal;
+    return emitWisp(
+      {
+        unitId: spec.id,
+        ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
+        runId: `wisp-smoke-${Date.now().toString(36)}`,
+        signer: signer.signer,
+        dwellSec: gate.dwellSec,
+        retryCmd: `storytree node build ${spec.id} --dry-run --emit-wisp`,
+      },
+      opts.wispDeps ?? {},
+    );
   }
 
   // REAL mode fail-closed precheck BEFORE any worktree is cut: the node must carry a real-proof
@@ -1217,6 +1253,13 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      run-without-persisting mode (--store memory was removed, ADR-0081). For --dry-run the",
       "      store is in-memory and --store pg is refused — a scripted PASS persisted is a forged",
       "      healthy (ADR-0020).",
+      "",
+      "  storytree node build <id> --dry-run --emit-wisp [--dwell <sec>]",
+      "      the wisp SMOKE (ADR-0080): light a transient teal wisp for <id> in the studio to verify",
+      "      the in-flight-build pipeline (CLI → events.work_event → /api/activity → render, ADR-0048)",
+      "      WITHOUT a billed build. Appends ONE building mark (never a verdict), dwells ~75s (--dwell)",
+      "      so it spans the studio's 30s poll, then HARD-DELETES the row — history left pristine.",
+      "      Requires the live DB (auto-started). Dry-run-only.",
       "",
       `buildable nodes (registry + spec-borne): ${buildable.join(", ")}`,
       `REAL-buildable nodes:                    ${realBuildable.join(", ") || "(none yet)"}`,

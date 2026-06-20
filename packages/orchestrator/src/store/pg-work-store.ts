@@ -27,7 +27,7 @@ import {
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
 export interface WorkStoreClient {
-  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[]; rowCount?: number | null }>;
 }
 
 interface WorkEventRow {
@@ -183,6 +183,28 @@ export class PgWorkStore implements Store {
     );
     const events = merged.map(({ event }, index) => ({ ...event, seq: index + 1 }));
     return filter?.id === undefined ? events : events.filter((e) => e.id === filter.id);
+  }
+
+  /**
+   * Hard-DELETE the transient `building` smoke row for `(unitId, runId)` — the DELIBERATE,
+   * narrowly-scoped exception to this store's otherwise append-only contract (ADR-0080, the
+   * dry-run wisp smoke). It is scoped to `type = 'building'` AND `doc->>'runId' = runId`, so it
+   * can only remove the exact transient mark the `--emit-wisp` smoke appended — never a verdict
+   * (those live in `events.verdict`, not here) and never another run's lifecycle history. Returns
+   * the number of rows removed (1 for a clean smoke).
+   *
+   * Why a hard delete, not a `retired` event: appending `retired` would make {@link rollupStatus}
+   * project the REAL unit as retired (last event wins) — a healthy unit would flip status in the
+   * tree. Physically removing the transient row leaves the unit's durable event history
+   * byte-identical to before the smoke ran.
+   */
+  async deleteWorkEvent(unitId: string, runId: string): Promise<number> {
+    const res = await this.#client.query(
+      `DELETE FROM events.work_event
+        WHERE unit_id = $1 AND type = 'building' AND doc->>'runId' = $2`,
+      [unitId, runId],
+    );
+    return res.rowCount ?? 0;
   }
 
   // ── The doc surface: not this store's job, fail loud ───────────────────────
