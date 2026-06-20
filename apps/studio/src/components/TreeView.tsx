@@ -60,6 +60,7 @@ import {
   type DockNode,
 } from '../lib/solarLayout.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
+import { bookshelfConsumers, shelfBooks } from '../lib/buildingLayout.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
@@ -230,11 +231,14 @@ interface Territory {
   /** The smoothed coast as point loop(s), for docking river mouths to the shore. */
   coastLoops: Pt[][];
   labelY: number;
-  /** Render this territory as a BUILDING (ADR-0076): the story carries the agent-authored
-   *  `render: building` tag AND the buildings flag is on. A building is drawn as a building
-   *  (not the central story tree) and is EXCLUDED from the dock map, so all its connection
-   *  lines (in and out) are omitted. False for a normal connected island. */
-  asBuilding: boolean;
+  /** Stamp a BUILDING icon on this island (ADR-0076 §2, distributed model): true when this
+   *  story CONSUMES a building-tagged story (e.g. `library`) AND the buildings flag is on.
+   *  The building (library) itself is not laid out as an island — its icon is distributed
+   *  onto every consumer instead. False for a normal island with no building dependency. */
+  bookshelf: boolean;
+  /** Where the building icon sits on the island (beside the central tree, on owned land);
+   *  present iff {@link bookshelf} is true. */
+  bookshelfSpot?: Pt;
 }
 
 interface WorldEdge {
@@ -557,14 +561,16 @@ function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; pat
 }
 
 function buildWorld(
-  stories: TreeStory[],
+  allStories: TreeStory[],
   opts?: {
     plantsScatter?: boolean;
     /** ADR-0074 §6: `solar` seeds islands on rank-keyed orbits around the hubs;
      *  `dag` (default) keeps the bottom-up dependency rows. */
     layoutMode?: LayoutMode;
-    /** ADR-0076: draw stories tagged `render: building` as de-connected buildings (their
-     *  connection lines omitted). Default false → tagged stories render as normal islands. */
+    /** ADR-0076 §2: distribute stories tagged `render: building` as a BUILDING ICON stamped on
+     *  every island that connects to them (e.g. `library` → a bookshelf on each consumer); the
+     *  building itself drops out of the layout. Default false → tagged stories render as normal
+     *  islands (byte-identical). */
     buildings?: boolean;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
@@ -574,6 +580,27 @@ function buildWorld(
   const layoutMode = opts?.layoutMode ?? 'dag';
   const buildings = opts?.buildings ?? false;
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
+
+  // ADR-0076 §2 (distributed-bookshelf model, owner steer 2026-06-20): a story tagged
+  // `render: building` (e.g. `library`) does NOT get its own island. When the flag is on
+  // it's EXCLUDED from the laid-out territories — so its edges never enter the road/rank
+  // graph — and its icon is stamped on every island that CONNECTS to it instead. The
+  // consumer set is computed from the FULL list first (before the building drops out, so its
+  // inbound edges are still visible). Flag off ⇒ no buildings, no consumers, `stories` is the
+  // full list ⇒ today's world unchanged.
+  const buildingIds = new Set(
+    buildings ? allStories.filter((s) => s.building === true).map((s) => s.id) : [],
+  );
+  const bookshelfIds: ReadonlySet<string> = buildingIds.size
+    ? bookshelfConsumers(
+        allStories.map((s) => ({ id: s.id, dependsOn: s.dependsOn, consumedBy: s.consumedBy })),
+        buildingIds,
+      )
+    : EMPTY_ID_SET;
+  const stories = buildingIds.size
+    ? allStories.filter((s) => !buildingIds.has(s.id))
+    : allStories;
+
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
   // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
   // (centred, everything orbits + spokes converge), not by a distinct size/skin.
@@ -827,6 +854,22 @@ function buildWorld(
 
     const labelY = Math.max(...centers.map((p) => p.y), centroid.y) + HEX_R + TILE_DEPTH + 8;
     const coast = smoothCoast(boundary, story.id);
+
+    // ADR-0076 §2: a CONSUMER of a building-tagged story carries the building's icon. Seat it
+    // beside the tree (a deterministic side), then walk inward until it sits on owned land —
+    // the same land-snap the garden plants use, so it never floats over the sea.
+    const carriesBookshelf = bookshelfIds.has(story.id);
+    let bookshelfSpot: Pt | undefined;
+    if (carriesBookshelf) {
+      const side = rand01(hash(`${story.id}:shelf-side`)) < 0.5 ? -1 : 1;
+      let bx = treeSpot.x + side * (crownR + 17);
+      let by = treeSpot.y + 7; // a touch in front of the trunk base so it reads as on the ground
+      for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
+        bx += (treeSpot.x - bx) * 0.3;
+        by += (treeSpot.y - by) * 0.3;
+      }
+      bookshelfSpot = { x: bx, y: by };
+    }
     return {
       story,
       tiles,
@@ -839,8 +882,8 @@ function buildWorld(
       coastPaths: coast.paths,
       coastLoops: coast.loops,
       labelY,
-      // ADR-0076: a building only when the story is tagged AND the flag is on.
-      asBuilding: buildings && story.building === true,
+      bookshelf: carriesBookshelf,
+      ...(bookshelfSpot ? { bookshelfSpot } : {}),
     };
   });
 
@@ -885,13 +928,12 @@ function buildWorld(
   // also a road, ADR-0074 §4).
   // Perimeter-dock node for every island, keyed by story id — the rim point + dock radius
   // an edge meets (a touch INSIDE the bounding radius so the line lands on the coast).
-  // BUILDINGS (ADR-0076) are EXCLUDED: with no dock entry, `dockedRoads` drops every edge
-  // touching them (in AND out), so a building has no connection lines — exactly the
-  // drop-on-missing-dock seam the docked-line layer was built around.
+  // Building-tagged stories (ADR-0076 §2) aren't in `territories` at all (filtered out of
+  // the layout above), so they have no dock and never appear as a road endpoint — `dockedRoads`
+  // would also drop any edge to a missing dock, but with the building gone from `stories` the
+  // edge never even enters `edgeList`.
   const dockById = new Map<string, DockNode>(
-    territories
-      .filter((t) => !t.asBuilding)
-      .map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
+    territories.map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
   );
   let solar: HexWorld['solar'];
   if (layoutMode === 'solar') {
@@ -2164,6 +2206,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               onClose={() => setSessionDock(null)}
             />
           )}
+          {/* The bottom "building legend" (ADR-0076 §2): the on-island building icons →
+              their meaning, docked at the foot of the frame. Only when the buildings flag is
+              on AND at least one icon is on the map; default OFF ⇒ absent (byte-identical). */}
+          {buildings && world.territories.some((t) => t.bookshelf) && <BuildingLegend />}
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
@@ -2287,15 +2333,134 @@ function LandingBloom({
  * one — dashed-blank until their UAT verdict is signed, a filled seal after
  * (the seal echoes the crown's hue; the FILL is the new bit).
  */
+// The bookshelf icon geometry (ADR-0076 §2): a tall, narrow, weathered case of ~4 shelves
+// crammed with old leather books — many upright at varied heights, a few leaning, a couple
+// stacked flat (the "old chaotic library shelf" the owner referenced). Base sits at y=0 and
+// it grows upward (negative y), like the trees, so y-sorting layers it correctly. Sized
+// small enough to sit on an island. The spine layout is the deterministic, unit-tested
+// `shelfBooks` (buildingLayout.ts) — geometry red-green; the PALETTE/appearance is
+// owner-attested (ADR-0070), carried by CSS (`.bookshelf-*`).
+const BOOKSHELF = {
+  W: 22, // case outer width
+  H: 30, // case outer height (base at y=0, top at y=-H)
+  wall: 1.8, // side-panel thickness
+  plinth: 3, // plinth height at the base
+  topMargin: 1.4, // gap above the top shelf, under the top board
+  shelves: 4,
+  board: 1, // shelf-board thickness
+};
+
 /**
- * A BUILDING landmark (ADR-0076) drawn in place of the central story tree for a story
- * tagged `render: building` (e.g. the library) when the buildings flag is on — a cozy
- * hipped-roof hall with a door, lit windows and a chimney, in the Dorfromantik palette.
- * It carries the story id/status in its tooltip and stays clickable (the wrapping flora
- * group selects the story); it has NO connection lines (its edges are dropped upstream in
- * buildWorld). Appearance is owner-attested (ADR-0070) — geometry only here.
+ * The bookshelf art as a `<g>` centred horizontally at the origin with its base on y=0 —
+ * shared by the on-island {@link StoryBookshelf} and the bottom {@link BuildingLegend}, so the
+ * two can never drift. Pure geometry off `shelfBooks(seed)`; deterministic per `seed`.
  */
-function StoryBuilding({
+function BookshelfGlyph({ seed }: { seed: number }): React.JSX.Element {
+  const B = BOOKSHELF;
+  const interiorW = B.W - 2 * B.wall;
+  const usable = B.H - B.plinth - B.topMargin;
+  const comp = usable / B.shelves; // one compartment's height
+  const shelfInteriorH = comp - B.board - 0.4; // headroom for books under the next board
+  const rows = Array.from({ length: B.shelves }, (_, k) => {
+    const boardY = -(B.plinth + k * comp); // the surface this shelf's books rest on
+    // every 3rd shelf swaps a few upright spines for a small flat stack — the lived-in look
+    const flat = k === 1;
+    const books = shelfBooks(seed * 31 + k * 7 + 13, interiorW * (flat ? 0.66 : 1), shelfInteriorH);
+    return { k, boardY, books, flat };
+  });
+  // a couple of books piled flat on TOP of the case (the overflow pile)
+  const topPile = shelfBooks(seed * 53 + 5, interiorW * 0.7, 2.6).slice(0, 3);
+
+  return (
+    <g className="story-bookshelf-art">
+      {/* plinth */}
+      <rect className="bookshelf-plinth" x={-B.W / 2 - 1} y={-B.plinth} width={B.W + 2} height={B.plinth} rx={0.6} />
+      {/* the dark case interior (books sit against it) */}
+      <rect className="bookshelf-case" x={-B.W / 2} y={-B.H} width={B.W} height={B.H - B.plinth} rx={1} />
+      {/* shelf boards */}
+      {rows.map(({ k, boardY }) => (
+        <rect
+          key={`b${k}`}
+          className="bookshelf-board"
+          x={-B.W / 2 + B.wall * 0.5}
+          y={boardY}
+          width={B.W - B.wall}
+          height={B.board}
+        />
+      ))}
+      {/* book spines (upright) + occasional flat stack, per shelf */}
+      {rows.map(({ k, boardY, books, flat }) => (
+        <g key={`s${k}`}>
+          {books.map((bk, i) => {
+            const x = -interiorW / 2 + bk.x;
+            const cx = x + bk.w / 2;
+            return (
+              <rect
+                key={i}
+                className={`bookshelf-book bk-${bk.variant}`}
+                x={x.toFixed(2)}
+                y={(boardY - bk.h).toFixed(2)}
+                width={bk.w.toFixed(2)}
+                height={bk.h.toFixed(2)}
+                rx={0.4}
+                {...(bk.tilt
+                  ? { transform: `rotate(${bk.tilt.toFixed(1)} ${cx.toFixed(2)} ${boardY.toFixed(2)})` }
+                  : {})}
+              />
+            );
+          })}
+          {flat &&
+            // a small flat stack to the side of this shelf's spines (varied lengths)
+            [0, 1, 2].map((j) => {
+              const sw = interiorW * (0.26 - j * 0.02);
+              const sx = interiorW / 2 - sw - 0.5;
+              const sy = boardY - 1.3 * (j + 1);
+              return (
+                <rect
+                  key={`f${j}`}
+                  className={`bookshelf-book bk-${(seed + j + k) % 5}`}
+                  x={sx.toFixed(2)}
+                  y={sy.toFixed(2)}
+                  width={sw.toFixed(2)}
+                  height={1.2}
+                  rx={0.3}
+                />
+              );
+            })}
+        </g>
+      ))}
+      {/* top board */}
+      <rect className="bookshelf-board" x={-B.W / 2} y={-B.H} width={B.W} height={B.board + 0.4} rx={0.6} />
+      {/* the overflow pile on top */}
+      {topPile.map((bk, i) => {
+        const x = -interiorW / 2 + bk.x;
+        return (
+          <rect
+            key={`t${i}`}
+            className={`bookshelf-book bk-${(bk.variant + 2) % 5}`}
+            x={x.toFixed(2)}
+            y={(-B.H - 2.6 + (i % 2)).toFixed(2)}
+            width={(bk.w * 1.9).toFixed(2)}
+            height={2.2}
+            rx={0.3}
+          />
+        );
+      })}
+      {/* side panels (over the book side-edges) */}
+      <rect className="bookshelf-side" x={-B.W / 2} y={-B.H} width={B.wall} height={B.H - B.plinth} rx={0.8} />
+      <rect className="bookshelf-side" x={B.W / 2 - B.wall} y={-B.H} width={B.wall} height={B.H - B.plinth} rx={0.8} />
+    </g>
+  );
+}
+
+/**
+ * The library-as-a-building icon (ADR-0076 §2) stamped on an island that CONSUMES the
+ * library — a small weathered bookshelf beside the story tree, NOT a replacement for it.
+ * The library has no island of its own; its icon is distributed onto every consumer. The
+ * wrapping flora group keeps the island clickable; the tooltip names what it means.
+ * Appearance is owner-attested (ADR-0070) — geometry only here.
+ */
+function StoryBookshelf({
   territory: t,
   hidden,
 }: {
@@ -2304,32 +2469,54 @@ function StoryBuilding({
 }): React.JSX.Element {
   const story = t.story;
   const st = story.status ?? 'unknown';
-  const W = 36;
-  const bodyH = 24;
-  const roofH = 17;
-  const eave = 5.5;
-  const peakY = -(bodyH + roofH);
-  // a hipped roof (trapezoid): wide eaves at the wall top, a short ridge at the peak.
-  const roof = `M ${-W / 2 - eave} ${-bodyH} L ${(-W * 0.2).toFixed(1)} ${peakY} L ${(W * 0.2).toFixed(1)} ${peakY} L ${W / 2 + eave} ${-bodyH} Z`;
+  const spot = t.bookshelfSpot ?? t.treeSpot;
   return (
     <g
-      className={`story-building st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
-      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)})`}
+      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}`}
+      transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(0.84)`}
     >
-      <title>{`${story.id} — ${story.error ? 'story spec error' : st} · building`}</title>
-      <ellipse className="flora-shadow" cx={2} cy={2} rx={(W * 0.64).toFixed(1)} ry={(W * 0.17).toFixed(1)} />
-      {/* hall body */}
-      <rect className="building-wall" x={-W / 2} y={-bodyH} width={W} height={bodyH} rx={2} />
-      {/* lit windows */}
-      <rect className="building-window" x={-W / 2 + 5.5} y={-bodyH + 6} width={7} height={7} rx={1} />
-      <rect className="building-window" x={W / 2 - 12.5} y={-bodyH + 6} width={7} height={7} rx={1} />
-      {/* an arched door, centred at the base */}
-      <path className="building-door" d="M -5 0 L -5 -9 Q -5 -13.5 0 -13.5 Q 5 -13.5 5 -9 L 5 0 Z" />
-      {/* chimney (drawn first so the roof laps its base; the top pokes above the ridge) */}
-      <rect className="building-roof" x={W * 0.2} y={peakY - 6} width={4.5} height={11} rx={0.8} />
-      {/* hipped roof on top */}
-      <path className="building-roof" d={roof} />
+      <title>{`library — used by ${story.id}`}</title>
+      <ellipse className="flora-shadow" cx={1} cy={1.6} rx={12.5} ry={3.1} />
+      <BookshelfGlyph seed={hash(`${story.id}:shelf`)} />
     </g>
+  );
+}
+
+/**
+ * The bottom "building legend" (ADR-0076 §2): maps each on-island building ICON to what it
+ * means, docked at the foot of the forest frame — SEPARATE from the top {@link WorldLegend}
+ * (the plant/tree vocabulary). Data-driven so future buildings are one row each. Shown only
+ * when the buildings flag is on and at least one icon is on the map.
+ */
+const BUILDING_LEGEND: { key: string; title: string; note: string; glyph: () => React.JSX.Element }[] = [
+  {
+    key: 'library',
+    title: 'library',
+    note: 'the shared library — shown on every island that uses it',
+    glyph: () => <BookshelfGlyph seed={1} />,
+  },
+];
+
+function BuildingLegend(): React.JSX.Element {
+  return (
+    <div className="building-legend-dock">
+      <div className="building-legend-bar" role="group" aria-label="building legend">
+        <span className="building-legend-head">buildings</span>
+        {BUILDING_LEGEND.map((b) => (
+          <div key={b.key} className="building-legend-item" title={b.note}>
+            <span className="building-legend-icon">
+              <svg viewBox="-15 -35 30 38" aria-hidden="true">
+                {b.glyph()}
+              </svg>
+            </span>
+            <span className="building-legend-text">
+              <span className="building-legend-title">{b.title}</span>
+              <span className="building-legend-note">{b.note}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -2701,14 +2888,16 @@ function TerritoryFlora({
   });
   drawables.push({
     y: t.treeSpot.y,
-    // ADR-0076: a building-tagged story (e.g. library) stands as a BUILDING landmark in
-    // place of the central story tree; otherwise the usual story tree grows.
-    el: t.asBuilding ? (
-      <StoryBuilding key="story-building" territory={t} hidden={hidden} />
-    ) : (
-      <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />
-    ),
+    el: <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />,
   });
+  // ADR-0076 §2: a consumer of the library carries a small bookshelf BESIDE its tree (the
+  // library has no island of its own — its icon is distributed onto every consumer).
+  if (t.bookshelf && t.bookshelfSpot) {
+    drawables.push({
+      y: t.bookshelfSpot.y,
+      el: <StoryBookshelf key="story-bookshelf" territory={t} hidden={hidden} />,
+    });
+  }
   drawables.sort((a, b) => a.y - b.y);
 
   return (

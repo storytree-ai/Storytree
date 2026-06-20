@@ -1740,36 +1740,105 @@ mark.st-hl.flash {
   opacity: 0.16;
 }
 
-/* a BUILDING landmark (ADR-0076) — drawn instead of the central story tree for a story
-   tagged `render: building` (e.g. the library): a cozy hipped-roof hall, NO connection
-   lines. Warm Dorfromantik palette; status lives in the tooltip, not the walls (for now). */
-.story-building {
+/* the library-as-a-building icon (ADR-0076 §2) — a small weathered BOOKSHELF stamped on every
+   island that uses the library. A tall narrow dark-brown case of ~4 shelves crammed with old
+   leather books (faded reds / tans / browns), upright and a few leaning + stacked. Warm
+   Dorfromantik palette; meaning lives in the tooltip + the bottom building legend. */
+.story-bookshelf {
   transition: opacity 0.18s ease;
 }
-.story-building.is-filtered {
+.story-bookshelf.is-filtered {
   opacity: 0.12;
 }
-.building-wall {
-  fill: #efe2c4;
-  stroke: #c9b485;
-  stroke-width: 1.2;
+.bookshelf-plinth {
+  fill: #4a3322;
 }
-.building-roof {
-  fill: #b6764e;
-  stroke: #8c5836;
-  stroke-width: 1.2;
+.bookshelf-case {
+  fill: #2f2015; /* the dark gap behind the books */
+}
+.bookshelf-side,
+.bookshelf-board {
+  fill: #6b4a2f; /* weathered dark-brown wood */
+  stroke: #4a3322;
+  stroke-width: 0.5;
   stroke-linejoin: round;
 }
-.building-door {
-  fill: #7a5230;
+.bookshelf-book {
+  stroke: rgba(40, 26, 16, 0.55);
+  stroke-width: 0.35;
 }
-.building-window {
-  fill: #f6e6a6;
-  stroke: #c9b485;
-  stroke-width: 1;
+/* faded old-leather spines — reds, tans, browns, a green, a slate */
+.bookshelf-book.bk-0 {
+  fill: #a8533f;
 }
-.story-building:hover .building-window {
-  fill: #fff1bf;
+.bookshelf-book.bk-1 {
+  fill: #c9a063;
+}
+.bookshelf-book.bk-2 {
+  fill: #7c5a3a;
+}
+.bookshelf-book.bk-3 {
+  fill: #6f7d55;
+}
+.bookshelf-book.bk-4 {
+  fill: #51606b;
+}
+.story-bookshelf:hover .bookshelf-book {
+  filter: brightness(1.08);
+}
+
+/* the bottom "building legend" (ADR-0076 §2): on-island building icons → their meaning,
+   docked at the foot of the frame, separate from the top world legend. */
+.building-legend-dock {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  pointer-events: none;
+  z-index: 2;
+}
+.building-legend-bar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 11px 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  opacity: 0.97;
+}
+.building-legend-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.building-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.building-legend-icon svg {
+  height: 34px;
+  width: auto;
+  display: block;
+}
+.building-legend-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.building-legend-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.building-legend-note {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 /* the central story tree — the story itself; the crown carries the story status */
