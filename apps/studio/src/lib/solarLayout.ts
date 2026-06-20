@@ -5,7 +5,7 @@
 // to its dependency rank, so the dependency roads run radially toward the central
 // clearing ("roads converging on the hubs", the hub-layout-within-the-forest fork).
 //
-// Why a standalone, framework-free module (mirrors worldSettings / riverGeometry):
+// Why a standalone, framework-free module (mirrors worldSettings):
 //   • Pure number math (no React, no DOM) → unit-testable in the node-env vitest
 //     suite (solarLayout.test.ts) — Stage-1 red-green of the layout GEOMETRY
 //     (ADR-0070 two-stage proof; the APPEARANCE is owner-attested, never self-signed).

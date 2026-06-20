@@ -93,7 +93,6 @@ export type ControlValue = number | boolean | string;
 // ---------------------------------------------------------------------------
 
 const GROUP_GROUND = 'Ground';
-const GROUP_ROADS = 'Roads';
 const GROUP_LAYOUT = 'Layout';
 
 /** substrate aliases, mirroring readSubstrateMode. */
@@ -112,20 +111,10 @@ function normalizeLayout(raw: string | null): string {
   return 'dag';
 }
 
-/** road-style aliases, mirroring readRoadStyle. Default = `trail` (the byte-identical
- *  river-trail roads); `lines` swaps in the thin perimeter-docked lines (owner steer
- *  2026-06-20: keep the tree layout but adopt the solar world's line style). */
-function normalizeRoadStyle(raw: string | null): string {
-  if (raw === 'lines' || raw === 'docked' || raw === 'thin') return 'lines';
-  // 'trail' | 'trails' | unknown | null → trail (the current river-trail roads).
-  return 'trail';
-}
-
-// ADR-0073: roads is the ONE world (rivers/ponds/moats retired). The dials are a
-// small, road-named set in two groups (Ground / Roads); the river-network routing
-// knobs that genuinely shape how roads run between islands are KEPT under new names,
-// and every river/pond-only dial is GONE. Each control's `hint` is the visible
-// plain-English description shown UNDER the control (owner ask 2026-06-18).
+// The forest-map dials (owner ask 2026-06-18). Since the river-trail road system was
+// retired (ADR-0076: connections are thin perimeter-docked lines with nothing to tune),
+// the road-routing knobs are GONE — only Layout (DAG vs solar) and Ground (tiling) remain.
+// Each control's `hint` is the visible plain-English description shown UNDER the control.
 export const CONTROLS: readonly ControlSpec[] = [
   // ---- Layout ----
   // ADR-0074 §6 / `solar-system-world`: the RADIAL hub-and-spoke world (cli/store at
@@ -160,78 +149,6 @@ export const CONTROLS: readonly ControlSpec[] = [
       { value: 'relaxed-hex', label: 'Relaxed hex' },
     ],
     normalize: normalizeSubstrate,
-  },
-
-  // ---- Roads ----
-  // Owner steer 2026-06-20: the tree (DAG) world can draw its dependency roads as the
-  // SAME thin, no-arrow, perimeter-docked lines the solar world uses ("I like the
-  // updated lines"). Default `trail` writes NO param, so the heavy river-trail roads
-  // stay byte-identical until the owner picks `lines`.
-  {
-    kind: 'select',
-    key: 'roads',
-    label: 'Road style',
-    group: GROUP_ROADS,
-    hint: 'How dependency connections are drawn — worn dirt trails, or thin perimeter-docked lines.',
-    default: 'trail',
-    options: [
-      { value: 'trail', label: 'Dirt trails' },
-      { value: 'lines', label: 'Thin lines' },
-    ],
-    normalize: normalizeRoadStyle,
-  },
-  {
-    kind: 'number',
-    key: 'roadStraighten',
-    label: 'Road straightness',
-    group: GROUP_ROADS,
-    hint: 'How straight roads run between islands (low = winding lanes, high = direct).',
-    // Mirrors DIRT_PATH_STRAIGHTEN (riverGeometry.ts) — the default trail straighten.
-    default: 0.28,
-    min: 0,
-    max: 1,
-    step: 0.02,
-    clampMin: 0,
-    clampMax: 1,
-  },
-  {
-    kind: 'number',
-    key: 'bundleFar',
-    label: 'Long-route split',
-    group: GROUP_ROADS,
-    hint: 'Long roads split off and fan out around islands past this distance.',
-    default: 300,
-    min: 0,
-    max: 1200,
-    step: 10,
-    clampMin: 0,
-    clampMax: null,
-  },
-  {
-    kind: 'number',
-    key: 'deltaPull',
-    label: 'Junction spread',
-    group: GROUP_ROADS,
-    hint: 'How early roads fan out from a shared junction (high = fan at the source).',
-    default: 1.0,
-    min: 0,
-    max: 1,
-    step: 0.05,
-    clampMin: 0,
-    clampMax: 1,
-  },
-  {
-    kind: 'number',
-    key: 'riverRepel',
-    label: 'Road spacing',
-    group: GROUP_ROADS,
-    hint: 'Pushes close parallel roads apart into separate lanes (0 = off).',
-    default: 0,
-    min: 0,
-    max: 3,
-    step: 0.1,
-    clampMin: 0,
-    clampMax: null,
   },
 ] as const;
 

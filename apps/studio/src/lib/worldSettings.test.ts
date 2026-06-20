@@ -3,11 +3,12 @@
 // tests pin the binding contract RED-FIRST so the panel and the TreeView readers can
 // never drift: a control written to its DEFAULT must REMOVE its param (so the default
 // world's URL stays clean / the world stays byte-identical), unrelated params survive,
-// clamps mirror the TreeView parser exactly, and the shareable URL puts params BEFORE
-// the #hash. Pure string/URL math — no React, no DOM — so the suite runs in node env.
+// and the shareable URL puts params BEFORE the #hash. Pure string/URL math — no React,
+// no DOM — so the suite runs in node env.
 //
-// ADR-0073 (roads is the one world): the river/pond dials were RETIRED. The schema is
-// now a small road-named set in two groups (Ground / Roads), each with a visible hint.
+// ADR-0073 made roads the one world; ADR-0076 retired the river-trail ROUTING system
+// (connections are now thin perimeter-docked lines with nothing to tune), so the
+// road-routing dials are GONE — only Layout (DAG vs solar) and Ground (tiling) remain.
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -27,26 +28,24 @@ function ctl(key: string): ControlSpec {
   return c;
 }
 
-describe('worldSettings — schema (roads world, ADR-0073)', () => {
-  it('exposes exactly the road-world dials, each with a key/label/group/kind/default', () => {
+describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
+  it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // The road-world set, grouped (Layout / Ground / Roads). A small, intuitive set.
-    const expected = ['layout', 'roads', 'substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
-    for (const k of expected) {
-      expect(keys, `missing control ${k}`).toContain(k);
-    }
-    // The retired river/pond dials must be GONE (genuinely stripped, not shelved).
+    // Layout (DAG vs solar) + Ground (tiling) — the only dials left after the road
+    // routing system was retired.
+    const expected = ['layout', 'substrate'];
+    expect([...keys].sort()).toEqual([...expected].sort());
+    // The retired river/pond dials AND the retired road-routing dials must be GONE
+    // (genuinely stripped, not shelved — ADR-0073 / ADR-0076).
     for (const gone of [
+      'roads',
+      'roadStraighten',
+      'bundleFar',
+      'deltaPull',
+      'riverRepel',
       'world',
       'deltaCone',
-      'deltaConePull',
       'meanderAmp',
-      'meanderFreq',
-      'riverRepelRadius',
-      'riverOpenBias',
-      'riverOpenCell',
-      'trunkFrac',
-      'crescentMinDegree',
       'pondMouth',
       'weld',
     ]) {
@@ -57,62 +56,21 @@ describe('worldSettings — schema (roads world, ADR-0073)', () => {
       expect(c.label.length).toBeGreaterThan(0);
       expect(c.group.length).toBeGreaterThan(0);
       expect(['number', 'toggle', 'select']).toContain(c.kind);
-      // Every control carries a visible plain-English description (rendered as a
-      // sub-label under the row, ADR-0073 / owner ask 2026-06-18).
+      // Every control carries a visible plain-English description (a sub-label under the row).
       expect((c.hint ?? '').length, `control ${c.key} needs a hint`).toBeGreaterThan(0);
     }
   });
 
-  it('groups controls under Layout, Ground and Roads only', () => {
+  it('groups controls under Layout and Ground only', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
-    expect(groups.has('Roads')).toBe(true);
-    expect(groups.size).toBe(3);
+    expect(groups.size).toBe(2);
   });
 
   it('keys are unique', () => {
     const keys = CONTROLS.map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
-  });
-});
-
-describe('worldSettings — setControlValue (numeric)', () => {
-  it('writes a non-default numeric param onto an empty search', () => {
-    expect(setControlValue('', ctl('bundleFar'), 500)).toBe('?bundleFar=500');
-  });
-
-  it('removes a numeric param when set back to its DEFAULT', () => {
-    // bundleFar default is 300 → writing 300 must drop it (clean default URL).
-    expect(setControlValue('?bundleFar=500', ctl('bundleFar'), 300)).toBe('');
-  });
-
-  it('preserves UNRELATED params when setting a numeric', () => {
-    const out = setControlValue('?debug=1', ctl('bundleFar'), 500);
-    expect(out).toContain('debug=1');
-    expect(out).toContain('bundleFar=500');
-  });
-});
-
-describe('worldSettings — roadStraighten control', () => {
-  it('defaults to DIRT_PATH_STRAIGHTEN (0.28) and removing on default', () => {
-    expect(readControlValue('', ctl('roadStraighten'))).toBe(0.28);
-    expect(setControlValue('?roadStraighten=0.6', ctl('roadStraighten'), 0.28)).toBe('');
-  });
-
-  it('writes a non-default value and clamps to [0,1]', () => {
-    expect(setControlValue('', ctl('roadStraighten'), 0.6)).toBe('?roadStraighten=0.6');
-    expect(readControlValue('?roadStraighten=5', ctl('roadStraighten'))).toBe(1);
-    expect(readControlValue('?roadStraighten=-1', ctl('roadStraighten'))).toBe(0);
-  });
-});
-
-describe('worldSettings — setControlValue (select)', () => {
-  it('substrate: mesh (default) removes the param, others write substrate=<value>', () => {
-    expect(setControlValue('?substrate=hex', ctl('substrate'), 'mesh')).toBe('');
-    expect(setControlValue('', ctl('substrate'), 'hex')).toBe('?substrate=hex');
-    expect(setControlValue('', ctl('substrate'), 'relaxed-quad')).toBe('?substrate=relaxed-quad');
-    expect(setControlValue('', ctl('substrate'), 'relaxed-hex')).toBe('?substrate=relaxed-hex');
   });
 });
 
@@ -134,52 +92,29 @@ describe('worldSettings — layout control (solar-system, ADR-0074 §6)', () => 
   });
 });
 
-describe('worldSettings — roads control (docked lines, owner steer 2026-06-20)', () => {
-  it('defaults to trail and writing trail REMOVES the param (byte-identical world)', () => {
-    expect(readControlValue('', ctl('roads'))).toBe('trail');
-    expect(setControlValue('?roads=lines', ctl('roads'), 'trail')).toBe('');
+describe('worldSettings — substrate control (select)', () => {
+  it('mesh (default) removes the param, others write substrate=<value>', () => {
+    expect(setControlValue('?substrate=hex', ctl('substrate'), 'mesh')).toBe('');
+    expect(setControlValue('', ctl('substrate'), 'hex')).toBe('?substrate=hex');
+    expect(setControlValue('', ctl('substrate'), 'relaxed-quad')).toBe('?substrate=relaxed-quad');
   });
 
-  it('writes roads=lines when the thin-line style is picked', () => {
-    expect(setControlValue('', ctl('roads'), 'lines')).toBe('?roads=lines');
-    expect(readControlValue('?roads=lines', ctl('roads'))).toBe('lines');
-  });
-
-  it('normalizes aliases and unknowns to trail', () => {
-    expect(readControlValue('?roads=docked', ctl('roads'))).toBe('lines');
-    expect(readControlValue('?roads=thin', ctl('roads'))).toBe('lines');
-    expect(readControlValue('?roads=trails', ctl('roads'))).toBe('trail');
-    expect(readControlValue('?roads=whatever', ctl('roads'))).toBe('trail');
-  });
-});
-
-describe('worldSettings — readControlValue clamps mirror the parser', () => {
-  it('deltaPull clamps to [0,1] max', () => {
-    expect(readControlValue('?deltaPull=5', ctl('deltaPull'))).toBe(1);
-  });
-
-  it('riverRepel clamps to its min (>= 0)', () => {
-    const v = readControlValue('?riverRepel=-2', ctl('riverRepel'));
-    expect(typeof v).toBe('number');
-    expect(v as number).toBeGreaterThanOrEqual(0);
-  });
-
-  it('an absent param reads the default', () => {
-    expect(readControlValue('', ctl('bundleFar'))).toBe(300);
-    expect(readControlValue('', ctl('deltaPull'))).toBe(1);
-    expect(readControlValue('', ctl('riverRepel'))).toBe(0);
+  it('reads the default when absent and a present value when set', () => {
     expect(readControlValue('', ctl('substrate'))).toBe('mesh');
+    expect(readControlValue('?substrate=relaxed-quad', ctl('substrate'))).toBe('relaxed-quad');
   });
 
-  it('reads a present select', () => {
-    expect(readControlValue('?substrate=relaxed-quad', ctl('substrate'))).toBe('relaxed-quad');
+  it('preserves UNRELATED params when setting a select', () => {
+    const out = setControlValue('?debug=1', ctl('substrate'), 'hex');
+    expect(out).toContain('debug=1');
+    expect(out).toContain('substrate=hex');
   });
 });
 
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
-    const url = buildShareUrl('https://x.test/', '?bundleFar=500', '#/tree');
-    expect(url).toBe('https://x.test/?bundleFar=500#/tree');
+    const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree');
+    expect(url).toBe('https://x.test/?substrate=hex#/tree');
   });
 
   it('omits the ? when there are no params', () => {
@@ -187,19 +122,19 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   });
 
   it('keeps a focused deep-link hash intact', () => {
-    const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree/some-story');
-    expect(url).toBe('https://x.test/?substrate=hex#/tree/some-story');
+    const url = buildShareUrl('https://x.test/', '?layout=solar', '#/tree/some-story');
+    expect(url).toBe('https://x.test/?layout=solar#/tree/some-story');
   });
 });
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?bundleFar=500&substrate=hex&deltaPull=0.5')).toBe('');
+    expect(resetControls('?substrate=hex&layout=solar')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
-    const out = resetControls('?bundleFar=500&debug=1');
-    expect(out).not.toContain('bundleFar');
+    const out = resetControls('?substrate=hex&debug=1');
+    expect(out).not.toContain('substrate');
     expect(out).toContain('debug=1');
   });
 });

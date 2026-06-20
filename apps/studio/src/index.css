@@ -1623,94 +1623,17 @@ mark.st-hl.flash {
   stroke-width: 2;
 }
 
-/* ======================================================================
-   ROADS world (ADR-0073: roads is the ONE world — rivers/ponds/moats retired).
-   Dependency edges are drawn as soft, cozy DIRT/COBBLE country LANES in the
-   Dorfromantik palette — warm, low-saturation, hand-drawn, NO hard dark
-   centre-line and NO animation. The same routed `world.edges` d-strings are
-   rendered in three stacked passes (markup in TreeView's road-net-* groups):
-
-     world-trail-land  (pass 1, BENEATH the tiles) → a wide, faint sandy MARGIN
-                         halo that fades the lane edge into the board/beach so
-                         crossing lanes share one continuous soft shoulder.
-     world-trail-bank  (pass 2, above the tiles)   → the warm dirt ROADBED body
-                         (the lane itself), gently rounded with a soft shoulder.
-     world-trail-water (pass 3, above the bed)     → a faint same-tone COBBLE
-                         texture (short soft rounded beads down the lane).
-
-   Layer widths come INLINE from flowStyle (FLOW_W), so a busy trunk lane reads
-   wider/warmer than a minor lane; the CSS sets colour, dash, cap and the focus
-   tints. A gentle blur softens the whole lane so it melts into the terrain. */
+/* ROADS (ADR-0073: roads is the one world) rendered as thin, no-arrow, PERIMETER-DOCKED
+   connection lines (ADR-0076: the river-trail routing system — buildBasin/buildBundle, the
+   three road-net passes, and the gear dials — was retired). `.world-trail` is the wrapping
+   group `roadClass` sets on each docked road/spoke; it carries the focus STATE, while the
+   per-line colour/tint lives with `.dag-road` / `.solar-road` in the connections block
+   below. The forest world (`#/tree`) draws `.dag-road`; solar adds `.solar-road`/spokes. */
 .world-trail {
   transition: opacity 0.18s ease;
 }
-/* the soft sandy MARGIN halo — the widest, faintest stroke, drawn beneath the
-   tiles so a lane's edge fuses into the island beach and the board with no seam. */
-.world-trail-land {
-  fill: none;
-  stroke: var(--trail-margin);
-  stroke-width: 12.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.4;
-}
-/* the warm dirt ROADBED — the lane body. A soft, slightly darker shoulder tone
-   reads as a gently sunken trodden path on the grass. */
-.world-trail-bank {
-  fill: none;
-  stroke: var(--trail-bed);
-  stroke-width: 7.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.92;
-}
-/* the worn COBBLE texture: short same-tone rounded beads down the lane (a touch
-   lighter than the bed, translucent) — worn surface, NOT a dark centre-line. */
-.world-trail-water {
-  fill: none;
-  stroke: var(--trail-bead);
-  stroke-width: 4.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 2.5 5;
-  opacity: 0.7;
-}
-/* the margin + texture passes are inert; the roadbed body carries the hover
-   tooltip, so the title resolves to one lane (not whichever layer is on top). */
-.world-trail-land,
-.world-trail-water {
-  pointer-events: none;
-}
-/* A busier TRUNK lane (more dependencies flow along it) carries a slightly
-   bigger, longer cobble bead so a major road reads distinctly from the lanes it
-   gathers — the road hierarchy the flow-scaled widths (FLOW_W) also convey. */
-.world-trail.is-trunk .world-trail-water {
-  stroke-dasharray: 3.5 5;
-  opacity: 0.8;
-}
-/* focus dimming + the ancestor (gold) / descendant (red) highlight, carried from
-   the river world onto the lanes (the roadbed body takes the tint). */
-.world-trail.is-ancestor .world-trail-bank {
-  stroke: var(--warn);
-}
-.world-trail.is-descendant .world-trail-bank {
-  stroke: var(--danger);
-}
 .world-trail.is-dim {
   opacity: 0.3;
-}
-/* a soft blur melts the whole lane into the terrain (Dorfromantik painterly edge). */
-.road-net-margin,
-.road-net-bed,
-.road-net-texture {
-  filter: blur(0.6px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .road-net-margin,
-  .road-net-bed,
-  .road-net-texture {
-    filter: none;
-  }
 }
 
 /* HUB SPOKES — the radial "solar-system" layout (ADR-0074 §6, `?layout=solar`): the
