@@ -847,6 +847,28 @@ function currentBranch(): string {
 }
 
 /**
+ * ADR-0081 (amends ADR-0060): the in-memory verdict store is no longer a build OPTION. A `--live`/
+ * `--real` build always persists to the live store so real work feeds the studio's wisp/bloom — there
+ * is no run-without-persisting mode — and a `--dry-run` is already in-memory. The CLI refuses
+ * `--store memory` here, at the dispatch boundary; the internal `verdictStore:"memory"` injection
+ * (the offline test seam for the live/real driver) is untouched because it is not reachable from argv.
+ */
+function refuseMemoryStore(area: "node" | "story", id: string | undefined): Envelope {
+  return {
+    ok: false,
+    body:
+      "--store memory is no longer a build option (ADR-0081, supersedes part of ADR-0060): a --live/--real build\n" +
+      "always persists to the live store so real work feeds the studio's wisp/bloom — there is no\n" +
+      "run-without-persisting mode. A --dry-run is already in-memory; just drop --store. If the live\n" +
+      "store is down, bring it up rather than skipping it.",
+    next: [
+      "pnpm db:status",
+      `storytree ${area} build ${id ?? "<id>"} --live   (persists by default — no --store needed)`,
+    ],
+  };
+}
+
+/**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
  * {@link Envelope}; `main` formats it and maps `ok` to the exit code.
@@ -947,6 +969,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree node resolve <id>", "storytree node build <id> --dry-run"],
       };
     }
+    if (values.store === "memory") return refuseMemoryStore("node", third);
     return nodeBuild(third, {
       dryRun: values["dry-run"] === true,
       live: values.live === true,
@@ -968,6 +991,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree story build library --dry-run"],
       };
     }
+    if (values.store === "memory") return refuseMemoryStore("story", third);
     return storyBuild(third, {
       dryRun: values["dry-run"] === true,
       live: values.live === true,
