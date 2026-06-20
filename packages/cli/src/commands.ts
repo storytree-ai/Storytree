@@ -864,6 +864,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "dry-run"?: boolean;
     live?: boolean;
     real?: boolean;
+    "emit-wisp"?: boolean;
+    dwell?: string;
     model?: string;
     budget?: string;
     "max-turns"?: string;
@@ -898,6 +900,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "dry-run": { type: "boolean", default: false },
         live: { type: "boolean", default: false },
         real: { type: "boolean", default: false },
+        "emit-wisp": { type: "boolean", default: false },
+        dwell: { type: "string" },
         model: { type: "string" },
         budget: { type: "string" },
         "max-turns": { type: "string" },
@@ -951,6 +955,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       dryRun: values["dry-run"] === true,
       live: values.live === true,
       real: values.real === true,
+      emitWisp: values["emit-wisp"] === true,
+      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
       ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
@@ -972,6 +978,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       dryRun: values["dry-run"] === true,
       live: values.live === true,
       real: values.real === true,
+      emitWisp: values["emit-wisp"] === true,
+      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
       ...(values.model !== undefined ? { model: values.model } : {}),
       ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
       ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),

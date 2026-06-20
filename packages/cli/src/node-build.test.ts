@@ -11,12 +11,14 @@ import { run } from "./commands.js";
 import {
   buildableNodeIds,
   DEFAULT_TEST_DB_NAME,
+  nodeBuild,
   nodeHelp,
   renderLeafPhasePrompts,
   resolveAddDepsGroup,
   resolveDbProofEnv,
   workspacePackageForSource,
 } from "./node-build.js";
+import type { WispSmokeStore } from "./wisp-smoke.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C), driven through `run` exactly as
@@ -412,4 +414,65 @@ test("resolveAddDepsGroup REFUSES when the target package can't be derived (sour
   const res = resolveAddDepsGroup(badSource);
   assert.equal(res.ok, false);
   if (!res.ok) assert.match(res.refusal.body, /target workspace package could not be derived/);
+});
+
+// ── --emit-wisp: the dry-run wisp SMOKE (ADR-0080) ────────────────────────────
+
+/** A minimal fake work store for the emit-wisp wiring tests (records appends + the smoke delete). */
+function fakeWispStore(): { store: WispSmokeStore; kinds: string[]; deleted: Array<[string, string]> } {
+  const kinds: string[] = [];
+  const deleted: Array<[string, string]> = [];
+  const store: WispSmokeStore = {
+    appendEvent: async (e) => {
+      kinds.push(e.kind);
+      return e;
+    },
+    deleteWorkEvent: async (unitId, runId) => {
+      deleted.push([unitId, runId]);
+      return 1;
+    },
+  };
+  return { store, kinds, deleted };
+}
+
+test("node build --emit-wisp WITHOUT --dry-run is refused (live/real already light real wisps)", async () => {
+  const env = await run(
+    ["node", "build", "library-cli", "--live", "--emit-wisp", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /DRY-RUN smoke/);
+});
+
+test("node build --dry-run --emit-wisp --dwell 0 is refused (dwell must be positive) — no DB touched", async () => {
+  const env = await run(
+    ["node", "build", "library-cli", "--dry-run", "--emit-wisp", "--dwell", "0", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /--dwell must be a positive number/);
+});
+
+test("node build --dry-run --emit-wisp drives the smoke: building appended + deleted for the REAL node, never a verdict", async () => {
+  const { store, kinds, deleted } = fakeWispStore();
+  const env = await nodeBuild("library-cli", {
+    dryRun: true,
+    emitWisp: true,
+    dwellSec: 1,
+    actor: "tester@example.com",
+    wispDeps: {
+      ensureDb: async () => ({ ok: true, started: false }),
+      openStore: async () => ({ store, close: async () => {} }),
+      sleep: async () => {}, // no-op: the dwell decrements its own budget, so it terminates instantly
+      log: () => {},
+      installSigintCleanup: () => () => {},
+      studioUrl: "http://localhost:5173",
+    },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /wisp smoke library-cli — DRY-RUN/);
+  assert.deepEqual(kinds, ["work"], "only a work event is appended — never a verdict");
+  assert.equal(deleted.length, 1, "the transient row is hard-deleted once");
+  assert.equal(deleted[0]![0], "library-cli");
+  assert.match(deleted[0]![1]!, /^wisp-smoke-/);
 });

@@ -37,12 +37,13 @@ function fakeClient(rowsByTable?: {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   let seq = 0;
   const client: WorkStoreClient = {
-    async query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> {
+    async query(text: string, values?: unknown[]): Promise<{ rows: unknown[]; rowCount?: number }> {
       queries.push({ text, values: values ?? [] });
       if (text.startsWith("INSERT")) {
         seq += 1;
         return { rows: [{ seq, at: new Date("2026-06-10T00:00:00.000Z") }] };
       }
+      if (text.startsWith("DELETE")) return { rows: [], rowCount: 1 };
       if (text.includes("FROM events.work_event")) return { rows: rowsByTable?.work ?? [] };
       if (text.includes("FROM events.verdict")) return { rows: rowsByTable?.verdict ?? [] };
       return { rows: [] };
@@ -167,6 +168,22 @@ test("readEvents honours the id filter", async () => {
   const events = await store.readEvents({ id: "r:u2" });
   assert.equal(events.length, 1);
   assert.equal(events[0]!.id, "r:u2");
+});
+
+test("deleteWorkEvent hard-deletes ONLY the building row for (unitId, runId) — the smoke's narrow exception", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  const removed = await store.deleteWorkEvent("library", "wisp-smoke-abc");
+
+  assert.equal(queries.length, 1);
+  const q = queries[0]!;
+  // A DELETE, scoped to events.work_event, type='building', and the runId inside the JSONB doc —
+  // so it can never touch a verdict (those live in events.verdict) or another run's history.
+  assert.match(q.text, /DELETE FROM events\.work_event/);
+  assert.match(q.text, /type = 'building'/);
+  assert.match(q.text, /doc->>'runId' = \$2/);
+  assert.deepEqual(q.values, ["library", "wisp-smoke-abc"]);
+  assert.equal(removed, 1);
 });
 
 test("the doc surface fails loud — this store is event-only", async () => {
