@@ -728,6 +728,8 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       story.uatWitness = effectiveUatWitness(spec.uatWitness);
       story.dependsOn = spec.dependsOn;
       story.consumedBy = spec.consumedBy;
+      // Studio render hint (ADR-0076): `render: building` ⇒ drawn as a de-connected building.
+      story.building = spec.render === 'building';
       story.capabilities = spec.capabilities.map((capId) =>
         loadTreeCapability(loadNodeSpec, dir, capId),
       );

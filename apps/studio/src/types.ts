@@ -364,6 +364,13 @@ export interface TreeStory {
    * forest's `depends_on` roads omit them. `[]` for the common case.
    */
   consumedBy: string[];
+  /**
+   * Studio render hint (ADR-0076, frontmatter `render: building`): when true this story is a
+   * foundation utility drawn as a BUILDING on the map with NO connection lines, rather than its
+   * own connected island/organism node. A MANUAL, agent-authored tag (set during story writing /
+   * review), never derived. `library` is the first tagged building. Absent/false = a normal island.
+   */
+  building?: boolean;
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */

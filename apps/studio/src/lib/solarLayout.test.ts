@@ -229,6 +229,27 @@ describe('dockedRoads — the DAG/tree world docked-line layer (owner steer 2026
     const edges = [{ from: 'a', to: 'b', via: [] }];
     expect(dockedRoads(edges, docks, 0.08)).toEqual(dockedRoads(edges, docks, 0.08));
   });
+
+  it('a BUILDING excluded from the dock map sheds ALL its edges, in and out (ADR-0076)', () => {
+    // The library-as-a-building de-connection: buildWorld omits a building territory from
+    // dockById, so every edge touching it vanishes while the rest of the map keeps its roads.
+    const all = new Map<string, DockNode>([
+      ['library', dock(0, 0, 10)],
+      ['a', dock(100, 0, 10)],
+      ['b', dock(0, 100, 10)],
+      ['c', dock(100, 100, 10)],
+    ]);
+    const edges = [
+      { from: 'library', to: 'a', via: [] }, // out of the building
+      { from: 'b', to: 'library', via: [] }, // into the building
+      { from: 'a', to: 'c', via: [] }, // unrelated road — survives
+    ];
+    // exclude the building from the dock map (what buildWorld does for `asBuilding` territories)
+    const without = new Map([...all].filter(([id]) => id !== 'library'));
+    const roads = dockedRoads(edges, without);
+    expect(roads.map((r) => `${r.from}->${r.to}`)).toEqual(['a->c']);
+    expect(roads.some((r) => r.from === 'library' || r.to === 'library')).toBe(false);
+  });
 });
 
 describe('orbitRings — the concentric circle grid', () => {

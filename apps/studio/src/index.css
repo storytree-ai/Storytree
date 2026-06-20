@@ -1740,6 +1740,38 @@ mark.st-hl.flash {
   opacity: 0.16;
 }
 
+/* a BUILDING landmark (ADR-0076) — drawn instead of the central story tree for a story
+   tagged `render: building` (e.g. the library): a cozy hipped-roof hall, NO connection
+   lines. Warm Dorfromantik palette; status lives in the tooltip, not the walls (for now). */
+.story-building {
+  transition: opacity 0.18s ease;
+}
+.story-building.is-filtered {
+  opacity: 0.12;
+}
+.building-wall {
+  fill: #efe2c4;
+  stroke: #c9b485;
+  stroke-width: 1.2;
+}
+.building-roof {
+  fill: #b6764e;
+  stroke: #8c5836;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.building-door {
+  fill: #7a5230;
+}
+.building-window {
+  fill: #f6e6a6;
+  stroke: #c9b485;
+  stroke-width: 1;
+}
+.story-building:hover .building-window {
+  fill: #fff1bf;
+}
+
 /* the central story tree — the story itself; the crown carries the story status */
 .story-tree {
   transition: opacity 0.18s ease;

@@ -230,6 +230,11 @@ interface Territory {
   /** The smoothed coast as point loop(s), for docking river mouths to the shore. */
   coastLoops: Pt[][];
   labelY: number;
+  /** Render this territory as a BUILDING (ADR-0076): the story carries the agent-authored
+   *  `render: building` tag AND the buildings flag is on. A building is drawn as a building
+   *  (not the central story tree) and is EXCLUDED from the dock map, so all its connection
+   *  lines (in and out) are omitted. False for a normal connected island. */
+  asBuilding: boolean;
 }
 
 interface WorldEdge {
@@ -558,12 +563,16 @@ function buildWorld(
     /** ADR-0074 §6: `solar` seeds islands on rank-keyed orbits around the hubs;
      *  `dag` (default) keeps the bottom-up dependency rows. */
     layoutMode?: LayoutMode;
+    /** ADR-0076: draw stories tagged `render: building` as de-connected buildings (their
+     *  connection lines omitted). Default false → tagged stories render as normal islands. */
+    buildings?: boolean;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
   },
 ): HexWorld {
   const plantsScatter = opts?.plantsScatter ?? false;
   const layoutMode = opts?.layoutMode ?? 'dag';
+  const buildings = opts?.buildings ?? false;
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
   // other island; work out the look later"). Their hub-ness is carried by the LAYOUT
@@ -830,6 +839,8 @@ function buildWorld(
       coastPaths: coast.paths,
       coastLoops: coast.loops,
       labelY,
+      // ADR-0076: a building only when the story is tagged AND the flag is on.
+      asBuilding: buildings && story.building === true,
     };
   });
 
@@ -874,8 +885,13 @@ function buildWorld(
   // also a road, ADR-0074 §4).
   // Perimeter-dock node for every island, keyed by story id — the rim point + dock radius
   // an edge meets (a touch INSIDE the bounding radius so the line lands on the coast).
+  // BUILDINGS (ADR-0076) are EXCLUDED: with no dock entry, `dockedRoads` drops every edge
+  // touching them (in AND out), so a building has no connection lines — exactly the
+  // drop-on-missing-dock seam the docked-line layer was built around.
   const dockById = new Map<string, DockNode>(
-    territories.map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
+    territories
+      .filter((t) => !t.asBuilding)
+      .map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
   );
   let solar: HexWorld['solar'];
   if (layoutMode === 'solar') {
@@ -1476,6 +1492,14 @@ function readPlantsScatter(): boolean {
   return new URLSearchParams(window.location.search).get('plants') === 'scatter';
 }
 
+/** `?buildings=on` draws stories tagged `render: building` (ADR-0076) as de-connected
+ *  buildings — the owner-attestation flag for the library-as-a-building look. Default OFF
+ *  (tagged stories render as normal islands), flipped to unconditional once attested. */
+function readBuildings(search: string = defaultSearch()): boolean {
+  const v = new URLSearchParams(search).get('buildings');
+  return v === 'on' || v === '1' || v === 'true';
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar';
@@ -1686,6 +1710,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
   // component's `stories` state (panel / selection / verdicts) stays clean.
   const layoutMode = useMemo(() => readLayoutMode(search), [search]);
+  // ADR-0076: `?buildings=on` draws `render: building` stories (e.g. library) as
+  // de-connected buildings. Reactive on `search` (live, no reload).
+  const buildings = useMemo(() => readBuildings(search), [search]);
   const worldStories = useMemo(() => {
     if (layoutMode !== 'solar' || !stories) return stories;
     const present = new Set(stories.map((s) => s.id));
@@ -1698,10 +1725,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         ? buildWorld(worldStories, {
             plantsScatter,
             layoutMode,
+            buildings,
             hubIds: HUB_IDS,
           })
         : null,
-    [worldStories, plantsScatter, layoutMode],
+    [worldStories, plantsScatter, layoutMode, buildings],
   );
 
   // The gear panel commits a new search string here: write it into the URL with the
@@ -2259,6 +2287,52 @@ function LandingBloom({
  * one — dashed-blank until their UAT verdict is signed, a filled seal after
  * (the seal echoes the crown's hue; the FILL is the new bit).
  */
+/**
+ * A BUILDING landmark (ADR-0076) drawn in place of the central story tree for a story
+ * tagged `render: building` (e.g. the library) when the buildings flag is on — a cozy
+ * hipped-roof hall with a door, lit windows and a chimney, in the Dorfromantik palette.
+ * It carries the story id/status in its tooltip and stays clickable (the wrapping flora
+ * group selects the story); it has NO connection lines (its edges are dropped upstream in
+ * buildWorld). Appearance is owner-attested (ADR-0070) — geometry only here.
+ */
+function StoryBuilding({
+  territory: t,
+  hidden,
+}: {
+  territory: Territory;
+  hidden: ReadonlySet<string>;
+}): React.JSX.Element {
+  const story = t.story;
+  const st = story.status ?? 'unknown';
+  const W = 36;
+  const bodyH = 24;
+  const roofH = 17;
+  const eave = 5.5;
+  const peakY = -(bodyH + roofH);
+  // a hipped roof (trapezoid): wide eaves at the wall top, a short ridge at the peak.
+  const roof = `M ${-W / 2 - eave} ${-bodyH} L ${(-W * 0.2).toFixed(1)} ${peakY} L ${(W * 0.2).toFixed(1)} ${peakY} L ${W / 2 + eave} ${-bodyH} Z`;
+  return (
+    <g
+      className={`story-building st-${st}${hidden.has(st) ? ' is-filtered' : ''}`}
+      transform={`translate(${t.treeSpot.x.toFixed(1)} ${t.treeSpot.y.toFixed(1)})`}
+    >
+      <title>{`${story.id} — ${story.error ? 'story spec error' : st} · building`}</title>
+      <ellipse className="flora-shadow" cx={2} cy={2} rx={(W * 0.64).toFixed(1)} ry={(W * 0.17).toFixed(1)} />
+      {/* hall body */}
+      <rect className="building-wall" x={-W / 2} y={-bodyH} width={W} height={bodyH} rx={2} />
+      {/* lit windows */}
+      <rect className="building-window" x={-W / 2 + 5.5} y={-bodyH + 6} width={7} height={7} rx={1} />
+      <rect className="building-window" x={W / 2 - 12.5} y={-bodyH + 6} width={7} height={7} rx={1} />
+      {/* an arched door, centred at the base */}
+      <path className="building-door" d="M -5 0 L -5 -9 Q -5 -13.5 0 -13.5 Q 5 -13.5 5 -9 L 5 0 Z" />
+      {/* chimney (drawn first so the roof laps its base; the top pokes above the ridge) */}
+      <rect className="building-roof" x={W * 0.2} y={peakY - 6} width={4.5} height={11} rx={0.8} />
+      {/* hipped roof on top */}
+      <path className="building-roof" d={roof} />
+    </g>
+  );
+}
+
 function StoryTree({
   territory: t,
   hidden,
@@ -2627,7 +2701,13 @@ function TerritoryFlora({
   });
   drawables.push({
     y: t.treeSpot.y,
-    el: <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />,
+    // ADR-0076: a building-tagged story (e.g. library) stands as a BUILDING landmark in
+    // place of the central story tree; otherwise the usual story tree grows.
+    el: t.asBuilding ? (
+      <StoryBuilding key="story-building" territory={t} hidden={hidden} />
+    ) : (
+      <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />
+    ),
   });
   drawables.sort((a, b) => a.y - b.y);
 

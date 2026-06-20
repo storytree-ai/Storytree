@@ -46,6 +46,12 @@ const Frontmatter = z
     consumed_by: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
     decisions: z.array(z.number().int().positive()).default([]),
+    // Studio render hint (ADR-0076): a MANUAL, agent-authored tag (set during story writing /
+    // review, NOT derived from degree/kind) marking a story as a "building" — a foundation
+    // utility drawn as a building ON the map with NO connection lines, rather than its own
+    // connected island/organism node. Presentation only; the gate/build ignore it. Absent =
+    // a normal island. `library` is the first tagged building.
+    render: z.enum(["building"]).optional(),
     // The spec-borne proof config (ADR-0057 keystone). Captured as unknown here and validated by
     // the strict `parseNodeBuildConfig` in `loadNodeSpec` (with the file path on the throw) — the
     // outer frontmatter stays passthrough/light, but the proof block is the load-bearing part.
@@ -82,6 +88,12 @@ export interface NodeSpec {
   capabilities: string[];
   /** A story spec's deciding ADR numbers (ADR-0037 §2; empty for capability/contract tiers). */
   decisions: number[];
+  /**
+   * Studio render hint (ADR-0076): `"building"` marks a story as a foundation utility drawn as a
+   * building on the map with NO connection lines (the manual, agent-authored building-vs-island
+   * tag, owner steer 2026-06-20). Absent/`undefined` = a normal connected island. Presentation only.
+   */
+  render?: "building" | undefined;
   /**
    * The node's spec-borne proof config (ADR-0057 keystone): the proof command + per-phase write
    * scope + optional `real:` arm, declared in the spec's own `proof:` frontmatter block. `undefined`
@@ -141,6 +153,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     consumedBy: fm.consumed_by,
     capabilities: fm.capabilities,
     decisions: fm.decisions,
+    render: fm.render,
     buildConfig,
     guidance,
     // Parsed off the same body — the join key the attestation surface (ADR-0044) writes against.
