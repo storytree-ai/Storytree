@@ -34,6 +34,7 @@ import { lookupNodeBuildConfig } from "@storytree/orchestrator";
 import { nodeBuild, nodeHelp, nodeResolve } from "./node-build.js";
 import { deriveIdentity, noticeboardCommand } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "./story-build.js";
 import { treeCommand } from "./tree.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
@@ -157,6 +158,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  artifact <id>                 view one artifact",
     "  artifact list <category>      list a category",
     "  artifact new | edit <id>      create / edit (writes need --pg)",
+    "  artifact retire <id>          retire one artifact + rationale (needs --pg)",
     "  tree focus <id>               the local DAG of one artifact",
     "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
     "  (coming soon: artifact comment)",
@@ -490,6 +492,97 @@ export async function editArtifact(
   };
 }
 
+/** A `--superseded-by` ref must point at a replacement artifact (`asset:<id>`) or a source (`doc:<path>`). */
+const SUPERSEDED_BY_REF = /^(asset:[A-Za-z0-9_-]+|doc:.+)$/;
+
+/**
+ * `storytree library artifact retire <id> --reason "..." [--superseded-by <ref>] --pg` — RETIRE one
+ * artifact of ANY kind from the live store (owner call, 2026-06-20). The retire is a delete WITH a
+ * recorded rationale: `deleteDoc` folds `retiredReason` / `supersededBy` onto the append-only
+ * `deleted` event, so WHY the artifact left the projection is durable even though the row is gone
+ * (ADR-0017: history = events). The session actor is stamped (not the curator) — this is a
+ * human-driven close, distinct from the librarian-curator's in-build OQ auto-retire (curate.ts).
+ *
+ * The ONE gate (replacing the curator's open-question kind-fence): reference integrity. If any other
+ * live artifact still references this one via an `asset:<id>` edge, the retire is HARD-REFUSED and
+ * the dependents are listed — re-point or retire them first. An artifact with no inbound edges
+ * retires cleanly. `--reason` is mandatory (the rationale is the whole point); `--pg` is required
+ * (a retire against the ephemeral offline store would be a no-op).
+ */
+export async function retireArtifact(
+  deps: RunDeps,
+  id: string | undefined,
+  opts: { reason: string | undefined; supersededBy: string | undefined },
+): Promise<Envelope> {
+  if (deps.writable !== true) return notWritable(deps.store);
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "retire needs an id: storytree library artifact retire <id> --reason \"...\"",
+      next: ["storytree library artifact list <category>"],
+    };
+  }
+  const reason = opts.reason?.trim();
+  if (reason === undefined || reason === "") {
+    return {
+      ok: false,
+      body: "retire needs --reason \"<why>\" — the rationale is recorded on the delete event (retire-with-rationale).",
+      next: [`storytree library artifact ${id}`],
+    };
+  }
+  if (opts.supersededBy !== undefined && !SUPERSEDED_BY_REF.test(opts.supersededBy)) {
+    return {
+      ok: false,
+      body: `bad --superseded-by "${opts.supersededBy}" — use asset:<id> (a replacement artifact) or doc:<path> (e.g. doc:decisions/0059-x.md).`,
+      next: [`storytree library artifact ${id}`],
+    };
+  }
+
+  const existing = await deps.store.getDoc(id);
+  if (!existing) {
+    return {
+      ok: false,
+      body: `no artifact "${id}" to retire.`,
+      next: ["storytree library artifact list <category>"],
+    };
+  }
+
+  // The reference-integrity gate (the only gate): refuse while anything still depends on it.
+  const dependents = findDependents(id, await deps.store.queryDocs());
+  if (dependents.length > 0) {
+    const rows = dependents.map((d) => `  ← ${d.id}  ${fieldOf(d, "title")}  [${d.kind}]`);
+    return {
+      ok: false,
+      body: [
+        `cannot retire "${id}" — ${dependents.length} artifact${dependents.length === 1 ? "" : "s"} still reference${dependents.length === 1 ? "s" : ""} it (asset:${id}):`,
+        ...rows,
+        "",
+        "re-point or retire the dependents first, then retire this one.",
+      ].join("\n"),
+      next: [`storytree library tree focus ${id}`, ...dependents.map((d) => `storytree library artifact ${d.id}`)],
+    };
+  }
+
+  const dropped = await deps.store.deleteDoc(id, {
+    actor: deps.actor ?? "cli",
+    reason,
+    ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
+  });
+  if (!dropped) {
+    // getDoc saw it a moment ago; a false here means a concurrent retire won the race.
+    return { ok: false, body: `"${id}" was already retired (no row to drop).`, next: ["storytree library"] };
+  }
+  return {
+    ok: true,
+    body: [
+      `retired ${id}  [${existing.kind}] — ${fieldOf(existing, "title")}`,
+      `reason: ${reason}`,
+      ...(opts.supersededBy !== undefined ? [`superseded by: ${opts.supersededBy}`] : []),
+    ].join("\n"),
+    next: ["storytree library", "storytree library artifact list <category>"],
+  };
+}
+
 /**
  * `storytree library sync-agents --pg` — reconcile the live `agent` tier to the SEED (ADR-0055).
  *
@@ -699,6 +792,7 @@ function artifactHelp(): Envelope {
       "  storytree library artifact list <category>  list artifacts in a category",
       "  storytree library artifact new --json '<doc>' | --file <p>   create (needs --pg)",
       "  storytree library artifact edit <id> --set <field>=<value>   edit (needs --pg)",
+      "  storytree library artifact retire <id> --reason \"...\" [--superseded-by <ref>]   retire (needs --pg)",
       "  (coming soon: comment <id>)",
     ].join("\n"),
     next: ["storytree library", "storytree library artifact list <category>"],
@@ -787,6 +881,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     amends?: string;
     bound?: string;
     change?: string[];
+    reason?: string;
+    "superseded-by"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -819,6 +915,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         amends: { type: "string" },
         bound: { type: "string" },
         change: { type: "string", multiple: true },
+        reason: { type: "string" },
+        "superseded-by": { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -1015,6 +1113,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         sets: values.set ?? [],
         json: values.json,
         file: values.file,
+      });
+    }
+    if (third === "retire") {
+      return retireArtifact(deps, fourth, {
+        reason: values.reason,
+        supersededBy: values["superseded-by"],
       });
     }
     if (third === "comment") {
