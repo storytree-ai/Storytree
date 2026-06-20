@@ -74,11 +74,12 @@ human-flip wall is strengthened: green requires a complete PROPOSED record, neve
 machine never writes the decision. The spine observes red/green out-of-band (ShellTestExecutor, NODE_TEST
 scrubbed), the leaf's `run_proof` is feedback-only — unchanged from every other proof mode.
 
-## Open owner calls (surfaced in ADR-0059, not decided here)
+## Open owner calls (surfaced in ADR-0059)
 
-- **Human-flip semantics** — the completeness check asserts a complete PROPOSED record and never
-  `accepted` (the conservative, honesty-preserving default). Letting the leaf write `accepted` and
-  treating the human PR-merge as acceptance is the alternative; OWNER call.
+- **Human-flip semantics — RESOLVED (owner ratified the conservative default, 2026-06-20):** the
+  completeness check asserts a complete PROPOSED record and never `accepted`. The leaf-writes-
+  `accepted` alternative was declined; the status-agnostic default stands, so the machine never
+  writes the decision (ADR-0059; live OQ `oq-gate-as-proof-human-flip-semantics` retired).
 - **Whole-corpus suite coupling** — a `pnpm --filter x test` proof command couples the proof to the
   whole package suite; a builtins-only node:test on the single completeness file avoids it (the
   offline walk uses this). OWNER call when the first live ADR node is built.

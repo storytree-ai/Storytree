@@ -90,10 +90,13 @@ non-squash PR; `--store pg` persists the verdict + wisp to `events.verdict`/`eve
   record red→green through the gate to a signed verdict) + `adr-completeness.test.ts`.
 
 **Bad / costs & open forks (surfaced, not unilaterally decided — owner calls).**
-- **Human-flip semantics (decided as the conservative default):** the completeness check asserts a
-  complete PROPOSED record and never `status: accepted`, keeping "no machine writes status" intact.
-  The alternative — let the leaf write `accepted` and treat the human PR-merge as the acceptance
-  ceremony — erodes the human-flip wall and is **left to the owner** if wanted.
+- **Human-flip semantics — RESOLVED (owner ratified the conservative default, 2026-06-20):** the
+  completeness check asserts a complete PROPOSED record and never `status: accepted`, keeping "no
+  machine writes status" intact. The alternative — let the leaf write `accepted` and treat the human
+  PR-merge as the acceptance ceremony — was weighed and **declined**: the status-agnostic default
+  stands, so the human-flip wall stays explicit (a person, never the machine, writes the decision).
+  The live open-question `oq-gate-as-proof-human-flip-semantics` (surfaced from this fork) is retired,
+  superseded by this ADR. No code change — `adrCompleteness` already implements the ratified behavior.
 - **Whole-corpus suite coupling:** if a node uses `pnpm --filter @storytree/cli test` as the proof
   command, an unrelated pre-existing corpus red would spuriously fail the proof. Mitigation: a
   builtins-only completeness test (no package import) keeps the proof a node:test on the single file —
