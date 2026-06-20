@@ -569,8 +569,9 @@ function buildWorld(
     layoutMode?: LayoutMode;
     /** ADR-0076 §2: distribute stories tagged `render: building` as a BUILDING ICON stamped on
      *  every island that connects to them (e.g. `library` → a bookshelf on each consumer); the
-     *  building itself drops out of the layout. Default false → tagged stories render as normal
-     *  islands (byte-identical). */
+     *  building itself drops out of the layout. The DEFAULT since the owner attested it (the
+     *  component passes `readBuildings`, default true / escape `?buildings=off`); `false` here
+     *  is only the bare-call fallback → tagged stories render as normal islands. */
     buildings?: boolean;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
@@ -1534,12 +1535,13 @@ function readPlantsScatter(): boolean {
   return new URLSearchParams(window.location.search).get('plants') === 'scatter';
 }
 
-/** `?buildings=on` draws stories tagged `render: building` (ADR-0076) as de-connected
- *  buildings — the owner-attestation flag for the library-as-a-building look. Default OFF
- *  (tagged stories render as normal islands), flipped to unconditional once attested. */
+/** Stories tagged `render: building` (ADR-0076 §2) are DISTRIBUTED as an icon on every island
+ *  that connects to them (`library` → a bookshelf on each consumer; the building's own island
+ *  drops out). This is the DEFAULT since the owner attested the look (2026-06-20); the escape
+ *  `?buildings=off` restores the old world where a building is a normal connected island. */
 function readBuildings(search: string = defaultSearch()): boolean {
   const v = new URLSearchParams(search).get('buildings');
-  return v === 'on' || v === '1' || v === 'true';
+  return v !== 'off' && v !== '0' && v !== 'false';
 }
 
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
@@ -1752,8 +1754,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
   // component's `stories` state (panel / selection / verdicts) stays clean.
   const layoutMode = useMemo(() => readLayoutMode(search), [search]);
-  // ADR-0076: `?buildings=on` draws `render: building` stories (e.g. library) as
-  // de-connected buildings. Reactive on `search` (live, no reload).
+  // ADR-0076 §2: distribute `render: building` stories (e.g. library) as an icon on every
+  // island that uses them. Default ON since the owner attested it; `?buildings=off` restores
+  // the old library-island world. Reactive on `search` (live, no reload).
   const buildings = useMemo(() => readBuildings(search), [search]);
   const worldStories = useMemo(() => {
     if (layoutMode !== 'solar' || !stories) return stories;
@@ -2207,8 +2210,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             />
           )}
           {/* The bottom "building legend" (ADR-0076 §2): the on-island building icons →
-              their meaning, docked at the foot of the frame. Only when the buildings flag is
-              on AND at least one icon is on the map; default OFF ⇒ absent (byte-identical). */}
+              their meaning, docked at the foot of the frame. Shown whenever buildings are
+              distributed (the default) AND at least one icon is on the map; `?buildings=off`
+              ⇒ absent. */}
           {buildings && world.territories.some((t) => t.bookshelf) && <BuildingLegend />}
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
