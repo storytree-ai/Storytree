@@ -35,9 +35,9 @@ The would-be leaf behaviours — each would be **one isolated automated test** a
 
 1. **`loadcorpus-upserts-counts`** — loadCorpus upserts every knowledge unit and template through the store and returns counts
    - **asserts —** `loadCorpus(store)` reads `knowledge.json` + the generated templates from `assets.json`, upserts each via `store.upsertDoc`, and returns `{knowledge, templates}` counts.
-   - **covers —** `packages/store/src/load-corpus.ts:61-74`
+   - **covers —** `packages/library/src/store/load-corpus.ts:61-74`
    - **would-be test —** `loadCorpus` runs as a real collaborator inside `cli.test.ts` and `health.test.ts:191-203`, but no test asserts its own returned counts; the seed plumbing is `proposed`.
 2. **`applyschema-idempotent`** — applySchema applies the idempotent DDL to a pool
    - **asserts —** `applySchema` runs `schema.sql` against a pool and is safe to apply twice (all `CREATE ... IF NOT EXISTS`).
-   - **covers —** `packages/store/src/migrate.ts:10-14`
-   - **would-be test —** only the DDL shape is asserted offline (`store.test.ts:19-31`); `applySchema`'s execution against a pool is Postgres-specific and untested.
+   - **covers —** `packages/library/src/store/migrate.ts:10-14`
+   - **would-be test —** only the DDL shape is asserted offline (`packages/library/src/store/store.test.ts:20-38`); `applySchema`'s execution against a pool is Postgres-specific and untested.
