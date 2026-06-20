@@ -112,6 +112,15 @@ function normalizeLayout(raw: string | null): string {
   return 'dag';
 }
 
+/** road-style aliases, mirroring readRoadStyle. Default = `trail` (the byte-identical
+ *  river-trail roads); `lines` swaps in the thin perimeter-docked lines (owner steer
+ *  2026-06-20: keep the tree layout but adopt the solar world's line style). */
+function normalizeRoadStyle(raw: string | null): string {
+  if (raw === 'lines' || raw === 'docked' || raw === 'thin') return 'lines';
+  // 'trail' | 'trails' | unknown | null → trail (the current river-trail roads).
+  return 'trail';
+}
+
 // ADR-0073: roads is the ONE world (rivers/ponds/moats retired). The dials are a
 // small, road-named set in two groups (Ground / Roads); the river-network routing
 // knobs that genuinely shape how roads run between islands are KEPT under new names,
@@ -154,6 +163,23 @@ export const CONTROLS: readonly ControlSpec[] = [
   },
 
   // ---- Roads ----
+  // Owner steer 2026-06-20: the tree (DAG) world can draw its dependency roads as the
+  // SAME thin, no-arrow, perimeter-docked lines the solar world uses ("I like the
+  // updated lines"). Default `trail` writes NO param, so the heavy river-trail roads
+  // stay byte-identical until the owner picks `lines`.
+  {
+    kind: 'select',
+    key: 'roads',
+    label: 'Road style',
+    group: GROUP_ROADS,
+    hint: 'How dependency connections are drawn — worn dirt trails, or thin perimeter-docked lines.',
+    default: 'trail',
+    options: [
+      { value: 'trail', label: 'Dirt trails' },
+      { value: 'lines', label: 'Thin lines' },
+    ],
+    normalize: normalizeRoadStyle,
+  },
   {
     kind: 'number',
     key: 'roadStraighten',

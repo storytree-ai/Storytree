@@ -1755,8 +1755,11 @@ mark.st-hl.flash {
   opacity: 0.16;
   pointer-events: none;
 }
-/* the depends_on roads: a thin smooth curve docked rim-to-rim, no bed/cobble/arrow. */
-.solar-road {
+/* the depends_on roads: a thin smooth curve docked rim-to-rim, no bed/cobble/arrow.
+   `.dag-road` is the SAME style brought onto the DAG/tree world (`roads=lines`, owner
+   steer 2026-06-20): the tree layout with the solar world's line look. */
+.solar-road,
+.dag-road {
   fill: none;
   stroke: var(--trail-bed);
   stroke-width: 1.6;
@@ -1764,21 +1767,25 @@ mark.st-hl.flash {
   opacity: 0.5;
 }
 /* reuse the river world's focus tint (the wrapping group is still `world-trail …`). */
-.world-trail.is-ancestor .solar-road {
+.world-trail.is-ancestor .solar-road,
+.world-trail.is-ancestor .dag-road {
   stroke: var(--warn);
   opacity: 0.85;
 }
-.world-trail.is-descendant .solar-road {
+.world-trail.is-descendant .solar-road,
+.world-trail.is-descendant .dag-road {
   stroke: var(--danger);
   opacity: 0.85;
 }
 .solar-spoke-net,
-.solar-road-net {
+.solar-road-net,
+.dag-road-net {
   filter: blur(0.3px);
 }
 @media (prefers-reduced-motion: reduce) {
   .solar-spoke-net,
-  .solar-road-net {
+  .solar-road-net,
+  .dag-road-net {
     filter: none;
   }
 }

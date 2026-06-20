@@ -31,7 +31,7 @@ describe('worldSettings — schema (roads world, ADR-0073)', () => {
   it('exposes exactly the road-world dials, each with a key/label/group/kind/default', () => {
     const keys = CONTROLS.map((c) => c.key);
     // The road-world set, grouped (Layout / Ground / Roads). A small, intuitive set.
-    const expected = ['layout', 'substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
+    const expected = ['layout', 'roads', 'substrate', 'roadStraighten', 'bundleFar', 'deltaPull', 'riverRepel'];
     for (const k of expected) {
       expect(keys, `missing control ${k}`).toContain(k);
     }
@@ -131,6 +131,25 @@ describe('worldSettings — layout control (solar-system, ADR-0074 §6)', () => 
     expect(readControlValue('?layout=radial', ctl('layout'))).toBe('solar');
     expect(readControlValue('?layout=rows', ctl('layout'))).toBe('dag');
     expect(readControlValue('?layout=whatever', ctl('layout'))).toBe('dag');
+  });
+});
+
+describe('worldSettings — roads control (docked lines, owner steer 2026-06-20)', () => {
+  it('defaults to trail and writing trail REMOVES the param (byte-identical world)', () => {
+    expect(readControlValue('', ctl('roads'))).toBe('trail');
+    expect(setControlValue('?roads=lines', ctl('roads'), 'trail')).toBe('');
+  });
+
+  it('writes roads=lines when the thin-line style is picked', () => {
+    expect(setControlValue('', ctl('roads'), 'lines')).toBe('?roads=lines');
+    expect(readControlValue('?roads=lines', ctl('roads'))).toBe('lines');
+  });
+
+  it('normalizes aliases and unknowns to trail', () => {
+    expect(readControlValue('?roads=docked', ctl('roads'))).toBe('lines');
+    expect(readControlValue('?roads=thin', ctl('roads'))).toBe('lines');
+    expect(readControlValue('?roads=trails', ctl('roads'))).toBe('trail');
+    expect(readControlValue('?roads=whatever', ctl('roads'))).toBe('trail');
   });
 });
 

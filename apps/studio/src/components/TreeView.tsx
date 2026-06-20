@@ -75,6 +75,7 @@ import {
   solarSeeds,
   spokeEdges,
   dockedEdgePath,
+  dockedRoads,
   orbitRings,
   type SolarNode,
   type DockNode,
@@ -103,6 +104,7 @@ function requireControl(key: string): ControlSpec {
 }
 const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
+const ROADS_CTL = requireControl('roads');
 const ROAD_STRAIGHTEN_CTL = requireControl('roadStraighten');
 const BUNDLE_FAR_CTL = requireControl('bundleFar');
 const DELTA_PULL_CTL = requireControl('deltaPull');
@@ -279,6 +281,12 @@ interface HexWorld {
   /** Legacy centre-to-centre hub SPOKE paths — superseded by `solar.spokes` (perimeter-
    *  docked); always empty now. Kept for the DAG-world type shape. */
   spokes: string[];
+  /** DAG/tree world only (owner steer 2026-06-20): the `depends_on` roads rendered as
+   *  thin, no-arrow, PERIMETER-DOCKED lines — the SAME `dockedEdgePath` style the solar
+   *  world uses, brought onto the tree layout. Present only when `roadStyle === 'lines'`;
+   *  when set, it REPLACES the heavy river-trail road passes (`world.edges`). Absent by
+   *  default (byte-identical river-trail world) and in solar mode (it draws its own). */
+  lineRoads?: WorldEdge[];
   /** Solar mode only (ADR-0074 §6 + the 2026-06-20 path refresh): the concentric orbit
    *  GRID + perimeter-docked thin connections that REPLACE the river-trail roads and
    *  centre-to-centre spokes in solar mode. Absent in the DAG world (byte-identical). */
@@ -1261,6 +1269,11 @@ function buildWorld(
     /** ADR-0074 §6: `solar` seeds islands on rank-keyed orbits around the hubs;
      *  `dag` (default) keeps the bottom-up dependency rows. */
     layoutMode?: LayoutMode;
+    /** Owner steer 2026-06-20: `lines` draws the DAG world's `depends_on` roads as thin
+     *  perimeter-docked lines (the solar style) instead of the river-trail passes;
+     *  `trail` (default) keeps the heavy river-trail roads (byte-identical). DAG-only —
+     *  solar mode always draws its own docked lines. */
+    roadStyle?: RoadStyle;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
   },
@@ -1269,6 +1282,7 @@ function buildWorld(
   const tuning = opts?.tuning ?? RIVER_TUNING;
   const plantsScatter = opts?.plantsScatter ?? false;
   const layoutMode = opts?.layoutMode ?? 'dag';
+  const roadStyle = opts?.roadStyle ?? 'trail';
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
   const mouthInset = tuning.mouthInset;
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
@@ -1878,9 +1892,15 @@ function buildWorld(
   // Plus a faint concentric ORBIT GRID the islands sit on. All EMPTY/absent in DAG mode,
   // so the default forest world stays byte-identical.
   const spokes: string[] = [];
+  // Perimeter-dock node for every island, keyed by story id — the rim point + dock radius
+  // an edge meets (a touch INSIDE the bounding radius so the line lands on the coast).
+  // Shared by the solar connections (below) AND the DAG docked-line roads (owner steer
+  // 2026-06-20: the tree world's roads drawn as the solar world's thin docked lines).
+  const dockById = new Map<string, DockNode>(
+    territories.map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
+  );
   let solar: HexWorld['solar'];
   if (layoutMode === 'solar') {
-    const terrById = new Map(territories.map((t) => [t.story.id, t]));
     // hub centre = mean of the central hub islands' centroids (fallback: all islands)
     const orbiting = territories.filter((t) => !hubIds.has(t.story.id));
     const ref = territories.filter((t) => hubIds.has(t.story.id));
@@ -1896,26 +1916,26 @@ function buildWorld(
         dist: Math.hypot(t.centroid.x - center.x, t.centroid.y - center.y),
       })),
     ).map((r) => r.radius);
-    // dock a touch inside each island's bounding radius so the line meets the coast
-    const dockOf = (t: Territory): DockNode => ({
-      x: t.centroid.x,
-      y: t.centroid.y,
-      r: t.radius * 0.82,
-    });
-    const roads: WorldEdge[] = [];
-    for (const e of edgeList) {
-      const a = terrById.get(e.from);
-      const b = terrById.get(e.to);
-      if (a && b) roads.push({ from: e.from, to: e.to, via: e.via, d: dockedEdgePath(dockOf(a), dockOf(b), 0.08) });
-    }
+    // `depends_on` roads: thin, gently-bowed, perimeter-docked lines (the shared helper).
+    const roads = dockedRoads(edgeList, dockById, 0.08);
+    // provider-side `consumed_by` wiring as straight, low-salience hub spokes.
     const spokeLines: { from: string; to: string; d: string }[] = [];
     for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
-      const a = terrById.get(e.from);
-      const b = terrById.get(e.to);
-      if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(dockOf(a), dockOf(b), 0) });
+      const a = dockById.get(e.from);
+      const b = dockById.get(e.to);
+      if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(a, b, 0) });
     }
     solar = { center, rings, roads, spokes: spokeLines };
   }
+
+  // DAG/tree world (owner steer 2026-06-20): when `roadStyle === 'lines'`, draw the
+  // `depends_on` roads as the SAME thin perimeter-docked lines the solar world uses,
+  // REPLACING the heavy river-trail passes. Default `trail` leaves it undefined, so the
+  // river-trail world stays byte-identical. Solar draws its own lines (above) → DAG-only.
+  const lineRoads: WorldEdge[] | undefined =
+    layoutMode !== 'solar' && roadStyle === 'lines'
+      ? dockedRoads(edgeList, dockById, 0.08)
+      : undefined;
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -1938,6 +1958,7 @@ function buildWorld(
     drawTiles,
     edges,
     spokes,
+    ...(lineRoads ? { lineRoads } : {}),
     ...(solar ? { solar } : {}),
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
@@ -2692,11 +2713,24 @@ function readPlantsScatter(): boolean {
 
 type LayoutMode = 'dag' | 'solar';
 
+/** The DAG/tree world's road rendering (owner steer 2026-06-20): `trail` = the heavy
+ *  river-trail road passes (default, byte-identical); `lines` = thin perimeter-docked
+ *  lines (the solar style) brought onto the tree layout. */
+type RoadStyle = 'trail' | 'lines';
+
 /** `?layout=solar` ⇒ the RADIAL hub-and-spoke world; default `dag` = the current
  *  world (byte-identical — the param is absent). Gear-panel managed (worldSettings,
  *  the single source of truth for the default), so the panel + this reader never drift. */
 function readLayoutMode(search: string = defaultSearch()): LayoutMode {
   return readControlValue(search, LAYOUT_CTL) === 'solar' ? 'solar' : 'dag';
+}
+
+/** The DAG/tree world's road style (owner steer 2026-06-20). `?roads=lines` ⇒ the thin
+ *  perimeter-docked lines (the solar style); default `trail` = the heavy river-trail
+ *  roads (byte-identical — the param is absent). Gear-panel managed (worldSettings is
+ *  the single source of truth for the default), so the panel + this reader never drift. */
+function readRoadStyle(search: string = defaultSearch()): RoadStyle {
+  return readControlValue(search, ROADS_CTL) === 'lines' ? 'lines' : 'trail';
 }
 
 /**
@@ -2952,6 +2986,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
   // component's `stories` state (panel / selection / verdicts) stays clean.
   const layoutMode = useMemo(() => readLayoutMode(search), [search]);
+  // Owner steer 2026-06-20: `?roads=lines` draws the tree world's roads as thin
+  // perimeter-docked lines (the solar style); default `trail` keeps the river-trail
+  // roads. Gear-panel managed, so reactive on `search` (live, no reload).
+  const roadStyle = useMemo(() => readRoadStyle(search), [search]);
   const worldStories = useMemo(() => {
     if (layoutMode !== 'solar' || !stories) return stories;
     const present = new Set(stories.map((s) => s.id));
@@ -2966,10 +3004,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             tuning: riverTuning,
             plantsScatter,
             layoutMode,
+            roadStyle,
             hubIds: HUB_IDS,
           })
         : null,
-    [worldStories, riverMode, plantsScatter, riverTuning, layoutMode],
+    [worldStories, riverMode, plantsScatter, riverTuning, layoutMode, roadStyle],
   );
 
   /** Per-road-layer flow-scaled stroke width, or undefined (CSS default). */
@@ -3269,9 +3308,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   stroke), drawn here BENEATH the island land + tiles so a road's edge
                   fades into the island beach with no seam and crossing roads share one
                   continuous soft margin. The remaining passes (the trail bed + the worn
-                  texture) are drawn ABOVE the land, after the tiles. SOLAR mode swaps the
-                  whole river-trail road system for the thin perimeter-docked layer below. */}
-              {!world.solar && (
+                  texture) are drawn ABOVE the land, after the tiles. SOLAR mode — and the
+                  DAG world's `roads=lines` style — swap the whole river-trail road system
+                  for the thin perimeter-docked layer below. */}
+              {!world.solar && !world.lineRoads && (
                 <g className="road-net-margin">
                   {world.edges.map((e) => (
                     <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
@@ -3378,10 +3418,28 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 </>
               )}
 
+              {/* DAG docked-line roads (`roads=lines`, owner steer 2026-06-20) — the SAME
+                  thin, no-arrow, PERIMETER-DOCKED line style the solar world uses, brought
+                  onto the tree layout. Drawn ABOVE the land (like the solar roads), and it
+                  REPLACES the three river-trail passes (they're gated off when present).
+                  Absent by default → the river-trail world is byte-identical. */}
+              {world.lineRoads && (
+                <g className="dag-road-net">
+                  {world.lineRoads.map((e) => (
+                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
+                      <title>
+                        {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
+                      </title>
+                      <path className="dag-road" d={e.d} />
+                    </g>
+                  ))}
+                </g>
+              )}
+
               {/* ROAD pass 2/3 — the trail BED: the soft warm roadbed body, drawn
                   ABOVE the tiles so the road reads as worn earth ON the land. (DAG world
-                  only; solar swaps in the thin perimeter-docked layer above.) */}
-              {!world.solar && (
+                  only; solar — and `roads=lines` — swap in the perimeter-docked layer.) */}
+              {!world.solar && !world.lineRoads && (
                 <g className="road-net-bed">
                   {world.edges.map((e) =>
                     e.kind === 'trunk' ? (
@@ -3403,7 +3461,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               {/* ROAD pass 3/3 — the worn cobble TEXTURE: short same-tone beads down
                   the trail (no hard dark centre-line, no animation), on top of the bed.
                   A busier trunk road gets fatter, longer beads (CSS). (DAG world only.) */}
-              {!world.solar && (
+              {!world.solar && !world.lineRoads && (
                 <g className="road-net-texture">
                   {world.edges.map((e) => (
                     <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
