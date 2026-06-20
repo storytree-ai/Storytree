@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-20
 amends: [73]
 ---
@@ -7,15 +7,18 @@ amends: [73]
 
 ## Status
 
-proposed — owner steer 2026-06-20: *"go back to the tree structure, however I like the
+accepted — owner steer 2026-06-20: *"go back to the tree structure, however I like the
 updated lines. Also move the library to the side and remove all its connections — turn
 the library into a building that shows up on the island. We can discuss how we determine
-if something should be a building or not."* The line-style half is owner-attested (the
-owner chose "flip + retire" after a default-vs-lines screenshot comparison); the building
-half is built behind a default-off flag and flips to **accepted** once the owner attests
-its appearance (ADR-0070 two-stage proof). Amends [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md)
-— roads stay the one world, but their *rendering* changes (trails → docked lines) and the
-trail routing machinery is retired.
+if something should be a building or not."* **Both halves are owner-attested.** The
+line-style half: the owner chose "flip + retire" after a default-vs-lines screenshot
+comparison (landed PR #244). The building half: built behind a default-off flag, refined to
+the distributed-bookshelf model below (PR #247), then **attested 2026-06-20** — the owner
+saw the `?buildings=on#/tree` screenshots, said "looks good — flip default on", and
+confirmed library's own island is removed (ADR-0070 two-stage proof: geometry red-green +
+owner-attested appearance). The default is now ON (escape `?buildings=off`). Amends
+[ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md) — roads stay the one world, but
+their *rendering* changes (trails → docked lines) and the trail routing machinery is retired.
 
 ## Context
 
