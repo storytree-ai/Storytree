@@ -16,6 +16,7 @@
     "@storytree/base": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
+    "@storytree/orchestrator": "workspace:*",
     "@storytree/studio-members": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",
     "google-auth-library": "^10.7.0",
@@ -23,7 +24,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@storytree/orchestrator": "workspace:*",
     "@types/node": "^22.10.7",
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",

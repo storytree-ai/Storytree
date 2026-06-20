@@ -11,7 +11,7 @@ interface ChangeEventRow {
 }
 
 /**
- * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/core). Append-only
+ * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/base). Append-only
  * over `events.change_event`: one row per change, the full ChangeEvent in `doc` JSONB (so a read
  * round-trips it unchanged), the scalar columns the queryable spine. Held to `changeStoreParitySuite`,
  * the same bar InMemoryStore meets.

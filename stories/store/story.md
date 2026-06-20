@@ -17,7 +17,10 @@ capabilities: [keyless-store-connection, shared-events-schema]
 # ADR-0075: pg-store reads verdict-DATA (Verdict.parse) and implements the base Store/ChangeStore
 # seam, so the base + verdict-contract ROOT ports are now declared cross-story edges (they were exempt
 # substrate dependencies before ADR-0075 collapsed that class).
-depends_on: [library, notice-board, studio-members, base, verdict-contract]
+# ADR-0077 U2 (TEMPORARY): the @storytree/store shim now re-exports the moved work/change/attestation
+# drawers from @storytree/orchestrator/store (owned by drive-machinery), so the shim value-imports
+# drive-machinery. Removed when @storytree/store is deleted at the end of the ADR-0077 dissolution.
+depends_on: [library, notice-board, studio-members, base, verdict-contract, drive-machinery]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB imports @storytree/store (buildStore swaps
 # PgLibraryStore in under `--pg`). Declared here so store owns its full connection set in one place.
 consumed_by: [cli]

@@ -10,7 +10,7 @@ import { Attestation as AttestationDoc } from "@storytree/verdict-contract";
  * `events.verdict` (`separate-from-verdicts`).
  *
  * No projection table: the latest-per-(testId,witness) display projection is derived
- * in JS by `@storytree/core`'s `deriveAttestations` (the verdict-glyph discipline),
+ * in JS by the orchestrator's `deriveAttestations` (the verdict-glyph discipline),
  * so there is nothing to keep atomic and a plain INSERT suffices. The doc is
  * re-validated at the write boundary — a blank signer / unknown witness is refused
  * here, not only at the HTTP/CLI layer.

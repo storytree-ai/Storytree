@@ -1,7 +1,8 @@
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 
-import { rollupParitySuite, rollupStatus, workEvent } from "@storytree/orchestrator";
+import { rollupParitySuite } from "../proof/rollup-parity.js";
+import { rollupStatus, workEvent } from "../proof/rollup.js";
 import type { Store } from "@storytree/base";
 import type { Verdict } from "@storytree/verdict-contract";
 
@@ -199,6 +200,6 @@ if (LIVE) {
 } else {
   test("PgWorkStore rollup parity (skipped: set STORYTREE_DB_LIVE=1 to run)", { skip: true }, () => {
     // The live DB is stopped by default; the fake-client tests above prove the SQL routing
-    // offline and the InMemoryStore rollup parity in @storytree/core proves the projection.
+    // offline and the InMemoryStore rollup parity (rollupParitySuite) proves the projection.
   });
 }

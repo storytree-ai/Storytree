@@ -6,7 +6,10 @@ outcome: "An admin invites someone by email from the studio; they sign in with G
 status: proposed
 proof_mode: UAT
 capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
-depends_on: [studio-cloud, library]
+# ADR-0077 U2: studio-members now owns its Postgres user (member) drawer behind ./store (the
+# PgUserStore moved in from the dissolving @storytree/store), so it deps @storytree/library
+# (createPool/closePool via @storytree/library/store) and @storytree/base (the Store seam).
+depends_on: [studio-cloud, library, base]
 decisions: [43]
 ---
 

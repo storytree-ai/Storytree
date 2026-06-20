@@ -47,7 +47,7 @@ function fakeChangeClient(): ChangeStoreClient {
 }
 
 // The reusable bar, over the fake client — the same four contracts (round-trip, filter, order, empty)
-// InMemoryStore meets in @storytree/core.
+// InMemoryStore meets in @storytree/base.
 changeStoreParitySuite("PgChangeStore (fake client)", () => new PgChangeStore(fakeChangeClient()));
 
 test("appendChangeEvent binds the scalar spine + the full doc, NULLing absent optionals", async () => {

@@ -63,28 +63,35 @@ export type {
 // DB's max schemaVersion against this; a static @storytree/library import breaks vite config load).
 export { CURRENT_SCHEMA_VERSION } from "@storytree/library";
 
-// ── Still home here: the drawers that move to other organisms in later ADR-0077 units ────────────
-export { PgWorkStore } from "./pg-work-store.js";
-export type { WorkStoreClient } from "./pg-work-store.js";
-// The Postgres home for the ADR-0016 binding-staleness change log (the ChangeStore seam), proven by
-// a DB-backed round-trip against an isolated storytree_test (ADR-0064 §1).
-export { PgChangeStore } from "./pg-change-store.js";
-export type { ChangeStoreClient } from "./pg-change-store.js";
-export { sessionIdFromBranch, retireMergedSession } from "./ingest-merge.js";
-export type { MergeRetireStore } from "./ingest-merge.js";
-export { PgPresenceStore } from "./presence-store.js";
+// ── Moved into the owning organisms' node-only ./store subpaths (ADR-0077 U2) ─────────────────────
+// The drawers now live with the organism that owns the seam; this shim re-exports them under the
+// byte-identical @storytree/store names so cli + studio are untouched.
+
+// notice-board: the presence store + the merge-retire backstop.
+export { PgPresenceStore } from "@storytree/notice-board/store";
 export type {
   PresenceClient,
   PresencePool,
   PresencePoolClient,
   PresenceEvent,
-} from "./presence-store.js";
-export { PgUserStore, LastAdminError } from "./user-store.js";
+} from "@storytree/notice-board/store";
+export { sessionIdFromBranch, retireMergedSession } from "@storytree/notice-board/store";
+export type { MergeRetireStore } from "@storytree/notice-board/store";
+
+// studio-members: the app-owned user (member) store.
+export { PgUserStore, LastAdminError } from "@storytree/studio-members/store";
 export type {
   UserClient,
   UserPool,
   UserPoolClient,
   UserEvent,
-} from "./user-store.js";
-export { PgAttestationStore } from "./attestation-store.js";
-export type { AttestationStoreClient } from "./attestation-store.js";
+} from "@storytree/studio-members/store";
+
+// drive-machinery (orchestrator): the work-hierarchy event store, the ADR-0016 change log (proven by
+// a DB-backed round-trip against an isolated storytree_test, ADR-0064 §1), and the attestation log.
+export { PgWorkStore } from "@storytree/orchestrator/store";
+export type { WorkStoreClient } from "@storytree/orchestrator/store";
+export { PgChangeStore } from "@storytree/orchestrator/store";
+export type { ChangeStoreClient } from "@storytree/orchestrator/store";
+export { PgAttestationStore } from "@storytree/orchestrator/store";
+export type { AttestationStoreClient } from "@storytree/orchestrator/store";

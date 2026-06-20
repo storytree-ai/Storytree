@@ -1,11 +1,11 @@
-import type { UserDoc } from "@storytree/studio-members";
+import type { UserDoc } from "../users.js";
 import {
   User,
   mergeUser,
   normalizeEmail,
   wouldOrphanAdminsOnRemove,
   wouldOrphanAdminsOnRole,
-} from "@storytree/studio-members";
+} from "../users.js";
 
 /**
  * ADR-0043 `user-directory`: the Postgres-backed app-owned user (member) store. History
@@ -15,7 +15,7 @@ import {
  * `PgPresenceStore` pattern (ADR-0033), siblings to comments/sessions.
  *
  * Two boundaries are enforced HERE (not just in the HTTP layer):
- *  - **validation** — the doc is re-parsed through `@storytree/core`'s `User` schema
+ *  - **validation** — the doc is re-parsed through the studio-members `User` schema
  *    on every write, so a blank email / unknown role / unknown status is refused at
  *    the write boundary (`role-status-validated`).
  *  - **no lockout** — the last-admin guard (`last-admin-protected`): a remove or a

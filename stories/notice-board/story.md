@@ -7,7 +7,10 @@ status: proposed
 proof_mode: UAT
 capabilities: [declare-presence, presence-store, noticeboard-cli, tree-view, ambient-integration, verdict-glyphs]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams, ADR-0010 §4).
-depends_on: [library, drive-machinery]
+# ADR-0077 U2: the notice-board now owns its Postgres presence drawer behind ./store (the PgPresenceStore
+# + merge-retire backstop moved in from the dissolving @storytree/store), so it deps @storytree/library
+# (createPool/closePool via @storytree/library/store) and @storytree/base (the Store seam).
+depends_on: [library, drive-machinery, base]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports @storytree/notice-board
 # (noticeboard.ts staleness bands, the `storytree noticeboard` surface). The store hub also imports
 # it, declared consumer-side in stories/store/story.md depends_on; the cli edge is declared here to

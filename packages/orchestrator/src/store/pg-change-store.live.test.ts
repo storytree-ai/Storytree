@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashSpan } from "@storytree/orchestrator";
+import { hashSpan } from "../proof/anchor-compute.js";
 import type { ChangeEvent } from "@storytree/verdict-contract";
 import { createTestPool, closePool, applySchema } from "@storytree/library/store";
 import { PgChangeStore } from "./pg-change-store.js";

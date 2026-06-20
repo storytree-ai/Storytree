@@ -195,6 +195,21 @@ importers:
 
   packages/notice-board:
     dependencies:
+      '@google-cloud/cloud-sql-connector':
+        specifier: ^1.4.0
+        version: 1.11.1
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
+      google-auth-library:
+        specifier: ^10.7.0
+        version: 10.7.0
+      pg:
+        specifier: ^8.13.1
+        version: 8.21.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -202,6 +217,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
@@ -211,6 +229,9 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@google-cloud/cloud-sql-connector':
+        specifier: ^1.4.0
+        version: 1.11.1
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
@@ -223,6 +244,12 @@ importers:
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract
+      google-auth-library:
+        specifier: ^10.7.0
+        version: 10.7.0
+      pg:
+        specifier: ^8.13.1
+        version: 8.21.0
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -233,6 +260,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
@@ -254,6 +284,9 @@ importers:
       '@storytree/notice-board':
         specifier: workspace:*
         version: link:../notice-board
+      '@storytree/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@storytree/studio-members':
         specifier: workspace:*
         version: link:../studio-members
@@ -270,9 +303,6 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
-      '@storytree/orchestrator':
-        specifier: workspace:*
-        version: link:../orchestrator
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19
@@ -288,6 +318,21 @@ importers:
 
   packages/studio-members:
     dependencies:
+      '@google-cloud/cloud-sql-connector':
+        specifier: ^1.4.0
+        version: 1.11.1
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
+      google-auth-library:
+        specifier: ^10.7.0
+        version: 10.7.0
+      pg:
+        specifier: ^8.13.1
+        version: 8.21.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -295,6 +340,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4

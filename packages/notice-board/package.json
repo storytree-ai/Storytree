@@ -4,11 +4,26 @@
   "private": true,
   "type": "module",
   "description": "The notice-board organism (ADR-0068 step 6): the session-presence schema + staleness classification (PresenceDeclarationDoc / classifyPresence / mergeDeclaration / staleness thresholds), extracted from the dissolving @storytree/core. Pure zod, browser-safe, no node: imports.",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./store": "./src/store/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
-  "dependencies": { "zod": "^3.24.1" },
-  "devDependencies": { "@types/node": "^22.10.7", "tsx": "^4.19.2", "typescript": "~5.7.3" }
+  "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.4.0",
+    "@storytree/base": "workspace:*",
+    "@storytree/library": "workspace:*",
+    "google-auth-library": "^10.7.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
 }
