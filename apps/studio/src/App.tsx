@@ -176,7 +176,9 @@ export function App(): React.JSX.Element {
           <>
             <StoreBanner onRecovered={onStoreRecovered} canWake={me.canWakeDb === true} />
             <div className="body">
-              <Sidebar route={route} />
+              {/* The forest (#/tree) is its own full-bleed world — the Library asset
+                  rail is noise there, so hide it and let the canvas fill the width. */}
+              {route.name !== 'tree' && <Sidebar route={route} />}
               <main className="content">
                 {status === 'loading' && <p className="muted pad">Loading the corpus…</p>}
                 {status === 'error' && (
