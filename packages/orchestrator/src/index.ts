@@ -129,5 +129,10 @@ export { normalizeSpan, hashSpan, isDescribed, classifyDrift } from "./proof/anc
 export { workEvent, rollupStatus } from "./proof/rollup.js";
 export { rollupParitySuite } from "./proof/rollup-parity.js";
 export { deriveAttestations } from "./proof/attestations.js";
+// The per-test UAT proof compute (ADR-0082): the sign-time trust guard + the read-time AND-roll-up
+// that greens a story's own UAT when all its per-test verdicts pass. DATA shapes are the contract's;
+// the per-test DATA + parser live in the library organism (`uat-tests.ts`, ADR-0044).
+export type { UatProofCheck, UatProofResult } from "./proof/uat-proof.js";
+export { checkUatProof, rollupStoryUat } from "./proof/uat-proof.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";
