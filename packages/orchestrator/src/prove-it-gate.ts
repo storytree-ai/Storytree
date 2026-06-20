@@ -16,13 +16,13 @@
 import { execFile } from "node:child_process";
 
 import type { PhaseAuthor } from "@storytree/agent";
-import type { ChangeStore, Store } from "@storytree/base";
+import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
   ChangeEvent,
   EvidenceRef,
   ProofMode,
   Verdict,
-} from "@storytree/verdict-contract";
+} from "@storytree/proof-protocol";
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
 

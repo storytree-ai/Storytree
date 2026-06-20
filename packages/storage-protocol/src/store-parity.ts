@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ChangeEvent } from "@storytree/verdict-contract";
+import type { ChangeEvent } from "@storytree/proof-protocol";
 import type { Store, ChangeStore } from "./store.js";
 
 /**
@@ -22,7 +22,7 @@ interface ParityFixtureDoc {
 /**
  * The REUSABLE behavioural-parity suites (node:test) for the {@link Store} and {@link ChangeStore}
  * seams. Split out of `store.ts` (ADR-0068 step 0) so the pure store seam carries NO `node:test`
- * import; the suites live here and are exported from `@storytree/base` via the `./parity` subpath.
+ * import; the suites live here and are exported from `@storytree/storage-protocol` via the `./parity` subpath.
  *
  * EXPORTED on purpose: packages/store calls `storeParitySuite('PostgresStore', () => ...)` and
  * `changeStoreParitySuite('PgChangeStore', () => ...)` to prove behavioural equivalence.

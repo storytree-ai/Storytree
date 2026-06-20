@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { storeParitySuite } from "@storytree/base/parity";
-import type { Store } from "@storytree/base";
+import { storeParitySuite } from "@storytree/storage-protocol/parity";
+import type { Store } from "@storytree/storage-protocol";
 import { validateLibraryDoc } from "../library-doc.js";
 import { SCHEMA_SQL_PATH } from "./migrate.js";
 

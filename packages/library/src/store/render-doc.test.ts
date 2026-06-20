@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { StoredDoc } from "@storytree/base";
+import type { StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
 import { renderBody } from "../knowledge-render.js";
 import { upcastAndValidate } from "../library-doc.js";

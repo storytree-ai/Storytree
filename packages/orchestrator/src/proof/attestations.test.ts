@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Attestation, TestAttestations } from "@storytree/verdict-contract";
+import type { Attestation, TestAttestations } from "@storytree/proof-protocol";
 import { deriveAttestations } from "./attestations.js";
 
 /**

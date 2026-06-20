@@ -5,7 +5,7 @@
  * It gathers the inputs from disk and hands them to the pure {@link checkBoundaries} judge
  * ({@link file://./boundaries.ts}):
  *   1. the package↔story ownership map (repo-manifest.json `packageOwnership`: organisms + the
- *      foundational subset — ADR-0075 collapsed the substrate class, so the ports base/verdict-contract
+ *      foundational subset — ADR-0075 collapsed the substrate class, so the ports base/proof-protocol
  *      are now ordinary root organisms held minimal, not an exempt class),
  *   2. the real runtime cross-package dependency graph (each `packages/<x>/package.json`
  *      `dependencies`; `devDependencies` are EXCLUDED — a test reusing another organism's parity

@@ -13,7 +13,7 @@
  * DO NOT import from any organism's `/store` subpath — the seam keeps this module offline-testable.
  */
 
-import type { Attestation } from "@storytree/verdict-contract";
+import type { Attestation } from "@storytree/proof-protocol";
 import { resolveSignerFromEnv, type SignerResult } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";

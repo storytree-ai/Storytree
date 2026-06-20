@@ -72,12 +72,12 @@ dependent to deliver an outcome but each still functioning in isolation against
 the seam, the way a frontend depends on a database. The name is provisional: bare
 `interface` collides with TS `interface` (the same collision that sank
 `component` in ADR-0002), so the candidates are **`boundary`** or **`port`**,
-to be ratified when `packages/verdict-contract` formalises the schema (ADR-0010 §4).
+to be ratified when `packages/proof-protocol` formalises the schema (ADR-0010 §4).
 
 **event** — A typed record of a state change (owned-loop events + orchestrator events) —
 the unit of observability. If a state change isn't an event the UI can render,
 it doesn't exist (ADR-0001, observability-first). Defined alongside the schema in
-`packages/verdict-contract`. Includes operator-actor events (see **approval event /
+`packages/proof-protocol`. Includes operator-actor events (see **approval event /
 promotion event**), not just agent activity.
 
 **event log** — The typed, **append-only** record in the event store — one row
@@ -132,7 +132,7 @@ on-disk evidence — never a hand-edit.
 **proof mode** — How a unit earns `healthy`, one rung per tier (ADR-0010):
 **UAT** (an honest scripted story-level walkthrough), **integration-test** (a
 capability's organs wired against real in-story collaborators), **contract-test**
-(an isolated unit assertion), and **operator-attested** (below). `packages/verdict-contract`
+(an isolated unit assertion), and **operator-attested** (below). `packages/proof-protocol`
 encodes these as a discriminated `proof_mode` union; the carrying tier of the UAT
 mode moves from capability to story (ADR-0007, amended by ADR-0010).
 
@@ -306,7 +306,7 @@ a leaf runtime is invoked and the **only** place a model runtime is imported. It
 executors behind the `PhaseAuthor` seam: the **owned loop** (offline/deterministic + pivot-out
 fallback, ADR-0011) and the **Claude Agent SDK** leaf (`ClaudeAgentAuthor` — the live runtime,
 ADR-0030); it normalizes the stream into the typed events the event store renders, and
-exposes nothing model-shaped upward. `packages/base` and `apps/studio` never parse the leaf's stream directly
+exposes nothing model-shaped upward. `packages/storage-protocol` and `apps/studio` never parse the leaf's stream directly
 (ADR-0004, ADR-0006, ADR-0011, ADR-0030). Carries v1's own-a-thin-wrapper-over-the-agent-runtime
 principle (Agentic ADR-0008/0026).
 

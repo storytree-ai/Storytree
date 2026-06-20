@@ -23,7 +23,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { Attestation } from '@storytree/verdict-contract';
+import type { Attestation } from '@storytree/proof-protocol';
 import {
   BUILD_IN_FLIGHT_TTL_MS,
   type AssetCategory,
@@ -451,15 +451,15 @@ function loadOrchestratorModule(): Promise<OrchestratorModule> {
   return (orchestratorModulePromise ??= import('@storytree/orchestrator'));
 }
 
-// @storytree/verdict-contract is raw-TS too: its `.js` specifiers don't resolve under vite's
+// @storytree/proof-protocol is raw-TS too: its `.js` specifiers don't resolve under vite's
 // config-load (no tsx transform), so the Attestation SCHEMA is loaded lazily on first write —
 // even though the contract is browser-safe (zod-only, no node:).
-type ContractModule = typeof import('@storytree/verdict-contract');
+type ContractModule = typeof import('@storytree/proof-protocol');
 
 let contractModulePromise: Promise<ContractModule> | null = null;
 
 function loadContractModule(): Promise<ContractModule> {
-  return (contractModulePromise ??= import('@storytree/verdict-contract'));
+  return (contractModulePromise ??= import('@storytree/proof-protocol'));
 }
 
 const DEFAULT_ACTOR = 'operator';

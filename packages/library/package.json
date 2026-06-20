@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.4.0",
-    "@storytree/base": "workspace:*",
-    "@storytree/verdict-contract": "workspace:*",
+    "@storytree/storage-protocol": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*",
     "google-auth-library": "^10.7.0",
     "pg": "^8.13.1",
     "zod": "^3.24.1"

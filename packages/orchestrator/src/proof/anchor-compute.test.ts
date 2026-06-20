@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ChangeEvent } from "@storytree/verdict-contract";
+import { ChangeEvent } from "@storytree/proof-protocol";
 import { normalizeSpan, hashSpan, isDescribed, classifyDrift } from "./anchor-compute.js";
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 import path from "node:path";
 
 import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
-import type { Store } from "@storytree/base";
+import type { Store } from "@storytree/storage-protocol";
 import { effectiveUatWitness } from "@storytree/library";
 import {
   createBuildWorktree,

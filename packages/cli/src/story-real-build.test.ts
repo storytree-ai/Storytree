@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";
 import type { PhaseAuthor } from "@storytree/agent";
 import {

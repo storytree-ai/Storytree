@@ -1,4 +1,4 @@
-import type { Store } from "@storytree/base";
+import type { Store } from "@storytree/storage-protocol";
 import { renderStoredDoc } from "@storytree/library/store";
 
 /**

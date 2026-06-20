@@ -43,17 +43,21 @@ Run `pnpm -r test` before assuming anything is unbuilt. The packages:
 
 **`@storytree/core` is DISSOLVED (ADR-0068 — the organism rebuild is complete).** The shared
 god-package was decomposed into the organisms below; each type/function now lives with the organism
-that owns it, and cross-organism coupling passes through declared `port`s (verdict-contract,
+that owns it, and cross-organism coupling passes through declared `port`s (proof-protocol,
 model-events), never by importing another organism's source.
 
-- **`packages/verdict-contract`** — the published verdict SHAPE (ADR-0068 §3), the first concrete
-  `port`: zod DATA shapes + validators (`Verdict`/`ProofMode`/`SigningRow`/`EvidenceRef`/`ChangeEvent`/
-  `DriftFlag`/`Attestation`/`anchor`, plus the duplicated `Tier`/`Status`). Browser-safe, zod-only;
-  readers `.safeParse()` verdict-DATA across the boundary and never import the proof machinery.
-- **`packages/base`** — the universal, browser-safe base seam (ADR-0068 step 5): the narrow `Store` /
-  `ChangeStore` document-event contract, the `InMemoryStore` reference, and `StoredDoc`/`StoreEvent`/
-  `DeleteDocOpts`/`retiredEventDoc`. The reusable `node:test` parity suites live behind the `./parity`
-  subpath so the main entry carries no `node:` import.
+- **`packages/proof-protocol`** (formerly `verdict-contract`, renamed for role-not-position per
+  ADR-0078) — the published verdict SHAPE (ADR-0068 §3), the first concrete `port`: zod DATA shapes +
+  validators (`Verdict`/`ProofMode`/`SigningRow`/`EvidenceRef`/`ChangeEvent`/`DriftFlag`/`Attestation`/
+  `anchor`, plus the duplicated `Tier`/`Status`). The verdict/proof MESSAGE FORMAT organisms exchange —
+  browser-safe, zod-only; readers `.safeParse()` verdict-DATA across the boundary and never import the
+  proof machinery. The bottom root the whole graph rests on (depends on nothing).
+- **`packages/storage-protocol`** (formerly `base`, renamed for role-not-position per ADR-0078) — the
+  universal, browser-safe STORAGE SEAM (ADR-0068 step 5): the narrow `Store` / `ChangeStore`
+  document-event contract (the verbs any store must offer), the `InMemoryStore` reference impl + the
+  shared `./parity` suite a real backend is held to, and `StoredDoc`/`StoreEvent`/`DeleteDocOpts`/
+  `retiredEventDoc`. A contract, not a database — the second root (depends only on proof-protocol). The
+  `node:test` parity suites live behind the `./parity` subpath so the main entry carries no `node:` import.
 - **`packages/library`** — the library organism: the work-hierarchy schema (`schema.ts`, story /
   capability / contract, `Tier`/`Status`/`Unit`) and the knowledge-document schema (`knowledge.ts`,
   `knowledge-render.ts`, `knowledge-sources.ts`, `migrations.ts`, `library-doc.ts`,
@@ -78,7 +82,7 @@ model-events), never by importing another organism's source.
   `shell-test-executor.ts`, `prove-it-gate.ts`; and the proof machinery in `proof/` (`signer.ts`,
   `anchor-compute.ts`/`hashSpan`, `rollup.ts`, `verdict-line.ts`, `attestations.ts`, `proof-status.ts`,
   `source-drift.ts`) — the COMPUTE moved out of the dissolved core; the DATA shapes it reads/returns
-  are verdict-contract's.
+  are proof-protocol's.
 - **`packages/store`** — the Cloud SQL Postgres store (plain pg, **no DBOS**): `connection.ts`
   (Node connector + keyless IAM), `schema.sql` (the `events` schema only), `pg-store.ts`,
   `load-corpus.ts` (the library migration).

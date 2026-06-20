@@ -20,17 +20,17 @@
  *     where `x` is only a `devDependency` (or undeclared), so it never appears in the runtime dep
  *     graph yet is a real runtime coupling. The scan flags it.
  * Test files (`*.test.ts`) and parity suites are sanctioned scaffolding (ADR-0010 §5) and are
- * skipped, so the existing test-only parity reuses (verdict-contract↔library, store→orchestrator,
+ * skipped, so the existing test-only parity reuses (proof-protocol↔library, store→orchestrator,
  * base `./parity`) are never flagged. Type-only imports (`import type …`) are erased and are not
  * runtime couplings, so rule (b) skips them.
  *
  * **One class + the foundational subset, ADR-0075 (collapse the substrate class).** Earlier
- * increments carried a second `substrate` class for the shared ports (`base`/`verdict-contract`):
+ * increments carried a second `substrate` class for the shared ports (`base`/`proof-protocol`):
  * anyone could depend on them with NO declared edge (an EXEMPTION). ADR-0075 removes that exemption —
  * the same "visibility over exemption" call ADR-0074 §2 made for the cli/store hubs. There is now
  * ONE package class: `organism` (every package, the ports included, is owned by exactly one story,
  * and the boundary rule applies between all of them). The ports are ordinary **root organisms** —
- * each owns a story with `depends_on: []` (or `[verdict-contract]`), and every consumer DECLARES the
+ * each owns a story with `depends_on: []` (or `[proof-protocol]`), and every consumer DECLARES the
  * edge exactly like the `library` trunk — so a dependency on a port is a VISIBLE declared+rendered
  * edge, not an invisible exemption. To keep the ports browser-safe (zod-only, no node/pg) the
  * manifest still marks them as the `foundational` subset, carrying ONE explicit minimality rule: a
@@ -47,7 +47,7 @@ export interface Ownership {
   /** organism package name → the story id that owns it (the boundary rule applies between all of these). */
   organisms: Record<string, string>;
   /**
-   * The foundational ROOT organisms — the ports `base`/`verdict-contract` (ADR-0075). A SUBSET of
+   * The foundational ROOT organisms — the ports `base`/`proof-protocol` (ADR-0075). A SUBSET of
    * `organisms`, NOT a separate class: they are depended on like any organism (declared edges), but
    * carry one extra minimality rule — a foundational organism may only depend on other foundational
    * organisms — which keeps them zod-only / node+pg-free so the studio's browser bundle works.
@@ -172,7 +172,7 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
       if (ca === null || cb === null) continue; // already reported as unclassified
 
       // The foundational-minimality rule (ADR-0075): a foundational root port may only depend on
-      // another foundational port — keeps base/verdict-contract zod-only so the browser bundle works.
+      // another foundational port — keeps base/proof-protocol zod-only so the browser bundle works.
       if (isFoundational(a, ownership) && !isFoundational(b, ownership)) {
         violations.push(
           `foundational port "${a}" depends on non-foundational organism "${b}" — a root port may ` +

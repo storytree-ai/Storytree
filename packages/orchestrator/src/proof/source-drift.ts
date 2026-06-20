@@ -1,4 +1,4 @@
-import type { ChangeEvent, DriftState } from "@storytree/verdict-contract";
+import type { ChangeEvent, DriftState } from "@storytree/proof-protocol";
 
 /**
  * The source-drift COMPUTE (ADR-0016 §4). MOVED here from `@storytree/core`'s `source-drift.ts`

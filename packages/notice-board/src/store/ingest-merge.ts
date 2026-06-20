@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 import { createPool, closePool } from "@storytree/library/store";
 import type { PoolHandle } from "@storytree/library/store";
 import { PgPresenceStore } from "./presence-store.js";
+import { reapStaleSessions } from "./reaper.js";
 
 /**
  * Merge-retire backstop (ADR-0033 / ADR-0041): when a session's PR merges, retire its
@@ -97,7 +98,14 @@ async function main(): Promise<void> {
   let handle: PoolHandle | undefined;
   try {
     handle = await createPool();
-    await retireMergedSession(new PgPresenceStore(handle.pool), sessionId, mergedAt);
+    const store = new PgPresenceStore(handle.pool);
+    // 1) Retire THIS merged session's row (the authoritative "its work landed" fact).
+    await retireMergedSession(store, sessionId, mergedAt);
+    // 2) Then sweep ALL possibly-dead active rows (ADR-0079, amends ADR-0041). The merge-retire
+    //    above is a one-shot per branch tail; the sweep is the data-side janitor that also
+    //    catches sessions that re-declared after their merge, merged under a different branch,
+    //    or never merged at all. Both reuse this one keyless pool. Fail-soft — never rethrows.
+    await reapStaleSessions(store, new Date());
   } catch (err) {
     // Pool acquisition / connector failure (DB idle-stopped, no creds) — advisory, ignore.
     const message = err instanceof Error ? err.message : String(err);

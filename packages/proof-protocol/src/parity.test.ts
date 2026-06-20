@@ -17,7 +17,7 @@ test("PARITY GUARD: contract Tier has an identical option set to library Tier", 
   assert.deepEqual(
     options(ContractTier),
     options(LibraryTier),
-    "verdict-contract Tier drifted from @storytree/library Tier — reconcile the duplicate (ADR-0068)",
+    "proof-protocol Tier drifted from @storytree/library Tier — reconcile the duplicate (ADR-0068)",
   );
 });
 
@@ -25,6 +25,6 @@ test("PARITY GUARD: contract Status has an identical option set to library Statu
   assert.deepEqual(
     options(ContractStatus),
     options(LibraryStatus),
-    "verdict-contract Status drifted from @storytree/library Status — reconcile the duplicate (ADR-0068)",
+    "proof-protocol Status drifted from @storytree/library Status — reconcile the duplicate (ADR-0068)",
   );
 });

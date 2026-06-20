@@ -10,13 +10,13 @@ proof_mode: UAT
 uat_witness: machine
 capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli]
 # Consumer-side outbound edge (ADR-0075): the library validates/upcasts every doc against the verdict
-# vocabulary's Tier/Status, so it imports the verdict-contract ROOT port — now a declared edge (was an
+# vocabulary's Tier/Status, so it imports the proof-protocol ROOT port — now a declared edge (was an
 # exempt substrate dependency before ADR-0075 collapsed that class). library is no longer the graph
-# TRUNK; verdict-contract is the bottom root.
+# TRUNK; proof-protocol is the bottom root.
 # Consumer-side outbound edge (ADR-0077): the library absorbed the shared Postgres substrate + the
 # central drawers (now @storytree/library/store, a node-only subpath), whose Store realization imports
-# @storytree/base (InMemoryStore / retiredEventDoc / StoredDoc) — a real code edge, now declared.
-depends_on: [verdict-contract, base]
+# @storytree/storage-protocol (InMemoryStore / retiredEventDoc / StoredDoc) — a real code edge, now declared.
+depends_on: [proof-protocol, storage-protocol]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports @storytree/library
 # (commands.ts validates/upcasts on every write). The store hub also imports it, but that edge is
 # declared consumer-side in stories/store/story.md depends_on; the cli edge is declared here to
@@ -35,7 +35,7 @@ render: building
 
 **Outcome —** An agent grows and curates a schema-validated, versioned, event-sourced knowledge Library through one choose-your-own-adventure CLI.
 
-The library tier (ADR-0017 / ADR-0019 / ADR-0023) is the knowledge corpus as a buildable system, now folded into `packages/library` (ADR-0068 / ADR-0077): `packages/library` defines the per-kind schema and the migrate-on-write upcaster, and `packages/library/src/store/` is the event-sourced persistence seam (a Cloud SQL Postgres impl plus the corpus seeder and the eager batch migrator) over the narrow `Store` seam + in-memory reference impl that live in `packages/base`; `packages/cli` is the agent-facing surface — a guidance-enveloped, `--pg`-gated choose-your-own-adventure CLI — wrapped by a pure health gate that the ADR-0022 CI run enforces offline. Unlike `studio`, this organism has a real, passing, OFFLINE automated test suite that observationally verifies most of its behaviour today (I ran it: `@storytree/library` 99 pass + 1 live-gated skip, `@storytree/base` 13/13, `@storytree/cli` 359/359). EXCLUDED here: `apps/studio` — that is `studio`'s organism, not the library tier.
+The library tier (ADR-0017 / ADR-0019 / ADR-0023) is the knowledge corpus as a buildable system, now folded into `packages/library` (ADR-0068 / ADR-0077): `packages/library` defines the per-kind schema and the migrate-on-write upcaster, and `packages/library/src/store/` is the event-sourced persistence seam (a Cloud SQL Postgres impl plus the corpus seeder and the eager batch migrator) over the narrow `Store` seam + in-memory reference impl that live in `packages/storage-protocol`; `packages/cli` is the agent-facing surface — a guidance-enveloped, `--pg`-gated choose-your-own-adventure CLI — wrapped by a pure health gate that the ADR-0022 CI run enforces offline. Unlike `studio`, this organism has a real, passing, OFFLINE automated test suite that observationally verifies most of its behaviour today (I ran it: `@storytree/library` 99 pass + 1 live-gated skip, `@storytree/storage-protocol` 13/13, `@storytree/cli` 359/359). EXCLUDED here: `apps/studio` — that is `studio`'s organism, not the library tier.
 
 ## What this is
 
@@ -47,7 +47,7 @@ See [`../README.md`](../README.md) for the representation and how every field ma
 
 ## Continuity with v1 (the Agentic corpus)
 
-The library tier is a conceptual port of a proven V1 shape, not a fresh invention. Its architectural **spine** is the V1 `standalone-resilient-library` pattern (`legacy/Agentic/patterns/standalone-resilient-library.yml`): a library that depends only on a minimal, load-bearing floor, is exercised end-to-end by a test that imports it **directly**, sits behind a **thin CLI shim** (parse args → call library → map to an exit code), and **never spawns an LLM subprocess inside the library**. That is exactly this tier's split: `packages/library` (its `Store` seam standing on `packages/base`) is the library (the schema, the upcaster, the Store seam, the seeder, the health checks), and `packages/cli` is the thin shim — guidance + envelope + `--pg` gate over library calls, with no inference inside the library. The library stays correct "when the rest of the system is in flames" because it is AI-free; agents are *users* of the CLI, never code inside the tier.
+The library tier is a conceptual port of a proven V1 shape, not a fresh invention. Its architectural **spine** is the V1 `standalone-resilient-library` pattern (`legacy/Agentic/patterns/standalone-resilient-library.yml`): a library that depends only on a minimal, load-bearing floor, is exercised end-to-end by a test that imports it **directly**, sits behind a **thin CLI shim** (parse args → call library → map to an exit code), and **never spawns an LLM subprocess inside the library**. That is exactly this tier's split: `packages/library` (its `Store` seam standing on `packages/storage-protocol`) is the library (the schema, the upcaster, the Store seam, the seeder, the health checks), and `packages/cli` is the thin shim — guidance + envelope + `--pg` gate over library calls, with no inference inside the library. The library stays correct "when the rest of the system is in flames" because it is AI-free; agents are *users* of the CLI, never code inside the tier.
 
 Lineage of the v2 capabilities to their V1 ancestors (reference only — the V1 stories are read-only in `legacy/Agentic/stories/`):
 
@@ -76,7 +76,7 @@ Listed roots-first (a capability appears after everything it depends on). The `s
 
 ## Dependency graph (code-derived)
 
-These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` is the lone root. One **cross-story** edge applies: `library → verdict-contract` (the schema validates docs against the verdict vocabulary's `Tier`/`Status`), declared `depends_on: [verdict-contract]` since [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) made the ports root organisms rather than an exempt substrate class.
+These are **within-story** edges, **read off the real source** (static analysis of the imports / calls between capabilities), never hand-drawn from UAT need (ADR-0010 §3): A → B means A's code actually couples to B's code inside the one organism. The graph is acyclic; `library-schema-and-write-validation` is the lone root. One **cross-story** edge applies: `library → proof-protocol` (the schema validates docs against the verdict vocabulary's `Tier`/`Status`), declared `depends_on: [proof-protocol]` since [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) made the ports root organisms rather than an exempt substrate class.
 
 - `migrate-on-write-upcaster` → `library-schema-and-write-validation`
   - `migrations.ts:1` imports `KIND_SPECS` from `knowledge.ts` (`isStructuredKnowledge`, `migrations.ts:104-107`, gates on whether the kind is a structured key), and `library-doc.ts:67-69` composes `upcast` INTO the validator: `upcastAndValidate = validateLibraryDoc(upcast(...))` — a genuine code call, not a UAT inference.
@@ -111,7 +111,7 @@ These are **within-story** edges, **read off the real source** (static analysis 
 
 ## Story UAT
 
-The integrated **acceptance walkthrough** that proves the whole `library` organism meets its outcome end-to-end against its **real packages** (`@storytree/library`, `@storytree/base`, `@storytree/cli`) — the proof that lives at the story tier (ADR-0010 §2). It is one coherent agent journey: explore the library, view an artifact, validate-and-author on write, run a migration, run the health gate.
+The integrated **acceptance walkthrough** that proves the whole `library` organism meets its outcome end-to-end against its **real packages** (`@storytree/library`, `@storytree/storage-protocol`, `@storytree/cli`) — the proof that lives at the story tier (ADR-0010 §2). It is one coherent agent journey: explore the library, view an artifact, validate-and-author on write, run a migration, run the health gate.
 
 > **HONEST status — there is NO scripted UAT today; this is the would-be acceptance walkthrough.** Several legs ARE automatable offline now (and the capability tests below prove them piecewise — citations given inline), but no single scripted end-to-end UAT exists, and the live-DB legs (steps 6–7) are gated behind `STORYTREE_DB_LIVE=1` / `pnpm db:up` and are currently unrun. So the **story's own acceptance proof is would-be** even though its capabilities are mostly `mapped`.
 
@@ -135,7 +135,7 @@ The story now **carries the UAT** (above): under the organism model the integrat
 
 **Honest status — `mapped` (brownfield), NOT `healthy`, NOT pure-`proposed`.** This is the load-bearing difference from `studio`:
 
-- **Why `mapped` and not `proposed`:** unlike `apps/studio` (zero tests), the library tier has a **real, passing, offline** automated suite that observationally verifies the dominant behaviour today. I verified by running it: `@storytree/library` **99 pass + 1 live-gated skip**, `@storytree/base` **13/13**, `@storytree/cli` **359/359**. Per the glossary, that observational green is exactly brownfield `mapped`.
+- **Why `mapped` and not `proposed`:** unlike `apps/studio` (zero tests), the library tier has a **real, passing, offline** automated suite that observationally verifies the dominant behaviour today. I verified by running it: `@storytree/library` **99 pass + 1 live-gated skip**, `@storytree/storage-protocol` **13/13**, `@storytree/cli` **359/359**. Per the glossary, that observational green is exactly brownfield `mapped`.
 - **Why NOT `healthy`:** storytree's own prove-it-gate (`packages/orchestrator/src/prove-it-gate.ts`) has **not** driven a single one of these proofs red→green. They are pre-existing target-repo tests — the glossary's brownfield `mapped`, which "never short-circuits to proven." Re-running these assertions UNDER the gate's red→green flow is the natural next bootstrap step that would upgrade the mapped capabilities to `healthy` (an open call below).
 - **The `proposed` regions (do not over-claim):** (1) the whole **`seed-corpus-scripts`** capability is `status: proposed` — `loadCorpus`/`loadComments`/`applySchema` behaviour, the `recordLedger` row, and both entry-guarded `main()`s have only smoke-import / DDL-shape coverage, never a standalone behavioural assertion. (2) the **Postgres transactional behaviour** of `PgLibraryStore` + the IAM `createPool` connection (a `proposed` pocket inside the `mapped` `event-sourced-store-seam`) — proven ONLY by the default-**skipped** live-gated parity run (`store.test.ts:101` under `STORYTREE_DB_LIVE=1`); the `InMemoryStore` parity suite proves the *contract* offline but never touches the Pg impl. (3) the CLI's **uncovered branches** (a `proposed` pocket inside the `mapped` `library-cli`) — `--file` reads, malformed-JSON, whole-doc `--json`/`--file` replace, the bad `--set` token, `main`'s `writable=usePg` wiring, and the FAIL/WARN dashboard banner variant (only the OK banner is tested).
 - **The STORY's own UAT is unscripted (would-be):** no scripted end-to-end UAT exists, so the organism-level acceptance proof does not exist yet even though its capabilities are mostly observationally verified. Each capability file's Proof blockquote and each contract's `proven by` / would-be marker pin down exactly which leaves are `mapped` vs `proposed`.

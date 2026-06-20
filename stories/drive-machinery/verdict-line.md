@@ -57,9 +57,9 @@ export function verdictLine(verdict: Verdict): string;
 ```
 
 The input is the verdict contract's `Verdict` shape (see
-`packages/verdict-contract/src/proof.ts`): `unitId`, `proofMode`, `outcome` (`"pass" | "fail"`),
+`packages/proof-protocol/src/proof.ts`): `unitId`, `proofMode`, `outcome` (`"pass" | "fail"`),
 `commitSha`, `signer`, `runId`, `evidence[]`, `at`. Use
-`import type { Verdict } from "@storytree/verdict-contract"` — type-only, so the function stays
+`import type { Verdict } from "@storytree/proof-protocol"` — type-only, so the function stays
 dependency-free at runtime (no zod, no I/O).
 
 Render EXACTLY one line (no trailing newline), in this format:

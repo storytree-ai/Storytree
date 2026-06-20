@@ -13,7 +13,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
 
 import { renderAgentDigest } from "./agents.js";

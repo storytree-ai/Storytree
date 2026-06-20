@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "@storytree/verdict-contract";
+import type { ChangeEvent } from "@storytree/proof-protocol";
 
 /**
  * The narrow Store seam + an in-memory implementation

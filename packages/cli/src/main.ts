@@ -2,7 +2,7 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { InMemoryStore, type Store } from "@storytree/base";
+import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 import {
   loadCorpus,
   createPool,

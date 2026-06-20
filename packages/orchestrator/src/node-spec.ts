@@ -4,7 +4,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 import { Status, Tier, UatWitness, parseUatTests, type UatTest } from "@storytree/library";
-import { ProofMode } from "@storytree/verdict-contract";
+import { ProofMode } from "@storytree/proof-protocol";
 
 import { parseNodeBuildConfig } from "./proof-config.js";
 import type { NodeBuildConfig } from "./proof-config.js";

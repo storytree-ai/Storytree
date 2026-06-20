@@ -1,10 +1,10 @@
-import type { Store, StoredDoc, StoreEvent } from "@storytree/base";
+import type { Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
 import {
   SIGNING_EVENT_KIND,
   Verdict,
   WORK_EVENT_KIND,
   WorkEventDoc,
-} from "@storytree/verdict-contract";
+} from "@storytree/proof-protocol";
 
 /**
  * The Postgres work-hierarchy event store (drive-machinery Phase A's tables, finally written to —

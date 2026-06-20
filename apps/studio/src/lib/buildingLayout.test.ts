@@ -30,13 +30,13 @@ describe('bookshelfConsumers — distribute a building onto every island it conn
     // the real corpus shape: library declares consumed_by:[cli]; cli is the edgeless hub
     const nodes = [
       node('cli'),
-      node('library', ['verdict-contract'], ['cli']),
-      node('verdict-contract'),
+      node('library', ['proof-protocol'], ['cli']),
+      node('proof-protocol'),
     ];
     const consumers = bookshelfConsumers(nodes, new Set(['library']));
     expect(consumers.has('cli')).toBe(true);
-    // verdict-contract is what library DEPENDS ON, not a consumer — excluded
-    expect(consumers.has('verdict-contract')).toBe(false);
+    // proof-protocol is what library DEPENDS ON, not a consumer — excluded
+    expect(consumers.has('proof-protocol')).toBe(false);
   });
 
   it('never stamps a building on itself or another building', () => {
@@ -84,9 +84,9 @@ describe('bookshelfConsumers — distribute a building onto every island it conn
       'uat-attestation',
     ];
     const nodes: WiredNode[] = [
-      node('library', ['verdict-contract'], ['cli']),
+      node('library', ['proof-protocol'], ['cli']),
       node('cli'),
-      node('verdict-contract'),
+      node('proof-protocol'),
       ...dependents.map((id) => node(id, ['library'])),
     ];
     const consumers = bookshelfConsumers(nodes, new Set(['library']));

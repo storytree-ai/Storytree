@@ -8,7 +8,7 @@
  *   "" — store is offline/unavailable (glyph column is absent)
  */
 
-import { SIGNING_EVENT_KIND, Verdict } from "@storytree/verdict-contract";
+import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
 
 // ---------------------------------------------------------------------------
 // Public types

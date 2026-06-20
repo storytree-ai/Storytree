@@ -4,9 +4,9 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import { hashSpan } from "@storytree/orchestrator";
-import type { DriftFlag } from "@storytree/verdict-contract";
+import type { DriftFlag } from "@storytree/proof-protocol";
 
 import { driftEnvelope, runDrift, driftHelp } from "./drift.js";
 import { run } from "./commands.js";

@@ -15,10 +15,11 @@ import {
   PresenceDeclaration,
   classifyPresence,
   mergeDeclaration,
+  reapableSessions,
   STALE_THRESHOLD_MS,
   POSSIBLY_DEAD_THRESHOLD_MS,
 } from "./presence.js";
-import type { PresenceDeclarationPatch } from "./presence.js";
+import type { PresenceDeclarationDoc, PresenceDeclarationPatch } from "./presence.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -290,5 +291,62 @@ describe("declaration-upsert-merge: mergeDeclaration is pure and stable", () => 
     assert.equal(merged.status, existing.status);
     assert.equal(merged.startedAt, existing.startedAt);
     assert.equal(merged.lastSeenAt, existing.lastSeenAt);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Contract 4: reapable-selection (the data-side janitor's pure selector, ADR-0079)
+// ---------------------------------------------------------------------------
+
+describe("reapable-selection: reapableSessions picks active AND possibly-dead rows only", () => {
+  const NOW = new Date("2026-06-20T12:00:00.000Z");
+  const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
+
+  function row(
+    sessionId: string,
+    lastSeenAt: string,
+    status: "active" | "done" = "active",
+  ): PresenceDeclarationDoc {
+    return {
+      sessionId,
+      branch: `claude/${sessionId}`,
+      workingOn: `work for ${sessionId}`,
+      nodes: [],
+      status,
+      startedAt: "2026-06-10T00:00:00.000Z",
+      lastSeenAt,
+    };
+  }
+
+  it("selects an active possibly-dead row", () => {
+    const dead = row("dead", ago(POSSIBLY_DEAD_THRESHOLD_MS));
+    assert.deepEqual(reapableSessions([dead], NOW), [dead]);
+  });
+
+  it("excludes fresh and stale active rows", () => {
+    const fresh = row("fresh", ago(STALE_THRESHOLD_MS - 1));
+    const stale = row("stale", ago(STALE_THRESHOLD_MS));
+    assert.deepEqual(reapableSessions([fresh, stale], NOW), []);
+  });
+
+  it("excludes a possibly-dead row that is already done (defensive: status gates too)", () => {
+    const doneDead = row("done-dead", ago(POSSIBLY_DEAD_THRESHOLD_MS * 5), "done");
+    assert.deepEqual(reapableSessions([doneDead], NOW), []);
+  });
+
+  it("picks exactly the possibly-dead actives out of a mixed set, preserving order", () => {
+    const fresh = row("fresh", ago(60_000));
+    const dead1 = row("dead1", ago(POSSIBLY_DEAD_THRESHOLD_MS));
+    const stale = row("stale", ago(STALE_THRESHOLD_MS + 1));
+    const dead2 = row("dead2", ago(POSSIBLY_DEAD_THRESHOLD_MS * 10));
+    const result = reapableSessions([fresh, dead1, stale, dead2], NOW);
+    assert.deepEqual(
+      result.map((d) => d.sessionId),
+      ["dead1", "dead2"],
+    );
+  });
+
+  it("returns [] for an empty input and does not read the clock itself", () => {
+    assert.deepEqual(reapableSessions([], NOW), []);
   });
 });

@@ -25,7 +25,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { UatTest } from '@storytree/library';
-import type { Attestation } from '@storytree/verdict-contract';
+import type { Attestation } from '@storytree/proof-protocol';
 import type {
   AssetCategory,
   Comment,

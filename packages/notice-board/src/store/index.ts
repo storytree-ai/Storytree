@@ -12,3 +12,6 @@ export type {
 
 export { sessionIdFromBranch, retireMergedSession } from "./ingest-merge.js";
 export type { MergeRetireStore } from "./ingest-merge.js";
+
+export { reapStaleSessions } from "./reaper.js";
+export type { ReaperStore } from "./reaper.js";

@@ -1,5 +1,5 @@
-import type { ChangeEvent } from "@storytree/verdict-contract";
-import type { ChangeStore } from "@storytree/base";
+import type { ChangeEvent } from "@storytree/proof-protocol";
+import type { ChangeStore } from "@storytree/storage-protocol";
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
 export interface ChangeStoreClient {
@@ -11,7 +11,7 @@ interface ChangeEventRow {
 }
 
 /**
- * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/base). Append-only
+ * The Postgres home for the ADR-0016 change log (the `ChangeStore` seam, @storytree/storage-protocol). Append-only
  * over `events.change_event`: one row per change, the full ChangeEvent in `doc` JSONB (so a read
  * round-trips it unchanged), the scalar columns the queryable spine. Held to `changeStoreParitySuite`,
  * the same bar InMemoryStore meets.
