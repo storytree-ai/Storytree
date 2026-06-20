@@ -126,11 +126,19 @@ file conflicts).
 
 ## How to run
 
-- **Remote (web) sessions** run in an ephemeral, offline container (Claude Code on the web): no
-  `gcloud`, no Cloud SQL, GitHub only via MCP. The offline gate (`pnpm -r typecheck && pnpm -r test`)
-  is fully runnable and is your green signal; the Node `>=24` engine warning is harmless (the
-  container ships v22). What you **can't** do here: `pnpm db:up`, live/`--pg` library writes, or live
-  story builds — those need a session with DB credentials. Don't burn time trying. *(Durable home for
+- **Remote (web/VM) sessions** run in an ephemeral container (Claude Code on the web): GitHub only
+  via MCP, and **egress is 443-only** — an HTTPS proxy where the "Network access" setting picks
+  *which hosts*, not *which ports* (so even "Full" can't open another port; "Custom" only narrows
+  hosts). The offline gate (`pnpm -r typecheck && pnpm -r test`) is fully runnable and is your green
+  signal; the Node `>=24` engine warning is harmless (the container ships v22). The keyless DB path
+  is **not** what's missing here: `gcloud` is no longer required (`db:up`/`down`/`status` are REST
+  now, ADR-0063), and on VM sessions the `storytree-remote-dev` service-account key (carried in env)
+  + the `scripts/remote-session-setup.sh` SessionStart hook hydrate ADC + `~/.storytree/secrets.json`,
+  so the REST **control plane** (`db:status`, the activation flip) works. What still **can't** work
+  here: anything that opens a DB *connection* — live/`--pg` library writes, live story builds,
+  `db:up`'s connection-readiness poll — because Postgres' data socket is port **3307**, which the
+  443-only egress blocks (control plane works; the data plane hangs). Use a laptop session (direct
+  network) or a hosted HTTPS/443 DB bridge; don't burn time on the connector here. *(Durable home for
   this kind of ways-of-working is a `process` artifact, ADR-0034 — write it from a session that has
   the DB.)*
 - Install: `corepack enable pnpm` · `pnpm install`
