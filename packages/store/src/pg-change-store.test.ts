@@ -7,7 +7,7 @@ import type { ChangeEvent } from "@storytree/verdict-contract";
 
 import { PgChangeStore } from "./pg-change-store.js";
 import type { ChangeStoreClient } from "./pg-change-store.js";
-import { SCHEMA_SQL_PATH } from "./migrate.js";
+import { SCHEMA_SQL_PATH } from "@storytree/library/store";
 
 /**
  * PgChangeStore (ADR-0016 §2 + ADR-0064 §1): the FAST offline coverage. The live, DB-backed round-trip

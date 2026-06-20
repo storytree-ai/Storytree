@@ -8,18 +8,24 @@
     ".": "./src/index.ts",
     "./sources": "./src/knowledge-sources.ts",
     "./knowledge": "./src/knowledge.ts",
-    "./knowledge-render": "./src/knowledge-render.ts"
+    "./knowledge-render": "./src/knowledge-render.ts",
+    "./store": "./src/store/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.4.0",
+    "@storytree/base": "workspace:*",
     "@storytree/verdict-contract": "workspace:*",
+    "google-auth-library": "^10.7.0",
+    "pg": "^8.13.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "~5.7.3"
   }

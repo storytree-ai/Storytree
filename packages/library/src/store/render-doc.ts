@@ -1,11 +1,11 @@
 import type { StoredDoc } from "@storytree/base";
+import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
 import {
-  CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
-  renderBody,
   type Knowledge,
   type KnowledgeKind,
-} from "@storytree/library";
+} from "../knowledge.js";
+import { renderBody } from "../knowledge-render.js";
 
 /**
  * The READ + WRITE adapter pair between the runtime store's {@link StoredDoc} and the GuidanceAsset

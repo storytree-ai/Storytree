@@ -161,9 +161,21 @@ importers:
 
   packages/library:
     dependencies:
+      '@google-cloud/cloud-sql-connector':
+        specifier: ^1.4.0
+        version: 1.11.1
+      '@storytree/base':
+        specifier: workspace:*
+        version: link:../base
       '@storytree/verdict-contract':
         specifier: workspace:*
         version: link:../verdict-contract
+      google-auth-library:
+        specifier: ^10.7.0
+        version: 10.7.0
+      pg:
+        specifier: ^8.13.1
+        version: 8.21.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -171,6 +183,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.4

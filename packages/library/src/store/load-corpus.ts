@@ -44,8 +44,8 @@ interface CommentLike {
 
 /** Resolve a path inside `apps/studio/data/` relative to the repo root (this file's location). */
 function dataPath(file: string): string {
-  // packages/store/src/load-corpus.ts -> repo root is three dirs up.
-  return fileURLToPath(new URL(`../../../apps/studio/data/${file}`, import.meta.url));
+  // packages/library/src/store/load-corpus.ts -> repo root is four dirs up.
+  return fileURLToPath(new URL(`../../../../apps/studio/data/${file}`, import.meta.url));
 }
 
 export interface LoadCorpusResult {

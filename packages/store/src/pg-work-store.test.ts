@@ -181,9 +181,7 @@ test("the doc surface fails loud — this store is event-only", async () => {
 /** Build a PgWorkStore against the live DB, truncating the work tables so each run starts clean. */
 const livePools: Array<() => Promise<void>> = [];
 async function makePgWorkStore(): Promise<Store> {
-  const { createTestPool } = await import("./test-db.js");
-  const { closePool } = await import("./connection.js");
-  const { applySchema } = await import("./migrate.js");
+  const { createTestPool, closePool, applySchema } = await import("@storytree/library/store");
   // Fail-closed against production — the TRUNCATE below can never wipe the live verdicts (ADR-0054).
   const { pool, connector } = await createTestPool();
   livePools.push(() => closePool(pool, connector));

@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
-import { createPool, closePool } from "./connection.js";
-import type { PoolHandle } from "./connection.js";
+import { createPool, closePool } from "@storytree/library/store";
+import type { PoolHandle } from "@storytree/library/store";
 import { PgPresenceStore } from "./presence-store.js";
 
 /**

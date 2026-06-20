@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { storeParitySuite } from "@storytree/base/parity";
 import type { Store } from "@storytree/base";
-import { validateLibraryDoc } from "@storytree/library";
+import { validateLibraryDoc } from "../library-doc.js";
 import { SCHEMA_SQL_PATH } from "./migrate.js";
 
 /**
@@ -41,7 +41,7 @@ test("schema.sql declares the events schema and all six tables", async () => {
 
 async function firstKnowledgeUnit(): Promise<unknown> {
   const path = fileURLToPath(
-    new URL("../../../apps/studio/data/knowledge.json", import.meta.url),
+    new URL("../../../../apps/studio/data/knowledge.json", import.meta.url),
   );
   const units = JSON.parse(await readFile(path, "utf8")) as unknown[];
   return units[0];

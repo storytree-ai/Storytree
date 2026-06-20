@@ -13,7 +13,10 @@ capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, e
 # vocabulary's Tier/Status, so it imports the verdict-contract ROOT port — now a declared edge (was an
 # exempt substrate dependency before ADR-0075 collapsed that class). library is no longer the graph
 # TRUNK; verdict-contract is the bottom root.
-depends_on: [verdict-contract]
+# Consumer-side outbound edge (ADR-0077): the library absorbed the shared Postgres substrate + the
+# central drawers (now @storytree/library/store, a node-only subpath), whose Store realization imports
+# @storytree/base (InMemoryStore / retiredEventDoc / StoredDoc) — a real code edge, now declared.
+depends_on: [verdict-contract, base]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports @storytree/library
 # (commands.ts validates/upcasts on every write). The store hub also imports it, but that edge is
 # declared consumer-side in stories/store/story.md depends_on; the cli edge is declared here to

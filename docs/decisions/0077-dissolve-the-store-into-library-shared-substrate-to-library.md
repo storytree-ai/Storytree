@@ -31,9 +31,15 @@ most-connected package hides the most important relationships. The owner has rec
    id pointers held INSIDE the docs, no cross-table keys"). It is not "library persistence plus four
    other persistence systems"; it is one event-sourced document store with many drawers.
 
-2. **`library` is the system's centralised knowledge management.** Under the owner's definition, every
-   drawer in the store *is* knowledge management — the system's durable memory. A foundational
-   persistence substrate that serves many surfaces is a *part of* that foundation, not a peer to it.
+2. **`library` is the system's *centralised* knowledge management.** The operative word is
+   *centralised*, and it gives the deciding test: a drawer belongs in `library` only if its data
+   **needs to be centralised** — a single system-wide source of truth that many organisms/sessions
+   coordinate through (the shared corpus, the global ADR-number allocator, shared comment annotations
+   on that corpus). A drawer that is merely **one organism's own state** persisting in the shared DB
+   (the proof machinery's verdicts, a session's presence, a user record) does *not* need centralising
+   and belongs in that organism. (Owner refinement, 2026-06-20: *"the library isn't all knowledge
+   management, it's **centralised** knowledge management — so if these components don't need to be
+   centralised then they probably belong in their organism."*)
 
 3. **This is the last undissolved monolith from [ADR-0068](0068-make-the-organism-model-physical-real-story-isolation-and-th.md).**
    The organism rebuild dissolved the shared *schema* god-package (`@storytree/core`) into organisms
@@ -60,14 +66,21 @@ substrate-vs-drawer split, keeping the declared dependency graph acyclic by cons
    own drawer) move into `packages/library`, behind a **node-only subpath `@storytree/library/store`**
    that mirrors `packages/base`'s proven `./parity` split.
 
-2. **Each tenant drawer moves outward to the organism that owns its doc shape**, using library's
-   now-owned connection — an edge those organisms already declare (`PgPresenceStore → notice-board`,
-   `PgUserStore → studio-members`), each behind that organism's own node-only `./store` subpath.
+2. **Each drawer that is one organism's own state moves outward to that organism**, using library's
+   now-owned connection — an edge those organisms already declare — each behind that organism's own
+   node-only `./store` subpath. By the centralisation test: `PgPresenceStore` (+ the session-merge
+   retire) → **notice-board**; `PgUserStore` → **studio-members**; the proof machinery's own records
+   `PgWorkStore` (work/verdict) + `PgAttestationStore` + `PgChangeStore` → **orchestrator** (which
+   already `depends_on library`/`base`/`verdict-contract`, so the move adds no new edge). `presence`
+   and `users` are *also* forced out by the no-cycle rule (their shape-owners already depend on
+   library); the proof drawers move out because they do not need centralising, not because of a cycle.
 
-3. **Orphan drawers** (work/verdict, attestation, change, comment, adr-number — whose owning story has
-   no package today) are homed per the owner decisions recorded alongside this ADR; the interim homes
-   (proof drawers → `orchestrator`; comment → the library substrate; adr-number → `cli`) are chosen to
-   keep the gate green and are revisable as those organisms gain packages.
+3. **Drawers whose data genuinely needs centralising stay in `library`**: the corpus
+   (`PgLibraryStore`), the **global ADR-number allocator** (`PgAdrStore` — its whole purpose is atomic
+   cross-session coordination, ADR-0050, so it *must* be one shared counter), and **comments**
+   (`PgCommentStore` — shared annotations on the central corpus, owned by no organism package). This
+   corrects an earlier draft that placed the allocator in `cli`: by the centralisation test the
+   allocator is central, not cli-private.
 
 4. **Browser-safety is load-bearing and preserved.** Node-only persistence (`pg`, the Cloud SQL
    connector, `node:*`) lives **only** behind the `./store` subpaths and is **never** re-exported from
@@ -103,8 +116,9 @@ empty package, story, and boundary fixtures).
   heaviest coupling point (~12 source files statically import the store) and its U5 rewire is the
   highest-churn unit. Browser-safety is easy to regress: any accidental re-export of a `./store`
   module from a root barrel silently pulls `pg` into the browser graph, so the Vite build must be run
-  explicitly after each move. Five orphan drawers have no natural package home and their interim homes
-  defer rather than resolve their ownership.
+  explicitly after each move. The proof drawers (work/attestation/change) land in `orchestrator` and
+  only the corpus, the ADR allocator, and comments stay central — a split the centralisation test
+  decides cleanly, though `comment` (owned by no organism package) is the softest call.
 - **Reversibility.** Phased into seven independently-gateable units; the re-export shim means any unit
   can land or be reverted on its own, and the package is deleted only once nothing imports it. The
   story-graph edits are one-line frontmatter changes, reconcilable through the normal story-authoring
