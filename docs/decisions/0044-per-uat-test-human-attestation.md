@@ -15,6 +15,14 @@ refines that to the **individual UAT test**, because a story has one tree but ma
 some tests need a human while others a machine can prove. The green-is-a-signed-gate-verdict rule
 (ADR-0040/ADR-0020) is untouched.
 
+**Superseded in part by [ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)
+(2026-06-20):** decisions §2/§3 — that a human stamp is only ever a never-green `events.attestation`
+signal that does not roll up — are overtaken. A test *declared* `witness: human` now earns a real
+`operator-attested` signed verdict (ADR-0007) that greens it, and a story's own UAT greens as the
+AND-roll-up of its per-test verdicts. The attestation signal survives, narrowed to the lower-rigor
+relayed vouch (§4) and "I also eyeballed it" marks; §1/§4/§5 and the green-is-a-signed-verdict rule
+stand.
+
 ## Date
 
 2026-06-14

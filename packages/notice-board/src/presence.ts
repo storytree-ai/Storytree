@@ -100,6 +100,33 @@ export function classifyPresence(lastSeenAt: string, now: Date): StalenessClass 
   return "possibly-dead";
 }
 
+/**
+ * PURE: select the presence rows a reaper should retire — those still `status: "active"`
+ * yet classifying as `"possibly-dead"` (quiet ≥ {@link POSSIBLY_DEAD_THRESHOLD_MS}).
+ *
+ * These are the zombie rows a racy `SessionEnd` (ADR-0041 "Known limitation") and a one-shot
+ * merge-retire (ADR-0033/0041) leave behind: sessions that re-declared after their PR merged,
+ * merged under a different branch, or never merged at all. The data-side janitor ADR-0041
+ * reserved is now enacted by ADR-0079, and this is its selector.
+ *
+ * Retiring is NON-destructive: a merely quiet-but-alive session re-declares on its next
+ * heartbeat and the upsert flips it back to active/fresh — so the threshold can be the same
+ * `possibly-dead` band the world already stops orbiting.
+ *
+ * The `status === "active"` guard is defensive: callers typically pass `listActive()` output
+ * (already active-only), but a `done` row must never be re-reaped regardless of input.
+ *
+ * No clock reads — the caller supplies `now`.
+ */
+export function reapableSessions(
+  docs: PresenceDeclarationDoc[],
+  now: Date,
+): PresenceDeclarationDoc[] {
+  return docs.filter(
+    (d) => d.status === "active" && classifyPresence(d.lastSeenAt, now) === "possibly-dead",
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Upsert-merge
 // ---------------------------------------------------------------------------

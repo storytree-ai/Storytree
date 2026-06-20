@@ -131,10 +131,12 @@ export function ensureLiveDb(log: (message: string) => void): Promise<EnsureDbRe
 }
 
 /**
- * The effective verdict store for a build (ADR-0060). A scripted (`--dry-run`) walk is unchanged —
- * its flag passes through (undefined → in-memory; an explicit `pg` is refused downstream as a forged
- * healthy, ADR-0020). A `--live`/`--real` build OWNS the DB: an unset `--store` DEFAULTS to `pg`, so
- * real work feeds the studio's wisps/blooms by default; `--store memory` is the explicit opt-out.
+ * The effective verdict store for a build (ADR-0060/0081). A scripted (`--dry-run`) walk is unchanged
+ * — its flag passes through (undefined → in-memory; an explicit `pg` is refused downstream as a forged
+ * healthy, ADR-0020). A `--live`/`--real` build OWNS the DB and ALWAYS persists: an unset `--store`
+ * defaults to `pg`, so real work feeds the studio's wisps/blooms. There is no persist-nothing mode —
+ * `--store memory` was removed at the CLI (ADR-0081); a `"memory"` flag only reaches here from the
+ * internal test seam, and still maps to the in-memory store downstream for those offline driver tests.
  */
 export function effectiveVerdictStore(flag: string | undefined, scripted: boolean): string | undefined {
   if (scripted) return flag;

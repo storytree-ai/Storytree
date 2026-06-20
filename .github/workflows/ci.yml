@@ -139,10 +139,14 @@ jobs:
           --delete-branch
 
       # -----------------------------------------------------------------------
-      # Presence merge-retire backstop (ADR-0033 / ADR-0041). The merge that just
-      # landed IS the authoritative "this session's work is done" fact — the one
-      # the racy SessionEnd hook misses when a fresh worktree is deleted before it
-      # fires. So retire the merged session's `events.session` presence row here.
+      # Presence merge-retire backstop (ADR-0033 / ADR-0041) + possibly-dead sweep
+      # (ADR-0079). The merge that just landed IS the authoritative "this session's
+      # work is done" fact — the one the racy SessionEnd hook misses when a fresh
+      # worktree is deleted before it fires. So retire the merged session's
+      # `events.session` presence row here — and then sweep ALL possibly-dead active
+      # rows (ADR-0079), since the one-shot retire above can't catch sessions that
+      # re-declared after their merge, merged under a different branch, or never
+      # merged. The sweep reuses this same pool — no extra auth/IAM/cron.
       #
       # EVERYTHING below is FAIL-SOFT: every step is `continue-on-error: true` and
       # the writer itself never exits non-zero. The merge already happened and
@@ -194,7 +198,7 @@ jobs:
         continue-on-error: true
         run: pnpm install --frozen-lockfile
 
-      - name: Retire the merged session's presence row (fail-soft)
+      - name: Retire the merged session + sweep possibly-dead presence rows (fail-soft)
         if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         env:

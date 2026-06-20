@@ -698,9 +698,14 @@ function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId:
   }
 }
 
-async function readTree(storiesDir: string): Promise<TreePayload> {
+async function readTree(
+  storiesDir: string,
+): Promise<{ payload: TreePayload; uatTestsByStory: Map<string, UatTest[]> }> {
   const stories: TreeStory[] = [];
-  if (!existsSync(storiesDir)) return { stories };
+  // The per-story declared UAT tests (ADR-0082), collected as the specs load so the /api/tree handler
+  // can roll each story's per-test verdicts up into its crown without re-reading every spec.
+  const uatTestsByStory = new Map<string, UatTest[]>();
+  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -733,12 +738,66 @@ async function readTree(storiesDir: string): Promise<TreePayload> {
       story.capabilities = spec.capabilities.map((capId) =>
         loadTreeCapability(loadNodeSpec, dir, capId),
       );
+      if (spec.uatTests.length > 0) uatTestsByStory.set(ent.name, spec.uatTests);
     } catch (err) {
       story.error = err instanceof Error ? err.message : String(err);
     }
     stories.push(story);
   }
-  return { stories };
+  return { payload: { stories }, uatTestsByStory };
+}
+
+/**
+ * Apply the per-test UAT crown roll-up (ADR-0082) to the tree payload. A story that declares per-test
+ * UAT tests has its crown set from the AND-roll-up of those tests' SIGNED verdicts (`rollupStoryUat`,
+ * injected so this stays unit-testable without the lazy orchestrator) — NEVER its own unit-id verdict
+ * and NEVER a child-capability roll-up: healthy ⇒ a pass crown, unhealthy ⇒ a fail crown, unproven ⇒
+ * NO verdict (the crown under-claims to `mapped`, never a stale green). A story with no per-test tests
+ * is left untouched (its own-unit verdict stands). Mutates `stories` in place.
+ */
+export function applyUatCrowns(
+  stories: TreeStory[],
+  uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+  rollup: (
+    tests: readonly { id: string }[],
+    events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+  ) => string | null,
+): void {
+  for (const story of stories) {
+    const tests = uatTestsByStory.get(story.id);
+    if (!tests || tests.length === 0) continue;
+    const rolled = rollup(tests, events);
+    if (rolled === 'healthy' || rolled === 'unhealthy') {
+      const at = latestVerdictAt(events, new Set(tests.map((t) => t.id)));
+      story.verdict = { outcome: rolled === 'healthy' ? 'pass' : 'fail', at: at ?? '' };
+    } else {
+      // unproven: drop any own-unit verdict so the world never paints a crown the per-test verdicts
+      // don't support (provenStatus then under-claims an authored `healthy` to `mapped`).
+      delete story.verdict;
+    }
+  }
+}
+
+/** The latest `at` among the verdict events for a story's per-test ids (ISO strings sort lexically). */
+function latestVerdictAt(
+  events: ReadonlyArray<{ doc: unknown }>,
+  testIds: ReadonlySet<string>,
+): string | undefined {
+  let latest: string | undefined;
+  for (const e of events) {
+    const doc = e.doc as { unitId?: unknown; at?: unknown } | null;
+    if (
+      doc !== null &&
+      typeof doc.unitId === 'string' &&
+      testIds.has(doc.unitId) &&
+      typeof doc.at === 'string' &&
+      (latest === undefined || doc.at > latest)
+    ) {
+      latest = doc.at;
+    }
+  }
+  return latest;
 }
 
 /** Everything GET /api/health needs, injectable so the integration test can stub each leg. */
@@ -890,26 +949,36 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      const payload = await readTree(ctx.paths.storiesDir);
+      const { payload, uatTestsByStory } = await readTree(ctx.paths.storiesDir);
       // Advisory enrichments (ADR-0033 / ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
-      // Run in parallel so a down DB costs one 4s budget, not three. `builds`
+      // Run in parallel so a down DB costs one 4s budget, not four. `builds`
       // seeds the in-flight wisp layer so the world paints it on first load
-      // (the poll then keeps it fresh) — parity with `sessions`.
-      const [verdicts, sessions, builds] = await Promise.all([
+      // (the poll then keeps it fresh) — parity with `sessions`. `verdictEvents`
+      // feeds the per-test UAT crown roll-up (ADR-0082); absent on a backend that
+      // doesn't implement it (the json store / a partial mock).
+      const [verdicts, verdictEvents, sessions, builds] = await Promise.all([
         ctx.backend.latestVerdicts(),
+        ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
         ctx.backend.activeSessions(),
         ctx.backend.inFlightBuilds(),
       ]);
       if (verdicts) {
         for (const story of payload.stories) {
           const sv = verdicts[story.id];
-          if (sv) story.verdict = sv; // the story's OWN UAT node, never a roll-up
+          if (sv) story.verdict = sv; // a capability/legacy story's OWN unit verdict, never a roll-up
           for (const cap of story.capabilities) {
             const cv = verdicts[cap.id];
             if (cv) cap.verdict = cv;
           }
         }
+      }
+      // ADR-0082: a story that declares per-test UAT tests greens from the AND-roll-up of those
+      // tests' signed verdicts — overriding any own-unit verdict set above. Skipped when the backend
+      // has no verdict events (json / down DB) or no story declares per-test tests.
+      if (verdictEvents && uatTestsByStory.size > 0) {
+        const { rollupStoryUat } = await loadOrchestrator();
+        applyUatCrowns(payload.stories, uatTestsByStory, verdictEvents, rollupStoryUat);
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;
       if (builds && builds.length > 0) payload.builds = builds;

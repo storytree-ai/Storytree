@@ -249,11 +249,15 @@ export type VerdictStoreChoice =
   | { ok: false; refusal: Envelope };
 
 /**
- * Resolve the verdict store for a build: in-memory by default; `--store pg` swaps in the
- * {@link PgWorkStore} over the live Cloud SQL tables. Fail-closed twice over: any value other
- * than `pg` is refused, and `pg` is refused for SCRIPTED walks — a dry-run's PASS is synthetic
- * by construction, and persisting it would plant a forged `healthy` in the shared event log
- * (exactly what ADR-0020 exists to prevent).
+ * Resolve the verdict store for a build: in-memory by default; `pg` swaps in the {@link PgWorkStore}
+ * over the live Cloud SQL tables. Fail-closed twice over: any value other than `pg` is refused, and
+ * `pg` is refused for SCRIPTED walks — a dry-run's PASS is synthetic by construction, and persisting
+ * it would plant a forged `healthy` in the shared event log (exactly what ADR-0020 exists to prevent).
+ *
+ * `flag === "memory"` still maps to the in-memory store here, but it is NOT a user-facing build
+ * option (ADR-0081 removed `--store memory` at the CLI dispatch, `refuseMemoryStore`). It survives
+ * only as the INTERNAL injection seam the offline live/real-driver tests pass (`verdictStore:"memory"`)
+ * to exercise the build path without a DB.
  */
 export async function resolveVerdictStore(
   flag: string | undefined,
@@ -261,8 +265,8 @@ export async function resolveVerdictStore(
   retryCmd: string,
 ): Promise<VerdictStoreChoice> {
   if (flag === undefined || flag === "memory") {
-    // `memory` is the explicit opt-out (ADR-0060): a live/real build that should NOT persist
-    // (and so not feed the studio's wisp/bloom). `undefined` is the dry-run default.
+    // `undefined` is the dry-run default; `memory` is the internal test seam (ADR-0081 — the CLI no
+    // longer exposes it; a live/real build always persists and feeds the studio's wisp/bloom).
     return {
       ok: true,
       store: new InMemoryStore(),
@@ -711,9 +715,10 @@ export interface NodeBuildOpts {
   /** `--actor` — the signer chain's flag tier (flag → STORYTREE_SIGNER → git email). */
   actor?: string;
   /**
-   * `--store` — the verdict store. For `--live`/`--real` it DEFAULTS to `pg` (the build owns the DB,
-   * ADR-0060); `memory` is the explicit opt-out (no persistence, no studio wisp/bloom). For
-   * `--dry-run`, absent = in-memory and `pg` is refused (a scripted PASS must not persist, ADR-0020).
+   * `--store` — the verdict store. For `--live`/`--real` it resolves to `pg` and ALWAYS persists (the
+   * build owns the DB, ADR-0060). For `--dry-run`, absent = in-memory and `pg` is refused (a scripted
+   * PASS must not persist, ADR-0020). `"memory"` is NOT a CLI option (ADR-0081 removed it); it remains
+   * only as the internal test-injection seam the offline live/real-driver tests pass directly.
    */
   verdictStore?: string;
   /**
@@ -879,14 +884,13 @@ export async function nodeBuild(
 
   const modeFlag = real ? "--real" : live ? "--live" : "--dry-run";
   const retryCmd = `storytree node build ${spec.id} ${modeFlag}`;
-  // ADR-0060: a live/real build OWNS the database. `--store` defaults to `pg` for live/real (so real
-  // work feeds the studio's wisp/bloom), and the preflight ENSURES the instance is up before we
-  // connect — probing it, and starting it (`db:up`) + waiting if it is down. `--store memory` opts
-  // out; `--dry-run` is untouched (in-memory, never the DB).
+  // ADR-0060/0081: a live/real build OWNS the database and ALWAYS persists — `--store` resolves to
+  // `pg` for live/real (so real work feeds the studio's wisp/bloom; the `--store memory` opt-out was
+  // removed, ADR-0081), and the preflight ENSURES the instance is up before we connect — probing it,
+  // and starting it (`db:up`) + waiting if it is down. `--dry-run` is untouched (in-memory, never the DB).
   const effectiveStore = effectiveVerdictStore(opts.verdictStore, mode === "dry-run");
-  // The instance must be up to PERSIST verdicts (--store pg) AND to run a db-backed proof (ADR-0064:
-  // even with --store memory, the proof connects to the test DB on this instance), so ensure it for
-  // either reason.
+  // The instance must be up to PERSIST verdicts AND to run a db-backed proof (ADR-0064: the proof
+  // connects to the test DB on this instance), so ensure it for either reason.
   const needsDb = (effectiveStore === "pg" && mode !== "dry-run") || dbBacked;
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
@@ -899,12 +903,8 @@ export async function nodeBuild(
             ? `${modeFlag} runs a db-backed proof (real.db:true), but the database could not be brought up:\n`
             : `${modeFlag} persists to the live store, but the database could not be brought up:\n`) +
           ready.reason,
-        next: [
-          "pnpm db:status",
-          ...(dbBacked
-            ? []
-            : [`${retryCmd} --store memory   (run WITHOUT persisting — no studio wisp/bloom)`]),
-        ],
+        // ADR-0081: no --store memory escape — a live/real build always persists; bring the DB up.
+        next: ["pnpm db:status"],
       };
     }
   }
@@ -1246,12 +1246,13 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      pnpm install in the worktree plus a package typecheck (tsx strips types; tsc must",
       "      agree) and a package-suite regression run — a red of either withholds the push.",
       "",
-      "  --store     (--live/--real) DEFAULTS to pg (ADR-0060): the build owns the DB — it",
+      "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it",
       "      persists the building mark + signed verdict to the live work tables",
       "      (events.work_event/events.verdict) so real work feeds the studio's wisp/bloom, and",
-      "      it auto-starts the instance (db:up) and waits if it is down. --store memory opts out",
-      "      (no persistence, no wisp/bloom). For --dry-run the default is in-memory and --store pg",
-      "      is refused — a scripted PASS persisted to the shared store is a forged healthy (ADR-0020).",
+      "      it auto-starts the instance (db:up) and waits if it is down. There is no",
+      "      run-without-persisting mode (--store memory was removed, ADR-0081). For --dry-run the",
+      "      store is in-memory and --store pg is refused — a scripted PASS persisted is a forged",
+      "      healthy (ADR-0020).",
       "",
       "  storytree node build <id> --dry-run --emit-wisp [--dwell <sec>]",
       "      the wisp SMOKE (ADR-0080): light a transient teal wisp for <id> in the studio to verify",

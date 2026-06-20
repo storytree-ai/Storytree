@@ -25,6 +25,14 @@ import type { StoreEvent } from "@storytree/storage-protocol";
  *  - any work event AFTER a pass (a rebuild started) supersedes the pass — last event wins.
  */
 
+/**
+ * The minimal event shape the rollup READS (`kind` + `seq` + `doc`) — the structural floor every
+ * reader can supply. `StoreEvent` satisfies it, and so does the CLI's narrow verdict reader
+ * (`{ kind, seq, doc }`), so the same compute serves a full store and a glyph-column reader without a
+ * cast. Declaring the minimum (not `StoreEvent`) keeps the rollup honestly decoupled from the store.
+ */
+export type RollupEvent = Pick<StoreEvent, "kind" | "seq" | "doc">;
+
 /** Build the appendEvent payload for one lifecycle work event (validated before it is shaped). */
 export function workEvent(
   doc: WorkEventDoc,
@@ -49,7 +57,7 @@ export function workEvent(
  */
 export function rollupStatus(
   unitId: string,
-  events: readonly StoreEvent[],
+  events: readonly RollupEvent[],
 ): Status | null {
   let status: Status | null = null;
   const ordered = [...events].sort((a, b) => a.seq - b.seq);

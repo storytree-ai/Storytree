@@ -14,6 +14,7 @@ import {
   resolveBuildConfig,
   resolveSignerFromEnv,
   rollupStatus,
+  rollupStoryUat,
   runRegressionSuite,
   runStoryBuild,
   runWorktreeTypecheck,
@@ -59,6 +60,27 @@ import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
 import type { EmitWispDeps } from "./wisp-smoke.js";
+
+/**
+ * ADR-0082: the story's OWN UAT crown rolled up from its per-test signed verdicts, as a report line.
+ * Pure — the AND over each per-test verdict (`rollupStoryUat`). A story's UAT greens ONLY when every
+ * declared per-test verdict passes (signed by each test's witness); this build chain proves the
+ * capabilities, the per-test verdicts come from `storytree uat attest` / machine proofs.
+ */
+function storyUatProofLine(
+  tests: readonly { readonly id: string }[],
+  events: readonly { kind: string; seq: number; doc: unknown }[],
+): string {
+  const rolled = rollupStoryUat(tests, events);
+  const n = tests.length;
+  const word =
+    rolled === "healthy"
+      ? "GREEN — every per-test UAT verdict passed (the story's UAT is proven)"
+      : rolled === "unhealthy"
+        ? "WITHERED — a proven per-test UAT verdict regressed to a signed fail"
+        : "unproven — not every per-test UAT verdict is a signed pass yet";
+  return `${word} (per-test roll-up of ${n} test${n === 1 ? "" : "s"}, ADR-0082)`;
+}
 
 /**
  * `storytree story build <story-id>` (drive-machinery Phase E): a THIN topo-ordered loop over a
@@ -199,8 +221,10 @@ export interface StoryBuildOpts {
   /** `--actor` — the signer chain's flag tier. */
   actor?: string;
   /**
-   * `--store` — the verdict store. For `--live`/`--real` it DEFAULTS to `pg` (the build owns the DB,
-   * ADR-0060); `memory` opts out. For `--dry-run`, absent = in-memory and `pg` is refused (ADR-0020).
+   * `--store` — the verdict store. For `--live`/`--real` it resolves to `pg` and ALWAYS persists (the
+   * build owns the DB, ADR-0060). For `--dry-run`, absent = in-memory and `pg` is refused (ADR-0020).
+   * `"memory"` is NOT a CLI option (ADR-0081 removed it); it survives only as the internal
+   * test-injection seam the offline chain tests pass directly.
    */
   verdictStore?: string;
   /**
@@ -434,14 +458,15 @@ export async function storyBuild(
     }
   }
 
-  // ADR-0060: a live/real story chain OWNS the database — `--store` defaults to `pg`, and the
-  // preflight ENSURES the instance is up (probe → `db:up` + wait if down) BEFORE anything that
-  // touches it: the oq-hygiene gate's live loader composes the PgLibraryStore, and the verdict store
-  // is pg. `--store memory` opts out; `--dry-run` is untouched (in-memory, never the DB).
+  // ADR-0060/0081: a live/real story chain OWNS the database and ALWAYS persists — `--store` resolves
+  // to `pg` (the `--store memory` opt-out was removed, ADR-0081), and the preflight ENSURES the
+  // instance is up (probe → `db:up` + wait if down) BEFORE anything that touches it: the oq-hygiene
+  // gate's live loader composes the PgLibraryStore, and the verdict store is pg. `--dry-run` is
+  // untouched (in-memory, never the DB).
   const retryCmd = `storytree story build ${story.id} ${real ? "--real" : "--live"}`;
   const effectiveStore = effectiveVerdictStore(opts.verdictStore, mode === "dry-run");
-  // The instance must be up to PERSIST verdicts (--store pg) AND to run any db-backed proof in the
-  // chain (ADR-0064: the proof connects to the test DB on this instance even with --store memory).
+  // The instance must be up to PERSIST verdicts AND to run any db-backed proof in the chain
+  // (ADR-0064: the proof connects to the test DB on this instance), so ensure it for either reason.
   const needsDb = (effectiveStore === "pg" && mode !== "dry-run") || anyDb;
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
@@ -454,12 +479,8 @@ export async function storyBuild(
             ? `this build runs a db-backed proof (real.db:true), but the database could not be brought up:\n`
             : `this build persists to the live store, but the database could not be brought up:\n`) +
           ready.reason,
-        next: [
-          "pnpm db:status",
-          ...(anyDb
-            ? []
-            : [`${retryCmd} --store memory   (run WITHOUT persisting — no studio wisp/bloom)`]),
-        ],
+        // ADR-0081: no --store memory escape — a live/real build always persists; bring the DB up.
+        next: ["pnpm db:status"],
       };
     }
   }
@@ -699,6 +720,12 @@ export async function storyBuild(
       ...nodeLines,
       "",
       `nodes:       ${run.outcomes.length}/${driveOrder.length} signed passes${storyWithheld ? " (the story UAT node awaits its human witness)" : ""}`,
+      // ADR-0082: the story's OWN UAT greens from the AND-roll-up of its per-test verdicts (signed by
+      // each test's declared witness — `storytree uat attest` for human tests, a machine proof for
+      // machine tests), NOT from this build chain. Surface it so the report reflects the real crown.
+      ...(story.uatTests.length > 0
+        ? [`uat proof:   ${storyUatProofLine(story.uatTests, events)}`]
+        : []),
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
       ...(real && worktree !== undefined
         ? [`worktree:    ${worktree.root} (ONE shared worktree, stacked commits in dependency order, removed after)`]
@@ -857,11 +884,11 @@ export function storyHelp(): Envelope {
       "      is parked LOCAL-ONLY (never pushed). Every driven node must be REAL-buildable (a real:",
       "      arm). Same total budget ceiling. The default $10 may be low for a multi-node real chain.",
       "",
-      "  --store     (--live/--real) DEFAULTS to pg (ADR-0060): the build owns the DB — it persists",
+      "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it persists",
       "      building marks + signed verdicts (events.work_event/events.verdict) so real work feeds",
       "      the studio's wisp/bloom, auto-starting the instance (db:up) and waiting if it is down.",
-      "      --store memory opts out. For --dry-run the default is in-memory and pg is refused",
-      "      (forged-healthy guard, ADR-0020).",
+      "      There is no run-without-persisting mode (--store memory was removed, ADR-0081). For",
+      "      --dry-run the store is in-memory and pg is refused (forged-healthy guard, ADR-0020).",
       "",
       "  storytree story build <story-id> --dry-run --emit-wisp [--dwell <sec>]",
       "      the wisp SMOKE (ADR-0080): light a transient teal wisp for the story in the studio to",

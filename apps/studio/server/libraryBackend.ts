@@ -107,6 +107,15 @@ export interface LibraryBackend {
   latestVerdicts(): Promise<Record<string, TreeVerdict> | null>;
 
   /**
+   * The RAW signed-verdict event stream (`events.verdict` as `{ kind, seq, doc }`), for the per-test
+   * UAT crown roll-up (ADR-0082): a story that declares per-test UAT tests greens when EVERY per-test
+   * verdict passes (`rollupStoryUat`), so the tree handler needs the events, not just the latest-per-
+   * unit map. OPTIONAL + same advisory contract as {@link latestVerdicts}: `null` for the json
+   * backend / a down DB; absent on a partial mock — the handler then skips the crown roll-up.
+   */
+  verdictEvents?(): Promise<ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null>;
+
+  /**
    * Active notice-board sessions (events.session projection, ADR-0033) with the
    * staleness band derived at read time. NEVER throws — `null` for the json backend
    * or when the DB doesn't answer; presence is advisory and silently absent.
@@ -232,6 +241,10 @@ export class JsonBackend implements LibraryBackend {
 
   async latestVerdicts(): Promise<Record<string, TreeVerdict> | null> {
     return null; // no events.verdict behind the JSON files — glyphs silently absent
+  }
+
+  async verdictEvents(): Promise<ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null> {
+    return null; // no events.verdict behind the JSON files — the UAT crown roll-up is skipped
   }
 
   async activeSessions(): Promise<TreeSession[] | null> {
@@ -656,6 +669,42 @@ export class PgBackend implements LibraryBackend {
         };
       }
       return out;
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * The RAW signed-verdict event stream from events.verdict (ADR-0082 per-test UAT crown), shaped as
+   * `{ kind: 'signing', seq, doc }` so the orchestrator's `rollupStoryUat` reads it directly. All rows
+   * ordered by seq — the AND-roll-up needs every per-test verdict, not just the latest-per-unit map.
+   * Same advisory contract / 4s race as latestVerdicts(): null on any failure, never a throw.
+   */
+  async verdictEvents(): Promise<ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('verdict-events probe timed out')), 4000);
+      });
+      const { kind, rows } = await Promise.race([
+        (async () => {
+          await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error('no pool');
+          const contract = await loadContractModule();
+          const res = await handle.pool.query(
+            `SELECT seq, doc FROM events.verdict ORDER BY seq`,
+          );
+          return { kind: contract.SIGNING_EVENT_KIND, rows: (res as { rows: unknown[] }).rows };
+        })(),
+        timeout,
+      ]);
+      return rows.map((raw) => {
+        const row = raw as { seq: string | number; doc: unknown };
+        return { kind, seq: Number(row.seq), doc: row.doc };
+      });
     } catch {
       return null;
     } finally {

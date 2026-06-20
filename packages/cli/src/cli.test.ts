@@ -78,6 +78,24 @@ test("an unknown area is guided back to library", async () => {
   assert.match(env.body, /unknown area "wat"/);
 });
 
+test("the CLI refuses --store memory for a build — there is no run-without-persisting mode (ADR-0081)", async () => {
+  // ADR-0081 (amends 0060) removed the in-memory verdict store from the build SURFACE: a --live/--real
+  // build always persists so real work feeds the studio, and a --dry-run is already in-memory. The
+  // guard fires in the dispatch BEFORE any DB/leaf is touched (so this offline test needs neither).
+  // The internal `verdictStore: "memory"` test seam is unaffected — it is not reachable from argv.
+  const store = await seeded();
+  for (const argv of [
+    ["node", "build", "library-cli", "--live", "--store", "memory"],
+    ["story", "build", "library", "--real", "--store", "memory"],
+    ["node", "build", "library-cli", "--dry-run", "--store", "memory"],
+  ]) {
+    const env = await run(argv, { store });
+    assert.equal(env.ok, false, `expected a refusal for: storytree ${argv.join(" ")}`);
+    assert.match(env.body, /--store memory/);
+    assert.match(env.body, /no longer|removed|always persist/i);
+  }
+});
+
 test("tree focus <id> renders the node's outbound source refs", async () => {
   // glossary-wins references doc: pointers (ADRs/glossary) — outbound 'source' edges.
   const env = await run(["library", "tree", "focus", "glossary-wins"], { store: await seeded() });
