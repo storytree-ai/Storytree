@@ -21,6 +21,11 @@ depends_on: [verdict-contract]
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the tier (17/18/19), the CLI (23), migrations + health (26).
 decisions: [17, 18, 19, 23, 26]
+# Studio render hint (ADR-0076): the library is a heavily-depended foundation utility whose many
+# edges clutter the map centre. Owner steer 2026-06-20 — draw it as a BUILDING (a landmark on the
+# island) with NO connection lines, rather than a connected organism node. This is the manual,
+# agent-authored building-vs-island tag (set during story writing/review, never derived).
+render: building
 ---
 
 # The library tier
