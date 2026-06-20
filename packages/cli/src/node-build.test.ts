@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import type { RealProofConfig } from "@storytree/orchestrator";
 
 import { run } from "./commands.js";
@@ -365,7 +365,7 @@ test("resolveDbProofEnv REFUSES production (STORYTREE_DB_NAME=storytree) — fai
 
 test("workspacePackageForSource derives the workspace package name from a packages/<dir> source file", () => {
   // Reads the real packages/<dir>/package.json name (the honest source, not a path-convention guess).
-  assert.equal(workspacePackageForSource("packages/verdict-contract/src/anchor.ts"), "@storytree/verdict-contract");
+  assert.equal(workspacePackageForSource("packages/proof-protocol/src/anchor.ts"), "@storytree/proof-protocol");
   assert.equal(workspacePackageForSource("packages/orchestrator/src/store/pg-change-store.ts"), "@storytree/orchestrator");
   // Not under a workspace package → null (the caller refuses).
   assert.equal(workspacePackageForSource("docs/decisions/x.md"), null);
@@ -383,18 +383,18 @@ test("resolveAddDepsGroup: none declared → null; declared → a group targetin
   if (none.ok) assert.equal(none.group, null);
 
   const withDeps: RealProofConfig = {
-    testFile: "packages/verdict-contract/src/anchor.test.ts",
-    sourceFile: "packages/verdict-contract/src/anchor.ts",
-    scope: { testGlobs: ["packages/verdict-contract/src/anchor.test.ts"], sourceGlobs: ["packages/verdict-contract/src/anchor.ts"] },
+    testFile: "packages/proof-protocol/src/anchor.test.ts",
+    sourceFile: "packages/proof-protocol/src/anchor.ts",
+    scope: { testGlobs: ["packages/proof-protocol/src/anchor.test.ts"], sourceGlobs: ["packages/proof-protocol/src/anchor.ts"] },
     install: true,
-    typecheck: { file: "pnpm", args: ["--filter", "@storytree/verdict-contract", "typecheck"] },
+    typecheck: { file: "pnpm", args: ["--filter", "@storytree/proof-protocol", "typecheck"] },
     addDeps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
   };
   const grouped = resolveAddDepsGroup(withDeps);
   assert.equal(grouped.ok, true);
   if (grouped.ok) {
     assert.deepEqual(grouped.group, {
-      packageName: "@storytree/verdict-contract",
+      packageName: "@storytree/proof-protocol",
       deps: ["tree-sitter", "tree-sitter-typescript@0.21.0"],
     });
   }

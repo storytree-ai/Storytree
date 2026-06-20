@@ -1,4 +1,4 @@
-import type { Status } from "@storytree/verdict-contract";
+import type { Status } from "@storytree/proof-protocol";
 
 /**
  * The proven-status predicate (ADR-0007 + ADR-0020). MOVED here from `@storytree/core`'s `proof.ts`

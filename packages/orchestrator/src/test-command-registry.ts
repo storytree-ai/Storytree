@@ -164,7 +164,7 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   // ✓/✗/– per unit id from signed verdicts, plus the offline-silent reader wrapper. NET-NEW file
   // pair ON PURPOSE: tree.ts/tree.test.ts are tree-view's registered REAL surface above, so this
   // capability's proof lives in its own files and the spine wires tree.ts to call them after
-  // promotion. `install: true`: imports @storytree/verdict-contract (Verdict, SIGNING_EVENT_KIND).
+  // promotion. `install: true`: imports @storytree/proof-protocol (Verdict, SIGNING_EVENT_KIND).
   "verdict-glyphs": {
     command: pnpmTest("@storytree/cli"),
     scope: pkgScope("cli"),

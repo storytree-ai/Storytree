@@ -15,7 +15,7 @@ import {
 } from "./boundaries.js";
 
 // A miniature world mirroring the real ONE-class ownership (ADR-0075: the substrate class is gone —
-// the ports base/verdict-contract are ordinary ROOT organisms, with `foundational` a SUBSET carrying
+// the ports storage-protocol/proof-protocol are ordinary ROOT organisms, with `foundational` a SUBSET carrying
 // the minimality rule, not a separate class). The `@storytree/store` package was DISSOLVED (ADR-0077):
 // its substrate + drawers moved into the owning organisms' node-only `./store` subpaths, so it is no
 // longer a package here. The cli is the sole remaining hub organism.
@@ -27,19 +27,19 @@ const ownership: Ownership = {
     "@storytree/notice-board": "notice-board",
     "@storytree/studio-members": "studio-members",
     "@storytree/cli": "cli",
-    "@storytree/base": "base",
-    "@storytree/verdict-contract": "verdict-contract",
+    "@storytree/storage-protocol": "storage-protocol",
+    "@storytree/proof-protocol": "proof-protocol",
   },
-  foundational: ["@storytree/base", "@storytree/verdict-contract"],
+  foundational: ["@storytree/storage-protocol", "@storytree/proof-protocol"],
 };
 
 // Consumer-side outbound edges (`depends_on`). The ports are roots; consumers declare the edge to them
 // (ADR-0075). The cli hub's outbound edges are declared provider-side in `consumedBy` below.
 const storyGraph: Record<string, string[]> = {
-  "verdict-contract": [],
-  base: ["verdict-contract"],
-  library: ["verdict-contract"],
-  "drive-machinery": ["library", "base", "verdict-contract"],
+  "proof-protocol": [],
+  "storage-protocol": ["proof-protocol"],
+  library: ["proof-protocol"],
+  "drive-machinery": ["library", "storage-protocol", "proof-protocol"],
   "notice-board": ["library", "drive-machinery"],
   "studio-members": ["library"],
   cli: [],
@@ -51,49 +51,49 @@ const consumedBy: Record<string, string[]> = {
   "drive-machinery": ["cli"],
   library: ["cli"],
   "notice-board": ["cli"],
-  base: ["cli"],
-  "verdict-contract": ["cli"],
+  "storage-protocol": ["cli"],
+  "proof-protocol": ["cli"],
 };
 
 // The real runtime @storytree/* dependency graph (each package.json `dependencies`; devDeps —
-// e.g. verdict-contract→library parity — excluded by the caller). With the store package dissolved
+// e.g. proof-protocol→library parity — excluded by the caller). With the store package dissolved
 // (ADR-0077) its drawers now live with the owning organisms, so the persistence runtime deps it used
-// to carry (base / notice-board / studio-members / verdict-contract) belong to those organisms; the
+// to carry (storage-protocol / notice-board / studio-members / proof-protocol) belong to those organisms; the
 // cli consumes the new `./store` subpaths but those are the same packages it already depends on.
 const realPackageDeps: Record<string, string[]> = {
-  "@storytree/verdict-contract": [],
-  "@storytree/base": ["@storytree/verdict-contract"], // foundational → foundational ✓
-  "@storytree/library": ["@storytree/verdict-contract"], // library depends_on verdict-contract ✓
+  "@storytree/proof-protocol": [],
+  "@storytree/storage-protocol": ["@storytree/proof-protocol"], // foundational → foundational ✓
+  "@storytree/library": ["@storytree/proof-protocol"], // library depends_on proof-protocol ✓
   "@storytree/orchestrator": [
     "@storytree/agent", // same story (drive-machinery) → intra-organism
-    "@storytree/base", // drive-machinery depends_on base ✓
+    "@storytree/storage-protocol", // drive-machinery depends_on storage-protocol ✓
     "@storytree/library", // drive-machinery depends_on library ✓
-    "@storytree/verdict-contract", // drive-machinery depends_on verdict-contract ✓
+    "@storytree/proof-protocol", // drive-machinery depends_on proof-protocol ✓
   ],
   "@storytree/agent": [],
   "@storytree/notice-board": [],
   "@storytree/studio-members": [],
   "@storytree/cli": [
     "@storytree/agent", // cli → drive-machinery: covered by drive-machinery.consumed_by ✓
-    "@storytree/base", // covered by base.consumed_by ✓
+    "@storytree/storage-protocol", // covered by storage-protocol.consumed_by ✓
     "@storytree/library", // covered by library.consumed_by ✓
     "@storytree/notice-board", // covered by notice-board.consumed_by ✓
     "@storytree/orchestrator", // cli → drive-machinery ✓
-    "@storytree/verdict-contract", // covered by verdict-contract.consumed_by ✓
+    "@storytree/proof-protocol", // covered by proof-protocol.consumed_by ✓
   ],
 };
 
 test("classOf treats every package (ports included) as an organism; null when unknown", () => {
   assert.equal(classOf("@storytree/library", ownership), "organism");
   assert.equal(classOf("@storytree/cli", ownership), "organism"); // the hub is an organism
-  assert.equal(classOf("@storytree/base", ownership), "organism"); // ADR-0075: a port is an organism too
-  assert.equal(classOf("@storytree/verdict-contract", ownership), "organism");
+  assert.equal(classOf("@storytree/storage-protocol", ownership), "organism"); // ADR-0075: a port is an organism too
+  assert.equal(classOf("@storytree/proof-protocol", ownership), "organism");
   assert.equal(classOf("@storytree/mystery", ownership), null);
 });
 
 test("isFoundational marks the ports, not ordinary organisms (ADR-0075)", () => {
-  assert.equal(isFoundational("@storytree/base", ownership), true);
-  assert.equal(isFoundational("@storytree/verdict-contract", ownership), true);
+  assert.equal(isFoundational("@storytree/storage-protocol", ownership), true);
+  assert.equal(isFoundational("@storytree/proof-protocol", ownership), true);
   assert.equal(isFoundational("@storytree/library", ownership), false);
   assert.equal(isFoundational("@storytree/cli", ownership), false);
 });
@@ -135,12 +135,12 @@ test("a cli hub edge with the provider-side declaration REMOVED is caught", () =
 });
 
 test("ADR-0075: an organism→PORT edge is allowed only when DECLARED (no port exemption)", () => {
-  // cli imports both ports; allowed because base/verdict-contract declare consumed_by: [cli].
-  const packageDeps = { "@storytree/cli": ["@storytree/base", "@storytree/verdict-contract"] };
+  // cli imports both ports; allowed because storage-protocol/proof-protocol declare consumed_by: [cli].
+  const packageDeps = { "@storytree/cli": ["@storytree/storage-protocol", "@storytree/proof-protocol"] };
   assert.deepEqual(checkBoundaries({ ownership, packageDeps, storyGraph, consumedBy }).violations, []);
   // Remove the provider-side declarations → the SAME port imports are now undeclared couplings (the
   // old `substrate` exemption — anyone may depend, no edge — is gone).
-  const without = { ...consumedBy, base: [], "verdict-contract": [] };
+  const without = { ...consumedBy, "storage-protocol": [], "proof-protocol": [] };
   const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph, consumedBy: without });
   assert.equal(violations.length, 2, violations.join("\n"));
   assert.ok(violations.every((v) => /undeclared cross-story coupling/.test(v)), violations.join("\n"));
@@ -150,7 +150,7 @@ test("a planted UNDECLARED cross-organism edge — library importing notice-boar
   // library reaches into another organism with no declaration on either endpoint.
   const packageDeps = {
     ...realPackageDeps,
-    "@storytree/library": ["@storytree/notice-board", "@storytree/verdict-contract"],
+    "@storytree/library": ["@storytree/notice-board", "@storytree/proof-protocol"],
   };
   const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph, consumedBy });
   assert.equal(violations.length, 1, violations.join("\n"));
@@ -198,28 +198,28 @@ test("a studio-members→organism edge needs a declaration too (no organism is e
 });
 
 test("a foundational port depending on a non-foundational organism is rejected (ADR-0075 minimality)", () => {
-  // base reaching into a non-foundational organism — DECLARED, so ONLY the minimality rule fires
+  // storage-protocol reaching into a non-foundational organism — DECLARED, so ONLY the minimality rule fires
   // (proves the rule is independent of the declared-edge coverage rule).
-  const packageDeps = { "@storytree/base": ["@storytree/studio-members", "@storytree/verdict-contract"] };
-  const declared = { ...storyGraph, base: ["verdict-contract", "studio-members"] };
+  const packageDeps = { "@storytree/storage-protocol": ["@storytree/studio-members", "@storytree/proof-protocol"] };
+  const declared = { ...storyGraph, "storage-protocol": ["proof-protocol", "studio-members"] };
   const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph: declared, consumedBy });
   assert.equal(violations.length, 1, violations.join("\n"));
-  assert.match(violations[0]!, /foundational port "@storytree\/base" depends on non-foundational/);
+  assert.match(violations[0]!, /foundational port "@storytree\/storage-protocol" depends on non-foundational/);
   assert.match(violations[0]!, /studio-members/);
 });
 
-test("a foundational→foundational edge is fine (base → verdict-contract)", () => {
-  const packageDeps = { "@storytree/base": ["@storytree/verdict-contract"] };
+test("a foundational→foundational edge is fine (storage-protocol → proof-protocol)", () => {
+  const packageDeps = { "@storytree/storage-protocol": ["@storytree/proof-protocol"] };
   const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph, consumedBy });
   assert.deepEqual(violations, [], violations.join("\n"));
 });
 
 test("a foundational port reaching a browser-unsafe organism cannot pass: declared ⇒ cycle", () => {
-  // base → library, declared (base.depends_on library). library already depends_on
-  // verdict-contract... but to force a cycle: declare library → base. base → library + library → base
+  // storage-protocol → library, declared (storage-protocol.depends_on library). library already depends_on
+  // proof-protocol... but to force a cycle: declare library → storage-protocol. storage-protocol → library + library → storage-protocol
   // is a cycle. So the browser-safety floor holds even via acyclicity, not just the minimality rule.
-  const packageDeps = { "@storytree/base": ["@storytree/library", "@storytree/verdict-contract"] };
-  const declared = { ...storyGraph, base: ["verdict-contract", "library"], library: ["verdict-contract", "base"] };
+  const packageDeps = { "@storytree/storage-protocol": ["@storytree/library", "@storytree/proof-protocol"] };
+  const declared = { ...storyGraph, "storage-protocol": ["proof-protocol", "library"], library: ["proof-protocol", "storage-protocol"] };
   const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph: declared, consumedBy });
   assert.ok(violations.some((v) => /cycle/.test(v)), violations.join("\n"));
 });
@@ -231,10 +231,10 @@ test("an unclassified package is caught (a new package can't slip in unowned)", 
 });
 
 test("a foundational package that is not an organism is caught (ADR-0075: foundational ⊆ organisms)", () => {
-  const bad: Ownership = { organisms: {}, foundational: ["@storytree/base"] };
+  const bad: Ownership = { organisms: {}, foundational: ["@storytree/storage-protocol"] };
   const { violations } = checkBoundaries({ ownership: bad, packageDeps: {}, storyGraph: {} });
   assert.ok(
-    violations.some((v) => /foundational package "@storytree\/base" is not an organism/.test(v)),
+    violations.some((v) => /foundational package "@storytree\/storage-protocol" is not an organism/.test(v)),
     violations.join("\n"),
   );
 });
@@ -299,11 +299,11 @@ test("stripComments removes commented-out imports but keeps real string specifie
 test("extractImports covers static / type / side-effect / dynamic / re-export, with typeOnly", () => {
   const src = [
     `import { a } from "@storytree/library";`,
-    `import type { B } from "@storytree/base";`,
+    `import type { B } from "@storytree/storage-protocol";`,
     `import * as ns from "../../orchestrator/src/x.js";`,
     `import "./side-effect.js";`,
     `export { c } from "@storytree/notice-board";`,
-    `export type { D } from "@storytree/verdict-contract";`,
+    `export type { D } from "@storytree/proof-protocol";`,
     `const m = await import("@storytree/agent");`,
     `import { value, type T } from "@storytree/studio-members";`,
   ].join("\n");
@@ -311,11 +311,11 @@ test("extractImports covers static / type / side-effect / dynamic / re-export, w
   const find = (s: string): { specifier: string; typeOnly: boolean } | undefined =>
     got.find((g) => g.specifier === s);
   assert.equal(find("@storytree/library")?.typeOnly, false);
-  assert.equal(find("@storytree/base")?.typeOnly, true);
+  assert.equal(find("@storytree/storage-protocol")?.typeOnly, true);
   assert.ok(find("../../orchestrator/src/x.js"));
   assert.ok(find("./side-effect.js"));
   assert.equal(find("@storytree/notice-board")?.typeOnly, false);
-  assert.equal(find("@storytree/verdict-contract")?.typeOnly, true);
+  assert.equal(find("@storytree/proof-protocol")?.typeOnly, true);
   assert.ok(find("@storytree/agent")); // dynamic import
   assert.equal(find("@storytree/studio-members")?.typeOnly, false); // inline `type T` is NOT a type-only import
 });
@@ -323,7 +323,7 @@ test("extractImports covers static / type / side-effect / dynamic / re-export, w
 test("isTestScaffolding flags test files + parity suites, not ordinary source", () => {
   assert.equal(isTestScaffolding("packages/orchestrator/src/store/pg-work-store.test.ts"), true);
   assert.equal(isTestScaffolding("packages/orchestrator/src/store/pg-change-store.live.test.ts"), true);
-  assert.equal(isTestScaffolding("packages/base/src/store-parity.ts"), true);
+  assert.equal(isTestScaffolding("packages/storage-protocol/src/store-parity.ts"), true);
   assert.equal(isTestScaffolding("packages/orchestrator/src/proof/rollup-parity.ts"), true);
   assert.equal(isTestScaffolding("packages/orchestrator/src/store/pg-work-store.ts"), false);
 });
@@ -400,17 +400,17 @@ test("Gap B': a type-only cross-package import is NOT flagged (erased, not a run
 });
 
 test("ADR-0075: a runtime PORT import is covered by its declared dep, not a blanket exemption", () => {
-  // value-importing verdict-contract is fine BECAUSE it is a declared runtime dependency...
+  // value-importing proof-protocol is fine BECAUSE it is a declared runtime dependency...
   const ok = checkBoundaries({
     ownership,
-    packageDeps: { "@storytree/library": ["@storytree/verdict-contract"] },
-    storyGraph: { library: ["verdict-contract"], "verdict-contract": [] },
+    packageDeps: { "@storytree/library": ["@storytree/proof-protocol"] },
+    storyGraph: { library: ["proof-protocol"], "proof-protocol": [] },
     consumedBy: {},
     sourceImports: [
       {
         importer: "@storytree/library",
         file: "packages/library/src/schema.ts",
-        specifier: "@storytree/verdict-contract",
+        specifier: "@storytree/proof-protocol",
         typeOnly: false,
       },
     ],
@@ -421,7 +421,7 @@ test("ADR-0075: a runtime PORT import is covered by its declared dep, not a blan
     {
       importer: "@storytree/notice-board",
       file: "packages/notice-board/src/x.ts",
-      specifier: "@storytree/verdict-contract",
+      specifier: "@storytree/proof-protocol",
       typeOnly: false,
     },
   ]);
@@ -437,20 +437,20 @@ test("the scan does NOT flag test-file / parity reuse (the real devDep parity sc
       {
         importer: "@storytree/orchestrator",
         file: "packages/orchestrator/src/store/pg-work-store.test.ts",
-        specifier: "@storytree/base",
+        specifier: "@storytree/storage-protocol",
         typeOnly: false,
       },
-      // verdict-contract's parity test imports library (the real verdict-contract↔library devDep).
+      // proof-protocol's parity test imports library (the real proof-protocol↔library devDep).
       {
-        importer: "@storytree/verdict-contract",
-        file: "packages/verdict-contract/src/parity.test.ts",
+        importer: "@storytree/proof-protocol",
+        file: "packages/proof-protocol/src/parity.test.ts",
         specifier: "@storytree/library",
         typeOnly: false,
       },
       // a parity SUITE definition file reaching cross-package is sanctioned scaffolding too.
       {
-        importer: "@storytree/base",
-        file: "packages/base/src/store-parity.ts",
+        importer: "@storytree/storage-protocol",
+        file: "packages/storage-protocol/src/store-parity.ts",
         specifier: "@storytree/orchestrator",
         typeOnly: false,
       },
@@ -466,7 +466,7 @@ test("the scan ignores type-only, same-package, and bare-external specifiers", (
       {
         importer: "@storytree/library",
         file: "packages/library/src/schema.ts",
-        specifier: "@storytree/verdict-contract",
+        specifier: "@storytree/proof-protocol",
         typeOnly: true,
       },
       // same package.
@@ -492,17 +492,17 @@ test("the scan ignores type-only, same-package, and bare-external specifiers", (
 });
 
 test("a runtime @storytree import backed by a declared dependency is NOT flagged", () => {
-  // library value-imports verdict-contract and verdict-contract IS a runtime dep + a declared edge.
+  // library value-imports proof-protocol and proof-protocol IS a runtime dep + a declared edge.
   const { violations } = checkBoundaries({
     ownership,
-    packageDeps: { "@storytree/library": ["@storytree/verdict-contract"] },
-    storyGraph: { library: ["verdict-contract"] },
+    packageDeps: { "@storytree/library": ["@storytree/proof-protocol"] },
+    storyGraph: { library: ["proof-protocol"] },
     consumedBy: {},
     sourceImports: [
       {
         importer: "@storytree/library",
         file: "packages/library/src/store/pg-store.ts",
-        specifier: "@storytree/verdict-contract",
+        specifier: "@storytree/proof-protocol",
         typeOnly: false,
       },
     ],
@@ -513,9 +513,9 @@ test("a runtime @storytree import backed by a declared dependency is NOT flagged
 test("a representative clean set of real source imports adds zero source violations", () => {
   const sourceImports: SourceImport[] = [
     { importer: "@storytree/cli", file: "packages/cli/src/commands.ts", specifier: "@storytree/orchestrator", typeOnly: false }, // cli dep ✓
-    { importer: "@storytree/library", file: "packages/library/src/store/pg-store.ts", specifier: "@storytree/verdict-contract", typeOnly: false }, // library dep ✓
-    { importer: "@storytree/library", file: "packages/library/src/schema.ts", specifier: "@storytree/verdict-contract", typeOnly: false }, // declared port dep ✓
-    { importer: "@storytree/orchestrator", file: "packages/orchestrator/src/store/pg-work-store.test.ts", specifier: "@storytree/base", typeOnly: false }, // test scaffolding ✓
+    { importer: "@storytree/library", file: "packages/library/src/store/pg-store.ts", specifier: "@storytree/proof-protocol", typeOnly: false }, // library dep ✓
+    { importer: "@storytree/library", file: "packages/library/src/schema.ts", specifier: "@storytree/proof-protocol", typeOnly: false }, // declared port dep ✓
+    { importer: "@storytree/orchestrator", file: "packages/orchestrator/src/store/pg-work-store.test.ts", specifier: "@storytree/storage-protocol", typeOnly: false }, // test scaffolding ✓
     { importer: "@storytree/orchestrator", file: "packages/orchestrator/src/proof/signer.ts", specifier: "../anchor-compute.js", typeOnly: false }, // in-package ✓
     { importer: "@storytree/library", file: "packages/library/src/store/pg-store.ts", specifier: "node:crypto", typeOnly: false }, // external ✓
   ];

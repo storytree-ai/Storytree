@@ -1,5 +1,5 @@
 /**
- * `@storytree/verdict-contract` — the published verdict SHAPE (ADR-0068 §3).
+ * `@storytree/proof-protocol` — the published verdict SHAPE (ADR-0068 §3).
  *
  * The DATA shapes + zod validators that readers validate verdict-DATA against, across the built
  * ADR-0010 §4 boundary. No proof machinery, no signing chain, no store, no `node:` imports —

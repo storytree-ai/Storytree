@@ -68,6 +68,13 @@ self-heal (PR #84) covers the matching start-of-life gap. A data-side janitor (a
 to `done` after some horizon) stays available as later work if the dock's parked list grows
 noisy — it would be a *data* change and would need its own decision.
 
+> **Enacted by [ADR-0079](0079-possibly-dead-presence-rows-are-reaped-to-done-by-a-sweep.md)
+> (2026-06-20).** The dock's parked list did grow noisy (19 possibly-dead rows, oldest 146 h),
+> so ADR-0079 enacts that janitor: a fail-soft sweep retires possibly-dead active rows to `done`,
+> riding the existing merge-retire CI step. This narrows Decision 2 — possibly-dead rows no
+> longer park in the dock *indefinitely* (the append-only `events.session_event` history still
+> retains them for debugging).
+
 ## Consequences
 
 - A finished session's wisp now disappears from the world at worst 4 h after its last heartbeat;

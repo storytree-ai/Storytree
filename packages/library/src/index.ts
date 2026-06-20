@@ -8,7 +8,7 @@
  *
  * Pure zod, browser-safe: no `node:` imports in this entry (`loader.ts`'s `parseUnit` validates
  * already-parsed data and never touches the filesystem). The `Tier` / `Status` enums are the
- * CANONICAL definitions; `@storytree/verdict-contract` carries a parity-guarded DUPLICATE
+ * CANONICAL definitions; `@storytree/proof-protocol` carries a parity-guarded DUPLICATE
  * (ADR-0068, locked owner decision) so the published verdict SHAPE never imports this organism.
  */
 export * from "./schema.js";

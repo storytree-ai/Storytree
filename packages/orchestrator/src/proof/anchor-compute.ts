@@ -1,4 +1,4 @@
-import type { ChangeEvent, DriftFlag } from "@storytree/verdict-contract";
+import type { ChangeEvent, DriftFlag } from "@storytree/proof-protocol";
 
 /**
  * The knowledge↔code binding & staleness COMPUTE (ADR-0016). MOVED here from `@storytree/core`'s

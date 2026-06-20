@@ -1,4 +1,4 @@
-import type { Verdict } from "@storytree/verdict-contract";
+import type { Verdict } from "@storytree/proof-protocol";
 
 /**
  * Render a signed verdict as a single human-readable line (no trailing newline). MOVED here from

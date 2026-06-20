@@ -18,7 +18,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { Attestation } from '@storytree/verdict-contract';
+import type { Attestation } from '@storytree/proof-protocol';
 import { mergeUser, wouldOrphanAdminsOnRemove, wouldOrphanAdminsOnRole } from '@storytree/studio-members';
 import { createStudioServer } from './serve';
 import { parseSeedAdmins } from './guestPolicy';

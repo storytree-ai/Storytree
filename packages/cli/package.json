@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@storytree/agent": "workspace:*",
-    "@storytree/base": "workspace:*",
+    "@storytree/storage-protocol": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
-    "@storytree/verdict-contract": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*",
     "yaml": "^2.6.1",
     "zod": "^3.24.1"
   },

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Pool } from "pg";
-import type { Store } from "@storytree/base";
+import type { Store } from "@storytree/storage-protocol";
 import { createPool, closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";
 import { PgLibraryStore } from "./pg-store.js";

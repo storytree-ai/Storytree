@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import type { Pool } from "pg";
-import type { Store } from "@storytree/base";
+import type { Store } from "@storytree/storage-protocol";
 import { upcast, CURRENT_SCHEMA_VERSION } from "../migrations.js";
 import { createPool, closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";

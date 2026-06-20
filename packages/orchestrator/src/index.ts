@@ -119,7 +119,7 @@ export { runStoryBuild, topoOrderStoryNodes } from "./story-build.js";
 
 // ── The proof machinery (ADR-0068 step 1): the farmer organism's RULER — the compute that
 // constructs/signs/hashes/classifies/derives verdict-DATA, moved out of @storytree/core. The DATA
-// SHAPES it reads/returns live in @storytree/verdict-contract; this is the COMPUTE half. ──────────
+// SHAPES it reads/returns live in @storytree/proof-protocol; this is the COMPUTE half. ──────────
 export type { SignerInputs, SignerResult } from "./proof/signer.js";
 export { resolveSigner } from "./proof/signer.js";
 export { resolveSignerFromEnv } from "./proof/signer-env.js";

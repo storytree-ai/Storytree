@@ -1,4 +1,4 @@
-import type { StoredDoc } from "@storytree/base";
+import type { StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
 import {
   KIND_SPECS,

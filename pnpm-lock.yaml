@@ -22,12 +22,12 @@ importers:
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
+      '@storytree/proof-protocol':
+        specifier: workspace:*
+        version: link:../../packages/proof-protocol
       '@storytree/studio-members':
         specifier: workspace:*
         version: link:../../packages/studio-members
-      '@storytree/verdict-contract':
-        specifier: workspace:*
-        version: link:../../packages/verdict-contract
       react:
         specifier: ^19.1.1
         version: 19.2.7
@@ -100,30 +100,11 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
-  packages/base:
-    dependencies:
-      '@storytree/verdict-contract':
-        specifier: workspace:*
-        version: link:../verdict-contract
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.19
-      tsx:
-        specifier: ^4.19.2
-        version: 4.22.4
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-
   packages/cli:
     dependencies:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
-      '@storytree/base':
-        specifier: workspace:*
-        version: link:../base
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
@@ -133,9 +114,12 @@ importers:
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
-      '@storytree/verdict-contract':
+      '@storytree/proof-protocol':
         specifier: workspace:*
-        version: link:../verdict-contract
+        version: link:../proof-protocol
+      '@storytree/storage-protocol':
+        specifier: workspace:*
+        version: link:../storage-protocol
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -158,12 +142,12 @@ importers:
       '@google-cloud/cloud-sql-connector':
         specifier: ^1.4.0
         version: 1.11.1
-      '@storytree/base':
+      '@storytree/proof-protocol':
         specifier: workspace:*
-        version: link:../base
-      '@storytree/verdict-contract':
+        version: link:../proof-protocol
+      '@storytree/storage-protocol':
         specifier: workspace:*
-        version: link:../verdict-contract
+        version: link:../storage-protocol
       google-auth-library:
         specifier: ^10.7.0
         version: 10.7.0
@@ -192,9 +176,6 @@ importers:
       '@google-cloud/cloud-sql-connector':
         specifier: ^1.4.0
         version: 1.11.1
-      '@storytree/base':
-        specifier: workspace:*
-        version: link:../base
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
@@ -229,15 +210,15 @@ importers:
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent
-      '@storytree/base':
-        specifier: workspace:*
-        version: link:../base
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
-      '@storytree/verdict-contract':
+      '@storytree/proof-protocol':
         specifier: workspace:*
-        version: link:../verdict-contract
+        version: link:../proof-protocol
+      '@storytree/storage-protocol':
+        specifier: workspace:*
+        version: link:../storage-protocol
       google-auth-library:
         specifier: ^10.7.0
         version: 10.7.0
@@ -264,14 +245,46 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
+  packages/proof-protocol:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
+  packages/storage-protocol:
+    dependencies:
+      '@storytree/proof-protocol':
+        specifier: workspace:*
+        version: link:../proof-protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
   packages/studio-members:
     dependencies:
       '@google-cloud/cloud-sql-connector':
         specifier: ^1.4.0
         version: 1.11.1
-      '@storytree/base':
-        specifier: workspace:*
-        version: link:../base
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
@@ -291,25 +304,6 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.20.0
-      tsx:
-        specifier: ^4.19.2
-        version: 4.22.4
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-
-  packages/verdict-contract:
-    dependencies:
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@storytree/library':
-        specifier: workspace:*
-        version: link:../library
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.19
       tsx:
         specifier: ^4.19.2
         version: 4.22.4

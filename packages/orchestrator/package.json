@@ -15,9 +15,9 @@
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.4.0",
     "@storytree/agent": "workspace:*",
-    "@storytree/base": "workspace:*",
+    "@storytree/storage-protocol": "workspace:*",
     "@storytree/library": "workspace:*",
-    "@storytree/verdict-contract": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*",
     "google-auth-library": "^10.7.0",
     "pg": "^8.13.1",
     "yaml": "^2.6.1",

@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import type { ToolResultBlock, ToolUseBlock } from "@storytree/agent";
 import { rollupStatus, workEvent } from "./proof/rollup.js";
 import { FileToolExecutor, FILE_WRITE_TOOLS } from "@storytree/agent";

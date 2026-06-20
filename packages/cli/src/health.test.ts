@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { InMemoryStore, type StoredDoc } from "@storytree/base";
+import { InMemoryStore, type StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "@storytree/library";
 import { loadCorpus } from "@storytree/library/store";
 

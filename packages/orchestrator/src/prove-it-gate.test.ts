@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { MapToolExecutor, ScriptedModel } from "@storytree/agent";
 import type { ModelResponse } from "@storytree/agent";
-import { InMemoryStore } from "@storytree/base";
-import type { Verdict } from "@storytree/verdict-contract";
+import { InMemoryStore } from "@storytree/storage-protocol";
+import type { Verdict } from "@storytree/proof-protocol";
 import type { SignerInputs } from "./proof/signer.js";
 
 import { PathWriteScope, RecordingTestExecutor } from "./phase-machine.js";

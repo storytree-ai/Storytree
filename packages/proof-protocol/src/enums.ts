@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The published verdict-contract enum vocabulary (ADR-0068 §3): the small set of
+ * The published proof-protocol enum vocabulary (ADR-0068 §3): the small set of
  * fixed-option enums the verdict DATA shapes are built from.
  *
  * `Tier` and `Status` are DELIBERATELY DUPLICATED from `@storytree/library`'s `schema.ts`

@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { AdrMeta } from "./adr-frontmatter.js";
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
 
 import {

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { InMemoryStore } from "@storytree/base";
-import type { Store } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
+import type { Store } from "@storytree/storage-protocol";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { Comment } from "@storytree/library/store";
 

@@ -1,5 +1,5 @@
-import { Attestation } from "@storytree/verdict-contract";
-import type { TestAttestations } from "@storytree/verdict-contract";
+import { Attestation } from "@storytree/proof-protocol";
+import type { TestAttestations } from "@storytree/proof-protocol";
 
 /**
  * The attestation DERIVATION compute (ADR-0044 `attestation-signals`). MOVED here from

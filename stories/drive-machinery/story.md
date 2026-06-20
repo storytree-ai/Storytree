@@ -11,10 +11,10 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # packages/cli/src/node-build.ts:36 (events.work_event/verdict are its OWN tables), and the
 # oq-hygiene gate's live loader composes the library's PgLibraryStore + PgCommentStore
 # (packages/cli/src/oq-gate.ts:110-119).
-# ADR-0075: the spine (orchestrator) imports the base + verdict-contract ROOT ports (the proof
+# ADR-0075: the spine (orchestrator) imports the base + proof-protocol ROOT ports (the proof
 # machinery reads/returns verdict-DATA via the verdict vocabulary and the base Store seam), so those
 # are now declared cross-story edges — they were exempt substrate dependencies before ADR-0075.
-depends_on: [library, base, verdict-contract]
+depends_on: [library, storage-protocol, proof-protocol]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports this story's orchestrator
 # + agent packages (packages/cli/src/node-build.ts drives `node build`/`story build` through the
 # spine; main.ts dispatches them) — declared HERE so the hub stays de-noised and this organism owns

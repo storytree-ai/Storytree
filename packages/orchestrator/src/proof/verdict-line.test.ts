@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { verdictLine } from "./verdict-line.js";
-import type { Verdict } from "@storytree/verdict-contract";
+import type { Verdict } from "@storytree/proof-protocol";
 
 const base: Verdict = {
   unitId: "verdict-line",

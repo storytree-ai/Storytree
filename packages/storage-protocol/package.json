@@ -1,5 +1,5 @@
 {
-  "name": "@storytree/base",
+  "name": "@storytree/storage-protocol",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
-    "@storytree/verdict-contract": "workspace:*"
+    "@storytree/proof-protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

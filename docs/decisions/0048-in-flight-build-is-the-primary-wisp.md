@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 supersedes_in_part: [33, 45]
 amends: [41]
@@ -9,7 +9,7 @@ amends: [41]
 
 ## Status
 
-proposed (2026-06-14) — owner steer in conversation 2026-06-14: *"go all in on the harness so that
+accepted (2026-06-14; ratified 2026-06-20) — owner steer in conversation 2026-06-14: *"go all in on the harness so that
 when the leaf agents run the mechanical red-green TDD process, the UI is updated. This should make it
 fully mechanical and I shouldn't get all these stale false positives, or like now nothing at all.
 This might mean wisps only happen when the actual wiring work happens, but I think that's good design.

@@ -19,7 +19,7 @@
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
     "@storytree/studio-members": "workspace:*",
-    "@storytree/verdict-contract": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^9.1.0",

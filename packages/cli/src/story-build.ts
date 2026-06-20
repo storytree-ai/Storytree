@@ -1,9 +1,9 @@
 import path from "node:path";
 
 import type { ClaudeAgentAuthor, PhaseAuthor } from "@storytree/agent";
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
-import type { Store } from "@storytree/base";
+import type { Store } from "@storytree/storage-protocol";
 import { effectiveUatWitness } from "@storytree/library";
 import {
   createBuildWorktree,
@@ -197,8 +197,10 @@ export interface StoryBuildOpts {
   /** `--actor` — the signer chain's flag tier. */
   actor?: string;
   /**
-   * `--store` — the verdict store. For `--live`/`--real` it DEFAULTS to `pg` (the build owns the DB,
-   * ADR-0060); `memory` opts out. For `--dry-run`, absent = in-memory and `pg` is refused (ADR-0020).
+   * `--store` — the verdict store. For `--live`/`--real` it resolves to `pg` and ALWAYS persists (the
+   * build owns the DB, ADR-0060). For `--dry-run`, absent = in-memory and `pg` is refused (ADR-0020).
+   * `"memory"` is NOT a CLI option (ADR-0081 removed it); it survives only as the internal
+   * test-injection seam the offline chain tests pass directly.
    */
   verdictStore?: string;
   /**
@@ -399,14 +401,15 @@ export async function storyBuild(
     }
   }
 
-  // ADR-0060: a live/real story chain OWNS the database — `--store` defaults to `pg`, and the
-  // preflight ENSURES the instance is up (probe → `db:up` + wait if down) BEFORE anything that
-  // touches it: the oq-hygiene gate's live loader composes the PgLibraryStore, and the verdict store
-  // is pg. `--store memory` opts out; `--dry-run` is untouched (in-memory, never the DB).
+  // ADR-0060/0081: a live/real story chain OWNS the database and ALWAYS persists — `--store` resolves
+  // to `pg` (the `--store memory` opt-out was removed, ADR-0081), and the preflight ENSURES the
+  // instance is up (probe → `db:up` + wait if down) BEFORE anything that touches it: the oq-hygiene
+  // gate's live loader composes the PgLibraryStore, and the verdict store is pg. `--dry-run` is
+  // untouched (in-memory, never the DB).
   const retryCmd = `storytree story build ${story.id} ${real ? "--real" : "--live"}`;
   const effectiveStore = effectiveVerdictStore(opts.verdictStore, mode === "dry-run");
-  // The instance must be up to PERSIST verdicts (--store pg) AND to run any db-backed proof in the
-  // chain (ADR-0064: the proof connects to the test DB on this instance even with --store memory).
+  // The instance must be up to PERSIST verdicts AND to run any db-backed proof in the chain
+  // (ADR-0064: the proof connects to the test DB on this instance), so ensure it for either reason.
   const needsDb = (effectiveStore === "pg" && mode !== "dry-run") || anyDb;
   if (needsDb) {
     const ensureDb = opts.ensureDb ?? ensureLiveDb;
@@ -419,12 +422,8 @@ export async function storyBuild(
             ? `this build runs a db-backed proof (real.db:true), but the database could not be brought up:\n`
             : `this build persists to the live store, but the database could not be brought up:\n`) +
           ready.reason,
-        next: [
-          "pnpm db:status",
-          ...(anyDb
-            ? []
-            : [`${retryCmd} --store memory   (run WITHOUT persisting — no studio wisp/bloom)`]),
-        ],
+        // ADR-0081: no --store memory escape — a live/real build always persists; bring the DB up.
+        next: ["pnpm db:status"],
       };
     }
   }
@@ -822,11 +821,11 @@ export function storyHelp(): Envelope {
       "      is parked LOCAL-ONLY (never pushed). Every driven node must be REAL-buildable (a real:",
       "      arm). Same total budget ceiling. The default $10 may be low for a multi-node real chain.",
       "",
-      "  --store     (--live/--real) DEFAULTS to pg (ADR-0060): the build owns the DB — it persists",
+      "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it persists",
       "      building marks + signed verdicts (events.work_event/events.verdict) so real work feeds",
       "      the studio's wisp/bloom, auto-starting the instance (db:up) and waiting if it is down.",
-      "      --store memory opts out. For --dry-run the default is in-memory and pg is refused",
-      "      (forged-healthy guard, ADR-0020).",
+      "      There is no run-without-persisting mode (--store memory was removed, ADR-0081). For",
+      "      --dry-run the store is in-memory and pg is refused (forged-healthy guard, ADR-0020).",
       "",
       "buildable stories: those whose story + capabilities all have registry entries (today: library).",
     ].join("\n"),

@@ -8,8 +8,9 @@ proof_mode: UAT
 capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
 # ADR-0077 U2: studio-members now owns its Postgres user (member) drawer behind ./store (the
 # PgUserStore moved in from the dissolving @storytree/store), so it deps @storytree/library
-# (createPool/closePool via @storytree/library/store) and @storytree/base (the Store seam).
-depends_on: [studio-cloud, library, base]
+# (createPool/closePool via @storytree/library/store) ONLY — it rolls its OWN duck-typed pool/Store seam
+# (PgUserStore), not the @storytree/storage-protocol port (ADR-0078 phantom-dep cleanup).
+depends_on: [studio-cloud, library]
 decisions: [43]
 ---
 

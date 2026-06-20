@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { SIGNING_EVENT_KIND, Verdict } from "@storytree/verdict-contract";
+import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
 
 import {
   deriveVerdictGlyphs,

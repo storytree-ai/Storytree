@@ -3,9 +3,9 @@ import {
   Verdict,
   WORK_EVENT_KIND,
   WorkEventDoc,
-} from "@storytree/verdict-contract";
-import type { Status } from "@storytree/verdict-contract";
-import type { StoreEvent } from "@storytree/base";
+} from "@storytree/proof-protocol";
+import type { Status } from "@storytree/proof-protocol";
+import type { StoreEvent } from "@storytree/storage-protocol";
 
 /**
  * The node-rollup COMPUTE (ADR-0006 / ADR-0020, glossary "node rollup"): a unit's lifecycle status

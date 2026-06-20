@@ -86,7 +86,7 @@ The CLI's real `@storytree/*` runtime imports (ADR-0010 §3) — all **cross-sto
 
 These four outbound edges are declared **provider-side** on each spoke (`consumed_by: [cli]`,
 ADR-0074 §4), so the hub is de-noised and `depends_on` here is `[]`. Substrate edges (always
-allowed, §5): `cli → base`, `cli → verdict-contract`. The merged declared graph (depends_on ∪
+allowed, §5): `cli → base`, `cli → proof-protocol`. The merged declared graph (depends_on ∪
 consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imports it.
 
 > **UI note (sequencing).** Because these edges are declared on the spokes' `consumed_by`, the CLI

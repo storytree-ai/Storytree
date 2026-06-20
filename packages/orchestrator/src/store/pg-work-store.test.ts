@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { rollupParitySuite } from "../proof/rollup-parity.js";
 import { rollupStatus, workEvent } from "../proof/rollup.js";
-import type { Store } from "@storytree/base";
-import type { Verdict } from "@storytree/verdict-contract";
+import type { Store } from "@storytree/storage-protocol";
+import type { Verdict } from "@storytree/proof-protocol";
 
 import { PgWorkStore } from "./pg-work-store.js";
 import type { WorkStoreClient } from "./pg-work-store.js";

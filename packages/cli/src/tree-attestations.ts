@@ -9,7 +9,7 @@
  */
 
 import { deriveAttestations } from "@storytree/orchestrator";
-import type { TestAttestations } from "@storytree/verdict-contract";
+import type { TestAttestations } from "@storytree/proof-protocol";
 
 /** Human attestation seal (filled) · machine mark (boxed) — distinct from the ✓/✗ verdict glyphs. */
 export const HUMAN_SEAL = "◉";

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryStore } from "@storytree/base";
+import { InMemoryStore } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
 import { batchMigrate } from "./batch-migrate.js";
 

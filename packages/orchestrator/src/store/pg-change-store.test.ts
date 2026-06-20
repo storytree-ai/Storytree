@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { changeStoreParitySuite } from "@storytree/base/parity";
-import type { ChangeEvent } from "@storytree/verdict-contract";
+import { changeStoreParitySuite } from "@storytree/storage-protocol/parity";
+import type { ChangeEvent } from "@storytree/proof-protocol";
 
 import { PgChangeStore } from "./pg-change-store.js";
 import type { ChangeStoreClient } from "./pg-change-store.js";
@@ -47,7 +47,7 @@ function fakeChangeClient(): ChangeStoreClient {
 }
 
 // The reusable bar, over the fake client — the same four contracts (round-trip, filter, order, empty)
-// InMemoryStore meets in @storytree/base.
+// InMemoryStore meets in @storytree/storage-protocol.
 changeStoreParitySuite("PgChangeStore (fake client)", () => new PgChangeStore(fakeChangeClient()));
 
 test("appendChangeEvent binds the scalar spine + the full doc, NULLing absent optionals", async () => {
