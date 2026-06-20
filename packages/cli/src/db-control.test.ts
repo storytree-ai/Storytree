@@ -83,6 +83,8 @@ test("effectiveVerdictStore: a scripted (dry-run) walk passes its flag through u
 
 test("effectiveVerdictStore: a live/real build defaults an unset --store to pg, keeps explicit values", () => {
   assert.equal(effectiveVerdictStore(undefined, false), "pg", "the build owns the DB (ADR-0060)");
-  assert.equal(effectiveVerdictStore("memory", false), "memory", "explicit opt-out is honoured");
+  // "memory" still passes through here — it is NOT a CLI option (ADR-0081 refuses it at dispatch),
+  // only the internal test seam reaches this function with it, and it must still map to in-memory.
+  assert.equal(effectiveVerdictStore("memory", false), "memory", "internal test seam still maps to in-memory");
   assert.equal(effectiveVerdictStore("pg", false), "pg");
 });

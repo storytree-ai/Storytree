@@ -156,7 +156,7 @@ test("a null presence identity (plain checkout) is a silent no-op, not an error"
 
 // ── ADR-0060: the live/real DB-preflight wiring (default --store pg + ensureDb) ──
 
-test("a live build whose DB preflight fails refuses fail-closed, pointing at --store memory (ADR-0060)", async () => {
+test("a live build whose DB preflight fails refuses fail-closed, pointing at the DB (ADR-0060/0081)", async () => {
   // --live defaults the store to pg, so the preflight runs; an injected ensureDb reporting the DB
   // could not be brought up must REFUSE the build (no silent in-memory fallback) before the leaf runs.
   const env = await nodeBuild("library-cli", {
@@ -169,9 +169,15 @@ test("a live build whose DB preflight fails refuses fail-closed, pointing at --s
   assert.equal(env.ok, false, env.body);
   assert.match(env.body, /could not be brought up/);
   assert.match(env.body, /instance unreachable \(test stub\)/);
+  // ADR-0081 removed the --store memory escape: the only remedy is to bring the DB up. The refusal
+  // must point at the DB and must NOT offer the deleted opt-out.
   assert.ok(
-    (env.next ?? []).some((n) => n.includes("--store memory")),
-    `the refusal must offer the --store memory opt-out, got: ${JSON.stringify(env.next)}`,
+    (env.next ?? []).some((n) => n.includes("pnpm db:status")),
+    `the refusal must point at the DB, got: ${JSON.stringify(env.next)}`,
+  );
+  assert.ok(
+    !(env.next ?? []).some((n) => n.includes("--store memory")),
+    `the removed --store memory opt-out must NOT be offered, got: ${JSON.stringify(env.next)}`,
   );
 });
 
