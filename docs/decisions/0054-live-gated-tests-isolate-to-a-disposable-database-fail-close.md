@@ -1,12 +1,15 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-14
 ---
 # ADR-0054: Live-gated tests isolate to a disposable database, fail-closed against production
 
 ## Status
 
-proposed — owner steer 2026-06-14: "fix the truncation bug so green can't be silently destroyed."
-This is the fix. Awaiting owner accept (and the one-time `storytree_test` provisioning below).
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) —
+owner steer 2026-06-14: "fix the truncation bug so green can't be silently destroyed." This is the
+fix; the owner accepted it in conversation 2026-06-21 (recorded under [ADR-0084](0084-agents-may-flip-an-adr-green.md)).
+The one-time `storytree_test` provisioning below remains an operational prerequisite.
 
 ## Context
 

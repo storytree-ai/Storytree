@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-06
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-06
 
 ## Status
 
-proposed (2026-06-06) — implements the GCP hosting specifics left open by
+accepted (2026-06-06; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — implements the GCP hosting specifics left open by
 [ADR-0006](0006-event-store-observability-surface.md) (event store = SSOT) and
 [ADR-0009](0009-concurrency-isolation-id-allocation.md) (typed claims + DB-allocated IDs on
 shared Postgres). **Supersedes** the cloud thinking in Agentic ADR-0006 (self-hosted

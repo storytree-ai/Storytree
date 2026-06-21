@@ -1,16 +1,19 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-14
 amends: [51]
 ---
 # ADR-0052: Render delegatable agents to .claude/agents subagent files
 
 ## Status
 
-proposed — owner steer 2026-06-14: after ADR-0051 wired the agent renderer, the question was whether
-the harness's *spawned subagents* are the authored agents. They were not: ADR-0051 renders the
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) —
+owner steer 2026-06-14: after ADR-0051 wired the agent renderer, the question was whether the
+harness's *spawned subagents* are the authored agents. They were not: ADR-0051 renders the
 `session-orchestrator` into CLAUDE.md and `red-builder` / `green-builder` into the SDK leaf, but a
-Claude Code session spawning a subagent (the Agent/Task tool) still got a generic agent. Awaiting
-owner accept.
+Claude Code session spawning a subagent (the Agent/Task tool) still got a generic agent. The owner
+accepted this in conversation 2026-06-21 (recorded under [ADR-0084](0084-agents-may-flip-an-adr-green.md));
+the `.claude/agents/*.md` rendering is built and enforced by `check:agents`.
 
 **Amends** [ADR-0051](0051-the-agent-renderer-shapes-claude-md-and-the-leaf-prompt-from.md) — it built
 the one renderer and listed "one population, many rendered surfaces"; this adds one more surface
