@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 ---
 
 # ADR-0002: The work hierarchy — story, capability, contract

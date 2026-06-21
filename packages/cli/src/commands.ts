@@ -729,7 +729,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
-      "  adr              allocate the next ADR number from the live store (ADR-0050) — no collisions",
+      "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "",
       "start here:",
@@ -989,6 +989,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     title?: string;
     supersedes?: string;
     amends?: string;
+    current?: boolean;
+    "load-bearing"?: boolean;
+    status?: string;
     bound?: string;
     change?: string[];
     reason?: string;
@@ -1025,6 +1028,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         title: { type: "string" },
         supersedes: { type: "string" },
         amends: { type: "string" },
+        current: { type: "boolean", default: false },
+        "load-bearing": { type: "boolean", default: false },
+        status: { type: "string" },
         bound: { type: "string" },
         change: { type: "string", multiple: true },
         reason: { type: "string" },
@@ -1229,6 +1235,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.title !== undefined ? { title: values.title } : {}),
         ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
         ...(values.amends !== undefined ? { amends: values.amends } : {}),
+        ...(values.current === true ? { current: true } : {}),
+        ...(values["load-bearing"] === true ? { loadBearing: true } : {}),
+        ...(values.status !== undefined ? { status: values.status } : {}),
       },
       {
         allocator: deps.adr ?? null,

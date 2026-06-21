@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 decided: 2026-06-06
 supersedes_in_part: [2, 7]
 ---

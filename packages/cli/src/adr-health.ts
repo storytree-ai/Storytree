@@ -23,8 +23,11 @@ import type { CheckResult } from "./health.js";
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
  *                            resolve by flipping the ADR `proposed → accepted` — an agent MAY now
  *                            perform that green flip, ADR-0084, so this is self-resolvable, not an
- *                            escalation; flipping to `superseded` stays a human call)
- *   6 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
+ *                            escalation; the librarian-curator MAY also flip to `superseded`, ADR-0086)
+ *   6 load-bearing-live    — a `load_bearing: true` ADR (ADR-0086 current-state tag) must be
+ *                            `accepted`: a proposed one isn't yet current state, a superseded one is
+ *                            dead, so neither may carry the calibrate-to-these tag (GATE)
+ *   7 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
  */
 
@@ -35,6 +38,7 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "supersede-consistency",
   "story-decisions",
   "green-flip",
+  "load-bearing-live",
 ]);
 
 /** The story view the checks need — id, declared status, deciding ADR numbers. */
@@ -175,7 +179,20 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   }
   results.push(result("green-flip", drifted, "no healthy story rests on a proposed ADR"));
 
-  // 6 enforced-by-anchors (WARN-class)
+  // 6 load-bearing-live — the ADR-0086 current-state tag may only sit on an accepted ADR. A proposed
+  // one isn't yet current state; a superseded one is dead. Either way it would mislead the
+  // `adr list --load-bearing` view (the CLI replacement for the hand-maintained CLAUDE.md list).
+  const mistagged: string[] = [];
+  for (const a of adrs) {
+    if (a.loadBearing && a.status !== "accepted") {
+      mistagged.push(
+        `ADR-${pad(a.number)} is load_bearing but its status is "${a.status}" — only an accepted ADR may be load-bearing (untag it or accept it).`,
+      );
+    }
+  }
+  results.push(result("load-bearing-live", mistagged, "every load-bearing ADR is accepted"));
+
+  // 7 enforced-by-anchors (WARN-class)
   const rotted: string[] = [];
   for (const g of guardrails) {
     for (const token of extractPathTokens(g.enforcedBy)) {

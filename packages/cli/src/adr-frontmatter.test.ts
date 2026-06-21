@@ -32,6 +32,14 @@ test("edges default to empty; decided is optional", () => {
   assert.deepEqual(meta.amends, []);
 });
 
+test("load_bearing parses (ADR-0086) and defaults to false", () => {
+  assert.equal(parseAdrFrontmatter(FILE, doc("status: accepted")).loadBearing, false);
+  assert.equal(
+    parseAdrFrontmatter(FILE, doc("status: accepted\nload_bearing: true")).loadBearing,
+    true,
+  );
+});
+
 test("rejects an unknown status word", () => {
   assert.throws(() => parseAdrFrontmatter(FILE, doc("status: ratified")));
 });

@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 decided: 2026-06-10
 supersedes_in_part: [11]
 amends: [12]
