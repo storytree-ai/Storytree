@@ -92,10 +92,16 @@ export interface RealProofConfig {
    * "authoring the test"), and CONFIRM_RED still observes the new test failing against the UNCHANGED
    * source — a forged already-green regression test self-defeats. The one genuinely-new hole (a
    * default single-file proof not exercising edited code in a sibling file) is NARROWED by the refine
-   * below: edit-existing + a source scope broader than `sourceFile` REQUIRES an explicit
-   * `proofCommand` declaration (it forces the author to NAME a proof for the multi-file edit; whether
-   * that command actually exercises every edited file is the same PR-diff-review bound A/B took for
-   * scope/command — surfaced, not structurally verified).
+   * below: edit-existing + a source scope broader than a single literal `sourceFile` — a multi-glob
+   * set, OR a single `*`-wildcard glob (the wildcard tightening, owner call 2026-06-21) — REQUIRES an
+   * explicit `proofCommand` declaration (it forces the author to NAME a proof for the multi-file
+   * edit; whether that command actually exercises every edited file is the same PR-diff-review bound
+   * A/B took for scope/command — surfaced, not structurally verified).
+   *
+   * Edit-existing does NOT force `install:true` (owner call 2026-06-21): a builtins-only
+   * edit-existing node stays legal on a bare worktree; declare `install` yourself when the edited
+   * source imports workspace deps (a missing install then fails LOUD at proof time — module-not-found
+   * — never a silent green, so forcing install is unnecessary over-restriction).
    */
   editsExisting?: boolean;
   /**
@@ -142,8 +148,10 @@ export interface RealProofConfig {
  * Trust note (ADR-0057): moving the DECLARATION site into the spec does NOT widen what a leaf may
  * write — the scope is still enforced spine-side by the phase wall and the SDK PreToolUse hook
  * (`phase-scoped-write-wall`); only where the globs are written down moves. Bounding an
- * over-declared spec scope (vs the registry status quo of PR-diff review) is a deliberately deferred
- * owner call — see ADR-0057's escalation note.
+ * over-declared spec scope is now a STRUCTURAL bound (ADR-0087), not PR-diff review: the
+ * {@link scopeGlobBoundIssue} refine on {@link PathWriteScopeConfigSchema} refuses any glob that
+ * reaches outside a single concrete package/app, so a self-registered node can never declare a
+ * repo-wide scope in the first place.
  */
 const ShellCommandSchema = z
   .object({
@@ -153,12 +161,69 @@ const ShellCommandSchema = z
   })
   .strict();
 
+/**
+ * ADR-0087: the STRUCTURAL bound on one spec-borne write-scope glob. A self-registered node writes
+ * its own `sourceGlobs`/`testGlobs` (ADR-0057), so the over-declaration the registry status quo left
+ * to **PR-diff review** is instead refused **here, by construction** — a self-registered node can
+ * never declare a scope reaching outside a single, concrete package/app.
+ *
+ * PURE + shape-only (no filesystem): it judges the glob STRING, never whether the package exists, so
+ * it is independently unit-testable and never couples the parser to disk (the dissolved `packages/core`
+ * specs still parse — existence is a separate drift concern). A glob is IN BOUNDS iff it is a
+ * repo-relative POSIX path whose first two segments are a concrete code root (`packages` | `apps`)
+ * then a concrete package/app name (no glob metacharacter), with no `..` escape. Returns a
+ * human-readable reason when the glob is OUT of bounds, else null.
+ */
+export function scopeGlobBoundIssue(glob: string): string | null {
+  if (glob.startsWith("/") || /^[A-Za-z]:/.test(glob)) {
+    return `must be a repo-relative path, not absolute ("${glob}")`;
+  }
+  const segments = glob.split("/");
+  if (segments.includes("..")) {
+    return `must not escape its package with a ".." segment ("${glob}")`;
+  }
+  const root = segments[0];
+  const pkg = segments[1];
+  if (root !== "packages" && root !== "apps") {
+    return `must be rooted under "packages/" or "apps/" — a bare repo-wide glob like "**/*" is refused ("${glob}")`;
+  }
+  if (pkg === undefined || pkg === "" || /[*?[\]{}]/.test(pkg)) {
+    return `must name ONE concrete package/app after "${root}/" — a wildcard package segment spans the whole repo ("${glob}")`;
+  }
+  return null;
+}
+
 const PathWriteScopeConfigSchema = z
   .object({
     testGlobs: z.array(z.string().min(1)).min(1),
     sourceGlobs: z.array(z.string().min(1)).min(1),
   })
-  .strict();
+  .strict()
+  // ADR-0087: every declared write-scope glob (test AND source) must stay within ONE concrete
+  // package/app — the structural bound that replaces PR-diff review as the control on a
+  // self-registered node's scope. The phase wall still ENFORCES the scope spine-side; this just
+  // refuses an over-broad DECLARATION before it can ever resolve. ({@link scopeGlobBoundIssue} is the
+  // pure, unit-tested judge.)
+  .superRefine((scope, ctx) => {
+    for (const key of ["testGlobs", "sourceGlobs"] as const) {
+      const globs = scope[key];
+      // A missing / non-array glob list is the base schema's error to report — only judge a
+      // well-formed one here, so a malformed scope fails with the base (zod) error and stays a
+      // graceful per-spec skip, never a TypeError thrown out of this refine.
+      if (!Array.isArray(globs)) continue;
+      globs.forEach((glob, index) => {
+        if (typeof glob !== "string") return;
+        const issue = scopeGlobBoundIssue(glob);
+        if (issue !== null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key, index],
+            message: `over-broad scope glob — ${issue} (ADR-0087: a spec-borne write scope must stay within a single package/app, not bounded by PR-diff review).`,
+          });
+        }
+      });
+    }
+  });
 
 const RealProofConfigSchema = z
   .object({
@@ -231,22 +296,32 @@ const RealProofConfigSchema = z
   // `real.proofCommand` rather than ride the default single-file proof — forcing the author to NAME a
   // proof for the multi-file edit. (This forces author INTENT; it does NOT structurally verify the
   // declared command exercises every edited file — that residual bound is PR-diff review, the same
-  // control A/B took for scope/command.) Single-file edit-existing (`sourceGlobs === [sourceFile]`)
-  // stays legal on the default command (the one test file imports the one edited file, exactly as a
-  // net-new node does). Scoped to editsExisting:true, so it never fires on a net-new node — the 7
-  // migrated nodes (no `editsExisting`) keep resolving byte-for-byte, parity intact.
+  // control A/B took for scope/command.) The exemption is narrow: a single source glob that is the
+  // LITERAL `sourceFile` AND carries no `*` wildcard (so it matches exactly one file) stays legal on
+  // the default command — the one test file imports the one edited file, exactly as a net-new node
+  // does. A single WILDCARD glob is length-1 yet can match MANY files, so it counts as broad even
+  // when it equals `sourceFile`, and likewise requires a suite (the wildcard-glob tightening, owner
+  // call 2026-06-21 — closes the length-1-but-broad hole the conservative literal-equality predicate
+  // left open). Scoped to editsExisting:true, so it never fires on a net-new node — the 7 migrated
+  // nodes (no `editsExisting`) keep resolving byte-for-byte, parity intact.
   .refine(
     (r) =>
       !(
         r.editsExisting === true &&
         r.proofCommand === undefined &&
-        !(r.scope.sourceGlobs.length === 1 && r.scope.sourceGlobs[0] === r.sourceFile)
+        !(
+          r.scope.sourceGlobs.length === 1 &&
+          r.scope.sourceGlobs[0] === r.sourceFile &&
+          !r.sourceFile.includes("*")
+        )
       ),
     {
       message:
-        "an edits-existing node whose source scope is broader than `sourceFile` must declare " +
-        "real.proofCommand (a suite) — the default node:test on the single test file cannot observe " +
-        "a regression across the other edited source files (the proof must exercise the edited code).",
+        "an edits-existing node whose source scope is broader than a single literal `sourceFile` " +
+        "must declare real.proofCommand (a suite) — the default node:test on the single test file " +
+        "cannot observe a regression across the other edited source files (the proof must exercise " +
+        "the edited code). A single WILDCARD glob (containing `*`) counts as broad even when it " +
+        "equals `sourceFile`, since it can match many files.",
       path: ["proofCommand"],
     },
   );

@@ -14,7 +14,12 @@ capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-
 # ADR-0075: the spine (orchestrator) imports the base + proof-protocol ROOT ports (the proof
 # machinery reads/returns verdict-DATA via the verdict vocabulary and the base Store seam), so those
 # are now declared cross-story edges — they were exempt substrate dependencies before ADR-0075.
-depends_on: [library, storage-protocol, proof-protocol]
+# ADR-0058 §3 + the now-authored stories/agent organism: the spine imports @storytree/agent as a
+# RUNTIME dependency (OwnedLoopAuthor + the gate consume the PhaseAuthor seam; resolve-prove-spec
+# binds ClaudeAgentAuthor) — the cross-story edge the "PhaseAuthor seam is CONSUMED, not owned"
+# section below predicted this frontmatter would gain once the leaf organism was authored. Declared
+# CONSUMER-side here; the agent root organism is depends_on [] (it imports no @storytree/* package).
+depends_on: [library, storage-protocol, proof-protocol, agent]
 # Provider-side inbound edge (ADR-0074 §4): the cli HUB organism imports this story's orchestrator
 # + agent packages (packages/cli/src/node-build.ts drives `node build`/`story build` through the
 # spine; main.ts dispatches them) — declared HERE so the hub stays de-noised and this organism owns
@@ -60,11 +65,19 @@ other capabilities. Declaring how to prove each capability is a deliberate later
 done by AUTHORING a `proof:` block in the node's own spec, not by an orchestrator-registry edit
 (authoring IS the buildable-node gate; that is exactly what `spec-borne-proof-config` delivered).
 
-## The PhaseAuthor seam is CONSUMED, not owned (the modeling call)
+## The PhaseAuthor seam is CONSUMED, not owned (the modeling call — now SETTLED)
+
+**Settled 2026-06-21 (story-author, resolving `oq-agent-as-its-own-organism-story`): `packages/agent`
+is now its own organism, authored as [`stories/agent`](../agent/story.md).** The seam is this story's
+declared cross-story interface to that organism, and the frontmatter `depends_on` now carries the
+`agent` edge (consumer-side) that this section predicted. The reasoning that drove the split (the
+`splitting-rule` both triggers fire; the consumer here is the spine, agnostic to the runtime;
+`packages/agent` imports no `@storytree/*` package so it is a depends_on-[] root organism) is recorded
+in the agent story. The original case below stands as the rationale:
 
 `packages/agent` — the `PhaseAuthor` seam type, the live `ClaudeAgentAuthor` (ADR-0030), and the
 owned-loop internals (`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-tools.ts`) — is
-**deliberately NOT a capability of this story**. The reasoning:
+**not a capability of this story** (it is the `agent` organism's). The reasoning:
 
 1. **The seam's whole point is author-agnosticism.** ADR-0030 §2 frames `PhaseAuthor` as the
    pivot seam: the spine hands a leaf exactly two authoring slices and must not care which runtime
@@ -81,10 +94,11 @@ owned-loop internals (`model.ts`/`run-turn.ts`/`step.ts`/`tool-executor.ts`/`fs-
    [`prove-spec-resolution`](prove-spec-resolution.md) (`resolve-prove-spec.ts:3-8`) — is the
    injection layer, which is exactly where a seam SHOULD be bound to an implementation.
 
-Consequence: authoring a `packages/agent` story (the leaf organism) is **open work**; when it
-exists, the seam becomes its declared cross-story interface (ADR-0010 §4) and this story's
-frontmatter gains that story-level edge. Until then the coupling is documented here and in each
-consuming capability, not hidden.
+Consequence (now realized): the `packages/agent` leaf organism is authored as
+[`stories/agent`](../agent/story.md); the seam is its declared cross-story interface (ADR-0010 §4)
+and this story's frontmatter carries the `agent` edge in `depends_on`. The coupling is no longer just
+documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
+now sees the spine↔leaf seam).
 
 ## Capabilities (17)
 
@@ -206,9 +220,11 @@ coupling) and marked.
     command's display into `realPrompts`. The 7 default nodes are unchanged (the A parity guard stays
     green). No `test-command-registry.ts` change; no new ADR (ships under ADR-0057 §3 + ADR-0020).
 
-**Cross-story:** the `library` edge in the frontmatter (the store-connection seam +
-the OQ loader's library stores). **Cross-package, consumed:** the `PhaseAuthor` seam — see the
-section above.
+**Cross-story:** the `library` edge (the store-connection seam + the OQ loader's library stores),
+the `storage-protocol` + `proof-protocol` root-port edges (ADR-0075), and the **`agent`** edge — the
+spine imports `@storytree/agent` to consume the `PhaseAuthor` seam (`OwnedLoopAuthor` + the gate +
+the prove-spec resolver) and bind `ClaudeAgentAuthor`. See the "PhaseAuthor seam is CONSUMED, not
+owned" section above for the now-settled modeling call.
 
 ## Units
 
@@ -303,9 +319,12 @@ node with one is `verdict-line` (whose authored status stays `proposed` forever,
    build key (keep them equal), update every live reference, leave ADR prose as history.
    `verdict-line`'s persisted verdict would NOT orphan (verdicts key by unit id). Surfaced, not
    done — your call on the name.
-2. **The PhaseAuthor seam framing** (section above): confirm consumed-not-owned, and whether
-   authoring the `packages/agent` leaf-organism story should be queued — that story would own the
-   seam as its declared interface (ADR-0010 §4) and this story would gain the story-level edge.
+2. **The PhaseAuthor seam framing — RESOLVED 2026-06-21.** Confirmed consumed-not-owned, and the
+   `packages/agent` leaf-organism story was authored ([`stories/agent`](../agent/story.md), resolving
+   `oq-agent-as-its-own-organism-story`): that story owns the seam as its declared interface (ADR-0010
+   §4) and this story gained the `agent` story-level edge in `depends_on`. The split was the
+   rule-decided outcome (story-author): the `splitting-rule`'s two triggers both fire and the consumer
+   (the spine) is agnostic to the runtime behind the seam.
 3. **`work-verdict-event-log` spans `packages/core` + `packages/store`.** I kept the projection
    and the pg event store as ONE capability (one vocabulary, one parity bar — the library's
    store-seam shape). The alternative is splitting the pg half out so the live-SQL `proposed`

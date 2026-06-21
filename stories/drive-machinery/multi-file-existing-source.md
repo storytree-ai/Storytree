@@ -102,15 +102,21 @@ refine above, not left to the brief.
   regression vs a syntax-error red — the gate accepts any *real* red. Inherent to C (the spec always
   named it); mitigated by the brief's `run_proof` "right reason" self-check, the same posture the
   net-new brief already trusts. NON-BLOCKING.
-- **Wildcard-single-glob edge.** The honesty refine triggers on "`sourceGlobs` is more than
-  `[sourceFile]`" — a single `**/*.ts` glob is length-1 yet matches many files, so it would NOT trip
-  the refine while still being broad. C ships P1's conservative predicate (catches explicit
-  multi-literal sets; the wildcard-single-glob case extends the same trust a package suite already
-  gets). Tightening to "any glob containing `*`" is a back-compatible follow-up (refines never affect
-  the 7 net-new nodes). OWNER CALL, non-blocking.
-- **`editsExisting ⇒ install`?** A panelist proposed forcing `install:true` for edit-existing (existing
-  source must load in an installed worktree). C **declined** to bake it in (don't forbid a legitimate
-  builtins-only edit-existing node). OWNER CALL to confirm.
+- **Wildcard-single-glob edge — RESOLVED (owner 2026-06-21): tightened.** The honesty refine
+  triggers on "`sourceGlobs` is more than `[sourceFile]`" — a single `**/*.ts` glob that is ITSELF
+  the `sourceFile` is length-1 and string-equal yet matches many files, so the conservative
+  literal-equality exemption let it ride the default single-file proof while still being broad. The
+  exemption now additionally requires the single glob to carry **no `*`** ([`proof-config.ts`](../../packages/orchestrator/src/proof-config.ts)
+  refine), so a wildcard glob counts as broad and must declare a suite `proofCommand`. Back-compatible
+  (the 7 net-new nodes never set `editsExisting`; the single-literal `sourceFile` case is unchanged).
+  Proven by `proof-config.test.ts` ("C — honesty refine (wildcard tightening) …", REAL, passing).
+- **`editsExisting ⇒ install`? — RESOLVED (owner 2026-06-21): no, allow no-install.** A panelist
+  proposed forcing `install:true` for edit-existing (existing source must load in an installed
+  worktree). Confirmed C's stance: do NOT force it — a builtins-only edit-existing node is legitimate
+  on a bare worktree, and a node that forgets `install` while editing dep-importing source fails LOUD
+  at proof time (module-not-found), never a silent green, so forcing install is unnecessary
+  over-restriction. The author declares `install` when the edited source imports workspace deps.
+  Locked by `proof-config.test.ts` ("C — no-install owner call …", REAL, passing).
 - **Cross-package refactor is OUT of C** (per the original note): C is within-package (one package's
   glob set + suite). The shape does not forbid a workspace-wide `proofCommand`, but the brief/guidance
   scope within-package. A cross-package refactor is a later expansion if wanted.

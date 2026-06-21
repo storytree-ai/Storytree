@@ -45,7 +45,7 @@
     "organisms": {
       "@storytree/library": "library",
       "@storytree/orchestrator": "drive-machinery",
-      "@storytree/agent": "drive-machinery",
+      "@storytree/agent": "agent",
       "@storytree/notice-board": "notice-board",
       "@storytree/studio-members": "studio-members",
       "@storytree/cli": "cli",

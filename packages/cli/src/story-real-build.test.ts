@@ -57,9 +57,15 @@ async function fixtureRepo(
 }
 
 /** Frontmatter for a fixture capability with a spec-borne (no-install) real proof config. */
+// Fixture nodes live under a concrete package dir so their declared scope satisfies the ADR-0087
+// structural bound (a write-scope glob must stay within one `packages/<pkg>/` or `apps/<app>/`). The
+// worktree's root `package.json {"type":"module"}` covers the subdir, and the leaves import only
+// node: builtins + co-located relative files, so the real red→green is unaffected by the move.
+const FIXTURE_DIR = "packages/fixture";
+
 function capSpec(id: string, dependsOn: string[]): string {
-  const test = `${id}.test.ts`;
-  const src = `${id}.ts`;
+  const test = `${FIXTURE_DIR}/${id}.test.ts`;
+  const src = `${FIXTURE_DIR}/${id}.ts`;
   return [
     "---",
     `id: "${id}"`,
@@ -156,8 +162,8 @@ function scriptedAuthors(
     if (src === undefined || scope === undefined) return undefined;
     return new OwnedLoopAuthor({
       model: scriptedWriterModel([
-        { path: `${spec.id}.test.ts`, content: src.test },
-        { path: `${spec.id}.ts`, content: src.impl },
+        { path: `${FIXTURE_DIR}/${spec.id}.test.ts`, content: src.test },
+        { path: `${FIXTURE_DIR}/${spec.id}.ts`, content: src.impl },
       ]),
       tools: new FileToolExecutor({ rootDir: worktreeRoot }),
       scope: new PathWriteScope(scope),
@@ -167,7 +173,7 @@ function scriptedAuthors(
 }
 
 function scopeFor(id: string): { testGlobs: string[]; sourceGlobs: string[] } {
-  return { testGlobs: [`${id}.test.ts`], sourceGlobs: [`${id}.ts`] };
+  return { testGlobs: [`${FIXTURE_DIR}/${id}.test.ts`], sourceGlobs: [`${FIXTURE_DIR}/${id}.ts`] };
 }
 
 // ── the load-bearing chain walk ────────────────────────────────────────────────────────────────
@@ -377,8 +383,8 @@ test("--real refuses a story with a non-real-buildable driven node BEFORE any wo
       "    file: node",
       '    args: ["--version"]',
       "  scope:",
-      '    testGlobs: ["x.test.ts"]',
-      '    sourceGlobs: ["x.ts"]',
+      '    testGlobs: ["packages/fixture/x.test.ts"]',
+      '    sourceGlobs: ["packages/fixture/x.ts"]',
       "---",
       "# no real",
       "",

@@ -67,13 +67,15 @@ human-witnessed story WITHHOLDS it (the capabilities are still real-built + prom
 `--real` success shape); a machine-witnessed story whose UAT node lacks a `real:` arm is REFUSED
 before any worktree (a story UAT as a gate-as-proof node is expansion E, ADR-0057 §5).
 
-> **Open owner calls (surfaced, not decided).** (1) Should a green partial PREFIX of a halted chain
-> be a LANDING candidate (pushed), not just parked local-only? D takes the conservative reading of
-> ADR-0031's preservation-over-loss (parked local-only, never pushed); the inverse reverses D's halt
-> policy and earns its own ADR. (2) Whole-story PR shape: D commits to ONE branch / one non-squash
-> PR; per-node landing granularity re-opens ADR-0031's floated fork. (3) `--real`'s default budget
-> ($10, inherited from `--live`) may be low for a multi-node real chain — surfaced in `storyHelp`,
-> not changed unilaterally. All three are owner calls in the deferred-approval-gated-trunk family.
+> **Open owner calls (surfaced).** (1) RESOLVED 2026-06-21 (owner chose A — stay local-only): a
+> halted chain's green prefix stays parked LOCAL-ONLY, never pushed — D's conservative
+> preservation-over-loss reading stands; B (pushing the prefix as a landing candidate) is what would
+> reverse D's halt policy and earn its own ADR, so no change here. The live OQ
+> `oq-partial-prefix-as-landing-candidate` was retired with this rationale. (2) Whole-story PR shape:
+> D commits to ONE branch / one non-squash PR; per-node landing granularity re-opens ADR-0031's
+> floated fork. (3) `--real`'s default budget ($10, inherited from `--live`) may be low for a
+> multi-node real chain — surfaced in `storyHelp`, not changed unilaterally. (2) and (3) remain owner
+> calls in the deferred-approval-gated-trunk family.
 
 ## Integration test
 
