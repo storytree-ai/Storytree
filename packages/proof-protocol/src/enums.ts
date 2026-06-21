@@ -37,13 +37,18 @@ export type Status = z.infer<typeof Status>;
 
 /**
  * The proof modes (ADR-0007). `contract` / `capability` / `story` are the three tiers'
- * automated ladders; `operator-attested` is the human-anchored mode.
+ * automated ladders; `operator-attested` is the human-anchored mode; `adopted` is the
+ * brownfield observe-and-sign mode (ADR-0085, resolving ADR-0083 Fork B): the spine ran a
+ * declared command at a clean committed HEAD and OBSERVED it green, without a prior red —
+ * a real signed verdict whose weaker basis (no driven red→green; job 2 supplied by author
+ * review) is first-class and renderable, never silently equated with a driven pass.
  */
 export const ProofMode = z.enum([
   "contract",
   "capability",
   "story",
   "operator-attested",
+  "adopted",
 ]);
 export type ProofMode = z.infer<typeof ProofMode>;
 

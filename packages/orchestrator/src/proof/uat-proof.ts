@@ -142,7 +142,13 @@ export function rollupStoryUat(
  *    declared — so the world under-claims to `mapped`, never paints a green crown the proof can't bear.
  *
  * A story with ZERO capabilities (the two foundational ports `proof-protocol` / `storage-protocol`)
- * satisfies the capability clause VACUOUSLY — its green derives entirely from the per-test UAT clause.
+ * satisfies the capability clause VACUOUSLY — its green derives entirely from the own-proof clause.
+ *
+ * ADR-0085 (resolving ADR-0083 Fork B) widens the second argument from "the per-test UAT tests" to
+ * the story's **own-proof obligations** — the UNION of its per-test UAT tests AND its
+ * `## Reliability Gates` (the brownfield obligation set). The AND-logic and the vacuous-empty guard
+ * are unchanged; the caller passes `[...uatTests, ...reliabilityGates]`, so a pure port greens from
+ * its reliability gates (zero caps, zero UAT, ≥1 adopted gate) with no logic fork here.
  */
 export function rollupStoryGreen(
   capabilityIds: readonly string[],

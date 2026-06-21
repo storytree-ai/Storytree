@@ -11,8 +11,13 @@ import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
 } from "@storytree/library";
-import type { UatTest } from "@storytree/library";
-import { loadNodeSpec, resolveSignerFromEnv } from "@storytree/orchestrator";
+import type { UatTest, ReliabilityGate } from "@storytree/library";
+import {
+  loadNodeSpec,
+  resolveSignerFromEnv,
+  platformShellCommand,
+  runShellCommand,
+} from "@storytree/orchestrator";
 import { renderStoredDoc, syncSeedAgents } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
@@ -46,6 +51,7 @@ import {
   type UatDeps,
   type UatVerdictStoreLike,
 } from "./uat.js";
+import { gateCommand, gateHelp, type GateDeps } from "./gate.js";
 
 /**
  * Fields removed by a past migration that must not reappear (design §4 check 2): `seeAlso`
@@ -719,6 +725,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
       "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
       "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
+      "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
@@ -891,6 +898,37 @@ function loadStoryUatTests(storiesDir: string, storyId: string): UatTest[] {
     return loadNodeSpec(file).uatTests;
   } catch {
     return [];
+  }
+}
+
+/** A story's reliability gates (parsed from `stories/<id>/story.md`, ADR-0085); `[]` for a missing/odd spec. */
+function loadStoryReliabilityGates(storiesDir: string, storyId: string): ReliabilityGate[] {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return [];
+  try {
+    return loadNodeSpec(file).reliabilityGates;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The spine's out-of-band observation of a reliability gate's declared command (ADR-0085): split the
+ * free command string into an argv, make it spawnable on this platform (the win32 `pnpm` `.cmd`
+ * rewrap), run it at the repo root with the shared {@link runShellCommand}, and surface ONLY the exit
+ * code. No shell (`execFile` of file+args, injection-safe); a non-zero exit is data, not a throw.
+ */
+async function observeCommand(command: string): Promise<{ code: number | null }> {
+  const parts = command.trim().split(/\s+/);
+  const file = parts[0];
+  if (file === undefined) return { code: null };
+  const cmd = platformShellCommand({ file, args: parts.slice(1), cwd: repoRoot() });
+  try {
+    const out = await runShellCommand(cmd);
+    return { code: out.code };
+  } catch {
+    // A genuine spawn failure (ENOENT) — the command did not run, so it did not pass (fail-closed).
+    return { code: null };
   }
 }
 
@@ -1151,6 +1189,28 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
 
+  if (area === "gate") {
+    // ADR-0085 (ADR-0083 Fork B) — the brownfield reliability-gates proof surface: `gate list <story>`
+    // (read) + `gate run <story>#gate-<n>` (observe-and-sign an `observe` gate → an `adopted` verdict).
+    // The store/git/observe seams mirror `uat`; the observe runner spawns the gate's declared command.
+    if (help || sub === undefined) return gateHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    const gateDeps: GateDeps = {
+      store: deps.uatStore ?? null,
+      loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
+      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+      gitState: readGitState,
+      observe: observeCommand,
+      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+      now: () => new Date(),
+    };
+    const gateOpts = { ...(values.signer !== undefined ? { signer: values.signer } : {}) };
+    if (sub === "run") return gateCommand({ mode: "run", target: third }, gateOpts, gateDeps);
+    if (sub === "list") return gateCommand({ mode: "list", target: third }, gateOpts, gateDeps);
+    // bare: `storytree gate <story-id>` lists that story's gates.
+    return gateCommand({ mode: "list", target: sub }, gateOpts, gateDeps);
+  }
+
   if (area === "drift") {
     if (help) return driftHelp();
     return runDrift({
@@ -1188,7 +1248,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, uat, node, story, adr.`,
+      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, uat, gate, node, story, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }

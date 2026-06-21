@@ -912,11 +912,13 @@ function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId:
 
 async function readTree(
   storiesDir: string,
-): Promise<{ payload: TreePayload; uatTestsByStory: Map<string, UatTest[]> }> {
+): Promise<{ payload: TreePayload; uatTestsByStory: Map<string, { id: string }[]> }> {
   const stories: TreeStory[] = [];
-  // The per-story declared UAT tests (ADR-0082), collected as the specs load so the /api/tree handler
-  // can roll each story's per-test verdicts up into its crown without re-reading every spec.
-  const uatTestsByStory = new Map<string, UatTest[]>();
+  // The per-story OWN-PROOF obligations — the UNION of the per-test UAT tests (ADR-0082) AND the
+  // `## Reliability Gates` (ADR-0085, the brownfield obligation set) — collected as the specs load so
+  // the /api/tree handler can roll each story's per-obligation verdicts up into its crown without
+  // re-reading every spec. Keyed by `{ id }` only (all `rollupStoryGreen` reads).
+  const uatTestsByStory = new Map<string, { id: string }[]>();
   if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
@@ -950,7 +952,10 @@ async function readTree(
       story.capabilities = spec.capabilities.map((capId) =>
         loadTreeCapability(loadNodeSpec, dir, capId),
       );
-      if (spec.uatTests.length > 0) uatTestsByStory.set(ent.name, spec.uatTests);
+      // ADR-0085: the crown rolls up the UNION of UAT tests + reliability gates (a pure port greens
+      // from its reliability gates alone). Both are addressable `{ id }` obligation units.
+      const ownObligations = [...spec.uatTests, ...spec.reliabilityGates];
+      if (ownObligations.length > 0) uatTestsByStory.set(ent.name, ownObligations);
     } catch (err) {
       story.error = err instanceof Error ? err.message : String(err);
     }

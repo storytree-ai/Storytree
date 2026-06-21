@@ -36,6 +36,8 @@ test("Status round-trips a valid option and rejects an unknown one", () => {
 
 test("ProofMode round-trips a valid option and rejects an unknown one", () => {
   assert.equal(ProofMode.parse("operator-attested"), "operator-attested");
+  // ADR-0085: `adopted` is the brownfield observe-and-sign mode (ADR-0083 Fork B resolved).
+  assert.equal(ProofMode.parse("adopted"), "adopted");
   assert.equal(ProofMode.safeParse("manual").success, false);
 });
 

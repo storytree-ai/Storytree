@@ -3,7 +3,15 @@ import path from "node:path";
 
 import { parse } from "yaml";
 import { z } from "zod";
-import { Status, Tier, UatWitness, parseUatTests, type UatTest } from "@storytree/library";
+import {
+  Status,
+  Tier,
+  UatWitness,
+  parseUatTests,
+  parseReliabilityGates,
+  type UatTest,
+  type ReliabilityGate,
+} from "@storytree/library";
 import { ProofMode } from "@storytree/proof-protocol";
 
 import { parseNodeBuildConfig } from "./proof-config.js";
@@ -109,6 +117,14 @@ export interface NodeSpec {
    * capability/contract spec (no Story UAT section) — the attestation surface keys off these ids.
    */
   uatTests: UatTest[];
+  /**
+   * The story's `## Reliability Gates` prose parsed into addressable gate units (ADR-0085,
+   * resolving ADR-0083 Fork B): one per numbered item, with a stable `<id>#gate-<n>` id, a
+   * `kind` (`observe` | `build-tests` | `integrate`) and an optional `proofCommand`. `[]` when
+   * the story declares none (the common case). The author-declared brownfield obligation set —
+   * its ids roll into the story-green crown alongside the per-test UAT (ADR-0083 Fork A).
+   */
+  reliabilityGates: ReliabilityGate[];
   /** The file the spec was loaded from (for honest provenance in CLI output). */
   file: string;
 }
@@ -158,6 +174,8 @@ export function loadNodeSpec(file: string): NodeSpec {
     guidance,
     // Parsed off the same body — the join key the attestation surface (ADR-0044) writes against.
     uatTests: parseUatTests(fm.id, body),
+    // ADR-0085: the brownfield `## Reliability Gates` obligations, parsed off the same body.
+    reliabilityGates: parseReliabilityGates(fm.id, body),
     file,
   };
 }

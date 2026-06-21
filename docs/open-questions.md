@@ -28,16 +28,25 @@ signer/attestation type. **Still open:** persistence shape + identity backing.
 *Terms:* evidence, red-state / red-evidence, green-evidence, attestation, signer,
 executor, signing & walk-ancestry, forensic-evidence.
 
-## 2. Brownfield mapping mechanism  (concept ACCEPTED; mechanism TBD)
-`mapped` is now a supported v2 status (see `glossary.md`). **Open** is the
+## 2. Brownfield mapping mechanism  (concept ACCEPTED; mechanism ANSWERED — ADR-0083 / ADR-0085)
+`mapped` is now a supported v2 status (see `glossary.md`). **Open** was the
 *mechanism*: how storytree maps an existing target-repo suite onto
 capabilities/contracts under the owned loop, what "observational-green" means operationally,
 and how fixtures/models are version-pinned.
-→ ADR-0007 reaffirms this stays open while distinguishing **operator-attested**
-(earned, reaches `healthy`) from **mapped** (observational, never `healthy`); the
-mapping *mechanism* remains undecided here.
+→ ADR-0007 reaffirmed this stayed open while distinguishing **operator-attested**
+(earned, reaches `healthy`) from **mapped** (observational, never `healthy`).
+→ **ANSWERED ([ADR-0083](decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
++ [ADR-0085](decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md), 2026-06-21):**
+`mapped` is a transient bootstrap state whose EXIT is an author-declared obligation set earning a
+signed verdict. A brownfield story declares a `## Reliability Gates` section — gates of kind
+`observe` (the existing suite, **observe-and-signed** into an `adopted` verdict — operational
+"observational-green"), `build-tests` (no test-first coverage → a genuine red→green), or `integrate`
+(an unstructured suite folded under one capability). The story greens when all capabilities AND all
+own-proof obligations (UAT + gates) pass. **Still open (named follow-on):** the `build-tests` /
+`integrate` satisfaction engines, and fixture/model version-pinning for an EXTERNAL target repo
+(today storytree builds itself — §8).
 *Terms:* brownfield, observational-green, mapped-vs-proven, MappedStatus,
-fixture-pin.
+fixture-pin, reliability gate, adopted, observe-and-sign.
 
 ## 3. Sessions, isolation & concurrency
 v1 coordinated concurrent work with per-session git branches

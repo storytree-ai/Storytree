@@ -11,7 +11,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import { classifyPresence } from "@storytree/notice-board";
-import type { UatTest } from "@storytree/library";
+import type { UatTest, ReliabilityGate } from "@storytree/library";
 import { loadNodeSpec, rollupStatus, rollupStoryGreen, rollupStoryUat } from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
@@ -174,6 +174,7 @@ export async function treeCommand(
   let storyOutcome = "(unknown)";
   let capIds: string[] = [];
   let uatTests: UatTest[] = [];
+  let reliabilityGates: ReliabilityGate[] = [];
   try {
     const spec = loadNodeSpec(storyFile);
     storyTitle = spec.title;
@@ -181,6 +182,7 @@ export async function treeCommand(
     storyOutcome = spec.outcome;
     capIds = spec.capabilities;
     uatTests = spec.uatTests;
+    reliabilityGates = spec.reliabilityGates;
   } catch {
     // tolerate — render what we can
   }
@@ -218,22 +220,28 @@ export async function treeCommand(
     });
   }
 
-  // The story crown's PROVEN state (ADR-0083 Fork A): a story that declares per-test UAT tests greens
-  // from the AND of TWO necessary clauses — every capability proven healthy AND the per-test UAT
-  // AND-roll-up green (rollupStoryGreen) — never the story's own unit-id verdict. Capabilities-green is
-  // necessary (the dependency rule), refining ADR-0082's UAT-only crown. The UAT clause alone
-  // (rollupStoryUat) is still surfaced below as a sub-signal. A legacy story with no per-test tests
-  // keeps the own-unit glyph. Offline (no verdict events) there is no proof column.
+  // The story crown's PROVEN state (ADR-0083 Fork A + ADR-0085): a story greens from the AND of TWO
+  // necessary clauses — every capability proven healthy AND the story's OWN-PROOF obligations all
+  // proven (rollupStoryGreen) — never the story's own unit-id verdict. Own-proof obligations are the
+  // UNION of the per-test UAT tests (ADR-0082) AND the `## Reliability Gates` (ADR-0085, the
+  // brownfield obligation set). Capabilities-green is necessary (the dependency rule), refining
+  // ADR-0082's UAT-only crown. The UAT and gate clauses are each surfaced below as sub-signals. A
+  // legacy story with NEITHER keeps the own-unit glyph. Offline (no verdict events) there is no column.
+  const ownObligations = [...uatTests, ...reliabilityGates];
   const storyUatRollup =
     uatTests.length > 0 && verdictEvents !== null
       ? rollupStoryUat(uatTests, verdictEvents)
       : undefined;
+  const storyGatesRollup =
+    reliabilityGates.length > 0 && verdictEvents !== null
+      ? rollupStoryUat(reliabilityGates, verdictEvents)
+      : undefined;
   const storyGreen =
-    uatTests.length > 0 && verdictEvents !== null
-      ? rollupStoryGreen(capIds, uatTests, verdictEvents)
+    ownObligations.length > 0 && verdictEvents !== null
+      ? rollupStoryGreen(capIds, ownObligations, verdictEvents)
       : undefined;
   const crownMark = (): string => {
-    if (uatTests.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
+    if (ownObligations.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
     if (verdictEvents === null) return ""; // offline: no proof column
     const g = storyGreen === "healthy" ? "✓" : storyGreen === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
@@ -253,16 +261,30 @@ export async function treeCommand(
           ? "WITHERED — a proven UAT test regressed to a signed fail"
           : "unproven — not every UAT test has a signed pass yet (under-claims)";
     lines.push(`  UAT proof: ${word}`);
-    // The CROWN (ADR-0083 Fork A): green = (all capabilities proven healthy) AND (UAT proven). A story
+  }
+  if (reliabilityGates.length > 0 && verdictEvents !== null) {
+    // The brownfield reliability-gate sub-signal (ADR-0085): the author-declared obligation set that
+    // flips a brownfield/foundational story green, distinct from UAT (an `observe` gate is adopted).
+    const word =
+      storyGatesRollup === "healthy"
+        ? "GREEN — every reliability gate has a signed pass (the brownfield obligations are met, ADR-0085)"
+        : storyGatesRollup === "unhealthy"
+          ? "WITHERED — a proven reliability gate regressed to a signed fail"
+          : "unproven — not every reliability gate has a signed pass yet (under-claims)";
+    lines.push(`  reliability gates: ${word}`);
+  }
+  if (ownObligations.length > 0 && verdictEvents !== null) {
+    // The CROWN (ADR-0083 Fork A + ADR-0085): green = (all capabilities proven healthy) AND (the
+    // story's own-proof obligations — its UAT tests AND its reliability gates — all proven). A story
     // with zero capabilities (a foundational port) satisfies the capability clause vacuously.
-    const capNote = capIds.length === 0 ? " (no capabilities — vacuous; green is the UAT alone)" : "";
+    const capNote = capIds.length === 0 ? " (no capabilities — vacuous; green is the own-proof alone)" : "";
     const greenWord =
       storyGreen === "healthy"
-        ? "GREEN — all capabilities proven healthy AND the story's UAT is proven"
+        ? "GREEN — all capabilities proven healthy AND the story's own-proof obligations are proven"
         : storyGreen === "unhealthy"
-          ? "WITHERED — a capability or a proven UAT test is a signed fail"
-          : "unproven — a capability is not yet proven healthy, or the UAT is not yet proven (under-claims)";
-    lines.push(`  story green: ${greenWord}${capNote} (ADR-0083 Fork A)`);
+          ? "WITHERED — a capability or a proven obligation is a signed fail"
+          : "unproven — a capability is not yet proven healthy, or an obligation is not yet proven (under-claims)";
+    lines.push(`  story green: ${greenWord}${capNote} (ADR-0083 Fork A + ADR-0085)`);
   }
   lines.push("", "Capabilities:");
   for (const row of capRows) {

@@ -135,5 +135,16 @@ export { deriveAttestations } from "./proof/attestations.js";
 // the per-test DATA + parser live in the library organism (`uat-tests.ts`, ADR-0044).
 export type { UatProofCheck, UatProofResult } from "./proof/uat-proof.js";
 export { checkUatProof, rollupStoryUat, rollupStoryGreen } from "./proof/uat-proof.js";
+// ADR-0085 (resolving ADR-0083 Fork B): the brownfield OBSERVE-AND-SIGN compute — an `observe`
+// reliability gate earns an `adopted` machine verdict when the spine observes its declared command
+// green at a clean committed HEAD (no prior red; job 2 supplied by author review).
+export type {
+  ObserveAndSignSpec,
+  ObserveAndSignResult,
+  ObserveGitState,
+  ObserveOutcome,
+  AdoptedVerdictStore,
+} from "./proof/observe-and-sign.js";
+export { observeAndSign } from "./proof/observe-and-sign.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";

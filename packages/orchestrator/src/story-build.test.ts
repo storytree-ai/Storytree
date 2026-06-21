@@ -28,6 +28,7 @@ function spec(
     buildConfig: undefined,
     guidance: undefined,
     uatTests: [],
+    reliabilityGates: [],
     file: `${id}.md`,
   };
 }

@@ -62,6 +62,7 @@ function story(decisions: number[]): NodeSpec {
     buildConfig: undefined,
     guidance: undefined,
     uatTests: [],
+    reliabilityGates: [],
     file: "s/story.md",
   };
 }

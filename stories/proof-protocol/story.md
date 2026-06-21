@@ -5,8 +5,8 @@ title: "The proof-protocol port — the shared verdict vocabulary at the root of
 outcome: "Every organism that reads or writes a verdict speaks one zod-validated, browser-safe verdict SHAPE — the foundational root node the whole graph points at, depending on nothing."
 status: mapped
 proof_mode: UAT
-# Agent-exercised: the UAT is an agent running the port's own offline suite and a cross-boundary
-# safeParse — machine-witnessed (ADR-0040). No DB, no API key.
+# Machine-judged: a pure SHAPE has no UAT journey (ADR-0085) — its green is an `observe` reliability
+# gate (the port's own offline suite), observe-and-signed into an `adopted` verdict. No DB, no API key.
 uat_witness: machine
 # Lightweight + expandable (ADR-0074 §3, the hub/port shape): the port IS the unit — a single
 # published shape — so it carries no sub-capabilities yet; the list grows one case per real defect.
@@ -17,8 +17,9 @@ capabilities: []
 depends_on: []
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the verdict SHAPE / first port (68); ports as root organisms (74/75);
-# the role-not-position rename verdict-contract→proof-protocol (78).
-decisions: [68, 74, 75, 78]
+# the role-not-position rename verdict-contract→proof-protocol (78); author-defined story green +
+# mapped-as-bootstrap (83); the brownfield reliability gates + observe-and-sign that flip it (85).
+decisions: [68, 74, 75, 78, 83, 85]
 ---
 
 # The proof-protocol port — the shared verdict vocabulary at the root of the graph
@@ -53,30 +54,32 @@ it by construction. (Belt-and-suspenders over two backstops: it is the bottom si
 to a real organism would close a cycle the gate already rejects (ADR-0058); and the studio browser
 build catches an external node-only npm import the gate cannot see.)
 
-## Story UAT
+## Reliability Gates
 
-The integrated acceptance walkthrough that proves the whole `proof-protocol` organism — *an agent
-runs the port's own offline suite and reads verdict-DATA across the boundary* (ADR-0074 §3, the
-minimum that proves the goal). Every leg is an **agent (machine) exercise** (`_(witness: machine)_`).
-The list is **expandable** — each real defect earns a permanent regression leg.
+A pure protocol is a published SHAPE — there is no integrated user JOURNEY to walk, so UAT-as-prose
+does not fit it ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
+resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+Fork B). Instead this port declares the author-owned **reliability gates** that flip it off `mapped`:
+the brownfield obligation set, machine-judged (a schema/scaffolding port is a machine's job, not a
+human attestation). The list is the **expandable floor** — start by adopting the existing green suite,
+and add a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the moment that observation
+proves insufficient (a real defect slips through a consumer).
 
-**Goal —** One agent proves the verdict SHAPE is a real, validated, browser-safe vocabulary: the
-package's offline suite passes, and a reader `.safeParse()`s a verdict-DATA value across the boundary.
-
-1. **The port's own suite is green:** _(witness: machine)_ `pnpm --filter @storytree/proof-protocol
-   test`. **Success —** the zod shapes + validators pass offline (no DB, no API key).
-2. **Cross-boundary safeParse:** _(witness: machine)_ a consumer (e.g. `@storytree/store`) reads a
-   stored verdict-DATA value through `Verdict.safeParse`. **Success —** a valid value parses, a
-   malformed one is rejected — proving the published shape is the real boundary contract.
-
-End state — the verdict vocabulary validates, parses across the boundary, and stays browser-safe.
+1. **The port's own suite is green** _(gate: observe)_ `pnpm --filter @storytree/proof-protocol test`.
+   The spine runs it at a clean committed HEAD and OBSERVES it green — the zod shapes, the validators,
+   and the cross-boundary parity guard all pass offline (no DB, no API key) — then signs an `adopted`
+   verdict (`storytree gate run proof-protocol#gate-1 --pg`). Adopting this gate flips the port off
+   `mapped`; the world's crown derives green from the signed verdict (ADR-0040), no faked red required.
 
 ## Proof
 
-**Honest status — `mapped` (brownfield), NOT `healthy`.** `packages/proof-protocol` has a real,
-passing, offline automated suite that observationally verifies the shapes + validators today. Per the
-glossary that observational green is brownfield `mapped` — storytree's own prove-it-gate has not
-driven it red→green, so nothing here is `healthy`.
+**Status off `mapped` is EARNED, not authored.** `packages/proof-protocol` has a real, passing,
+offline suite that observationally verifies the shapes + validators + the parity guard today — that
+observational green is brownfield `mapped`. The port leaves `mapped` exactly when its `observe`
+reliability gate above is **adopted**: the spine observes the suite green at a clean committed HEAD and
+signs an `adopted` machine verdict ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
+`healthy` is non-authorable (ADR-0020) — the authored frontmatter `status:` stays `mapped`; the world
+crown DERIVES green from the signed verdict.
 
 ## Open modeling calls (for the owner)
 

@@ -14,6 +14,9 @@
 export * from "./schema.js";
 export { parseUnit } from "./loader.js";
 export * from "./uat-tests.js";
+// ADR-0085 (ADR-0083 Fork B): the brownfield `## Reliability Gates` obligation set — the
+// author-declared gates that flip a brownfield/foundational story green, distinct from UAT.
+export * from "./reliability-gates.js";
 
 // The cross-cutting knowledge tier (ADR-0017) — the library's namesake competence: schema-
 // validated, versioned knowledge documents. Moved out of `@storytree/core` (ADR-0068 step 4) so
