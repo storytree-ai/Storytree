@@ -1439,6 +1439,27 @@ mark.st-hl.flash {
 .chip.cat-open-question {
   background: var(--cat-open-question);
 }
+
+/* The left cluster of a card header: the category chip + (for ADR docs) the lifecycle status chip. */
+.card-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* ADR lifecycle status chip (ADR-0037 frontmatter `status`), surfaced so a wrong/premature green flip
+   is catchable at a glance (the observability "catch" ADR-0084 relies on). One palette with the
+   world's crown hues: proposed = amber (pending ratification), accepted = green (the decision stands),
+   superseded = grey (replaced) — proposed is DELIBERATELY distinct from accepted/superseded. */
+.chip.adr-status.status-proposed {
+  background: var(--st-proposed);
+}
+.chip.adr-status.status-accepted {
+  background: var(--good);
+}
+.chip.adr-status.status-superseded {
+  background: var(--st-retired);
+}
+
 .cat-dot.cat-guardrail {
   background: var(--cat-guardrail);
 }

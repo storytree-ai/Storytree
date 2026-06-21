@@ -46,6 +46,7 @@ export function Library({ category }: { category: AssetCategory | null }): React
         category: 'adr',
         title: d.title,
         description: d.excerpt,
+        ...(d.status ? { status: d.status } : {}),
       }));
     return [...artifactItems, ...adrDocItems];
   }, [assets, docs]);
@@ -163,7 +164,19 @@ export function Library({ category }: { category: AssetCategory | null }): React
               <li key={`${it.kind}:${it.id}`}>
                 <a className="asset-card" href={href}>
                   <div className="asset-card-top">
-                    <span className={`chip cat-${it.category}`}>{it.category}</span>
+                    <span className="card-chips">
+                      <span className={`chip cat-${it.category}`}>{it.category}</span>
+                      {/* ADR lifecycle status (ADR-0037), so a wrong/premature flip is catchable at a
+                          glance (ADR-0084). proposed is amber, accepted green, superseded grey. */}
+                      {it.status && (
+                        <span
+                          className={`chip adr-status status-${it.status}`}
+                          title={`ADR status: ${it.status}`}
+                        >
+                          {it.status}
+                        </span>
+                      )}
+                    </span>
                     {open > 0 && (
                       <span className="badge" title={`${open} open comment(s)`}>
                         {open}

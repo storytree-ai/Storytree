@@ -141,6 +141,15 @@ export interface AssetInput {
   provenance?: string;
 }
 
+/**
+ * An ADR's frontmatter lifecycle `status` (ADR-0037 §1): `proposed` (drafted, not yet ratified),
+ * `accepted` (the decision stands), `superseded` (replaced by a later ADR). Mirrors the CLI's
+ * `AdrStatus` (packages/cli/src/adr-frontmatter.ts) locally — the studio is browser-bundled and must
+ * not import the CLI. Surfaced as the at-a-glance status chip so a wrong/premature flip is catchable
+ * (the observability "catch" ADR-0084 leans on).
+ */
+export type AdrDocStatus = 'proposed' | 'accepted' | 'superseded';
+
 /** Lightweight listing entry for a document topic. */
 export interface DocMeta {
   /** Relpath under docs/, e.g. "decisions/0002-...md". */
@@ -150,6 +159,14 @@ export interface DocMeta {
   group: string;
   /** First prose sentence after the title — the description on Library ADR cards. */
   excerpt: string;
+  /**
+   * The ADR's frontmatter `status` (ADR-0037) — present ONLY for `group === 'Decisions'` docs (other
+   * docs carry no frontmatter status). Absent when the frontmatter is missing or unparseable
+   * (tolerant, like the tree's per-node load): the card then simply shows no status chip.
+   */
+  status?: AdrDocStatus;
+  /** The ADR's frontmatter `decided` date (ISO yyyy-mm-dd) when present — shown as the chip tooltip. */
+  decided?: string;
 }
 
 export interface DocContent {
@@ -284,6 +301,8 @@ export interface LibraryItem {
   category: AssetCategory;
   title: string;
   description: string;
+  /** ADR lifecycle status (doc-backed `adr` items only) — drives the at-a-glance status chip. */
+  status?: AdrDocStatus;
 }
 
 // ---------- story tree (GET /api/tree) ----------

@@ -31,6 +31,7 @@ import type { Attestation, Verdict } from '@storytree/proof-protocol';
 // shapes, so `buildUatVerdict` can take the real `checkUatProof` as a precisely-typed injection.
 import type { UatProofCheck, UatProofResult } from '@storytree/orchestrator';
 import type {
+  AdrDocStatus,
   AssetCategory,
   Comment,
   CommentAnchor,
@@ -135,6 +136,33 @@ function deriveGroup(relId: string): string {
   return relId.startsWith('decisions/') ? 'Decisions' : 'Reference';
 }
 
+const ADR_STATUSES = new Set<AdrDocStatus>(['proposed', 'accepted', 'superseded']);
+
+/**
+ * The ADR frontmatter `status` (+ optional `decided`) surfaced on the Library/docs cards (ADR-0037
+ * §1) — the observability "catch" a green flip leans on (ADR-0084). A tiny, dependency-free read of
+ * the leading YAML block (the studio is browser-bundled and must not import the CLI's
+ * `parseAdrFrontmatter`, which pulls in `yaml`/`zod`); the frontmatter format is CI-validated
+ * (`adr-health`), so a flat line scan is sufficient. TOLERANT, unlike the CLI parser: a non-ADR
+ * filename, a missing/unterminated block, or an unknown status yields `null` (the card shows no chip)
+ * — a malformed record must never blank the whole docs list. Pure, exported for the wiring test.
+ */
+export function parseDocStatus(
+  filename: string,
+  raw: string,
+): { status: AdrDocStatus; decided?: string } | null {
+  if (!/^\d{4}-.*\.md$/.test(filename)) return null;
+  if (!raw.startsWith('---\n')) return null;
+  const end = raw.indexOf('\n---', 4);
+  if (end === -1) return null;
+  const block = raw.slice(4, end);
+  const statusMatch = block.match(/^status:[ \t]*["']?(proposed|accepted|superseded)["']?[ \t]*$/m);
+  const status = statusMatch?.[1] as AdrDocStatus | undefined;
+  if (!status || !ADR_STATUSES.has(status)) return null;
+  const decidedMatch = block.match(/^decided:[ \t]*["']?(\d{4}-\d{2}-\d{2})["']?/m);
+  return decidedMatch?.[1] ? { status, decided: decidedMatch[1] } : { status };
+}
+
 /**
  * The first prose sentence after the H1 title — the one-line description shown
  * on Library ADR cards. Skips the title, ATX headings, and short metadata values
@@ -155,7 +183,7 @@ function deriveExcerpt(markdown: string): string {
   return '';
 }
 
-async function listDocs(docsDir: string): Promise<DocMeta[]> {
+export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   const out: DocMeta[] = [];
   async function walk(dir: string): Promise<void> {
     if (!existsSync(dir)) return;
@@ -165,13 +193,22 @@ async function listDocs(docsDir: string): Promise<DocMeta[]> {
         await walk(full);
       } else if (ent.isFile() && ent.name.endsWith('.md')) {
         const relId = path.relative(docsDir, full).split(path.sep).join('/');
-        const content = stripFrontmatter(await fs.readFile(full, 'utf8'));
-        out.push({
+        const raw = await fs.readFile(full, 'utf8');
+        const content = stripFrontmatter(raw);
+        const group = deriveGroup(relId);
+        const meta: DocMeta = {
           id: relId,
           title: deriveTitle(content, ent.name),
-          group: deriveGroup(relId),
+          group,
           excerpt: deriveExcerpt(content),
-        });
+        };
+        // Only Decisions docs carry a frontmatter status (ADR-0037); surface it for the card chip.
+        const fm = group === 'Decisions' ? parseDocStatus(ent.name, raw) : null;
+        if (fm) {
+          meta.status = fm.status;
+          if (fm.decided) meta.decided = fm.decided;
+        }
+        out.push(meta);
       }
     }
   }
