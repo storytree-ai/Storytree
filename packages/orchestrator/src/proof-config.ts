@@ -200,7 +200,13 @@ const PathWriteScopeConfigSchema = z
   // pure, unit-tested judge.)
   .superRefine((scope, ctx) => {
     for (const key of ["testGlobs", "sourceGlobs"] as const) {
-      scope[key].forEach((glob, index) => {
+      const globs = scope[key];
+      // A missing / non-array glob list is the base schema's error to report — only judge a
+      // well-formed one here, so a malformed scope fails with the base (zod) error and stays a
+      // graceful per-spec skip, never a TypeError thrown out of this refine.
+      if (!Array.isArray(globs)) continue;
+      globs.forEach((glob, index) => {
+        if (typeof glob !== "string") return;
         const issue = scopeGlobBoundIssue(glob);
         if (issue !== null) {
           ctx.addIssue({

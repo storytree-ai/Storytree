@@ -94,6 +94,10 @@ spec-borne-only node with a custom proof command actually exists.
   different check — but it means "in bounds" is not "resolves to real files".
 - The proof-command executable allow-list (decision 4) remains unbuilt; until then, a custom proof
   command's executable is still bounded only by the existing command refines plus PR-diff review.
+- The allowed roots are **storytree's own monorepo layout** (`packages/` / `apps/`). That is correct
+  while *storytree builds itself* (open-questions §8 — the only target today); a future external
+  target repo with a different layout would need the roots made configurable. Recorded as the known
+  assumption, not a silent hardcode.
 
 ## References
 
