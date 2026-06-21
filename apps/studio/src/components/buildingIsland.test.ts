@@ -6,16 +6,19 @@
 // health tree like any island, sitting among the central hubs near `cli` — but WITHOUT its
 // edges drawn, and with the bookshelf icon next to its nameplate.
 //
-// This mode (`?buildingIsland=on`, gear toggle, default OFF) is the OPPOSITE handling of
-// building-tagged stories from the distributed-stamp `buildings` flag: include them in the
-// layout as normal islands, but SUPPRESS only their incident edges from the rendered road
-// lists — never the layout/ranking inputs — and stamp the bookshelf glyph by the nameplate.
+// This mode (`?buildingIsland=on`, gear toggle, DEFAULT ON since 2026-06-22) keeps the
+// building-tagged story in the layout as a real island, SUPPRESSES only its incident edges
+// from the rendered road lists (never the layout/ranking inputs), pins its layout RANK to
+// the foundation row (rank 0, near `cli`) since its edges are hidden anyway, stamps the
+// bookshelf glyph by its nameplate — AND still distributes the bookshelf STAMP onto every
+// consumer (the "this island uses the library" marker, decoupled from the building's own
+// island, owner steer 2026-06-22).
 //
 // Stage-1 red-green of the geometry/behaviour (ADR-0070): the APPEARANCE (the glyph by the
-// plate, where the island lands) is owner-attested.
+// plate, the bigger cards/icons, where the island lands) is owner-attested.
 
 import { describe, it, expect } from 'vitest';
-import { buildWorld, isEdgeless } from './TreeView.js';
+import { buildWorld, isEdgeless, nameplateLayout } from './TreeView.js';
 import type { TreeStory } from '../types';
 
 const cap = (id: string, dependsOn: string[] = []) => ({
@@ -71,14 +74,27 @@ describe('isEdgeless — the predicate', () => {
 
 describe('buildWorld — buildingIsland mode (edgeless on-map island)', () => {
   it('INCLUDES the building story as a normal territory (vs excluded by the distributed flag)', () => {
-    const on = buildWorld(corpus(), { buildingIsland: true });
+    const on = buildWorld(corpus(), { buildingIsland: true, buildings: true });
     const ids = on.territories.map((t) => t.story.id).sort();
     expect(ids).toEqual(['alpha', 'beta', 'cli', 'library']);
     const lib = on.territories.find((t) => t.story.id === 'library')!;
     // it gets a real central tree + capability garden like any island
     expect(lib.caps.map((c) => c.cap.id).sort()).toEqual(['library-a', 'library-b']);
-    // and it carries NO distributed bookshelf STAMP (the real island replaces the stamp)
-    expect(on.territories.every((t) => t.bookshelf === false)).toBe(true);
+    // the building's OWN island never carries a consumer-stamp (it IS the building)
+    expect(lib.bookshelf).toBe(false);
+  });
+
+  it('STILL distributes the bookshelf STAMP onto consumers (coexists with the island, owner steer 2026-06-22)', () => {
+    // Decoupled: the building keeps its island AND its consumers keep the "uses the library"
+    // stamp. `cli` and `alpha` both connect to `library`, so both carry a stamp; `beta` does
+    // not connect to the library (only to alpha), so it carries none.
+    const on = buildWorld(corpus(), { buildingIsland: true, buildings: true });
+    const byId = Object.fromEntries(on.territories.map((t) => [t.story.id, t]));
+    expect(byId['cli']!.bookshelf).toBe(true);
+    expect(byId['alpha']!.bookshelf).toBe(true);
+    expect(byId['beta']!.bookshelf).toBe(false);
+    // a consumer stamp has a placed spot on owned land
+    expect(byId['cli']!.bookshelfSpot).toBeDefined();
   });
 
   it('the distributed-stamp flag (buildings) EXCLUDES the same building story (the opposite handling)', () => {
@@ -105,21 +121,40 @@ describe('buildWorld — buildingIsland mode (edgeless on-map island)', () => {
     expect(roads.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
   });
 
-  it('leaves the RANKING/positions of the non-building islands UNCHANGED by the edge suppression', () => {
-    // Ground truth: the same corpus laid out as a normal island world (no distributed
-    // stamp, no edgeless suppression) — library is a real island and its edges are drawn.
-    const baseline = buildWorld(corpus());
-    const islandMode = buildWorld(corpus(), { buildingIsland: true });
-    // The positions are driven by the FULL dependency graph (library still ranks/positions
-    // everything); only the painted edges change. So every territory — library included —
-    // sits at exactly the same place in both worlds.
-    const pos = (w: ReturnType<typeof buildWorld>) =>
-      Object.fromEntries(w.territories.map((t) => [t.story.id, t.centroid]));
-    expect(pos(islandMode)).toEqual(pos(baseline));
-    // and the scene bounds are identical (layout untouched)
-    expect(islandMode.width).toBe(baseline.width);
-    expect(islandMode.height).toBe(baseline.height);
-    expect(islandMode.offset).toEqual(baseline.offset);
+  it('PINS the edgeless building island to the foundation row (rank 0, near cli) — owner steer 2026-06-22', () => {
+    // The world reads bottom-up: the foundation row sits at the BOTTOM (largest centroid.y;
+    // rowY decreases going up). `cli` has no deps ⇒ rank 0 ⇒ the bottom row. The library
+    // naturally ranks ABOVE cli (cli/alpha depend on it… no — library has no deps, so it is
+    // ALSO rank 0 here). To exercise the override we give the building a dependency so its
+    // NATURAL rank is > 0, then assert the pin drags it back down to the foundation row.
+    const graph: TreeStory[] = [
+      story('base'),
+      story('library', { building: true, dependsOn: ['base'], consumedBy: ['cli', 'alpha'] }),
+      story('cli', { dependsOn: ['library'] }),
+      story('alpha', { dependsOn: ['library'] }),
+      story('beta', { dependsOn: ['alpha'] }),
+    ];
+    const world = buildWorld(graph, { buildingIsland: true });
+    const by = Object.fromEntries(world.territories.map((t) => [t.story.id, t.centroid.y]));
+    // The foundation row is the BOTTOM (largest y). `base` (rank 0) defines it. The library,
+    // though it depends_on `base` (natural rank 1), is PINNED to the SAME foundation row — so
+    // its y sits within the per-row jitter band of `base`, NOT a full row higher. Rows are
+    // separated by RANK_GAP-plus-clearance (≫ the ±15 intra-row jitter), so a generous band
+    // cleanly distinguishes "same row" from "a row up".
+    expect(Math.abs(by['library']! - by['base']!)).toBeLessThan(40);
+    // and a real dependent (beta, the deepest) sits well ABOVE the foundation (much smaller y)
+    expect(by['beta']!).toBeLessThan(by['base']! - 40);
+  });
+
+  it('does NOT pin non-building islands — only the edgeless building rank is overridden', () => {
+    // Flag OFF: with the building a normal island, the override never fires.
+    const off = buildWorld(corpus());
+    const onByRankShape = buildWorld(corpus(), { buildingIsland: true });
+    // beta (the deepest dependent) is the TOP row in both worlds — its rank is never pinned.
+    const topId = (w: ReturnType<typeof buildWorld>) =>
+      [...w.territories].sort((a, b) => a.centroid.y - b.centroid.y)[0]!.story.id;
+    expect(topId(off)).toBe('beta');
+    expect(topId(onByRankShape)).toBe('beta');
   });
 
   it('marks the edgeless territory so the nameplate can carry the bookshelf glyph', () => {
@@ -138,5 +173,28 @@ describe('buildWorld — buildingIsland mode (edgeless on-map island)', () => {
     // no glyph mark, no suppression — its edges are drawn
     expect(off.territories.every((t) => t.buildingGlyph === false)).toBe(true);
     expect((off.lineRoads ?? []).some((e) => e.to === 'cli' && e.from === 'library')).toBe(true);
+  });
+});
+
+describe('nameplateLayout — bigger cards + building landmark (owner ask 2026-06-22)', () => {
+  it('the building-class card is distinctly LARGER than a normal card of the same id', () => {
+    const normal = nameplateLayout('library'.length, false);
+    const building = nameplateLayout('library'.length, true);
+    expect(building.h).toBeGreaterThan(normal.h);
+    expect(building.w).toBeGreaterThan(normal.w);
+  });
+
+  it('the building card reserves a left gutter and a non-trivial leading glyph', () => {
+    const building = nameplateLayout('library'.length, true);
+    // the glyph is seated (a positive leading anchor) and scaled up to read as a marker
+    expect(building.glyphX).toBeGreaterThan(0);
+    expect(building.glyphScale).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it('the normal card is a MODEST bump over the old 30px plate (not a giant)', () => {
+    const normal = nameplateLayout('cli'.length, false);
+    // taller than the old 30 but conservative (≤ a few px), so the dense world is not flooded
+    expect(normal.h).toBeGreaterThan(30);
+    expect(normal.h).toBeLessThanOrEqual(36);
   });
 });

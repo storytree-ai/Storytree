@@ -157,38 +157,23 @@ export const CONTROLS: readonly ControlSpec[] = [
   },
 
   // ---- Panels ----
-  // The building DRAWER (owner ask 2026-06-21): instead of the bottom building legend,
-  // a slim LEFT rail of building icons opens a left drawer that shows the building as a
-  // full island (its tree + capability flora + health hue) and focuses it in the right
-  // panel — restoring the clickable-island signal the distributed bookshelf (ADR-0076)
-  // lost, while keeping the forest clean. Default OFF writes NO param ⇒ today's world is
-  // byte-identical (the bottom building legend stays). `?buildingDrawer=on` flips it on.
-  {
-    kind: 'toggle',
-    key: 'buildingDrawer',
-    label: 'Building drawer',
-    group: GROUP_PANELS,
-    hint: 'Replace the bottom building legend with a left rail + a drawer that opens each building as a full island.',
-    default: false,
-    offToken: 'off',
-    onToken: 'on',
-    offReads: OFF_READS,
-  },
-
-  // The building ISLAND (owner pivot 2026-06-21): instead of the distributed bookshelf stamp
-  // (ADR-0076), render each building-tagged story (today just `library`) as a REAL on-map
-  // island — clickable, with a health tree like any island, ranked/positioned among the
-  // central hubs near `cli` — but with its EDGES suppressed (it's a foundation hub depended
-  // on by ~everything, so its inbound roads would flood the map) and a bookshelf icon by its
-  // nameplate as the marker. Takes precedence over the distributed `buildings` stamp when on.
-  // Default OFF writes NO param ⇒ today's world is byte-identical. `?buildingIsland=on` flips it.
+  // The building ISLAND (owner pivot 2026-06-21, CONVERGED + DEFAULT ON 2026-06-22):
+  // render each building-tagged story (today just `library`) as a REAL on-map island —
+  // clickable, with a health tree like any island, pinned to the ROOT/foundation row near
+  // `cli` (its layout rank is forced to 0 since its edges are suppressed anyway) — but with
+  // its EDGES suppressed (it's a foundation hub depended on by ~everything, so its inbound
+  // roads would flood the map) and a bookshelf glyph by its nameplate as the marker. Its
+  // consumers still carry the distributed bookshelf STAMP, the "this island uses the library"
+  // marker. The owner committed to this model, so it is the DEFAULT — writing NO param shows
+  // the building-island world; `?buildingIsland=off` returns to a plain connected-island world.
+  // (The earlier building DRAWER mode was removed 2026-06-22 — superseded by this.)
   {
     kind: 'toggle',
     key: 'buildingIsland',
     label: 'Building islands',
     group: GROUP_PANELS,
-    hint: 'Show each building (e.g. the library) as a real on-map island with its edges hidden and a bookshelf icon by its name.',
-    default: false,
+    hint: 'Show each building (e.g. the library) as a real on-map root island with its edges hidden and a bookshelf icon by its name; consumers keep a bookshelf stamp.',
+    default: true,
     offToken: 'off',
     onToken: 'on',
     offReads: OFF_READS,

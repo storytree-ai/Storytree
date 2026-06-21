@@ -61,7 +61,6 @@ import {
 } from '../lib/solarLayout.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import { bookshelfConsumers, shelfBooks } from '../lib/buildingLayout.js';
-import { buildingStories, nextDrawerSelection } from '../lib/buildingDrawer.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
@@ -85,7 +84,6 @@ function requireControl(key: string): ControlSpec {
 }
 const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
-const BUILDING_DRAWER_CTL = requireControl('buildingDrawer');
 const BUILDING_ISLAND_CTL = requireControl('buildingIsland');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
@@ -384,6 +382,56 @@ function storyTreeReach(capCount: number): number {
   return 2.72 * crownRadius(capCount) + 18;
 }
 
+/** A nameplate's resolved box + text/glyph anchors (px, plate-local). */
+export interface NameplateLayout {
+  /** Plate width. */
+  w: number;
+  /** Plate height. */
+  h: number;
+  /** Corner radius. */
+  rx: number;
+  /** Baseline y of the id (the bigger top line). */
+  idY: number;
+  /** Baseline y of the sub line. */
+  subY: number;
+  /** Leading bookshelf-glyph anchor (building plates only; ignored otherwise). */
+  glyphX: number;
+  glyphY: number;
+  glyphScale: number;
+}
+
+/**
+ * Nameplate geometry (owner ask 2026-06-22 — bigger name cards + bigger leading bookshelf).
+ * A pure function of the id length and the building flag, so the box and its anchors are
+ * unit-testable (Stage-1 of ADR-0070; the final look is owner-attested). Two sizes:
+ *   • NORMAL — a modest global bump over the old 30px plate (height 33, id ~12px), leaving the
+ *     positioning geometry (still centred on the centroid, drawn below the island) unchanged.
+ *   • BUILDING — a distinctly larger landmark card (taller, wider min, larger id) with a big
+ *     leading bookshelf glyph, so the root library reads as a landmark on the foundation row.
+ * Building plates reserve a left gutter for the glyph and widen to keep the centred id clear
+ * of it.
+ */
+export function nameplateLayout(idLen: number, building: boolean): NameplateLayout {
+  if (building) {
+    const glyphGutter = 30; // left band the enlarged bookshelf occupies
+    const w = Math.max(132, idLen * 8.6 + 36 + glyphGutter);
+    const h = 42;
+    return {
+      w,
+      h,
+      rx: 9,
+      idY: 18,
+      subY: 32,
+      glyphX: 16,
+      glyphY: h - 6,
+      glyphScale: 0.92,
+    };
+  }
+  const w = Math.max(100, idLen * 7.4 + 30);
+  const h = 33;
+  return { w, h, rx: 7, idY: 14, subY: 27, glyphX: 0, glyphY: 0, glyphScale: 1 };
+}
+
 /** ADR-0033 d.3 vocabulary — the one source for every verdict phrase. */
 function verdictPhrase(v: TreeVerdict): string {
   return v.outcome === 'pass' ? '✓ proven' : '✗ last run failed';
@@ -587,16 +635,19 @@ export function buildWorld(
      *  `dag` (default) keeps the bottom-up dependency rows. */
     layoutMode?: LayoutMode;
     /** ADR-0076 §2: distribute stories tagged `render: building` as a BUILDING ICON stamped on
-     *  every island that connects to them (e.g. `library` → a bookshelf on each consumer); the
-     *  building itself drops out of the layout. The DEFAULT since the owner attested it (the
-     *  component passes `readBuildings`, default true / escape `?buildings=off`); `false` here
-     *  is only the bare-call fallback → tagged stories render as normal islands. */
+     *  every island that connects to them (e.g. `library` → a bookshelf on each consumer). The
+     *  DEFAULT since the owner attested it (the component passes `readBuildings`, default true /
+     *  escape `?buildings=off`); `false` here is only the bare-call fallback. In the
+     *  DISTRIBUTED-only world (this on, `buildingIsland` off) the building drops out of the
+     *  layout; in `buildingIsland` mode the building KEEPS its island AND its consumers keep the
+     *  stamp (the two are decoupled, owner steer 2026-06-22). */
     buildings?: boolean;
-    /** Owner pivot 2026-06-21 (`?buildingIsland=on`): render each building-tagged story as a
-     *  REAL on-map island (ranked/positioned like any island, clickable, health tree) but with
-     *  its incident edges SUPPRESSED from the rendered road lists and a bookshelf glyph beside
-     *  its nameplate. TAKES PRECEDENCE over `buildings` when on (no distributed stamps then).
-     *  Default false ⇒ today's world unchanged. */
+    /** Owner pivot 2026-06-21 (DEFAULT ON since 2026-06-22): render each building-tagged story
+     *  as a REAL on-map island (clickable, health tree) PINNED to the foundation row (rank 0,
+     *  near `cli`), with its incident edges SUPPRESSED from the rendered road lists and a
+     *  bookshelf glyph beside its nameplate. Coexists with the distributed `buildings` stamp on
+     *  consumers (decoupled, not precedence). Default false here = the bare-call fallback ⇒ a
+     *  plain connected-island world. */
     buildingIsland?: boolean;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
@@ -605,28 +656,25 @@ export function buildWorld(
   const plantsScatter = opts?.plantsScatter ?? false;
   const layoutMode = opts?.layoutMode ?? 'dag';
   const buildingIsland = opts?.buildingIsland ?? false;
-  // buildingIsland mode TAKES PRECEDENCE over the distributed-stamp `buildings` flag: when
-  // the building is on the map as a real (edgeless) island, it must NOT also be filtered out
-  // and stamped onto consumers. So force `buildings` off in that mode.
-  const buildings = buildingIsland ? false : (opts?.buildings ?? false);
+  const buildings = opts?.buildings ?? false;
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
 
   // Edgeless building-tagged stories (buildingIsland mode): they stay in the LAYOUT (ranked,
   // positioned, gardened) but every edge touching them is dropped from the RENDERED road
-  // lists below. The set is empty unless buildingIsland is on.
+  // lists below, and their layout rank is pinned to the foundation row (see `rankOf`). The
+  // set is empty unless buildingIsland is on.
   const edgelessIds = new Set(
     buildingIsland ? allStories.filter((s) => isEdgeless(s, true)).map((s) => s.id) : [],
   );
   const edgeIsDrawn = (e: { from: string; to: string }): boolean =>
     !edgelessIds.has(e.from) && !edgelessIds.has(e.to);
 
-  // ADR-0076 §2 (distributed-bookshelf model, owner steer 2026-06-20): a story tagged
-  // `render: building` (e.g. `library`) does NOT get its own island. When the flag is on
-  // it's EXCLUDED from the laid-out territories — so its edges never enter the road/rank
-  // graph — and its icon is stamped on every island that CONNECTS to it instead. The
-  // consumer set is computed from the FULL list first (before the building drops out, so its
-  // inbound edges are still visible). Flag off ⇒ no buildings, no consumers, `stories` is the
-  // full list ⇒ today's world unchanged.
+  // ADR-0076 §2 (distributed-bookshelf STAMP, owner steer 2026-06-20): a story tagged
+  // `render: building` (e.g. `library`) has its icon stamped on every island that CONNECTS to
+  // it. Independent of buildingIsland mode — the owner steer (2026-06-22) DECOUPLED the two:
+  // even when the building keeps its own (edgeless) island, its consumers still carry the
+  // "uses the library" stamp. The consumer set is computed from the FULL list (so the
+  // building's inbound edges are visible). `buildings` off ⇒ no consumers, no stamps.
   const buildingIds = new Set(
     buildings ? allStories.filter((s) => s.building === true).map((s) => s.id) : [],
   );
@@ -636,8 +684,13 @@ export function buildWorld(
         buildingIds,
       )
     : EMPTY_ID_SET;
-  const stories = buildingIds.size
-    ? allStories.filter((s) => !buildingIds.has(s.id))
+  // EXCLUDE a building from the laid-out territories ONLY in the DISTRIBUTED-only world
+  // (`buildings` on AND buildingIsland OFF): there it has no island, just the stamps. In
+  // buildingIsland mode the building KEEPS its island (edgeless), so it stays in `stories`.
+  const excludedIds: ReadonlySet<string> =
+    buildingIds.size && !buildingIsland ? buildingIds : EMPTY_ID_SET;
+  const stories = excludedIds.size
+    ? allStories.filter((s) => !excludedIds.has(s.id))
     : allStories;
 
   // Hubs are sized like any other island (owner call 2026-06-19 — "make them like any
@@ -658,7 +711,13 @@ export function buildWorld(
   // bottom-centre and dependents fan upward and outward. Rank rows stack from
   // the bottom; within a row, stories order by the barycenter of their already-
   // placed dependencies (load-bearing count for the foundation row).
-  const ranks = rankStories(stories, depsOf);
+  const naturalRanks = rankStories(stories, depsOf);
+  // Owner steer 2026-06-22: PIN every edgeless (building-class) island to the ROOT/foundation
+  // row (rank 0), decoupled from its dependency depth — its edges are suppressed anyway, so it
+  // need not float up to sit above its dependencies, and the owner expects buildings at the
+  // bottom with `cli`. A no-op when buildingIsland is off (`edgelessIds` is empty).
+  const rankOf = (id: string): number => (edgelessIds.has(id) ? 0 : naturalRanks.get(id) ?? 0);
+  const ranks = new Map<string, number>(stories.map((s) => [s.id, rankOf(s.id)]));
   const loadBearing = descendantCounts(stories, dependentsOf);
   const maxRank = Math.max(0, ...ranks.values());
   const byRank: number[][] = Array.from({ length: maxRank + 1 }, () => []);
@@ -1594,24 +1653,14 @@ function readBuildings(search: string = defaultSearch()): boolean {
   return v !== 'off' && v !== '0' && v !== 'false';
 }
 
-/** `?buildingDrawer=on` (gear toggle, owner ask 2026-06-21) replaces the bottom building
- *  legend with a slim LEFT rail of building icons + a left drawer that opens each building
- *  as a full island (its tree + capability flora + health hue) and focuses it in the right
- *  panel — restoring the clickable-island signal the distributed bookshelf (ADR-0076) lost.
- *  Default OFF (the param is absent ⇒ the bottom legend stays ⇒ byte-identical world).
- *  Gear-panel managed via worldSettings (the single source of truth), so the panel + this
- *  reader never drift; reactive on `search`. */
-function readBuildingDrawer(search: string = defaultSearch()): boolean {
-  return readControlValue(search, BUILDING_DRAWER_CTL) as boolean;
-}
-
-/** `?buildingIsland=on` (gear toggle, owner pivot 2026-06-21) renders each building-tagged
- *  story (today just `library`) as a REAL on-map island — clickable, with a health tree like
- *  any island, ranked/positioned among the central hubs near `cli` — but with its EDGES
- *  suppressed (so its many inbound roads don't flood the map) and a bookshelf icon by its
- *  nameplate. TAKES PRECEDENCE over the distributed `buildings` stamp when on. Default OFF
- *  (the param is absent ⇒ today's world is byte-identical). Gear-panel managed via
- *  worldSettings (the single source of truth), so the panel + this reader never drift;
+/** `buildingIsland` (gear toggle, owner pivot 2026-06-21, DEFAULT ON since 2026-06-22)
+ *  renders each building-tagged story (today just `library`) as a REAL on-map island —
+ *  clickable, with a health tree like any island, pinned to the ROOT/foundation row near
+ *  `cli` — but with its EDGES suppressed (so its many inbound roads don't flood the map) and
+ *  a bookshelf glyph by its nameplate. Its consumers still carry the distributed bookshelf
+ *  STAMP. DEFAULT ON (the param is absent ⇒ the converged building-island world); the escape
+ *  hatch `?buildingIsland=off` returns to a plain connected-island world. Gear-panel managed
+ *  via worldSettings (the single source of truth), so the panel + this reader never drift;
  *  reactive on `search`. */
 function readBuildingIsland(search: string = defaultSearch()): boolean {
   return readControlValue(search, BUILDING_ISLAND_CTL) as boolean;
@@ -1834,27 +1883,16 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
   // component's `stories` state (panel / selection / verdicts) stays clean.
   const layoutMode = useMemo(() => readLayoutMode(search), [search]);
-  // ADR-0076 §2: distribute `render: building` stories (e.g. library) as an icon on every
-  // island that uses them. Default ON since the owner attested it; `?buildings=off` restores
-  // the old library-island world. Reactive on `search` (live, no reload).
+  // ADR-0076 §2: distribute `render: building` stories (e.g. library) as a bookshelf STAMP on
+  // every island that uses them. Default ON since the owner attested it; `?buildings=off`
+  // drops the stamps. In buildingIsland mode (the default) the building keeps its own island
+  // AND its consumers keep the stamp — decoupled in buildWorld. Reactive on `search`.
   const buildings = useMemo(() => readBuildings(search), [search]);
-  // Owner ask 2026-06-21: the building DRAWER. When on, the bottom building legend is
-  // replaced by a left rail + a left drawer that opens each building as a full island.
-  // Reactive on `search` (gear toggle, live, no reload).
-  const buildingDrawer = useMemo(() => readBuildingDrawer(search), [search]);
-  // Owner pivot 2026-06-21: the building ISLAND. When on, building-tagged stories (today
-  // just `library`) render as REAL on-map islands with their edges suppressed and a bookshelf
-  // glyph by the nameplate — the opposite handling of the distributed `buildings` stamp.
-  // Takes precedence over `buildings` (buildWorld forces the stamp off in this mode).
-  // Reactive on `search` (gear toggle, live, no reload).
+  // Owner pivot 2026-06-21 (DEFAULT ON since 2026-06-22): the building ISLAND. Building-tagged
+  // stories (today just `library`) render as REAL on-map islands pinned to the root row, with
+  // their edges suppressed and a bookshelf glyph by the nameplate; their consumers still carry
+  // the distributed bookshelf stamp. Reactive on `search` (gear toggle, live, no reload).
   const buildingIsland = useMemo(() => readBuildingIsland(search), [search]);
-  // Which building's drawer is open (one at a time, ADR-0070 behaviour proven in
-  // buildingDrawer.ts). Cleared when the flag turns off so a stale id can't keep a
-  // hidden drawer mounted.
-  const [openBuilding, setOpenBuilding] = useState<string | null>(null);
-  useEffect(() => {
-    if (!buildingDrawer) setOpenBuilding(null);
-  }, [buildingDrawer]);
   const worldStories = useMemo(() => {
     if (layoutMode !== 'solar' || !stories) return stories;
     const present = new Set(stories.map((s) => s.id));
@@ -2080,23 +2118,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     navigate(treeFocusHref(storyId));
   };
 
-  // The building rail/drawer (owner ask 2026-06-21). The roster is the building-tagged
-  // stories; the open building is the one whose drawer is expanded. Clicking a rail icon
-  // (or an on-island bookshelf stamp) toggles the drawer (one open at a time) AND focuses
-  // the building in the right panel via the SAME selection path — so the building gets its
-  // full island signal back (clickable + health hue) without re-becoming a connected island.
-  const railBuildings = buildingDrawer ? buildingStories(stories) : [];
-  // The building an on-island stamp opens (today's single-building world ⇒ the first roster
-  // entry, `library`); `null` when the drawer is off ⇒ stamps stay non-interactive.
-  const drawerBuildingId = railBuildings[0]?.id ?? null;
-  const openBuildingStory = openBuilding
-    ? railBuildings.find((s) => s.id === openBuilding) ?? null
-    : null;
-  const openBuildingDrawer = (storyId: string): void => {
-    setOpenBuilding((cur) => nextDrawerSelection(cur, storyId));
-    selectStory(storyId, null);
-  };
-
   return (
     <div className="tree-wrap pad">
       <div className="tree-toolbar">
@@ -2298,14 +2319,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   now={now}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
                   onSelect={(capId) => selectStory(t.story.id, capId)}
-                  // When the drawer is on, the on-island bookshelf stamp becomes a SHORTCUT
-                  // into the same drawer-open + focus (owner ask 2026-06-21). Today there is
-                  // exactly one building (`library`), and a consumer carries that one icon, so
-                  // the stamp opens the first roster building. `undefined` when the drawer is
-                  // off ⇒ the stamp stays a plain (non-interactive) decoration.
-                  {...(drawerBuildingId
-                    ? { onOpenBuilding: () => openBuildingDrawer(drawerBuildingId) }
-                    : {})}
                 />
               ))}
             </g>
@@ -2334,27 +2347,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           )}
           {/* The bottom "building legend" (ADR-0076 §2): the on-island building icons →
               their meaning, docked at the foot of the frame. Shown whenever buildings are
-              distributed (the default) AND at least one icon is on the map; `?buildings=off`
-              ⇒ absent. When the building DRAWER is on (owner ask 2026-06-21) it is REPLACED
-              by the left rail + drawer below (the legend's meaning folds into the drawer
-              header), so it drops out here. */}
-          {buildings && !buildingDrawer && world.territories.some((t) => t.bookshelf) && (
-            <BuildingLegend />
-          )}
-          {/* The building DRAWER (owner ask 2026-06-21, behind the gear toggle): a slim LEFT
-              rail of building icons + a left drawer that opens each building as a full island.
-              Default OFF ⇒ this whole block is absent ⇒ byte-identical world. */}
-          {buildingDrawer && railBuildings.length > 0 && (
-            <BuildingDrawerDock
-              buildings={railBuildings}
-              open={openBuilding}
-              openStory={openBuildingStory}
-              hidden={hidden}
-              now={now}
-              onSelect={openBuildingDrawer}
-              onClose={() => setOpenBuilding(null)}
-            />
-          )}
+              distributed (the default) AND at least one bookshelf stamp is on the map;
+              `?buildings=off` ⇒ absent. In buildingIsland mode (the default) the consumers
+              still carry stamps, so the legend stays. */}
+          {buildings && world.territories.some((t) => t.bookshelf) && <BuildingLegend />}
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
@@ -2602,53 +2598,28 @@ function BookshelfGlyph({ seed }: { seed: number }): React.JSX.Element {
 
 /**
  * The library-as-a-building icon (ADR-0076 §2) stamped on an island that CONSUMES the
- * library — a small weathered bookshelf beside the story tree, NOT a replacement for it.
- * The library has no island of its own; its icon is distributed onto every consumer. The
- * wrapping flora group keeps the island clickable; the tooltip names what it means.
+ * library — a small weathered bookshelf beside the story tree, NOT a replacement for it: the
+ * "this island uses the library" marker. In buildingIsland mode (the default since 2026-06-22)
+ * the library ALSO has its own root island, and the stamp coexists with it. The wrapping flora
+ * group keeps the island clickable; the tooltip names what it means.
  * Appearance is owner-attested (ADR-0070) — geometry only here.
  */
 function StoryBookshelf({
   territory: t,
   hidden,
-  onOpen,
 }: {
   territory: Territory;
   hidden: ReadonlySet<string>;
-  /** When the building drawer is on (owner ask 2026-06-21), clicking the stamp opens the
-   *  drawer + focuses the BUILDING (not this consumer island). Absent ⇒ decoration only. */
-  onOpen?: () => void;
 }): React.JSX.Element {
   const story = t.story;
   const st = story.status ?? 'unknown';
   const spot = t.bookshelfSpot ?? t.treeSpot;
-  const interactive = Boolean(onOpen);
   return (
     <g
-      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}${
-        interactive ? ' is-openable' : ''
-      }`}
-      transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(0.84)`}
-      {...(onOpen
-        ? {
-            role: 'button',
-            tabIndex: 0,
-            onClick: (e: React.MouseEvent) => {
-              e.stopPropagation(); // open the building, not the consumer island
-              onOpen();
-            },
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                onOpen();
-              }
-            },
-          }
-        : {})}
+      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}`}
+      transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(1.18)`}
     >
-      <title>
-        {interactive ? `library — used by ${story.id} (open drawer)` : `library — used by ${story.id}`}
-      </title>
+      <title>{`library — used by ${story.id}`}</title>
       <ellipse className="flora-shadow" cx={1} cy={1.6} rx={12.5} ry={3.1} />
       <BookshelfGlyph seed={hash(`${story.id}:shelf`)} />
     </g>
@@ -2690,166 +2661,6 @@ function BuildingLegend(): React.JSX.Element {
         ))}
       </div>
     </div>
-  );
-}
-
-/**
- * The building DRAWER dock (owner ask 2026-06-21, behind the `?buildingDrawer=on` gear
- * toggle). A slim LEFT rail of building icons; clicking one slides out a left drawer that
- * shows that building AS A FULL ISLAND — its story tree, capability garden and HEALTH HUE —
- * by re-running the world layout for the single story (`buildWorld([story], {buildings:
- * false})`) and rendering its one territory through {@link TerritoryFlora}, scaled to fit
- * the drawer's fixed box. This restores the clickable-island signal the distributed
- * bookshelf (ADR-0076) lost, while keeping the forest clean — NOT a revert to an island.
- * One building open at a time (the toggle math is the pure {@link nextDrawerSelection}).
- *
- * APPEARANCE is owner-attested (ADR-0070): this builds the look behind the default-OFF
- * flag; the geometry under it (the single-island layout, the rail roster, the open/close
- * toggle) is proven red-green (buildWorld.test.ts / buildingDrawer.test.ts).
- */
-const BUILDING_NOTE: Record<string, string> = {
-  library: 'the shared library — distributed onto every island that uses it',
-};
-function buildingNote(id: string): string {
-  return BUILDING_NOTE[id] ?? 'a foundation utility, distributed onto every island that uses it';
-}
-
-function BuildingDrawerDock({
-  buildings,
-  open,
-  openStory,
-  hidden,
-  now,
-  onSelect,
-  onClose,
-}: {
-  buildings: TreeStory[];
-  open: string | null;
-  openStory: TreeStory | null;
-  hidden: ReadonlySet<string>;
-  now: Date;
-  onSelect: (storyId: string) => void;
-  onClose: () => void;
-}): React.JSX.Element {
-  return (
-    <div className="building-drawer-dock">
-      <div className="building-rail" role="group" aria-label="buildings">
-        <span className="building-rail-head" aria-hidden="true">
-          bldg
-        </span>
-        {buildings.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={`building-rail-btn${open === s.id ? ' on' : ''}`}
-            aria-pressed={open === s.id}
-            aria-label={`${s.id} — open building`}
-            title={`${s.id} — ${buildingNote(s.id)}`}
-            onClick={() => onSelect(s.id)}
-          >
-            <svg viewBox="-15 -35 30 38" aria-hidden="true">
-              <BookshelfGlyph seed={hash(`${s.id}:rail`)} />
-            </svg>
-          </button>
-        ))}
-      </div>
-      {open && openStory && (
-        <BuildingDrawerPanel story={openStory} hidden={hidden} now={now} onClose={onClose} />
-      )}
-    </div>
-  );
-}
-
-function BuildingDrawerPanel({
-  story,
-  hidden,
-  now,
-  onClose,
-}: {
-  story: TreeStory;
-  hidden: ReadonlySet<string>;
-  now: Date;
-  onClose: () => void;
-}): React.JSX.Element {
-  // Lay the single building out as a normal island (buildings:false ⇒ it is NOT distributed
-  // away). Pure, deterministic, memoised on the story so it doesn't rebuild every tick.
-  const world = useMemo(() => buildWorld([story], { buildings: false }), [story]);
-  const t = world.territories[0];
-  const capCount = story.capabilities.length;
-  return (
-    <aside className="building-drawer" role="region" aria-label={`${story.id} — building`}>
-      <header className="building-drawer-head">
-        <span className="building-drawer-icon" aria-hidden="true">
-          <svg viewBox="-15 -35 30 38">
-            <BookshelfGlyph seed={hash(`${story.id}:drawer`)} />
-          </svg>
-        </span>
-        <span className="building-drawer-titles">
-          <span className="building-drawer-title">{story.id}</span>
-          <span className="building-drawer-note">{buildingNote(story.id)}</span>
-        </span>
-        <button
-          type="button"
-          className="building-drawer-close"
-          aria-label="Close building drawer"
-          title="Close"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </header>
-      <div className="building-drawer-island">
-        {t ? (
-          <svg
-            className="world-scene world-roads"
-            viewBox={`0 0 ${world.width} ${world.height}`}
-            preserveAspectRatio="xMidYMid meet"
-            role="img"
-            aria-label={`${story.id} as an island — ${capCount} capabilities, status ${
-              story.status ?? 'unknown'
-            }`}
-          >
-            <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
-              {/* the organic island land (sand fill), then the extruded hex tiles, then the
-                  flora — the same back-to-front layering as the main scene, for one island. */}
-              <g className="hex-coastland">
-                <g className={`coast-fill-group ${`hex-territory st-${story.status ?? 'unknown'}`}`}>
-                  {t.coastPaths.map((d, i) => (
-                    <path key={`cf${i}`} className="coast-fill" d={d} />
-                  ))}
-                </g>
-              </g>
-              <g className="hex-land">
-                {world.drawTiles.map(({ h }) => {
-                  const c = hexCenter(h);
-                  const key = axialKey(h);
-                  const variant = hash(`tile:${key}`) % 3;
-                  const wheat = t.wheatTiles.has(key);
-                  return (
-                    <g key={key} className={`hex-tile hex-territory st-${story.status ?? 'unknown'}`}>
-                      <path className="hex-side" d={hexPath(c.x, c.y + TILE_DEPTH, HEX_R)} />
-                      <path
-                        className={`hex-top ${wheat ? 'is-wheat' : `v-${variant}`}`}
-                        d={hexPath(c.x, c.y, HEX_R)}
-                      />
-                    </g>
-                  );
-                })}
-              </g>
-              <TerritoryFlora
-                territory={t}
-                className={`hex-territory st-${story.status ?? 'unknown'}`}
-                hidden={hidden}
-                builds={[]}
-                now={now}
-                onHover={() => {}}
-                onSelect={() => {}}
-              />
-            </g>
-          </svg>
-        ) : null}
-      </div>
-    </aside>
   );
 }
 
@@ -3160,7 +2971,6 @@ function TerritoryFlora({
   now,
   onHover,
   onSelect,
-  onOpenBuilding,
 }: {
   territory: Territory;
   className: string;
@@ -3169,13 +2979,11 @@ function TerritoryFlora({
   now: Date;
   onHover: (on: boolean) => void;
   onSelect: (capId: string | null) => void;
-  /** When the building drawer is on (owner ask 2026-06-21), the on-island bookshelf stamp
-   *  opens the drawer + focuses the building. Absent ⇒ the stamp is a plain decoration. */
-  onOpenBuilding?: () => void;
 }): React.JSX.Element {
   const story = t.story;
   const statusKey = story.status ?? 'unknown';
-  const plateW = Math.max(96, story.id.length * 7.2 + 28);
+  // Nameplate box + anchors (owner ask 2026-06-22: bigger cards; building cards are landmarks).
+  const plate = nameplateLayout(story.id.length, t.buildingGlyph);
 
   // Forest clumps: 2–3 small conifers per forest tile — deliberately small so
   // the central story tree is the only thing over ~25px on an island.
@@ -3214,19 +3022,13 @@ function TerritoryFlora({
     y: t.treeSpot.y,
     el: <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />,
   });
-  // ADR-0076 §2: a consumer of the library carries a small bookshelf BESIDE its tree (the
-  // library has no island of its own — its icon is distributed onto every consumer).
+  // ADR-0076 §2: a consumer of the library carries a small bookshelf BESIDE its tree — the
+  // "this island uses the library" marker. In buildingIsland mode (the default) the library
+  // ALSO has its own root island; the stamp and the island coexist (owner steer 2026-06-22).
   if (t.bookshelf && t.bookshelfSpot) {
     drawables.push({
       y: t.bookshelfSpot.y,
-      el: (
-        <StoryBookshelf
-          key="story-bookshelf"
-          territory={t}
-          hidden={hidden}
-          {...(onOpenBuilding ? { onOpen: onOpenBuilding } : {})}
-        />
-      ),
+      el: <StoryBookshelf key="story-bookshelf" territory={t} hidden={hidden} />,
     });
   }
   drawables.sort((a, b) => a.y - b.y);
@@ -3240,26 +3042,29 @@ function TerritoryFlora({
     >
       {drawables.map((d) => d.el)}
 
-      <g className="world-plate" transform={`translate(${t.centroid.x - plateW / 2} ${t.labelY})`}>
+      <g
+        className={`world-plate${t.buildingGlyph ? ' is-building' : ''}`}
+        transform={`translate(${t.centroid.x - plate.w / 2} ${t.labelY})`}
+      >
         <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
-        <rect className="world-plate-bg" width={plateW} height={30} rx={7} />
-        {/* buildingIsland mode (owner pivot 2026-06-21): a small bookshelf glyph WITHIN the
-            nameplate, left of the name, marks this island AS a building (the library) — owner
-            asked for it inside the plate beside the id (either side; left reads as a leading
-            marker). The look (size/placement/side) is owner-attested (ADR-0070). */}
+        <rect className="world-plate-bg" width={plate.w} height={plate.h} rx={plate.rx} />
+        {/* buildingIsland mode (owner pivot 2026-06-21): a bookshelf glyph WITHIN the
+            nameplate, left of the name, marks this island AS a building (the library). Enlarged
+            2026-06-22 (owner ask: bigger cards + icons) and seated as a leading marker on the
+            larger building plate. The look (size/placement/side) is owner-attested (ADR-0070). */}
         {t.buildingGlyph && (
           <g
             className="world-plate-building"
-            transform={`translate(9 23) scale(0.5)`}
+            transform={`translate(${plate.glyphX} ${plate.glyphY}) scale(${plate.glyphScale})`}
             aria-hidden="true"
           >
             <BookshelfGlyph seed={hash(`${story.id}:plate-shelf`)} />
           </g>
         )}
-        <text className="world-plate-id" x={plateW / 2} y={13} textAnchor="middle">
+        <text className="world-plate-id" x={plate.w / 2} y={plate.idY} textAnchor="middle">
           {story.id}
         </text>
-        <text className="world-plate-sub" x={plateW / 2} y={25} textAnchor="middle">
+        <text className="world-plate-sub" x={plate.w / 2} y={plate.subY} textAnchor="middle">
           {story.error
             ? 'story spec error'
             : // No ✓/✗ here — the crown's hue and the signpost carry proof (ADR-0040);

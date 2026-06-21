@@ -31,13 +31,14 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling) + the building-drawer toggle + the
-    // building-island toggle — the dials left after the road routing system was retired,
-    // plus the Panels switches (owner ask 2026-06-21: gear switches, not a URL paste).
-    const expected = ['layout', 'substrate', 'buildingDrawer', 'buildingIsland'];
+    // Layout (DAG vs solar) + Ground (tiling) + the building-island toggle — the dials
+    // left after the road routing system was retired, plus the single Panels switch
+    // (owner ask 2026-06-21: gear switch, not a URL paste). The earlier building-DRAWER
+    // toggle was removed 2026-06-22 (superseded by building islands).
+    const expected = ['layout', 'substrate', 'buildingIsland'];
     expect([...keys].sort()).toEqual([...expected].sort());
-    // The retired river/pond dials AND the retired road-routing dials must be GONE
-    // (genuinely stripped, not shelved — ADR-0073 / ADR-0076).
+    // The retired river/pond dials, road-routing dials AND the removed building-DRAWER
+    // toggle must be GONE (genuinely stripped, not shelved — ADR-0073 / ADR-0076).
     for (const gone of [
       'roads',
       'roadStraighten',
@@ -49,6 +50,7 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
       'meanderAmp',
       'pondMouth',
       'weld',
+      'buildingDrawer',
     ]) {
       expect(keys, `retired control still present: ${gone}`).not.toContain(gone);
     }
@@ -66,8 +68,7 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
-    // The building-drawer toggle lives in its own Panels section (the left-rail /
-    // drawer for the distributed buildings, owner ask 2026-06-21).
+    // The building-island toggle lives in its own Panels section (owner ask 2026-06-21).
     expect(groups.has('Panels')).toBe(true);
     expect(groups.size).toBe(3);
   });
@@ -115,41 +116,18 @@ describe('worldSettings — substrate control (select)', () => {
   });
 });
 
-describe('worldSettings — buildingDrawer toggle (left-rail/drawer, owner ask 2026-06-21)', () => {
-  it('defaults OFF and writing OFF REMOVES the param (byte-identical world)', () => {
-    expect(readControlValue('', ctl('buildingDrawer'))).toBe(false);
-    // turning the default-OFF toggle back off clears it
-    expect(setControlValue('?buildingDrawer=on', ctl('buildingDrawer'), false)).toBe('');
+describe('worldSettings — buildingIsland toggle (edgeless on-map island, DEFAULT ON 2026-06-22)', () => {
+  it('defaults ON and writing ON REMOVES the param (the converged default world)', () => {
+    // The owner committed to building islands, so the toggle is default-ON: an untouched
+    // world (no param) reads as ON, and re-asserting ON clears any leftover param.
+    expect(readControlValue('', ctl('buildingIsland'))).toBe(true);
+    expect(setControlValue('?buildingIsland=off', ctl('buildingIsland'), true)).toBe('');
   });
 
-  it('turning it ON writes buildingDrawer=on, and reads back as true', () => {
-    expect(setControlValue('', ctl('buildingDrawer'), true)).toBe('?buildingDrawer=on');
-    expect(readControlValue('?buildingDrawer=on', ctl('buildingDrawer'))).toBe(true);
-  });
-
-  it('the off-spellings read as OFF', () => {
-    for (const off of ['off', '0', 'false']) {
-      expect(readControlValue(`?buildingDrawer=${off}`, ctl('buildingDrawer'))).toBe(false);
-    }
-  });
-
-  it('preserves UNRELATED params when toggling', () => {
-    const out = setControlValue('?debug=1', ctl('buildingDrawer'), true);
-    expect(out).toContain('debug=1');
-    expect(out).toContain('buildingDrawer=on');
-  });
-});
-
-describe('worldSettings — buildingIsland toggle (edgeless on-map island, owner ask 2026-06-21)', () => {
-  it('defaults OFF and writing OFF REMOVES the param (byte-identical world)', () => {
-    expect(readControlValue('', ctl('buildingIsland'))).toBe(false);
-    // turning the default-OFF toggle back off clears it
-    expect(setControlValue('?buildingIsland=on', ctl('buildingIsland'), false)).toBe('');
-  });
-
-  it('turning it ON writes buildingIsland=on, and reads back as true', () => {
-    expect(setControlValue('', ctl('buildingIsland'), true)).toBe('?buildingIsland=on');
-    expect(readControlValue('?buildingIsland=on', ctl('buildingIsland'))).toBe(true);
+  it('turning it OFF writes buildingIsland=off, and reads back as false (the escape hatch)', () => {
+    // A default-ON toggle writes its OFF token when flipped off; that's the only non-default.
+    expect(setControlValue('', ctl('buildingIsland'), false)).toBe('?buildingIsland=off');
+    expect(readControlValue('?buildingIsland=off', ctl('buildingIsland'))).toBe(false);
   });
 
   it('the off-spellings read as OFF', () => {
@@ -158,10 +136,10 @@ describe('worldSettings — buildingIsland toggle (edgeless on-map island, owner
     }
   });
 
-  it('preserves UNRELATED params when toggling', () => {
-    const out = setControlValue('?debug=1', ctl('buildingIsland'), true);
+  it('preserves UNRELATED params when toggling OFF', () => {
+    const out = setControlValue('?debug=1', ctl('buildingIsland'), false);
     expect(out).toContain('debug=1');
-    expect(out).toContain('buildingIsland=on');
+    expect(out).toContain('buildingIsland=off');
   });
 });
 
@@ -183,7 +161,7 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?substrate=hex&layout=solar&buildingDrawer=on&buildingIsland=on')).toBe('');
+    expect(resetControls('?substrate=hex&layout=solar&buildingIsland=off')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
