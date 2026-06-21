@@ -44,8 +44,6 @@ const ALIVE_STATUSES = STATUS_ORDER.filter((st) => st !== 'unhealthy');
 export interface LegendFacts {
   /** status → instance counts across both tiers ('unknown' = spec error / no status). */
   statusTotals: Map<string, { stories: number; caps: number }>;
-  /** A claimed-but-empty story renders the lone sapling (caps 0, not unhealthy). */
-  saplingPresent: boolean;
   /** Any unit wears healthy — which, post ADR-0040, only a signed pass can paint. */
   anyProven: boolean;
   /** Human-witness signpost states (ADR-0040): blank = the UAT awaits the operator. */
@@ -68,7 +66,6 @@ export function legendFacts(stories: TreeStory[]): LegendFacts {
     cur[tier] += 1;
     statusTotals.set(key, cur);
   };
-  let saplingPresent = false;
   let anyProven = false;
   let signBlank = false;
   let signWitnessedPass = false;
@@ -78,7 +75,6 @@ export function legendFacts(stories: TreeStory[]): LegendFacts {
     const st = s.status ?? 'unknown';
     bump(st, 'stories');
     if (st === 'healthy') anyProven = true;
-    if (s.capabilities.length === 0 && st !== 'unhealthy') saplingPresent = true;
     if (s.uatWitness === 'human') {
       if (!s.verdict) signBlank = true;
       else if (s.verdict.outcome === 'pass') signWitnessedPass = true;
@@ -93,7 +89,6 @@ export function legendFacts(stories: TreeStory[]): LegendFacts {
   }
   return {
     statusTotals,
-    saplingPresent,
     anyProven,
     signBlank,
     signWitnessedPass,
@@ -113,25 +108,8 @@ function TreeIcon({
   form,
 }: {
   status: string;
-  form: 'full' | 'sapling' | 'withered' | 'young';
+  form: 'full' | 'withered' | 'young';
 }): React.JSX.Element {
-  if (form === 'sapling') {
-    return (
-      <svg viewBox="-11 -22 22 26" aria-hidden="true">
-        <g className={`story-tree st-${status}`}>
-          <rect className="story-trunk" x={-1.3} y={-9} width={2.6} height={10} rx={1} />
-          <g className="crown-lo">
-            <circle cx={0} cy={-13} r={6.5} />
-            <circle cx={-3.5} cy={-11} r={3.8} />
-            <circle cx={3.5} cy={-11} r={3.8} />
-          </g>
-          <g className="crown-hi">
-            <circle cx={-1} cy={-14.5} r={3.5} />
-          </g>
-        </g>
-      </svg>
-    );
-  }
   if (form === 'young') {
     // The not-yet-full proposed tree: same viewBox as the full form so the
     // smaller growth stage reads at a glance.
@@ -346,8 +324,10 @@ function Tile({
   );
 }
 
-/** Growth ladder (ADR-0038): proposed = young, mapped/healthy = full, unhealthy = withered. */
-const treeForm = (st: string): 'full' | 'withered' | 'young' =>
+/** Growth ladder (ADR-0038): proposed = young, mapped/healthy = full, unhealthy = withered.
+ *  A zero-capability story is NOT a distinct stage — it takes its status form like any
+ *  other (the sapling state was folded into `young`, owner 2026-06-21). */
+export const treeForm = (st: string): 'full' | 'withered' | 'young' =>
   st === 'unhealthy' ? 'withered' : st === 'proposed' ? 'young' : 'full';
 
 function countNote(tot: { stories: number; caps: number }): string {
@@ -430,7 +410,6 @@ export function WorldLegend({
             <TreeIcon key={st} status={st} form={treeForm(st)} />
           ))}
           {totals('unknown').stories > 0 && <TreeIcon status="unknown" form="full" />}
-          {facts.saplingPresent && <TreeIcon status="proposed" form="sapling" />}
         </>
       ),
     },
@@ -510,13 +489,6 @@ export function WorldLegend({
       {openRow?.key === 'tree' && (
         <div className="legend-drawer" role="region" aria-label="legend — story trees">
           <div className="legend-fan">
-            <Tile
-              icon={<TreeIcon status="proposed" form="sapling" />}
-              label="sapling"
-              note="claimed, nothing mapped yet"
-              absent={!facts.saplingPresent}
-              title="a story with no capabilities (takes its status colour)"
-            />
             {STATUS_ORDER.map((st) => {
               const tot = totals(st);
               const here = tot.stories > 0 || tot.caps > 0;
@@ -553,9 +525,9 @@ export function WorldLegend({
           </div>
           <p className="legend-cap">
             An island is a <strong>story</strong>; the big tree is the story itself — growth and
-            colour carry the lifecycle. A lone sapling = claimed, nothing mapped yet; a young amber
-            tree = <strong>proposed</strong>, still iterating (a story under active build renders
-            here too — live work shows as session wisps, not a hue); a full brown tree ={' '}
+            colour carry the lifecycle. A young amber tree = <strong>proposed</strong>, still
+            iterating (a claimed-but-empty story renders here too, and a story under active build —
+            live work shows as session wisps, not a hue); a full brown tree ={' '}
             <strong>mapped</strong> brownfield — real, not yet proven (an authored “healthy” renders
             here until the gate signs); deep green = <strong>proven</strong>, a signed pass on the
             story's own UAT. Retired stories leave the forest. Click a tile to fade that status

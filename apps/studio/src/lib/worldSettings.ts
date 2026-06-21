@@ -94,6 +94,11 @@ export type ControlValue = number | boolean | string;
 
 const GROUP_GROUND = 'Ground';
 const GROUP_LAYOUT = 'Layout';
+const GROUP_PANELS = 'Panels';
+
+/** Tokens that READ as OFF for a default-OFF toggle (mirrors the historical
+ *  `?buildings=off|0|false` parser spellings). */
+const OFF_READS = ['off', '0', 'false'] as const;
 
 /** substrate aliases, mirroring readSubstrateMode. */
 function normalizeSubstrate(raw: string | null): string {
@@ -149,6 +154,25 @@ export const CONTROLS: readonly ControlSpec[] = [
       { value: 'relaxed-hex', label: 'Relaxed hex' },
     ],
     normalize: normalizeSubstrate,
+  },
+
+  // ---- Panels ----
+  // The building DRAWER (owner ask 2026-06-21): instead of the bottom building legend,
+  // a slim LEFT rail of building icons opens a left drawer that shows the building as a
+  // full island (its tree + capability flora + health hue) and focuses it in the right
+  // panel — restoring the clickable-island signal the distributed bookshelf (ADR-0076)
+  // lost, while keeping the forest clean. Default OFF writes NO param ⇒ today's world is
+  // byte-identical (the bottom building legend stays). `?buildingDrawer=on` flips it on.
+  {
+    kind: 'toggle',
+    key: 'buildingDrawer',
+    label: 'Building drawer',
+    group: GROUP_PANELS,
+    hint: 'Replace the bottom building legend with a left rail + a drawer that opens each building as a full island.',
+    default: false,
+    offToken: 'off',
+    onToken: 'on',
+    offReads: OFF_READS,
   },
 ] as const;
 

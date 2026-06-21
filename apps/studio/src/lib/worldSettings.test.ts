@@ -31,9 +31,10 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling) — the only dials left after the road
-    // routing system was retired.
-    const expected = ['layout', 'substrate'];
+    // Layout (DAG vs solar) + Ground (tiling) + the building-drawer toggle — the dials
+    // left after the road routing system was retired, plus the left-rail/drawer switch
+    // (owner ask 2026-06-21: a gear switch, not a URL paste).
+    const expected = ['layout', 'substrate', 'buildingDrawer'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials AND the retired road-routing dials must be GONE
     // (genuinely stripped, not shelved — ADR-0073 / ADR-0076).
@@ -61,11 +62,14 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Layout and Ground only', () => {
+  it('groups controls under Layout, Ground and Panels', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
-    expect(groups.size).toBe(2);
+    // The building-drawer toggle lives in its own Panels section (the left-rail /
+    // drawer for the distributed buildings, owner ask 2026-06-21).
+    expect(groups.has('Panels')).toBe(true);
+    expect(groups.size).toBe(3);
   });
 
   it('keys are unique', () => {
@@ -111,6 +115,31 @@ describe('worldSettings — substrate control (select)', () => {
   });
 });
 
+describe('worldSettings — buildingDrawer toggle (left-rail/drawer, owner ask 2026-06-21)', () => {
+  it('defaults OFF and writing OFF REMOVES the param (byte-identical world)', () => {
+    expect(readControlValue('', ctl('buildingDrawer'))).toBe(false);
+    // turning the default-OFF toggle back off clears it
+    expect(setControlValue('?buildingDrawer=on', ctl('buildingDrawer'), false)).toBe('');
+  });
+
+  it('turning it ON writes buildingDrawer=on, and reads back as true', () => {
+    expect(setControlValue('', ctl('buildingDrawer'), true)).toBe('?buildingDrawer=on');
+    expect(readControlValue('?buildingDrawer=on', ctl('buildingDrawer'))).toBe(true);
+  });
+
+  it('the off-spellings read as OFF', () => {
+    for (const off of ['off', '0', 'false']) {
+      expect(readControlValue(`?buildingDrawer=${off}`, ctl('buildingDrawer'))).toBe(false);
+    }
+  });
+
+  it('preserves UNRELATED params when toggling', () => {
+    const out = setControlValue('?debug=1', ctl('buildingDrawer'), true);
+    expect(out).toContain('debug=1');
+    expect(out).toContain('buildingDrawer=on');
+  });
+});
+
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
     const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree');
@@ -129,7 +158,7 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?substrate=hex&layout=solar')).toBe('');
+    expect(resetControls('?substrate=hex&layout=solar&buildingDrawer=on')).toBe('');
   });
 
   it('preserves unmanaged params', () => {

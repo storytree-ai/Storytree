@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { WorldLegend, legendFacts } from './WorldLegend';
+import { WorldLegend, legendFacts, treeForm } from './WorldLegend';
 import type { BuildActivity, TreeCapability, TreeStory, WorkStatus } from '../types';
 
 const cap = (
@@ -54,7 +54,8 @@ const buildFor = (unitId: string, at: string): BuildActivity => ({
   at,
 });
 
-/** Today's corpus shape offline: proposed+mapped only, one sapling, no proof hues. */
+/** Today's corpus shape offline: proposed+mapped only (a zero-cap proposed story now
+ *  renders the YOUNG form, the sapling state having been folded into it), no proof hues. */
 const offlineWorld = (): TreeStory[] => [
   story('library', 'mapped', [cap('library-cli', 'mapped'), cap('seed-corpus', 'proposed')]),
   story('drive-machinery', 'proposed', []),
@@ -90,7 +91,9 @@ describe('legendFacts', () => {
     const facts = legendFacts(offlineWorld());
     expect(facts.statusTotals.get('proposed')).toEqual({ stories: 2, caps: 2 });
     expect(facts.statusTotals.get('mapped')).toEqual({ stories: 1, caps: 1 });
-    expect(facts.saplingPresent).toBe(true);
+    // The sapling state was folded into `young` (ADR-0038 / owner 2026-06-21): the legend
+    // no longer surfaces a distinct sapling fact.
+    expect('saplingPresent' in facts).toBe(false);
     // no presented green, no withered, nothing witnessed — offline under-claims
     expect(facts.anyProven).toBe(false);
     expect(facts.anyDeadFlora).toBe(false);
@@ -126,10 +129,14 @@ describe('legendFacts', () => {
     expect(machine.signBlank || machine.signWitnessedPass || machine.signWitnessedFail).toBe(false);
   });
 
-  it('an unhealthy zero-cap story is NOT a sapling (it withers instead)', () => {
-    // retired never reaches the legend — presentStories prunes it (ADR-0038)
-    expect(legendFacts([story('s', 'unhealthy', [])]).saplingPresent).toBe(false);
-    expect(legendFacts([story('s', 'proposed', [])]).saplingPresent).toBe(true);
+  it('a zero-cap story takes its status FORM (young / withered), not a distinct sapling', () => {
+    // The sapling state is gone (owner 2026-06-21): a claimed-but-empty story renders the
+    // SAME growth ladder as any other — proposed ⇒ young, unhealthy ⇒ withered. retired
+    // never reaches the legend (presentStories prunes it, ADR-0038).
+    expect(treeForm('proposed')).toBe('young');
+    expect(treeForm('unhealthy')).toBe('withered');
+    expect(treeForm('mapped')).toBe('full');
+    expect(treeForm('healthy')).toBe('full');
   });
 });
 

@@ -49,9 +49,12 @@ problems (owner feedback, 2026-06-12):
    deleted. Searching/resurrecting retired work is later, data-side work — the frontmatter and
    schema keep the status.
 2. **Growth carries the lifecycle; brown means unproven.** The story tree's FORM now encodes
-   progress and its COLOUR encodes proof: a lone **sapling** = claimed, nothing mapped
-   (unchanged, ADR-0036 d.3); a **young amber tree** = `proposed` (not fully grown — still
-   iterating); a **full brownfield-brown canopy** = `mapped` (the glossary's own word: real,
+   progress and its COLOUR encodes proof: a **young amber tree** = `proposed` (not fully grown —
+   still iterating). A claimed-but-empty story (zero capabilities) renders this SAME young form
+   in its status hue rather than a distinct stage — the **sapling** form (originally ADR-0036
+   d.3, problem 2 above) was folded into `young` (owner 2026-06-21), since it was visually
+   indistinguishable from a zero-cap proposed tree; a **full brownfield-brown canopy** = `mapped`
+   (the glossary's own word: real,
    observationally verified, not yet UAT-proven — was teal); a **full deep-green canopy** =
    `healthy` (proven through the gate); **withered** = `unhealthy` (unchanged).
 3. **`building` wears `proposed` in the world.** A display-level fold (same seam as the prune):

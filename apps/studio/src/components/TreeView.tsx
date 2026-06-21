@@ -7,10 +7,10 @@
 // TERRITORY of extruded hexagonal tiles (one tile quota per capability plus a
 // margin) and grows ONE central story tree — the story itself, crown sized by
 // capability count, GROWTH and foliage carrying the lifecycle (ADR-0038): a
-// lone sapling when nothing is mapped yet, a young amber tree while proposed
-// (building wears proposed too — wisps carry live work), a full brownfield
-// tree when mapped, deep green when healthy, withered to bare branches when
-// unhealthy. Retired units don't render at all (worldStatus.ts). HUE CARRIES
+// young amber tree while proposed or claimed-but-empty (building wears proposed
+// too — wisps carry live work), a full brownfield tree when mapped, deep green
+// when healthy, withered to bare branches when unhealthy. Retired units don't
+// render at all (worldStatus.ts). HUE CARRIES
 // PROOF (ADR-0040): deep green only ever derives from a signed pass in
 // events.verdict — authored status can never paint it — and the crown greens
 // only from the story's OWN UAT verdict, never a child roll-up (ADR-0033
@@ -61,6 +61,7 @@ import {
 } from '../lib/solarLayout.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import { bookshelfConsumers, shelfBooks } from '../lib/buildingLayout.js';
+import { buildingStories, nextDrawerSelection } from '../lib/buildingDrawer.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
@@ -84,6 +85,7 @@ function requireControl(key: string): ControlSpec {
 }
 const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
+const BUILDING_DRAWER_CTL = requireControl('buildingDrawer');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -560,7 +562,7 @@ function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; pat
   return { loops, paths: loops.map(smoothLoopPath) };
 }
 
-function buildWorld(
+export function buildWorld(
   allStories: TreeStory[],
   opts?: {
     plantsScatter?: boolean;
@@ -1544,6 +1546,17 @@ function readBuildings(search: string = defaultSearch()): boolean {
   return v !== 'off' && v !== '0' && v !== 'false';
 }
 
+/** `?buildingDrawer=on` (gear toggle, owner ask 2026-06-21) replaces the bottom building
+ *  legend with a slim LEFT rail of building icons + a left drawer that opens each building
+ *  as a full island (its tree + capability flora + health hue) and focuses it in the right
+ *  panel — restoring the clickable-island signal the distributed bookshelf (ADR-0076) lost.
+ *  Default OFF (the param is absent ⇒ the bottom legend stays ⇒ byte-identical world).
+ *  Gear-panel managed via worldSettings (the single source of truth), so the panel + this
+ *  reader never drift; reactive on `search`. */
+function readBuildingDrawer(search: string = defaultSearch()): boolean {
+  return readControlValue(search, BUILDING_DRAWER_CTL) as boolean;
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar';
@@ -1765,6 +1778,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // island that uses them. Default ON since the owner attested it; `?buildings=off` restores
   // the old library-island world. Reactive on `search` (live, no reload).
   const buildings = useMemo(() => readBuildings(search), [search]);
+  // Owner ask 2026-06-21: the building DRAWER. When on, the bottom building legend is
+  // replaced by a left rail + a left drawer that opens each building as a full island.
+  // Reactive on `search` (gear toggle, live, no reload).
+  const buildingDrawer = useMemo(() => readBuildingDrawer(search), [search]);
+  // Which building's drawer is open (one at a time, ADR-0070 behaviour proven in
+  // buildingDrawer.ts). Cleared when the flag turns off so a stale id can't keep a
+  // hidden drawer mounted.
+  const [openBuilding, setOpenBuilding] = useState<string | null>(null);
+  useEffect(() => {
+    if (!buildingDrawer) setOpenBuilding(null);
+  }, [buildingDrawer]);
   const worldStories = useMemo(() => {
     if (layoutMode !== 'solar' || !stories) return stories;
     const present = new Set(stories.map((s) => s.id));
@@ -1989,6 +2013,23 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     navigate(treeFocusHref(storyId));
   };
 
+  // The building rail/drawer (owner ask 2026-06-21). The roster is the building-tagged
+  // stories; the open building is the one whose drawer is expanded. Clicking a rail icon
+  // (or an on-island bookshelf stamp) toggles the drawer (one open at a time) AND focuses
+  // the building in the right panel via the SAME selection path — so the building gets its
+  // full island signal back (clickable + health hue) without re-becoming a connected island.
+  const railBuildings = buildingDrawer ? buildingStories(stories) : [];
+  // The building an on-island stamp opens (today's single-building world ⇒ the first roster
+  // entry, `library`); `null` when the drawer is off ⇒ stamps stay non-interactive.
+  const drawerBuildingId = railBuildings[0]?.id ?? null;
+  const openBuildingStory = openBuilding
+    ? railBuildings.find((s) => s.id === openBuilding) ?? null
+    : null;
+  const openBuildingDrawer = (storyId: string): void => {
+    setOpenBuilding((cur) => nextDrawerSelection(cur, storyId));
+    selectStory(storyId, null);
+  };
+
   return (
     <div className="tree-wrap pad">
       <div className="tree-toolbar">
@@ -2190,6 +2231,14 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   now={now}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
                   onSelect={(capId) => selectStory(t.story.id, capId)}
+                  // When the drawer is on, the on-island bookshelf stamp becomes a SHORTCUT
+                  // into the same drawer-open + focus (owner ask 2026-06-21). Today there is
+                  // exactly one building (`library`), and a consumer carries that one icon, so
+                  // the stamp opens the first roster building. `undefined` when the drawer is
+                  // off ⇒ the stamp stays a plain (non-interactive) decoration.
+                  {...(drawerBuildingId
+                    ? { onOpenBuilding: () => openBuildingDrawer(drawerBuildingId) }
+                    : {})}
                 />
               ))}
             </g>
@@ -2219,8 +2268,26 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           {/* The bottom "building legend" (ADR-0076 §2): the on-island building icons →
               their meaning, docked at the foot of the frame. Shown whenever buildings are
               distributed (the default) AND at least one icon is on the map; `?buildings=off`
-              ⇒ absent. */}
-          {buildings && world.territories.some((t) => t.bookshelf) && <BuildingLegend />}
+              ⇒ absent. When the building DRAWER is on (owner ask 2026-06-21) it is REPLACED
+              by the left rail + drawer below (the legend's meaning folds into the drawer
+              header), so it drops out here. */}
+          {buildings && !buildingDrawer && world.territories.some((t) => t.bookshelf) && (
+            <BuildingLegend />
+          )}
+          {/* The building DRAWER (owner ask 2026-06-21, behind the gear toggle): a slim LEFT
+              rail of building icons + a left drawer that opens each building as a full island.
+              Default OFF ⇒ this whole block is absent ⇒ byte-identical world. */}
+          {buildingDrawer && railBuildings.length > 0 && (
+            <BuildingDrawerDock
+              buildings={railBuildings}
+              open={openBuilding}
+              openStory={openBuildingStory}
+              hidden={hidden}
+              now={now}
+              onSelect={openBuildingDrawer}
+              onClose={() => setOpenBuilding(null)}
+            />
+          )}
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
@@ -2333,10 +2400,11 @@ function LandingBloom({
 /**
  * The central story tree — the story ITSELF (ADR-0036 d.6b, vocabulary
  * recalibrated by ADR-0038). Crown size grows with capability count; GROWTH
- * and foliage carry the lifecycle: zero capabilities grows only a sapling (the
- * claimed-but-empty authoring signal, ADR-0036 d.3), `proposed` (which
- * `building` wears in the world) grows a not-yet-full young tree, `mapped` is
- * the full brownfield canopy, `healthy` the full green one; `unhealthy`
+ * and foliage carry the lifecycle: `proposed` (which `building` wears in the
+ * world) grows a not-yet-full young tree — as does a claimed-but-empty story
+ * (zero capabilities), which renders the same small form in its status hue
+ * rather than a distinct sapling stage (owner 2026-06-21); `mapped` is the
+ * full brownfield canopy, `healthy` the full green one; `unhealthy`
  * withers it to a sparse drooped crown with bare branches and leaf-fall.
  * Retired stories never reach this component (worldStatus.ts prunes them),
  * and the status arrives PROVEN (provenStatus): a green or withered crown is
@@ -2475,19 +2543,45 @@ function BookshelfGlyph({ seed }: { seed: number }): React.JSX.Element {
 function StoryBookshelf({
   territory: t,
   hidden,
+  onOpen,
 }: {
   territory: Territory;
   hidden: ReadonlySet<string>;
+  /** When the building drawer is on (owner ask 2026-06-21), clicking the stamp opens the
+   *  drawer + focuses the BUILDING (not this consumer island). Absent ⇒ decoration only. */
+  onOpen?: () => void;
 }): React.JSX.Element {
   const story = t.story;
   const st = story.status ?? 'unknown';
   const spot = t.bookshelfSpot ?? t.treeSpot;
+  const interactive = Boolean(onOpen);
   return (
     <g
-      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}`}
+      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}${
+        interactive ? ' is-openable' : ''
+      }`}
       transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(0.84)`}
+      {...(onOpen
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            onClick: (e: React.MouseEvent) => {
+              e.stopPropagation(); // open the building, not the consumer island
+              onOpen();
+            },
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpen();
+              }
+            },
+          }
+        : {})}
     >
-      <title>{`library — used by ${story.id}`}</title>
+      <title>
+        {interactive ? `library — used by ${story.id} (open drawer)` : `library — used by ${story.id}`}
+      </title>
       <ellipse className="flora-shadow" cx={1} cy={1.6} rx={12.5} ry={3.1} />
       <BookshelfGlyph seed={hash(`${story.id}:shelf`)} />
     </g>
@@ -2532,6 +2626,166 @@ function BuildingLegend(): React.JSX.Element {
   );
 }
 
+/**
+ * The building DRAWER dock (owner ask 2026-06-21, behind the `?buildingDrawer=on` gear
+ * toggle). A slim LEFT rail of building icons; clicking one slides out a left drawer that
+ * shows that building AS A FULL ISLAND — its story tree, capability garden and HEALTH HUE —
+ * by re-running the world layout for the single story (`buildWorld([story], {buildings:
+ * false})`) and rendering its one territory through {@link TerritoryFlora}, scaled to fit
+ * the drawer's fixed box. This restores the clickable-island signal the distributed
+ * bookshelf (ADR-0076) lost, while keeping the forest clean — NOT a revert to an island.
+ * One building open at a time (the toggle math is the pure {@link nextDrawerSelection}).
+ *
+ * APPEARANCE is owner-attested (ADR-0070): this builds the look behind the default-OFF
+ * flag; the geometry under it (the single-island layout, the rail roster, the open/close
+ * toggle) is proven red-green (buildWorld.test.ts / buildingDrawer.test.ts).
+ */
+const BUILDING_NOTE: Record<string, string> = {
+  library: 'the shared library — distributed onto every island that uses it',
+};
+function buildingNote(id: string): string {
+  return BUILDING_NOTE[id] ?? 'a foundation utility, distributed onto every island that uses it';
+}
+
+function BuildingDrawerDock({
+  buildings,
+  open,
+  openStory,
+  hidden,
+  now,
+  onSelect,
+  onClose,
+}: {
+  buildings: TreeStory[];
+  open: string | null;
+  openStory: TreeStory | null;
+  hidden: ReadonlySet<string>;
+  now: Date;
+  onSelect: (storyId: string) => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="building-drawer-dock">
+      <div className="building-rail" role="group" aria-label="buildings">
+        <span className="building-rail-head" aria-hidden="true">
+          bldg
+        </span>
+        {buildings.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`building-rail-btn${open === s.id ? ' on' : ''}`}
+            aria-pressed={open === s.id}
+            aria-label={`${s.id} — open building`}
+            title={`${s.id} — ${buildingNote(s.id)}`}
+            onClick={() => onSelect(s.id)}
+          >
+            <svg viewBox="-15 -35 30 38" aria-hidden="true">
+              <BookshelfGlyph seed={hash(`${s.id}:rail`)} />
+            </svg>
+          </button>
+        ))}
+      </div>
+      {open && openStory && (
+        <BuildingDrawerPanel story={openStory} hidden={hidden} now={now} onClose={onClose} />
+      )}
+    </div>
+  );
+}
+
+function BuildingDrawerPanel({
+  story,
+  hidden,
+  now,
+  onClose,
+}: {
+  story: TreeStory;
+  hidden: ReadonlySet<string>;
+  now: Date;
+  onClose: () => void;
+}): React.JSX.Element {
+  // Lay the single building out as a normal island (buildings:false ⇒ it is NOT distributed
+  // away). Pure, deterministic, memoised on the story so it doesn't rebuild every tick.
+  const world = useMemo(() => buildWorld([story], { buildings: false }), [story]);
+  const t = world.territories[0];
+  const capCount = story.capabilities.length;
+  return (
+    <aside className="building-drawer" role="region" aria-label={`${story.id} — building`}>
+      <header className="building-drawer-head">
+        <span className="building-drawer-icon" aria-hidden="true">
+          <svg viewBox="-15 -35 30 38">
+            <BookshelfGlyph seed={hash(`${story.id}:drawer`)} />
+          </svg>
+        </span>
+        <span className="building-drawer-titles">
+          <span className="building-drawer-title">{story.id}</span>
+          <span className="building-drawer-note">{buildingNote(story.id)}</span>
+        </span>
+        <button
+          type="button"
+          className="building-drawer-close"
+          aria-label="Close building drawer"
+          title="Close"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+      <div className="building-drawer-island">
+        {t ? (
+          <svg
+            className="world-scene world-roads"
+            viewBox={`0 0 ${world.width} ${world.height}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={`${story.id} as an island — ${capCount} capabilities, status ${
+              story.status ?? 'unknown'
+            }`}
+          >
+            <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
+              {/* the organic island land (sand fill), then the extruded hex tiles, then the
+                  flora — the same back-to-front layering as the main scene, for one island. */}
+              <g className="hex-coastland">
+                <g className={`coast-fill-group ${`hex-territory st-${story.status ?? 'unknown'}`}`}>
+                  {t.coastPaths.map((d, i) => (
+                    <path key={`cf${i}`} className="coast-fill" d={d} />
+                  ))}
+                </g>
+              </g>
+              <g className="hex-land">
+                {world.drawTiles.map(({ h }) => {
+                  const c = hexCenter(h);
+                  const key = axialKey(h);
+                  const variant = hash(`tile:${key}`) % 3;
+                  const wheat = t.wheatTiles.has(key);
+                  return (
+                    <g key={key} className={`hex-tile hex-territory st-${story.status ?? 'unknown'}`}>
+                      <path className="hex-side" d={hexPath(c.x, c.y + TILE_DEPTH, HEX_R)} />
+                      <path
+                        className={`hex-top ${wheat ? 'is-wheat' : `v-${variant}`}`}
+                        d={hexPath(c.x, c.y, HEX_R)}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+              <TerritoryFlora
+                territory={t}
+                className={`hex-territory st-${story.status ?? 'unknown'}`}
+                hidden={hidden}
+                builds={[]}
+                now={now}
+                onHover={() => {}}
+                onSelect={() => {}}
+              />
+            </g>
+          </svg>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 function StoryTree({
   territory: t,
   hidden,
@@ -2545,14 +2799,15 @@ function StoryTree({
   const st = story.status ?? 'unknown';
   const caps = story.capabilities.length;
   const withered = st === 'unhealthy';
-  const sapling = caps === 0 && !withered;
   // The recently-landed bloom (ADR-0045): only a PASS within the window blooms,
   // and never on a withered crown (the rare authored-unhealthy-over-a-pass
   // disagreement renders the result, not a green announcement).
   const bloom = withered ? null : verdictBloom(story.verdict, now);
-  // Proposed hasn't earned full growth: a young tree, bigger than the
-  // claimed-but-empty sapling, smaller than the mapped/healthy canopy.
-  const young = st === 'proposed' && !sapling;
+  // The not-yet-full form: a small tree in the status hue. `proposed` hasn't earned
+  // full growth, and a claimed-but-empty story (zero capabilities) renders the SAME
+  // small form rather than a distinct sapling stage (owner 2026-06-21 — the sapling
+  // state was visually identical to a zero-cap proposed tree, so it was folded in).
+  const young = !withered && (st === 'proposed' || caps === 0);
   const R = crownRadius(caps) * (young ? 0.62 : 1);
   const cy = -1.65 * R;
   const verdictNote = story.verdict
@@ -2605,24 +2860,10 @@ function StoryTree({
         className="flora-shadow"
         cx={2}
         cy={2}
-        rx={(sapling ? 9 : R * 0.78).toFixed(1)}
-        ry={(sapling ? 2.8 : R * 0.2).toFixed(1)}
+        rx={(R * 0.78).toFixed(1)}
+        ry={(R * 0.2).toFixed(1)}
       />
-      {sapling ? (
-        <>
-          <rect className="story-trunk" x={-1.6} y={-12} width={3.2} height={13} rx={1.4} />
-          <g className="crown-lo">
-            <circle cx={0} cy={-17} r={8.5} />
-            <circle cx={-4.5} cy={-14.5} r={5} />
-            <circle cx={4.5} cy={-14.5} r={5} />
-          </g>
-          <g className="crown-hi">
-            <circle cx={-1.5} cy={-18.5} r={4.6} />
-          </g>
-          <path className="grass-tuft" d="M -10 -1 l -2 -4 M -10 -1 l 0 -5 M -10 -1 l 2 -4" />
-          <path className="grass-tuft" d="M 12 -2 l -2 -4 M 12 -2 l 0 -5 M 12 -2 l 2 -4" />
-        </>
-      ) : withered ? (
+      {withered ? (
         <>
           <path className="story-trunk" d={trunkD} />
           <g className="crown-lo">
@@ -2661,8 +2902,8 @@ function StoryTree({
           unitId={story.id}
           bloom={bloom}
           cx={0}
-          cy={sapling ? -17 : cy}
-          r={sapling ? 13 : R * 1.18}
+          cy={cy}
+          r={R * 1.18}
           kind="crown"
         />
       )}
@@ -2852,6 +3093,7 @@ function TerritoryFlora({
   now,
   onHover,
   onSelect,
+  onOpenBuilding,
 }: {
   territory: Territory;
   className: string;
@@ -2860,6 +3102,9 @@ function TerritoryFlora({
   now: Date;
   onHover: (on: boolean) => void;
   onSelect: (capId: string | null) => void;
+  /** When the building drawer is on (owner ask 2026-06-21), the on-island bookshelf stamp
+   *  opens the drawer + focuses the building. Absent ⇒ the stamp is a plain decoration. */
+  onOpenBuilding?: () => void;
 }): React.JSX.Element {
   const story = t.story;
   const statusKey = story.status ?? 'unknown';
@@ -2907,7 +3152,14 @@ function TerritoryFlora({
   if (t.bookshelf && t.bookshelfSpot) {
     drawables.push({
       y: t.bookshelfSpot.y,
-      el: <StoryBookshelf key="story-bookshelf" territory={t} hidden={hidden} />,
+      el: (
+        <StoryBookshelf
+          key="story-bookshelf"
+          territory={t}
+          hidden={hidden}
+          {...(onOpenBuilding ? { onOpen: onOpenBuilding } : {})}
+        />
+      ),
     });
   }
   drawables.sort((a, b) => a.y - b.y);
