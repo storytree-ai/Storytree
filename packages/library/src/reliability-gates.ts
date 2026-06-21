@@ -135,6 +135,19 @@ function itemKind(item: string, id: string): ReliabilityGateKind {
 }
 
 /**
+ * Pull the declared `proofCommand` from an item: the first backticked span AFTER the `(gate: …)` tag
+ * (the authoring convention — the command is declared right where the gate is). Searching only the
+ * post-tag region is what keeps a backticked TERM in the TITLE (e.g. `InMemoryStore`) from being
+ * mistaken for the command. Falls back to the first backtick span when the gate is untagged.
+ */
+function itemCommand(item: string): string | undefined {
+  const tag = KIND_TAG.exec(item);
+  const region = tag !== null ? item.slice(tag.index + tag[0].length) : item;
+  const cmd = COMMAND.exec(region);
+  return cmd !== null ? cmd[1]!.trim() : undefined;
+}
+
+/**
  * PURE: parse a story's markdown `body` into addressable reliability-gate units (ADR-0085).
  * Each numbered item under `## Reliability Gates` becomes one {@link ReliabilityGate} with a
  * positional, stable id (`<story>#gate-<n>`, 1-based). Positional so the same prose always
@@ -150,12 +163,12 @@ export function parseReliabilityGates(storyId: string, body: string): Reliabilit
   const items = splitItems(section);
   return items.map((item, index) => {
     const id = reliabilityGateId(storyId, index + 1);
-    const command = COMMAND.exec(item);
+    const proofCommand = itemCommand(item);
     return ReliabilityGate.parse({
       id,
       title: itemTitle(item),
       kind: itemKind(item, id),
-      ...(command !== null ? { proofCommand: command[1]!.trim() } : {}),
+      ...(proofCommand !== undefined ? { proofCommand } : {}),
     });
   });
 }

@@ -52,6 +52,20 @@ test("parses each numbered gate: positional id, title, kind, and the backticked 
   assert.equal(gates[1]!.proofCommand, "pnpm --filter @storytree/store test");
 });
 
+test("the proofCommand is read AFTER the kind tag — a backticked term in the TITLE is not mistaken for it", () => {
+  // Regression: storage-protocol's title contains `InMemoryStore`; the command must still be the
+  // backticked command that follows the `(gate: observe)` tag, not the first backtick span overall.
+  const body = [
+    "## Reliability Gates",
+    "",
+    "1. **The seam + its `InMemoryStore` parity are green** _(gate: observe)_ `pnpm --filter @storytree/storage-protocol test`.",
+  ].join("\n");
+  const gates = parseReliabilityGates("storage-protocol", body);
+  assert.equal(gates.length, 1);
+  assert.equal(gates[0]!.kind, "observe");
+  assert.equal(gates[0]!.proofCommand, "pnpm --filter @storytree/storage-protocol test");
+});
+
 test("an untagged gate defaults to `observe` (the conservative brownfield default)", () => {
   const body = "## Reliability Gates\n\n1. **Just observe it** `pnpm test`.\n";
   const gates = parseReliabilityGates("s", body);
