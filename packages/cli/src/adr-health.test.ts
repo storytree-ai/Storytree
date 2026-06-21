@@ -29,6 +29,7 @@ function adr(number: number, status: AdrMeta["status"], edges?: Partial<AdrMeta>
     supersedes: [],
     supersedesInPart: [],
     amends: [],
+    loadBearing: false,
     ...edges,
   };
 }
@@ -114,6 +115,21 @@ test("green-flip: a healthy story on a proposed ADR FAILs; non-healthy stories n
   const building: StoryDecisionsView = { id: "s", status: "building", decisions: [33] };
   assert.equal(levelOf(adrHealth(inputs({ adrs, stories: [healthy] })), "green-flip"), "FAIL");
   assert.equal(levelOf(adrHealth(inputs({ adrs, stories: [building] })), "green-flip"), "PASS");
+});
+
+test("load-bearing-live: a load_bearing ADR must be accepted (proposed/superseded FAIL)", () => {
+  // accepted + load_bearing -> PASS
+  const ok = adrHealth(inputs({ adrs: [adr(19, "accepted", { loadBearing: true })] }));
+  assert.equal(levelOf(ok, "load-bearing-live"), "PASS");
+  // proposed + load_bearing -> FAIL (and it gates)
+  const tooEarly = adrHealth(inputs({ adrs: [adr(86, "proposed", { loadBearing: true })] }));
+  assert.equal(levelOf(tooEarly, "load-bearing-live"), "FAIL");
+  assert.ok(adrGateFailures(tooEarly).some((r) => r.name === "load-bearing-live"));
+  // superseded + load_bearing -> FAIL (a dead ADR can't be current-state)
+  const dead = adrHealth(
+    inputs({ adrs: [adr(14, "superseded", { loadBearing: true }), adr(27, "accepted", { supersedes: [14] })] }),
+  );
+  assert.equal(levelOf(dead, "load-bearing-live"), "FAIL");
 });
 
 test("enforced-by-anchors: a dangling path token WARNs (never FAILs)", () => {

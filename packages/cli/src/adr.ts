@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { parseAdrFrontmatter, type AdrMeta, type AdrStatus } from "./adr-frontmatter.js";
 import type { Envelope } from "./envelope.js";
 
 /**
@@ -42,6 +43,10 @@ export interface AdrCommandOpts {
   title?: string | undefined;
   supersedes?: string | undefined;
   amends?: string | undefined;
+  /** `adr list` filters (ADR-0086). */
+  current?: boolean | undefined;
+  loadBearing?: boolean | undefined;
+  status?: string | undefined;
 }
 
 /** PURE: kebab-case slug from a title (a-z0-9, hyphen-separated), capped so filenames stay sane. */
@@ -242,19 +247,167 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// `storytree adr list` — the SEARCHABLE current-state view (ADR-0086, directive A)
+// ---------------------------------------------------------------------------
+//
+// Replaces the hand-maintained `CLAUDE.md` "Load-bearing ADRs" + "reversals" sections with a query
+// derived from the live frontmatter, so the list can never drift from the files. Two cuts:
+//   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
+//   --load-bearing   only the curated `load_bearing: true` set (the editorial calibrate-to-these list)
+// Outgoing edges (supersedes / supersedes-in-part / amends) and the derived `superseded by` back-edge
+// are shown inline so the reversal story reads off the graph, not off prose. Read-only + offline (it
+// reads docs/decisions on disk) — no DB, no API key.
+
+/** A parsed ADR for the `list` view: frontmatter meta + the H1 title. */
+export interface AdrListing {
+  meta: AdrMeta;
+  title: string;
+}
+
+/** The `adr list` filters; absent = no filter (show everything). */
+export interface AdrListFilter {
+  current?: boolean;
+  loadBearing?: boolean;
+  status?: AdrStatus;
+}
+
+/** PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading. */
+export function extractAdrTitle(content: string): string {
+  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content);
+  return m && m[1] !== undefined ? m[1] : "";
+}
+
+/**
+ * PURE: filter + format the listing rows. Derived `superseded by` back-edges are computed from the
+ * FULL set (before the display filter), so a row's reversal is shown even when the superseding ADR is
+ * filtered out of view. `★` marks a `load_bearing` current-state ADR.
+ */
+export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
+  const supersededBy = new Map<number, number[]>();
+  for (const l of listings) {
+    for (const t of l.meta.supersedes) {
+      const arr = supersededBy.get(t) ?? [];
+      arr.push(l.meta.number);
+      supersededBy.set(t, arr);
+    }
+  }
+  const sorted = [...listings].sort((a, b) => a.meta.number - b.meta.number);
+  const rows: string[] = [];
+  for (const l of sorted) {
+    const m = l.meta;
+    if (filter.current === true && m.status !== "accepted") continue;
+    if (filter.loadBearing === true && !m.loadBearing) continue;
+    if (filter.status !== undefined && m.status !== filter.status) continue;
+    rows.push(`${m.loadBearing ? "★" : " "} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
+    const edges: string[] = [];
+    if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
+    if (m.supersedesInPart.length > 0)
+      edges.push(`supersedes-in-part ${m.supersedesInPart.map(pad).join(", ")}`);
+    if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
+    const back = supersededBy.get(m.number);
+    if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(pad).join(", ")}`);
+    for (const e of edges) rows.push(`            ${e}`);
+  }
+  return rows;
+}
+
+/** Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected. */
+export function loadAdrListings(decisionsDir: string): {
+  listings: AdrListing[];
+  parseErrors: string[];
+} {
+  const listings: AdrListing[] = [];
+  const parseErrors: string[] = [];
+  let files: string[];
+  try {
+    files = readdirSync(decisionsDir).sort();
+  } catch {
+    return { listings, parseErrors };
+  }
+  for (const file of files) {
+    if (!/^\d{4}-.*\.md$/.test(file)) continue;
+    try {
+      const content = readFileSync(path.join(decisionsDir, file), "utf8");
+      listings.push({ meta: parseAdrFrontmatter(file, content), title: extractAdrTitle(content) || file });
+    } catch (err) {
+      parseErrors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+  return { listings, parseErrors };
+}
+
+const STATUS_WORDS: ReadonlySet<string> = new Set(["proposed", "accepted", "superseded"]);
+
+function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Envelope {
+  if (opts.status !== undefined && !STATUS_WORDS.has(opts.status)) {
+    return {
+      ok: false,
+      body: `unknown --status "${opts.status}". use one of: proposed, accepted, superseded.`,
+      next: ["storytree adr list --current", "storytree adr list --load-bearing"],
+    };
+  }
+  const { listings, parseErrors } = loadAdrListings(deps.decisionsDir);
+  if (listings.length === 0) {
+    return {
+      ok: false,
+      body:
+        parseErrors.length > 0
+          ? `no ADRs parsed:\n${parseErrors.join("\n")}`
+          : "no ADRs found in the decisions dir.",
+      next: ['storytree adr new --title "..." --pg'],
+    };
+  }
+  const filter: AdrListFilter = {
+    ...(opts.current === true ? { current: true } : {}),
+    ...(opts.loadBearing === true ? { loadBearing: true } : {}),
+    ...(opts.status !== undefined ? { status: opts.status as AdrStatus } : {}),
+  };
+  const rows = renderAdrList(listings, filter);
+  const cut = opts.loadBearing
+    ? "load-bearing current-state"
+    : opts.current
+      ? "current (accepted, not superseded)"
+      : opts.status !== undefined
+        ? opts.status
+        : "all";
+  const lines = [
+    `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]   ★ = load-bearing`,
+    "",
+    ...(rows.length > 0 ? rows : ["  (none match)"]),
+  ];
+  if (parseErrors.length > 0) {
+    lines.push("", `⚠️  ${parseErrors.length} file(s) failed to parse:`, ...parseErrors.map((e) => `  ${e}`));
+  }
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: [
+      "storytree adr list --load-bearing   (the calibrate-to-these set)",
+      "storytree adr list --current        (every accepted, non-superseded ADR)",
+    ],
+  };
+}
+
 export function adrHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree adr — allocate ADR numbers from the live store so parallel sessions never collide (ADR-0050).",
+      "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
+      "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
       '  storytree adr new --title "..." [--supersedes 42] [--amends 42,43] --pg   reserve + scaffold the file',
       "  storytree adr next --pg                                                  reserve a number only",
       "",
-      "writes need --pg (bring the DB up first: pnpm db:up). Offline both fall back to max+1 with a loud",
-      "warning that the number is NOT reserved — the CI dup-number gate is the backstop for that case.",
+      "`list` is read-only + offline (it reads docs/decisions on disk):",
+      "  --current        every accepted, non-superseded ADR (the derived backbone)",
+      "  --load-bearing   the curated calibrate-to-these set (★, the CLAUDE.md list, now live)",
+      "  --status <s>     filter to proposed | accepted | superseded",
+      "",
+      "writes need --pg (bring the DB up first: pnpm db:up). Offline new/next fall back to max+1 with a",
+      "loud warning that the number is NOT reserved — the CI dup-number gate is the backstop.",
     ].join("\n"),
-    next: ["pnpm db:up", 'storytree adr new --title "..." --pg'],
+    next: ["storytree adr list --load-bearing", 'storytree adr new --title "..." --pg'],
   };
 }
 
@@ -265,11 +418,12 @@ export async function adrCommand(
   deps: AdrCommandDeps,
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return adrHelp();
+  if (sub === "list") return adrList(opts, deps);
   if (sub === "new") return adrNew(opts, deps);
   if (sub === "next") return adrNext(deps);
   return {
     ok: false,
-    body: `unknown adr command "${sub}". try: storytree adr new --title "..." --pg`,
-    next: ['storytree adr new --title "..." --pg', "storytree adr next --pg"],
+    body: `unknown adr command "${sub}". try: storytree adr list  |  storytree adr new --title "..." --pg`,
+    next: ["storytree adr list --load-bearing", 'storytree adr new --title "..." --pg'],
   };
 }

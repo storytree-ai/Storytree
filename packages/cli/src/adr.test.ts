@@ -10,9 +10,13 @@ import {
   parseEdges,
   maxAdrNumber,
   scaffold,
+  extractAdrTitle,
+  renderAdrList,
+  type AdrListing,
   type AdrAllocatorLike,
   type AdrCommandDeps,
 } from "./adr.js";
+import type { AdrMeta } from "./adr-frontmatter.js";
 
 // ---- pure helpers --------------------------------------------------------------------------
 
@@ -57,6 +61,79 @@ test("scaffold emits proposed frontmatter + H1 + sections, with optional edges",
   assert.match(edged, /amends: \[7, 8\]/);
   assert.match(edged, /\*\*Supersedes\*\* ADR-0042/);
   assert.match(edged, /\*\*Amends\*\* ADR-0007, ADR-0008/);
+});
+
+// ---- adr list (the searchable current-state view, ADR-0086) --------------------------------
+
+test("extractAdrTitle pulls the text after `# ADR-NNNN:`; '' when absent", () => {
+  assert.equal(extractAdrTitle("---\nstatus: accepted\n---\n# ADR-0019: Library tier & defer DBOS\n"), "Library tier & defer DBOS");
+  assert.equal(extractAdrTitle("no heading here"), "");
+});
+
+function listing(
+  number: number,
+  status: AdrMeta["status"],
+  title: string,
+  extra?: Partial<AdrMeta>,
+): AdrListing {
+  return {
+    meta: {
+      number,
+      file: `${String(number).padStart(4, "0")}-x.md`,
+      status,
+      supersedes: [],
+      supersedesInPart: [],
+      amends: [],
+      loadBearing: false,
+      ...extra,
+    },
+    title,
+  };
+}
+
+const SAMPLE: AdrListing[] = [
+  listing(11, "accepted", "Own the agent loop", { loadBearing: true }),
+  listing(14, "superseded", "Notice board v1"),
+  listing(19, "accepted", "Library tier & defer DBOS", { loadBearing: true, supersedesInPart: [11] }),
+  listing(27, "accepted", "Supersede the notice board", { supersedes: [14] }),
+  listing(86, "proposed", "ADR lifecycle curation"),
+];
+
+test("renderAdrList default shows every ADR, sorted by number, newest concerns last", () => {
+  const lines = renderAdrList(SAMPLE, {}).join("\n");
+  assert.match(lines, /0011/);
+  assert.match(lines, /0086/);
+  // sorted ascending: 0011 appears before 0086
+  assert.ok(lines.indexOf("0011") < lines.indexOf("0086"));
+});
+
+test("renderAdrList --current keeps only accepted (drops proposed + superseded rows)", () => {
+  const lines = renderAdrList(SAMPLE, { current: true }).join("\n");
+  assert.match(lines, /0011 .*accepted/);
+  assert.match(lines, /0019 .*accepted/);
+  // the superseded + proposed ROWS are gone (0014 may still appear as 0027's `supersedes 0014` edge).
+  assert.doesNotMatch(lines, /0014 .*superseded/);
+  assert.doesNotMatch(lines, /0086 .*proposed/);
+});
+
+test("renderAdrList --load-bearing keeps only the tagged set", () => {
+  const lines = renderAdrList(SAMPLE, { loadBearing: true }).join("\n");
+  assert.match(lines, /0011/);
+  assert.match(lines, /0019/);
+  assert.doesNotMatch(lines, /0027/);
+  assert.doesNotMatch(lines, /0086/);
+});
+
+test("renderAdrList --status filters to an exact status", () => {
+  const lines = renderAdrList(SAMPLE, { status: "superseded" }).join("\n");
+  assert.match(lines, /0014/);
+  assert.doesNotMatch(lines, /0019/);
+});
+
+test("renderAdrList shows outgoing edges and the derived superseded-by back-edge", () => {
+  const lines = renderAdrList(SAMPLE, {}).join("\n");
+  assert.match(lines, /supersedes-in-part 0011/); // 0019's outgoing edge
+  assert.match(lines, /superseded by 0027/); // 0014's derived back-edge
 });
 
 // ---- adr new / next ------------------------------------------------------------------------
@@ -161,6 +238,28 @@ test("adr next --pg reserves a number; offline it only peeks with a warning", as
     assert.equal(peek.ok, false);
     assert.match(peek.body, /0047/);
     assert.match(peek.body, /NOT reserved/);
+  });
+});
+
+test("adr list reads the decisions dir and renders the rows (offline, no allocator)", async () => {
+  await withDecisionsDir(async (dir) => {
+    writeFileSync(
+      path.join(dir, "0019-lib.md"),
+      "---\nstatus: accepted\nload_bearing: true\nsupersedes_in_part: [11]\n---\n# ADR-0019: Library tier\n## Status\naccepted.\n",
+    );
+    writeFileSync(
+      path.join(dir, "0086-x.md"),
+      "---\nstatus: proposed\n---\n# ADR-0086: Lifecycle\n## Status\nproposed.\n",
+    );
+    const all = await adrCommand("list", {}, depsFor(dir, null));
+    assert.equal(all.ok, true);
+    assert.match(all.body, /0019/);
+    assert.match(all.body, /Library tier/);
+    assert.match(all.body, /0086/);
+
+    const lb = await adrCommand("list", { loadBearing: true }, depsFor(dir, null));
+    assert.match(lb.body, /0019/);
+    assert.doesNotMatch(lb.body, /0086/); // proposed, not load-bearing
   });
 });
 

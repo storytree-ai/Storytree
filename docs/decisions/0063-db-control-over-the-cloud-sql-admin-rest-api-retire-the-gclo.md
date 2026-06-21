@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 decided: 2026-06-16
 ---
 # ADR-0063: db-control over the Cloud SQL Admin REST API (retire the gcloud subprocess)
