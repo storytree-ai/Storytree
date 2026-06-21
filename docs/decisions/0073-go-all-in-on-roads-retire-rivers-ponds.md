@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-18
 supersedes_in_part: [72]
 amends: [62]
@@ -8,14 +8,15 @@ amends: [62]
 
 ## Status
 
-proposed — owner steer 2026-06-18, after [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md)
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) —
+owner steer 2026-06-18, after [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md)
 shipped roads as a default-off flag with the river/pond machinery shelved. The owner's exact
 direction: *"go all in on roads — remove the rivers and ponds entirely, make roads the one world, fit
 the cozy Dorfromantik theme, and simplify the gear."* The **direction** (roads is the world; rivers +
 ponds are removed) is the owner's firm call; the **appearance** is owner-attested under
 [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — this ADR records
 the decision and the cut; the Dorfromantik look is judged by the owner's screenshot nod on the hosted
-`#/tree`, at which point the status moves to `accepted`.
+`#/tree` — the owner gave that nod on 2026-06-21, moving the status to `accepted`.
 
 This **supersedes in part [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md)**
 — it keeps that ADR's decisions 1–2 (pivot the edge art element from water to roads; the

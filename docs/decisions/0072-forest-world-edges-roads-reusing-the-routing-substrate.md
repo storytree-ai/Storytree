@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-18
 amends: [62]
 ---
@@ -7,7 +7,7 @@ amends: [62]
 
 ## Status
 
-proposed — owner steer 2026-06-18, following six rounds of river/pond iteration
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md); owner appearance nod given 2026-06-21 per ADR-0070) — owner steer 2026-06-18, following six rounds of river/pond iteration
 (PRs [#204](https://github.com/HuaMick/storytree/pull/204),
 [#207](https://github.com/HuaMick/storytree/pull/207),
 [#209](https://github.com/HuaMick/storytree/pull/209),

@@ -1,18 +1,20 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-16
 ---
 # ADR-0066: Wire the website into the system: a tracked, corpus-grounded story with inner-loop-proven logic
 
 ## Status
 
-proposed — designed 2026-06-16 by the orchestrator session at the owner's request ("the website is
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) —
+designed 2026-06-16 by the orchestrator session at the owner's request ("the website is
 out of date; I wonder if there's a way to wire the website to our system and build it within the inner
 loop"). The owner chose "design it fully (ADR)" over building any one slice first. The **material-routing
 model** (the Decision) is the recommended direction; the **load-bearing boundary call** (§Decision 3 —
-where provable web logic physically lives) is recommended here but surfaced as Open modeling call #1
-for the owner to confirm before the home story (`stories/website`) is authored by the `story-author`
-role. Nothing is built by this ADR; it decides the shape.
+where provable web logic physically lives) was surfaced as Open modeling call #1 and the owner
+**confirmed Option A** (the public site consumes parent-built *artifacts*, never private source) in
+conversation 2026-06-21, so the home story (`stories/website`) can now be authored by the
+`story-author` role. Nothing is built by this ADR; it decides the shape.
 
 **Refined 2026-06-17** — the owner set the **content register** (Open call #6, now RESOLVED): the
 load-bearing facts/claims become **citable library artifacts cited via native library-id references**,
