@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-04
 ---
 
 # ADR-0009: Concurrency, isolation & ID allocation
 
-**Status:** proposed (2026-06-04) — full rationale: v1 ADR-0013/0022/0025/0014.
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0013/0022/0025/0014.
 
 **Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — the DBOS-based isolation/claims here are the deferred path, not the built one).
 

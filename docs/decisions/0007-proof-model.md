@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-04
 ---
 
 # ADR-0007: Proof model
 
-**Status:** proposed (2026-06-04) — full rationale: v1 ADR-0005/0006/0008/0024/0027. **Amended by ADR-0010** (proof table, mock-UAT seam, cold-rebuild).
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0005/0006/0008/0024/0027. **Amended by ADR-0010** (proof table, mock-UAT seam, cold-rebuild).
 
 ## Decision
 

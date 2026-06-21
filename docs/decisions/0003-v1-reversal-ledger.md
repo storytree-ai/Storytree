@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-04
 ---
 
 # ADR-0003: v1→v2 disposition ledger
 
-**Status:** proposed (2026-06-04) — for *why* any call was made, read the cited v1 (Agentic) ADR.
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — for *why* any call was made, read the cited v1 (Agentic) ADR.
 
 The index of where every v1 decision went, so nothing is silently dropped and the settled reversals are not re-litigated. Not a justification doc — a routing table.
 
