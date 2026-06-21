@@ -2770,6 +2770,11 @@ button.legend-tile:hover {
   font-size: 9.5px;
   fill: var(--muted);
 }
+/* buildingIsland mode (owner pivot 2026-06-21): the small bookshelf marker beside a
+   building island's nameplate. Decorative — never intercepts the island's click. */
+.world-plate-building {
+  pointer-events: none;
+}
 
 /* dependency edges */
 .tree-edge {

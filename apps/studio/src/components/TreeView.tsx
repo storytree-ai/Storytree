@@ -86,6 +86,7 @@ function requireControl(key: string): ControlSpec {
 const SUBSTRATE_CTL = requireControl('substrate');
 const LAYOUT_CTL = requireControl('layout');
 const BUILDING_DRAWER_CTL = requireControl('buildingDrawer');
+const BUILDING_ISLAND_CTL = requireControl('buildingIsland');
 
 /** Shared empty id-set (the DAG path passes no hub ids). */
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
@@ -241,6 +242,11 @@ interface Territory {
   /** Where the building icon sits on the island (beside the central tree, on owned land);
    *  present iff {@link bookshelf} is true. */
   bookshelfSpot?: Pt;
+  /** This island IS a building (owner pivot 2026-06-21, `buildingIsland` mode): a
+   *  building-tagged story rendered as a real on-map island with its EDGES suppressed and a
+   *  bookshelf glyph beside its nameplate. True only in `buildingIsland` mode for a tagged
+   *  story; false otherwise (the distributed-stamp world never sets it). */
+  buildingGlyph: boolean;
 }
 
 interface WorldEdge {
@@ -562,6 +568,17 @@ function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; pat
   return { loops, paths: loops.map(smoothLoopPath) };
 }
 
+/**
+ * EDGELESS building island (owner pivot 2026-06-21, `buildingIsland` mode): a building-tagged
+ * story (today just `library`) is laid out as a REAL on-map island — ranked/positioned by its
+ * full dependency relationships like any island — but with NO roads/spokes drawn to it, so its
+ * many inbound edges don't flood the map. A pure predicate so the edge filter below and the
+ * `buildingGlyph` mark stay in lockstep and are unit-testable.
+ */
+export function isEdgeless(story: TreeStory, buildingIsland: boolean): boolean {
+  return buildingIsland && story.building === true;
+}
+
 export function buildWorld(
   allStories: TreeStory[],
   opts?: {
@@ -575,14 +592,33 @@ export function buildWorld(
      *  component passes `readBuildings`, default true / escape `?buildings=off`); `false` here
      *  is only the bare-call fallback → tagged stories render as normal islands. */
     buildings?: boolean;
+    /** Owner pivot 2026-06-21 (`?buildingIsland=on`): render each building-tagged story as a
+     *  REAL on-map island (ranked/positioned like any island, clickable, health tree) but with
+     *  its incident edges SUPPRESSED from the rendered road lists and a bookshelf glyph beside
+     *  its nameplate. TAKES PRECEDENCE over `buildings` when on (no distributed stamps then).
+     *  Default false ⇒ today's world unchanged. */
+    buildingIsland?: boolean;
     /** Ids of the synthetic central hubs in `stories` (solar mode only). */
     hubIds?: ReadonlySet<string>;
   },
 ): HexWorld {
   const plantsScatter = opts?.plantsScatter ?? false;
   const layoutMode = opts?.layoutMode ?? 'dag';
-  const buildings = opts?.buildings ?? false;
+  const buildingIsland = opts?.buildingIsland ?? false;
+  // buildingIsland mode TAKES PRECEDENCE over the distributed-stamp `buildings` flag: when
+  // the building is on the map as a real (edgeless) island, it must NOT also be filtered out
+  // and stamped onto consumers. So force `buildings` off in that mode.
+  const buildings = buildingIsland ? false : (opts?.buildings ?? false);
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
+
+  // Edgeless building-tagged stories (buildingIsland mode): they stay in the LAYOUT (ranked,
+  // positioned, gardened) but every edge touching them is dropped from the RENDERED road
+  // lists below. The set is empty unless buildingIsland is on.
+  const edgelessIds = new Set(
+    buildingIsland ? allStories.filter((s) => isEdgeless(s, true)).map((s) => s.id) : [],
+  );
+  const edgeIsDrawn = (e: { from: string; to: string }): boolean =>
+    !edgelessIds.has(e.from) && !edgelessIds.has(e.to);
 
   // ADR-0076 §2 (distributed-bookshelf model, owner steer 2026-06-20): a story tagged
   // `render: building` (e.g. `library`) does NOT get its own island. When the flag is on
@@ -887,6 +923,10 @@ export function buildWorld(
       labelY,
       bookshelf: carriesBookshelf,
       ...(bookshelfSpot ? { bookshelfSpot } : {}),
+      // buildingIsland mode (owner pivot 2026-06-21): a building-tagged story laid out as a
+      // real on-map island carries the bookshelf glyph by its nameplate (and has its edges
+      // suppressed below). Empty set ⇒ false everywhere when the flag is off.
+      buildingGlyph: edgelessIds.has(story.id),
     };
   });
 
@@ -956,10 +996,14 @@ export function buildWorld(
       })),
     ).map((r) => r.radius);
     // `depends_on` roads: thin, gently-bowed, perimeter-docked lines (the shared helper).
-    const roads = dockedRoads(edgeList, dockById, 0.08);
+    // buildingIsland mode (owner pivot 2026-06-21): drop every road incident to an EDGELESS
+    // building island — it stays positioned (it's still in `edgeList`/the rank graph) but no
+    // road is painted to it, so its many inbound edges don't flood the map.
+    const roads = dockedRoads(edgeList, dockById, 0.08).filter(edgeIsDrawn);
     // provider-side `consumed_by` wiring as straight, low-salience hub spokes.
     const spokeLines: { from: string; to: string; d: string }[] = [];
     for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
+      if (!edgeIsDrawn(e)) continue; // edgeless building island: suppress its spokes too
       const a = dockById.get(e.from);
       const b = dockById.get(e.to);
       if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(a, b, 0) });
@@ -971,7 +1015,11 @@ export function buildWorld(
   // (ADR-0076 — the one road rendering since the river-trail system was retired). Solar
   // draws its own `solar.roads` (above), so this is DAG-only.
   const lineRoads: WorldEdge[] | undefined =
-    layoutMode !== 'solar' ? dockedRoads(edgeList, dockById, 0.08) : undefined;
+    layoutMode !== 'solar'
+      ? // buildingIsland mode (owner pivot 2026-06-21): suppress every road touching an
+        // EDGELESS building island while leaving the layout/ranking untouched (no-op off).
+        dockedRoads(edgeList, dockById, 0.08).filter(edgeIsDrawn)
+      : undefined;
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -1557,6 +1605,18 @@ function readBuildingDrawer(search: string = defaultSearch()): boolean {
   return readControlValue(search, BUILDING_DRAWER_CTL) as boolean;
 }
 
+/** `?buildingIsland=on` (gear toggle, owner pivot 2026-06-21) renders each building-tagged
+ *  story (today just `library`) as a REAL on-map island — clickable, with a health tree like
+ *  any island, ranked/positioned among the central hubs near `cli` — but with its EDGES
+ *  suppressed (so its many inbound roads don't flood the map) and a bookshelf icon by its
+ *  nameplate. TAKES PRECEDENCE over the distributed `buildings` stamp when on. Default OFF
+ *  (the param is absent ⇒ today's world is byte-identical). Gear-panel managed via
+ *  worldSettings (the single source of truth), so the panel + this reader never drift;
+ *  reactive on `search`. */
+function readBuildingIsland(search: string = defaultSearch()): boolean {
+  return readControlValue(search, BUILDING_ISLAND_CTL) as boolean;
+}
+
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
 type LayoutMode = 'dag' | 'solar';
@@ -1782,6 +1842,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // replaced by a left rail + a left drawer that opens each building as a full island.
   // Reactive on `search` (gear toggle, live, no reload).
   const buildingDrawer = useMemo(() => readBuildingDrawer(search), [search]);
+  // Owner pivot 2026-06-21: the building ISLAND. When on, building-tagged stories (today
+  // just `library`) render as REAL on-map islands with their edges suppressed and a bookshelf
+  // glyph by the nameplate — the opposite handling of the distributed `buildings` stamp.
+  // Takes precedence over `buildings` (buildWorld forces the stamp off in this mode).
+  // Reactive on `search` (gear toggle, live, no reload).
+  const buildingIsland = useMemo(() => readBuildingIsland(search), [search]);
   // Which building's drawer is open (one at a time, ADR-0070 behaviour proven in
   // buildingDrawer.ts). Cleared when the flag turns off so a stale id can't keep a
   // hidden drawer mounted.
@@ -1802,10 +1868,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             plantsScatter,
             layoutMode,
             buildings,
+            buildingIsland,
             hubIds: HUB_IDS,
           })
         : null,
-    [worldStories, plantsScatter, layoutMode, buildings],
+    [worldStories, plantsScatter, layoutMode, buildings, buildingIsland],
   );
 
   // The gear panel commits a new search string here: write it into the URL with the
@@ -3176,6 +3243,19 @@ function TerritoryFlora({
       <g className="world-plate" transform={`translate(${t.centroid.x - plateW / 2} ${t.labelY})`}>
         <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
         <rect className="world-plate-bg" width={plateW} height={30} rx={7} />
+        {/* buildingIsland mode (owner pivot 2026-06-21): a small bookshelf glyph beside the
+            nameplate marks this island AS a building (the library). Seated just left of the
+            plate, its base on the plate's vertical centre, scaled down to a marker. The look
+            (size/placement) is owner-attested (ADR-0070). */}
+        {t.buildingGlyph && (
+          <g
+            className="world-plate-building"
+            transform={`translate(-9 22) scale(0.5)`}
+            aria-hidden="true"
+          >
+            <BookshelfGlyph seed={hash(`${story.id}:plate-shelf`)} />
+          </g>
+        )}
         <text className="world-plate-id" x={plateW / 2} y={13} textAnchor="middle">
           {story.id}
         </text>

@@ -174,6 +174,25 @@ export const CONTROLS: readonly ControlSpec[] = [
     onToken: 'on',
     offReads: OFF_READS,
   },
+
+  // The building ISLAND (owner pivot 2026-06-21): instead of the distributed bookshelf stamp
+  // (ADR-0076), render each building-tagged story (today just `library`) as a REAL on-map
+  // island — clickable, with a health tree like any island, ranked/positioned among the
+  // central hubs near `cli` — but with its EDGES suppressed (it's a foundation hub depended
+  // on by ~everything, so its inbound roads would flood the map) and a bookshelf icon by its
+  // nameplate as the marker. Takes precedence over the distributed `buildings` stamp when on.
+  // Default OFF writes NO param ⇒ today's world is byte-identical. `?buildingIsland=on` flips it.
+  {
+    kind: 'toggle',
+    key: 'buildingIsland',
+    label: 'Building islands',
+    group: GROUP_PANELS,
+    hint: 'Show each building (e.g. the library) as a real on-map island with its edges hidden and a bookshelf icon by its name.',
+    default: false,
+    offToken: 'off',
+    onToken: 'on',
+    offReads: OFF_READS,
+  },
 ] as const;
 
 const BY_KEY = new Map<string, ControlSpec>(CONTROLS.map((c) => [c.key, c]));

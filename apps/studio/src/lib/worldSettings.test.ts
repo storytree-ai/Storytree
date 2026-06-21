@@ -31,10 +31,10 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling) + the building-drawer toggle — the dials
-    // left after the road routing system was retired, plus the left-rail/drawer switch
-    // (owner ask 2026-06-21: a gear switch, not a URL paste).
-    const expected = ['layout', 'substrate', 'buildingDrawer'];
+    // Layout (DAG vs solar) + Ground (tiling) + the building-drawer toggle + the
+    // building-island toggle — the dials left after the road routing system was retired,
+    // plus the Panels switches (owner ask 2026-06-21: gear switches, not a URL paste).
+    const expected = ['layout', 'substrate', 'buildingDrawer', 'buildingIsland'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials AND the retired road-routing dials must be GONE
     // (genuinely stripped, not shelved — ADR-0073 / ADR-0076).
@@ -140,6 +140,31 @@ describe('worldSettings — buildingDrawer toggle (left-rail/drawer, owner ask 2
   });
 });
 
+describe('worldSettings — buildingIsland toggle (edgeless on-map island, owner ask 2026-06-21)', () => {
+  it('defaults OFF and writing OFF REMOVES the param (byte-identical world)', () => {
+    expect(readControlValue('', ctl('buildingIsland'))).toBe(false);
+    // turning the default-OFF toggle back off clears it
+    expect(setControlValue('?buildingIsland=on', ctl('buildingIsland'), false)).toBe('');
+  });
+
+  it('turning it ON writes buildingIsland=on, and reads back as true', () => {
+    expect(setControlValue('', ctl('buildingIsland'), true)).toBe('?buildingIsland=on');
+    expect(readControlValue('?buildingIsland=on', ctl('buildingIsland'))).toBe(true);
+  });
+
+  it('the off-spellings read as OFF', () => {
+    for (const off of ['off', '0', 'false']) {
+      expect(readControlValue(`?buildingIsland=${off}`, ctl('buildingIsland'))).toBe(false);
+    }
+  });
+
+  it('preserves UNRELATED params when toggling', () => {
+    const out = setControlValue('?debug=1', ctl('buildingIsland'), true);
+    expect(out).toContain('debug=1');
+    expect(out).toContain('buildingIsland=on');
+  });
+});
+
 describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
   it('orders ?…params before the #/tree hash', () => {
     const url = buildShareUrl('https://x.test/', '?substrate=hex', '#/tree');
@@ -158,7 +183,7 @@ describe('worldSettings — buildShareUrl puts params BEFORE the hash', () => {
 
 describe('worldSettings — resetControls drops every managed param', () => {
   it('returns empty when only managed params were present', () => {
-    expect(resetControls('?substrate=hex&layout=solar&buildingDrawer=on')).toBe('');
+    expect(resetControls('?substrate=hex&layout=solar&buildingDrawer=on&buildingIsland=on')).toBe('');
   });
 
   it('preserves unmanaged params', () => {
