@@ -144,7 +144,10 @@ function itemCommand(item: string): string | undefined {
   const tag = KIND_TAG.exec(item);
   const region = tag !== null ? item.slice(tag.index + tag[0].length) : item;
   const cmd = COMMAND.exec(region);
-  return cmd !== null ? cmd[1]!.trim() : undefined;
+  if (cmd === null) return undefined;
+  // Collapse internal whitespace to single spaces: a command WRAPPED across prose lines (the backtick
+  // span then carries a newline + the next line's indentation) must store/run as one clean command.
+  return cmd[1]!.trim().replace(/\s+/g, " ");
 }
 
 /**

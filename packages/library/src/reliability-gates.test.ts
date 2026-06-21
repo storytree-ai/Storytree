@@ -66,6 +66,17 @@ test("the proofCommand is read AFTER the kind tag — a backticked term in the T
   assert.equal(gates[0]!.proofCommand, "pnpm --filter @storytree/storage-protocol test");
 });
 
+test("a command WRAPPED across prose lines is normalized to one clean command (no embedded newline)", () => {
+  const body = [
+    "## Reliability Gates",
+    "",
+    "1. **The seam parity is green** _(gate: observe)_ `pnpm --filter",
+    "   @storytree/storage-protocol test`.",
+  ].join("\n");
+  const gates = parseReliabilityGates("storage-protocol", body);
+  assert.equal(gates[0]!.proofCommand, "pnpm --filter @storytree/storage-protocol test");
+});
+
 test("an untagged gate defaults to `observe` (the conservative brownfield default)", () => {
   const body = "## Reliability Gates\n\n1. **Just observe it** `pnpm test`.\n";
   const gates = parseReliabilityGates("s", body);
