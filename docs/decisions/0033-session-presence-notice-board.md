@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-11
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-11
 
 ## Status
 
-proposed (2026-06-11). Authored from the owner design conversation of 2026-06-10/11; the owner has
+accepted (2026-06-11; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)). Authored from the owner design conversation of 2026-06-10/11; the owner has
 approved the direction and the rename in conversation — this ADR records it for review. Names the
 **`notice-board`** story (the session-presence coordination story) as the build vehicle; the prior
 holder of that name is renamed **`feedback-graduation`** (see

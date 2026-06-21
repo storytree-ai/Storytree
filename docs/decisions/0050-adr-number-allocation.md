@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-14
 
 ## Status
 
-**proposed** (2026-06-14) — direct owner decision: parallel sessions kept picking the **same ADR
+**accepted** (2026-06-14; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — direct owner decision: parallel sessions kept picking the **same ADR
 number** (0047 was taken twice; 0048 collided across two sessions and had to be renumbered to 0049
 mid-PR). The owner asked for the numbers to "auto-increment from the db." Chosen shape: **a DB
 allocator for proactive prevention PLUS a CI dup-number gate as the guarantee** (the owner picked

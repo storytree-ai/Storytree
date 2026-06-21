@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 amends: [23]
 ---
@@ -7,7 +7,7 @@ amends: [23]
 
 ## Status
 
-proposed (2026-06-14) — owner steer in conversation: *"CLI guidance is the end-state of most prose
+accepted (2026-06-14; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — owner steer in conversation: *"CLI guidance is the end-state of most prose
 where possible, injected on demand like a choose-your-own-adventure story"* — because the more static
 instruction we carry, the less reliably sessions follow it. This generalises
 [ADR-0023](0023-library-cli-choose-your-own-adventure.md) from *"the Library commands pull from the

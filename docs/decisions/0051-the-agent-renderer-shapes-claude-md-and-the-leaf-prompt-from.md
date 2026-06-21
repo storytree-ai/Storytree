@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 amends: [29]
 ---
@@ -7,7 +7,7 @@ amends: [29]
 
 ## Status
 
-proposed — owner steer in conversation 2026-06-14: *"we should be assembling the orchestrator agent
+accepted (flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — owner steer in conversation 2026-06-14: *"we should be assembling the orchestrator agent
 from the library assets, and your CLAUDE.md file should be shaped from the orchestrator agent artifact
 so you get it with every session."* This builds the agent↔runtime binding **[ADR-0029](0029-agents-as-library-artifact-category.md)
 deliberately deferred** ("a later build may have `storytree agents <name>` read its role's `agent`

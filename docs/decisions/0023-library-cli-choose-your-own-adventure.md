@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-08
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-08
 
 ## Status
 
-proposed (2026-06-08) — realises [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)'s
+accepted (2026-06-08; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — realises [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)'s
 pull-based, just-in-time context as a concrete **agent interface**; operationalises the Library tier
 ([ADR-0017](0017-cross-cutting-knowledge-tier.md) / [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) /
 [ADR-0019](0019-library-tier-name-and-defer-dbos.md)) over the built `packages/store`; informed by

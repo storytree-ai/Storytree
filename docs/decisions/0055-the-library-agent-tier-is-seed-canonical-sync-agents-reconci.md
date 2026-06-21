@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-14
 amends: [23]
 ---
@@ -7,7 +7,7 @@ amends: [23]
 
 ## Status
 
-proposed (2026-06-14) — owner steer in conversation: after a one-off reconciliation of the live
+accepted (2026-06-14; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — owner steer in conversation: after a one-off reconciliation of the live
 `agent` tier to the seed, *"add a reusable safeguard so this can't silently drift again."* Closes the
 open item [ADR-0053](0053-cli-builds-its-guidance-prose-from-the-library.md) flagged ("the
 seed↔live reconciliation are owner-held"). **Amends** [ADR-0023](0023-library-cli-choose-your-own-adventure.md):

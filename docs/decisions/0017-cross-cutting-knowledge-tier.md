@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-07
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-07
 
 ## Status
 
-proposed (2026-06-07) — **resolves** `open-questions.md` §9 (cross-cutting knowledge /
+accepted (2026-06-07; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — **resolves** `open-questions.md` §9 (cross-cutting knowledge /
 shared-content tier); builds on [ADR-0013](0013-structured-corpus-markdown-as-view.md) (structured
 corpus) and [ADR-0016](0016-knowledge-code-binding-and-staleness.md) (binding/staleness);
 **corrects** [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md)'s "corpus → git" claim.

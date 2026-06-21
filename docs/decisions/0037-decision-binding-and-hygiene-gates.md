@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-12
 ---
 
@@ -7,7 +7,7 @@ decided: 2026-06-12
 
 ## Status
 
-proposed (2026-06-12) — authored from the owner direction call of 2026-06-12 ("proceed with the
+accepted (2026-06-12; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — authored from the owner direction call of 2026-06-12 ("proceed with the
 ADR updates and then orchestration"). **Resolves and retires** the open-question
 `oq-artifact-code-backing` (owner studio comment: **"yes go with B"**) — the fourth application of
 [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) §6's lifecycle (*record the decision in
