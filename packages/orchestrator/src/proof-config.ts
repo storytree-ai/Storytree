@@ -142,8 +142,10 @@ export interface RealProofConfig {
  * Trust note (ADR-0057): moving the DECLARATION site into the spec does NOT widen what a leaf may
  * write — the scope is still enforced spine-side by the phase wall and the SDK PreToolUse hook
  * (`phase-scoped-write-wall`); only where the globs are written down moves. Bounding an
- * over-declared spec scope (vs the registry status quo of PR-diff review) is a deliberately deferred
- * owner call — see ADR-0057's escalation note.
+ * over-declared spec scope is now a STRUCTURAL bound (ADR-0087), not PR-diff review: the
+ * {@link scopeGlobBoundIssue} refine on {@link PathWriteScopeConfigSchema} refuses any glob that
+ * reaches outside a single concrete package/app, so a self-registered node can never declare a
+ * repo-wide scope in the first place.
  */
 const ShellCommandSchema = z
   .object({
@@ -153,12 +155,63 @@ const ShellCommandSchema = z
   })
   .strict();
 
+/**
+ * ADR-0087: the STRUCTURAL bound on one spec-borne write-scope glob. A self-registered node writes
+ * its own `sourceGlobs`/`testGlobs` (ADR-0057), so the over-declaration the registry status quo left
+ * to **PR-diff review** is instead refused **here, by construction** — a self-registered node can
+ * never declare a scope reaching outside a single, concrete package/app.
+ *
+ * PURE + shape-only (no filesystem): it judges the glob STRING, never whether the package exists, so
+ * it is independently unit-testable and never couples the parser to disk (the dissolved `packages/core`
+ * specs still parse — existence is a separate drift concern). A glob is IN BOUNDS iff it is a
+ * repo-relative POSIX path whose first two segments are a concrete code root (`packages` | `apps`)
+ * then a concrete package/app name (no glob metacharacter), with no `..` escape. Returns a
+ * human-readable reason when the glob is OUT of bounds, else null.
+ */
+export function scopeGlobBoundIssue(glob: string): string | null {
+  if (glob.startsWith("/") || /^[A-Za-z]:/.test(glob)) {
+    return `must be a repo-relative path, not absolute ("${glob}")`;
+  }
+  const segments = glob.split("/");
+  if (segments.includes("..")) {
+    return `must not escape its package with a ".." segment ("${glob}")`;
+  }
+  const root = segments[0];
+  const pkg = segments[1];
+  if (root !== "packages" && root !== "apps") {
+    return `must be rooted under "packages/" or "apps/" — a bare repo-wide glob like "**/*" is refused ("${glob}")`;
+  }
+  if (pkg === undefined || pkg === "" || /[*?[\]{}]/.test(pkg)) {
+    return `must name ONE concrete package/app after "${root}/" — a wildcard package segment spans the whole repo ("${glob}")`;
+  }
+  return null;
+}
+
 const PathWriteScopeConfigSchema = z
   .object({
     testGlobs: z.array(z.string().min(1)).min(1),
     sourceGlobs: z.array(z.string().min(1)).min(1),
   })
-  .strict();
+  .strict()
+  // ADR-0087: every declared write-scope glob (test AND source) must stay within ONE concrete
+  // package/app — the structural bound that replaces PR-diff review as the control on a
+  // self-registered node's scope. The phase wall still ENFORCES the scope spine-side; this just
+  // refuses an over-broad DECLARATION before it can ever resolve. ({@link scopeGlobBoundIssue} is the
+  // pure, unit-tested judge.)
+  .superRefine((scope, ctx) => {
+    for (const key of ["testGlobs", "sourceGlobs"] as const) {
+      scope[key].forEach((glob, index) => {
+        const issue = scopeGlobBoundIssue(glob);
+        if (issue !== null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key, index],
+            message: `over-broad scope glob — ${issue} (ADR-0087: a spec-borne write scope must stay within a single package/app, not bounded by PR-diff review).`,
+          });
+        }
+      });
+    }
+  });
 
 const RealProofConfigSchema = z
   .object({

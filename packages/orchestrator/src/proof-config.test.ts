@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseNodeBuildConfig, NodeBuildConfigSchema } from "./proof-config.js";
+import {
+  parseNodeBuildConfig,
+  NodeBuildConfigSchema,
+  scopeGlobBoundIssue,
+} from "./proof-config.js";
 
 /**
  * ADR-0057 keystone, contract 1 (`spec-proof-block-parses`): the `proof:` block schema reads +
@@ -71,8 +75,11 @@ test("a no-install block parses with install/typecheck/cwd keys ABSENT (the exac
 
 test("a block carrying only command+scope (no real arm) parses — dry-run/live-smoke buildable only", () => {
   const cfg = parseNodeBuildConfig({
-    command: { file: "pnpm", args: ["-r", "test"] },
-    scope: { testGlobs: ["packages/*/src/**/*.test.ts"], sourceGlobs: ["packages/*/src/**/*.ts"] },
+    command: { file: "pnpm", args: ["--filter", "@storytree/orchestrator", "test"] },
+    scope: {
+      testGlobs: ["packages/orchestrator/src/**/*.test.ts"],
+      sourceGlobs: ["packages/orchestrator/src/**/*.ts"],
+    },
   });
   assert.equal(cfg.real, undefined);
   assert.equal("real" in cfg, false);
@@ -500,4 +507,98 @@ test("ADR-0064 §2 — an empty addDeps entry is LOUD (.min(1))", () => {
       real: { ...ADD_DEPS_BLOCK.real, addDeps: [""] },
     }),
   );
+});
+
+// ── ADR-0087: the structural bound on a spec-borne write scope ────────────────────────────────────
+// A self-registered node writes its own scope globs (ADR-0057). Instead of leaving an over-declared
+// scope to PR-diff review (the registry status quo), the schema refuses — by construction — any glob
+// reaching outside ONE concrete package/app. The pure judge is unit-tested directly; the refine wiring
+// is proven through `parseNodeBuildConfig`.
+
+/** A well-formed block whose outer + real scopes can be overridden per-case. */
+const SCOPED = (testGlobs: string[], sourceGlobs: string[]) => ({
+  command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  scope: { testGlobs, sourceGlobs },
+  real: {
+    testFile: "packages/core/src/widget.test.ts",
+    sourceFile: "packages/core/src/widget.ts",
+    scope: {
+      testGlobs: ["packages/core/src/widget.test.ts"],
+      sourceGlobs: ["packages/core/src/widget.ts"],
+    },
+  },
+});
+
+test("ADR-0087 — scopeGlobBoundIssue: a concrete packages/<pkg>/ glob is in bounds (null)", () => {
+  assert.equal(scopeGlobBoundIssue("packages/core/src/**/*.ts"), null);
+  assert.equal(scopeGlobBoundIssue("packages/orchestrator/src/proof/anchor.ts"), null);
+  assert.equal(scopeGlobBoundIssue("apps/studio/src/**/*.tsx"), null);
+});
+
+test("ADR-0087 — scopeGlobBoundIssue: out-of-bounds globs each return a reason", () => {
+  // a bare repo-wide glob — the case the owner named explicitly
+  assert.match(scopeGlobBoundIssue("**/*") ?? "", /rooted under/);
+  assert.match(scopeGlobBoundIssue("**/*.ts") ?? "", /rooted under/);
+  // not anchored to a known code root
+  assert.match(scopeGlobBoundIssue("src/**/*.ts") ?? "", /rooted under/);
+  assert.match(scopeGlobBoundIssue("docs/**/*.md") ?? "", /rooted under/);
+  // wildcard package segment — spans the whole monorepo
+  assert.match(scopeGlobBoundIssue("packages/*/src/**/*.ts") ?? "", /concrete package/);
+  assert.match(scopeGlobBoundIssue("apps/**/*.ts") ?? "", /concrete package/);
+  // upward escape
+  assert.match(scopeGlobBoundIssue("../../etc/passwd") ?? "", /escape/);
+  assert.match(scopeGlobBoundIssue("packages/core/../store/src/x.ts") ?? "", /escape/);
+  // absolute paths
+  assert.match(scopeGlobBoundIssue("/etc/passwd") ?? "", /absolute/);
+  assert.match(scopeGlobBoundIssue("C:/Windows/system32") ?? "", /absolute/);
+});
+
+test("ADR-0087 — parse: a bare **/* sourceGlob is LOUD (over-broad self-registered scope)", () => {
+  assert.throws(
+    () => parseNodeBuildConfig(SCOPED(["packages/core/src/widget.test.ts"], ["**/*"])),
+    /over-broad scope glob/,
+  );
+});
+
+test("ADR-0087 — parse: a wildcard-package glob is LOUD (must name one concrete package)", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig(
+        SCOPED(["packages/*/src/**/*.test.ts"], ["packages/*/src/**/*.ts"]),
+      ),
+    /over-broad scope glob/,
+  );
+});
+
+test("ADR-0087 — parse: the bound applies to testGlobs, not only sourceGlobs", () => {
+  assert.throws(
+    () => parseNodeBuildConfig(SCOPED(["**/*.test.ts"], ["packages/core/src/widget.ts"])),
+    /over-broad scope glob/,
+  );
+});
+
+test("ADR-0087 — parse: the bound also walls the inner real.scope", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...SCOPED(["packages/core/src/widget.test.ts"], ["packages/core/src/widget.ts"]),
+        real: {
+          testFile: "packages/core/src/widget.test.ts",
+          sourceFile: "packages/core/src/widget.ts",
+          // a `..` escape in the REAL arm's source scope must be refused too
+          scope: {
+            testGlobs: ["packages/core/src/widget.test.ts"],
+            sourceGlobs: ["packages/core/../store/src/x.ts"],
+          },
+        },
+      }),
+    /over-broad scope glob/,
+  );
+});
+
+test("ADR-0087 — parse: a fully concrete-package scope is ACCEPTED (no false positive)", () => {
+  const cfg = parseNodeBuildConfig(
+    SCOPED(["packages/core/src/**/*.test.ts"], ["packages/core/src/**/*.ts"]),
+  );
+  assert.deepEqual(cfg.scope.sourceGlobs, ["packages/core/src/**/*.ts"]);
 });

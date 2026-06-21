@@ -66,18 +66,19 @@ scope is still enforced spine-side by `phase-scoped-write-wall` and the SDK `Pre
 the *declaration site* moves. The fail-closed default (a node with no `proof:` block is not
 buildable) is preserved — silence is never a green light.
 
-> **Open owner call (surfaced, not decided) — bounding an over-declared spec scope.** Moving the
-> declaration site into the spec means a node author writes its own `sourceGlobs`. Enforcement is
-> unchanged (the phase predicate still walls every write; one build = one unitId = one spec; a leaf
-> can never write a test in IMPLEMENT or author the verdict), and over-declaration is bounded by the
-> SAME control the registry always had: PR-diff review on the landing rail (ADR-0057 point 4). For
-> the 7 migrated nodes the parity guard (contract 4) is the bound. A *new* spec-borne-only node has
-> no registry twin to diff against — so whether a self-registered node's scope needs a STRUCTURAL
-> bound (e.g. a lint that a `sourceGlobs` entry stays within the node's own package, rejecting a bare
-> `**/*`) or whether PR review of the spec diff is the accepted control is a deliberate **owner
-> decision**, the same family as the deferred approval-gated-trunk question. It is NOT load-bearing
-> for this keystone (which ships matching the registry status quo); it is the gating call for the
-> FIRST spec-borne-only node (expansion B/C territory) and should be raised before that lands.
+> **Owner call — RESOLVED (ADR-0087, 2026-06-21): bound an over-declared spec scope STRUCTURALLY.**
+> Moving the declaration site into the spec means a node author writes its own `sourceGlobs`.
+> Enforcement is unchanged (the phase predicate still walls every write; one build = one unitId = one
+> spec; a leaf can never write a test in IMPLEMENT or author the verdict). The remaining question —
+> whether a *new* spec-borne-only node (no registry twin to diff against) needs a STRUCTURAL bound on
+> its self-declared scope, or whether PR-diff review is the accepted control — was the live OQ
+> `oq-structural-bounds-on-spec-borne-proof-declarations`. The owner chose the **structural bound**
+> (Option B): every write-scope glob must stay within one concrete `packages/<pkg>/` or `apps/<app>/`
+> (no bare `**/*`, no wildcard package segment, no `..` escape, no absolute path), enforced as a
+> fail-loud refine on `PathWriteScopeConfigSchema` (`scopeGlobBoundIssue`) so an over-broad scope can
+> never resolve. See [ADR-0087](../../docs/decisions/0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md).
+> The companion proof-command executable allow-list (the OQ's second sub-bound) is a named follow-on,
+> decided-in-principle but not yet built.
 
 ## Integration test
 
