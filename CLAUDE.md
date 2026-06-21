@@ -14,28 +14,22 @@ A v2 rebuild of the AgenticEngineering project: a multi-agent system that grows 
 - The V1 Rust repo is vendored **read-only** at `legacy/Agentic/` (a git submodule) — reference only,
   see "Legacy" below.
 
-## ⚠️ Current state — READ THE REVERSALS FIRST
+## ⚠️ Current state — calibrate to the live decision log
 
-Much of `README.md` / `.env.example` / `infra/` prose and the older ADRs (0001–0009) describe a
-**pre-reversal world**. Six reversals are the current truth; calibrate everything to these:
+`README.md` / `.env.example` / `infra/` prose and the **older** accepted ADRs describe a pre-reversal
+world — and an `accepted` ADR can have a body that is partly overtaken while it stays green (the
+canonical trap: ADR-0011 §5 "DBOS/Postgres durable execution stands" is dead, overtaken by ADR-0019;
+**do not** revert wording toward "DBOS stands"). Don't hand-track this — **query the live decision
+log:** `storytree adr list --load-bearing` (★ the curated calibrate-to-these set, ADR-0086) and
+`storytree adr list --current` (every accepted, non-superseded ADR, with its reversal edges printed
+inline). The list is derived from `docs/decisions/` on disk, so it can never drift; it is **no longer
+hand-maintained here**.
 
-1. **pi is GONE** (ADR-0011). We **own the agent loop** on the raw Anthropic Messages API
-   (`@anthropic-ai/sdk`, Anthropic-only for now). `packages/pi-adapter` is removed; `packages/agent`
-   is the loop's home — but see reversal 6 for which executor is *live*.
-2. **DBOS is DEFERRED** (ADR-0019, reaffirmed ADR-0020). The store is a **plain typed `node-pg`
-   Postgres connection** — no DBOS, no durable workflows yet. DBOS stays a *named, reserved* future
-   target. **Trap:** ADR-0011 §5 "DBOS/Postgres durable execution stands" (2026-06-06) is *overtaken*
-   by ADR-0019 (2026-06-08) — do not revert wording toward "DBOS stands".
-3. **The library/knowledge tier lives in shared Cloud SQL Postgres** (ADR-0017; JSONB docs,
-   zod-validated at write; current state = projection, history = events). Git holds code + a
-   *generated* markdown view, not the source of artifact state.
-4. **The prove-it-gate (red-green) is BUILT**, spine-side (ADR-0020). Don't reinvent or bypass it.
-5. **DB auth is KEYLESS** Cloud SQL IAM via ambient ADC (ADR-0021). **Credentials are present** —
-   verify with `gcloud auth application-default print-access-token`, do **not** assume you're
-   unauthenticated. The Phase-2 library migration has already run (the library is in the live DB).
-6. **The Claude Agent SDK is the LIVE runtime** (ADR-0030, supersedes ADR-0011 in part):
-   live node builds run `ClaudeAgentAuthor` on subscription auth; the owned loop is **demoted** to
-   the offline/deterministic test executor + pivot-out fallback, behind the `PhaseAuthor` seam.
+The headline current-state facts those ADRs encode: pi is gone — we own the agent loop (0011), now
+demoted under the **live Claude Agent SDK** runtime (0030); the **library tier lives in shared Cloud
+SQL Postgres**, DBOS deferred (0017 / 0019); the **prove-it-gate is BUILT** spine-side (0020); **DB
+auth is keyless** Cloud SQL IAM via ambient ADC (0021 — credentials are present, verify with `gcloud
+auth application-default print-access-token`, don't assume unauthenticated).
 
 ## The foundation is built and green (do not re-scaffold)
 
@@ -202,36 +196,31 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 ## Load-bearing ADRs
 
-`docs/decisions/` runs **0001–0039 on `main`** — calibrate to what's on disk. Every ADR carries
-**structured YAML frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
-`supersedes`/`supersedes_in_part`/`amends` edges; ADR-0037) — CI validates it (`adr-health` in
-`@storytree/cli`). **An agent MAY flip an ADR `proposed → accepted` (the green flip)** once the
-decision is made and the `## Status` prose supports it (ADR-0084) — set `status:` + `decided:`; the
-studio's `## Status` view, the world's downstream green, and the `green-flip` gate are the catch. Still
-HUMAN-only: flipping to `superseded` (record supersession as an outgoing edge on the new ADR, or the
-gate goes red). Read the Status sections for the detail (many are superseded-in-part).
+`docs/decisions/` is the append-only decision HISTORY. Every ADR carries **structured YAML
+frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
+`supersedes`/`supersedes_in_part`/`amends` edges · the `load_bearing` current-state tag; ADR-0037 /
+0086) — CI validates it (`adr-health` in `@storytree/cli`).
+
+**The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0086):**
+`storytree adr list --load-bearing` (★ the curated calibrate-to-these set) · `--current` (every
+accepted, non-superseded ADR + edges) · `--status <s>`. It reads `docs/decisions/` on disk — offline,
+no DB — so it can never drift from the files. When you land or overtake a decision, **spawn the
+`librarian-curator`** to keep status / edges / the `load_bearing` set honest.
+
+**Status is a projection of the `## Status` prose, never an invented flip.** An agent MAY flip an ADR
+`proposed → accepted` (the green flip) once the decision is made and the prose supports it (ADR-0084);
+the **`librarian-curator` MAY also flip an ADR to `superseded`** as curation (ADR-0086 — record the
+`supersedes` edge on the superseding ADR, or the gate goes red). Still HUMAN-only: `accepted →
+proposed` (un-deciding). **Modifying a decided ADR is copy-on-write** — a substantive re-decision is a
+NEW ADR (allocated below) that supersedes the old, the old body kept as superseded history, never an
+in-place body edit (ADR-0086); status flips, edge fixes, typos, and the `load_bearing` tag stay
+in-place.
 
 **New ADR? Don't hand-pick the number — allocate it: `pnpm storytree adr new --title "..." --pg`**
 (ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and scaffolds
-`docs/decisions/NNNN-slug.md`, so parallel sessions can't collide (0047/0048 both got picked twice
-before this). Offline it falls back to `max+1` with a loud "not reserved" warning; either way the
-`adr-number-unique` gate (in `pnpm -r test`) + a cross-PR CI check fail any duplicate before it sits
-on `main`. The current-state set:
-
-- **0011** — own the agent loop (pi retired) — *superseded in part by 0030*
-- **0017** — the knowledge/library tier lives in shared Postgres
-- **0018** — Phase-1 structured source (`knowledge.json`); the glossary is generated
-- **0019** — the tier is named "library"; **DBOS deferred** ← the big one
-- **0020** — red-green enforcement on the owned loop (the gate is built)
-- **0021** — keyless agent/DB auth; the Phase-2 migration ran
-- **0022** — CI green gate + auto-merge-on-green (inside free Actions)
-- **0023** — agent↔Library interaction is a choose-your-own-adventure CLI (`packages/cli`)
-- **0030** — all-in on the Claude Agent SDK as the **live** runtime (subscription auth); the owned
-  loop is the offline/deterministic executor + pivot-out fallback, behind the `PhaseAuthor` seam
-- **0037** — decision binding: stories declare deciding ADRs (`decisions:` frontmatter), drift
-  checks fire through CI, and **live story builds are gated on open-question hygiene** — an
-  unprocessed operator answer on a deciding ADR's OQ refuses the build until a session processes
-  it (record in an ADR + retire the OQ, or post a follow-up comment)
+`docs/decisions/NNNN-slug.md`, so parallel sessions can't collide. Offline it falls back to `max+1`
+with a loud "not reserved" warning; either way the `adr-number-unique` gate (in `pnpm -r test`) + a
+cross-PR CI check fail any duplicate before it sits on `main`.
 
 ## Your operating discipline — the `session-orchestrator` agent (generated)
 
@@ -245,7 +234,7 @@ on `main`. The current-state set:
 
 The interactive session agent: the outer loop that turns an owner's intent into landed work — orient, build one unit to green, run the merge ceremony, escalate the rest.
 
-**Role.** orchestrator is the human-facing session loop (ADR-0030: the human owns the outer loop) that turns an owner's intent into landed work. It orients on the three surfaces — the story tree (the work), the notice board (the sessions), the library (the knowledge) — searched just-in-time; decides the unit; decomposes it into provable units and routes them through the prove-it-gate — the inner loop is one tool, not the whole job (asset:orchestrate-route-supplement) — supplementing the non-leaf glue with its own subagents and delegating the red→green mechanics to the leaf and the spine; keeps the working tree honest; and runs the merge ceremony when the unit is green. It does NOT author the work hierarchy (story-author owns WHAT), judge red/green inside a unit (the spine observes, the leaf authors), or settle owner-level questions — it sequences, integrates, lands, and escalates. It is distinct from the deterministic orchestrator SPINE (packages/orchestrator), which is code it drives.
+**Role.** orchestrator is the human-facing session loop (ADR-0030: the human owns the outer loop) that turns an owner's intent into landed work. It orients on the three surfaces — the story tree (the work), the notice board (the sessions), the library (the knowledge) — searched just-in-time; decides the unit; decomposes it into provable units and routes them through the prove-it-gate — the inner loop is one tool, not the whole job (asset:orchestrate-route-supplement) — supplementing the non-leaf glue with its own subagents and delegating the red→green mechanics to the leaf and the spine; keeps the working tree honest; runs the merge ceremony when the unit is green; and when a unit lands or overtakes a decision, spawns the librarian-curator to keep the DECISION LOG honest — ADR status, supersession edges, and the curated load_bearing current-state set (ADR-0086). It does NOT author the work hierarchy (story-author owns WHAT), judge red/green inside a unit (the spine observes, the leaf authors), or settle owner-level questions — it sequences, integrates, lands, and escalates. It is distinct from the deterministic orchestrator SPINE (packages/orchestrator), which is code it drives.
 
 **Outcome.** Every unit it takes on reaches one of two honest end-states: LANDED on main — green through `pnpm gate`, committed, pushed, and merged by CI via a non-draft PR — or explicitly HELD / ESCALATED with the reason stated. Never: a finished green unit parked in draft, red or WIP work on a non-draft PR, a manual `gh pr merge`, or a silent skip of the gate.
 
@@ -254,7 +243,7 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 1. Decide & decompose the unit — one coherent green unit (slow growth: the minimum to green), split into **provable units** by the routing filter 'does this piece have an isolatable red→green test?' (not package boundaries; `asset:orchestrate-route-supplement`). For a design fork, reserve an ADR (`storytree adr new --pg`) and record it.
 2. Build to green — **route** the provable units to the inner loop chained in dependency order (`story build --real`, or sequenced `node build --real` across merges; cross-package work sequenced via `depends_on`, never atomic), and **supplement** the non-leaf glue (DB/SQL, deps, visual/UI, config/wiring) with your own subagents — yourself only as a last resort; when the inner loop genuinely can't prove a piece, raise it as a capability gap rather than force-fitting or skipping it. Keep the working tree clean; iterate edit → gate.
 3. Gate — `pnpm gate` must pass with nothing red or WIP in the diff.
-4. Land — run the merge ceremony: commit → push → **non-draft** PR → stop. A hold (draft / `hold` label) is temporary: flip it to ready the moment the held unit is green.
+4. Land — run the merge ceremony: commit → push → **non-draft** PR → stop. A hold (draft / `hold` label) is temporary: flip it to ready the moment the held unit is green. If the unit landed or overtook a decision, spawn the **librarian-curator** to keep the decision log honest — project the ADRs' `## Status` prose into frontmatter (flip statuses, record supersession edges, maintain the `load_bearing` set; substantive re-decisions are copy-on-write), so the append-only history doesn't rot (ADR-0086).
 5. Escalate the rest — owner decisions, irreversible or outward-facing actions, anything the corpus doesn't settle — to the human outer loop. Never self-exempt from the gate or the ceremony.
 
 **Escalation.** Owner-level calls (design forks worth an ADR, irreversible or outward-facing actions, anything the corpus doesn't settle) and any blocked landing (a red gate it can't resolve, a write that won't persist) are surfaced to the human outer loop with the reason — never decided unilaterally or worked around.

@@ -1,5 +1,6 @@
 ---
 status: accepted
+load_bearing: true
 decided: 2026-06-21
 amends: [83, 7]
 ---

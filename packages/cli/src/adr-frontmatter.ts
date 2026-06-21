@@ -6,10 +6,15 @@ import { z } from "zod";
  *
  * Status is a projection of evidence (ADR-0006/0031): the prose `## Status` section is the evidence,
  * and the frontmatter transcribes it — never an invented write. ADR-0084 widened WHO may perform that
- * transcription: an AGENT (not only a human) may flip an ADR `proposed → accepted` (the green flip);
- * flipping to `superseded` stays a human call. Edges are OUTGOING only (`supersedes` /
- * `supersedes_in_part` / `amends`); incoming notes stay prose in the target file, derived — never
- * double-entered.
+ * transcription: an AGENT (not only a human) may flip an ADR `proposed → accepted` (the green flip).
+ * ADR-0086 widened it further: the `librarian-curator` may also flip an ADR to `superseded` as part of
+ * curation (still a projection of the `## Status` prose, never invented). Edges are OUTGOING only
+ * (`supersedes` / `supersedes_in_part` / `amends`); incoming notes stay prose in the target file,
+ * derived — never double-entered.
+ *
+ * `load_bearing` (ADR-0086) is the editorial CURRENT-STATE tag: the small curated set of ADRs a new
+ * session must calibrate to. It replaces the hand-maintained `CLAUDE.md` list — surfaced by
+ * `storytree adr list --load-bearing`, gate-checked so a non-accepted ADR can never carry it.
  */
 export const AdrStatus = z.enum(["proposed", "accepted", "superseded"]);
 export type AdrStatus = z.infer<typeof AdrStatus>;
@@ -27,6 +32,7 @@ const AdrFrontmatter = z
     supersedes: z.array(AdrNumber).default([]),
     supersedes_in_part: z.array(AdrNumber).default([]),
     amends: z.array(AdrNumber).default([]),
+    load_bearing: z.boolean().default(false),
   })
   .strict();
 
@@ -39,6 +45,8 @@ export interface AdrMeta {
   supersedes: number[];
   supersedesInPart: number[];
   amends: number[];
+  /** The ADR-0086 current-state tag: a curated load-bearing ADR a new session must calibrate to. */
+  loadBearing: boolean;
 }
 
 /**
@@ -66,6 +74,7 @@ export function parseAdrFrontmatter(file: string, content: string): AdrMeta {
     supersedes: fm.supersedes,
     supersedesInPart: fm.supersedes_in_part,
     amends: fm.amends,
+    loadBearing: fm.load_bearing,
   };
   if (fm.decided !== undefined) meta.decided = fm.decided;
   return meta;
