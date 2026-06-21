@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-04
 ---
 
 # ADR-0008: UI drives agents — approval-gated trunk
 
-**Status:** proposed (2026-06-04) — full rationale: v1 ADR-0006/0008/0010/0013/0014/0020 (this **inverts** their autonomous-cascade posture).
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0006/0008/0010/0013/0014/0020 (this **inverts** their autonomous-cascade posture).
 
 ## Decision
 

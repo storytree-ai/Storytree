@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 decided: 2026-06-04
 ---
 
 # ADR-0006: Event store & observability surface
 
-**Status:** proposed (2026-06-04) — full rationale: v1 ADR-0006/0021/0023 (this **inverts** them).
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0006/0021/0023 (this **inverts** them).
 
 **Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** (DBOS deferred; the store is a plain typed Postgres connection now — DBOS is a reserved future target, not the built path).
 
