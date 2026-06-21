@@ -134,6 +134,6 @@ export { deriveAttestations } from "./proof/attestations.js";
 // that greens a story's own UAT when all its per-test verdicts pass. DATA shapes are the contract's;
 // the per-test DATA + parser live in the library organism (`uat-tests.ts`, ADR-0044).
 export type { UatProofCheck, UatProofResult } from "./proof/uat-proof.js";
-export { checkUatProof, rollupStoryUat } from "./proof/uat-proof.js";
+export { checkUatProof, rollupStoryUat, rollupStoryGreen } from "./proof/uat-proof.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";

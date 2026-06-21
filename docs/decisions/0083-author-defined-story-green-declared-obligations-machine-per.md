@@ -1,17 +1,33 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-21
 amends: [7, 40, 82]
 ---
 # ADR-0083: Author-defined story green: declared obligations, machine per-test UAT, mapped as a bootstrap shortcut
 
 ## Status
 
-proposed — drafted from a direct owner realignment in conversation (2026-06-21), pending the owner's
-flip to `accepted`. It carries two explicit owner-ratification **forks** (A and B below) written here
-so the decision is made in one place. On acceptance it **amends [ADR-0007](0007-proof-model.md)** (the
-`mapped` framing), **[ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) §2** and
+accepted (2026-06-21) — drafted from a direct owner realignment in conversation, and ratified the same
+day: the owner adopted **Fork A** and authorised agents to perform the green flip (recorded by
+[ADR-0084](0084-agents-may-flip-an-adr-green.md)). It carried two explicit owner-ratification **forks**
+(A and B below); **Fork A is RESOLVED (adopt)** and built (see below), **Fork B remains open** (a
+separate session). It **amends [ADR-0007](0007-proof-model.md)** (the `mapped` framing),
+**[ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) §2** and
 **[ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)** (story-green
 composition); it overturns no honesty wall (`green = a signed verdict` stands).
+
+**Fork A — RESOLVED: adopt (2026-06-21).** The owner chipped this off toward the recommended position,
+and decision 3 stands as written: **story green = (all capabilities `healthy`) AND (all per-test UAT
+tests `healthy`)**, with capabilities-green a *necessary* condition (six green plants are still not
+*sufficient*; a crown can never be green while any capability is red or unproven), and a story with
+zero capabilities satisfying the capability clause vacuously. The READ-TIME compute is **built** —
+`rollupStoryGreen` ([uat-proof.ts](../../packages/orchestrator/src/proof/uat-proof.ts), red→green
+tested) beside the existing `rollupStoryUat`, wired into the CLI `story build` / `storytree tree` crown
+and the studio crown (`applyUatCrowns`). This adds a necessary precondition to the read-time roll-up
+ONLY; it signs nothing (the honesty walls of ADR-0020 are untouched). The owner ratified this and the
+`status:` flip to `accepted` in conversation (2026-06-21); per [ADR-0084](0084-agents-may-flip-an-adr-green.md)
+the flip was applied by this session. **Fork B stays open** (the brownfield / foundational machine
+observe-and-sign path is a separate follow-on).
 
 ## Context
 
@@ -78,12 +94,15 @@ story's own UAT greens it"*: child-capability green is no longer merely *not suf
 crown; but a crown can never be green while any plant is red.) A story with **zero** capabilities (the
 two ports) satisfies the capability clause **vacuously** — its green is entirely its per-test UAT.
 
-> **FORK A (owner ratification).** Decision 3 makes capabilities-green *necessary* for story green,
-> which is in direct tension with ADR-0082's just-accepted *"only the story's own UAT greens it; six
-> green capability plants do not make a green crown."* **Recommended: adopt it** — it aligns the crown
-> with the dependency rule and matches the owner's "all capabilities green first AND uat green." The
-> alternative is to keep ADR-0082 unchanged (UAT-roll-up only; capabilities do not gate the crown).
-> This affects only stories *with* capabilities; the two ports are unaffected either way.
+> **FORK A (owner ratification) — RESOLVED: ADOPTED (2026-06-21).** Decision 3 makes capabilities-green
+> *necessary* for story green, which is in direct tension with ADR-0082's just-accepted *"only the
+> story's own UAT greens it; six green capability plants do not make a green crown."* **Adopted** — it
+> aligns the crown with the dependency rule and matches the owner's "all capabilities green first AND
+> uat green." (The alternative — keep ADR-0082 unchanged, UAT-roll-up only — was declined.) This
+> affects only stories *with* capabilities; the two ports are unaffected either way. The read-time
+> compute (`rollupStoryGreen`) and its crown wiring are **built** (see Status); ADR-0082's reference
+> entry below is amended accordingly. The owner ratified the adoption and the `status:` flip to
+> `accepted` in conversation (applied per [ADR-0084](0084-agents-may-flip-an-adr-green.md)).
 
 **4. A machine per-test UAT earns its verdict by observe-and-sign when no red→green is available — the
 brownfield / foundational "adopted" path.** The spine runs the test's declared machine proof command at
@@ -132,12 +151,16 @@ machine-adopted, fail-closed.)
   silently equated with a driven red→green pass.
 - **Fork A overturns a one-day-old decision** (ADR-0082's no-capability-roll-up). Called out as a fork,
   not slipped in.
-- **BUILT here: the DECISION only.** The COMPUTE + surfaces are named follow-on units, to be built
-  *after* ratification (mirroring ADR-0082's honest split): the machine observe-and-sign path (a
-  `storytree uat run <test> --pg` or a `node build`/`story build` machine-UAT mode); the
-  capabilities-AND-UAT story roll-up wiring in `story build` + the studio crown; and the per-test
-  `proofCommand` parse in `uat-tests.ts`. Until those land, no machine per-test verdict is produced, so
-  the two ports stay `mapped` — correct, since the inner loop is still being made correct.
+- **Fork A's READ-TIME compute is now BUILT** (2026-06-21): the capabilities-AND-UAT story roll-up
+  `rollupStoryGreen` (`packages/orchestrator/src/proof/uat-proof.ts`, red→green tested) is wired into
+  the CLI `story build` / `storytree tree` crown and the studio crown (`applyUatCrowns`). It is a
+  READ-time precondition only — it signs nothing, so the honesty walls hold untouched.
+- **Still named follow-on (the rest of the DECISION):** mirroring ADR-0082's honest split — the machine
+  observe-and-sign path (a `storytree uat run <test> --pg` or a `node build`/`story build` machine-UAT
+  mode, **Fork B**); and the per-test `proofCommand` parse in `uat-tests.ts`. Until those land, no
+  machine per-test verdict is produced, so the two ports stay `mapped` — correct, since the inner loop
+  is still being made correct. (Fork A changes only how an *already-signed* per-test/capability verdict
+  set rolls up into a crown; it does not by itself produce any new verdict.)
 - **The two ports** already declare `_(witness: machine)_` per-test UAT legs; making those legs carry
   a concrete inline `proofCommand` (decision 5's convention) is a follow-on once that convention is
   ratified — deliberately NOT pre-baked here. They do not change status under this ADR.

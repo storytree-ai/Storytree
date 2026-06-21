@@ -338,14 +338,18 @@ test("focused view shows attestation marks when the reader answers (human seal v
   assert.ok(!env.body.includes("✓") && !env.body.includes("✗"), "attestation marks are not the verdict glyphs");
 });
 
-// (8) per-test PROVEN + crown roll-up (ADR-0082): with a verdict reader, each test gets a signed
-// proven glyph and the story crown greens from the AND-roll-up of its per-test verdicts.
-test("focused view: a story crown greens from the AND-roll-up of its per-test UAT verdicts", async () => {
+// (8) per-test PROVEN + story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082): with a verdict
+// reader, each test gets a signed proven glyph and the story crown greens from the AND of (all
+// capabilities proven healthy) AND (the per-test UAT roll-up green).
+test("focused view: a story crown greens when all capabilities AND per-test UAT verdicts pass (ADR-0083 Fork A)", async () => {
   const verdicts = {
     async readEvents() {
       return [
-        verdictEvent(1, "demo-story#uat-1", "pass"),
-        verdictEvent(2, "demo-story#uat-2", "pass"),
+        verdictEvent(1, "cap-a", "pass"),
+        verdictEvent(2, "cap-b", "pass"),
+        verdictEvent(3, "cap-c", "pass"),
+        verdictEvent(4, "demo-story#uat-1", "pass"),
+        verdictEvent(5, "demo-story#uat-2", "pass"),
       ];
     },
   };
@@ -354,8 +358,31 @@ test("focused view: a story crown greens from the AND-roll-up of its per-test UA
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: demo-story ✓/, "the crown wears the proven glyph");
   assert.match(env.body, /UAT proof: GREEN/, "the story UAT rolled up green");
+  assert.match(env.body, /story green: GREEN/, "the crown greens (all caps healthy AND UAT proven)");
   assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "uat-1 proven ✓");
   assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=✓/, "uat-2 proven ✓");
+});
+
+// (8b) ADR-0083 Fork A: capabilities-green is a NECESSARY condition — UAT all green but a capability
+// still unproven leaves the crown under-claiming, even though the UAT clause itself is green.
+test("focused view: a green UAT does NOT green the crown while a capability is unproven (ADR-0083 Fork A)", async () => {
+  const verdicts = {
+    async readEvents() {
+      return [
+        verdictEvent(1, "cap-a", "pass"),
+        verdictEvent(2, "cap-b", "pass"),
+        // cap-c never earned a signed pass — the crown cannot be green while it stands unproven.
+        verdictEvent(3, "demo-story#uat-1", "pass"),
+        verdictEvent(4, "demo-story#uat-2", "pass"),
+      ];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const env = await treeCommand("demo-story", deps);
+  assert.equal(env.ok, true);
+  assert.match(env.body, /Story: demo-story –/, "the crown under-claims while cap-c is unproven");
+  assert.match(env.body, /UAT proof: GREEN/, "the UAT clause itself is green");
+  assert.match(env.body, /story green: unproven/, "but the crown stays unproven (a capability is not yet healthy)");
 });
 
 test("focused view: a story with one unproven test under-claims (crown –, the test proven=–)", async () => {

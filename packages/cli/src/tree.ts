@@ -12,7 +12,7 @@ import path from "node:path";
 
 import { classifyPresence } from "@storytree/notice-board";
 import type { UatTest } from "@storytree/library";
-import { loadNodeSpec, rollupStatus, rollupStoryUat } from "@storytree/orchestrator";
+import { loadNodeSpec, rollupStatus, rollupStoryGreen, rollupStoryUat } from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import type { Envelope } from "./envelope.js";
@@ -218,18 +218,24 @@ export async function treeCommand(
     });
   }
 
-  // The story crown's PROVEN state (ADR-0082): a story that declares per-test UAT tests greens from
-  // the AND-roll-up of their SIGNED verdicts (rollupStoryUat) — never the story's own unit-id verdict
-  // and never a child-capability roll-up. A legacy story with no per-test tests keeps the own-unit
-  // glyph. Offline (no verdict events) there is no proof column, exactly like the capability glyphs.
+  // The story crown's PROVEN state (ADR-0083 Fork A): a story that declares per-test UAT tests greens
+  // from the AND of TWO necessary clauses — every capability proven healthy AND the per-test UAT
+  // AND-roll-up green (rollupStoryGreen) — never the story's own unit-id verdict. Capabilities-green is
+  // necessary (the dependency rule), refining ADR-0082's UAT-only crown. The UAT clause alone
+  // (rollupStoryUat) is still surfaced below as a sub-signal. A legacy story with no per-test tests
+  // keeps the own-unit glyph. Offline (no verdict events) there is no proof column.
   const storyUatRollup =
     uatTests.length > 0 && verdictEvents !== null
       ? rollupStoryUat(uatTests, verdictEvents)
       : undefined;
+  const storyGreen =
+    uatTests.length > 0 && verdictEvents !== null
+      ? rollupStoryGreen(capIds, uatTests, verdictEvents)
+      : undefined;
   const crownMark = (): string => {
     if (uatTests.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
     if (verdictEvents === null) return ""; // offline: no proof column
-    const g = storyUatRollup === "healthy" ? "✓" : storyUatRollup === "unhealthy" ? "✗" : "–";
+    const g = storyGreen === "healthy" ? "✓" : storyGreen === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
   };
 
@@ -247,6 +253,16 @@ export async function treeCommand(
           ? "WITHERED — a proven UAT test regressed to a signed fail"
           : "unproven — not every UAT test has a signed pass yet (under-claims)";
     lines.push(`  UAT proof: ${word}`);
+    // The CROWN (ADR-0083 Fork A): green = (all capabilities proven healthy) AND (UAT proven). A story
+    // with zero capabilities (a foundational port) satisfies the capability clause vacuously.
+    const capNote = capIds.length === 0 ? " (no capabilities — vacuous; green is the UAT alone)" : "";
+    const greenWord =
+      storyGreen === "healthy"
+        ? "GREEN — all capabilities proven healthy AND the story's UAT is proven"
+        : storyGreen === "unhealthy"
+          ? "WITHERED — a capability or a proven UAT test is a signed fail"
+          : "unproven — a capability is not yet proven healthy, or the UAT is not yet proven (under-claims)";
+    lines.push(`  story green: ${greenWord}${capNote} (ADR-0083 Fork A)`);
   }
   lines.push("", "Capabilities:");
   for (const row of capRows) {

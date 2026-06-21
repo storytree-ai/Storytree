@@ -123,3 +123,41 @@ export function rollupStoryUat(
   }
   return allHealthy ? "healthy" : null;
 }
+
+/**
+ * READ-TIME story-green roll-up (ADR-0083 Fork A): a story's CROWN status, DERIVED as the AND of two
+ * necessary clauses — (a) the **capability clause**: EVERY declared capability is proven `healthy`
+ * (its own {@link rollupStatus} over the signed verdicts); and (b) the **UAT clause**: the story's
+ * own per-test UAT roll-up ({@link rollupStoryUat}) is `healthy`. This makes capabilities-green a
+ * NECESSARY condition for the crown, reconciling it with the glossary's standing dependency rule —
+ * *"you cannot prove a unit that stands on an unproven one"* — and refining ADR-0040 §2 / ADR-0082's
+ * *"only the story's own UAT greens it"*: six green plants still are not SUFFICIENT (the UAT clause
+ * must also hold), but a crown can never be `healthy` while any plant is red or unproven.
+ *
+ * Pure, conservative, never over-claims:
+ *  - `healthy` iff the capability clause holds AND the UAT clause is `healthy`;
+ *  - `unhealthy` if the UAT clause withered (a signed UAT regression) OR any capability is `unhealthy`
+ *    (a red plant withers the crown — short-circuits);
+ *  - otherwise `null` (abstain) — e.g. a capability still unproven (`mapped`), or no per-test UAT
+ *    declared — so the world under-claims to `mapped`, never paints a green crown the proof can't bear.
+ *
+ * A story with ZERO capabilities (the two foundational ports `proof-protocol` / `storage-protocol`)
+ * satisfies the capability clause VACUOUSLY — its green derives entirely from the per-test UAT clause.
+ */
+export function rollupStoryGreen(
+  capabilityIds: readonly string[],
+  tests: readonly { readonly id: string }[],
+  events: readonly RollupEvent[],
+): Status | null {
+  const uat = rollupStoryUat(tests, events);
+  if (uat === "unhealthy") return "unhealthy";
+
+  let capsAllHealthy = true;
+  for (const capId of capabilityIds) {
+    const status = rollupStatus(capId, events);
+    if (status === "unhealthy") return "unhealthy"; // a red plant withers the crown
+    if (status !== "healthy") capsAllHealthy = false;
+  }
+
+  return capsAllHealthy && uat === "healthy" ? "healthy" : null;
+}

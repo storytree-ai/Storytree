@@ -5,7 +5,7 @@ import type { Verdict } from "@storytree/proof-protocol";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
-import { checkUatProof, rollupStoryUat } from "./uat-proof.js";
+import { checkUatProof, rollupStoryUat, rollupStoryGreen } from "./uat-proof.js";
 
 /**
  * The per-test UAT proof model (ADR-0082): the sign-time trust guard keeps "green" honest, and the
@@ -161,4 +161,60 @@ test("rollup: a first-attempt fail (no prior pass) abstains, never withers — a
 
 test("rollup: a single-test story greens on its one pass", () => {
   assert.equal(rollupStoryUat([{ id: "s#uat-1" }], [passEvent("s#uat-1")]), "healthy");
+});
+
+// ── rollupStoryGreen: the story-crown roll-up = (caps healthy) AND (UAT healthy) (ADR-0083 Fork A) ──
+
+test("story-green: all caps + all UAT pass => healthy", () => {
+  const caps = ["s.cap-a", "s.cap-b"];
+  const tests = [{ id: "s#uat-1" }];
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s.cap-b", "capability"), passEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), "healthy");
+});
+
+test("story-green: UAT green but a capability still unproven (mapped) => null (under-claim, the necessary condition)", () => {
+  const caps = ["s.cap-a", "s.cap-b"];
+  const tests = [{ id: "s#uat-1" }];
+  // s.cap-b never earned a signed pass — the crown cannot be green while it stands unproven.
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), null);
+});
+
+test("story-green: caps green but UAT unproven => null (six green plants are not sufficient, ADR-0082)", () => {
+  const caps = ["s.cap-a"];
+  const tests = [{ id: "s#uat-1" }, { id: "s#uat-2" }];
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), null);
+});
+
+test("story-green: caps green but NO UAT declared => null (UAT clause is also necessary)", () => {
+  const caps = ["s.cap-a"];
+  assert.equal(rollupStoryGreen(caps, [], [passEvent("s.cap-a", "capability")]), null);
+});
+
+test("story-green: a red capability (signed fail) withers the crown to unhealthy even with green UAT", () => {
+  const caps = ["s.cap-a"];
+  const tests = [{ id: "s#uat-1" }];
+  const events = [passEvent("s.cap-a", "capability"), failEvent("s.cap-a"), passEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), "unhealthy");
+});
+
+test("story-green: a UAT regression withers the crown to unhealthy even with green caps", () => {
+  const caps = ["s.cap-a"];
+  const tests = [{ id: "s#uat-1" }];
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1"), failEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), "unhealthy");
+});
+
+test("story-green: ZERO capabilities (a foundational port) satisfies the cap clause VACUOUSLY — green is its UAT alone", () => {
+  const tests = [{ id: "proof-protocol#uat-1" }];
+  assert.equal(rollupStoryGreen([], tests, [passEvent("proof-protocol#uat-1")]), "healthy");
+});
+
+test("story-green: ZERO capabilities with UAT still unproven => null (vacuous caps, but the UAT clause fails)", () => {
+  assert.equal(rollupStoryGreen([], [{ id: "p#uat-1" }], []), null);
+});
+
+test("story-green: ZERO capabilities AND no UAT => null (nothing greens it)", () => {
+  assert.equal(rollupStoryGreen([], [], []), null);
 });

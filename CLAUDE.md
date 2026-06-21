@@ -205,8 +205,11 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 `docs/decisions/` runs **0001–0039 on `main`** — calibrate to what's on disk. Every ADR carries
 **structured YAML frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
 `supersedes`/`supersedes_in_part`/`amends` edges; ADR-0037) — CI validates it (`adr-health` in
-`@storytree/cli`), so flip status BY HAND and record supersession as an outgoing edge on the new
-ADR, or the gate goes red. Read the Status sections for the detail (many are superseded-in-part).
+`@storytree/cli`). **An agent MAY flip an ADR `proposed → accepted` (the green flip)** once the
+decision is made and the `## Status` prose supports it (ADR-0084) — set `status:` + `decided:`; the
+studio's `## Status` view, the world's downstream green, and the `green-flip` gate are the catch. Still
+HUMAN-only: flipping to `superseded` (record supersession as an outgoing edge on the new ADR, or the
+gate goes red). Read the Status sections for the detail (many are superseded-in-part).
 
 **New ADR? Don't hand-pick the number — allocate it: `pnpm storytree adr new --title "..." --pg`**
 (ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and scaffolds

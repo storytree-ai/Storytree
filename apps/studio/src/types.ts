@@ -435,10 +435,11 @@ export interface UatTestRow {
   machine?: AttestationMark;
   /**
    * The per-test PROVEN state (ADR-0082): the latest SIGNED verdict in `events.verdict` for this
-   * test id — `pass` (✓) / `fail` (✗) / absent (–, never proven). This is the real gate verdict
-   * that greens the story crown (`rollupStoryUat`), DELIBERATELY DISTINCT from the lower-rigor
-   * `human`/`machine` vouch marks above (a vouch is not a proof). Silently absent when the live
-   * store can't answer (json backend / down DB), exactly like the CLI tree's proven glyphs.
+   * test id — `pass` (✓) / `fail` (✗) / absent (–, never proven). This is the real gate verdict; the
+   * per-test UAT roll-up is one of the two clauses that green the story crown (the other is all
+   * capabilities proven healthy — `rollupStoryGreen`, ADR-0083 Fork A). DELIBERATELY DISTINCT from
+   * the lower-rigor `human`/`machine` vouch marks above (a vouch is not a proof). Silently absent
+   * when the live store can't answer (json backend / down DB), like the CLI tree's proven glyphs.
    */
   proven?: 'pass' | 'fail';
 }

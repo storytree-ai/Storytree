@@ -4,10 +4,12 @@ import { z } from "zod";
 /**
  * ADR frontmatter (ADR-0037 §1): the queryable summary of a decision record's state.
  *
- * Status is HUMAN-flipped — no machine writes it (ADR-0006/0031: status is a projection of
- * evidence, never a write; here the "evidence" is the prose `## Status` section, and the
- * frontmatter transcribes it). Edges are OUTGOING only (`supersedes` / `supersedes_in_part` /
- * `amends`); incoming notes stay prose in the target file, derived — never double-entered.
+ * Status is a projection of evidence (ADR-0006/0031): the prose `## Status` section is the evidence,
+ * and the frontmatter transcribes it — never an invented write. ADR-0084 widened WHO may perform that
+ * transcription: an AGENT (not only a human) may flip an ADR `proposed → accepted` (the green flip);
+ * flipping to `superseded` stays a human call. Edges are OUTGOING only (`supersedes` /
+ * `supersedes_in_part` / `amends`); incoming notes stay prose in the target file, derived — never
+ * double-entered.
  */
 export const AdrStatus = z.enum(["proposed", "accepted", "superseded"]);
 export type AdrStatus = z.infer<typeof AdrStatus>;

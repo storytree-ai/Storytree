@@ -14,6 +14,7 @@ import {
   resolveBuildConfig,
   resolveSignerFromEnv,
   rollupStatus,
+  rollupStoryGreen,
   rollupStoryUat,
   runRegressionSuite,
   runStoryBuild,
@@ -80,6 +81,31 @@ function storyUatProofLine(
         ? "WITHERED — a proven per-test UAT verdict regressed to a signed fail"
         : "unproven — not every per-test UAT verdict is a signed pass yet";
   return `${word} (per-test roll-up of ${n} test${n === 1 ? "" : "s"}, ADR-0082)`;
+}
+
+/**
+ * ADR-0083 Fork A: the story CROWN rolled up from BOTH necessary clauses — (every declared capability
+ * proven `healthy`) AND (the per-test UAT roll-up green) — as a report line. Pure (`rollupStoryGreen`).
+ * Capabilities-green is a necessary condition (the glossary dependency rule), refining ADR-0082's
+ * UAT-only crown: six green plants are still not sufficient, but a crown can never be green while any
+ * capability is red or unproven. A story with zero capabilities (a foundational port) satisfies the
+ * capability clause vacuously — its green derives entirely from the per-test UAT.
+ */
+function storyGreenLine(
+  capabilityIds: readonly string[],
+  tests: readonly { readonly id: string }[],
+  events: readonly { kind: string; seq: number; doc: unknown }[],
+): string {
+  const rolled = rollupStoryGreen(capabilityIds, tests, events);
+  const word =
+    rolled === "healthy"
+      ? "GREEN — all capabilities proven healthy AND every per-test UAT verdict passed"
+      : rolled === "unhealthy"
+        ? "WITHERED — a capability or a proven per-test UAT verdict is a signed fail"
+        : "unproven — a capability is not yet proven healthy, or not every per-test UAT verdict is a signed pass yet";
+  const capNote =
+    capabilityIds.length === 0 ? " (no capabilities — vacuous; green is the UAT alone)" : "";
+  return `${word}${capNote} (ADR-0083 Fork A)`;
 }
 
 /**
@@ -722,9 +748,13 @@ export async function storyBuild(
       `nodes:       ${run.outcomes.length}/${driveOrder.length} signed passes${storyWithheld ? " (the story UAT node awaits its human witness)" : ""}`,
       // ADR-0082: the story's OWN UAT greens from the AND-roll-up of its per-test verdicts (signed by
       // each test's declared witness — `storytree uat attest` for human tests, a machine proof for
-      // machine tests), NOT from this build chain. Surface it so the report reflects the real crown.
+      // machine tests), NOT from this build chain. ADR-0083 Fork A: the CROWN additionally requires
+      // every capability proven healthy. Surface both so the report reflects the real crown.
       ...(story.uatTests.length > 0
-        ? [`uat proof:   ${storyUatProofLine(story.uatTests, events)}`]
+        ? [
+            `uat proof:   ${storyUatProofLine(story.uatTests, events)}`,
+            `story green: ${storyGreenLine(story.capabilities, story.uatTests, events)}`,
+          ]
         : []),
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
       ...(real && worktree !== undefined

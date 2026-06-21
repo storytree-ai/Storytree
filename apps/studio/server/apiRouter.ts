@@ -923,18 +923,23 @@ async function readTree(
 }
 
 /**
- * Apply the per-test UAT crown roll-up (ADR-0082) to the tree payload. A story that declares per-test
- * UAT tests has its crown set from the AND-roll-up of those tests' SIGNED verdicts (`rollupStoryUat`,
- * injected so this stays unit-testable without the lazy orchestrator) — NEVER its own unit-id verdict
- * and NEVER a child-capability roll-up: healthy ⇒ a pass crown, unhealthy ⇒ a fail crown, unproven ⇒
- * NO verdict (the crown under-claims to `mapped`, never a stale green). A story with no per-test tests
- * is left untouched (its own-unit verdict stands). Mutates `stories` in place.
+ * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082) to the tree payload. A
+ * story that declares per-test UAT tests has its crown set from `rollupStoryGreen` — the AND of TWO
+ * necessary clauses: (a) EVERY declared capability is proven `healthy`, and (b) the per-test UAT
+ * AND-roll-up is green. Capabilities-green is now a NECESSARY condition (the glossary dependency rule),
+ * so the crown is NEVER its own unit-id verdict and NEVER a green while any capability is red/unproven:
+ * healthy ⇒ a pass crown, unhealthy ⇒ a fail crown (a red plant or a UAT regression), unproven ⇒ NO
+ * verdict (the crown under-claims to `mapped`, never a stale green). A story with zero capabilities
+ * (the foundational ports) satisfies the capability clause vacuously — its crown is its UAT alone. A
+ * story with no per-test tests is left untouched (its own-unit verdict stands). `rollup` is injected so
+ * this stays unit-testable without the lazy orchestrator. Mutates `stories` in place.
  */
 export function applyUatCrowns(
   stories: TreeStory[],
   uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   rollup: (
+    capabilityIds: readonly string[],
     tests: readonly { id: string }[],
     events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   ) => string | null,
@@ -942,13 +947,16 @@ export function applyUatCrowns(
   for (const story of stories) {
     const tests = uatTestsByStory.get(story.id);
     if (!tests || tests.length === 0) continue;
-    const rolled = rollup(tests, events);
+    const capabilityIds = story.capabilities.map((c) => c.id);
+    const rolled = rollup(capabilityIds, tests, events);
     if (rolled === 'healthy' || rolled === 'unhealthy') {
-      const at = latestVerdictAt(events, new Set(tests.map((t) => t.id)));
+      // The crown's timestamp spans BOTH clauses — a cap-driven wither shows the capability's verdict
+      // time, not just the UAT's (the union of the per-test ids and the capability ids).
+      const at = latestVerdictAt(events, new Set([...tests.map((t) => t.id), ...capabilityIds]));
       story.verdict = { outcome: rolled === 'healthy' ? 'pass' : 'fail', at: at ?? '' };
     } else {
-      // unproven: drop any own-unit verdict so the world never paints a crown the per-test verdicts
-      // don't support (provenStatus then under-claims an authored `healthy` to `mapped`).
+      // unproven: drop any own-unit verdict so the world never paints a crown the proof doesn't
+      // support (provenStatus then under-claims an authored `healthy` to `mapped`).
       delete story.verdict;
     }
   }
@@ -1148,12 +1156,13 @@ export async function handleApiRequest(
           }
         }
       }
-      // ADR-0082: a story that declares per-test UAT tests greens from the AND-roll-up of those
-      // tests' signed verdicts — overriding any own-unit verdict set above. Skipped when the backend
-      // has no verdict events (json / down DB) or no story declares per-test tests.
+      // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT tests greens from the
+      // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
+      // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
+      // or no story declares per-test tests.
       if (verdictEvents && uatTestsByStory.size > 0) {
-        const { rollupStoryUat } = await loadOrchestrator();
-        applyUatCrowns(payload.stories, uatTestsByStory, verdictEvents, rollupStoryUat);
+        const { rollupStoryGreen } = await loadOrchestrator();
+        applyUatCrowns(payload.stories, uatTestsByStory, verdictEvents, rollupStoryGreen);
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;
       if (builds && builds.length > 0) payload.builds = builds;
