@@ -939,7 +939,7 @@ export async function readTree(
   // re-reading every spec. Keyed by `{ id }` only (all `rollupStoryGreen` reads).
   const uatTestsByStory = new Map<string, { id: string }[]>();
   if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable } =
+  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } =
     await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -981,7 +981,24 @@ export async function readTree(
       // `story build <id> --real` — the SAME fail-closed predicate the CLI prechecks with, so the
       // affordance never offers a chain the gate would refuse (e.g. capless `agent`, all-live-only
       // `library`). The studio's story-level Build mode is `--real` (the honest "really build this").
+      // This stays the build MECHANISM precheck (the build POST validates against it); the go-green
+      // AFFORDANCE the panel renders is status-aware (`goGreen` below, ADR-0094).
       story.storyBuildable = isStoryBuildable(spec, capSpecs, 'real');
+      // ADR-0094: the go-green affordance is a function of the story's STATUS, not a status-blind
+      // Build. `proposed → healthy` lights Build (a real drive); `mapped → healthy` lights Adopt (its
+      // `## Reliability Gates`, observe-and-signed to an `adopted` verdict, ADR-0085) — NEVER a
+      // fail-closed Build over a mature brownfield artifact; `healthy`/etc. light nothing. Same
+      // `storyGoGreen` predicate the orchestrator owns, so the panel can never over-promise.
+      story.goGreen = storyGoGreen(spec, capSpecs);
+      if (story.goGreen === 'adopt') {
+        // The reliability gates the operator Adopts — id + kind + (for `observe`) the command the
+        // spine observe-and-signs via `storytree gate run <id> --pg` (a live DB action, surfaced).
+        story.adoptGates = spec.reliabilityGates.map((g) => ({
+          id: g.id,
+          kind: g.kind,
+          ...(g.proofCommand !== undefined ? { command: g.proofCommand } : {}),
+        }));
+      }
       // ADR-0085: the crown rolls up the UNION of UAT tests + reliability gates (a pure port greens
       // from its reliability gates alone). Both are addressable `{ id }` obligation units.
       const ownObligations = [...spec.uatTests, ...spec.reliabilityGates];

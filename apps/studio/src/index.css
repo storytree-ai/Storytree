@@ -2205,6 +2205,36 @@ mark.st-hl.flash {
   background: var(--warn-weak);
 }
 
+/* The Adopt affordance (ADR-0094 `mapped → healthy`): a brownfield story's reliability gates and the
+   `storytree gate run --pg` path the operator runs to observe-and-sign each into an `adopted` verdict
+   (ADR-0085). The studio SURFACES the commands (a live DB action is the operator's), never auto-runs. */
+.adopt-gates {
+  margin: 8px 0;
+  padding: 8px 10px;
+  list-style: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.adopt-gate {
+  margin: 0;
+  padding: 4px 0;
+  line-height: 1.55;
+  word-break: break-word;
+}
+.adopt-gate + .adopt-gate {
+  border-top: 1px solid var(--border);
+}
+.adopt-gate code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.adopt-gate-cmd {
+  background: var(--good-weak);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
 /* The PROVEN column (ADR-0082): the SIGNED verdict (events.verdict) — the REAL gate state that greens
    the crown, deliberately DISTINCT from the lower-rigor ⚑/⚐ vouch. ✓ GREEN a signed pass, ✗ RED a
    signed fail, – muted un-proven. A faint, clickable ✓ ("I saw it work") on a human/either test an
