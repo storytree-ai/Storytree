@@ -27,7 +27,13 @@ export interface EnsureDbDeps {
   log: (message: string) => void;
   /** Monotonic-ish clock for the deadline (real: `Date.now`). */
   now: () => number;
-  /** Total budget to wait for connectivity after start (default 180s — a cold instance is ~60–90s). */
+  /**
+   * Total budget to wait for connectivity after start (default 420s / 7 min). A real GCP cold start
+   * was measured at ~5–6 min (≤366s end-to-end), not the ~60–90s ADR-0060 first estimated — and since
+   * ADR-0063 made `start()` a non-blocking REST PATCH, this poll owns the WHOLE wait. 180s was below the
+   * observed cold start, so a genuinely-slow start refused spuriously; 420s covers it with headroom
+   * (`oq-live-build-autostart-cold-start-wait`).
+   */
   timeoutMs?: number;
   /** Poll interval while waiting (default 5s). */
   pollMs?: number;
@@ -53,16 +59,25 @@ export async function ensureDbUp(deps: EnsureDbDeps): Promise<EnsureDbResult> {
     return { ok: false, reason: `could not start the database: ${(e as Error).message}` };
   }
 
-  const timeoutMs = deps.timeoutMs ?? 180_000;
+  const timeoutMs = deps.timeoutMs ?? 420_000;
   const pollMs = deps.pollMs ?? 5_000;
-  const deadline = deps.now() + timeoutMs;
+  const startedAt = deps.now();
+  const deadline = startedAt + timeoutMs;
+  // A cold start is minutes, not seconds — surface progress every 30s so the wait reads as progress,
+  // not a hang (the loop otherwise prints nothing between the one line at the top and the verdict).
+  let nextProgressAt = 30_000;
   while (deps.now() < deadline) {
     await deps.sleep(pollMs);
     if (await deps.probe()) return { ok: true, started: true };
+    const elapsed = deps.now() - startedAt;
+    if (elapsed >= nextProgressAt) {
+      deps.log(`still waiting for Cloud SQL to accept connections (${Math.round(elapsed / 1000)}s elapsed; a cold start runs ~5–6 min)…`);
+      nextProgressAt += 30_000;
+    }
   }
   return {
     ok: false,
-    reason: `the database did not accept connections within ${Math.round(timeoutMs / 1000)}s after db:up — check \`gcloud auth application-default print-access-token\` and \`pnpm db:status\`.`,
+    reason: `the database did not accept connections within ${Math.round(timeoutMs / 1000)}s of db:up. A cold Cloud SQL start usually takes ~5–6 min and it may still be coming up — re-run shortly, or check \`pnpm db:status\` and \`gcloud auth application-default print-access-token\`.`,
   };
 }
 
