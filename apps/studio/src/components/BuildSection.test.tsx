@@ -155,12 +155,14 @@ describe('BuildSection', () => {
   });
 
   // ── story scope: whole-story --real framing (ADR-0090 Phase 2 increment) ─────
-  it('a story-scope buildable node frames the build as a whole-story --real run', () => {
+  it('a story-scope buildable node frames the build as a whole-story --real run that auto-merges', () => {
     render(<BuildSection unitId="notice-board" buildable scope="story" />);
     expect(screen.getByRole('button', { name: 'Build' })).toBeTruthy();
-    // Honest framing: --real authors real code + promotes a branch (NOT the node-scope --live copy).
+    // Honest framing: --real authors real code + opens a PR that auto-merges to trunk (ADR-0022),
+    // NOT the node-scope --live "synthetic task" copy, and NOT a "suggest a PR" dead end.
     expect(screen.getByText(/whole story for real/i)).toBeTruthy();
     expect(screen.getByText(/--real/)).toBeTruthy();
+    expect(screen.getByText(/auto-merges to trunk/i)).toBeTruthy();
     expect(screen.queryByText(/synthetic task/i)).toBeNull();
   });
 

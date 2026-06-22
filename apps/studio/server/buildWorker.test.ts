@@ -122,9 +122,10 @@ describe('routedBuildRunner', () => {
     expect(nodeBuild).not.toHaveBeenCalled();
     const [storyId, opts] = storyBuild.mock.calls[0]!;
     expect(storyId).toBe('notice-board');
-    expect(opts).toMatchObject({ real: true, dryRun: false, verdictStore: 'pg' });
+    // openPr:true → the green chain opens a non-draft PR that auto-merges to trunk (ADR-0022).
+    expect(opts).toMatchObject({ real: true, dryRun: false, verdictStore: 'pg', openPr: true });
     expect(env.body).toMatch(/story chain/i);
-    expect(lines.some((l) => /whole-story --real/i.test(l))).toBe(true);
+    expect(lines.some((l) => /auto-merges to trunk/i.test(l))).toBe(true);
   });
 
   it('routes a NODE id to nodeBuild --live (single-node, synthetic pipeline)', async () => {
