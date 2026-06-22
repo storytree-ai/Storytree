@@ -154,9 +154,9 @@ describe('BuildSection', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
   });
 
-  // ── story scope: whole-story --real framing (ADR-0090 Phase 2 increment) ─────
-  it('a story-scope buildable node frames the build as a whole-story --real run that auto-merges', () => {
-    render(<BuildSection unitId="notice-board" buildable scope="story" />);
+  // ── story scope: the STATUS-AWARE go-green affordance (ADR-0094) ─────────────
+  it('a proposed story (goGreen=build) frames a whole-story --real drive that auto-merges', () => {
+    render(<BuildSection unitId="notice-board" buildable scope="story" goGreen="build" status="proposed" />);
     expect(screen.getByRole('button', { name: 'Build' })).toBeTruthy();
     // Honest framing: --real authors real code + opens a PR that auto-merges to trunk (ADR-0022),
     // NOT the node-scope --live "synthetic task" copy, and NOT a "suggest a PR" dead end.
@@ -166,8 +166,44 @@ describe('BuildSection', () => {
     expect(screen.queryByText(/synthetic task/i)).toBeNull();
   });
 
-  it('a non-buildable story explains it has no real-buildable capabilities (not the node copy)', () => {
-    render(<BuildSection unitId="agent" buildable={false} scope="story" />);
+  it('a mapped story (goGreen=adopt) surfaces Adopt + the gate-run path, NOT a Build button', () => {
+    render(
+      <BuildSection
+        unitId="library"
+        buildable={false}
+        scope="story"
+        goGreen="adopt"
+        status="mapped"
+        adoptGates={[
+          { id: 'library#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/library test' },
+          { id: 'library#gate-2', kind: 'observe', command: 'pnpm --filter @storytree/cli test' },
+        ]}
+      />,
+    );
+    // Adopt — never a fail-closed Build over a mature brownfield artifact (ADR-0094 d.3).
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Adopt' })).toBeTruthy();
+    // The gate-run path is SURFACED (the live signing is the owner's DB action — not auto-run).
+    expect(screen.getByText(/storytree gate run library#gate-1 --pg/)).toBeTruthy();
+    expect(screen.getByText(/storytree gate run library#gate-2 --pg/)).toBeTruthy();
+  });
+
+  it('a mapped story with NO reliability gates (goGreen=none) points at authoring them, not Build', () => {
+    // The agent / binding-staleness case: mapped, but no `## Reliability Gates` to adopt yet.
+    render(<BuildSection unitId="agent" buildable={false} scope="story" goGreen="none" status="mapped" />);
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.getByText(/Reliability Gates/)).toBeTruthy();
+    expect(screen.getByText(/Adopt/)).toBeTruthy();
+  });
+
+  it('a healthy story (goGreen=none) needs no go-green action', () => {
+    render(<BuildSection unitId="x" buildable={false} scope="story" goGreen="none" status="healthy" />);
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.getByText(/healthy — no go-green action/i)).toBeTruthy();
+  });
+
+  it('a proposed story with no real path (goGreen=none) explains it needs a real proof arm', () => {
+    render(<BuildSection unitId="p" buildable={false} scope="story" goGreen="none" status="proposed" />);
     expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
     expect(screen.getByText(/no real-buildable capabilities/i)).toBeTruthy();
   });

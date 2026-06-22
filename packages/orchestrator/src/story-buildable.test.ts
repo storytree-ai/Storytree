@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 
 import type { NodeSpec } from "./node-spec.js";
 import type { NodeBuildConfig } from "./proof-config.js";
-import { isStoryBuildable, storyDriveOrder } from "./story-build.js";
+import { isStoryBuildable, storyDriveOrder, storyGoGreen } from "./story-build.js";
 
 // Stage-1 red-green for the studio's story-level Build affordance (ADR-0090 Phase 2 increment): the
 // SHARED predicate that decides whether `story build <id> --<mode>` has real work to drive, so the
 // UI's "is this story buildable" answer mirrors what the build would actually run (never a drifting
-// guess). Pure over hand-built NodeSpecs (the loader's output shape), no FS / no DB.
+// guess). Plus the STATUS-AWARE go-green affordance (ADR-0094): proposed→Build, mapped→Adopt, else
+// none. Pure over hand-built NodeSpecs (the loader's output shape), no FS / no DB.
 
 /** A minimal NodeSpec literal; pass a buildConfig to make the node buildable. */
 function spec(
@@ -19,6 +20,8 @@ function spec(
     capabilities?: string[];
     uatWitness?: NodeSpec["uatWitness"];
     buildConfig?: NodeBuildConfig;
+    status?: NodeSpec["status"];
+    reliabilityGates?: NodeSpec["reliabilityGates"];
   } = {},
 ): NodeSpec {
   return {
@@ -26,7 +29,7 @@ function spec(
     tier,
     title: id,
     outcome: `outcome of ${id}`,
-    status: "proposed",
+    status: opts.status ?? "proposed",
     proofMode: tier === "story" ? "UAT" : "integration-test",
     uatWitness: opts.uatWitness,
     story: tier === "story" ? undefined : "s",
@@ -37,10 +40,18 @@ function spec(
     buildConfig: opts.buildConfig,
     guidance: undefined,
     uatTests: [],
-    reliabilityGates: [],
+    reliabilityGates: opts.reliabilityGates ?? [],
     file: `${id}.md`,
   };
 }
+
+/** A minimal observe reliability gate (the brownfield Adopt obligation, ADR-0085). */
+const observeGate = (id: string): NodeSpec["reliabilityGates"][number] => ({
+  id,
+  title: `gate ${id}`,
+  kind: "observe",
+  proofCommand: "pnpm test",
+});
 
 const cmd = { file: "node", args: ["--test"] };
 const scope = { testGlobs: ["*.test.ts"], sourceGlobs: ["*.ts"] };
@@ -119,4 +130,66 @@ test("storyDriveOrder withholds the story node for a human-witnessed story, keep
   const md = storyDriveOrder(machine, caps);
   assert.ok(md.ok);
   assert.deepEqual(md.order.map((n) => n.id), ["c1", "m"]); // story node driven (last)
+});
+
+// ── storyGoGreen (the status-aware go-green affordance, ADR-0094) ─────────────
+
+test("a PROPOSED story with a real build to drive lights Build (proposed → healthy = drive)", () => {
+  const caps = [spec("c1", "capability", { buildConfig: realCfg })];
+  const story = spec("nb", "story", { capabilities: ["c1"], status: "proposed" });
+  assert.equal(storyGoGreen(story, caps), "build");
+});
+
+test("a PROPOSED story with no real-buildable path lights nothing (build needs a genuine drive)", () => {
+  const caps = [spec("c1", "capability", { buildConfig: liveCfg })]; // live-only, no real: arm
+  const story = spec("p", "story", { capabilities: ["c1"], status: "proposed" });
+  assert.equal(storyGoGreen(story, caps), "none");
+});
+
+test("a MAPPED story with reliability gates lights Adopt (mapped → healthy = adopt), NOT Build", () => {
+  // The library shape under ADR-0094: brownfield with declared `## Reliability Gates`.
+  const caps = [spec("c1", "capability", { buildConfig: liveCfg })];
+  const story = spec("lib", "story", {
+    capabilities: ["c1"],
+    status: "mapped",
+    reliabilityGates: [observeGate("lib#gate-1")],
+  });
+  assert.equal(storyGoGreen(story, caps), "adopt");
+});
+
+test("a MAPPED story does NOT light Build even when its driven nodes carry real: arms (ADR-0094 d.3)", () => {
+  // The agent / binding-staleness shape: mapped, real-buildable caps, but NO reliability gates.
+  // The old status-blind Build is gone — a mature brownfield artifact has no genuine live red — and
+  // with no gates to adopt there is no go-green affordance yet (author `## Reliability Gates` to Adopt).
+  const caps = [spec("c1", "capability", { buildConfig: realCfg })];
+  const mappedRealNoGates = spec("agent", "story", { capabilities: ["c1"], status: "mapped" });
+  assert.equal(isStoryBuildable(mappedRealNoGates, caps, "real"), true); // the MECHANISM still says yes…
+  assert.equal(storyGoGreen(mappedRealNoGates, caps), "none"); // …but the affordance is gated on status.
+});
+
+test("a MAPPED story lights Adopt regardless of buildability (Adopt is observe-and-sign, not a drive)", () => {
+  // Adopt does not need a real: arm — a pure port (zero caps) greens entirely from its gates.
+  const port = spec("proof-protocol", "story", {
+    status: "mapped",
+    reliabilityGates: [observeGate("proof-protocol#gate-1")],
+  });
+  assert.equal(isStoryBuildable(port, [], "real"), false); // capless ⇒ not buildable…
+  assert.equal(storyGoGreen(port, []), "adopt"); // …but Adopt-able via its reliability gate.
+});
+
+test("a HEALTHY story has no go-green affordance (re-verification aside)", () => {
+  const caps = [spec("c1", "capability", { buildConfig: realCfg })];
+  const story = spec("h", "story", { capabilities: ["c1"], status: "healthy" });
+  assert.equal(storyGoGreen(story, caps), "none");
+});
+
+test("an UNHEALTHY story has no go-green USER affordance — red-recovery is the agent loop (ADR-0094 d.2)", () => {
+  const caps = [spec("c1", "capability", { buildConfig: realCfg })];
+  const story = spec("u", "story", { capabilities: ["c1"], status: "unhealthy" });
+  assert.equal(storyGoGreen(story, caps), "none");
+});
+
+test("a non-story node never has a go-green affordance", () => {
+  const cap = spec("c1", "capability", { buildConfig: realCfg, status: "proposed" });
+  assert.equal(storyGoGreen(cap, []), "none");
 });

@@ -368,6 +368,27 @@ export interface TreeCapability {
   error?: string;
 }
 
+/**
+ * The status-aware go-green AFFORDANCE (ADR-0094, mirrors `@storytree/orchestrator`'s `StoryGoGreen`
+ * locally — the studio is browser-bundled and must not import the node-only orchestrator):
+ * - `build` — a `proposed` story with a real build to drive (`story build --real`): drive its
+ *   author-declared obligations red→green through the gate.
+ * - `adopt` — a `mapped` brownfield story with declared `## Reliability Gates`: observe-and-sign each
+ *   to an `adopted` verdict (`storytree gate run <id> --pg`, ADR-0085). Never a fail-closed Build.
+ * - `none` — `healthy` (re-verification aside), a `mapped` story with no gates yet, a `proposed` story
+ *   with no real path, or `unhealthy` (red-recovery is the agent loop, not a user button — ADR-0094 d.2).
+ */
+export type StoryGoGreen = 'build' | 'adopt' | 'none';
+
+/** One reliability gate to Adopt — its id + kind + (for an `observe` gate) the command the spine
+ * observe-and-signs (ADR-0085). The studio surfaces these as the `storytree gate run <id> --pg` path. */
+export interface AdoptGate {
+  id: string;
+  kind: 'observe' | 'build-tests' | 'integrate';
+  /** The declared command the spine OBSERVES (present for `observe` gates; absent for build-tests/integrate). */
+  command?: string;
+}
+
 /** One story: its own spec fields, story-level depends_on, and its capability DAG. */
 export interface TreeStory {
   id: string;
@@ -410,6 +431,17 @@ export interface TreeStory {
    * `drive-machinery` (no real-buildable caps) are not story-buildable.
    */
   storyBuildable?: boolean;
+  /**
+   * The status-aware go-green AFFORDANCE the panel renders (ADR-0094): `build` (drive a `proposed`
+   * story), `adopt` (observe-and-sign a `mapped` story's reliability gates), or `none`. Computed
+   * server-side via the SAME `storyGoGreen` predicate the orchestrator owns, so the studio surfaces
+   * the affordance that can actually green the story — never a fail-closed Build over a mature
+   * brownfield artifact. Supersedes `storyBuildable` for the go-green control's framing (the latter
+   * stays the build-POST MECHANISM precheck). Absent when the spec failed to load.
+   */
+  goGreen?: StoryGoGreen;
+  /** The reliability gates to Adopt — present only when `goGreen === 'adopt'` (ADR-0094 / ADR-0085). */
+  adoptGates?: AdoptGate[];
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */

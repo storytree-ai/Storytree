@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import type { BuildStatus } from '../types.js';
+import type { AdoptGate, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
 
 /** The transcript poll cadence while a run is non-terminal (modest, mirrors the world's posture). */
 export const BUILD_POLL_MS = 1_500;
@@ -40,6 +40,9 @@ export function BuildSection({
   unitId,
   buildable,
   scope = 'node',
+  goGreen,
+  adoptGates,
+  status,
 }: {
   unitId: string;
   buildable: boolean | undefined;
@@ -51,6 +54,17 @@ export function BuildSection({
    * tier. Drives only the honest framing here — the api call is the same `api.build(unitId)`.
    */
   scope?: 'node' | 'story';
+  /**
+   * The status-aware go-green AFFORDANCE for a STORY (ADR-0094): `build` (a `proposed` story → the
+   * Build button below), `adopt` (a `mapped` story → the Adopt panel, surfacing its `## Reliability
+   * Gates` and the `gate run` path — no build trigger), or `none` (no go-green action). Ignored for
+   * `scope === 'node'` (a capability has no Adopt — reliability gates are a story-level concept).
+   */
+  goGreen?: StoryGoGreen | undefined;
+  /** The reliability gates to Adopt — surfaced when `goGreen === 'adopt'` (ADR-0094 / ADR-0085). */
+  adoptGates?: AdoptGate[] | undefined;
+  /** The story's status — phrases the `goGreen === 'none'` reason honestly (story-scope only). */
+  status?: WorkStatus | null | undefined;
 }): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   // The live runId the poll loop reads — held in a ref so the effect's interval
@@ -116,14 +130,19 @@ export function BuildSection({
     // Re-subscribe only when the run identity changes (a fresh build), not per status tick.
   }, [phase.kind === 'building' ? phase.runId : null]);
 
-  // ── non-buildable: no button, just the reason (Phase-1 surface walls) ──
-  if (buildable !== true) {
+  // ── story scope: the status-aware go-green affordance (ADR-0094) ──
+  // A `mapped` story surfaces ADOPT (observe-and-sign its reliability gates), not a fail-closed Build;
+  // Build lights only for a genuine drive (a `proposed` story). `none` explains why in place.
+  if (scope === 'story') {
+    if (goGreen === 'adopt') return <AdoptPanel gates={adoptGates ?? []} />;
+    if (goGreen !== 'build') return <NoGoGreen status={status} />;
+    // goGreen === 'build' → fall through to the Build button (a real whole-story drive).
+  } else if (buildable !== true) {
+    // ── node scope, non-buildable: no button, just the reason (Phase-1 surface walls) ──
     return (
       <div className="tree-build">
         <p className="muted small">
-          {scope === 'story'
-            ? 'This story has no real-buildable capabilities yet — add a real: proof arm to its capabilities to build the whole story.'
-            : 'This node is not buildable — it carries no proof config the gate can drive.'}
+          This node is not buildable — it carries no proof config the gate can drive.
         </p>
       </div>
     );
@@ -203,6 +222,80 @@ function BuildRun({ status }: { status: BuildStatus }): React.JSX.Element {
       {verdict && verdict.body && (
         <p className={`small build-verdict ${verdict.cls}`}>{verdict.body}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The ADOPT affordance for a `mapped` brownfield story (ADR-0094 `mapped → healthy`): its honest path
+ * to green is NOT a Build — it is the author-declared `## Reliability Gates`, observe-and-signed to an
+ * `adopted` verdict (ADR-0085). The panel SURFACES the gate-run path rather than triggering it: `gate
+ * run --pg` signs a verdict to the live store (a billed/DB-bound owner action), so the studio surfaces
+ * the command, never pretends to run it (ADR-0070 — surface a path, leave the verdict to the operator).
+ */
+function AdoptPanel({ gates }: { gates: AdoptGate[] }): React.JSX.Element {
+  return (
+    <div className="tree-build tree-adopt">
+      <h4 className="tree-subdag-title">Adopt</h4>
+      <p className="muted small build-hint">
+        This is a brownfield (<code>mapped</code>) story: it goes green by <strong>Adopt</strong>, not
+        Build. The spine observes each reliability gate&apos;s suite green at a clean committed HEAD and
+        signs an <code>adopted</code> verdict — no faked red. Run each with the DB up (a live action):
+      </p>
+      {gates.length === 0 ? (
+        <p className="muted small">
+          This story declares no <code>## Reliability Gates</code> yet — author them to enable Adopt
+          (ADR-0085).
+        </p>
+      ) : (
+        <ul className="adopt-gates small">
+          {gates.map((g) => (
+            <li key={g.id} className="adopt-gate">
+              <code>{g.id}</code>{' '}
+              {g.kind === 'observe' ? (
+                <>
+                  — observe &amp; sign:{' '}
+                  <code className="adopt-gate-cmd">storytree gate run {g.id} --pg</code>
+                  {g.command && <span className="muted"> ({g.command})</span>}
+                </>
+              ) : g.kind === 'build-tests' ? (
+                <span className="muted">— earned by a genuine red→green build, not observe-and-sign</span>
+              ) : (
+                <span className="muted">— earned when the capability it folds under greens</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted small">
+        Adopting every gate flips the story off <code>mapped</code>; the world&apos;s crown derives
+        green once every capability AND every own-proof obligation (UAT legs + reliability gates) is
+        signed (ADR-0082/0083 + ADR-0085). No single gate greens the story.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The `goGreen === 'none'` story surface (ADR-0094): no go-green action applies. Phrased from the
+ * story's STATUS so the panel explains WHY in place rather than rendering a stale/over-promising
+ * Build — `healthy` needs nothing, a gateless `mapped` story needs reliability gates, an `unhealthy`
+ * story's recovery is the agent loop (d.2), a non-real `proposed` story needs a real proof arm.
+ */
+function NoGoGreen({ status }: { status?: WorkStatus | null | undefined }): React.JSX.Element {
+  const reason =
+    status === 'healthy'
+      ? 'This story is healthy — no go-green action needed.'
+      : status === 'mapped'
+        ? 'This brownfield (mapped) story declares no `## Reliability Gates` yet — author them so it can be Adopted to green (ADR-0085).'
+        : status === 'unhealthy'
+          ? 'This story regressed to red — recovery is the agent loop’s job (the orchestrator drives red→green), not a user button (ADR-0094).'
+          : status === 'proposed'
+            ? 'This proposed story has no real-buildable capabilities yet — add a real: proof arm to its capabilities to build the whole story.'
+            : 'No go-green action is available for this story.';
+  return (
+    <div className="tree-build">
+      <p className="muted small">{reason}</p>
     </div>
   );
 }

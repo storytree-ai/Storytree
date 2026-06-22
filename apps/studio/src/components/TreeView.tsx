@@ -4052,18 +4052,21 @@ function StoryPanel({
           the gate-green hue (ADR-0044). */}
       <UatTestsSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
 
-      {/* The UI-driven Build control (ADR-0090) is the LAST thing in the panel (owner placement,
-          2026-06-22): a single Build affordance at the foot. A drilled-in capability targets a
-          single-node `--live` build (its `buildable`); a story with no cap drilled targets a
-          whole-story `--real` build (its `storyBuildable` — the honest "really build this story").
-          So the control stays in the SAME spot whether you're viewing a story or a capability, and
-          a non-buildable selection shows WHY in place rather than vanishing (the owner's "it
-          disappears as I click around" was the single-node model showing through — most stories
-          carry no single buildable node, but many are whole-story buildable). */}
+      {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the LAST thing in the panel (owner
+          placement, 2026-06-22): a single affordance at the foot. A drilled-in capability targets a
+          single-node `--live` build (its `buildable`). A story shows a STATUS-AWARE go-green
+          affordance (ADR-0094): `proposed → Build` (whole-story `--real` drive), `mapped → Adopt`
+          (observe-and-sign its `## Reliability Gates`, ADR-0085), or a reason when neither applies —
+          never a fail-closed Build over a mature brownfield artifact. The control stays in the SAME
+          spot whether you're viewing a story or a capability, and a no-affordance selection shows WHY
+          in place rather than vanishing. */}
       <BuildSection
         unitId={cap ? cap.id : story.id}
         buildable={cap ? cap.buildable : story.storyBuildable}
         scope={cap ? 'node' : 'story'}
+        goGreen={cap ? undefined : story.goGreen}
+        adoptGates={cap ? undefined : story.adoptGates}
+        status={cap ? undefined : story.status}
       />
     </aside>
   );

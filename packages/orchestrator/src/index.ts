@@ -115,12 +115,14 @@ export type {
   StoryBuildRun,
   TopoResult,
   StoryBuildMode,
+  StoryGoGreen,
 } from "./story-build.js";
 export {
   runStoryBuild,
   topoOrderStoryNodes,
   storyDriveOrder,
   isStoryBuildable,
+  storyGoGreen,
 } from "./story-build.js";
 
 // ── The proof machinery (ADR-0068 step 1): the farmer organism's RULER — the compute that

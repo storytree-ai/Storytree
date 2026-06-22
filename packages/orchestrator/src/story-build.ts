@@ -245,3 +245,44 @@ export function isStoryBuildable(
     return mode === "real" ? resolved.config.real !== undefined : true;
   });
 }
+
+/**
+ * The go-green AFFORDANCE a story should surface, as a function of its STATUS (ADR-0094) — not a
+ * status-blind "Build". The transitions that actually exist are `proposed → healthy` (**Build**: drive
+ * the author-declared obligations red→green through the gate) and `mapped → healthy` (**Adopt**: the
+ * author-declared `## Reliability Gates`, observe-and-signed to an `adopted` verdict, ADR-0085). A
+ * `healthy` story has no go-green action (re-verification aside); an `unhealthy` story's recovery is
+ * the AGENT loop's job, never a user button (ADR-0094 d.2 — deferred as a not-yet-born concept).
+ */
+export type StoryGoGreen = "build" | "adopt" | "none";
+
+/**
+ * PURE: which go-green affordance `story` should surface (ADR-0094 decisions 1 & 3), gated on STATUS.
+ * The studio reads this off `/api/tree` to choose Build vs Adopt vs nothing.
+ *
+ * - `proposed` → **build** iff there is a genuine real build to drive ({@link isStoryBuildable} `real`);
+ *   else **none** (a proposed story with no real-buildable path).
+ * - `mapped` → **adopt** iff the brownfield story declares `## Reliability Gates` to adopt; else **none**.
+ *   A `mapped` story NEVER lights Build merely because its driven nodes carry `real:` arms (ADR-0094
+ *   d.3) — a mature brownfield artifact has no genuine live red, so a `--real` drive fails closed; its
+ *   honest path off `mapped` is Adopt (observe-and-sign), not a fail-closed Build.
+ * - `healthy` / `unhealthy` / `building` / `retired` / unparseable → **none** (no user-facing go-green;
+ *   red-recovery is the agent loop, ADR-0094 d.2).
+ *
+ * {@link isStoryBuildable} (the build MECHANISM the gate prechecks with) is deliberately UNCHANGED —
+ * this is the affordance layer the studio renders, not the gate's drive determination.
+ */
+export function storyGoGreen(
+  story: NodeSpec,
+  capabilities: readonly NodeSpec[],
+): StoryGoGreen {
+  if (story.tier !== "story") return "none";
+  switch (story.status) {
+    case "proposed":
+      return isStoryBuildable(story, capabilities, "real") ? "build" : "none";
+    case "mapped":
+      return story.reliabilityGates.length > 0 ? "adopt" : "none";
+    default:
+      return "none";
+  }
+}
