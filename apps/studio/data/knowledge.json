@@ -1568,6 +1568,22 @@
   },
   {
     "kind": "principle",
+    "id": "plain-language-first",
+    "title": "Plain language first",
+    "description": "Lead with the stake, gloss every internal term and ADR number on first use, and draw structural questions — so a reader without the repo loaded can decide.",
+    "references": [
+      "asset:signal-and-noise",
+      "asset:guidance-quality"
+    ],
+    "createdAt": "2026-06-22T00:00:00.000Z",
+    "updatedAt": "2026-06-22T00:00:00.000Z",
+    "statement": "Write every artifact so a newcomer with the repo NOT loaded grasps the stake in the first sentence and never hits an unexplained internal term.",
+    "why": "Our artifacts are read by newcomers and by agents that pull them as just-in-time context without the codebase in mind. A bare identifier (`renderBody`, `STORYTREE_STUDIO_STORE`) or a bare ADR number (`ADR-0018 §D3`) is noise to that reader (see `signal-and-noise`): it consumes attention without conferring the power to decide. An artifact that opens with the decision instead of the stake makes the reader earn the \"why should I care\" that should have been free.",
+    "howToApply": "Three checks, all observable. (1) Stake in sentence one — the first sentence says what breaks, or what is blocked, in plain terms, before any identifier or ADR number (e.g. \"Edit a Library entry in the studio today and it silently loses its structured fields.\"). (2) Jargon budget = zero — every internal term, code identifier, and ADR number gets a ≤7-word gloss or a link on its first use; count the unexplained ones, the target is none (`renderBody` → \"the function that turns structured fields into the markdown you see\"). (3) Draw the structure — if the subject is a structure, flow, or state machine, include a diagram, not only prose. This is the structural cure `guidance-quality` argues for — a template field or a slot, not a \"please write clearly\" exhortation; the `open-question` template operationalises check 1 via its required `stakes` lead and check 3 via its `## Diagram` slot.",
+    "schemaVersion": 2
+  },
+  {
+    "kind": "principle",
     "id": "stale-prerequisite-links-are-phantoms",
     "title": "Stale prerequisite links are phantoms",
     "description": "A cross-story dependency edge with no shared observable is a phantom; removing it is map correction, not loosening — the within-unit proof ladder stays sacred.",
@@ -2568,7 +2584,8 @@
       "asset:owner-fork-bar",
       "asset:reference-dont-restate",
       "asset:observability-first",
-      "asset:verify-edit-write-persisted-or-escalate"
+      "asset:verify-edit-write-persisted-or-escalate",
+      "asset:plain-language-first"
     ],
     "antiPatterns": [
       "asset:never-bypass-the-gate",
@@ -2590,6 +2607,7 @@
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:plain-language-first",
       "asset:never-bypass-the-gate",
       "asset:agent-never-self-exempts",
       "asset:approval-gated-trunk",
