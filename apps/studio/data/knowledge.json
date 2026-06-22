@@ -2245,6 +2245,28 @@
     "schemaVersion": 2
   },
   {
+    "id": "owner-fork-bar",
+    "kind": "principle",
+    "title": "The owner-fork bar: escalate ownership, not uncertainty",
+    "description": "An open-question is earned only by a decision that is the owner's to make — irreversible, outward-facing, or value-laden and unsettleable from the corpus; a reversible, internal call with a defensible engineering answer is decided and recorded, never parked as an owner fork.",
+    "statement": "Raise an owner-facing fork (an `open-question`) only when the DECISION ITSELF is the owner's to make — it is irreversible, outward-facing, or value-laden and unsettleable from the existing decision log — never merely because the agent is unsure; a reversible, internal call with a defensible engineering answer is decided and recorded (an ADR if it outlives its unit, else the unit's own guidance), not parked as an OQ.",
+    "why": "Owner adjudication is the system's scarcest channel, and a misrouted fork spends it twice: the owner must first reverse-engineer the engineering context the agent already had, then make a call the agent was equipped to make — so the fork cannot be answered in seconds, sits unadjudicated, and the unit stalls behind it. The observed failure is exactly this: forks like \"which proof command\" or \"tighten this glob predicate\" reached the owner already carrying an engineering lean, because uncertainty — not ownership — was used as the trigger. The opposite error is as costly: deciding an irreversible or value-laden call unilaterally removes the human from the loop they own (`human-owns-the-outer-loop`). The asymmetry favours deciding-and-recording: a decidable engineering call mis-routed to the owner wastes the one resource that does not scale, whereas the same call decided by a competent agent costs only a moment of judgement and leaves a durable record.",
+    "howToApply": "Ask of any candidate fork: is the DECISION the owner's? It earns an `open-question` iff at least one holds — (1) IRREVERSIBLE or high-blast-radius (destroys history, migrates or deletes data, lands on the product trunk, or is otherwise costly to undo); (2) OUTWARD-FACING (changes what an external party sees or depends on — the public site, users, a deploy, an email); (3) VALUE-LADEN and UNSETTLEABLE FROM THE CORPUS (the right answer turns on owner priorities, product direction, taste, or risk appetite, not on an engineering tradeoff the decision log already settles). If none hold, it is your call: pick the defensible option, name both sides of the tradeoff (`assess-tradeoffs-by-naming-both-sides`), RECORD it — an ADR if the decision would outlive the unit that prompted it (`survival-test-for-adrs`), otherwise the unit's own guidance — and move on. Tells that a fork is already below the bar: it carries a stated \"lean\", its rationale is purely engineering, or it cannot be put to the owner in one plain sentence without an identifier or ADR number. The discriminator is OWNERSHIP, not ADR-worthiness: a cross-cutting but purely-engineering standard is an ADR you author yourself (ADR-0084), not an owner fork.",
+    "references": [
+      "asset:human-owns-the-outer-loop",
+      "asset:survival-test-for-adrs",
+      "asset:stateless-vs-stateful-graduation",
+      "asset:assess-tradeoffs-by-naming-both-sides",
+      "doc:decisions/0018-knowledge-tier-phase1-structured-source.md",
+      "doc:decisions/0032-cite-graduation-mechanism.md",
+      "doc:decisions/0084-agents-may-flip-an-adr-green.md"
+    ],
+    "provenance": "Authored 2026-06-22 at the owner's steer, after two live OQs (`oq-edit-existing-refinements`, `oq-gate-as-proof-hygiene`) reached the owner reading like engineering-hygiene calls (a glob predicate, a proof-command scope) the owner could not adjudicate in seconds — a ROUTING gap, not a wording one. States once the bar that was previously restated, partially, across the `escalation` fields of session-orchestrator, guidance-curator, story-author, librarian-curator, and graduation-synthesist (reference-don't-restate; two-consumer-extraction — 5 current consumers). The sibling of `survival-test-for-adrs` (which routes a decision between an ADR and a unit's guidance) for the owner-vs-engineer axis; complements the `human-owns-the-outer-loop` guardrail (which fixes WHO performs an outer-loop transition) by fixing WHAT rises to one. Consumers: session-orchestrator (wired into rules); recommended for the OQ-authoring escalation paths (guidance-curator, graduation-synthesist).",
+    "createdAt": "2026-06-22T00:00:00.000Z",
+    "updatedAt": "2026-06-22T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "id": "stateless-vs-stateful-graduation",
     "kind": "principle",
     "title": "Stateless graduates, stateful stays",
@@ -2543,6 +2565,7 @@
     "rules": [
       "asset:slow-growth-minimum-to-green",
       "asset:edit-first-curation",
+      "asset:owner-fork-bar",
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate"
@@ -2563,6 +2586,7 @@
       "asset:orchestrate-route-supplement",
       "asset:slow-growth-minimum-to-green",
       "asset:edit-first-curation",
+      "asset:owner-fork-bar",
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
