@@ -38,6 +38,15 @@
         "STORYTREE_STUDIO_STORE": "pg",
         "STORYTREE_DB_USER": "hua.mick@gmail.com"
       }
+    },
+    {
+      "name": "studio-json-5180",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "studio", "dev", "--port", "5180", "--strictPort", "--host", "127.0.0.1"],
+      "port": 5180,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "json"
+      }
     }
   ]
 }

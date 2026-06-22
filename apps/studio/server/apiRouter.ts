@@ -54,6 +54,8 @@ import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
 import type { InviteMailer } from './inviteMailer';
+import type { BuildRegistry } from './buildRegistry';
+import { runBuildJob, type BuildRunner } from './buildWorker';
 
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
@@ -874,6 +876,7 @@ export async function handleUatAttest(
 
 type OrchestratorModule = typeof import('@storytree/orchestrator');
 type LoadNodeSpec = OrchestratorModule['loadNodeSpec'];
+type ResolveBuildConfig = OrchestratorModule['resolveBuildConfig'];
 
 let orchestratorModulePromise: Promise<OrchestratorModule> | null = null;
 
@@ -884,7 +887,12 @@ function loadOrchestrator(): Promise<OrchestratorModule> {
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
-function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId: string): TreeCapability {
+function loadTreeCapability(
+  loadNodeSpec: LoadNodeSpec,
+  resolveBuildConfig: ResolveBuildConfig,
+  storyDir: string,
+  capId: string,
+): TreeCapability {
   const node: TreeCapability = {
     id: capId,
     title: capId,
@@ -904,6 +912,9 @@ function loadTreeCapability(loadNodeSpec: LoadNodeSpec, storyDir: string, capId:
       status: isWorkStatus(spec.status) ? spec.status : null,
       proofMode: spec.proofMode,
       dependsOn: spec.dependsOn,
+      // ADR-0090 Phase 1: a node is buildable when it carries a proof config (spec-borne or
+      // registry) — the SAME determination `node build`/`node resolve` make.
+      buildable: resolveBuildConfig(spec) != null,
     };
   } catch (err) {
     return { ...node, error: err instanceof Error ? err.message : String(err) };
@@ -920,7 +931,7 @@ async function readTree(
   // re-reading every spec. Keyed by `{ id }` only (all `rollupStoryGreen` reads).
   const uatTestsByStory = new Map<string, { id: string }[]>();
   if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
-  const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
+  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -949,8 +960,10 @@ async function readTree(
       story.consumedBy = spec.consumedBy;
       // Studio render hint (ADR-0076): `render: building` ⇒ drawn as a de-connected building.
       story.building = spec.render === 'building';
+      // ADR-0090 Phase 1: gate-buildability for the UI-driven Build control (same discovery as the CLI).
+      story.buildable = resolveBuildConfig(spec) != null;
       story.capabilities = spec.capabilities.map((capId) =>
-        loadTreeCapability(loadNodeSpec, dir, capId),
+        loadTreeCapability(loadNodeSpec, resolveBuildConfig, dir, capId),
       );
       // ADR-0085: the crown rolls up the UNION of UAT tests + reliability gates (a pure port greens
       // from its reliability gates alone). Both are addressable `{ id }` obligation units.
@@ -1089,6 +1102,75 @@ export async function handleActivity(
   sendJson(res, 200, { builds: await backend.inFlightBuilds() });
 }
 
+// ---------- UI-driven build (intent + status, ADR-0090 Phase 1 "the local loop") ----------
+//
+// POST /api/build { unitId } writes a build INTENT — a SAFE write that asks the server-process
+// worker to run the existing `--live` build path; it never accepts or persists a verdict (the gate
+// inside the worker signs; ADR-0090 d.2 / ADR-0091). There is deliberately NO endpoint that takes a
+// verdict as input — that is the forge pathway ADR-0091 forbids. GET /api/build?runId reads the
+// run's coarse transcript + status. Both hang off the SINGLE route table; the worker (registry +
+// runner + discovery) is injected via {@link ApiContext.build}, like dbWake/invites — absent (the
+// hosted server in Phase 1) → 404.
+
+/** The build seam injected into the route table: the run registry, the build runner, and discovery. */
+export interface BuildContext {
+  registry: BuildRegistry;
+  /** Drives one build (the worker); wired over the real `nodeBuild --live` in the dev front. */
+  runner: BuildRunner;
+  /** Whether `unitId` is a real buildable node — validated against the SAME discovery `node build` uses. */
+  isBuildable(unitId: string): Promise<boolean>;
+}
+
+/**
+ * POST /api/build — dispatch a build intent (202 + runId; fire-and-forget worker, the client polls);
+ * GET /api/build?runId — read a run's status + coarse transcript (+ the terminal envelope/reason).
+ * Every known outcome is a typed HTTP answer (400 bad body, 404 unknown id/run, 409 a build already
+ * running, 405 wrong method) — never a 500 (the central catch maps HttpError → its status).
+ */
+export async function handleBuild(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  build: BuildContext,
+): Promise<void> {
+  const method = req.method ?? 'GET';
+
+  if (method === 'POST') {
+    const input = await readJsonBody<Record<string, unknown>>(req);
+    const unitId = asString(input.unitId).trim();
+    if (!unitId) throw new HttpError(400, 'unitId is required');
+    // Validate against real discovery — a typo'd / non-buildable id is a clean 404, never a worker
+    // that spawns against nothing.
+    if (!(await build.isBuildable(unitId))) {
+      throw new HttpError(404, `no buildable node "${unitId}"`);
+    }
+    const created = build.registry.createRun(unitId);
+    // The single-build-at-a-time guard surfaces as 409 (a typed refusal, not a thrown 500).
+    if (!created.ok) throw new HttpError(409, created.reason);
+    const { runId } = created.run;
+    // Fire-and-forget: the build runs after the 202; the client polls GET for progress. runBuildJob
+    // never throws (it records a failed terminal state), so the floating promise can't reject.
+    void runBuildJob(build.registry, runId, unitId, build.runner);
+    return sendJson(res, 202, { runId });
+  }
+
+  if (method === 'GET') {
+    const runId = url.searchParams.get('runId') ?? '';
+    const run = build.registry.getRun(runId);
+    if (!run) throw new HttpError(404, 'build run not found');
+    return sendJson(res, 200, {
+      runId: run.runId,
+      unitId: run.unitId,
+      status: run.status,
+      transcript: run.transcript,
+      ...(run.envelope !== undefined ? { envelope: run.envelope } : {}),
+      ...(run.reason !== undefined ? { reason: run.reason } : {}),
+    });
+  }
+
+  throw new HttpError(405, `method ${method} not allowed`);
+}
+
 async function handleDocs(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -1132,6 +1214,12 @@ export interface ApiContext {
   policy?: ApiPolicy | undefined;
   /** Invite-email sender for POST /api/users; absent = no email (the invite still writes its row). */
   invites?: InviteMailer | undefined;
+  /**
+   * UI-driven build seam (ADR-0090 Phase 1): the run registry + worker + discovery behind
+   * /api/build. Wired by the dev front (the local loop); absent on the hosted server (Phase 1) →
+   * /api/build answers 404.
+   */
+  build?: BuildContext | undefined;
 }
 
 /**
@@ -1213,6 +1301,11 @@ export async function handleApiRequest(
       await handlePresence(req, res, ctx.backend);
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
+    } else if (url.pathname === '/api/build') {
+      // UI-driven build (ADR-0090 Phase 1): dispatch an intent / read a run's status. The worker
+      // seam is wired by the dev front only; absent (hosted, Phase 1) → 404.
+      if (ctx.build === undefined) throw new HttpError(404, 'build is not enabled');
+      await handleBuild(req, res, url, ctx.build);
     } else if (url.pathname === '/api/comments') {
       await handleComments(req, res, url, ctx.backend, ctx.policy?.commentScope ?? null);
     } else if (url.pathname === '/api/assets') {

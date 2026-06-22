@@ -5,6 +5,8 @@ import type {
   AssetInput,
   AttestationMark,
   AttestationsPayload,
+  BuildIntentResult,
+  BuildStatus,
   Member,
   Comment,
   DbStatus,
@@ -81,6 +83,14 @@ export const api = {
   // contract + abort backstop as presence: a down DB answers {builds: null}.
   activity: (): Promise<ActivityPayload> =>
     http('/api/activity', { signal: AbortSignal.timeout(10_000) }),
+  // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
+  // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
+  // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
+  build: (unitId: string): Promise<BuildIntentResult> =>
+    http('/api/build', jsonInit('POST', { unitId })),
+  buildStatus: (runId: string): Promise<BuildStatus> =>
+    http(`/api/build?runId=${q(runId)}`),
+
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),
   // Hosted-native DB wake (ADR-0049): keyless Cloud SQL Admin REST, so it works on Cloud Run where

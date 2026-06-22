@@ -350,6 +350,13 @@ export interface TreeCapability {
   proofMode: string;
   /** Sibling capability ids this one depends on (the in-story `depends_on` edges). */
   dependsOn: string[];
+  /**
+   * Whether this node can be driven through the prove-it-gate (it carries a proof config — spec-borne
+   * or registry), i.e. `storytree node build <id>` would resolve. Drives the studio's UI-driven Build
+   * control (ADR-0090 Phase 1): the Build button is offered only for a buildable node. Computed
+   * server-side via the SAME `resolveBuildConfig` discovery `node build`/`node resolve` use.
+   */
+  buildable?: boolean;
   verdict?: TreeVerdict;
   /**
    * Binding-staleness drift of the code this unit's proof was signed against (ADR-0016 §3), present
@@ -390,6 +397,8 @@ export interface TreeStory {
    * review), never derived. `library` is the first tagged building. Absent/false = a normal island.
    */
   building?: boolean;
+  /** Whether this story node is gate-buildable (see {@link TreeCapability.buildable}, ADR-0090 Phase 1). */
+  buildable?: boolean;
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
@@ -534,6 +543,31 @@ export interface BuildActivity {
  */
 export interface ActivityPayload {
   builds: BuildActivity[] | null;
+}
+
+// ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------
+
+/** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */
+export type BuildRunStatus = 'building' | 'passed' | 'failed';
+
+/** POST /api/build response: the accepted run's id (the client then polls GET for progress). */
+export interface BuildIntentResult {
+  runId: string;
+}
+
+/**
+ * GET /api/build?runId — a run's live status + COARSE transcript. `envelope` (the final build body)
+ * is present only on a `passed` run; `reason` only on a `failed` run. The transcript is ephemeral
+ * progress (in-memory, gone on a dev-server restart); the DURABLE artifact is the signed verdict the
+ * build persists to events.verdict, which the world reads via /api/tree.
+ */
+export interface BuildStatus {
+  runId: string;
+  unitId: string;
+  status: BuildRunStatus;
+  transcript: string[];
+  envelope?: string;
+  reason?: string;
 }
 
 /** Highlight colour palette for text-anchored comments. */

@@ -69,6 +69,7 @@ import {
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import { bookshelfConsumers, sharedIslandStories, shelfBooks } from '../lib/buildingLayout.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 
@@ -3917,6 +3918,12 @@ function StoryPanel({
         onNavigate={(d) => navigate(treeFocusHref(d))}
       />
 
+      {/* The UI-driven Build control (ADR-0090 Phase 1): trigger a single-node `--live` build
+          and watch its coarse transcript run to a verdict — only for a gate-buildable node.
+          When a capability is drilled into, the build target is THAT capability (below), not
+          the story; otherwise the story is the target. */}
+      {!cap && <BuildSection unitId={story.id} buildable={story.buildable} />}
+
       {sessions.length > 0 && (
         <div className="tree-sessions">
           {/* The panel is a detail surface like the dock (ADR-0041): the count
@@ -4043,6 +4050,9 @@ function StoryPanel({
               <code>{`stories/${story.id}/${cap.id}.md`}</code>
             </dd>
           </dl>
+          {/* Build the drilled-into capability (ADR-0090 Phase 1) — the build target is the
+              selected capability, not the story. */}
+          <BuildSection unitId={cap.id} buildable={cap.buildable} />
         </div>
       )}
 
