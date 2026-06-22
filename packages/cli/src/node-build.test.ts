@@ -128,13 +128,14 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
   // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
   // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
-  // model-runtime-seam, owned-turn-loop; and the WHOLE library story + its 7 capabilities (ADR-0092:
-  // spec-borne brownfield + gate-as-proof arms): eager-batch-migrate, event-sourced-store-seam,
-  // library, library-cli, library-health-gate, library-schema-and-write-validation,
-  // migrate-on-write-upcaster, seed-corpus-scripts.
+  // model-runtime-seam, owned-turn-loop. The library story + its 7 capabilities are NO LONGER here:
+  // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
+  // `mapped`, so its green path is Adopt (`## Reliability Gates`, ADR-0085), not a fail-closed `--real`
+  // Build. They keep their spec-borne dry-run/live `command`+`scope`, so they stay in "buildable nodes"
+  // (single-node `--live`) but drop out of "REAL-buildable nodes".
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, eager-batch-migrate, event-sourced-store-seam, gate-emits-change, leaf-tool-surface, library, library-cli, library-health-gate, library-schema-and-write-validation, migrate-on-write-upcaster, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, gate-emits-change, leaf-tool-surface, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
@@ -295,15 +296,15 @@ test("node resolve on the dogfood node (node-resolve-report) resolves spec-borne
   assert.match(env.body, /packages\/cli\/src\/resolve-report\.test\.ts/);
 });
 
-test("node resolve on library-cli shows source=spec + a brownfield editsExisting real arm (ADR-0092)", async () => {
-  // The library caps are now spec-borne with brownfield real arms (ADR-0092: editsExisting against the
-  // real packages/cli source), so library-cli resolves source=spec and is REAL-buildable. No corpus
-  // node is registry-only any more — the registry is a pure parity/fallback oracle (resolver unit tests).
+test("node resolve on library-cli shows source=spec but NOT real-buildable (the ADR-0092 real arm removed, ADR-0094)", async () => {
+  // ADR-0094 removed the library's brownfield `real:` arms (ADR-0092 d.5, supersedes_in_part): the
+  // library is `mapped`, so its honest path to green is Adopt (`## Reliability Gates`, ADR-0085), not a
+  // fail-closed `--real` Build. library-cli keeps its spec-borne dry-run/live `command`+`scope` (source:
+  // spec, single-node `--live`-buildable) but no longer carries a `real:` arm, so it is NOT real-buildable.
   const env = await run(["node", "resolve", "library-cli"], deps);
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /buildable: +yes — source: spec/);
-  assert.match(env.body, /REAL-buildable: yes/);
-  assert.match(env.body, /edits source: +true/); // brownfield edit-existing arm, not a net-new pair
+  assert.match(env.body, /REAL-buildable: no/);
 });
 
 test("node resolve on a non-buildable node fails closed, naming BOTH routes out", async () => {

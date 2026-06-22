@@ -31,6 +31,10 @@ export {
   upcast,
 } from "./migrations.js";
 export { renderBody, generateTemplate } from "./knowledge-render.js";
+// ADR-0095: the agent-memory → Library graduation engine (the pure candidate-generation core).
+// Browser-safe (no node:, no fs, no clock) — the CLI reads the memory files off disk and passes
+// already-parsed `MemoryFile[]` in; the librarian-curator finalises the emitted candidates.
+export * from "./graduation/graduation.js";
 export {
   groupSources,
   SOURCE_GROUP_ORDER,

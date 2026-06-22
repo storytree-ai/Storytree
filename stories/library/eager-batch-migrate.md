@@ -7,9 +7,11 @@ outcome: "A lagging library doc is bulk forward-migrated in place non-destructiv
 status: mapped
 proof_mode: integration-test
 depends_on: [event-sourced-store-seam, migrate-on-write-upcaster]
-# ADR-0092 (brownfield gate-as-proof affordance): a spec-borne editsExisting `real:` arm against the
-# real packages/library source, so `story build library --real` can DRIVE this capability (ADR-0057 C).
-# batchMigrate is store-agnostic (it runs over the Store seam), so no db is needed offline.
+# ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
+# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
+# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
+# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build. batchMigrate is store-agnostic (it
+# runs over the Store seam), so no db is needed offline.
 proof:
   command:
     file: pnpm
@@ -17,17 +19,6 @@ proof:
   scope:
     testGlobs: ["packages/library/src/**/*.test.ts"]
     sourceGlobs: ["packages/library/src/**/*.ts"]
-  real:
-    testFile: "packages/library/src/store/batch-migrate.regression.test.ts"
-    sourceFile: "packages/library/src/store/batch-migrate.ts"
-    scope:
-      testGlobs: ["packages/library/src/store/batch-migrate.regression.test.ts"]
-      sourceGlobs: ["packages/library/src/store/batch-migrate.ts"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/library", "typecheck"]
 ---
 
 # Eagerly drain the version tail and render stored docs for reading
