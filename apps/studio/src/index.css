@@ -2139,6 +2139,72 @@ mark.st-hl.flash {
   margin: 2px 0 0;
 }
 
+/* The UI-driven Build control (ADR-0090 Phase 1 "the local loop"): trigger a single-node
+   `--live` build from the island panel and watch a COARSE transcript run to a verdict. The
+   transcript is progress lines (a phase trail), NOT a raw log — rendered as an ordered list. */
+.tree-build {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.tree-build .build-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.tree-build .build-btn:hover {
+  background: #4338ca;
+}
+.tree-build .build-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.build-hint {
+  margin: 6px 0 0;
+}
+.build-error {
+  margin: 8px 0 0;
+}
+.build-run {
+  margin-top: 8px;
+}
+.build-run-status {
+  margin: 0 0 6px;
+  font-weight: 500;
+}
+.build-transcript {
+  margin: 0;
+  padding: 8px 10px 8px 26px;
+  list-style: decimal;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.build-transcript-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.build-verdict {
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  word-break: break-word;
+}
+.build-verdict.verdict-pass {
+  background: var(--good-weak);
+}
+.build-verdict.verdict-fail {
+  background: var(--warn-weak);
+}
+
 /* The PROVEN column (ADR-0082): the SIGNED verdict (events.verdict) — the REAL gate state that greens
    the crown, deliberately DISTINCT from the lower-rigor ⚑/⚐ vouch. ✓ GREEN a signed pass, ✗ RED a
    signed fail, – muted un-proven. A faint, clickable ✓ ("I saw it work") on a human/either test an

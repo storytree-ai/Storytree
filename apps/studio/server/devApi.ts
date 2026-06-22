@@ -13,8 +13,10 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
 import { createCodeStampProbe, type CodeStamp } from './codeStamp';
-import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
+import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
+import { BuildRegistry } from './buildRegistry';
+import { buildRunnerFromNodeBuild } from './buildWorker';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handlePresence, handleActivity, type HealthDeps } from './apiRouter';
@@ -42,6 +44,38 @@ export function storytreeDataApi(): Plugin {
       // (no stray git spawn during `vite build`) and runs at server start, before any pull
       // could move the checkout under us.
       codeProbe = createCodeStampProbe(paths.repoRoot);
+
+      // UI-driven build (ADR-0090 Phase 1 "the local loop"): the server-process worker boundary.
+      // One in-memory run registry per dev server; the runner drives the EXISTING `nodeBuild --live`
+      // path and the discovery validates ids the SAME way `node build` does. cli + orchestrator are
+      // imported LAZILY (inside the closures) so this Vite plugin never pulls them at config-load
+      // time (the raw-TS `.js` re-export trap; the same reason loadOrchestrator/PgBackend are lazy).
+      const buildRegistry = new BuildRegistry();
+      const build: BuildContext = {
+        registry: buildRegistry,
+        runner: buildRunnerFromNodeBuild(async (unitId, opts) => {
+          const [{ nodeBuild }, { loadLocalSecrets }] = await Promise.all([
+            import('@storytree/cli/build'),
+            import('@storytree/cli/secrets'),
+          ]);
+          // Hydrate CLAUDE_CODE_OAUTH_TOKEN (SDK leaf) + STORYTREE_DB_USER (pg verdict store) from
+          // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
+          loadLocalSecrets();
+          return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
+        }),
+        isBuildable: async (unitId) => {
+          const { findNodeSpecFile, loadNodeSpec, resolveBuildConfig } = await import(
+            '@storytree/orchestrator'
+          );
+          const file = findNodeSpecFile(paths.storiesDir, unitId);
+          if (file === null) return false;
+          try {
+            return resolveBuildConfig(loadNodeSpec(file)) != null;
+          } catch {
+            return false; // a malformed spec is not buildable, never a crash
+          }
+        },
+      };
       const store = selectedStore();
       const target =
         store === 'pg'
@@ -66,6 +100,7 @@ export function storytreeDataApi(): Plugin {
           codeStamp: codeProbe,
           allowDbControl: true,
           invites,
+          build,
         });
       });
     },

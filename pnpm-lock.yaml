@@ -13,6 +13,9 @@ importers:
       '@dagrejs/dagre':
         specifier: ^1.1.4
         version: 1.1.8
+      '@storytree/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library

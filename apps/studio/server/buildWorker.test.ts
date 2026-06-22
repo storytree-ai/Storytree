@@ -1,0 +1,104 @@
+// Contract tests for the build worker (capability ui-build-trigger, ADR-0090 Phase 1).
+// The worker is the server-process piece that the API's POST handler starts fire-and-forget: it
+// drives the EXISTING build path (nodeBuild --live) through an injected runner, streams that build's
+// COARSE progress into the run's transcript (via the registry), and terminalises the run with the
+// envelope. It is the single orchestrator boundary — it calls the public build entry and reaches
+// inside no gate/spine/leaf internals.
+
+import { describe, it, expect, vi } from 'vitest';
+import { BuildRegistry } from './buildRegistry';
+import {
+  runBuildJob,
+  buildRunnerFromNodeBuild,
+  type BuildEnvelope,
+  type NodeBuildLike,
+} from './buildWorker';
+
+describe('runBuildJob', () => {
+  // ubt-worker-streams-coarse-lines-to-run (pass path)
+  it('streams the build coarse lines into the run and terminalises passed with the envelope', async () => {
+    const reg = new BuildRegistry();
+    const created = reg.createRun('library-cli');
+    if (!created.ok) throw new Error('setup');
+    const { runId } = created.run;
+
+    const runner = async (unitId: string, sink: (line: string) => void): Promise<BuildEnvelope> => {
+      expect(unitId).toBe('library-cli');
+      sink('phase: AUTHOR_TEST');
+      sink('phase: GATE');
+      return { ok: true, body: 'verdict: PASS\nsigner: operator', next: [] };
+    };
+
+    await runBuildJob(reg, runId, 'library-cli', runner);
+
+    const run = reg.getRun(runId);
+    expect(run?.status).toBe('passed');
+    // A start marker, the streamed phase lines, and the envelope body lines are all present, in order.
+    expect(run?.transcript).toContain('phase: AUTHOR_TEST');
+    expect(run?.transcript).toContain('phase: GATE');
+    expect(run?.transcript).toContain('verdict: PASS');
+    expect(run?.transcript[0]).toMatch(/build started/i);
+    expect(run?.envelope).toMatch(/verdict: PASS/);
+    // The build is unblocked once the worker terminalises.
+    expect(reg.hasActiveBuild()).toBe(false);
+  });
+
+  // ubt-worker-streams-coarse-lines-to-run (fail path)
+  it('terminalises failed with the reason when the build envelope is not ok', async () => {
+    const reg = new BuildRegistry();
+    const created = reg.createRun('library-cli');
+    if (!created.ok) throw new Error('setup');
+    const { runId } = created.run;
+
+    const runner = async (): Promise<BuildEnvelope> => ({
+      ok: false,
+      body: 'node build library-cli — LIVE-SMOKE\nverdict: NONE — failed closed at AUTHOR_TEST: no signer',
+    });
+
+    await runBuildJob(reg, runId, 'library-cli', runner);
+
+    const run = reg.getRun(runId);
+    expect(run?.status).toBe('failed');
+    expect(run?.reason).toMatch(/failed closed at AUTHOR_TEST/i);
+    expect(run?.envelope).toBeUndefined();
+    // The failure body is still visible in the transcript (an honest terminal state).
+    expect(run?.transcript.some((l) => /failed closed/i.test(l))).toBe(true);
+  });
+
+  it('terminalises failed when the runner throws (never an unhandled rejection)', async () => {
+    const reg = new BuildRegistry();
+    const created = reg.createRun('library-cli');
+    if (!created.ok) throw new Error('setup');
+    const { runId } = created.run;
+
+    const runner = async (): Promise<BuildEnvelope> => {
+      throw new Error('the SDK leaf could not authenticate');
+    };
+
+    await runBuildJob(reg, runId, 'library-cli', runner);
+
+    const run = reg.getRun(runId);
+    expect(run?.status).toBe('failed');
+    expect(run?.reason).toMatch(/could not authenticate/i);
+    expect(reg.hasActiveBuild()).toBe(false);
+  });
+});
+
+describe('buildRunnerFromNodeBuild', () => {
+  // ubt-worker-spawns-real-build-entry
+  it('invokes the existing nodeBuild entry with the Phase-1 options (single node, live, pg)', async () => {
+    const nodeBuild = vi.fn<NodeBuildLike>(async () => ({ ok: true, body: 'verdict: PASS' }));
+    const runner = buildRunnerFromNodeBuild(nodeBuild);
+
+    const envelope = await runner('library-cli', () => {});
+
+    expect(nodeBuild).toHaveBeenCalledTimes(1);
+    const [unitId, opts] = nodeBuild.mock.calls[0]!;
+    expect(unitId).toBe('library-cli');
+    expect(opts).toMatchObject({ live: true, verdictStore: 'pg' });
+    // Phase-1 scope walls: NOT a real build, NOT a dry-run.
+    expect(opts.real).toBeFalsy();
+    expect(opts.dryRun).toBeFalsy();
+    expect(envelope.ok).toBe(true);
+  });
+});
