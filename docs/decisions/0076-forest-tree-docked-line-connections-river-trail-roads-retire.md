@@ -20,6 +20,8 @@ owner-attested appearance). The default is now ON (escape `?buildings=off`). Ame
 [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md) — roads stay the one world, but
 their *rendering* changes (trails → docked lines) and the trail routing machinery is retired.
 
+**Superseded-in-part by [ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md)** (accepted, 2026-06-22) — §2's building *rendering placement* is overtaken: a building-class story no longer "drops out of the layout" with no home of its own (nor, in the interim owner-pivot `buildingIsland` mode, as an on-map edgeless island) — it now renders its full island in a permanent off-map **"Shared Islands"** left panel. §1 (docked-line connections), the manual `render: building` tag, and the consumer bookshelf STAMPS all stand.
+
 ## Context
 
 [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md) made roads the single world and
