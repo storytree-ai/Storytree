@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -27,6 +28,7 @@ import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
+import { graduateCommand, harnessMemoryDir } from "./graduate.js";
 import type { Envelope } from "./envelope.js";
 import {
   libraryHealth,
@@ -175,6 +177,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  artifact retire <id>          retire one artifact + rationale (needs --pg)",
     "  tree focus <id>               the local DAG of one artifact",
     "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
+    "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
     "  (coming soon: artifact comment)",
   );
   return {
@@ -193,6 +196,29 @@ export async function dashboard(store: Store): Promise<Envelope> {
 /** The repo root, resolved from this file's location (packages/cli/src -> three dirs up). */
 function repoRoot(): string {
   return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+}
+
+/**
+ * The MAIN checkout's directory (the `library graduate` default, ADR-0095): the harness keys its
+ * agent-memory store by the PRIMARY working directory, never a worktree, so `git worktree list
+ * --porcelain` (whose first entry is always the main worktree) resolves it from inside a
+ * `.claude/worktrees/<name>` checkout. Falls back to `dir` when git can't answer — the resulting
+ * default dir is always overridable with `--memory-dir`.
+ */
+function mainCheckoutDir(dir: string): string {
+  try {
+    const out = execFileSync("git", ["worktree", "list", "--porcelain"], {
+      cwd: dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    for (const line of out.split("\n")) {
+      if (line.startsWith("worktree ")) return path.resolve(line.slice("worktree ".length).trim());
+    }
+  } catch {
+    // git missing / not a repo — fall back to the given dir.
+  }
+  return dir;
 }
 
 /** Count the generated non-template assets in apps/studio/data/assets.json (for count-reconciliation). */
@@ -713,6 +739,24 @@ function treeHelp(): Envelope {
   };
 }
 
+function graduateHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree library graduate — the agent-memory → Library graduation worklist (ADR-0095).",
+      "",
+      "Reads the harness agent-memory store, classifies each durable memory to its Library kind,",
+      "resolves its [[wiki-links]] against the seed corpus, and flags duplicates. READ-ONLY: it",
+      "prints a worklist for the librarian-curator to finalise — it never authors Library docs.",
+      "",
+      "  storytree library graduate                    the summary worklist",
+      "  storytree library graduate --review           full per-candidate detail (incl. the body)",
+      "  storytree library graduate --memory-dir <p>   read memory from <p> (default: the harness store)",
+    ].join("\n"),
+    next: ["storytree library graduate --review", "storytree library"],
+  };
+}
+
 async function topHelp(store: Store): Promise<Envelope> {
   return {
     ok: true,
@@ -789,6 +833,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
+      "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
     // The "explore just-in-time, drill in to earn the detail" stance is the library's doctrine, not
@@ -996,6 +1041,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     change?: string[];
     reason?: string;
     "superseded-by"?: string;
+    "memory-dir"?: string;
+    review?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -1035,6 +1082,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         change: { type: "string", multiple: true },
         reason: { type: "string" },
         "superseded-by": { type: "string" },
+        "memory-dir": { type: "string" },
+        review: { type: "boolean", default: false },
       },
     });
     positionals = parsed.positionals;
@@ -1269,6 +1318,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (sub === "sync-agents") return syncAgentsCommand(deps);
+
+  if (sub === "graduate") {
+    if (help) return graduateHelp();
+    // Default the memory dir to the harness store keyed by the MAIN checkout (works from a worktree);
+    // --memory-dir overrides. The snapshot is the offline seed corpus (ADR-0095 reads it, not the DB).
+    const memoryDir = values["memory-dir"] ?? harnessMemoryDir(os.homedir(), mainCheckoutDir(repoRoot()));
+    return graduateCommand(
+      { review: values.review === true },
+      {
+        memoryDir,
+        snapshotPath: path.join(repoRoot(), "apps", "studio", "data", "knowledge.json"),
+        now: new Date().toISOString().slice(0, 10),
+      },
+    );
+  }
 
   if (sub === "tree") {
     if (third === undefined || help) return treeHelp();
