@@ -12,9 +12,10 @@ capabilities: [build-run-registry, build-intent-api, ui-build-trigger]
 #                       in apps/studio/src/components/TreeView.tsx's island side panel, and the
 #                       new endpoints hang off the SINGLE /api/* route table (apiRouter.ts,
 #                       ApiContext), the same table the world's /api/tree + /api/activity serve.
-#   - drive-machinery — the build path the worker drives: the worker invokes the EXISTING
-#                       `nodeBuild(... --live)` (packages/cli/src/node-build.ts) → proveUnit, the
-#                       same path `pnpm storytree node build <id> --live` runs today.
+#   - drive-machinery — the build path(s) the worker drives: it ROUTES by unit kind
+#                       (routedBuildRunner, buildWorker.ts:144) — a node → EXISTING
+#                       `nodeBuild(... --live)`, a story → EXISTING `storyBuild(... --real, openPr)`
+#                       (the `story-real-chain` that lands via an auto-merging PR, ADR-0022/0031).
 #   - notice-board    — the in-flight `building` work-event lights the teal wisp (ADR-0048) the
 #                       world reads via /api/activity (PgPresenceStore / classifyPresence); the
 #                       Phase-1 build reuses it, no new wisp code.
@@ -34,11 +35,16 @@ a signed verdict on their own machine.
 
 ## What this is
 
-This is **Phase 1 of ADR-0090** ("UI-driven orchestration: hosted build-capable backend, thin
-clients") — *the local loop*. Today orchestration is a human at a terminal
-(`pnpm storytree node build <id> --live`); ADR-0090 moves the trigger into the studio UI behind a
-THIN client + a server-process WORKER, and Phase 1 proves the mechanics on the operator's OWN
-machine at flat subscription cost — no hosting, no cloud credentials, no multi-tenant.
+This is **ADR-0090's UI-driven orchestration** ("hosted build-capable backend, thin clients")
+brought into the studio — *the local loop, plus story-scoped approve-to-land*. Today's terminal
+trigger (`pnpm storytree node build <id> --live`) moves into the studio UI behind a THIN client + a
+server-process WORKER, on the operator's OWN machine at flat subscription cost — no hosting, no
+cloud credentials, no multi-tenant. The control is **scope-routed** (`routedBuildRunner`,
+`apps/studio/server/buildWorker.ts:144`): a drilled-in capability runs the Phase-1 `--live`
+single-node pipeline smoke; a selected story runs `story build <id> --real` and, on a green chain,
+opens an auto-merging PR — the **Phase-2 approve-to-land** increment PRs #299 + #300 landed (see
+"Scope, honestly" below). The mechanics below were authored Phase-1-first; the realized shape now
+covers both scopes.
 
 The shape, decided in ADR-0090 (owner + orchestrator) and **encoded here, not re-designed**:
 
@@ -62,22 +68,31 @@ The shape, decided in ADR-0090 (owner + orchestrator) and **encoded here, not re
   (`GET /api/build?runId=…`) returns a COARSE transcript (phase/progress lines + the final build
   envelope) that the UI POLLS while the build runs (owner's call: coarse + polled, no websocket).
 
-**Phase-1 NON-goals (out of scope — must not leak into these specs):** LOCAL ONLY (no hosting, no
-cloud credentials, no multi-tenant); no approve-to-land / PR button (Phase 2); no `--real`, no
-whole-`story build` chaining (single-node `--live` only); the frontend holds no model-invocation
-path — the agent runs only in the server/worker process.
+**Scope, honestly (ADR-0090 phases).** The **node (capability) path** stays the Phase-1 `--live`
+local smoke — a single-node build that proves the build PIPELINE on a synthetic task, no land. The
+**story path REACHED FORWARD to ADR-0090 Phase 2 — approve-to-land** (PRs #299 + #300): selecting a
+story (no cap drilled) and clicking **Build** runs `story build <id> --real`, which authors each
+capability for real in a worktree and, on a GREEN chain, opens a **non-draft PR that CI auto-merges
+to trunk** (ADR-0022; `claude/real/*` promotion branches merge non-squash per ADR-0031). Clicking
+Build IS the approval to land — ADR-0090's "the human still owns accept-to-land" is preserved (the
+click is the deliberate, owner-attested human action). STILL out of scope: hosted / multi-tenant /
+cloud-auth (Phase 3); no `--real` toggle on a single node; no manual `gh pr merge`; the frontend
+holds no model-invocation path — the agent runs only in the server/worker process.
 
-## Honest proof posture — `proposed`, and this spec PRECEDES the code
+## Honest proof posture — `proposed`, with the mechanics LANDED
 
-Unlike the `studio` story (a RETROSPECTIVE spec over already-running code), **nothing here is built
-yet.** This spec is authored FIRST, before any implementation, to bound the journey and size the
-units. Every contract below describes the isolated unit test that WILL prove a leaf; the capability
-describes the integration test that WILL prove it against real in-story collaborators; the story
-UAT below describes the acceptance walkthrough that WILL prove the whole local loop against the real
-running studio. Status is `proposed` for every unit — `healthy` is earned through the prove-it-gate,
-never authored. The build-path collaborators (`nodeBuild`, the spine, the SDK leaf) already exist
-and are real; what is new is the worker that drives them from the server process and the UI that
-triggers them.
+This spec was authored FIRST, before any implementation, to bound the journey and size the units;
+the implementation then LANDED (PRs #297 / #299 / #300), and the spec is now reconciled to it.
+Every contract below describes the isolated unit test that proves a leaf; the capability describes
+the integration test that proves it against real in-story collaborators; the story UAT below
+describes the acceptance walkthrough that proves the whole loop against the real running studio.
+The geometry/behaviour of all this is machine-witnessed and green. Status stays `proposed` for
+every unit — not because code is missing, but because `healthy` is earned through the prove-it-gate
+AND the still-pending operator obligations (the APPEARANCE attestation per ADR-0070, and the
+live-run UAT, a subscription-billed human-witness action); it is never authored. The build-path
+collaborators (`nodeBuild`, `storyBuild`, the spine, the SDK leaf) already existed and are real;
+what this story added is the worker that ROUTES and drives them from the server process and the UI
+that triggers them.
 
 ## Capabilities (3)
 
@@ -119,11 +134,18 @@ spine, the wisp pipeline, or the verdict schema.
   build endpoints are defined ONCE and the worker hangs off `ApiContext`, like `dbWake`/`invites`.
   The Build button + transcript live in the studio's island side panel
   (`apps/studio/src/components/TreeView.tsx`).
-- **`drive-machinery`** — the **build path the worker drives**. The worker invokes the EXISTING
+- **`drive-machinery`** — the **build path(s) the worker drives**. The worker ROUTES by unit kind
+  (`routedBuildRunner`, `apps/studio/server/buildWorker.ts:144`): a NODE id → the EXISTING
   `nodeBuild(unitId, { live: true, … })` (`packages/cli/src/node-build.ts`) — the same path
   `storytree node build <id> --live` runs (→ `driveNode` → `resolveProveSpec` → `proveUnit`, the
-  spine observing red/green and signing). The worker NEVER reaches inside the gate; it calls the
-  same public entry the CLI does.
+  spine observing red/green and signing); a STORY id → the EXISTING `storyBuild(id, { real: true,
+  openPr: true, … })` whole-story chain (drive-machinery's `story-real-chain`, topo-ordered from
+  `depends_on`), which authors each capability for real, promotes the proven branch, and opens the
+  auto-merging PR (ADR-0022 / ADR-0031). The worker NEVER reaches inside the gate or the chain/
+  promote/merge engine; it calls the same public entries the CLI does and OWNS only the routing.
+  Discovery of which kind a unit is, and whether a story is real-buildable
+  (`isStoryBuildable(spec, caps, 'real')`, `packages/orchestrator/src/story-build.ts:234`), are
+  drive-machinery's too — consumed, not reimplemented.
 - **`notice-board`** — the **in-flight wisp surface**. `driveNode` already appends the `building`
   work-event that lights the teal wisp (ADR-0048), read by the world via `/api/activity`
   (`inFlightBuilds()` over `PgPresenceStore` / `classifyPresence`). Phase 1 REUSES it — no new wisp
@@ -182,9 +204,13 @@ the node's hue updating in the world — entirely on their own machine.
 7. Confirm the verdict is real and persisted. **Success —** `storytree tree <unitId>` (or the DB)
    shows the new signed verdict in `events.verdict` — a REAL gate verdict (spine-observed red→green,
    spine-signed), not a hue handed in by the UI. The frontend never touched the verdict.
-8. Confirm the Phase-1 scope walls. **Success —** the run opened NO git worktree, pushed NO branch,
-   and offered NO "approve / open PR" control (that is Phase 2); the build was a single-node
-   `--live` smoke, not `--real` and not a `story build` chain.
+8. Confirm the scope-routed walls. **Success —** the **NODE** build (this walkthrough, steps 1–7) was
+   the single-node `--live` local smoke — it opened NO git worktree, pushed NO branch, and landed
+   nothing. The **STORY** path (select a real-buildable story, no cap drilled, and click Build) routes
+   instead to `story build <id> --real`, which authors each capability for real and, on a green chain,
+   opens a **non-draft PR that CI auto-merges to trunk** (ADR-0022; non-squash per ADR-0031) — clicking
+   Build is the approve-to-land (ADR-0090 Phase 2). The remaining walls hold: no hosted run, no
+   `--real` toggle on a single node, no manual `gh pr merge`.
 
 ## Proof
 
@@ -197,5 +223,24 @@ spawn exercised through the real `nodeBuild` entry (an offline scripted `PhaseAu
 in the integration test, ADR-0010 §5, to avoid billing a live SDK run on every gate pass — the live
 run is the human-witness UAT action above).
 
-**Honest status — `proposed`.** Nothing here is built. This spec precedes the code (see "Honest
-proof posture" above). `healthy` is earned through the prove-it-gate, never edited here.
+**Honest status — `proposed`, and the mechanics LANDED.** The build affordance, the worker routing,
+and the story/node scope split are built and machine-witnessed on `main` (PRs #297 / #299 / #300).
+Status stays `proposed` because two obligations are still pending — the operator's APPEARANCE
+attestation (ADR-0070) and the live-run UAT (a real subscription-billed `--live`/`--real` run is a
+human-witness action) — NOT because code is missing. `healthy` is earned through the prove-it-gate,
+never edited here.
+
+## Open modeling calls (for the owner)
+
+1. **Brownfield-downstream wiring-shape check.** You can build DOWNSTREAM of a brownfield story
+   (e.g. `drive-machinery` is brownfield — not itself real-buildable, yet the worker drives the
+   `nodeBuild`/`storyBuild` entries it owns) — but only if the brownfield upstream's wiring is "in
+   the right shape." OPEN: can we have a CHECK that validates that wiring shape BEFORE allowing a
+   downstream build, and should the Build affordance surface it? Today `isStoryBuildable(spec, caps,
+   'real')` (`packages/orchestrator/src/story-build.ts:234`) only checks the SELECTED story's own
+   drive-order proof config — it never inspects an UPSTREAM brownfield's wiring shape, so a downstream
+   `story build --real` can proceed on an ill-shaped upstream and only fail deep inside the chain.
+   The affordance COULD instead WARN "this story's upstream brownfield isn't in the right shape"
+   before offering the build, rather than letting it run and break. Surfaced for the owner — the
+   shape of the check (what "right shape" means, where it lives, whether it warns or refuses) is not
+   decided here.

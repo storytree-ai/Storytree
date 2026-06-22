@@ -124,16 +124,17 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /node build <id> --dry-run/);
   assert.match(bare.body, /library-cli/);
   assert.match(bare.body, /--real/);
-  // Spec-borne REAL nodes (ADR-0057 A) join the registry reals in this list: node-resolve-report
-  // and cloud-sql-admin-rest, the binding-staleness slices (ADR-0016; proof: blocks in
+  // and cloud-sql-admin-rest; the binding-staleness slices (ADR-0016; proof: blocks in
   // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
   // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
-  // and the WHOLE library story + its 7 capabilities (ADR-0092: spec-borne brownfield + gate-as-proof
-  // arms): eager-batch-migrate, event-sourced-store-seam, library, library-cli, library-health-gate,
-  // library-schema-and-write-validation, migrate-on-write-upcaster, seed-corpus-scripts.
+  // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
+  // model-runtime-seam, owned-turn-loop; and the WHOLE library story + its 7 capabilities (ADR-0092:
+  // spec-borne brownfield + gate-as-proof arms): eager-batch-migrate, event-sourced-store-seam,
+  // library, library-cli, library-health-gate, library-schema-and-write-validation,
+  // migrate-on-write-upcaster, seed-corpus-scripts.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, eager-batch-migrate, event-sourced-store-seam, gate-emits-change, library, library-cli, library-health-gate, library-schema-and-write-validation, migrate-on-write-upcaster, node-resolve-report, noticeboard-cli, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, eager-batch-migrate, event-sourced-store-seam, gate-emits-change, leaf-tool-surface, library, library-cli, library-health-gate, library-schema-and-write-validation, migrate-on-write-upcaster, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

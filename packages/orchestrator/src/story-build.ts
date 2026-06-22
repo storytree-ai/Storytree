@@ -224,9 +224,10 @@ export function storyDriveOrder(
  * SAME fail-closed determination `storyBuild`'s precheck makes, so the studio's story-level Build
  * affordance can never offer a build the gate would refuse, and never withhold one it would run.
  *
- * Honest by construction: a capless story (e.g. `agent`) or an all-unbuildable one (e.g.
- * `drive-machinery`) is NOT story-buildable; an all-real-buildable story (`notice-board`,
- * `binding-staleness`) is. A machine-witnessed story whose own UAT node lacks a `real:` arm (e.g.
+ * Honest by construction: a capless story (zero capabilities ⇒ empty drive order) or an
+ * all-unbuildable one (e.g. `drive-machinery`) is NOT story-buildable; an all-real-buildable story
+ * (`notice-board`, `binding-staleness`, and now `agent` via its first three proof-wired caps with
+ * its human-witnessed UAT node withheld) is. A machine-witnessed story whose own UAT node lacks a `real:` arm (e.g.
  * `library` today — its node is driven, not withheld) is not `real`-buildable until that node can
  * be driven for real. The deeper per-node refusals (install⇒typecheck) still fire inside the build;
  * this answers only the affordance — "is there a real build to offer here?".

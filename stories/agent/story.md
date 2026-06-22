@@ -10,6 +10,15 @@ proof_mode: UAT
 # finds only comments naming its CONSUMERS). It is a true root, the swappable model runtime the whole
 # build machinery points at. depends_on: [] by construction.
 depends_on: []
+# The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
+# story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
+# which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
+# listed. `phase-author-seam` (a pure type module — no standalone red→green) and `live-sdk-leaf` (an
+# operator-attested live leg, and it depends_on the unwired phase-author-seam) carry NO `real:` arm, so
+# they are deliberately UNLISTED — listing either would make `isStoryBuildable` return false for the
+# whole story. The 3 form a closed set: model-runtime-seam (depends_on []), leaf-tool-surface
+# (depends_on [model-runtime-seam]), owned-turn-loop (depends_on [model-runtime-seam, leaf-tool-surface]).
+capabilities: [model-runtime-seam, leaf-tool-surface, owned-turn-loop]
 # Provider-side inbound edges (ADR-0074 §4 / ADR-0058 §3): the orchestrator (drive-machinery) and the
 # cli HUB both import @storytree/agent as a RUNTIME dependency. The drive-machinery → agent edge is
 # declared CONSUMER-side in stories/drive-machinery/story.md's depends_on (the edge that story's
@@ -106,13 +115,37 @@ code-derived** (ADR-0010 §3) — read off the real `./`-imports between the sou
 hand-drawn from UAT need. `mapped` = a real passing offline suite observationally verifies the
 dominant behaviour.
 
-| # | capability | outcome | status | depends on |
-|---|---|---|---|---|
-| 1 | [`model-runtime-seam`](model-runtime-seam.md) | The owned loop calls any model through one swappable seam and speaks one typed model-event vocabulary, with every `@anthropic-ai/sdk` import isolated to a single file. | mapped | — |
-| 2 | [`phase-author-seam`](phase-author-seam.md) | The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict. | mapped | — |
-| 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | mapped | `model-runtime-seam` |
-| 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | mapped | `model-runtime-seam`, `leaf-tool-surface` |
-| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | mapped | `phase-author-seam` |
+The **buildable** column marks the split this story now carries. Three capabilities are **proof-wired**
+(ADR-0057 — they carry a `proof:` block with a `real:` arm describing a genuine additive red→green
+against the real `packages/agent/src` source) and are listed in the story's `capabilities:`
+frontmatter; that closed, acyclic, every-cap-has-a-`real:`-arm set is exactly what makes the WHOLE
+story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Two are **authored but
+intentionally unwired** — they cannot carry a genuine standalone red→green (see the note below the
+table) — so they are NOT in the buildable set, kept honestly `mapped` as documented gaps.
+
+| # | capability | outcome | status | buildable | depends on |
+|---|---|---|---|---|---|
+| 1 | [`model-runtime-seam`](model-runtime-seam.md) | The owned loop calls any model through one swappable seam and speaks one typed model-event vocabulary, with every `@anthropic-ai/sdk` import isolated to a single file. | mapped | **yes** (proof-wired) | — |
+| 2 | [`phase-author-seam`](phase-author-seam.md) | The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict. | mapped | no (pure type module) | — |
+| 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | mapped | **yes** (proof-wired) | `model-runtime-seam` |
+| 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | mapped | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
+| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | mapped | no (operator-attested live leg) | `phase-author-seam` |
+
+**Why two capabilities stay unwired (honest gaps, not omissions).**
+
+- **`phase-author-seam` is a pure type module.** `phase-author.ts` declares `AuthoringPhase`,
+  `AuthorResult`, and the `PhaseAuthor` interface — no runtime, no test of its own to count (its own
+  proof prose says exactly this). A pure type module has NO isolatable red→green: it is proven only
+  THROUGH its two implementations (`ClaudeAgentAuthor`, and `OwnedLoopAuthor` in drive-machinery) and
+  by the gate type-checking against it. There is no additive runtime assertion to fail-then-pass, so a
+  `real:` arm would be a fake. It stays `mapped`, unwired.
+- **`live-sdk-leaf` has an operator-attested live leg, and an unwired dependency.** Its DECISION
+  functions are offline-proven (`decideWrite`, the prompt composition, the feedback doorbell), but its
+  defining behaviour — a real subscription `query()` authoring a slice — is **operator-attested** from
+  the drive-machinery dogfood, never a standing offline test (proving a live runtime needs the paid
+  leaf). So it has no free, offline red→green to drive under the gate. It also `depends_on:
+  [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
+  regardless. It stays `mapped`, unwired.
 
 ## Dependency graph (code-derived)
 
@@ -211,6 +244,32 @@ and what stays live-attested is pinned in **Honest status** and per capability �
 `healthy`: per ADR-0020, `healthy` is only ever DERIVED from signed verdicts, and this organism has
 none yet. The next bootstrap rung toward `healthy` is authoring a `proof:` block per capability
 (ADR-0057) so the spine can drive these offline suites red→green under its own gate.
+
+### This story is now story-`real`-buildable (the first rung is taken)
+
+That next rung is now PARTLY taken: three capabilities — `model-runtime-seam`, `leaf-tool-surface`,
+`owned-turn-loop` — carry a `proof:` block with a `real:` arm and are listed in the story's
+`capabilities:` frontmatter. They form a **dependency-closed, acyclic** set in which **every** member
+resolves a `real:` arm, so `isStoryBuildable(agent, …, 'real')` is satisfied: the story can be driven
+end to end with `pnpm storytree story build agent --real` (and the studio's story-level Build button,
+PR #299/#300), which walks the three capabilities in dependency order through a genuine spine-observed
+red→green.
+
+Each `real:` arm is an **edits-existing** brownfield slice (ADR-0057 §3 expansion C), offline-verified
+genuinely RED against the current source: the leaf authors a NEW regression test that FAILS against
+`packages/agent/src` as it stands today, then EDITS the one existing source file to make it pass —
+`StopReason` widened to admit the Messages API's `"refusal"` (`model-events.ts`), `edit_file` given an
+opt-in `replace_all` (`fs-tools.ts`), and `TurnResult` surfacing the terminating `stopReason`
+(`run-turn.ts`). Each slice's exact RED/GREEN and its rules live in that capability's `## Guidance`.
+
+Because the `agent` story is **human-witnessed** (its `uat_witness` is absent → human; ADR-0040), the
+story's own UAT node is **WITHHELD** from the real build — `isStoryBuildable` does not require a
+machine-driven story UAT, and the integrated acceptance walkthrough above stays human/operator-attested
+(part-scripted, part live-attested, per **Honest status**). So driving the three capabilities to a
+signed verdict is exactly what makes the WHOLE story buildable; the story crown still awaits its human
+witness. The two unwired capabilities (`phase-author-seam`, `live-sdk-leaf`) remain documented gaps —
+they carry no genuine standalone red→green to drive (see **Capabilities (5)**), so they are not yet a
+rung anyone can take.
 
 ## Open modeling calls (for the owner)
 

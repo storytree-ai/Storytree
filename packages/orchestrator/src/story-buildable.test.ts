@@ -80,8 +80,8 @@ test("a machine-witnessed story drives its own UAT node, so a live-only story no
   assert.equal(isStoryBuildable(story, caps, "real"), false);
 });
 
-test("a capless story (e.g. agent) is not buildable in any mode — nothing to drive", () => {
-  const story = spec("agent", "story", {}); // 0 caps, human witness ⇒ empty drive order
+test("a capless, human-witnessed story is not buildable in any mode — nothing to drive", () => {
+  const story = spec("capless-story", "story", {}); // 0 caps, human witness ⇒ empty drive order
   assert.equal(isStoryBuildable(story, [], "live"), false);
   assert.equal(isStoryBuildable(story, [], "real"), false);
 });
