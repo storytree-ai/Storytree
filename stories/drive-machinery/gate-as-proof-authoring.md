@@ -61,7 +61,9 @@ The mechanism (no orchestrator/schema change — pure A/B/C reuse):
 
 First kind = **ADR** (the scaffold's `proposed`/no-`decided`/`<…>`-prose state is a sharp real red,
 `parseAdrFrontmatter` already exists, status is human-flipped). Expansion path: library-edit, then
-story-authoring (ADR-0059 §4).
+story-authoring (ADR-0059 §4) — **story-authoring is now LANDED** ([ADR-0092](../../docs/decisions/0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md):
+a machine-witnessed story's own UAT node earns a `real:` arm via `storyUatCompleteness` over its
+`story.md`, the same A/B/C reuse, the same human-flip wall).
 
 ## Trust analysis (the honesty walls hold — verified by the suite)
 
