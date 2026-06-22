@@ -14,6 +14,18 @@ it"). Processes and retires the open-question artifact `oq-store-pg-default-for-
 the primary orbiting wisp but left its note "to SEE a wisp, run a build with `--store pg`" — i.e. the
 signal was opt-in; this ADR makes a live/real build feed it by default.
 
+**Correction (2026-06-22) — the cold-start timing below is wrong; the poll budget has been raised.**
+The "~60–90s … ≤180s" figures in this ADR were an estimate. A real GCP cold start measures ~5–6 min
+(≤366s end-to-end; confirmed against ~12 Cloud SQL start operations over 12–22 June 2026, all 277–349s
+plus connection latency). Two things compounded the gap: [ADR-0063](0063-db-control-over-the-cloud-sql-admin-rest-api-retire-the-gclo.md)
+made the start a **non-blocking REST PATCH**, so the connection-poll — not a blocking `gcloud` call —
+now owns the *whole* wait; and 180s sat *below* the observed cold start, so the first live/real build
+after the daily stop refused spuriously even though the instance came up a minute or two later. The
+poll budget in `ensureDbUp` (`packages/cli/src/db-control.ts`) was raised **180s → 420s (7 min)** so the
+decision's intent — wait out a cold start, else refuse — actually holds, and the loop now logs progress
+every 30s. Resolves `oq-live-build-autostart-cold-start-wait`; read the "≤180s" / "~60–90s" wording
+below as ~5–6 min / ≤420s.
+
 ## Context
 
 The studio world (`#/tree`) only renders the in-flight build **wisp** (ADR-0048) and the verdict
@@ -68,6 +80,7 @@ CI never reach this path (it fires only for live/real with an effective `pg` sto
 - [ADR-0045](0045-live-activity-layer-is-verdict-blooms.md) — verdict blooms (also fed by this default).
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — proof is non-authorable (the dry-run guard).
 - [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) — the stopped-by-default Cloud SQL instance + `db:up`.
+- [ADR-0063](0063-db-control-over-the-cloud-sql-admin-rest-api-retire-the-gclo.md) — the gcloud→REST swap that made `start()` non-blocking (the 2026-06-22 correction above).
 - [ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) — keyless ambient ADC (the gcloud/connector auth).
 - Retires the open-question `oq-store-pg-default-for-real-live-builds` (live library).
 - `packages/cli/src/db-control.ts`, `node-build.ts`, `story-build.ts`.

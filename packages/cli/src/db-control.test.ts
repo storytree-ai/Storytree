@@ -75,6 +75,39 @@ test("ensureDbUp fails closed (and never polls) when starting the DB throws", as
   assert.equal(p.calls(), 1, "only the fast-path probe ran — no polling after a failed start");
 });
 
+test("ensureDbUp's DEFAULT poll budget covers a real ~6 min cold start (oq-live-build-autostart-cold-start-wait)", async () => {
+  // The observed GCP cold start is ~5–6 min (≤366s end-to-end). With the old 180s default this build
+  // refused spuriously; the default must now wait long enough for a slow start to connect.
+  const clock = fakeClock();
+  const upAt = 370_000; // accepts connections at ~6m10s — past the old 180s budget, within the new one
+  const res = await ensureDbUp({
+    probe: async () => clock.now() >= upAt, // fast-path probe at t=0 → false → start → poll
+    start: async () => {},
+    sleep: clock.sleep,
+    now: clock.now,
+    log: () => {},
+    // no timeoutMs / pollMs → exercises the real defaults
+  });
+  assert.deepEqual(res, { ok: true, started: true });
+});
+
+test("ensureDbUp emits a periodic progress line while waiting for a slow start", async () => {
+  const clock = fakeClock();
+  const logs: string[] = [];
+  const upAt = 95_000; // up after ~1.5 min, so at least two 30s progress ticks fire first
+  const res = await ensureDbUp({
+    probe: async () => clock.now() >= upAt,
+    start: async () => {},
+    sleep: clock.sleep,
+    now: clock.now,
+    log: (m: string) => void logs.push(m),
+  });
+  assert.equal(res.ok, true);
+  const progress = logs.filter((m) => /still waiting/i.test(m));
+  assert.ok(progress.length >= 2, "progress is surfaced repeatedly, not just once");
+  assert.match(progress[0] ?? "", /\b\d+s elapsed\b/, "the progress line reports elapsed seconds");
+});
+
 test("effectiveVerdictStore: a scripted (dry-run) walk passes its flag through unchanged", () => {
   assert.equal(effectiveVerdictStore(undefined, true), undefined); // → in-memory
   assert.equal(effectiveVerdictStore("pg", true), "pg"); // → refused downstream (forged healthy)
