@@ -47,14 +47,22 @@ Two Terraform-managed mechanisms keep a forgotten instance from bleeding ~$25/mo
 
 1. **Idle-aware Cloud Function** (`storytree-pg-idle-stop`, source in `functions/idle-stop/`)
    — Cloud Scheduler pings it every 15 min (`idle_check_schedule`). It reads the Cloud
-   Monitoring `database/network/connections` metric and stops the instance **only after
-   `idle_minutes` (default 480 = 8 h; lengthened from 60 on 2026-06-13 — sessions kept
-   finding the instance stopped between same-day bursts) with zero DB connections**. While a session / the Cloud SQL
-   Auth Proxy holds a connection, the timer never fires — so it "counts from the last
-   request" and won't kill live work. It runs as a least-privilege SA (`sql-idle-stopper`:
-   `roles/cloudsql.editor` + `roles/monitoring.viewer`, no keys) and is invoked privately
-   by the scheduler over an OIDC token (not public). On any error, or when metric data is
-   missing (e.g. a freshly-started instance), it **does not stop** and logs loudly.
+   Monitoring `database/postgresql/num_backends` connection metric (EXCLUDING the
+   `cloudsqladmin` management database, whose ~2 background connections are constant) and
+   stops the instance **only after `idle_minutes` (default 300 = 5 h) with zero DB
+   connections**. While a session / the Cloud SQL Auth Proxy holds a connection, the timer
+   never fires — so it "counts from the last request" and won't kill live work. It runs as a
+   least-privilege SA (`sql-idle-stopper`: `roles/cloudsql.editor` + `roles/monitoring.viewer`,
+   no keys) and is invoked privately by the scheduler over an OIDC token (not public). On any
+   error, or when metric data is missing (e.g. a freshly-started instance), it **does not
+   stop** and logs loudly. The pure noop/stop decision lives in `functions/idle-stop/decide.js`
+   with offline unit tests (`pnpm check:idle-stop`).
+
+   > **Correction (2026-06-22):** this shipped reading `database/network/connections`, which
+   > returns **no samples** for this instance — so the function was inoperative (empty data
+   > tripped the "don't stop" fail-safe every cycle) and the daily floor was doing all the
+   > stopping. Fixed to `num_backends` (minus `cloudsqladmin`); threshold re-tuned 8 h → 5 h
+   > to match the owner's real cadence. See ADR-0015 §5.
 
 2. **Daily hard floor** (`storytree-pg-stop-backstop`, `cost-backstop.tf`) — the original
    blunt cron, relaxed from **hourly to daily** (04:30 Australia/Sydney). It stops the

@@ -174,6 +174,22 @@ three pieces:
   killing a live session because the checker hiccuped is the failure mode being avoided.
   **Update (2026-06-08):** this supersedes the "idle-aware Cloud Function … deferred" note
   below; the deferral is now resolved.
+  **Correction (2026-06-22):** the metric named above was wrong and the function was
+  **inoperative from the start.** `database/network/connections` returns NO samples for this
+  instance, so the query saw empty series every cycle, tripped the "metric data absent → do
+  not stop" fail-safe every run, and the **daily 04:30 cron was doing 100 % of the stopping.**
+  Fixed to PostgreSQL `database/postgresql/num_backends` (the populated connection metric),
+  **excluding the `cloudsqladmin` management database** — its constant ~2 background
+  connections would otherwise keep the peak above 0 forever (the second trap behind the dead
+  metric). The reduce now reads small 60 s ALIGN_MAX buckets and reduces in code via a
+  unit-tested pure module (`infra/functions/idle-stop/decide.js`). The threshold was also
+  lowered **480 → 300 (8 h → 5 h)** to match the owner's real ~4 h cadence (offline gaps up to
+  ~6 h, not 8 h); the extra ~5–6 min morning cold starts this implies are absorbed by the
+  live-build DB preflight's 420 s poll budget (ADR-0060 / PR #301), not refused. The
+  **mechanism is unchanged** (idle-aware function + daily floor) — this is a correction to a
+  broken implementation, not a re-decision. Full verification spans a real idle window: the
+  function logs should flip from "no connection-metric samples" to "ACTIVE — N peak
+  connection(s)" / "IDLE … STOPPING".
 - **Cron backstop — now the DAILY hard floor behind the idle function.** A **Cloud Scheduler**
   job (`storytree-pg-stop-backstop`) forces the instance to STOPPED via the Admin API under a
   least-privilege `sql-stopper` service account (`roles/cloudsql.editor`, no key). It is

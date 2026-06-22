@@ -9,10 +9,13 @@
 
 variable "idle_minutes" {
   type        = number
-  default     = 480 # 8 h — lengthened from 60 (owner call 2026-06-13): sessions kept finding the
-  # instance stopped between same-day bursts. The daily 04:30 floor (cost-backstop.tf) still
-  # caps a fallow day; an active day now stays up end-to-end. ~$25/mo fully always-on is the
-  # worst-case bound (main.tf tier comment), so the extra idle burn is a few $/mo.
+  default     = 300 # 5 h (owner call 2026-06-22): the owner hits the DB ~every 4 h, with offline
+  # gaps up to ~6 h but not 8 h — so the prior 8 h setting (2026-06-13) effectively never fired
+  # between same-day bursts. 5 h stops a genuinely-fallow stretch while still spanning a normal
+  # working gap. TRADE-OFF surfaced to the owner: a lower threshold means more ~5–6 min morning
+  # cold starts — now tolerated, since the live/real build's DB preflight WAITS OUT a cold start
+  # (420 s poll budget, PR #301) instead of refusing. The daily 04:30 floor (cost-backstop.tf)
+  # remains the hard cap. ~$25/mo fully always-on is the worst-case bound (main.tf tier comment).
   description = "Stop the instance only after this many minutes with zero DB connections."
 }
 
@@ -74,6 +77,8 @@ data "archive_file" "idle_stop_src" {
   type        = "zip"
   source_dir  = "${path.module}/functions/idle-stop"
   output_path = "${path.module}/.terraform-tmp/idle-stop.zip"
+  # decide.test.js is the offline unit test (node:test) — not part of the deployed runtime.
+  excludes = ["decide.test.js"]
 }
 resource "google_storage_bucket" "function_src" {
   name                        = "${var.project_id}-fn-src"

@@ -154,9 +154,11 @@ file conflicts).
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you
   need it and then **LEAVE IT RUNNING — do not `db:down` when you finish** (owner call 2026-06-13:
   sessions kept stopping it between bursts). Auto-stop is **idle-aware** (ADR-0015 §5,
-  `infra/idle-stop.tf`): a Cloud Function stops it only after **8 h with zero DB connections**
-  (lengthened from 60 min), so an active day stays up end-to-end; re-`db:up` if a query can't
-  connect after a fallow stretch (a daily 04:30 blunt cron is the cost floor behind it).
+  `infra/idle-stop.tf`): a Cloud Function stops it only after **5 h with zero DB connections**
+  (ADR-0015 §5 correction 2026-06-22 — previously a broken 8 h that read a dead metric and
+  never fired, so re-tuned to 5 h once the metric was fixed), so a normal working gap stays up;
+  re-`db:up` if a query can't connect after a fallow stretch (a daily 04:30 blunt cron is the
+  cost floor behind it).
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/store/src/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).

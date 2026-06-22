@@ -103,6 +103,13 @@ jobs:
       - name: Test
         run: pnpm -r test
 
+      # The idle-stop Cloud Function (infra/functions/idle-stop) is not a workspace
+      # package, so its pure-decision unit test rides this dedicated step rather than
+      # `pnpm -r test`. Zero-dep node:test over decide.js — the noop/stop matrix +
+      # the sawData reduce that the dead-metric bug lived in (ADR-0015 §5).
+      - name: Idle-stop decision unit
+        run: pnpm check:idle-stop
+
       # The only buildable target is apps/studio (`vite build`); the packages
       # export raw TS and have no build step. studio's `vite build` used to fail
       # because its dev API pulled the Node-only store substrate into config load;
