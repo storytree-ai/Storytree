@@ -166,6 +166,67 @@ test("promoteRealPass pushes to origin when one exists; push:false withholds but
   }
 });
 
+test("promoteRealPass openPr: a pushed branch opens a non-draft PR (gh injected) and reports the URL; a gh failure degrades without losing the push", async () => {
+  const fixture = await fixtureRepo();
+  const bare = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-promote-origin-pr-"));
+  try {
+    await git(["init", "--bare", "-b", "main"], bare);
+    await git(["remote", "add", "origin", bare], fixture.root);
+
+    // openPr: true → gh pr create is invoked for the pushed branch; the printed URL rides on prUrl.
+    const calls: string[][] = [];
+    const promoted = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "land-node",
+      runId: "real-pr1",
+      commitSha: fixture.sha,
+      openPr: true,
+      gh: async (args) => {
+        calls.push(args);
+        return "https://github.com/acme/repo/pull/42\n";
+      },
+    });
+    assert.equal(promoted.pushed, true);
+    assert.equal(promoted.prUrl, "https://github.com/acme/repo/pull/42");
+    assert.match(promoted.detail, /PR opened/);
+    // The gh invocation was a NON-DRAFT pr create against main, for the parked branch.
+    assert.equal(calls.length, 1);
+    const args = calls[0]!;
+    assert.deepEqual(args.slice(0, 2), ["pr", "create"]);
+    assert.ok(args.includes("--head") && args.includes(promoted.branch));
+    assert.ok(args.includes("--base") && args.includes("main"));
+    assert.ok(!args.includes("--draft")); // non-draft so CI auto-merges (ADR-0022)
+
+    // A gh failure is DATA: the branch is still pushed, prUrl absent, detail says open it manually.
+    const degraded = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "land-node",
+      runId: "real-pr2",
+      commitSha: fixture.sha,
+      openPr: true,
+      gh: async () => {
+        throw new Error("gh: not authenticated");
+      },
+    });
+    assert.equal(degraded.pushed, true);
+    assert.equal(degraded.prUrl, undefined);
+    assert.match(degraded.detail, /PR open failed/);
+
+    // openPr is OPT-IN: without it, the pushed branch carries no PR (the terminal suggest-a-PR path).
+    const noPr = await promoteRealPass({
+      repoRoot: fixture.root,
+      unitId: "land-node",
+      runId: "real-pr3",
+      commitSha: fixture.sha,
+    });
+    assert.equal(noPr.pushed, true);
+    assert.equal(noPr.prUrl, undefined);
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+    await fs.rm(bare, { recursive: true, force: true });
+  }
+});
+
 test("createBuildWorktree install seam: the injected installer runs in the worktree; a failure tears the worktree down and throws", async () => {
   const seen: string[] = [];
   const wt = await createBuildWorktree(REPO_ROOT, {

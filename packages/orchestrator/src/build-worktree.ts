@@ -189,7 +189,18 @@ export interface PromotionResult {
   pushed: boolean;
   /** Human detail: where it was pushed, or why it stayed local. */
   detail: string;
+  /**
+   * The URL of the non-draft PR opened for this branch — present only when `openPr` was requested,
+   * the branch pushed, AND `gh pr create` succeeded. Opening the PR is what lets the green chain
+   * AUTO-MERGE to trunk (ADR-0022: a non-draft PR → CI auto-merges; `claude/real/*` merges
+   * NON-SQUASH per ADR-0031). A `gh` failure is DATA, not an error — the branch is still pushed and
+   * the failure is appended to `detail`, so the worst case degrades to the manual-PR path.
+   */
+  prUrl?: string;
 }
+
+/** Run a `gh` command in `cwd`, resolving stdout (injectable so the PR-open path is offline-testable). */
+export type GhRunner = (args: string[], cwd: string) => Promise<string>;
 
 /**
  * Park a signed REAL pass's proven commit on a branch and (when an `origin` remote exists) push
@@ -214,6 +225,20 @@ export async function promoteRealPass(args: {
    * known to break its package should not reach origin as a landing candidate.
    */
   push?: boolean;
+  /**
+   * When true AND the branch pushes, open a NON-DRAFT PR for it so the proven chain AUTO-MERGES to
+   * trunk (ADR-0022 / ADR-0090 the local-loop's land step), instead of leaving the operator to run
+   * `gh pr create` by hand. The studio's UI-driven `--real` build sets this — clicking Build IS the
+   * approval to land. Default false: a terminal `storytree … build --real` keeps the suggest-a-PR
+   * cadence (the human runs their own merge ceremony).
+   */
+  openPr?: boolean;
+  /** PR title (openPr only). Default: `real: <unitId> proven via the gate`. */
+  prTitle?: string;
+  /** PR body (openPr only). Default: a NON-SQUASH landing note (ADR-0031). */
+  prBody?: string;
+  /** Injectable `gh` runner (openPr only) — defaults to the real `gh` CLI; tests pass a fake. */
+  gh?: GhRunner;
 }): Promise<PromotionResult> {
   const branch = `claude/real/${args.unitId}-${args.runId}`;
   await runGit(["branch", branch, args.commitSha], args.repoRoot);
@@ -243,7 +268,6 @@ export async function promoteRealPass(args: {
   }
   try {
     await runGit(["push", "-u", "origin", branch], args.repoRoot);
-    return { branch, commitSha: args.commitSha, pushed: true, detail: `pushed to ${origin}` };
   } catch (e) {
     const firstLine = (e as Error).message.split("\n")[0] ?? "push failed";
     return {
@@ -253,6 +277,40 @@ export async function promoteRealPass(args: {
       detail: `push to origin failed — local branch kept: ${firstLine}`,
     };
   }
+  // Pushed. Optionally open the non-draft PR that lets CI auto-merge it to trunk (ADR-0022). A gh
+  // failure NEVER fails the promotion — the branch is up; we degrade to the manual-PR path.
+  if (args.openPr === true) {
+    const title = args.prTitle ?? `real: ${args.unitId} proven via the gate`;
+    const body =
+      args.prBody ??
+      `UI-driven \`--real\` build (ADR-0090). Each node was driven through the prove-it-gate for ` +
+        `real and the proven chain is parked at this branch's tip. Merge **NON-SQUASH** — every ` +
+        `node's verdict commit must stay an ancestor of \`main\` (ADR-0031).`;
+    try {
+      const gh = args.gh ?? runGh;
+      const out = await gh(
+        ["pr", "create", "--head", branch, "--base", "main", "--title", title, "--body", body],
+        args.repoRoot,
+      );
+      const prUrl = out.trim().split(/\s+/).filter(Boolean).pop();
+      return {
+        branch,
+        commitSha: args.commitSha,
+        pushed: true,
+        detail: `pushed to ${origin}; PR opened (auto-merges to trunk on green CI)`,
+        ...(prUrl !== undefined && prUrl.length > 0 ? { prUrl } : {}),
+      };
+    } catch (e) {
+      const firstLine = (e as Error).message.split("\n")[0] ?? "gh pr create failed";
+      return {
+        branch,
+        commitSha: args.commitSha,
+        pushed: true,
+        detail: `pushed to ${origin}; PR open failed (open it manually): ${firstLine}`,
+      };
+    }
+  }
+  return { branch, commitSha: args.commitSha, pushed: true, detail: `pushed to ${origin}` };
 }
 
 // ── The regression suite (ADR-0031 §2: a green node must not break its package) ─
@@ -387,6 +445,23 @@ function runGit(args: string[], cwd: string): Promise<string> {
       }
       reject(
         new Error(`git ${args.join(" ")} failed in ${cwd}: ${error.message}\n${stderr}`, {
+          cause: error,
+        }),
+      );
+    });
+  });
+}
+
+/** The default {@link GhRunner}: spawn the `gh` CLI in `cwd` (the operator's authed local env). */
+function runGh(args: string[], cwd: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    execFile("gh", args, { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error === null) {
+        resolve(stdout);
+        return;
+      }
+      reject(
+        new Error(`gh ${args.join(" ")} failed in ${cwd}: ${error.message}\n${stderr}`, {
           cause: error,
         }),
       );

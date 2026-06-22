@@ -106,12 +106,17 @@ export function buildRunnerFromNodeBuild(nodeBuild: NodeBuildLike, actor?: strin
 /** The build a unit id resolves to: a STORY drives a whole-story chain, anything else a single NODE. */
 export type BuildKind = 'node' | 'story';
 
-/** The Phase-1/2 options the worker passes to `storyBuild` — whole story, real mode, pg verdict store. */
+/** The options the worker passes to `storyBuild` — whole story, real mode, pg verdict store, auto-land. */
 export interface StoryBuildLikeOpts {
   real: boolean;
   dryRun: boolean;
   verdictStore: string;
   actor?: string;
+  /**
+   * Open a NON-DRAFT PR for the green chain so CI auto-merges it to trunk (ADR-0022) — clicking Build
+   * in the UI IS the approval to land. The worker always sets this for a UI-driven story build.
+   */
+  openPr?: boolean;
 }
 
 /** The `storyBuild` entry the production runner adapts (structurally `(id, opts) => Promise<Envelope>`). */
@@ -141,8 +146,14 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
   return async (unitId, sink) => {
     const kind = await deps.classify(unitId);
     if (kind === 'story') {
-      sink('▸ mode: whole-story --real — authors each capability for real, then promotes a branch to land');
-      return deps.storyBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', ...actorOpt });
+      sink('▸ mode: whole-story --real — authors each capability for real, then opens a PR that auto-merges to trunk');
+      return deps.storyBuild(unitId, {
+        real: true,
+        dryRun: false,
+        verdictStore: 'pg',
+        openPr: true,
+        ...actorOpt,
+      });
     }
     sink('▸ mode: single-node --live — proves the build pipeline on a synthetic task');
     return deps.nodeBuild(unitId, { live: true, dryRun: false, real: false, verdictStore: 'pg', ...actorOpt });

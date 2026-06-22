@@ -285,6 +285,15 @@ export interface StoryBuildOpts {
    * separately against a fixture bare-origin repo.
    */
   promote?: boolean;
+  /**
+   * Open a NON-DRAFT PR for a green, pushed `--real` chain so CI auto-merges it to trunk (ADR-0022),
+   * instead of printing a `gh pr create` suggestion. The studio's UI-driven build sets this (clicking
+   * Build IS the approval to land); a terminal `storytree story build --real` leaves it false and runs
+   * its own merge ceremony. Reported back as the PR URL in the envelope. Requires an authed `gh`.
+   */
+  openPr?: boolean;
+  /** PR title for `openPr` (defaults to `real: <story-id> proven via the gate`). */
+  prTitle?: string;
   /** Injectable OQ-hygiene row loader for tests (ADR-0037 §5); defaults to the live store. */
   oqGateDeps?: OqGateDeps;
   /**
@@ -694,6 +703,12 @@ export async function storyBuild(
           runId,
           commitSha: currentHead,
           ...(anyRed ? { push: false } : {}),
+          // ADR-0090 (the local loop's land step): when the caller asks to land (the studio's
+          // UI-driven build), a GREEN, backstop-clean chain opens its own NON-DRAFT PR so CI
+          // auto-merges it to trunk (ADR-0022) — no manual `gh pr create`. A red backstop withholds
+          // the push, so openPr can't fire on it.
+          ...(opts.openPr === true && !anyRed ? { openPr: true } : {}),
+          ...(opts.prTitle !== undefined ? { prTitle: opts.prTitle } : {}),
         });
       } else if (!run.passed) {
         // HALT with a proven prefix: park LOCAL-ONLY (preservation over loss, ADR-0031), NEVER
@@ -763,6 +778,9 @@ export async function storyBuild(
       ...backstopLines,
       ...(promotion !== undefined
         ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]
+        : []),
+      ...(promotion?.prUrl !== undefined
+        ? [`landed:      ${promotion.prUrl} — opened; CI auto-merges to trunk on green (NON-SQUASH, ADR-0031)`]
         : []),
       ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
     ];
@@ -847,12 +865,15 @@ export async function storyBuild(
         next: [
           // A --real chain's capabilities are real-built + promoted even though the story UAT is
           // withheld — surface the landing candidate (this is the main --real success shape, since a
-          // story UAT node has no real: arm).
-          ...(real && promotion !== undefined && promotion.pushed
-            ? [
-                `gh pr create --head ${promotion.branch} --title "real: ${story.id} capabilities proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
-              ]
-            : []),
+          // story UAT node has no real: arm). When openPr already opened the PR, point at it (CI
+          // auto-merges) instead of suggesting `gh pr create`.
+          ...(promotion?.prUrl !== undefined
+            ? [`gh pr checks ${promotion.prUrl}   (the PR is open; CI auto-merges it to trunk on green)`]
+            : real && promotion !== undefined && promotion.pushed
+              ? [
+                  `gh pr create --head ${promotion.branch} --title "real: ${story.id} capabilities proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
+                ]
+              : []),
           `storytree node build <id> --real   (one node's REAL proof in a fresh worktree)`,
         ],
       };
@@ -868,11 +889,13 @@ export async function storyBuild(
         framing,
       ].join("\n"),
       next: [
-        ...(real && promotion !== undefined && promotion.pushed
-          ? [
-              `gh pr create --head ${promotion.branch} --title "real: ${story.id} story proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
-            ]
-          : []),
+        ...(promotion?.prUrl !== undefined
+          ? [`gh pr checks ${promotion.prUrl}   (the PR is open; CI auto-merges it to trunk on green)`]
+          : real && promotion !== undefined && promotion.pushed
+            ? [
+                `gh pr create --head ${promotion.branch} --title "real: ${story.id} story proven via the gate"   (merge NON-SQUASH — every node's verdict commit must stay an ancestor of main)`,
+              ]
+            : []),
         ...(real
           ? []
           : [`storytree story build ${story.id} --real   (chain the WHOLE story for real)`]),

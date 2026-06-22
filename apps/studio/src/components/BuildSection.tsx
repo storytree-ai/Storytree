@@ -145,7 +145,8 @@ export function BuildSection({
             {scope === 'story' ? (
               <>
                 Builds the whole story for real (<code>--real</code>) — authors each capability&apos;s
-                real test + impl in a worktree, then promotes a branch to land. Subscription-billed.
+                real test + impl in a worktree, then opens a PR that <strong>auto-merges to trunk</strong>{' '}
+                on green CI. Subscription-billed.
               </>
             ) : (
               <>
