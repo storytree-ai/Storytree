@@ -13,6 +13,13 @@ guarded proposal, not a commitment to build: the owner explored it, surfaced two
 store implementation; a reward-hacking pathway), and asked that the reasoning be captured as input
 for a later session. Default operating stance stands: **use a laptop session for live DB work.**
 
+> **Amended by [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md)**
+> (accepted, 2026-06-22) — the laptop-only default for *proof-bearing* builds is relaxed by
+> sanctioning a self-contained, gate-running WORKER as a distinct vehicle (the gate observes RED then
+> GREEN and signs; no verdict is ever handed in). The network findings above and the read-only-bridge
+> guard (no proof-bearing writes through a thin bridge) stand unchanged; the bridge itself remains
+> deferred.
+
 ## Date
 
 2026-06-22

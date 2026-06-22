@@ -16,6 +16,11 @@ interactive deployment for a small circle of trusted devs to play with. **Supers
 (the GCP project) and [ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) (keyless
 IAM DB auth, here extended to a runtime service-account principal).
 
+> **Amended by [ADR-0090](0090-ui-driven-orchestration-hosted-build-capable-backend-thin-cl.md)**
+> (accepted, 2026-06-22) — the hosted studio backend MAY run the agent, gated to the circle. The thin
+> client, members, and IAP model below stand; the "live builds / CLI / agent runtime out of scope for
+> the circle" scope is relaxed to allow build-triggering through a gated, build-capable worker.
+
 ## Date
 
 2026-06-14

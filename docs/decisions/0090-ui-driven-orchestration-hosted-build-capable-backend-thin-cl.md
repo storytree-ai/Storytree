@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-22
 amends: [42]
+load_bearing: true
 ---
 # ADR-0090: UI-driven orchestration: hosted build-capable backend, thin clients, source server-side
 

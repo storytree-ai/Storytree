@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-22
 amends: [89]
+load_bearing: true
 ---
 # ADR-0091: Proof-bearing builds may run in a hosted self-contained worker off the laptop tether
 
