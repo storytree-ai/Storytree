@@ -39,9 +39,18 @@ type Phase =
 export function BuildSection({
   unitId,
   buildable,
+  scope = 'node',
 }: {
   unitId: string;
   buildable: boolean | undefined;
+  /**
+   * What pressing Build drives (ADR-0090): a single capability NODE (`node build --live` — proves
+   * the build PIPELINE on a synthetic task, not the node's real feature) or a whole STORY
+   * (`story build --real` — authors each capability's real test+impl in a worktree, then promotes a
+   * branch to land). The frontend imports no build code (ADR-0004); the server routes the id by its
+   * tier. Drives only the honest framing here — the api call is the same `api.build(unitId)`.
+   */
+  scope?: 'node' | 'story';
 }): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   // The live runId the poll loop reads — held in a ref so the effect's interval
@@ -112,7 +121,9 @@ export function BuildSection({
     return (
       <div className="tree-build">
         <p className="muted small">
-          This node is not buildable — it carries no proof config the gate can drive.
+          {scope === 'story'
+            ? 'This story has no real-buildable capabilities yet — add a real: proof arm to its capabilities to build the whole story.'
+            : 'This node is not buildable — it carries no proof config the gate can drive.'}
         </p>
       </div>
     );
@@ -131,7 +142,17 @@ export function BuildSection({
             {busy ? 'Starting…' : 'Build'}
           </button>
           <p className="muted small build-hint">
-            Runs a single-node <code>--live</code> build through the gate on your machine.
+            {scope === 'story' ? (
+              <>
+                Builds the whole story for real (<code>--real</code>) — authors each capability&apos;s
+                real test + impl in a worktree, then promotes a branch to land. Subscription-billed.
+              </>
+            ) : (
+              <>
+                Runs a single-node <code>--live</code> build on your machine — proves the build
+                pipeline on a synthetic task, not this node&apos;s real feature.
+              </>
+            )}
           </p>
         </>
       )}

@@ -59,7 +59,7 @@ export async function runBuildJob(
   unitId: string,
   runner: BuildRunner,
 ): Promise<void> {
-  registry.appendLine(runId, `▸ build started: ${unitId} (--live)`);
+  registry.appendLine(runId, `▸ build started: ${unitId}`);
   try {
     const envelope = await runner(unitId, (line) => registry.appendLine(runId, line));
     // Append the envelope body as coarse lines BEFORE terminalising (a terminal run accepts no more
@@ -101,4 +101,50 @@ export function buildRunnerFromNodeBuild(nodeBuild: NodeBuildLike, actor?: strin
       verdictStore: 'pg',
       ...(actor !== undefined ? { actor } : {}),
     });
+}
+
+/** The build a unit id resolves to: a STORY drives a whole-story chain, anything else a single NODE. */
+export type BuildKind = 'node' | 'story';
+
+/** The Phase-1/2 options the worker passes to `storyBuild` — whole story, real mode, pg verdict store. */
+export interface StoryBuildLikeOpts {
+  real: boolean;
+  dryRun: boolean;
+  verdictStore: string;
+  actor?: string;
+}
+
+/** The `storyBuild` entry the production runner adapts (structurally `(id, opts) => Promise<Envelope>`). */
+export type StoryBuildLike = (storyId: string, opts: StoryBuildLikeOpts) => Promise<BuildEnvelope>;
+
+/** What {@link routedBuildRunner} composes: discovery + both public build entries (+ optional actor). */
+export interface RoutedBuildDeps {
+  /** Classify a unit id by tier — a story id routes to the whole-story chain, anything else a node. */
+  classify: (unitId: string) => Promise<BuildKind>;
+  nodeBuild: NodeBuildLike;
+  storyBuild: StoryBuildLike;
+  /** Optional signer/actor flag threaded to both entries (absent = the env-resolved signer). */
+  actor?: string;
+}
+
+/**
+ * A {@link BuildRunner} that routes by unit KIND (ADR-0090): a STORY id → `story build <id> --real`
+ * — the honest whole-story chain (each node authored for real in a shared worktree, then the proven
+ * chain promoted as a branch to land); a NODE id → `node build <id> --live` — the single-node build
+ * that proves the PIPELINE on a synthetic task (not the node's real feature). Discovery (`classify`)
+ * is injected, so this is fully offline-testable; the dev front wires it over the orchestrator's spec
+ * discovery + the lazily-imported `nodeBuild`/`storyBuild`. Emits ONE coarse mode line, then defers
+ * to the chosen entry's envelope.
+ */
+export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
+  const actorOpt = deps.actor !== undefined ? { actor: deps.actor } : {};
+  return async (unitId, sink) => {
+    const kind = await deps.classify(unitId);
+    if (kind === 'story') {
+      sink('▸ mode: whole-story --real — authors each capability for real, then promotes a branch to land');
+      return deps.storyBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', ...actorOpt });
+    }
+    sink('▸ mode: single-node --live — proves the build pipeline on a synthetic task');
+    return deps.nodeBuild(unitId, { live: true, dryRun: false, real: false, verdictStore: 'pg', ...actorOpt });
+  };
 }

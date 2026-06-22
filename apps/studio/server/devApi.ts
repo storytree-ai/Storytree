@@ -16,7 +16,7 @@ import { createCodeStampProbe, type CodeStamp } from './codeStamp';
 import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
 import { BuildRegistry } from './buildRegistry';
-import { buildRunnerFromNodeBuild } from './buildWorker';
+import { routedBuildRunner } from './buildWorker';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handlePresence, handleActivity, type HealthDeps } from './apiRouter';
@@ -45,35 +45,88 @@ export function storytreeDataApi(): Plugin {
       // could move the checkout under us.
       codeProbe = createCodeStampProbe(paths.repoRoot);
 
-      // UI-driven build (ADR-0090 Phase 1 "the local loop"): the server-process worker boundary.
-      // One in-memory run registry per dev server; the runner drives the EXISTING `nodeBuild --live`
-      // path and the discovery validates ids the SAME way `node build` does. cli + orchestrator are
-      // imported LAZILY (inside the closures) so this Vite plugin never pulls them at config-load
-      // time (the raw-TS `.js` re-export trap; the same reason loadOrchestrator/PgBackend are lazy).
+      // UI-driven build (ADR-0090 "the local loop"): the server-process worker boundary. One
+      // in-memory run registry per dev server; the runner ROUTES by unit tier — a story id drives
+      // the EXISTING `story build --real` chain, a node id the EXISTING `node build --live` path —
+      // and the discovery validates ids the SAME way the CLI prechecks (`resolveBuildConfig` /
+      // `isStoryBuildable`). cli + orchestrator are imported LAZILY (inside the closures) so this
+      // Vite plugin never pulls them at config-load time (the raw-TS `.js` re-export trap; the same
+      // reason loadOrchestrator/PgBackend are lazy).
       const buildRegistry = new BuildRegistry();
+      // Discover a unit by tier: a STORY routes to the whole-story chain (and needs its cap specs
+      // for the real-buildable predicate), anything else to a single NODE. Lazily imports the
+      // orchestrator (the raw-TS `.js` re-export trap — never at config-load time).
+      const loadUnit = async (
+        unitId: string,
+      ): Promise<
+        | { kind: 'node'; spec: import('@storytree/orchestrator').NodeSpec }
+        | {
+            kind: 'story';
+            spec: import('@storytree/orchestrator').NodeSpec;
+            caps: import('@storytree/orchestrator').NodeSpec[];
+          }
+        | null
+      > => {
+        const { findNodeSpecFile, loadNodeSpec } = await import('@storytree/orchestrator');
+        const file = findNodeSpecFile(paths.storiesDir, unitId);
+        if (file === null) return null;
+        let spec: import('@storytree/orchestrator').NodeSpec;
+        try {
+          spec = loadNodeSpec(file);
+        } catch {
+          return null; // a malformed spec is not buildable, never a crash
+        }
+        if (spec.tier !== 'story') return { kind: 'node', spec };
+        const caps = spec.capabilities
+          .map((id) => {
+            const f = findNodeSpecFile(paths.storiesDir, id);
+            if (f === null) return null;
+            try {
+              return loadNodeSpec(f);
+            } catch {
+              return null;
+            }
+          })
+          .filter((s): s is import('@storytree/orchestrator').NodeSpec => s !== null);
+        return { kind: 'story', spec, caps };
+      };
+      // Hydrate CLAUDE_CODE_OAUTH_TOKEN (SDK leaf) + STORYTREE_DB_USER (pg verdict store) from
+      // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
       const build: BuildContext = {
         registry: buildRegistry,
-        runner: buildRunnerFromNodeBuild(async (unitId, opts) => {
-          const [{ nodeBuild }, { loadLocalSecrets }] = await Promise.all([
-            import('@storytree/cli/build'),
-            import('@storytree/cli/secrets'),
-          ]);
-          // Hydrate CLAUDE_CODE_OAUTH_TOKEN (SDK leaf) + STORYTREE_DB_USER (pg verdict store) from
-          // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
-          loadLocalSecrets();
-          return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
+        // The worker routes by tier (ADR-0090): a story id → `story build --real` (the honest
+        // whole-story chain — authors each capability for real, promotes a branch to land); a node
+        // id → `node build --live` (the single-node synthetic-pipeline build). cli + orchestrator are
+        // imported LAZILY inside the closures.
+        runner: routedBuildRunner({
+          classify: async (unitId) =>
+            (await loadUnit(unitId))?.kind === 'story' ? 'story' : 'node',
+          nodeBuild: async (unitId, opts) => {
+            const [{ nodeBuild }, { loadLocalSecrets }] = await Promise.all([
+              import('@storytree/cli/build'),
+              import('@storytree/cli/secrets'),
+            ]);
+            loadLocalSecrets();
+            return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
+          },
+          storyBuild: async (unitId, opts) => {
+            const [{ storyBuild }, { loadLocalSecrets }] = await Promise.all([
+              import('@storytree/cli/build'),
+              import('@storytree/cli/secrets'),
+            ]);
+            loadLocalSecrets();
+            return storyBuild(unitId, opts);
+          },
         }),
         isBuildable: async (unitId) => {
-          const { findNodeSpecFile, loadNodeSpec, resolveBuildConfig } = await import(
-            '@storytree/orchestrator'
-          );
-          const file = findNodeSpecFile(paths.storiesDir, unitId);
-          if (file === null) return false;
-          try {
-            return resolveBuildConfig(loadNodeSpec(file)) != null;
-          } catch {
-            return false; // a malformed spec is not buildable, never a crash
-          }
+          const unit = await loadUnit(unitId);
+          if (unit === null) return false;
+          const { resolveBuildConfig, isStoryBuildable } = await import('@storytree/orchestrator');
+          // A story is buildable when `story build <id> --real` has real work to drive; a node when
+          // it carries a proof config (the SAME discovery `node build`/`story build` precheck with).
+          return unit.kind === 'story'
+            ? isStoryBuildable(unit.spec, unit.caps, 'real')
+            : resolveBuildConfig(unit.spec) != null;
         },
       };
       const store = selectedStore();

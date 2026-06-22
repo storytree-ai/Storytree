@@ -114,8 +114,14 @@ export type {
   StoryBuildArgs,
   StoryBuildRun,
   TopoResult,
+  StoryBuildMode,
 } from "./story-build.js";
-export { runStoryBuild, topoOrderStoryNodes } from "./story-build.js";
+export {
+  runStoryBuild,
+  topoOrderStoryNodes,
+  storyDriveOrder,
+  isStoryBuildable,
+} from "./story-build.js";
 
 // ── The proof machinery (ADR-0068 step 1): the farmer organism's RULER — the compute that
 // constructs/signs/hashes/classifies/derives verdict-DATA, moved out of @storytree/core. The DATA

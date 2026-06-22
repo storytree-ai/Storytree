@@ -10,8 +10,10 @@ import { BuildRegistry } from './buildRegistry';
 import {
   runBuildJob,
   buildRunnerFromNodeBuild,
+  routedBuildRunner,
   type BuildEnvelope,
   type NodeBuildLike,
+  type StoryBuildLike,
 } from './buildWorker';
 
 describe('runBuildJob', () => {
@@ -100,5 +102,62 @@ describe('buildRunnerFromNodeBuild', () => {
     expect(opts.real).toBeFalsy();
     expect(opts.dryRun).toBeFalsy();
     expect(envelope.ok).toBe(true);
+  });
+});
+
+describe('routedBuildRunner', () => {
+  it('routes a STORY id to storyBuild --real (the honest whole-story chain)', async () => {
+    const nodeBuild = vi.fn<NodeBuildLike>(async () => ({ ok: true, body: 'node' }));
+    const storyBuild = vi.fn<StoryBuildLike>(async () => ({ ok: true, body: 'story chain PASSED' }));
+    const runner = routedBuildRunner({
+      classify: async () => 'story',
+      nodeBuild,
+      storyBuild,
+    });
+
+    const lines: string[] = [];
+    const env = await runner('notice-board', (l) => lines.push(l));
+
+    expect(storyBuild).toHaveBeenCalledTimes(1);
+    expect(nodeBuild).not.toHaveBeenCalled();
+    const [storyId, opts] = storyBuild.mock.calls[0]!;
+    expect(storyId).toBe('notice-board');
+    expect(opts).toMatchObject({ real: true, dryRun: false, verdictStore: 'pg' });
+    expect(env.body).toMatch(/story chain/i);
+    expect(lines.some((l) => /whole-story --real/i.test(l))).toBe(true);
+  });
+
+  it('routes a NODE id to nodeBuild --live (single-node, synthetic pipeline)', async () => {
+    const nodeBuild = vi.fn<NodeBuildLike>(async () => ({ ok: true, body: 'verdict: PASS' }));
+    const storyBuild = vi.fn<StoryBuildLike>(async () => ({ ok: true, body: 'story' }));
+    const runner = routedBuildRunner({
+      classify: async () => 'node',
+      nodeBuild,
+      storyBuild,
+    });
+
+    const lines: string[] = [];
+    await runner('library-cli', (l) => lines.push(l));
+
+    expect(nodeBuild).toHaveBeenCalledTimes(1);
+    expect(storyBuild).not.toHaveBeenCalled();
+    const [unitId, opts] = nodeBuild.mock.calls[0]!;
+    expect(unitId).toBe('library-cli');
+    expect(opts).toMatchObject({ live: true, verdictStore: 'pg' });
+    expect(opts.real).toBeFalsy();
+    expect(opts.dryRun).toBeFalsy();
+    expect(lines.some((l) => /single-node --live/i.test(l))).toBe(true);
+  });
+
+  it('threads an actor flag to the routed entry when given', async () => {
+    const storyBuild = vi.fn<StoryBuildLike>(async () => ({ ok: true, body: 'ok' }));
+    const runner = routedBuildRunner({
+      classify: async () => 'story',
+      nodeBuild: async () => ({ ok: true, body: '' }),
+      storyBuild,
+      actor: 'op@example.com',
+    });
+    await runner('notice-board', () => {});
+    expect(storyBuild.mock.calls[0]![1]).toMatchObject({ actor: 'op@example.com' });
   });
 });

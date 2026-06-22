@@ -877,6 +877,8 @@ export async function handleUatAttest(
 type OrchestratorModule = typeof import('@storytree/orchestrator');
 type LoadNodeSpec = OrchestratorModule['loadNodeSpec'];
 type ResolveBuildConfig = OrchestratorModule['resolveBuildConfig'];
+/** The loader's spec shape — used for the story-level build predicate without a value import. */
+type NodeSpecLike = ReturnType<LoadNodeSpec>;
 
 let orchestratorModulePromise: Promise<OrchestratorModule> | null = null;
 
@@ -887,12 +889,15 @@ function loadOrchestrator(): Promise<OrchestratorModule> {
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
+// Returns the view node AND the loaded spec (null on a missing/malformed file): the spec is needed
+// for the story-level build predicate (isStoryBuildable reads the cap specs), so loading it once
+// here avoids a second read in readTree.
 function loadTreeCapability(
   loadNodeSpec: LoadNodeSpec,
   resolveBuildConfig: ResolveBuildConfig,
   storyDir: string,
   capId: string,
-): TreeCapability {
+): { node: TreeCapability; spec: NodeSpecLike | null } {
   const node: TreeCapability = {
     id: capId,
     title: capId,
@@ -902,26 +907,29 @@ function loadTreeCapability(
     dependsOn: [],
   };
   const file = path.join(storyDir, `${capId}.md`);
-  if (!existsSync(file)) return { ...node, error: 'spec file missing' };
+  if (!existsSync(file)) return { node: { ...node, error: 'spec file missing' }, spec: null };
   try {
     const spec = loadNodeSpec(file);
     return {
-      ...node,
-      title: spec.title,
-      outcome: spec.outcome,
-      status: isWorkStatus(spec.status) ? spec.status : null,
-      proofMode: spec.proofMode,
-      dependsOn: spec.dependsOn,
-      // ADR-0090 Phase 1: a node is buildable when it carries a proof config (spec-borne or
-      // registry) — the SAME determination `node build`/`node resolve` make.
-      buildable: resolveBuildConfig(spec) != null,
+      node: {
+        ...node,
+        title: spec.title,
+        outcome: spec.outcome,
+        status: isWorkStatus(spec.status) ? spec.status : null,
+        proofMode: spec.proofMode,
+        dependsOn: spec.dependsOn,
+        // ADR-0090 Phase 1: a node is buildable when it carries a proof config (spec-borne or
+        // registry) — the SAME determination `node build`/`node resolve` make.
+        buildable: resolveBuildConfig(spec) != null,
+      },
+      spec,
     };
   } catch (err) {
-    return { ...node, error: err instanceof Error ? err.message : String(err) };
+    return { node: { ...node, error: err instanceof Error ? err.message : String(err) }, spec: null };
   }
 }
 
-async function readTree(
+export async function readTree(
   storiesDir: string,
 ): Promise<{ payload: TreePayload; uatTestsByStory: Map<string, { id: string }[]> }> {
   const stories: TreeStory[] = [];
@@ -931,7 +939,8 @@ async function readTree(
   // re-reading every spec. Keyed by `{ id }` only (all `rollupStoryGreen` reads).
   const uatTestsByStory = new Map<string, { id: string }[]>();
   if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig } = await loadOrchestrator();
+  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable } =
+    await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -962,9 +971,17 @@ async function readTree(
       story.building = spec.render === 'building';
       // ADR-0090 Phase 1: gate-buildability for the UI-driven Build control (same discovery as the CLI).
       story.buildable = resolveBuildConfig(spec) != null;
-      story.capabilities = spec.capabilities.map((capId) =>
-        loadTreeCapability(loadNodeSpec, resolveBuildConfig, dir, capId),
-      );
+      const capSpecs: NodeSpecLike[] = [];
+      story.capabilities = spec.capabilities.map((capId) => {
+        const loaded = loadTreeCapability(loadNodeSpec, resolveBuildConfig, dir, capId);
+        if (loaded.spec !== null) capSpecs.push(loaded.spec);
+        return loaded.node;
+      });
+      // ADR-0090 Phase 2 increment: whether pressing Build on the STORY runs a whole-story
+      // `story build <id> --real` — the SAME fail-closed predicate the CLI prechecks with, so the
+      // affordance never offers a chain the gate would refuse (e.g. capless `agent`, all-live-only
+      // `library`). The studio's story-level Build mode is `--real` (the honest "really build this").
+      story.storyBuildable = isStoryBuildable(spec, capSpecs, 'real');
       // ADR-0085: the crown rolls up the UNION of UAT tests + reliability gates (a pure port greens
       // from its reliability gates alone). Both are addressable `{ id }` obligation units.
       const ownObligations = [...spec.uatTests, ...spec.reliabilityGates];

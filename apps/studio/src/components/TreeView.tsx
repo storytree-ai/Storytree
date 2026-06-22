@@ -4052,14 +4052,18 @@ function StoryPanel({
           the gate-green hue (ADR-0044). */}
       <UatTestsSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
 
-      {/* The UI-driven Build control (ADR-0090 Phase 1) is the LAST thing in the panel (owner
-          placement, 2026-06-22): a single Build affordance at the foot. It targets the drilled-in
-          capability when one is selected, else the story — so it stays in the SAME spot whether
-          you're viewing a story or a capability (a buildable node shows the Build button; a
-          non-buildable one shows why, in place, rather than vanishing). */}
+      {/* The UI-driven Build control (ADR-0090) is the LAST thing in the panel (owner placement,
+          2026-06-22): a single Build affordance at the foot. A drilled-in capability targets a
+          single-node `--live` build (its `buildable`); a story with no cap drilled targets a
+          whole-story `--real` build (its `storyBuildable` — the honest "really build this story").
+          So the control stays in the SAME spot whether you're viewing a story or a capability, and
+          a non-buildable selection shows WHY in place rather than vanishing (the owner's "it
+          disappears as I click around" was the single-node model showing through — most stories
+          carry no single buildable node, but many are whole-story buildable). */}
       <BuildSection
         unitId={cap ? cap.id : story.id}
-        buildable={cap ? cap.buildable : story.buildable}
+        buildable={cap ? cap.buildable : story.storyBuildable}
+        scope={cap ? 'node' : 'story'}
       />
     </aside>
   );

@@ -154,6 +154,28 @@ describe('BuildSection', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
   });
 
+  // ── story scope: whole-story --real framing (ADR-0090 Phase 2 increment) ─────
+  it('a story-scope buildable node frames the build as a whole-story --real run', () => {
+    render(<BuildSection unitId="notice-board" buildable scope="story" />);
+    expect(screen.getByRole('button', { name: 'Build' })).toBeTruthy();
+    // Honest framing: --real authors real code + promotes a branch (NOT the node-scope --live copy).
+    expect(screen.getByText(/whole story for real/i)).toBeTruthy();
+    expect(screen.getByText(/--real/)).toBeTruthy();
+    expect(screen.queryByText(/synthetic task/i)).toBeNull();
+  });
+
+  it('a non-buildable story explains it has no real-buildable capabilities (not the node copy)', () => {
+    render(<BuildSection unitId="agent" buildable={false} scope="story" />);
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.getByText(/no real-buildable capabilities/i)).toBeTruthy();
+  });
+
+  it('a node-scope build keeps the single-node --live framing with the synthetic-task caveat', () => {
+    render(<BuildSection unitId="library-cli" buildable scope="node" />);
+    expect(screen.getByText(/single-node/i)).toBeTruthy();
+    expect(screen.getByText(/synthetic task/i)).toBeTruthy();
+  });
+
   // ── 409 concurrent-build refusal handled gracefully ─────────────────────────
   it('surfaces a 409 concurrent-build refusal without crashing (no polling started)', async () => {
     apiMock.build.mockRejectedValue(new Error('a build is already running'));

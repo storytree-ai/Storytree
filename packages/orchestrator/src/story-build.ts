@@ -1,5 +1,7 @@
+import { effectiveUatWitness } from "@storytree/library";
 import type { ProveResult } from "./prove-it-gate.js";
 import type { NodeSpec } from "./node-spec.js";
+import { resolveBuildConfig } from "./resolve-prove-spec.js";
 import { runSequence } from "./sequence.js";
 
 /**
@@ -192,4 +194,53 @@ export function topoOrderStoryNodes(
 
   order.push(story);
   return { ok: true, order };
+}
+
+/** The mode a whole-story build runs in (the CLI `storytree story build` mode words). */
+export type StoryBuildMode = "live" | "real";
+
+/**
+ * The nodes a `story build <id>` would actually DRIVE: the topo-ordered capabilities (and the
+ * story's own UAT node LAST) — but the story node is WITHHELD when the story is human-witnessed
+ * (the ADR-0040 fail-closed default), because the gate refuses to drive or sign a human UAT. This
+ * mirrors `storyBuild`'s `driveOrder` exactly, so any consumer (the studio's story-level Build
+ * affordance) computes the SAME set the build will run, never a drifting guess. A topo refusal
+ * (malformed story, missing/extra cap, out-of-set dep, cycle) propagates as `{ ok: false }`.
+ */
+export function storyDriveOrder(
+  story: NodeSpec,
+  capabilities: readonly NodeSpec[],
+): TopoResult {
+  const topo = topoOrderStoryNodes(story, capabilities);
+  if (!topo.ok) return topo;
+  const withheld = effectiveUatWitness(story.uatWitness) === "human";
+  return { ok: true, order: withheld ? topo.order.slice(0, -1) : topo.order };
+}
+
+/**
+ * Whether `story build <id> --<mode>` has real work to drive: a NON-EMPTY drive order
+ * ({@link storyDriveOrder}) whose every driven node carries the proof config that mode needs —
+ * `resolveBuildConfig != null` for `live`, and additionally a `real:` arm for `real`. This is the
+ * SAME fail-closed determination `storyBuild`'s precheck makes, so the studio's story-level Build
+ * affordance can never offer a build the gate would refuse, and never withhold one it would run.
+ *
+ * Honest by construction: a capless story (e.g. `agent`) or an all-unbuildable one (e.g.
+ * `drive-machinery`) is NOT story-buildable; an all-real-buildable story (`notice-board`,
+ * `binding-staleness`) is. A machine-witnessed story whose own UAT node lacks a `real:` arm (e.g.
+ * `library` today — its node is driven, not withheld) is not `real`-buildable until that node can
+ * be driven for real. The deeper per-node refusals (install⇒typecheck) still fire inside the build;
+ * this answers only the affordance — "is there a real build to offer here?".
+ */
+export function isStoryBuildable(
+  story: NodeSpec,
+  capabilities: readonly NodeSpec[],
+  mode: StoryBuildMode,
+): boolean {
+  const drive = storyDriveOrder(story, capabilities);
+  if (!drive.ok || drive.order.length === 0) return false;
+  return drive.order.every((node) => {
+    const resolved = resolveBuildConfig(node);
+    if (resolved === null) return false;
+    return mode === "real" ? resolved.config.real !== undefined : true;
+  });
 }

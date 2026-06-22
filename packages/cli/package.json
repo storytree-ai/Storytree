@@ -6,7 +6,7 @@
   "description": "storytree CLI (ADR-0023): the agent's exploratory, just-in-time interface to the Library. Choose-your-own-adventure — every command emits a result + doctrine + next envelope.",
   "exports": {
     ".": "./src/index.ts",
-    "./build": "./src/node-build.ts",
+    "./build": "./src/build.ts",
     "./secrets": "./src/secrets.ts"
   },
   "bin": {

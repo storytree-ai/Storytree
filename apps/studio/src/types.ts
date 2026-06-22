@@ -399,6 +399,17 @@ export interface TreeStory {
   building?: boolean;
   /** Whether this story node is gate-buildable (see {@link TreeCapability.buildable}, ADR-0090 Phase 1). */
   buildable?: boolean;
+  /**
+   * Whether pressing Build on the STORY itself runs a whole-story build (`storytree story build <id>
+   * --real`): a non-empty drive order whose every driven capability (and the story's own UAT node,
+   * unless human-witnessed and withheld) is REAL-buildable. Computed server-side via the SAME
+   * `isStoryBuildable` predicate `story build` prechecks with, so the studio's story-level Build
+   * affordance never offers a chain the gate would refuse. Distinct from `buildable` (the story
+   * NODE's own single-node buildability): a story can be story-buildable while its UAT node is not a
+   * single buildable node, and vice versa. Honest by absence — `agent` (capless) and
+   * `drive-machinery` (no real-buildable caps) are not story-buildable.
+   */
+  storyBuildable?: boolean;
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
