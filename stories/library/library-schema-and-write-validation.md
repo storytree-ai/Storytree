@@ -7,10 +7,10 @@ outcome: "Every library artifact is zod-validated at the write boundary against 
 status: mapped
 proof_mode: integration-test
 depends_on: []
-# ADR-0092 (brownfield gate-as-proof affordance): a spec-borne editsExisting `real:` arm against the
-# real packages/library source, so `story build library --real` can DRIVE this capability — the leaf
-# adds a regression test red→green over the existing source (ADR-0057 keystone + expansion C). It is
-# what makes the node `--real`-buildable; a live red needs a genuine regression to drive (brownfield).
+# ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
+# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
+# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
+# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build over a mature artifact with no red.
 proof:
   command:
     file: pnpm
@@ -18,17 +18,6 @@ proof:
   scope:
     testGlobs: ["packages/library/src/**/*.test.ts"]
     sourceGlobs: ["packages/library/src/**/*.ts"]
-  real:
-    testFile: "packages/library/src/library-doc.regression.test.ts"
-    sourceFile: "packages/library/src/library-doc.ts"
-    scope:
-      testGlobs: ["packages/library/src/library-doc.regression.test.ts"]
-      sourceGlobs: ["packages/library/src/library-doc.ts"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/library", "typecheck"]
 ---
 
 # Schema-defined library docs, validated at the write boundary
