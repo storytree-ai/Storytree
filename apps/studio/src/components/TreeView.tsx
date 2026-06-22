@@ -3918,12 +3918,6 @@ function StoryPanel({
         onNavigate={(d) => navigate(treeFocusHref(d))}
       />
 
-      {/* The UI-driven Build control (ADR-0090 Phase 1): trigger a single-node `--live` build
-          and watch its coarse transcript run to a verdict — only for a gate-buildable node.
-          When a capability is drilled into, the build target is THAT capability (below), not
-          the story; otherwise the story is the target. */}
-      {!cap && <BuildSection unitId={story.id} buildable={story.buildable} />}
-
       {sessions.length > 0 && (
         <div className="tree-sessions">
           {/* The panel is a detail surface like the dock (ADR-0041): the count
@@ -4050,16 +4044,23 @@ function StoryPanel({
               <code>{`stories/${story.id}/${cap.id}.md`}</code>
             </dd>
           </dl>
-          {/* Build the drilled-into capability (ADR-0090 Phase 1) — the build target is the
-              selected capability, not the story. */}
-          <BuildSection unitId={cap.id} buildable={cap.buildable} />
         </div>
       )}
 
-      {/* The per-UAT-test attestation table sits at the FOOT of the drill-down (the last thing
+      {/* The per-UAT-test attestation table sits near the FOOT of the drill-down (the last thing
           you read once you've taken in the story + its capability DAG) — a vouch surface, never
           the gate-green hue (ADR-0044). */}
       <UatTestsSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
+
+      {/* The UI-driven Build control (ADR-0090 Phase 1) is the LAST thing in the panel (owner
+          placement, 2026-06-22): a single Build affordance at the foot. It targets the drilled-in
+          capability when one is selected, else the story — so it stays in the SAME spot whether
+          you're viewing a story or a capability (a buildable node shows the Build button; a
+          non-buildable one shows why, in place, rather than vanishing). */}
+      <BuildSection
+        unitId={cap ? cap.id : story.id}
+        buildable={cap ? cap.buildable : story.buildable}
+      />
     </aside>
   );
 }
