@@ -17,7 +17,7 @@ import {
   rollupStoryGreen,
   scriptedWriterModel,
 } from "@storytree/orchestrator";
-import type { NodeSpec } from "@storytree/orchestrator";
+import type { DecisionFork, NodeSpec } from "@storytree/orchestrator";
 import type { ReliabilityGate } from "@storytree/library";
 
 import { driveBuildTestsGate } from "./gate-build-driver.js";
@@ -223,6 +223,82 @@ test("U3 regression wall: an R2 refactor that REGRESSES the sibling test reds th
     // Halt is never a pass: no signed verdict, so the gate never greens (it stalls at the `building`
     // lifecycle mark — a regression can NEVER turn the gate healthy, the U3 regression-wall guarantee).
     assert.notEqual(rollupStatus("fix-story#gate-1", await store.readEvents()), "healthy");
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+// ── U4: the pre-build batch decision-sweep (ADR-0098 d.5) ─────────────────────
+
+/** A routine within-pocket fork (trips none of the three d.5 signals — the leaf owns it). */
+function routineFork(over: Partial<DecisionFork> = {}): DecisionFork {
+  return {
+    id: "test-layout",
+    question: "Where should the seam test live?",
+    changesPublicSeam: false,
+    materiallyDifferentStrategies: false,
+    crossCuttingOrIrreversible: false,
+    ...over,
+  };
+}
+
+test("U4 — an UNRESOLVED key design fork HALTS the drive before any spend (no worktree, no verdict signed)", async () => {
+  const stories = await fixtureStories();
+  const store: Store = new InMemoryStore();
+  try {
+    // A fork that changes a public seam other code depends on = the owner's call (d.5 bar). Unresolved,
+    // so the sweep blocks. The halt is BEFORE store/worktree, so repoRoot is never touched (`.` is fine).
+    const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      storiesDir: stories,
+      repoRoot: ".",
+      store,
+      decisionForks: [
+        routineFork({
+          id: "runseed-seam",
+          question: "Should runSeed inject a Pool, or the built Store + a comment-loader fn?",
+          changesPublicSeam: true,
+        }),
+      ],
+    });
+    assert.equal(env.ok, false, env.body);
+    assert.match(env.body, /HALTED fix-story#gate-1 \(pocket: seed-runner\)/);
+    assert.match(env.body, /Should runSeed inject a Pool/);
+    assert.match(env.body, /changes a public seam/);
+    // Halt is never a pass: nothing was signed (no spend, no verdict for the gate id).
+    assert.equal(rollupStatus("fix-story#gate-1", await store.readEvents()), null);
+  } finally {
+    await rm(stories, { recursive: true, force: true });
+  }
+});
+
+test("U4 — a ROUTINE choice + a RESOLVED key fork sweep CLEAR; the drive proceeds to a signed green", async () => {
+  const stories = await fixtureStories();
+  const repo = await fixtureRepo();
+  const store: Store = new InMemoryStore();
+  try {
+    const env = await driveBuildTestsGate(buildTestsGate(), "builder@example.com", {
+      storiesDir: stories,
+      repoRoot: repo,
+      store,
+      promote: false,
+      authorOverride: scriptedR2Author,
+      decisionForks: [
+        routineFork({ id: "helper-name", question: "What to name the extracted helper?" }), // routine — leaf decides
+        routineFork({
+          id: "extract-strategy",
+          question: "Extract a runSeed(deps) core, or inline the orchestration?",
+          materiallyDifferentStrategies: true,
+          resolution: "Extract a behaviour-preserving runSeed(deps) core (owner-settled).",
+        }),
+      ],
+    });
+    assert.equal(env.ok, true, env.body);
+    // The sweep summary is surfaced (observability-first): 1 key fork resolved + threaded, 1 routine.
+    assert.match(env.body, /decisions:   1 key \(1 resolved → threaded\), 1 routine — swept CLEAR before spend/);
+    assert.match(env.body, /rollup:      healthy/);
+    // The drive ran for real: a DRIVEN verdict is signed for the gate id (the resolved fork did not block it).
+    assert.equal(rollupStatus("fix-story#gate-1", await store.readEvents()), "healthy");
   } finally {
     await rm(stories, { recursive: true, force: true });
     await rm(repo, { recursive: true, force: true });
