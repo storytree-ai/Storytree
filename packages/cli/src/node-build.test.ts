@@ -154,14 +154,17 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
   // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
   // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
-  // model-runtime-seam, owned-turn-loop. The library story + its 7 capabilities are NO LONGER here:
+  // model-runtime-seam, owned-turn-loop. Most of the library story's 7 capabilities are NO LONGER here:
   // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
   // `mapped`, so its green path is Adopt (`## Reliability Gates`, ADR-0085), not a fail-closed `--real`
   // Build. They keep their spec-borne dry-run/live `command`+`scope`, so they stay in "buildable nodes"
-  // (single-node `--live`) but drop out of "REAL-buildable nodes".
+  // (single-node `--live`) but drop out of "REAL-buildable nodes". The EXCEPTION is `seed-corpus-scripts`:
+  // ADR-0098 (U5, the live pilot) RE-ADDED a `real:` arm to it — an R2 `refactorForTests` build-tests
+  // config the story's `library#gate-4` `(build:)`s — so it is real-buildable again (driven via the gate,
+  // not a blanket story Build; the other six caps stay arm-less, so the story is not real-buildable).
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, gate-emits-change, leaf-tool-surface, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, gate-emits-change, leaf-tool-surface, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
