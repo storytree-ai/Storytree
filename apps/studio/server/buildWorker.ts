@@ -160,11 +160,14 @@ export interface RoutedBuildDeps {
 /**
  * A {@link BuildRunner} that routes by unit KIND (ADR-0090): a STORY id → `story build <id> --real`
  * — the honest whole-story chain (each node authored for real in a shared worktree, then the proven
- * chain promoted as a branch to land); a NODE id → `node build <id> --live` — the single-node build
- * that proves the PIPELINE on a synthetic task (not the node's real feature). Discovery (`classify`)
- * is injected, so this is fully offline-testable; the dev front wires it over the orchestrator's spec
- * discovery + the lazily-imported `nodeBuild`/`storyBuild`. Emits ONE coarse mode line, then defers
- * to the chosen entry's envelope.
+ * chain promoted as a branch to land), which PERSISTS its real red→green verdicts (`--store pg`);
+ * a NODE id → `node build <id> --live` — the single-node build that proves the PIPELINE on a synthetic
+ * task (not the node's real feature), which must NOT persist (ADR-0099-B: a synthetic `--live` smoke
+ * may never plant a forged green in `events.verdict`, so the node branch omits `verdictStore` and runs
+ * in-memory — passing `--store pg` would be refused downstream as a synthetic walk, terminalising the
+ * UI Build as FAILED). Discovery (`classify`) is injected, so this is fully offline-testable; the dev
+ * front wires it over the orchestrator's spec discovery + the lazily-imported `nodeBuild`/`storyBuild`.
+ * Emits ONE coarse mode line, then defers to the chosen entry's envelope.
  */
 export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
   const actorOpt = deps.actor !== undefined ? { actor: deps.actor } : {};
@@ -180,7 +183,11 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
         ...actorOpt,
       });
     }
+    // ADR-0099-B: a single-node `--live` smoke is SYNTHETIC (proves the pipeline on `add(2,3)`), so its
+    // PASS must never persist — `verdictStore` is omitted (in-memory). Passing `--store pg` here is
+    // refused downstream (`resolveVerdictStore`, a synthetic walk), which would terminalise the UI Build
+    // as FAILED rather than run the smoke. The legitimate go-green is the STATUS-AWARE story affordance.
     sink('▸ mode: single-node --live — proves the build pipeline on a synthetic task');
-    return deps.nodeBuild(unitId, { live: true, dryRun: false, real: false, verdictStore: 'pg', ...actorOpt });
+    return deps.nodeBuild(unitId, { live: true, dryRun: false, real: false, ...actorOpt });
   };
 }

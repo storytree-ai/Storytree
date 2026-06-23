@@ -131,7 +131,7 @@ describe('routedBuildRunner', () => {
     expect(lines.some((l) => /auto-merges to trunk/i.test(l))).toBe(true);
   });
 
-  it('routes a NODE id to nodeBuild --live (single-node, synthetic pipeline)', async () => {
+  it('routes a NODE id to nodeBuild --live (single-node, synthetic pipeline, NON-persisting)', async () => {
     const nodeBuild = vi.fn<NodeBuildLike>(async () => ({ ok: true, body: 'verdict: PASS' }));
     const storyBuild = vi.fn<StoryBuildLike>(async () => ({ ok: true, body: 'story' }));
     const runner = routedBuildRunner({
@@ -147,7 +147,11 @@ describe('routedBuildRunner', () => {
     expect(storyBuild).not.toHaveBeenCalled();
     const [unitId, opts] = nodeBuild.mock.calls[0]!;
     expect(unitId).toBe('library-cli');
-    expect(opts).toMatchObject({ live: true, verdictStore: 'pg' });
+    expect(opts).toMatchObject({ live: true });
+    // ADR-0099-B: a single-node `--live` smoke is SYNTHETIC, so it must NOT persist — the node branch
+    // omits `verdictStore`. Passing `--store pg` here would be refused downstream (`resolveVerdictStore`,
+    // a synthetic walk) and terminalise the UI Build as FAILED. Mirrors the buildRunnerFromNodeBuild guard.
+    expect(opts.verdictStore).toBeUndefined();
     expect(opts.real).toBeFalsy();
     expect(opts.dryRun).toBeFalsy();
     expect(lines.some((l) => /single-node --live/i.test(l))).toBe(true);
