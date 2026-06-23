@@ -27,18 +27,24 @@ import type { PhaseAuthor } from "@storytree/agent";
 import type { ReliabilityGate } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 import {
+  blockedHaltReport,
   createBuildWorktree,
   findNodeSpecFile,
   loadNodeSpec,
   mapProofMode,
   resolveBuildConfig,
   resolveSignerFromEnv,
+  resolvedBriefContext,
   rollupStatus,
+  sweepDecisions,
   verdictLine,
 } from "@storytree/orchestrator";
 import type {
   AddDepsGroup,
   BuildWorktree,
+  DecisionFork,
+  DecisionSweep,
+  LeafPhasePrompts,
   NodeSpec,
   PromotionResult,
 } from "@storytree/orchestrator";
@@ -96,6 +102,16 @@ export interface GateBuildDriverDeps {
   maxTurns?: number;
   /** Injectable presence (ADR-0033 Decision 3); null on either side makes presence a no-op. */
   presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
+  /**
+   * ADR-0098 (U4): the candidate design forks the orchestrator session's pre-build pocket analysis
+   * surfaced for this `(pocket, gate)`, each tagged with the three d.5 owner-fork-bar signals (+ the
+   * owner's `resolution` where given). The driver runs the BATCH DECISION-SWEEP over them BEFORE any
+   * spend: an unresolved KEY fork HALTS fail-closed (the loop never silently guesses an owner-level
+   * decision); a routine within-pocket choice does not block; the resolved key forks thread into the
+   * leaf brief so the loop runs unattended. Absent / `[]` → no fork is gated and the drive proceeds
+   * exactly as before (today's default — the candidate forks are agent analysis, supplied per drive).
+   */
+  decisionForks?: readonly DecisionFork[];
 }
 
 const HONEST_FRAMING_GATE_REAL =
@@ -195,7 +211,22 @@ export async function driveBuildTestsGate(
   //    prompts are still rendered (a missing red-builder/green-builder agent must refuse, not degrade).
   const rendered = await renderLeafPhasePrompts();
   if (!rendered.ok) return rendered.refusal;
-  const phasePrompts = rendered.prompts;
+
+  // 6b. ADR-0098 (U4): the pre-build BATCH DECISION-SWEEP. Before any spend (no DB brought up, no
+  //     worktree cut, no SDK leaf), sweep the orchestrator session's surfaced design forks for this
+  //     (pocket, gate). An UNRESOLVED key fork (the d.5 owner-fork bar — escalate ownership, not
+  //     uncertainty) HALTS fail-closed: the loop never silently guesses an owner-level decision. A
+  //     routine within-pocket choice (names, test layout) does not block — the leaf makes it. The
+  //     owner-SETTLED key forks thread into the leaf brief so the loop runs unattended.
+  const sweep = sweepDecisions({
+    gateId: gate.id,
+    pocket: buildNode,
+    forks: deps.decisionForks ?? [],
+  });
+  if (!sweep.clear) {
+    return { ok: false, body: blockedHaltReport(sweep), next: [retryCmd] };
+  }
+  const phasePrompts = threadResolutions(rendered.prompts, sweep);
 
   // 7. Resolve the verdict store. A REAL gate build OWNS the DB and ALWAYS persists (ADR-0060/0081) —
   //    the production path resolves to pg and ensures the instance is up. The offline driver test
@@ -286,6 +317,7 @@ export async function driveBuildTestsGate(
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeLabel}`,
+      ...sweepSummaryLine(sweep),
       `worktree:    ${worktree.root} (detached @ ${worktree.headSha.slice(0, 7)}${realConfig.install === true ? ", deps installed (lockfile-only)" : ""}, removed after)`,
     ];
     const promotionLines = buildPromotionLines(built.regression, built.typecheck, built.promotion, built.promotionSkipped);
@@ -348,6 +380,29 @@ function buildPromotionLines(
       ? [`promoted:    ${promotion.branch} @ ${promotion.commitSha.slice(0, 7)} (${promotion.detail})`]
       : []),
     ...(promotionSkipped !== undefined ? [`promotion:   skipped — ${promotionSkipped}`] : []),
+  ];
+}
+
+/**
+ * Thread the owner-SETTLED key forks into BOTH per-phase leaf briefs (ADR-0098 U4): the resolved
+ * decisions are appended as honour-these context so the loop runs unattended. A pure transform — when
+ * nothing is settled ({@link resolvedBriefContext} returns null) the prompts pass through untouched.
+ */
+function threadResolutions(prompts: LeafPhasePrompts, sweep: DecisionSweep): LeafPhasePrompts {
+  const context = resolvedBriefContext(sweep);
+  if (context === null) return prompts;
+  return {
+    AUTHOR_TEST: `${prompts.AUTHOR_TEST}\n\n${context}`,
+    IMPLEMENT: `${prompts.IMPLEMENT}\n\n${context}`,
+  };
+}
+
+/** The decision-sweep summary line for the output header — omitted when no forks were swept. */
+function sweepSummaryLine(sweep: DecisionSweep): string[] {
+  if (sweep.decisions.length === 0) return [];
+  return [
+    `decisions:   ${sweep.escalated.length} key (${sweep.resolved.length} resolved → threaded), ` +
+      `${sweep.routine.length} routine — swept CLEAR before spend (ADR-0098 d.5)`,
   ];
 }
 

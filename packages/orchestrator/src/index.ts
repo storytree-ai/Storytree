@@ -169,5 +169,23 @@ export type {
   PocketClass,
 } from "./proof/adoption-proposal.js";
 export { classifyAdoption } from "./proof/adoption-proposal.js";
+// ADR-0098 Layer 3 (U4): the pre-build batch decision-sweep — the deterministic owner-fork-bar
+// classifier (the d.5 escalate-ownership-not-uncertainty discriminator) + the partition + the
+// fail-closed halt gate the build-tests `--real` drive consults before any spend. Pure, offline; the
+// candidate forks are agent analysis (the orchestrator session's pocket read), this is the ruler.
+export type {
+  ForkSignals,
+  DecisionFork,
+  ForkDisposition,
+  ClassifiedFork,
+  DecisionSweepSpec,
+  DecisionSweep,
+} from "./proof/decision-sweep.js";
+export {
+  classifyFork,
+  sweepDecisions,
+  blockedHaltReport,
+  resolvedBriefContext,
+} from "./proof/decision-sweep.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";

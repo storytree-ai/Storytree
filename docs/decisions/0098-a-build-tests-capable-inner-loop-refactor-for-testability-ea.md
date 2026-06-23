@@ -18,7 +18,10 @@ refactor-for-testability, the regression-wall-as-suite, and the gate→loop wiri
 model. **Build status:** **U1** (the R2 `refactorForTests` author mode) + **U3** (the
 regression-wall-as-suite oracle) in `packages/orchestrator` and **U2** (the gate→loop wiring —
 `gate run <story>#gate-N --real` drives the build-tests engine and signs a driven verdict for the
-gate id) have landed; U4 (batch sweep) and U5 (the live pilot) follow in later PRs. The `status:` flip was applied by this
+gate id) and **U4** (the batch decision-sweep surface — the pre-build owner-fork-bar classifier
+`classifyFork`/`sweepDecisions` in `packages/orchestrator`, consulted by the `gate run --real` driver
+before any spend so an unresolved key fork HALTS fail-closed) have landed; U5 (the live pilot) follows
+in a later PR. The `status:` flip was applied by this
 session per [ADR-0084](0084-agents-may-flip-an-adr-green.md). It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)**
 (naming and refining the `build-tests` satisfaction engine ADR-0085 d.4 left as "named follow-on, not
 built"). It is the load-bearing follow-on [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
