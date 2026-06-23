@@ -55,6 +55,16 @@ export const ReliabilityGate = z
      * the gate covers nothing (it is only an own-proof obligation, not a per-cap proof).
      */
     covers: z.array(z.string().min(1)).default([]),
+    /**
+     * ADR-0098 (U2): the node id whose `real:` build config a `build-tests` gate BORROWS to drive
+     * its red→green. Parsed from a `(build: <node-id>)` annotation, like `(gate: …)` / `(covers: …)`.
+     * `storytree gate run <gate> --real` resolves the referenced node's {@link RealProofConfig},
+     * renames the spec id to THIS gate's id, drives the prove-it-gate, and signs a DRIVEN-tier
+     * verdict FOR THE GATE id (never `adopted` — ADR-0098 d.4). A `build-tests` gate driven with
+     * `--real` REQUIRES it (the driver refuses otherwise, pointing here). Absent → the gate names no
+     * build to drive (so `--real` refuses; the gate is still a parseable obligation).
+     */
+    buildNode: z.string().min(1).optional(),
   })
   .strict();
 
@@ -96,6 +106,12 @@ const KIND_TAG = /\(gate:\s*([A-Za-z-]+)\)/i;
  * gate covers no capability (it is only an own-proof obligation).
  */
 const COVERS_TAG = /\(covers:\s*([^)]+)\)/i;
+/**
+ * Optional inline build-reference annotation (ADR-0098 U2), e.g. `(build: seed-runner)` — the node id
+ * a `build-tests` gate borrows its `real:` build config from. Parsed like the `(gate: …)` / `(covers: …)`
+ * tags; the single id is captured and trimmed.
+ */
+const BUILD_TAG = /\(build:\s*([^)]+)\)/i;
 /** The first backticked command span in an item — the `observe` gate's declared proof command. */
 const COMMAND = /`([^`]+)`/;
 
@@ -180,6 +196,18 @@ function itemCovers(item: string): string[] {
 }
 
 /**
+ * Pull the declared build reference from an item (ADR-0098 U2): the single node id in a
+ * `(build: <node-id>)` tag, trimmed. Absent (or a blank id) → undefined (the gate names no build to
+ * drive). The single home of the `(build:)` syntax so the parser and the gate→loop driver agree.
+ */
+function itemBuildNode(item: string): string | undefined {
+  const tag = BUILD_TAG.exec(item);
+  if (tag === null) return undefined;
+  const id = tag[1]!.trim();
+  return id.length > 0 ? id : undefined;
+}
+
+/**
  * PURE: parse a story's markdown `body` into addressable reliability-gate units (ADR-0085).
  * Each numbered item under `## Reliability Gates` becomes one {@link ReliabilityGate} with a
  * positional, stable id (`<story>#gate-<n>`, 1-based). Positional so the same prose always
@@ -196,12 +224,14 @@ export function parseReliabilityGates(storyId: string, body: string): Reliabilit
   return items.map((item, index) => {
     const id = reliabilityGateId(storyId, index + 1);
     const proofCommand = itemCommand(item);
+    const buildNode = itemBuildNode(item);
     return ReliabilityGate.parse({
       id,
       title: itemTitle(item),
       kind: itemKind(item, id),
       covers: itemCovers(item),
       ...(proofCommand !== undefined ? { proofCommand } : {}),
+      ...(buildNode !== undefined ? { buildNode } : {}),
     });
   });
 }

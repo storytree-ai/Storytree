@@ -98,20 +98,81 @@ test("gate run refuses an unknown gate id", async () => {
   assert.match(env.body, /no reliability gate "proof-protocol#gate-9"/);
 });
 
-test("gate run refuses a non-observe gate (build-tests) — earned by a real build, not observe-and-sign", async () => {
+test("gate run on a build-tests gate WITHOUT --real refuses, pointing at the build (--real), not observe-and-sign", async () => {
   const store = memStore();
   const env = await gateCommand(
     { mode: "run", target: "brown#gate-1" },
     {},
     deps({
       store,
-      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [] }],
+      loadReliabilityGates: () => [
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], buildNode: "brown-seam" },
+      ],
     }),
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /not 'observe'/);
-  assert.ok((env.next ?? []).some((n) => /node build brown --real/.test(n)));
+  assert.match(env.body, /kind 'build-tests'/);
+  assert.match(env.body, /genuine red→green build/);
+  // The retry points at the gate→loop build (ADR-0098), not observe-and-sign and not `node build`.
+  assert.ok((env.next ?? []).some((n) => /gate run brown#gate-1 --real/.test(n)));
   assert.equal(store.events.length, 0);
+});
+
+test("gate run on a build-tests gate WITH --real but no (build:) reference refuses, asking for one", async () => {
+  let driverCalls = 0;
+  const env = await gateCommand(
+    { mode: "run", target: "brown#gate-1" },
+    { real: true },
+    deps({
+      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [] }],
+      driveBuildTestsGate: async () => {
+        driverCalls++;
+        return { ok: true, body: "should not run" };
+      },
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /declares no build reference/);
+  assert.match(env.body, /\(build: <node-id>\)/);
+  assert.equal(driverCalls, 0, "the driver must not run without a build reference");
+});
+
+test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the injected build driver", async () => {
+  const seen: { gate?: ReliabilityGate; signer?: string } = {};
+  const env = await gateCommand(
+    { mode: "run", target: "brown#gate-1" },
+    { real: true, signer: "builder@example.com" },
+    deps({
+      loadReliabilityGates: () => [
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: ["brown-cap"], buildNode: "brown-seam" },
+      ],
+      driveBuildTestsGate: async (gate, signer) => {
+        seen.gate = gate;
+        if (signer !== undefined) seen.signer = signer;
+        return { ok: true, body: `drove ${gate.id} via ${gate.buildNode}` };
+      },
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.equal(env.body, "drove brown#gate-1 via brown-seam");
+  assert.equal(seen.gate?.id, "brown#gate-1");
+  assert.equal(seen.gate?.buildNode, "brown-seam");
+  assert.equal(seen.signer, "builder@example.com");
+});
+
+test("gate run --real on a build-tests gate refuses when the build driver is not wired (read-only/offline)", async () => {
+  // Omit driveBuildTestsGate entirely — the default deps() never sets it (offline / read-only).
+  const env = await gateCommand(
+    { mode: "run", target: "brown#gate-1" },
+    { real: true },
+    deps({
+      loadReliabilityGates: () => [
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], buildNode: "brown-seam" },
+      ],
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not wired in this context/);
 });
 
 test("gate run refuses when the observed command is RED (a non-zero exit) — no verdict", async () => {

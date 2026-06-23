@@ -68,11 +68,25 @@ export interface GateDeps {
   observe: (command: string) => Promise<{ code: number | null }>;
   /** Injectable signer resolver (flag → STORYTREE_SIGNER → git email); fail-closed. */
   resolveSigner: (flag?: string) => SignerResult;
+  /**
+   * ADR-0098 (U2): drive a `build-tests` gate through the REAL prove-it-gate and sign a DRIVEN verdict
+   * for the gate id (the gate borrows the `(build:)` node's `real:` config). Injected like `observe`
+   * so this module stays pure + offline-testable — the worktree/store/leaf machinery lives behind the
+   * seam (`gate-build-driver.ts`). Absent = the build path is not wired in this context (read-only /
+   * offline), and a `--real` build-tests run refuses cleanly rather than half-driving.
+   */
+  driveBuildTestsGate?: (gate: ReliabilityGate, signer?: string) => Promise<Envelope>;
   now: () => Date;
 }
 
 export interface GateOpts {
   signer?: string;
+  /**
+   * `--real` (ADR-0098 U2): for a `build-tests` gate, DRIVE the referenced `(build:)` node's real
+   * red→green and sign a driven verdict for the gate id (vs. the default refusal pointing at the
+   * build). Ignored for `observe` / `integrate` (those are never earned by a build).
+   */
+  real?: boolean;
 }
 
 export interface GateInvocation {
@@ -108,12 +122,16 @@ export function gateHelp(): Envelope {
       "foundational story green — distinct from `## Story UAT`. An `observe` gate is proven by",
       "OBSERVE-AND-SIGN (the spine runs its declared command green at a clean HEAD → an `adopted` verdict).",
       "",
-      "  storytree gate list <story-id> [--pg]          a story's gates, kind + PROVEN state",
-      "  storytree gate run  <story>#gate-<n> --pg      observe-and-sign an `observe` gate",
+      "  storytree gate list <story-id> [--pg]               a story's gates, kind + PROVEN state",
+      "  storytree gate run  <story>#gate-<n> --pg           observe-and-sign an `observe` gate",
+      "  storytree gate run  <story>#gate-<n> --real --pg    drive a `build-tests` gate's red→green",
       "",
-      "run mints an 'adopted' verdict in events.verdict (a real gate verdict). It refuses a non-observe",
-      "gate (earn it by a real build / its capability), a gate with no declared command, a red command,",
-      "a dirty tree, a blank signer, and the offline store. gate ids come from: storytree gate list <id> --pg.",
+      "An `observe` run mints an 'adopted' verdict in events.verdict (a real gate verdict). A",
+      "`build-tests` run (--real, ADR-0098) DRIVES the referenced `(build: <node-id>)` node's real",
+      "red→green and signs a DRIVEN-tier verdict FOR the gate id (never 'adopted'), which greens the",
+      "capability the gate `(covers:)`. run refuses a gate with no declared command (observe), a",
+      "build-tests gate with no `(build:)` ref, a red command/walk, a dirty tree, a blank signer, and the",
+      "offline store. gate ids come from: storytree gate list <id> --pg.",
     ].join("\n"),
     next: ["storytree gate list proof-protocol --pg", "storytree tree proof-protocol --pg"],
   };
@@ -175,8 +193,9 @@ async function gateList(storyId: string | undefined, deps: GateDeps): Promise<En
   lines.push(
     "",
     "PROVEN (✓/✗/–) is the SIGNED verdict (events.verdict). An `observe` gate is proven via",
-    "`storytree gate run <id> --pg`; a `build-tests` gate via a real `node build --real`; an",
-    "`integrate` gate when its capability greens. The story CROWN (caps AND uat AND gates) is",
+    "`storytree gate run <id> --pg`; a `build-tests` gate via `storytree gate run <id> --real --pg`",
+    "(ADR-0098 — it drives the `(build:)` node's red→green and signs for the gate id); an `integrate`",
+    "gate when its capability greens. The story CROWN (caps AND uat AND gates) is",
     "`storytree tree " + storyId + " --pg`.",
   );
   return {
@@ -218,6 +237,15 @@ async function gateRun(
           : `no reliability gate "${id}" in story "${storyId}". declared: ${gates.map((g) => g.id).join(", ")}.`,
       next: [`storytree gate list ${storyId} --pg`],
     };
+  }
+
+  // ADR-0098 (U2): a `build-tests` gate is earned ONLY by a genuine red→green build driven through
+  // the gate — never observe-and-sign (that would be the inverse theater ADR-0085/0097 ban). With
+  // `--real`, route it to the build driver (the referenced `(build:)` node's real config, signed for
+  // the gate id); without `--real` it refuses, pointing at the build. The observe-and-sign path below
+  // is only ever reached for `observe` / `integrate`.
+  if (gate.kind === "build-tests") {
+    return gateRunBuildTests(gate, storyId, opts, deps);
   }
 
   // Fail-closed: a verdict must be attributed to a real signer.
@@ -263,17 +291,15 @@ async function gateRun(
   });
 
   if (!result.ok) {
+    // Only `observe` / `integrate` reach here — a `build-tests` gate is routed to the build driver
+    // before observe-and-sign (gateRunBuildTests), so it never refuses through this path.
     return {
       ok: false,
       body: `refused — ${result.reason}`,
       next:
         gate.kind === "observe"
           ? [`storytree gate run ${id} --pg`]
-          : [
-              gate.kind === "build-tests"
-                ? `storytree node build ${storyId} --real   (a build-tests gate is earned by a genuine red→green)`
-                : `storytree tree ${storyId} --pg   (an integrate gate greens when its capability does)`,
-            ],
+          : [`storytree tree ${storyId} --pg   (an integrate gate greens when its capability does)`],
     };
   }
 
@@ -302,4 +328,52 @@ async function gateRun(
     body: lines.join("\n"),
     next: [`storytree gate list ${storyId} --pg`, `storytree tree ${storyId} --pg`],
   };
+}
+
+// ── run: build-tests (ADR-0098 U2 — the gate→loop wiring) ──────────────────────
+
+/**
+ * Route a `build-tests` gate run. WITHOUT `--real` it refuses, pointing at the build (a build-tests
+ * gate is never observe-and-signed). WITH `--real` it requires a `(build: <node-id>)` reference and
+ * the injected build driver, then delegates the worktree/leaf/store machinery to the driver — which
+ * signs a DRIVEN-tier verdict for THE GATE id (ADR-0098 d.4). This module stays pure: the I/O lives
+ * behind `deps.driveBuildTestsGate`, exactly like the `observe` seam.
+ */
+async function gateRunBuildTests(
+  gate: ReliabilityGate,
+  storyId: string,
+  opts: GateOpts,
+  deps: GateDeps,
+): Promise<Envelope> {
+  if (opts.real !== true) {
+    return {
+      ok: false,
+      body:
+        `gate "${gate.id}" is kind 'build-tests' — it is earned by a genuine red→green build driven\n` +
+        `through the gate (ADR-0098), not observe-and-sign. Run it with --real (and --pg to persist):\n` +
+        `the build authors a brownfield seam (R2) or behaviour fix (R1) and signs a DRIVEN verdict for\n` +
+        `the gate id, which greens the capability the gate \`(covers:)\`.`,
+      next: [`storytree gate run ${gate.id} --real --pg`],
+    };
+  }
+  if (gate.buildNode === undefined || gate.buildNode.trim().length === 0) {
+    return {
+      ok: false,
+      body:
+        `build-tests gate "${gate.id}" declares no build reference — a --real run borrows a node's\n` +
+        `real: build config to drive the red→green. Add a \`(build: <node-id>)\` annotation to the gate's\n` +
+        `prose (ADR-0098 U2), pointing at the buildable node whose seam this gate proves.`,
+      next: [`storytree gate list ${storyId} --pg`],
+    };
+  }
+  if (deps.driveBuildTestsGate === undefined) {
+    return {
+      ok: false,
+      body:
+        `gate run --real needs the build driver, which is not wired in this context (a read-only /\n` +
+        `offline surface). Run it from the CLI with the live DB up (pnpm db:up).`,
+      next: [`storytree gate run ${gate.id} --real --pg`],
+    };
+  }
+  return deps.driveBuildTestsGate(gate, opts.signer);
 }

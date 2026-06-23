@@ -147,3 +147,39 @@ test("a gate with no `(covers:)` tag covers nothing ([] default)", () => {
 test("the gate kinds are exactly observe | build-tests | integrate", () => {
   assert.deepEqual([...RELIABILITY_GATE_KINDS], ["observe", "build-tests", "integrate"]);
 });
+
+// ---------------------------------------------------------------------------
+// (build: <node-id>) build reference (ADR-0098 U2)
+// ---------------------------------------------------------------------------
+
+test("parses a `(build: <node-id>)` tag into buildNode, alongside kind + covers", () => {
+  const body = [
+    "## Reliability Gates",
+    "",
+    "1. **Seed orchestration gets a tested seam** _(gate: build-tests)_ _(build: seed-runner)_ _(covers: seed-corpus-scripts)_.",
+  ].join("\n");
+  const gates = parseReliabilityGates("library", body);
+  assert.equal(gates.length, 1);
+  assert.equal(gates[0]!.buildNode, "seed-runner");
+  // the (build:) tag does not disturb the kind or the (covers:) extraction
+  assert.equal(gates[0]!.kind, "build-tests");
+  assert.deepEqual(gates[0]!.covers, ["seed-corpus-scripts"]);
+});
+
+test("a gate with no `(build:)` tag has no buildNode (undefined)", () => {
+  const body = "## Reliability Gates\n\n1. **Just observe it** _(gate: observe)_ `pnpm test`.\n";
+  const gates = parseReliabilityGates("s", body);
+  assert.equal(gates[0]!.buildNode, undefined);
+});
+
+test("ReliabilityGate round-trips an explicit buildNode and rejects a blank one (strict)", () => {
+  const valid = {
+    id: "library#gate-4",
+    title: "t",
+    kind: "build-tests" as const,
+    buildNode: "seed-runner",
+  };
+  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [] });
+  // min(1): an empty buildNode is refused (a build reference that names nothing).
+  assert.equal(ReliabilityGate.safeParse({ ...valid, buildNode: "" }).success, false);
+});

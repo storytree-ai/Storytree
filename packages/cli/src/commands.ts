@@ -55,6 +55,7 @@ import {
   type UatVerdictStoreLike,
 } from "./uat.js";
 import { gateCommand, gateHelp, type GateDeps } from "./gate.js";
+import { driveBuildTestsGate } from "./gate-build-driver.js";
 
 /**
  * Fields removed by a past migration that must not reappear (design §4 check 2): `seeAlso`
@@ -1002,7 +1003,12 @@ async function observeCommand(command: string): Promise<{ code: number | null }>
  * `--store memory` here, at the dispatch boundary; the internal `verdictStore:"memory"` injection
  * (the offline test seam for the live/real driver) is untouched because it is not reachable from argv.
  */
-function refuseMemoryStore(area: "node" | "story", id: string | undefined): Envelope {
+function refuseMemoryStore(area: "node" | "story" | "gate", id: string | undefined): Envelope {
+  // The retry hint mirrors the area's own verb: node/story `build`, a gate `run --real`.
+  const retry =
+    area === "gate"
+      ? `storytree gate run ${id ?? "<story>#gate-<n>"} --real --pg   (a --real gate build persists by default)`
+      : `storytree ${area} build ${id ?? "<id>"} --live   (persists by default — no --store needed)`;
   return {
     ok: false,
     body:
@@ -1010,10 +1016,7 @@ function refuseMemoryStore(area: "node" | "story", id: string | undefined): Enve
       "always persists to the live store so real work feeds the studio's wisp/bloom — there is no\n" +
       "run-without-persisting mode. A --dry-run is already in-memory; just drop --store. If the live\n" +
       "store is down, bring it up rather than skipping it.",
-    next: [
-      "pnpm db:status",
-      `storytree ${area} build ${id ?? "<id>"} --live   (persists by default — no --store needed)`,
-    ],
+    next: ["pnpm db:status", retry],
   };
 }
 
@@ -1272,8 +1275,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area === "gate") {
     // ADR-0085 (ADR-0083 Fork B) — the brownfield reliability-gates proof surface: `gate list <story>`
     // (read) + `gate run <story>#gate-<n>` (observe-and-sign an `observe` gate → an `adopted` verdict).
+    // ADR-0098 (U2): `gate run <story>#gate-<n> --real` DRIVES a `build-tests` gate's red→green via the
+    // referenced `(build:)` node and signs a DRIVEN verdict for the gate id (the gate→loop wiring).
     // The store/git/observe seams mirror `uat`; the observe runner spawns the gate's declared command.
     if (help || sub === undefined) return gateHelp();
+    // ADR-0081: a --real gate build OWNS the DB and always persists — `--store memory` is no build
+    // option (the internal "memory" seam is only ever injected into driveBuildTestsGate directly).
+    if (values.store === "memory") return refuseMemoryStore("gate", third);
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const gateDeps: GateDeps = {
       store: deps.uatStore ?? null,
@@ -1282,9 +1290,24 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       gitState: readGitState,
       observe: observeCommand,
       resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+      // ADR-0098 (U2): the build driver for a `build-tests --real` run — resolves the `(build:)` node's
+      // real config, drives the prove-it-gate in a fresh worktree, and signs for the gate id. The
+      // store/worktree/leaf I/O lives here, keeping gate.ts pure (it just routes to this seam).
+      driveBuildTestsGate: (gate, signer) =>
+        driveBuildTestsGate(gate, signer, {
+          storiesDir,
+          repoRoot: repoRoot(),
+          ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+          ...(values.model !== undefined ? { model: values.model } : {}),
+          ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+          ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+        }),
       now: () => new Date(),
     };
-    const gateOpts = { ...(values.signer !== undefined ? { signer: values.signer } : {}) };
+    const gateOpts = {
+      ...(values.signer !== undefined ? { signer: values.signer } : {}),
+      ...(values.real === true ? { real: true } : {}),
+    };
     if (sub === "run") return gateCommand({ mode: "run", target: third }, gateOpts, gateDeps);
     if (sub === "list") return gateCommand({ mode: "list", target: third }, gateOpts, gateDeps);
     // bare: `storytree gate <story-id>` lists that story's gates.

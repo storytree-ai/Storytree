@@ -15,9 +15,10 @@ session** (this ADR landed the model + the build decomposition with no code; bui
 **pilot is `seed-corpus-scripts`** (one library pocket, U5), and **decision-escalation is a batch
 sweep up-front** (not mid-build pause/resume, the owner's Q3 call). The R1/R2 red taxonomy,
 refactor-for-testability, the regression-wall-as-suite, and the gate→loop wiring below are the ratified
-model. **Build status:** PR-1 lands the first increment — **U1** (the R2 `refactorForTests` author
-mode) + **U3** (the regression-wall-as-suite oracle) in `packages/orchestrator`; U2 (gate→loop wiring),
-U4 (batch sweep), and U5 (the live pilot) follow in later PRs. The `status:` flip was applied by this
+model. **Build status:** **U1** (the R2 `refactorForTests` author mode) + **U3** (the
+regression-wall-as-suite oracle) in `packages/orchestrator` and **U2** (the gate→loop wiring —
+`gate run <story>#gate-N --real` drives the build-tests engine and signs a driven verdict for the
+gate id) have landed; U4 (batch sweep) and U5 (the live pilot) follow in later PRs. The `status:` flip was applied by this
 session per [ADR-0084](0084-agents-may-flip-an-adr-green.md). It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)**
 (naming and refining the `build-tests` satisfaction engine ADR-0085 d.4 left as "named follow-on, not
 built"). It is the load-bearing follow-on [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
