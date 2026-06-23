@@ -32,6 +32,11 @@ function cap(id: string): TreeCapability {
   return { id, title: id, outcome: '', status: null, proofMode: '', dependsOn: [] };
 }
 
+/** A typed empty coverage map (ADR-0097) — the greenfield default (each cap earns its own verdict). */
+function noCoverage(): Map<string, { id: string; covers?: readonly string[] }[]> {
+  return new Map();
+}
+
 function verdictEvent(seq: number, unitId: string, outcome: 'pass' | 'fail', at: string) {
   return {
     kind: SIGNING_EVENT_KIND,
@@ -57,7 +62,7 @@ describe('applyUatCrowns', () => {
       verdictEvent(2, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z'),
       verdictEvent(3, 'demo#uat-2', 'pass', '2026-06-20T02:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
   });
 
@@ -65,7 +70,7 @@ describe('applyUatCrowns', () => {
     const stories = [story('proof-protocol', { capabilities: [] })];
     const map = new Map([['proof-protocol', [{ id: 'proof-protocol#uat-1' }]]]);
     const events = [verdictEvent(1, 'proof-protocol#uat-1', 'pass', '2026-06-20T02:00:00.000Z')];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-20T02:00:00.000Z' });
   });
 
@@ -80,7 +85,7 @@ describe('applyUatCrowns', () => {
     const map = new Map([['demo', [{ id: 'demo#uat-1' }]]]);
     // The UAT is proven, but demo.cap-a never earned a signed pass.
     const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z')];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
@@ -88,7 +93,7 @@ describe('applyUatCrowns', () => {
     const stories = [story('demo', { verdict: { outcome: 'pass', at: 'stale' } })];
     const map = new Map([['demo', [{ id: 'demo#uat-1' }, { id: 'demo#uat-2' }]]]);
     const events = [verdictEvent(1, 'demo#uat-1', 'pass', '2026-06-20T01:00:00.000Z')];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toBeUndefined();
   });
 
@@ -100,7 +105,7 @@ describe('applyUatCrowns', () => {
       verdictEvent(2, 'demo#uat-2', 'pass', '2026-06-20T02:00:00.000Z'),
       verdictEvent(3, 'demo#uat-2', 'fail', '2026-06-20T03:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '2026-06-20T03:00:00.000Z' });
   });
 
@@ -112,14 +117,40 @@ describe('applyUatCrowns', () => {
       verdictEvent(2, 'demo#uat-1', 'pass', '2026-06-20T02:00:00.000Z'),
       verdictEvent(3, 'demo.cap-a', 'fail', '2026-06-20T03:00:00.000Z'),
     ];
-    applyUatCrowns(stories, map, events, rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: '2026-06-20T03:00:00.000Z' });
   });
 
   it('leaves a story with no per-test tests untouched (its own-unit verdict stands)', () => {
     const stories = [story('legacy', { verdict: { outcome: 'pass', at: 'own-unit' } })];
     const map = new Map<string, { id: string }[]>(); // legacy declares no per-test tests
-    applyUatCrowns(stories, map, [], rollupStoryGreen);
+    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
     expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: 'own-unit' });
+  });
+
+  // ── ADR-0097: brownfield capability coverage via an adopted gate ──
+  it('greens a brownfield crown when an adopted gate covers a cap, but holds it when a cap is uncovered', () => {
+    const stories = [
+      story('brown', { status: 'mapped', capabilities: [cap('covered-cap'), cap('pocket-cap')] }),
+    ];
+    // The gate is the only own-proof obligation; it covers covered-cap. pocket-cap is covered by no gate.
+    const map = new Map([['brown', [{ id: 'brown#gate-1' }]]]);
+    const coverage = new Map([['brown', [{ id: 'brown#gate-1', covers: ['covered-cap'] }]]]);
+
+    // Only the gate is adopted → covered-cap greens via coverage, pocket-cap holds the crown unproven.
+    const gateOnly = [verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z')];
+    applyUatCrowns(stories, map, coverage, gateOnly, rollupStoryGreen);
+    expect(stories[0]!.verdict).toBeUndefined();
+
+    // Once pocket-cap also earns its own pass, every cap is satisfied and the crown greens.
+    const stories2 = [
+      story('brown', { status: 'mapped', capabilities: [cap('covered-cap'), cap('pocket-cap')] }),
+    ];
+    const both = [
+      verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z'),
+      verdictEvent(2, 'pocket-cap', 'pass', '2026-06-23T02:00:00.000Z'),
+    ];
+    applyUatCrowns(stories2, map, coverage, both, rollupStoryGreen);
+    expect(stories2[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-23T02:00:00.000Z' });
   });
 });

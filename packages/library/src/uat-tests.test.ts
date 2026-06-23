@@ -85,6 +85,26 @@ test("stable-addressable-tests: only the Story UAT section is parsed, not other 
   assert.equal(tests[0]!.title, "Only this one");
 });
 
+// ── would-be relaxation (ADR-0097) ──────────────────────────────────────────
+
+test("would-be: legs under a `## Story UAT (would-be)` heading are flagged wouldBe:true", () => {
+  // BODY uses the `## Story UAT (would-be)` heading — every leg is aspirational.
+  const tests = parseUatTests(STORY, BODY);
+  assert.equal(tests.length, 4);
+  assert.ok(tests.every((t) => t.wouldBe === true), "all legs under (would-be) are aspirational");
+});
+
+test("would-be: legs under a plain `## Story UAT` heading are real obligations (wouldBe:false)", () => {
+  const body = "## Story UAT\n\n1. **A real scripted leg** _(witness: machine)_ `pnpm test`.\n";
+  const tests = parseUatTests(STORY, body);
+  assert.equal(tests.length, 1);
+  assert.equal(tests[0]!.wouldBe, false, "no (would-be) qualifier → a hard obligation");
+});
+
+test("would-be: the schema default is false (a direct UatTest doc omitting it round-trips)", () => {
+  assert.equal(UatTest.parse({ id: "s#uat-1", title: "t" }).wouldBe, false);
+});
+
 // ── witness-kind-validated ──────────────────────────────────────────────────
 
 test("witness-kind-validated: declared witness tags are honoured", () => {

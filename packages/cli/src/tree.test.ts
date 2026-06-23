@@ -71,7 +71,9 @@ before(() => {
       "",
       "Demo story body.",
       "",
-      "## Story UAT (would-be)",
+      // A plain (non-would-be) Story UAT: these legs ARE hard crown obligations (ADR-0097 — a
+      // `(would-be)` heading would relax them, which the dedicated would-be test below exercises).
+      "## Story UAT",
       "",
       "1. **First check** _(witness: machine)_: it parses.",
       "2. **Human look** _(witness: human)_: it looks right.",
@@ -128,6 +130,57 @@ before(() => {
       "cap-c body.",
     ].join("\n"),
   );
+
+  // ── a BROWNFIELD story (ADR-0097): would-be UAT + reliability gates that (covers:) its caps ──
+  // Mirrors the library's shape: a `(would-be)` UAT section (aspirational, NOT crown-blocking), and
+  // observe gates whose adopted verdicts green the caps they cover — except `pocket-cap`, which no
+  // gate covers, so it holds the crown at proposed even after the gates are adopted.
+  const brownDir = join(storiesDir, "brown-story");
+  mkdirSync(brownDir);
+  writeFileSync(
+    join(brownDir, "story.md"),
+    [
+      "---",
+      "id: brown-story",
+      "tier: story",
+      "title: Brown Story",
+      "outcome: a brownfield organism is adopted into the fold",
+      "status: mapped",
+      "proof_mode: UAT",
+      "uat_witness: machine",
+      "capabilities:",
+      "  - covered-cap",
+      "  - pocket-cap",
+      "---",
+      "",
+      "Brown story body.",
+      "",
+      "## Story UAT (would-be)",
+      "",
+      "1. **Aspirational walkthrough** _(witness: machine)_: no scripted test today.",
+      "",
+      "## Reliability Gates",
+      "",
+      "1. **The suite is green** _(gate: observe)_ _(covers: covered-cap)_ `pnpm --filter brown test`.",
+    ].join("\n"),
+  );
+  for (const capId of ["covered-cap", "pocket-cap"]) {
+    writeFileSync(
+      join(brownDir, `${capId}.md`),
+      [
+        "---",
+        `id: ${capId}`,
+        "tier: capability",
+        `title: ${capId}`,
+        `outcome: ${capId} is observed`,
+        "status: mapped",
+        "proof_mode: integration-test",
+        "---",
+        "",
+        `${capId} body.`,
+      ].join("\n"),
+    );
+  }
 });
 
 after(() => {
@@ -398,6 +451,45 @@ test("focused view: a story with one unproven test under-claims (crown –, the 
   assert.match(env.body, /UAT proof: unproven/, "the story UAT under-claims");
   assert.match(env.body, /demo-story#uat-1\s+witness=machine\s+proven=✓/, "the proven test → ✓");
   assert.match(env.body, /demo-story#uat-2\s+witness=human\s+proven=–/, "the unproven test → –");
+});
+
+// ── ADR-0097: brownfield adoption — would-be UAT relaxation + (covers:) crown coverage ──
+
+test("brownfield: an adopted gate greens the cap it covers, but an UNcovered cap holds the crown (ADR-0097)", async () => {
+  const verdicts = {
+    async readEvents() {
+      // Only the observe gate is adopted (signed). It (covers: covered-cap). pocket-cap is covered by
+      // no gate and has no own verdict → it stays unproven and holds the crown at proposed.
+      return [verdictEvent(1, "brown-story#gate-1", "pass")];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const env = await treeCommand("brown-story", deps);
+  assert.equal(env.ok, true);
+  assert.match(env.body, /Story: brown-story –/, "the crown under-claims while pocket-cap is uncovered");
+  assert.match(env.body, /story green: unproven/, "an uncovered cap keeps the crown unproven");
+  // The would-be UAT leg has NO signed verdict, yet it does NOT wedge the crown (ADR-0097): it is
+  // surfaced as aspirational, not as a blocking "unproven" obligation.
+  assert.match(env.body, /UAT proof: would-be/, "the would-be section is aspirational, not crown-blocking");
+});
+
+test("brownfield: the crown greens when every cap is covered/proven and only a would-be UAT leg remains (ADR-0097)", async () => {
+  const verdicts = {
+    async readEvents() {
+      return [
+        // covered-cap greens via the adopted gate's coverage; pocket-cap earns its own signed pass.
+        verdictEvent(1, "brown-story#gate-1", "pass"),
+        verdictEvent(2, "pocket-cap", "pass"),
+      ];
+    },
+  };
+  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const env = await treeCommand("brown-story", deps);
+  assert.equal(env.ok, true);
+  // Both caps satisfied + the only hard own-proof obligation (the gate) signed; the would-be UAT leg
+  // is NOT required → the crown greens.
+  assert.match(env.body, /Story: brown-story ✓/, "the crown greens (caps covered/proven, gate signed, would-be UAT not required)");
+  assert.match(env.body, /story green: GREEN/, "the brownfield crown greens via coverage");
 });
 
 // (5) focused next pointers

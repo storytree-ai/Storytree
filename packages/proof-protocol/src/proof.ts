@@ -50,6 +50,15 @@ export const Verdict = z
     outcome: Outcome,
     commitSha: z.string(),
     signer: z.string(),
+    /**
+     * ADR-0097 (brownfield go-green is a proving process): the HUMAN who APPROVED bringing this unit
+     * into the fold — the operator who pressed Adopt — distinct from `signer` (the MACHINE that
+     * witnessed the green out-of-band, the spine principal for an `adopted` verdict). The two are
+     * different axes: *"did it work?"* is a machine fact (`signer`), *"do we bring it in?"* is the
+     * human's decision (`approvedBy`). OPTIONAL/additive: only `adopted` verdicts carry it today, and
+     * every prior verdict (and every non-adoption producer) round-trips unchanged without it.
+     */
+    approvedBy: z.string().optional(),
     runId: z.string(),
     /**
      * The verdict-data output-format version (ADR-0068 §3). Additive: defaults to `v1` so

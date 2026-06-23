@@ -45,6 +45,16 @@ export const UatTest = z
     title: z.string().min(1),
     /** Who may attest this test. */
     witness: UatTestWitness.default("either"),
+    /**
+     * ADR-0097: a WOULD-BE (aspirational, unscripted) leg — one declared under a `## Story UAT
+     * (would-be)` heading, recording the intended acceptance journey before a real scripted test
+     * backs it. A would-be leg is parsed and surfaced like any other, but it is NOT a hard own-proof
+     * obligation: it must not wedge the story crown until it is actually witnessable (a real
+     * machine/scripted test signs it, or a declared human witness attests it). The author drops the
+     * `(would-be)` qualifier when a real test lands, and the leg becomes green-blocking. Default
+     * `false` (a leg under a plain `## Story UAT` heading is a real obligation, back-compat).
+     */
+    wouldBe: z.boolean().default(false),
   })
   .strict();
 
@@ -66,8 +76,13 @@ export function uatTestId(storyId: string, ordinal: number): string {
 // Prose parser
 // ---------------------------------------------------------------------------
 
-/** Match a `## Story UAT …` heading (e.g. `## Story UAT (would-be)`). */
-const STORY_UAT_HEADING = /^##[^\n\S]+Story UAT[^\n]*$/im;
+/** Match a `## Story UAT …` heading (e.g. `## Story UAT (would-be)`), capturing the trailing qualifier. */
+const STORY_UAT_HEADING = /^##[^\n\S]+Story UAT([^\n]*)$/im;
+/**
+ * The would-be qualifier on a `## Story UAT (would-be)` heading (ADR-0097): the whole section is the
+ * ASPIRATIONAL acceptance journey, so every leg under it is parsed but not a hard crown obligation.
+ */
+const WOULD_BE_QUALIFIER = /\(would-be\)/i;
 /** Match the next `## …` heading after the section start. */
 const NEXT_H2 = /^## /m;
 /** A numbered list item lead: `1. …` (captures the rest of the first line). */
@@ -81,13 +96,18 @@ const BOLD_LEAD = /^\*\*(.+?)\*\*/;
  */
 const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
 
-/** Extract the `## Story UAT` section body (between its heading and the next `##`). */
-function storyUatSection(body: string): string | null {
+/**
+ * Extract the `## Story UAT` section (between its heading and the next `##`) AND whether the heading
+ * carries the `(would-be)` qualifier (ADR-0097) — the section-level marker that makes every leg under
+ * it aspirational. `null` when there is no Story UAT section.
+ */
+function storyUatSection(body: string): { section: string; wouldBe: boolean } | null {
   const heading = STORY_UAT_HEADING.exec(body);
   if (heading === null) return null;
+  const wouldBe = WOULD_BE_QUALIFIER.test(heading[1] ?? "");
   const after = body.slice(heading.index + heading[0].length);
   const next = NEXT_H2.exec(after);
-  return (next === null ? after : after.slice(0, next.index)).trim();
+  return { section: (next === null ? after : after.slice(0, next.index)).trim(), wouldBe };
 }
 
 /** Split a UAT section into its numbered items, preserving multi-line continuations. */
@@ -139,14 +159,20 @@ function itemWitness(item: string, id: string): UatTestWitness {
  *
  * Backward-compatible: a story with no `## Story UAT` section (or none yet) yields
  * `[]`; an item with no witness annotation defaults to `either`. An explicit but
- * invalid witness value throws.
+ * invalid witness value throws. A leg under a `## Story UAT (would-be)` heading is
+ * flagged `wouldBe: true` (ADR-0097 — aspirational, not a hard crown obligation).
  */
 export function parseUatTests(storyId: string, body: string): UatTest[] {
-  const section = storyUatSection(body);
-  if (section === null) return [];
-  const items = splitItems(section);
+  const parsed = storyUatSection(body);
+  if (parsed === null) return [];
+  const items = splitItems(parsed.section);
   return items.map((item, index) => {
     const id = uatTestId(storyId, index + 1);
-    return UatTest.parse({ id, title: itemTitle(item), witness: itemWitness(item, id) });
+    return UatTest.parse({
+      id,
+      title: itemTitle(item),
+      witness: itemWitness(item, id),
+      wouldBe: parsed.wouldBe,
+    });
   });
 }

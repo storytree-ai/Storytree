@@ -5,3 +5,6 @@
 // the FRONTEND imports NONE of this — only the server-process worker does, lazily.
 export { nodeBuild } from "./node-build.js";
 export { storyBuild } from "./story-build.js";
+// ADR-0097: the ADOPT entry — observe-and-sign a brownfield story's `observe` reliability gates and
+// flip it `mapped → proposed`. The studio's UI-driven Adopt worker drives this, like nodeBuild/storyBuild.
+export { adoptStory } from "./adopt.js";

@@ -218,3 +218,48 @@ test("story-green: ZERO capabilities with UAT still unproven => null (vacuous ca
 test("story-green: ZERO capabilities AND no UAT => null (nothing greens it)", () => {
   assert.equal(rollupStoryGreen([], [], []), null);
 });
+
+// ── rollupStoryGreen: ADR-0097 brownfield capability coverage via an adopted gate ───────────────
+
+test("coverage: a brownfield cap with NO own verdict greens via a healthy gate that (covers) it", () => {
+  const caps = ["s.cap-a", "s.cap-b"];
+  // The two gates ARE the own-proof obligations (UAT clause) AND they cover the caps. Neither cap has
+  // its own driven verdict — both green entirely through coverage.
+  const gates = [
+    { id: "s#gate-1", covers: ["s.cap-a", "s.cap-b"] },
+    { id: "s#gate-2", covers: [] },
+  ];
+  const events = [passEvent("s#gate-1", "adopted"), passEvent("s#gate-2", "adopted")];
+  assert.equal(rollupStoryGreen(caps, gates, events, gates), "healthy");
+});
+
+test("coverage: a cap covered by NO honest gate stays unproven and holds the crown at null", () => {
+  // The library shape: gate-1 covers cap-a; cap-b (e.g. seed-corpus-scripts) is covered by no gate.
+  const caps = ["s.cap-a", "s.cap-b"];
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  const events = [passEvent("s#gate-1", "adopted")];
+  assert.equal(rollupStoryGreen(caps, gates, events, gates), null);
+});
+
+test("coverage: a gate that is NOT yet signed covers nothing (no green leaks before the adoption lands)", () => {
+  const caps = ["s.cap-a"];
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  // gate-1 declares coverage but has no signed pass yet → cap-a unproven → crown abstains.
+  assert.equal(rollupStoryGreen(caps, gates, [], gates), null);
+});
+
+test("coverage: a cap with its OWN signed fail still withers the crown, even if a gate covers it", () => {
+  const caps = ["s.cap-a"];
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  // The covering gate is green, but the cap itself has a signed regression — coverage can't mask red.
+  const events = [passEvent("s.cap-a", "capability"), failEvent("s.cap-a"), passEvent("s#gate-1", "adopted")];
+  assert.equal(rollupStoryGreen(caps, gates, events, gates), "unhealthy");
+});
+
+test("coverage: omitted (greenfield) => the pre-ADR-0097 rule — each cap must earn its own verdict", () => {
+  const caps = ["s.cap-a"];
+  const tests = [{ id: "s#uat-1" }];
+  // No coverage arg: cap-a must be proven on its own. Only the UAT is signed → still null.
+  const events = [passEvent("s#uat-1")];
+  assert.equal(rollupStoryGreen(caps, tests, events), null);
+});

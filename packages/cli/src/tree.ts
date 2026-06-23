@@ -227,10 +227,14 @@ export async function treeCommand(
   // brownfield obligation set). Capabilities-green is necessary (the dependency rule), refining
   // ADR-0082's UAT-only crown. The UAT and gate clauses are each surfaced below as sub-signals. A
   // legacy story with NEITHER keeps the own-unit glyph. Offline (no verdict events) there is no column.
-  const ownObligations = [...uatTests, ...reliabilityGates];
+  // ADR-0097: a WOULD-BE (aspirational, unscripted) UAT leg is NOT a hard crown obligation — it must
+  // not wedge the story until a real test backs it. The hard own-proof set is the witnessable UAT legs
+  // (would-be filtered out) UNION the reliability gates.
+  const hardUatTests = uatTests.filter((t) => !t.wouldBe);
+  const ownObligations = [...hardUatTests, ...reliabilityGates];
   const storyUatRollup =
-    uatTests.length > 0 && verdictEvents !== null
-      ? rollupStoryUat(uatTests, verdictEvents)
+    hardUatTests.length > 0 && verdictEvents !== null
+      ? rollupStoryUat(hardUatTests, verdictEvents)
       : undefined;
   const storyGatesRollup =
     reliabilityGates.length > 0 && verdictEvents !== null
@@ -238,7 +242,9 @@ export async function treeCommand(
       : undefined;
   const storyGreen =
     ownObligations.length > 0 && verdictEvents !== null
-      ? rollupStoryGreen(capIds, ownObligations, verdictEvents)
+      ? // ADR-0097: the reliability gates double as per-cap COVERAGE — a brownfield cap with no driven
+        // verdict greens via an adopted gate that `(covers:)` it.
+        rollupStoryGreen(capIds, ownObligations, verdictEvents, reliabilityGates)
       : undefined;
   const crownMark = (): string => {
     if (ownObligations.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
@@ -253,7 +259,7 @@ export async function treeCommand(
     `  status:  ${storyStatus}`,
     `  outcome: ${storyOutcome}`,
   ];
-  if (uatTests.length > 0 && verdictEvents !== null) {
+  if (hardUatTests.length > 0 && verdictEvents !== null) {
     const word =
       storyUatRollup === "healthy"
         ? "GREEN — every UAT test has a signed pass (the story's UAT is proven, ADR-0082)"
@@ -261,6 +267,10 @@ export async function treeCommand(
           ? "WITHERED — a proven UAT test regressed to a signed fail"
           : "unproven — not every UAT test has a signed pass yet (under-claims)";
     lines.push(`  UAT proof: ${word}`);
+  } else if (uatTests.length > 0 && verdictEvents !== null) {
+    // ADR-0097: a `## Story UAT (would-be)` section is the aspirational journey — recorded, not
+    // green-blocking. Surface it honestly rather than as "unproven".
+    lines.push(`  UAT proof: would-be — ${uatTests.length} aspirational leg(s), no scripted test yet (ADR-0097)`);
   }
   if (reliabilityGates.length > 0 && verdictEvents !== null) {
     // The brownfield reliability-gate sub-signal (ADR-0085): the author-declared obligation set that

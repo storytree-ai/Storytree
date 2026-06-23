@@ -154,5 +154,8 @@ export type {
   AdoptedVerdictStore,
 } from "./proof/observe-and-sign.js";
 export { observeAndSign } from "./proof/observe-and-sign.js";
+// ADR-0097: the named spine principal that SIGNS an `adopted` verdict (the machine witness; the human
+// who pressed Adopt is the verdict's `approvedBy`).
+export { SPINE_PRINCIPAL } from "./proof/spine-principal.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";

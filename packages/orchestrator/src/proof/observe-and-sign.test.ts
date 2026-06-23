@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { observeAndSign } from "./observe-and-sign.js";
 import type { ObserveAndSignSpec, AdoptedVerdictStore } from "./observe-and-sign.js";
+import { SPINE_PRINCIPAL } from "./spine-principal.js";
 
 // A recording store double: captures the appended event(s) so a test can assert what was signed.
 function recordingStore(): AdoptedVerdictStore & { appended: unknown[] } {
@@ -25,7 +26,7 @@ function spec(over: Partial<ObserveAndSignSpec> = {}): ObserveAndSignSpec {
     gate: { id: "proof-protocol#gate-1", kind: "observe", proofCommand: "pnpm test" },
     gitState: CLEAN,
     observe: GREEN,
-    signerInputs: { flag: "hua.mick@gmail.com" },
+    approverInputs: { flag: "hua.mick@gmail.com" },
     store: recordingStore(),
     runId: "adopt-1",
     now: () => "2026-06-21T00:00:00.000Z",
@@ -42,12 +43,15 @@ test("GREEN: an observe gate observed green at a clean HEAD signs an adopted ver
   assert.equal(res.verdict.proofMode, "adopted");
   assert.equal(res.verdict.outcome, "pass");
   assert.equal(res.verdict.commitSha, "abc1234");
-  assert.equal(res.verdict.signer, "hua.mick@gmail.com");
-  // The verdict PERSISTED — one signing event, the verdict as its doc, attributed to the signer.
+  // ADR-0097: the MACHINE signs (the spine principal witnessed the green); the HUMAN who pressed
+  // Adopt is recorded as approvedBy — distinct provenance axes.
+  assert.equal(res.verdict.signer, SPINE_PRINCIPAL);
+  assert.equal(res.verdict.approvedBy, "hua.mick@gmail.com");
+  // The verdict PERSISTED — one signing event, the verdict as its doc, attributed to the spine.
   assert.equal(store.appended.length, 1);
   const ev = store.appended[0] as { kind: string; actor: string; doc: { proofMode: string } };
   assert.equal(ev.kind, "signing");
-  assert.equal(ev.actor, "hua.mick@gmail.com");
+  assert.equal(ev.actor, SPINE_PRINCIPAL);
   assert.equal(ev.doc.proofMode, "adopted");
 });
 
@@ -100,12 +104,12 @@ test("REFUSE: a dirty tree refuses — an adopted verdict pins a clean commit", 
   assert.equal(store.appended.length, 0);
 });
 
-test("REFUSE: a blank signer chain fails closed (a verdict must be attributable)", async () => {
+test("REFUSE: a blank approver chain fails closed (the adoption decision is a human act, ADR-0097)", async () => {
   const store = recordingStore();
-  const res = await observeAndSign(spec({ store, signerInputs: {} }));
+  const res = await observeAndSign(spec({ store, approverInputs: {} }));
   assert.equal(res.ok, false);
   if (res.ok) return;
-  assert.match(res.reason, /no signer resolved/);
+  assert.match(res.reason, /no approver resolved/);
   assert.equal(store.appended.length, 0);
 });
 

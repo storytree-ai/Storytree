@@ -58,9 +58,9 @@ function fakeStore(seed: StoreEvent[] = []) {
 }
 
 const DEMO_TESTS: UatTest[] = [
-  { id: "demo#uat-1", title: "Human relay", witness: "human" },
-  { id: "demo#uat-2", title: "Machine run", witness: "machine" },
-  { id: "demo#uat-3", title: "Either", witness: "either" },
+  { id: "demo#uat-1", title: "Human relay", witness: "human", wouldBe: false },
+  { id: "demo#uat-2", title: "Machine run", witness: "machine", wouldBe: false },
+  { id: "demo#uat-3", title: "Either", witness: "either", wouldBe: false },
 ];
 
 function baseDeps(over: Partial<UatDeps> = {}): UatDeps {

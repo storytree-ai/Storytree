@@ -106,6 +106,23 @@ test("Verdict: boundHash is preserved when present and absent when omitted (ADR-
   assert.equal(Verdict.parse(base).boundHash, undefined);
 });
 
+test("Verdict: approvedBy is preserved when present and absent when omitted (ADR-0097 back-compat)", () => {
+  const base = {
+    unitId: "library#gate-1",
+    proofMode: "adopted" as const,
+    outcome: "pass" as const,
+    commitSha: "abc1234",
+    signer: "spine@storytree",
+    runId: "run-1",
+    evidence: [],
+    at: "2026-06-23T00:00:00.000Z",
+  };
+  // present → preserved (the human who approved the adoption, distinct from the spine signer)
+  assert.equal(Verdict.parse({ ...base, approvedBy: "hua.mick@gmail.com" }).approvedBy, "hua.mick@gmail.com");
+  // absent → undefined (a pre-ADR-0097 / non-adoption verdict round-trips)
+  assert.equal(Verdict.parse(base).approvedBy, undefined);
+});
+
 test("Verdict.outputVersion defaults cleanly to v1 when omitted (additive/back-compat)", () => {
   const legacy = {
     unitId: "u",
