@@ -417,6 +417,73 @@ test("C — a NET-NEW node may carry a broad source scope with no proofCommand (
   assert.equal("editsExisting" in (cfg.real ?? {}), false);
 });
 
+// ── ADR-0098: refactorForTests (R2 — refactor-for-testability, suite-as-regression-wall) ─────────
+
+/** An R2 arm: refactorForTests:true with a suite proofCommand (a node suite, so install-free). */
+const REFACTOR_FOR_TESTS = {
+  command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  scope: {
+    testGlobs: ["packages/core/src/seam.test.ts"],
+    sourceGlobs: ["packages/core/src/seam.ts"],
+  },
+  real: {
+    testFile: "packages/core/src/seam.test.ts",
+    sourceFile: "packages/core/src/seam.ts",
+    scope: {
+      testGlobs: ["packages/core/src/seam.test.ts"],
+      sourceGlobs: ["packages/core/src/seam.ts"],
+    },
+    refactorForTests: true,
+    proofCommand: { file: "node", args: ["--test"] },
+  },
+};
+
+test("R2 (ADR-0098) — a refactorForTests arm with a suite proofCommand parses and round-trips", () => {
+  const cfg = parseNodeBuildConfig(REFACTOR_FOR_TESTS);
+  assert.deepEqual(cfg, REFACTOR_FOR_TESTS);
+  assert.equal(cfg.real?.refactorForTests, true);
+  assert.equal(cfg.real?.proofCommand?.file, "node");
+});
+
+test("R2 — refactorForTests is ABSENT (not undefined) when not declared — the net-new parity drift-lock", () => {
+  const cfg = parseNodeBuildConfig(NO_INSTALL_BLOCK);
+  assert.ok(cfg.real !== undefined);
+  assert.equal("refactorForTests" in cfg.real, false);
+});
+
+test("R2 — honesty refine: refactorForTests WITHOUT a proofCommand is LOUD (the suite IS the regression wall)", () => {
+  // R2's green is the whole-package suite (CONFIRM_GREEN = new test passes AND nothing regressed), so
+  // the default single-file node:test can never be the wall — an R2 arm MUST declare a suite command.
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...REFACTOR_FOR_TESTS,
+        real: {
+          testFile: "packages/core/src/seam.test.ts",
+          sourceFile: "packages/core/src/seam.ts",
+          scope: {
+            testGlobs: ["packages/core/src/seam.test.ts"],
+            sourceGlobs: ["packages/core/src/seam.ts"],
+          },
+          refactorForTests: true,
+          // no proofCommand
+        },
+      }),
+    /real\.refactorForTests:true requires real\.proofCommand/,
+  );
+});
+
+test("R2 — refactorForTests AND editsExisting together is LOUD (mutually exclusive brief axes)", () => {
+  assert.throws(
+    () =>
+      parseNodeBuildConfig({
+        ...REFACTOR_FOR_TESTS,
+        real: { ...REFACTOR_FOR_TESTS.real, editsExisting: true },
+      }),
+    /mutually exclusive/,
+  );
+});
+
 // ── ADR-0064: DB-backed proof (real.db) ──────────────────────────────────────────────────────────
 
 /** A db-backed arm: db:true with install+typecheck (the proof imports the pg change store from node_modules). */

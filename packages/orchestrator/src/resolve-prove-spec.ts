@@ -546,6 +546,9 @@ export function realPrompts(
   // set. Singular `sourceGlobs === [sourceFile]` → name just the spotlight file (a net-new node's
   // brief is unchanged); a broader scope → name the spotlight plus the rest of the set.
   const editsExisting = real.editsExisting === true;
+  // R2 (ADR-0098): refactor-for-testability — the source EXISTS and is CORRECT but untestable; the
+  // red is STRUCTURAL (a seam that does not exist yet), the green is the whole-package suite.
+  const refactorForTests = real.refactorForTests === true;
   const sourcesNamed =
     real.scope.sourceGlobs.length === 1 && real.scope.sourceGlobs[0] === real.sourceFile
       ? `\`${real.sourceFile}\``
@@ -592,6 +595,39 @@ export function realPrompts(
   // scope wall, and the proof command are unchanged (the gate already accepts a runtime red; the
   // AUTHOR_TEST wall is still test-globs-only, so a leaf still cannot edit source while authoring
   // the test). The NET-NEW arm below is kept BYTE-FOR-BYTE (the 7 migrated nodes never set the flag).
+  // R2 (ADR-0098 d.1): refactor-for-testability — the source EXISTS at HEAD and is CORRECT but
+  // UNTESTABLE as-is. The brief INVERTS editsExisting's steer: the red is a STRUCTURAL missing-seam
+  // failure (the seam doesn't exist yet), the green is a BEHAVIOUR-PRESERVING refactor that
+  // introduces it, and the proof is the WHOLE PACKAGE SUITE (the regression wall). Placed before the
+  // editsExisting/net-new arms; the schema guarantees an R2 arm carries a `proofCommand` (the suite),
+  // so `conventions` already names it and steers to "that command goes red→green".
+  if (refactorForTests) {
+    return {
+      authorTest:
+        `${header}\n\n${conventions}${guidance}\n\nPhase AUTHOR_TEST — write ONLY ` +
+        `\`${real.testFile}\`. The source file(s) ${sourcesNamed} ALREADY EXIST at HEAD and are ` +
+        `CORRECT — this is a REFACTOR-FOR-TESTABILITY, not a behaviour change: do NOT recreate them, ` +
+        `do NOT change what they do, and do NOT edit any source in this phase (source writes are ` +
+        `refused here). Author a test that exercises a behaviour-preserving SEAM — a new export, ` +
+        `function, or injectable parameter — that does NOT exist in the source yet, so the test ` +
+        `FAILS with a STRUCTURAL error (a missing export / "module not found" / ` +
+        `"undefined is not a function"), NOT a behaviour assertion against existing code. After ` +
+        `writing it, use \`run_proof\` to confirm the suite fails for the RIGHT reason — your new ` +
+        `test's missing-seam/structural failure, not a syntax error and not a sibling regression. ` +
+        `The spine observes the official red itself. When the test file is written and checked, stop.`,
+      implement:
+        `${header}\n\n${conventions}${guidance}\n\nPhase IMPLEMENT — read \`${real.testFile}\`, then ` +
+        `perform a BEHAVIOUR-PRESERVING REFACTOR of the existing source file(s) ${sourcesNamed} that ` +
+        `introduces the seam the test needs — extract a function, expose a parameter, split a module — ` +
+        `WITHOUT changing what the code does (writes to the test file are refused in this phase). The ` +
+        `green is the WHOLE PACKAGE SUITE: your new test must pass AND every existing test must still ` +
+        `pass — a regression reds the suite and the spine refuses the green. Iterate: edit, ` +
+        `\`run_proof\`, fix — until the suite is green` +
+        `${real.install === true && real.typecheck !== undefined ? ` and \`run_typecheck\` is green` : ""}, ` +
+        `then stop; the spine observes the official green itself. If you conclude the test itself is ` +
+        `wrong, stop and say so plainly instead of working around it.`,
+    };
+  }
   if (editsExisting) {
     return {
       authorTest:

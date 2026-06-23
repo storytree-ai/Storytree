@@ -1224,6 +1224,185 @@ test("C — edit-existing: a forged already-green regression test fails closed a
   }
 });
 
+// ── ADR-0098: refactorForTests (R2 — structural-seam red + whole-suite regression wall) ─────────
+
+/**
+ * A throwaway git repo whose EXISTING source is CORRECT but UNTESTABLE-as-is: the doubling logic is
+ * inline in `calc.mjs` with no `double` seam to exercise in isolation. A pre-existing SIBLING test
+ * (`run.test.mjs`, green at HEAD) is the regression-wall sentinel the whole-suite proof guards. `.mjs`
+ * + `{type:module}` so `node --test` runs the authored .mjs tests with no node_modules.
+ */
+async function refactorForTestsFixture(): Promise<{ root: string; testFile: string; sourceFile: string }> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-refactor-r2-"));
+  await execFileP("git", ["init", "-b", "main"], { cwd: root });
+  await execFileP("git", ["config", "user.email", "fixture@storytree.invalid"], { cwd: root });
+  await execFileP("git", ["config", "user.name", "fixture"], { cwd: root });
+  await fs.writeFile(path.join(root, "package.json"), '{\n  "type": "module"\n}\n');
+  const sourceFile = "calc.mjs";
+  const testFile = "double.test.mjs";
+  // EXISTING + CORRECT: the doubling logic is inline; there is no `double` seam to import yet.
+  await fs.writeFile(
+    path.join(root, sourceFile),
+    "export function run() {\n  const out = [];\n  for (const n of [1, 2, 3]) out.push(n * 2);\n  return out;\n}\n",
+  );
+  // The pre-existing GREEN sibling test — the regression wall the whole-suite proof must keep green.
+  await fs.writeFile(
+    path.join(root, "run.test.mjs"),
+    'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+      'import { run } from "./calc.mjs";\ntest("run doubles 1..3", () => assert.deepEqual(run(), [2, 4, 6]));\n',
+  );
+  await execFileP("git", ["add", "-A"], { cwd: root });
+  await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: existing calc (no seam)"], {
+    cwd: root,
+  });
+  return { root, testFile, sourceFile };
+}
+
+/** Build a spec-borne R2 buildConfig over the fixture: the suite (`node --test`) is the proof command. */
+function refactorForTestsSpec(fix: { testFile: string; sourceFile: string }, id: string) {
+  const scope = { testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] };
+  return {
+    ...loadById("verdict-line"),
+    id,
+    buildConfig: {
+      command: { file: "node", args: ["--version"] },
+      scope,
+      real: {
+        testFile: fix.testFile,
+        sourceFile: fix.sourceFile,
+        scope,
+        refactorForTests: true,
+        // The whole-suite oracle (cwd forced to the worktree): node --test runs ALL *.test.mjs.
+        proofCommand: { file: process.execPath, args: ["--test"] },
+      },
+    },
+  };
+}
+
+test("R2 (ADR-0098) — realPrompts steers to a STRUCTURAL missing-seam red + a behaviour-preserving refactor over the whole suite", () => {
+  const spec = loadById("verdict-line");
+  const real = {
+    testFile: "packages/core/src/seam.test.ts",
+    sourceFile: "packages/core/src/seam.ts",
+    scope: {
+      testGlobs: ["packages/core/src/seam.test.ts"],
+      sourceGlobs: ["packages/core/src/seam.ts"],
+    },
+    refactorForTests: true,
+    proofCommand: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  };
+  const prompts = realPrompts(spec, real, realProofCommand(real, "/ws").display);
+  // AUTHOR_TEST: the source EXISTS and is correct; the steer is a STRUCTURAL seam red (R2 inverts
+  // editsExisting), NOT the net-new "must NOT exist yet" and NOT editsExisting's REGRESSION test.
+  assert.match(prompts.authorTest, /ALREADY EXIST/);
+  assert.match(prompts.authorTest, /REFACTOR-FOR-TESTABILITY/);
+  assert.match(prompts.authorTest, /SEAM/);
+  assert.match(prompts.authorTest, /STRUCTURAL error/);
+  assert.doesNotMatch(prompts.authorTest, /must NOT exist yet/);
+  assert.doesNotMatch(prompts.authorTest, /REGRESSION test/);
+  // IMPLEMENT: behaviour-preserving refactor + the whole-suite regression wall.
+  assert.match(prompts.implement, /BEHAVIOUR-PRESERVING REFACTOR/);
+  assert.match(prompts.implement, /WHOLE PACKAGE SUITE/);
+  assert.match(prompts.implement, /a regression reds the suite/);
+  // The custom proof command (the suite) is named, not tsx-on-one-file.
+  assert.match(prompts.authorTest, /pnpm --filter @storytree\/core test/);
+});
+
+test("R2 — REAL refactor-for-testability offline walk: structural-seam red → behaviour-preserving refactor → whole-suite green → signed DRIVEN verdict", async () => {
+  const fix = await refactorForTestsFixture();
+  const store = new InMemoryStore();
+  try {
+    const spec = refactorForTestsSpec(fix, "refactor-r2-probe");
+    // AUTHOR_TEST authors a test importing the missing `double` seam (a STRUCTURAL red — ESM cannot
+    // resolve the named export); IMPLEMENT refactors calc.mjs to expose `double` WITHOUT changing run().
+    const SEAM_TEST =
+      'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+      'import { double } from "./calc.mjs";\ntest("double doubles", () => assert.equal(double(3), 6));\n';
+    const REFACTORED =
+      "export function double(n) {\n  return n * 2;\n}\n" +
+      "export function run() {\n  return [1, 2, 3].map(double);\n}\n";
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([
+        { path: fix.testFile, content: SEAM_TEST },
+        { path: fix.sourceFile, content: REFACTORED },
+      ]),
+      tools: new FileToolExecutor({ rootDir: fix.root }),
+      scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: fix.root,
+      store,
+      runId: "refactor-r2-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, true, result.ok ? "" : `${result.failedAt}: ${result.reason}`);
+    if (!result.ok) return;
+    assert.deepEqual(result.phasesVisited, [
+      "AUTHOR_TEST",
+      "CONFIRM_RED",
+      "IMPLEMENT",
+      "CONFIRM_GREEN",
+      "GATE",
+    ]);
+    // A DRIVEN verdict (a ladder proofMode + the spine's OWN red→green evidence), never `adopted`.
+    assert.equal(result.verdict.proofMode, "contract");
+    assert.notEqual(result.verdict.proofMode, "adopted");
+    assert.deepEqual(
+      result.verdict.evidence.map((e) => e.kind),
+      ["observation:red", "observation:green"],
+    );
+  } finally {
+    await fs.rm(fix.root, { recursive: true, force: true });
+  }
+});
+
+test("R2 (U3, the regression wall) — a refactor that REGRESSES a sibling test reds the whole suite → CONFIRM_GREEN fails closed → no verdict", async () => {
+  const fix = await refactorForTestsFixture();
+  const store = new InMemoryStore();
+  try {
+    const spec = refactorForTestsSpec(fix, "refactor-r2-regress");
+    const SEAM_TEST =
+      'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+      'import { double } from "./calc.mjs";\ntest("double doubles", () => assert.equal(double(3), 6));\n';
+    // The refactor introduces the seam (double is green) BUT REGRESSES run() (now [3,5,7]) — the
+    // pre-existing run.test.mjs goes red, so the whole suite is red at CONFIRM_GREEN: no green is signed.
+    const REGRESSED =
+      "export function double(n) {\n  return n * 2;\n}\n" +
+      "export function run() {\n  return [1, 2, 3].map((n) => double(n) + 1);\n}\n";
+    const author = new OwnedLoopAuthor({
+      model: scriptedWriterModel([
+        { path: fix.testFile, content: SEAM_TEST },
+        { path: fix.sourceFile, content: REGRESSED },
+      ]),
+      tools: new FileToolExecutor({ rootDir: fix.root }),
+      scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
+      writeTools: FILE_WRITE_TOOLS,
+    });
+    const resolved = resolveProveSpec(spec, {
+      mode: "real",
+      workspace: fix.root,
+      store,
+      runId: "refactor-r2-regress-1",
+      signerInputs: { flag: "tester@example.com" },
+      authorOverride: author,
+    });
+    assert.equal(resolved.ok, true);
+    if (!resolved.ok) return;
+    const result = await proveUnit(resolved.spec);
+    assert.equal(result.ok, false, "a sibling regression must NOT yield a signed pass");
+    if (result.ok) return;
+    assert.equal(result.failedAt, "CONFIRM_GREEN");
+  } finally {
+    await fs.rm(fix.root, { recursive: true, force: true });
+  }
+});
+
 // ── ADR-0064: DB-backed proof mode (isolated test-DB env, fail-closed against prod) ──────────────
 
 /** A do-nothing leaf for tests that only exercise the resolver / the spine's proof command. */

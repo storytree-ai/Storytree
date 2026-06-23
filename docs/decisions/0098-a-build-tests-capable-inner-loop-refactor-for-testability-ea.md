@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+load_bearing: true
 decided: 2026-06-23
 amends: [85]
 ---
@@ -7,13 +8,17 @@ amends: [85]
 
 ## Status
 
-proposed — a design synthesis from the 2026-06-23 scoping conversation with the owner, who set the
-three load-bearing scope calls this ADR is built around: **design-only this session** (land the model
-+ the build decomposition; build no code yet), the **pilot is `seed-corpus-scripts`** (one library
-pocket), and **decision-escalation is a batch sweep up-front** (not mid-build pause/resume). The
-detailed model below (the R1/R2 red taxonomy, refactor-for-testability, the regression-wall-as-suite,
-the gate→loop wiring) is the session's design proposal incorporating those calls; it **awaits owner
-ratification before any build**. It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)**
+accepted (2026-06-23) — the owner **ratified the model AND the U1–U5 build decomposition** on
+2026-06-23 (decision D1 of a four-decision owner batch), and the build is now **underway,
+incrementally**. The three load-bearing scope calls the owner set stand: **design-only was the prior
+session** (this ADR landed the model + the build decomposition with no code; building begins now), the
+**pilot is `seed-corpus-scripts`** (one library pocket, U5), and **decision-escalation is a batch
+sweep up-front** (not mid-build pause/resume, the owner's Q3 call). The R1/R2 red taxonomy,
+refactor-for-testability, the regression-wall-as-suite, and the gate→loop wiring below are the ratified
+model. **Build status:** PR-1 lands the first increment — **U1** (the R2 `refactorForTests` author
+mode) + **U3** (the regression-wall-as-suite oracle) in `packages/orchestrator`; U2 (gate→loop wiring),
+U4 (batch sweep), and U5 (the live pilot) follow in later PRs. The `status:` flip was applied by this
+session per [ADR-0084](0084-agents-may-flip-an-adr-green.md). It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)**
 (naming and refining the `build-tests` satisfaction engine ADR-0085 d.4 left as "named follow-on, not
 built"). It is the load-bearing follow-on [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
 flagged ("the inner loop is mechanical … a less-mechanical, decision-escalating inner loop is required
@@ -214,8 +219,9 @@ the inner loop once Layers 1–2 land. U1–U4 are offline-provable; U5 is the l
   `the human owns the outer loop` both stand — the path changes, not the bar.
 
 **Bad / costs / follow-on (surfaced, not buried).**
-- **Design-only this session — nothing here is built.** This is the owner's Q1 call: U1–U5 are named,
-  not coded; the model awaits ratification.
+- **Design-only was the prior session — the build is incremental.** The owner's Q1 call scoped the
+  authoring session to the model + the U1–U5 decomposition (no code); the owner ratified on 2026-06-23
+  and the build is now underway, landing the units across PRs (PR-1: U1 + U3).
 - **R2's vacuity bound is the same as `net-new`'s** (a structural red does not prove the test's
   assertions bite). Accepted as parity with the existing mode; a mutation/fault-injection non-vacuity
   strengthening is a named optional follow-on, not required.

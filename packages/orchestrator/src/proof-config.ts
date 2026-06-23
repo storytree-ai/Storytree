@@ -105,6 +105,28 @@ export interface RealProofConfig {
    */
   editsExisting?: boolean;
   /**
+   * R2 (ADR-0098): refactor-for-testability. The source EXISTS at HEAD and is CORRECT but UNTESTABLE
+   * as-is (an entry-guarded `main()`, a raw `Pool`, no injection seam). Unlike `editsExisting` —
+   * which presupposes the behaviour is WRONG and steers AWAY from a missing-symbol red — R2
+   * presupposes the behaviour is RIGHT: the new test targets a behaviour-preserving SEAM that does
+   * NOT exist yet, so the red is STRUCTURAL (a missing-symbol / module-not-found), and IMPLEMENT
+   * performs a behaviour-preserving REFACTOR that introduces the seam. The "real work" is the
+   * refactor, not a behaviour fix. R2 INVERTS one of `editsExisting`'s steers: where editsExisting
+   * forbids a missing-symbol red, R2 REQUIRES one (the seam isn't there yet).
+   *
+   * Honesty (ADR-0098 d.2): the green signal is the WHOLE PACKAGE SUITE — the regression wall — so an
+   * R2 arm MUST declare a `proofCommand` (the suite; the schema refines refuse it otherwise). One
+   * oracle gives both signals: CONFIRM_RED = the suite is red because the new test cannot resolve its
+   * seam (siblings green); CONFIRM_GREEN = the suite is green = the new test passes AND nothing
+   * regressed. The behaviour-preservation guarantee net-new cannot give, R2 gets for free from the
+   * suite-wide oracle (strictly better-guarded than net-new over the same structural-red basis). The
+   * AUTHOR_TEST wall is still test-globs-only, and CONFIRM_RED still observes the new test failing
+   * against the UNCHANGED source — a forged already-green test self-defeats. MUTUALLY EXCLUSIVE with
+   * `editsExisting` (a different brief axis: behaviour-preserving refactor vs behaviour change). The
+   * net-new nodes never carry it (absent → the parity deepEqual holds).
+   */
+  refactorForTests?: boolean;
+  /**
    * DB-backed proof (ADR-0064): the node's proof needs a live Postgres connection (a store/pg
    * adapter), so the spine provisions an ISOLATED test-database connection for the worktree proof.
    * REQUIRES `install: true` — the proof imports a `@storytree/<organism>/store` subpath / `pg` / the
@@ -255,6 +277,7 @@ const RealProofConfigSchema = z
     typecheck: ShellCommandSchema.optional(),
     proofCommand: ShellCommandSchema.optional(),
     editsExisting: z.boolean().optional(),
+    refactorForTests: z.boolean().optional(),
     db: z.boolean().optional(),
     addDeps: z.array(z.string().min(1)).optional(),
   })
@@ -345,7 +368,27 @@ const RealProofConfigSchema = z
         "equals `sourceFile`, since it can match many files.",
       path: ["proofCommand"],
     },
-  );
+  )
+  // R2 (ADR-0098 d.2): refactor-for-testability earns its green from the WHOLE PACKAGE SUITE (the
+  // regression wall — CONFIRM_GREEN means the new test passes AND nothing regressed). The default
+  // single-file node:test cannot be that wall, so an R2 arm MUST declare a `proofCommand` (the suite).
+  .refine((r) => !(r.refactorForTests === true && r.proofCommand === undefined), {
+    message:
+      "real.refactorForTests:true requires real.proofCommand (the whole package suite is the " +
+      "regression wall — CONFIRM_GREEN means the new test passes AND nothing regressed, ADR-0098 d.2). " +
+      "The default single-file node:test cannot be that wall.",
+    path: ["proofCommand"],
+  })
+  // R2 (ADR-0098 d.1): refactorForTests and editsExisting are MUTUALLY EXCLUSIVE brief axes —
+  // editsExisting changes behaviour (a runtime-assertion red); refactorForTests preserves it (a
+  // structural / missing-symbol red). A node is one or the other, never both.
+  .refine((r) => !(r.refactorForTests === true && r.editsExisting === true), {
+    message:
+      "real.refactorForTests and real.editsExisting are mutually exclusive — editsExisting changes " +
+      "behaviour (a runtime-assertion red), refactorForTests preserves it (a structural/missing-symbol " +
+      "red). Pick one brief axis (ADR-0098 d.1).",
+    path: ["refactorForTests"],
+  });
 
 /** The spec-borne `proof:` block schema — mirrors {@link NodeBuildConfig} 1:1. */
 export const NodeBuildConfigSchema = z
@@ -386,6 +429,9 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
     // C (ADR-0057 §3): spread ONLY when present — absent-not-undefined, so a net-new node's config
     // stays byte-for-byte deepEqual to its registry twin (the established parity drift-lock idiom).
     ...(raw.editsExisting !== undefined ? { editsExisting: raw.editsExisting } : {}),
+    // R2 (ADR-0098): same absent-not-undefined idiom — a non-R2 node's config stays byte-for-byte
+    // deepEqual to its registry twin (the parity drift-lock holds).
+    ...(raw.refactorForTests !== undefined ? { refactorForTests: raw.refactorForTests } : {}),
     // ADR-0064: same absent-not-undefined idiom, so the 7 migrated nodes (no `db`) stay deepEqual
     // to their registry twins (the contract-4 parity oracle holds byte-for-byte).
     ...(raw.db !== undefined ? { db: raw.db } : {}),
