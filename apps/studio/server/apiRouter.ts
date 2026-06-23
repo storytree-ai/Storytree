@@ -946,8 +946,14 @@ export async function readTree(
   // a brownfield cap with no driven verdict greens via an adopted gate that declares it covered.
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
   if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory, coverageByStory };
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } =
-    await loadOrchestrator();
+  const {
+    loadNodeSpec,
+    effectiveUatWitness,
+    resolveBuildConfig,
+    isStoryBuildable,
+    storyGoGreen,
+    classifyAdoption,
+  } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -963,6 +969,7 @@ export async function readTree(
       uatWitness: 'human',
       dependsOn: [],
       consumedBy: [],
+      decisions: [],
       capabilities: [],
     };
     try {
@@ -974,6 +981,9 @@ export async function readTree(
       story.uatWitness = effectiveUatWitness(spec.uatWitness);
       story.dependsOn = spec.dependsOn;
       story.consumedBy = spec.consumedBy;
+      // ADR-0037 §2 / ADR-0097 Layer 2: the story's deciding ADR numbers — the "Relevant ADRs" the
+      // panel links to the Decisions-group Library docs (plumbed through; previously unwired).
+      story.decisions = spec.decisions;
       // Studio render hint (ADR-0076): `render: building` ⇒ drawn as a de-connected building.
       story.building = spec.render === 'building';
       // ADR-0090 Phase 1: gate-buildability for the UI-driven Build control (same discovery as the CLI).
@@ -1005,6 +1015,23 @@ export async function readTree(
           kind: g.kind,
           ...(g.proofCommand !== undefined ? { command: g.proofCommand } : {}),
         }));
+        // ADR-0097 Layer 2: the adoption plan — the structural covers-diff of which capabilities are
+        // covered by a declared `(covers:)` gate vs uncovered ("what still owes real work"). Computed
+        // here via the orchestrator's pure `classifyAdoption`; the studio never imports the spine.
+        const proposal = classifyAdoption({
+          storyId: ent.name,
+          capabilityIds: spec.capabilities,
+          gates: spec.reliabilityGates,
+        });
+        story.adoption = {
+          capabilities: proposal.capabilities.map((c) => ({
+            capId: c.capId,
+            covered: c.covered,
+            coveredBy: c.coveredBy.map((g) => g.gateId),
+          })),
+          covered: proposal.covered,
+          uncovered: proposal.uncovered,
+        };
       }
       // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT tests (would-be legs
       // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from

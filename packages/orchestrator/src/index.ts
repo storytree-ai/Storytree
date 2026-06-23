@@ -157,5 +157,17 @@ export { observeAndSign } from "./proof/observe-and-sign.js";
 // ADR-0097: the named spine principal that SIGNS an `adopted` verdict (the machine witness; the human
 // who pressed Adopt is the verdict's `approvedBy`).
 export { SPINE_PRINCIPAL } from "./proof/spine-principal.js";
+// ADR-0097 Layer 2: the pure adoption-proposal classifier — a structural covers-diff (Fork 1) of a
+// story's `(covers:)` declarations against its capability set (covered vs uncovered + the extensible
+// pocket slot ADR-0098's agent analysis fills). Offline, no store/git/clock.
+export type {
+  AdoptionProposal,
+  AdoptionProposalSpec,
+  CapAdoption,
+  CoveringGate,
+  ClassifierGate,
+  PocketClass,
+} from "./proof/adoption-proposal.js";
+export { classifyAdoption } from "./proof/adoption-proposal.js";
 export type { SourceRef, SourceDriftFlag } from "./proof/source-drift.js";
 export { classifySourceDrift } from "./proof/source-drift.js";

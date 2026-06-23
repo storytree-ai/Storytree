@@ -1,10 +1,25 @@
 # Layer 2 — the adoption proposal / classifier (ADR-0097 follow-on design)
 
-> **Status: design, not built.** The captured design for the named follow-on of
+> **Status: mechanical half BUILT; finer judgment + empirical coverage are named follow-on.** The
+> captured design for the named follow-on of
 > [ADR-0097](../decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the
 > middle of the three layers the brownfield proving process decomposes into. Settled with the owner in
-> a design conversation 2026-06-23. **No Layer-2 code was written this session** (owner: "design only
-> — capture + stop").
+> a design conversation 2026-06-23. The **structural covers-diff classifier + the CLI report + the
+> studio surfaces are now built** (the "Fork 1, structural now" half — see *Build status* below); the
+> finer per-cap observe/R1/R2 **judgment** (agent analysis) and empirical coverage **measurement**
+> remain named follow-on / unbuilt.
+>
+> **Build status (landed since this design was captured):**
+> - the pure `classifyAdoption` covers-diff compute + its tests —
+>   [`packages/orchestrator/src/proof/adoption-proposal.ts`](../../packages/orchestrator/src/proof/adoption-proposal.ts)
+>   (`.test.ts`), exported from the orchestrator barrel. Emits a deliberately-EXTENSIBLE `PocketClass`
+>   slot whose only value today is `"unclassified"` — the observe/R1/R2 taxonomy stays Layer 3's call.
+> - the offline `storytree story adopt-plan <id>` report —
+>   [`packages/cli/src/adopt-plan.ts`](../../packages/cli/src/adopt-plan.ts) (`.test.ts`).
+> - the studio surfaces — the covered/uncovered classification in the AdoptPanel ("what still owes real
+>   work") and the new "Relevant ADRs" panel section (`NodeSpec.decisions` plumbed through) —
+>   [`apps/studio/src/components/BuildSection.tsx`](../../apps/studio/src/components/BuildSection.tsx),
+>   [`relevantAdrs.test.tsx`](../../apps/studio/src/components/relevantAdrs.test.tsx).
 >
 > **Calibration note (important):** this design was drafted assuming Layer 1 was unbuilt, but **Layer 1
 > landed on `main` while it was being written** (PR #324, "feat(adopt): ADR-0097 Layer 1"), and
@@ -15,7 +30,7 @@
 > | Layer | What | State |
 > |---|---|---|
 > | **1** | the `proposed`-state model, `(covers:)` crown-coverage, the Adopt entry (flip + observe-and-sign) | **BUILT** (PR #324) |
-> | **2** | the adoption proposal that **classifies each gap `observe` / `R1` / `R2`** + surfaces the key decisions | **THIS DESIGN** (unbuilt) |
+> | **2** | the adoption proposal: the **mechanical covers-diff** (covered vs uncovered) + CLI report + studio surfaces — BUILT; the finer per-cap `observe` / `R1` / `R2` **judgment** + empirical coverage remain follow-on | **MECHANICAL HALF BUILT**; finer judgment unbuilt |
 > | **3** | the `build-tests`-capable inner loop that **consumes the classification** | **DESIGNED** (ADR-0098, proposed) |
 
 ## What this is
@@ -125,6 +140,14 @@ mapped story
   forks — `approvedBy` built).
 
 ## Components a Layer-2 build session would land (after Layer 1, alongside ADR-0098)
+
+> **Now landed** (the mechanical half of components 1–3, 5; see the *Build status* block at the top):
+> the `classifyAdoption` compute (#1), the `adopt-plan` CLI report (#2), the AdoptPanel classification
+> (#3), and the "Relevant ADRs" section (#5). Component #4 (the OQs/Proposals section) and the finer
+> observe/R1/R2 judgment within #1 stay follow-on. The component notes below are kept as the design
+> rationale; the *Open implementation questions* further down record how the open splits were resolved
+> in the build (the compute emits the mechanical uncovered set + an extensible slot; one `adopt-plan`
+> surface; live-derived; empirical coverage stays follow-on).
 
 | # | Component | Package / surface | Notes |
 |---|---|---|---|

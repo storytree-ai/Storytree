@@ -29,7 +29,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import type { AdoptGate, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
+import type { AdoptGate, AdoptionPlan, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
 
 /** The transcript poll cadence while a run is non-terminal (modest, mirrors the world's posture). */
 export const BUILD_POLL_MS = 1_500;
@@ -135,6 +135,7 @@ export function BuildSection({
   scope = 'node',
   goGreen,
   adoptGates,
+  adoption,
   status,
 }: {
   unitId: string;
@@ -156,6 +157,11 @@ export function BuildSection({
   goGreen?: StoryGoGreen | undefined;
   /** The reliability gates to Adopt — surfaced when `goGreen === 'adopt'` (ADR-0094 / ADR-0085). */
   adoptGates?: AdoptGate[] | undefined;
+  /**
+   * The Layer-2 adoption plan (ADR-0097): the per-capability covered/uncovered classification rendered
+   * in the Adopt panel as "what still owes real work." Present only when `goGreen === 'adopt'`.
+   */
+  adoption?: AdoptionPlan | undefined;
   /** The story's status — phrases the `goGreen === 'none'` reason honestly (story-scope only). */
   status?: WorkStatus | null | undefined;
 }): React.JSX.Element {
@@ -167,7 +173,8 @@ export function BuildSection({
   // A `mapped` story surfaces ADOPT (observe-and-sign its reliability gates), not a fail-closed Build;
   // Build lights only for a genuine drive (a `proposed` story). `none` explains why in place.
   if (scope === 'story') {
-    if (goGreen === 'adopt') return <AdoptPanel unitId={unitId} gates={adoptGates ?? []} />;
+    if (goGreen === 'adopt')
+      return <AdoptPanel unitId={unitId} gates={adoptGates ?? []} adoption={adoption} />;
     if (goGreen !== 'build') return <NoGoGreen status={status} />;
     // goGreen === 'build' → fall through to the Build button (a real whole-story drive).
   } else if (buildable !== true) {
@@ -279,7 +286,15 @@ function BuildRun({ status }: { status: BuildStatus }): React.JSX.Element {
  * `build-tests` pocket the suite only smoke-imports) holds the crown at `proposed` until its real
  * red→green work lands. A stalled adoption honestly reads `proposed` (amber), never green.
  */
-function AdoptPanel({ unitId, gates }: { unitId: string; gates: AdoptGate[] }): React.JSX.Element {
+function AdoptPanel({
+  unitId,
+  gates,
+  adoption,
+}: {
+  unitId: string;
+  gates: AdoptGate[];
+  adoption?: AdoptionPlan | undefined;
+}): React.JSX.Element {
   // The Adopt trigger + poll machinery — the SAME hook the Build button uses; only the intent POST
   // differs (api.adopt vs api.build), and the run is polled via api.buildStatus either way (ADR-0097:
   // one build registry). All the guarantees come with it: single-POST guard, teardown on terminal/
@@ -347,6 +362,45 @@ function AdoptPanel({ unitId, gates }: { unitId: string; gates: AdoptGate[] }): 
           This story declares no <code>## Reliability Gates</code> yet — author them to enable Adopt
           (ADR-0085).
         </p>
+      )}
+
+      {/* ADR-0097 Layer 2: the covered/uncovered classification — what Adopt greens vs what still owes
+          real `build-tests` work. Computed server-side (the classifyAdoption covers-diff); absent for a
+          story with no capabilities. */}
+      {adoption && adoption.capabilities.length > 0 && (
+        <div className="adopt-coverage">
+          <p className="muted small">
+            <strong>What still owes real work</strong> ({adoption.covered.length} covered,{' '}
+            {adoption.uncovered.length} uncovered) — the structural covers-diff (ADR-0097 Layer 2):
+          </p>
+          <ul className="adopt-coverage-caps small">
+            {adoption.capabilities.map((c) => (
+              <li
+                key={c.capId}
+                className={`adopt-cap adopt-cap-${c.covered ? 'covered' : 'uncovered'}`}
+              >
+                {c.covered ? '✓' : '○'} <code>{c.capId}</code>{' '}
+                {c.covered ? (
+                  <span className="muted">— covered by {c.coveredBy.join(', ')}</span>
+                ) : (
+                  <span className="muted">— uncovered, owes a real <code>build-tests</code> red→green</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {adoption.uncovered.length === 0 ? (
+            <p className="muted small">
+              Every capability is covered by a declared gate — adopting them greens all caps (the crown
+              still needs every own-proof obligation signed).
+            </p>
+          ) : (
+            <p className="muted small">
+              The uncovered capabilities hold the crown at <code>proposed</code> until their real
+              red→green work lands. The finer call (characterize / behavioural-red / refactor) is the
+              story-author&apos;s analysis — see <code>storytree story adopt-plan {unitId}</code>.
+            </p>
+          )}
+        </div>
       )}
 
       <p className="muted small">

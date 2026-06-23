@@ -24,6 +24,7 @@ import { renderStoredDoc, syncSeedAgents } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
+import { adoptPlanCommand, type AdoptPlanStory } from "./adopt-plan.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -958,6 +959,23 @@ function loadStoryReliabilityGates(storiesDir: string, storyId: string): Reliabi
 }
 
 /**
+ * A story's adoptable facts for the adopt-plan classifier (ADR-0097 Layer 2): its status + declared
+ * capabilities + reliability gates. Null for a missing/odd spec or a non-story tier (a capability has
+ * no caps/gates of its own to classify).
+ */
+function loadAdoptPlanStory(storiesDir: string, storyId: string): AdoptPlanStory | null {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return null;
+  try {
+    const spec = loadNodeSpec(file);
+    if (spec.tier !== "story") return null;
+    return { status: spec.status, capabilities: spec.capabilities, gates: spec.reliabilityGates };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The spine's out-of-band observation of a reliability gate's declared command (ADR-0085): split the
  * free command string into an argv, make it spawnable on this platform (the win32 `pnpm` `.cmd`
  * rewrap), run it at the repo root with the shared {@link runShellCommand}, and surface ONLY the exit
@@ -1131,11 +1149,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "story") {
     if (sub === undefined || help) return storyHelp();
+    if (sub === "adopt-plan") {
+      // ADR-0097 Layer 2: the offline adoption-plan report — classify which of a brownfield story's
+      // capabilities are covered by a declared `(covers:)` gate vs uncovered (owe real work). Read-only,
+      // no DB, no spend; the story-author agent reads this to do the deeper observe/R1/R2 analysis.
+      const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+      return adoptPlanCommand(third, { loadStory: (sid) => loadAdoptPlanStory(storiesDir, sid) });
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run`,
-        next: ["storytree story build library --dry-run"],
+        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run | storytree story adopt-plan <story-id>`,
+        next: ["storytree story build library --dry-run", "storytree story adopt-plan library"],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);
