@@ -55,6 +55,7 @@ import { flyoutReducer, FLYOUT_CLOSED } from '../lib/panelFlyout.js';
 import {
   controlByKey,
   readControlValue,
+  readRenderScene,
   type ControlSpec,
 } from '../lib/worldSettings.js';
 import {
@@ -102,7 +103,12 @@ import {
   type RelaxedCell,
   MESH_TUNING,
   buildRelaxedCells as buildRelaxedCellsFromTiles,
+  buildScene,
+  type SceneInput,
+  type SceneStatus,
+  type ScenePlantInput,
 } from '@storytree/forest-world';
+import { SceneView, type SceneCtx } from './SceneView.js';
 
 // The current `?…` search string, SSR-guarded ('' when there is no window). The
 // panel-exposed readers default to this so non-panel call sites (and SSR) keep
@@ -775,6 +781,110 @@ export function buildRelaxedCells(
 export { MESH_TUNING };
 export type { SubstrateMode };
 
+// ---------- the shared scene-graph adapter (ADR-0093, strategy C, Unit 2b) ----------
+//
+// `worldToScene` is the studio's thin FOLD of its `HexWorld` into the core's neutral
+// `SceneInput` contract (the design fork → option b: `buildWorld` stays studio-side
+// because it carries studio chrome — solar layout, building stamps; the core owns the
+// LOOK, the surface folds its data into the contract). It folds ONLY presentation
+// facts the surface owns — the proof/live-data → status fold is already in the
+// (presented) stories, blooms come from `verdictBloom`, wisps from in-flight builds,
+// nameplate text + tooltips are the studio's vocabulary. The core derives every
+// hash-seeded variant/jitter from the ids. `buildScene(worldToScene(...))` then yields
+// the drawable tree the React mapper (`SceneView`) walks.
+
+function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
+  const cap = spot.cap;
+  const st = (cap.status ?? 'unknown') as SceneStatus;
+  const bloom = st === 'unhealthy' ? null : verdictBloom(cap.verdict, now);
+  const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
+  return {
+    id: cap.id,
+    status: st,
+    x: spot.x,
+    y: spot.y,
+    title: `${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`,
+    ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
+  };
+}
+
+function territoryToScene(t: Territory, now: Date, builds: BuildActivity[]): SceneInput['territories'][number] {
+  const story = t.story;
+  const st = (story.status ?? 'unknown') as SceneStatus;
+  const caps = story.capabilities.length;
+  const withered = st === 'unhealthy';
+  // buildingGlyph is always false on the map (ADR-0088: building islands live in the panel).
+  const plate = nameplateLayout(story.id.length, t.buildingGlyph);
+  const verdictNote = story.verdict
+    ? ` · UAT ${verdictPhrase(story.verdict)}`
+    : story.uatWitness === 'human'
+      ? ' · UAT awaiting its human witness'
+      : '';
+  const bloom = withered ? null : verdictBloom(story.verdict, now);
+  return {
+    id: story.id,
+    status: st,
+    caps,
+    centroid: t.centroid,
+    radius: t.radius,
+    treeSpot: t.treeSpot,
+    labelY: t.labelY,
+    coastPaths: t.coastPaths,
+    decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
+    plants: t.caps.map((spot) => capToScene(spot, now)),
+    treeTitle: `${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`,
+    ...(story.uatWitness === 'human'
+      ? { signpost: { outcome: story.verdict?.outcome ?? null } }
+      : {}),
+    ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
+    wisps: builds.map((b) => ({
+      runId: b.runId,
+      title: `${b.unitId} — building (${b.tier}) · ${formatAge(b.at, now)} · run ${b.runId}`,
+    })),
+    plate: {
+      w: plate.w,
+      h: plate.h,
+      rx: plate.rx,
+      idY: plate.idY,
+      subY: plate.subY,
+      idText: story.id,
+      subText: story.error ? 'story spec error' : `${st} · ${caps} caps`,
+      title: story.error ? `${story.id} — ${story.error}` : story.title,
+    },
+  };
+}
+
+/** Fold a studio `HexWorld` into the core's `SceneInput`. The dag world's `lineRoads`
+ *  (or solar's `roads`) become the scene roads; solar SPOKES stay studio chrome (not
+ *  in the scene path yet). `territories` is in owner order, the index `relaxedCells` /
+ *  `drawTiles` / `wheatSets` key on. */
+export function worldToScene(
+  world: HexWorld,
+  relaxedCells: RelaxedCell[] | null,
+  now: Date,
+  buildsByStory: Map<string, BuildActivity[]>,
+): SceneInput {
+  const roads = world.lineRoads ?? world.solar?.roads ?? [];
+  return {
+    offset: world.offset,
+    width: world.width,
+    height: world.height,
+    empties: world.empties,
+    relaxedCells,
+    drawTiles: world.drawTiles,
+    wheatSets: world.territories.map((t) => t.wheatTiles),
+    roads: roads.map((e) => ({
+      from: e.from,
+      to: e.to,
+      d: e.d,
+      title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
+    })),
+    territories: world.territories.map((t) =>
+      territoryToScene(t, now, buildsByStory.get(t.story.id) ?? []),
+    ),
+  };
+}
+
 /**
  * Which substrate the forest map renders. The irregular Townscaper `mesh` is the
  * DEFAULT (owner look-decision 2026-06-16) — so no param renders mesh. Escapes:
@@ -1215,6 +1325,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return byStory;
   }, [rawBuilds, now, storyIds, capOwner]);
 
+  // ADR-0093 Unit 2b: the shared scene-graph render, behind `?render=scene` (default
+  // off ⇒ the inline render below is untouched / byte-identical). The scene is
+  // focus-AGNOSTIC (focus / hover / selection are applied by the mapper per render),
+  // so it only rebuilds on the world / substrate / ticker / build-activity inputs —
+  // never on hover. Hooks live above the early returns (the world may still be null).
+  const renderScene = useMemo(() => readRenderScene(search), [search]);
+  const scene = useMemo(
+    () => (world ? buildScene(worldToScene(world, relaxedCells, now, buildsByStory)) : null),
+    [world, relaxedCells, now, buildsByStory],
+  );
+
   if (loadError) {
     return (
       <div className="pad">
@@ -1246,33 +1367,38 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     setHidden(next);
   };
 
-  const territoryClass = (story: TreeStory): string => {
-    const cls = ['hex-territory', `st-${story.status ?? 'unknown'}`];
-    if (HUB_IDS.has(story.id)) cls.push('is-hub'); // solar-mode central wiring hub
+  // The focus-aware island class — by id + folded status, so the scene mapper
+  // (SceneView) can compute it from a scene node (which carries id + status).
+  const territoryClassById = (id: string, status: string): string => {
+    const cls = ['hex-territory', `st-${status}`];
+    if (HUB_IDS.has(id)) cls.push('is-hub'); // solar-mode central wiring hub
     if (focusStoryId && storyRelations) {
-      if (story.id === focusStoryId) cls.push('is-focus');
-      else if (storyRelations.ancestors.has(story.id)) cls.push('is-ancestor');
-      else if (storyRelations.descendants.has(story.id)) cls.push('is-descendant');
+      if (id === focusStoryId) cls.push('is-focus');
+      else if (storyRelations.ancestors.has(id)) cls.push('is-ancestor');
+      else if (storyRelations.descendants.has(id)) cls.push('is-descendant');
       else cls.push('is-dim');
     }
-    if (story.id === selectedStory) cls.push('is-selected');
+    if (id === selectedStory) cls.push('is-selected');
     return cls.join(' ');
   };
+  const territoryClass = (story: TreeStory): string =>
+    territoryClassById(story.id, story.status ?? 'unknown');
 
   // The wrapping class for a docked road/spoke: `world-trail` (the focus-dimming CSS keys
   // on it) plus the upstream-gold / downstream-red / dimmed tint when a story is focused.
-  const roadClass = (e: WorldEdge): string => {
+  const roadClassByEnds = (from: string, to: string): string => {
     const cls = ['world-trail'];
     if (focusStoryId && storyRelations) {
       const anc = (id: string): boolean => id === focusStoryId || storyRelations.ancestors.has(id);
       const desc = (id: string): boolean =>
         id === focusStoryId || storyRelations.descendants.has(id);
-      if (storyRelations.ancestors.has(e.from) && anc(e.to)) cls.push('is-ancestor');
-      else if (storyRelations.descendants.has(e.to) && desc(e.from)) cls.push('is-descendant');
+      if (storyRelations.ancestors.has(from) && anc(to)) cls.push('is-ancestor');
+      else if (storyRelations.descendants.has(to) && desc(from)) cls.push('is-descendant');
       else cls.push('is-dim');
     }
     return cls.join(' ');
   };
+  const roadClass = (e: WorldEdge): string => roadClassByEnds(e.from, e.to);
 
   const clearSelection = (): void => {
     setSelectedCap(null);
@@ -1364,6 +1490,23 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               </marker>
             </defs>
 
+            {renderScene && scene ? (
+              // ADR-0093 Unit 2b: render FROM the shared scene-graph via the thin React
+              // mapper. Studio-only chrome (solar spokes, the Shared-Islands panel,
+              // building stamps) is NOT in the scene yet — this parity path covers the
+              // default dag+mesh world for the owner's visual nod.
+              <SceneView
+                scene={scene}
+                ctx={{
+                  territoryClassById,
+                  roadClassByEnds,
+                  hidden,
+                  onHoverStory: setHoverStory,
+                  onSelectStory: (id) => selectStory(id, null),
+                  onSelectCap: (storyId, capId) => selectStory(storyId, capId),
+                }}
+              />
+            ) : (
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
               {/* SOLAR ORBIT GRID — the rings are still COMPUTED (`world.solar.rings` /
                   `.center`, machinery kept) but NOT DRAWN: the owner's steer (2026-06-20)
@@ -1468,6 +1611,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 />
               ))}
             </g>
+            )}
           </svg>
           </div>
           {sessionDock && (

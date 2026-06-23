@@ -214,6 +214,8 @@ test('the human-witness signpost appears only when declared; blank vs signed sea
 test('a plant picks its variant from its id and is alive by default', () => {
   const p = buildPlant({ id: 'x#cap', status: 'healthy', x: 0, y: 0, title: 't' });
   assert.equal(p.kind, 'flora');
+  // carries its capability id — the hook each mapper keys interactivity on.
+  assert.equal(p.id, 'x#cap');
   assert.equal(firstByKind(p, 'dead-ground'), null);
   // shadow is the wider living size (rx 8), not the dead size (rx 6).
   const shadow = mustByKind(p, 'shadow');

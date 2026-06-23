@@ -513,6 +513,9 @@ export function buildPlant(p: ScenePlantInput): SceneG {
   return g(children, {
     kind: 'flora',
     status: p.status,
+    // The capability id — the data hook each mapper keys interactivity on (the studio
+    // wires onSelectCap from it; the website uses it as data-id for delegation).
+    id: p.id,
     title: p.title,
     transform: `translate(${f(p.x)} ${f(p.y)})`,
   });
