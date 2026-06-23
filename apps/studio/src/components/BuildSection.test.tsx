@@ -185,9 +185,9 @@ describe('BuildSection', () => {
     // Adopt — never a fail-closed Build over a mature brownfield artifact (ADR-0094 d.3).
     expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Adopt' })).toBeTruthy();
-    // The gate-run path is SURFACED (the live signing is the owner's DB action — not auto-run).
-    expect(screen.getByText(/storytree gate run library#gate-1 --pg/)).toBeTruthy();
-    expect(screen.getByText(/storytree gate run library#gate-2 --pg/)).toBeTruthy();
+    // A lean Adopt ACTION (ADR-0097 Layer 1) — a real button, NOT copy-paste gate-run commands.
+    expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
+    expect(screen.queryByText(/storytree gate run/)).toBeNull();
   });
 
   it('a mapped story with NO reliability gates (goGreen=none) points at authoring them, not Build', () => {
@@ -341,32 +341,16 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
   });
 
-  it('still lists the gates as context (id + observe command) above/below the Adopt button', () => {
+  it('is a LEAN surface — a button + a short one-line description, no per-gate list (owner steer)', () => {
     apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
     render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
     // The Adopt action is present…
     expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
-    // …and the gates still render as CONTEXT (their id + the observe command), not as the trigger.
-    expect(screen.getByText('library#gate-1')).toBeTruthy();
-    expect(screen.getByText('library#gate-2')).toBeTruthy();
-    expect(screen.getByText(/storytree gate run library#gate-1 --pg/)).toBeTruthy();
-    // Honest framing that Adopt ENTERS a proving process (ADR-0097) — does not necessarily green.
+    // …with a short description beside it that frames the proving process honestly…
     expect(screen.getByText(/proving process/i)).toBeTruthy();
-  });
-
-  it('a mixed-kind gate set frames build-tests/integrate gates as still-owed real work', () => {
-    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
-    render(
-      <BuildSection
-        {...adoptProps}
-        adoptGates={[
-          { id: 'library#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/library test' },
-          { id: 'library#gate-9', kind: 'build-tests' },
-        ]}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
-    expect(screen.getByText(/genuine red→green build/)).toBeTruthy();
+    // …and NO verbose per-gate list / copy-paste commands cluttering the detail panel.
+    expect(screen.queryByText('library#gate-1')).toBeNull();
+    expect(screen.queryByText(/storytree gate run/)).toBeNull();
   });
 
   it('a panel with NO gates renders the no-gates message and NO Adopt button', () => {
