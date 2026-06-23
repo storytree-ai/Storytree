@@ -13,10 +13,10 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
 import { createCodeStampProbe, type CodeStamp } from './codeStamp';
-import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext } from './apiRouter';
+import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext, type AdoptContext } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
 import { BuildRegistry } from './buildRegistry';
-import { routedBuildRunner } from './buildWorker';
+import { routedBuildRunner, adoptRunnerFromAdoptStory } from './buildWorker';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handlePresence, handleActivity, type HealthDeps } from './apiRouter';
@@ -129,6 +129,37 @@ export function storytreeDataApi(): Plugin {
             : resolveBuildConfig(unit.spec) != null;
         },
       };
+      // UI-driven ADOPT (ADR-0097): enter the brownfield proving process. SHARES the build registry
+      // (one in-flight run; the client polls GET /api/build?runId), and drives the EXISTING `adoptStory`
+      // CLI entry — observe-and-sign the story's `observe` reliability gates + flip mapped → proposed —
+      // lazily imported inside the closure (the raw-TS `.js` re-export trap). isAdoptable reuses the
+      // SAME `storyGoGreen === 'adopt'` predicate the studio's go-green affordance is computed from, so
+      // the worker never adopts a story the panel would not offer.
+      const adopt: AdoptContext = {
+        registry: buildRegistry,
+        runner: adoptRunnerFromAdoptStory(async (storyId, opts) => {
+          const [{ adoptStory }, { loadLocalSecrets }] = await Promise.all([
+            import('@storytree/cli/build'),
+            import('@storytree/cli/secrets'),
+          ]);
+          loadLocalSecrets();
+          return adoptStory(storyId, opts);
+        }),
+        isAdoptable: async (storyId) => {
+          const unit = await loadUnit(storyId);
+          if (unit === null || unit.kind !== 'story') {
+            return { ok: false, reason: `no story "${storyId}" (or its spec did not load)` };
+          }
+          const { storyGoGreen } = await import('@storytree/orchestrator');
+          if (storyGoGreen(unit.spec, unit.caps) !== 'adopt') {
+            return {
+              ok: false,
+              reason: `story "${storyId}" is not adoptable — Adopt is the mapped→proposed entry for a brownfield story with \`## Reliability Gates\` (ADR-0097).`,
+            };
+          }
+          return { ok: true };
+        },
+      };
       const store = selectedStore();
       const target =
         store === 'pg'
@@ -154,6 +185,7 @@ export function storytreeDataApi(): Plugin {
           allowDbControl: true,
           invites,
           build,
+          adopt,
         });
       });
     },

@@ -103,6 +103,25 @@ export function buildRunnerFromNodeBuild(nodeBuild: NodeBuildLike, actor?: strin
     });
 }
 
+// ── UI-driven ADOPT (ADR-0097) ──────────────────────────────────────────────
+
+/** The `adoptStory` entry the production runner adapts (structurally `(id, opts) => Promise<Envelope>`). */
+export type AdoptStoryLike = (storyId: string, opts: { actor?: string }) => Promise<BuildEnvelope>;
+
+/**
+ * Adapt the `adoptStory` entry into a {@link BuildRunner} (the adoption run rides the SAME registry +
+ * `runBuildJob` as a build, so the client polls it identically). Emits one coarse mode line, then
+ * defers to `adoptStory`'s envelope — which observe-and-signs the story's `observe` reliability gates
+ * to `adopted` verdicts and flips it `mapped → proposed` (ADR-0097). `adoptStory` does not stream, so
+ * the `sink` carries only the start marker; the verdict signal is the final envelope + the wisp/bloom.
+ */
+export function adoptRunnerFromAdoptStory(adoptStory: AdoptStoryLike, actor?: string): BuildRunner {
+  return async (storyId, sink) => {
+    sink('▸ adopt: observe-and-sign the story\'s observe reliability gates, flip mapped → proposed (ADR-0097)');
+    return adoptStory(storyId, { ...(actor !== undefined ? { actor } : {}) });
+  };
+}
+
 /** The build a unit id resolves to: a STORY drives a whole-story chain, anything else a single NODE. */
 export type BuildKind = 'node' | 'story';
 

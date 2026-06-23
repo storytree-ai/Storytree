@@ -46,6 +46,7 @@ test("parses each numbered gate: positional id, title, kind, and the backticked 
     id: "proof-protocol#gate-1",
     title: "The port's own suite is green",
     kind: "observe",
+    covers: [],
     proofCommand: "pnpm --filter @storytree/proof-protocol test",
   });
   assert.equal(gates[1]!.id, "proof-protocol#gate-2");
@@ -113,9 +114,34 @@ test("an explicit but invalid gate kind throws (refuse, do not default)", () => 
 
 test("ReliabilityGate rejects an unknown field and an unknown kind (strict)", () => {
   const valid = { id: "s#gate-1", title: "t", kind: "observe" as const };
-  assert.deepEqual(ReliabilityGate.parse(valid), valid);
+  // `covers` defaults to [] (ADR-0097 additive) — a doc that omits it round-trips, gaining the default.
+  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [] });
   assert.equal(ReliabilityGate.safeParse({ ...valid, rogue: 1 }).success, false);
   assert.equal(ReliabilityGate.safeParse({ ...valid, kind: "nope" }).success, false);
+});
+
+// ---------------------------------------------------------------------------
+// (covers: …) capability coverage (ADR-0097)
+// ---------------------------------------------------------------------------
+
+test("parses a `(covers: a, b)` tag into the trimmed capability id list, alongside kind + command", () => {
+  const body = [
+    "## Reliability Gates",
+    "",
+    "1. **The library suite is green** _(gate: observe)_ _(covers: schema-validation, migrate-on-write, health-gate)_ `pnpm --filter @storytree/library test`.",
+  ].join("\n");
+  const gates = parseReliabilityGates("library", body);
+  assert.equal(gates.length, 1);
+  assert.deepEqual(gates[0]!.covers, ["schema-validation", "migrate-on-write", "health-gate"]);
+  // the (covers:) tag does not disturb the kind or the proofCommand extraction
+  assert.equal(gates[0]!.kind, "observe");
+  assert.equal(gates[0]!.proofCommand, "pnpm --filter @storytree/library test");
+});
+
+test("a gate with no `(covers:)` tag covers nothing ([] default)", () => {
+  const body = "## Reliability Gates\n\n1. **Just observe it** _(gate: observe)_ `pnpm test`.\n";
+  const gates = parseReliabilityGates("s", body);
+  assert.deepEqual(gates[0]!.covers, []);
 });
 
 test("the gate kinds are exactly observe | build-tests | integrate", () => {

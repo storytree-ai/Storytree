@@ -3,26 +3,33 @@ import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import type { ReliabilityGate } from "@storytree/library";
 
 import { resolveSigner, type SignerInputs } from "./signer.js";
+import { SPINE_PRINCIPAL } from "./spine-principal.js";
 
 /**
- * The brownfield OBSERVE-AND-SIGN compute (ADR-0085, resolving ADR-0083 Fork B): a story's
+ * The brownfield OBSERVE-AND-SIGN compute (ADR-0085, resolving ADR-0083 Fork B; ADR-0097): a story's
  * author-declared `observe` reliability gate (`@storytree/library` `reliability-gates.ts`) earns
  * a REAL signed verdict when the spine runs its declared command at a clean committed HEAD and
- * OBSERVES it green — without a prior red.
+ * OBSERVES it green — without a prior red. This is the cheap first step of the human-entered adoption
+ * proving process (ADR-0097): machine-witnessed, human-approved.
  *
  * This is the machine counterpart of `uat attest`'s operator path: where `uat attest` signs an
  * `operator-attested` verdict for a HUMAN-witness test, this signs an **`adopted`** verdict
- * (ADR-0085's new {@link ProofMode}) for a machine OBSERVATION. Every honesty wall of the gate
- * holds EXCEPT the prior-red requirement (job 2 — "the test provably failed once"), which for a
- * reviewed existing suite is supplied by author review and recorded by the `adopted` provenance:
+ * (ADR-0085's new {@link ProofMode}) for a machine OBSERVATION. The two provenance axes are kept
+ * distinct (ADR-0097 d.4): the verdict is SIGNED by the {@link SPINE_PRINCIPAL} (the machine that
+ * witnessed the green — *"did it work?"*), and carries `approvedBy` = the human who decided to bring
+ * it into the fold (*"do we bring it in?"*). Attributing the signature to the clicker would be false
+ * witness provenance. Every honesty wall of the gate holds EXCEPT the prior-red requirement (job 2 —
+ * "the test provably failed once"), which for a reviewed existing suite is supplied by author review
+ * and recorded by the `adopted` provenance:
  *  - the spine OBSERVES the exit code out-of-band (a process it watched, never a model claim);
- *  - the verdict is attributed to a resolved signer (fail-closed on a blank chain);
+ *  - the verdict is signed by the spine principal and carries a resolved human `approvedBy`
+ *    (fail-closed on a blank approver — the adoption decision is always a human act, ADR-0097 d.4);
  *  - it is pinned to a CLEAN committed tree (a dirty tree refuses — the commit must match what
  *    was observed);
  *  - and it greens nothing unless it PERSISTS (the caller passes the live store).
  *
  * Fail-closed throughout: a non-`observe` gate, a gate with no `proofCommand`, a non-zero exit,
- * a blank signer, or a dirty tree all REFUSE and sign nothing. Pure-by-injection — the command
+ * a blank approver, or a dirty tree all REFUSE and sign nothing. Pure-by-injection — the command
  * runner, the git state and the clock are all injected, so the whole compute is offline-testable
  * with no subprocess, no repo and no DB.
  */
@@ -58,8 +65,13 @@ export interface ObserveAndSignSpec {
   gitState: () => Promise<ObserveGitState>;
   /** The spine's out-of-band observation of the declared command (exit code as data). */
   observe: (command: string) => Promise<ObserveOutcome>;
-  /** Resolved against the V1 signer chain (flag → STORYTREE_SIGNER → git email); fail-closed. */
-  signerInputs: SignerInputs;
+  /**
+   * The HUMAN APPROVER of the adoption (ADR-0097 d.4 — `approvedBy`), resolved against the V1 signer
+   * chain (flag → STORYTREE_SIGNER → git email); fail-closed. The verdict is SIGNED by the
+   * {@link SPINE_PRINCIPAL}; this resolves *who decided to bring the unit into the fold*, which is
+   * always required (an adopted verdict with no approver would be a machine self-adopting).
+   */
+  approverInputs: SignerInputs;
   /** The live verdict store the signed `adopted` row is appended to. */
   store: AdoptedVerdictStore;
   /** The run id this verdict is tied to. */
@@ -104,10 +116,12 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
     };
   }
 
-  // 3. The verdict must be attributable to a real signer (resolve before any spend).
-  const signer = resolveSigner(spec.signerInputs);
-  if (!signer.ok) {
-    return { ok: false, reason: `no signer resolved: ${signer.error}` };
+  // 3. The adoption must be attributable to a real human APPROVER (ADR-0097 d.4 — the adoption
+  //    decision is always a human act). The verdict is SIGNED by the spine principal, but it greens
+  //    nothing without a resolved approver. Resolve before any spend.
+  const approver = resolveSigner(spec.approverInputs);
+  if (!approver.ok) {
+    return { ok: false, reason: `no approver resolved (who is adopting this?): ${approver.error}` };
   }
 
   // 4. The spine OBSERVES the command out-of-band — an exit code it watched, never a model claim.
@@ -130,21 +144,24 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
     };
   }
 
-  // 6. Sign the `adopted` machine verdict and append it. healthy is reachable ONLY through this
-  //    append (never authored); on any earlier refusal nothing was written.
+  // 6. Sign the `adopted` machine verdict and append it. The MACHINE signs (the spine principal — it
+  //    witnessed the green out-of-band); the HUMAN's adoption decision is recorded as `approvedBy`
+  //    (ADR-0097 d.4). healthy is reachable ONLY through this append (never authored); on any earlier
+  //    refusal nothing was written.
   const verdict: Verdict = {
     unitId: gate.id,
     proofMode: "adopted",
     outcome: "pass",
     commitSha: tree.commitSha,
-    signer: signer.signer,
+    signer: SPINE_PRINCIPAL,
+    approvedBy: approver.signer,
     runId: spec.runId,
     outputVersion: "v1",
     evidence: [
       {
         kind: "observation:green",
         ref: gate.id,
-        note: `observed green at a clean HEAD: ${command}`,
+        note: `observed green at a clean HEAD: ${command} (adopted by ${approver.signer})`,
       },
     ],
     at: spec.now(),
@@ -154,7 +171,7 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
     kind: SIGNING_EVENT_KIND,
     type: "created",
     doc: verdict,
-    actor: signer.signer,
+    actor: SPINE_PRINCIPAL,
   });
   return { ok: true, verdict };
 }

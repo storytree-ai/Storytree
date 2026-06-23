@@ -46,6 +46,15 @@ export const ReliabilityGate = z
     kind: ReliabilityGateKind,
     /** The declared command the spine observes for an `observe` gate (the first backticked span). */
     proofCommand: z.string().min(1).optional(),
+    /**
+     * ADR-0097: the capability ids this gate COVERS. A brownfield capability has no per-cap driven
+     * verdict, so its `healthy` is satisfiable by an adopted gate that declares it covered — the
+     * `(covers: cap-a, cap-b)` annotation, parsed like the `(gate: <kind>)` tag. A cap covered by
+     * NO honest gate (e.g. a smoke-imported pocket) stays un-green and holds the crown at `proposed`,
+     * which is what makes a green crown MEAN the untested pockets got real coverage. Absent/`[]` →
+     * the gate covers nothing (it is only an own-proof obligation, not a per-cap proof).
+     */
+    covers: z.array(z.string().min(1)).default([]),
   })
   .strict();
 
@@ -81,6 +90,12 @@ const BOLD_LEAD = /^\*\*(.+?)\*\*/;
  * brownfield default: just observe the declared command works).
  */
 const KIND_TAG = /\(gate:\s*([A-Za-z-]+)\)/i;
+/**
+ * Optional inline capability-coverage annotation, e.g. `(covers: cap-a, cap-b)` (ADR-0097). The
+ * comma-separated capability ids this gate covers — parsed like the `(gate: …)` tag. Absent → the
+ * gate covers no capability (it is only an own-proof obligation).
+ */
+const COVERS_TAG = /\(covers:\s*([^)]+)\)/i;
 /** The first backticked command span in an item — the `observe` gate's declared proof command. */
 const COMMAND = /`([^`]+)`/;
 
@@ -151,6 +166,20 @@ function itemCommand(item: string): string | undefined {
 }
 
 /**
+ * Pull the declared capability coverage from an item (ADR-0097): the `(covers: a, b)` tag split on
+ * commas, each id trimmed, blanks dropped. Absent → `[]` (the gate covers no capability). The single
+ * home of the `(covers:)` syntax so the parser and the crown-coverage roll-up can never fork.
+ */
+function itemCovers(item: string): string[] {
+  const tag = COVERS_TAG.exec(item);
+  if (tag === null) return [];
+  return tag[1]!
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
  * PURE: parse a story's markdown `body` into addressable reliability-gate units (ADR-0085).
  * Each numbered item under `## Reliability Gates` becomes one {@link ReliabilityGate} with a
  * positional, stable id (`<story>#gate-<n>`, 1-based). Positional so the same prose always
@@ -171,6 +200,7 @@ export function parseReliabilityGates(storyId: string, body: string): Reliabilit
       id,
       title: itemTitle(item),
       kind: itemKind(item, id),
+      covers: itemCovers(item),
       ...(proofCommand !== undefined ? { proofCommand } : {}),
     });
   });

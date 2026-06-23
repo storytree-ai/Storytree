@@ -30,6 +30,7 @@ const GATES: ReliabilityGate[] = [
     id: "proof-protocol#gate-1",
     title: "The port's own suite is green",
     kind: "observe",
+    covers: [],
     proofCommand: "pnpm --filter @storytree/proof-protocol test",
   },
 ];
@@ -104,7 +105,7 @@ test("gate run refuses a non-observe gate (build-tests) — earned by a real bui
     {},
     deps({
       store,
-      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests" }],
+      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [] }],
     }),
   );
   assert.equal(env.ok, false);

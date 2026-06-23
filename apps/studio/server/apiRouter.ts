@@ -931,14 +931,21 @@ function loadTreeCapability(
 
 export async function readTree(
   storiesDir: string,
-): Promise<{ payload: TreePayload; uatTestsByStory: Map<string, { id: string }[]> }> {
+): Promise<{
+  payload: TreePayload;
+  uatTestsByStory: Map<string, { id: string }[]>;
+  coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
+}> {
   const stories: TreeStory[] = [];
-  // The per-story OWN-PROOF obligations — the UNION of the per-test UAT tests (ADR-0082) AND the
-  // `## Reliability Gates` (ADR-0085, the brownfield obligation set) — collected as the specs load so
-  // the /api/tree handler can roll each story's per-obligation verdicts up into its crown without
-  // re-reading every spec. Keyed by `{ id }` only (all `rollupStoryGreen` reads).
+  // The per-story OWN-PROOF obligations — the UNION of the WITNESSABLE per-test UAT tests (ADR-0082;
+  // would-be legs filtered out per ADR-0097) AND the `## Reliability Gates` (ADR-0085, the brownfield
+  // obligation set) — collected as the specs load so the /api/tree handler can roll each story's
+  // per-obligation verdicts up into its crown without re-reading every spec. Keyed by `{ id }` only.
   const uatTestsByStory = new Map<string, { id: string }[]>();
-  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory };
+  // ADR-0097: per-story capability COVERAGE — the reliability gates (with their `(covers:)` lists), so
+  // a brownfield cap with no driven verdict greens via an adopted gate that declares it covered.
+  const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
+  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory, coverageByStory };
   const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } =
     await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
@@ -999,16 +1006,27 @@ export async function readTree(
           ...(g.proofCommand !== undefined ? { command: g.proofCommand } : {}),
         }));
       }
-      // ADR-0085: the crown rolls up the UNION of UAT tests + reliability gates (a pure port greens
-      // from its reliability gates alone). Both are addressable `{ id }` obligation units.
-      const ownObligations = [...spec.uatTests, ...spec.reliabilityGates];
+      // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT tests (would-be legs
+      // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
+      // its reliability gates alone). Both are addressable `{ id }` obligation units.
+      const ownObligations = [
+        ...spec.uatTests.filter((t) => !t.wouldBe),
+        ...spec.reliabilityGates,
+      ];
       if (ownObligations.length > 0) uatTestsByStory.set(ent.name, ownObligations);
+      // The reliability gates double as per-cap coverage (ADR-0097): id + the caps each `(covers:)`.
+      if (spec.reliabilityGates.length > 0) {
+        coverageByStory.set(
+          ent.name,
+          spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
+        );
+      }
     } catch (err) {
       story.error = err instanceof Error ? err.message : String(err);
     }
     stories.push(story);
   }
-  return { payload: { stories }, uatTestsByStory };
+  return { payload: { stories }, uatTestsByStory, coverageByStory };
 }
 
 /**
@@ -1026,18 +1044,22 @@ export async function readTree(
 export function applyUatCrowns(
   stories: TreeStory[],
   uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   rollup: (
     capabilityIds: readonly string[],
     tests: readonly { id: string }[],
     events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+    coverage?: readonly { id: string; covers?: readonly string[] }[],
   ) => string | null,
 ): void {
   for (const story of stories) {
     const tests = uatTestsByStory.get(story.id);
     if (!tests || tests.length === 0) continue;
     const capabilityIds = story.capabilities.map((c) => c.id);
-    const rolled = rollup(capabilityIds, tests, events);
+    // ADR-0097: a brownfield cap with no driven verdict greens via an adopted gate that `(covers:)` it.
+    const coverage = coverageByStory.get(story.id) ?? [];
+    const rolled = rollup(capabilityIds, tests, events, coverage);
     if (rolled === 'healthy' || rolled === 'unhealthy') {
       // The crown's timestamp spans BOTH clauses — a cap-driven wither shows the capability's verdict
       // time, not just the UAT's (the union of the per-test ids and the capability ids).
@@ -1205,6 +1227,59 @@ export async function handleBuild(
   throw new HttpError(405, `method ${method} not allowed`);
 }
 
+// ---------- UI-driven ADOPT (ADR-0097 — brownfield go-green is a proving process) ----------
+//
+// POST /api/adopt { storyId } enters the ADOPTION proving process for a brownfield (`mapped`) story:
+// it asks the server-process worker to run the EXISTING `adoptStory` entry — observe-and-sign the
+// story's `observe` reliability gates (ADR-0085) to `adopted` verdicts (machine-witnessed by the spine
+// principal, human-approved via `approvedBy`) and flip the story `mapped → proposed`. Like /api/build
+// it is a SAFE write (it never accepts or persists a verdict from the client — the gate inside the
+// worker signs; ADR-0091). It REUSES the build run registry: the adoption run is tracked exactly like
+// a build, so the client polls its coarse transcript + status via the SAME GET /api/build?runId.
+// Adopt GREENS NOTHING on its own (ADR-0097): it greens the capabilities its gates `(covers:)`, but an
+// uncovered `build-tests` pocket holds the crown at `proposed`.
+
+/** The adopt seam injected into the route table: the (shared) run registry, the runner, and discovery. */
+export interface AdoptContext {
+  /** The run registry — SHARED with the build seam so polling rides GET /api/build?runId and the
+   *  single-in-flight guard spans build + adopt (you can't adopt and build at once). */
+  registry: BuildRegistry;
+  /** Drives one adoption (the worker); wired over the real `adoptStory` in the dev front. */
+  runner: BuildRunner;
+  /** Whether `storyId` is an adoptable brownfield story (mapped + observe gates), validated against
+   *  the SAME discovery the CLI/`storyGoGreen` uses; a reason on refusal (a typed 409, never a 500). */
+  isAdoptable(storyId: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+}
+
+/**
+ * POST /api/adopt — dispatch an adoption intent (202 + runId; fire-and-forget worker, the client polls
+ * GET /api/build?runId). Every known outcome is a typed HTTP answer (400 bad body, 409 not adoptable /
+ * a run already in flight, 405 wrong method) — never a 500 (the central catch maps HttpError).
+ */
+export async function handleAdopt(
+  req: IncomingMessage,
+  res: ServerResponse,
+  adopt: AdoptContext,
+): Promise<void> {
+  const method = req.method ?? 'GET';
+  if (method !== 'POST') throw new HttpError(405, `method ${method} not allowed`);
+  const input = await readJsonBody<Record<string, unknown>>(req);
+  const storyId = asString(input.storyId).trim();
+  if (!storyId) throw new HttpError(400, 'storyId is required');
+  // Validate against real discovery — a non-brownfield / gateless / typo'd id is a clean 409, never a
+  // worker that adopts nothing.
+  const adoptable = await adopt.isAdoptable(storyId);
+  if (!adoptable.ok) throw new HttpError(409, adoptable.reason);
+  const created = adopt.registry.createRun(storyId);
+  // The single-run-at-a-time guard surfaces as 409 (a typed refusal, not a thrown 500).
+  if (!created.ok) throw new HttpError(409, created.reason);
+  const { runId } = created.run;
+  // Fire-and-forget (runBuildJob never throws — a failed adoption is a `failed` terminal state); the
+  // client polls GET /api/build?runId for progress, the SAME registry run a build uses.
+  void runBuildJob(adopt.registry, runId, storyId, adopt.runner);
+  sendJson(res, 202, { runId });
+}
+
 async function handleDocs(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -1254,6 +1329,11 @@ export interface ApiContext {
    * /api/build answers 404.
    */
   build?: BuildContext | undefined;
+  /**
+   * UI-driven ADOPT seam (ADR-0097): the run registry (SHARED with `build`) + worker + discovery
+   * behind /api/adopt. Wired by the dev front; absent on the hosted server → /api/adopt answers 404.
+   */
+  adopt?: AdoptContext | undefined;
 }
 
 /**
@@ -1296,7 +1376,7 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      const { payload, uatTestsByStory } = await readTree(ctx.paths.storiesDir);
+      const { payload, uatTestsByStory, coverageByStory } = await readTree(ctx.paths.storiesDir);
       // Advisory enrichments (ADR-0033 / ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
       // Run in parallel so a down DB costs one 4s budget, not four. `builds`
@@ -1326,7 +1406,7 @@ export async function handleApiRequest(
       // or no story declares per-test tests.
       if (verdictEvents && uatTestsByStory.size > 0) {
         const { rollupStoryGreen } = await loadOrchestrator();
-        applyUatCrowns(payload.stories, uatTestsByStory, verdictEvents, rollupStoryGreen);
+        applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;
       if (builds && builds.length > 0) payload.builds = builds;
@@ -1340,6 +1420,11 @@ export async function handleApiRequest(
       // seam is wired by the dev front only; absent (hosted, Phase 1) → 404.
       if (ctx.build === undefined) throw new HttpError(404, 'build is not enabled');
       await handleBuild(req, res, url, ctx.build);
+    } else if (url.pathname === '/api/adopt') {
+      // UI-driven adopt (ADR-0097): enter the brownfield proving process. Wired by the dev front only;
+      // absent (hosted) → 404. The run rides the shared build registry, so progress polls GET /api/build.
+      if (ctx.adopt === undefined) throw new HttpError(404, 'adopt is not enabled');
+      await handleAdopt(req, res, ctx.adopt);
     } else if (url.pathname === '/api/comments') {
       await handleComments(req, res, url, ctx.backend, ctx.policy?.commentScope ?? null);
     } else if (url.pathname === '/api/assets') {

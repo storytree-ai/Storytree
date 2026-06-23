@@ -149,20 +149,40 @@ export function rollupStoryUat(
  * `## Reliability Gates` (the brownfield obligation set). The AND-logic and the vacuous-empty guard
  * are unchanged; the caller passes `[...uatTests, ...reliabilityGates]`, so a pure port greens from
  * its reliability gates (zero caps, zero UAT, ≥1 adopted gate) with no logic fork here.
+ *
+ * ADR-0097 refines the CAPABILITY clause for a brownfield story whose caps have no per-cap driven
+ * verdict: a capability is satisfied by EITHER its own signed `healthy` verdict OR a healthy
+ * `## Reliability Gates` gate that DECLARES it covered (the `(covers:)` annotation), passed as the
+ * optional `coverage` argument. A cap covered by NO honest gate (e.g. a smoke-imported pocket) stays
+ * unproven and holds the crown at `proposed` until its `build-tests` gate is genuinely driven — which
+ * is what makes a green crown MEAN the untested pockets got real coverage. Coverage can NEVER mask a
+ * cap that has its own signed `fail` (a red plant still withers the crown); it only supplies green to
+ * an otherwise-unproven brownfield cap. A greenfield story passes no coverage (or empty), so the
+ * clause is exactly the pre-ADR-0097 "each cap proven on its own" rule — no behaviour change.
  */
 export function rollupStoryGreen(
   capabilityIds: readonly string[],
   tests: readonly { readonly id: string }[],
   events: readonly RollupEvent[],
+  coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
 ): Status | null {
   const uat = rollupStoryUat(tests, events);
   if (uat === "unhealthy") return "unhealthy";
 
+  // ADR-0097: the cap ids a HEALTHY covering gate vouches for. A gate's own pass is observed in the
+  // obligation clause above; here that same pass lets a brownfield cap with no driven verdict green.
+  const coveredGreen = new Set<string>();
+  for (const gate of coverage) {
+    if ((gate.covers?.length ?? 0) > 0 && rollupStatus(gate.id, events) === "healthy") {
+      for (const capId of gate.covers!) coveredGreen.add(capId);
+    }
+  }
+
   let capsAllHealthy = true;
   for (const capId of capabilityIds) {
     const status = rollupStatus(capId, events);
-    if (status === "unhealthy") return "unhealthy"; // a red plant withers the crown
-    if (status !== "healthy") capsAllHealthy = false;
+    if (status === "unhealthy") return "unhealthy"; // a red plant withers the crown (coverage can't mask it)
+    if (status !== "healthy" && !coveredGreen.has(capId)) capsAllHealthy = false;
   }
 
   return capsAllHealthy && uat === "healthy" ? "healthy" : null;

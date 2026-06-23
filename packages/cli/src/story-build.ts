@@ -95,8 +95,9 @@ function storyGreenLine(
   capabilityIds: readonly string[],
   tests: readonly { readonly id: string }[],
   events: readonly { kind: string; seq: number; doc: unknown }[],
+  coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
 ): string {
-  const rolled = rollupStoryGreen(capabilityIds, tests, events);
+  const rolled = rollupStoryGreen(capabilityIds, tests, events, coverage);
   const word =
     rolled === "healthy"
       ? "GREEN — all capabilities proven healthy AND every per-test UAT verdict passed"
@@ -765,12 +766,22 @@ export async function storyBuild(
       // each test's declared witness — `storytree uat attest` for human tests, a machine proof for
       // machine tests), NOT from this build chain. ADR-0083 Fork A: the CROWN additionally requires
       // every capability proven healthy. Surface both so the report reflects the real crown.
-      ...(story.uatTests.length > 0
-        ? [
-            `uat proof:   ${storyUatProofLine(story.uatTests, events)}`,
-            `story green: ${storyGreenLine(story.capabilities, story.uatTests, events)}`,
-          ]
-        : []),
+      // ADR-0097: a would-be (aspirational) UAT leg is not a hard obligation; the reliability gates are
+      // both own-proof obligations AND per-cap coverage. The crown is over the witnessable obligations.
+      ...((): string[] => {
+        const hardUat = story.uatTests.filter((t) => !t.wouldBe);
+        const wouldBeCount = story.uatTests.length - hardUat.length;
+        const obligations = [...hardUat, ...story.reliabilityGates];
+        if (obligations.length === 0) return [];
+        const uatLine =
+          hardUat.length > 0
+            ? `uat proof:   ${storyUatProofLine(hardUat, events)}`
+            : `uat proof:   would-be — ${wouldBeCount} aspirational leg(s), no scripted test yet (ADR-0097)`;
+        return [
+          uatLine,
+          `story green: ${storyGreenLine(story.capabilities, obligations, events, story.reliabilityGates)}`,
+        ];
+      })(),
       `total cost:  $${run.totalCostUsd.toFixed(4)} SDK-reported`,
       ...(real && worktree !== undefined
         ? [`worktree:    ${worktree.root} (ONE shared worktree, stacked commits in dependency order, removed after)`]

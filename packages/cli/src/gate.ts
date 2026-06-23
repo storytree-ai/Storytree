@@ -254,7 +254,9 @@ async function gateRun(
     gate,
     gitState: async () => ({ commitSha: git.commitSha, clean: git.clean }),
     observe: deps.observe,
-    signerInputs: { flag: resolved.signer },
+    // ADR-0097: the resolved identity is the human APPROVER (who is adopting); the verdict is SIGNED
+    // by the spine principal (the machine that witnessed the green), recorded by observeAndSign.
+    approverInputs: { flag: resolved.signer },
     store,
     runId: `gate-adopt:${deps.now().toISOString()}`,
     now: () => deps.now().toISOString(),
@@ -280,11 +282,12 @@ async function gateRun(
   const rolled = rollupStoryUat(gates, events);
   const lines = [
     `Adopted reliability gate "${id}".`,
-    `  kind:       ${gate.kind}`,
-    `  command:    ${gate.proofCommand}`,
-    `  signer:     ${resolved.signer}   (who adopted it)`,
-    `  commit:     ${git.commitSha.slice(0, 7)}`,
-    `  proof mode: adopted   (a real machine verdict in events.verdict — observed green, no prior red)`,
+    `  kind: ${gate.kind}`,
+    `  command: ${gate.proofCommand}`,
+    `  signer: ${result.verdict.signer} (the spine principal — the machine that witnessed the green)`,
+    `  approvedBy: ${resolved.signer} (who decided to adopt it)`,
+    `  commit: ${git.commitSha.slice(0, 7)}`,
+    `  proof mode: adopted (a real machine verdict in events.verdict — observed green, no prior red)`,
     "",
     "reliability gates: " +
       (rolled === "healthy"

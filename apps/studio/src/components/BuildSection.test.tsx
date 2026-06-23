@@ -19,6 +19,7 @@ import type { BuildIntentResult, BuildStatus } from '../types';
 const apiMock = vi.hoisted(() => ({
   build: vi.fn<(unitId: string) => Promise<BuildIntentResult>>(),
   buildStatus: vi.fn<(runId: string) => Promise<BuildStatus>>(),
+  adopt: vi.fn<(storyId: string) => Promise<BuildIntentResult>>(),
 }));
 vi.mock('../api', () => ({ api: apiMock }));
 
@@ -41,6 +42,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   apiMock.build.mockReset();
   apiMock.buildStatus.mockReset();
+  apiMock.adopt.mockReset();
 });
 
 afterEach(() => {
@@ -227,5 +229,165 @@ describe('BuildSection', () => {
     expect(screen.getByText(/already running/)).toBeTruthy();
     // the Build button comes back so the operator can retry once the other run ends
     expect(screen.getByRole('button', { name: 'Build' })).toBeTruthy();
+  });
+});
+
+// ── AdoptPanel — the real Adopt ACTION (ADR-0097 Layer 1) ───────────────────────
+//
+// Pressing Adopt POSTs a real adoption intent (api.adopt → POST /api/adopt) that ENTERS the
+// brown→proposed→green proving process — NOT the old static copy-paste `gate run` surface. The
+// adoption runs in the SAME build registry, so the panel reuses the Build control's exact trigger +
+// poll machinery: it POSTs ONCE, polls api.buildStatus on BUILD_POLL_MS, accumulates the coarse
+// transcript, and renders the shared verdict (PASS via `envelope`, FAIL via `reason`) on a terminal
+// poll. The gates are CONTEXT framing the action, not commands. `gates: []` renders the no-gates
+// message and NO Adopt button. The api client is mocked — the panel imports no spine (ADR-0004).
+const adoptProps = {
+  unitId: 'library',
+  buildable: false as const,
+  scope: 'story' as const,
+  goGreen: 'adopt' as const,
+  status: 'mapped' as const,
+};
+const adoptGates: import('../types').AdoptGate[] = [
+  { id: 'library#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/library test' },
+  { id: 'library#gate-2', kind: 'observe', command: 'pnpm --filter @storytree/cli test' },
+];
+
+describe('AdoptPanel (BuildSection adopt scope)', () => {
+  it('clicking Adopt POSTs api.adopt once with the story id and flips into an adopting state', async () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    apiMock.buildStatus.mockResolvedValue({
+      runId: 'adopt-1',
+      unitId: 'library',
+      status: 'building',
+      transcript: ['adoption started'],
+    });
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+
+    const btn = screen.getByRole('button', { name: 'Adopt' });
+    fireEvent.click(btn);
+    fireEvent.click(btn); // a second synchronous click must NOT post a second intent
+    await flush();
+
+    expect(apiMock.adopt).toHaveBeenCalledTimes(1);
+    expect(apiMock.adopt).toHaveBeenCalledWith('library');
+    // the panel is now adopting — the trigger is gone and the live transcript shows
+    expect(screen.queryByRole('button', { name: 'Adopt' })).toBeNull();
+    expect(screen.getByText('adoption started')).toBeTruthy();
+  });
+
+  it('polls buildStatus while adopting, accumulates the transcript, and renders a PASS verdict, then STOPS', async () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'building',
+        transcript: ['observe library#gate-1'],
+      })
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'passed',
+        transcript: ['observe library#gate-1', 'flip mapped → proposed', 'verdict: PASS'],
+        envelope: 'adopted · signer spine-principal · approvedBy operator',
+      });
+
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt' }));
+    await flush(); // intent + first status read
+    expect(screen.getByText('observe library#gate-1')).toBeTruthy();
+    expect(apiMock.buildStatus).toHaveBeenCalledTimes(1);
+
+    await tick(BUILD_POLL_MS); // second read — terminal PASS, polling stops
+    expect(screen.getByText(/build passed/)).toBeTruthy(); // the shared terminal status line
+    expect(screen.getByText(/adopted · signer spine-principal/)).toBeTruthy(); // the envelope body
+    expect(apiMock.buildStatus).toHaveBeenCalledTimes(2);
+
+    // No further fetches after the terminal poll — the loop is torn down.
+    await tick(BUILD_POLL_MS);
+    await tick(BUILD_POLL_MS);
+    expect(apiMock.buildStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failing adoption renders the failed terminal state with the reason and stops polling', async () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'building',
+        transcript: ['adoption started'],
+      })
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'failed',
+        transcript: ['adoption started', 'verdict: FAIL'],
+        reason: 'gate library#gate-2 observed red — refused',
+      });
+
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt' }));
+    await flush();
+    expect(apiMock.buildStatus).toHaveBeenCalledTimes(1);
+
+    await tick(BUILD_POLL_MS);
+    expect(screen.getByText(/failed/i)).toBeTruthy();
+    expect(screen.getByText(/observed red — refused/)).toBeTruthy();
+
+    await tick(BUILD_POLL_MS);
+    await tick(BUILD_POLL_MS);
+    expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
+  });
+
+  it('still lists the gates as context (id + observe command) above/below the Adopt button', () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    // The Adopt action is present…
+    expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
+    // …and the gates still render as CONTEXT (their id + the observe command), not as the trigger.
+    expect(screen.getByText('library#gate-1')).toBeTruthy();
+    expect(screen.getByText('library#gate-2')).toBeTruthy();
+    expect(screen.getByText(/storytree gate run library#gate-1 --pg/)).toBeTruthy();
+    // Honest framing that Adopt ENTERS a proving process (ADR-0097) — does not necessarily green.
+    expect(screen.getByText(/proving process/i)).toBeTruthy();
+  });
+
+  it('a mixed-kind gate set frames build-tests/integrate gates as still-owed real work', () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    render(
+      <BuildSection
+        {...adoptProps}
+        adoptGates={[
+          { id: 'library#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/library test' },
+          { id: 'library#gate-9', kind: 'build-tests' },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
+    expect(screen.getByText(/genuine red→green build/)).toBeTruthy();
+  });
+
+  it('a panel with NO gates renders the no-gates message and NO Adopt button', () => {
+    render(<BuildSection {...adoptProps} adoptGates={[]} />);
+    expect(screen.queryByRole('button', { name: 'Adopt' })).toBeNull();
+    expect(screen.getByText(/declares no/i)).toBeTruthy();
+    expect(screen.getByText(/Reliability Gates/)).toBeTruthy();
+    expect(apiMock.adopt).not.toHaveBeenCalled();
+  });
+
+  it('a thrown adopt intent (404/409) surfaces gracefully and the Adopt button returns', async () => {
+    apiMock.adopt.mockRejectedValue(new Error('a run is already in flight'));
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt' }));
+    await flush();
+
+    expect(apiMock.adopt).toHaveBeenCalledTimes(1);
+    expect(apiMock.buildStatus).not.toHaveBeenCalled();
+    expect(screen.getByText(/already in flight/)).toBeTruthy();
+    // the Adopt button returns so the operator can retry once the other run ends
+    expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
   });
 });
