@@ -124,6 +124,16 @@ export interface RealProofConfig {
    * against the UNCHANGED source — a forged already-green test self-defeats. MUTUALLY EXCLUSIVE with
    * `editsExisting` (a different brief axis: behaviour-preserving refactor vs behaviour change). The
    * net-new nodes never carry it (absent → the parity deepEqual holds).
+   *
+   * Residue (the test this mode leaves is KEPT): an R2 arm authors STANDING COVERAGE — the deliverable.
+   * A build-tests gate exists precisely to leave real coverage over a previously-untested pocket
+   * (ADR-0098 d.4: a green build-tests gate MEANS the pocket got real, driven coverage), so its test is
+   * re-run forever, never pruned as proof-scaffolding. The ONLY prunable proof-residue is the inverse: a
+   * gate-as-proof authoring-COMPLETENESS test over a now-FROZEN artifact (an ADR — ADR-0059/0092), whose
+   * whole value is captured the moment its verdict signs. The cut is frozen-vs-living — a test that
+   * re-runs to guard a LIVE surface (R2 coverage; a story's completeness guard) stays; one that only
+   * witnessed a one-time authoring event over a frozen artifact may go. Scope follows the same cut: a
+   * single-surface claim runs the narrowest command; this no-regression claim runs the whole suite.
    */
   refactorForTests?: boolean;
   /**
