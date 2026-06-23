@@ -95,6 +95,14 @@ jobs:
       - name: web claims grounded
         run: pnpm check:web-grounding
 
+      # The site consumes the shared forest-world render core as a SYNCED @generated artifact
+      # (web/src/lib/forest-world/), not as private source — ADR-0093 Decision 3. Fail if that copy
+      # has drifted from packages/forest-world (re-sync with `pnpm sync:web-engine` + bump the
+      # submodule). SKIPs while the pinned site hasn't adopted the core yet (no forest-world/ dir) —
+      # the render-core twin of `check:web-grounding`, needs the cloned web/ above.
+      - name: web engine in sync
+        run: pnpm check:web-engine
+
       - name: Typecheck
         run: pnpm -r typecheck
 
