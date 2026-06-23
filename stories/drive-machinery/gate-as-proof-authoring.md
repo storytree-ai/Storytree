@@ -82,11 +82,21 @@ scrubbed), the leaf's `run_proof` is feedback-only — unchanged from every othe
   completeness check asserts a complete PROPOSED record and never `accepted`. The leaf-writes-
   `accepted` alternative was declined; the status-agnostic default stands, so the machine never
   writes the decision (ADR-0059; live OQ `oq-gate-as-proof-human-flip-semantics` retired).
-- **Whole-corpus suite coupling** — a `pnpm --filter x test` proof command couples the proof to the
-  whole package suite; a builtins-only node:test on the single completeness file avoids it (the
-  offline walk uses this). OWNER call when the first live ADR node is built.
-- **Per-ADR test accumulation** — one frozen completeness test per authored ADR accrues (inert, not
-  rotting); pruning post-verdict is an OWNER call (the over-declared-scope family).
+- **Whole-corpus suite coupling — RESOLVED (scope follows the claim, 2026-06-23):** a proof command's
+  scope matches the proof's CLAIM, not one rule ([ADR-0098](../../docs/decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
+  d.2). A single-surface claim (this per-artifact completeness check) runs the NARROWEST command — the
+  builtins-only node:test the offline walk uses; a no-regression claim (an R2 refactor-for-testability
+  build-tests gate) runs the WHOLE PACKAGE SUITE deliberately, as the regression wall. So ADR-0059's
+  whole-suite-coupling hazard (true for a single-artifact completeness proof) and ADR-0098's
+  whole-suite-is-the-feature (true for an R2 refactor) are BOTH right — coupling is a function of what
+  is claimed. Framed by the brown→green proving-process reframe ([ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)).
+- **Per-ADR test accumulation — RESOLVED (frozen-vs-living cut, owner-directed inline capture, 2026-06-23):**
+  prune ONLY a gate-as-proof authoring-completeness test over a FROZEN artifact (an ADR), whose whole
+  value is captured the moment its verdict signs. KEEP all standing coverage — an R2/build-tests
+  coverage test is the DELIVERABLE, never prunable scaffolding ([ADR-0098](../../docs/decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
+  d.4), and a living story's completeness guard stays. The invariant is captured next to the build, not
+  as standalone guidance: the `refactorForTests` doc-comment in `packages/orchestrator/src/proof-config.ts`
+  ([PR #331](https://github.com/HuaMick/Storytree/pull/331)).
 
 ## Integration test (as built)
 
