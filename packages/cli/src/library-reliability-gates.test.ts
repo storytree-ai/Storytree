@@ -5,6 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parseReliabilityGates } from "@storytree/library";
+import { findNodeSpecFile, loadNodeSpec, resolveBuildConfig } from "@storytree/orchestrator";
+
+import { realConfigRefusal } from "./node-build.js";
 
 /**
  * ADR-0094 (go-green is a status transition: `mapped → healthy` = Adopt) declared `## Reliability
@@ -23,10 +26,10 @@ import { parseReliabilityGates } from "@storytree/library";
  * GREEN against the honest ADR-0097 floor.
  */
 
-const LIVE_LIBRARY_STORY = (): string => {
-  const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-  return readFileSync(path.join(repoRoot, "stories", "library", "story.md"), "utf8").replace(/\r\n/g, "\n");
-};
+const REPO_ROOT = (): string => path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+const STORIES_DIR = (): string => path.join(REPO_ROOT(), "stories");
+const LIVE_LIBRARY_STORY = (): string =>
+  readFileSync(path.join(STORIES_DIR(), "library", "story.md"), "utf8").replace(/\r\n/g, "\n");
 
 test("the live library story declares three observe gates (adopt) + two build-tests gates (earn) — ADR-0097", () => {
   const gates = parseReliabilityGates("library", LIVE_LIBRARY_STORY());
@@ -93,5 +96,41 @@ test("the live library story declares three observe gates (adopt) + two build-te
     buildTestsGates[1]!.covers,
     [],
     "gate 5 covers no capability — it is a pure own-proof obligation for the Pg pocket",
+  );
+});
+
+test("ADR-0098 U5: gate 4 (build:)s a REAL-buildable R2 node — the seed-corpus runSeed pilot is wired", () => {
+  const gates = parseReliabilityGates("library", LIVE_LIBRARY_STORY());
+  const gate4 = gates.find((g) => g.id === "library#gate-4");
+  assert.ok(gate4, "library#gate-4 must exist");
+  assert.equal(gate4!.kind, "build-tests");
+  // ADR-0098 U2: the `(build: <node-id>)` annotation names the node whose `real:` arm the gate borrows.
+  assert.equal(gate4!.buildNode, "seed-corpus-scripts", "gate 4 must (build:) the seed-corpus-scripts node");
+
+  // The referenced node resolves to a REAL-buildable R2 config — offline-checkable (no DB, no spend),
+  // so `gate run library#gate-4 --real` can drive the pilot. This is the SAME real-buildable check the
+  // driver + `node build --real` use (realConfigRefusal === null), so the gate can never reference a
+  // node that isn't real-buildable.
+  const storiesDir = STORIES_DIR();
+  const file = findNodeSpecFile(storiesDir, gate4!.buildNode!);
+  assert.ok(file, `the (build:) node "${gate4!.buildNode}" must have a spec file under stories/`);
+  const spec = loadNodeSpec(file!);
+  const buildConfig = resolveBuildConfig(spec)?.config ?? null;
+  assert.equal(
+    realConfigRefusal(spec, buildConfig, storiesDir),
+    null,
+    "the (build:) node must be REAL-buildable (a valid real: arm, install→typecheck satisfied)",
+  );
+  const real = buildConfig!.real!;
+  // R2 = refactor-for-testability: a structural seam red → behaviour-preserving refactor → suite green.
+  assert.equal(real.refactorForTests, true, "the pilot drives an R2 refactor-for-testability red→green");
+  assert.notEqual(real.editsExisting, true, "R2 and editsExisting are mutually exclusive (ADR-0098 d.1)");
+  assert.equal(real.sourceFile, "packages/library/src/store/load-corpus.ts", "the refactor targets the seed orchestration");
+  // ADR-0098 d.2: R2's regression wall is the WHOLE package suite, declared as the proofCommand.
+  assert.ok(real.proofCommand, "an R2 arm must declare the package-suite proofCommand (the regression wall)");
+  assert.deepEqual(
+    [real.proofCommand!.file, ...real.proofCommand!.args],
+    ["pnpm", "--filter", "@storytree/library", "test"],
+    "the R2 regression wall is the @storytree/library package suite",
   );
 });

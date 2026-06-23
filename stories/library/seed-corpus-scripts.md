@@ -10,7 +10,13 @@ depends_on: [event-sourced-store-seam, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
 # so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
 # (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build.
+# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build over a mature artifact.
+# ADR-0098 (U5, the live pilot) RE-ADDS a `real:` arm — but a DIFFERENT kind from the removed ADR-0092
+# one: this is an R2 `refactorForTests` build-tests config (a genuine structural red→green for this
+# `proposed`, genuinely-untested pocket), borrowed by the story's `library#gate-4` `(build:)` annotation
+# and driven via `storytree gate run library#gate-4 --real --pg`. It does NOT re-light a fail-closed
+# blanket Build: the other six caps carry no `real:` arm, so the story is not real-buildable; only this
+# build-tests gate drives it (ADR-0094 stands).
 proof:
   command:
     file: pnpm
@@ -18,6 +24,25 @@ proof:
   scope:
     testGlobs: ["packages/library/src/**/*.test.ts"]
     sourceGlobs: ["packages/library/src/**/*.ts"]
+  # ADR-0098 R2 (refactor-for-testability): the entry-guarded `main()` seed orchestration is correct but
+  # UNTESTABLE as-is (no injection seam). The leaf authors a seam test (the structural red is the missing
+  # `runSeed` symbol), then refactors `main()` to extract a behaviour-preserving `runSeed(deps)` core; the
+  # whole `@storytree/library` suite is the regression wall. install:true (the suite imports workspace
+  # deps); pnpm proofCommand + typecheck per the schema. See `## Guidance` and story gate 4.
+  real:
+    testFile: "packages/library/src/store/load-corpus.runseed.test.ts"
+    sourceFile: "packages/library/src/store/load-corpus.ts"
+    scope:
+      testGlobs: ["packages/library/src/store/load-corpus.runseed.test.ts"]
+      sourceGlobs: ["packages/library/src/store/load-corpus.ts"]
+    install: true
+    refactorForTests: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/library", "typecheck"]
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/library", "test"]
 ---
 
 # Seed the library store from the studio knowledge files
@@ -33,6 +58,12 @@ proof:
 The data-provenance root the seeded read store stands on — the seed/DDL plumbing that lands the studio corpus into the store, deliberately separated from the proven eager-migrate path because it carries a weaker proof posture.
 
 `loadCorpus` (`load-corpus.ts:61-74`) reads `knowledge.json` + the generated template assets from `assets.json` and upserts each THROUGH the store write boundary (so validation/upcast run); it is store-agnostic and IS exercised — but only as a real collaborator inside OTHER capabilities' tests (the CLI seed and the health SEED gate), never by a count assertion of its own. `loadComments` (`load-corpus.ts:82-112`), `applySchema` (`migrate.ts:10-14`), `recordLedger` (`batch-migrate.ts:72-84`) and both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). The code edge for the `depends_on`: `loadCorpus` upserts through the `Store` seam ([`event-sourced-store-seam`](event-sourced-store-seam.md)) and each upsert runs `upcastAndValidate` at the boundary ([`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)).
+
+### Build-tests R2 target (ADR-0098 d.6 — the live pilot, story gate 4)
+
+The `library#gate-4` build-tests gate `(build:)`s this node and drives an **R2 refactor-for-testability** red→green over the `main()` seed orchestration (`load-corpus.ts:118-131`). `main()` is correct but UNTESTABLE as-is: it is `import.meta.url`-guarded and wires `createPool → applySchema → loadCorpus → loadComments` with no injection point, so the seed SEQUENCE has no offline test surface.
+
+The refactor (behaviour-preserving — `main()`'s observable effect is unchanged): extract a **`runSeed(deps)`** core that `main()` calls, where `deps` injects the seed steps as the seam — `applySchema`, `loadCorpus`, and `loadComments` (the store + comment-loader, NOT a raw `Pool` — keep the seam at the already-injectable boundary so it is fakeable offline; `loadCorpus` already takes a `Store`). The new seam test (`load-corpus.runseed.test.ts`) imports `runSeed` and asserts it invokes the three steps **in order** against injected fakes (a recording double per step) — the structural RED is that `runSeed` does not exist yet (a missing-symbol/module-not-found failure), and IMPLEMENT introduces it. `main()` is then a thin wire: build the real deps (`createPool` → the real `applySchema`/`loadCorpus`/`loadComments`) and call `runSeed`. The whole `@storytree/library` suite is the regression wall — nothing else may go red. The Pg-bound `loadComments`/`applySchema` internals stay untested offline here (that is gate 5's live-gated pocket, owner D3); gate 4 proves only the seam + the orchestration sequence.
 
 ## Integration test
 
