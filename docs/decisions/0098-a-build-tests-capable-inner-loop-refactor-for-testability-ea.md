@@ -20,8 +20,14 @@ regression-wall-as-suite oracle) in `packages/orchestrator` and **U2** (the gate
 `gate run <story>#gate-N --real` drives the build-tests engine and signs a driven verdict for the
 gate id) and **U4** (the batch decision-sweep surface — the pre-build owner-fork-bar classifier
 `classifyFork`/`sweepDecisions` in `packages/orchestrator`, consulted by the `gate run --real` driver
-before any spend so an unresolved key fork HALTS fail-closed) have landed; U5 (the live pilot) follows
-in a later PR. The `status:` flip was applied by this
+before any spend so an unresolved key fork HALTS fail-closed) have landed; **U5 (the live pilot) has
+now LANDED** — `gate run 'library#gate-4' --real --pg` drove the `seed-corpus-scripts` R2
+refactor-for-testability pilot to a real signed green: a genuine structural red (the missing
+behaviour-preserving `runSeed` seam) → whole-package-suite GREEN (the regression wall held) →
+typecheck GREEN, signing a **DRIVEN-tier `capability` verdict** (never `adopted`) for `library#gate-4`,
+persisted to `events.verdict` — the R2 loop proven end-to-end on a real pocket and the
+`seed-corpus-scripts` capability greened via the gate's `(covers:)` annotation. The `status:` flip was
+applied by this
 session per [ADR-0084](0084-agents-may-flip-an-adr-green.md). It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)**
 (naming and refining the `build-tests` satisfaction engine ADR-0085 d.4 left as "named follow-on, not
 built"). It is the load-bearing follow-on [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
@@ -200,9 +206,12 @@ the inner loop once Layers 1–2 land. U1–U4 are offline-provable; U5 is the l
   the resolutions into the leaf brief, and HALTS a mid-build fork fail-closed rather than guessing.
   *Proof (offline):* a key-decision fork halts the drive (no silent guess); a routine choice does not.
   (new module, `node:test`.)
-- **U5 — the LIVE pilot (sequenced last).** Drive `seed-corpus-scripts`'s hand-authored `build-tests`
-  gate end-to-end: the real `runSeed` extraction, a real driven verdict, persisted `--pg`. The live
-  proof the whole layer rests on; depends on Layers 1–2 + U1–U4.
+- **U5 — the LIVE pilot (sequenced last; LANDED).** Drove `seed-corpus-scripts`'s hand-authored
+  `build-tests` gate end-to-end: the real `runSeed` extraction (a behaviour-preserving seam pulled out
+  of the entry-guarded `main()`, with an injectable `SeedDeps` seam asserting the
+  `applySchema → loadCorpus → loadComments` sequence against fakes), a real DRIVEN-tier `capability`
+  verdict signed for `library#gate-4` and persisted `--pg`. The live proof the whole layer rests on;
+  depended on Layers 1–2 + U1–U4.
 
 ## Consequences
 

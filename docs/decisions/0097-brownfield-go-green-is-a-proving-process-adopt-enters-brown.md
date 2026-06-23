@@ -147,7 +147,10 @@ NOT BUILT (the load-bearing caveat the owner flagged).**
 - **The inner loop is mechanical.** Today it drives a hand-registered net-new test red→green; it does not
   yet author `build-tests` gates for discovered gaps, perform the refactoring those pockets need, or
   escalate key design decisions mid-build. A less-mechanical, decision-escalating inner loop is required
-  for the `build-tests` half — named follow-on, not assumed.
+  for the `build-tests` half — named follow-on, not assumed. *(Update 2026-06-23: this named follow-on is
+  now designed and BUILT — [ADR-0098](0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
+  defines the R1/R2 red taxonomy, the gate→loop wiring, and the up-front decision sweep, and its live
+  pilot drove `seed-corpus-scripts`'s `library#gate-4` to a real signed driven green.)*
 - **Buildable now (the cheap layer):** the studio Adopt action that flips `mapped → proposed`, adopts the
   `observe` gates (the existing `observeAndSign`, re-signed by the spine principal with `approvedBy`), the
   `(covers:)` annotation + the crown-coverage refinement to `rollupStoryGreen`, and the would-be-UAT
