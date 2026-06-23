@@ -925,6 +925,11 @@ export function storyHelp(): Envelope {
     body: [
       "storytree story — drive a WHOLE story through the prove-it-gate (drive-machinery Phase E).",
       "",
+      "  storytree story adopt-plan <story-id>",
+      "      ADR-0097 Layer 2: classify a brownfield story's capabilities — which are COVERED by a",
+      "      declared `(covers:)` reliability gate vs UNCOVERED (still owe real build-tests work).",
+      "      Read-only, offline (no DB, no spend); the hand-off for the deeper observe/R1/R2 analysis.",
+      "",
       "  storytree story build <story-id> --dry-run [--actor <email>]",
       "      topo-order the story's capabilities from depends_on, walk each through",
       "      AUTHOR_TEST → … → GATE with a scripted model, then the story's UAT node last.",

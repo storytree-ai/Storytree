@@ -389,6 +389,34 @@ export interface AdoptGate {
   command?: string;
 }
 
+/**
+ * One capability's covered/uncovered classification in the adoption plan (ADR-0097 Layer 2). Mirrors
+ * the orchestrator's `CapAdoption` locally — the studio is browser-bundled and must NOT import the
+ * node-only orchestrator (computed server-side, shipped on {@link TreeStory.adoption}).
+ */
+export interface AdoptionCap {
+  /** The capability id. */
+  capId: string;
+  /** Structural (Fork-1) verdict: covered iff a declared `(covers:)` reliability gate names it. */
+  covered: boolean;
+  /** The covering gate ids (empty when uncovered) — surfaced so the panel shows HOW it's covered. */
+  coveredBy: string[];
+}
+
+/**
+ * The adoption plan for a brownfield story (ADR-0097 Layer 2): the per-capability covered/uncovered
+ * classification (the structural covers-diff, Fork 1) — "what still owes real work." Present only when
+ * `goGreen === 'adopt'`. The finer observe/R1/R2 call of the uncovered set is the story-author's
+ * analysis (ADR-0098, proposed), not surfaced here.
+ */
+export interface AdoptionPlan {
+  capabilities: AdoptionCap[];
+  /** The covered cap ids (a declared `(covers:)` gate names each). */
+  covered: string[];
+  /** The uncovered cap ids — the set that still owes real `build-tests` work (holds the crown `proposed`). */
+  uncovered: string[];
+}
+
 /** One story: its own spec fields, story-level depends_on, and its capability DAG. */
 export interface TreeStory {
   id: string;
@@ -442,6 +470,18 @@ export interface TreeStory {
   goGreen?: StoryGoGreen;
   /** The reliability gates to Adopt — present only when `goGreen === 'adopt'` (ADR-0094 / ADR-0085). */
   adoptGates?: AdoptGate[];
+  /**
+   * The Layer-2 adoption plan (ADR-0097): the per-capability covered/uncovered classification —
+   * "what still owes real work." Present only when `goGreen === 'adopt'`; computed server-side via the
+   * orchestrator's `classifyAdoption` covers-diff so the studio never imports the node-only spine.
+   */
+  adoption?: AdoptionPlan;
+  /**
+   * The story's deciding ADR numbers (`decisions:` frontmatter, ADR-0037 §2) — the "Relevant ADRs" the
+   * panel links to the Decisions-group Library docs. `[]` when the story declares none / the spec failed
+   * to load. Plumbed through for ADR-0097 Layer 2's panel context.
+   */
+  decisions?: number[];
   /** The story's OWN UAT verdict (unit_id = story id) — never a child roll-up. */
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */

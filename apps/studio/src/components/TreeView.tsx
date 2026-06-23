@@ -42,7 +42,7 @@ import { useAppData } from '../lib/appData';
 import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity } from '../lib/buildActivity';
 import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
-import { navigate, treeFocusHref, treeHref } from '../lib/route';
+import { docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
 import {
   WorldLegend,
@@ -71,7 +71,7 @@ import { bookshelfConsumers, sharedIslandStories, shelfBooks } from '../lib/buil
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
-import type { BuildActivity, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { BuildActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
   rand01,
@@ -2947,6 +2947,56 @@ function UatTestsSection({
   );
 }
 
+/** Extract the 1-based ADR number from a Decisions doc id (`decisions/0017-slug.md` → 17), or null. */
+export function adrNumberOf(docId: string): number | null {
+  const m = /(?:^|\/)(\d{4})-/.exec(docId);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * The story's "Relevant ADRs" (ADR-0037 §2 / ADR-0097 Layer 2): its `decisions:` ADR numbers resolved
+ * against the loaded docs and LINKED to the Decisions-group Library docs. Tolerant — a number with no
+ * matching doc renders as a plain `ADR-NNNN` label (never blanks the section). Renders nothing when the
+ * story declares no decisions. Exported for the jsdom render test.
+ */
+export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.Element | null {
+  const { docs } = useAppData();
+  if (decisions.length === 0) return null;
+  const byNum = new Map<number, DocMeta>();
+  for (const d of docs) {
+    if (d.group !== 'Decisions') continue;
+    const n = adrNumberOf(d.id);
+    if (n !== null) byNum.set(n, d);
+  }
+  return (
+    <div className="tree-relevant-adrs">
+      <h4 className="tree-subdag-title">Relevant ADRs ({decisions.length})</h4>
+      <ul className="relevant-adrs small">
+        {decisions.map((n) => {
+          const doc = byNum.get(n);
+          const label = `ADR-${String(n).padStart(4, '0')}`;
+          return (
+            <li key={n} className="relevant-adr">
+              {doc ? (
+                <a href={docHref(doc.id)}>
+                  <code>{label}</code> {doc.title}
+                  {doc.status && (
+                    <span className={`adr-status-chip adr-${doc.status}`}> {doc.status}</span>
+                  )}
+                </a>
+              ) : (
+                <span className="muted">
+                  <code>{label}</code> (no doc found)
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function StoryPanel({
   story,
   stories,
@@ -3104,6 +3154,10 @@ function StoryPanel({
         onNavigate={(d) => navigate(treeFocusHref(d))}
       />
 
+      {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
+          panel's "what governs this story" context (ADR-0097 Layer 2). */}
+      <RelevantAdrs decisions={story.decisions ?? []} />
+
       {sessions.length > 0 && (
         <div className="tree-sessions">
           {/* The panel is a detail surface like the dock (ADR-0041): the count
@@ -3252,6 +3306,7 @@ function StoryPanel({
         scope={cap ? 'node' : 'story'}
         goGreen={cap ? undefined : story.goGreen}
         adoptGates={cap ? undefined : story.adoptGates}
+        adoption={cap ? undefined : story.adoption}
         status={cap ? undefined : story.status}
       />
     </aside>

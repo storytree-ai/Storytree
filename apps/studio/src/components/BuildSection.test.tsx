@@ -353,6 +353,39 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     expect(screen.queryByText(/storytree gate run/)).toBeNull();
   });
 
+  it('renders the Layer-2 covered/uncovered classification ("what still owes real work")', () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    render(
+      <BuildSection
+        {...adoptProps}
+        adoptGates={adoptGates}
+        adoption={{
+          capabilities: [
+            { capId: 'library-cli', covered: true, coveredBy: ['library#gate-2'] },
+            { capId: 'seed-corpus-scripts', covered: false, coveredBy: [] },
+          ],
+          covered: ['library-cli'],
+          uncovered: ['seed-corpus-scripts'],
+        }}
+      />,
+    );
+    expect(screen.getByText(/What still owes real work/)).toBeTruthy();
+    expect(screen.getByText(/1 covered, 1 uncovered/)).toBeTruthy();
+    // the covered cap shows its covering gate; the uncovered one says it owes real work
+    expect(screen.getByText('library-cli')).toBeTruthy();
+    expect(screen.getByText(/covered by library#gate-2/)).toBeTruthy();
+    expect(screen.getByText('seed-corpus-scripts')).toBeTruthy();
+    expect(screen.getByText(/uncovered, owes a real/)).toBeTruthy();
+    // it points at the CLI adopt-plan for the deeper analysis
+    expect(screen.getByText(/storytree story adopt-plan library/)).toBeTruthy();
+  });
+
+  it('omits the classification block when no adoption plan is supplied', () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    expect(screen.queryByText(/What still owes real work/)).toBeNull();
+  });
+
   it('a panel with NO gates renders the no-gates message and NO Adopt button', () => {
     render(<BuildSection {...adoptProps} adoptGates={[]} />);
     expect(screen.queryByRole('button', { name: 'Adopt' })).toBeNull();
