@@ -262,3 +262,14 @@ function stringifySearch(q: URLSearchParams): string {
 export function buildShareUrl(origin: string, search: string, hash: string): string {
   return `${origin}${search}${hash}`;
 }
+
+/**
+ * ADR-0093 Unit 2b parity flag: render the forest world FROM the shared scene-graph
+ * (the studio React mapper, `SceneView`) instead of the inline render. `?render=scene`
+ * turns it on; anything else (incl. absence) keeps the canonical inline render —
+ * byte-identical, zero risk to the look. Deliberately NOT a `CONTROLS` gear dial: it
+ * is a transient parity switch for the owner's visual nod, not a user-facing setting.
+ */
+export function readRenderScene(search: string): boolean {
+  return new URLSearchParams(search).get('render') === 'scene';
+}

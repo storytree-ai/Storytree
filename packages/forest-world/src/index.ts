@@ -1,9 +1,10 @@
 // @storytree/forest-world — the shared forest-world render core (ADR-0093,
 // strategy C). Pure, browser-safe, deterministic GEOMETRY: data-in → geometry-out.
 // Both the studio (React mapper) and the public website (string-SVG mapper) render
-// FROM this. No store, no React, no live data, no node: imports. The scene-graph
-// layer (the framework-agnostic drawable tree the two mappers walk) lands on top
-// of this kernel in a follow-up unit.
+// FROM this. No store, no React, no live data, no node: imports. Two pure layers:
+// the geometry KERNEL below (rng / hex / sizing / ranking / coast / substrate) and
+// the framework-agnostic SCENE-GRAPH (`scene.ts`) — the drawable tree the two
+// mappers walk.
 
 export { hash, rand01 } from './rng.js';
 
@@ -53,3 +54,27 @@ export {
   MESH_TUNING,
   buildRelaxedCells,
 } from './substrate.js';
+
+export {
+  type SceneStatus,
+  type SceneKind,
+  type SceneNodeBase,
+  type SceneG,
+  type ScenePath,
+  type SceneCircle,
+  type SceneEllipse,
+  type ScenePolygon,
+  type SceneRect,
+  type SceneText,
+  type SceneNode,
+  type SceneRoadInput,
+  type ScenePlantInput,
+  type SceneTerritoryInput,
+  type SceneInput,
+  buildScene,
+  buildTree,
+  buildPlant,
+  buildConifer,
+  buildBloom,
+  buildTerritoryFlora,
+} from './scene.js';
