@@ -112,19 +112,48 @@ export async function loadComments(pool: Pool): Promise<number> {
 }
 
 /**
+ * Injectable deps for {@link runSeed} — each step is a zero-arg (or store-taking) async function
+ * so the orchestration sequence can be tested offline without a DB connection.
+ */
+export interface SeedDeps {
+  /** Apply the DB schema before loading data. */
+  applySchema: () => Promise<void>;
+  /** The store to seed corpus artifacts into. */
+  store: Store;
+  /** Load the knowledge corpus into `store`. */
+  loadCorpus: (store: Store) => Promise<LoadCorpusResult>;
+  /** Load comments (Postgres-specific in production; fakeable offline). */
+  loadComments: () => Promise<number>;
+}
+
+/**
+ * Orchestration core: apply schema, load corpus, load comments — in that order.
+ * Extracted from `main()` as the R2 refactor-for-testability target (library#gate-4 / ADR-0098 d.6).
+ * `main()` wires the real (pool-bound) deps; tests inject fakes.
+ */
+export async function runSeed(deps: SeedDeps): Promise<void> {
+  await deps.applySchema();
+  const counts = await deps.loadCorpus(deps.store);
+  const comments = await deps.loadComments();
+  console.log(
+    `loaded ${counts.knowledge} knowledge units + ${counts.templates} templates, ${comments} comments`,
+  );
+}
+
+/**
  * Script entry: when this file is the process entry point, build a live pool, apply the schema,
  * load the full corpus + comments, then tear down. NEVER invoked during tests (entry-guarded).
  */
 async function main(): Promise<void> {
   const { pool, connector } = await createPool();
   try {
-    await applySchema(pool);
     const store = new PgLibraryStore(pool);
-    const counts = await loadCorpus(store);
-    const comments = await loadComments(pool);
-    console.log(
-      `loaded ${counts.knowledge} knowledge units + ${counts.templates} templates, ${comments} comments`,
-    );
+    await runSeed({
+      applySchema: () => applySchema(pool),
+      store,
+      loadCorpus,
+      loadComments: () => loadComments(pool),
+    });
   } finally {
     await closePool(pool, connector);
   }
