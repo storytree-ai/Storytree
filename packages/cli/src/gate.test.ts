@@ -59,6 +59,31 @@ test("gate list shows each gate, its kind, command and PROVEN glyph (– before 
   assert.match(env.body, /unproven/);
 });
 
+test("gate list surfaces a build-tests gate's (build:) node, not a stray title backtick", async () => {
+  const env = await gateCommand(
+    { mode: "list", target: "brown" },
+    {},
+    deps({
+      loadReliabilityGates: () => [
+        {
+          id: "brown#gate-1",
+          title: "Build tests for the Postgres transactional path",
+          kind: "build-tests",
+          covers: [],
+          // a stray first title backtick gets captured as proofCommand, but the operative ref is buildNode
+          proofCommand: "PgLibraryStore",
+          buildNode: "event-sourced-store-seam",
+        },
+      ],
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.match(env.body, /kind=build-tests/);
+  assert.match(env.body, /\(build: event-sourced-store-seam\)/);
+  // the stray title backtick must NOT be rendered as a proof command
+  assert.doesNotMatch(env.body, /`PgLibraryStore`/);
+});
+
 test("gate list on a story with no gates says so", async () => {
   const env = await gateCommand(
     { mode: "list", target: "x" },

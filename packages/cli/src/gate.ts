@@ -173,8 +173,16 @@ async function gateList(storyId: string | undefined, deps: GateDeps): Promise<En
   const lines = [`Reliability gates for "${storyId}" (${gates.length}):`, ""];
   for (const g of gates) {
     const proven = events === null ? "" : `  proven=${provenGlyph(events, g.id)}`;
-    const cmd = g.proofCommand !== undefined ? `  \`${g.proofCommand}\`` : "";
-    lines.push(`  ${g.id.padEnd(idWidth)}  kind=${g.kind.padEnd(11)}  ${g.title}${cmd}${proven}`);
+    // A `build-tests` gate's operative reference is the node whose `real:` build it drives
+    // (`(build: <node-id>)`), not a `proofCommand` — its title may carry a stray backtick that is
+    // NOT a proof command (ADR-0098). Surface the build node for those; `observe` keeps its command.
+    const ref =
+      g.kind === "build-tests" && g.buildNode !== undefined
+        ? `  (build: ${g.buildNode})`
+        : g.proofCommand !== undefined
+          ? `  \`${g.proofCommand}\``
+          : "";
+    lines.push(`  ${g.id.padEnd(idWidth)}  kind=${g.kind.padEnd(11)}  ${g.title}${ref}${proven}`);
   }
   lines.push("");
   if (events === null) {
