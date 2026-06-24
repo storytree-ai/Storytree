@@ -159,6 +159,11 @@ export function rollupStoryUat(
  * cap that has its own signed `fail` (a red plant still withers the crown); it only supplies green to
  * an otherwise-unproven brownfield cap. A greenfield story passes no coverage (or empty), so the
  * clause is exactly the pre-ADR-0097 "each cap proven on its own" rule — no behaviour change.
+ *
+ * The per-capability fold is {@link rollupCapStatus} — the crown's capability clause and the per-cap
+ * DISPLAY (the CLI tree glyph, the studio world plant) share that ONE definition, so a green crown can
+ * never float over plants that read differently (owner decision 2026-06-25, Option A — see
+ * {@link rollupCapStatus}).
  */
 export function rollupStoryGreen(
   capabilityIds: readonly string[],
@@ -169,21 +174,52 @@ export function rollupStoryGreen(
   const uat = rollupStoryUat(tests, events);
   if (uat === "unhealthy") return "unhealthy";
 
-  // ADR-0097: the cap ids a HEALTHY covering gate vouches for. A gate's own pass is observed in the
-  // obligation clause above; here that same pass lets a brownfield cap with no driven verdict green.
-  const coveredGreen = new Set<string>();
-  for (const gate of coverage) {
-    if ((gate.covers?.length ?? 0) > 0 && rollupStatus(gate.id, events) === "healthy") {
-      for (const capId of gate.covers!) coveredGreen.add(capId);
-    }
-  }
-
   let capsAllHealthy = true;
   for (const capId of capabilityIds) {
-    const status = rollupStatus(capId, events);
+    const status = rollupCapStatus(capId, events, coverage);
     if (status === "unhealthy") return "unhealthy"; // a red plant withers the crown (coverage can't mask it)
-    if (status !== "healthy" && !coveredGreen.has(capId)) capsAllHealthy = false;
+    if (status !== "healthy") capsAllHealthy = false;
   }
 
   return capsAllHealthy && uat === "healthy" ? "healthy" : null;
+}
+
+/**
+ * READ-TIME per-capability status, DERIVED with ADR-0097 coverage — the per-cap analogue of the crown's
+ * capability clause, and the SHARED fold every capability DISPLAY sits behind (the CLI tree glyph, the
+ * studio world plant). A brownfield capability has no per-cap driven verdict of its own; its honest
+ * rendered status is the SAME signed-verdict-derived green the crown counts, exactly as ADR-0097 §5
+ * states — *"a brownfield capability greens via the adopted gate that covers it."*
+ *
+ * Owner decision 2026-06-25 (Option A): a cap covered by a healthy gate renders the SAME green as an
+ * own-driven cap, so the crown and its plants tell ONE story (no green crown floating over brown
+ * plants). The adopted-vs-driven distinction is preserved in the verdict `proofMode` and the
+ * reliability-gate sub-signals, not the plant hue. This does NOT breach ADR-0040's anti-hand-painting
+ * wall: green still comes from a SIGNED verdict (the covering gate's), never authored `status:` paint.
+ *
+ * Pure, conservative, never over-claims — the per-cap clause of {@link rollupStoryGreen} verbatim:
+ *  - `unhealthy` if the cap's OWN verdict is a signed fail (a red plant; coverage can NEVER mask it);
+ *  - `healthy` if the cap has its own signed pass OR a HEALTHY gate `(covers:)` it;
+ *  - otherwise the cap's own {@link rollupStatus} — `null` lets the authored ladder stand (offline /
+ *    genuinely unproven), so the world under-claims, never over-claims.
+ *
+ * Greenfield (no coverage passed) collapses to exactly {@link rollupStatus} — no behaviour change.
+ */
+export function rollupCapStatus(
+  capId: string,
+  events: readonly RollupEvent[],
+  coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
+): Status | null {
+  const own = rollupStatus(capId, events);
+  if (own === "unhealthy") return "unhealthy"; // a signed fail withers; coverage can't mask red
+  if (own === "healthy") return "healthy";
+  for (const gate of coverage) {
+    if (
+      (gate.covers?.includes(capId) ?? false) &&
+      rollupStatus(gate.id, events) === "healthy"
+    ) {
+      return "healthy";
+    }
+  }
+  return own;
 }

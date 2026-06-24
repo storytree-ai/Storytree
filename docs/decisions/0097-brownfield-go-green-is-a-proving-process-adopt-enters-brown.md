@@ -156,6 +156,20 @@ NOT BUILT (the load-bearing caveat the owner flagged).**
   `(covers:)` annotation + the crown-coverage refinement to `rollupStoryGreen`, and the would-be-UAT
   relaxation. These green nothing on their own — they leave the library honestly `proposed` with its
   remaining work visible.
+- **Per-capability DISPLAY now matches §5 (clarification, 2026-06-25 — not a re-decision).** §5's *"a
+  brownfield capability greens via the adopted gate that covers it"* was first wired ONLY into the crown
+  rollup (`rollupStoryGreen`), so a green crown could float over still-brown plants in the CLI `storytree
+  tree` and the studio world — an internally-contradictory half-application of §5, not a second decision.
+  The owner chose **Option A** (a capability covered by a healthy gate renders the SAME full green as an
+  own-driven cap, so the crown and its plants tell ONE story) over Option B (a distinct "covered/adopted"
+  hue) and Option C (keep plants brown, fix only the crown wording). §5's intent is honored, not changed:
+  green still derives from the covering gate's SIGNED verdict — never authored `status:` paint, so
+  [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) decision 1's anti-hand-painting
+  wall holds (the authored `status: mapped/proposed` column is unchanged), and the adopted-vs-driven
+  distinction stays in the verdict `proofMode` + reliability-gate sub-signals, not the plant hue. Landed
+  as a shared `rollupCapStatus` the crown clause and every display now both sit behind (so they can never
+  diverge again): `packages/orchestrator/src/proof/uat-proof.ts`, `packages/cli/src/tree.ts`,
+  `apps/studio/server/apiRouter.ts` (`applyCapCoverage`).
 - **A new `approvedBy` on the verdict shape** (`@storytree/proof-protocol` `Verdict`) is implied — an
   optional human-approver field distinct from `signer`. A schema decision to confirm in build.
 - **Related but separable (surfaced, not decided here):** the owner's "human sign-off should be opt-in"
@@ -180,7 +194,10 @@ NOT BUILT (the load-bearing caveat the owner flagged).**
   green, Fork A caps-necessary (**amended**: a brownfield cap's `healthy` is satisfiable by an adopted
   gate that `(covers:)` it).
 - [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — verdict-derived green +
-  `uat_witness` (the `absent = human` default reserve is surfaced, not flipped).
+  `uat_witness` (the `absent = human` default reserve is surfaced, not flipped). Decision 1's
+  anti-hand-painting wall is PRESERVED by the §5 per-capability display completion (Consequences,
+  2026-06-25 / Option A): a covered cap's green derives from the covering gate's SIGNED verdict, never
+  authored `status:` paint.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) / [ADR-0007](0007-proof-model.md) — `green =
   a signed verdict`; `mapped` never self-reports green (both preserved).
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the human owns the outer loop (the adoption decision +
