@@ -2067,6 +2067,25 @@
     "schemaVersion": 2
   },
   {
+    "id": "real-test-must-not-leak-a-handle",
+    "kind": "principle",
+    "title": "A driven test must not leak an OS handle",
+    "description": "A test authored for a `--real` build-tests drive must release every OS resource it opens (socket, handle, timer, child) before it returns — a leaked handle hangs the spine's untimed observation and wedges the drive with no fail-closed backstop.",
+    "statement": "A test authored for a `--real` red→green drive must close every OS resource it opens — socket, file handle, timer, child process — before it returns, and restore any mutated process state in a `finally`. A leaked handle keeps the test process alive after the assertions finish, and because the spine's observation has no timeout the whole drive hangs rather than failing closed.",
+    "why": "The spine observes red/green by spawning the proof command and reading its exit code (`runShellCommand` → `execFile`, `packages/orchestrator/src/shell-test-executor.ts`), and that spawn carries NO `timeout` and NO `killSignal` — it waits forever for the child to exit. The proof command is the package suite, run WITHOUT `--test-force-exit`, so the runner does not force the process down once the tests pass: a single open handle keeps it alive indefinitely. There is no other backstop — a wedged observation is not a red (the test never failed) and not a green (the command never exited), so the gate neither advances nor fails; it just stops. This is most acute in a build-tests gate over connection/DB/IO code, where the natural way to exercise the red still opens a real resource: a fail-closed `createPool` guard, for example, may build a real connector (~6s with ambient ADC) on the not-yet-guarded path before the assertion runs (verified 2026-06-25 driving `library#gate-5`).",
+    "howToApply": "On the path where the resource IS opened (typically the pre-fix RED path, before the guard exists), capture the handle and close it (`closePool(pool, connector)`, `server.close()`, `clearTimeout`, `child.kill`) BEFORE asserting the failure — never assert first and leak the handle on the throw. Restore any env var or global the test mutated (e.g. a `delete process.env.X` used to force the no-principal case) in a `finally`, so a sibling test is not poisoned. Keep an offline fail-closed assertion offline: it should throw before opening anything, so the GREEN path (post-fix) opens nothing and the suite exits on its own. If a live leg is genuinely needed, gate it behind the live-DB env var (`STORYTREE_DB_LIVE`) the spine does not set, so it can neither open a connection nor hang CONFIRM_GREEN in the gated drive. The deletion test still applies: the close/restore is plumbing, not behaviour — it must not weaken what the test pins.",
+    "references": [
+      "doc:decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md",
+      "doc:decisions/0054-live-gated-tests-isolate-to-a-disposable-database-fail-close.md",
+      "asset:dogfood-fix-the-source",
+      "asset:baseline-preservation"
+    ],
+    "provenance": "Graduated 2026-06-25 (ADR-0095) from the durable inner-loop gotcha surfaced while driving `library#gate-5` (the R1 build-tests gate over the keyless `connection.ts` fail-closed contract) — encoded as the 'Close-on-resolve' note in `stories/library/event-sourced-store-seam.md`'s `## Guidance`. A principle, not a guardrail: nothing deterministically enforces it (the spine's `runShellCommand` carries no timeout and the proof command is not `--test-force-exit`ed), so it lives on the test-author leaf's reading — the enforcer test (guidance-authoring review, 2026-06-15) routes a rule with no live enforcer to `principle`. Consumers: red-builder.",
+    "createdAt": "2026-06-25T00:00:00.000Z",
+    "updatedAt": "2026-06-25T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "kind": "agent",
     "id": "red-builder",
     "title": "red-builder",
@@ -2085,6 +2104,7 @@
     "rules": [
       "asset:test-creation-principles",
       "asset:test-fixtures-mirror-production-failure-modes",
+      "asset:real-test-must-not-leak-a-handle",
       "asset:baseline-preservation",
       "asset:dogfood-fix-the-source"
     ],
@@ -2102,6 +2122,7 @@
       "asset:spine-sequences-leaf-judges",
       "asset:test-creation-principles",
       "asset:test-fixtures-mirror-production-failure-modes",
+      "asset:real-test-must-not-leak-a-handle",
       "asset:baseline-preservation",
       "asset:dogfood-fix-the-source",
       "asset:right-kind-red",

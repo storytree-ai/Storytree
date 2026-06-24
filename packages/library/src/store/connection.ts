@@ -48,6 +48,14 @@ export async function createPool(opts?: CreatePoolOptions): Promise<PoolHandle> 
   const user = opts?.user ?? process.env["STORYTREE_DB_USER"];
   const database = opts?.database ?? DEFAULT_DATABASE;
 
+  if (user === undefined) {
+    throw new Error(
+      "createPool: no IAM principal resolved — set STORYTREE_DB_USER to the operator IAM email " +
+        "(e.g. export STORYTREE_DB_USER=my-sa@project.iam.gserviceaccount.com). " +
+        "A user-less pool cannot authenticate with Cloud SQL IAM auth.",
+    );
+  }
+
   const connector = new Connector();
   const clientOpts = await connector.getOptions({
     instanceConnectionName,
