@@ -12,7 +12,13 @@ import path from "node:path";
 
 import { classifyPresence } from "@storytree/notice-board";
 import type { UatTest, ReliabilityGate } from "@storytree/library";
-import { loadNodeSpec, rollupStatus, rollupStoryGreen, rollupStoryUat } from "@storytree/orchestrator";
+import {
+  loadNodeSpec,
+  rollupCapStatus,
+  rollupStatus,
+  rollupStoryGreen,
+  rollupStoryUat,
+} from "@storytree/orchestrator";
 
 import type { PresenceStoreLike } from "./noticeboard.js";
 import type { Envelope } from "./envelope.js";
@@ -252,6 +258,18 @@ export async function treeCommand(
     const g = storyGreen === "healthy" ? "✓" : storyGreen === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
   };
+  // The PROVEN glyph for a CAPABILITY row, COVERAGE-aware (ADR-0097 §5; owner Option A, 2026-06-25): a
+  // brownfield cap with no own driven verdict wears the SAME ✓ as an own-driven cap when a healthy
+  // reliability gate `(covers:)` it — so the crown and its plants tell ONE story (no ✓ crown over `–`
+  // plants). The fold is the orchestrator's `rollupCapStatus`, the SAME compute the crown's capability
+  // clause uses (rollupStoryGreen), so they can never diverge. Coverage never masks a cap's own signed
+  // fail (rollupCapStatus → unhealthy → ✗). Mirrors `mark`'s contract: leading space, "" offline.
+  const capMark = (capId: string): string => {
+    if (verdictEvents === null) return "";
+    const s = rollupCapStatus(capId, verdictEvents, reliabilityGates);
+    const g = s === "healthy" ? "✓" : s === "unhealthy" ? "✗" : "–";
+    return ` ${g}`;
+  };
 
   const lines: string[] = [
     `Story: ${storyId}${crownMark()}`,
@@ -299,7 +317,7 @@ export async function treeCommand(
   lines.push("", "Capabilities:");
   for (const row of capRows) {
     lines.push(
-      `  ${row.id}${mark(row.id)}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
+      `  ${row.id}${capMark(row.id)}  ${row.title}  status=${row.status}  build=${row.mark}  depends_on=[${row.dependsOn.join(", ")}]`,
     );
   }
 
