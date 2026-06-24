@@ -109,9 +109,13 @@ the only differences are that a surface is never `foundational` and draws no inb
   no deployed outcome — [ADR-0058](0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md)'s
   delivered-outcome test); it was dropped (`studio-members` deps `library` only, which its own
   frontmatter already said).
-- **v2 — the website node (NEXT).** Author `stories/website/story.md` (`depends_on: [forest-world]`,
-  its reliability gates the existing `check:web-engine` / `check:web-grounding` drift guards, status
-  `mapped`), so the world renders the public site as a consuming surface.
+- **v2 — the website node (BUILT, the follow-up PR).** `stories/website/story.md` is authored
+  (`depends_on: [forest-world]`, `consumed_by: []`, `capabilities: []`, status `mapped`,
+  `uat_witness: machine`), its two `observe` reliability gates the existing `check:web-engine` /
+  `check:web-grounding` drift guards (`website#gate-1` / `#gate-2`), so the world renders the public
+  site as a consuming surface. It ships no workspace package, so it is a story node only (NOT in
+  `surfaces`) — the drift gate is the cross-repo analog of the import scan (§3). The full visual UAT
+  (ADR-0070 operator-attested appearance) is deferred as the node's open modeling call.
 - **Not yet — the app source-import scan.** `check:boundaries`'s v2 source scan (relative-escape /
   devDep-evasion, ADR-0074) still reads `packages/<x>/src` only; the apps dep-graph coverage is the
   floor that delivers the visible+enforced edges. Extending the source scan to `apps/<x>/src` (and
