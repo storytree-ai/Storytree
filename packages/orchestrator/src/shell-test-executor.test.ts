@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 
 import {
+  DEFAULT_PROOF_TIMEOUT_MS,
   ShellTestExecutor,
   defaultClassifyKind,
   isScrubbedEnvKey,
@@ -190,6 +191,48 @@ test("isScrubbedEnvKey: the real credential names are scrubbed; benign names are
   for (const key of ["PATH", "HOME", "USERPROFILE", "STORYTREE_STUDIO_STORE", "ComSpec"]) {
     assert.equal(isScrubbedEnvKey(key), false, `${key} must pass through`);
   }
+});
+
+// ── runShellCommand: the fail-closed timeout (a hung proof must never wedge the gate) ──
+// The spine OBSERVES red/green by spawning a proof command through this ONE runner. If a proof leaks
+// an OS handle (a DB connector/socket/timer) and never exits, an UNBOUNDED spawn hangs the CONFIRM
+// observation INDEFINITELY — wedging the whole gate drive (hit driving library#gate-5, 2026-06-25).
+// A bounded timeout + SIGKILL makes a hung proof fail CLOSED: the child is killed → observed red.
+// The probe sleeps far longer than the injected timeout but SELF-TERMINATES (exit 0) if never killed,
+// so the test itself never leaks a handle (the very `real-test-must-not-leak-a-handle` discipline this
+// backstop enforces) and a regression FAILS fast instead of hanging the suite forever.
+
+test("runShellCommand: a command that outruns its timeout is SIGKILLed and observed as red (code null), not a reject", async () => {
+  const out = await runShellCommand({
+    file: process.execPath,
+    // `setInterval(() => {}, 1000)` would hang FOREVER (the real bug shape); a finite over-long sleep
+    // proves the SAME kill path while keeping THIS test leak-free + regression-fast.
+    args: ["-e", "setTimeout(() => {}, 4000)"],
+    timeoutMs: 200,
+  });
+  // Killed by a signal → no exit code: `code` is null (ShellRunResult.code is `number | null` for
+  // exactly this). null !== 0, so a consumer reads it as RED — never a green, never a spawn-failure
+  // reject. Before the fix the timeout is ignored, the sleep runs to exit 0, and this asserts red→fail.
+  assert.equal(out.code, null);
+});
+
+test("ShellTestExecutor: a hung proof command is observed as a red TestObservation within the timeout (never a wedge)", async () => {
+  const exec = new ShellTestExecutor({
+    command: () => ({
+      file: process.execPath,
+      args: ["-e", "setTimeout(() => {}, 4000)"],
+      timeoutMs: 200,
+    }),
+  });
+  const obs = await exec.run("hang");
+  assert.equal(obs.result, "red");
+});
+
+test("DEFAULT_PROOF_TIMEOUT_MS is a positive, finite production default (the backstop is always armed)", () => {
+  // execFile treats 0/undefined as NO timeout, so the spine-wide default must be a positive finite
+  // number — otherwise an absent cmd.timeoutMs would silently disable the fail-closed backstop.
+  assert.equal(Number.isFinite(DEFAULT_PROOF_TIMEOUT_MS), true);
+  assert.ok(DEFAULT_PROOF_TIMEOUT_MS > 0);
 });
 
 test("defaultClassifyKind: classifies TS-diagnostic and missing-symbol shapes as compile", () => {

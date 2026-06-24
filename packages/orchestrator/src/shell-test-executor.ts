@@ -38,6 +38,17 @@ export interface ShellCommand {
    * only), so a node author can never inject env here.
    */
   env?: Record<string, string>;
+  /**
+   * Optional per-command wall-clock budget in milliseconds. A command that runs longer is KILLED
+   * (SIGKILL) and surfaces as a fail-closed RED (`code: null`) rather than an infinite wedge — see
+   * {@link runShellCommand}. Defaults to {@link DEFAULT_PROOF_TIMEOUT_MS} when absent. Injectable so a
+   * test can use a short value; the spine leaves it absent so production rides the one default.
+   * Deliberately NOT part of `ShellCommandSchema` (the spec-borne `proof:` parser, file/args/cwd
+   * only), so a node author cannot inject it — the timeout stays spine-controlled. (OWNER CALL: keep
+   * one spine-wide default, or expose a per-node `real.timeoutMs` for genuinely slow proofs such as a
+   * cold DB connector.)
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -131,22 +142,58 @@ export function scrubbedChildEnv(): NodeJS.ProcessEnv {
 }
 
 /**
- * Spawn one {@link ShellCommand} and resolve with the captured {@link ShellRunResult}. A non-zero
- * exit is NOT a rejection — `execFile`'s error carries the exit `code`, which we surface as data.
- * We only reject when there is NO exit code (a genuine spawn failure such as ENOENT, where the
- * process never ran). The child env is {@link scrubbedChildEnv} — see its env-honesty notes.
+ * The default wall-clock budget (ms) a spawned proof/feedback command gets when its
+ * {@link ShellCommand} declares no {@link ShellCommand.timeoutMs}. A command that runs longer is
+ * SIGKILLed and observed as a fail-closed RED ({@link runShellCommand}) — the backstop that stops a
+ * hung proof (a leaked DB connector / socket / timer) from wedging the gate's CONFIRM observation
+ * FOREVER (hit driving library#gate-5, 2026-06-25).
+ *
+ * 10 minutes — generous ON PURPOSE: it must clear the slowest LEGITIMATE proof so the timeout only
+ * ever kills a genuine hang, never false-REDs real work. The slow case is a db-backed proof
+ * (`real.db`, ADR-0064) whose first Cloud SQL connection rides a cold-start / idle-wake handshake
+ * (measured ~5–6 min; cf. `db-control.ts`'s 420s connectivity budget). Leaf discipline
+ * (`real-test-must-not-leak-a-handle`) is the fast path; this is only the safety net, so "fail closed
+ * eventually" rightly beats "fail fast and risk a false red". OWNER CALL (surfaced): this one
+ * spine-wide value vs a per-node `real.timeoutMs` (a fast builtins-only node:test could take a tight
+ * budget while a db:true node takes a longer one).
+ */
+export const DEFAULT_PROOF_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * Spawn one {@link ShellCommand} and resolve with the captured {@link ShellRunResult}. Three RESOLVE
+ * outcomes, one REJECT — an exit code or a kill is DATA, only a failure-to-START throws:
+ *  - exit 0 → `code: 0` (a green);
+ *  - non-zero exit → that numeric `code` (a red);
+ *  - KILLED by a signal (the {@link ShellCommand.timeoutMs} / {@link DEFAULT_PROOF_TIMEOUT_MS}
+ *    SIGKILL, or any external kill) → `code: null` — a fail-closed red, so a hung proof becomes an
+ *    OBSERVABLE red instead of an infinite wedge of the gate's CONFIRM observation;
+ *  - genuine spawn failure (ENOENT — the process never ran: no exit code AND no kill) → reject.
+ * The child env is {@link scrubbedChildEnv} — see its env-honesty notes.
  *
  * Exported as the shared runner: the gate's CONFIRM observations spawn through it (via
  * {@link ShellTestExecutor}), and the spine feedback tool (the leaf's bounded `run_proof` /
- * `run_typecheck`) spawns the SAME command the same way — one oracle, two consumers.
+ * `run_typecheck`) spawns the SAME command the same way — one oracle, two consumers, so the timeout
+ * protects BOTH paths with one change.
  */
 export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
   return new Promise<ShellRunResult>((resolve, reject) => {
-    const options: { cwd?: string; maxBuffer: number; env: NodeJS.ProcessEnv } = {
+    const options: {
+      cwd?: string;
+      maxBuffer: number;
+      env: NodeJS.ProcessEnv;
+      timeout: number;
+      killSignal: "SIGKILL";
+    } = {
       maxBuffer: 64 * 1024 * 1024,
       // Per-command env overrides are merged LAST so they WIN over both the inherited env and the
       // scrub list (ADR-0064 DB-backed proof: force STORYTREE_DB_NAME to the disposable test DB).
       env: cmd.env !== undefined ? { ...scrubbedChildEnv(), ...cmd.env } : scrubbedChildEnv(),
+      // Fail-closed timeout: a proof that outruns its budget is killed, so a hung observation can
+      // never wedge the gate forever. Always a positive value (cmd.timeoutMs OR the default — never
+      // 0/absent, which execFile reads as NO timeout), so the backstop can't be silently disabled.
+      // SIGKILL, not the default SIGTERM: a wedged process ignoring a catchable signal must still die.
+      timeout: cmd.timeoutMs ?? DEFAULT_PROOF_TIMEOUT_MS,
+      killSignal: "SIGKILL",
     };
     if (cmd.cwd !== undefined) {
       options.cwd = cmd.cwd;
@@ -156,17 +203,28 @@ export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
         resolve({ stdout, stderr, code: 0 });
         return;
       }
-      // execFile annotates the error with `code` (number) on a non-zero exit, or a string errno
-      // ('ENOENT', etc.) on a genuine spawn failure. Distinguish: a numeric `code` is a real exit
-      // (a red), so surface it as data; anything else is a spawn failure we reject on.
-      const exit = (error as NodeJS.ErrnoException & { code?: number | string }).code;
-      if (typeof exit === "number") {
-        resolve({ stdout, stderr, code: exit });
+      // execFile annotates the error three ways:
+      //  - a NUMERIC `code`: the process ran and exited non-zero — a red (data); surface it.
+      //  - `killed`/`signal` set: the process RAN but a signal terminated it before it could exit (our
+      //    timeout SIGKILL, or any external kill) — a fail-closed RED with NO exit code (`null`), the
+      //    timeout backstop. NEVER a reject: a hung proof must be an observable red, not a wedge.
+      //  - neither: a genuine spawn failure (ENOENT etc.) — the command never ran, so reject.
+      const err = error as NodeJS.ErrnoException & {
+        code?: number | string;
+        killed?: boolean;
+        signal?: NodeJS.Signals | null;
+      };
+      if (typeof err.code === "number") {
+        resolve({ stdout, stderr, code: err.code });
+        return;
+      }
+      if (err.killed === true || (err.signal !== undefined && err.signal !== null)) {
+        resolve({ stdout, stderr, code: null });
         return;
       }
       reject(
         new Error(
-          `failed to spawn '${cmd.file}' (${String(exit ?? error.message)}): the command did not run, so its exit code could not be observed`,
+          `failed to spawn '${cmd.file}' (${String(err.code ?? error.message)}): the command did not run, so its exit code could not be observed`,
           { cause: error },
         ),
       );
