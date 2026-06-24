@@ -157,15 +157,15 @@ describe('BuildSection', () => {
   });
 
   // ── story scope: the STATUS-AWARE go-green affordance (ADR-0094) ─────────────
-  it('a proposed story (goGreen=build) frames a whole-story --real drive that auto-merges', () => {
+  it('a proposed story (goGreen=build) frames a whole-story real build that merges automatically', () => {
     render(<BuildSection unitId="notice-board" buildable scope="story" goGreen="build" status="proposed" />);
     expect(screen.getByRole('button', { name: 'Build' })).toBeTruthy();
-    // Honest framing: --real authors real code + opens a PR that auto-merges to trunk (ADR-0022),
-    // NOT the node-scope --live "synthetic task" copy, and NOT a "suggest a PR" dead end.
+    // Honest framing (in plain language): a real build that writes code + opens a PR that merges itself
+    // (ADR-0022), NOT the node-scope "test build" copy, and NOT a "suggest a PR" dead end.
     expect(screen.getByText(/whole story for real/i)).toBeTruthy();
-    expect(screen.getByText(/--real/)).toBeTruthy();
-    expect(screen.getByText(/auto-merges to trunk/i)).toBeTruthy();
-    expect(screen.queryByText(/synthetic task/i)).toBeNull();
+    expect(screen.getByText(/writes the tests and code/i)).toBeTruthy();
+    expect(screen.getByText(/merges automatically/i)).toBeTruthy();
+    expect(screen.queryByText(/quick test build/i)).toBeNull();
   });
 
   it('a mapped story (goGreen=adopt) surfaces Adopt + the gate-run path, NOT a Build button', () => {
@@ -184,8 +184,8 @@ describe('BuildSection', () => {
     );
     // Adopt — never a fail-closed Build over a mature brownfield artifact (ADR-0094 d.3).
     expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Adopt' })).toBeTruthy();
-    // A lean Adopt ACTION (ADR-0097 Layer 1) — a real button, NOT copy-paste gate-run commands.
+    // A lean Adopt ACTION (ADR-0097 Layer 1) — a real button (no redundant title), NOT copy-paste
+    // gate-run commands.
     expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
     expect(screen.queryByText(/storytree gate run/)).toBeNull();
   });
@@ -210,10 +210,10 @@ describe('BuildSection', () => {
     expect(screen.getByText(/no real-buildable capabilities/i)).toBeTruthy();
   });
 
-  it('a node-scope build keeps the single-node --live framing with the synthetic-task caveat', () => {
+  it('a node-scope build keeps the test-build framing with the honest "not the real feature" caveat', () => {
     render(<BuildSection unitId="library-cli" buildable scope="node" />);
-    expect(screen.getByText(/single-node/i)).toBeTruthy();
-    expect(screen.getByText(/synthetic task/i)).toBeTruthy();
+    expect(screen.getByText(/quick test build/i)).toBeTruthy();
+    expect(screen.getByText(/not the real feature/i)).toBeTruthy();
   });
 
   // ── 409 concurrent-build refusal handled gracefully ─────────────────────────
@@ -346,16 +346,17 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
     // The Adopt action is present…
     expect(screen.getByRole('button', { name: 'Adopt' })).toBeTruthy();
-    // …with a short description beside it that frames the proving process honestly…
-    expect(screen.getByText(/proving process/i)).toBeTruthy();
+    // …with a short, plain description beside it that frames it honestly (a start, not the finish).
+    // (The "what each capability still needs" list-intro only appears when a classification follows.)
+    expect(screen.getByText(/a start, not the finish/i)).toBeTruthy();
     // …and NO verbose per-gate list / copy-paste commands cluttering the detail panel.
     expect(screen.queryByText('library#gate-1')).toBeNull();
     expect(screen.queryByText(/storytree gate run/)).toBeNull();
   });
 
-  it('renders the Layer-2 covered/uncovered classification ("what still owes real work")', () => {
+  it('renders the per-capability classification as one list — ✓ covered / ○ needs tests, no header, no footer', () => {
     apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
-    render(
+    const { container } = render(
       <BuildSection
         {...adoptProps}
         adoptGates={adoptGates}
@@ -369,21 +370,26 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
         }}
       />,
     );
-    expect(screen.getByText(/What still owes real work/)).toBeTruthy();
-    expect(screen.getByText(/1 covered, 1 uncovered/)).toBeTruthy();
-    // the covered cap shows its covering gate; the uncovered one says it owes real work
+    // No "what still owes real work — N covered, N uncovered" header — the count is no longer restated;
+    // the ✓ / ○ glyph carries it per row (owner steer 2026-06-24).
+    expect(screen.queryByText(/owes real work/i)).toBeNull();
+    expect(screen.queryByText(/covered,/i)).toBeNull();
+    // …instead the Adopt description itself introduces the list, so they read as ONE section.
+    expect(screen.getByText(/what each capability still needs/i)).toBeTruthy();
+    // the covered cap shows its covering gate; the uncovered one says it needs tests
     expect(screen.getByText('library-cli')).toBeTruthy();
     expect(screen.getByText(/covered by library#gate-2/)).toBeTruthy();
     expect(screen.getByText('seed-corpus-scripts')).toBeTruthy();
-    expect(screen.getByText(/uncovered, owes a real/)).toBeTruthy();
-    // it points at the CLI adopt-plan for the deeper analysis
-    expect(screen.getByText(/storytree story adopt-plan library/)).toBeTruthy();
+    expect(screen.getByText(/needs tests/)).toBeTruthy();
+    // …and NO CLI-pointer footer (the panel IS the plan; adopt-plan stays a CLI/agent tool).
+    expect(screen.queryByText(/storytree story adopt-plan/)).toBeNull();
+    expect(container.querySelector('.adopt-coverage-caps')).toBeTruthy();
   });
 
   it('omits the classification block when no adoption plan is supplied', () => {
     apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
-    render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
-    expect(screen.queryByText(/What still owes real work/)).toBeNull();
+    const { container } = render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    expect(container.querySelector('.adopt-coverage')).toBeNull();
   });
 
   it('a panel with NO gates renders the no-gates message and NO Adopt button', () => {

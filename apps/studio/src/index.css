@@ -2286,10 +2286,17 @@ mark.st-hl.flash {
   background: var(--warn-weak);
 }
 
-/* The story's "Relevant ADRs" (ADR-0037 §2 / ADR-0097 Layer 2): the deciding ADRs linked to the
-   Decisions-group Library docs, with the at-a-glance frontmatter status chip. */
+/* The story's "Architectural Decision Records" (ADR-0037 §2 / ADR-0097 Layer 2): the deciding ADRs
+   linked to the Decisions-group Library docs, with the at-a-glance frontmatter status chip. A
+   <details> disclosure collapsed by default (owner steer 2026-06-24) — the <summary> is the section
+   header, styled like the panel's other section titles but clickable. */
 .tree-relevant-adrs {
   margin: 10px 0;
+}
+.relevant-adrs-summary {
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
 }
 .relevant-adrs {
   margin: 6px 0;

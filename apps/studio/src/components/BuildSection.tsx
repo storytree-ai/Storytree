@@ -193,8 +193,6 @@ export function BuildSection({
 
   return (
     <div className="tree-build">
-      <h4 className="tree-subdag-title">Build</h4>
-
       {showButton && (
         <>
           <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
@@ -203,14 +201,13 @@ export function BuildSection({
           <p className="muted small build-hint">
             {scope === 'story' ? (
               <>
-                Builds the whole story for real (<code>--real</code>) — authors each capability&apos;s
-                real test + impl in a worktree, then opens a PR that <strong>auto-merges to trunk</strong>{' '}
-                on green CI. Subscription-billed.
+                Builds the whole story for real — writes the tests and code for each part, then opens a
+                pull request that merges automatically once checks pass. Uses your Claude subscription.
               </>
             ) : (
               <>
-                Runs a single-node <code>--live</code> build on your machine — proves the build
-                pipeline on a synthetic task, not this node&apos;s real feature.
+                Runs a quick test build on your machine — it checks that the build works, not the real
+                feature.
               </>
             )}
           </p>
@@ -298,12 +295,14 @@ function AdoptPanel({
 
   const busy = phase.kind === 'starting';
   const showButton = phase.kind === 'idle' || phase.kind === 'starting' || phase.kind === 'error';
+  // Whether a per-capability classification list follows the description (so the description only
+  // promises "what each capability still needs" when that list is actually there).
+  const hasCaps = adoption !== undefined && adoption.capabilities.length > 0;
 
   // No declared gates → no Adopt action yet (author `## Reliability Gates` first, ADR-0085).
   if (gates.length === 0) {
     return (
       <div className="tree-build tree-adopt">
-        <h4 className="tree-subdag-title">Adopt</h4>
         <p className="muted small">
           This brownfield (<code>mapped</code>) story declares no <code>## Reliability Gates</code> yet —
           author them to enable Adopt (ADR-0085).
@@ -314,16 +313,14 @@ function AdoptPanel({
 
   return (
     <div className="tree-build tree-adopt">
-      <h4 className="tree-subdag-title">Adopt</h4>
-
       {showButton && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
             {busy ? 'Starting…' : 'Adopt'}
           </button>
           <p className="muted small build-hint" style={{ margin: 0 }}>
-            Observe-and-sign this brownfield story&apos;s gates and enter the proving process (→{' '}
-            <code>proposed</code>) — doesn&apos;t green the crown on its own (ADR-0097).
+            Runs this story&apos;s existing checks and records they pass — a start, not the finish.
+            {hasCaps ? " Here's what each capability still needs:" : ''}
           </p>
         </div>
       )}
@@ -336,16 +333,13 @@ function AdoptPanel({
         <BuildRun status={phase.kind === 'building' ? phase.status : phase.status} />
       )}
 
-      {/* ADR-0097 Layer 2: the covered/uncovered classification — what Adopt greens vs what still owes
-          real `build-tests` work (the structural covers-diff, computed server-side). Kept LEAN to match
-          the panel's owner steer — the per-gate detail lives in the tree / `storytree gate list`, this
-          adds only the actionable cap summary. Absent for a capless story. */}
+      {/* ADR-0097 Layer 2: the per-capability covered/uncovered classification (the structural covers-diff,
+          computed server-side). This is the "what each capability still needs" list the Adopt description
+          above introduces, so the action and what it leaves to do read as ONE section (owner steer
+          2026-06-24: no separate "what still owes real work" header, no CLI-pointer footer). The ✓ / ○ glyph
+          carries covered-vs-needs-tests per row; the count is no longer restated. Absent for a capless story. */}
       {adoption && adoption.capabilities.length > 0 && (
         <div className="adopt-coverage">
-          <p className="muted small">
-            <strong>What still owes real work</strong> — {adoption.covered.length} covered,{' '}
-            {adoption.uncovered.length} uncovered (ADR-0097 Layer 2):
-          </p>
           <ul className="adopt-coverage-caps small">
             {adoption.capabilities.map((c) => (
               <li
@@ -356,17 +350,11 @@ function AdoptPanel({
                 {c.covered ? (
                   <span className="muted">— covered by {c.coveredBy.join(', ')}</span>
                 ) : (
-                  <span className="muted">— uncovered, owes a real <code>build-tests</code> red→green</span>
+                  <span className="muted">— needs tests</span>
                 )}
               </li>
             ))}
           </ul>
-          {adoption.uncovered.length > 0 && (
-            <p className="muted small">
-              The uncovered caps hold the crown at <code>proposed</code> until their real red→green
-              lands — see <code>storytree story adopt-plan {unitId}</code>.
-            </p>
-          )}
         </div>
       )}
     </div>

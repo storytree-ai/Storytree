@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 //
-// ADR-0097 Layer 2 / ADR-0037 §2: the StoryPanel's "Relevant ADRs" section resolves a story's
-// `decisions:` ADR numbers against the loaded docs and LINKS them to the Decisions-group Library docs.
-// useAppData is mocked to supply the docs index (the section is otherwise presentational).
+// ADR-0097 Layer 2 / ADR-0037 §2: the StoryPanel's "Architectural Decision Records" section resolves a
+// story's `decisions:` ADR numbers against the loaded docs and LINKS them to the Decisions-group Library
+// docs. A <details> disclosure collapsed by default (owner steer 2026-06-24). useAppData is mocked to
+// supply the docs index (the section is otherwise presentational).
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
@@ -35,9 +36,18 @@ describe('RelevantAdrs', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it('is a collapsed-by-default <details> disclosure (owner steer 2026-06-24)', () => {
+    const { container } = render(<RelevantAdrs decisions={[17, 97]} />);
+    const details = container.querySelector('details');
+    expect(details).toBeTruthy();
+    // closed by default — no `open` attribute, but the rows stay in the DOM for the link tests below
+    expect(details?.hasAttribute('open')).toBe(false);
+    expect(screen.getByText('Architectural Decision Records (2)')).toBeTruthy();
+  });
+
   it('links each deciding ADR to its Decisions-group doc with the title + status chip', () => {
     render(<RelevantAdrs decisions={[17, 97]} />);
-    expect(screen.getByText('Relevant ADRs (2)')).toBeTruthy();
+    expect(screen.getByText('Architectural Decision Records (2)')).toBeTruthy();
 
     // ADR-0017 resolves to its doc, linked via docHref, with the title and an accepted chip.
     const link = screen.getByText('The library tier').closest('a');

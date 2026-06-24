@@ -3098,10 +3098,12 @@ export function adrNumberOf(docId: string): number | null {
 }
 
 /**
- * The story's "Relevant ADRs" (ADR-0037 §2 / ADR-0097 Layer 2): its `decisions:` ADR numbers resolved
- * against the loaded docs and LINKED to the Decisions-group Library docs. Tolerant — a number with no
- * matching doc renders as a plain `ADR-NNNN` label (never blanks the section). Renders nothing when the
- * story declares no decisions. Exported for the jsdom render test.
+ * The story's "Architectural Decision Records" (ADR-0037 §2 / ADR-0097 Layer 2): its `decisions:` ADR
+ * numbers resolved against the loaded docs and LINKED to the Decisions-group Library docs. Tolerant — a
+ * number with no matching doc renders as a plain `ADR-NNNN` label (never blanks the section). Renders
+ * nothing when the story declares no decisions. A `<details>` disclosure COLLAPSED by default (owner
+ * steer 2026-06-24): governance reference that sits quietly at the foot, opened on demand. Exported for
+ * the jsdom render test.
  */
 export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.Element | null {
   const { docs } = useAppData();
@@ -3113,8 +3115,10 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
     if (n !== null) byNum.set(n, d);
   }
   return (
-    <div className="tree-relevant-adrs">
-      <h4 className="tree-subdag-title">Relevant ADRs ({decisions.length})</h4>
+    <details className="tree-relevant-adrs">
+      <summary className="tree-subdag-title relevant-adrs-summary">
+        Architectural Decision Records ({decisions.length})
+      </summary>
       <ul className="relevant-adrs small">
         {decisions.map((n) => {
           const doc = byNum.get(n);
@@ -3137,7 +3141,7 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
           );
         })}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -3298,10 +3302,6 @@ function StoryPanel({
         onNavigate={(d) => navigate(treeFocusHref(d))}
       />
 
-      {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
-          panel's "what governs this story" context (ADR-0097 Layer 2). */}
-      <RelevantAdrs decisions={story.decisions ?? []} />
-
       {sessions.length > 0 && (
         <div className="tree-sessions">
           {/* The panel is a detail surface like the dock (ADR-0041): the count
@@ -3436,8 +3436,9 @@ function StoryPanel({
           the gate-green hue (ADR-0044). */}
       <UatTestsSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
 
-      {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the LAST thing in the panel (owner
-          placement, 2026-06-22): a single affordance at the foot. A drilled-in capability targets a
+      {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the last ACTION in the panel (owner
+          placement, 2026-06-22; the collapsed ADR reference below it is footer context, not an
+          affordance): a single affordance at the foot. A drilled-in capability targets a
           single-node `--live` build (its `buildable`). A story shows a STATUS-AWARE go-green
           affordance (ADR-0094): `proposed → Build` (whole-story `--real` drive), `mapped → Adopt`
           (observe-and-sign its `## Reliability Gates`, ADR-0085), or a reason when neither applies —
@@ -3453,6 +3454,12 @@ function StoryPanel({
         adoption={cap ? undefined : story.adoption}
         status={cap ? undefined : story.status}
       />
+
+      {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
+          panel's "what governs this story" context (ADR-0097 Layer 2). Moved to the foot as a
+          collapsed disclosure (owner steer 2026-06-24): low-priority governance reference, out of the
+          way until opened. */}
+      <RelevantAdrs decisions={story.decisions ?? []} />
     </aside>
   );
 }
