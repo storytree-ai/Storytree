@@ -10,8 +10,14 @@ capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
 # PgUserStore moved in from the dissolving @storytree/store), so it deps @storytree/library
 # (createPool/closePool via @storytree/library/store) ONLY — it rolls its OWN duck-typed pool/Store seam
 # (PgUserStore), not the @storytree/storage-protocol port (ADR-0078 phantom-dep cleanup).
-depends_on: [studio-cloud, library]
-decisions: [43]
+# ADR-0100: the earlier `studio-cloud` edge was DROPPED — it pointed the wrong way. Membership is
+# CONSUMED BY the hosted studio (studio-cloud's guest-scope calls resolveAccess), not a dependency of
+# it; studio-members proves its own UAT on the local guarded trial (STORYTREE_STUDIO_DEV_IDENTITY),
+# needing no deployed outcome (ADR-0058 delivered-outcome test). The apps-scan that surfaced the real
+# studio→studio-members code edge closed a studio-cloud→studio→studio-members→studio-cloud cycle; this
+# is the honest break (studio-members' code deps were @storytree/library only all along).
+depends_on: [library]
+decisions: [43, 100]
 ---
 
 # Studio members — real accounts, roles, and invitations from the UI

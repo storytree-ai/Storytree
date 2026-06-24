@@ -7,9 +7,10 @@
  *   1. the package↔story ownership map (repo-manifest.json `packageOwnership`: organisms + the
  *      foundational subset — ADR-0075 collapsed the substrate class, so the ports base/proof-protocol
  *      are now ordinary root organisms held minimal, not an exempt class),
- *   2. the real runtime cross-package dependency graph (each `packages/<x>/package.json`
- *      `dependencies`; `devDependencies` are EXCLUDED — a test reusing another organism's parity
- *      suite is scaffolding, never a dependency edge, ADR-0010 §5),
+ *   2. the real runtime cross-package dependency graph (each `packages/<x>/package.json` AND each
+ *      `apps/<x>/package.json` `dependencies` — ADR-0100 brought the consuming surfaces into the
+ *      scan; `devDependencies` are EXCLUDED — a test reusing another organism's parity suite is
+ *      scaffolding, never a dependency edge, ADR-0010 §5),
  *   3. the declared cross-story edges of every `stories/<x>/story.md` (via the canonical
  *      `loadNodeSpec`): the consumer-side `depends_on` AND the provider-side `consumed_by`
  *      (ADR-0074 §4) — a code edge is covered when EITHER endpoint declares it.
@@ -37,21 +38,29 @@ function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
 }
 
-/** The runtime @storytree/* dependencies of every workspace package under packages/*. */
+/**
+ * The runtime @storytree/* dependencies of every workspace package — the reusable organisms under
+ * `packages/*` AND the consuming surfaces under `apps/*` (ADR-0100; the studio app is named `studio`,
+ * not `@storytree/*`, so we key it by its bare package name and classify it in `surfaces`). Every
+ * included package must be classified (rule 0), so a new app can't slip in unowned either.
+ */
 function readPackageDeps(): Record<string, string[]> {
-  const packagesDir = join(repoRoot, "packages");
   const graph: Record<string, string[]> = {};
-  for (const ent of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!ent.isDirectory()) continue;
-    const pkgFile = join(packagesDir, ent.name, "package.json");
-    if (!existsSync(pkgFile)) continue;
-    const pkg = readJson(pkgFile);
-    const name = typeof pkg.name === "string" ? pkg.name : null;
-    if (name === null || !name.startsWith(STORYTREE_SCOPE)) continue;
-    const deps = (pkg.dependencies ?? {}) as Record<string, unknown>;
-    graph[name] = Object.keys(deps)
-      .filter((d) => d.startsWith(STORYTREE_SCOPE) && d !== name)
-      .sort();
+  for (const baseDir of ["packages", "apps"]) {
+    const root = join(repoRoot, baseDir);
+    if (!existsSync(root)) continue;
+    for (const ent of readdirSync(root, { withFileTypes: true })) {
+      if (!ent.isDirectory()) continue;
+      const pkgFile = join(root, ent.name, "package.json");
+      if (!existsSync(pkgFile)) continue;
+      const pkg = readJson(pkgFile);
+      const name = typeof pkg.name === "string" ? pkg.name : null;
+      if (name === null) continue;
+      const deps = (pkg.dependencies ?? {}) as Record<string, unknown>;
+      graph[name] = Object.keys(deps)
+        .filter((d) => d.startsWith(STORYTREE_SCOPE) && d !== name)
+        .sort();
+    }
   }
   return graph;
 }
@@ -122,6 +131,7 @@ function readOwnership(): Ownership {
   return {
     organisms: (po.organisms ?? {}) as Record<string, string>,
     foundational: (po.foundational ?? []) as string[],
+    surfaces: (po.surfaces ?? {}) as Record<string, string>,
   };
 }
 

@@ -53,6 +53,10 @@
       "@storytree/proof-protocol": "proof-protocol",
       "@storytree/forest-world": "forest-world"
     },
-    "foundational": ["@storytree/storage-protocol", "@storytree/proof-protocol", "@storytree/forest-world"]
+    "foundational": ["@storytree/storage-protocol", "@storytree/proof-protocol", "@storytree/forest-world"],
+    "$comment_surfaces": "Consuming SURFACES (ADR-0100): a surface name → the story that owns it. A surface is an apps/* app (the studio) — a sink that wires organisms together and is consumed by nothing. ADR-0100 brought apps/* into the same boundary scan as packages/*: a surface's package.json @storytree/* deps are COVERED by the same rule as an organism's (declared in the surface's own story depends_on), so the studio's real wiring is enforced + rendered, exactly the visibility-over-exemption call ADR-0074 §2 made for the cli/store hubs. A surface is never `foundational` and draws no inbound edge. (The public-website subrepo is also a consuming surface but ships no workspace package — its forest-world edge is a declared story node backed by the check:web-engine drift gate, ADR-0093, not a package scanned here.)",
+    "surfaces": {
+      "studio": "studio"
+    }
   }
 }

@@ -40,8 +40,15 @@
  * for the external node-only npm imports the gate cannot see).
  */
 
-/** The single package class (ADR-0075 collapsed the substrate class — the ports are organisms too). */
-export type PackageClass = "organism";
+/**
+ * Two package classes (ADR-0075 collapsed the substrate class — the ports are organisms too; ADR-0100
+ * added `surface`). An `organism` is a reusable `packages/*` bounded context owned by one story; a
+ * `surface` is a CONSUMING node that wires organisms together — an `apps/*` app (the studio) or the
+ * public-website subrepo — a SINK at the top of the order (nothing depends on it). The boundary
+ * coverage rule applies to a surface's outbound edges exactly like an organism's; the difference is a
+ * surface is never `foundational` and is not itself depended on.
+ */
+export type PackageClass = "organism" | "surface";
 
 export interface Ownership {
   /** organism package name → the story id that owns it (the boundary rule applies between all of these). */
@@ -53,6 +60,17 @@ export interface Ownership {
    * organisms — which keeps them zod-only / node+pg-free so the studio's browser bundle works.
    */
   foundational: string[];
+  /**
+   * Consuming SURFACES (ADR-0100): package/app name → the story id that owns it. A surface is an
+   * `apps/*` app (e.g. `studio`) — a sink that consumes organisms but is consumed by nothing. Its
+   * outbound code edges (its `package.json` `@storytree/*` deps) are covered by the SAME rule as an
+   * organism's (declared in the surface's own story `depends_on`), so the studio's real wiring is
+   * enforced + rendered — but it is never `foundational` and draws no inbound edge. Optional (default
+   * `{}`) so the organism-only tests need not declare it. (The public-website subrepo is also a
+   * consuming surface, but it ships no workspace package — its forest-world edge is a declared story
+   * node backed by the `check:web-engine` drift gate, not a package scanned here.)
+   */
+  surfaces?: Record<string, string>;
 }
 
 export interface BoundaryInput {
@@ -98,10 +116,19 @@ export interface BoundaryResult {
   violations: string[];
 }
 
-/** Whether a package is a classified organism, or null if it is unclassified (itself a violation). */
+/** The class of a package — organism or consuming surface — or null if unclassified (a violation). */
 export function classOf(pkg: string, o: Ownership): PackageClass | null {
   if (Object.prototype.hasOwnProperty.call(o.organisms, pkg)) return "organism";
+  if (o.surfaces && Object.prototype.hasOwnProperty.call(o.surfaces, pkg)) return "surface";
   return null;
+}
+
+/**
+ * The story that owns a package — an organism OR a consuming surface (ADR-0100). The coverage rule
+ * reads this for both endpoints so a surface's outbound edge is checked exactly like an organism's.
+ */
+export function storyOf(pkg: string, o: Ownership): string | undefined {
+  return o.organisms[pkg] ?? o.surfaces?.[pkg];
 }
 
 /** Whether a package is a foundational root port (held minimal so it stays browser-safe, ADR-0075). */
@@ -148,7 +175,8 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
     if (classOf(pkg, ownership) === null) {
       violations.push(
         `unclassified package "${pkg}" — declare it in repo-manifest.json packageOwnership ` +
-          `organisms (and, if it is a browser-safe root port, also in foundational)`,
+          `organisms (a reusable package; if a browser-safe root port, also in foundational) or ` +
+          `surfaces (an apps/* consuming surface, ADR-0100)`,
       );
     }
   }
@@ -182,8 +210,10 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
       }
 
       // Coverage: every cross-story code edge must be a declared cross-story edge (no port exemption).
-      const storyA = ownership.organisms[a];
-      const storyB = ownership.organisms[b];
+      // storyOf resolves an organism OR a consuming surface (ADR-0100), so a surface's outbound edge
+      // (e.g. studio → forest-world) is covered by the same rule as an organism's.
+      const storyA = storyOf(a, ownership);
+      const storyB = storyOf(b, ownership);
       if (storyA === undefined || storyB === undefined) continue;
       if (storyA === storyB) continue; // same organism owning multiple packages
       if (!(declared[storyA]?.includes(storyB) ?? false)) {

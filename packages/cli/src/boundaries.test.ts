@@ -9,6 +9,7 @@ import {
   isFoundational,
   isTestScaffolding,
   mergeDeclaredGraph,
+  storyOf,
   stripComments,
   type Ownership,
   type SourceImport,
@@ -195,6 +196,53 @@ test("a studio-members→organism edge needs a declaration too (no organism is e
   assert.equal(violations.length, 1);
   assert.match(violations[0]!, /undeclared cross-story coupling/);
   assert.match(violations[0]!, /studio-members.*notice-board/);
+});
+
+// ── Consuming surfaces — apps + the public subrepo (ADR-0100) ───────────────────────────────────────
+// A surface is a SINK (apps/studio) that wires organisms together. Its outbound code edges are covered
+// by the SAME rule as an organism's (declared in the surface's own story depends_on), so the studio's
+// real wiring is enforced + rendered — but it is never foundational and draws no inbound edge.
+const withStudioSurface: Ownership = {
+  organisms: ownership.organisms,
+  foundational: ownership.foundational,
+  surfaces: { studio: "studio" },
+};
+
+test("classOf / storyOf resolve a consuming surface (ADR-0100)", () => {
+  assert.equal(classOf("studio", withStudioSurface), "surface");
+  assert.equal(storyOf("studio", withStudioSurface), "studio");
+  assert.equal(storyOf("@storytree/library", withStudioSurface), "library"); // organisms still resolve
+  assert.equal(classOf("studio", ownership), null); // undeclared surface ⇒ unclassified
+});
+
+test("a surface's organism dep needs a declared edge, like any coupling (ADR-0100)", () => {
+  // studio (surface) → @storytree/library (organism, story `library`).
+  const packageDeps = { studio: ["@storytree/library"] };
+  // Undeclared → caught as a cross-story coupling (surface story `studio` → organism story `library`).
+  const red = checkBoundaries({ ownership: withStudioSurface, packageDeps, storyGraph, consumedBy });
+  assert.equal(red.violations.length, 1, red.violations.join("\n"));
+  assert.match(red.violations[0]!, /undeclared cross-story coupling/);
+  assert.match(red.violations[0]!, /studio.*library/);
+  // Declared consumer-side on the surface's own story → green (a sink, so no cycle).
+  const declared = { ...storyGraph, studio: ["library"] };
+  const green = checkBoundaries({ ownership: withStudioSurface, packageDeps, storyGraph: declared, consumedBy });
+  assert.deepEqual(green.violations, [], green.violations.join("\n"));
+});
+
+test("an undeclared APP package (not in surfaces) is caught as unclassified (ADR-0100)", () => {
+  // The studio app value-importing an organism with NO `surfaces` entry → it can't slip in unowned.
+  const packageDeps = { studio: ["@storytree/library"] };
+  const { violations } = checkBoundaries({ ownership, packageDeps, storyGraph, consumedBy });
+  assert.ok(violations.some((v) => /unclassified package "studio"/.test(v)), violations.join("\n"));
+});
+
+test("a surface is not foundational and not subject to the minimality rule (ADR-0100)", () => {
+  assert.equal(isFoundational("studio", withStudioSurface), false);
+  // studio → a non-foundational organism is fine once declared — the minimality rule never fires.
+  const packageDeps = { studio: ["@storytree/notice-board"] };
+  const declared = { ...storyGraph, studio: ["notice-board"] };
+  const { violations } = checkBoundaries({ ownership: withStudioSurface, packageDeps, storyGraph: declared, consumedBy });
+  assert.deepEqual(violations, [], violations.join("\n"));
 });
 
 test("a foundational port depending on a non-foundational organism is rejected (ADR-0075 minimality)", () => {

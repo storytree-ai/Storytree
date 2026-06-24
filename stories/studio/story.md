@@ -7,10 +7,13 @@ status: proposed
 proof_mode: UAT
 capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
-# ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036.
-depends_on: [library, drive-machinery, notice-board]
-# Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38).
-decisions: [8, 36, 38]
+# ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
+# the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
+# so EVERY @storytree/* runtime dep is a declared + forest-rendered edge — not just the first three.
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, cli]
+# Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
+# the app brought into the boundary scan as a consuming surface (100).
+decisions: [8, 36, 38, 100]
 ---
 
 # The studio
@@ -36,9 +39,12 @@ Every dependency below is a within-story code-derived edge, and nothing here run
 against a stubbed upstream interface. This story now **owns one declared cross-story
 interface** (ADR-0010 §4): the **comment substrate**
 ([`interface-comment-substrate.md`](interface-comment-substrate.md), declared 2026-06-11)
-— the store-seam comment surface `stories/feedback-graduation` consumes. It also
-**consumes three cross-story seams** (the pg backend and the story-world view arrived
-after this retro-spec was first authored) — see §"Cross-story boundary" below.
+— the store-seam comment surface `stories/feedback-graduation` consumes. As a **consuming
+surface** (ADR-0100 — `apps/studio` is a sink the boundary scan now walks) it also **declares
+every cross-story seam it rides**: the original three (the pg/library backend, the
+drive-machinery node-spec + verdict stream, the notice-board presence surface) plus the
+render-core, access-control, verdict-shape and CLI seams that arrived later — see
+§"Cross-story boundary" below.
 
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
@@ -104,6 +110,24 @@ within-story standard applied across the boundary. Encoded as frontmatter `depen
 - **`notice-board`** — the **presence surface**: the world's session wisps read
   `PgPresenceStore.listActive()` and classify bands with `classifyPresence`
   (`server/libraryBackend.ts` activeSessions; ADR-0033 — advisory, silently absent offline).
+
+Brought into the fold 2026-06-24 (ADR-0100) — the studio is a consuming **surface** the boundary scan
+now walks (`check:boundaries` reads `apps/*` package.json deps), so these four seams it had ridden are
+now declared + forest-rendered edges too, each read off real imports:
+
+- **`forest-world`** — the **shared render core**: the `#/tree` world is `buildScene()`'d from the pure
+  geometry kernel (`src/components/TreeView.tsx:110`, `src/components/SceneView.tsx:13`) — the studio and
+  the public site draw the same look from one deterministic core (ADR-0093). Consumed as a package; the
+  website consumes the synced artifact.
+- **`studio-members`** — the **access-control compute**: the server resolves member access with
+  `resolveAccess` / `mergeUser` (`server/libraryBackend.ts:25`, `server/guestPolicy.ts:17`) — the
+  member/user schema the Members panel renders from (ADR-0043).
+- **`proof-protocol`** — the **verdict-shape port**: the server `.safeParse`s the published verdict DATA
+  shapes across the seam (`server/libraryBackend.ts:26`, `server/apiRouter.ts:28`) — the browser-safe
+  message format, never the proof machinery (ADR-0068 / ADR-0078).
+- **`cli`** — the **build + secrets seam**: the db-control / build surfaces lazy-import
+  `@storytree/cli/build` and `@storytree/cli/secrets` (`server/devApi.ts:106`) — the hub the studio rides
+  for orchestration plumbing.
 
 ## Story UAT
 
