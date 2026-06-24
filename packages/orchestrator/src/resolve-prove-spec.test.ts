@@ -1498,3 +1498,60 @@ test("ADR-0064 — db-backed resolution FORCES the test-DB env onto the spine's 
   const obsNoDb = await resolvedNoDb.spec.testExecutor.run(noDb.id);
   assert.equal(obsNoDb.result, "red", "without db:true the env is NOT forced onto the proof command");
 });
+
+// ── ADR-0104: per-node proof timeout override (real.timeoutMs) ───────────────────────────────────
+// The owner-call alternative to the spine-wide DEFAULT_PROOF_TIMEOUT_MS (#350): a genuinely-slow proof
+// (a db:true node riding a cold Cloud SQL idle-wake handshake, ~5–6 min) may declare its OWN wall-clock
+// budget. realProofCommand stamps it on the ONE resolved proof command, so BOTH the spine's CONFIRM
+// observation AND the leaf's run_proof ride the same budget (one oracle, one budget). A node that
+// declares none resolves to a command with timeoutMs ABSENT and falls back to the default in
+// runShellCommand.
+
+test("ADR-0104 — realProofCommand carries a declared real.timeoutMs on both the default and a custom proof command", () => {
+  const base = loadById("verdict-line").buildConfig?.real;
+  assert.ok(base !== undefined);
+  const real = { ...base, timeoutMs: 15 * 60_000 };
+  // The default `node --import tsx --test` command path carries the declared budget…
+  assert.equal(realProofCommand(real, "/ws").command.timeoutMs, 15 * 60_000);
+  // …and so does a declared custom proofCommand (the budget rides the resolved command, not the runner).
+  const withCustom = { ...real, proofCommand: { file: "node", args: ["--test", "x.test.cjs"] } };
+  assert.equal(realProofCommand(withCustom, "/ws").command.timeoutMs, 15 * 60_000);
+});
+
+test("ADR-0104 — realProofCommand leaves timeoutMs ABSENT when no real.timeoutMs is declared (default applies, parity holds)", () => {
+  const real = loadById("verdict-line").buildConfig?.real;
+  assert.ok(real !== undefined);
+  const { command } = realProofCommand(real, "/ws");
+  // Absent, not `timeoutMs: undefined`: runShellCommand falls back to DEFAULT_PROOF_TIMEOUT_MS, and the
+  // migrated-node deepEqual parity (which omits the key) stays byte-for-byte intact.
+  assert.equal("timeoutMs" in command, false);
+});
+
+test("ADR-0104 — the declared budget reaches the spine's OWN proof command (a too-tight budget kills → fail-closed red)", async () => {
+  // End-to-end: real.timeoutMs → resolveReal's realProofCmd → the executor's spawn → runShellCommand's
+  // SIGKILL. A proof that sleeps 4s under a 200ms declared budget is killed and OBSERVED as a fail-closed
+  // red on the SAME channel the gate's CONFIRM uses — proving the budget reaches the spine's own
+  // observation, not just the leaf's feedback. (The probe self-terminates if never killed, so a
+  // regression fails fast instead of hanging the suite — the real-test-must-not-leak-a-handle discipline.)
+  const base = loadById("verdict-line");
+  const bc = base.buildConfig;
+  assert.ok(bc?.real !== undefined);
+  const real = {
+    ...bc.real,
+    timeoutMs: 200,
+    proofCommand: { file: process.execPath, args: ["-e", "setTimeout(() => {}, 4000)"] },
+  };
+  const spec = { ...base, id: "timeout-too-tight", buildConfig: { ...bc, real } };
+  const resolved = resolveProveSpec(spec, {
+    mode: "real",
+    workspace: os.tmpdir(),
+    store: new InMemoryStore(),
+    runId: "timeout-1",
+    signerInputs: { flag: "tester@example.com" },
+    authorOverride: NOOP_AUTHOR,
+  });
+  assert.equal(resolved.ok, true);
+  if (!resolved.ok) return;
+  const obs = await resolved.spec.testExecutor.run(spec.id);
+  assert.equal(obs.result, "red", "a proof outrunning its declared budget is SIGKILLed → fail-closed red");
+});

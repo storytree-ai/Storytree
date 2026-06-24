@@ -44,9 +44,11 @@ export interface ShellCommand {
    * {@link runShellCommand}. Defaults to {@link DEFAULT_PROOF_TIMEOUT_MS} when absent. Injectable so a
    * test can use a short value; the spine leaves it absent so production rides the one default.
    * Deliberately NOT part of `ShellCommandSchema` (the spec-borne `proof:` parser, file/args/cwd
-   * only), so a node author cannot inject it — the timeout stays spine-controlled. (OWNER CALL: keep
-   * one spine-wide default, or expose a per-node `real.timeoutMs` for genuinely slow proofs such as a
-   * cold DB connector.)
+   * only), so a node author cannot inject it on the inner proofCommand. The DELIBERATE per-node
+   * authoring surface is `RealProofConfig.timeoutMs` (ADR-0104, owner-gated): the resolver
+   * (`realProofCommand`) stamps that validated value onto THIS spine-internal field on the single
+   * resolved proof command, so the override is declared in ONE schema-checked place and the budget
+   * reaches both the spine's CONFIRM observation and the leaf's `run_proof`.
    */
   timeoutMs?: number;
 }
@@ -153,9 +155,11 @@ export function scrubbedChildEnv(): NodeJS.ProcessEnv {
  * (`real.db`, ADR-0064) whose first Cloud SQL connection rides a cold-start / idle-wake handshake
  * (measured ~5–6 min; cf. `db-control.ts`'s 420s connectivity budget). Leaf discipline
  * (`real-test-must-not-leak-a-handle`) is the fast path; this is only the safety net, so "fail closed
- * eventually" rightly beats "fail fast and risk a false red". OWNER CALL (surfaced): this one
- * spine-wide value vs a per-node `real.timeoutMs` (a fast builtins-only node:test could take a tight
- * budget while a db:true node takes a longer one).
+ * eventually" rightly beats "fail fast and risk a false red". OWNER CALL - RESOLVED (ADR-0104, both):
+ * this stays the spine-wide FALLBACK, AND a node may OVERRIDE it per-node via `RealProofConfig.timeoutMs`
+ * (a fast builtins-only node:test can declare a tight budget; a db:true node on a cold connector a
+ * longer one). The override is the deliberate, schema-validated authoring surface; this default is what
+ * a node that declares nothing rides.
  */
 export const DEFAULT_PROOF_TIMEOUT_MS = 10 * 60_000;
 
