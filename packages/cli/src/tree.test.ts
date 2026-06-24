@@ -471,6 +471,10 @@ test("brownfield: an adopted gate greens the cap it covers, but an UNcovered cap
   // The would-be UAT leg has NO signed verdict, yet it does NOT wedge the crown (ADR-0097): it is
   // surfaced as aspirational, not as a blocking "unproven" obligation.
   assert.match(env.body, /UAT proof: would-be/, "the would-be section is aspirational, not crown-blocking");
+  // ADR-0097 §5 / owner Option A: the covered cap wears the SAME ✓ as an own-driven cap (the plant
+  // agrees with the crown's coverage), while the uncovered pocket stays – until it earns its own verdict.
+  assert.match(env.body, /covered-cap ✓ {2}/, "the gate-covered cap renders ✓ (coverage greens the plant)");
+  assert.match(env.body, /pocket-cap – {2}/, "the uncovered cap stays – (no own verdict, no coverage)");
 });
 
 test("brownfield: the crown greens when every cap is covered/proven and only a would-be UAT leg remains (ADR-0097)", async () => {
@@ -490,6 +494,9 @@ test("brownfield: the crown greens when every cap is covered/proven and only a w
   // is NOT required → the crown greens.
   assert.match(env.body, /Story: brown-story ✓/, "the crown greens (caps covered/proven, gate signed, would-be UAT not required)");
   assert.match(env.body, /story green: GREEN/, "the brownfield crown greens via coverage");
+  // Both plants are now ✓ — the gate-covered cap and the own-proven cap render identically (Option A).
+  assert.match(env.body, /covered-cap ✓ {2}/, "the gate-covered cap renders ✓");
+  assert.match(env.body, /pocket-cap ✓ {2}/, "the own-proven cap renders ✓");
 });
 
 // (5) focused next pointers

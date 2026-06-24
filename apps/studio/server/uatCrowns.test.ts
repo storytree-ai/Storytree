@@ -8,9 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { SIGNING_EVENT_KIND } from '@storytree/proof-protocol';
-import { rollupStoryGreen } from '@storytree/orchestrator';
+import { rollupStoryGreen, rollupCapStatus } from '@storytree/orchestrator';
 
-import { applyUatCrowns } from './apiRouter.js';
+import { applyUatCrowns, applyCapCoverage } from './apiRouter.js';
 import type { TreeCapability, TreeStory } from '../src/types';
 
 function story(id: string, over: Partial<TreeStory> = {}): TreeStory {
@@ -152,5 +152,39 @@ describe('applyUatCrowns', () => {
     ];
     applyUatCrowns(stories2, map, coverage, both, rollupStoryGreen);
     expect(stories2[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-23T02:00:00.000Z' });
+  });
+});
+
+// ── ADR-0097 §5 / owner Option A (2026-06-25): the per-cap PLANT greens like the crown ──
+// applyCapCoverage synthesizes a covered cap's verdict so the SHARED provenStatus fold paints it the
+// SAME green as an own-driven cap — the world's plants stop reading brown under a covered/green crown.
+// Fed the REAL rollupCapStatus, the same compute the crown's capability clause (rollupStoryGreen) uses.
+describe('applyCapCoverage', () => {
+  it('synthesizes a pass verdict (the covering gate\'s time) for a covered cap; leaves an uncovered cap untouched', () => {
+    const stories = [
+      story('brown', { status: 'mapped', capabilities: [cap('covered-cap'), cap('pocket-cap')] }),
+    ];
+    const coverage = new Map([['brown', [{ id: 'brown#gate-1', covers: ['covered-cap'] }]]]);
+    const events = [verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z')];
+    applyCapCoverage(stories, coverage, events, rollupCapStatus);
+    // covered-cap greens via coverage, stamped with the gate's verdict time; pocket-cap stays unproven.
+    expect(stories[0]!.capabilities[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-06-23T01:00:00.000Z' });
+    expect(stories[0]!.capabilities[1]!.verdict).toBeUndefined();
+  });
+
+  it('never overrides a cap that already carries its own signed verdict (a regression stays red)', () => {
+    const reg = cap('covered-cap');
+    reg.verdict = { outcome: 'fail', at: 'own-fail' };
+    const stories = [story('brown', { status: 'mapped', capabilities: [reg] })];
+    const coverage = new Map([['brown', [{ id: 'brown#gate-1', covers: ['covered-cap'] }]]]);
+    const events = [verdictEvent(1, 'brown#gate-1', 'pass', '2026-06-23T01:00:00.000Z')];
+    applyCapCoverage(stories, coverage, events, rollupCapStatus);
+    expect(stories[0]!.capabilities[0]!.verdict).toEqual({ outcome: 'fail', at: 'own-fail' });
+  });
+
+  it('a story with no coverage (greenfield) is left untouched', () => {
+    const stories = [story('green', { capabilities: [cap('cap-a')] })];
+    applyCapCoverage(stories, noCoverage(), [verdictEvent(1, 'cap-a', 'pass', 'x')], rollupCapStatus);
+    expect(stories[0]!.capabilities[0]!.verdict).toBeUndefined();
   });
 });

@@ -1100,6 +1100,58 @@ export function applyUatCrowns(
   }
 }
 
+/**
+ * Apply ADR-0097 per-capability COVERAGE to the tree payload (owner decision 2026-06-25, Option A): a
+ * brownfield capability with no own driven verdict renders the SAME green as an own-driven cap when a
+ * healthy reliability gate `(covers:)` it — so the world's plants tell the same story as the crown
+ * ({@link applyUatCrowns}), never a green crown floating over brown plants (ADR-0097 §5: *"a brownfield
+ * capability greens via the adopted gate that covers it."*). It synthesizes the covered cap's `verdict`
+ * — a `pass` stamped with the covering gate's verdict time — so the SHARED `provenStatus` fold paints
+ * the hue: coverage greens through a SIGNED verdict (the gate's), never authored `status:` paint, so
+ * ADR-0040's anti-hand-painting wall holds. The cap fold is the orchestrator's `rollupCapStatus`, the
+ * SAME compute `rollupStoryGreen`'s capability clause uses, so crown and plant can never diverge.
+ *
+ * Conservative + additive: it NEVER touches a cap that already carries its own signed verdict —
+ * coverage only SUPPLIES green to an otherwise-unproven brownfield cap, never overrides a cap's own
+ * proof or its own signed regression (a red plant stays red). `capRollup` is injected so this stays
+ * unit-testable without the lazy orchestrator. Mutates `stories` in place.
+ */
+export function applyCapCoverage(
+  stories: TreeStory[],
+  coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
+  events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+  capRollup: (
+    capId: string,
+    events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+    coverage?: readonly { id: string; covers?: readonly string[] }[],
+  ) => string | null,
+): void {
+  for (const story of stories) {
+    const coverage = coverageByStory.get(story.id);
+    if (!coverage || coverage.length === 0) continue;
+    for (const cap of story.capabilities) {
+      // A cap with its OWN signed verdict already wears the right hue (incl. a regression) — leave it.
+      if (cap.verdict) continue;
+      if (capRollup(cap.id, events, coverage) === 'healthy') {
+        const at = latestVerdictAt(events, coveringGateIds(coverage, cap.id));
+        cap.verdict = { outcome: 'pass', at: at ?? '' };
+      }
+    }
+  }
+}
+
+/** The ids of the gates that `(covers:)` a capability — the covered cap's synthetic verdict draws its `at` from these. */
+function coveringGateIds(
+  coverage: readonly { id: string; covers?: readonly string[] }[],
+  capId: string,
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const gate of coverage) {
+    if (gate.covers?.includes(capId)) ids.add(gate.id);
+  }
+  return ids;
+}
+
 /** The latest `at` among the verdict events for a story's per-test ids (ISO strings sort lexically). */
 function latestVerdictAt(
   events: ReadonlyArray<{ doc: unknown }>,
@@ -1431,9 +1483,15 @@ export async function handleApiRequest(
       // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
       // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
       // or no story declares per-test tests.
-      if (verdictEvents && uatTestsByStory.size > 0) {
-        const { rollupStoryGreen } = await loadOrchestrator();
-        applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+      if (verdictEvents) {
+        const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
+        // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
+        // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
+        // per-test UAT existing (a cap greens via its gate's coverage alone).
+        applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
+        if (uatTestsByStory.size > 0) {
+          applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+        }
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;
       if (builds && builds.length > 0) payload.builds = builds;

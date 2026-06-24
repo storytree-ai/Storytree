@@ -5,7 +5,7 @@ import type { Verdict } from "@storytree/proof-protocol";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
-import { checkUatProof, rollupStoryUat, rollupStoryGreen } from "./uat-proof.js";
+import { checkUatProof, rollupStoryUat, rollupStoryGreen, rollupCapStatus } from "./uat-proof.js";
 
 /**
  * The per-test UAT proof model (ADR-0082): the sign-time trust guard keeps "green" honest, and the
@@ -262,4 +262,48 @@ test("coverage: omitted (greenfield) => the pre-ADR-0097 rule — each cap must 
   // No coverage arg: cap-a must be proven on its own. Only the UAT is signed → still null.
   const events = [passEvent("s#uat-1")];
   assert.equal(rollupStoryGreen(caps, tests, events), null);
+});
+
+// ── rollupCapStatus: the SHARED per-cap fold (ADR-0097 §5; owner Option A 2026-06-25) ───────────
+// The crown's capability clause and the per-cap DISPLAY (CLI glyph / studio plant) both go through
+// THIS one function, so a green crown can never float over plants that read differently.
+
+test("cap-status: a cap with its OWN signed pass is healthy (greenfield, no coverage)", () => {
+  assert.equal(rollupCapStatus("s.cap-a", [passEvent("s.cap-a", "capability")]), "healthy");
+});
+
+test("cap-status: a brownfield cap with NO own verdict greens via a healthy gate that (covers) it", () => {
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  assert.equal(rollupCapStatus("s.cap-a", [passEvent("s#gate-1", "adopted")], gates), "healthy");
+});
+
+test("cap-status: an uncovered cap with no own verdict abstains to null (the authored ladder stands)", () => {
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  assert.equal(rollupCapStatus("s.cap-b", [passEvent("s#gate-1", "adopted")], gates), null);
+});
+
+test("cap-status: a covering gate not yet signed greens nothing (no green leaks before adoption lands)", () => {
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  assert.equal(rollupCapStatus("s.cap-a", [], gates), null);
+});
+
+test("cap-status: a cap's OWN signed fail withers it even when a healthy gate covers it (coverage can't mask red)", () => {
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a"] }];
+  const events = [passEvent("s.cap-a", "capability"), failEvent("s.cap-a"), passEvent("s#gate-1", "adopted")];
+  assert.equal(rollupCapStatus("s.cap-a", events, gates), "unhealthy");
+});
+
+test("cap-status: greenfield (no coverage) collapses to exactly rollupStatus", () => {
+  assert.equal(rollupCapStatus("s.cap-a", [passEvent("s.cap-a", "capability")]), "healthy");
+  assert.equal(rollupCapStatus("s.cap-a", []), null);
+});
+
+test("cap-status: the crown agrees with the per-cap fold — every cap rollupCapStatus healthy ⇒ caps clause holds", () => {
+  // The shared-definition guarantee: the same (events, coverage) that green each plant green the crown.
+  const caps = ["s.cap-a", "s.cap-b"];
+  const gates = [{ id: "s#gate-1", covers: ["s.cap-a", "s.cap-b"] }];
+  const events = [passEvent("s#gate-1", "adopted")];
+  for (const c of caps) assert.equal(rollupCapStatus(c, events, gates), "healthy");
+  // gates double as the own-proof obligation here, so the crown greens off the same signal.
+  assert.equal(rollupStoryGreen(caps, gates, events, gates), "healthy");
 });
