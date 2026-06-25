@@ -58,10 +58,11 @@ Then visit `https://<service-url>/keystatic`, sign in with GitHub, edit, Save �
 Cloud Run scale-to-zero (~$0 idle, pennies active); Cloud Build minutes per deploy; no load balancer
 (no IAP), no DB. Negligible standing footprint.
 
-## Follow-up: CD on merge (not yet wired)
+## CD on merge — now wired (this script is the break-glass path)
 
-Today deploys are this manual script. To auto-deploy on a storytree-web `main` push (mirroring the
-studio's `deploy-studio.yml`/ADR-0046): add a `deploy-editor.yml` workflow to storytree-web and a WIF
-binding authorizing the `HuaMick/storytree-web` repo (the `github-actions` pool today authorizes the
-parent repo only) — a privileged IAM step for the owner. Until then, re-run §2 after editor-affecting
-changes. (Pure content edits saved from the editor only need here.now, not a redeploy.)
+Editor-affecting merges to storytree-web `main` now redeploy automatically — see
+[web-editor-cd.md](web-editor-cd.md) (`deploy-editor.yml` in storytree-web + `infra/web-editor-cd.tf`,
+keyless WIF, mirroring the studio's ADR-0046). After the **one-time** owner IAM apply documented
+there, this manual script stays valid only as the **break-glass** path: the first stand-up (it creates
+the runtime SA + syncs the three secrets from `web/.env`), deploying a non-`main` commit, or any deploy
+while CD is paused. (Pure content edits saved from the editor only need here.now, never a redeploy.)
