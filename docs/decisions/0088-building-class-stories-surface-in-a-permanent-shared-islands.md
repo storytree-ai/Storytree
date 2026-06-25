@@ -18,6 +18,13 @@ two-stage proof — geometry/behaviour red-green, the look built then surfaced f
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 — its docked-line
 connections (§1) and the manual `render: building` tag both stand.
 
+**Superseded-in-part by [ADR-0102](0102-shared-islands-promote-edges-to-per-island-icon-stamps.md)**
+(accepted, 2026-06-25) — §3's *generic, consumer-only* bookshelf stamp is replaced by per-island icon
+stamps in BOTH directions (an island carries the icon of what it depends on, so placement is the
+direction), and a building's edges are **promoted** to those stamps rather than dropped (honoring
+ADR-0074 §1 "never drop edges"). The off-map Shared Islands **panel** (§1, §2), the legend relocation
+(§4), and the BuildingLegend removal (§5) all stand.
+
 ## Context
 
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 decided that a
