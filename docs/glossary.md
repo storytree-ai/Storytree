@@ -118,7 +118,7 @@ capabilities'. Carried from v1's lifecycle, with
 *not* rename `healthy` to "proven" — "proven" stays as general proof-mode
 language, `healthy` is the status word).
 
-**lifecycle status** — A unit's status, drawn from six states. **proposed** — authored but not yet selected for implementation; the initial state. **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits. **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010). **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk. **mapped** — brownfield: the capability is *observationally* verified by an existing target-repo test suite, without storytree driving a red→green flow; a distinct, weaker state than `healthy` — observational green never short-circuits to proven; v2 **supports** brownfield, the exact mapping mechanism under the owned loop / DBOS is still to design (see `open-questions.md` §2). **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).
+**lifecycle status** — A unit's status, drawn from six states. **proposed** — authored but not yet selected for implementation; the initial state. **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits. **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010). **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk. **mapped** — brownfield: the authored status of a capability mapped in from an existing target-repo suite, awaiting **adoption** — a pre-proof authored state like `proposed`, and distinct from `healthy` the same way. Its go-green path is *adopt*: the spine observes the existing suite green at a clean HEAD and signs an `adopted` verdict, transitioning it to `healthy` (ADR-0085 / ADR-0097). Adopt (observe) and drive (a red→green) are **peer best-efforts** to bring code under the TDD umbrella; the `adopted` basis records *how* a green was established — value-neutral provenance that ranks nothing; an `adopted` `healthy` is a full peer of a driven one (ADR-0105). **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).
 
 ## Proof, evidence & gating
 
@@ -143,8 +143,9 @@ routing / approval / steering discipline. Promotion to `healthy` is an explicit,
 per-unit, **operator-granted** attestation recorded as a typed **signed event**;
 an agent can never self-exempt, and the attestation is distinguishable in the
 audit trail from a UAT walkthrough sign. Successor to v1's `manual_signings`
-(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`
-(observational, never `healthy`). Its persistence/identity backing is still open
+(Agentic ADR-0024); defined authoritatively in ADR-0007. Distinct from `mapped`, which is a *status* — the authored brownfield
+state that reaches `healthy` via an observe-and-signed `adopted` verdict
+(ADR-0085 / ADR-0097 / ADR-0105) — not a proof mode. Its persistence/identity backing is still open
 (`open-questions.md` §1).
 
 **convergence** — Two **distinct** senses v1 conflated and v2 keeps separate;
