@@ -19,7 +19,7 @@ import {
   platformShellCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
-import { renderStoredDoc, syncSeedAgents } from "@storytree/library/store";
+import { renderStoredDoc, syncSeedAgents, syncSeedCorpus } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
@@ -179,6 +179,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  artifact retire <id>          retire one artifact + rationale (needs --pg)",
     "  tree focus <id>               the local DAG of one artifact",
     "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
+    "  sync-corpus                   migrate seed-only non-agent artifacts into live (needs --pg)",
     "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
     "  (coming soon: artifact comment)",
   );
@@ -660,6 +661,43 @@ export async function syncAgentsCommand(deps: RunDeps): Promise<Envelope> {
 }
 
 /**
+ * `storytree library sync-corpus --pg` — carry seed-only NON-AGENT artifacts into the live store
+ * (ADR-0103). The non-agent tier is LIVE-canonical (ADR-0023), so unlike the seed-canonical
+ * `sync-agents` this is **migrate-only**: it upserts every seed artifact ABSENT from the live store
+ * and leaves the rest alone — it never overwrites a live row (which may carry `artifact edit --pg`
+ * edits) and never deletes a live-only artifact (a live-canonical creation). It exists to close the
+ * ADR-0095 graduation gap: a freshly-graduated principle lands in `knowledge.json` and is otherwise
+ * seed-only (invisible to `--pg` and rendering as a `> MISSING REF` for any agent that cites it
+ * against the live store / studio). Needs --pg; idempotent.
+ */
+export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
+  if (deps.writable !== true) return notWritable(deps.store);
+  const r = await syncSeedCorpus(deps.store, { actor: deps.actor ?? "cli" });
+  const lines = [
+    r.created.length === 0
+      ? `NOTHING TO MIGRATE — the live store already holds all ${r.seed.length} seed non-agent artifacts.`
+      : `MIGRATED ${r.created.length} seed-only artifact(s) into the live store.`,
+    "",
+    `seed non-agents (${r.seed.length})`,
+    `created (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
+    `skipped — already live, left untouched (${r.skipped.length})`,
+  ];
+  if (!r.complete) {
+    lines.push("", "INCOMPLETE — a seed artifact is still missing from live (a write may have failed).");
+  }
+  return {
+    // A successful run leaves every seed non-agent present in live (complete); an incomplete run is a
+    // failure worth surfacing. "Nothing to migrate" is a healthy, idempotent success.
+    ok: r.complete,
+    body: lines.join("\n"),
+    next: [
+      ...(r.created.length > 0 ? [`storytree library artifact ${r.created[0]} --pg   (verify it landed)`] : []),
+      "storytree library --pg",
+    ],
+  };
+}
+
+/**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
  * references (intra-library `asset:` edges + `doc:` source/ADR pointers, the latter surfaced on
  * demand) and the inbound `asset:` edges that point at it (a derived back-edge scan). Honest about
@@ -835,6 +873,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
+      "  storytree library sync-corpus [--pg]       migrate seed-only non-agent artifacts into live (ADR-0103)",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -1366,6 +1405,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (sub === "sync-agents") return syncAgentsCommand(deps);
+  if (sub === "sync-corpus") return syncCorpusCommand(deps);
 
   if (sub === "graduate") {
     if (help) return graduateHelp();

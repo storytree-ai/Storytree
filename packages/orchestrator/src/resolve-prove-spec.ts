@@ -386,7 +386,10 @@ function resolveReal(
   // the default `node --import tsx --test <testFile>`. ONE place chooses it, so the spine's CONFIRM
   // observations and the leaf's run_proof can never diverge (the one-oracle property). For a
   // db-backed node (ADR-0064) the spine FORCES the test-DB env onto that one command, so the CONFIRM
-  // observation and the leaf's run_proof both hit the disposable DB (one oracle, one environment).
+  // observation and the leaf's run_proof both hit the disposable DB (one oracle, one environment). A
+  // per-node proof budget (ADR-0104, `real.timeoutMs`) likewise rides this ONE command — realProofCommand
+  // stamps it on `base.command`, so both consumers inherit the same wall-clock budget (else the
+  // spine-wide DEFAULT_PROOF_TIMEOUT_MS applies); the db-env spread below preserves it.
   const base = realProofCommand(real, opts.workspace);
   const proofDisplay = base.display;
   const realProofCmd: ShellCommand =
@@ -477,10 +480,16 @@ export function realProofCommand(
   real: RealProofConfig,
   workspace: string,
 ): { command: ShellCommand; display: string } {
+  // ADR-0104: a per-node proof budget. A declared `real.timeoutMs` overrides the spine-wide
+  // DEFAULT_PROOF_TIMEOUT_MS on this ONE resolved command — so both the spine's CONFIRM observation
+  // and the leaf's run_proof (which spawn the SAME command object) ride it. Spread absent-not-undefined
+  // so a node that declares none keeps the key OFF the command: runShellCommand then applies the
+  // default, and the migrated-node deepEqual parity (which omits it) holds byte-for-byte.
+  const budget = real.timeoutMs !== undefined ? { timeoutMs: real.timeoutMs } : {};
   if (real.proofCommand !== undefined) {
     const command = platformShellCommand({ ...real.proofCommand, cwd: workspace });
     return {
-      command,
+      command: { ...command, ...budget },
       display: `${real.proofCommand.file} ${real.proofCommand.args.join(" ")}`.trim(),
     };
   }
@@ -489,6 +498,7 @@ export function realProofCommand(
       file: process.execPath,
       args: ["--import", tsxLoaderUrl(), "--test", path.join(workspace, real.testFile)],
       cwd: workspace,
+      ...budget,
     },
     display: `node --import tsx --test ${real.testFile}`,
   };

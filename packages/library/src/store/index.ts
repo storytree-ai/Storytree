@@ -22,6 +22,8 @@ export { loadCorpus, loadComments } from "./load-corpus.js";
 export type { LoadCorpusResult } from "./load-corpus.js";
 export { reconcileAgents, syncSeedAgents, diffAgents, diffSeedAgents, AGENT_KIND } from "./sync-agents.js";
 export type { SyncAgentsResult, AgentDiff } from "./sync-agents.js";
+export { reconcileCorpus, syncSeedCorpus, diffCorpus, diffSeedCorpus } from "./sync-corpus.js";
+export type { SyncCorpusResult, CorpusDiff } from "./sync-corpus.js";
 export { batchMigrate } from "./batch-migrate.js";
 export type { BatchMigrateResult } from "./batch-migrate.js";
 export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";

@@ -109,6 +109,15 @@ file conflicts).
   --pg` and the studio go stale. Don't hand-reconcile with a throwaway script. `pnpm gate` ends with a
   best-effort `check:agents-sync` that **WARNs** (never blocks) if the live tier drifted while the DB
   is up — your nudge to run the sync; it SKIPs silently offline (CI is DB-free, so it's local-only).
+- **GRADUATED A NON-AGENT ARTIFACT INTO THE SEED? migrate it live (ADR-0103):** the ADR-0095
+  graduation flow writes a new principle/definition into `knowledge.json` (so the offline agent
+  renderer picks it up), which leaves it **seed-only** — invisible to `--pg`, and a `> MISSING REF`
+  for any agent that cites it against the live store / studio. Carry it across: `pnpm db:up && pnpm
+  storytree library sync-corpus --pg`. This is the INVERSE of `sync-agents`: **migrate-only** — it
+  upserts only seed non-agent artifacts ABSENT from live, and (unlike `load-corpus --force`) never
+  overwrites a live edit or deletes a live-only artifact; idempotent. `pnpm gate` ends with a
+  best-effort `check:corpus-sync` that **WARNs** (never blocks, local-only) if a seed artifact is
+  missing from live — your nudge to run it.
 - **EXPLORE (read, offline OK):** `storytree library` (dashboard) · `… artifact <id>` ·
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.

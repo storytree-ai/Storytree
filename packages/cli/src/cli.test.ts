@@ -219,6 +219,46 @@ test("sync-agents (writable) reconciles the agent tier to the seed and removes a
   assert.equal(await store.getDoc("stale-agent"), null);
 });
 
+test("sync-corpus without --pg is refused with the write-surface guidance", async () => {
+  const env = await run(["library", "sync-corpus"], { store: await seeded() });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /writes go to the shared store/);
+});
+
+test("sync-corpus (writable) migrates a seed-only artifact and never clobbers a live edit", async () => {
+  const store = await seeded();
+  // Simulate the gap: a graduated seed principle absent from this (fresh-ish) live store. Remove one
+  // known seed artifact from the live store so sync-corpus has something to migrate.
+  await store.deleteDoc("real-test-must-not-leak-a-handle");
+  // And a live-canonical EDIT the seed has not caught up to — sync-corpus must NOT revert it.
+  const edited = (await store.getDoc("edit-first-curation"))!;
+  await store.upsertDoc({
+    id: "edit-first-curation",
+    kind: edited.kind,
+    doc: { ...(edited.doc as Record<string, unknown>), title: "LIVE EDITED TITLE" },
+  });
+
+  const env = await run(["library", "sync-corpus", "--pg"], { store, writable: true });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /MIGRATED 1 seed-only artifact/);
+
+  // The seed-only artifact was carried across.
+  assert.ok(await store.getDoc("real-test-must-not-leak-a-handle"), "seed-only principle migrated");
+  // The live edit survived (migrate-only never overwrites a present artifact).
+  assert.equal(
+    ((await store.getDoc("edit-first-curation"))!.doc as { title: string }).title,
+    "LIVE EDITED TITLE",
+    "the live-canonical edit was not clobbered",
+  );
+});
+
+test("sync-corpus (writable) is idempotent — a clean live tier reports nothing to migrate", async () => {
+  const store = await seeded();
+  const env = await run(["library", "sync-corpus", "--pg"], { store, writable: true });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /NOTHING TO MIGRATE/);
+});
+
 test("artifact edit that breaks the schema is refused, not persisted", async () => {
   const store = await seeded();
   const env = await run(

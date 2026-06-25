@@ -160,6 +160,23 @@ export interface RealProofConfig {
    * work declared in the spec, never a leaf's workaround.
    */
   addDeps?: string[];
+  /**
+   * Per-node proof timeout override (ADR-0104): the wall-clock budget in MILLISECONDS the spine spawns
+   * this node's proof command with, overriding the spine-wide {@link import("./shell-test-executor.js").DEFAULT_PROOF_TIMEOUT_MS}
+   * (PR #350). ABSENT = the node rides that one default (10 min). The resolver stamps it onto the SINGLE
+   * resolved proof command (`realProofCommand`), so BOTH the spine's out-of-band CONFIRM observation AND
+   * the leaf's `run_proof` feedback ride the SAME budget (one oracle, one budget). A proof that outruns
+   * its budget is SIGKILLed and observed as a fail-closed RED (`code: null`), never an infinite wedge.
+   *
+   * The motivating case is a `db: true` node (ADR-0064) whose first Cloud SQL connection rides a
+   * cold-start / idle-wake handshake (measured ~5-6 min - it can approach the 10-min default): a longer
+   * per-node budget removes the false-RED risk. Conversely a fast builtins-only node:test can declare a
+   * TIGHTER budget so a genuine hang is caught sooner. Unlike the spine-only
+   * {@link import("./shell-test-executor.js").ShellCommand.timeoutMs} (deliberately absent from
+   * {@link ShellCommandSchema} so a node author can't inject it on the inner `proofCommand`), THIS field
+   * is the DELIBERATE, schema-validated authoring surface for that override (positive-int milliseconds).
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -290,6 +307,9 @@ const RealProofConfigSchema = z
     refactorForTests: z.boolean().optional(),
     db: z.boolean().optional(),
     addDeps: z.array(z.string().min(1)).optional(),
+    // ADR-0104: a per-node proof timeout override (ms). Positive int — execFile reads 0/absent as NO
+    // timeout, so a 0/negative budget would silently disable the fail-closed backstop; refuse it.
+    timeoutMs: z.number().int().positive().optional(),
   })
   .strict()
   // ADR-0064 §2: a `pnpm add` needs the workspace installed first, and a freshly-added dependency
@@ -447,6 +467,10 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
     ...(raw.db !== undefined ? { db: raw.db } : {}),
     // ADR-0064 §2: spread (a fresh copy) only when present — absent stays absent for the parity lock.
     ...(raw.addDeps !== undefined ? { addDeps: [...raw.addDeps] } : {}),
+    // ADR-0104: same absent-not-undefined idiom — a node that declares no per-node budget keeps the
+    // key off the config, so its registry-vs-spec parity deepEqual holds byte-for-byte and it rides
+    // the spine-wide DEFAULT_PROOF_TIMEOUT_MS.
+    ...(raw.timeoutMs !== undefined ? { timeoutMs: raw.timeoutMs } : {}),
   };
 }
 

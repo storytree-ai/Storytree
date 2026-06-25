@@ -712,3 +712,58 @@ test("ADR-0087 — parse: a fully concrete-package scope is ACCEPTED (no false p
   );
   assert.deepEqual(cfg.scope.sourceGlobs, ["packages/core/src/**/*.ts"]);
 });
+
+// ── ADR-0104: per-node proof timeout override (real.timeoutMs) ────────────────────────────────────
+// The owner-call alternative to the spine-wide DEFAULT_PROOF_TIMEOUT_MS (#350): a genuinely-slow proof
+// (a db:true node riding a cold Cloud SQL idle-wake handshake) may declare a positive-int millisecond
+// wall-clock budget on its real arm. A node that declares none keeps the key ABSENT (the parity
+// drift-lock) and rides the spine-wide default in runShellCommand.
+
+/** A real arm declaring a per-node proof budget (15 min — a longer budget for a slow db:true proof). */
+const TIMEOUT_BLOCK = {
+  command: { file: "pnpm", args: ["--filter", "@storytree/core", "test"] },
+  scope: {
+    testGlobs: ["packages/core/src/**/*.test.ts"],
+    sourceGlobs: ["packages/core/src/**/*.ts"],
+  },
+  real: {
+    testFile: "packages/core/src/slow.test.ts",
+    sourceFile: "packages/core/src/slow.ts",
+    scope: {
+      testGlobs: ["packages/core/src/slow.test.ts"],
+      sourceGlobs: ["packages/core/src/slow.ts"],
+    },
+    timeoutMs: 15 * 60_000,
+  },
+};
+
+test("ADR-0104 — a real arm declaring timeoutMs parses and round-trips", () => {
+  const cfg = parseNodeBuildConfig(TIMEOUT_BLOCK);
+  assert.deepEqual(cfg, TIMEOUT_BLOCK);
+  assert.equal(cfg.real?.timeoutMs, 15 * 60_000);
+});
+
+test("ADR-0104 — timeoutMs is ABSENT (not undefined) when not declared — the parity drift-lock", () => {
+  // The 7 migrated nodes never declare timeoutMs; the key must not materialize, or the contract-4
+  // deepEqual parity against the registry twins (which omit it) would break.
+  const cfg = parseNodeBuildConfig(NO_INSTALL_BLOCK);
+  assert.ok(cfg.real !== undefined);
+  assert.equal("timeoutMs" in cfg.real, false);
+});
+
+test("ADR-0104 — malformed: a non-positive timeoutMs is LOUD (a 0/negative budget can't bound a proof)", () => {
+  // execFile reads 0/absent as NO timeout — a 0 (or negative) budget would silently disable the
+  // fail-closed backstop, so the schema refuses it (positive int only).
+  assert.throws(() =>
+    parseNodeBuildConfig({ ...TIMEOUT_BLOCK, real: { ...TIMEOUT_BLOCK.real, timeoutMs: 0 } }),
+  );
+  assert.throws(() =>
+    parseNodeBuildConfig({ ...TIMEOUT_BLOCK, real: { ...TIMEOUT_BLOCK.real, timeoutMs: -5 } }),
+  );
+});
+
+test("ADR-0104 — malformed: a non-integer timeoutMs is LOUD (milliseconds are whole)", () => {
+  assert.throws(() =>
+    parseNodeBuildConfig({ ...TIMEOUT_BLOCK, real: { ...TIMEOUT_BLOCK.real, timeoutMs: 1.5 } }),
+  );
+});
