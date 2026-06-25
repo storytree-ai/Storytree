@@ -223,3 +223,34 @@ export function rollupCapStatus(
   }
   return own;
 }
+
+/**
+ * READ-TIME open-question GATE (ADR-0107, the proving-process escalation valve generalised from
+ * ADR-0106 decision 4 — hardening ADR-0037 §5's live-build OQ-hygiene from a build-command refusal
+ * into a green-gate). When an agent driving a story's adopt/build proving process hits a genuine fork
+ * it cannot settle from the corpus, it raises an open question via the Library (ADR-0032); an
+ * UNRESOLVED such OQ — one still attached to the story's proving process (its `references` carry the
+ * `node:<storyId>` token; see `@storytree/library` `openQuestionsGatingNode`) — WITHHOLDS the story's
+ * green until the OQ is resolved (retired, ADR-0018 §6). This is what lets a pass RAISE the fork
+ * instead of guessing (ADR-0106 d2): the human owns the fork (ADR-0030), the crown waits.
+ *
+ * Pure, conservative, and STRICTLY a withholding — it composes with {@link rollupStoryGreen} as a
+ * post-filter over its already-derived status:
+ *  - a would-be `healthy` crown drops to `null` (the world UNDER-claims to `mapped`/`proposed`, the
+ *    crown reads "blocked — not yet green", never a stale green over an open fork) while ≥1 gating OQ
+ *    is open;
+ *  - it NEVER manufactures `unhealthy` — a withheld green is not a regression (that word stays for a
+ *    signed `fail` / drift, ADR-0083), so a `null`/`unhealthy` base is returned UNCHANGED;
+ *  - `openGatingOqCount === 0` (the OQ resolved / none ever raised) returns the base verbatim — the
+ *    green flows again the instant the fork is closed.
+ *
+ * The gate counts, it does not classify: WHICH OQs are attached to a story's proving process is the
+ * library's `openQuestionsGatingNode` predicate (the `node:<id>` reference convention), kept out of
+ * the proof compute so this stays a pure `Status` fold the studio crown and the CLI report share.
+ */
+export function gateStoryGreenOnOpenQuestions(
+  base: Status | null,
+  openGatingOqCount: number,
+): Status | null {
+  return base === "healthy" && openGatingOqCount > 0 ? null : base;
+}
