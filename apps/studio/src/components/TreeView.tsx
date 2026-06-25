@@ -68,7 +68,13 @@ import {
   type DockNode,
 } from '../lib/solarLayout.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
-import { bookshelfConsumers, sharedIslandStories, shelfBooks } from '../lib/buildingLayout.js';
+import {
+  promotedStamps,
+  stampsByCarrier,
+  sharedIslandStories,
+  storyIcon,
+  ICON_SHAPES,
+} from '../lib/buildingLayout.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
@@ -175,14 +181,13 @@ interface Territory {
   /** The smoothed coast as point loop(s), for docking river mouths to the shore. */
   coastLoops: Pt[][];
   labelY: number;
-  /** Stamp a BUILDING icon on this island (ADR-0076 §2, distributed model): true when this
-   *  story CONSUMES a building-tagged story (e.g. `library`) AND the buildings flag is on.
-   *  The building (library) itself is not laid out as an island — its icon is distributed
-   *  onto every consumer instead. False for a normal island with no building dependency. */
-  bookshelf: boolean;
-  /** Where the building icon sits on the island (beside the central tree, on owned land);
-   *  present iff {@link bookshelf} is true. */
-  bookshelfSpot?: Pt;
+  /** Per-island ICON STAMPS this island CARRIES (ADR-0102): one entry per promoted edge incident
+   *  to a `render: building` island, "you carry the icon of what you depend on". `icon` is the id
+   *  whose identity glyph is drawn ({@link storyIcon}); `spot` is its seat on owned land. An island
+   *  can carry SEVERAL (studio carries both `library` and `cli`). On the map a carried icon is
+   *  always a BUILDING (promotion is building-incident) → each names a shared island. Empty for an
+   *  island that depends on no building, or when the `buildings` flag is off. */
+  stamps: { icon: string; spot: Pt }[];
   /** This island IS a building rendered with a bookshelf glyph WITHIN its nameplate (the
    *  enlarged landmark card, {@link nameplateLayout} building branch). ALWAYS false on the map
    *  (ADR-0088: building-class stories no longer render in the forest); set true only by the
@@ -324,19 +329,23 @@ export function buildWorld(
   const buildings = opts?.buildings ?? false;
   const hubIds = opts?.hubIds ?? EMPTY_ID_SET;
 
-  // ADR-0076 §2 (distributed-bookshelf STAMP, owner steer 2026-06-20): a story tagged
-  // `render: building` (e.g. `library`) has its icon stamped on every island that CONNECTS to
-  // it. The consumer set is computed from the FULL list (so the building's inbound edges are
-  // visible) BEFORE the building is excluded below. `buildings` off ⇒ no consumers, no stamps.
+  // ADR-0102 (per-island icon stamps, owner-directed 2026-06-25): a story tagged `render: building`
+  // (today `library` and `cli`) PROMOTES every edge incident to it from a road to a per-island icon
+  // STAMP, in BOTH directions — "you carry the icon of what you depend on". The promotion is
+  // computed from the FULL list (so the buildings' incident edges are visible) BEFORE the buildings
+  // are excluded below. `buildings` off ⇒ no buildings, no stamps. `carriedIcons` maps a carrier
+  // island id → the building-icon ids it carries (a depender carries the depended-on building's icon).
   const buildingIds = new Set(
     buildings ? allStories.filter((s) => s.building === true).map((s) => s.id) : [],
   );
-  const bookshelfIds: ReadonlySet<string> = buildingIds.size
-    ? bookshelfConsumers(
-        allStories.map((s) => ({ id: s.id, dependsOn: s.dependsOn, consumedBy: s.consumedBy })),
-        buildingIds,
+  const carriedIcons: Map<string, string[]> = buildingIds.size
+    ? stampsByCarrier(
+        promotedStamps(
+          allStories.map((s) => ({ id: s.id, dependsOn: s.dependsOn, consumedBy: s.consumedBy })),
+          buildingIds,
+        ),
       )
-    : EMPTY_ID_SET;
+    : new Map<string, string[]>();
   // ADR-0088 (Shared Islands panel, amends ADR-0076 §2): EXCLUDE every building-class story
   // from the laid-out territories whenever the distributed `buildings` flag is on — they no
   // longer render on the map at all (they live in the permanent left panel). With the building
@@ -605,21 +614,23 @@ export function buildWorld(
     const labelY = Math.max(...centers.map((p) => p.y), centroid.y) + HEX_R + TILE_DEPTH + 8;
     const coast = smoothCoast(boundary, story.id);
 
-    // ADR-0076 §2: a CONSUMER of a building-tagged story carries the building's icon. Seat it
-    // beside the tree (a deterministic side), then walk inward until it sits on owned land —
-    // the same land-snap the garden plants use, so it never floats over the sea.
-    const carriesBookshelf = bookshelfIds.has(story.id);
-    let bookshelfSpot: Pt | undefined;
-    if (carriesBookshelf) {
-      const side = rand01(hash(`${story.id}:shelf-side`)) < 0.5 ? -1 : 1;
-      let bx = treeSpot.x + side * (crownR + 17);
-      let by = treeSpot.y + 7; // a touch in front of the trunk base so it reads as on the ground
+    // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
+    // building-incident, "you carry the icon of what you depend on"). Fan the stamps around the
+    // tree — alternate sides and step the radius out per index so several never overlap (studio
+    // carries two) — then walk each inward until it sits on owned land (the garden-plant land-snap,
+    // so it never floats over the sea). Deterministic per (story, icon): a stamp never reshuffles.
+    const carried = carriedIcons.get(story.id) ?? [];
+    const stamps = carried.map((icon, si) => {
+      const side = si % 2 === 0 ? -1 : 1;
+      const tier = Math.floor(si / 2); // each side-pair steps further out
+      let bx = treeSpot.x + side * (crownR + 17 + tier * 26);
+      let by = treeSpot.y + 7 + tier * 6; // a touch in front of the trunk base, lower per tier
       for (let k = 0; k < 5 && owner.get(axialKey(pixelToHex({ x: bx, y: by }))) !== i; k++) {
         bx += (treeSpot.x - bx) * 0.3;
         by += (treeSpot.y - by) * 0.3;
       }
-      bookshelfSpot = { x: bx, y: by };
-    }
+      return { icon, spot: { x: bx, y: by } };
+    });
     return {
       story,
       tiles,
@@ -632,8 +643,7 @@ export function buildWorld(
       coastPaths: coast.paths,
       coastLoops: coast.loops,
       labelY,
-      bookshelf: carriesBookshelf,
-      ...(bookshelfSpot ? { bookshelfSpot } : {}),
+      stamps,
       // ADR-0088 (+ owner 2026-06-22 follow-on): building-class stories never render on the map
       // (they live in the Shared Islands panel) AND the panel's bookshelf landmark now sits
       // OUTSIDE the name card (SharedIslandCard draws it), so NO nameplate ever carries the
@@ -1605,9 +1615,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   now={now}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
                   onSelect={(capId) => selectStory(t.story.id, capId)}
-                  // ADR-0088: clicking a consumer's bookshelf stamp highlights the shared
-                  // island it uses in the left panel (one building today → the library).
-                  onStampClick={() => setHighlightShared(sharedIslands[0]?.id ?? null)}
+                  // ADR-0102: clicking an island's icon stamp highlights the SPECIFIC shared island
+                  // it names (the carried building's id) in the left panel — so studio's cli-stamp
+                  // highlights cli and its library-stamp highlights library.
+                  onStampClick={(id) => setHighlightShared(id)}
                 />
               ))}
             </g>
@@ -1752,164 +1763,246 @@ function LandingBloom({
  * one — dashed-blank until their UAT verdict is signed, a filled seal after
  * (the seal echoes the crown's hue; the FILL is the new bit).
  */
-// The bookshelf icon geometry (ADR-0076 §2): a tall, narrow, weathered case of ~4 shelves
-// crammed with old leather books — many upright at varied heights, a few leaning, a couple
-// stacked flat (the "old chaotic library shelf" the owner referenced). Base sits at y=0 and
-// it grows upward (negative y), like the trees, so y-sorting layers it correctly. Sized
-// small enough to sit on an island. The spine layout is the deterministic, unit-tested
-// `shelfBooks` (buildingLayout.ts) — geometry red-green; the PALETTE/appearance is
-// owner-attested (ADR-0070), carried by CSS (`.bookshelf-*`).
-const BOOKSHELF = {
-  W: 22, // case outer width
-  H: 30, // case outer height (base at y=0, top at y=-H)
-  wall: 1.8, // side-panel thickness
-  plinth: 3, // plinth height at the base
-  topMargin: 1.4, // gap above the top shelf, under the top board
-  shelves: 4,
-  board: 1, // shelf-board thickness
+// The per-island ICON glyph (ADR-0102 §1): every island has its OWN deterministic identity icon
+// — a distinct silhouette SHAPE bucket filled by its HUE, with a 1–2 char MONOGRAM for up-close
+// legibility (shape + hue carry identity at a glance; the monogram disambiguates). Centred at the
+// origin, base on y=0 growing upward (negative y) like the trees, so y-sorting layers it. The
+// IDENTITY is the deterministic, unit-tested `storyIcon` (buildingLayout.ts) — Stage-1 red-green;
+// the ART (the shape paths, the palette) is owner-attested (ADR-0070), carried by CSS (`.story-icon*`).
+const ICON_GLYPH = {
+  W: 22, // marker bounding width (kept == the old bookshelf so panel sizing/anchors are unchanged)
+  H: 24, // marker height (base at y=0, top at y=-H)
 };
 
-/**
- * The bookshelf art as a `<g>` centred horizontally at the origin with its base on y=0 —
- * shared by the consumer {@link StoryBookshelf} stamp and the building card's nameplate glyph
- * (the Shared Islands panel, ADR-0088), so the two can never drift. Pure geometry off
- * `shelfBooks(seed)`; deterministic per `seed`.
- */
-function BookshelfGlyph({ seed }: { seed: number }): React.JSX.Element {
-  const B = BOOKSHELF;
-  const interiorW = B.W - 2 * B.wall;
-  const usable = B.H - B.plinth - B.topMargin;
-  const comp = usable / B.shelves; // one compartment's height
-  const shelfInteriorH = comp - B.board - 0.4; // headroom for books under the next board
-  const rows = Array.from({ length: B.shelves }, (_, k) => {
-    const boardY = -(B.plinth + k * comp); // the surface this shelf's books rest on
-    // every 3rd shelf swaps a few upright spines for a small flat stack — the lived-in look
-    const flat = k === 1;
-    const books = shelfBooks(seed * 31 + k * 7 + 13, interiorW * (flat ? 0.66 : 1), shelfInteriorH);
-    return { k, boardY, books, flat };
-  });
-  // a couple of books piled flat on TOP of the case (the overflow pile)
-  const topPile = shelfBooks(seed * 53 + 5, interiorW * 0.7, 2.6).slice(0, 3);
+/** The drawable parts of one little BUILDING (ADR-0102 §1 art, owner ask 2026-06-25 — "make it a
+ *  real little building, not a flat shape"). A `body` rect-ish wall, a distinct `roof` per shape
+ *  bucket (flat / peaked / gabled / stepped / domed / sawtooth / pitched / mansard), and `openings`
+ *  (windows / a door) so it reads as architecture rather than a silhouette. All in the unit box
+ *  roughly [-r..r] × [-h..0] (base on y=0, growing up). One per shape bucket; the bucket is
+ *  `storyIcon(id).shape`. Pure geometry — the hue + stroke styling is CSS (owner-attested). */
+interface BuildingParts {
+  /** The wall/body outline (filled by the hue). */
+  body: string;
+  /** The roof outline, a separate fill so it can read a touch darker (the roofline is the variety). */
+  roof: string;
+  /** Window / door rectangles (and the rare round window as a circle) laid over the body. */
+  openings: { x: number; y: number; w: number; h: number; round?: boolean }[];
+}
 
+/** A little building per shape bucket. Body height is the lower ~62% of the box; the roof occupies
+ *  the top, varying by bucket. Openings (a door + 1–2 windows) sit on the body, deterministic by
+ *  bucket so an island's building never reshuffles. Pure. */
+function buildingParts(shape: number, r: number, h: number): BuildingParts {
+  const s = (((shape % ICON_SHAPES) + ICON_SHAPES) % ICON_SHAPES) as number;
+  const base = 0; // base y (ground)
+  const eave = -h * 0.6; // top of the wall / bottom of the roof
+  const peak = -h; // roof apex
+  // A door centred on the base; windows flank it. Reused across buckets (tweaked per roofline).
+  const doorW = r * 0.34;
+  const doorH = h * 0.26;
+  const door = { x: -doorW / 2, y: base - doorH, w: doorW, h: doorH };
+  const winW = r * 0.3;
+  const winH = h * 0.16;
+  const winY = eave + h * 0.08;
+  const winL = { x: -r * 0.62, y: winY, w: winW, h: winH };
+  const winR = { x: r * 0.62 - winW, y: winY, w: winW, h: winH };
+  // Most buildings share a plain rectangular wall; a couple narrow it for a tower read.
+  const wallR = s === 1 || s === 4 ? r * 0.66 : r * 0.84; // tower / steeple are slimmer
+  const rect = (w: number, top: number, bot: number): string =>
+    `M ${-w} ${bot} L ${-w} ${top} L ${w} ${top} L ${w} ${bot} Z`;
+  const body = rect(wallR, eave, base);
+
+  switch (s) {
+    case 0: {
+      // Gabled house — a peaked triangular roof overhanging the wall, door + two windows.
+      const o = r * 0.06;
+      return {
+        body,
+        roof: `M ${-wallR - o} ${eave} L 0 ${peak} L ${wallR + o} ${eave} Z`,
+        openings: [door, winL, winR],
+      };
+    }
+    case 1: {
+      // Domed tower — a slim tall wall capped by a half-dome, a tall door + a round window.
+      const tw = wallR;
+      return {
+        body: rect(tw, eave, base),
+        roof: `M ${-tw} ${eave} Q ${-tw} ${peak} 0 ${peak} Q ${tw} ${peak} ${tw} ${eave} Z`,
+        openings: [
+          { x: -doorW / 2, y: base - doorH * 1.15, w: doorW, h: doorH * 1.15 },
+          { x: -r * 0.16, y: eave + h * 0.06, w: r * 0.32, h: r * 0.32, round: true },
+        ],
+      };
+    }
+    case 2: {
+      // Stepped / ziggurat roof — two receding tiers above the wall (a civic block).
+      const t1 = eave;
+      const t2 = eave - h * 0.22;
+      const top = peak;
+      return {
+        body,
+        roof:
+          `M ${-wallR} ${t1} L ${-wallR} ${t2} L ${-wallR * 0.62} ${t2} ` +
+          `L ${-wallR * 0.62} ${top} L ${wallR * 0.62} ${top} L ${wallR * 0.62} ${t2} ` +
+          `L ${wallR} ${t2} L ${wallR} ${t1} Z`,
+        openings: [door, winL, winR],
+      };
+    }
+    case 3: {
+      // Flat-roof block with a parapet lip — a modern flat building, two stacked window rows.
+      const o = r * 0.08;
+      const lip = eave - h * 0.12;
+      const winY2 = eave + h * 0.2;
+      return {
+        body,
+        roof: `M ${-wallR - o} ${eave} L ${-wallR - o} ${lip} L ${wallR + o} ${lip} L ${wallR + o} ${eave} Z`,
+        openings: [
+          door,
+          winL,
+          winR,
+          { x: -r * 0.62, y: winY2, w: winW, h: winH * 0.8 },
+          { x: r * 0.62 - winW, y: winY2, w: winW, h: winH * 0.8 },
+        ],
+      };
+    }
+    case 4: {
+      // Steeple / spire — a slim wall under a tall narrow pitched roof (a chapel), arched door.
+      const tw = wallR;
+      const o = r * 0.05;
+      return {
+        body: rect(tw, eave, base),
+        roof: `M ${-tw - o} ${eave} L 0 ${peak} L ${tw + o} ${eave} Z`,
+        openings: [{ x: -doorW / 2, y: base - doorH * 1.1, w: doorW, h: doorH * 1.1, round: true }],
+      };
+    }
+    case 5: {
+      // Sawtooth roof — a row of little peaks (a workshop / factory), a wide door + one window.
+      const teeth = 3;
+      const span = wallR * 2;
+      const tw = span / teeth;
+      let d = `M ${-wallR} ${eave}`;
+      for (let i = 0; i < teeth; i++) {
+        const x0 = -wallR + i * tw;
+        d += ` L ${x0} ${peak} L ${x0 + tw} ${eave}`;
+      }
+      d += ' Z';
+      return {
+        body,
+        roof: d,
+        openings: [{ x: -doorW * 0.7, y: base - doorH, w: doorW * 1.4, h: doorH }, winR],
+      };
+    }
+    case 6: {
+      // Hip / pitched roof — a trapezoid roof (flat ridge, sloped ends), a warehouse, door + windows.
+      const o = r * 0.06;
+      const ridge = wallR * 0.42;
+      return {
+        body,
+        roof: `M ${-wallR - o} ${eave} L ${-ridge} ${peak} L ${ridge} ${peak} L ${wallR + o} ${eave} Z`,
+        openings: [door, winL, winR],
+      };
+    }
+    default: {
+      // 7: Mansard — a double-pitch roof (steep flare to a flatter cap), a townhouse, door + windows.
+      const o = r * 0.07;
+      const knee = eave - h * 0.24;
+      const capW = wallR * 0.58;
+      return {
+        body,
+        roof:
+          `M ${-wallR - o} ${eave} L ${-capW - o * 0.4} ${knee} L ${-capW} ${peak} ` +
+          `L ${capW} ${peak} L ${capW + o * 0.4} ${knee} L ${wallR + o} ${eave} Z`,
+        openings: [door, winL, winR],
+      };
+    }
+  }
+}
+
+/**
+ * One island's identity icon as a little BUILDING (ADR-0102 §1; owner ask 2026-06-25), a `<g>`
+ * centred horizontally at the origin with its base on y=0. A hue-tinted wall + a distinct ROOFLINE
+ * per `shape` bucket + window/door detail, with the monogram as a small label beneath so the
+ * building stays readable at the small on-map stamp size and richer on the panel card. Shared by
+ * the on-map {@link StoryStamp} and the panel card (its own glyph + city), so they never drift.
+ * Pure geometry off the deterministic {@link storyIcon}; the palette/stroke is CSS (owner-attested,
+ * ADR-0070). `scale` lets a call site (the on-map stamp, the panel) draw it bigger without
+ * disturbing the deterministic shape.
+ */
+function IconGlyph({ id, label = true }: { id: string; label?: boolean }): React.JSX.Element {
+  const G = ICON_GLYPH;
+  const icon = storyIcon(id);
+  const r = G.W / 2;
+  const parts = buildingParts(icon.shape, r, G.H);
+  // hue drives the fill via a CSS var (a soft body, a deeper roof + same-hue outline) — owner-attested.
+  const style = {
+    '--icon-hue': String(icon.hue),
+  } as React.CSSProperties;
   return (
-    <g className="story-bookshelf-art">
-      {/* plinth */}
-      <rect className="bookshelf-plinth" x={-B.W / 2 - 1} y={-B.plinth} width={B.W + 2} height={B.plinth} rx={0.6} />
-      {/* the dark case interior (books sit against it) */}
-      <rect className="bookshelf-case" x={-B.W / 2} y={-B.H} width={B.W} height={B.H - B.plinth} rx={1} />
-      {/* shelf boards */}
-      {rows.map(({ k, boardY }) => (
-        <rect
-          key={`b${k}`}
-          className="bookshelf-board"
-          x={-B.W / 2 + B.wall * 0.5}
-          y={boardY}
-          width={B.W - B.wall}
-          height={B.board}
-        />
-      ))}
-      {/* book spines (upright) + occasional flat stack, per shelf */}
-      {rows.map(({ k, boardY, books, flat }) => (
-        <g key={`s${k}`}>
-          {books.map((bk, i) => {
-            const x = -interiorW / 2 + bk.x;
-            const cx = x + bk.w / 2;
-            return (
-              <rect
-                key={i}
-                className={`bookshelf-book bk-${bk.variant}`}
-                x={x.toFixed(2)}
-                y={(boardY - bk.h).toFixed(2)}
-                width={bk.w.toFixed(2)}
-                height={bk.h.toFixed(2)}
-                rx={0.4}
-                {...(bk.tilt
-                  ? { transform: `rotate(${bk.tilt.toFixed(1)} ${cx.toFixed(2)} ${boardY.toFixed(2)})` }
-                  : {})}
-              />
-            );
-          })}
-          {flat &&
-            // a small flat stack to the side of this shelf's spines (varied lengths)
-            [0, 1, 2].map((j) => {
-              const sw = interiorW * (0.26 - j * 0.02);
-              const sx = interiorW / 2 - sw - 0.5;
-              const sy = boardY - 1.3 * (j + 1);
-              return (
-                <rect
-                  key={`f${j}`}
-                  className={`bookshelf-book bk-${(seed + j + k) % 5}`}
-                  x={sx.toFixed(2)}
-                  y={sy.toFixed(2)}
-                  width={sw.toFixed(2)}
-                  height={1.2}
-                  rx={0.3}
-                />
-              );
-            })}
-        </g>
-      ))}
-      {/* top board */}
-      <rect className="bookshelf-board" x={-B.W / 2} y={-B.H} width={B.W} height={B.board + 0.4} rx={0.6} />
-      {/* the overflow pile on top */}
-      {topPile.map((bk, i) => {
-        const x = -interiorW / 2 + bk.x;
-        return (
-          <rect
-            key={`t${i}`}
-            className={`bookshelf-book bk-${(bk.variant + 2) % 5}`}
-            x={x.toFixed(2)}
-            y={(-B.H - 2.6 + (i % 2)).toFixed(2)}
-            width={(bk.w * 1.9).toFixed(2)}
-            height={2.2}
-            rx={0.3}
+    <g className="story-icon-art" style={style}>
+      <path className="story-icon-body" d={parts.body} />
+      <path className="story-icon-roof" d={parts.roof} />
+      {parts.openings.map((o, i) =>
+        o.round ? (
+          <circle
+            key={i}
+            className="story-icon-window"
+            cx={o.x + o.w / 2}
+            cy={o.y + o.h / 2}
+            r={Math.min(o.w, o.h) / 2}
           />
-        );
-      })}
-      {/* side panels (over the book side-edges) */}
-      <rect className="bookshelf-side" x={-B.W / 2} y={-B.H} width={B.wall} height={B.H - B.plinth} rx={0.8} />
-      <rect className="bookshelf-side" x={B.W / 2 - B.wall} y={-B.H} width={B.wall} height={B.H - B.plinth} rx={0.8} />
+        ) : (
+          <rect key={i} className="story-icon-window" x={o.x} y={o.y} width={o.w} height={o.h} rx={0.6} />
+        ),
+      )}
+      {label && (
+        <text className="story-icon-mono" x={0} y={-G.H * 0.04} textAnchor="middle">
+          {icon.monogram}
+        </text>
+      )}
     </g>
   );
 }
 
 /**
- * The library-as-a-building icon (ADR-0076 §2) stamped on an island that CONSUMES the
- * library — a small weathered bookshelf beside the story tree, NOT a replacement for it: the
- * "this island uses the shared library" marker. The library itself lives in the left Shared
- * Islands panel now (ADR-0088); clicking this stamp highlights it there (`onStampClick`). The
- * tooltip names what it means. Appearance is owner-attested (ADR-0070) — geometry only here.
+ * A promoted ICON STAMP (ADR-0102) on a map island: the identity glyph of a BUILDING this island
+ * depends on ("you carry the icon of what you depend on"). NOT a replacement for the island's tree
+ * — a low-salience badge beside it (the edge is kept, not dropped: ADR-0074 §1). The named building
+ * lives in the left Shared Islands panel; clicking the stamp highlights it there (`onStampClick`).
+ * The tooltip names the coupling. Appearance owner-attested (ADR-0070) — geometry only here.
  */
-function StoryBookshelf({
-  territory: t,
+function StoryStamp({
+  story,
+  icon,
+  spot,
   hidden,
   onStampClick,
 }: {
-  territory: Territory;
+  story: TreeStory;
+  /** The building id whose identity glyph this stamp carries. */
+  icon: string;
+  spot: Pt;
   hidden: ReadonlySet<string>;
-  /** ADR-0088: clicking the stamp highlights the shared island it marks in the left panel
-   *  (instead of selecting the consumer island). Absent in the panel's own one-island render. */
-  onStampClick?: () => void;
+  /** ADR-0102: clicking the stamp highlights the shared island it names in the left panel
+   *  (instead of selecting the carrier island). Absent in the panel's own one-island render. */
+  onStampClick?: (sharedId: string) => void;
 }): React.JSX.Element {
-  const story = t.story;
   const st = story.status ?? 'unknown';
-  const spot = t.bookshelfSpot ?? t.treeSpot;
   return (
     <g
-      className={`story-bookshelf${hidden.has(st) ? ' is-filtered' : ''}${onStampClick ? ' is-link' : ''}`}
-      transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(1.18)`}
+      className={`story-icon-stamp${hidden.has(st) ? ' is-filtered' : ''}${onStampClick ? ' is-link' : ''}`}
+      transform={`translate(${spot.x.toFixed(1)} ${spot.y.toFixed(1)}) scale(1.0)`}
       {...(onStampClick
         ? {
             onClick: (e: React.MouseEvent) => {
-              e.stopPropagation(); // highlight the panel island, don't select the consumer
-              onStampClick();
+              e.stopPropagation(); // highlight the panel island, don't select the carrier
+              onStampClick(icon);
             },
           }
         : {})}
     >
-      <title>{`library — used by ${story.id} · click to find it in Shared Islands`}</title>
-      <ellipse className="flora-shadow" cx={1} cy={1.6} rx={12.5} ry={3.1} />
-      <BookshelfGlyph seed={hash(`${story.id}:shelf`)} />
+      <title>{`${icon} — used by ${story.id} · click to find it in Shared Islands`}</title>
+      <ellipse className="flora-shadow" cx={1} cy={1.6} rx={11} ry={3.0} />
+      <IconGlyph id={icon} />
     </g>
   );
 }
@@ -1996,26 +2089,93 @@ function IslandGround({
   );
 }
 
-/** The panel bookshelf landmark: clearly bigger than the on-map stamp (`scale(1.18)`) and seated
- *  to the RIGHT of the name card with a small gap. The glyph is centred at its origin, so its
- *  half-width is folded into the margin → its LEFT edge clears the card's right edge by ~6px.
- *  Owner-attested look (ADR-0088 follow-on, owner 2026-06-22). */
-const PANEL_SHELF_SCALE = 2;
-const PANEL_SHELF_MARGIN = 6 + (BOOKSHELF.W / 2) * PANEL_SHELF_SCALE;
+/** The panel identity-glyph "key": the island's OWN building, drawn as a small labelled landmark
+ *  to the RIGHT of the name card so the viewer learns which building IS this island (the one
+ *  stamped on its dependers). The glyph is centred at its origin, so its half-width is folded into
+ *  the margin → its LEFT edge clears the card's right edge by ~6px. Owner-attested look (ADR-0102). */
+const PANEL_KEY_SCALE = 1.25;
+const PANEL_KEY_MARGIN = 8 + (ICON_GLYPH.W / 2) * PANEL_KEY_SCALE;
+/** The on-map identity "key": every map island draws its OWN building just to the RIGHT of its name
+ *  tag (ADR-0102, owner ask 2026-06-25), base-aligned to the plate bottom — the same right-of-the-name
+ *  pattern as the panel card's key, so the map becomes the legend that lets you decode a hub's city
+ *  ("this nameplate building = drive-machinery" → recognise it inside cli's city). The glyph is
+ *  centred at its origin, so its half-width is folded into the margin → its LEFT edge clears the
+ *  plate's right edge by ~6px. Owner-attested look. */
+const NAMEPLATE_KEY_SCALE = 1.0;
+const NAMEPLATE_KEY_MARGIN = 6 + (ICON_GLYPH.W / 2) * NAMEPLATE_KEY_SCALE;
+/** The dependency-city geometry on a panel card (ADR-0102 §3, owner ask 2026-06-25 — the city sits
+ *  ON the island land, mirroring the on-map stamp seating, NOT in a grid beside the card). Each city
+ *  building is fanned around the central tree in concentric tiers and snapped onto owned land. */
+const CITY_SCALE = 0.78; // a touch smaller than the island's own "key" building, so the city reads as a cluster
 
 /**
- * One shared island rendered inside the left panel (ADR-0088). Reuses the world-model→render
- * seam: `buildWorld([story], { buildings:false })` lays the building out as exactly one Territory
- * (its own sand coastline, the SAME ground substrate the map paints, central health tree,
- * capability garden, nameplate) — visually identical to a map island — and we paint it inside a
- * self-contained `<svg viewBox>`. The bookshelf landmark sits OUTSIDE the name card, to its RIGHT
- * and bigger (owner 2026-06-22 — moved out of the plate), so the viewBox is widened to fit it. No
+ * Seat a source hub's dependency CITY (its `icons`) ON the island's land (ADR-0102 §3, owner ask
+ * 2026-06-25), mirroring the on-map `Territory.stamps` seating in {@link buildWorld}: fan the
+ * buildings around the central tree — alternating sides, stepping the radius out per tier so a
+ * dense city never collapses to one point — then walk each candidate INWARD until it sits on owned
+ * land (`ownedKeys`, the hex keys this territory claims), so a building never floats over the sea.
+ * Pure + deterministic per (treeSpot, crownR, icons, ownedKeys): a city never reshuffles between
+ * renders (ADR-0069). The look (density, spread) is owner-attested; this fixes only WHERE each
+ * building lands. Mirrors the on-map fan but DENSER (a city, not a 1–2 badge garden).
+ */
+export function cityStampSpots(
+  treeSpot: Pt,
+  crownR: number,
+  icons: readonly string[],
+  ownedKeys: ReadonlySet<string>,
+): { icon: string; spot: Pt }[] {
+  const onLand = (p: Pt): boolean => ownedKeys.has(axialKey(pixelToHex(p)));
+  // Lay the city in concentric rings around the tree base. Ring 0 is a tight inner cluster; each
+  // further ring holds more buildings at a wider radius, so a 6-building city (cli) fills the land
+  // while a 2-building one (library) sits close in. Counts grow per ring (3, 5, 7, …).
+  const ringCount = (ring: number): number => 3 + ring * 2;
+  return icons.map((icon, i) => {
+    // Which ring this index falls in, and its slot within the ring.
+    let ring = 0;
+    let consumed = 0;
+    while (i >= consumed + ringCount(ring)) {
+      consumed += ringCount(ring);
+      ring += 1;
+    }
+    const slot = i - consumed;
+    const inRing = ringCount(ring);
+    const radius = crownR * 0.62 + ring * (crownR * 0.66);
+    // Spread the ring across the front + sides (avoid directly behind the trunk, where the canopy
+    // would hide a building): an arc centred south (downward), ~300° wide, offset per ring so rings
+    // interleave rather than stack radially.
+    const ARC = (Math.PI * 5) / 3; // ~300°
+    const a0 = Math.PI / 2 - ARC / 2; // start just west of due-south
+    const angle = a0 + ((slot + 0.5) / inRing) * ARC + ring * 0.4;
+    let x = treeSpot.x + Math.cos(angle) * radius;
+    let y = treeSpot.y + Math.sin(angle) * radius * 0.66 + 4; // top-down squash, a touch in front
+    for (let k = 0; k < 6 && !onLand({ x, y }); k++) {
+      x += (treeSpot.x - x) * 0.28;
+      y += (treeSpot.y - y) * 0.28;
+    }
+    return { icon, spot: { x, y } };
+  });
+}
+
+/**
+ * One shared island rendered inside the left panel (ADR-0088 + ADR-0102). Reuses the
+ * world-model→render seam: `buildWorld([story], { buildings:false })` lays the building out as
+ * exactly one Territory (its own sand coastline, the SAME ground substrate the map paints, central
+ * health tree, capability garden, nameplate) — visually identical to a map island — painted inside
+ * a self-contained `<svg viewBox>`. The ADR-0102 vocabulary (owner ask 2026-06-25):
+ *   • the island's CITY — the buildings of everything it depends on (its promoted dependency
+ *     stamps, §3) — sits ON the island's LAND, mirroring the on-map stamp seating ({@link
+ *     cityStampSpots}): a SOURCE hub (cli) covers its land with a dense city of ~6 buildings; a
+ *     SINK hub (library) shows its 2 on the land. This is the "city of buildings" the ADR rests on.
+ *   • the island's OWN building is kept as a small labelled "key" to the RIGHT of the name card, so
+ *     the viewer learns which building IS this island — the one stamped on its dependers.
+ * The city is computed from the FULL `stories` list (so a hub's provider-side edges resolve). No
  * on-map context (no roads, no neighbours): the panel island stands alone. The card is the click
  * target into the side panel; clicking it selects the story like clicking its map island.
- * Appearance owner-attested.
+ * Appearance owner-attested (ADR-0070).
  */
 function SharedIslandCard({
   story,
+  stories,
   hidden,
   builds,
   now,
@@ -2025,6 +2185,8 @@ function SharedIslandCard({
   onSelect,
 }: {
   story: TreeStory;
+  /** The FULL story list — to resolve this island's city (its dependency icons, ADR-0102 §3). */
+  stories: TreeStory[];
   hidden: ReadonlySet<string>;
   builds: BuildActivity[];
   now: Date;
@@ -2050,12 +2212,23 @@ function SharedIslandCard({
     return <button type="button" className={cls} onClick={onSelect} aria-label={ariaLabel} />;
   }
   const plate = nameplateLayout(story.id.length, false);
-  const anchor = bookshelfAnchorRight(plate, t.centroid.x, t.labelY, PANEL_SHELF_MARGIN);
-  // Widen the viewBox so the right-side glyph isn't clipped — buildWorld's bounds don't know about it.
-  const vbW = Math.max(
-    world.width,
-    world.offset.x + anchor.x + (BOOKSHELF.W / 2 + 2) * PANEL_SHELF_SCALE + 6,
+  // The island's OWN building, kept as a small labelled "key" to the right of the name card.
+  const anchor = bookshelfAnchorRight(plate, t.centroid.x, t.labelY, PANEL_KEY_MARGIN);
+  // This island's CITY (ADR-0102 §3): the icons of everything it depends on. Resolve over the FULL
+  // list with THIS story forced building (so its incident edges promote regardless of the flag).
+  const city = useMemo(() => {
+    const wired = stories.map((s) => ({ id: s.id, dependsOn: s.dependsOn, consumedBy: s.consumedBy }));
+    return stampsByCarrier(promotedStamps(wired, new Set([story.id]))).get(story.id) ?? [];
+  }, [stories, story.id]);
+  // Seat the city ON the land (owner ask 2026-06-25), mirroring the on-map stamp seating: fan the
+  // dependency buildings around the central tree and snap each onto an owned tile (cityStampSpots).
+  const cityStamps = useMemo(
+    () => cityStampSpots(t.treeSpot, crownRadius(story.capabilities.length), city, new Set(t.tiles.map(axialKey))),
+    [t.treeSpot, t.tiles, story.capabilities.length, city],
   );
+  // Widen the viewBox so the right-side "key" building isn't clipped — buildWorld's bounds don't know about it.
+  const keyHalf = (ICON_GLYPH.W / 2 + 2) * PANEL_KEY_SCALE;
+  const vbW = Math.max(world.width, world.offset.x + anchor.x + keyHalf + 6);
   const vbH = Math.max(world.height, world.offset.y + anchor.y + 6);
   return (
     <button type="button" className={cls} onClick={onSelect} aria-label={ariaLabel}>
@@ -2084,15 +2257,39 @@ function SharedIslandCard({
             now={now}
             onHover={() => {}}
             onSelect={() => onSelect()}
+            identityKey={false}
           />
-          {/* the bookshelf landmark OUTSIDE the name card, to its RIGHT and bigger (owner
-              2026-06-22) — marks this as a shared "building" island; the in-card glyph was retired. */}
+          {/* ADR-0102 (owner ask 2026-06-25): this island's dependency CITY sits ON the land —
+              the buildings of everything it depends on, fanned around the tree and seated on owned
+              soil (cityStampSpots), just like the on-map stamps. A source hub (cli) reads as a
+              dense city; a sink hub (library) as a couple of buildings. Sorted by y so they layer
+              with the flora; a touch smaller than the own-building "key" beside the card. */}
+          {cityStamps.length > 0 && (
+            <g className="shared-island-city" aria-hidden="true">
+              <title>{`${story.id} depends on ${cityStamps.length} shared ${cityStamps.length === 1 ? 'island' : 'islands'}`}</title>
+              {[...cityStamps]
+                .sort((a, b) => a.spot.y - b.spot.y)
+                .map((s) => (
+                  <g
+                    key={s.icon}
+                    className="city-icon"
+                    transform={`translate(${s.spot.x.toFixed(1)} ${s.spot.y.toFixed(1)}) scale(${CITY_SCALE})`}
+                  >
+                    <ellipse className="flora-shadow" cx={1} cy={1.4} rx={9} ry={2.6} />
+                    <IconGlyph id={s.icon} label={false} />
+                  </g>
+                ))}
+            </g>
+          )}
+          {/* The island's OWN building, kept as a small labelled "key" OUTSIDE the name card, to its
+              RIGHT — so the viewer learns which building IS this island (the one stamped on its
+              dependers). The dependency city above goes ON the land; this key names the island. */}
           <g
-            className="shared-island-shelf"
-            transform={`translate(${anchor.x.toFixed(1)} ${anchor.y.toFixed(1)}) scale(${PANEL_SHELF_SCALE})`}
+            className="shared-island-glyph"
+            transform={`translate(${anchor.x.toFixed(1)} ${anchor.y.toFixed(1)}) scale(${PANEL_KEY_SCALE})`}
             aria-hidden="true"
           >
-            <BookshelfGlyph seed={hash(`${story.id}:shelf`)} />
+            <IconGlyph id={story.id} />
           </g>
         </g>
       </svg>
@@ -2213,6 +2410,7 @@ function SharedIslandsPanel({
               >
                 <SharedIslandCard
                   story={s}
+                  stories={stories}
                   hidden={hidden}
                   builds={builds}
                   now={now}
@@ -2580,6 +2778,7 @@ function TerritoryFlora({
   onHover,
   onSelect,
   onStampClick,
+  identityKey = true,
 }: {
   territory: Territory;
   className: string;
@@ -2588,9 +2787,13 @@ function TerritoryFlora({
   now: Date;
   onHover: (on: boolean) => void;
   onSelect: (capId: string | null) => void;
-  /** ADR-0088: clicking this island's bookshelf STAMP (a consumer marker) highlights the shared
-   *  island it uses in the left panel. Absent in the panel's own one-island render. */
-  onStampClick?: () => void;
+  /** ADR-0102: clicking one of this island's ICON STAMPS highlights the shared island it names
+   *  (the carried building's id) in the left panel. Absent in the panel's own one-island render. */
+  onStampClick?: (sharedId: string) => void;
+  /** ADR-0102 (owner ask 2026-06-25): draw this island's OWN identity building beside its name tag
+   *  — the legend that makes the promoted stamps + the shared-island cities decodable. On by default
+   *  (the map); the Shared Islands panel card passes `false` because it draws its own tuned "key". */
+  identityKey?: boolean;
 }): React.JSX.Element {
   const story = t.story;
   const statusKey = story.status ?? 'unknown';
@@ -2634,16 +2837,19 @@ function TerritoryFlora({
     y: t.treeSpot.y,
     el: <StoryTree key="story-tree" territory={t} hidden={hidden} now={now} />,
   });
-  // ADR-0076 §2 / ADR-0088: a consumer of the library carries a small bookshelf BESIDE its tree
-  // — the "this island uses the shared library" marker. The library itself lives in the left
-  // Shared Islands panel now; clicking the stamp highlights it there.
-  if (t.bookshelf && t.bookshelfSpot) {
+  // ADR-0102: this island carries the identity icon of each BUILDING it depends on, beside its
+  // tree — a low-salience badge per promoted edge ("you carry the icon of what you depend on"; the
+  // edge is kept, not dropped). The building lives in the left Shared Islands panel; clicking a
+  // stamp highlights the one it names there. studio carries two (library + cli).
+  for (const stamp of t.stamps) {
     drawables.push({
-      y: t.bookshelfSpot.y,
+      y: stamp.spot.y,
       el: (
-        <StoryBookshelf
-          key="story-bookshelf"
-          territory={t}
+        <StoryStamp
+          key={`stamp:${stamp.icon}`}
+          story={story}
+          icon={stamp.icon}
+          spot={stamp.spot}
           hidden={hidden}
           {...(onStampClick ? { onStampClick } : {})}
         />
@@ -2662,24 +2868,11 @@ function TerritoryFlora({
       {drawables.map((d) => d.el)}
 
       <g
-        className={`world-plate${t.buildingGlyph ? ' is-building' : ''}`}
+        className="world-plate"
         transform={`translate(${t.centroid.x - plate.w / 2} ${t.labelY})`}
       >
         <title>{story.error ? `${story.id} — ${story.error}` : story.title}</title>
         <rect className="world-plate-bg" width={plate.w} height={plate.h} rx={plate.rx} />
-        {/* ADR-0088: a bookshelf glyph WITHIN the nameplate, left of the name, marks this island
-            AS a building (the shared library) in the Shared Islands PANEL (never on the map —
-            `buildingGlyph` is only set by the panel's one-island render). Seated as a leading
-            marker on the larger building plate. The look is owner-attested (ADR-0070). */}
-        {t.buildingGlyph && (
-          <g
-            className="world-plate-building"
-            transform={`translate(${plate.glyphX} ${plate.glyphY}) scale(${plate.glyphScale})`}
-            aria-hidden="true"
-          >
-            <BookshelfGlyph seed={hash(`${story.id}:plate-shelf`)} />
-          </g>
-        )}
         <text className="world-plate-id" x={plate.w / 2} y={plate.idY} textAnchor="middle">
           {story.id}
         </text>
@@ -2690,6 +2883,19 @@ function TerritoryFlora({
               // precise verdict facts live in the tooltip and the panel.
               `${statusKey} · ${story.capabilities.length} caps`}
         </text>
+        {/* ADR-0102 (owner ask 2026-06-25): every map island shows its OWN identity building beside
+            its name tag — the legend that makes the promoted stamps and the shared-island cities
+            decodable (learn "this island = this building" here, then recognise it in a hub's city).
+            Right of the plate, base-aligned to its bottom; same pattern as the panel card's key.
+            The panel card passes identityKey={false} (it draws its own tuned key). */}
+        {identityKey && (
+          <g
+            className="world-plate-key"
+            transform={`translate(${(plate.w + NAMEPLATE_KEY_MARGIN).toFixed(1)} ${plate.h}) scale(${NAMEPLATE_KEY_SCALE})`}
+          >
+            <IconGlyph id={story.id} />
+          </g>
+        )}
       </g>
 
       {/* The orbiting layer is the HARNESS (ADR-0048 §5): a wisp orbits a story

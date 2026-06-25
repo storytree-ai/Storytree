@@ -5,9 +5,9 @@
 // Islands" panel. So in `buildWorld` a building-tagged story is UNCONDITIONALLY excluded from
 // the laid-out `territories` whenever the distributed `buildings` flag is on (no `buildingIsland`
 // coupling anymore) — it is not on the map, has no on-map nameplate/glyph, and no edge/rank to
-// it exists (it never enters `stories`/`edgeList`). Its CONSUMERS still carry the bookshelf
-// STAMP — the "this island uses the shared library" marker that stays on the map and links to
-// the panel.
+// it exists (it never enters `stories`/`edgeList`). Its incident edges are PROMOTED to per-island
+// icon STAMPS (ADR-0102): each consumer carries the building's identity icon ("you carry the icon
+// of what you depend on") — a low-salience badge that stays on the map and links to the panel.
 //
 // Stage-1 red-green of the geometry/behaviour (ADR-0070): the panel's APPEARANCE (the
 // full-island render inside the panel, the right-pop boxes, sizing) is owner-attested.
@@ -64,15 +64,15 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
     expect(ids).not.toContain('library');
   });
 
-  it('STILL distributes the bookshelf STAMP onto consumers (the on-map "uses the library" marker)', () => {
+  it('PROMOTES library`s edges to per-island icon STAMPS on its consumers (ADR-0102)', () => {
     const world = buildWorld(corpus(), { buildings: true });
     const byId = Object.fromEntries(world.territories.map((t) => [t.story.id, t]));
-    // cli and alpha connect to the library → both carry the stamp; beta (only → alpha) does not
-    expect(byId['cli']!.bookshelf).toBe(true);
-    expect(byId['alpha']!.bookshelf).toBe(true);
-    expect(byId['beta']!.bookshelf).toBe(false);
-    // a consumer stamp has a placed spot on owned land
-    expect(byId['cli']!.bookshelfSpot).toBeDefined();
+    // cli and alpha depend on library → each carries library's icon; beta (only → alpha) carries none
+    expect(byId['cli']!.stamps.map((s) => s.icon)).toEqual(['library']);
+    expect(byId['alpha']!.stamps.map((s) => s.icon)).toEqual(['library']);
+    expect(byId['beta']!.stamps).toEqual([]);
+    // a carried stamp has a placed spot on owned land
+    expect(byId['cli']!.stamps[0]!.spot).toBeDefined();
   });
 
   it('draws NO road incident to a building (it never enters edgeList), keeping non-building edges', () => {
@@ -107,9 +107,9 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
     const world = buildWorld(graph, { buildings: true });
     const ids = world.territories.map((t) => t.story.id);
     expect(ids).not.toContain('future-shared');
-    // and beta now carries a stamp because it consumes the new shared island
+    // and beta now carries the new shared island's icon because it consumes it (ADR-0102)
     const beta = world.territories.find((t) => t.story.id === 'beta')!;
-    expect(beta.bookshelf).toBe(true);
+    expect(beta.stamps.map((s) => s.icon)).toContain('future-shared');
   });
 
   it('with buildings OFF the building is a normal connected island (the ?buildings=off escape)', () => {
@@ -118,8 +118,8 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
     // library is a normal island when buildings are off — its edges are drawn
     expect(ids).toEqual(['alpha', 'beta', 'cli', 'library']);
     expect((off.lineRoads ?? []).some((e) => e.to === 'cli' && e.from === 'library')).toBe(true);
-    // no consumer stamps when the distributed flag is off
-    expect(off.territories.every((t) => t.bookshelf === false)).toBe(true);
+    // no icon stamps when the buildings flag is off — every edge stays a road (ADR-0102)
+    expect(off.territories.every((t) => t.stamps.length === 0)).toBe(true);
   });
 });
 
