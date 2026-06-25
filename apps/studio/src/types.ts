@@ -535,13 +535,17 @@ export interface AttestationMark {
 
 /**
  * One UAT test of a story (parsed from its `## Story UAT` prose) joined with its latest
- * human/machine attestation. `witness` is the test's PERMISSION (who may attest); `human`/
- * `machine` are the actual recorded marks (absent = un-attested → blank).
+ * human/machine attestation. `witness` is the RESOLVED binary witness (ADR-0106): the server resolves
+ * the declared permission (`human`|`machine`|`either`) through the SAME classifier the adopt pass uses
+ * before it leaves the wire, so the owner surface is binary — `human` shows a confirm affordance, a
+ * `machine` leg shows none, and the undecided `either` is NEVER rendered (ADR-0106 d.5). `human`/
+ * `machine` are the actual recorded vouch marks (absent = un-attested → blank).
  */
 export interface UatTestRow {
   id: string;
   title: string;
-  witness: 'human' | 'machine' | 'either';
+  /** The RESOLVED binary witness (ADR-0106) — `either` is resolved server-side and never reaches here. */
+  witness: 'human' | 'machine';
   human?: AttestationMark;
   machine?: AttestationMark;
   /**
@@ -565,6 +569,14 @@ export interface AttestationsPayload {
    * fail, `null` (abstain/under-claim) otherwise. Absent when the live store can't answer.
    */
   storyUat?: 'healthy' | 'unhealthy' | null;
+  /**
+   * The "no `either` at rest" guard (ADR-0106 d.1): the ids of UAT legs still declared `either`
+   * (undecided) on an ADOPTED story (past `mapped`) — an invariant violation, since the adopt
+   * story-writer pass should have recorded each leg's decided witness. Present (non-empty) only when
+   * the violation exists; the UI surfaces it as a re-author nudge. A still-`mapped` (pre-adopt) story
+   * legitimately holds undecided legs, so the guard does not fire for it.
+   */
+  unresolvedWitnesses?: string[];
 }
 
 /**

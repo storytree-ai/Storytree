@@ -3119,7 +3119,7 @@ function savedPanelWidth(): number {
  * Signing re-pulls this panel (the proven glyph) AND the world tree (the crown). Fetched per-story
  * on open; silently absent when the live store is down.
  */
-function UatTestsSection({
+export function UatTestsSection({
   storyId,
   onCrownRefresh,
 }: {
@@ -3130,6 +3130,8 @@ function UatTestsSection({
   const isAdmin = me.role === 'admin';
   const [tests, setTests] = useState<UatTestRow[] | null>(null);
   const [storyUat, setStoryUat] = useState<'healthy' | 'unhealthy' | null | undefined>(undefined);
+  // ADR-0106 d.1: ids of legs still `either` on this adopted story — the "no `either` at rest" guard.
+  const [unresolved, setUnresolved] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -3138,6 +3140,7 @@ function UatTestsSection({
       const payload = await api.attestations(storyId);
       setTests(payload.tests);
       setStoryUat(payload.storyUat);
+      setUnresolved(payload.unresolvedWitnesses ?? []);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -3184,13 +3187,24 @@ function UatTestsSection({
   return (
     <div className="uat-tests">
       <h4 className="tree-subdag-title">UAT tests ({tests.length})</h4>
+      {/* ADR-0106 d.1 — the "no `either` at rest" guard: this adopted story still carries undecided
+          legs, which silently land on the operator. Nudge the author to record each leg's witness. */}
+      {unresolved.length > 0 && (
+        <p className="uat-unresolved-warning small">
+          ⚠ {unresolved.length} UAT leg{unresolved.length > 1 ? 's' : ''} on this adopted story{' '}
+          {unresolved.length > 1 ? 'are' : 'is'} still undecided — re-author{' '}
+          {unresolved.length > 1 ? 'their' : 'its'} witness so each leg is clearly yours to confirm or
+          the machine&apos;s to prove (ADR-0106).
+        </p>
+      )}
       <table className="uat-table">
         <tbody>
           {tests.map((t) => {
             // PROVEN — the SIGNED verdict (events.verdict): the real gate state that greens the crown.
             const proven = t.proven; // 'pass' | 'fail' | undefined
-            // An admin signs a human/`either` test not yet proven; a machine test refuses a click.
-            const canSign = isAdmin && proven !== 'pass' && t.witness !== 'machine';
+            // ADR-0106 d.5: the owner surface is BINARY — an admin confirms a `human` leg not yet
+            // proven ("I saw it work"); a `machine` leg shows NO affordance (adopt/build handles it).
+            const canSign = isAdmin && proven !== 'pass' && t.witness === 'human';
             const signBusy = busy === `sign:${t.id}`;
             // A faint ✓ INVITES the signature (signable); a solid ✓ / ✗ is the recorded verdict; – is
             // an un-provable-by-click (machine) or not-yet-proven test.
@@ -3207,10 +3221,11 @@ function UatTestsSection({
                       ? 'awaiting a machine proof — a click cannot green a machine-witness test'
                       : 'not yet proven';
 
-            // VOUCH — the existing lower-rigor events.attestation mark, intact.
+            // VOUCH — the existing lower-rigor events.attestation mark, intact. Offered only for a
+            // `human` leg (the binary surface — a `machine` leg is the machine's to prove, ADR-0106).
             const mark = t.human ?? t.machine;
             const vouchState = mark ? mark.outcome : 'none'; // 'pass' | 'fail' | 'none'
-            const canVouch = isAdmin && vouchState === 'none' && t.witness !== 'machine';
+            const canVouch = isAdmin && vouchState === 'none' && t.witness === 'human';
             const vouchBusy = busy === `vouch:${t.id}`;
             const who = mark
               ? mark.relayedBy

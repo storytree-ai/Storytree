@@ -58,6 +58,17 @@ export { loadNodeSpec, findNodeSpecFile, mapProofMode } from "./node-spec.js";
 // lazy-imports ONLY the orchestrator (devApi.ts's raw-TS trap) — resolves the uat_witness default
 // through the same single helper the story-build gate uses (ADR-0040).
 export { effectiveUatWitness, type UatWitness } from "@storytree/library";
+// ADR-0106: the per-test witness RESOLUTION — re-exported so the studio dev server (which lazy-imports
+// ONLY the orchestrator) resolves the binary `human`|`machine` witness through the SAME classifier the
+// adopt pass uses, so the owner surface's binary can never fork from the rule.
+export {
+  resolveWitness,
+  resolvedWitnessOf,
+  unresolvedUatLegs,
+  isUnresolvedWitness,
+  type ResolvedWitnessKind,
+  type WitnessResolution,
+} from "@storytree/library";
 
 export type { NodeBuildConfig, RealProofConfig } from "./test-command-registry.js";
 export {

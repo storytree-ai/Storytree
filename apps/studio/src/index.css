@@ -2163,6 +2163,15 @@ mark.st-hl.flash {
   font-size: 11px;
   margin: 2px 0 0;
 }
+/* ADR-0106 d.1: the "no `either` at rest" guard — an adopted story carrying undecided UAT legs. */
+.uat-unresolved-warning {
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: var(--warning, #9a6700);
+  background: color-mix(in srgb, var(--warning, #9a6700) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #9a6700) 35%, transparent);
+}
 
 /* The UI-driven Build control (ADR-0090 Phase 1 "the local loop"): trigger a single-node
    `--live` build from the island panel and watch a COARSE transcript run to a verdict. The

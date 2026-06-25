@@ -24,7 +24,7 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { UatTest } from '@storytree/library';
+import type { ReliabilityGate, ResolvedWitnessKind, UatTest } from '@storytree/library';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 // Type-only (fully erased under verbatimModuleSyntax — no runtime import, so it never hits the
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
@@ -627,16 +627,62 @@ export async function handleUsers(
 // rigor in-UI signature, ADR-0044 d.4); admin-only by the gate's method rule. A vouch, never a
 // gate verdict (d.2): this writes events.attestation only and the world island hue is untouched.
 
-/** A story's UAT test units via loadNodeSpec (lazy orchestrator); `[]` for a missing/odd spec. */
-async function uatTestsForStory(storiesDir: string, storyId: string): Promise<UatTest[]> {
+/**
+ * A story's UAT legs + the facts the ADR-0106 witness resolution needs (its reliability gates, to
+ * route a `machine` leg, and its status, for the "no `either` at rest" guard) via loadNodeSpec (lazy
+ * orchestrator); `null` for a missing/odd spec.
+ */
+async function uatContextForStory(
+  storiesDir: string,
+  storyId: string,
+): Promise<{ tests: UatTest[]; gates: ReliabilityGate[]; status: string } | null> {
   const file = path.join(storiesDir, storyId, 'story.md');
-  if (!existsSync(file)) return [];
+  if (!existsSync(file)) return null;
   const { loadNodeSpec } = await loadOrchestrator();
   try {
-    return loadNodeSpec(file).uatTests;
+    const spec = loadNodeSpec(file);
+    return { tests: spec.uatTests, gates: spec.reliabilityGates, status: spec.status };
   } catch {
-    return [];
+    return null;
   }
+}
+
+/** A story's UAT test units; `[]` for a missing/odd spec (handleUatAttest's narrower need). */
+async function uatTestsForStory(storiesDir: string, storyId: string): Promise<UatTest[]> {
+  return (await uatContextForStory(storiesDir, storyId))?.tests ?? [];
+}
+
+/** The classifier seam {@link resolveUatRowWitnesses} injects — the library's witness-resolution core. */
+export interface UatWitnessResolver {
+  resolvedWitnessOf: (
+    leg: Pick<UatTest, 'witness'>,
+    gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
+  ) => ResolvedWitnessKind;
+  unresolvedUatLegs: <T extends Pick<UatTest, 'witness'>>(legs: readonly T[]) => T[];
+}
+
+/** A UAT leg with its DECLARED witness replaced by the RESOLVED binary one (ADR-0106 d.5). */
+export type ResolvedUatLeg = Omit<UatTest, 'witness'> & { witness: ResolvedWitnessKind };
+
+/**
+ * PURE (ADR-0106 d.5/d.1): resolve each UAT leg's declared witness into the BINARY one the owner
+ * surface reads, and compute the "no `either` at rest" guard. The classifier is INJECTED (the library's
+ * `resolvedWitnessOf` / `unresolvedUatLegs`, fed by the lazy orchestrator) so the studio is held to the
+ * SAME rule the adopt pass uses — the binary can never fork — and the helper stays a unit testable
+ * without the HTTP handler. Returns the legs with their resolved witness, plus the ids of any leg still
+ * `either` on an ADOPTED story (past `mapped`); a still-`mapped` (pre-adopt) story may hold undecided
+ * legs (adopt is what prompts the decision), so the guard does not fire for it.
+ */
+export function resolveUatRowWitnesses(
+  tests: readonly UatTest[],
+  gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
+  status: string,
+  resolver: UatWitnessResolver,
+): { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] } {
+  const resolved = tests.map((t) => ({ ...t, witness: resolver.resolvedWitnessOf(t, gates) }));
+  const adopted = status !== '' && status !== 'mapped' && status !== 'retired';
+  const unresolvedWitnesses = adopted ? resolver.unresolvedUatLegs(tests).map((t) => t.id) : [];
+  return { tests: resolved, unresolvedWitnesses };
 }
 
 export async function handleAttestations(
@@ -654,14 +700,25 @@ export async function handleAttestations(
   if (method === 'GET') {
     const storyId = (url.searchParams.get('storyId') ?? '').trim();
     if (!storyId) throw new HttpError(400, 'storyId query param is required');
-    const [tests, marks, events] = await Promise.all([
-      uatTestsForStory(ctx.paths.storiesDir, storyId),
+    const [storyCtx, marks, events] = await Promise.all([
+      uatContextForStory(ctx.paths.storiesDir, storyId),
       ctx.backend.listAttestations(storyId),
       // The per-test SIGNED-verdict stream (ADR-0082) for the PROVEN state — advisory, same contract
       // as /api/tree's: `null` for the json backend / a down DB (the proven column then silently
       // absent), absent on a partial mock (the `?.()`).
       ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
     ]);
+    const tests = storyCtx?.tests ?? [];
+    // ADR-0106: resolve each leg's declared witness into the BINARY one the owner surface reads (the
+    // word `either` never reaches the UI), and compute the "no `either` at rest" guard — through the
+    // SAME classifier the adopt pass uses (the lazy orchestrator re-exports it), so the binary can't fork.
+    const { resolvedWitnessOf, unresolvedUatLegs } = await loadOrchestrator();
+    const { tests: resolvedTests, unresolvedWitnesses } = resolveUatRowWitnesses(
+      tests,
+      storyCtx?.gates ?? [],
+      storyCtx?.status ?? '',
+      { resolvedWitnessOf, unresolvedUatLegs },
+    );
     // The PROVEN state (ADR-0082) is the latest SIGNED verdict in events.verdict — a REAL gate
     // verdict, DELIBERATELY DISTINCT from the vouch marks (`human`/`machine`). It greens the story
     // crown via the AND-roll-up; the vouch never does. Derived through the SAME `rollupStatus` /
@@ -676,11 +733,16 @@ export async function handleAttestations(
       };
       storyUat = storyUatRollup(rollupStoryUat(tests, events));
     }
-    const rows = tests.map((t) => {
+    const rows = resolvedTests.map((t) => {
       const proven = provenOf?.(t.id);
       return { ...t, ...(marks[t.id] ?? {}), ...(proven ? { proven } : {}) };
     });
-    return sendJson(res, 200, { storyId, tests: rows, ...(storyUat !== undefined ? { storyUat } : {}) });
+    return sendJson(res, 200, {
+      storyId,
+      tests: rows,
+      ...(storyUat !== undefined ? { storyUat } : {}),
+      ...(unresolvedWitnesses.length > 0 ? { unresolvedWitnesses } : {}),
+    });
   }
 
   if (method === 'POST') {
