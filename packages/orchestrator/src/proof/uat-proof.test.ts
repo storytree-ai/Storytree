@@ -5,7 +5,13 @@ import type { Verdict } from "@storytree/proof-protocol";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
-import { checkUatProof, rollupStoryUat, rollupStoryGreen, rollupCapStatus } from "./uat-proof.js";
+import {
+  checkUatProof,
+  rollupStoryUat,
+  rollupStoryGreen,
+  rollupCapStatus,
+  gateStoryGreenOnOpenQuestions,
+} from "./uat-proof.js";
 
 /**
  * The per-test UAT proof model (ADR-0082): the sign-time trust guard keeps "green" honest, and the
@@ -306,4 +312,37 @@ test("cap-status: the crown agrees with the per-cap fold — every cap rollupCap
   for (const c of caps) assert.equal(rollupCapStatus(c, events, gates), "healthy");
   // gates double as the own-proof obligation here, so the crown greens off the same signal.
   assert.equal(rollupStoryGreen(caps, gates, events, gates), "healthy");
+});
+
+// ── gateStoryGreenOnOpenQuestions: the proving-process OQ gate (ADR-0107 / ADR-0106 d4) ──────────
+// An open question raised during a story's adopt/build proving process (attached via a node:<id>
+// reference, classified by the library's openQuestionsGatingNode) WITHHOLDS the story's green until
+// the OQ is resolved. The gate is a pure post-filter over the already-derived crown status.
+
+test("oq-gate: a would-be-green crown with an OPEN gating OQ does NOT roll up green (blocked → null)", () => {
+  // Prove the full path: the crown rolls up healthy, but one open OQ attached to the process blocks it.
+  const caps = ["s.cap-a"];
+  const tests = [{ id: "s#uat-1" }];
+  const events = [passEvent("s.cap-a", "capability"), passEvent("s#uat-1")];
+  const crown = rollupStoryGreen(caps, tests, events);
+  assert.equal(crown, "healthy"); // everything is driven green…
+  assert.equal(gateStoryGreenOnOpenQuestions(crown, 1), null); // …but the open fork withholds the green
+});
+
+test("oq-gate: resolving the OQ (count → 0) UNBLOCKS the green — the base flows through verbatim", () => {
+  assert.equal(gateStoryGreenOnOpenQuestions("healthy", 0), "healthy");
+});
+
+test("oq-gate: more than one open gating OQ still just withholds (any open fork blocks)", () => {
+  assert.equal(gateStoryGreenOnOpenQuestions("healthy", 3), null);
+});
+
+test("oq-gate: NEVER manufactures unhealthy — a withheld green is not a regression", () => {
+  // An unhealthy base (a signed fail / drift) is returned UNCHANGED regardless of open OQs.
+  assert.equal(gateStoryGreenOnOpenQuestions("unhealthy", 2), "unhealthy");
+});
+
+test("oq-gate: an abstaining (null) base is returned UNCHANGED — the gate only withholds a green", () => {
+  assert.equal(gateStoryGreenOnOpenQuestions(null, 2), null);
+  assert.equal(gateStoryGreenOnOpenQuestions(null, 0), null);
 });

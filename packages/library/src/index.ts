@@ -20,6 +20,10 @@ export * from "./reliability-gates.js";
 // ADR-0106 (amends 0044/0082/0097): the pure per-test UAT witness RESOLUTION — the asymmetric
 // classifier the adopt pass + studio share to resolve `either` into a binary human|machine witness.
 export * from "./witness-resolution.js";
+// ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question
+// carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green
+// (the green-fold is the orchestrator's `gateStoryGreenOnOpenQuestions`). Pure, browser-safe.
+export * from "./oq-gating.js";
 
 // The cross-cutting knowledge tier (ADR-0017) — the library's namesake competence: schema-
 // validated, versioned knowledge documents. Moved out of `@storytree/core` (ADR-0068 step 4) so

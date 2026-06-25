@@ -98,7 +98,10 @@ attached to the proving process **gates** it — the story does not green past t
 the OQ is resolved (generalising ADR-0037's live-build OQ-hygiene gate; making ADR-0097 §3's "escalate
 the key decisions through the OQ/ADR-fork flow" a hard gate, not a surfaced note). This is the escape
 valve that lets decision 2 be honest: faced with an ambiguous witness call, the pass RAISES A GATING OQ
-rather than guessing — the human owns the fork (ADR-0030), the process waits.
+rather than guessing — the human owns the fork (ADR-0030), the process waits. This general mechanism
+(it is not specific to the witness classification it serves here) is extracted to its own ADR as flagged:
+**[ADR-0107](0107-an-open-question-attached-to-a-proving-process-gates-its-gre.md)** records the
+process-attached-OQ green-gate as a first-class, reusable valve and is BUILT.
 
 **5. The owner UI is BINARY; `either` leaves the owner surface.** A UAT leg either shows the operator a
 confirm affordance — the "I saw it work" verdict button
@@ -164,6 +167,9 @@ infrastructure is largely NOT BUILT.**
 - [ADR-0032](0032-cite-graduation-mechanism.md) /
   [ADR-0037](0037-decision-binding-and-hygiene-gates.md) — the open-question channel and
   the OQ-hygiene gate this generalises into a proving-process gate (decision 4).
+- [ADR-0107](0107-an-open-question-attached-to-a-proving-process-gates-its-gre.md) — the extraction of
+  decision 4's general mechanism into its own ADR (the process-attached-OQ green-gate, BUILT); the
+  forward-pointer for the "may deserve its own ADR" flag.
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the human owns the outer loop (the gating OQ is how
   the inner loop hands a fork back).
 - [ADR-0084](0084-agents-may-flip-an-adr-green.md) — the policy under which this ADR's `status:` will

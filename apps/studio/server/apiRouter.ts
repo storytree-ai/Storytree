@@ -886,6 +886,15 @@ function loadOrchestrator(): Promise<OrchestratorModule> {
   return (orchestratorModulePromise ??= import('@storytree/orchestrator'));
 }
 
+// @storytree/library is browser-safe (pure zod) but raw-TS like the others — its `.js` specifiers
+// don't resolve under vite's config-load, so it is loaded lazily on first use too (the OQ-gate layer's
+// `openQuestionsGatingNode` attachment predicate, ADR-0107). Loaded at request time, past config-load.
+type LibraryModule = typeof import('@storytree/library');
+let libraryModulePromise: Promise<LibraryModule> | null = null;
+function loadLibrary(): Promise<LibraryModule> {
+  return (libraryModulePromise ??= import('@storytree/library'));
+}
+
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
@@ -1136,6 +1145,43 @@ export function applyCapCoverage(
         const at = latestVerdictAt(events, coveringGateIds(coverage, cap.id));
         cap.verdict = { outcome: 'pass', at: at ?? '' };
       }
+    }
+  }
+}
+
+/**
+ * Apply the ADR-0107 proving-process OQ gate (generalising ADR-0106 decision 4) to the tree payload —
+ * a sibling pass to {@link applyUatCrowns} / {@link applyCapCoverage}, run AFTER them. An OPEN question
+ * raised while driving a story's adopt/build proving process — attached via a `node:<storyId>`
+ * reference, counted by the library's `openQuestionsGatingNode` — WITHHOLDS that story's green until
+ * the OQ is resolved (retired, ADR-0018 §6). It routes the decision through the orchestrator's
+ * {@link gateStoryGreenOnOpenQuestions} (the ONE definition of the rule) so the world's crown can never
+ * drift from the CLI/spine compute: a `pass` crown over ≥1 open gating OQ drops to NO verdict (the world
+ * under-claims to `mapped`/`proposed`, reading "blocked — not yet green"). It NEVER paints red — a
+ * `fail` or absent crown is left untouched (a withheld green is not a regression). `gate` is injected so
+ * this stays unit-testable without the lazy orchestrator. Mutates `stories` in place.
+ */
+export function applyOpenQuestionGate(
+  stories: TreeStory[],
+  gatingCountByStory: ReadonlyMap<string, number>,
+  // The base is only ever the green/withered/abstain the crown produces; narrowing it here (vs a bare
+  // `string | null`) lets the real `gateStoryGreenOnOpenQuestions` (typed over the full `Status` union)
+  // be passed without a cast — its wider input is assignable, its `Status | null` return narrows in.
+  gate: (base: 'healthy' | 'unhealthy' | null, count: number) => string | null,
+): void {
+  for (const story of stories) {
+    const count = gatingCountByStory.get(story.id) ?? 0;
+    if (count === 0) continue;
+    const base =
+      story.verdict?.outcome === 'pass'
+        ? 'healthy'
+        : story.verdict?.outcome === 'fail'
+          ? 'unhealthy'
+          : null;
+    // The gate only ever WITHHOLDS a green: a would-be-healthy crown over an open fork drops to
+    // no-verdict. A fail/absent crown is returned unchanged by the gate, so it is left in place.
+    if (base === 'healthy' && gate(base, count) !== 'healthy') {
+      delete story.verdict;
     }
   }
 }
@@ -1463,11 +1509,14 @@ export async function handleApiRequest(
       // (the poll then keeps it fresh) — parity with `sessions`. `verdictEvents`
       // feeds the per-test UAT crown roll-up (ADR-0082); absent on a backend that
       // doesn't implement it (the json store / a partial mock).
-      const [verdicts, verdictEvents, sessions, builds] = await Promise.all([
+      const [verdicts, verdictEvents, sessions, builds, assets] = await Promise.all([
         ctx.backend.latestVerdicts(),
         ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
         ctx.backend.activeSessions(),
         ctx.backend.inFlightBuilds(),
+        // ADR-0107: the proving-process OQ-gate layer reads the live open-questions to withhold the
+        // green of any story with an open fork. Advisory like the rest — null on failure never throws.
+        ctx.backend.listAssets().catch(() => null),
       ]);
       if (verdicts) {
         for (const story of payload.stories) {
@@ -1484,13 +1533,32 @@ export async function handleApiRequest(
       // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
       // or no story declares per-test tests.
       if (verdictEvents) {
-        const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
+        const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
+          await loadOrchestrator();
         // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
         // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
         // per-test UAT existing (a cap greens via its gate's coverage alone).
         applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
         if (uatTestsByStory.size > 0) {
           applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+        }
+        // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
+        // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
+        // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never
+        // paints red), so the world reflects an open fork the same way the CLI/spine roll-up does.
+        if (assets && assets.length > 0) {
+          const openQuestions = assets.filter((a) => a.category === 'open-question');
+          if (openQuestions.length > 0) {
+            const { openQuestionsGatingNode } = await loadLibrary();
+            const gatingCountByStory = new Map<string, number>();
+            for (const story of payload.stories) {
+              const n = openQuestionsGatingNode(openQuestions, story.id).length;
+              if (n > 0) gatingCountByStory.set(story.id, n);
+            }
+            if (gatingCountByStory.size > 0) {
+              applyOpenQuestionGate(payload.stories, gatingCountByStory, gateStoryGreenOnOpenQuestions);
+            }
+          }
         }
       }
       if (sessions && sessions.length > 0) payload.sessions = sessions;

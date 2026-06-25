@@ -8,9 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { SIGNING_EVENT_KIND } from '@storytree/proof-protocol';
-import { rollupStoryGreen, rollupCapStatus } from '@storytree/orchestrator';
+import { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } from '@storytree/orchestrator';
 
-import { applyUatCrowns, applyCapCoverage } from './apiRouter.js';
+import { applyUatCrowns, applyCapCoverage, applyOpenQuestionGate } from './apiRouter.js';
 import type { TreeCapability, TreeStory } from '../src/types';
 
 function story(id: string, over: Partial<TreeStory> = {}): TreeStory {
@@ -186,5 +186,41 @@ describe('applyCapCoverage', () => {
     const stories = [story('green', { capabilities: [cap('cap-a')] })];
     applyCapCoverage(stories, noCoverage(), [verdictEvent(1, 'cap-a', 'pass', 'x')], rollupCapStatus);
     expect(stories[0]!.capabilities[0]!.verdict).toBeUndefined();
+  });
+});
+
+// ── ADR-0107 (generalising ADR-0106 d4): an OPEN question attached to a story's proving process ──
+// WITHHOLDS the story's green until it is resolved. The world's crown must reflect this the same way
+// the CLI/spine roll-up does — fed the REAL `gateStoryGreenOnOpenQuestions`, the one definition of the
+// rule. A pass crown over an open fork drops to NO verdict (the world under-claims); red/absent untouched.
+describe('applyOpenQuestionGate', () => {
+  it('withholds a would-be-green crown while a gating OQ is open (pass crown → no verdict)', () => {
+    const s = story('blocked', { capabilities: [cap('blocked.cap-a')] });
+    s.verdict = { outcome: 'pass', at: '2026-06-25T00:00:00.000Z' }; // applyUatCrowns greened it
+    const stories = [s];
+    applyOpenQuestionGate(stories, new Map([['blocked', 1]]), gateStoryGreenOnOpenQuestions);
+    expect(stories[0]!.verdict).toBeUndefined(); // the open fork withholds the green
+  });
+
+  it('resolving the OQ (count 0 / absent) leaves the green crown in place — unblocked', () => {
+    const s = story('clear', { capabilities: [cap('clear.cap-a')] });
+    s.verdict = { outcome: 'pass', at: 'green-at' };
+    const stories = [s];
+    applyOpenQuestionGate(stories, new Map(), gateStoryGreenOnOpenQuestions); // no gating OQs
+    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: 'green-at' });
+  });
+
+  it('never paints red — a fail crown with an open OQ is left as fail (a withheld green is not a regression)', () => {
+    const s = story('red', { capabilities: [cap('red.cap-a')] });
+    s.verdict = { outcome: 'fail', at: 'red-at' };
+    const stories = [s];
+    applyOpenQuestionGate(stories, new Map([['red', 2]]), gateStoryGreenOnOpenQuestions);
+    expect(stories[0]!.verdict).toEqual({ outcome: 'fail', at: 'red-at' });
+  });
+
+  it('an already-unproven story (no verdict) with an open OQ stays unproven, never throws', () => {
+    const stories = [story('unproven')];
+    applyOpenQuestionGate(stories, new Map([['unproven', 1]]), gateStoryGreenOnOpenQuestions);
+    expect(stories[0]!.verdict).toBeUndefined();
   });
 });
