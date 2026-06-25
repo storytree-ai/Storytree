@@ -45,8 +45,8 @@ describe('buildWorld — standalone single-island layout (Shared Islands panel)'
     expect(t.caps.map((c) => c.cap.id).sort()).toEqual(
       ['knowledge-render', 'library-cli', 'seed-corpus'].sort(),
     );
-    // the island carries no building stamp of its own (it IS the building here)
-    expect(t.bookshelf).toBe(false);
+    // the island carries no icon stamps of its own (buildings:false ⇒ no promotion; ADR-0102)
+    expect(t.stamps).toEqual([]);
   });
 
   it('is deterministic — same input, byte-identical geometry (pure function of the data)', () => {

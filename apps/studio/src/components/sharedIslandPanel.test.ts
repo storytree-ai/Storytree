@@ -16,8 +16,10 @@ import {
   nameplateLayout,
   bookshelfAnchorRight,
   buildRelaxedCells,
+  cityStampSpots,
   MESH_TUNING,
 } from './TreeView.js';
+import { axialKey, crownRadius, pixelToHex } from '@storytree/forest-world';
 import type { TreeStory } from '../types';
 
 const cap = (id: string) => ({
@@ -103,5 +105,80 @@ describe('panel ground — the one-island world has a substrate to render (tweak
     const b = buildRelaxedCells(buildWorld([libraryStory()], { buildings: false }), 'mesh', MESH_TUNING);
     expect(a.length).toBe(b.length);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+// ADR-0102 (owner ask 2026-06-25): the panel card's dependency CITY sits ON the island's land,
+// mirroring the on-map stamp seating — NOT in a grid beside the card. `cityStampSpots` fans the
+// dependency buildings around the central tree and snaps each onto an owned tile. Stage-1 red-green
+// of WHERE each building lands; the look (density, spread, scale) is owner-attested.
+describe('cityStampSpots — the dependency city seats ON the island land (ADR-0102 §3)', () => {
+  // A realistic one-island world (what SharedIslandCard lays out) gives us the real owned-tile set
+  // + tree spot the helper snaps against, so the test exercises the same geometry the card does.
+  const island = (capCount: number): { treeSpot: { x: number; y: number }; ownedKeys: Set<string>; crownR: number } => {
+    const story: TreeStory = {
+      id: 'cli',
+      title: 'cli',
+      outcome: '',
+      status: 'mapped',
+      proofMode: 'red-green',
+      uatWitness: 'machine',
+      dependsOn: [],
+      consumedBy: [],
+      capabilities: Array.from({ length: capCount }, (_, i) => cap(`cli-${i}`)),
+    };
+    const world = buildWorld([story], { buildings: false });
+    const t = world.territories[0]!;
+    return {
+      treeSpot: t.treeSpot,
+      ownedKeys: new Set(t.tiles.map(axialKey)),
+      crownR: crownRadius(capCount),
+    };
+  };
+
+  // A dense (cli-like, 6) and a sparse (library-like, 2) city, both on a real island.
+  const DENSE = ['agent', 'drive-machinery', 'library', 'notice-board', 'proof-protocol', 'storage-protocol'];
+  const SPARSE = ['proof-protocol', 'storage-protocol'];
+
+  it('places one stamp per dependency icon, preserving the icon ids', () => {
+    const { treeSpot, ownedKeys, crownR } = island(8);
+    const spots = cityStampSpots(treeSpot, crownR, DENSE, ownedKeys);
+    expect(spots.map((s) => s.icon)).toEqual(DENSE);
+  });
+
+  it('seats EVERY city building on OWNED land (never floating over the sea) — dense city', () => {
+    const { treeSpot, ownedKeys, crownR } = island(8);
+    const spots = cityStampSpots(treeSpot, crownR, DENSE, ownedKeys);
+    for (const s of spots) {
+      expect(ownedKeys.has(axialKey(pixelToHex(s.spot)))).toBe(true);
+    }
+  });
+
+  it('seats EVERY city building on OWNED land — sparse city too', () => {
+    const { treeSpot, ownedKeys, crownR } = island(3);
+    const spots = cityStampSpots(treeSpot, crownR, SPARSE, ownedKeys);
+    for (const s of spots) {
+      expect(ownedKeys.has(axialKey(pixelToHex(s.spot)))).toBe(true);
+    }
+  });
+
+  it('is deterministic (ADR-0069) — the same inputs yield the same spots', () => {
+    const { treeSpot, ownedKeys, crownR } = island(8);
+    const a = cityStampSpots(treeSpot, crownR, DENSE, ownedKeys);
+    const b = cityStampSpots(treeSpot, crownR, DENSE, ownedKeys);
+    expect(a).toEqual(b);
+  });
+
+  it('spreads a dense city out (not all on one point) — distinct seats', () => {
+    const { treeSpot, ownedKeys, crownR } = island(8);
+    const spots = cityStampSpots(treeSpot, crownR, DENSE, ownedKeys);
+    const distinct = new Set(spots.map((s) => `${s.spot.x.toFixed(1)},${s.spot.y.toFixed(1)}`));
+    // a 6-building city should occupy several distinct seats, not collapse to one
+    expect(distinct.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('is empty for an island that depends on nothing (no city)', () => {
+    const { treeSpot, ownedKeys, crownR } = island(3);
+    expect(cityStampSpots(treeSpot, crownR, [], ownedKeys)).toEqual([]);
   });
 });

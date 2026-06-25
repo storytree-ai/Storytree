@@ -1567,6 +1567,25 @@
     "schemaVersion": 2
   },
   {
+    "id": "de-noise-promotes-never-drops",
+    "kind": "principle",
+    "title": "De-noising promotes a signal, never drops it",
+    "description": "When a dense observability surface is de-noised, every signal is kept as a low-salience rendering — a stamp, a thin line, a badge — never deleted; de-noise lowers the volume of a signal, it does not hide it.",
+    "statement": "When you de-noise a crowded view, demote each crowding element to a low-salience rendering — never remove it. The boundary is sharp: lowering a real coupling's salience (a thin line, a small per-thing stamp) is de-noise; making it un-recoverable from the picture is a drop, and a drop is information loss. If a thing was true enough to draw, it stays drawn at lower volume.",
+    "why": "The observability surface exists to expose couplings the operator must see and judge — that is its whole job (`observability-first`: the system surfaces, the operator decides). A de-noise that DROPS an edge or flattens distinct edges into one generic badge silently erases exactly the signal the surface was built to carry, and the loss is invisible: the picture looks clean precisely because the thing you needed is gone. This is the trap ADR-0088's generic consumer-only bookshelf stamp fell into — it kept that an island used SOME shared island but lost WHICH one and the DIRECTION, a lossy near-drop that hid the `studio → cli` coupling the boundary system exists to surface (ADR-0102 Context §1). The cost is paid twice: a dropped signal cannot be judged, and a flattened one looks benign, so an architecturally important relationship reads as routine.",
+    "howToApply": "Before removing anything to reduce clutter, ask: is what I am removing a SIGNAL (a real coupling, a real state) or pure decoration? A signal must be PROMOTED, not dropped — re-rendered at lower salience but still recoverable: ADR-0074 §1 ('de-noise visually … never by dropping edges') is the dependency-graph instance; ADR-0102 generalises it to ANY visual de-noise — a shared island promotes each incident edge to a per-island icon stamp (the edge kept as a badge, placement carrying its direction), rather than the road vanishing. Prefer a de-noise that carries the SAME information at lower volume (identity + direction preserved) over one that summarises it away (a generic 'uses a shared thing' badge drops which and whither). Reach for an outright drop only for genuine decoration that carries no signal. This is the world-map application of `signal-and-noise` (cut noise, keep signal): here the real coupling is the signal, the low-salience stamp is the de-noise. Whether a surfaced coupling is WRONG stays a human read, not a render-time verdict — promotion keeps it visible so the operator can judge it (`observability-first`); it does not flag it.",
+    "references": [
+      "doc:decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md",
+      "doc:decisions/0102-shared-islands-promote-edges-to-per-island-icon-stamps.md",
+      "asset:signal-and-noise",
+      "asset:observability-first"
+    ],
+    "provenance": "Graduated 2026-06-25 (ADR-0095 / the ADR-0102 build's librarian pass) — ADR-0102 named this durable rule ('de-noising promotes an edge, never drops it') but HELD authoring it until a second consumer existed; the per-island-icon-stamp build is that second consumer (the first being ADR-0074 §1's dependency-graph form). A distinct principle, not a refinement of `signal-and-noise`: it carries a rule that one does not — promote-not-drop, de-noise-never-hides-signal — and applies to the observability render, not to agent-readable guidance. ADR-0102 §References confirms the angle is novel ('No existing artifact covers the de-noise-never-hides-signal rule'). Generalises ADR-0074 §1 from the dependency graph to any visual de-noise; cross-links `signal-and-noise` (parent: cut noise, keep signal) and `observability-first` (sibling: the surface exposes, the operator judges).",
+    "createdAt": "2026-06-25T00:00:00.000Z",
+    "updatedAt": "2026-06-25T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "kind": "principle",
     "id": "plain-language-first",
     "title": "Plain language first",

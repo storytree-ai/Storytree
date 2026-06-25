@@ -17,9 +17,17 @@ capabilities: [unified-command-dispatch, cli-resident-corpus-tools]
 # is empty (the invariant the old "nothing may depend on the wiring layer" rule encoded).
 depends_on: []
 consumed_by: []
+# ADR-0102 (owner-directed 2026-06-25): the CLI is a SOURCE hub — it depends on nearly every
+# organism (declared provider-side on each spoke as `consumed_by: [cli]`) and is depended-on by
+# almost nothing. Rendered as a shared island it AGGLOMERATES a dense "city" of its dependencies'
+# icons, and the lone `studio → cli` edge surfaces as studio carrying cli's rare icon — the
+# coupling is MORE visible, not hidden (ADR-0074 §1). The graph is unchanged: only the render flips
+# (depends_on / consumed_by above stay as-is). Build behind `?buildings`; appearance owner-attested.
+render: building
 # Deciding ADRs (ADR-0037 §2): the choose-your-own-adventure CLI (23), the atomic ADR-number
-# allocator the CLI hosts (50), and CLI-as-a-first-class-hub-organism (74).
-decisions: [23, 50, 74]
+# allocator the CLI hosts (50), CLI-as-a-first-class-hub-organism (74), and the shared-island
+# per-island-icon-stamp render (102).
+decisions: [23, 50, 74, 102]
 ---
 
 # The CLI — one agent-facing command surface that wires every organism together

@@ -1,19 +1,28 @@
-// buildingLayout — the pure geometry + graph math for the forest's "building"
-// render class (ADR-0076 §2), built behind the default-OFF `?buildings=on` flag.
+// buildingLayout -- the pure graph + identity math for the forest's "building"
+// render class (ADR-0076 S2 -> ADR-0102), built behind the default-ON `?buildings` flag.
 //
-// The owner steer (2026-06-20) replaced the single-house model with a DISTRIBUTED
-// one: a story tagged `render: building` (e.g. `library`) does NOT get its own
-// island/organism node — instead the building is stamped, as a small icon, on
-// EVERY island that connects to it. So the library "moves to the side" by being
-// drawn on each of its consumers, and a bottom legend maps the icon → its meaning.
+// ADR-0102 (owner-directed, 2026-06-25) replaced the generic, consumer-only bookshelf
+// STAMP with PER-ISLAND ICON STAMPS in BOTH directions. Every island gets its own
+// deterministic identity icon. A story tagged `render: building` (today `library`, and
+// now `cli`) PROMOTES every edge incident to it from a road to a per-island icon stamp:
+//   * the depended island's icon is placed on the depender island
+//   * so you carry the icon of WHAT YOU DEPEND ON -- placement is the direction.
+// The asymmetry does the rest:
+//   * a SINK hub (library, depended-on by many) RADIATES its icon onto its consumers;
+//     its own island stays (nearly) clean.
+//   * a SOURCE hub (cli, depends on many) AGGLOMERATES a dense "city" of its
+//     dependencies' icons.
+// The edge is KEPT as a low-salience badge, never dropped (honoring ADR-0074 S1
+// "de-noise visually, never drop edges"). Hybrid scope: ONLY `render: building`
+// islands promote to stamps; every other edge stays a road.
 //
 // Why a standalone, framework-free module (mirrors solarLayout / connectionSet):
-//   • Pure number/graph math (no React, no DOM) → unit-testable in the node-env
-//     vitest suite (buildingLayout.test.ts) — Stage-1 red-green of the geometry +
-//     distribution (ADR-0070 two-stage proof; the APPEARANCE is owner-attested,
-//     never self-signed here).
-//   • buildWorld consumes `bookshelfConsumers` to decide which territories carry a
-//     bookshelf, and `shelfBooks` to lay out the icon's spines deterministically.
+//   * Pure number/graph math (no React, no DOM) -> unit-testable in the node-env
+//     vitest suite (buildingLayout.test.ts) -- Stage-1 red-green of the geometry +
+//     promotion (ADR-0070 two-stage proof; the APPEARANCE -- the icon art, the "city" --
+//     is owner-attested, never self-signed here).
+//   * buildWorld consumes `promotedStamps` / `stampsByCarrier` to decide which icons
+//     each island carries, and `storyIcon` for each island's deterministic identity.
 
 import { fullConnectionSet, type WiredNode } from './connectionSet.js';
 import type { TreeStory } from '../types';
@@ -21,8 +30,8 @@ import type { TreeStory } from '../types';
 // ---------- the building-class roster (the Shared Islands panel, ADR-0088) ----------
 
 /**
- * The building-class stories — every story tagged `building === true` (ADR-0076 §2). These no
- * longer render on the map (ADR-0088, Shared Islands panel — amends ADR-0076 §2): they are
+ * The building-class stories -- every story tagged `building === true` (ADR-0076 S2). These no
+ * longer render on the map (ADR-0088, Shared Islands panel -- amends ADR-0076 S2): they are
  * lifted OFF the forest into a permanent left "Shared Islands" panel, each drawn as its FULL
  * island. Generic over the flag, so a future building-class story appears automatically; order
  * follows the input so the panel render is stable. Pure + deterministic.
@@ -31,42 +40,9 @@ export function sharedIslandStories(stories: readonly TreeStory[]): TreeStory[] 
   return stories.filter((s) => s.building === true);
 }
 
-// ---------- the distribution: which islands carry a building's icon ----------
+// ---------- deterministic hash (self-contained; no Math.random) ----------
 
-/**
- * The set of CONSUMER story ids a building's icon is stamped on: every story that
- * connects to a building-tagged story. "Connects to" is the building's full inbound
- * connection set (ADR-0074 §4, via {@link fullConnectionSet}) — i.e. the union of
- *   • every story whose `depends_on` names the building, and
- *   • every id in the building's own `consumed_by`
- * resolved symmetrically from BOTH declaration styles, so a hub whose edge is
- * declared provider-side (`library` is `consumed_by: [cli]`) is still counted.
- *
- * Restricted to ids actually PRESENT in `nodes` and never a building itself (one
- * building never carries another's icon). Pure + deterministic.
- *
- * Compute this from the FULL story list BEFORE the building stories are excluded
- * from the laid-out territories — otherwise their inbound edges are already gone.
- */
-export function bookshelfConsumers(
-  nodes: readonly WiredNode[],
-  buildingIds: ReadonlySet<string>,
-): Set<string> {
-  const present = new Set(nodes.map((n) => n.id));
-  const wired = nodes as WiredNode[];
-  const out = new Set<string>();
-  for (const b of buildingIds) {
-    if (!present.has(b)) continue;
-    for (const c of fullConnectionSet(wired, b).consumedBy) {
-      if (present.has(c) && !buildingIds.has(c)) out.add(c);
-    }
-  }
-  return out;
-}
-
-// ---------- deterministic pseudo-random (self-contained; no Math.random) ----------
-
-/** FNV-1a → uint32. Stable across runs so an icon never reshuffles. */
+/** FNV-1a -> uint32. Stable across runs so an icon never reshuffles. */
 function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -76,85 +52,139 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
-/** A uint32 seed → [0,1). mulberry32 single step, deterministic. */
-function rand01(seed: number): number {
-  let t = (seed + 0x6d2b79f5) | 0;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
+// ---------- (a) per-island identity icon (ADR-0102 S1) ----------
 
-// ---------- the bookshelf icon geometry ----------
-
-/** One upright book spine on a shelf (a coloured vertical bar, occasionally leaning). */
-export interface BookSpine {
-  /** Left edge, px from the shelf interior's left (0 = flush left). */
-  x: number;
-  /** Spine width (the book's thickness on the shelf). */
-  w: number;
-  /** Spine height — always ≤ the shelf interior height. */
-  h: number;
-  /** A small lean in degrees (mostly 0; a few books tilt for a lived-in, crammed look). */
-  tilt: number;
-  /** Colour bucket 0..palette-1 (faded reds / tans / browns picked in CSS). */
-  variant: number;
-}
-
-/** Tuning for {@link shelfBooks} — the crammed-old-library look. */
-export interface ShelfTuning {
-  /** Min / max spine width. */
-  minW: number;
-  maxW: number;
-  /** Min spine height as a fraction of the shelf interior height (max is the full height). */
-  minHFrac: number;
-  /** Gap between adjacent spines. */
-  gap: number;
-  /** Fraction of books that lean (0..1). */
-  tiltChance: number;
-  /** Max absolute lean in degrees. */
-  maxTilt: number;
-  /** Number of colour buckets. */
-  palette: number;
-}
-
-export const SHELF_TUNING: ShelfTuning = {
-  minW: 3.2,
-  maxW: 6,
-  minHFrac: 0.66,
-  gap: 1.1,
-  tiltChance: 0.22,
-  maxTilt: 9,
-  palette: 5,
-};
+/** Number of distinct silhouette buckets an icon shape can take. */
+export const ICON_SHAPES = 8;
 
 /**
- * Fill one shelf interior `[0, width] × height` with upright book spines, left to
- * right, until the next spine wouldn't fit — a crammed row of varied heights,
- * widths and colours, a few leaning. Deterministic by `seed` (per shelf), so the
- * icon renders identically every visit. Pure: returns the spine list; the caller
- * paints them. Heights are clamped to the shelf so a spine never overshoots the case.
+ * One island's deterministic visual identity (ADR-0102 S1). A pure function of the id, so
+ * the icon never reshuffles between visits and an island reads the same wherever it is
+ * stamped (on its own card, or on a depender's island). The triplet gives redundancy for
+ * legibility: shape + hue carry the identity at a glance; the monogram disambiguates up close.
+ * The ART (how a `shape` bucket is drawn, how `hue` is applied) is owner-attested (ADR-0070);
+ * this models identity only.
  */
-export function shelfBooks(
-  seed: number,
-  width: number,
-  height: number,
-  tuning: ShelfTuning = SHELF_TUNING,
-): BookSpine[] {
-  const out: BookSpine[] = [];
-  let x = 0;
-  let i = 0;
-  // guard the loop (width/minW is the natural bound; +4 slack for the gap arithmetic)
-  const maxBooks = Math.ceil(width / Math.max(tuning.minW, 0.5)) + 4;
-  while (i < maxBooks) {
-    const r = (k: number): number => rand01(hash(`${seed}:${i}:${k}`));
-    const w = tuning.minW + r(0) * (tuning.maxW - tuning.minW);
-    if (x + w > width) break;
-    const h = height * (tuning.minHFrac + r(1) * (1 - tuning.minHFrac));
-    const tilt = r(2) < tuning.tiltChance ? (r(3) - 0.5) * 2 * tuning.maxTilt : 0;
-    const variant = Math.floor(r(4) * tuning.palette) % tuning.palette;
-    out.push({ x, w, h, tilt, variant });
-    x += w + tuning.gap;
-    i++;
+export interface IconIdentity {
+  /** 0..ICON_SHAPES-1 -- distinct silhouette bucket. */
+  shape: number;
+  /** 0..359 -- fill hue. */
+  hue: number;
+  /** 1-2 uppercase chars from the id (legibility; secondary to shape+hue). */
+  monogram: string;
+}
+
+/**
+ * Derive an island's deterministic identity icon from its id (ADR-0102 S1). FNV-1a-seeded:
+ *   * shape  = hash(id) % ICON_SHAPES
+ *   * hue    = hash(id + ':hue') % 360  (a separate seed so shape and hue vary independently)
+ *   * monogram = the uppercased initials of the hyphen-separated words, capped at 2 chars
+ *     (`drive-machinery`->`DM`, `notice-board`->`NB`); for a SINGLE word, its first 2 letters
+ *     uppercased (`library`->`LI`, `cli`->`CL`, `studio`->`ST`, `agent`->`AG`).
+ * Pure + deterministic.
+ */
+export function storyIcon(id: string): IconIdentity {
+  return {
+    shape: hash(id) % ICON_SHAPES,
+    hue: hash(`${id}:hue`) % 360,
+    monogram: monogramOf(id),
+  };
+}
+
+/** The 1-2 char monogram for an id (see {@link storyIcon}). */
+function monogramOf(id: string): string {
+  const words = id.split('-').filter((w) => w.length > 0);
+  if (words.length >= 2) {
+    return words
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join('');
+  }
+  const w = words[0] ?? '';
+  return w.slice(0, 2).toUpperCase();
+}
+
+// ---------- (b) both-directions stamp promotion (ADR-0102 S2/S3) ----------
+
+/** One promoted icon stamp: island `on` carries island `icon`'s identity glyph (ADR-0102 S2).
+ *  Reads "you carry the icon of what you depend on", so `on` depends on `icon`. */
+export interface IconStamp {
+  /** The island that carries the stamp (the depender). */
+  on: string;
+  /** The island whose identity glyph is carried (the depended-on). */
+  icon: string;
+}
+
+/**
+ * Promote every edge incident to a building-class island into a per-island icon stamp, in
+ * BOTH directions (ADR-0102 S2/S3). For each building B present in `nodes`, from B's full
+ * connection set (both directions, recovered from both declaration styles, {@link fullConnectionSet}):
+ *   * each consumer C of B (`.consumedBy`) present  -> `{ on: C, icon: B }`  -- B radiates its
+ *     icon onto C (C depends on B, so C carries B's icon: the SINK-hub fan-out);
+ *   * each dependency P of B (`.dependsOn`) present -> `{ on: B, icon: P }`  -- B carries P's
+ *     icon (B depends on P: the SOURCE-hub "city").
+ *
+ * Restricted to ids PRESENT in `nodes`. Self-edges cannot occur (fullConnectionSet drops them).
+ * Deduped by `(on, icon)` and returned in deterministic order (sorted by `on`, then `icon`), so
+ * the render is byte-stable and order-independent of the input.
+ *
+ * The both-buildings case is handled by the dedup: cli depends on library (library declares
+ * `consumed_by: [cli]`), so `{ on: cli, icon: library }` is emitted from BOTH library's
+ * consumer-direction and cli's dependency-direction -> kept ONCE. cli carries library; library
+ * does NOT carry cli (no cycle -- ADR-0058). This is why library stays clean while cli's city
+ * includes library.
+ *
+ * Compute this from the FULL story list -- the building's incident edges must be visible BEFORE
+ * the building stories are excluded from the laid-out territories.
+ */
+export function promotedStamps(
+  nodes: readonly WiredNode[],
+  buildingIds: ReadonlySet<string>,
+): IconStamp[] {
+  const present = new Set(nodes.map((n) => n.id));
+  const wired = nodes as WiredNode[];
+  const seen = new Set<string>();
+  const out: IconStamp[] = [];
+  const add = (on: string, icon: string): void => {
+    if (!present.has(on) || !present.has(icon)) return;
+    const key = `${on} ${icon}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ on, icon });
+  };
+  for (const b of buildingIds) {
+    if (!present.has(b)) continue;
+    const conn = fullConnectionSet(wired, b);
+    // B radiates onto its consumers (each consumer depends on B -> carries B's icon)
+    for (const consumer of conn.consumedBy) add(consumer, b);
+    // B's city: B carries the icon of each thing it depends on
+    for (const dep of conn.dependsOn) add(b, dep);
+  }
+  out.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : a.icon < b.icon ? -1 : a.icon > b.icon ? 1 : 0));
+  return out;
+}
+
+// ---------- (c) grouping helper ----------
+
+/**
+ * Group promoted stamps by their CARRIER island -> the sorted list of icon ids it carries
+ * (ADR-0102). The map both feeds the renderer (an island's stamp set) and makes the
+ * source-hub "city" trivially assertable (`stampsByCarrier(stamps).get('cli')`). Pure +
+ * deterministic: each carrier's icon list is deduped and sorted.
+ */
+export function stampsByCarrier(stamps: readonly IconStamp[]): Map<string, string[]> {
+  const grouped = new Map<string, Set<string>>();
+  for (const s of stamps) {
+    let set = grouped.get(s.on);
+    if (!set) {
+      set = new Set<string>();
+      grouped.set(s.on, set);
+    }
+    set.add(s.icon);
+  }
+  const out = new Map<string, string[]>();
+  for (const [carrier, set] of grouped) {
+    out.set(carrier, [...set].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
   }
   return out;
 }
