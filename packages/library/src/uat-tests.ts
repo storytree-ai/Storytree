@@ -20,6 +20,11 @@ import { z } from "zod";
  * PERMISSION, finer than schema.ts's `UatWitness` (`human`|`machine`) which records
  * who DID witness a story's UAT-node: a test can admit `either`, but a recorded
  * attestation is concretely one or the other.
+ *
+ * ADR-0106 demotes `either` to a transient **pre-adopt, UNDECIDED** state: the adopt pass RESOLVES
+ * each leg to a binary `human`|`machine` witness (`witness-resolution.ts`), and an adopted story has
+ * no `either` leg at rest (`unresolvedUatLegs`). The enum keeps `either` so a not-yet-adopted prose
+ * leg still loads; it is just never the resting state of an adopted leg, and never user-facing.
  */
 export const UAT_TEST_WITNESSES = ["human", "machine", "either"] as const;
 export const UatTestWitness = z.enum(UAT_TEST_WITNESSES);
