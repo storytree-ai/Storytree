@@ -5,6 +5,7 @@ import { CredentialBroker } from "../src/credential/broker.js";
 import { NapiKeychain } from "../src/keychain/napi-adapter.js";
 import { capturedFromInput } from "../src/oauth/login.js";
 import type { CredentialKind } from "../src/credential/kinds.js";
+import { serveStudio } from "./static-server.js";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
@@ -14,13 +15,25 @@ const appRoot = app.getAppPath();
 // The COMPILED studio bundle — built separately by `pnpm --filter studio build` (Vite →
 // apps/studio/dist). The desktop client carries NO source, NO build engine, NO stories:
 // only this compiled UI (ADR-0090 d.4 / ADR-0109 §1). It does NOT import @storytree/agent.
-const STUDIO_INDEX = join(appRoot, "..", "studio", "dist", "index.html");
+// Served over http://127.0.0.1 (not file://) so its absolute /assets/ paths resolve.
+const STUDIO_DIST = join(appRoot, "..", "studio", "dist");
 
 // The credential lives in the OS keychain, reached only through the broker in THIS (main)
 // process. The renderer never holds it (ADR-0109 §Decision 4).
 const broker = new CredentialBroker(new NapiKeychain());
 
-function createWindow(): void {
+let studioUrl: string | null = null;
+
+async function ensureStudioServed(): Promise<string> {
+  if (studioUrl === null) {
+    const served = await serveStudio(STUDIO_DIST);
+    studioUrl = served.url;
+  }
+  return studioUrl;
+}
+
+async function createWindow(): Promise<void> {
+  const url = await ensureStudioServed();
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -31,7 +44,7 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
-  void win.loadFile(STUDIO_INDEX);
+  await win.loadURL(url);
 }
 
 // Auth IPC — the renderer asks the MAIN process to broker the credential. The raw token
@@ -48,10 +61,10 @@ ipcMain.handle("auth:sign-out", async (_e, kind: CredentialKind): Promise<boolea
   return broker.clear(kind);
 });
 
-void app.whenReady().then(() => {
-  createWindow();
+void app.whenReady().then(async () => {
+  await createWindow();
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
 
