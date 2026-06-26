@@ -29,7 +29,12 @@ const FAST_POLL_MS = 5_000;
 // spin forever while polling a dead server (the 2026-06-12 incident's second half).
 export const SERVER_LOST_AFTER = 3;
 
-type Phase =
+/**
+ * The store-health phases the banner's /api/health poll resolves into. Exported (as `StorePhase`)
+ * so App can lift the phase up and feed it to `deriveLoadState` — the studio's load/store-down
+ * screen reacts to `starting` / `server-lost` here rather than reinventing a second poller.
+ */
+export type StorePhase =
   | 'unknown' // no health response yet — render nothing rather than flash a warning
   | 'healthy' // pg store, probe ok
   | 'json' // offline json store — the DB is not in play
@@ -42,6 +47,7 @@ type Phase =
 export function StoreBanner({
   onRecovered,
   canWake = false,
+  onPhase,
 }: {
   onRecovered: () => void;
   /**
@@ -50,8 +56,16 @@ export function StoreBanner({
    * the local dev posture) keeps the existing gcloud flow untouched.
    */
   canWake?: boolean;
+  /**
+   * Lift the current health-poll phase up (ADR — honest load state, incident 2026-06-27): App
+   * feeds it to `deriveLoadState` so the full-screen load UX can show STARTING / TAKING-LONGER /
+   * SERVER-LOST honestly while the store boots, reusing THIS banner's single poller. Fires on
+   * every phase change (including the initial 'unknown'). Optional — the local dev banner that
+   * doesn't lift the phase keeps working unchanged.
+   */
+  onPhase?: (phase: StorePhase) => void;
 }): React.JSX.Element | null {
-  const [phase, setPhase] = useState<Phase>('unknown');
+  const [phase, setPhase] = useState<StorePhase>('unknown');
   const [startError, setStartError] = useState('');
   // The skew pair when phase === 'stale-code' (DB schemaVersion ahead of this server's code).
   const [skew, setSkew] = useState<{ code: number; db: number } | null>(null);
@@ -123,6 +137,12 @@ export function StoreBanner({
       inFlight.current = false;
     }
   }, [onRecovered]);
+
+  // Lift the phase up so App's load-state machine can react to it (STARTING / TAKING-LONGER /
+  // SERVER-LOST) without a second poller. Runs after each phase change.
+  useEffect(() => {
+    onPhase?.(phase);
+  }, [phase, onPhase]);
 
   // Poll: once immediately, then slow while healthy, fast while down/starting.
   const fast =

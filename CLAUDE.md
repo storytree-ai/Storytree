@@ -162,12 +162,13 @@ file conflicts).
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you
   need it and then **LEAVE IT RUNNING — do not `db:down` when you finish** (owner call 2026-06-13:
-  sessions kept stopping it between bursts). Auto-stop is **idle-aware** (ADR-0015 §5,
-  `infra/idle-stop.tf`): a Cloud Function stops it only after **5 h with zero DB connections**
-  (ADR-0015 §5 correction 2026-06-22 — previously a broken 8 h that read a dead metric and
-  never fired, so re-tuned to 5 h once the metric was fixed), so a normal working gap stays up;
-  re-`db:up` if a query can't connect after a fallow stretch (a daily 04:30 blunt cron is the
-  cost floor behind it).
+  sessions kept stopping it between bursts). Auto-stop is now a **fixed nightly window — asleep
+  01:00–07:00 Australia/Sydney** (ADR-0114, `infra/cost-backstop.tf`): one Cloud Scheduler job STOPS it
+  at 01:00 and a second STARTS it at 07:00, so it stays predictably up across the day for the
+  member-facing hosted studio (ADR-0042). The old idle-aware 5 h auto-stop (ADR-0015 §5,
+  `infra/idle-stop.tf`) is **paused** — superseded by this window. A manual `db:up` still works any
+  time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
+  overnight stop.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/store/src/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
