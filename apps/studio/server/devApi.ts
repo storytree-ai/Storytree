@@ -17,6 +17,7 @@ import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext, ty
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
 import { BuildRegistry } from './buildRegistry';
 import { routedBuildRunner, adoptRunnerFromAdoptStory } from './buildWorker';
+import { installDevServerResilience } from './devServerResilience';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handlePresence, handleActivity, type HealthDeps } from './apiRouter';
@@ -40,6 +41,12 @@ export function storytreeDataApi(): Plugin {
       });
     },
     configureServer(server) {
+      // FIRST: guard the process so a fire-and-forget worker job's async fault (a stray rejection, an
+      // emitter 'error' from a test subprocess / pg socket) LOGS and the dev server survives, instead of
+      // crashing the whole Vite process mid-run (the "Adopt kills localhost" bug). Dev-only, install-once
+      // across restarts — see devServerResilience.ts. Wired before the worker so it covers it from start.
+      installDevServerResilience(server.config.logger);
+
       // Capture the startup HEAD here, not in configResolved: configureServer is dev-only
       // (no stray git spawn during `vite build`) and runs at server start, before any pull
       // could move the checkout under us.
