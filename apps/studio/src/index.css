@@ -2089,11 +2089,13 @@ mark.st-hl.flash {
   stroke: var(--danger);
 }
 
-/* Per-UAT-test attestation table in the story detail (ADR-0044 attestation-surface). Each test is
-   a row with ONE click-to-flag-green control. The flag's hue carries the per-test vouch state —
-   GREEN (--good) a pass, RED (--danger) a fail, AMBER (--warn) an un-flagged test you may vouch,
-   muted a test awaiting a machine run. CRUCIAL: the green here is a VOUCH, not a proof — it paints
-   one detail ROW and never the crown/island (only a signed gate verdict greens a story, ADR-0040). */
+/* Per-UAT-test attestation table in the story detail (ADR-0082 / ADR-0044 attestation-surface).
+   Owner redesign: each test is a row with ONE glyph at its RIGHT edge — a witness ICON whose SHAPE is
+   the witness (a robot = machine-witnessed, a person = human-witnessed) and whose HUE is the SIGNED
+   verdict state: GREEN (--good) proven, RED (--danger) a signed fail, muted (--border-strong) not yet
+   proven, AMBER (--warn) the one actionable case — an unproven HUMAN leg an admin may sign "I saw it
+   work". CRUCIAL: this is a REAL gate verdict (events.verdict) that greens the story crown, unlike the
+   removed lower-rigor ⚑/⚐ vouch. The icon styling here is owner-attested art (ADR-0070). */
 .uat-tests {
   margin-top: 14px;
 }
@@ -2109,55 +2111,57 @@ mark.st-hl.flash {
 .uat-row:first-child {
   border-top: none;
 }
-.uat-flag-cell {
-  width: 24px;
-  padding: 5px 0;
-  text-align: center;
-  vertical-align: top;
-}
-.uat-flag {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: default;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--border-strong); /* un-flagged, awaiting a machine run — a faint outline flag */
-}
-.uat-flag.state-pass {
-  color: var(--good); /* GREEN — a pass vouch, this ROW only (never the island) */
-}
-.uat-flag.state-fail {
-  color: var(--danger); /* a witnessed FAIL, either kind */
-}
-.uat-flag.is-clickable {
-  cursor: pointer;
-  color: var(--warn); /* amber — un-flagged but you MAY flip it green */
-}
-.uat-flag.is-clickable:hover {
-  color: var(--good); /* hover previews the green flip */
-}
-.uat-flag:disabled {
-  cursor: default;
-}
 .uat-test-cell {
-  padding: 5px 6px;
-  vertical-align: top;
+  padding: 6px 6px;
+  vertical-align: middle;
+  width: 100%;
 }
 .uat-test-title {
   display: block;
 }
-.uat-test-who {
-  display: block;
-  font-size: 10.5px;
-  margin-top: 1px;
-}
+/* The right-edge witness/state glyph cell — where the eye lands for a per-row action. */
 .uat-witness-cell {
-  width: 1%;
+  width: 26px;
+  padding: 4px 0 4px 8px;
+  text-align: right;
+  vertical-align: middle;
   white-space: nowrap;
-  vertical-align: top;
-  padding: 5px 0 5px 6px;
-  font-size: 11px;
+}
+.uat-witness {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  line-height: 0;
+  color: var(--border-strong); /* not-yet-proven (and the default for a non-signable leg) */
+}
+.uat-witness-icon {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+.uat-witness.proven-pass {
+  color: var(--good); /* GREEN — a signed pass verdict (this DOES green the crown) */
+}
+.uat-witness.proven-fail {
+  color: var(--danger); /* a signed FAIL verdict */
+}
+.uat-witness.is-signable {
+  cursor: pointer;
+  color: var(--warn); /* amber — an unproven human leg you MAY sign "I saw it work" */
+}
+.uat-witness.is-signable:hover {
+  color: var(--good); /* hover previews the green proof */
+}
+.uat-witness:disabled {
+  cursor: default;
+}
+.uat-witness-busy {
+  font-size: 13px;
+  line-height: 1;
 }
 .attest-note {
   font-size: 11px;
@@ -2346,43 +2350,9 @@ mark.st-hl.flash {
   background: var(--warn-weak);
 }
 
-/* The PROVEN column (ADR-0082): the SIGNED verdict (events.verdict) — the REAL gate state that greens
-   the crown, deliberately DISTINCT from the lower-rigor ⚑/⚐ vouch. ✓ GREEN a signed pass, ✗ RED a
-   signed fail, – muted un-proven. A faint, clickable ✓ ("I saw it work") on a human/either test an
-   admin may sign — hover previews the green fill. THIS green IS a proof (unlike the vouch flag). */
-.uat-proven-cell {
-  width: 24px;
-  padding: 5px 0;
-  text-align: center;
-  vertical-align: top;
-}
-.uat-proven {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: default;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--border-strong); /* – un-proven (and the default for a non-signable test) */
-}
-.uat-proven.proven-pass {
-  color: var(--good); /* GREEN — a signed operator-attested pass (this DOES green the crown) */
-}
-.uat-proven.proven-fail {
-  color: var(--danger); /* a signed FAIL verdict */
-}
-.uat-proven.is-signable {
-  cursor: pointer;
-  color: var(--warn); /* amber, faint ✓ — un-proven but you MAY sign "I saw it work" */
-  opacity: 0.7;
-}
-.uat-proven.is-signable:hover {
-  color: var(--good); /* hover previews the green proof */
-  opacity: 1;
-}
-.uat-proven:disabled {
-  cursor: default;
-}
+/* The per-test PROVEN state (ADR-0082) — the SIGNED verdict (events.verdict) that greens the crown —
+   is now carried by the right-edge witness icon's HUE; its styling lives in the `.uat-witness` block
+   above. What remains here is the story-level UAT roll-up label under the table. */
 .uat-story-rollup.rollup-healthy {
   color: var(--good);
 }

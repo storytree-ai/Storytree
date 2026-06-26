@@ -3,7 +3,6 @@
 import type {
   ActivityPayload,
   AssetInput,
-  AttestationMark,
   AttestationsPayload,
   BuildIntentResult,
   BuildStatus,
@@ -113,15 +112,14 @@ export const api = {
   // serve.ts MEMBERS_RESOLVE_TIMEOUT_MS), so the happy outcome is a storeUnreachable banner, not this.
   me: (): Promise<MeInfo> => http('/api/me', { signal: AbortSignal.timeout(10_000) }),
 
-  // Per-UAT-test attestations (ADR-0044). GET is member-readable; POST (record) is admin-only
-  // (the server stamps the signer from the verified identity — the client `signer` is ignored).
+  // Per-UAT-test attestations (ADR-0044): a story's UAT tests with their per-test marks + proven
+  // state. GET, member-readable. The lower-rigor vouch POST is no longer surfaced — the UAT table
+  // signs REAL verdicts via signUat (below); the server's /api/attestations POST path stays intact.
   attestations: (storyId: string): Promise<AttestationsPayload> =>
     http(`/api/attestations?storyId=${q(storyId)}`),
-  recordAttestation: (input: { testId: string; outcome: 'pass' | 'fail'; note?: string }): Promise<AttestationMark> =>
-    http('/api/attestations', jsonInit('POST', input)),
 
   // The "I saw it work" operator-attested VERDICT (ADR-0082) — a REAL events.verdict signature that
-  // greens the story crown, DISTINCT from recordAttestation's lower-rigor events.attestation vouch.
+  // greens the story crown, DISTINCT from the lower-rigor events.attestation vouch (now UI-hidden).
   // Admin-only; the server stamps the signer from the verified identity (the client cannot forge it)
   // and refuses a machine-witness test (a click is not a machine proof).
   signUat: (input: { testId: string; outcome?: 'pass' | 'fail'; note?: string }): Promise<UatVerdictResult> =>
