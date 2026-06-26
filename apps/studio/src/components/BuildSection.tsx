@@ -58,6 +58,7 @@ type Phase =
 function usePollableRun(
   unitId: string,
   postIntent: (id: string) => Promise<{ runId: string }>,
+  onTerminal?: (() => void) | undefined,
 ): { phase: Phase; trigger: () => void } {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   // The live runId the poll loop reads — held in a ref so the effect's interval
@@ -66,6 +67,12 @@ function usePollableRun(
   // The intent POST in a ref so a stable `trigger` identity doesn't re-pin on a new closure.
   const postRef = useRef(postIntent);
   postRef.current = postIntent;
+  // The terminal hook in a ref for the SAME reason: a finished run fires it (the panel refreshes the
+  // now-stale affordance/tree data — a passed adopt flips the story mapped → proposed server-side, so
+  // the panel must re-pull or it shows the old Adopt button until a manual reload), and the ref lets
+  // the poll effect call the latest callback without re-subscribing the interval each render.
+  const onTerminalRef = useRef(onTerminal);
+  onTerminalRef.current = onTerminal;
 
   // A new unit selected → reset the control (the panel re-targets a different node).
   useEffect(() => {
@@ -114,6 +121,7 @@ function usePollableRun(
         setPhase({ kind: 'building', runId, status });
       } else {
         setPhase({ kind: 'terminal', status }); // passed | failed — the effect cleans up
+        onTerminalRef.current?.(); // a finished run → refresh the (now stale) affordance/tree data
       }
     };
 
@@ -137,6 +145,7 @@ export function BuildSection({
   adoptGates,
   adoption,
   status,
+  onTerminal,
 }: {
   unitId: string;
   buildable: boolean | undefined;
@@ -164,17 +173,27 @@ export function BuildSection({
   adoption?: AdoptionPlan | undefined;
   /** The story's status — phrases the `goGreen === 'none'` reason honestly (story-scope only). */
   status?: WorkStatus | null | undefined;
+  /**
+   * Called when a run (build OR adopt) reaches a terminal status. The panel uses it to re-pull the
+   * tree so the go-green AFFORDANCE refreshes in place: a passed adopt flips the story `mapped →
+   * proposed` server-side, so without this the panel keeps showing the old Adopt button (and a dropped
+   * run result) until a manual reload. A full tree refetch is fine — it's the same `reloadTree` the
+   * per-test UAT signature already drives (see TreeView's `onCrownRefresh`).
+   */
+  onTerminal?: (() => void) | undefined;
 }): React.JSX.Element {
   // The Build trigger + poll machinery (shared with AdoptPanel — see usePollableRun). Pressing Build
   // posts api.build; the run lands in the build registry and is polled via api.buildStatus.
-  const { phase, trigger } = usePollableRun(unitId, api.build);
+  const { phase, trigger } = usePollableRun(unitId, api.build, onTerminal);
 
   // ── story scope: the status-aware go-green affordance (ADR-0094) ──
   // A `mapped` story surfaces ADOPT (observe-and-sign its reliability gates), not a fail-closed Build;
   // Build lights only for a genuine drive (a `proposed` story). `none` explains why in place.
   if (scope === 'story') {
     if (goGreen === 'adopt')
-      return <AdoptPanel unitId={unitId} gates={adoptGates ?? []} adoption={adoption} />;
+      return (
+        <AdoptPanel unitId={unitId} gates={adoptGates ?? []} adoption={adoption} onTerminal={onTerminal} />
+      );
     if (goGreen !== 'build') return <NoGoGreen status={status} />;
     // goGreen === 'build' → fall through to the Build button (a real whole-story drive).
   } else if (buildable !== true) {
@@ -225,8 +244,23 @@ export function BuildSection({
   );
 }
 
-/** The live transcript + terminal verdict for one run. */
-function BuildRun({ status }: { status: BuildStatus }): React.JSX.Element {
+/**
+ * The live transcript + terminal verdict for one run. `kind` selects the wording so an ADOPT run
+ * reads honestly — it is NOT a build (ADR-0097): "adopting…" while it runs, "adopted" / "adopt
+ * failed" at the terminal — while the Build path keeps "building…" / "build passed" / "build failed".
+ * Both kinds share this one renderer (ADR-0097: one build registry, one transcript view); only the
+ * verb differs.
+ */
+function BuildRun({
+  status,
+  kind = 'build',
+}: {
+  status: BuildStatus;
+  kind?: 'build' | 'adopt';
+}): React.JSX.Element {
+  const inProgressLabel = kind === 'adopt' ? 'adopting…' : 'building…';
+  const passLabel = kind === 'adopt' ? 'adopted' : 'build passed';
+  const failLabel = kind === 'adopt' ? 'adopt failed' : 'build failed';
   const verdict =
     status.status === 'passed'
       ? { cls: 'verdict-pass', label: 'PASS', body: status.envelope }
@@ -238,11 +272,11 @@ function BuildRun({ status }: { status: BuildStatus }): React.JSX.Element {
     <div className="build-run" aria-live="polite">
       <p className="small build-run-status">
         {status.status === 'building' ? (
-          <span className="muted">building… (polling for progress)</span>
+          <span className="muted">{inProgressLabel} (polling for progress)</span>
         ) : status.status === 'passed' ? (
-          <span className="verdict-pass">verdict PASS · build passed</span>
+          <span className="verdict-pass">verdict PASS · {passLabel}</span>
         ) : (
-          <span className="verdict-fail">build failed</span>
+          <span className="verdict-fail">{failLabel}</span>
         )}
       </p>
 
@@ -282,16 +316,21 @@ function AdoptPanel({
   unitId,
   gates,
   adoption,
+  onTerminal,
 }: {
   unitId: string;
   gates: AdoptGate[];
   adoption?: AdoptionPlan | undefined;
+  /** Fired when the adoption finishes — the panel re-pulls so the `mapped → proposed` flip shows in
+   *  place (else the stale Adopt button lingers until a manual reload). Threaded from BuildSection. */
+  onTerminal?: (() => void) | undefined;
 }): React.JSX.Element {
   // The Adopt trigger + poll machinery — the SAME hook the Build button uses; only the intent POST
   // differs (api.adopt vs api.build), and the run is polled via api.buildStatus either way (ADR-0097:
   // one build registry). All the guarantees come with it: single-POST guard, teardown on terminal/
-  // unmount, a thrown fetch (404/409) lands in an error phase.
-  const { phase, trigger } = usePollableRun(unitId, api.adopt);
+  // unmount, a thrown fetch (404/409) lands in an error phase. On a terminal run it fires `onTerminal`
+  // so the panel refreshes the now-stale go-green affordance.
+  const { phase, trigger } = usePollableRun(unitId, api.adopt, onTerminal);
 
   const busy = phase.kind === 'starting';
   const showButton = phase.kind === 'idle' || phase.kind === 'starting' || phase.kind === 'error';
@@ -330,7 +369,7 @@ function AdoptPanel({
       )}
 
       {(phase.kind === 'building' || phase.kind === 'terminal') && (
-        <BuildRun status={phase.kind === 'building' ? phase.status : phase.status} />
+        <BuildRun status={phase.kind === 'building' ? phase.status : phase.status} kind="adopt" />
       )}
 
       {/* ADR-0097 Layer 2: the per-capability covered/uncovered classification (the structural covers-diff,

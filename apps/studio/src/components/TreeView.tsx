@@ -3674,6 +3674,10 @@ function StoryPanel({
         adoptGates={cap ? undefined : story.adoptGates}
         adoption={cap ? undefined : story.adoption}
         status={cap ? undefined : story.status}
+        // A finished Build/Adopt flips the story's status + go-green affordance server-side; re-pull the
+        // tree so the panel refreshes IN PLACE (a passed adopt → the Build button, not the stale Adopt
+        // one) instead of waiting for a manual reload. Same re-pull the per-test UAT signature uses.
+        onTerminal={onCrownRefresh}
       />
 
       {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the
