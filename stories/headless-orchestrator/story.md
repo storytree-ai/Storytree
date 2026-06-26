@@ -10,7 +10,13 @@ proof_mode: UAT
 # witness (operator-attested — subscription-billed, an agent should not burn the spend unattended).
 # The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 # driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
-capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-composition]
+capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-composition, chat-session-stream]
+# Phase 2 (ADR-0108 — the chat surface over the Phase-1 runtime) is added as `chat-session-stream`: the
+# SSE route + chat-message intake that streams an `orchestrate`-driven session. It is CONSUMED by the
+# `desktop` story (ADR-0113 — the thick desktop is where the chat surface SHIPS, mounted on the local
+# backend; the renderer chat panel is a thin client over it, ADR-0108 d.1). Phase 2 still rides the
+# Phase-1 composition (`orchestrate`, @storytree/drive) — it adds streaming + an HTTP intake, not a new
+# loop. Phases 3–5 (build/gate drive, landing, hosting) remain out of scope.
 # Story-level edges (ADR-0010 §4 — consumed cross-story seams, encoded here as frontmatter
 # depends_on; the import-evidence at file:line is in "Cross-story boundary" below):
 #   - agent        — the SDK headless-session organism this extends. The new runtime CORE
@@ -44,7 +50,7 @@ depends_on: [agent, cli, library, notice-board]
 # + its proof-off-tether sanction (91) whose worker investment + integrity argument this runtime reuses;
 # and the drive-package extraction (112) that RESOLVES this story's Phase-2 placement fork — the
 # runtime is a shared @storytree/drive core the worker calls (see "Open modeling calls" below).
-decisions: [108, 30, 51, 4, 33, 90, 91, 112]
+decisions: [108, 30, 51, 4, 33, 90, 91, 112, 113]
 ---
 
 # The headless orchestrator runtime — the session-orchestrator agent, run server-side, that orients and proposes
@@ -61,6 +67,19 @@ server-side runtime that runs the `session-orchestrator` library agent HEADLESSL
 READ tools wired (story-tree / notice-board / library queries), driven by a **programmatic intent**
 (NOT a chat UI — that is Phase 2). It proves the runtime can ORIENT on the real three surfaces and
 PROPOSE a unit. One orchestration session at a time.
+
+**Phase 2 (ADR-0108 — the chat surface) is now in scope as one capability:
+[`chat-session-stream`](chat-session-stream.md).** It puts a conversational surface in front of the
+Phase-1 runtime: an HTTP chat-message intake + a Server-Sent-Events route that STREAMS an
+`orchestrate`-driven session's live output to a thin-client chat panel. It REUSES the Phase-1
+composition (`orchestrate`, `@storytree/drive`) verbatim — it adds streaming + an HTTP intake, NOT a new
+loop and NOT a forked prompt. It stays **read/propose only** (Phases 3–5 — build/gate drive, landing,
+hosting — remain out of scope; whole-loop authority + accept-to-land are later increments). **Where it
+SHIPS:** the thick desktop (ADR-0113) mounts this SSE route on its local backend and renders the chat
+panel as a thin client over it (ADR-0108 d.1 — the renderer never imports the agent); the `desktop`
+story CONSUMES this capability (`depends_on: [headless-orchestrator]`). The renderer chat panel's
+APPEARANCE is operator-attested where it ships (the desktop story's "feels like one app" UAT leg,
+ADR-0070); THIS capability owns the provable SSE/intake BACKEND.
 
 The runtime is a **near-sibling of the existing SDK runtimes**, not a new backend — the pieces it
 composes already exist (encoded here, not re-designed):
@@ -138,6 +157,7 @@ UAT action, not a capability).
 | 1 | [`orientation-tool-surface`](orientation-tool-surface.md) | A read-only in-process tool surface exposes the three storytree orientation commands to a model, each returning a real envelope body, with NO write tool and writes structurally impossible. | — |
 | 2 | [`headless-session-runner`](headless-session-runner.md) | A single read-only SDK session runs an injected system prompt with the orientation tools wired, surfaces the agent's final proposal text, and fails closed on a dead/empty session — one session at a time. | `orientation-tool-surface` |
 | 3 | [`orchestrator-composition`](orchestrator-composition.md) | A programmatic intent renders the session-orchestrator agent, drives a scripted headless session against the real seed corpus, and surfaces an orientation/proposal. | `headless-session-runner` |
+| 4 | [`chat-session-stream`](chat-session-stream.md) *(Phase 2, ADR-0108)* | An HTTP chat intake + SSE route streams an `orchestrate`-driven session's live output to a thin-client chat panel — reusing the Phase-1 composition, read/propose only. | `orchestrator-composition` |
 
 ## Dependency graph (will be code-derived)
 
@@ -157,6 +177,12 @@ acyclic; `orientation-tool-surface` is the root (the read-tool leaf, no in-story
     seed store + the `stories/` corpus), and calls the runner with a scripted/live `queryFn`. The
     composition owns no session state of its own — it is the runner's caller, so it couples to the
     runner's surface and to nothing deeper. The single-session guard lives here.
+- `chat-session-stream` → `orchestrator-composition` *(Phase 2)*
+  - The chat surface is the streaming HTTP front of the Phase-1 composition: an SSE route + a
+    chat-message intake that drives `orchestrate` and forwards its live output to the client. It owns no
+    loop logic of its own — it adapts the composition's session into a stream, so it couples to the
+    composition's surface (`orchestrate`) and to nothing deeper. The single-session guard the composition
+    enforces still holds (one orchestration at a time).
 
 ## Cross-story boundary (ADR-0010 §4)
 
