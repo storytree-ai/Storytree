@@ -3,7 +3,7 @@ id: "agent"
 tier: story
 title: "The agent runtime — the swappable leaf behind the PhaseAuthor seam"
 outcome: "The spine hands a leaf one authoring slice and gets back an authored deliverable (or a fail-closed refusal) without caring which model runtime answered — the owned loop or the live Claude Agent SDK, both behind one seam that never observes red/green or reports a verdict."
-status: mapped
+status: proposed
 proof_mode: UAT
 # Root organism (ADR-0075): packages/agent imports NO @storytree/* package — its only runtime deps
 # are @anthropic-ai/* + zod (verified: packages/agent/package.json, and a grep of src for @storytree/
