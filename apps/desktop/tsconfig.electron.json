@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "comment": "The Electron main + preload (operator-attested shell, ADR-0070). Separate from tsconfig.json so the renderer-bridge code can carry 'dom' types without loosening the broker core's no-dom boundary.",
+  "compilerOptions": { "types": ["node"], "lib": ["ES2023", "DOM"], "noEmit": true, "declaration": false, "sourceMap": false },
+  "include": ["electron"]
+}

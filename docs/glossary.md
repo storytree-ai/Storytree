@@ -69,10 +69,14 @@ an unproven one.
 **boundary** (cross-story interface; *schema name TBD*) — The declared, documented
 seam between two stories — the **only** legal cross-story coupling: two organisms
 dependent to deliver an outcome but each still functioning in isolation against
-the seam, the way a frontend depends on a database. The name is provisional: bare
-`interface` collides with TS `interface` (the same collision that sank
-`component` in ADR-0002), so the candidates are **`boundary`** or **`port`**,
-to be ratified when `packages/proof-protocol` formalises the schema (ADR-0010 §4).
+the seam, the way a frontend depends on a database. The seam need not be a code
+import: a surface may consume another surface's **delivered build artifact** (its
+compiled output) via a declared `depends_on` edge — declared for honesty +
+visibility even though the import-scan gate cannot enforce it (ADR-0100, ADR-0111).
+The name is provisional: bare `interface` collides with TS `interface` (the same
+collision that sank `component` in ADR-0002), so the candidates are **`boundary`**
+or **`port`**, to be ratified when `packages/proof-protocol` formalises the schema
+(ADR-0010 §4).
 
 **event** — A typed record of a state change (owned-loop events + orchestrator events) —
 the unit of observability. If a state change isn't an event the UI can render,

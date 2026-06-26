@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "comment": "The provable core + node-side adapters. Deliberately NO 'dom' lib: the broker runs in the Electron MAIN process and must have no renderer globals, so a stray `localStorage` reference would be a COMPILE error — the keychain-only safety boundary (ADR-0109 §Decision 4) enforced by the type system, not just by a test.",
+  "compilerOptions": { "types": ["node"], "noEmit": true, "declaration": false, "sourceMap": false },
+  "include": ["src"]
+}

@@ -706,6 +706,8 @@
       "doc:glossary.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
+      "doc:decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md",
+      "doc:decisions/0111-desktop-client-step-1-lands-as-the-apps-desktop-surface-and.md",
       "asset:dependency",
       "asset:story",
       "asset:mock-uat-seam"
@@ -713,9 +715,9 @@
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "glossarySection": "Supporting terms",
-    "glossaryBody": "The declared, documented\nseam between two stories — the **only** legal cross-story coupling: two organisms\ndependent to deliver an outcome but each still functioning in isolation against\nthe seam, the way a frontend depends on a database. The name is provisional: bare\n`interface` collides with TS `interface` (the same collision that sank\n`component` in ADR-0002), so the candidates are **`boundary`** or **`port`**,\nto be ratified when `packages/proof-protocol` formalises the schema (ADR-0010 §4).",
+    "glossaryBody": "The declared, documented\nseam between two stories — the **only** legal cross-story coupling: two organisms\ndependent to deliver an outcome but each still functioning in isolation against\nthe seam, the way a frontend depends on a database. The seam need not be a code\nimport: a surface may consume another surface's **delivered build artifact** (its\ncompiled output) via a declared `depends_on` edge — declared for honesty +\nvisibility even though the import-scan gate cannot enforce it (ADR-0100, ADR-0111).\nThe name is provisional: bare `interface` collides with TS `interface` (the same\ncollision that sank `component` in ADR-0002), so the candidates are **`boundary`**\nor **`port`**, to be ratified when `packages/proof-protocol` formalises the schema\n(ADR-0010 §4).",
     "oneLine": "The declared, documented seam between two stories — the only legal cross-story coupling, the way a frontend depends on a database.",
-    "whatItIs": "The declared, documented seam between two stories — the **only** legal cross-story coupling: two organisms dependent to deliver an outcome but each still functioning in isolation against the seam, the way a frontend depends on a database.",
+    "whatItIs": "The declared, documented seam between two stories — the **only** legal cross-story coupling: two organisms dependent to deliver an outcome but each still functioning in isolation against the seam, the way a frontend depends on a database. The seam need not be a code import: a surface may depend on another surface's **delivered build artifact** (consuming its compiled output via a declared cross-story `depends_on` edge) — declared for honesty + forest visibility even though the import-scan gate cannot enforce it, since there is no import to cover (ADR-0100 §3, ADR-0111 §4).",
     "whatItIsNot": "Not a generic `interface`: the name is provisional, because bare `interface` collides with TS `interface` (the same collision that sank `component` in ADR-0002). The candidates are **`boundary`** or **`port`**, to be ratified when `packages/proof-protocol` formalises the schema (ADR-0010 §4).",
     "schemaVersion": 2
   },
