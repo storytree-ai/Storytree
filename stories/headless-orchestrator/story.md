@@ -22,19 +22,20 @@ capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-c
 #                    This is the studio-build precedent: own code physically hosted in another story's
 #                    package while declaring the depends_on edge.
 #   - cli          — the composition surface: renderAgentPrompt(store, "session-orchestrator")
-#                    (packages/cli/src/agents.ts) assembles the SAME session-orchestrator system prompt
-#                    the terminal session uses (ADR-0051 — one loop definition), and run(argv, deps)
-#                    (packages/cli/src/commands.ts) is the single dispatch the read tools wrap. The
-#                    Phase-1 composition + programmatic entry live in packages/cli (it already owns
-#                    renderAgentPrompt + run() and binds ClaudeAgentAuthor in its build path).
+#                    (packages/library/src/store/render-agent.ts) assembles the SAME session-orchestrator
+#                    system prompt the terminal session uses (ADR-0051 — one loop definition), and
+#                    run(argv, deps) (packages/cli/src/commands.ts) is the single dispatch the read tools
+#                    wrap. The Phase-1 composition + programmatic entry moved to @storytree/drive
+#                    (ADR-0112); renderAgentPrompt is in @storytree/library, and packages/cli hosts run()
+#                    + the `orchestrate` command, importing both across the seam.
 #   - library      — the knowledge surface the agent orients on: `library` (dashboard) +
 #                    `library artifact <id>` read off the store (the in-memory seed offline,
 #                    packages/cli/src/commands.ts), and the seed corpus the agent reads is library's
 #                    work-hierarchy + knowledge schema (loadCorpus over @storytree/library).
 #   - notice-board — the session-presence surface the agent orients on AND declares on like any session
-#                    (ADR-0033): `noticeboard` reads the live presence store (packages/cli/src/
-#                    noticeboard.ts). Phase 1's PROOF is orientation+proposal, not presence — the
-#                    declaration is the session courtesy, not the deliverable.
+#                    (ADR-0033): `noticeboard` reads the live presence store
+#                    (packages/drive/src/noticeboard.ts). Phase 1's PROOF is orientation+proposal, not
+#                    presence — the declaration is the session courtesy, not the deliverable.
 depends_on: [agent, cli, library, notice-board]
 # Deciding ADRs (ADR-0037 §2): chat-driven orchestration / the phased server-side runtime — Phase 1
 # (108, this); human owns the outer loop, amended in degree by a server-side runtime (30); the agent
@@ -81,7 +82,7 @@ composes already exist (encoded here, not re-designed):
   constructs a `writable: false` deps over the in-memory seed — the exact offline shape `main.ts` already
   builds).
 - **The loop definition is the rendered `session-orchestrator` agent — not a fork.** The composition
-  calls `renderAgentPrompt(store, "session-orchestrator")` (`packages/cli/src/agents.ts`), which
+  calls `renderAgentPrompt(store, "session-orchestrator")` (`packages/library/src/store/render-agent.ts`), which
   assembles the SAME system prompt the terminal session embodies (ADR-0051). The runtime RUNS that
   prompt; it does NOT fork the loop definition (ADR-0108 decision 2 — edit the library artifact,
   regenerate, and both the terminal and the studio runtime move together).
@@ -175,7 +176,7 @@ CLI dispatch, the library schema, or the presence store.
   physically hosted in another story's package while declaring the `depends_on` edge (studio-build owns
   its worker in `apps/studio/server` while `depends_on studio`).
 - **`cli`** — the **composition surface**. Two CLI entries are consumed: `renderAgentPrompt(store,
-  "session-orchestrator")` (`packages/cli/src/agents.ts`) assembles the session-orchestrator system
+  "session-orchestrator")` (`packages/library/src/store/render-agent.ts`) assembles the session-orchestrator system
   prompt (ADR-0051 — one loop definition, the runtime does not fork it); and `run(argv, deps)`
   (`packages/cli/src/commands.ts`, the single dispatch returning an `Envelope` for every orientation
   surface — `tree` / `noticeboard` / `library` / `library artifact <id>` / `agents` / `adr list`) is
@@ -191,7 +192,7 @@ CLI dispatch, the library schema, or the presence store.
   work-hierarchy spec (`Tier`/`Status`/`Unit`) and the knowledge documents — is library's schema. The
   runtime REUSES the existing in-memory seed read path; it owns no knowledge schema.
 - **`notice-board`** — the **session-presence surface**. The agent orients on `noticeboard` (the live
-  presence store, `packages/cli/src/noticeboard.ts`) AND declares presence like any session (ADR-0033)
+  presence store, `packages/drive/src/noticeboard.ts`) AND declares presence like any session (ADR-0033)
   — the orchestration is a session on the board. Phase 1 REUSES the existing board; its PROOF is
   orientation+proposal, not presence (the declaration is the session courtesy, not the deliverable —
   presence reads strictly need the live store, so the OFFLINE proof exercises the tree + library
@@ -312,8 +313,7 @@ studio worker import. So the Phase-2 runtime is neither buried in `cli` nor dupl
 it is a re-composition over the shared core, exactly as Phase 1's "keep the core package-level and
 CLI-driven" intended (ADR-0108 decision 1 — the runtime runs ON the ADR-0090 worker — still holds; the
 worker now calls a shared `drive` core rather than importing the command hub or re-implementing). The
-Phase-1 `orchestrate.ts` entry stays in `packages/cli` for now (the cli back-compat re-export keeps the
-terminal command intact); Phase 2 lifts the reusable composition into `@storytree/drive` beside the
-other drivers — a move, not a rewrite. NOTE: this story's `orchestrator-composition` capability still
-cites `packages/cli/src/orchestrate.ts` as its `sourceFile` (the Phase-1 home, provisional); when
-Phase 2 lifts it into `@storytree/drive`, that proof-block path is re-pointed.
+`orchestrate.ts` composition already moved into `@storytree/drive` (ADR-0112) beside the other drivers
+— a move, not a rewrite; the terminal `orchestrate` command stays in `packages/cli` (`commands.ts`),
+importing the drive composition across the seam. This story's `orchestrator-composition` capability
+cites `packages/drive/src/orchestrate.ts` as its `sourceFile`.

@@ -144,9 +144,9 @@ export interface AssetInput {
 /**
  * An ADR's frontmatter lifecycle `status` (ADR-0037 §1): `proposed` (drafted, not yet ratified),
  * `accepted` (the decision stands), `superseded` (replaced by a later ADR). Mirrors the CLI's
- * `AdrStatus` (packages/cli/src/adr-frontmatter.ts) locally — the studio is browser-bundled and must
- * not import the CLI. Surfaced as the at-a-glance status chip so a wrong/premature flip is catchable
- * (the observability "catch" ADR-0084 leans on).
+ * `AdrStatus` (packages/drive/src/adr-frontmatter.ts) locally — the studio is browser-bundled and
+ * must not import the CLI or drive packages. Surfaced as the at-a-glance status chip so a
+ * wrong/premature flip is catchable (the observability "catch" ADR-0084 leans on).
  */
 export type AdrDocStatus = 'proposed' | 'accepted' | 'superseded';
 

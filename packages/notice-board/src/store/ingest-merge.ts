@@ -33,7 +33,7 @@ export interface MergeRetireStore {
 
 /**
  * Derive the presence `sessionId` from a git head ref: the tail segment after the last
- * `/`. Mirrors `deriveIdentity` (packages/cli/src/noticeboard.ts), whose sessionId is the
+ * `/`. Mirrors `deriveIdentity` (packages/drive/src/noticeboard.ts), whose sessionId is the
  * worktree basename — for `claude/<slug>-<hash>` worktrees the branch tail equals that
  * basename. A ref with no `/` (or a bare sessionId passed by the manual one-shot) is
  * returned unchanged, so this is safe to apply to either a full head ref or a plain id.

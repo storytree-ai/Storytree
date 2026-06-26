@@ -13,7 +13,7 @@ depends_on: []
 
 **Outcome —** The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus
 guard (`packages/cli/scripts/validate-corpus.ts`) and the ADR frontmatter parser
-(`packages/cli/src/adr-frontmatter.ts`).
+(`packages/drive/src/adr-frontmatter.ts`).
 
 ## Guidance
 
@@ -22,8 +22,10 @@ guard (`packages/cli/scripts/validate-corpus.ts`) and the ADR frontmatter parser
 - The ADR frontmatter parser is the pure primitive the adr-health gate (ci-cd's `adr-health-gate`)
   and the `adr new` allocator (ADR-0050) build on — parsing/validation lives here; the gating
   POLICY is ci-cd's, not duplicated here.
-- These are genuinely CLI-resident (they ride the CLI's test surface, not another organism's) —
-  which is why they live in this hub story rather than being surfaced from elsewhere.
+- The corpus guard is genuinely CLI-resident (it rides the CLI's test surface, not another
+  organism's). The ADR frontmatter parser moved to `@storytree/drive` (ADR-0112) but is driven by the
+  CLI's ADR commands/gates — so the `cli-resident` framing now spans two packages; a reframe/re-home
+  is a story-author follow-up.
 
 ## Contracts (2)
 

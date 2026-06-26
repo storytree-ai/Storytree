@@ -42,7 +42,7 @@ the access token and the HTTP request **INJECTED**, so db-control can read and s
 with an ambient ADC token and **never shell out to gcloud**.
 
 > **The gap this closes.** Every db-control surface — `pnpm db:status` / `db:up` / `db:down`
-> (`packages/cli/src/db-control.ts`), the CLI's `ensureLiveDb` preflight, and the studio's
+> (`packages/drive/src/db-control.ts`), the CLI's `ensureLiveDb` preflight, and the studio's
 > `/api/db/start` (`apps/studio/server/dbControl.ts`) — shells out to the bundled-Python `gcloud`
 > CLI. On this Windows dev box that path costs ~2.1s of Python cold-start per call and, when those
 > launches overlap with memory pressure, piles up into a credential-lock cascade (gcloud Python

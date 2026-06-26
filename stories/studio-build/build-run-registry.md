@@ -19,7 +19,7 @@ verdict, with one build at a time.
 > **Proof status (honest) — NOT BUILT.** This precedes the code (the whole `studio-build` story is
 > authored before implementation). The registry, its tests, and the integration test below are
 > specs awaiting implementation, not a recording of something green. The build-path collaborator it
-> drives (`nodeBuild --live`, `packages/cli/src/node-build.ts`) already exists and is real.
+> drives (`nodeBuild --live`, `packages/drive/src/node-build.ts`) already exists and is real.
 
 ## Guidance
 

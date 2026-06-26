@@ -57,7 +57,7 @@ The shape, decided in ADR-0090 (owner + orchestrator) and **encoded here, not re
 - **Server-process worker = the single orchestrator boundary.** A worker in the studio SERVER
   process (`apps/studio/server`) picks up the intent and runs the EXISTING `--live` build path —
   the same thing `pnpm storytree node build <id> --live` does today
-  (`packages/cli/src/node-build.ts` → `nodeBuild` → `driveNode` → `proveUnit`). A real Claude
+  (`packages/drive/src/node-build.ts` → `nodeBuild` → `driveNode` → `proveUnit`). A real Claude
   Agent SDK leaf authors the synthetic `add(2,3)` pair through the real prove-it-gate, the spine
   observes the genuine red→green and SIGNS, and a REAL signed verdict for the node persists to
   `events.verdict` (ADR-0091's "the verdict is produced by the gate, never handed in"). The worker
@@ -136,7 +136,7 @@ spine, the wisp pipeline, or the verdict schema.
   (`apps/studio/src/components/TreeView.tsx`).
 - **`drive-machinery`** — the **build path(s) the worker drives**. The worker ROUTES by unit kind
   (`routedBuildRunner`, `apps/studio/server/buildWorker.ts:144`): a NODE id → the EXISTING
-  `nodeBuild(unitId, { live: true, … })` (`packages/cli/src/node-build.ts`) — the same path
+  `nodeBuild(unitId, { live: true, … })` (`packages/drive/src/node-build.ts`) — the same path
   `storytree node build <id> --live` runs (→ `driveNode` → `resolveProveSpec` → `proveUnit`, the
   spine observing red/green and signing); a STORY id → the EXISTING `storyBuild(id, { real: true,
   openPr: true, … })` whole-story chain (drive-machinery's `story-real-chain`, topo-ordered from

@@ -111,7 +111,7 @@ lone import root (`packages/core/src/presence.ts:1` imports only `zod`).
     `mergeDeclaration` (`presence-store.ts:85`) — the upsert-merge semantics are consumed,
     never reimplemented.
 - `noticeboard-cli` → `declare-presence`
-  - `packages/cli/src/noticeboard.ts:10-11` imports `type PresenceDeclarationDoc` +
+  - `packages/drive/src/noticeboard.ts:10-11` imports `type PresenceDeclarationDoc` +
     `classifyPresence`; the board's staleness bands call `classifyPresence`
     (`noticeboard.ts:116`) and `declare` constructs the typed doc (`noticeboard.ts:213`).
 - `noticeboard-cli` → `presence-store` *(injection grain)*
@@ -138,7 +138,7 @@ lone import root (`packages/core/src/presence.ts:1` imports only `zod`).
     dependency (the follow-up annotates this view) — both facts hold, and there is no cycle:
     `tree-verdicts.ts` imports nothing from `tree.ts`.
 - `ambient-integration` → `declare-presence`
-  - `packages/cli/src/ambient-presence.ts:10` imports `type PresenceDeclarationDoc`; the build
+  - `packages/drive/src/ambient-presence.ts:10` imports `type PresenceDeclarationDoc`; the build
     wrapper constructs the typed doc (`ambient-presence.ts:57`).
 - `ambient-integration` → `noticeboard-cli`
   - `ambient-presence.ts:12` imports `type PresenceStoreLike` + `type SessionIdentity` (types

@@ -279,7 +279,7 @@ test("the tree-view entry is REAL-buildable with install and walls excluding the
   assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
   assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
   // The sibling proven module and the dispatch stay out of reach.
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/noticeboard.ts"), false);
+  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/uat.ts"), false);
   assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/cli/src/commands.ts"), false);
 });
 

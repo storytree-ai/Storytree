@@ -1,5 +1,5 @@
 /**
- * Integration tests for the orchestrator composition (packages/cli/src/orchestrate.ts).
+ * Integration tests for the orchestrator composition (packages/drive/src/orchestrate.ts).
  *
  * Pins:
  *   1. The composition renders the REAL `session-orchestrator` agent from the seed corpus —

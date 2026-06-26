@@ -17,7 +17,7 @@ depends_on: [prove-spec-resolution]
 
 > **Proof status (honest) — `mapped`, with the live loader as the `proposed` pocket.** The
 > classification and every gate disposition are covered by a real, passing, offline suite over
-> injected rows (`packages/cli/src/oq-gate.test.ts`, part of `@storytree/cli` 110/110 — I ran it
+> injected rows (`packages/drive/src/oq-gate.test.ts`, part of `@storytree/cli` 110/110 — I ran it
 > 2026-06-13). The pocket: `loadLive` — the thin loader composing the library tier's live
 > `PgLibraryStore` + `PgCommentStore` (`oq-gate.ts:110-119`) — has no offline assertion; it is the
 > cross-story leg (the story-level `library` edge), exercised only against the live DB.

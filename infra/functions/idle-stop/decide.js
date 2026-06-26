@@ -4,7 +4,7 @@
 // function (index.js) is GCP I/O (read instance state, read the metric, PATCH to
 // stop). They take plain values and return plain objects — no network, no clock —
 // so they have real red->green coverage offline (decide.test.js), mirroring the
-// injected-deps pattern in packages/cli/src/db-control.ts.
+// injected-deps pattern in packages/drive/src/db-control.ts.
 
 /**
  * Reduce a Cloud Monitoring `timeSeries.list` response to `{ sawData, max }`:

@@ -46,12 +46,13 @@ session against the real seed corpus, and surfaces an orientation/proposal.
 programmatic shell over the runner: it renders the prompt, assembles the orientation deps, and calls
 the runner.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The composition is the
-> Phase-1 programmatic entry — a thin CLI command, NOT an HTTP/chat endpoint (that is Phase 2). It
-> renders the SAME `session-orchestrator` system prompt the terminal session uses
-> (`renderAgentPrompt`, `packages/cli/src/agents.ts`, ADR-0051) and drives the runner against the real
-> seed corpus. It lives in `packages/cli` — which already owns `renderAgentPrompt` + `run()`, already
-> binds `ClaudeAgentAuthor` in its build path, and depends on `@storytree/agent`.
+> **Proof status (honest) — `proposed`.** Phase 1 LANDED this composition (#373); ADR-0112 then
+> relocated it. The composition is the Phase-1 programmatic entry — a thin CLI command, NOT an
+> HTTP/chat endpoint (that is Phase 2). It renders the SAME `session-orchestrator` system prompt the
+> terminal session uses (`renderAgentPrompt`, `packages/library/src/store/render-agent.ts`, ADR-0051)
+> and drives the runner against the real seed corpus. Since ADR-0112 the composition lives in
+> `@storytree/drive`; `packages/cli` hosts `run()` + the `orchestrate` command, and the leaf's
+> `ClaudeAgentAuthor` stays in `@storytree/agent`.
 
 ## Guidance
 

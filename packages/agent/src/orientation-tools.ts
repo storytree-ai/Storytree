@@ -53,8 +53,8 @@ export interface OrientationTool {
 
 /**
  * Render an envelope to the text the model reads.
- * Mirrors `formatEnvelope` in packages/cli/src/envelope.ts — duplicated here to avoid the
- * cli→agent→cli import cycle.
+ * Mirrors `formatEnvelope` in packages/drive/src/envelope.ts — duplicated here to avoid the
+ * drive→agent→drive import cycle.
  */
 function formatEnvelope(e: OrientationEnvelope): string {
   const parts: string[] = [e.body.replace(/\s+$/, "")];

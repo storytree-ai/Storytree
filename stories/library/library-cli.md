@@ -32,7 +32,7 @@ proof:
 
 ## Guidance
 
-The agent-facing surface (ADR-0023): every command returns an `Envelope` (`packages/cli/src/envelope.ts:8-29`) — result + doctrine pointers + next branches — and `run` (`commands.ts:592-682`) NEVER throws on an expected miss (unknown id/category/area => `ok:false` + next).
+The agent-facing surface (ADR-0023): every command returns an `Envelope` (`packages/drive/src/envelope.ts:8-29`) — result + doctrine pointers + next branches — and `run` (`commands.ts:592-682`) NEVER throws on an expected miss (unknown id/category/area => `ok:false` + next).
 
 The code edges justifying the `depends_on`, all real imports at `commands.ts:7-23` + `main.ts:5-14`: `renderStoredDoc` from `@storytree/library/store` (view path, [`eager-batch-migrate`](eager-batch-migrate.md)); `groupSources` + `KIND_SPECS` + `CURRENT_SCHEMA_VERSION` from `@storytree/library` (schema); `upcastAndValidate` from `@storytree/library` on every write (`newArtifact` `commands.ts:334`, `editArtifact` `commands.ts:429` — migrate-on-write); the health helpers from `./health.js` for the dashboard banner (`commands.ts:113-121`) and `--check` (`commands.ts:171-207` — [`library-health-gate`](library-health-gate.md)); and `main.ts` seeds the default offline read store via `loadCorpus` into an `InMemoryStore` (`main.ts:27-29` — [`seed-corpus-scripts`](seed-corpus-scripts.md)) while `--pg` swaps in `PgLibraryStore` (event-sourced-store-seam).
 
@@ -86,7 +86,7 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **proven by —** `packages/cli/src/cli.test.ts:137-168` (REAL, passing — three sibling assertions folded onto one range)
 9. **`envelope-renders-next`** — formatEnvelope always renders a next: block when next is present
    - **asserts —** `formatEnvelope(dashboard envelope)` contains a `\nnext:\n` block.
-   - **covers —** `packages/cli/src/envelope.ts:20-29`
+   - **covers —** `packages/drive/src/envelope.ts:20-29`
    - **proven by —** `packages/cli/src/cli.test.ts:28` (REAL, passing)
 10. **`new-reads-file-and-rejects-bad-json`** — new reads --file and rejects malformed JSON
     - **asserts —** `new` with `--file` reads the doc (and returns read-failure guidance on a bad path); `new` with malformed `--json` returns the parse error as guidance.
