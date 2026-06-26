@@ -1,19 +1,20 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-26
 amends: [37, 97]
 ---
 # ADR-0107: An open question attached to a proving process gates its green
 
 ## Status
 
-proposed — extracted on 2026-06-25 from [ADR-0106](0106-the-adopt-pass-resolves-each-uat-leg-s-witness-machine-only.md)
-decision 4, which flagged that *"open questions raised during the process gate it"* is a GENERAL
-mechanism (not specific to the adopt witness-classification it served there) and **"may deserve its own
-ADR."** This is that ADR. It records the general mechanism as a first-class, reusable proving-process
-escalation valve and **is BUILT** (see Consequences) — unlike ADR-0106, which is largely current
-thinking. Left `proposed` because it hardens a still-unratified direction (ADR-0106 is the owner's
-current thinking, not yet a ratified wall); the `status:` flips per
-[ADR-0084](0084-agents-may-flip-an-adr-green.md) once the ADR-0106 direction is ratified.
+accepted — RATIFIED by the owner on 2026-06-26, together with the [ADR-0106](0106-the-adopt-pass-resolves-each-uat-leg-s-witness-machine-only.md)
+direction it extracts. Extracted on 2026-06-25 from ADR-0106 decision 4, which flagged that *"open
+questions raised during the process gate it"* is a GENERAL mechanism (not specific to the adopt
+witness-classification it served there) and **"may deserve its own ADR."** This is that ADR. It records
+the general mechanism as a first-class, reusable proving-process escalation valve and **is BUILT** (see
+Consequences). Originally left `proposed` because it hardened a still-unratified direction; the owner
+ratified ADR-0106 (and this extraction) on 2026-06-26 once the flow was built and green, flipping it
+`proposed → accepted` per [ADR-0084](0084-agents-may-flip-an-adr-green.md).
 
 It **amends [ADR-0037](0037-decision-binding-and-hygiene-gates.md)** (§5's OQ-hygiene, which gates a
 LIVE BUILD *command* on a deciding ADR's unprocessed operator answer, is generalised into a read-time
