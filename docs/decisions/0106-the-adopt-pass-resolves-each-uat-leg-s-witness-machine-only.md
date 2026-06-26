@@ -1,25 +1,28 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-26
 amends: [44, 82, 97]
 ---
 # ADR-0106: The adopt pass resolves each UAT leg's witness — machine only when a real test covers it, else human — and OQs gate the proving process
 
 ## Status
 
-proposed — owner's current thinking, recorded during a design conversation on 2026-06-25 while
-reviewing why the `agent` story's six UAT legs all read `witness=either` and yet only the human can
-close them. The owner directed: adoption should run a **story-writer pass** that DECIDES whether the
-human is needed per leg ("it shouldn't automatically require me"), the word **`either` should leave the
-UI** (a leg either shows a flag to click or it doesn't), machine-witnessable-but-unproven legs **defer
-to Build**, and **agents may raise open questions via the Library throughout the process and gate the
-proving process on them**. Left `proposed` for owner ratification (it is "current thinking", not yet a
-ratified wall); the `status:` will flip per [ADR-0084](0084-agents-may-flip-an-adr-green.md) once
-ratified. **Build state (2026-06-25):** the witness-resolution flow — decisions 1, 2, 3, 5 — is now
+accepted — RATIFIED by the owner on 2026-06-26. Recorded as the owner's direction during a design
+conversation on 2026-06-25 while reviewing why the `agent` story's six UAT legs all read
+`witness=either` and yet only the human can close them. The owner directed: adoption should run a
+**story-writer pass** that DECIDES whether the human is needed per leg ("it shouldn't automatically
+require me"), the word **`either` should leave the UI** (a leg either shows a flag to click or it
+doesn't), machine-witnessable-but-unproven legs **defer to Build**, and **agents may raise open
+questions via the Library throughout the process and gate the proving process on them**. Originally
+left `proposed` ("current thinking", pending the owner's word); the owner ratified it on 2026-06-26
+once the witness-resolution flow was built and green end-to-end, flipping it `proposed → accepted` per
+[ADR-0084](0084-agents-may-flip-an-adr-green.md). **Build state (2026-06-25):** the witness-resolution flow — decisions 1, 2, 3, 5 — is now
 BUILT and green (the asymmetric classifier `packages/library/src/witness-resolution.ts`, the adopt
 pass `packages/cli/src/adopt.ts`, and the binary studio surface `apps/studio`'s `UatTestsSection`);
 decision 4 (OQ-gating the proving process) was extracted to **[ADR-0107](0107-an-open-question-attached-to-a-proving-process-gates-its-gre.md)** and is built there.
-Building the flow does not ratify the model — the `status:` stays `proposed` pending owner
-ratification. The original "largely not built" framing in Consequences is superseded by this note;
+With the flow built, green, and validated end-to-end, the owner ratified the model on 2026-06-26 — the
+distinction this note once drew (building ≠ ratifying) was honoured: the flip waited for the owner's
+word, not merely for green. The original "largely not built" framing in Consequences is superseded by this note;
 the residual follow-on (real coverage measurement, raise-side ergonomics) stands.
 
 It **amends [ADR-0044](0044-per-uat-test-human-attestation.md)** (the per-test `witness`
@@ -130,9 +133,9 @@ never the resting state of an adopted leg.
 - `machine` is safe by construction: it is only ever chosen with a real test behind it, so it cannot
   green a leg the system never actually checked.
 
-**Bad / costs / follow-on (surfaced, not buried) — the model is the owner's current thinking, awaiting
-ratification; the infrastructure of decisions 1/2/3/5 is now BUILT (see the Build-state note in
-§Status), with the follow-on below.**
+**Bad / costs / follow-on (surfaced, not buried) — the model is ratified (2026-06-26) and the
+infrastructure of decisions 1/2/3/5 is BUILT (see the Build-state note in §Status); the residual
+follow-on below stands.**
 - ~~**The classification pass does not exist.**~~ **BUILT (2026-06-25).** The asymmetric classifier
   (`packages/library/src/witness-resolution.ts`: `resolveWitness` / `resolvedWitnessOf` /
   `unresolvedUatLegs`) resolves each leg to `human` or `machine` (routed observe / build-tests); the
