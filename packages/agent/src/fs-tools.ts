@@ -88,7 +88,7 @@ export class FileToolExecutor implements ToolExecutor {
   }
 
   async #editFile(input: unknown): Promise<string> {
-    const { path: p, old_str, new_str } = EditFileInput.parse(input);
+    const { path: p, old_str, new_str, replace_all } = EditFileInput.parse(input);
     const target = this.resolveInRoot(p);
     const original = await fs.readFile(target, "utf8");
 
@@ -96,6 +96,16 @@ export class FileToolExecutor implements ToolExecutor {
     if (first === -1) {
       throw new Error(`edit_file: old_str not found in ${p}`);
     }
+
+    if (replace_all === true) {
+      // Explicit opt-in: replace every occurrence.
+      const parts = original.split(old_str);
+      const count = parts.length - 1;
+      const updated = parts.join(new_str);
+      await fs.writeFile(target, updated, "utf8");
+      return `edited ${p} (replaced ${count} occurrence${count === 1 ? "" : "s"})`;
+    }
+
     // Reject ambiguous edits: old_str must occur exactly once.
     if (original.indexOf(old_str, first + 1) !== -1) {
       throw new Error(`edit_file: old_str appears more than once in ${p} (ambiguous edit)`);
@@ -151,7 +161,7 @@ export class PathEscapeError extends Error {
 const ReadFileInput = z.object({ path: z.string() }).strict();
 const WriteFileInput = z.object({ path: z.string(), content: z.string() }).strict();
 const EditFileInput = z
-  .object({ path: z.string(), old_str: z.string(), new_str: z.string() })
+  .object({ path: z.string(), old_str: z.string(), new_str: z.string(), replace_all: z.boolean().optional() })
   .strict();
 const ListDirInput = z.object({ path: z.string() }).strict();
 const RunCommandInput = z

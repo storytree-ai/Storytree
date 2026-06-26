@@ -8,7 +8,7 @@ proof_mode: UAT
 capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
-# packages/drive/src/node-build.ts:36 (events.work_event/verdict are its OWN tables), and the
+# packages/drive/src/node-build.ts:41-44 (events.work_event/verdict are its OWN tables), and the
 # oq-hygiene gate's live loader composes the library's PgLibraryStore + PgCommentStore
 # (packages/drive/src/oq-gate.ts:110-119). The drive surface now lives in its own package
 # @storytree/drive (ADR-0112 — carved out of packages/cli/src), re-exported through cli's
@@ -184,21 +184,21 @@ coupling) and marked.
   - `oq-gate.ts:2` imports the `NodeSpec` type (type-only) — the gate reads the loaded story
     spec's `decisions`.
 - `build-drive-cli` → `prove-spec-resolution`
-  - `node-build.ts:15-28` + `story-build.ts:5-12` import `resolveProveSpec`, `loadNodeSpec`,
+  - `node-build.ts:11-25` + `story-build.ts:8-23` import `resolveProveSpec`, `loadNodeSpec`,
     `findNodeSpecFile`, `mapProofMode`, and the registry lookups — the whole wiring surface.
 - `build-drive-cli` → `prove-it-gate`
-  - `node-build.ts:22` imports `proveUnit` — every mode's walk (`node-build.ts:251`, `:446`).
+  - `node-build.ts:16` imports `proveUnit` — every mode's walk (`node-build.ts:499`, `:661`).
 - `build-drive-cli` → `real-build-worktree`
-  - `node-build.ts:16-27` imports `createBuildWorktree`, `promoteRealPass`,
-    `runRegressionSuite`, `runWorktreeTypecheck` — the `--real` lifecycle (`:417-481`).
+  - `node-build.ts:11-25` imports `createBuildWorktree`, `promoteRealPass`,
+    `runRegressionSuite`, `runWorktreeTypecheck` — the `--real` lifecycle (`:634-702`).
 - `build-drive-cli` → `story-topo-build`
-  - `story-build.ts:10-11` imports `runStoryBuild` + `topoOrderStoryNodes` (`:149`, `:193`).
+  - `story-build.ts:20-22` imports `runStoryBuild` + `topoOrderStoryNodes` (`:584`, `:424`).
 - `build-drive-cli` → `oq-hygiene-gate`
-  - `story-build.ts:17` imports `oqHygieneGate`, called live-only before any spend (`:174-175`).
+  - `story-build.ts:61` imports `oqHygieneGate`, called live-only before any spend (`:526-527`).
 - `build-drive-cli` → `work-verdict-event-log`
-  - `node-build.ts:8-14` imports `workEvent` + `rollupStatus` + `verdictLine` (building marks
-    `:219-224`, report rollups `:504`); `:36` imports `PgWorkStore` (the `--store pg` swap,
-    `:165-174`).
+  - `node-build.ts:23-27` imports `workEvent` + `rollupStatus` + `verdictLine` (building marks
+    `:465` and `:637`, report rollups `:1003`); `:49` imports `PgWorkStore` (the `--store pg` swap,
+    `:305-315`).
 - `spec-borne-proof-config` → `prove-spec-resolution` *(BUILT — ADR-0057, code-import-evidenced)*
   - extends the resolution layer: `node-spec.ts:5-6` imports `parseNodeBuildConfig` from the new
     `proof-config.ts` (validates the spec-borne `proof:` block into `spec.buildConfig`);

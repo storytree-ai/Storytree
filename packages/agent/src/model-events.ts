@@ -56,6 +56,7 @@ export const StopReason = z.enum([
   "tool_use",
   "max_tokens",
   "stop_sequence",
+  "refusal",
 ]);
 export type StopReason = z.infer<typeof StopReason>;
 

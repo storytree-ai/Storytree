@@ -1,4 +1,4 @@
-import type { ContentBlock, ToolResultBlock, ToolUseBlock } from "./model-events.js";
+import type { ContentBlock, StopReason, ToolResultBlock, ToolUseBlock } from "./model-events.js";
 import { isTextBlock, isToolUseBlock } from "./model-events.js";
 import type { Model, ModelMessage, ModelRequest } from "./model.js";
 import type { ToolExecutor } from "./tool-executor.js";
@@ -17,6 +17,7 @@ export interface TurnResult {
   blocks: ContentBlock[];
   transcript: ModelMessage[];
   turns: number;
+  stopReason: StopReason;
 }
 
 /**
@@ -75,6 +76,7 @@ export async function runTurn(args: {
       blocks: response.content,
       transcript,
       turns,
+      stopReason: response.stopReason,
     };
   }
 

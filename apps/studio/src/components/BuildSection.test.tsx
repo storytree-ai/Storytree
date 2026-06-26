@@ -156,6 +156,34 @@ describe('BuildSection', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
   });
 
+  // ── ubt-terminal-refreshes-affordance (Bug 2: stale affordance after a finished run) ──
+  it('calls onTerminal exactly once when a run reaches terminal — not while building, not again after', async () => {
+    const onTerminal = vi.fn();
+    apiMock.build.mockResolvedValue({ runId: 'run-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce(building())
+      .mockResolvedValueOnce({
+        runId: 'run-1',
+        unitId: 'drive-machinery',
+        status: 'passed',
+        transcript: ['build started', 'verdict: PASS'],
+        envelope: 'verdict PASS · signer spine',
+      });
+
+    render(<BuildSection unitId="drive-machinery" buildable onTerminal={onTerminal} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }));
+    await flush(); // first read — still building, so no refresh yet
+    expect(onTerminal).not.toHaveBeenCalled();
+
+    await tick(BUILD_POLL_MS); // terminal read → the panel refreshes the now-stale affordance
+    expect(onTerminal).toHaveBeenCalledTimes(1);
+
+    // The poll loop is torn down — no further refreshes fire.
+    await tick(BUILD_POLL_MS);
+    await tick(BUILD_POLL_MS);
+    expect(onTerminal).toHaveBeenCalledTimes(1);
+  });
+
   // ── story scope: the STATUS-AWARE go-green affordance (ADR-0094) ─────────────
   it('a proposed story (goGreen=build) frames a whole-story real build that merges automatically', () => {
     render(<BuildSection unitId="notice-board" buildable scope="story" goGreen="build" status="proposed" />);
@@ -300,7 +328,10 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(1);
 
     await tick(BUILD_POLL_MS); // second read — terminal PASS, polling stops
-    expect(screen.getByText(/build passed/)).toBeTruthy(); // the shared terminal status line
+    // Bug 1: the shared terminal status line uses ADOPT wording — an adopt is NOT a build. It reads
+    // "verdict PASS · adopted", never "build passed".
+    expect(screen.getByText(/PASS.*adopted/)).toBeTruthy();
+    expect(screen.queryByText(/build passed/)).toBeNull();
     expect(screen.getByText(/adopted · signer spine-principal/)).toBeTruthy(); // the envelope body
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2);
 
@@ -333,12 +364,44 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(1);
 
     await tick(BUILD_POLL_MS);
-    expect(screen.getByText(/failed/i)).toBeTruthy();
+    // Bug 1: the failed terminal line reads "adopt failed", never "build failed".
+    expect(screen.getByText(/adopt failed/)).toBeTruthy();
+    expect(screen.queryByText(/build failed/)).toBeNull();
     expect(screen.getByText(/observed red — refused/)).toBeTruthy();
 
     await tick(BUILD_POLL_MS);
     await tick(BUILD_POLL_MS);
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
+  });
+
+  // Bug 2: a finished adoption flips the story `mapped → proposed` server-side, so the panel must
+  // re-pull or it keeps showing the stale Adopt button. The AdoptPanel threads onTerminal through the
+  // SAME poll machinery; assert it fires when the adoption goes terminal.
+  it('calls onTerminal when the adoption finishes (so the mapped → proposed affordance refreshes in place)', async () => {
+    const onTerminal = vi.fn();
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'building',
+        transcript: ['adoption started'],
+      })
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'passed',
+        transcript: ['flip mapped → proposed', 'verdict: PASS'],
+        envelope: 'adopted · signer spine-principal · approvedBy operator',
+      });
+
+    render(<BuildSection {...adoptProps} adoptGates={adoptGates} onTerminal={onTerminal} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt' }));
+    await flush(); // first read — still adopting, no refresh yet
+    expect(onTerminal).not.toHaveBeenCalled();
+
+    await tick(BUILD_POLL_MS); // terminal PASS → refresh the now-stale affordance
+    expect(onTerminal).toHaveBeenCalledTimes(1);
   });
 
   it('is a LEAN surface — a button + a short one-line description, no per-gate list (owner steer)', () => {
