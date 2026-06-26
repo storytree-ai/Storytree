@@ -20,8 +20,9 @@ consumed_by: []
 # ADR-0102 (owner-directed 2026-06-25): the CLI is a SOURCE hub — it depends on nearly every
 # organism (declared provider-side on each spoke as `consumed_by: [cli]`) and is depended-on by
 # almost nothing. Rendered as a shared island it AGGLOMERATES a dense "city" of its dependencies'
-# icons, and the lone `studio → cli` edge surfaces as studio carrying cli's rare icon — the
-# coupling is MORE visible, not hidden (ADR-0074 §1). The graph is unchanged: only the render flips
+# icons; any consumer carrying cli's rare icon would make the coupling MORE visible, not hidden
+# (ADR-0074 §1). (Since ADR-0112 §3 dropped studio's `cli` dependency, cli has no inbound consumer
+# edge today — it is a pure source.) The graph is unchanged: only the render flips
 # (depends_on / consumed_by above stay as-is). Build behind `?buildings`; appearance owner-attested.
 render: building
 # Deciding ADRs (ADR-0037 §2): the choose-your-own-adventure CLI (23), the atomic ADR-number

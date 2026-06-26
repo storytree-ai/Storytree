@@ -133,7 +133,7 @@ holds **NO signing key** and **no verdict is ever handed in** (ADR-0091); its re
 orientation tool surface and nothing else. The honest status is `proposed`:
 
 - The **offline-provable mechanics ARE genuinely proof-wired** — each carries a `proof:` block with a
-  `real:` arm (a NET-NEW red→green against `packages/agent` / `packages/cli`, driven through an
+  `real:` arm (a NET-NEW red→green against `packages/agent` / `packages/drive`, driven through an
   injected `queryFn` + scripted read-tool doubles + the in-memory seed store). The runner enforces a
   read-only tool surface (no write tool EXISTS; tools wired + callable; the final proposal surfaced;
   fail-closed on a dead/empty session); the orientation surface returns a real envelope body per
@@ -257,7 +257,7 @@ rendered prompt is the REAL `session-orchestrator` agent. Only the SDK `query()`
 (the paid leaf can't be a free standing test) and is exercised live in leg 4.
 
 > **HONEST status — `proposed`, read/propose only, part-scripted / part-attested.** The offline legs
-> (1–3) are automatable by the package suites (`@storytree/agent` + `@storytree/cli`) over an injected
+> (1–3) are automatable by the package suites (`@storytree/agent` + `@storytree/drive`) over an injected
 > `queryFn` + scripted read-tool doubles + the in-memory seed. Leg 4 — a REAL subscription `query()`
 > running the session-orchestrator prompt, orienting on the real three surfaces — is **operator-
 > attested** (subscription-billed; an agent should not burn the spend unattended), NOT a standing test.
@@ -352,6 +352,54 @@ owner-fork bar):
    kept reusable at the package level so Phase 2's studio chat worker REUSES it rather than
    re-implementing — which is exactly what ADR-0112 then formalised by carving the composition into the
    shared `@storytree/drive` package. Surfaced (not re-opened).
+3. **The READ-DISPATCH fork ("Fork B") is DEFERRED with a concrete trigger — no extraction now
+   (decided 2026-06-27, story-author call, owner-delegated).** ADR-0112 carved the build/orchestrate
+   DRIVERS out of `packages/cli` into `@storytree/drive` so non-cli consumers stop depending on the
+   command hub. A sibling investigation flagged a deferred future-fork: the same logic may recur for the
+   **read dispatch** — the verb→`Envelope` `OrientationRunner` the runtime's orientation tools call,
+   which TODAY only `@storytree/cli` constructs (`packages/cli/src/commands.ts` ~line 1450:
+   `runner: (toolArgv) => run([...toolArgv], { ...deps, writable: false })`, the ADR-0023 agent-facing
+   read surface). The framing was: "when a second non-cli consumer needs the programmatic read dispatch
+   but can't import cli, extract `run` + `Envelope` + the read verbs into a non-cli package." **The
+   evidence on current main says do NOT extract `run()`, and defer:**
+   - **The two specced non-cli consumers do not want cli's `run()` — they RE-COMPOSE reads from the
+     organism drivers they already import.** `apps/studio`'s server (`apps/studio/server/apiRouter.ts`)
+     builds its OWN `/api/*` route table over an injected `BuildRunner` + the lazy `@storytree/orchestrator`
+     discovery (`readTree` calls `loadNodeSpec` directly) + `@storytree/library` — it never wraps `run()`.
+     `apps/desktop`'s `local-backend-boot` capability (`stories/desktop/local-backend-boot.md`) states it
+     explicitly: "the factory takes the drivers (the build runner, the discovery, **the read dispatch**)
+     as injected callbacks," re-composing reads from `@storytree/library/store` + `@storytree/orchestrator`
+     + `@storytree/drive` — and is forbidden from importing `apps/studio/server` OR `cli` (the boundary
+     call, ADR-0100 / ADR-0113 §1). Neither consumer's `depends_on` includes `cli` (ADR-0112 §3 / ADR-0113
+     §8). So the "second non-cli consumer that wraps `run()`" the original fork assumed never materialised.
+   - **The `OrientationRunner` seam ALREADY exists in `@storytree/agent`** — `OrientationRunner =
+     (argv, deps) => Promise<OrientationEnvelope>` (`packages/agent/src/orientation-tools.ts`), with the
+     envelope shape DUPLICATED there (not imported) precisely to avoid the `cli → agent → cli` cycle, plus
+     a no-op `defaultRunner`. `orchestrate({ runner })` (`packages/drive/src/orchestrate.ts`) takes that
+     seam and passes it THROUGH; `chat-session-stream` (Phase 2) and the desktop backend both mount the
+     SAME drive core and pass `runner`/`queryFn` through. The boundary that would let a non-cli backend
+     supply a read dispatch is therefore ALREADY cut — nothing is buried in `cli` that a consumer must
+     reach through `cli`.
+   - **No GREEN forces the extraction.** Every offline proof scripts the `queryFn`, so the orientation
+     `runner` is never exercised in the gate; the live orientation leg is operator-attested
+     (subscription-billed, leg 4) and NO non-cli backend wires a live runner in built code today (only
+     `packages/cli` constructs the real `run()`-backed runner). Extracting a shared read-dispatch package
+     now would build a package-level abstraction before any consumer forces it — the slow-growth /
+     minimum-to-green violation the rule names.
+   - **The concrete trigger that WOULD force it:** the FIRST non-cli backend that needs to wire a **LIVE
+     orientation runner** (a real verb→`Envelope` read dispatch the SDK session calls live) and cannot get
+     it by re-composing the organism reads it already imports. **When that trigger fires, the resolution is
+     option (c), not an extraction of cli's `run()`:** host a `buildOrientationRunner` — composed from the
+     organism reads (`@storytree/library/store` + `@storytree/orchestrator` discovery + `@storytree/notice-board`)
+     — in `@storytree/drive`, beside `orchestrate.ts`, so the cli `orchestrate` command, the studio worker,
+     AND the desktop backend all consume one shared source. `drive` already imports those organisms and
+     already hosts `orchestrate`; it CANNOT import `cli` (ADR-0112's hard invariant), so it would compose
+     reads directly — which is exactly why extracting cli's `run()` is the wrong shape. cli's `run()` stays
+     the TERMINAL/agent read surface (ADR-0023), unextracted, and the `OrientationRunner` seam stays the
+     boundary. This is RECORDED, not built (forced by existing decisions, reversible, internal — not
+     re-litigated per the owner-fork bar; no new package boundary is created by deferring, so no ADR is
+     warranted now — the resolution shape (c) lands inside the already-accepted ADR-0112 + ADR-0113 frame
+     when a live runner first needs it).
 
 The future-fork this section flagged — when the chat surface arrives, does the server-side runtime
 move to the ADR-0090 studio WORKER process (`apps/studio/server`), or stay a CLI-hosted core the
