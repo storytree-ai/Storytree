@@ -1,25 +1,28 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-25
 amends: [44, 82, 97]
 ---
 # ADR-0106: The adopt pass resolves each UAT leg's witness — machine only when a real test covers it, else human — and OQs gate the proving process
 
 ## Status
 
-proposed — owner's current thinking, recorded during a design conversation on 2026-06-25 while
-reviewing why the `agent` story's six UAT legs all read `witness=either` and yet only the human can
-close them. The owner directed: adoption should run a **story-writer pass** that DECIDES whether the
+accepted (ratified 2026-06-26; decided 2026-06-25) — recorded during a design conversation on
+2026-06-25 while reviewing why the `agent` story's six UAT legs all read `witness=either` and yet only
+the human can close them. The owner directed: adoption should run a **story-writer pass** that DECIDES whether the
 human is needed per leg ("it shouldn't automatically require me"), the word **`either` should leave the
 UI** (a leg either shows a flag to click or it doesn't), machine-witnessable-but-unproven legs **defer
 to Build**, and **agents may raise open questions via the Library throughout the process and gate the
-proving process on them**. Left `proposed` for owner ratification (it is "current thinking", not yet a
-ratified wall); the `status:` will flip per [ADR-0084](0084-agents-may-flip-an-adr-green.md) once
-ratified. **Build state (2026-06-25):** the witness-resolution flow — decisions 1, 2, 3, 5 — is now
+proving process on them**. Ratified by the owner on 2026-06-26 — the owner confirmed they
+directed this decision in the 2026-06-25 design conversation, so it is recorded as decided, not re-asked
+(the first application of [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) Option
+A: an owner-directed decision is born `accepted`, design-time alignment IS ratification); flipped to
+`accepted` per [ADR-0084](0084-agents-may-flip-an-adr-green.md). **Build state (2026-06-25):** the witness-resolution flow — decisions 1, 2, 3, 5 — is now
 BUILT and green (the asymmetric classifier `packages/library/src/witness-resolution.ts`, the adopt
 pass `packages/cli/src/adopt.ts`, and the binary studio surface `apps/studio`'s `UatTestsSection`);
 decision 4 (OQ-gating the proving process) was extracted to **[ADR-0107](0107-an-open-question-attached-to-a-proving-process-gates-its-gre.md)** and is built there.
-Building the flow does not ratify the model — the `status:` stays `proposed` pending owner
-ratification. The original "largely not built" framing in Consequences is superseded by this note;
+Building the flow did not by itself ratify the model; the owner's ratification on 2026-06-26 did. The
+original "largely not built" framing in Consequences is superseded by this note;
 the residual follow-on (real coverage measurement, raise-side ergonomics) stands.
 
 It **amends [ADR-0044](0044-per-uat-test-human-attestation.md)** (the per-test `witness`

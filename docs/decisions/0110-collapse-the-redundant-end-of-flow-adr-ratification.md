@@ -1,19 +1,23 @@
 ---
-status: proposed
+status: accepted
+load_bearing: true
+decided: 2026-06-26
 amends: [84]
 ---
 # ADR-0110: Collapse the redundant end-of-flow ADR ratification — record the owner's design-time decision once
 
 ## Status
 
-proposed — authored on 2026-06-26 at the owner's request to EXPLORE a friction, not to settle it. The
+accepted (2026-06-26) — authored on 2026-06-26 at the owner's request to examine a friction. The
 owner's words: *"I spend the time aligning [on decisions in the design conversation] and then at the end
-you still ask me to ratify the ADRs."* This ADR maps why the flow re-asks, and lays out the choice as an
-**owner fork** (the options in §Decision). The substantive pick is the owner's — it is value-laden and a
-process call the corpus does not settle (`owner-fork-bar`), so this ADR is *honestly* `proposed`: it is
-NOT an instance of the friction it describes (it genuinely needs the owner's call), it is the friction's
-proper escalation. The `status:` flips per [ADR-0084](0084-agents-may-flip-an-adr-green.md) once the
-owner picks an option.
+you still ask me to ratify the ADRs."* This ADR maps why the flow re-asks, laid the choice out as an
+**owner fork** (the options in §Decision), and the owner **chose Option A the same day**: when the owner
+explicitly directs a decision, the ADR is born `accepted` — design-time alignment IS ratification. This
+is the first application of its own rule — the owner directed the choice in conversation, so it is
+recorded as decided, not parked for a second ratification. Flipped to `accepted` by an agent under
+[ADR-0084](0084-agents-may-flip-an-adr-green.md) (the decision is made and this prose supports it); the
+owner keeps the final say on the reviewed PR (the catch is observability, ADR-0084 §3). Tagged
+`load_bearing` because it changes how every future session AUTHORS an owner-directed ADR.
 
 It **amends [ADR-0084](0084-agents-may-flip-an-adr-green.md)** — the policy that an agent may transcribe
 a `proposed → accepted` flip "when the decision is made and the `## Status` prose supports it." This ADR
@@ -104,18 +108,18 @@ where it happens (design time) and stop labelling (b) as a re-ratification of th
 
 ## Decision
 
-**This is an OWNER FORK.** Below are four options with their honesty trade-offs and how each clears the
-two `proposed` ADRs sitting ready (0106/0107). The agent recommends **Option A**, optionally paired with
-**Option C** for the genuinely-still-thinking ADRs. The ADR stays `proposed` until the owner picks.
-
-The crux question, in one plain sentence:
+**DECIDED: Option A** (owner, 2026-06-26). This was authored as an owner fork; the owner reviewed the
+four options below and chose **A** — when the owner explicitly directs a decision, the ADR is born
+`accepted`; design-time alignment IS ratification. **B/C/D are recorded as the considered alternatives.**
+The owner also ratified the two ADRs that sat `proposed` ready (0106/0107) at the same time. The crux
+question that resolved it, in one plain sentence:
 > *When you directed the decision in the design conversation, did you ratify it then — or is "ratify" a
 > separate final check that what got BUILT matches what you meant?*
-> If you ratified it then → **A** or **B**. If it's a final build-check → **C** or **D**.
+> The owner's answer: **ratified then** → Option A.
 
 ---
 
-**Option A — Born accepted when the owner directs it (RECOMMENDED).** When the owner *explicitly directs*
+**Option A — Born accepted when the owner directs it (✓ CHOSEN 2026-06-26).** When the owner *explicitly directs*
 a decision in a design conversation, the ADR is authored `accepted`, with `decided:` set to the
 conversation date and the `## Status` prose recording *"decided by the owner in conversation on <date>"* —
 alignment IS ratification. ADRs the owner is still *thinking about* (exploratory, not directed) stay
@@ -163,8 +167,9 @@ i.e. ratification is really "I confirm what got built matches what I meant."
 
 ---
 
-**Whatever option lands must also clear 0106 and 0107** (flip them, or be the mechanism that does) —
-they are the concrete backlog this ADR exists to unblock.
+**This decision also cleared 0106 and 0107** — the owner ratified both on 2026-06-26 (they directed
+both in the 2026-06-25 design conversation), so both are now `accepted`. They were the concrete backlog
+this ADR existed to unblock.
 
 ## Consequences
 
@@ -181,12 +186,16 @@ they are the concrete backlog this ADR exists to unblock.
   misreads a tentative remark as a directive." Mitigated by ADR-0084 §3's existing catch (observability +
   trivial revert) — the same risk that ADR already accepted for the green flip. The residual is real and
   acknowledged.
-- This ADR proposes a DIRECTION but commits to none — the owner's pick is required before any code/convention
-  change. Until then the friction stands and 0106/0107 stay `proposed`.
-- The meta-irony, named on purpose: an ADR about *"stop re-asking the owner to ratify"* is itself
-  `proposed`, awaiting owner ratification. That is CORRECT here — this one genuinely is an owner fork (a
-  value-laden process call above the `owner-fork-bar`), so it is the friction's proper escalation, not a
-  fresh instance of it.
+- **The decision is made; the MECHANICS are follow-on (unbuilt).** Option A's implementation — an
+  `adr new --decided` / owner-directed path that scaffolds `accepted` (amending [ADR-0050](0050-adr-number-allocation.md)'s
+  born-`proposed` scaffold), plus the authoring-guidance update (the `session-orchestrator` / `story-author`
+  Library artifacts + the generated CLAUDE.md region) so a session authors an owner-directed ADR
+  `accepted` instead of hedging it `proposed` — is a separate BUILD unit, NOT done here. Until it lands,
+  apply A by hand: when the owner directs a decision, author the ADR `accepted` with `decided:` set.
+- The meta-point, resolved (and dogfooded): this ADR was authored `proposed` as an owner fork, the owner
+  chose Option A in the same exploration, and it is now `accepted` — the **first application of A**
+  (owner directs → recorded decided, no second ask). The honesty wall held throughout: the flip projects
+  a real owner act (the choice just made), it was never invented.
 - Meta-layer only (the dev repo's ADRs). It says nothing about the product story-trunk, which stays
   approval-gated ([ADR-0008](0008-ui-drives-agents-approvals.md)).
 
