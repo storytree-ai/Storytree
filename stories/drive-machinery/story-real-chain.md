@@ -94,7 +94,7 @@ leaves; the live SDK chain is operator-attested.
 
 1. **`real-chain-drives-topo-over-one-worktree`** — the capabilities drive topo-ordered over ONE shared worktree, each signed
    - **asserts —** a 2-capability story reaches "capabilities PASSED (2/2 signed)" over one worktree; each rollup healthy off one event log.
-   - **covers —** `packages/cli/src/story-build.ts` (the `--real` arm), `node-build.ts` (`buildNodeReal`)
+   - **covers —** `packages/drive/src/story-build.ts` (the `--real` arm), `node-build.ts` (`buildNodeReal`)
    - **proven by —** `packages/cli/src/story-real-build.test.ts` ("--real chains capabilities …") (REAL, passing)
 2. **`intra-story-deps-resolve`** — a later node imports an earlier node's spine-committed source and proves green
    - **asserts —** cap-b's test imports cap-a's source and passes (impossible under a fresh-per-node worktree); the promoted tip stacks both node commits on the cut.

@@ -30,7 +30,7 @@ depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-to
 The operator surface over the whole machinery — two commands, one honest-envelope discipline
 (every body ends in an explicit "honest framing" naming exactly what was and was not proven):
 
-- **`node build <id>`** (`packages/cli/src/node-build.ts:299-585`): pick EXACTLY one of
+- **`node build <id>`** (`packages/drive/src/node-build.ts:299-585`): pick EXACTLY one of
   `--dry-run` (offline scripted glue walk), `--live` (ADR-0030 SDK smoke over the synthetic pair),
   `--real` (Phase F — fresh worktree, the node's REAL files and proof command, spine commit,
   ADR-0031 promotion with the typecheck/regression pre-checks and push-withhold on red). Before
@@ -39,7 +39,7 @@ The operator surface over the whole machinery — two commands, one honest-envel
   fail-closed refusal. `driveNode` (`node-build.ts:216-260`) is the shared single-node walk:
   building mark → resolve → `proveUnit` → cleanup, with the store/runId/signer owned by the
   CALLER — exactly what lets `story build` chain nodes over one event log.
-- **`story build <story-id>`** (`packages/cli/src/story-build.ts:75-292`): loads the story + its
+- **`story build <story-id>`** (`packages/drive/src/story-build.ts:75-292`): loads the story + its
   listed capabilities, topo-orders them ([`story-topo-build`](story-topo-build.md)), prechecks
   EVERY node's registry entry before any node runs (and before any spend), runs the
   [`oq-hygiene-gate`](oq-hygiene-gate.md) (live only), then chains `driveNode` per node over ONE
@@ -73,7 +73,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
 
 1. **`dry-run-walks-and-reports-honestly`** — the envelope carries the phase trail, the verdict line, the derived rollup, and the honest framing
    - **asserts —** trail `AUTHOR_TEST → … → GATE`, a signed verdict, rollup derived from the event log, the dry-run framing.
-   - **covers —** `packages/cli/src/node-build.ts:483-585`
+   - **covers —** `packages/drive/src/node-build.ts:483-585`
    - **proven by —** `packages/cli/src/node-build.test.ts:17` (REAL, passing)
 2. **`exactly-one-mode`** — no mode, both modes, and `--dry-run`+`--real` are all refused with the mode menu
    - **asserts —** the xor wall across all three flags.
@@ -93,7 +93,7 @@ event log (`packages/cli/src/story-build.test.ts:17`).
    - **proven by —** `node-build.test.ts:85`, `:92`, `:102` (REAL, passing)
 6. **`story-chain-dry-runs-end-to-end`** — `story build library --dry-run` drives every node topo-ordered, story last, all signed
    - **asserts —** the order line, per-node PASS rows with rollups, the chain outcome.
-   - **covers —** `packages/cli/src/story-build.ts:75-292`
+   - **covers —** `packages/drive/src/story-build.ts:75-292`
    - **proven by —** `packages/cli/src/story-build.test.ts:17` (REAL, passing)
 7. **`story-prechecks-fail-closed`** — unregistered nodes refuse BEFORE any node runs; an unknown story and a capability id refuse with guidance
    - **asserts —** the three story-grain refusals.

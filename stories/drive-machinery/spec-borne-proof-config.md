@@ -108,7 +108,7 @@ own proof config rather than the hand-map.
    - **proven by —** `resolve-prove-spec.test.ts` (the two "contract 4 —" tests, REAL, passing)
 5. **`unregistered-still-fails-closed`** — a node with neither a spec block nor a registry entry refuses with guidance
    - **asserts —** the fail-closed posture holds; the refusal names BOTH routes out (declare a `proof:` block / register it) and lists the buildable ids.
-   - **covers —** `resolve-prove-spec.ts` (the `resolveBuildConfig === null` branch), `packages/cli/src/node-build.ts` (the CLI envelope)
+   - **covers —** `resolve-prove-spec.ts` (the `resolveBuildConfig === null` branch), `packages/drive/src/node-build.ts` (the CLI envelope)
    - **proven by —** `resolve-prove-spec.test.ts` ("contract 5") + `packages/cli/src/node-build.test.ts` (REAL, passing)
 6. **`scope-source-moves-walls-hold`** — a spec-declared scope is enforced spine-side exactly as a registry scope is
    - **asserts —** the `PathWriteScope` predicate matrix (test only in AUTHOR_TEST; source only in IMPLEMENT; observe-only phases deny all) AND the `WriteScopedToolExecutor` enforcement path (an out-of-phase write is refused, the inner executor never reached, the violation recorded) both hold when the scope is sourced from a spec's `proof:` block — identical to a registry scope.

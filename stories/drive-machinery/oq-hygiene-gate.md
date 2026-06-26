@@ -28,7 +28,7 @@ ADR-0037 §5 — open questions sit on the GATE side of the advisory/gate line. 
 setup or spend, a LIVE story build resolves the story's deciding ADRs (`decisions:` frontmatter,
 ADR-0037 §2), finds open-questions whose `references` point at those ADR docs
 (`doc:decisions/<nnnn>-…`, `oq-gate.ts:34-38`), and classifies each
-(`classifyOpenQuestions`, `packages/cli/src/oq-gate.ts:56-96`):
+(`classifyOpenQuestions`, `packages/drive/src/oq-gate.ts:56-96`):
 
 - an **unprocessed operator answer** (an unresolved operator comment with no LATER non-operator
   follow-up) **REFUSES** the build, naming the three paths out — process it (record + retire the
@@ -42,7 +42,7 @@ Pure classification over injected rows; the live loader is a thin composition of
 story's stores. The code edge for the `depends_on`: `oq-gate.ts:2` imports the `NodeSpec` type
 from `@storytree/orchestrator` — the gate's input is the resolver's loaded story spec (its
 `decisions` field). Consumed by [`build-drive-cli`](build-drive-cli.md)'s `story build`
-(`packages/cli/src/story-build.ts:174-175`).
+(`packages/drive/src/story-build.ts:174-175`).
 
 ## Integration test
 
@@ -56,8 +56,8 @@ loader).
 
 1. **`only-deciding-adrs-pull-oqs-in`** — an OQ with no reference to a deciding ADR is excluded
    - **asserts —** unrelated OQs never appear in the rows.
-   - **covers —** `packages/cli/src/oq-gate.ts:63-71`
-   - **proven by —** `packages/cli/src/oq-gate.test.ts:69` (REAL, passing)
+   - **covers —** `packages/drive/src/oq-gate.ts:63-71`
+   - **proven by —** `packages/drive/src/oq-gate.test.ts:69` (REAL, passing)
 2. **`no-answer-is-awaiting`** — no operator comment → `awaiting-answer`
    - **asserts —** the awaiting classification.
    - **covers —** `oq-gate.ts:75-77`
