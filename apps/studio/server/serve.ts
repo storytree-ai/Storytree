@@ -17,7 +17,7 @@ import { promises as fs, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBackend, selectedStore, type LibraryBackend } from './libraryBackend';
-import { handleApiRequest, isConnectionError, resolveStudioPaths, type Paths } from './apiRouter';
+import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
 import { createInviteMailer, disabledInviteMailer, type InviteMailer } from './inviteMailer';
 import { createMetadataDbWaker, type DbWaker } from './dbWake';
 import {
@@ -164,14 +164,23 @@ export function createStudioServer(opts: StudioServerOptions): Server {
             );
             policy = createMembersPolicy(identity, access);
           } catch (err) {
-            if (isConnectionError(err)) {
-              // Store down (refused) OR wedged (the timeout above, which `isConnectionError` matches
-              // on "timeout"): a seed admin may still wake it (the degraded policy authorizes the
-              // wake off the env seed — membership can't be resolved to do it from the projection).
-              policy = createDegradedPolicy(identity, opts.admins);
-            } else {
-              throw err;
-            }
+            // ANY failure to resolve membership against the live store degrades to the health/me-only
+            // policy (with the seed-admin wake affordance) — never a 500. Every real failure mode that
+            // reaches here means the same thing, "can't resolve membership right now": a refused /
+            // terminated connection, the 5s wedge timeout, AND — the mode that caused the idle-stop
+            // incident — a FAST stopped-instance error (~1s) whose message no regex anticipates (the
+            // Cloud SQL connector learns the instance isn't running and throws before the deadline
+            // fires). That last one used to miss the old `isConnectionError` gate and hit `throw err` →
+            // the outer catch's bare, bodyless 500 → the SPA's /api/me errored and never reached the
+            // storeUnreachable wake path, so it sat dead with no button. Degrade on every error — and
+            // LOG the cause: the outer catch swallowed it silently before (no server trace of the
+            // outage at all), while /api/health stays an independent probe that still tells an asleep
+            // DB from an up DB hitting some other fault.
+            console.error(
+              '[studio] /api/me membership resolution failed — serving degraded store-unreachable policy:',
+              err,
+            );
+            policy = createDegradedPolicy(identity, opts.admins);
           }
         }
         await handleApiRequest(req, res, url, {

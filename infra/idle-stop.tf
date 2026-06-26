@@ -1,3 +1,10 @@
+# ⚠️ PAUSED as of ADR-0114 — the fixed 1am–7am Sydney down-window (cost-backstop.tf: stop@01:00 +
+# start@07:00) REPLACES this idle-aware stop, so the hosted studio stays predictably up 07:00–01:00 for
+# circle members instead of stopping after a quiet stretch. The scheduler job below carries
+# `paused = true`; the function + SAs are retained-but-dormant (a revert is a one-line unpause). Full
+# teardown is a deferred follow-up — kept for now so it doesn't drop the shared google_project_service
+# API-enablement blocks below that the studio / CD rely on. The rest documents the mechanism as built.
+#
 # Idle-aware auto-stop (ADR-0015 §5) — resolves the deferred "idle-aware Cloud Function".
 #
 # A Gen2 Cloud Function (infra/functions/idle-stop), fired by Cloud Scheduler every 15 min,
@@ -146,8 +153,11 @@ resource "google_cloud_run_service_iam_member" "idle_invoker" {
   member   = "serviceAccount:${google_service_account.idle_scheduler.email}"
 }
 resource "google_cloud_scheduler_job" "idle_check" {
-  name        = "storytree-pg-idle-check"
-  description = "Every 15 min: stop storytree-pg only if idle ${var.idle_minutes} min (idle-aware)."
+  name = "storytree-pg-idle-check"
+  # PAUSED (ADR-0114): superseded by the fixed 1am–7am down-window (cost-backstop.tf). Retained-but-
+  # dormant so a revert is a one-line unpause; a paused job never fires, so the idle stop never runs.
+  paused      = true
+  description = "Every 15 min: stop storytree-pg only if idle ${var.idle_minutes} min (idle-aware). PAUSED — superseded by the fixed 1am–7am window (ADR-0114)."
   region      = var.region
   schedule    = var.idle_check_schedule
   time_zone   = "Australia/Sydney"
