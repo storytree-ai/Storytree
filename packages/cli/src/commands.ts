@@ -1094,6 +1094,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     title?: string;
     supersedes?: string;
     amends?: string;
+    decided?: boolean;
     current?: boolean;
     "load-bearing"?: boolean;
     status?: string;
@@ -1135,6 +1136,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         title: { type: "string" },
         supersedes: { type: "string" },
         amends: { type: "string" },
+        decided: { type: "boolean", default: false },
         current: { type: "boolean", default: false },
         "load-bearing": { type: "boolean", default: false },
         status: { type: "string" },
@@ -1371,6 +1373,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.title !== undefined ? { title: values.title } : {}),
         ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
         ...(values.amends !== undefined ? { amends: values.amends } : {}),
+        ...(values.decided === true ? { decided: true } : {}),
         ...(values.current === true ? { current: true } : {}),
         ...(values["load-bearing"] === true ? { loadBearing: true } : {}),
         ...(values.status !== undefined ? { status: values.status } : {}),
@@ -1381,6 +1384,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
         branch: deps.adr ? currentBranch() : "offline",
         actor: deps.actor ?? "cli",
+        // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
+        today: new Date().toISOString().slice(0, 10),
       },
     );
   }

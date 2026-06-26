@@ -37,12 +37,20 @@ export interface AdrCommandDeps {
   branch: string;
   /** Recorded as the allocation `actor`. */
   actor: string;
+  /** Today as `YYYY-MM-DD` — the `decided:` date of an owner-directed scaffold (injected; ADR-0110). */
+  today: string;
 }
 
 export interface AdrCommandOpts {
   title?: string | undefined;
   supersedes?: string | undefined;
   amends?: string | undefined;
+  /**
+   * `--decided` (ADR-0110): the owner DIRECTED this decision in conversation, so scaffold it born
+   * `accepted` + `decided: <today>` instead of `proposed` — design-time alignment IS ratification, no
+   * second end-of-flow ask. Absent = the born-`proposed` default for a still-thinking ADR (ADR-0050).
+   */
+  decided?: boolean | undefined;
   /** `adr list` filters (ADR-0086). */
   current?: boolean | undefined;
   loadBearing?: boolean | undefined;
@@ -85,13 +93,25 @@ export function parseEdges(raw: string | undefined): number[] {
 
 const pad = (n: number): string => String(n).padStart(4, "0");
 
-/** PURE: the scaffold body for a fresh (proposed) ADR — frontmatter + H1 + the standard sections. */
+/**
+ * PURE: the scaffold body for a fresh ADR — frontmatter + H1 + the standard sections.
+ *
+ * Default (no `decided`): born `proposed` (ADR-0050) — the scaffold for a still-thinking ADR, left for
+ * the author to fill in. When `decided` (an ISO `YYYY-MM-DD`) is supplied, the ADR is instead born
+ * `accepted` with `decided: <date>` and a `## Status` line recording the owner's design-time directive:
+ * the OWNER-DIRECTED path of ADR-0110 (Option A) — when the owner explicitly directs a decision in a
+ * design conversation, alignment IS ratification, so there is no second end-of-flow ratification ask.
+ * Amends ADR-0050's unconditionally-born-`proposed` scaffold (the mechanical root of the double-ask).
+ */
 export function scaffold(
   n: number,
   title: string,
   edges: { supersedes: number[]; amends: number[] },
+  decided?: string,
 ): string {
-  const fm = ["---", "status: proposed"];
+  const ownerDirected = decided !== undefined && decided !== "";
+  const fm = ["---", `status: ${ownerDirected ? "accepted" : "proposed"}`];
+  if (ownerDirected) fm.push(`decided: ${decided}`);
   if (edges.supersedes.length > 0) fm.push(`supersedes: [${edges.supersedes.join(", ")}]`);
   if (edges.amends.length > 0) fm.push(`amends: [${edges.amends.join(", ")}]`);
   fm.push("---", "");
@@ -106,12 +126,15 @@ export function scaffold(
             : "",
         ].filter((s) => s !== "")
       : [];
+  const statusLine = ownerDirected
+    ? `accepted (${decided}) — decided/directed by the owner in conversation on ${decided}. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.`
+    : "proposed — <one line: who decided / when / why>.";
   const body = [
     `# ADR-${pad(n)}: ${title}`,
     "",
     "## Status",
     "",
-    "proposed — <one line: who decided / when / why>.",
+    statusLine,
     ...(edgeProse.length > 0 ? ["", ...edgeProse] : []),
     "",
     "## Context",
@@ -188,14 +211,18 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
       next: [`open ${displayPath(deps.decisionsDir, base)}`],
     };
   }
-  writeFileSync(file, scaffold(n, title, edges), "utf8");
+  // --decided (ADR-0110): the owner directed this in conversation → born accepted with today's date.
+  const decided = opts.decided === true ? deps.today : undefined;
+  writeFileSync(file, scaffold(n, title, edges, decided), "utf8");
 
   const rel = displayPath(deps.decisionsDir, base);
   const lines = [
     `ADR-${pad(n)} ${reserved ? "reserved in the DB" : "allocated OFFLINE (max+1)"} → ${rel}`,
     "",
     `# ADR-${pad(n)}: ${title}`,
-    "Scaffolded with proposed status — fill in Status / Context / Decision / Consequences, then commit.",
+    decided !== undefined
+      ? `Scaffolded ACCEPTED (owner-directed, decided ${decided} — ADR-0110) — fill in Context / Decision / Consequences, then commit.`
+      : "Scaffolded with proposed status — fill in Status / Context / Decision / Consequences, then commit.",
   ];
   if (!reserved) {
     lines.push(
@@ -396,8 +423,12 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
-      '  storytree adr new --title "..." [--supersedes 42] [--amends 42,43] --pg   reserve + scaffold the file',
+      '  storytree adr new --title "..." [--decided] [--supersedes 42] [--amends 42,43] --pg   reserve + scaffold',
       "  storytree adr next --pg                                                  reserve a number only",
+      "",
+      "  --decided   the owner DIRECTED this in conversation → scaffold born `accepted` + `decided: <today>`",
+      "              (design-time alignment IS ratification, no second end-of-flow ask; ADR-0110). Omit it",
+      "              for the born-`proposed` default of a still-thinking ADR.",
       "",
       "`list` is read-only + offline (it reads docs/decisions on disk):",
       "  --current        every accepted, non-superseded ADR (the derived backbone)",

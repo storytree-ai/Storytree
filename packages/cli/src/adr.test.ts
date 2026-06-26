@@ -63,6 +63,28 @@ test("scaffold emits proposed frontmatter + H1 + sections, with optional edges",
   assert.match(edged, /\*\*Amends\*\* ADR-0007, ADR-0008/);
 });
 
+test("scaffold owner-directed (decided date) is born accepted with decided frontmatter + Status prose (ADR-0110)", () => {
+  const directed = scaffold(110, "Owner directed it", { supersedes: [], amends: [] }, "2026-06-26");
+  // Frontmatter: accepted + a decided date (NOT the proposed default).
+  assert.match(directed, /^---\nstatus: accepted\ndecided: 2026-06-26\n---\n/);
+  assert.doesNotMatch(directed, /status: proposed/);
+  // Status prose records the owner's design-time directive — the honest projection (ADR-0110).
+  assert.match(directed, /## Status/);
+  assert.match(directed, /accepted \(2026-06-26\) — decided\/directed by the owner in conversation on 2026-06-26/);
+  assert.doesNotMatch(directed, /<one line: who decided/); // the proposed placeholder is gone
+
+  // Owner-directed still carries edges when present (the date is orthogonal to supersession).
+  const directedEdged = scaffold(111, "Directed + edged", { supersedes: [50], amends: [] }, "2026-06-26");
+  assert.match(directedEdged, /status: accepted\ndecided: 2026-06-26\nsupersedes: \[50\]/);
+
+  // Default (no date) stays born-proposed with NO decided line — the still-thinking ADR (ADR-0050).
+  const proposed = scaffold(112, "Still thinking", { supersedes: [], amends: [] });
+  assert.match(proposed, /^---\nstatus: proposed\n---\n/);
+  assert.doesNotMatch(proposed, /decided:/);
+  // An empty-string date is treated as absent (defensive) — still proposed.
+  assert.match(scaffold(113, "Empty", { supersedes: [], amends: [] }, ""), /^---\nstatus: proposed\n---\n/);
+});
+
 // ---- adr list (the searchable current-state view, ADR-0086) --------------------------------
 
 test("extractAdrTitle pulls the text after `# ADR-NNNN:`; '' when absent", () => {
@@ -162,6 +184,7 @@ const depsFor = (dir: string, allocator: AdrAllocatorLike | null): AdrCommandDep
   decisionsDir: dir,
   branch: "claude/test",
   actor: "tester",
+  today: "2026-06-26",
 });
 
 test("adr new --pg: reserves from the allocator, scaffolds NNNN-slug.md, no offline warning", async () => {
@@ -188,6 +211,36 @@ test("adr new offline (no allocator): falls back to max+1 and warns it is NOT re
     assert.ok(existsSync(path.join(dir, "0050-some-title.md")), "max+1 = 0050 scaffolded");
     assert.match(env.body, /OFFLINE/);
     assert.match(env.body, /NOT reserved/);
+  });
+});
+
+test("adr new --decided: owner-directed scaffold is born accepted with today's decided date (ADR-0110)", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { allocator } = fakeAllocator(110);
+    const env = await adrCommand(
+      "new",
+      { title: "Collapse the ratification ask", decided: true },
+      depsFor(dir, allocator), // depsFor injects today = 2026-06-26
+    );
+    assert.equal(env.ok, true);
+    const file = readFileSync(path.join(dir, "0110-collapse-the-ratification-ask.md"), "utf8");
+    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-06-26\n---\n/);
+    assert.match(file, /decided\/directed by the owner in conversation on 2026-06-26/);
+    // The success message reflects the born-accepted, owner-directed status (not "proposed status").
+    assert.match(env.body, /ACCEPTED \(owner-directed, decided 2026-06-26 — ADR-0110\)/);
+    assert.doesNotMatch(env.body, /Scaffolded with proposed status/);
+  });
+});
+
+test("adr new without --decided stays born-proposed (the still-thinking default, ADR-0050)", async () => {
+  await withDecisionsDir(async (dir) => {
+    const { allocator } = fakeAllocator(111);
+    const env = await adrCommand("new", { title: "Still exploring" }, depsFor(dir, allocator));
+    assert.equal(env.ok, true);
+    const file = readFileSync(path.join(dir, "0111-still-exploring.md"), "utf8");
+    assert.match(file, /^---\nstatus: proposed\n---\n/);
+    assert.doesNotMatch(file, /decided:/);
+    assert.match(env.body, /Scaffolded with proposed status/);
   });
 });
 

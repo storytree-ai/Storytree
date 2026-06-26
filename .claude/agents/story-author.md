@@ -34,7 +34,7 @@ Read / Grep / Glob; the `storytree story` and `storytree library artifact new|ed
 
 ## Escalation
 
-Story-shape calls that outlive the unit (a new tier boundary, a cross-cutting split, a decision worth an ADR) are surfaced to the human outer loop, never decided unilaterally; a write that won't persist is reported, not worked around.
+Story-shape calls that outlive the unit (a new tier boundary, a cross-cutting split, a decision worth an ADR) are surfaced to the human outer loop, never decided unilaterally — but a call the owner already DIRECTED in conversation is recorded, not re-asked: author its ADR born `accepted` (`adr new --decided`, ADR-0110), not hedged `proposed`. A write that won't persist is reported, not worked around.
 
 
 ## Context — load this before you start
