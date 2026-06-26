@@ -41,6 +41,8 @@ import {
 import { lookupNodeBuildConfig } from "@storytree/orchestrator";
 
 import { nodeBuild, nodeHelp, nodeResolve } from "./node-build.js";
+import { orchestrate } from "./orchestrate.js";
+import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "./noticeboard.js";
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 import { findDependents } from "./retire.js";
@@ -815,6 +817,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
+      "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
       "",
       "start here:",
       "  storytree library    health + a map of every artifact + the commands",
@@ -857,6 +860,28 @@ function noticeboardHelp(): Envelope {
       "presence needs the live DB: pnpm db:up first. Reads degrade politely without it.",
     ].join("\n"),
     next: ["pnpm db:up", "storytree noticeboard --pg"],
+  };
+}
+
+function orchestrateHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree orchestrate <intent> — run the session-orchestrator agent HEADLESSLY (ADR-0108 Phase 1).",
+      "",
+      "Loads the SAME generated `session-orchestrator` agent the terminal session embodies (ADR-0051),",
+      "wires the READ-ONLY orientation tools (tree / library / noticeboard), and drives one live SDK",
+      "session that ORIENTS on the real three surfaces and PROPOSES a unit. Read/propose ONLY — it holds",
+      "no signing key and writes, builds, signs, and lands NOTHING (Phases 3–5 of ADR-0108). One",
+      "orchestration at a time.",
+      "",
+      '  storytree orchestrate "orient and propose the next unit"',
+      "  storytree orchestrate <intent> --max-turns <n> --budget <usd> --model <id>",
+      "",
+      "Live + subscription-billed (needs CLAUDE_CODE_OAUTH_TOKEN). --max-turns gives the agent room to",
+      "read several surfaces before proposing (the default 16 is tight for orientation).",
+    ].join("\n"),
+    next: ["storytree agents session-orchestrator", "storytree tree"],
   };
 }
 
@@ -940,6 +965,12 @@ export interface RunDeps {
   readonly adr?: AdrAllocatorLike | null;
   /** The docs/decisions dir `storytree adr` scans + scaffolds into. Injectable for tests. */
   readonly adrDecisionsDir?: string;
+  /**
+   * The headless-orchestrator entry's test seam (ADR-0108 Phase 1): an injected scripted `queryFn`
+   * lets `storytree orchestrate` be proven offline (no live SDK spend). Absent in production — the
+   * command then omits it and `runHeadlessOrchestrator` uses the real SDK `query()` (the live leg).
+   */
+  readonly orchestrate?: { readonly queryFn?: SdkQueryFn };
 }
 
 /** Best-effort current git branch (recorded on an ADR allocation for audit); "unknown" if git can't answer. */
@@ -1395,10 +1426,57 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return agentsCommand(deps.store, sub);
   }
 
+  if (area === "orchestrate") {
+    // ADR-0108 Phase 1 — the headless orchestrator runtime, driven by a programmatic intent. Loads the
+    // generated session-orchestrator agent (ADR-0051), wires the READ-ONLY orientation tools, and runs
+    // one live SDK session that ORIENTS on the real three surfaces and PROPOSES a unit. Read/propose
+    // ONLY: it holds no signing key and writes/builds/signs/lands NOTHING (Phases 3–5).
+    if (help) return orchestrateHelp();
+    const intent = positionals.slice(1).join(" ").trim();
+    if (intent === "") {
+      return {
+        ok: false,
+        body: 'orchestrate needs an intent: storytree orchestrate "<what to orient and propose for>"',
+        next: ['storytree orchestrate "orient and propose the next unit"', "storytree agents session-orchestrator"],
+      };
+    }
+    // The orientation runner is the SAME run() dispatch closed over the session deps with
+    // writable:false — the session's tools read tree/library/noticeboard and can never write. The
+    // queryFn comes from the test seam when present (offline proof, no spend), else is omitted so
+    // runHeadlessOrchestrator uses the real SDK query() (the live leg; subscription-billed).
+    const result = await orchestrate({
+      intent,
+      store: deps.store,
+      runner: (toolArgv) => run([...toolArgv], { ...deps, writable: false }),
+      ...(deps.orchestrate?.queryFn !== undefined ? { queryFn: deps.orchestrate.queryFn } : {}),
+      ...(values.model !== undefined ? { model: values.model } : {}),
+      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+      ...(values.budget !== undefined ? { maxBudgetUsd: Number(values.budget) } : {}),
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        body: `orchestration failed: ${result.error ?? "(no detail)"}`,
+        next: ["storytree agents session-orchestrator   (the loop definition the runtime runs)"],
+      };
+    }
+    return {
+      ok: true,
+      body: [
+        "# Orientation / proposal — ADR-0108 Phase 1 (read/propose only; nothing built, signed, or landed)",
+        "",
+        result.proposal ?? "(no proposal text returned)",
+        "",
+        `— ${result.turns ?? "?"} turns, $${(result.costUsd ?? 0).toFixed(4)} SDK-reported (subscription-billed)`,
+      ].join("\n"),
+      next: ["storytree tree", "storytree library"],
+    };
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, noticeboard, tree, attest, uat, gate, node, story, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, node, story, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }

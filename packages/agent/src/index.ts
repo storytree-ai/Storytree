@@ -55,3 +55,22 @@ export {
 // isToolUseBlock / parseContentBlock …) — the agent leaf organism's declared `port` (ADR-0068
 // step 6). Moved here from the dissolving @storytree/core; orchestrator consumes it across the seam.
 export * from "./model-events.js";
+
+// The headless orchestrator runtime (ADR-0108 Phase 1): the read-only orientation tool surface and
+// the single-session SDK runner that runs the rendered session-orchestrator agent headlessly. A third
+// SDK-driven role behind the package's single-import-site (ADR-0004), alongside the leaf and the
+// curator. The composition (packages/cli, which renders the prompt + injects the real `run` as the
+// orientation runner) imports these by package name — hence the barrel export.
+export type {
+  OrientationEnvelope,
+  OrientationRunner,
+  OrientationOpts,
+  OrientationTool,
+} from "./orientation-tools.js";
+export { buildOrientationTools } from "./orientation-tools.js";
+
+export type {
+  HeadlessOrchestratorArgs,
+  HeadlessOrchestratorResult,
+} from "./headless-orchestrator.js";
+export { runHeadlessOrchestrator } from "./headless-orchestrator.js";

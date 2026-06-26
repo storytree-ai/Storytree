@@ -154,7 +154,10 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
   // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
   // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
-  // model-runtime-seam, owned-turn-loop. Most of the library story's 7 capabilities are NO LONGER here:
+  // model-runtime-seam, owned-turn-loop; and the three `headless-orchestrator`-story capabilities
+  // (stories/headless-orchestrator/*.md, ADR-0108 Phase 1 — each a NET-NEW `real:` arm):
+  // headless-session-runner, orchestrator-composition, orientation-tool-surface. Most of the library
+  // story's 7 capabilities are NO LONGER here:
   // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
   // `mapped`, so its green path is Adopt (`## Reliability Gates`, ADR-0085), not a fail-closed `--real`
   // Build. They keep their spec-borne dry-run/live `command`+`scope`, so they stay in "buildable nodes"
@@ -167,7 +170,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, event-sourced-store-seam, gate-emits-change, leaf-tool-surface, model-runtime-seam, node-resolve-report, noticeboard-cli, owned-turn-loop, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, cloud-sql-admin-rest, declare-presence, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
