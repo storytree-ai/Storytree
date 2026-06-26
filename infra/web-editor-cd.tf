@@ -63,7 +63,7 @@ resource "google_iam_workload_identity_pool_provider" "github_web" {
   # pool before this provider in a single apply.
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-web"
-  display_name                       = "GitHub Actions OIDC — storytree-web"
+  display_name                       = "GitHub OIDC storytree-web"
   description                        = "storytree-web editor CD (ADR-0101). Accepts storytree-web@main tokens only."
 
   # DELIBERATELY no attribute.ref mapping — see the header. Mapping only subject + repository means a
