@@ -3105,19 +3105,50 @@ function savedPanelWidth(): number {
 }
 
 /**
+ * The two witness glyphs for a UAT row (ADR-0102 inline-SVG convention): a ROBOT (machine-witnessed)
+ * and a PERSON (human-witnessed). Pure geometry filled with `currentColor`, so the row's state class
+ * drives the hue (proven green / failed red / unproven muted). The art is owner-attested (ADR-0070);
+ * what the unit tests pin is the SHAPE↔witness + COLOUR↔proven mapping, not the exact path data.
+ */
+function RobotIcon(): React.JSX.Element {
+  return (
+    <svg className="uat-witness-icon icon-robot" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      {/* antenna */}
+      <rect x="7.4" y="2.1" width="1.2" height="2.9" rx="0.4" fill="currentColor" />
+      <circle cx="8" cy="1.6" r="1.25" fill="currentColor" />
+      {/* head with two knocked-out eyes (evenodd holes read against the panel behind) */}
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M5 5 H11 A2 2 0 0 1 13 7 V11 A2 2 0 0 1 11 13 H5 A2 2 0 0 1 3 11 V7 A2 2 0 0 1 5 5 Z M5.7 8 H7.1 V9.7 H5.7 Z M8.9 8 H10.3 V9.7 H8.9 Z"
+      />
+    </svg>
+  );
+}
+
+function PersonIcon(): React.JSX.Element {
+  return (
+    <svg className="uat-witness-icon icon-person" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="5" r="3" fill="currentColor" />
+      <path fill="currentColor" d="M2.6 14 C2.6 10.6 5 8.7 8 8.7 C11 8.7 13.4 10.6 13.4 14 Z" />
+    </svg>
+  );
+}
+
+/**
  * The story detail's "UAT tests" table (ADR-0082 attestation-surface): each addressable UAT test
- * (parsed from the story's `## Story UAT` prose) as a row carrying TWO deliberately-distinct marks,
- * mirroring the CLI `uat list` / `storytree tree`:
- *  - PROVEN (✓/✗/–) — the SIGNED verdict in `events.verdict`, the REAL gate state that greens the
- *    story crown via the per-test AND-roll-up (ADR-0082 d.3). For a human/`either` test an admin has
- *    not yet proven, the ✓ is a clickable **"I saw it work"** button that signs an `operator-attested`
- *    verdict (ADR-0044 §4's in-UI signature, now a real green path) — the server stamps the signer
- *    from the verified identity and REFUSES a machine-witness test (a click is not a machine proof).
- *  - the VOUCH flag (⚑/⚐) — the lower-rigor `events.attestation` "I also eyeballed it" mark, kept
- *    intact; GREEN for a pass vouch, amber when an admin may add one, muted otherwise. A vouch is
- *    NOT a proof — it never greens the crown (ADR-0044 d.2/d.3).
- * Signing re-pulls this panel (the proven glyph) AND the world tree (the crown). Fetched per-story
- * on open; silently absent when the live store is down.
+ * (parsed from the story's `## Story UAT` prose) as a row carrying ONE glyph at its RIGHT edge — a
+ * witness icon whose SHAPE is the witness (a robot = machine-witnessed, a person = human-witnessed)
+ * and whose COLOUR is the SIGNED verdict in `events.verdict` (the REAL gate state that greens the
+ * story crown via the per-test AND-roll-up, ADR-0082 d.3): green proven, red a signed fail, muted
+ * not-yet-proven. For a `human` test an admin has not yet proven, the muted person icon is itself the
+ * clickable **"I saw it work"** button that signs an `operator-attested` verdict (ADR-0044 §4's in-UI
+ * signature, a real green path) — the server stamps the signer from the verified identity and REFUSES
+ * a machine-witness test (a click is not a machine proof), so a robot icon is never clickable.
+ * (Owner UX call: the lower-rigor ⚑/⚐ `events.attestation` vouch was REMOVED from this row — two
+ * look-alike actions confused the sign affordance; the server's /api/attestations path stays, just
+ * unsurfaced here.) Signing re-pulls this panel (the icon) AND the world tree (the crown). Fetched
+ * per-story on open; silently absent when the live store is down.
  */
 export function UatTestsSection({
   storyId,
@@ -3151,20 +3182,6 @@ export function UatTestsSection({
     setTests(null);
     void load();
   }, [load]);
-
-  // The lower-rigor VOUCH (events.attestation) — kept intact (ADR-0044 d.2): an "I also eyeballed it"
-  // mark that NEVER greens the crown.
-  const recordVouch = async (testId: string): Promise<void> => {
-    setBusy(`vouch:${testId}`);
-    try {
-      await api.recordAttestation({ testId, outcome: 'pass' });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
-  };
 
   // The "I saw it work" operator-attested VERDICT (events.verdict) — the higher-rigor signature that
   // greens the story crown (ADR-0082). Refreshes the per-test proven glyph AND re-pulls the world.
@@ -3203,87 +3220,58 @@ export function UatTestsSection({
             // PROVEN — the SIGNED verdict (events.verdict): the real gate state that greens the crown.
             const proven = t.proven; // 'pass' | 'fail' | undefined
             // ADR-0106 d.5: the owner surface is BINARY — an admin confirms a `human` leg not yet
-            // proven ("I saw it work"); a `machine` leg shows NO affordance (adopt/build handles it).
+            // proven ("I saw it work"); a `machine` leg shows NO affordance (adopt/build signs it).
             const canSign = isAdmin && proven !== 'pass' && t.witness === 'human';
             const signBusy = busy === `sign:${t.id}`;
-            // A faint ✓ INVITES the signature (signable); a solid ✓ / ✗ is the recorded verdict; – is
-            // an un-provable-by-click (machine) or not-yet-proven test.
-            const provenGlyph =
-              proven === 'pass' ? '✓' : proven === 'fail' ? '✗' : canSign ? '✓' : '–';
-            const provenTitle =
-              proven === 'pass'
-                ? 'PROVEN — a signed operator-attested verdict (greens the story crown when every test passes, ADR-0082)'
-                : proven === 'fail'
-                  ? 'a signed FAIL verdict for this test'
-                  : canSign
-                    ? 'I saw it work — sign an operator-attested verdict (a REAL gate verdict, not a vouch)'
-                    : t.witness === 'machine'
-                      ? 'awaiting a machine proof — a click cannot green a machine-witness test'
-                      : 'not yet proven';
 
-            // VOUCH — the existing lower-rigor events.attestation mark, intact. Offered only for a
-            // `human` leg (the binary surface — a `machine` leg is the machine's to prove, ADR-0106).
-            const mark = t.human ?? t.machine;
-            const vouchState = mark ? mark.outcome : 'none'; // 'pass' | 'fail' | 'none'
-            const canVouch = isAdmin && vouchState === 'none' && t.witness === 'human';
-            const vouchBusy = busy === `vouch:${t.id}`;
-            const who = mark
-              ? mark.relayedBy
-                ? `${mark.signer} · relayed by ${mark.relayedBy}`
-                : mark.signer
-              : null;
-            const vouchTitle = mark
-              ? `${mark.witness} vouch — ${mark.outcome}${who ? ` · ${who}` : ''}${mark.note ? ` · ${mark.note}` : ''}`
-              : canVouch
-                ? 'flag — record that you also eyeballed this (a vouch, NEVER a gate verdict)'
-                : t.witness === 'machine'
-                  ? 'awaiting a machine run'
-                  : 'no vouch yet';
+            // ONE right-edge glyph (owner redesign): the icon SHAPE is the witness (robot=machine,
+            // person=human), its COLOUR (CSS) the proven state. The single actionable case is a `human`
+            // leg an admin may still sign — there the icon IS the "I saw it work" button. The text
+            // labels are gone, so the title + aria-label carry witness + state (+ the click hint).
+            const witnessNoun = t.witness === 'machine' ? 'machine' : 'human';
+            const witnessTitle =
+              proven === 'pass'
+                ? `${witnessNoun}-witnessed · PROVEN — a signed verdict (greens the story crown once every test passes, ADR-0082)`
+                : proven === 'fail'
+                  ? `${witnessNoun}-witnessed · a signed FAIL verdict for this test`
+                  : canSign
+                    ? 'human-witnessed · not yet proven — click to sign "I saw it work" (a REAL gate verdict, ADR-0082)'
+                    : t.witness === 'machine'
+                      ? 'machine-witnessed · not yet proven — the gate/adopt signs a machine leg, not a click'
+                      : 'human-witnessed · not yet proven';
+            const witnessAria = proven
+              ? `${t.title}: ${witnessNoun}-witnessed, ${proven === 'pass' ? 'proven' : 'failed'}`
+              : canSign
+                ? `${t.title}: human-witnessed, not yet proven — click to sign "I saw it work"`
+                : `${t.title}: ${witnessNoun}-witnessed, not yet proven`;
 
             return (
               <tr key={t.id} className="uat-row">
-                {/* PROVEN — the signed verdict; a clickable "I saw it work" button when signable. */}
-                <td className="uat-proven-cell">
-                  <button
-                    type="button"
-                    className={`uat-proven proven-${proven ?? 'none'}${canSign ? ' is-signable' : ''}`}
-                    disabled={!canSign || signBusy}
-                    onClick={canSign ? () => void signVerdict(t.id) : undefined}
-                    title={provenTitle}
-                    aria-label={
-                      proven
-                        ? `${t.title}: ${proven === 'pass' ? 'proven' : 'failed'}`
-                        : canSign
-                          ? `I saw ${t.title} work — sign a verdict`
-                          : `${t.title}: not proven`
-                    }
-                  >
-                    {signBusy ? '…' : provenGlyph}
-                  </button>
-                </td>
                 <td className="uat-test-cell">
                   <span className="uat-test-title">{t.title}</span>
-                  {who && (
-                    <span className="uat-test-who muted">
-                      vouch: {mark?.witness} · {who}
-                    </span>
-                  )}
                 </td>
-                {/* VOUCH — the lower-rigor mark, intact. */}
-                <td className="uat-flag-cell">
+                {/* The single witness/state glyph at the RIGHT edge (owner redesign) — where the eye
+                    lands for a per-row action. A muted person icon here is the "I saw it work" button;
+                    a robot, or an already-proven/failed icon, is a non-interactive status indicator. */}
+                <td className="uat-witness-cell">
                   <button
                     type="button"
-                    className={`uat-flag state-${vouchState}${canVouch ? ' is-clickable' : ''}`}
-                    disabled={!canVouch || vouchBusy}
-                    onClick={canVouch ? () => void recordVouch(t.id) : undefined}
-                    title={vouchTitle}
-                    aria-label={mark ? `${mark.witness} vouch: ${mark.outcome}` : `vouch ${t.title}`}
+                    className={`uat-witness witness-${t.witness} proven-${proven ?? 'none'}${canSign ? ' is-signable' : ''}`}
+                    disabled={!canSign || signBusy}
+                    onClick={canSign ? () => void signVerdict(t.id) : undefined}
+                    title={witnessTitle}
+                    aria-label={witnessAria}
                   >
-                    {vouchBusy ? '…' : mark ? '⚑' : '⚐'}
+                    {signBusy ? (
+                      <span className="uat-witness-busy" aria-hidden="true">
+                        …
+                      </span>
+                    ) : t.witness === 'machine' ? (
+                      <RobotIcon />
+                    ) : (
+                      <PersonIcon />
+                    )}
                   </button>
-                </td>
-                <td className="uat-witness-cell muted" title="who may attest this test">
-                  {t.witness}
                 </td>
               </tr>
             );
@@ -3291,9 +3279,10 @@ export function UatTestsSection({
         </tbody>
       </table>
       <p className="muted attest-note">
-        <strong>✓/✗/–</strong> = the SIGNED verdict (<code>events.verdict</code>), which greens the
-        crown; <strong>⚑/⚐</strong> = the lower-rigor vouch (<code>events.attestation</code>), which
-        never does (ADR-0082/ADR-0044).
+        A <strong>robot</strong> marks a machine-witnessed leg, a <strong>person</strong> a
+        human-witnessed one; its colour is the SIGNED verdict (<code>events.verdict</code>) that greens
+        the crown — green proven, red a signed fail, muted not-yet-proven. A muted person is clickable:
+        sign “I saw it work” (ADR-0082).
         {storyUat !== undefined && (
           <>
             {' '}
