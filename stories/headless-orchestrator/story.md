@@ -111,11 +111,14 @@ composes already exist (encoded here, not re-designed):
   assembles the SAME system prompt the terminal session embodies (ADR-0051). The runtime RUNS that
   prompt; it does NOT fork the loop definition (ADR-0108 decision 2 — edit the library artifact,
   regenerate, and both the terminal and the studio runtime move together).
-- **The Phase-1 entry is a programmatic intent, in `packages/cli`.** The composition + the entry live
-  in `packages/cli` (it already owns `renderAgentPrompt` + `run()`, already binds `ClaudeAgentAuthor`
-  in its build path, and depends on `@storytree/agent`). The entry is a programmatic intent (a thin
-  CLI command), NOT an HTTP/chat endpoint. Phase 2's studio chat worker will REUSE this same
-  package-level core, so the core is kept reusable, not CLI-private glue.
+- **The Phase-1 entry is a programmatic intent; the composition lives in `@storytree/drive`, the
+  terminal entry in `packages/cli`.** Since ADR-0112 the composition (`orchestrate.ts`) lives in
+  `@storytree/drive`; the thin `orchestrate` CLI command in `packages/cli` is the terminal entry that
+  calls it, injecting the `run()` read-dispatch (built `writable: false`) as the orientation runner.
+  `renderAgentPrompt` is rendered from `@storytree/library/store` (ADR-0112 §4), not cli. The entry is
+  a programmatic intent (a thin CLI command), NOT an HTTP/chat endpoint. Phase 2's studio chat worker
+  REUSES the same `@storytree/drive` core rather than re-implementing — a shared package, not
+  CLI-private glue.
 
 ## Honest proof posture — `proposed`, read/propose only
 
@@ -342,11 +345,13 @@ owner-fork bar):
    `@anthropic-ai/*` import lives in `packages/agent`, so a new package importing the SDK would break
    it; `packages/agent` already hosts the leaf + the curator, so a third SDK-driven role is the
    established pattern. Surfaced (not re-opened) so the boundary is visible.
-2. **The composition + Phase-1 entry live in `packages/cli` (decided).** The orchestrator composition
-   and the programmatic intent (a thin CLI command, NOT an HTTP/chat endpoint) live in `packages/cli`
-   — it already owns `renderAgentPrompt` + `run()`, already binds `ClaudeAgentAuthor` in its build
-   path, and depends on `@storytree/agent`. The core is kept reusable at the package level so Phase 2's
-   studio chat worker REUSES it rather than re-implementing. Surfaced (not re-opened).
+2. **The composition + Phase-1 entry were placed in `packages/cli` (Phase-1 decision) — the
+   composition has SINCE MOVED to `@storytree/drive` per ADR-0112 (see below); the terminal entry
+   stays in `packages/cli`.** As originally decided, the orchestrator composition and the programmatic
+   intent (a thin CLI command, NOT an HTTP/chat endpoint) were authored in `packages/cli`. The core was
+   kept reusable at the package level so Phase 2's studio chat worker REUSES it rather than
+   re-implementing — which is exactly what ADR-0112 then formalised by carving the composition into the
+   shared `@storytree/drive` package. Surfaced (not re-opened).
 
 The future-fork this section flagged — when the chat surface arrives, does the server-side runtime
 move to the ADR-0090 studio WORKER process (`apps/studio/server`), or stay a CLI-hosted core the
