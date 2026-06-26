@@ -133,7 +133,7 @@ holds **NO signing key** and **no verdict is ever handed in** (ADR-0091); its re
 orientation tool surface and nothing else. The honest status is `proposed`:
 
 - The **offline-provable mechanics ARE genuinely proof-wired** — each carries a `proof:` block with a
-  `real:` arm (a NET-NEW red→green against `packages/agent` / `packages/cli`, driven through an
+  `real:` arm (a NET-NEW red→green against `packages/agent` / `packages/drive`, driven through an
   injected `queryFn` + scripted read-tool doubles + the in-memory seed store). The runner enforces a
   read-only tool surface (no write tool EXISTS; tools wired + callable; the final proposal surfaced;
   fail-closed on a dead/empty session); the orientation surface returns a real envelope body per
@@ -257,7 +257,7 @@ rendered prompt is the REAL `session-orchestrator` agent. Only the SDK `query()`
 (the paid leaf can't be a free standing test) and is exercised live in leg 4.
 
 > **HONEST status — `proposed`, read/propose only, part-scripted / part-attested.** The offline legs
-> (1–3) are automatable by the package suites (`@storytree/agent` + `@storytree/cli`) over an injected
+> (1–3) are automatable by the package suites (`@storytree/agent` + `@storytree/drive`) over an injected
 > `queryFn` + scripted read-tool doubles + the in-memory seed. Leg 4 — a REAL subscription `query()`
 > running the session-orchestrator prompt, orienting on the real three surfaces — is **operator-
 > attested** (subscription-billed; an agent should not burn the spend unattended), NOT a standing test.
