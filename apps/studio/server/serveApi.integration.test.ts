@@ -606,4 +606,46 @@ describe('store outage degrades to health/me only', () => {
       await new Promise<void>((resolve, reject) => hung.close((e) => (e ? reject(e) : resolve())));
     }
   });
+
+  it('a backend that FAILS FAST with a non-connection-shaped error still degrades (the idle-stop 500 regression)', async () => {
+    // The actual idle-stop incident: against a STOPPED Cloud SQL instance the connector does NOT hang
+    // — it learns the instance isn't running and throws in ~1s, with a message matching none of
+    // isConnectionError's /connect|terminat|timeout/ patterns and carrying no pg connection code. That
+    // used to skip the degrade branch and re-throw → a bare 500 on /api/me → the SPA sat on a dead
+    // screen with no wake button. Membership-resolution failure must ALWAYS degrade, whatever the
+    // error's shape — never a 500.
+    const failFastBackend: LibraryBackend = {
+      ...stubBackend,
+      listUsers: async () => {
+        throw new Error('Cloud SQL instance is not running'); // no pg code, no connect/terminat/timeout
+      },
+    };
+    const ff = createStudioServer({
+      distDir,
+      paths: {
+        repoRoot: distDir,
+        docsDir: path.join(distDir, 'docs'),
+        storiesDir: path.join(distDir, 'stories'),
+        dataDir: distDir,
+        commentsFile: path.join(distDir, 'comments.json'),
+        assetsFile: path.join(distDir, 'assets.json'),
+        usersFile: path.join(distDir, 'users.json'),
+        attestationsFile: path.join(distDir, 'attestations.json'),
+      },
+      backend: failFastBackend,
+      admins: parseSeedAdmins(ADMIN),
+      dbWake: stubWaker,
+    });
+    await new Promise<void>((resolve) => ff.listen(0, '127.0.0.1', resolve));
+    const fbase = `http://127.0.0.1:${(ff.address() as AddressInfo).port}`;
+    try {
+      const me = await fetch(`${fbase}/api/me`, { headers: iap(ADMIN) });
+      expect(me.status).toBe(200); // NOT 500 — degraded, not a dead screen
+      expect(await me.json()).toMatchObject({ storeUnreachable: true, canWakeDb: true });
+      // the corpus is honestly 503 (degraded), not 500
+      expect((await fetch(`${fbase}/api/tree`, { headers: iap(MEMBER) })).status).toBe(503);
+    } finally {
+      await new Promise<void>((resolve, reject) => ff.close((e) => (e ? reject(e) : resolve())));
+    }
+  });
 });
