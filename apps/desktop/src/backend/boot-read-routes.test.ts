@@ -183,9 +183,20 @@ test("boot-read-routes: GET /api/me returns LOCAL_ME as a bare JSON object", asy
     // Shape checks: a bare object, never an array.
     assert.ok(!Array.isArray(body), "/api/me must be a BARE OBJECT, not an array");
 
-    // Concrete field assertions — the operator IS member+admin on their own machine.
+    // Concrete field assertions — the operator is a full MEMBER on their own machine, NOT an admin.
+    // The desktop backend mounts NO admin-only routes (no /api/users, no /api/uat/attest, no
+    // db-control — ADR-0119 omits the hosted-only concerns), so /api/me must NOT advertise admin:
+    // the studio gates admin-only UI on `me.role === 'admin'` (the Members nav/panel, the UAT "sign"
+    // button), and any of it that rendered here would 404 against this backend and read as broken
+    // instead of degrading honestly (chip 4). `member` unlocks exactly what the desktop DOES serve —
+    // read, comment, chat, build — and hides exactly what it does not.
     assert.equal(body["email"], null, "email must be null (no hosted identity on the desktop)");
-    assert.equal(body["role"], "admin", "role must be admin (operator is admin on own machine)");
+    assert.equal(body["role"], "member", "role must be member — the desktop serves no admin-only routes");
+    assert.notEqual(
+      body["role"],
+      "admin",
+      "the desktop must NOT claim admin: it serves no admin routes, so admin-only UI (Members, UAT sign) would 404",
+    );
     assert.equal(body["status"], "active", "status must be active");
     assert.equal(body["member"], true, "member must be true");
     assert.equal(body["canWakeDb"], false, "canWakeDb must be false (no DB wake control on the desktop)");
