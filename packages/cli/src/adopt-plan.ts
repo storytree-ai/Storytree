@@ -1,5 +1,5 @@
 /**
- * `storytree story adopt-plan <id>` — the Layer-2 ADOPTION-PLAN report (ADR-0097 Layer 2).
+ * `storytree adopt plan <id>` — the Layer-2 ADOPTION-PLAN report (ADR-0097 Layer 2).
  *
  * Pressing Adopt (Layer 1) flips a brownfield story `mapped → proposed` and observe-and-signs its
  * already-green `observe` gates — but it does not say what the UNTESTED pockets still need. This command
@@ -59,7 +59,7 @@ function classificationLines(proposal: AdoptionProposal): string[] {
 }
 
 /**
- * `storytree story adopt-plan <story-id>` — classify what bringing a brownfield story into the fold takes.
+ * `storytree adopt plan <story-id>` — classify what bringing a brownfield story into the fold takes.
  */
 export async function adoptPlanCommand(
   storyId: string | undefined,
@@ -68,7 +68,7 @@ export async function adoptPlanCommand(
   if (storyId === undefined || storyId.trim().length === 0) {
     return {
       ok: false,
-      body: "adopt-plan needs a story id: storytree story adopt-plan <story-id>",
+      body: "adopt plan needs a story id: storytree adopt plan <story-id>",
       next: ["storytree tree"],
     };
   }

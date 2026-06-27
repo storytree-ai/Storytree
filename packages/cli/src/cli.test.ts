@@ -78,6 +78,36 @@ test("an unknown area is guided back to library", async () => {
   assert.match(env.body, /unknown area "wat"/);
 });
 
+test("the adopt area: bare shows help, `adopt plan` needs a story id, and `story adopt-plan` redirects", async () => {
+  const store = await seeded();
+  // bare `adopt` shows help listing both actions (the run entry + the offline plan)
+  const help = await run(["adopt"], { store });
+  assert.equal(help.ok, true);
+  assert.match(help.body, /storytree adopt <story-id> --pg/);
+  assert.match(help.body, /storytree adopt plan <story-id>/);
+  // `adopt plan` with no story id is guidance, not a throw
+  const plan = await run(["adopt", "plan"], { store });
+  assert.equal(plan.ok, false);
+  assert.match(plan.body, /adopt plan needs a story id/);
+  // the old `story adopt-plan` path is redirected, not silently broken (the reshape moved it under `adopt`)
+  const moved = await run(["story", "adopt-plan"], { store });
+  assert.equal(moved.ok, false);
+  assert.match(moved.body, /adoption-plan moved to: storytree adopt plan/);
+  assert.ok((moved.next ?? []).some((n) => /storytree adopt plan/.test(n)));
+});
+
+test("top help and the unknown-area guidance both list the adopt area", async () => {
+  const store = await seeded();
+  const top = await run([], { store });
+  assert.equal(top.ok, true);
+  assert.match(top.body, /^\s*adopt\b/m, "top help lists the adopt area");
+  const unknown = await run(["wat"], { store });
+  assert.equal(unknown.ok, false);
+  // the area roster is consistent — it now carries both adopt and the previously-missing drift
+  assert.match(unknown.body, /gate, adopt, node/);
+  assert.match(unknown.body, /story, drift, adr/);
+});
+
 test("the CLI refuses --store memory for a build — there is no run-without-persisting mode (ADR-0081)", async () => {
   // ADR-0081 (amends 0060) removed the in-memory verdict store from the build SURFACE: a --live/--real
   // build always persists so real work feeds the studio, and a --dry-run is already in-memory. The
