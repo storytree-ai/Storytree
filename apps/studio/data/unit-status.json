@@ -1,0 +1,500 @@
+{
+  "_comment": "GENERATED from signed verdicts (events.verdict) -- DO NOT EDIT. Regenerate with `pnpm build:status` (build-unit-status.ts). `healthy` is DERIVED from verdicts, never authored (ADR-0020/0040, ADR-0120).",
+  "units": [
+    {
+      "id": "agent#gate-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "agent#uat-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "agent#uat-2",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "agent#uat-3",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "agent#uat-4",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "agent#uat-5",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "operator-attested",
+        "runId": "studio-uat-attest:2026-06-26T13:47:08.024Z",
+        "commitSha": "e21ee4d4bd96808bc7b62f7a154ed5a44ccc086d",
+        "signer": "operator"
+      }
+    },
+    {
+      "id": "agent#uat-6",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-26T13:17:22.897Z",
+        "commitSha": "c1bd65dc8d244ad589eedde2c79b06650b50cd67",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "ambient-integration",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqb0yhz0",
+        "commitSha": "7f2c6761a91a7e9be50c06a9363ec197f56d321f",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "boot-read-routes",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvv1bma",
+        "commitSha": "72718f32ad8f06436a3863b44f8ed8367c2b6ac5",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "boundhash-on-verdict",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "story-real-mqgmrcfs",
+        "commitSha": "279a51c381774ec74279a8c7383e83722c89249c",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "builder-role",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvp718s",
+        "commitSha": "11214936c9fc513da47d55f0d75924a80f448928",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "change-event-store",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "story-real-mqgmrcfs",
+        "commitSha": "8ce76c6036447efafe8ea407d198c4ab91860576",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "change-store-pg",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "real-mqgodc71",
+        "commitSha": "8f8ed54a1b0de1a4b6e015a7989c3052b3241587",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "chat-session-stream",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvlbdpc",
+        "commitSha": "42203ba0d1d3e59d32888cf84d807a94326780a4",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "cloud-sql-admin-rest",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "real-mqgjuule",
+        "commitSha": "a8960bb82104b877f131d932ce425cb600ce552d",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "declare-presence",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mq8lp5r5",
+        "commitSha": "c958a34cdc60714543479b3b2a7745218a48919d",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "drift-reads-store",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "story-real-mqgmrcfs",
+        "commitSha": "5e165dcb5d0d2fdf37fbadbbf7ef2a04a430f9f3",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "drive-machinery#gate-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-27T00:46:27.851Z",
+        "commitSha": "a157adae1e25824ba49324be7e4c1a36863b594c",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "drive-machinery#gate-2",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-27T00:46:27.851Z",
+        "commitSha": "a157adae1e25824ba49324be7e4c1a36863b594c",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "gate-emits-change",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "story-real-mqgmrcfs",
+        "commitSha": "2416d67e74dd483946ed26fa1188d632f9aacf83",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "headless-session-runner",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqufrnfl",
+        "commitSha": "ef8d533be6f3ba4d8df5c9ab57651ff3a5be5fea",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "leaf-tool-surface",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "story-real-mquzkn7d",
+        "commitSha": "b468150a907f3b9f31e5f5fbaa2d096391f4b83a",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "library#gate-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-23T01:39:50.281Z",
+        "commitSha": "352fdbe776da8ac61da30e3b11d6929803bf9f5a",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "library#gate-2",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-23T01:39:50.281Z",
+        "commitSha": "352fdbe776da8ac61da30e3b11d6929803bf9f5a",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "library#gate-3",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "studio-adopt:2026-06-23T01:39:50.281Z",
+        "commitSha": "352fdbe776da8ac61da30e3b11d6929803bf9f5a",
+        "signer": "spine@storytree",
+        "approvedBy": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "library#gate-4",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "gate-real-mqqozkvf",
+        "commitSha": "20c8b46f1f71875e0b0ac8a5d4163d28905f3744",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "library#gate-5",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "gate-real-mqs5wxld",
+        "commitSha": "aa361b67ced002458a27689d0671ecb5ceaea90a",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "local-backend-boot",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvhrkfa",
+        "commitSha": "57d03833ff5f44c1e758f47364e4f312a04fdce8",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "local-credential-wiring",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvj7l6l",
+        "commitSha": "c277ad462c8b3071617ffe4f0741ade13fde2b07",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "model-runtime-seam",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "story-real-mquzkn7d",
+        "commitSha": "5b7535c9ec949b9641d6a6f57a146637f8236015",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "node-resolve-report",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "real-mqelrhoj",
+        "commitSha": "47c9e43a8182443da1ff1a95a32cf6c43d7be2d9",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "noticeboard-cli",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mq8o0n7p",
+        "commitSha": "eee848b9c45300d6e29ccd4aa5eaaff67eeb10f3",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "orchestrator-composition",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvnpul4",
+        "commitSha": "75b4e351ac1de4d3d7fa653e31b208cecb106031",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "orientation-tool-surface",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mquf5s1b",
+        "commitSha": "c2f094722d7a57e57cd3c1de267ea6a1a3a9b6ef",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "owned-turn-loop",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "story-real-mquzkn7d",
+        "commitSha": "35e9ff3d749d530f4a08bbc692238f9e03628dd2",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "presence-store",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mq8ncq3s",
+        "commitSha": "e0e8ccbd11ee7d67addf9109a2970df2d2948d63",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "proof-protocol#gate-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "gate-adopt:2026-06-21T05:36:41.009Z",
+        "commitSha": "49209bc970bb1ae4977a236e3a9834562af5e2ad",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "shared-forest-connection",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvrcyog",
+        "commitSha": "375fcaea8920c35c1fe1606aa1d3ebf39d0fdc37",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "source-drift",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "story-real-mqgmrcfs",
+        "commitSha": "d372c34d2263df75a4c5ee007362a1d53d424ce3",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "storage-protocol#gate-1",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "adopted",
+        "runId": "gate-adopt:2026-06-21T05:43:30.277Z",
+        "commitSha": "0978a26502add89f8a9efde0eb0ce5f05ec88277",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "tree-view",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mq8ozw0d",
+        "commitSha": "e78c1aa05e004aa6d5f456c6a6953e82611f4f50",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "verdict-glyphs",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqb1dzg2",
+        "commitSha": "b226b4afb87970f0c1f03b901612b35afc3b22d9",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "verdict-line",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "contract",
+        "runId": "real-mq7ky4ck",
+        "commitSha": "0e8f4bacd0f26786def4c4273c3338603be2a491",
+        "signer": "hua.mick@gmail.com"
+      }
+    },
+    {
+      "id": "write-broker",
+      "status": "healthy",
+      "latestVerdict": {
+        "outcome": "pass",
+        "proofMode": "capability",
+        "runId": "real-mqvqq3sk",
+        "commitSha": "b58bc57d7997628f1c47186807f3c00264719dab",
+        "signer": "hua.mick@gmail.com"
+      }
+    }
+  ]
+}

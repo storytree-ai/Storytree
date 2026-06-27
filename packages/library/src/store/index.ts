@@ -24,6 +24,20 @@ export { reconcileAgents, syncSeedAgents, diffAgents, diffSeedAgents, AGENT_KIND
 export type { SyncAgentsResult, AgentDiff } from "./sync-agents.js";
 export { reconcileCorpus, syncSeedCorpus, diffCorpus, diffSeedCorpus } from "./sync-corpus.js";
 export type { SyncCorpusResult, CorpusDiff } from "./sync-corpus.js";
+export {
+  isExportScopeKind,
+  isExportableLiveDoc,
+  diffCorpusContent,
+  diffSeedCorpusContent,
+  computeExportedSeed,
+} from "./export-corpus.js";
+export type {
+  SeedEntry,
+  DriftClass,
+  CorpusContentDrift,
+  CorpusContentDiff,
+  ExportSeedResult,
+} from "./export-corpus.js";
 export { batchMigrate } from "./batch-migrate.js";
 export type { BatchMigrateResult } from "./batch-migrate.js";
 export { renderStoredDoc, buildLibraryDoc, isStructuredKind } from "./render-doc.js";

@@ -19,7 +19,8 @@ import {
   platformShellCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
-import { renderStoredDoc, syncSeedAgents, syncSeedCorpus } from "@storytree/library/store";
+import { renderStoredDoc, syncSeedAgents, syncSeedCorpus, computeExportedSeed } from "@storytree/library/store";
+import type { SeedEntry } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
@@ -184,6 +185,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  tree focus <id>               the local DAG of one artifact",
     "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
     "  sync-corpus                   migrate seed-only non-agent artifacts into live (needs --pg)",
+    "  export-corpus [--write]       export live non-agent bodies back to the seed (dry-run; needs --pg)",
     "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
     "  (coming soon: artifact comment)",
   );
@@ -702,6 +704,50 @@ export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
 }
 
 /**
+ * `storytree library export-corpus --pg [--write]` — the INVERSE of `sync-corpus` (ADR-0120): carry the
+ * canonical LIVE non-agent tier back into the seed (`apps/studio/data/knowledge.json`), the gap ADR-0103
+ * left as "later work". DRY-RUN by default (reports what it WOULD change, writes nothing); `--write`
+ * rewrites knowledge.json. Owner-directed policy (ADR-0120 a): OVERWRITE a seed body that drifted from
+ * a valid live one + ADD live-only artifacts, but NEVER delete a seed entry, NEVER touch agents/templates,
+ * and NEVER write a degraded/below-floor live body (it is refused and reported for a seed→live restore).
+ * Needs --pg (it reads the LIVE store); writing the file is a local edit, so re-run build-corpus after.
+ */
+export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean }): Promise<Envelope> {
+  if (deps.writable !== true) return notWritable(deps.store);
+  const write = opts.write === true;
+
+  const knowledgePath = path.join(repoRoot(), "apps", "studio", "data", "knowledge.json");
+  const seedEntries = JSON.parse(readFileSync(knowledgePath, "utf8")) as SeedEntry[];
+  const live = await deps.store.queryDocs();
+  const r = computeExportedSeed(seedEntries, live);
+
+  const lines = [
+    r.noop
+      ? "NOTHING TO EXPORT — every export-scope seed body already matches the live store."
+      : `${write ? "EXPORTED" : "WOULD EXPORT"} ${r.updated.length} update(s) + ${r.created.length} addition(s) from live → seed.`,
+    "",
+    `overwritten from live (${r.updated.length}): ${r.updated.join(", ") || "(none)"}`,
+    `added (live-only) (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
+    `REFUSED — degraded/below-floor live body, restore seed→live instead (${r.skippedDegraded.length}): ${r.skippedDegraded.join(", ") || "(none)"}`,
+  ];
+
+  if (write && !r.noop) {
+    writeFileSync(knowledgePath, JSON.stringify(r.entries, null, 2) + "\n", "utf8");
+    lines.push("", `WROTE ${knowledgePath}. Now regenerate the views: npx tsx apps/studio/data/build-corpus.mjs`);
+  } else if (!write && !r.noop) {
+    lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply, then run build-corpus.mjs.");
+  }
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: write
+      ? ["npx tsx apps/studio/data/build-corpus.mjs   (regenerate assets.json + glossary.md)", "pnpm check:corpus-content"]
+      : ["storytree library export-corpus --pg --write   (apply)", "pnpm check:corpus-content   (the body-level drift report)"],
+  };
+}
+
+/**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
  * references (intra-library `asset:` edges + `doc:` source/ADR pointers, the latter surfaced on
  * demand) and the inbound `asset:` edges that point at it (a derived back-edge scan). Honest about
@@ -902,6 +948,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
       "  storytree library sync-corpus [--pg]       migrate seed-only non-agent artifacts into live (ADR-0103)",
+      "  storytree library export-corpus [--pg]     export live non-agent bodies back to the seed (ADR-0120)",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -1172,6 +1219,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "superseded-by"?: string;
     "memory-dir"?: string;
     review?: boolean;
+    write?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -1214,6 +1262,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "superseded-by": { type: "string" },
         "memory-dir": { type: "string" },
         review: { type: "boolean", default: false },
+        write: { type: "boolean", default: false },
       },
     });
     positionals = parsed.positionals;
@@ -1552,6 +1601,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (sub === "sync-agents") return syncAgentsCommand(deps);
   if (sub === "sync-corpus") return syncCorpusCommand(deps);
+  if (sub === "export-corpus") return exportCorpusCommand(deps, { write: values.write === true });
 
   if (sub === "graduate") {
     if (help) return graduateHelp();
