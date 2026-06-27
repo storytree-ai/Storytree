@@ -10,7 +10,17 @@ import {
   formatFeedbackOutput,
   leafSystemPrompt,
 } from "./sdk-author.js";
-import type { FeedbackCommand, SdkFeedbackRun, SdkQueryFn } from "./sdk-author.js";
+import type {
+  FeedbackCommand,
+  HookJSONOutput,
+  HookPermissionDecision,
+  Options,
+  PermissionMode,
+  PreToolUseHookInput,
+  SdkFeedbackRun,
+  SdkQueryFn,
+} from "./sdk-author.js";
+import type { AuthoringPhase } from "./phase-author.js";
 
 /**
  * OFFLINE tests for the SDK leaf (ADR-0030): the scope decision is pure code, and the query seam
@@ -417,4 +427,173 @@ test("author => fail-closed when the query itself throws (spawn/auth failure)", 
   assert.equal(r.ok, false);
   if (r.ok) return;
   assert.match(r.error, /SDK session failed/);
+});
+
+// ── The write-scope WALL as ACTUALLY WIRED into the SDK (ADR-0030 / ADR-0020) ────────────────────
+//
+// The live leaf runs under `permissionMode: 'bypassPermissions'` — its tool calls are auto-allowed,
+// so the ENTIRE write-scope + honesty guarantee is the PreToolUse hook closure author() hands the
+// SDK, plus the Bash-free tool surface. `decideWrite` (above) is the pure RULE; the tests below fire
+// the REAL closure as wired into the Options the SDK receives — the guard that reads the rule, denies
+// the write, and records the violation — and PIN the option semantics the wall stands on. Before
+// these, that enforcement was exercised only by live, subscription-billed, auth-fragile `--real`
+// builds; a jailbroken leaf or a silent SDK version bump could have opened the wall un-noticed.
+
+/** Capture the exact `Options` author() builds for `phase`, over the injectable offline query seam. */
+async function captureOptions(
+  phase: AuthoringPhase,
+): Promise<{ author: ClaudeAgentAuthor; options: Options }> {
+  let captured: Options | undefined;
+  const author = new ClaudeAgentAuthor({
+    cwd: CWD,
+    isWriteAllowed: testOnlyInAuthor,
+    queryFn: (args) => {
+      captured = args.options;
+      return scripted([
+        { type: "result", subtype: "success", is_error: false, num_turns: 1, total_cost_usd: 0 },
+      ])(args);
+    },
+  });
+  await author.author(phase, "p");
+  assert.ok(captured !== undefined, "the query seam must have been invoked with the built Options");
+  return { author, options: captured };
+}
+
+/** Pull the PreToolUse scope-hook closure out of the built Options exactly as the SDK would. */
+function wiredScopeHook(options: Options): NonNullable<NonNullable<Options["hooks"]>["PreToolUse"]>[number]["hooks"][number] {
+  const matcher = options.hooks?.PreToolUse?.[0];
+  assert.ok(matcher !== undefined, "a PreToolUse scope-hook matcher must be wired into the Options");
+  const hook = matcher.hooks[0];
+  assert.ok(hook !== undefined, "the PreToolUse scope-hook closure must be present");
+  return hook;
+}
+
+/** A fully-typed PreToolUseHookInput (no cast — a change to its required shape fails the gate). */
+function preToolUse(toolName: string, toolInput: unknown): PreToolUseHookInput {
+  return {
+    hook_event_name: "PreToolUse",
+    tool_name: toolName,
+    tool_input: toolInput,
+    tool_use_id: "tu-1",
+    session_id: "s-1",
+    transcript_path: "/work/space/transcript.jsonl",
+    cwd: CWD,
+  };
+}
+
+/** Read the wall's refusal verdict out of a hook output (the deny shape the SDK acts on). */
+function denyOf(out: HookJSONOutput): {
+  event: string | undefined;
+  decision: string | undefined;
+  reason: string | undefined;
+} {
+  const hso = (
+    out as {
+      hookSpecificOutput?: {
+        hookEventName?: string;
+        permissionDecision?: string;
+        permissionDecisionReason?: string;
+      };
+    }
+  ).hookSpecificOutput;
+  return {
+    event: hso?.hookEventName,
+    decision: hso?.permissionDecision,
+    reason: hso?.permissionDecisionReason,
+  };
+}
+
+const SIGNAL = { signal: new AbortController().signal };
+
+test("WIRED hook: an out-of-scope write is DENIED and the violation is recorded (the wall holds)", async () => {
+  const { author, options } = await captureOptions("AUTHOR_TEST");
+  const hook = wiredScopeHook(options);
+
+  // impl.cjs is out-of-scope while authoring the test (testOnlyInAuthor) → the guard must refuse.
+  const out = await hook(preToolUse("Write", { file_path: "impl.cjs" }), "tu-1", SIGNAL);
+
+  const deny = denyOf(out);
+  assert.equal(deny.event, "PreToolUse");
+  assert.equal(deny.decision, "deny");
+  assert.match(deny.reason ?? "", /phase scope/);
+  // The refusal is RECORDED on the author — the audit trail the spine reads (the wall held).
+  assert.equal(author.violations.length, 1);
+  assert.deepEqual(
+    {
+      phase: author.violations[0]?.phase,
+      tool: author.violations[0]?.tool,
+      path: author.violations[0]?.path,
+    },
+    { phase: "AUTHOR_TEST", tool: "Write", path: "impl.cjs" },
+  );
+});
+
+test("WIRED hook: an in-scope write is ALLOWED (empty output) and records NO violation", async () => {
+  const { author, options } = await captureOptions("AUTHOR_TEST");
+  const hook = wiredScopeHook(options);
+
+  // unit.test.cjs IS in-scope during AUTHOR_TEST → the guard returns an empty (allow) output.
+  const out = await hook(preToolUse("Write", { file_path: "unit.test.cjs" }), "tu-1", SIGNAL);
+
+  assert.deepEqual(out, {});
+  assert.equal(author.violations.length, 0);
+});
+
+test("WIRED hook: a workspace-escaping write is DENIED through the real closure (path traversal)", async () => {
+  const { author, options } = await captureOptions("IMPLEMENT");
+  const hook = wiredScopeHook(options);
+
+  const out = await hook(preToolUse("Edit", { file_path: "../../etc/evil" }), "tu-1", SIGNAL);
+
+  const deny = denyOf(out);
+  assert.equal(deny.decision, "deny");
+  assert.match(deny.reason ?? "", /outside the workspace/);
+  assert.equal(author.violations.length, 1);
+});
+
+test("WIRED hook: a write call with no readable file_path FAILS CLOSED (denied) through the closure", async () => {
+  const { author, options } = await captureOptions("IMPLEMENT");
+  const hook = wiredScopeHook(options);
+
+  const out = await hook(preToolUse("Write", { oops: true }), "tu-1", SIGNAL);
+
+  const deny = denyOf(out);
+  assert.equal(deny.decision, "deny");
+  assert.match(deny.reason ?? "", /fail-closed/);
+  assert.equal(author.violations.length, 1);
+});
+
+test("OPTIONS pin: bypassPermissions, NO Bash in the surface, Write|Edit matcher (the wall's frame)", async () => {
+  const { options } = await captureOptions("IMPLEMENT");
+
+  // bypassPermissions: the leaf's tool calls are auto-allowed — so the WHOLE wall is the hook + the
+  // tool surface. If this silently flips, the hook would no longer be the sole gate.
+  assert.equal(options.permissionMode, "bypassPermissions");
+
+  // Bash is NOT in the tool surface, nor allow-listed: a shell write would bypass the file_path
+  // scope hook entirely (the module-doc invariant). This is the central security assertion. The
+  // surface must be an EXPLICIT allow-list, not an SDK preset (a preset could smuggle Bash in).
+  const tools = options.tools;
+  assert.ok(Array.isArray(tools), "the leaf tool surface must be an explicit allow-list, not a preset");
+  assert.equal(tools.includes("Bash"), false, "Bash must never be in the leaf tool surface");
+  assert.equal(options.allowedTools?.includes("Bash"), false, "Bash must never be allow-listed");
+
+  // The write-shaped tools the hook must gate ARE present (else the matcher would gate nothing).
+  assert.ok(tools.includes("Write") && tools.includes("Edit"));
+
+  // The PreToolUse matcher gates exactly the write-shaped tools.
+  const matcher = options.hooks?.PreToolUse?.[0];
+  assert.ok(matcher !== undefined);
+  assert.equal(matcher.matcher, "Write|Edit");
+  assert.ok(matcher.hooks.length >= 1);
+});
+
+test("SDK contract pin: the wall's permission + decision literals still exist in the SDK types", () => {
+  // These ANNOTATIONS fail typecheck if a version bump drops the literal (alongside the re-export in
+  // sdk-author.ts, which fails if the hook/permission TYPES are renamed/removed). Together they turn
+  // a silently re-shaped SDK API into a RED gate rather than a quietly-opened write wall.
+  const bypass: PermissionMode = "bypassPermissions";
+  const deny: HookPermissionDecision = "deny";
+  assert.equal(bypass, "bypassPermissions");
+  assert.equal(deny, "deny");
 });

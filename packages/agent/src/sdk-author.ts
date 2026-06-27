@@ -22,6 +22,21 @@ import * as path from "node:path";
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 
+/**
+ * Re-surface the SDK hook/permission types the OFFLINE wall tests pin against, so this file stays
+ * the SINGLE SDK import site (ADR-0004, widened to this package) — `sdk-author.test.ts` types the
+ * wall's contract through here, never importing the SDK itself. This is also part of the guarantee:
+ * a version bump that renames or drops any of these fails THIS file's typecheck, so a silently
+ * re-shaped hook/permission API turns into a RED gate instead of a quietly-opened write wall.
+ */
+export type {
+  HookJSONOutput,
+  HookPermissionDecision,
+  Options,
+  PermissionMode,
+  PreToolUseHookInput,
+} from "@anthropic-ai/claude-agent-sdk";
+
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 
 /** The injectable query seam: the real SDK `query()` or an offline scripted double. */

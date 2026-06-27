@@ -1,0 +1,499 @@
+// Integration test for chat-sse-mount.ts
+//
+// WHAT IT PINS: createChatSseMount composes the POST /api/chat dispatcher — the HTTP intake
+// that starts a real startChatStream session (with an injected scripted queryFn) and streams
+// its typed events as Server-Sent Events. The dispatcher:
+//   - Parses { "intent": string } from the POST body; rejects missing/blank intent with 400
+//   - Starts startChatStream → orchestrate → renderAgentPrompt over the seed corpus, with
+//     ONLY the live-spend queryFn injected as a scripted double (forwarded from deps)
+//   - Streams each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives
+//   - Sets Content-Type: text/event-stream before the first frame
+//   - Ends the response after the terminal event
+//   - Falls through (returns false) for every other route — not a catch-all
+//
+// INTEGRATION TIER: real HTTP requests over a real node:http server; real startChatStream →
+// real orchestrate → real renderAgentPrompt over the seed corpus; only the live-spend SDK
+// queryFn is a scripted double. No live SDK, no DB, no network beyond loopback HTTP.
+//
+// DELETION TEST: removing createChatSseMount breaks the import and fails every assertion.
+// Making the handler a catch-all breaks the fall-through tests. Dropping SSE serialisation
+// breaks the Content-Type and data-frame assertions. Dropping the 400 guard allows blank
+// intents to reach the real orchestrate composition. Removing the single-session guard allows
+// a second concurrent session to stream a done frame instead of the required refused frame.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// RED: chat-sse-mount.ts does not exist yet — module-not-found is the right-kind red.
+import { createChatSseMount } from "./chat-sse-mount.js";
+import type { ChatSseMountDeps } from "./chat-sse-mount.js";
+
+import type { ChatStreamEvent } from "@storytree/drive";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * The injectable query function type — extracted from the implementation's deps so the test
+ * stays in sync with whatever the factory expects without duplicating the definition.
+ */
+type QueryFn = NonNullable<ChatSseMountDeps["queryFn"]>;
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * A scripted SDK result that startChatStream recognises as a terminal `done` event.
+ * Mirrors the shape used in chat-stream.test.ts (packages/drive) to prove the mount
+ * drives the same real composition, not a fork.
+ */
+const OK_SDK_RESULT = {
+  type: "result",
+  subtype: "success",
+  is_error: false,
+  num_turns: 3,
+  total_cost_usd: 0.02,
+  result: "I propose: mount the chat surface as the next Phase-2 capability.",
+};
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+/** A scripted queryFn that immediately yields the given SDK result messages. */
+function queryYielding(messages: unknown[]): QueryFn {
+  return () =>
+    (async function* () {
+      for (const m of messages) yield m;
+    })();
+}
+
+/**
+ * A scripted queryFn that throws on the first iteration — drives the `error` SSE frame path.
+ * The error propagates through runHeadlessOrchestrator's inner try-catch, which returns
+ * `{ ok: false, error }` to orchestrate, which emits it as a `ChatStreamErrorEvent`.
+ */
+function queryThrowing(message: string): QueryFn {
+  return () =>
+    (async function* () {
+      throw new Error(message);
+      // unreachable — yield makes TypeScript infer an async generator return type
+      yield undefined as never;
+    })();
+}
+
+/**
+ * A manually-resolvable promise. Lets a scripted session park mid-flight so the first
+ * session's `compositionInFlight` flag stays set while a second is attempted.
+ */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => { /* overwritten by Promise constructor */ };
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+/**
+ * Spin up a node:http server wrapping the chat-sse-mount handler, run `fn` with the base
+ * URL, then CLOSE the server before returning — no OS handle leaks. When the handler falls
+ * through (returns false), the wrapper sends 404 so the fall-through test can assert on it.
+ */
+async function withServer(
+  handler: (req: IncomingMessage, res: ServerResponse, pathname: string) => Promise<boolean>,
+  fn: (base: string) => Promise<void>,
+): Promise<void> {
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    void handler(req, res, url.pathname)
+      .then((handled) => {
+        if (!handled && !res.headersSent) {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "not handled" }));
+        }
+      })
+      .catch((err: unknown) => {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          );
+        }
+      });
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  try {
+    await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((e) => (e ? reject(e) : resolve())),
+    );
+  }
+}
+
+/**
+ * Parse SSE frames from a streamed response body: split on blank-line separators, extract
+ * `data: <json>` lines, and return the parsed ChatStreamEvents.
+ */
+function parseSseFrames(body: string): ChatStreamEvent[] {
+  const events: ChatStreamEvent[] = [];
+  for (const frame of body.split(/\r?\n\r?\n/)) {
+    for (const line of frame.split(/\r?\n/)) {
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice("data: ".length).trim();
+      if (!json) continue;
+      try {
+        events.push(JSON.parse(json) as ChatStreamEvent);
+      } catch {
+        // ignore malformed lines (e.g. event: type lines)
+      }
+    }
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+// CORE OUTCOME: POST /api/chat with a valid intent starts a real startChatStream session
+// (scripted queryFn) and streams its terminal `done` event as one SSE frame.
+// Content-Type must be text/event-stream; the data: line carries the serialised
+// ChatStreamDoneEvent including the proposal from the scripted SDK result.
+//
+// DELETION TEST: removing createChatSseMount or the call to startChatStream inside the mount
+// breaks the import or breaks the SSE output. Returning a JSON body instead of SSE frames
+// breaks the Content-Type assertion. Not calling res.end() after the terminal event hangs
+// the fetch (the response never completes).
+test(
+  "csm-streams-events-as-sse: POST /api/chat with a valid intent streams a done SSE frame (200, text/event-stream)",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "Orient and propose the next capability." }),
+      });
+
+      assert.equal(res.status, 200, "POST /api/chat must return 200 for a valid intent");
+      assert.ok(
+        (res.headers.get("content-type") ?? "").includes("text/event-stream"),
+        "Content-Type must include text/event-stream for an SSE response",
+      );
+
+      const body = await res.text();
+      const events = parseSseFrames(body);
+
+      assert.ok(events.length > 0, "must yield at least one SSE event frame in the response body");
+
+      const last = events[events.length - 1];
+      assert.ok(last !== undefined, "must yield at least one SSE event");
+      assert.equal(
+        last.type,
+        "done",
+        `terminal SSE event must be 'done'; got '${last.type}'`,
+      );
+
+      if (last.type === "done") {
+        assert.equal(
+          last.proposal,
+          OK_SDK_RESULT.result,
+          "done event must carry the proposal from the scripted session — " +
+            "proof the mount drives the real startChatStream composition, not a fork",
+        );
+      }
+    });
+  },
+);
+
+// FAIL-CLOSED: a POST body with no `intent` field is rejected with 400 before any session
+// starts. The guard prevents empty prompts from reaching the real orchestrate composition
+// and spending any SDK budget.
+test(
+  "csm-rejects-a-blank-intent: POST /api/chat with a missing intent field returns 400 (fail-closed)",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}), // no `intent` field
+      });
+
+      assert.equal(
+        res.status,
+        400,
+        "a POST with no intent field must be rejected 400 before starting a session",
+      );
+    });
+  },
+);
+
+// FAIL-CLOSED: an empty or whitespace-only intent string is also rejected with 400.
+// Blank intents must not reach the real orchestrate composition.
+test(
+  "csm-rejects-a-blank-intent: POST /api/chat with a blank intent string returns 400",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
+
+    await withServer(handler, async (base) => {
+      // empty string
+      const res1 = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "" }),
+      });
+      assert.equal(res1.status, 400, "empty-string intent must be rejected with 400");
+
+      // whitespace-only
+      const res2 = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "   " }),
+      });
+      assert.equal(res2.status, 400, "whitespace-only intent must be rejected with 400");
+    });
+  },
+);
+
+// ERROR PATH: when the scripted SDK throws on iteration, startChatStream catches it and
+// emits a terminal `error` event; the mount streams it as an SSE frame (never a 500).
+//
+// DELETION TEST: if the mount propagated the SDK error as an HTTP 500 or an uncaught throw,
+// the 200 status and error-type assertions would both fail. This pins that the error path is
+// observable through SSE without crashing the response.
+test(
+  "csm-fails-closed-on-dead-session: a session where the SDK throws streams a terminal error SSE frame (200, not 500)",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryThrowing("scripted SDK failure") });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "test the error path" }),
+      });
+
+      assert.equal(
+        res.status,
+        200,
+        "error events are streamed as 200 SSE — the mount must never return 500 for a session error",
+      );
+      assert.ok(
+        (res.headers.get("content-type") ?? "").includes("text/event-stream"),
+        "error path must still send text/event-stream (not fall back to JSON)",
+      );
+
+      const body = await res.text();
+      const events = parseSseFrames(body);
+
+      assert.ok(events.length > 0, "error path must yield at least one SSE event frame");
+
+      const last = events[events.length - 1];
+      assert.ok(last !== undefined, "must yield a terminal event");
+      assert.equal(
+        last.type,
+        "error",
+        `terminal SSE event must be 'error' when the SDK throws; got '${last.type}'`,
+      );
+      if (last.type === "error") {
+        assert.ok(
+          typeof last.error === "string" && last.error.length > 0,
+          "error event must carry a non-empty error message describing what went wrong",
+        );
+      }
+    });
+  },
+);
+
+// SINGLE-SESSION GUARD: a second concurrent POST /api/chat is refused with a distinct
+// `refused` SSE frame while the first session is in-flight (the compositionInFlight flag from
+// orchestrate.ts is set). The first session completes cleanly with its `done` frame intact.
+// The second session never reaches the SDK queryFn.
+//
+// DELETION TEST: removing the single-session guard allows the second session to proceed
+// concurrently, producing a `done` frame instead of the required `refused` frame. The
+// refused-type assertion would fail, proving the guard is load-bearing.
+test(
+  "chat-sse-mount: a second concurrent POST /api/chat is refused with a refused SSE frame (single-session guard)",
+  async () => {
+    const entered = deferred();
+    const unblock = deferred();
+
+    // Session 1's queryFn blocks inside the generator: it signals `entered` (the flag is set by
+    // this point) then parks on `unblock`. This holds the first session "in flight" so a second
+    // concurrent request sees compositionInFlight === true and is refused immediately.
+    const blockingQueryFn: QueryFn = () =>
+      (async function* () {
+        entered.resolve(); // compositionInFlight is true here — the guard is live
+        await unblock.promise;
+        yield OK_SDK_RESULT;
+      })();
+
+    const handler = createChatSseMount({ queryFn: blockingQueryFn });
+
+    await withServer(handler, async (base) => {
+      // Start session 1 without awaiting — collect the full response later (after unblocking).
+      const firstFetch = fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "first session: in-flight" }),
+      }).then(async (r) => ({ status: r.status, body: await r.text() }));
+
+      // Wait until session 1's queryFn is entered (compositionInFlight is guaranteed true).
+      await entered.promise;
+
+      // Start session 2 — must be refused immediately without calling the blocking queryFn.
+      const secondRes = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "second session: should be refused" }),
+      });
+      const secondBody = await secondRes.text();
+
+      // Unblock session 1 and collect its response.
+      unblock.resolve();
+      const { status: firstStatus, body: firstBody } = await firstFetch;
+
+      // ---- Assert session 2 was refused ----
+      assert.equal(
+        secondRes.status,
+        200,
+        "refused session streams 200 SSE — a refusal is an application-level event, not an HTTP error",
+      );
+      const secondEvents = parseSseFrames(secondBody);
+      assert.ok(secondEvents.length > 0, "refused session must yield at least one SSE event");
+      const secondLast = secondEvents[secondEvents.length - 1];
+      assert.ok(secondLast !== undefined, "refused session must yield a terminal event");
+      assert.equal(
+        secondLast.type,
+        "refused",
+        `second concurrent session must stream a 'refused' event (got '${secondLast.type}'); ` +
+          "the single-session guard (compositionInFlight in orchestrate.ts) must be active",
+      );
+      if (secondLast.type === "refused") {
+        assert.ok(
+          typeof secondLast.reason === "string" && secondLast.reason.length > 0,
+          "refused event must carry a non-empty reason string for the thin client to display",
+        );
+      }
+
+      // ---- Assert session 1 completed cleanly ----
+      assert.equal(firstStatus, 200, "the in-flight session must complete with 200");
+      const firstEvents = parseSseFrames(firstBody);
+      const firstLast = firstEvents[firstEvents.length - 1];
+      assert.ok(firstLast !== undefined, "in-flight session must yield a terminal event");
+      assert.equal(
+        firstLast.type,
+        "done",
+        `in-flight session must complete with 'done' after unblocking; got '${firstLast.type}'`,
+      );
+      if (firstLast.type === "done") {
+        assert.equal(
+          firstLast.proposal,
+          OK_SDK_RESULT.result,
+          "the in-flight session's proposal must be intact — the refused second session did not disturb it",
+        );
+      }
+    });
+  },
+);
+
+// FALL-THROUGH: GET /api/health is not owned by the chat dispatcher; it must return false so
+// the Electron main's chained dispatch can handle it (local-backend-boot owns /api/health).
+// DELETION TEST: making createChatSseMount a catch-all (always true) produces a non-404 here
+// — the chat dispatcher must NOT shadow other /api/* routes.
+test(
+  "csm-dispatcher-falls-through-not-404s: GET /api/health falls through — the dispatcher returns false, not a catch-all",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/health`);
+      assert.equal(
+        res.status,
+        404,
+        "GET /api/health must fall through (handler returns false, wrapper sends 404); " +
+          "createChatSseMount must not be a catch-all",
+      );
+    });
+  },
+);
+
+// FALL-THROUGH: a POST to an unrelated /api/* endpoint also falls through — the dispatcher
+// owns ONLY POST /api/chat and nothing else.
+test(
+  "csm-dispatcher-falls-through-not-404s: POST /api/build falls through — only POST /api/chat is owned by this dispatcher",
+  async () => {
+    const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitId: "some-unit" }),
+      });
+      assert.equal(
+        res.status,
+        404,
+        "POST /api/build must fall through (handler returns false); the chat dispatcher must not shadow build routes",
+      );
+    });
+  },
+);
+
+// STATIC BOUNDARY CHECK: the chat-sse-mount source must import startChatStream from
+// @storytree/drive (by package name), never from apps/studio/server (the forbidden
+// surface→surface coupling), and must carry no pg or Cloud SQL connector imports
+// (the write broker + SSE route is transport-only, no DB path).
+//
+// This mirrors the equivalent check in local-backend.test.ts and pins the boundary
+// even before a runtime integration test can enforce it.
+test(
+  "chat-sse-mount: imports no studio server and no pg/DB connector (boundary check)",
+  () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(path.join(here, "chat-sse-mount.ts"), "utf8");
+
+    // Check only import statement lines — prose comments legitimately name what we do NOT do.
+    const importLines = src
+      .split(/\r?\n/)
+      .filter((l) => /^\s*import\b/.test(l) || /import\(/.test(l))
+      .join("\n");
+
+    assert.ok(
+      !/studio\/server/.test(importLines),
+      "must not import apps/studio/server (forbidden surface→surface coupling)",
+    );
+    assert.ok(
+      !/\bfrom\s+["']pg["']/.test(importLines),
+      "must not import pg directly (no DB connector in the chat route)",
+    );
+    assert.ok(
+      !/cloud-sql-connector/.test(importLines),
+      "must not import the Cloud SQL connector (transport-only module)",
+    );
+    assert.ok(
+      !/@storytree\/store/.test(importLines),
+      "must not import the dissolved @storytree/store",
+    );
+    assert.ok(
+      !/@storytree\/library\/store/.test(importLines),
+      "must not import the library node-only pg store path (no DB path in the chat route)",
+    );
+  },
+);
