@@ -629,7 +629,27 @@ export interface BuildActivity {
   runId: string;
   /** When the `building` event was appended (ISO) — drives TTL aging. */
   at: string;
+  /**
+   * The LIVE prove-it-gate phase the latest `building` mark for this run was emitted at (ADR-0048
+   * §3 v2) — `AUTHOR_TEST`/`CONFIRM_RED`/`IMPLEMENT`/`CONFIRM_GREEN`/`GATE`. The studio folds it to a
+   * red→green wisp BAND. Absent for a pre-ADR-0048 `building` row (or the json/down-DB read) — the
+   * wisp then shows the coarse teal "building" band. Mirrors `BuildPhase` in proof-protocol (the
+   * studio is browser-bundled, so it duplicates the literal union rather than importing the contract).
+   */
+  phase?: BuildPhase;
 }
+
+/**
+ * The prove-it-gate's red-green phases (ADR-0020 §1 / ADR-0048 §3 v2), mirrored locally like
+ * {@link WorkStatus} — the studio is browser-bundled and reads this off the `/api/activity` wire; it
+ * MUST NOT import the node-only orchestrator or the proof-protocol's zod enum at the type layer.
+ */
+export type BuildPhase =
+  | 'AUTHOR_TEST'
+  | 'CONFIRM_RED'
+  | 'IMPLEMENT'
+  | 'CONFIRM_GREEN'
+  | 'GATE';
 
 /**
  * GET /api/activity — the in-flight-build layer alone (ADR-0048), polled like

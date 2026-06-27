@@ -26,7 +26,6 @@ import type { UserDoc } from '@storytree/studio-members';
 import type { PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 import {
-  BUILD_IN_FLIGHT_TTL_MS,
   type AssetCategory,
   type BuildActivity,
   type Comment,
@@ -34,6 +33,8 @@ import {
   type TreeSession,
   type TreeVerdict,
 } from '../src/types';
+import { rowsToBuildActivity } from './inFlightBuilds';
+import type { BuildRow } from './inFlightBuilds';
 
 /** Latest-per-(testId,witness) attestation marks for one story's tests, keyed by test id. */
 export type StoryAttestations = Record<string, { human?: Attestation; machine?: Attestation }>;
@@ -838,16 +839,19 @@ export class PgBackend implements LibraryBackend {
           await this.#ready();
           const handle = this.#handle;
           if (!handle) throw new Error('no pool');
-          // latest `building` per unit, dropped if its run already has a verdict.
+          // latest `building` per unit, dropped if its run already has a verdict. `doc->>'phase'`
+          // (ADR-0048 §3 v2) is the LATEST mark's gate phase — the wisp's red→green band; null on a
+          // pre-ADR-0048 mark. DISTINCT ON … ORDER BY seq DESC already takes the newest, so a unit
+          // mid-build re-colours as the spine writes each phase.
           return handle.pool.query(
             `WITH latest_building AS (
                SELECT DISTINCT ON (unit_id)
-                 unit_id, tier, doc->>'runId' AS run_id, at
+                 unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase, at
                FROM events.work_event
                WHERE type = 'building'
                ORDER BY unit_id, seq DESC
              )
-             SELECT lb.unit_id, lb.tier, lb.run_id, lb.at
+             SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.at
                FROM latest_building lb
               WHERE lb.run_id IS NOT NULL
                 AND NOT EXISTS (
@@ -858,16 +862,12 @@ export class PgBackend implements LibraryBackend {
         })(),
         timeout,
       ]);
-      const now = new Date();
-      const out: BuildActivity[] = [];
-      for (const raw of (res as { rows: unknown[] }).rows) {
-        const row = raw as { unit_id: string; tier: string; run_id: string; at: Date | string };
-        const at = row.at instanceof Date ? row.at.toISOString() : new Date(row.at).toISOString();
-        // TTL in JS (mirrors classifyPresence): a dangling building clears here.
-        if (now.getTime() - new Date(at).getTime() >= BUILD_IN_FLIGHT_TTL_MS) continue;
-        out.push({ unitId: row.unit_id, tier: row.tier, runId: row.run_id, at });
-      }
-      return out;
+      // The TTL filter + the phase surfacing are the pure rowsToBuildActivity fold (red-green in
+      // inFlightBuilds.test.ts); this method owns only the live query + the 4s race.
+      return rowsToBuildActivity(
+        (res as { rows: BuildRow[] }).rows,
+        new Date(),
+      );
     } catch {
       return null;
     } finally {

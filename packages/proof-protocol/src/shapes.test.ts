@@ -231,6 +231,33 @@ test("WorkEventDoc round-trips a valid doc and rejects a malformed one", () => {
   assert.equal(WorkEventDoc.safeParse({ ...valid, rogue: 1 }).success, false);
 });
 
+test("WorkEventDoc carries an optional red-green build phase on the wire (ADR-0048 §3 v2)", () => {
+  // The phase-resolved wisp's wire: a `building` work-event may carry the LIVE
+  // prove-it-gate phase, so the studio can colour the orbiting wisp red/green
+  // without a NEW lifecycle word (ADR-0048 "No new lifecycle word") — it rides as
+  // a field on the SAME `building` event doc.
+  const withPhase = {
+    unitId: "stories/library",
+    event: "building" as const,
+    runId: "run-1",
+    tier: "story" as const,
+    phase: "CONFIRM_RED" as const,
+  };
+  assert.deepEqual(WorkEventDoc.parse(withPhase), withPhase);
+  // every gate phase is accepted on the wire.
+  for (const phase of ["AUTHOR_TEST", "CONFIRM_RED", "IMPLEMENT", "CONFIRM_GREEN", "GATE"] as const) {
+    assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "building", phase }).success, true, phase);
+  }
+  // BACK-COMPAT: a building doc with NO phase still round-trips (every pre-ADR-0048
+  // writer omits it — the studio reads it as the coarse "building" band).
+  assert.deepEqual(WorkEventDoc.parse({ unitId: "u", event: "building" }), {
+    unitId: "u",
+    event: "building",
+  });
+  // an unknown phase value is rejected — the wire is constrained to the five gate phases.
+  assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "building", phase: "SHIPPING" }).success, false);
+});
+
 test("the work/signing store kinds are the published literals", () => {
   assert.equal(WORK_EVENT_KIND, "work");
   assert.equal(SIGNING_EVENT_KIND, "signing");

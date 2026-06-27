@@ -51,6 +51,7 @@ import { PgWorkStore } from "@storytree/orchestrator/store";
 import { renderAgentPrompt } from "@storytree/library/store";
 import { withPresence } from "./ambient-presence.js";
 import type { AmbientDeps } from "./ambient-presence.js";
+import { phaseActivityWriter } from "./phase-activity.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
@@ -494,6 +495,16 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     if (!resolved.ok) {
       return { resolved: false, reason: resolved.reason, registered: resolved.registered };
     }
+    // ADR-0048 §3 v2: the phase-resolved wisp. The gate stays PURE — it only INVOKES this observer;
+    // the WRITE (a fresh phase-stamped `building` mark per transition) lives HERE in the drive,
+    // exactly where the initial `building` mark above was written. Advisory: a store failure is
+    // swallowed, so it can never fail the build.
+    resolved.spec.onPhase = phaseActivityWriter(args.store, {
+      unitId: spec.id,
+      runId: args.runId,
+      signer: args.signer,
+      ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
+    });
     // Presence around the leaf (ADR-0033 Decision 3): advisory by construction — withPresence
     // swallows every board failure, so the walk's result is identical with a dead board.
     const prove = (): Promise<ProveResult> => proveUnit(resolved.spec);
@@ -657,6 +668,14 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
       result: { ok: false, failedAt: "AUTHOR_TEST", reason: resolved.reason, phasesVisited: [] },
     };
   }
+  // ADR-0048 §3 v2: colour the wisp by the live red→green phase. The gate only INVOKES this; the
+  // WRITE lives here in the drive (the same place the `building` mark above is written). Advisory.
+  resolved.spec.onPhase = phaseActivityWriter(store, {
+    unitId: spec.id,
+    runId,
+    signer,
+    ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
+  });
   const result = await withPresence(args.presence, { nodeId: spec.id, runId, mode: "real" }, () =>
     proveUnit(resolved.spec),
   );
