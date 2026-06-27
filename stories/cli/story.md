@@ -9,7 +9,7 @@ proof_mode: UAT
 # story is machine-witnessed (ADR-0040). Offline commands run with no DB; the live `--pg` legs are
 # DB-gated like library/store's.
 uat_witness: machine
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
 # (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns its
@@ -78,7 +78,7 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (2)
+## Capabilities (3)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
@@ -88,6 +88,7 @@ case per real defect (`uat-proves-the-goal-not-the-surface`).
 |---|---|---|---|---|
 | 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | mapped | — |
 | 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | mapped | — |
+| 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | mapped | — |
 
 ## Dependency graph (code-derived)
 
@@ -189,10 +190,12 @@ live-DB credential-hydration + pull (step 4) is the `proposed`-flavoured pocket.
 
 ## Open modeling calls (for the owner)
 
-1. **Capability granularity.** I kept the hub to **two** lightweight capabilities (dispatch shim +
-   CLI-resident corpus tools), deliberately NOT re-owning the per-domain command surfaces — those are
-   their organisms' capabilities (`library-cli`, `noticeboard-cli`, `build-drive-cli`). Confirm this
-   shim-vs-journey split.
+1. **Capability granularity.** The hub keeps **three** lightweight capabilities (dispatch shim +
+   CLI-resident corpus tools + the organism-boundary analyser), deliberately NOT re-owning the per-domain
+   command surfaces — those are their organisms' capabilities (`library-cli`, `noticeboard-cli`,
+   `build-drive-cli`). The `organism-boundary-tooling` capability (ADR-0115) homes the previously-unbounded
+   pure boundary judge (`boundaries.ts`) the CLI's `check:boundaries` builds on — genuinely CLI-resident
+   (it rides the CLI's test surface), distinct from the corpus tools. Confirm this shim-vs-journey split.
 2. **The connection-declaration shape (ADR-0074 §4) — settled in this increment.** The CLI's outbound
    edges are declared provider-side on the spokes (`consumed_by: [cli]`) to de-noise the hub; the gate
    covers a code edge when EITHER endpoint declares it. The trade is the UI-sequencing note above

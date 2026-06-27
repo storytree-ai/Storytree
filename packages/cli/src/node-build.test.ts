@@ -159,7 +159,10 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // orchestrator-composition, orientation-tool-surface (ADR-0108 Phase 1) + chat-session-stream
   // (ADR-0108 Phase 2); and the three thick-client `desktop`-story capabilities (stories/desktop/*.md,
   // ADR-0113 — each a NET-NEW `real:` arm): local-backend-boot, local-credential-wiring,
-  // shared-forest-connection. Most of the library
+  // shared-forest-connection; and the `cli` story's `organism-boundary-tooling` capability
+  // (stories/cli/declared-edge-drift-report.md — the ADR-0115 declared-edge drift-report contract, an
+  // editsExisting `real:` arm over packages/cli/src/boundaries.ts): declared-edge-drift-report. Most
+  // of the library
   // story's 7 capabilities are NO LONGER here:
   // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
   // `mapped`, so its green path is Adopt (`## Reliability Gates`, ADR-0085), not a fail-closed `--real`
@@ -173,7 +176,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line/,
+    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
