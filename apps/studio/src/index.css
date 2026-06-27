@@ -2572,6 +2572,29 @@ mark.st-hl.flash {
   .world-wisp.band-building .world-wisp-glow { animation: none; opacity: 0.4; }
 }
 
+/* PHASE-RESOLVED build wisp (ADR-0048 §3 v2): the coarse teal band above resolves
+   into RED while the spine authors / confirms the failing test (AUTHOR_TEST /
+   CONFIRM_RED) and GREEN once it observes the green / signs at the gate
+   (CONFIRM_GREEN / GATE); IMPLEMENT (and an unknown phase) stays the teal building
+   band. The hue reuses the crown status tokens so the wisp speaks the SAME
+   red=unhealthy / green=healthy vocabulary as the rest of the world (this lives in
+   the shared forest-world band so the website inherits the look — it can't drift).
+   A red CAST (steady, watchful) vs a green PULSE (the work is landing). */
+.world-wisp.band-red .world-wisp-glow {
+  fill: var(--st-unhealthy);
+  opacity: 0.32;
+}
+.world-wisp.band-red .world-wisp-dot { fill: var(--st-unhealthy); }
+.world-wisp.band-green .world-wisp-glow {
+  fill: var(--st-healthy);
+  opacity: 0.3;
+  animation: build-pulse 1.2s ease-in-out infinite;
+}
+.world-wisp.band-green .world-wisp-dot { fill: var(--st-healthy); }
+@media (prefers-reduced-motion: reduce) {
+  .world-wisp.band-green .world-wisp-glow { animation: none; opacity: 0.45; }
+}
+
 /* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
    signed verdict just landed on this territory, kin to the hlflash/cflash
    transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:

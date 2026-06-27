@@ -110,6 +110,7 @@ import {
   MESH_TUNING,
   buildRelaxedCells as buildRelaxedCellsFromTiles,
   buildScene,
+  wispBand,
   type SceneInput,
   type SceneStatus,
   type ScenePlantInput,
@@ -849,7 +850,9 @@ function territoryToScene(t: Territory, now: Date, builds: BuildActivity[]): Sce
     ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
     wisps: builds.map((b) => ({
       runId: b.runId,
-      title: `${b.unitId} — building (${b.tier}) · ${formatAge(b.at, now)} · run ${b.runId}`,
+      title: `${b.unitId} — building (${b.tier})${b.phase ? ` · ${b.phase}` : ''} · ${formatAge(b.at, now)} · run ${b.runId}`,
+      // ADR-0048 §3 v2: the live gate phase → the core folds it to the wisp's red→green band.
+      ...(b.phase ? { phase: b.phase } : {}),
     })),
     plate: {
       w: plate.w,
@@ -2911,9 +2914,12 @@ function TerritoryFlora({
             through to selecting the story. */}
         {builds.map((b) => {
           const phase = rand01(hash(b.runId)) * 360;
+          // ADR-0048 §3 v2: the live gate phase → the wisp's red→green band (the SAME wispBand fold
+          // the shared scene-graph uses, so the legacy inline path can't drift from the scene path).
+          const band = wispBand(b.phase);
           return (
-            <g key={`build:${b.runId}`} className="world-wisp band-building">
-              <title>{`${b.unitId} — building (${b.tier}) · ${formatAge(b.at, now)} · run ${b.runId}`}</title>
+            <g key={`build:${b.runId}`} className={`world-wisp band-${band}`}>
+              <title>{`${b.unitId} — building (${b.tier})${b.phase ? ` · ${b.phase}` : ''} · ${formatAge(b.at, now)} · run ${b.runId}`}</title>
               <animateTransform
                 attributeName="transform"
                 type="rotate"

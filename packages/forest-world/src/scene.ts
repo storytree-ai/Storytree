@@ -161,6 +161,43 @@ export interface SceneNodeBase {
   outcome?: 'pass' | 'fail';
   /** A wisp's orbit phase in degrees (the mapper drives the rotation from it). */
   phase?: number;
+  /** A wisp's red→green BAND, folded from the live prove-it-gate phase (ADR-0048 §3 v2): `red`
+   *  while authoring/confirming the failing test, `green` on the green observation/gate, `building`
+   *  while implementing (and when no phase is known). A SEPARATE field from the orbit `phase`
+   *  (location ⟂ form); the mapper appends its `band-<phaseBand>` class. */
+  phaseBand?: WispPhaseBand;
+}
+
+/** The wisp's three visual bands (ADR-0048 §3 v2) — the mapper's `band-red`/`band-green`/
+ *  `band-building` class suffix. */
+export type WispPhaseBand = 'red' | 'green' | 'building';
+
+/** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
+ *  scene-graph is a foundational root that depends on nothing (ADR-0093 §Open call 2), so it mirrors
+ *  the union rather than importing the orchestrator or proof-protocol. The surface folds its live
+ *  build phase into this when it has one. */
+export type BuildPhase =
+  | 'AUTHOR_TEST'
+  | 'CONFIRM_RED'
+  | 'IMPLEMENT'
+  | 'CONFIRM_GREEN'
+  | 'GATE';
+
+/** Fold a gate phase → the wisp's red→green band (ADR-0048 §3 v2). `red` while the failing test is
+ *  authored/confirmed, `green` once the implementation is observed green / at the gate, `building`
+ *  while implementing — and the neutral default when no phase is known (a pre-ADR-0048 mark). */
+export function wispBand(phase: BuildPhase | undefined): WispPhaseBand {
+  switch (phase) {
+    case 'AUTHOR_TEST':
+    case 'CONFIRM_RED':
+      return 'red';
+    case 'CONFIRM_GREEN':
+    case 'GATE':
+      return 'green';
+    case 'IMPLEMENT':
+    default:
+      return 'building';
+  }
 }
 
 export interface SceneG extends SceneNodeBase {
@@ -272,9 +309,11 @@ export interface SceneTerritoryInput {
   signpost?: { outcome: 'pass' | 'fail' | null };
   /** The crown bloom, folded by the surface; omitted when withered or none. */
   bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
-  /** In-flight build wisps, folded from live builds (the core derives each phase
-   *  from the runId — geometry, like the crown jitter). Empty when nothing builds. */
-  wisps: { runId: string; title: string }[];
+  /** In-flight build wisps, folded from live builds (the core derives each orbit
+   *  ROTATION from the runId — geometry, like the crown jitter). The optional
+   *  `phase` is the live prove-it-gate phase the surface folds in (ADR-0048 §3 v2)
+   *  — the core maps it to the wisp's red→green band. Empty when nothing builds. */
+  wisps: { runId: string; title: string; phase?: BuildPhase }[];
   /** The nameplate box (surface chrome: the studio's `nameplateLayout`, the web's
    *  own sizing) + the text the surface chose. */
   plate: {
@@ -656,7 +695,9 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
           { transform: `translate(${f(orbitR)} 0)` },
         ),
       ],
-      { kind: 'wisp', title: w.title, phase },
+      // `phase` is the orbit ROTATION (geometry); `phaseBand` is the red→green build state
+      // (ADR-0048 §3 v2) — two independent fields (location ⟂ form).
+      { kind: 'wisp', title: w.title, phase, phaseBand: wispBand(w.phase) },
     );
   });
   return g(wisps, { kind: 'wisps', transform: `translate(${f(t.centroid.x)} ${f(t.centroid.y)})` });
