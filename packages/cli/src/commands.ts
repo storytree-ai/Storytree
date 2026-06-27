@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -24,7 +24,8 @@ import { renderStoredDoc, syncSeedAgents, syncSeedCorpus } from "@storytree/libr
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { adoptPlanCommand, type AdoptPlanStory } from "./adopt-plan.js";
+import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
+import type { AdoptPlanStory } from "./adopt-plan.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -47,6 +48,7 @@ import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 import type { PresenceStoreLike, SessionIdentity } from "@storytree/drive";
 import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
+import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import {
@@ -812,6 +814,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
       "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
       "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
+      "  adopt            bring a brownfield story into the fold (ADR-0097): run the mapped→proposed entry · plan the coverage",
       "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
       "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
@@ -1047,6 +1050,40 @@ function loadAdoptPlanStory(storiesDir: string, storyId: string): AdoptPlanStory
 }
 
 /**
+ * A story's adoptable facts for the adopt RUN engine (ADR-0097 / ADR-0106): its authored status, its
+ * declared reliability gates, and its UAT legs. Null for a missing/odd spec or a non-story tier (a
+ * capability has no gates/legs of its own to adopt). Mirrors {@link loadAdoptPlanStory}, which projects
+ * the PLAN's fields (caps + gates) off the same spec — the run path needs gates + legs instead.
+ */
+function loadAdoptStory(storiesDir: string, storyId: string): AdoptStory | null {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return null;
+  try {
+    const spec = loadNodeSpec(file);
+    if (spec.tier !== "story") return null;
+    return { status: spec.status, reliabilityGates: spec.reliabilityGates, uatTests: spec.uatTests };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The live status-flip writer the adopt RUN wires (ADR-0097): rewrite a story.md's frontmatter
+ * `status: mapped → proposed` on disk. The byte-preserving, fail-closed rewrite is drive's pure
+ * {@link flipFrontmatterStatus} (it refuses anything but a mapped→proposed flip); this is the thin fs
+ * wrapper — read, flip, and write back ONLY when it actually changed (re-adopting a `proposed` story is
+ * a clean no-op). The flip is the LAST step of adopt, so the one-line dirtied tree is the operator's to commit.
+ */
+function flipStatusToProposedFile(storiesDir: string, storyId: string): FlipResult {
+  const file = path.join(storiesDir, storyId, "story.md");
+  if (!existsSync(file)) return { ok: false, reason: `story.md not found for "${storyId}"` };
+  const raw = readFileSync(file, "utf8");
+  const flipped = flipFrontmatterStatus(raw, "mapped", "proposed");
+  if (flipped.ok && flipped.changed) writeFileSync(file, flipped.content);
+  return flipped;
+}
+
+/**
  * The spine's out-of-band observation of a reliability gate's declared command (ADR-0085): split the
  * free command string into an argv, make it spawnable on this platform (the win32 `pnpm` `.cmd`
  * rewrap), run it at the repo root with the shared {@link runShellCommand}, and surface ONLY the exit
@@ -1224,18 +1261,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "story") {
     if (sub === undefined || help) return storyHelp();
-    if (sub === "adopt-plan") {
-      // ADR-0097 Layer 2: the offline adoption-plan report — classify which of a brownfield story's
-      // capabilities are covered by a declared `(covers:)` gate vs uncovered (owe real work). Read-only,
-      // no DB, no spend; the story-author agent reads this to do the deeper observe/R1/R2 analysis.
-      const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-      return adoptPlanCommand(third, { loadStory: (sid) => loadAdoptPlanStory(storiesDir, sid) });
-    }
+    // ADR-0097 Layer 2's adoption-plan report MOVED to `storytree adopt plan <story>` (the command-surface
+    // reshape — adoption actions nest under `adopt`). `story` now drives only the build chain.
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run | storytree story adopt-plan <story-id>`,
-        next: ["storytree story build library --dry-run", "storytree story adopt-plan library"],
+        body: `unknown story command "${sub}". try: storytree story build <story-id> --dry-run  (adoption-plan moved to: storytree adopt plan <story-id>)`,
+        next: ["storytree story build library --dry-run", "storytree adopt plan library"],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);
@@ -1473,10 +1505,41 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     };
   }
 
+  if (area === "adopt") {
+    // ADR-0097 / ADR-0106 — the brownfield ADOPTION surface. `adopt <story> --pg` RUNS the adoption
+    // (observe-and-sign the `observe` reliability gates + machine UAT legs → `adopted` verdicts, then
+    // flip `mapped → proposed`) — the SAME engine the studio's Adopt button drives (adoptStory). `adopt
+    // plan <story>` is the offline adoption-plan classification (ADR-0097 Layer 2). The store / git /
+    // observe / signer / status-flip seams mirror `gate` (the verdict store is the same PgWorkStore under
+    // --pg). `gate` is deliberately NOT nested here: an `observe` gate is earned by adoption, but a
+    // `build-tests` gate by a real red→green BUILD (ADR-0098), so `gate` spans both surfaces and stays
+    // its own area. The honesty walls (only a brownfield story, an observe gate, a resolved approver, the
+    // live store, a clean HEAD) live in drive's runAdopt; this just wires the live seams.
+    if (help || sub === undefined) return adoptHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    const adoptDeps: AdoptDispatchDeps = {
+      store: deps.uatStore ?? null,
+      loadStory: (sid) => loadAdoptStory(storiesDir, sid),
+      gitState: readGitState,
+      observe: observeCommand,
+      resolveApprover: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+      flipStatusToProposed: (sid) => flipStatusToProposedFile(storiesDir, sid),
+      loadPlanStory: (sid) => loadAdoptPlanStory(storiesDir, sid),
+      now: () => new Date(),
+    };
+    // The approver flag is --signer (preferred) or --actor (the studio worker's name for it, ADR-0097);
+    // either feeds the fail-closed chain (flag → STORYTREE_SIGNER → git email) inside runAdopt.
+    const approverFlag = values.signer ?? values.actor;
+    const adoptOpts = approverFlag !== undefined ? { signer: approverFlag } : {};
+    if (sub === "plan") return adoptCommand({ mode: "plan", target: third }, adoptOpts, adoptDeps);
+    // bare: `storytree adopt <story-id>` RUNS the adoption.
+    return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, node, story, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }

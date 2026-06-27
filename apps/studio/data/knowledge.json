@@ -378,7 +378,7 @@
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "statement": "An owned-loop run/attempt is an execution event (many per node), never a new tree node — the execution environment is not the coordination structure.",
     "rule": "An owned-loop **run** (attempt) is recorded as an execution **event**, many-per-node — it is **never** a new node on the DAG. The coordination/scheduling grain (the node) is kept distinct from the execution grain (the run).",
-    "enforcedBy": "The event-store schema (`packages/store/src/schema.sql`): a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
+    "enforcedBy": "The event-store schema (`packages/library/src/store/schema.sql`): a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
     "failureMode": "If the boundary is crossed, execution attempts proliferate as DAG nodes, conflating the execution grain with the coordination/scheduling grain and corrupting the tree the orchestrator schedules over.",
     "schemaVersion": 2
   },
@@ -2520,7 +2520,7 @@
     "description": "The leaf prove-it-gate is one tool the orchestrator wields, not the whole job: decompose work into provable units, route those to the inner loop in dependency order, and supplement the non-leaf glue with the orchestrator's own subagents.",
     "statement": "The inner loop — the leaf prove-it-gate → signed verdict (`storytree node|story build --real`) — is ONE tool the session-orchestrator wields, not the whole job. The orchestrator's job is to DECOMPOSE work into provable units, ROUTE those to the inner loop chained in dependency order, and SUPPLEMENT the non-leaf glue with its own subagents — doing the glue itself only as a last resort.",
     "problem": "Treating `node/story build --real` as 'the job' force-fits work that has no isolatable red→green test — SQL/DB adapters, dependency additions, visual/UI, pure config or wiring — into a proof that can't pin it, or silently skips it. The routing filter that actually works is 'does this piece have an isolatable red→green test?', NOT package boundaries: one package can hold both an algorithm the leaf proves and glue it can't, and a provable algorithm can straddle packages.",
-    "approach": "1. DECOMPOSE into provable units — the filter is 'does this piece have an isolatable red→green test?', not package boundaries. The provable units carry the algorithm; the rest is integration/wiring.\n2. ROUTE the provable units to the inner loop, chained in dependency order: either `story build --real` (a story's capabilities, ordered by `depends_on`, stack in one worktree and promote once, ADR-0031) or sequenced individual `node build --real` runs across merges (each fresh worktree is cut from current main, so a landed piece is visible to the next). Cross-package work is SEQUENCED via `depends_on`, never done atomically.\n3. SUPPLEMENT the non-leaf glue — SQL/DB adapters, dependency additions, visual/UI, pure config/wiring with nothing to assert — with the orchestrator's OWN subagents (the Agent tool); do it yourself only as a last resort.\nThrough-line: the inner loop carries the ALGORITHM load; the orchestrator carries the INTEGRATION/WIRING load. When the inner loop genuinely can't prove a piece — it needs a DB-backed proof, a new dependency, or a browser/visual proof it lacks — that is a capability gap to RAISE and EXPAND; in the meantime route the piece to a subagent. Never force-fit it into a hollow proof and never silently skip it.",
+    "approach": "1. DECOMPOSE into provable units — the filter is 'does this piece have an isolatable red→green test?', not package boundaries. The provable units carry the algorithm; the rest is integration/wiring.\n2. ROUTE the provable units to the inner loop, chained in dependency order: either `story build --real` (a story's capabilities, ordered by `depends_on`, stack in one worktree and promote once, ADR-0031) or sequenced individual `node build --real` runs across merges (each fresh worktree is cut from current main, so a landed piece is visible to the next). Cross-package work is SEQUENCED via `depends_on`, never done atomically. A complex driver-composition / multi-surface --real build can exhaust the per-slice turn ceiling (--max-turns, default 16) even after the leaf reaches green (run_proof=green) — it fails to TERMINATE, surfacing as `Reached maximum number of turns`. This is orthogonal to --budget (the USD ceiling): a build well under budget still hits it, so READ the failure — a turn-exhaustion is not a real red. Give such a build headroom (--max-turns 40); the default 16 is independently known-tight for orientation too (storytree orchestrate).\n3. SUPPLEMENT the non-leaf glue — SQL/DB adapters, dependency additions, visual/UI, pure config/wiring with nothing to assert — with the orchestrator's OWN subagents (the Agent tool); do it yourself only as a last resort.\nThrough-line: the inner loop carries the ALGORITHM load; the orchestrator carries the INTEGRATION/WIRING load. When the inner loop genuinely can't prove a piece — it needs a DB-backed proof, a new dependency, or a browser/visual proof it lacks — that is a capability gap to RAISE and EXPAND; in the meantime route the piece to a subagent. Never force-fit it into a hollow proof and never silently skip it.",
     "tradeoffs": "Routing costs something: deciding provable-vs-glue per piece and sequencing cross-package work over several merges is slower than one atomic change — but an atomic cross-package edit can't be proven unit-by-unit, and a hollow `--real` proof over un-isolatable glue is worse than no proof. The standing risk is the orchestrator quietly absorbing glue it should have delegated, or force-fitting glue into the inner loop instead of naming the capability gap. Composes with `slow-growth-minimum-to-green` (the leaf's discipline INSIDE a provable unit) and `cross-story-dependency` (the `depends_on` direction rule that orders the routing).",
     "references": [
       "doc:decisions/0030-all-in-on-claude-agent-sdk.md",
@@ -2529,11 +2529,31 @@
       "asset:prove-it-gate",
       "asset:prove-and-promote-ceremony",
       "asset:slow-growth-minimum-to-green",
-      "asset:cross-story-dependency"
+      "asset:cross-story-dependency",
+      "asset:audit-the-signed-verdict"
     ],
-    "provenance": "Authored 2026-06-16 at the owner's steer — the inner loop (leaf prove-it-gate → signed verdict) is one tool, not the whole job. Cited by session-orchestrator. Composes with slow-growth-minimum-to-green (the leaf's discipline inside a provable unit) and cross-story-dependency (the depends_on direction rule that orders the routing).",
+    "provenance": "Authored 2026-06-16 at the owner's steer — the inner loop (leaf prove-it-gate → signed verdict) is one tool, not the whole job. Cited by session-orchestrator. Composes with slow-growth-minimum-to-green (the leaf's discipline inside a provable unit) and cross-story-dependency (the depends_on direction rule that orders the routing). The post-proof companion is audit-the-signed-verdict (audit the leaf's green against the spec after routing).",
     "createdAt": "2026-06-16T00:00:00.000Z",
     "updatedAt": "2026-06-16T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
+    "kind": "principle",
+    "id": "audit-the-signed-verdict",
+    "title": "Audit the signed verdict against the spec",
+    "description": "A signed green --real verdict proves the leaf's authored test went red→green under the spine's eye — not that the test covers every contract the spec enumerates. Audit the authored test against the spec's contract list; and because the audit can err, confirm a suspected gap in the code (inherited ≠ absent) before raising it.",
+    "statement": "A signed GREEN verdict is a coverage CLAIM to audit, not a coverage GUARANTEE — read the authored test against the spec's contract list, and confirm a suspected gap in the code (inherited ≠ absent) before raising it.",
+    "why": "The prove-it-gate's guarantee is real but narrow: spine-observed red→green on the AUTHORED test. It is silent on test COMPLETENESS — the leaf chooses what to assert, and under turn pressure (the --max-turns ceiling, see orchestrate-route-supplement) it reliably drops the trickiest robustness/concurrency contract while still signing green. Trust the green alone and you land a unit that looks proven but under-covers its spec: an arc once signed a `shared-forest-connection` capability green while dropping a `bounded-never-hangs` contract (no timeout — a hanging connector hangs forever), caught only by a later audit. The mirror failure is over-eager auditing — calling a contract dropped because the unit's OWN test does not assert it, when the behaviour is INHERITED from a collaborator: a single-session guard once looked dropped from a stream adapter but was effective transitively through the runner's module-level in-flight flag; the adapter being stateless did not make the behaviour absent (a false gap-call). So even WITH the gate, a green's COVERAGE is a claim, not a proof — audit it, and audit your audit: both checks read the actual code, never its surface.",
+    "howToApply": "After a --real signed green on a multi-contract unit: (1) list the spec's enumerated contracts and find the assertion pinning each in the authored test; a contract with no assertion is a SUSPECTED gap, not a confirmed one. (2) For each suspected gap, trace the behaviour through the unit's collaborators — the runner it calls, a shared/base module, a dependency default — before concluding it is absent; a 'stateless' adapter often inherits a guard one level down (inherited ≠ absent). (3) When a gap is REAL and LATENT (no live consumer yet), land the core and raise a tracked capability gap — do NOT hand-author the missing proof (that forges the coverage the gate exists to earn) and do NOT silently skip it. This is the post-proof companion to orchestrate-route-supplement (which routes the unit in) and a sibling of verify-edit-write-persisted-or-escalate in the verify-the-claim family.",
+    "references": [
+      "asset:prove-it-gate",
+      "asset:orchestrate-route-supplement",
+      "asset:verify-edit-write-persisted-or-escalate",
+      "doc:decisions/0020-red-green-enforcement-on-the-owned-loop.md"
+    ],
+    "provenance": "Graduated 2026-06-27 (ADR-0095) from session agent-memory (leaf-drops-trickiest-contract): an inner-loop QA lesson the outer loop learned on the ADR-0113 thick-client arc — a signed green under-covered its spec (fr-bounded-never-hangs dropped from shared-forest-connection, gap-closed in a later PR) and a suspected gap was a false positive because the behaviour was inherited (the chat-session-stream single-session guard, corrected). Durable essence extracted; the event-record (PR numbers, dates) stays in git (ADR-0095 D5). Refines prove-it-gate (the gate proves the test passed, not that it covers the spec); composes with orchestrate-route-supplement (the routing it follows post-proof) and verify-edit-write-persisted-or-escalate (the verify-the-claim family). Consumers: session-orchestrator.",
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
     "schemaVersion": 2
   },
   {
@@ -2627,6 +2647,7 @@
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:audit-the-signed-verdict",
       "asset:plain-language-first"
     ],
     "antiPatterns": [
@@ -2649,6 +2670,7 @@
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:audit-the-signed-verdict",
       "asset:plain-language-first",
       "asset:never-bypass-the-gate",
       "asset:agent-never-self-exempts",

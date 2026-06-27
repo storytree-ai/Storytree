@@ -2236,6 +2236,92 @@ mark.st-hl.flash {
   margin: 0 0 6px;
   font-weight: 500;
 }
+
+/* The "thinking" affordance for a non-terminal Build/Adopt run (ADR-0070 Stage 2 — pronounced,
+   accent-hued "the system is working", NOT the muted grey it was). A spinner + bold accent label
+   say ALIVE; the indeterminate bar beneath says STILL WORKING across the multi-minute run. All
+   animated parts are decorative (aria-hidden); the text label carries the meaning. */
+.build-working {
+  margin: 0 0 6px;
+}
+.build-run-status-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+/* The accent spinner — same idiom as .store-banner / .load-screen, reusing @keyframes spin. */
+.build-spinner {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border: 2px solid var(--accent-weak);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+/* The bold accent label — this is the "more pronounced, clearly working" part (not muted). */
+.build-working-label {
+  font-weight: 600;
+  color: var(--accent);
+}
+/* "(polling for progress)" demoted to a softer secondary note. */
+.build-working-note {
+  font-size: 11px;
+  font-weight: 400;
+}
+/* The indeterminate progress bar: a thin --accent-weak track with a sliding accent segment on a
+   ~1.5s loop. Communicates "still working" across the whole run far better than a spinner alone. */
+.build-progress {
+  position: relative;
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 3px;
+  background: var(--accent-weak);
+  overflow: hidden;
+}
+.build-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: build-progress-slide 1.5s ease-in-out infinite;
+}
+@keyframes build-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+/* A small inline spinner inside the button's "Starting…" busy state, for consistency. On the solid
+   accent button the arc is white-on-translucent-white (not the accent-on-weak of the panel spinner). */
+.build-spinner-inline {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+}
+/* Non-negotiable (ADR-0070 §3 brief): under reduced-motion both the spinner and the indeterminate
+   bar go static, leaving a still-legible "working" state — the accent label + a filled track carry it. */
+@media (prefers-reduced-motion: reduce) {
+  .build-spinner {
+    animation: none;
+  }
+  .build-progress-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.55;
+  }
+}
+
 .build-transcript {
   margin: 0;
   padding: 8px 10px 8px 26px;

@@ -1,54 +1,128 @@
-// Forest-readiness probe — confirms the local backend can reach the shared Cloud SQL before the
-// agent loop runs. Fails closed with member-actionable guidance when the connector refuses
-// (IAM grant missing / DB idle-stopped), so no write ever silently lands in an unreachable forest.
+// Forest-readiness probe — confirms the local backend can reach the hosted studio's write-broker
+// as an authorized builder before the agent loop runs. Fails closed with member-actionable guidance
+// when the broker is unreachable (studio down / URL wrong) or the caller is not yet an authorized
+// builder (builder role not yet granted via the Members panel). ADR-0117 d.5.
+//
+// The write is brokered, NOT a direct Cloud SQL connection (ADR-0117 d.1/d.5). This module never
+// opens a DB socket; it POSTs to the hosted studio's broker endpoint via the injected BrokerPostFn
+// seam. The probe is offline-testable: inject an in-memory double, no real network required.
 
 /**
- * A closeable connection stub: the minimum surface the probe needs after verifying reachability.
+ * The injected broker-POST seam. Production wires this to a real `fetch` POST to the configured
+ * studio broker URL; tests inject in-memory doubles with controlled status codes and throws.
  */
-export interface ForestConnection {
-  end: () => Promise<void | undefined>;
-}
-
-/**
- * The injected connector seam. Production wires the real @storytree/store keyless Cloud SQL
- * connector; tests inject in-memory doubles.
- */
-export type ForestConnectorFn = () => Promise<ForestConnection>;
+export type BrokerPostFn = (
+  path: string,
+  body: unknown,
+) => Promise<{ status: number; body: unknown }>;
 
 /**
  * The discriminated-union result returned by {@link probeForestReadiness}.
  *
- * - `{ ready: true }` — the connector resolved; the backend can reach the shared Cloud SQL.
- * - `{ ready: false, guidance }` — the connector refused; fail-closed with member-actionable text.
+ * - `{ ready: true }` — the broker accepted the probe; the backend can reach the shared forest as
+ *   an authorized builder.
+ * - `{ ready: false, guidance }` — the broker refused or was unreachable; fail-closed with
+ *   member-actionable text describing the corrective action.
  */
 export type ForestReadinessResult =
   | { ready: true }
   | { ready: false; guidance: string };
 
 /**
- * Probe whether the local backend can reach the shared Cloud SQL forest.
+ * Options for {@link probeForestReadiness}.
  *
- * Calls the injected `connector`, then immediately closes the acquired connection (a readiness
- * check — no writes). If the connector rejects (ECONNREFUSED, auth error, idle-stopped DB), the
- * error is converted to a fail-closed `{ ready: false, guidance }` result rather than propagating
- * the throw — the probe NEVER reports ready when it cannot actually connect.
+ * @property timeoutMs — If supplied, the probe fails closed within this many milliseconds when the
+ *   broker does not respond (e.g. the studio is hung or the network is slow). Without this option
+ *   the probe waits as long as the broker takes — which can hang indefinitely.
+ */
+export interface ProbeForestReadinessOptions {
+  timeoutMs?: number;
+}
+
+/**
+ * Probe whether the local backend can reach the hosted studio's write-broker as an authorized
+ * builder.
+ *
+ * POSTs a probe request to the broker via the injected `brokerPost` seam. The broker response
+ * determines the result:
+ * - 2xx status → `{ ready: true }` (caller has the `builder` role and the broker is reachable)
+ * - 403/401 status → `{ ready: false, guidance }` mentioning the builder role and how to get it
+ *   via the Members panel (ADR-0117 d.2 — in-app grant, not a gcloud IAM binding)
+ * - Network error (broker throws) → `{ ready: false, guidance }` directing the member to check
+ *   whether the studio is up and the broker URL is configured correctly
+ * - Hangs past `options.timeoutMs` (if supplied) → `{ ready: false, guidance }` — self-bounding,
+ *   never hangs indefinitely; guidance directs the member to check studio reachability
+ *
+ * The probe NEVER reports ready when it cannot actually reach the broker as an authorized builder.
  */
 export async function probeForestReadiness(
-  connector: ForestConnectorFn,
+  brokerPost: BrokerPostFn,
+  options?: ProbeForestReadinessOptions,
 ): Promise<ForestReadinessResult> {
+  const timeoutMs = options?.timeoutMs;
+  let isTimeout = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    const conn = await connector();
-    await conn.end();
-    return { ready: true };
-  } catch {
+    const postPromise = brokerPost("/api/broker/probe", {});
+
+    const awaitable: Promise<{ status: number; body: unknown }> =
+      timeoutMs !== undefined
+        ? Promise.race([
+            postPromise,
+            new Promise<never>((_, reject) => {
+              timeoutHandle = setTimeout(() => {
+                isTimeout = true;
+                reject(new Error(`Broker probe timed out after ${timeoutMs}ms`));
+              }, timeoutMs);
+            }),
+          ])
+        : postPromise;
+
+    const response = await awaitable;
+    clearTimeout(timeoutHandle);
+
+    if (response.status >= 200 && response.status < 300) {
+      return { ready: true };
+    }
+
+    if (response.status === 403 || response.status === 401) {
+      return {
+        ready: false,
+        guidance:
+          "You are not yet an authorized builder. " +
+          "Ask the owner to grant you the builder role via the Members panel in the hosted studio. " +
+          "Once the builder role is granted, re-run the probe.",
+      };
+    }
+
+    // Other non-2xx responses — broker is reachable but returning an unexpected status.
     return {
       ready: false,
       guidance:
-        "Cannot reach the shared Cloud SQL forest. " +
-        "Ensure you have the Cloud SQL IAM grant (ask the owner to run: " +
-        "gcloud projects add-iam-policy-binding … --role roles/cloudsql.client) " +
-        "and that the DB is running (run: pnpm db:up). " +
-        "If the DB is idle-stopped, it may take a few minutes to wake.",
+        `The studio broker returned an unexpected status (${response.status}). ` +
+        "Check that the studio is running correctly and the broker URL is configured.",
+    };
+  } catch {
+    clearTimeout(timeoutHandle);
+
+    if (isTimeout) {
+      return {
+        ready: false,
+        guidance:
+          `The broker probe timed out after ${timeoutMs ?? "unknown"}ms — ` +
+          "the studio may be unreachable or the broker may be slow to respond. " +
+          "Check that the hosted studio is up and the broker URL is correctly configured.",
+      };
+    }
+
+    // Network error — the broker threw (ECONNREFUSED, DNS failure, etc.).
+    return {
+      ready: false,
+      guidance:
+        "Cannot reach the studio broker. " +
+        "Check that the hosted studio is running and the broker URL is correctly configured. " +
+        "If the studio is not up, start it and try again.",
     };
   }
 }

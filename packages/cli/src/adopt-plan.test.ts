@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { adoptPlanCommand, type AdoptPlanDeps, type AdoptPlanStory } from "./adopt-plan.js";
 
 /**
- * `storytree story adopt-plan <id>` (ADR-0097 Layer 2): the offline adoption-plan report. Pure-by-
+ * `storytree adopt plan <id>` (ADR-0097 Layer 2): the offline adoption-plan report. Pure-by-
  * injection (the story loader is a seam), so the whole command is tested with a fixture loader — no DB,
  * no spec on disk. The fixture is the library story (six covered caps, one uncovered pocket).
  */

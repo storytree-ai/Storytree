@@ -426,3 +426,170 @@ export function extractImports(src: string): { specifier: string; typeOnly: bool
   for (const m of code.matchAll(DYN_RE)) found.push({ specifier: m[2]!, typeOnly: false });
   return found;
 }
+
+// ===================================================================================================
+// The declared-edge DRIFT report (ADR-0115) — a NON-BLOCKING sibling to {@link checkBoundaries}.
+//
+// `checkBoundaries` REFUSES an undeclared real coupling; this only REPORTS the inverse asymmetries it
+// cannot see: declared cross-story edges that NO code import backs (drift candidates), and real code
+// edges with no declaration. The blocking gate maps packages → stories via the ownership map, so it is
+// blind to a VIRTUAL story (one that owns no package — e.g. `headless-orchestrator`, whose code is
+// physically hosted in OTHER stories' packages) and to IoC-injected / build-artifact / subprocess seams
+// (no import specifier at all). For a virtual story this DERIVES the real cross-story edges from its
+// units' `proof.real.sourceFile` text (read by the disk gatherer, passed in here) via the SAME
+// {@link extractImports} the blocking scan uses — skipping type-only imports (erased) and test
+// scaffolding, exactly as rule (b) does. It NEVER fails the gate: a declared-but-unbacked edge is
+// frequently a LEGITIMATE honesty edge (a build-artifact consumption or an injected-runner coupling),
+// indistinguishable from drift to a machine — so the report SURFACES candidates for human /
+// librarian-curator review, it does not auto-classify them (ADR-0115 d.3/d.4).
+// ===================================================================================================
+
+/** One unit source file gathered for a VIRTUAL story's edge derivation (the gatherer reads the text). */
+export interface VirtualStorySource {
+  /** the virtual story (owns no package) whose capability/contract owns this source file. */
+  story: string;
+  /** repo-relative POSIX path — provenance, and the {@link isTestScaffolding} input. */
+  file: string;
+  /** the raw TS source text; {@link declaredEdgeDriftReport} runs {@link extractImports} over it. */
+  content: string;
+}
+
+/** Inputs to {@link declaredEdgeDriftReport}. Pure DATA — the disk read is the gatherer's job. */
+export interface DriftReportInput {
+  ownership: Ownership;
+  /**
+   * EVERY story id → its declared `depends_on`. Every story must appear (so a virtual story with no
+   * package is still considered); edge TARGETS need not be keys.
+   */
+  storyGraph: Record<string, string[]>;
+  /** story id → its `consumed_by` (provider-side inbound edges, ADR-0074 §4). Optional (default `{}`). */
+  consumedBy?: Record<string, string[]>;
+  /**
+   * package name → its runtime `@storytree/*` deps — the REAL code edges for a PACKAGE-OWNING story
+   * (projected through the ownership map, exactly as the blocking gate reads them).
+   */
+  packageDeps: Record<string, string[]>;
+  /**
+   * Per VIRTUAL story, the raw text of its units' `proof.real.sourceFile`s (and any LITERAL
+   * `sourceGlobs`). The derivation runs over these; a record whose story OWNS a package is ignored
+   * (defensive). Optional (default `[]`).
+   */
+  virtualStorySources?: VirtualStorySource[];
+}
+
+/** Per-story asymmetry between the declared graph and the real code-edge graph (ADR-0115). */
+export interface StoryEdgeDrift {
+  /** the story owns NO package — its real edges were DERIVED from unit `sourceFile` imports. */
+  virtual: boolean;
+  /** declared edges (`depends_on` ∪ inverse(`consumed_by`)) with NO backing code import — drift candidates. */
+  declaredButUnbacked: string[];
+  /** real code edges with NO declaration (a hard gate violation for a package-owning story). */
+  backedButUndeclared: string[];
+}
+
+/** The non-blocking declared-edge drift report (ADR-0115): story id → its asymmetries. */
+export interface DeclaredEdgeDriftReport {
+  /** only stories with at least one asymmetry appear. */
+  byStory: Record<string, StoryEdgeDrift>;
+}
+
+/**
+ * Compute the per-story declared-vs-code edge drift (ADR-0115). PURE: no I/O, never throws, never
+ * fails a gate — the result is a report for review. For each story it diffs the DECLARED cross-story
+ * graph (`depends_on` ∪ inverse(`consumed_by`), via {@link mergeDeclaredGraph}) against the REAL
+ * code-edge graph: `packageDeps` projected through ownership for a package-owning story, or the
+ * `@storytree/*` RUNTIME imports of its units' `sourceFile` text for a VIRTUAL one.
+ */
+export function declaredEdgeDriftReport(input: DriftReportInput): DeclaredEdgeDriftReport {
+  const { ownership, packageDeps } = input;
+  const declared = mergeDeclaredGraph(input.storyGraph, input.consumedBy ?? {});
+
+  // Stories that OWN a package (an organism or a consuming surface, ADR-0100) take their real edges
+  // from packageDeps; every other story is VIRTUAL and derives them from unit sourceFile imports.
+  const ownedStories = new Set<string>([
+    ...Object.values(ownership.organisms),
+    ...Object.values(ownership.surfaces ?? {}),
+  ]);
+
+  const real: Record<string, Set<string>> = {};
+  const addReal = (from: string, to: string): void => {
+    if (from === to) return; // intra-organism / self edge — never a cross-story coupling
+    (real[from] ??= new Set<string>()).add(to);
+  };
+
+  // Package-owning stories: project the real runtime @storytree/* dep graph through ownership.
+  for (const [pkg, deps] of Object.entries(packageDeps)) {
+    const from = storyOf(pkg, ownership);
+    if (from === undefined) continue;
+    for (const dep of deps) {
+      const to = storyOf(dep, ownership);
+      if (to !== undefined) addReal(from, to);
+    }
+  }
+
+  // Virtual stories: derive real edges from the @storytree/* RUNTIME imports in their units' source
+  // files (ADR-0115 §1). Reuse extractImports; skip type-only (erased) + sanctioned test scaffolding.
+  for (const { story, file, content } of input.virtualStorySources ?? []) {
+    if (ownedStories.has(story)) continue; // only virtual stories derive (defensive)
+    if (isTestScaffolding(file)) continue;
+    for (const { specifier, typeOnly } of extractImports(content)) {
+      if (typeOnly) continue;
+      if (!specifier.startsWith(STORYTREE_PREFIX)) continue;
+      const to = storyOf(scopePackage(specifier), ownership);
+      if (to !== undefined) addReal(story, to);
+    }
+  }
+
+  // Per-story set difference. Every story is a declared node (storyGraph carries all of them); also
+  // include any story that only appears as a real-edge source.
+  const stories = new Set<string>([...Object.keys(declared), ...Object.keys(real)]);
+  const byStory: Record<string, StoryEdgeDrift> = {};
+  for (const story of [...stories].sort()) {
+    const declaredSet = declared[story] ?? [];
+    const realSet = real[story] ?? new Set<string>();
+    const declaredButUnbacked = declaredSet.filter((t) => !realSet.has(t)).sort();
+    const backedButUndeclared = [...realSet].filter((t) => !declaredSet.includes(t)).sort();
+    if (declaredButUnbacked.length === 0 && backedButUndeclared.length === 0) continue;
+    byStory[story] = { virtual: !ownedStories.has(story), declaredButUnbacked, backedButUndeclared };
+  }
+  return { byStory };
+}
+
+/**
+ * Render {@link declaredEdgeDriftReport}'s result as the human WARN text the gatherer prints. PURE
+ * (returns the string; the gatherer does the `console.warn`). Explicitly marks the report as
+ * NON-BLOCKING and that it does not auto-classify legitimate-vs-drift (ADR-0115).
+ */
+export function formatDriftReport(report: DeclaredEdgeDriftReport): string {
+  const header =
+    "[check:boundaries] ADR-0115 declared-edge drift report (NON-BLOCKING — review, never fails the gate)";
+  const stories = Object.keys(report.byStory).sort();
+  if (stories.length === 0) {
+    return `${header}: no declared-vs-code edge drift detected.`;
+  }
+  const lines = [`${header}:`];
+  for (const story of stories) {
+    const d = report.byStory[story]!;
+    const kind = d.virtual
+      ? "virtual story — real edges derived from unit sourceFile imports"
+      : "package-owning story";
+    lines.push(`  story "${story}" (${kind}):`);
+    if (d.declaredButUnbacked.length > 0) {
+      lines.push(
+        `    declared but code-unbacked (drift candidate — confirm a build-artifact/IoC honesty edge, ` +
+          `else remove the declaration): ${d.declaredButUnbacked.join(", ")}`,
+      );
+    }
+    if (d.backedButUndeclared.length > 0) {
+      lines.push(
+        `    backed but undeclared (a real code import with no declared edge — declare it or drop the ` +
+          `coupling): ${d.backedButUndeclared.join(", ")}`,
+      );
+    }
+  }
+  lines.push(
+    "  These are review candidates, not failures — a machine cannot tell a legitimate honesty edge " +
+      "from drift (ADR-0115); a human / librarian-curator decides.",
+  );
+  return lines.join("\n");
+}

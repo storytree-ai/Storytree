@@ -14,13 +14,32 @@ import { z } from "zod";
 // Roles & status
 // ---------------------------------------------------------------------------
 
-/** The two roles (ADR-0043 owner decision): admins manage; members read + comment. */
-export const USER_ROLES = ["admin", "member"] as const;
+/**
+ * The three roles (ADR-0043/ADR-0117): admins manage; builders read + comment + post brokered
+ * writes; members read + comment. Ordering: admin ⊇ builder ⊇ member.
+ */
+export const USER_ROLES = ["admin", "builder", "member"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 /** Lifecycle: invited (not yet signed in) → active (seen at least once). */
 export const USER_STATUSES = ["invited", "active"] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
+
+// ---------------------------------------------------------------------------
+// Role scope (ADR-0117 — the brokered-write predicate)
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE: may a caller with this role POST a brokered write (a locally-signed verdict /
+ * presence declaration) through the members-gated write-broker? The brokered-write
+ * scope of `admin ⊇ builder ⊇ member` (ADR-0117 d.2): a `builder` and an `admin` may;
+ * a plain `member` may not. The broker ENDPOINT (apps/studio/server, ADR-0117 Unit 2)
+ * reads this predicate off the resolved role — the role-scope compute lives with the
+ * role model here, never re-inlined at the gate.
+ */
+export function mayBrokerWrite(role: UserRole): boolean {
+  return role === "admin" || role === "builder";
+}
 
 // ---------------------------------------------------------------------------
 // Email normalisation

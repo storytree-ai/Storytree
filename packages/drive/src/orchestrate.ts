@@ -55,8 +55,28 @@ export interface OrchestrateArgs {
 /**
  * The composition result — mirrors {@link HeadlessOrchestratorResult} so the CLI surface can
  * forward it directly; the proposal text is the main deliverable on success.
+ *
+ * When a composition session is already in flight the refusal is typed:
+ *   `{ ok: false, refused: true, reason: "single-session", error }`.
+ * This lets consumers (e.g. the chat surface) distinguish "busy, retry" from a hard error.
  */
-export type OrchestrateResult = HeadlessOrchestratorResult;
+export type OrchestrateResult = HeadlessOrchestratorResult & {
+  /** Present only on the typed single-session refusal (ADR-0108 decision 6). */
+  refused?: true;
+  /** Present only on the typed single-session refusal. */
+  reason?: "single-session";
+};
+
+// ---------------------------------------------------------------------------
+// Composition-level single-session guard (ADR-0108 decision 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * True while a composition-level orchestration session is in flight.
+ * This is the AUTHORITATIVE, TYPED brake; `runHeadlessOrchestrator`'s module-level `inFlight`
+ * flag remains a lower-level backstop. Guards synchronously at the TOP of `orchestrate()`.
+ */
+let compositionInFlight = false;
 
 // ---------------------------------------------------------------------------
 // Composition
@@ -84,26 +104,43 @@ export async function orchestrate({
   maxTurns,
   maxBudgetUsd,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
-  // 1. Render the session-orchestrator agent — fail-closed before any SDK spend if absent.
-  const renderResult = await renderAgentPrompt(store, "session-orchestrator");
-  if (!renderResult.ok) {
+  // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
+  //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
+  if (compositionInFlight) {
     return {
       ok: false,
-      error: `session-orchestrator agent not found in the store: ${renderResult.reason}`,
+      refused: true,
+      reason: "single-session",
+      error:
+        "A composition orchestration session is already in-flight — one session at a time (ADR-0108 decision 6).",
     };
   }
+  compositionInFlight = true;
 
-  // 2. Drive the headless session with the rendered system prompt and the programmatic intent. The
-  //    queryFn/runner are forwarded only when present (exactOptionalPropertyTypes): an offline caller
-  //    injects a scripted queryFn; a live caller omits it (real SDK) and injects the real orientation
-  //    runner so the agent reads the real three surfaces.
-  return runHeadlessOrchestrator({
-    systemPrompt: renderResult.agent.prompt,
-    userPrompt: intent,
-    ...(queryFn !== undefined ? { queryFn } : {}),
-    ...(runner !== undefined ? { runner } : {}),
-    ...(model !== undefined ? { model } : {}),
-    ...(maxTurns !== undefined ? { maxTurns } : {}),
-    ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
-  });
+  try {
+    // 1. Render the session-orchestrator agent — fail-closed before any SDK spend if absent.
+    const renderResult = await renderAgentPrompt(store, "session-orchestrator");
+    if (!renderResult.ok) {
+      return {
+        ok: false,
+        error: `session-orchestrator agent not found in the store: ${renderResult.reason}`,
+      };
+    }
+
+    // 2. Drive the headless session with the rendered system prompt and the programmatic intent. The
+    //    queryFn/runner are forwarded only when present (exactOptionalPropertyTypes): an offline caller
+    //    injects a scripted queryFn; a live caller omits it (real SDK) and injects the real orientation
+    //    runner so the agent reads the real three surfaces.
+    return await runHeadlessOrchestrator({
+      systemPrompt: renderResult.agent.prompt,
+      userPrompt: intent,
+      ...(queryFn !== undefined ? { queryFn } : {}),
+      ...(runner !== undefined ? { runner } : {}),
+      ...(model !== undefined ? { model } : {}),
+      ...(maxTurns !== undefined ? { maxTurns } : {}),
+      ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
+    });
+  } finally {
+    compositionInFlight = false;
+  }
 }

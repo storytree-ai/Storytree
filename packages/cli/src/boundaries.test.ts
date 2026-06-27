@@ -4,15 +4,19 @@ import assert from "node:assert/strict";
 import {
   checkBoundaries,
   classOf,
+  declaredEdgeDriftReport,
   extractImports,
   findCycle,
+  formatDriftReport,
   isFoundational,
   isTestScaffolding,
   mergeDeclaredGraph,
   storyOf,
   stripComments,
+  type DeclaredEdgeDriftReport,
   type Ownership,
   type SourceImport,
+  type VirtualStorySource,
 } from "./boundaries.js";
 
 // A miniature world mirroring the real ONE-class ownership (ADR-0075: the substrate class is gone —
@@ -575,4 +579,255 @@ test("a representative clean set of real source imports adds zero source violati
     sourceImports,
   });
   assert.deepEqual(violations, [], violations.join("\n"));
+});
+
+// ===================================================================================================
+// The non-blocking declared-edge DRIFT report (ADR-0115). A SIBLING to the blocking gate above: it
+// never appends a violation / fails the gate — it computes, per story, the set difference between the
+// DECLARED cross-story graph (depends_on ∪ inverse(consumed_by)) and the REAL code-edge graph, and for
+// a VIRTUAL story (owns no package, e.g. headless-orchestrator) it DERIVES the real edges from its
+// units' `proof.real.sourceFile` text via the existing `extractImports`.
+// ===================================================================================================
+
+// A repo-ALIGNED ownership map (the miniature `ownership` above maps @storytree/agent → drive-machinery
+// for the boundary tests; the drift fixture needs the REAL mapping where @storytree/agent → the `agent`
+// story, so the derivation lands the fixture's edges where ADR-0115 expects them).
+const realWorld: Ownership = {
+  organisms: {
+    "@storytree/library": "library",
+    "@storytree/orchestrator": "drive-machinery",
+    "@storytree/drive": "drive-machinery",
+    "@storytree/agent": "agent",
+    "@storytree/notice-board": "notice-board",
+    "@storytree/studio-members": "studio-members",
+    "@storytree/cli": "cli",
+    "@storytree/storage-protocol": "storage-protocol",
+    "@storytree/proof-protocol": "proof-protocol",
+    "@storytree/forest-world": "forest-world",
+  },
+  foundational: ["@storytree/storage-protocol", "@storytree/proof-protocol", "@storytree/forest-world"],
+  surfaces: { studio: "studio", desktop: "desktop" },
+};
+
+// The real `packages/drive/src/orchestrate.ts` import shape (ADR-0115 fixture): runtime value-imports
+// of @storytree/agent + @storytree/library, plus a TYPE-ONLY @storytree/storage-protocol (erased) and a
+// type-only re-import of @storytree/agent.
+const ORCHESTRATE_TS = `
+import type { Store } from "@storytree/storage-protocol";
+import type { SdkQueryFn, HeadlessOrchestratorResult, OrientationRunner } from "@storytree/agent";
+import { runHeadlessOrchestrator } from "@storytree/agent";
+import { renderAgentPrompt } from "@storytree/library/store";
+export async function orchestrate(): Promise<void> {}
+`;
+
+test("declaredEdgeDriftReport: per-story set difference for a PACKAGE-OWNING story", () => {
+  // notice-board declares [library, drive-machinery] but its code only imports library — so
+  // drive-machinery is declared-but-unbacked; and it imports studio-members with NO declaration — so
+  // studio-members is backed-but-undeclared.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { "notice-board": ["library", "drive-machinery"], library: [], "drive-machinery": [], "studio-members": [] },
+    consumedBy: {},
+    packageDeps: { "@storytree/notice-board": ["@storytree/library", "@storytree/studio-members"] },
+  });
+  assert.deepEqual(report.byStory["notice-board"], {
+    virtual: false,
+    declaredButUnbacked: ["drive-machinery"],
+    backedButUndeclared: ["studio-members"],
+  });
+});
+
+test("declaredEdgeDriftReport: a provider-side consumed_by declaration counts as declared (no false drift)", () => {
+  // cli imports library; the edge is declared PROVIDER-side (library.consumed_by: [cli]) — so it is
+  // backed AND declared: no drift in either direction.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { cli: [], library: [] },
+    consumedBy: { library: ["cli"] },
+    packageDeps: { "@storytree/cli": ["@storytree/library"] },
+  });
+  assert.equal(report.byStory["cli"], undefined);
+  assert.equal(report.byStory["library"], undefined);
+});
+
+test("declaredEdgeDriftReport: derives a VIRTUAL story's real edges from sourceFile imports (the headless-orchestrator fixture)", () => {
+  // The exact ADR-0115 fixture: headless-orchestrator owns no package; declared
+  // [agent, drive-machinery, library, notice-board]; its orchestrator-composition unit's sourceFile
+  // (orchestrate.ts) runtime-imports agent + library and type-only storage-protocol.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: {
+      "headless-orchestrator": ["agent", "drive-machinery", "library", "notice-board"],
+      agent: [],
+      "drive-machinery": [],
+      library: [],
+      "notice-board": [],
+    },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [
+      { story: "headless-orchestrator", file: "packages/drive/src/orchestrate.ts", content: ORCHESTRATE_TS },
+    ],
+  });
+  const drift = report.byStory["headless-orchestrator"];
+  assert.ok(drift, "headless-orchestrator must have a drift entry");
+  assert.equal(drift.virtual, true);
+  // The type-only @storytree/storage-protocol import must NOT surface anywhere (computed before the
+  // deepEqual below, which narrows an `[]` expectation to never[] and would break a later .includes).
+  const flagged = [...drift.declaredButUnbacked, ...drift.backedButUndeclared];
+  assert.ok(!flagged.includes("storage-protocol"), "type-only storage-protocol must never be flagged");
+  // Derived real edges = {agent, library} (runtime imports); so the host edge drive-machinery and the
+  // injected-runner edge notice-board are flagged, and nothing is backed-but-undeclared.
+  assert.deepEqual(drift.declaredButUnbacked, ["drive-machinery", "notice-board"]);
+  assert.deepEqual(drift.backedButUndeclared, []);
+});
+
+test("declaredEdgeDriftReport: a type-only @storytree import does NOT back an edge (erased)", () => {
+  // Same virtual story, but the ONLY agent import is `import type` → agent is declared yet unbacked.
+  const typeOnlyAgent = `import type { Foo } from "@storytree/agent";\nexport const x = 1;\n`;
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["agent"], agent: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [{ story: "v", file: "packages/drive/src/v.ts", content: typeOnlyAgent }],
+  });
+  assert.deepEqual(report.byStory["v"], { virtual: true, declaredButUnbacked: ["agent"], backedButUndeclared: [] });
+  // Flip to a VALUE import → the edge is backed → no drift at all.
+  const valueAgent = `import { foo } from "@storytree/agent";\nexport const x = foo;\n`;
+  const green = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["agent"], agent: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [{ story: "v", file: "packages/drive/src/v.ts", content: valueAgent }],
+  });
+  assert.equal(green.byStory["v"], undefined);
+});
+
+test("declaredEdgeDriftReport: derivation ignores non-@storytree, relative, and self specifiers", () => {
+  const content = `
+import { readFileSync } from "node:fs";
+import { z } from "zod";
+import { local } from "./local.js";
+import { sibling } from "../other/sibling.js";
+import { real } from "@storytree/agent";
+export const x = [readFileSync, z, local, sibling, real];
+`;
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: [], agent: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [{ story: "v", file: "packages/drive/src/v.ts", content }],
+  });
+  // Only the @storytree/agent VALUE import derives an edge → agent is backed-but-undeclared (v declares
+  // nothing). node:/zod/relative specifiers contribute nothing.
+  assert.deepEqual(report.byStory["v"], { virtual: true, declaredButUnbacked: [], backedButUndeclared: ["agent"] });
+});
+
+test("declaredEdgeDriftReport: test-scaffolding source files are skipped in derivation", () => {
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["agent"], agent: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [
+      // a .test.ts file value-importing agent is sanctioned scaffolding → not a real edge.
+      { story: "v", file: "packages/drive/src/orchestrate.test.ts", content: `import { foo } from "@storytree/agent";` },
+    ],
+  });
+  // agent stays declared-but-unbacked (the test import doesn't count as backing).
+  assert.deepEqual(report.byStory["v"], { virtual: true, declaredButUnbacked: ["agent"], backedButUndeclared: [] });
+});
+
+test("declaredEdgeDriftReport: aggregates derived edges across a virtual story's multiple units", () => {
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["agent", "library"], agent: [], library: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [
+      { story: "v", file: "packages/drive/src/a.ts", content: `import { a } from "@storytree/agent";` },
+      { story: "v", file: "packages/agent/src/b.ts", content: `import { b } from "@storytree/library";` },
+    ],
+  });
+  // Both units' edges aggregate → agent AND library are backed → no drift.
+  assert.equal(report.byStory["v"], undefined);
+});
+
+test("declaredEdgeDriftReport: a package-owning story drops intra-organism (self) code edges", () => {
+  // orchestrator and drive are BOTH owned by drive-machinery — an orchestrator→drive import is
+  // intra-organism, never a cross-story edge, so it is not backed-but-undeclared.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { "drive-machinery": [] },
+    consumedBy: {},
+    packageDeps: { "@storytree/orchestrator": ["@storytree/drive"] },
+  });
+  assert.equal(report.byStory["drive-machinery"], undefined);
+});
+
+test("declaredEdgeDriftReport: both edge lists are deterministically sorted", () => {
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["notice-board", "agent", "library"], agent: [], library: [], "notice-board": [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [],
+  });
+  // No source files → nothing backed → all three declared edges flagged, sorted ascending.
+  assert.deepEqual(report.byStory["v"]!.declaredButUnbacked, ["agent", "library", "notice-board"]);
+});
+
+test("declaredEdgeDriftReport: a story with no asymmetry produces no entry, and the report does not raise", () => {
+  // Declared exactly matches real (cli → library, declared + backed). No throw, empty byStory.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { cli: ["library"], library: [] },
+    consumedBy: {},
+    packageDeps: { "@storytree/cli": ["@storytree/library"] },
+  });
+  assert.deepEqual(report.byStory, {});
+});
+
+test("formatDriftReport: an empty report renders a clean, explicitly non-blocking line", () => {
+  const text = formatDriftReport({ byStory: {} });
+  assert.match(text, /ADR-0115/);
+  assert.match(text, /NON-BLOCKING/);
+  assert.match(text, /no declared-vs-code edge drift/i);
+});
+
+test("formatDriftReport: names each story and both asymmetry kinds, marked non-blocking", () => {
+  const report: DeclaredEdgeDriftReport = {
+    byStory: {
+      "headless-orchestrator": { virtual: true, declaredButUnbacked: ["drive-machinery", "notice-board"], backedButUndeclared: [] },
+      "some-story": { virtual: false, declaredButUnbacked: [], backedButUndeclared: ["agent"] },
+    },
+  };
+  const text = formatDriftReport(report);
+  assert.match(text, /NON-BLOCKING/);
+  assert.match(text, /headless-orchestrator/);
+  assert.match(text, /drive-machinery, notice-board/);
+  assert.match(text, /some-story/);
+  assert.match(text, /agent/);
+  // Names both directions of asymmetry.
+  assert.match(text, /declared but code-unbacked/i);
+  assert.match(text, /backed but undeclared/i);
+});
+
+test("declaredEdgeDriftReport: VirtualStorySource passed for a PACKAGE-OWNING story is ignored (defensive)", () => {
+  // agent owns @storytree/agent (not virtual); a stray source record for it must not derive edges —
+  // package-owning stories' real edges come only from packageDeps.
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { agent: [], library: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [
+      { story: "agent", file: "packages/agent/src/x.ts", content: `import { y } from "@storytree/library";` },
+    ],
+  });
+  // The stray record is ignored → agent has no backed edge → no entry (not flagged as backed library).
+  assert.equal(report.byStory["agent"], undefined);
 });

@@ -8,6 +8,12 @@
  *      typed `error` event; the SDK is NOT called (fail-closed before any spend).
  *   3. The terminal `done` event surfaces `costUsd` and `turns` from the orchestrate result.
  *   4. The stream NEVER throws — errors are emitted as a terminal `error` event.
+ *   5. The adapter drives the REAL `orchestrate` composition: the rendered system prompt names
+ *      `session-orchestrator` — proof it reuses the Phase-1 composition, not a fork
+ *      (`cs-drives-the-real-orchestrate-not-a-fork`, ADR-0108 d.2).
+ *   6. The single-session guard holds: a second concurrent `startChatStream` is refused with a
+ *      terminal `error` event while the first session is in-flight and left untouched
+ *      (`cs-fails-closed-and-single-session`, ADR-0108 d.6).
  *
  * IT REUSES THE PHASE-1 COMPOSITION (ADR-0108 d.2): the adapter calls `orchestrate()` — the
  * SAME composition the programmatic entry and terminal command use. It does not re-render the
@@ -46,6 +52,18 @@ function queryYielding(messages: unknown[]): SdkQueryFn {
     (async function* () {
       for (const m of messages) yield m;
     })();
+}
+
+/**
+ * A manually-resolvable promise — lets a scripted session park mid-flight so the first orchestrate
+ * session can be held "in flight" while a second is attempted (the single-session guard test below).
+ */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
 }
 
 const OK_SDK_RESULT = {
@@ -173,6 +191,153 @@ test(
       done.type === "done" ? done.turns : undefined,
       OK_SDK_RESULT.num_turns,
       "done event must surface turns from the orchestrate result (num_turns)",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 4. Drives the REAL orchestrate composition (not a fork): the rendered system
+//    prompt names `session-orchestrator`
+//    (contract `cs-drives-the-real-orchestrate-not-a-fork`, ADR-0108 d.2)
+// ---------------------------------------------------------------------------
+
+test(
+  "startChatStream: drives the real orchestrate composition — the system prompt names session-orchestrator (not a fork)",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+
+    // Capture the system prompt the adapter feeds the SDK. orchestrate renders the REAL
+    // session-orchestrator agent from the corpus and passes its prompt straight through; a fork
+    // (a bespoke hard-coded prompt) would not name the rendered Library agent. Mirrors the capture
+    // pattern in orchestrate.test.ts test 1.
+    let capturedSystemPrompt: string | undefined;
+    const capturingQuery: SdkQueryFn = ({ options }) => {
+      capturedSystemPrompt =
+        typeof options.systemPrompt === "string" ? options.systemPrompt : undefined;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const events = await drain(
+      startChatStream({
+        intent: "Orient and propose the next unit.",
+        store,
+        queryFn: capturingQuery,
+      }),
+    );
+
+    assert.ok(events.length > 0, "stream must yield at least one event");
+    const last = events[events.length - 1];
+    assert.ok(last !== undefined, "stream must yield at least one event");
+    assert.equal(
+      last.type,
+      "done",
+      `the capturing session must drive through to a terminal 'done' event (got '${last.type}')`,
+    );
+
+    assert.ok(
+      capturedSystemPrompt !== undefined,
+      "the adapter must have driven orchestrate, which calls the SDK with a string system prompt",
+    );
+    assert.match(
+      capturedSystemPrompt ?? "",
+      /session-orchestrator/,
+      "the system prompt must name 'session-orchestrator' — proof the adapter drives the REAL " +
+        "orchestrate composition (the rendered Library agent), not a fork (ADR-0108 d.2)",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 5. Single-session guard: a second concurrent session is refused with a
+//    terminal `error` event while the first is in-flight and untouched
+//    (contract `cs-fails-closed-and-single-session`, ADR-0108 d.6)
+// ---------------------------------------------------------------------------
+
+test(
+  "startChatStream: a second concurrent session is refused (single-session guard) while the first is in-flight and untouched",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+
+    // Session 1's scripted SDK session blocks mid-flight: it signals once its generator body is
+    // running (by which point the guard's in-flight flag is already set — it is set synchronously
+    // before the runner iterates the query) then parks on `unblock` before completing. This holds
+    // the one session "in flight" while we attempt a second.
+    const entered = deferred();
+    const unblock = deferred();
+    const blockingQuery: SdkQueryFn = () =>
+      (async function* () {
+        entered.resolve();
+        await unblock.promise;
+        yield OK_SDK_RESULT;
+      })();
+
+    // Kick off session 1 WITHOUT awaiting it, then wait until it is actually in-flight.
+    const firstDrain = drain(
+      startChatStream({
+        intent: "First session: orient and propose.",
+        store,
+        queryFn: blockingQuery,
+      }),
+    );
+    await entered.promise;
+
+    // Session 2, concurrent with session 1 in-flight. Its queryFn is a sentinel: the guard must
+    // refuse BEFORE any SDK work, so this must never be called.
+    let secondQueryCalled = false;
+    const secondQuery: SdkQueryFn = () => {
+      secondQueryCalled = true;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+    const secondEvents = await drain(
+      startChatStream({
+        intent: "Second session: should be refused.",
+        store,
+        queryFn: secondQuery,
+      }),
+    );
+
+    // Release session 1 and let it complete cleanly (no leaked handles — the in-flight flag resets).
+    unblock.resolve();
+    const firstEvents = await firstDrain;
+
+    // --- Session 2 was refused with a terminal error event (the single-session guard) ---
+    assert.ok(secondEvents.length > 0, "the refused session must still yield a terminal event");
+    const secondLast = secondEvents[secondEvents.length - 1];
+    assert.ok(secondLast !== undefined, "the refused session must yield a terminal event");
+    assert.equal(
+      secondLast.type,
+      "error",
+      `the second concurrent session must terminate with an 'error' event; got '${secondLast.type}'`,
+    );
+    assert.match(
+      secondLast.type === "error" ? secondLast.error : "",
+      /in-flight|concurrent|single session/i,
+      "the error must be the single-session refusal (ADR-0108 d.6), not some other failure",
+    );
+    assert.ok(
+      !secondQueryCalled,
+      "the refused session must NOT reach the SDK — the guard refuses before any query() spend",
+    );
+
+    // --- Session 1 was untouched: it completed cleanly with its proposal intact ---
+    assert.ok(firstEvents.length > 0, "the in-flight session must complete with a terminal event");
+    const firstLast = firstEvents[firstEvents.length - 1];
+    assert.ok(firstLast !== undefined, "the in-flight session must complete with a terminal event");
+    assert.equal(
+      firstLast.type,
+      "done",
+      `the running session must be untouched and finish with a 'done' event; got '${firstLast.type}'`,
+    );
+    assert.equal(
+      firstLast.type === "done" ? firstLast.proposal : undefined,
+      OK_SDK_RESULT.result,
+      "the running session's proposal must be intact (the refused second session did not disturb it)",
     );
   },
 );

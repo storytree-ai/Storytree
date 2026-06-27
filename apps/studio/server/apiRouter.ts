@@ -30,6 +30,7 @@ import type { Attestation, Verdict } from '@storytree/proof-protocol';
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
 // shapes, so `buildUatVerdict` can take the real `checkUatProof` as a precisely-typed injection.
 import type { UatProofCheck, UatProofResult } from '@storytree/orchestrator';
+import type { ResolvedAccess } from '@storytree/studio-members';
 import type {
   AdrDocStatus,
   AssetCategory,
@@ -56,6 +57,10 @@ import type { CodeStamp } from './codeStamp';
 import type { InviteMailer } from './inviteMailer';
 import type { BuildRegistry } from './buildRegistry';
 import { runBuildJob, type BuildRunner } from './buildWorker';
+// writeBroker.ts is config-load-safe (it type-imports the raw-TS zod packages and loads their runtime
+// values lazily), so it can be statically imported here without pulling proof-protocol's enums.js into
+// vite's config-load graph — the same way libraryBackend.ts is statically imported.
+import { handleWriteBroker, type WriteBrokerBackend } from './writeBroker';
 
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
@@ -297,7 +302,7 @@ export interface CommentScope {
  */
 export interface MeInfo {
   email: string | null;
-  role: 'admin' | 'member' | null;
+  role: 'admin' | 'builder' | 'member' | null;
   status: 'invited' | 'active' | null;
   member: boolean;
   storeUnreachable?: boolean;
@@ -323,6 +328,12 @@ export interface ApiPolicy {
   gate(method: string, pathname: string): void;
   commentScope: CommentScope | null;
   me: MeInfo;
+  /**
+   * The resolved members access for the caller (ADR-0117): threaded so the write-broker handler can
+   * read the role off the SAME ResolvedAccess the gate authorized from, rather than a lossy MeInfo
+   * reconstruction. `null` = no identity / non-member / membership unresolved (degraded).
+   */
+  access: ResolvedAccess | null;
 }
 
 // ---------- route handlers ----------
@@ -1486,6 +1497,40 @@ async function handleDocs(
   throw new HttpError(404, 'not found');
 }
 
+// ---------- write-broker (ADR-0117 — a builder's brokered write into the shared forest) ----------
+//
+// POST /api/write-broker persists a builder's LOCALLY-SIGNED verdict / presence declaration through
+// the store seam (writeBroker.ts) — the precondition for the operator-attested "invite a builder →
+// their local build blooms via the broker" walk (ADR-0070). The handler holds no signing key and
+// NEVER re-signs (ADR-0091/ADR-0117 d.3): it validates shape + attribution (signer ≡ caller), then
+// persists the verdict UNCHANGED — the spine's signature/anchor survive byte-for-byte (PgWorkStore
+// writes `doc: verdict` as-is; the `actor` is a separate audit field, never the verdict's signer).
+// The LibraryBackend verdict/presence writes are OPTIONAL (the json backend has neither), so this
+// adapter refuses with 503 when the live store isn't behind the backend, mirroring handleUatAttest.
+
+/**
+ * Adapt the studio's {@link LibraryBackend} to the handler's required {@link WriteBrokerBackend} seam:
+ * delegate to the backend's optional verdict/presence writes, refusing with 503 when they are absent
+ * (the json backend has no events.verdict / events.session). The 503 fires only AFTER the handler's
+ * authorization + shape + attribution walls pass, so a refused/forged write never reaches here.
+ */
+function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
+  return {
+    async signUatVerdict(verdict, actor) {
+      if (!backend.signUatVerdict) {
+        throw new HttpError(503, 'persisting a brokered verdict needs the live store (pg) — bring the DB up (pnpm db:up)');
+      }
+      return backend.signUatVerdict(verdict, actor);
+    },
+    async declarePresence(doc, actor) {
+      if (!backend.declarePresence) {
+        throw new HttpError(503, 'persisting brokered presence needs the live store (pg) — bring the DB up (pnpm db:up)');
+      }
+      return backend.declarePresence(doc, actor);
+    },
+  };
+}
+
 // ---------- the dispatch ----------
 
 /** Everything one front (dev plugin / hosted server) wires into the route table. */
@@ -1660,6 +1705,18 @@ export async function handleApiRequest(
       const stamp = await ctx.codeStamp();
       const commitSha = process.env['STORYTREE_STUDIO_COMMIT'] ?? stamp?.startedAt ?? null;
       await handleUatAttest(req, res, ctx, ctx.policy?.me.email ?? null, commitSha);
+    } else if (url.pathname === '/api/write-broker') {
+      // ADR-0117: a remote builder's local build spine POSTs its locally-signed verdict / presence
+      // here so the build blooms in the shared forest (ADR-0070). The policy gate already enforced
+      // builder-or-admin scope; the handler re-checks (defence in depth via mayBrokerWrite), enforces
+      // the attribution wall (signer ≡ caller), and persists the verdict UNCHANGED (no re-sign). The
+      // caller + resolved access ride the SAME policy the gate authorized from. Hosted-only: the open
+      // dev posture has no policy → no caller → 401.
+      await handleWriteBroker(req, res, {
+        backend: writeBrokerBackend(ctx.backend),
+        caller: ctx.policy?.me.email ?? null,
+        access: ctx.policy?.access ?? null,
+      });
     } else {
       throw new HttpError(404, 'unknown endpoint');
     }

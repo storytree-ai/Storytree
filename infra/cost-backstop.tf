@@ -1,6 +1,6 @@
 # Fixed nightly DB down-window — 01:00–07:00 Australia/Sydney (ADR-0114, amending ADR-0015 §5).
 # Two Cloud Scheduler jobs PATCH the Cloud SQL Admin API directly: STOP at 01:00 and START at 07:00.
-# Together they REPLACE the idle-aware auto-stop (idle-stop.tf, now paused): the hosted studio (ADR-0042)
+# Together they REPLACE the idle-aware auto-stop (removed in the ADR-0114 follow-up): the hosted studio (ADR-0042)
 # is reached by trusted-circle MEMBERS who cannot `db:up`, so availability must be PREDICTABLE — up
 # across waking hours, asleep only overnight — rather than depending on an idle heuristic (which left no
 # morning START, so a stopped instance stayed down until a human woke it) or a quiet-hour floor.

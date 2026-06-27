@@ -47,6 +47,15 @@
       "env": {
         "STORYTREE_STUDIO_STORE": "json"
       }
+    },
+    {
+      "name": "studio-json-5183",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "studio", "dev", "--port", "5183", "--strictPort"],
+      "port": 5183,
+      "env": {
+        "STORYTREE_STUDIO_STORE": "json"
+      }
     }
   ]
 }
