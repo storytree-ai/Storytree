@@ -8,17 +8,20 @@ status: proposed
 proof_mode: integration-test
 depends_on: [local-backend-boot]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors an
-# integration test that imports a NOT-YET-EXISTING symbol from a NEW source file under apps/desktop/src
-# (red = module-not-found against the source that does not exist at HEAD), then writes that one new
-# source file (green). The new module is the shared-forest READINESS probe — a pure-ish connection-smoke
-# over an INJECTED connector seam (so it is offline-testable: a refused/granted connector double drives
-# the fail-closed vs ready paths). The REAL Cloud SQL connection + the member's live IAM grant are
-# operator-attested (a real DB socket on port 3307 + a keyless IAM grant cannot run in CI), NOT this
-# offline test. `install: true` + a typecheck wall because the probe imports the store connection types
-# across the package boundary (the proof runs in a fresh worktree — tsx + tsc need the lockfile-only
-# install, ADR-0031 §2). Single LITERAL source file (no `*`), so the default node:test proof on the one
-# test file is legal — no `proofCommand`.
+# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (ADR-0057 §3 expansion C): contracts
+# 1 & 2 already landed (PR #397) — `forest-readiness.ts` + `forest-readiness.test.ts` EXIST at HEAD, the
+# resolving-connector and refused-connector paths are proven. This build completes the DROPPED contract 3
+# (`fr-bounded-never-hangs`): the leaf ADDS a hanging-connector regression test that FAILS against the
+# CURRENT no-deadline probe (a runtime red — its own node:test per-test timeout fires because the probe
+# `await`s a connector that never settles), then EDITS `forest-readiness.ts` to make the connection
+# attempt BOUNDED (the `serve.ts` `withTimeout` shape). The red is genuine and runtime, NOT a missing
+# symbol: the symbol already exists, the behaviour (an un-deadlined probe) is wrong. Contracts 1 & 2
+# re-run in the SAME suite as a no-regression wall — they stay green against the unchanged source, only
+# the new contract-3 test goes red, exactly the additive edit-existing shape `drift-reads-store.md` uses.
+# `install: true` + a typecheck wall because the probe imports the store connection types across the
+# package boundary (the proof runs in a fresh worktree — tsx + tsc need the lockfile-only install,
+# ADR-0031 §2). Single LITERAL source file (no `*`), so the default node:test proof on the one test file
+# is legal — no `proofCommand` (the edit-existing single-literal-glob exemption, proof-config.ts refine).
 proof:
   command:
     file: pnpm
@@ -36,6 +39,7 @@ proof:
     typecheck:
       file: pnpm
       args: ["--filter", "desktop", "typecheck"]
+    editsExisting: true
 ---
 
 # The local backend's writes reach the shared Cloud SQL, with a readiness probe that fails closed
@@ -46,11 +50,15 @@ probe that fails closed (and clear guidance) when the member lacks the IAM grant
 **Depends on —** [`local-backend-boot`](local-backend-boot.md) — the connection/readiness is the local
 backend's store seam; the probe runs as part of the backend this capability stands up.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. ADR-0113 §6 keeps the
-> SHARED Cloud SQL as the source of truth (one living forest) — a per-member local store is explicitly
-> NOT chosen. The member's builds, verdicts, and presence write to the same `events.*` schema the owner
-> watches, which requires granting his Google identity Cloud SQL IAM access (ADR-0021 keyless) — an
-> **attended privileged action performed at delivery**, not code. The connector this rides is real:
+> **Proof status (honest) — PARTLY BUILT.** Contracts 1 & 2 (`fr-ready-when-connector-resolves`,
+> `fr-fails-closed-with-guidance-when-ungranted`) LANDED in PR #397: `forest-readiness.ts` +
+> `forest-readiness.test.ts` exist at HEAD with a signed verdict over those two. Contract 3
+> (`fr-bounded-never-hangs`) was DROPPED by that build and is what THIS edit-existing build completes —
+> a hanging-connector test + a bounded deadline on the probe. ADR-0113 §6 keeps the SHARED Cloud SQL as
+> the source of truth (one living forest) — a per-member local store is explicitly NOT chosen. The
+> member's builds, verdicts, and presence write to the same `events.*` schema the owner watches, which
+> requires granting his Google identity Cloud SQL IAM access (ADR-0021 keyless) — an **attended
+> privileged action performed at delivery**, not code. The connector this rides is real:
 > `@storytree/store`'s keyless Cloud SQL IAM connection (the Node connector + ambient ADC, ADR-0021),
 > the SAME path `@storytree/drive`'s `--store pg` build persistence uses.
 
@@ -104,48 +112,87 @@ The integration test would:
 2. Drive the probe with a REFUSED/ungranted connector double (rejects with a connection-shaped error) →
    it reports NOT ready with member-actionable guidance (the member needs the Cloud SQL IAM grant
    (ADR-0021), or the DB is idle-stopped — `db:up`), never a thrown crash.
-3. Drive the probe with a connector that HANGS → the probe is bounded (a deadline, the `serve.ts`
-   `withTimeout` precedent) and reports not-ready-due-to-timeout rather than hanging indefinitely.
+3. Drive the probe with a connector that HANGS (an `async () => new Promise(() => {})` that never
+   settles), passing a SHORT injected deadline (e.g. 50 ms) → the probe resolves to
+   `{ ready: false, guidance: <timeout> }` rather than hanging indefinitely (a deadline, the `serve.ts`
+   `withTimeout` precedent). Give this test an explicit, GENEROUS node:test per-test timeout (e.g.
+   `{ timeout: 5000 }`) so that against the UNCHANGED no-deadline source it FAILS at its own timeout (a
+   FINITE red, never a wedge), and after the edit resolves fast within the injected 50 ms (green).
 4. Assert the probe NEVER reports ready unless the connector actually resolved — no forged-ready path.
 
 ## Contracts (3)
 
 The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `desktop` suite),
-collaborators stubbed. None exist yet; each is the assertion a contract test WILL prove against the real
-probe code once authored (provisional path — re-cite at real `file:line` when built).
+collaborators stubbed. Contracts 1 & 2 are PROVEN (LANDED #397, real tests in `forest-readiness.test.ts`);
+contract 3 is the dropped one this edit-existing build completes (its test is added to the same file).
 
 1. **`fr-ready-when-connector-resolves`** — a resolving connector reports the shared forest ready
    - **asserts —** given a connector double that resolves to a usable connection, the probe reports READY
      (writes to the shared store may proceed) — and reports ready ONLY when the connector actually
      resolved (no forged-ready path).
-   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the ready path) *(provisional path)*
+   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the ready path) — LANDED #397
 2. **`fr-fails-closed-with-guidance-when-ungranted`** — a refused connector yields actionable guidance
    - **asserts —** given a connector double that rejects with a connection-shaped error (ungranted IAM /
      DB down), the probe reports NOT ready with member-actionable guidance (the IAM grant / `db:up`),
      never a thrown crash and never silently proceeding to write.
-   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the fail-closed path)
-3. **`fr-bounded-never-hangs`** — a hanging connector is bounded by a deadline
-   - **asserts —** given a connector double that never settles, the probe is bounded by a deadline (the
-     `serve.ts` `withTimeout` precedent) and reports not-ready-due-to-timeout, never hanging the backend.
-   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the deadline)
+   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the fail-closed path) — LANDED #397
+3. **`fr-bounded-never-hangs`** — a hanging connector is bounded by an injectable deadline
+   *(THE DROPPED CONTRACT — this build completes it; edit-existing, see "the edit-existing slice" below)*
+   - **asserts —** given a connector double that NEVER settles, the probe resolves to
+     `{ ready: false, guidance: <timeout-actionable> }` within roughly the injected deadline — it never
+     hangs the backend on an un-deadlined Cloud SQL handshake (the real 5–15 min idle-wake / cold-start
+     case). The probe takes an injectable timeout (default sensible, e.g. ~5 s à la `serve.ts`'s
+     `MEMBERS_RESOLVE_TIMEOUT_MS`) so the test can drive it with a SHORT deadline and assert a bounded
+     elapsed wall-clock; the timer is `.unref()`'d so a hung attempt never keeps the process alive.
+   - **covers —** `apps/desktop/src/backend/forest-readiness.ts` (the deadline arm of
+     `probeForestReadiness` — the `Promise.race([connector(), timeoutThatResolvesNotReady(ms)])` shape)
 
-## Guidance — the net-new slice that earns the signed verdict
+## Guidance — the edit-existing slice that completes contract 3
 
-The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the readiness probe as a
-new module, test-first.
+The brownfield rung toward `healthy` (ADR-0057 §3, EDIT-EXISTING): contracts 1 & 2 already landed (PR
+#397) — `forest-readiness.ts` and `forest-readiness.test.ts` EXIST at HEAD. This build completes the
+DROPPED contract 3 (`fr-bounded-never-hangs`): the probe currently does `await connector()` with NO
+deadline, so a hanging Cloud SQL handshake (the real 5–15 min idle-wake / cold-start case) would hang the
+backend forever. Add a hanging-connector regression test that fails against that behaviour, then bound the
+probe. Do NOT touch the resolving-connector or refused-connector tests/paths — they are proven; this is
+purely additive.
 
-- **The new test —** `apps/desktop/src/backend/forest-readiness.test.ts` (`node:test` +
-  `node:assert/strict`). Import `{ probeForestReadiness }` (or the chosen name) from
-  `"./forest-readiness.js"`. Build a granted connector double, a refused connector double, and a hanging
-  connector double.
-- **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `forest-readiness.ts`
-  does not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red). Assert the
-  ready path, the fail-closed-with-guidance path, and the bounded-never-hangs path.
-- **The GREEN —** write `apps/desktop/src/backend/forest-readiness.ts`: a function that takes the injected
-  connector, attempts a bounded connection (the `withTimeout` shape), and returns a readiness result —
-  READY only on an actual resolve, otherwise NOT ready with member-actionable guidance (IAM grant / DB
-  down / timeout). After it, the import resolves, the assertions hold, and the package suite + typecheck
-  stay green.
+- **What exists at HEAD —** `probeForestReadiness(connector)` returns `{ ready: true }` on resolve and
+  `{ ready: false, guidance }` on reject — but it `await`s the connector with no timeout. The
+  resolving-connector and refused-connector tests already pass. Read them; do not change them.
+- **EXTEND the existing test —** `apps/desktop/src/backend/forest-readiness.test.ts`. ADD ONE test for the
+  hanging path. Drive the probe with a connector that NEVER settles
+  (`async () => new Promise<ForestConnection>(() => {})`) and a SHORT injected deadline (e.g. 50 ms).
+  Assert the result is `{ ready: false }` with member-actionable guidance (mentioning the timeout / DB
+  idle-wake). Give the test an explicit, GENEROUS node:test per-test timeout so the red is FINITE, not a
+  wedge:
+
+  ```ts
+  test("forest-readiness: a hanging connector is bounded, never hangs", { timeout: 5000 }, async () => {
+    const hangingConnector: ForestConnectorFn = () => new Promise<ForestConnection>(() => {});
+    const started = Date.now();
+    const result = await probeForestReadiness(hangingConnector, { timeoutMs: 50 });
+    assert.equal(result.ready, false, "a hanging connector must fail closed, not report ready");
+    if (result.ready) assert.fail("probe must not report ready when the connector hangs");
+    assert.ok(/timeout|timed out|idle|db:up|Cloud SQL/i.test(result.guidance), "guidance must be actionable");
+    assert.ok(Date.now() - started < 4000, "the probe must resolve well within the injected deadline, not hang");
+  });
+  ```
+
+- **The RED the spine observes (before IMPLEMENT) —** this is a RUNTIME red, NOT a missing symbol
+  (`probeForestReadiness` already exists). Against the UNCHANGED no-deadline source the probe `await`s the
+  never-settling connector forever, so the new test never resolves and FAILS at its own `{ timeout: 5000 }`
+  node:test deadline — a finite, observed red. Contracts 1 & 2 stay GREEN in the same run (the
+  no-regression wall) — only the new test is red.
+- **The GREEN (the edit) —** EDIT `apps/desktop/src/backend/forest-readiness.ts` to make the connection
+  attempt bounded. Add an injectable timeout (an options arg, e.g.
+  `probeForestReadiness(connector, { timeoutMs = 5000 } = {})`) and race the connector against a timer that
+  RESOLVES to `{ ready: false, guidance: <timeout-actionable> }` (the `serve.ts` `withTimeout` precedent —
+  but resolve-not-ready rather than reject, so the existing try/catch shape stays simple):
+  `Promise.race([attemptConnect(connector), timeoutThatResolvesNotReady(timeoutMs)])`. Keep the resolving
+  and refused paths byte-identical in behaviour. `.unref()` the timer so a hung attempt never keeps the
+  process alive. After the edit, the hanging test resolves fast within 50 ms (green), the other two stay
+  green, and the package suite + typecheck stay green.
 
 Rules:
 
