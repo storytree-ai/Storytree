@@ -354,6 +354,21 @@ export async function treeCommand(
     }
   }
 
+  // Reliability-gates block (ADR-0118: `tree` absorbs gate INSPECTION — was `gate list`). The
+  // brownfield obligation set rendered per-gate — id, kind, and the SIGNED-verdict glyph — so the
+  // story's full reliability surface reads here on the orientation surface, not only in the standalone
+  // `gate list` (kept as a back-compat alias). Mirrors the UAT-tests block: `proven=` (✓/✗/–) is the
+  // gate verdict, present only with --pg; the rows still render offline (parsed from the spec).
+  if (reliabilityGates.length > 0) {
+    lines.push("", "Reliability gates:");
+    const idWidth = Math.max(...reliabilityGates.map((g) => g.id.length));
+    for (const g of reliabilityGates) {
+      const proven = provenMark(g.id);
+      const provenCol = proven === "" ? "" : `  proven=${proven}`;
+      lines.push(`  ${g.id.padEnd(idWidth)}  kind=${g.kind.padEnd(11)}${provenCol}  ${g.title}`);
+    }
+  }
+
   // Presence block — advisory, never throws, silently absent when empty or on error
   const relevantNodes = new Set<string>([storyId, ...capIds]);
   if (deps.presence !== null) {
