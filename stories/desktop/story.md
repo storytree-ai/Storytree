@@ -39,11 +39,16 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, local-cred
 #                       persists them — no per-friend Cloud SQL IAM grant, no local DB connection. This is a
 #                       RUNTIME HTTP edge (a configured broker URL + a POST client), NOT a package import:
 #                       the desktop MUST NOT import apps/studio/server source (the surface boundary,
-#                       ADR-0100). So it adds NO new @storytree/* dep to apps/desktop/package.json for this
-#                       edge (the shapes POSTed come from @storytree/proof-protocol / @storytree/notice-board,
-#                       reachable transitively); `check:boundaries` needs no new declared PACKAGE edge for an
-#                       HTTP consumption. Declared here so the cross-story dependency is visible/forest-rendered.
-depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud]
+#                       ADR-0100). The studio-cloud edge itself adds no apps/studio/server import.
+#   - proof-protocol, notice-board — the WIRE SHAPES the broker write-client POSTs. The client imports
+#                       @storytree/proof-protocol (`Verdict`) and @storytree/notice-board (`PresenceDeclaration`)
+#                       to type — and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`).
+#                       Pure-zod protocol packages (no `pg`, no server) so brokers-not-direct still holds — but
+#                       they are NOT reachable transitively (this repo's pnpm strict isolation has no hoisting):
+#                       they are DECLARED deps in apps/desktop/package.json, so `check:boundaries` requires the
+#                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
+#                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
+depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
 # client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the
@@ -238,9 +243,17 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
   [`write-broker`](../studio-cloud/write-broker.md) over HTTPS, and the server persists them (the friend
   holds no DB identity). This is a **runtime HTTP edge** — a configured broker URL + a `fetch` POST client
   in [`shared-forest-connection`](shared-forest-connection.md) — NOT a source import: the desktop does NOT
-  import `apps/studio/server` (the surface boundary, ADR-0100), so it adds no new `@storytree/*` package
-  dep for this edge. The friend's in-app `builder` role (studio-members, consumed transitively through the
-  broker's gate) is what authorizes the POST.
+  import `apps/studio/server` (the surface boundary, ADR-0100). The friend's in-app `builder` role
+  (studio-members, consumed transitively through the broker's gate) is what authorizes the POST.
+- **`proof-protocol`, `notice-board`** — the **wire SHAPES** the broker client POSTs.
+  [`shared-forest-connection`](shared-forest-connection.md)'s write client imports
+  `@storytree/proof-protocol` (`Verdict`) and `@storytree/notice-board` (`PresenceDeclaration`) to type —
+  and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`). They are pure-zod
+  protocol packages (no `pg`, no server), so brokers-not-direct holds; but they are **not** reachable
+  transitively (this repo's pnpm strict isolation has no hoisting), so they are DECLARED deps in
+  `apps/desktop/package.json` and the cross-story edges are declared in `depends_on` above — exactly the
+  ADR-0074 / ADR-0113 §8 "declare the edge, never work around it" pattern the drive-machinery / studio /
+  library edges follow.
 
 ## Story UAT
 
