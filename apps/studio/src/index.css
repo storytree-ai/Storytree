@@ -2453,6 +2453,64 @@ mark.st-hl.flash {
   margin: 0;
 }
 
+/* ── ChatDock (leg-7 chip 1, ADR-0108 / ADR-0113) ────────────────────────────────────────────────
+   The collapsible, draggable OVERLAY that docks ChatPanel to the BOTTOM of the forest map. Its
+   GEOMETRY is inline (position:fixed / bottom:0 / z-index / the dragged height — see ChatDock.tsx);
+   everything here is COSMETIC and is the desktop story's operator-attested UAT leg 7 (ADR-0070), not
+   a signed visual verdict — a restrained, clean baseline the owner re-witnesses. The dock is a flex
+   column: the toggle bar fixed, the body flex:1 and scrolling, so a tall conversation scrolls within
+   whatever height the operator dragged. */
+.chat-dock {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+/* The full-width clickable bar that folds/unfolds the dock. */
+.chat-dock-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 18px;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.chat-dock-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+}
+.chat-dock-toggle-chevron {
+  color: var(--muted);
+  font-size: 12px;
+}
+/* The thin top-edge grabber — drag up to grow, down to shrink. */
+.chat-dock-resize {
+  height: 6px;
+  flex: 0 0 auto;
+  cursor: ns-resize;
+  background: transparent;
+}
+.chat-dock-resize:hover {
+  background: var(--accent-weak);
+}
+/* The body holds the mounted ChatPanel and scrolls within the dragged height. (.chat-panel keeps its
+   own max-width / margin:auto, so the conversation stays centered inside the dock.) */
+.chat-dock-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .build-transcript {
   margin: 0;
   padding: 8px 10px 8px 26px;
