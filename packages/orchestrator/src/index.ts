@@ -174,18 +174,32 @@ export { observeAndSign } from "./proof/observe-and-sign.js";
 // ADR-0097: the named spine principal that SIGNS an `adopted` verdict (the machine witness; the human
 // who pressed Adopt is the verdict's `approvedBy`).
 export { SPINE_PRINCIPAL } from "./proof/spine-principal.js";
-// ADR-0097 Layer 2: the pure adoption-proposal classifier — a structural covers-diff (Fork 1) of a
-// story's `(covers:)` declarations against its capability set (covered vs uncovered + the extensible
-// pocket slot ADR-0098's agent analysis fills). Offline, no store/git/clock.
+// ADR-0097 Layer 2: the pure adoption-proposal classifier. Two halves, both offline (no store/git/clock):
+// the STRUCTURAL covers-diff (`classifyAdoption`, Fork 1) — a story's `(covers:)` declarations vs its
+// capability set (covered vs uncovered + the extensible pocket slot) — and the JUDGMENT half
+// (`assembleProposal`, ADR-0098 d.1): stamps each uncovered pocket's observe/R1/R2 class from injected
+// agent readings, emits recommend-only `ProposedGate` stanzas (`renderProposedGate` round-trips them
+// through the real reliability-gate parser), and sweeps the surfaced forks. An un-read pocket stays
+// `unclassified` (fail-closed).
 export type {
   AdoptionProposal,
   AdoptionProposalSpec,
+  AdoptionProposalEnriched,
+  AssembleProposalSpec,
   CapAdoption,
   CoveringGate,
   ClassifierGate,
   PocketClass,
+  PocketReading,
+  ProposedGate,
+  ProposedGateKind,
 } from "./proof/adoption-proposal.js";
-export { classifyAdoption } from "./proof/adoption-proposal.js";
+export {
+  classifyAdoption,
+  assembleProposal,
+  renderProposedGate,
+  parsePocketReadings,
+} from "./proof/adoption-proposal.js";
 // ADR-0098 Layer 3 (U4): the pre-build batch decision-sweep — the deterministic owner-fork-bar
 // classifier (the d.5 escalate-ownership-not-uncertainty discriminator) + the partition + the
 // fail-closed halt gate the build-tests `--real` drive consults before any spend. Pure, offline; the

@@ -39,7 +39,8 @@ import {
   gateFailures,
   levelCounts,
 } from "./health.js";
-import { lookupNodeBuildConfig } from "@storytree/orchestrator";
+import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestrator";
+import type { PocketReading } from "@storytree/orchestrator";
 
 import { nodeBuild, nodeHelp, nodeResolve } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
@@ -1172,6 +1173,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "superseded-by"?: string;
     "memory-dir"?: string;
     review?: boolean;
+    readings?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1214,6 +1216,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "superseded-by": { type: "string" },
         "memory-dir": { type: "string" },
         review: { type: "boolean", default: false },
+        readings: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -1531,7 +1534,28 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // either feeds the fail-closed chain (flag → STORYTREE_SIGNER → git email) inside runAdopt.
     const approverFlag = values.signer ?? values.actor;
     const adoptOpts = approverFlag !== undefined ? { signer: approverFlag } : {};
-    if (sub === "plan") return adoptCommand({ mode: "plan", target: third }, adoptOpts, adoptDeps);
+    if (sub === "plan") {
+      // `--readings <file>` (ADR-0098 d.1): the agent's per-pocket analysis lifts the plan from the
+      // mechanical covers-diff to the FULL proposal. The file IO is fail-closed here; the parsed map then
+      // flows through the offline-testable dispatcher → adoptPlanCommand.
+      let readings: Readonly<Record<string, PocketReading>> | undefined;
+      if (values.readings !== undefined) {
+        try {
+          readings = parsePocketReadings(JSON.parse(readFileSync(values.readings, "utf8")));
+        } catch (err) {
+          return {
+            ok: false,
+            body: `--readings: could not read/parse "${values.readings}" as a pocket-readings JSON map — ${err instanceof Error ? err.message : String(err)}`,
+            next: ["storytree adopt plan <story-id>"],
+          };
+        }
+      }
+      return adoptCommand(
+        { mode: "plan", target: third, ...(readings !== undefined ? { readings } : {}) },
+        adoptOpts,
+        adoptDeps,
+      );
+    }
     // bare: `storytree adopt <story-id>` RUNS the adoption.
     return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);
   }

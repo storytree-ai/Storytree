@@ -1,4 +1,7 @@
+import { z } from "zod";
+
 import type { ReliabilityGate, ReliabilityGateKind } from "@storytree/library";
+import { sweepDecisions, type DecisionFork, type DecisionSweep } from "./decision-sweep.js";
 
 /**
  * The Layer-2 ADOPTION-PROPOSAL classifier (ADR-0097 Layer 2): the mechanical, ratified compute that
@@ -26,13 +29,18 @@ import type { ReliabilityGate, ReliabilityGateKind } from "@storytree/library";
  */
 
 /**
- * The finer sub-classification of an UNCOVERED capability — the Layer-2 ↔ Layer-3 contract (ADR-0098 §1).
- * Layer 2's mechanical output is covered-vs-uncovered (the covers-diff); the finer call is agent analysis
- * that fills this slot, and ADR-0098 (proposed) finalizes its taxonomy. EXTENSIBLE by design — today the
- * structural compute only emits `unclassified`; the additional arms ADR-0098 ratifies are grown here
- * later (a string union widens cleanly), so consumers must treat unknown values as forward-compatible.
+ * The finer sub-classification of an UNCOVERED capability — the Layer-2 ↔ Layer-3 contract (ADR-0098 d.1).
+ * The structural covers-diff ({@link classifyAdoption}) only ever emits `unclassified` (an uncovered cap
+ * awaiting the agent's call); {@link assembleProposal} stamps the finer ADR-0098 d.1 taxonomy from the
+ * agent's injected per-pocket reading:
+ *  - `observe` — untested but CORRECT and testable-as-is (an `observe` gate, observe-and-sign → `adopted`).
+ *  - `R1`      — untested AND incomplete/incorrect: a behavioural red (`editsExisting`, ADR-0057).
+ *  - `R2`      — untested, correct, but UNTESTABLE as-is: a refactor-for-testability structural red (ADR-0098 d.1).
+ * `unclassified` stays the fail-closed default for an uncovered cap the agent supplied no reading for —
+ * never silently guessed. A string union, so a future arm widens cleanly; consumers treat unknown values
+ * as forward-compatible.
  */
-export type PocketClass = "unclassified";
+export type PocketClass = "unclassified" | "observe" | "R1" | "R2";
 
 /** The fields of a reliability gate the classifier reads — only its id, kind, and coverage declaration. */
 export type ClassifierGate = Pick<ReliabilityGate, "id" | "kind" | "covers">;
@@ -155,4 +163,222 @@ export function classifyAdoption(spec: AdoptionProposalSpec): AdoptionProposal {
     uncovered,
     danglingCovers: [...danglingCovers].sort(),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Layer-2 JUDGMENT half (ADR-0098 d.1): pocket classification → proposed gates
+// ---------------------------------------------------------------------------
+
+/**
+ * The kind of reliability gate the proposal RECOMMENDS for an uncovered pocket — the two honest
+ * brownfield paths (ADR-0085 / ADR-0098): `observe` (correct & testable-as-is → observe-and-sign) or
+ * `build-tests` (earned by a real red→green, R1 or R2). Never `integrate` (folded under a cap, not
+ * proposed per-pocket).
+ */
+export type ProposedGateKind = "observe" | "build-tests";
+
+/**
+ * A RECOMMENDED reliability-gate stanza for one uncovered pocket — the proposal's build hand-off, as
+ * DATA (recommend-only, ADR-0097 d.4: the machine never writes the authored spec). It carries exactly
+ * what a `## Reliability Gates` item needs so it round-trips through the real `parseReliabilityGates`
+ * ({@link renderProposedGate} is the renderer; the round-trip is the honesty oracle — a recommendation is
+ * a valid floor entry, not free text). The human reviews and authors it; nothing greens until
+ * `gate run --real` drives it.
+ */
+export interface ProposedGate {
+  /** The uncovered capability this gate would cover. */
+  capId: string;
+  /** `observe` (adopt-able as-is) or `build-tests` (earned by real red→green). */
+  kind: ProposedGateKind;
+  /** The cap ids the gate `(covers:)` — at least `[capId]`. */
+  covers: string[];
+  /** The gate's human title (the bold lead of the rendered item). */
+  title: string;
+  /**
+   * The declared proof command (the backticked span): the suite the spine OBSERVES for an `observe`
+   * gate, or the whole-package-suite regression wall a `build-tests` R1/R2 drive greens against (ADR-0098 d.2).
+   */
+  proofCommand: string;
+  /** For a `build-tests` gate: the ADR-0098 d.1 red taxonomy (`R1` behavioural / `R2` refactor). Absent for `observe`. */
+  redKind?: "R1" | "R2";
+  /**
+   * For a `build-tests` gate: the `(build: <node-id>)` whose `real:` arm `gate run --real` borrows to
+   * drive the red→green (ADR-0098 U2). Absent for `observe` (nothing to drive).
+   */
+  buildNode?: string;
+}
+
+/**
+ * The agent's per-pocket READING of one uncovered capability — the JUDGMENT half of Layer 2, supplied as
+ * INJECTED DATA (the orchestrator / story-author session's pre-build pocket analysis, ADR-0098 d.5),
+ * exactly as {@link DecisionFork}s are injected into the decision sweep. The pure compute never invents
+ * this — *is this pocket correct? testable-as-is?* is reasoning over code, not a heuristic. An uncovered
+ * cap with NO reading stays `unclassified` (the fail-closed default).
+ */
+export interface PocketReading {
+  /** The agent's ADR-0098 d.1 call: `observe` (testable-as-is) | `R1` (behavioural) | `R2` (refactor). */
+  class: Exclude<PocketClass, "unclassified">;
+  /** The recommended gate's title. */
+  title: string;
+  /** The recommended proof command (the observe suite, or the build-tests regression-wall package suite). */
+  proofCommand: string;
+  /** For an `R1`/`R2` reading: the `(build:)` node id whose `real:` arm the gate borrows. */
+  buildNode?: string;
+  /** The candidate design forks the agent surfaced for this pocket — fed to the decision sweep. */
+  forks?: readonly DecisionFork[];
+}
+
+/** Everything {@link assembleProposal} reads: the structural spec + the agent's per-pocket readings. */
+export interface AssembleProposalSpec extends AdoptionProposalSpec {
+  /**
+   * The agent's per-pocket reading, keyed by capability id. An uncovered cap ABSENT from this map stays
+   * `unclassified` and gets no proposed gate (the fail-closed honesty wall). Covered caps are ignored.
+   */
+  readings: Readonly<Record<string, PocketReading>>;
+}
+
+/**
+ * A story's FULL adoption proposal (Layer 2, both halves): the structural covers-diff
+ * ({@link AdoptionProposal}) enriched with the agent-stamped pocket classes, the recommended gate
+ * stanzas, and the decision sweep over the surfaced forks. Recommend-only — it greens nothing and
+ * authors nothing; it is the "adopt-able vs needs-build-tests vs decisions-I-need-from-you" surface
+ * ADR-0097 names.
+ */
+export interface AdoptionProposalEnriched extends AdoptionProposal {
+  /** One recommended gate stanza per CLASSIFIED uncovered pocket (none for an `unclassified` / covered cap). */
+  proposedGates: ProposedGate[];
+  /** The decision sweep over every surfaced per-pocket fork — escalated vs routine, blocked vs resolved. */
+  sweep: DecisionSweep;
+}
+
+/** PURE: turn one agent pocket reading into the recommended {@link ProposedGate}. */
+function toProposedGate(capId: string, reading: PocketReading): ProposedGate {
+  if (reading.class === "observe") {
+    return {
+      capId,
+      kind: "observe",
+      covers: [capId],
+      title: reading.title,
+      proofCommand: reading.proofCommand,
+    };
+  }
+  // `R1` / `R2` → a `build-tests` gate that borrows a `(build:)` node's `real:` arm.
+  return {
+    capId,
+    kind: "build-tests",
+    covers: [capId],
+    title: reading.title,
+    proofCommand: reading.proofCommand,
+    redKind: reading.class,
+    ...(reading.buildNode !== undefined ? { buildNode: reading.buildNode } : {}),
+  };
+}
+
+/**
+ * PURE: assemble a story's full adoption proposal (ADR-0097 Layer 2, both halves). Runs the structural
+ * {@link classifyAdoption} covers-diff, then stamps each UNCOVERED pocket with the agent's injected
+ * {@link PocketReading} class, emits a recommended {@link ProposedGate} per classified pocket, and sweeps
+ * the surfaced per-pocket forks through the real {@link sweepDecisions} owner-fork bar. An uncovered cap
+ * with no reading stays `unclassified` with NO proposed gate (fail-closed — never guessed `observe`).
+ * Covered caps are untouched. Deterministic and order-preserving (mirrors {@link classifyAdoption}); the
+ * agent supplies judgement, the spine supplies the honest assembly + the deterministic ruler.
+ */
+export function assembleProposal(spec: AssembleProposalSpec): AdoptionProposalEnriched {
+  const base = classifyAdoption(spec);
+
+  const capabilities = base.capabilities.map((cap): CapAdoption => {
+    if (cap.covered) return cap; // a covered cap owes nothing — untouched
+    const reading = spec.readings[cap.capId];
+    if (reading === undefined) return cap; // un-read uncovered cap → stays `unclassified`
+    return { ...cap, pocket: reading.class };
+  });
+
+  const proposedGates: ProposedGate[] = [];
+  const forks: DecisionFork[] = [];
+  for (const cap of capabilities) {
+    if (cap.covered) continue;
+    const reading = spec.readings[cap.capId];
+    if (reading === undefined) continue; // unclassified → no recommendation, no forks
+    proposedGates.push(toProposedGate(cap.capId, reading));
+    if (reading.forks !== undefined) forks.push(...reading.forks);
+  }
+
+  const sweep = sweepDecisions({ gateId: `${spec.storyId}#adoption`, forks });
+  return { ...base, capabilities, proposedGates, sweep };
+}
+
+/**
+ * PURE: render a {@link ProposedGate} to the `## Reliability Gates` item body (the text AFTER the `N. `
+ * numbering) so it round-trips back through the real `parseReliabilityGates`:
+ * `**Title** _(gate: <kind>)_ _(covers: …)_ [_(build: …)_] \`cmd\``. The italic underscores are cosmetic
+ * (the parser reads the `(gate:)` / `(covers:)` / `(build:)` tags and the first post-tag backtick span);
+ * the command is rendered LAST so it falls after the `(gate:)` tag the parser anchors on. This is the
+ * recommend-only hand-off shape — a human pastes it under a story's `## Reliability Gates`.
+ */
+export function renderProposedGate(gate: ProposedGate): string {
+  const parts = [`**${gate.title}**`, `_(gate: ${gate.kind})_`];
+  if (gate.covers.length > 0) parts.push(`_(covers: ${gate.covers.join(", ")})_`);
+  if (gate.buildNode !== undefined) parts.push(`_(build: ${gate.buildNode})_`);
+  parts.push(`\`${gate.proofCommand}\``);
+  return parts.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Readings input (the JSON boundary): validate the agent's injected per-pocket reading
+// ---------------------------------------------------------------------------
+
+/** Zod for one surfaced design fork in a readings file — validated at the JSON boundary, fail-closed. */
+const ForkInput = z
+  .object({
+    id: z.string().min(1),
+    question: z.string().min(1),
+    changesPublicSeam: z.boolean(),
+    materiallyDifferentStrategies: z.boolean(),
+    crossCuttingOrIrreversible: z.boolean(),
+    resolution: z.string().optional(),
+  })
+  .strict();
+
+/** Zod for one capability's agent reading in a readings file. `class` is the ADR-0098 d.1 taxonomy. */
+const PocketReadingInput = z
+  .object({
+    class: z.enum(["observe", "R1", "R2"]),
+    title: z.string().min(1),
+    proofCommand: z.string().min(1),
+    buildNode: z.string().min(1).optional(),
+    forks: z.array(ForkInput).optional(),
+  })
+  .strict();
+
+/** Zod for a whole readings file: a map of capability id → its agent reading. */
+const PocketReadingsInput = z.record(PocketReadingInput);
+
+/**
+ * PURE: validate + normalise a readings JSON blob (the agent's per-pocket analysis, surfaced e.g. via
+ * `adopt plan --readings <file>`) into the `Record<capId, PocketReading>` {@link assembleProposal}
+ * consumes. THROWS (zod) on a malformed blob — the boundary is fail-closed, never a silently-dropped or
+ * half-read map. Reconstructs each object explicitly so the optional fields satisfy
+ * `exactOptionalPropertyTypes`.
+ */
+export function parsePocketReadings(raw: unknown): Readonly<Record<string, PocketReading>> {
+  const parsed = PocketReadingsInput.parse(raw);
+  const out: Record<string, PocketReading> = {};
+  for (const [capId, r] of Object.entries(parsed)) {
+    const forks: DecisionFork[] | undefined = r.forks?.map((f) => ({
+      id: f.id,
+      question: f.question,
+      changesPublicSeam: f.changesPublicSeam,
+      materiallyDifferentStrategies: f.materiallyDifferentStrategies,
+      crossCuttingOrIrreversible: f.crossCuttingOrIrreversible,
+      ...(f.resolution !== undefined ? { resolution: f.resolution } : {}),
+    }));
+    out[capId] = {
+      class: r.class,
+      title: r.title,
+      proofCommand: r.proofCommand,
+      ...(r.buildNode !== undefined ? { buildNode: r.buildNode } : {}),
+      ...(forks !== undefined ? { forks } : {}),
+    };
+  }
+  return out;
 }

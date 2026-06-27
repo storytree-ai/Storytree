@@ -148,7 +148,14 @@ backs them. A brownfield story's hard floor is its `## Reliability Gates`.
 NOT BUILT (the load-bearing caveat the owner flagged).**
 - **The adoption proposal / feedback mechanism does not exist.** There is no surface today for the spine
   to analyze a brownfield story's coverage and present "adopt-able vs needs-`build-tests` vs
-  decisions-I-need-from-you." Building it is the substantive new work this ADR names.
+  decisions-I-need-from-you." Building it is the substantive new work this ADR names. *(Update 2026-06-27:
+  the Layer-2 JUDGMENT half + a CLI surface are now BUILT — `assembleProposal` / `renderProposedGate` /
+  `parsePocketReadings` in `@storytree/orchestrator` stamp each uncovered pocket's observe/R1/R2 class from
+  the agent's injected per-pocket reading, emit recommend-only `ProposedGate` stanzas that round-trip the
+  real reliability-gate parser, and partition the surfaced forks through the owner-fork bar;
+  `storytree adopt plan <story> --readings <file>` renders the full proposal. Recommend-only (d.4) — it
+  authors and greens nothing; the in-studio panel remains the open follow-on. The work-hierarchy home is
+  the `adoption-pocket-classifier` capability under `drive-machinery`.)*
 - **The inner loop is mechanical.** Today it drives a hand-registered net-new test red→green; it does not
   yet author `build-tests` gates for discovered gaps, perform the refactoring those pockets need, or
   escalate key design decisions mid-build. A less-mechanical, decision-escalating inner loop is required
