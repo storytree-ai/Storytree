@@ -19,8 +19,11 @@ depends_on: [guest-scope]
 # seam records what it persisted; no live DB, no IAP. install: true + a typecheck wall because the handler
 # imports @storytree/proof-protocol (`Verdict`) + @storytree/notice-board (`PresenceDeclaration`) + studio-
 # members (`resolveAccess`/the builder predicate) across package boundaries (the proof runs in a fresh
-# worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). Single LITERAL source file (no `*`),
-# so the default node:test proof on the one test file is legal — no proofCommand.
+# worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). The studio package's test runner is
+# VITEST (`pnpm --filter studio test` → `vitest run`), NOT node:test — so the test imports `{ describe, it,
+# expect } from 'vitest'` and the `real.proofCommand` below runs vitest on the single file (the default
+# node:test single-file proof would pass under `node --test` but the studio regression — vitest — cannot
+# load a node:test file, "No test suite found"; both the proof AND the package suite must agree on vitest).
 proof:
   command:
     file: pnpm
@@ -38,6 +41,9 @@ proof:
     typecheck:
       file: pnpm
       args: ["--filter", "studio", "typecheck"]
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "studio", "exec", "vitest", "run", "server/writeBroker.test.ts"]
 ---
 
 # A members-gated write-broker persists a builder's locally-signed verdict / presence
@@ -146,7 +152,7 @@ The integration test would:
 
 ## Contracts (5)
 
-The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `studio` suite),
+The test-proven leaf behaviours — each one isolated automated test (`vitest`, the `studio` suite),
 collaborators stubbed. None exist yet; each is the assertion a contract test WILL prove against the real
 broker handler once authored (provisional path — re-cite at real `file:line` when built). Author EACH —
 the refusal walls are the under-cover risk; a green that proves only the happy path is incomplete.
@@ -184,8 +190,9 @@ the refusal walls are the under-cover risk; a green that proves only the happy p
 The bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the broker handler as a new module,
 test-first.
 
-- **The new test —** `apps/studio/server/writeBroker.test.ts` (`node:test` + `node:assert/strict`, the
-  server convention). Import `{ handleBrokeredWrite }` (or the chosen name) from `"./writeBroker.js"`.
+- **The new test —** `apps/studio/server/writeBroker.test.ts` (`vitest` — `import { describe, it, expect }
+  from 'vitest'`, the studio-package suite convention; NOT node:test). Import `{ handleBrokeredWrite }` (or
+  the chosen name) from `"./writeBroker.js"`.
   Build the real `Verdict`/`PresenceDeclaration` shapes, a recording store-write stub, and resolved-access
   doubles (builder / member / non-member / no-identity).
 - **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `writeBroker.ts` does
