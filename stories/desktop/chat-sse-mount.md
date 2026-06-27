@@ -109,9 +109,10 @@ the renderer chat panel parses them):
 - **`POST /api/chat`** → a streaming `200` response with `Content-Type: text/event-stream`. The request
   body is `{ "intent": "<the chat message>" }` (a non-empty string; a missing/blank intent is a
   `400`). The response body is the session's typed events, each serialised as ONE SSE frame
-  (`data: <json>\n\n`, where `<json>` is the `ChatStreamEvent` — `{ "type": "done", "proposal", "costUsd",
-  "turns" }` | `{ "type": "error", "error" }` | `{ "type": "refused", "reason" }`). The stream ENDS
-  (the response is `end()`ed) after the terminal event. SSE event-name lines (`event: <type>`) are
+  (`data: <json>\n\n`, where `<json>` is the `ChatStreamEvent` — zero or more non-terminal
+  `{ "type": "delta", "text" }` token frames, then exactly one terminal `{ "type": "done", "proposal",
+  "costUsd", "turns" }` | `{ "type": "error", "error" }` | `{ "type": "refused", "reason" }`). The stream
+  ENDS (the response is `end()`ed) after the terminal event. SSE event-name lines (`event: <type>`) are
   OPTIONAL decoration; the `data:` frame is the contract the test pins.
 - **`*` (anything else)** → the dispatcher returns `false` (fall-through to the next dispatcher / the
   `local-backend-boot` 404). It is NOT a catch-all.
@@ -124,6 +125,14 @@ reaches the renderer live.) The dispatcher SETS the SSE response headers (`Conte
 text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`) BEFORE the first frame. The test
 asserts the response `Content-Type` is `text/event-stream` and that the streamed frames carry the scripted
 session's events ending in the terminal event.
+
+THIS MECHANISM ALREADY CARRIES TOKEN STREAMING — NO CODE CHANGE (commit `3d22f76`, ADR-0108 Phase 2
+streaming): the consumed core (`chat-session-stream`) now also yields **non-terminal `delta`** events
+(each an assistant text fragment as it generates, the responsiveness fix). Because the dispatcher
+serialises *every* event the generator yields as it arrives — never buffering, never matching on the
+event type — the new `delta` frames flow through to the renderer live through this exact "serialise,
+don't buffer" path, with no change to `chat-sse-mount.ts`. A new test `csm-streams-delta-frames` pins
+that the mount forwards each `delta` as an SSE frame, in order, before the terminal `done`.
 
 READ/PROPOSE ONLY, NO SIGNING (ADR-0091 / the Phase-2 wall — inherited from the consumed core): the chat
 mount streams an orient+propose session. It holds NO signing key, hands in NO verdict, triggers NO build,
@@ -195,10 +204,12 @@ The integration test would:
 ## Contracts (4)
 
 The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `desktop` suite),
-the live SDK collaborator injected as a scripted `queryFn` double. None exist yet; each is the assertion
-a contract test WILL prove against the real chat-mount code once authored (provisional path — re-cite at
-real `file:line` when built). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
-distinctly-named test in the single net-new test file, so the coverage check reports 4/4.
+the live SDK collaborator injected as a scripted `queryFn` double. All four are BUILT and GREEN (PR #439,
+the mount authored test-first). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
+distinctly-named test in the net-new test file, so `storytree coverage chat-sse-mount` reports 4/4. (The
+suite also carries a fifth distinctly-named test, `csm-streams-delta-frames`, pinning that the non-terminal
+`delta` token frames added in commit `3d22f76` flow through the same serialise-as-they-arrive path — an
+additional pin on contract 1's SSE-serialisation surface, not a separate mount observable.)
 
 1. **`csm-streams-events-as-sse`** — POST /api/chat streams the session's events back as SSE, read/propose only
    - **asserts —** a `POST /api/chat` with a valid `{ intent }` starts the REAL `startChatStream` /
