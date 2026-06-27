@@ -7,11 +7,11 @@ decided: 2026-06-03
 
 ## Status
 
-accepted (2026-06-03) — **partially superseded by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)**:
-the **pi** per-node runtime and the **model-agnostic, pay-as-you-go** non-negotiable are
-reversed (storytree owns the agent loop, built on the Anthropic SDK). Everything else here
-stands — DBOS/Postgres, the thin orchestrator, the event store, PixiJS, and the
-TS/Node/pnpm stack.
+accepted (2026-06-03)
+
+**Superseded-in-part by [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)** — the **pi** per-node runtime and the **model-agnostic, pay-as-you-go** non-negotiable are reversed: storytree owns the agent loop, built on the Anthropic SDK. The rest of this ADR's stack (the thin orchestrator, the event store, TS/Node/pnpm) stands.
+
+**Superseded-in-part by [ADR-0019](0019-library-tier-name-and-defer-dbos.md)** — the **DBOS (Transact-TS) durable-execution substrate** chosen here is overtaken for the library store: DBOS is deferred and Phase 2 begins with a plain typed Postgres connection (the reserved `dbos` schema stays reserved), so this ADR's "DBOS/Postgres stands" no longer holds for the corpus tier.
 
 **Superseded-in-part by [ADR-0036](0036-story-world-studio-visualisation.md)** (accepted,
 2026-06-12) — the **PixiJS v8 + `@pixi/react`** tree-UI engine pick is overtaken: the shipped

@@ -39,23 +39,26 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       persists them — no per-friend Cloud SQL IAM grant, no local DB connection. This is a
 #                       RUNTIME HTTP edge (a configured broker URL + a POST client), NOT a package import:
 #                       the desktop MUST NOT import apps/studio/server source (the surface boundary,
-#                       ADR-0100). So it adds NO new @storytree/* dep to apps/desktop/package.json for this
-#                       edge (the shapes POSTed come from @storytree/proof-protocol / @storytree/notice-board,
-#                       reachable transitively); `check:boundaries` needs no new declared PACKAGE edge for an
-#                       HTTP consumption. Declared here so the cross-story dependency is visible/forest-rendered.
-depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud]
+#                       ADR-0100). The studio-cloud edge itself adds no apps/studio/server import.
+#   - proof-protocol, notice-board — the WIRE SHAPES the broker write-client POSTs. The client imports
+#                       @storytree/proof-protocol (`Verdict`) and @storytree/notice-board (`PresenceDeclaration`)
+#                       to type — and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`).
+#                       Pure-zod protocol packages (no `pg`, no server) so brokers-not-direct still holds — but
+#                       they are NOT reachable transitively (this repo's pnpm strict isolation has no hoisting):
+#                       they are DECLARED deps in apps/desktop/package.json, so `check:boundaries` requires the
+#                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
+#                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
+depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
 # client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the
 # friend's forest writes are BROKERED to studio-cloud's write-broker (no per-friend Cloud SQL IAM grant,
-# an in-app `builder` role instead); 0119 amends ADR-0113 — the local backend runs the drivers as a tsx
-# SIDECAR (not bundled into the Electron main) and serves the studio's BOOT read route table
-# (me/health/docs/tree/assets/comments), superseding-in-part the deferred "minimal route table"; 0090 the
-# client/worker split + d.4 source guard (amended); 0091 the proof-off-tether sanction the local backend
-# rides (and the broker holds no signing key); 0004 the orchestrator/agent boundary preserved by topology
-# (main IS the boundary); 0108 the chat surface that ships here; 0021 keyless Cloud SQL IAM (the
-# per-friend grant ADR-0117 REMOVES for friends); 0070 the operator-attested appearance (and the live
-# `builder` grant).
+# an in-app `builder` role instead); 0090 the client/worker split + d.4 source guard (amended); 0091 the
+# proof-off-tether sanction the local backend rides (and the broker holds no signing key); 0004 the
+# orchestrator/agent boundary preserved by topology (main IS the boundary); 0108 the chat surface that
+# ships here; 0021 keyless Cloud SQL IAM (the per-friend grant ADR-0117 REMOVES for friends); 0070 the
+# operator-attested appearance (and the live `builder` grant); 0119 (amends 113) the tsx-sidecar local
+# backend + the studio boot read route table.
 decisions: [109, 111, 113, 117, 119, 90, 91, 4, 108, 21, 70]
 ---
 
@@ -144,6 +147,17 @@ deleted).
   ADR-0113, so the gate is satisfied by declaring it, never worked around.
 
 ## Local-backend boundary call (decided here — the dependency-graph/layout call is the story-author's, not the owner's)
+
+> **Update ([ADR-0119](../../docs/decisions/0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md),
+> 2026-06-27, owner-directed).** Wiring the proven `createLocalBackend` factory into the real Electron
+> shell surfaced two corrections: (1) the drivers run as a **tsx sidecar** the Electron main spawns and
+> proxies `/api/*` to — bundling raw-TS drivers into the CJS main breaks `import.meta` (corpus paths +
+> the build path's `tsx` resolution); (2) the read route table is the studio's **boot set** —
+> `me` / `health` / `docs` / `tree` / `assets` / `comments` — NOT just health/tree/assets, because the
+> studio frontend boot-gates on `/api/me` and `Promise.all`s docs+assets+comments (a 404 → an error
+> screen, not the forest). The "minimal route table" described below is **superseded in part** by that
+> boot set; the re-compose-don't-import boundary call STANDS. The read router is headlessly provable (so
+> its green flips like any capability); the Electron sidecar-spawn + proxy is the operator-attested leg.
 
 ADR-0113 §1 phrases the thick client as "the Electron main process runs the real studio backend
 (`apps/studio/server`)." Taken literally that is a **surface→surface source import** — and it is
@@ -260,9 +274,17 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
   [`write-broker`](../studio-cloud/write-broker.md) over HTTPS, and the server persists them (the friend
   holds no DB identity). This is a **runtime HTTP edge** — a configured broker URL + a `fetch` POST client
   in [`shared-forest-connection`](shared-forest-connection.md) — NOT a source import: the desktop does NOT
-  import `apps/studio/server` (the surface boundary, ADR-0100), so it adds no new `@storytree/*` package
-  dep for this edge. The friend's in-app `builder` role (studio-members, consumed transitively through the
-  broker's gate) is what authorizes the POST.
+  import `apps/studio/server` (the surface boundary, ADR-0100). The friend's in-app `builder` role
+  (studio-members, consumed transitively through the broker's gate) is what authorizes the POST.
+- **`proof-protocol`, `notice-board`** — the **wire SHAPES** the broker client POSTs.
+  [`shared-forest-connection`](shared-forest-connection.md)'s write client imports
+  `@storytree/proof-protocol` (`Verdict`) and `@storytree/notice-board` (`PresenceDeclaration`) to type —
+  and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`). They are pure-zod
+  protocol packages (no `pg`, no server), so brokers-not-direct holds; but they are **not** reachable
+  transitively (this repo's pnpm strict isolation has no hoisting), so they are DECLARED deps in
+  `apps/desktop/package.json` and the cross-story edges are declared in `depends_on` above — exactly the
+  ADR-0074 / ADR-0113 §8 "declare the edge, never work around it" pattern the drive-machinery / studio /
+  library edges follow.
 
 ## Story UAT
 

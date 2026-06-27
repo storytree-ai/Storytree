@@ -177,7 +177,38 @@ CREATE TABLE IF NOT EXISTS events.adr_number (
   at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Per-unit WRITE-CLAIM (ADR-0009's claim, finally built — DBOS deferred, ADR-0019 — as plain
+-- Postgres; the ADR-0033 §4 "typed-claims-with-refusal" upgrade the notice board named-deferred).
+-- The ENFORCING twin of events.session (presence): presence SHOWS overlap, this REFUSES it. One
+-- row per claimed unit; `unit_id` is the PRIMARY KEY, so a second concurrent claim on the same unit
+-- cannot insert — the atomic `INSERT ... ON CONFLICT DO UPDATE ... WHERE (re-entrant OR stale)`
+-- updates only when the caller already holds it or the holder's heartbeat aged out, and RETURNS no
+-- row otherwise = a HARD REFUSAL. Granularity is the unit id, so different units never contend
+-- (the existing per-id property) and the SAME unit does (the duplicate-build hole this closes).
+-- Staleness reclaims a crashed holder (ADR-0033's "staleness replaces release discipline").
+CREATE TABLE IF NOT EXISTS events.node_claim (
+  unit_id      TEXT PRIMARY KEY,
+  session_id   TEXT NOT NULL,
+  branch       TEXT NOT NULL,
+  intent       TEXT NOT NULL DEFAULT '',
+  claimed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Claim audit history: one append-only row per claim/reclaim/release/conflict-refused, so a refusal
+-- is a TYPED event (ADR-0009 "a conflict is a hard refusal, never a warning") and the evidence for
+-- "overlap conflicts are routine" accrues here (ADR-0033 §4). Sibling to events.session_event.
+CREATE TABLE IF NOT EXISTS events.claim_event (
+  seq        BIGSERIAL PRIMARY KEY,
+  unit_id    TEXT NOT NULL,
+  type       TEXT NOT NULL,          -- claimed|reclaimed|released|conflict-refused
+  session_id TEXT NOT NULL,          -- the session that acted (the would-be/actual holder)
+  doc        JSONB NOT NULL,         -- the full claim doc (or, for a refusal, the blocking holder)
+  at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Helpful indexes (ADR-0017).
+CREATE INDEX IF NOT EXISTS claim_event_unit_idx ON events.claim_event (unit_id);
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
 CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);

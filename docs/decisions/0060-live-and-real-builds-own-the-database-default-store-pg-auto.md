@@ -14,6 +14,8 @@ it"). Processes and retires the open-question artifact `oq-store-pg-default-for-
 the primary orbiting wisp but left its note "to SEE a wisp, run a build with `--store pg`" — i.e. the
 signal was opt-in; this ADR makes a live/real build feed it by default.
 
+**Superseded-in-part by [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)** — §1's `--store memory` explicit opt-out (a `--live`/`--real` build that persists nothing) is removed from the CLI surface; the in-memory store survives only as an internal test-injection seam. The rest of this ADR stands: live/real still default to `pg`, the preflight still auto-starts Cloud SQL, and `--dry-run` stays in-memory and `--store pg`-refused.
+
 **Correction (2026-06-22) — the cold-start timing below is wrong; the poll budget has been raised.**
 The "~60–90s … ≤180s" figures in this ADR were an estimate. A real GCP cold start measures ~5–6 min
 (≤366s end-to-end; confirmed against ~12 Cloud SQL start operations over 12–22 June 2026, all 277–349s

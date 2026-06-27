@@ -14,6 +14,8 @@ without persisting; this removes that opt-out from the CLI surface. The rest of 
 live/real default to `pg`, the preflight auto-starts the Cloud SQL instance, and `--dry-run` stays
 in-memory and `--store pg`-refused.
 
+**Superseded-in-part by [ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md)** — this ADR's invariant that **a `--live` build always persists** is overtaken: a synthetic `--live` smoke now runs in-memory and is `--store pg`-refused (exactly as a `--dry-run` already was), so only `--real` persists to `pg`. This ADR's other half — the **no `--store memory` CLI opt-out** (`refuseMemoryStore`) — is preserved.
+
 ## Context
 
 [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) made the in-flight build the primary studio

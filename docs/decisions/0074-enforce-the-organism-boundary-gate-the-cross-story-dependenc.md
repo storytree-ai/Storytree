@@ -18,6 +18,8 @@ coupling is forbidden") and [ADR-0058](0058-cross-story-dependency-direction-the
 boundary *physical* but left it held by discipline, not a gate). The radial world (§6) is the one
 remaining increment (the live-library `solar-system-world` proposal + the open forks below).
 
+**Superseded-in-part by [ADR-0077](0077-dissolve-the-store-into-library-shared-substrate-to-library.md)** — §2's promotion of `store` to a first-class hub organism is overtaken **for `store` only**: the standalone `store` story and `@storytree/store` package are dissolved (its shared substrate folds into `@storytree/library/store`; per-tenant drawers move to their owning organisms), so the `store` node and its UAT below no longer exist as described. The §2 `cli` hub modeling and the boundary gate itself stand.
+
 ## Date
 
 2026-06-19

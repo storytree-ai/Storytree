@@ -8,6 +8,8 @@ decided: 2026-06-27
 
 accepted (2026-06-27) — decided/directed by the owner in conversation on 2026-06-27. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Superseded-in-part by [ADR-0118](0118-workflow-first-cli-surface-proof-commands-mirror-the-studio.md)** — this ADR's **grain-first proof surface** and its load-bearing call to keep `gate` a standalone top-level area are overtaken: the CLI proof surface becomes **workflow-first** (top-level `adopt` / `build` / `witness` workflows mirroring the studio), with the `gate` primitive un-conflated and nested below (`adopt gate` for observe, `build gate --real` for build-tests). This ADR's "`adopt` is first-class" decision survives — `adopt` stays, now as a workflow.
+
 ## Context
 
 ADOPTION — bringing a brownfield (`mapped`) story into the fold — is a proving process entered by a

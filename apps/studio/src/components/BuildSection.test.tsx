@@ -303,6 +303,27 @@ describe('BuildSection', () => {
     expect(screen.getByText(/healthy — no go-green action/i)).toBeTruthy();
   });
 
+  it('a PROVEN brownfield port shows NO Adopt button — proof, not authored status, decides done (ADR-0040, the storage-protocol bug)', () => {
+    // The owner-reported bug (2026-06-27): storage-protocol is authored `mapped` forever (`healthy` is
+    // non-authorable, ADR-0020) yet its crown derives green from a signed `adopted` verdict. The server
+    // now resolves goGreen → 'none' for that proven story (applyStoryGoGreenProof), and the world
+    // presents its status as 'healthy' (provenStatus). The Adopt button — the symptom — must be GONE.
+    // Even with adoptGates supplied (the assembly may still carry them on the wire), 'none' hides Adopt.
+    render(
+      <BuildSection
+        unitId="storage-protocol"
+        buildable={false}
+        scope="story"
+        goGreen="none"
+        status="healthy"
+        adoptGates={[{ id: 'storage-protocol#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/storage-protocol test' }]}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Adopt' })).toBeNull(); // the symptom is gone
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.getByText(/healthy — no go-green action/i)).toBeTruthy();
+  });
+
   it('a proposed story with no real path (goGreen=none) explains it needs a real proof arm', () => {
     render(<BuildSection unitId="p" buildable={false} scope="story" goGreen="none" status="proposed" />);
     expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
