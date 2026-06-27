@@ -45,7 +45,8 @@ import {
   loadCorpus,
   TEST_DB_ENV,
 } from "@storytree/library/store";
-import { PgPresenceStore } from "@storytree/notice-board/store";
+import { PgClaimStore, PgPresenceStore } from "@storytree/notice-board/store";
+import type { ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { renderAgentPrompt } from "@storytree/library/store";
@@ -233,6 +234,17 @@ export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
 
 // ── The verdict store seam (`--store pg`, PR #29 parked decision 4) ─────────
 
+/**
+ * The per-unit write-claim seam (ADR-0121) — the ENFORCING twin of {@link PresenceStoreLike}. The
+ * build acquires the claim on the unit before the leaf runs and releases it after; a second
+ * concurrent builder of the SAME unit is hard-refused (presence merely shows overlap). Injected for
+ * tests; satisfied by `PgClaimStore`.
+ */
+export interface ClaimStoreLike {
+  claim(req: ClaimRequest): Promise<ClaimResult>;
+  release(unitId: string, sessionId: string): Promise<boolean>;
+}
+
 export type VerdictStoreChoice =
   | {
       ok: true;
@@ -244,6 +256,12 @@ export type VerdictStoreChoice =
        * verdicts persist, null in-memory — a null store makes withPresence a silent no-op.
        */
       presence: PresenceStoreLike | null;
+      /**
+       * The per-unit write-claim over the SAME pool (ADR-0121): non-null exactly when verdicts
+       * persist (`--store pg`, i.e. `--real`), null in-memory — a null claim store skips
+       * enforcement (a dry-run / live smoke does not contend on the shared store).
+       */
+      claim: ClaimStoreLike | null;
       close: () => Promise<void>;
     }
   | { ok: false; refusal: Envelope };
@@ -275,6 +293,7 @@ export async function resolveVerdictStore(
       persisted: false,
       label: "in-memory (nothing persists past this run)",
       presence: null,
+      claim: null,
       close: async () => {},
     };
   }
@@ -311,6 +330,7 @@ export async function resolveVerdictStore(
       persisted: true,
       label: "pg — events.work_event + events.verdict (PERSISTED to the shared store)",
       presence: new PgPresenceStore(pool),
+      claim: new PgClaimStore(pool),
       close: () => closePool(pool, connector),
     };
   } catch (e) {
@@ -748,6 +768,11 @@ export interface NodeBuildOpts {
    * plain checkout) — null on either side makes presence a silent no-op.
    */
   presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
+  /**
+   * Injectable for tests (ADR-0121): the per-unit write-claim store. Default = the `--store pg`
+   * pool's claim store (null in-memory). Identity is SHARED with `presence` (the worktree session).
+   */
+  claim?: { store?: ClaimStoreLike | null };
 }
 
 /** `storytree node build <id>` — the full walk in one envelope (dry-run | live smoke | real). */
@@ -926,8 +951,45 @@ export async function nodeBuild(
     now: () => new Date(),
   };
 
+  // The per-unit write-claim around the build (ADR-0121): the ENFORCING twin of presence. Resolve
+  // the claim store (the --store pg pool's; null in-memory) and reuse the worktree identity.
+  const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
+  const claimIdentity = ambient.identity;
+
   const runId = `${mode}-${Date.now().toString(36)}`;
+  let claimHeld = false;
   try {
+    // Acquire the claim BEFORE any worktree/spend; a second concurrent builder of the SAME unit is
+    // HARD-REFUSED (unlike presence, which swallows failures and proceeds). Null store/identity = no
+    // claim (a dry-run / live smoke / non-worktree build does not contend on the shared store).
+    if (claimStore !== null && claimIdentity !== null) {
+      const claimRes = await claimStore.claim({
+        unitId: spec.id,
+        sessionId: claimIdentity.sessionId,
+        branch: claimIdentity.branch,
+        intent: mode,
+      });
+      if (!claimRes.acquired) {
+        const held = claimRes.heldBy;
+        return {
+          ok: false,
+          body: [
+            `node "${spec.id}" is already being built by another live session — REFUSED (ADR-0121).`,
+            "",
+            `held by:     ${held.sessionId} (branch ${held.branch})`,
+            `claimed at:  ${held.claimedAt}`,
+            "",
+            "Two sessions building one unit race to promote duplicate branches (the 2026-06-27 cascade",
+            "collision). The claim refuses the second rather than letting both spend and promote. Pick a",
+            "different unit, coordinate via the notice board, or wait for the claim to be released on",
+            "completion (or to age out via stale-reclaim if the holder died).",
+          ].join("\n"),
+          next: ["storytree noticeboard --pg", `storytree node build <other-id> ${modeFlag}`],
+        };
+      }
+      claimHeld = true;
+    }
+
     let result: ProveResult;
     let liveAuthor: ClaudeAgentAuthor | undefined;
     let worktree: BuildWorktree | undefined;
@@ -1091,6 +1153,15 @@ export async function nodeBuild(
       ],
     };
   } finally {
+    // Release the claim (ADR-0121) before closing the pool. A failed release is swallowed — the claim
+    // ages out via stale-reclaim, and a release failure must never fail an otherwise-good build.
+    if (claimHeld && claimStore !== null && claimIdentity !== null) {
+      try {
+        await claimStore.release(spec.id, claimIdentity.sessionId);
+      } catch {
+        // swallow
+      }
+    }
     await storeChoice.close();
   }
 }
