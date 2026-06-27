@@ -177,7 +177,7 @@ function parseSseFrames(body: string): ChatStreamEvent[] {
 // breaks the Content-Type assertion. Not calling res.end() after the terminal event hangs
 // the fetch (the response never completes).
 test(
-  "chat-sse-mount: POST /api/chat with a valid intent streams a done SSE frame (200, text/event-stream)",
+  "csm-streams-events-as-sse: POST /api/chat with a valid intent streams a done SSE frame (200, text/event-stream)",
   async () => {
     const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
 
@@ -223,7 +223,7 @@ test(
 // starts. The guard prevents empty prompts from reaching the real orchestrate composition
 // and spending any SDK budget.
 test(
-  "chat-sse-mount: POST /api/chat with a missing intent field returns 400 (fail-closed)",
+  "csm-rejects-a-blank-intent: POST /api/chat with a missing intent field returns 400 (fail-closed)",
   async () => {
     const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
 
@@ -246,7 +246,7 @@ test(
 // FAIL-CLOSED: an empty or whitespace-only intent string is also rejected with 400.
 // Blank intents must not reach the real orchestrate composition.
 test(
-  "chat-sse-mount: POST /api/chat with a blank intent string returns 400",
+  "csm-rejects-a-blank-intent: POST /api/chat with a blank intent string returns 400",
   async () => {
     const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
 
@@ -277,7 +277,7 @@ test(
 // the 200 status and error-type assertions would both fail. This pins that the error path is
 // observable through SSE without crashing the response.
 test(
-  "chat-sse-mount: a session where the SDK throws streams a terminal error SSE frame (200, not 500)",
+  "csm-fails-closed-on-dead-session: a session where the SDK throws streams a terminal error SSE frame (200, not 500)",
   async () => {
     const handler = createChatSseMount({ queryFn: queryThrowing("scripted SDK failure") });
 
@@ -418,7 +418,7 @@ test(
 // DELETION TEST: making createChatSseMount a catch-all (always true) produces a non-404 here
 // — the chat dispatcher must NOT shadow other /api/* routes.
 test(
-  "chat-sse-mount: GET /api/health falls through — the dispatcher returns false, not a catch-all",
+  "csm-dispatcher-falls-through-not-404s: GET /api/health falls through — the dispatcher returns false, not a catch-all",
   async () => {
     const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
 
@@ -437,7 +437,7 @@ test(
 // FALL-THROUGH: a POST to an unrelated /api/* endpoint also falls through — the dispatcher
 // owns ONLY POST /api/chat and nothing else.
 test(
-  "chat-sse-mount: POST /api/build falls through — only POST /api/chat is owned by this dispatcher",
+  "csm-dispatcher-falls-through-not-404s: POST /api/build falls through — only POST /api/chat is owned by this dispatcher",
   async () => {
     const handler = createChatSseMount({ queryFn: queryYielding([OK_SDK_RESULT]) });
 
