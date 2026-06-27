@@ -1,0 +1,264 @@
+// Chat SSE mount factory — POST /api/chat dispatcher that streams startChatStream events as SSE.
+// No `electron` and no `dom` import; headlessly provable by node:test over a real node:http server.
+//
+// THE BOUNDARY CALL: imports startChatStream from @storytree/drive by package name (never from
+// apps/studio/server). Reproduces local HTTP helpers (readBody, readJsonBody) as local-backend.ts
+// does. Does NOT import @storytree/library/store (no DB path in the chat route) and does NOT
+// import @storytree/storage-protocol directly (it is drive's internal dep, not desktop's declared
+// dep). Instead a minimal inline SeedStore satisfies the Store interface structurally at runtime.
+
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+import type { ChatStreamEvent } from "@storytree/drive";
+import { startChatStream } from "@storytree/drive";
+
+// ---------- HTTP helpers (local copies — not imported from studio) ----------
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
+  const raw = await readBody(req);
+  if (!raw.trim()) return {} as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+// ---------- Inline minimal Store (mirrors @storytree/storage-protocol's Store structurally) ----------
+//
+// Avoids a direct import of @storytree/storage-protocol — that package is drive's declared dep,
+// not desktop's, so Node.js strict isolation prevents resolution from apps/desktop/.
+// The inline class satisfies the Store interface structurally at runtime (duck typing).
+
+interface StoredDocLike {
+  id: string;
+  kind: string;
+  doc: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StoreEventLike {
+  seq: number;
+  id: string;
+  kind: string;
+  type: "created" | "updated" | "deleted";
+  doc: unknown;
+  actor: string;
+  at: string;
+}
+
+class SeedStore {
+  private readonly docs = new Map<string, StoredDocLike>();
+  private seq = 0;
+
+  async upsertDoc(input: {
+    id: string;
+    kind: string;
+    doc: unknown;
+    actor?: string;
+  }): Promise<StoredDocLike> {
+    const now = new Date().toISOString();
+    const existing = this.docs.get(input.id);
+    const entry: StoredDocLike = {
+      id: input.id,
+      kind: input.kind,
+      doc: input.doc,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.docs.set(input.id, entry);
+    return entry;
+  }
+
+  async getDoc(id: string): Promise<StoredDocLike | null> {
+    return this.docs.get(id) ?? null;
+  }
+
+  async queryDocs(filter?: { kind?: string }): Promise<StoredDocLike[]> {
+    const all = Array.from(this.docs.values());
+    if (filter?.kind !== undefined) {
+      const kind = filter.kind;
+      return all.filter((d) => d.kind === kind);
+    }
+    return all;
+  }
+
+  async deleteDoc(
+    id: string,
+    _opts?: { actor?: string; reason?: string; supersededBy?: string },
+  ): Promise<boolean> {
+    return this.docs.delete(id);
+  }
+
+  async appendEvent(e: {
+    id: string;
+    kind: string;
+    type: "created" | "updated" | "deleted";
+    doc: unknown;
+    actor?: string;
+  }): Promise<StoreEventLike> {
+    return {
+      seq: ++this.seq,
+      id: e.id,
+      kind: e.kind,
+      type: e.type,
+      doc: e.doc,
+      actor: e.actor ?? "system",
+      at: new Date().toISOString(),
+    };
+  }
+
+  async readEvents(_filter?: { id?: string }): Promise<StoreEventLike[]> {
+    return [];
+  }
+}
+
+// ---------- Default store (seed corpus loaded once per process) ----------
+
+let defaultStorePromise: Promise<SeedStore> | null = null;
+
+function getDefaultStore(): Promise<SeedStore> {
+  if (defaultStorePromise === null) {
+    defaultStorePromise = loadDefaultStore();
+  }
+  return defaultStorePromise;
+}
+
+/**
+ * Create a SeedStore seeded with the corpus from apps/studio/data/.
+ * Reproduces the algorithm from @storytree/library/store's loadCorpus without importing it.
+ */
+async function loadDefaultStore(): Promise<SeedStore> {
+  const store = new SeedStore();
+
+  // Resolve data dir: apps/desktop/src/backend/ → 4 levels up → repo root → apps/studio/data/
+  const dataBase = new URL("../../../../apps/studio/data/", import.meta.url);
+
+  const units = JSON.parse(
+    await readFile(fileURLToPath(new URL("knowledge.json", dataBase)), "utf8"),
+  ) as Array<{ id: string; kind: string; [k: string]: unknown }>;
+  for (const unit of units) {
+    await store.upsertDoc({ id: unit.id, kind: unit.kind, doc: unit, actor: "corpus-migration" });
+  }
+
+  const assets = JSON.parse(
+    await readFile(fileURLToPath(new URL("assets.json", dataBase)), "utf8"),
+  ) as Array<{ id: string; category: string; [k: string]: unknown }>;
+  for (const tpl of assets.filter((a) => a.category === "template")) {
+    await store.upsertDoc({ id: tpl.id, kind: "template", doc: tpl, actor: "corpus-migration" });
+  }
+
+  return store;
+}
+
+// ---------- Types ----------
+
+/**
+ * The injectable query function type for the mount (structurally compatible with
+ * @storytree/agent's SdkQueryFn — defined locally to avoid resolving that package
+ * from the desktop module context).
+ */
+type SseMountQueryFn = (args: { prompt: string; options: unknown }) => AsyncIterable<unknown>;
+
+/** Dependencies injected into {@link createChatSseMount}. */
+export interface ChatSseMountDeps {
+  /**
+   * Injectable SDK query function — an offline scripted double proves the mount without live
+   * spend (ADR-0010 §5). Omit for a live run (the real SDK `query()` is used by default).
+   */
+  queryFn?: SseMountQueryFn;
+}
+
+// ---------- Bridge startChatStream ----------
+//
+// startChatStream's Store parameter type comes from @storytree/storage-protocol, which is
+// drive's dep but NOT desktop's declared dep (Node.js strict isolation).
+// Bridge the function type so TypeScript accepts our inline SeedStore without needing to
+// resolve @storytree/storage-protocol from desktop's module resolution chain.
+
+type BridgedStartStream = (args: {
+  intent: string;
+  store: SeedStore;
+  queryFn?: SseMountQueryFn;
+}) => AsyncGenerator<ChatStreamEvent>;
+
+const bridgedStart = startChatStream as unknown as BridgedStartStream;
+
+// ---------- Factory ----------
+
+/**
+ * Create the POST /api/chat SSE dispatcher.
+ *
+ * ROUTE TABLE:
+ * - POST /api/chat  → validate { intent }, start startChatStream, stream events as SSE
+ * - *   (anything else) → returns false (fall-through to the next dispatcher / the 404)
+ *
+ * Returns an async handler `(req, res, pathname) => Promise<boolean>`.
+ *
+ * READ/PROPOSE ONLY (Phase-2 wall, ADR-0091). The single-session guard is the
+ * composition-level flag in orchestrate.ts (ADR-0108 d.6); a second concurrent session
+ * streams a `refused` SSE frame, never a forged session.
+ */
+export function createChatSseMount(
+  deps: ChatSseMountDeps,
+): (req: IncomingMessage, res: ServerResponse, pathname: string) => Promise<boolean> {
+  return async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    pathname: string,
+  ): Promise<boolean> => {
+    // Only handle POST /api/chat — fall through for every other route.
+    if (pathname !== "/api/chat" || req.method !== "POST") {
+      return false;
+    }
+
+    // Parse and validate the intent field.
+    const body = await readJsonBody<Record<string, unknown>>(req);
+    const intent =
+      typeof body["intent"] === "string" ? body["intent"].trim() : "";
+
+    if (!intent) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: "intent is required and must be non-empty" }));
+      return true;
+    }
+
+    // Resolve the lazy-loaded seed corpus store (created once per process).
+    const store = await getDefaultStore();
+
+    // Set SSE response headers before the first frame.
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    // Build args — forward queryFn only when present (exactOptionalPropertyTypes).
+    const streamArgs: { intent: string; store: SeedStore; queryFn?: SseMountQueryFn } = {
+      intent,
+      store,
+      ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
+    };
+
+    // Stream each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives.
+    // startChatStream never throws — errors and refusals are typed terminal events.
+    for await (const event of bridgedStart(streamArgs)) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+
+    res.end();
+    return true;
+  };
+}
