@@ -23,6 +23,7 @@ import {
   readControlValue,
   resetControls,
   buildShareUrl,
+  readRenderScene,
   type ControlSpec,
 } from './worldSettings.js';
 
@@ -147,5 +148,26 @@ describe('worldSettings — resetControls drops every managed param', () => {
     const out = resetControls('?substrate=hex&debug=1');
     expect(out).not.toContain('substrate');
     expect(out).toContain('debug=1');
+  });
+});
+
+describe('worldSettings — readRenderScene (scene is now the DEFAULT, ADR-0093 Unit D)', () => {
+  it('defaults to the SCENE render when no ?render param is present', () => {
+    // The flip: absence => scene (the shared scene-graph is the canonical render now).
+    expect(readRenderScene('')).toBe(true);
+    expect(readRenderScene('?substrate=hex&layout=solar')).toBe(true);
+  });
+
+  it('the ?render=legacy / ?render=inline escape hatch selects the inline render', () => {
+    expect(readRenderScene('?render=legacy')).toBe(false);
+    expect(readRenderScene('?render=inline')).toBe(false);
+  });
+
+  it('?render=scene still explicitly selects the scene render', () => {
+    expect(readRenderScene('?render=scene')).toBe(true);
+  });
+
+  it('an unknown ?render value falls back to the scene default (not the escape hatch)', () => {
+    expect(readRenderScene('?render=wat')).toBe(true);
   });
 });

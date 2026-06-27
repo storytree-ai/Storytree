@@ -165,7 +165,7 @@ interface DecorSpot {
   seed: number;
 }
 
-interface Territory {
+export interface Territory {
   story: TreeStory;
   tiles: Axial[];
   centroid: Pt;
@@ -204,7 +204,7 @@ interface WorldEdge {
   d: string;
 }
 
-interface HexWorld {
+export interface HexWorld {
   territories: Territory[];
   /** Pale coast tiles (1–2 rings beyond claimed land). */
   empties: Axial[];
@@ -1504,21 +1504,31 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             </defs>
 
             {renderScene && scene ? (
-              // ADR-0093 Unit 2b: render FROM the shared scene-graph via the thin React
-              // mapper. Studio-only chrome (solar spokes, the Shared-Islands panel,
-              // building stamps) is NOT in the scene yet — this parity path covers the
-              // default dag+mesh world for the owner's visual nod.
-              <SceneView
-                scene={scene}
-                ctx={{
-                  territoryClassById,
-                  roadClassByEnds,
-                  hidden,
-                  onHoverStory: setHoverStory,
-                  onSelectStory: (id) => selectStory(id, null),
-                  onSelectCap: (storyId, capId) => selectStory(storyId, capId),
-                }}
-              />
+              // ADR-0093 Unit D: render FROM the shared scene-graph via the thin React mapper — now
+              // the DEFAULT (the `?render=legacy`/`inline` escape hatch falls to the inline `<g>`
+              // below). The studio-only chrome that is NOT in the shared core — the solar spokes and
+              // the distributed-consumer building stamps — is layered ON TOP as a sibling `<g>`
+              // (StudioWorldChrome, ADR-0093 Decision 2), so the flip regresses neither. The
+              // Shared-Islands panel / session dock / settings gear are React `<div>`s outside this
+              // `<svg>` and are untouched.
+              <>
+                <SceneView
+                  scene={scene}
+                  ctx={{
+                    territoryClassById,
+                    roadClassByEnds,
+                    hidden,
+                    onHoverStory: setHoverStory,
+                    onSelectStory: (id) => selectStory(id, null),
+                    onSelectCap: (storyId, capId) => selectStory(storyId, capId),
+                  }}
+                />
+                <StudioWorldChrome
+                  world={world}
+                  hidden={hidden}
+                  onStampClick={(id) => setHighlightShared(id)}
+                />
+              </>
             ) : (
             <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
               {/* SOLAR ORBIT GRID — the rings are still COMPUTED (`world.solar.rings` /
@@ -2006,6 +2016,59 @@ function StoryStamp({
       <title>{`${icon} — used by ${story.id} · click to find it in Shared Islands`}</title>
       <ellipse className="flora-shadow" cx={1} cy={1.6} rx={11} ry={3.0} />
       <IconGlyph id={icon} />
+    </g>
+  );
+}
+
+/**
+ * The studio-only world CHROME that is NOT in the shared scene-graph (ADR-0093 Decision 2: studio
+ * chrome layers ON TOP of `<SceneView>`, never pushed into the framework-agnostic core). With the
+ * scene render now the DEFAULT (ADR-0093 Unit D), this overlay restores the two pieces that lived
+ * only in the old inline `<g>`:
+ *  - the solar SPOKES (`world.solar.spokes`, the de-noised hub→organism `consumed_by` wiring) — drawn
+ *    only in solar mode, low-salience, the SAME `.solar-spoke-net` markup the inline path used; and
+ *  - the distributed-consumer building STAMPS each island carries (`Territory.stamps`, ADR-0102) — the
+ *    scene draws the trees/flora/plates/wisps, but the stamps are studio chrome, so they ride here.
+ *
+ * It is a SIBLING `<g>` of `<SceneView>` inside the same `<svg>`, wrapped in the world `offset` so it
+ * shares the scene's coordinate space (the scene applies the offset on its own `world` root group).
+ * The `depends_on` roads and the static layers are already in the scene; the Shared-Islands panel,
+ * session dock and settings gear are React `<div>`s outside the `<svg>` and are untouched.
+ */
+export function StudioWorldChrome({
+  world,
+  hidden,
+  onStampClick,
+}: {
+  world: HexWorld;
+  hidden: ReadonlySet<string>;
+  /** ADR-0102: clicking an island's stamp highlights the shared island it names in the left panel. */
+  onStampClick: (sharedId: string) => void;
+}): React.JSX.Element {
+  return (
+    <g className="studio-world-chrome" transform={`translate(${world.offset.x} ${world.offset.y})`}>
+      {/* SOLAR spokes (solar mode only) — the same low-salience perimeter-docked wiring the inline
+          path drew, layered UNDER the stamps so the icons stay legible. */}
+      {world.solar && (
+        <g className="solar-spoke-net">
+          {world.solar.spokes.map((s) => (
+            <path key={`${s.from}->${s.to}`} className="solar-spoke" d={s.d} />
+          ))}
+        </g>
+      )}
+      {/* The distributed-consumer building stamps each island carries (ADR-0102). */}
+      {world.territories.map((t) =>
+        t.stamps.map((stamp) => (
+          <StoryStamp
+            key={`stamp:${t.story.id}:${stamp.icon}`}
+            story={t.story}
+            icon={stamp.icon}
+            spot={stamp.spot}
+            hidden={hidden}
+            onStampClick={onStampClick}
+          />
+        )),
+      )}
     </g>
   );
 }
