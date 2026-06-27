@@ -66,16 +66,19 @@ export function adoptHelp(): Envelope {
       "                                      and flip its status mapped → proposed (adoption underway)",
       "  storytree adopt plan <story-id>     PLAN — classify which capabilities a declared `(covers:)`",
       "                                      gate covers vs which still owe real build-tests work (offline)",
+      "  storytree adopt gate <story>#gate-<n> --pg   observe-and-sign ONE `observe` reliability gate",
+      "                                      (ADR-0118; was `gate run`, kept as a back-compat alias). A",
+      "                                      build-tests gate is NOT adoption — earn it with `build gate --real`.",
       "",
       "adopt RUN signs real `adopted` verdicts (events.verdict; signer = the spine principal that witnessed",
       "the green, approvedBy = who decided to adopt). It refuses a non-brownfield status, a story with no",
       "`observe` gate, a blank signer, the offline store, and a DIRTY tree (an adopted verdict pins the clean",
       "commit it observed) — then the flip dirties the tree with one `status:` line for YOU to commit. It",
       "GREENS NOTHING on its own: covered capabilities green via coverage; a `build-tests` pocket holds the",
-      "crown at `proposed` until a real red→green earns it (`storytree gate run <story>#gate-<n> --real --pg`,",
+      "crown at `proposed` until a real red→green earns it (`storytree build gate <story>#gate-<n> --real --pg`,",
       "ADR-0098). The signer chain is fail-closed: --signer/--actor → STORYTREE_SIGNER → git email.",
     ].join("\n"),
-    next: ["storytree adopt plan <story-id>", "storytree adopt <story-id> --pg"],
+    next: ["storytree adopt plan <story-id>", "storytree adopt gate <story>#gate-<n> --pg", "storytree adopt <story-id> --pg"],
   };
 }
 

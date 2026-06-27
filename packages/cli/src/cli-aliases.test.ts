@@ -55,6 +55,12 @@ const RELOCATIONS: readonly Relocation[] = [
     home: ["build", "gate", "library#gate-1", "--real", "--store", "memory"],
     alias: ["gate", "run", "library#gate-1", "--real", "--store", "memory"],
   },
+  // ── Unit B: the `adopt gate` observe primitive (ADR-0118) ──────────────────
+  {
+    what: "gate run (observe) → adopt gate",
+    home: ["adopt", "gate", "library#gate-1", "--store", "memory"],
+    alias: ["gate", "run", "library#gate-1", "--store", "memory"],
+  },
 ];
 
 for (const reloc of RELOCATIONS) {
@@ -72,6 +78,6 @@ for (const reloc of RELOCATIONS) {
 
 test("the alias table covers every relocated verb landed so far (no silent coverage gap)", () => {
   // A floor that fails loudly if a future unit relocates a verb but forgets to register its alias row.
-  // Bump this as each reshape unit lands (build = 4 relocations).
-  assert.ok(RELOCATIONS.length >= 4, "Unit A (build) registers 4 relocations");
+  // Bump this as each reshape unit lands (build = 4 relocations; adopt gate = 1).
+  assert.ok(RELOCATIONS.length >= 5, "Unit A (build, 4) + Unit B (adopt gate, 1)");
 });

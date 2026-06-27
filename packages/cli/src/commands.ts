@@ -1776,10 +1776,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // flip `mapped → proposed`) — the SAME engine the studio's Adopt button drives (adoptStory). `adopt
     // plan <story>` is the offline adoption-plan classification (ADR-0097 Layer 2). The store / git /
     // observe / signer / status-flip seams mirror `gate` (the verdict store is the same PgWorkStore under
-    // --pg). `gate` is deliberately NOT nested here: an `observe` gate is earned by adoption, but a
-    // `build-tests` gate by a real red→green BUILD (ADR-0098), so `gate` spans both surfaces and stays
-    // its own area. The honesty walls (only a brownfield story, an observe gate, a resolved approver, the
-    // live store, a clean HEAD) live in drive's runAdopt; this just wires the live seams.
+    // --pg). ADR-0118: the OBSERVE gate primitive now nests here as `adopt gate <story>#gate-<n>`
+    // (observe-and-sign one observe gate — an observe gate IS earned by adoption); the `build-tests`
+    // gate, earned by a real red→green BUILD (ADR-0098), lives under `build gate --real` (Unit A), not
+    // here. This un-conflates the old `gate run` phase fork at the surface (ADR-0118): observe → adopt,
+    // build-tests → build. The honesty walls (only a brownfield story, an observe gate, a resolved
+    // approver, the live store, a clean HEAD) live in drive's runAdopt / the gate compute; CLI wires seams.
     if (help || sub === undefined) return adoptHelp();
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const adoptDeps: AdoptDispatchDeps = {
@@ -1797,6 +1799,17 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const approverFlag = values.signer ?? values.actor;
     const adoptOpts = approverFlag !== undefined ? { signer: approverFlag } : {};
     if (sub === "plan") return adoptCommand({ mode: "plan", target: third }, adoptOpts, adoptDeps);
+    // `adopt gate <story>#gate-<n>` — observe-and-sign ONE observe gate (ADR-0118; was `gate run <g>`,
+    // kept as a back-compat alias). The SAME gate code path as `gate run`; the gate's kind routes it (a
+    // build-tests gate is NOT adoption — the gate compute refuses it here, pointing at `build gate --real`).
+    if (sub === "gate") {
+      if (values.store === "memory") return refuseMemoryStore("gate", third);
+      return gateCommand(
+        { mode: "run", target: third },
+        makeGateOpts(values),
+        makeGateDeps(deps, values, storiesDir),
+      );
+    }
     // bare: `storytree adopt <story-id>` RUNS the adoption.
     return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);
   }
