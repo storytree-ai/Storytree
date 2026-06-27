@@ -33,10 +33,14 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       ADR-0004) — the desktop never imports @storytree/agent directly.
 #   - library         — @storytree/library/store (renderAgentPrompt + loadCorpus) for the local backend's
 #                       library/tree reads and the orchestrate composition's prompt render (ADR-0051).
-#   - headless-orchestrator — the chat/loop runtime that ships INSIDE this desktop is its Phase 2
-#                       (ADR-0108): the SSE route + the orchestrate-driven session. The desktop CONSUMES
-#                       it (the renderer chat panel is a thin client over it, ADR-0108 d.1); it is NOT a
-#                       desktop capability.
+#   - headless-orchestrator — the chat/loop streaming CORE that ships INSIDE this desktop is its Phase 2
+#                       (ADR-0108): the orchestrate-driven session + its SSE-shaped event stream
+#                       (`startChatStream`). The desktop CONSUMES that core; it is NOT a desktop capability.
+#                       The desktop-side MOUNT of it — the `POST /api/chat` SSE route on the local backend —
+#                       IS a desktop capability (`chat-sse-mount`), the thin glue chat-session-stream's
+#                       Guidance assigns to the consuming surface. The renderer chat PANEL is a `studio`
+#                       frontend component (a thin client over the route, ADR-0108 d.1), also not a
+#                       capability here.
 #   - studio-cloud    — ADR-0117 (amends ADR-0113 §6 for friends): the friend's forest writes are now
 #                       BROKERED, not direct. The local backend POSTs his locally-signed verdict/presence
 #                       to studio-cloud's `write-broker` (a members-gated /api/* endpoint), and the SERVER
