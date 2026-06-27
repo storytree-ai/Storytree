@@ -51,7 +51,8 @@ const MemoryFrontmatter = z
  * Parse one agent-memory `*.md` file into a {@link MemoryFile}: YAML frontmatter (`name` /
  * `description` / `metadata.type`) plus the markdown body after the closing `---`. Throws (loud) on a
  * missing/unterminated frontmatter block or frontmatter that fails {@link MemoryFrontmatter} — the
- * same fail-loud posture as {@link import("./adr-frontmatter.js").parseAdrFrontmatter}.
+ * same fail-loud posture as `@storytree/drive`'s `parseAdrFrontmatter` (the ADR-frontmatter parser
+ * carved out of the CLI by ADR-0112).
  */
 export function parseMemoryFile(file: string, content: string): MemoryFile {
   if (!content.startsWith("---\n")) {

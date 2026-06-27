@@ -33,14 +33,27 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, local-cred
 #                       (ADR-0108): the SSE route + the orchestrate-driven session. The desktop CONSUMES
 #                       it (the renderer chat panel is a thin client over it, ADR-0108 d.1); it is NOT a
 #                       desktop capability.
-depends_on: [studio, drive-machinery, library, headless-orchestrator]
+#   - studio-cloud    — ADR-0117 (amends ADR-0113 §6 for friends): the friend's forest writes are now
+#                       BROKERED, not direct. The local backend POSTs his locally-signed verdict/presence
+#                       to studio-cloud's `write-broker` (a members-gated /api/* endpoint), and the SERVER
+#                       persists them — no per-friend Cloud SQL IAM grant, no local DB connection. This is a
+#                       RUNTIME HTTP edge (a configured broker URL + a POST client), NOT a package import:
+#                       the desktop MUST NOT import apps/studio/server source (the surface boundary,
+#                       ADR-0100). So it adds NO new @storytree/* dep to apps/desktop/package.json for this
+#                       edge (the shapes POSTed come from @storytree/proof-protocol / @storytree/notice-board,
+#                       reachable transitively); `check:boundaries` needs no new declared PACKAGE edge for an
+#                       HTTP consumption. Declared here so the cross-story dependency is visible/forest-rendered.
+depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
-# client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0090 the client/worker split +
-# d.4 source guard (amended); 0091 the proof-off-tether sanction the local backend rides; 0004 the
+# client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the
+# friend's forest writes are BROKERED to studio-cloud's write-broker (no per-friend Cloud SQL IAM grant,
+# an in-app `builder` role instead); 0090 the client/worker split + d.4 source guard (amended); 0091 the
+# proof-off-tether sanction the local backend rides (and the broker holds no signing key); 0004 the
 # orchestrator/agent boundary preserved by topology (main IS the boundary); 0108 the chat surface that
-# ships here; 0021 the member's keyless Cloud SQL IAM grant; 0070 the operator-attested appearance.
-decisions: [109, 111, 113, 90, 91, 4, 108, 21, 70]
+# ships here; 0021 keyless Cloud SQL IAM (the per-friend grant ADR-0117 REMOVES for friends); 0070 the
+# operator-attested appearance (and the live `builder` grant).
+decisions: [109, 111, 113, 117, 90, 91, 4, 108, 21, 70]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -107,11 +120,17 @@ deleted).
   the spine observes RED then GREEN from real exit codes and SIGNS; the agent holds no signing key and
   hands in no verdict; CI independently re-proves green before the trunk (ADR-0022). The damage ceiling
   stays a briefly-wrong hue corrected by CI — if anything stronger (a single-operator local worker).
-- **Shared Cloud SQL, one living forest (ADR-0017 / ADR-0023).** The member's builds, verdicts, and
-  presence write to the SHARED Cloud SQL Postgres, so his work blooms in the same forest the owner
-  watches. This requires granting his Google identity Cloud SQL IAM access (ADR-0021 keyless) — an
-  **attended privileged action performed at delivery**, not a local-store fork (a per-member local store
-  is explicitly NOT chosen; it would fragment the shared forest).
+- **Shared forest, one living forest, writes BROKERED (ADR-0017 / ADR-0023; ADR-0113 §6 AMENDED by
+  ADR-0117).** The member's builds, verdicts, and presence still land in the SHARED Cloud SQL Postgres so
+  his work blooms in the same forest the owner watches — a per-member local store is explicitly NOT chosen
+  (it would fragment the forest). But ADR-0117 changes HOW they land for friends: instead of his local
+  backend opening a direct keyless Cloud SQL connection under his own IAM identity (the per-friend `gcloud`
+  grant), it **POSTs the locally-signed verdict / presence to the hosted studio's members-gated
+  write-broker**, and the SERVER persists them under its one service-account DB identity. The friend holds
+  **no DB identity and opens no DB connection**; he is authorized **in-app** as a `builder` (the Members
+  panel, an in-app grant — no `gcloud`, no Cloud SQL IAM grant). Local COMPUTE is unchanged (the spine runs
+  the gate and signs locally, ADR-0091); only the write is brokered. The live broker write + the `builder`
+  grant are the **operator-attested** legs (UAT 5/6).
 - **Minimal packaging for v1 (ADR-0109's "minimal first").** The trusted member runs a dev-mode desktop
   build with the toolchain present (Node / pnpm / git). Code-signing, notarization, and auto-update stay
   deferred (revisited when the circle widens past hands-on devs).
@@ -157,7 +176,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind a sign-in affordance. | operator-attested (ADR-0070) | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
 | 4 | [`local-credential-wiring`](local-credential-wiring.md) | The keychain-brokered credential is fed to the in-process local backend's build/orchestrate drivers (no TLS hop), and the renderer never receives the raw token. | contract-test (CI red→green) | `credential-broker`, `local-backend-boot` |
-| 5 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend's verdict/presence writes reach the SHARED Cloud SQL, with a readiness probe that fails closed (and clear guidance) when the member lacks the IAM grant or the DB is down. | contract-test (CI red→green) + operator-attested live grant | `local-backend-boot` |
+| 5 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
 
 The **chat surface** the member talks to (the renderer chat panel + the live loop stream) is **not a
 capability here** — its provable backend (the SSE route riding `orchestrate`) is
@@ -202,6 +221,14 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
   orchestrate-driven session that ship inside this desktop are headless-orchestrator's Phase 2
   (ADR-0108); the desktop CONSUMES that capability and mounts its route. The renderer chat panel is the
   thin client over it.
+- **`studio-cloud`** — the **members-gated write-broker (ADR-0117)**. The local backend's forest writes
+  are BROKERED, not direct: it POSTs the locally-signed `Verdict` / `PresenceDeclaration` to studio-cloud's
+  [`write-broker`](../studio-cloud/write-broker.md) over HTTPS, and the server persists them (the friend
+  holds no DB identity). This is a **runtime HTTP edge** — a configured broker URL + a `fetch` POST client
+  in [`shared-forest-connection`](shared-forest-connection.md) — NOT a source import: the desktop does NOT
+  import `apps/studio/server` (the surface boundary, ADR-0100), so it adds no new `@storytree/*` package
+  dep for this edge. The friend's in-app `builder` role (studio-members, consumed transitively through the
+  broker's gate) is what authorizes the POST.
 
 ## Story UAT
 
@@ -213,8 +240,10 @@ never speculative breadth).
 > **Per-leg witness (ADR-0106).** The CI-honest mechanics legs are `witness: machine` — the package
 > suites (`apps/desktop` + the drivers) cover them. The experiential legs — a built native shell, a real
 > OS keychain, a real subscription `query()` running the live loop, the "feels like one app" appearance,
-> and the member's live Cloud SQL IAM grant — are `witness: human` (operator-attested, ADR-0070): an
-> automated CI run cannot drive a native shell, a real keychain, the paid SDK leaf, or judge the look.
+> the live brokered write to the hosted studio, and the member's in-app `builder` grant (ADR-0117 —
+> replacing the old per-friend Cloud SQL IAM grant) — are `witness: human` (operator-attested, ADR-0070):
+> an automated CI run cannot drive a native shell, a real keychain, the paid SDK leaf, a live hosted
+> broker, or judge the look.
 > The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
 > machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up plus
 > the operator's attestations.
@@ -241,28 +270,35 @@ credential never leaving the machine.
    invocation in the local backend receives the brokered credential in-process (no TLS hop), and the
    renderer is never handed the raw token. (`local-credential-wiring`'s contract test asserts the
    in-process hand-off + the renderer isolation.)
-5. **A real build reaches a signed verdict locally and blooms in the shared forest.** _(witness: human)_
-   The member triggers a build from the UI; the local backend drives the real `story build --real` (or a
-   node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees — the spine observes
-   RED then GREEN from real exit codes and SIGNS, the verdict persists to the SHARED Cloud SQL
-   (`events.verdict`), and the build blooms in the forest the owner watches. **Success —** a signed
-   verdict from a real local build, written to the shared forest, the agent having signed nothing itself
+5. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.**
+   _(witness: human)_ The member triggers a build from the UI; the local backend drives the real `story
+   build --real` (or a node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees —
+   the spine observes RED then GREEN from real exit codes and SIGNS LOCALLY, then the local backend **POSTs
+   the signed verdict to the studio's write-broker** (ADR-0117), the SERVER persists it to the SHARED
+   `events.verdict`, and the build blooms in the forest the owner watches. **Success —** a signed verdict
+   from a real local build, brokered to the shared forest under the friend's `builder` role (no DB identity
+   on his machine), the agent having signed nothing itself and the broker having re-signed nothing
    (ADR-0091) — and CI later re-proves it independently. *(operator-attested — a real `--real`/`--live`
-   build is subscription-billed; an agent should not burn the spend unattended.)*
-6. **The shared-forest connection is honest when ungranted/down.** _(witness: machine for the probe;
-   human for the live grant)_ Before the grant, the readiness probe fails CLOSED with clear guidance
-   (the member needs the Cloud SQL IAM grant / the DB is down) rather than hanging or forging success;
-   after the **attended** IAM grant of the member's Google identity (ADR-0021 keyless, a privileged
-   action performed at delivery), the live write path connects. (`shared-forest-connection`'s contract
-   test proves the fail-closed probe over an injected connector; the live grant is operator-attested.)
+   build is subscription-billed and the brokered write needs the live hosted studio; an agent should not
+   burn the spend unattended.)*
+6. **The brokered-forest connection is honest when the broker is unreachable / the member is not a builder.**
+   _(witness: machine for the probe; human for the live broker+grant)_ Before the member is marked a
+   `builder` (or when the broker is down), the readiness probe fails CLOSED with clear guidance (you are
+   not yet an authorized builder — ask the owner / the broker is unreachable — is the studio up?) rather
+   than hanging or forging success; after the owner marks the member a **builder** in the Members panel (an
+   in-app grant — no `gcloud`, no Cloud SQL IAM grant; ADR-0117 d.2), the brokered write path connects.
+   (`shared-forest-connection`'s contract test proves the fail-closed probe over an injected broker-POST
+   seam; the live broker + the `builder` grant are operator-attested.)
 7. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat
    panel (the consumed headless-orchestrator Phase-2 surface), and the approval-to-land gate read as one
    coherent native application. **Success —** the owner's two-stage visual verdict (ADR-0070 / ADR-0113
    §9): the appearance is witnessed, not machine-asserted.
 
 End state — a trusted member ran the whole storytree loop on their own machine through a native app,
-their credential held in the OS keychain and never leaving the machine, their builds signed from real
-exit codes and blooming in the shared forest, the renderer never crossing the agent boundary.
+their credential held in the OS keychain and never leaving the machine, their builds signed locally from
+real exit codes and BROKERED to the shared forest (POSTed to the studio's members-gated write-broker under
+their in-app `builder` role, no DB identity on their machine; ADR-0117), the renderer never crossing the
+agent boundary.
 
 ## Proof
 
@@ -293,6 +329,11 @@ owner-fork bar):
    organism (which would touch the `studio` story) is a clean follow-on, not pulled into this journey to
    keep it small.
 
-The only **owner-level** item is operational, not modeling: the **attended Cloud SQL IAM grant** of the
-trusted member's Google identity at delivery (ADR-0021 keyless) — a privileged action the human performs,
-surfaced in `shared-forest-connection` and UAT leg 6.
+The only **owner-level** item is operational, not modeling, and ADR-0117 SIMPLIFIED it: it is no longer
+an attended Cloud SQL IAM `gcloud` grant but an **in-app `builder` mark in the Members panel** (ADR-0117
+d.2 — the friend holds no DB identity; the server is the single DB authority). A privileged action the
+human performs, now fully in-app, surfaced in `shared-forest-connection` and UAT leg 6. *(A third item is
+RECORDED as decided-and-surfaced, forced by ADR-0117, reversible, internal — not re-litigated:* **the
+friend's forest writes are brokered to studio-cloud's `write-broker`, not direct** *— the local backend
+opens no DB connection. The cross-story edge desktop → studio-cloud is a runtime HTTP edge, declared in
+`depends_on`; the broker endpoint itself is `studio-cloud`'s capability, not re-owned here.)*

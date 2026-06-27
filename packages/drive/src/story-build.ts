@@ -925,11 +925,6 @@ export function storyHelp(): Envelope {
     body: [
       "storytree story — drive a WHOLE story through the prove-it-gate (drive-machinery Phase E).",
       "",
-      "  storytree story adopt-plan <story-id>",
-      "      ADR-0097 Layer 2: classify a brownfield story's capabilities — which are COVERED by a",
-      "      declared `(covers:)` reliability gate vs UNCOVERED (still owe real build-tests work).",
-      "      Read-only, offline (no DB, no spend); the hand-off for the deeper observe/R1/R2 analysis.",
-      "",
       "  storytree story build <story-id> --dry-run [--actor <email>]",
       "      topo-order the story's capabilities from depends_on, walk each through",
       "      AUTHOR_TEST → … → GATE with a scripted model, then the story's UAT node last.",
@@ -966,7 +961,10 @@ export function storyHelp(): Envelope {
       "      then HARD-DELETES the row — durable history left pristine. Requires the live DB. Dry-run-only.",
       "",
       "buildable stories: those whose story + capabilities all have registry entries (today: library).",
+      "",
+      "  brownfield ADOPTION (mapped → proposed) is its own area now (ADR-0097): `storytree adopt <story>`",
+      "      runs it, `storytree adopt plan <story>` classifies the coverage. `story` drives only builds.",
     ].join("\n"),
-    next: ["storytree story build library --dry-run"],
+    next: ["storytree story build library --dry-run", "storytree adopt plan library"],
   };
 }

@@ -215,7 +215,14 @@ export function BuildSection({
       {showButton && (
         <>
           <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
-            {busy ? 'Starting…' : 'Build'}
+            {busy ? (
+              <>
+                <span className="build-spinner build-spinner-inline" aria-hidden="true" />
+                Starting…
+              </>
+            ) : (
+              'Build'
+            )}
           </button>
           <p className="muted small build-hint">
             {scope === 'story' ? (
@@ -270,15 +277,32 @@ function BuildRun({
 
   return (
     <div className="build-run" aria-live="polite">
-      <p className="small build-run-status">
-        {status.status === 'building' ? (
-          <span className="muted">{inProgressLabel} (polling for progress)</span>
-        ) : status.status === 'passed' ? (
-          <span className="verdict-pass">verdict PASS · {passLabel}</span>
-        ) : (
-          <span className="verdict-fail">{failLabel}</span>
-        )}
-      </p>
+      {status.status === 'building' ? (
+        // The non-terminal "thinking" affordance (ADR-0070 Stage 2 — appearance is the owner's call;
+        // this just makes "the system is working" pronounced and clearly visible for the multi-minute
+        // run). A spinner + bold accent label say ALIVE; the indeterminate bar beneath says STILL
+        // WORKING across the whole run far better than a spinner alone. The animated parts are purely
+        // decorative (aria-hidden) — the meaning is carried by the text label, under the root's
+        // aria-live="polite". Reused `@keyframes spin`; both animations drop under prefers-reduced-motion.
+        <div className="build-working">
+          <p className="small build-run-status build-run-status-working">
+            <span className="build-spinner" aria-hidden="true" />
+            <span className="build-working-label">{inProgressLabel}</span>
+            <span className="build-working-note muted">(polling for progress)</span>
+          </p>
+          <div className="build-progress" aria-hidden="true">
+            <span className="build-progress-bar" />
+          </div>
+        </div>
+      ) : (
+        <p className="small build-run-status">
+          {status.status === 'passed' ? (
+            <span className="verdict-pass">verdict PASS · {passLabel}</span>
+          ) : (
+            <span className="verdict-fail">{failLabel}</span>
+          )}
+        </p>
+      )}
 
       {status.transcript.length > 0 && (
         <ol className="build-transcript">
@@ -355,7 +379,14 @@ function AdoptPanel({
       {showButton && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
-            {busy ? 'Starting…' : 'Adopt'}
+            {busy ? (
+              <>
+                <span className="build-spinner build-spinner-inline" aria-hidden="true" />
+                Starting…
+              </>
+            ) : (
+              'Adopt'
+            )}
           </button>
           <p className="muted small build-hint" style={{ margin: 0 }}>
             Runs this story&apos;s existing checks and records they pass — a start, not the finish.

@@ -5,10 +5,14 @@ title: "Studio cloud — the trusted circle interacts with a served studio"
 outcome: "A small circle of trusted devs opens a URL, signs in with their Google account, and interacts with the live studio — world, library, docs — leaving comments under their verified identity; nothing else about the system is exposed."
 status: proposed
 proof_mode: UAT
-capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake]
-# Story-level edges: the studio UI being served, and the library story's store seam (ADR-0010 §4).
-depends_on: [studio, library]
-decisions: [42, 49] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB
+capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake, write-broker]
+# Story-level edges: the studio UI being served, the library story's store seam (ADR-0010 §4), and —
+# ADR-0117 — studio-members, whose `builder` role + `resolveAccess` the write-broker gate consumes (the
+# real code edge already exists: guestPolicy.ts imports @storytree/studio-members, and studio-members'
+# story declares "Membership is CONSUMED BY the hosted studio"). The broker persists a builder's
+# locally-signed verdict/presence under the studio's one service-account DB identity.
+depends_on: [studio, library, studio-members]
+decisions: [42, 49, 117] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope
 ---
 
 # Studio cloud — the trusted circle interacts with a served studio
@@ -40,7 +44,20 @@ differences are a policy layer, not a second backend.
 - **Local dev is untouched.** `vite dev` keeps the open localhost behaviour, json fallback
   included.
 
-## Capabilities (6)
+## The write-broker (ADR-0117)
+
+[ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+adds a **members-gated write-broker** on this served studio's `/api/*` table: a thick-local co-builder
+(the `desktop` story) POSTs his **already-signed** verdict / presence to the broker, and the SERVER — under
+its one service-account DB identity — validates SHAPE + ATTRIBUTION and persists it, so his local build
+blooms in the shared forest WITHOUT a per-friend Cloud SQL IAM grant. The broker holds **no signing key**
+and never re-signs (ADR-0091); it is the inverse of `/api/uat/attest` on the verdict side (that endpoint
+*signs* a new verdict; the broker *persists* a handed-in one). Authorization is the existing `resolveAccess`
+gate with the `builder` scope required ([`builder-role`](../studio-members/builder-role.md)). It rides the
+ONE route table + the existing policy gate (`guestPolicy.ts`) — not a second backend (ADR-0042). It is
+CONSUMED BY the desktop over HTTP ([`shared-forest-connection`](../desktop/shared-forest-connection.md)).
+
+## Capabilities (7)
 
 Listed roots-first.
 
@@ -52,6 +69,7 @@ Listed roots-first.
 | 4 | [`cloud-run-iap`](cloud-run-iap.md) | Terraform stands up the Cloud Run service behind IAP with a least-privilege runtime service account reaching Cloud SQL keylessly. | proposed | `container-image`, `guest-scope` |
 | 5 | [`circle-onboarding`](circle-onboarding.md) | Adding a trusted dev is one IAM grant plus a runbook link; removing them is one revoke; the circle's access is enumerable at a glance. | proposed | `cloud-run-iap` |
 | 6 | [`hosted-db-wake`](hosted-db-wake.md) | When the shared DB idle-stops, an admin wakes it from the site — keyless, container-native, no gcloud; the page self-recovers, non-admins are refused. | proposed | `serve-mode`, `guest-scope` |
+| 7 | [`write-broker`](write-broker.md) | A members-gated POST endpoint persists a builder's locally-signed verdict / presence — validating shape + attribution, refusing a non-builder (403) / malformed (400) / mismatched signer — holding no signing key, never re-signing. | proposed | `guest-scope` |
 
 ## Story UAT (would-be)
 
@@ -74,8 +92,17 @@ owner reads, without touching a terminal.
    even though the static bundle serves. **Success —** fail-closed posture observed.
 7. **Revoke:** the owner removes the grant. **Success —** the dev's next visit stops at
    sign-in; nothing else changed.
+8. **Broker a build (ADR-0117):** the owner marks `friend@example.com` a **builder** (Members panel);
+   the friend's thick-local desktop POSTs a locally-signed verdict to the write-broker. **Success —** the
+   broker validates shape + attribution + the builder scope and persists it (the server is the single DB
+   authority); the friend's build blooms in the forest the owner watches; a `member` (non-builder) POST is
+   403, a malformed body 400, a mismatched-signer body refused. *(The broker's gate/shape/attribution core
+   is [`write-broker`](write-broker.md)'s contracts; the end-to-end "a builder's brokered write blooms in
+   the shared forest" walk is operator-attested under ADR-0070, witnessed jointly with `desktop` UAT leg 5.)*
 
 ## Open modeling calls (for the owner)
 
-None — ADR-0042 resolved exposure and guest scope. Cost detail (direct IAP integration vs
-classic LB ~US$20/mo) is recorded there and lands with `cloud-run-iap`.
+None — ADR-0042 resolved exposure and guest scope; [ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+added the members-gated write-broker + the `builder` scope (a settled owner-directed decision, born
+accepted per ADR-0110). Cost detail (direct IAP integration vs classic LB ~US$20/mo) is recorded in
+ADR-0042 and lands with `cloud-run-iap`.

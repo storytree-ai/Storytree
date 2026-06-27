@@ -156,6 +156,77 @@ describe('BuildSection', () => {
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
   });
 
+  // ── ubt-loading-affordance-present-while-building-gone-when-terminal ─────────
+  // The pronounced "thinking" affordance (ADR-0070 Stage 2): a spinner + indeterminate bar are
+  // PRESENT for the whole non-terminal run and GONE the moment a verdict lands. The appearance
+  // itself is the owner's call; this only pins that the affordance is mounted/unmounted correctly.
+  it('shows the loading affordance (spinner + progress bar) while a Build runs, and removes it on a PASS terminal', async () => {
+    apiMock.build.mockResolvedValue({ runId: 'run-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce(building())
+      .mockResolvedValueOnce({
+        runId: 'run-1',
+        unitId: 'drive-machinery',
+        status: 'passed',
+        transcript: ['build started', 'verdict: PASS'],
+        envelope: 'verdict PASS · signer spine',
+      });
+
+    const { container } = render(<BuildSection unitId="drive-machinery" buildable />);
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }));
+    await flush(); // building — the affordance is up
+    expect(container.querySelector('.build-spinner')).toBeTruthy();
+    expect(container.querySelector('.build-progress')).toBeTruthy();
+    // The animated parts are decorative — the live-region carries the meaning via the text label.
+    expect(container.querySelector('.build-spinner')?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('.build-progress')?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByText('building…')).toBeTruthy();
+
+    await tick(BUILD_POLL_MS); // terminal PASS — the affordance is gone, the verdict shows
+    expect(container.querySelector('.build-spinner')).toBeNull();
+    expect(container.querySelector('.build-progress')).toBeNull();
+    expect(screen.getByText(/build passed/)).toBeTruthy();
+  });
+
+  it('removes the loading affordance on a FAILED terminal too', async () => {
+    apiMock.build.mockResolvedValue({ runId: 'run-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce(building())
+      .mockResolvedValueOnce({
+        runId: 'run-1',
+        unitId: 'drive-machinery',
+        status: 'failed',
+        transcript: ['build started', 'verdict: FAIL'],
+        reason: 'gate observed red, never green',
+      });
+
+    const { container } = render(<BuildSection unitId="drive-machinery" buildable />);
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }));
+    await flush();
+    expect(container.querySelector('.build-spinner')).toBeTruthy();
+
+    await tick(BUILD_POLL_MS);
+    expect(container.querySelector('.build-spinner')).toBeNull();
+    expect(container.querySelector('.build-progress')).toBeNull();
+    expect(screen.getByText(/failed/i)).toBeTruthy();
+  });
+
+  // The button's "Starting…" busy state carries a small inline spinner for consistency (ADR-0070).
+  it('shows an inline spinner in the button while the intent is in flight (busy)', async () => {
+    let resolveBuild: (r: { runId: string }) => void = () => {};
+    apiMock.build.mockReturnValue(new Promise<{ runId: string }>((res) => { resolveBuild = res; }));
+    apiMock.buildStatus.mockResolvedValue(building());
+
+    const { container } = render(<BuildSection unitId="drive-machinery" buildable />);
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }));
+    await flush(); // intent posted but not yet resolved → the button is busy ("Starting…")
+    expect(screen.getByText('Starting…')).toBeTruthy();
+    expect(container.querySelector('.build-spinner-inline')).toBeTruthy();
+
+    resolveBuild({ runId: 'run-1' }); // let the run proceed so the effect/timers settle cleanly
+    await flush();
+  });
+
   // ── ubt-terminal-refreshes-affordance (Bug 2: stale affordance after a finished run) ──
   it('calls onTerminal exactly once when a run reaches terminal — not while building, not again after', async () => {
     const onTerminal = vi.fn();
@@ -372,6 +443,39 @@ describe('AdoptPanel (BuildSection adopt scope)', () => {
     await tick(BUILD_POLL_MS);
     await tick(BUILD_POLL_MS);
     expect(apiMock.buildStatus).toHaveBeenCalledTimes(2); // no polling past terminal
+  });
+
+  // The shared "thinking" affordance lifts the Adopt path too (BuildRun is shared, ADR-0097): the
+  // spinner + indeterminate bar show while adopting and are gone on the terminal verdict.
+  it('shows the loading affordance while an Adopt runs, and removes it when terminal', async () => {
+    apiMock.adopt.mockResolvedValue({ runId: 'adopt-1' });
+    apiMock.buildStatus
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'building',
+        transcript: ['adoption started'],
+      })
+      .mockResolvedValueOnce({
+        runId: 'adopt-1',
+        unitId: 'library',
+        status: 'passed',
+        transcript: ['flip mapped → proposed', 'verdict: PASS'],
+        envelope: 'adopted · signer spine-principal · approvedBy operator',
+      });
+
+    const { container } = render(<BuildSection {...adoptProps} adoptGates={adoptGates} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt' }));
+    await flush(); // adopting — the affordance is up, and reads "adopting…" not "building…"
+    expect(container.querySelector('.build-spinner')).toBeTruthy();
+    expect(container.querySelector('.build-progress')).toBeTruthy();
+    expect(screen.getByText('adopting…')).toBeTruthy();
+    expect(screen.queryByText('building…')).toBeNull();
+
+    await tick(BUILD_POLL_MS); // terminal — affordance gone, verdict shows
+    expect(container.querySelector('.build-spinner')).toBeNull();
+    expect(container.querySelector('.build-progress')).toBeNull();
+    expect(screen.getByText(/PASS.*adopted/)).toBeTruthy();
   });
 
   // Bug 2: a finished adoption flips the story `mapped → proposed` server-side, so the panel must

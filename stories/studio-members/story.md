@@ -5,7 +5,7 @@ title: "Studio members — real accounts, roles, and invitations from the UI"
 outcome: "An admin invites someone by email from the studio; they sign in with Google and become a tracked user with a role; the API enforces what each role may do, and non-members see nothing but a request-access wall."
 status: proposed
 proof_mode: UAT
-capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
+capabilities: [user-directory, app-authorization, invite-ui, invite-notify, builder-role]
 # ADR-0077 U2: studio-members now owns its Postgres user (member) drawer behind ./store (the
 # PgUserStore moved in from the dissolving @storytree/store), so it deps @storytree/library
 # (createPool/closePool via @storytree/library/store) ONLY — it rolls its OWN duck-typed pool/Store seam
@@ -17,7 +17,7 @@ capabilities: [user-directory, app-authorization, invite-ui, invite-notify]
 # studio→studio-members code edge closed a studio-cloud→studio→studio-members→studio-cloud cycle; this
 # is the honest break (studio-members' code deps were @storytree/library only all along).
 depends_on: [library]
-decisions: [43, 100]
+decisions: [43, 100, 117]
 ---
 
 # Studio members — real accounts, roles, and invitations from the UI
@@ -47,7 +47,20 @@ model (ADR-0042's IAP allowlist + env admin list).
 - **No lockout.** `STORYTREE_STUDIO_ADMINS` seeds the first admin; the last admin can't be removed
   or down-roled.
 
-## Capabilities (4)
+## The builder role (ADR-0117)
+
+[ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+adds a **third role, `builder`**, so a trusted co-builder may contribute brokered builds/writes to the
+shared forest as an in-app grant (no per-friend Cloud SQL IAM grant). A `builder` reads + comments like a
+`member` **plus** holds the brokered-write scope, is resolved by the same `resolveAccess`, and holds **no
+DB identity**; `admin ⊇ builder ⊇ member`, and the last-admin no-lockout guard counts admins only (a
+builder never changes the admin floor). The role lives here ([`builder-role`](builder-role.md)); the
+write-broker ENDPOINT that consumes the scope is a `studio-cloud` capability
+([`write-broker`](../studio-cloud/write-broker.md)), CONSUMED BY the desktop's brokered forest writes
+([`shared-forest-connection`](../desktop/shared-forest-connection.md)). The Members-panel affordance that
+marks/invites a builder is the in-UI invitation (ADR-0043 extended), operator-attested (UAT leg 8 below).
+
+## Capabilities (5)
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -55,6 +68,7 @@ model (ADR-0042's IAP allowlist + env admin list).
 | 2 | [`app-authorization`](app-authorization.md) | Every API request resolves its verified email to a user row and enforces role; non-members are served nothing but a request-access signal. | proposed | `user-directory` |
 | 3 | [`invite-ui`](invite-ui.md) | An admin invites, re-roles, and removes users from the studio; the invitee activates on first Google sign-in. | proposed | `app-authorization` |
 | 4 | [`invite-notify`](invite-notify.md) | Inviting emails the invitee the studio link (best-effort, config-gated) so they learn they have access; the admin sees whether it sent. | proposed | `invite-ui` |
+| 5 | [`builder-role`](builder-role.md) | A third role — `builder` — a member who may POST brokered builds/writes, resolved by the same access compute, holding no DB identity; `admin ⊇ builder ⊇ member`, last-admin guard unaffected. | proposed | `user-directory` |
 
 ## Story UAT (would-be)
 
@@ -72,10 +86,17 @@ model (ADR-0042's IAP allowlist + env admin list).
    refused with a clear reason.
 7. **Remove:** an admin removes `dev@example.com`. **Success —** that account drops to the
    request-access wall on its next request; its comment history remains attributed.
+8. **Mark a builder (ADR-0117, operator-attested):** the admin invites / re-roles `friend@example.com`
+   as a **builder** from the Members panel. **Success —** a `builder` row exists (in-app, no gcloud, no
+   Cloud SQL IAM grant); the friend reads + comments like a member and now satisfies the brokered-write
+   scope the [`write-broker`](../studio-cloud/write-broker.md) gate reads. *(The Members-panel affordance's
+   appearance is operator-attested per ADR-0070; the role-resolution core is [`builder-role`](builder-role.md)'s
+   contracts.)*
 
 ## Open modeling calls (for the owner)
 
-None blocking — ADR-0043 fixed the model. Inviting now also emails the invitee
-([`invite-notify`](invite-notify.md)). Per-story or per-artifact roles, and self-serve "request
-access" notifications to *admins* (the inbound direction — a stranger asking in), remain
-deferred-but-named extensions.
+None blocking — ADR-0043 fixed the base model and [ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+added the `builder` role (a settled owner-directed decision, born accepted per ADR-0110 — not
+re-litigated). Inviting also emails the invitee ([`invite-notify`](invite-notify.md)). Per-story or
+per-artifact roles, and self-serve "request access" notifications to *admins* (the inbound direction — a
+stranger asking in), remain deferred-but-named extensions.

@@ -26,21 +26,67 @@ export type ForestReadinessResult =
   | { ready: false; guidance: string };
 
 /**
+ * Options for {@link probeForestReadiness}.
+ *
+ * @property timeoutMs — If supplied, the probe fails closed within this many milliseconds when
+ *   the connector stalls (e.g. a Cloud SQL handshake that never completes). Without this option
+ *   the probe waits as long as the connector takes.
+ */
+export interface ProbeForestReadinessOptions {
+  timeoutMs?: number;
+}
+
+/**
  * Probe whether the local backend can reach the shared Cloud SQL forest.
  *
  * Calls the injected `connector`, then immediately closes the acquired connection (a readiness
  * check — no writes). If the connector rejects (ECONNREFUSED, auth error, idle-stopped DB), the
  * error is converted to a fail-closed `{ ready: false, guidance }` result rather than propagating
  * the throw — the probe NEVER reports ready when it cannot actually connect.
+ *
+ * When `options.timeoutMs` is supplied the probe self-bounds: if the connector has not resolved
+ * within that deadline, the probe returns `{ ready: false, guidance }` with timeout-specific
+ * member-actionable text rather than hanging indefinitely.
  */
 export async function probeForestReadiness(
   connector: ForestConnectorFn,
+  options?: ProbeForestReadinessOptions,
 ): Promise<ForestReadinessResult> {
+  const timeoutMs = options?.timeoutMs;
+  let isTimeout = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    const conn = await connector();
+    const connectorPromise = connector();
+
+    const awaitable: Promise<ForestConnection> =
+      timeoutMs !== undefined
+        ? Promise.race([
+            connectorPromise,
+            new Promise<never>((_, reject) => {
+              timeoutHandle = setTimeout(() => {
+                isTimeout = true;
+                reject(new Error(`Connection timed out after ${timeoutMs}ms`));
+              }, timeoutMs);
+            }),
+          ])
+        : connectorPromise;
+
+    const conn = await awaitable;
+    clearTimeout(timeoutHandle);
     await conn.end();
     return { ready: true };
   } catch {
+    clearTimeout(timeoutHandle);
+    if (isTimeout) {
+      return {
+        ready: false,
+        guidance:
+          `Connection to the shared Cloud SQL forest timed out after ${timeoutMs ?? "unknown"}ms ` +
+          "(the handshake stalled or the DB is idle-stopped). " +
+          "Run `pnpm db:up` to wake the DB and check you have the Cloud SQL IAM grant.",
+      };
+    }
     return {
       ready: false,
       guidance:
