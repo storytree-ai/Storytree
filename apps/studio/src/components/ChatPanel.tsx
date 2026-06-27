@@ -24,11 +24,12 @@ import { useCallback, useRef, useState } from 'react';
 import { api } from '../api.js';
 import type { ChatEvent } from '../api.js';
 
-/** The panel's local phase: idle (offer the input) → busy (streaming) → a terminal render, OR the
- *  honest absent-route degrade. The terminal frames map one-to-one onto the wire shape. */
+/** The panel's local phase: idle (offer the input) → busy (streaming; `streamed` accumulates the
+ *  assistant text deltas as they arrive so the operator sees tokens live) → a terminal render, OR
+ *  the honest absent-route degrade. The terminal frames map one-to-one onto the wire shape. */
 type Phase =
   | { kind: 'idle' }
-  | { kind: 'busy' }
+  | { kind: 'busy'; streamed: string }
   | { kind: 'done'; proposal: string; costUsd?: number; turns?: number }
   | { kind: 'error'; error: string }
   | { kind: 'refused'; reason: string }
@@ -54,13 +55,23 @@ export function ChatPanel(): React.JSX.Element {
 
     inFlight.current = true;
     // The terminal frame the stream delivers (the backend end()s after one terminal event). We keep
-    // the LAST typed frame and render it when the stream resolves — the contracts pin the terminal
+    // the LAST terminal frame and render it when the stream resolves — the contracts pin the terminal
     // render, which is the journey the operator sees.
     let terminal: ChatEvent | null = null;
-    setPhase({ kind: 'busy' });
+    // The streamed assistant text, accumulated from `delta` frames as they arrive. Rendering it live
+    // (rather than spinning until the whole session ends) is the responsiveness fix — the operator
+    // sees tokens generate. On `done` we settle to the authoritative proposal.
+    let streamed = '';
+    setPhase({ kind: 'busy', streamed: '' });
 
     api
       .chatStream(trimmed, (event) => {
+        if (event.type === 'delta') {
+          // A non-terminal token fragment — append and re-render the live busy view.
+          streamed += event.text;
+          setPhase({ kind: 'busy', streamed });
+          return;
+        }
         terminal = event;
       })
       .then(() => {
@@ -146,16 +157,23 @@ export function ChatPanel(): React.JSX.Element {
 
       <div className="chat-outcome" aria-live="polite">
         {phase.kind === 'busy' && (
-          // The non-terminal "thinking" affordance. The animated parts are decorative (aria-hidden) —
-          // the live-region text carries the meaning. The exact look is operator-attested (ADR-0070).
+          // The non-terminal "thinking/streaming" affordance. Before any token arrives it shows an
+          // indeterminate progress bar ("working…"); once deltas stream in, the live text itself is
+          // the progress, so the panel renders the accumulating tokens ("streaming…"). The exact look
+          // is operator-attested (ADR-0070); the animated parts are decorative (aria-hidden).
           <div className="chat-busy">
             <p className="small chat-busy-status">
               <span className="build-spinner" aria-hidden="true" />
-              <span className="chat-busy-label">working…</span>
+              <span className="chat-busy-label">{phase.streamed ? 'streaming…' : 'working…'}</span>
             </p>
-            <div className="build-progress" aria-hidden="true">
-              <span className="build-progress-bar" />
-            </div>
+            {phase.streamed ? (
+              // The assistant's text as it generates — tokens appear live (the responsiveness fix).
+              <p className="chat-streaming-text">{phase.streamed}</p>
+            ) : (
+              <div className="build-progress" aria-hidden="true">
+                <span className="build-progress-bar" />
+              </div>
+            )}
           </div>
         )}
 

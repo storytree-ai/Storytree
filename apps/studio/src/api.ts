@@ -58,7 +58,14 @@ function jsonInit(method: string, body: unknown): RequestInit {
 // studio rides the wire shape with a locally-declared type (the same move boot-read-routes makes for
 // LocalMe). Re-cite the producer at apps/desktop/src/backend/chat-sse-mount.ts.
 
-/** The terminal success frame — the streamed proposal text plus optional session metrics. */
+/** A NON-terminal streaming frame — one assistant text fragment as it generates. Zero or more
+ *  precede the terminal frame; the panel appends each `text` to a live render so the operator sees
+ *  tokens stream (the responsiveness fix). The authoritative answer is the terminal `done` proposal. */
+export interface ChatDeltaEvent {
+  type: 'delta';
+  text: string;
+}
+/** The terminal success frame — the authoritative proposal text plus optional session metrics. */
 export interface ChatDoneEvent {
   type: 'done';
   proposal: string;
@@ -76,14 +83,15 @@ export interface ChatRefusedEvent {
   type: 'refused';
   reason: string;
 }
-/** One SSE `data:` frame from /api/chat, discriminated by `type`. */
-export type ChatEvent = ChatDoneEvent | ChatErrorEvent | ChatRefusedEvent;
+/** One SSE `data:` frame from /api/chat, discriminated by `type`. A stream is zero or more
+ *  non-terminal `delta` frames followed by exactly one terminal `done`/`error`/`refused` frame. */
+export type ChatEvent = ChatDeltaEvent | ChatDoneEvent | ChatErrorEvent | ChatRefusedEvent;
 
 /** A frame that parses to JSON but isn't a recognised ChatEvent shape — defensively ignored. */
 function isChatEvent(value: unknown): value is ChatEvent {
   if (value === null || typeof value !== 'object') return false;
   const t = (value as { type?: unknown }).type;
-  return t === 'done' || t === 'error' || t === 'refused';
+  return t === 'delta' || t === 'done' || t === 'error' || t === 'refused';
 }
 
 /**

@@ -2394,6 +2394,29 @@ mark.st-hl.flash {
   font-weight: 600;
   color: var(--accent);
 }
+/* The assistant text streaming in live (the `delta` frames), before the session settles to its done
+ * proposal. Same readable card as the proposal so the settle is visually continuous, with a blinking
+ * caret to signal it is still generating. Preserves line breaks for multi-paragraph streaming. */
+.chat-streaming-text {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.chat-streaming-text::after {
+  content: '▋';
+  margin-left: 2px;
+  color: var(--accent);
+  animation: chat-caret-blink 1s step-end infinite;
+}
+@keyframes chat-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
 /* The done proposal — the streamed plan, in a readable card with preserved line breaks. */
 .chat-proposal {
   padding: 14px 16px;

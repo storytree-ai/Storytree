@@ -193,6 +193,97 @@ test("runHeadlessOrchestrator: refuses a second concurrent run while one is in f
 });
 
 // ---------------------------------------------------------------------------
+// 5b. Streaming — assistant text deltas are forwarded to onDelta as they arrive,
+//     and the session enables includePartialMessages (ADR-0108 Phase 2 streaming)
+// ---------------------------------------------------------------------------
+
+/** Build an SDK partial-assistant streaming message carrying one text-delta fragment.
+ *  Mirrors the live `SDKPartialAssistantMessage` shape so the scripted double matches `query()`. */
+function textDeltaMessage(text: string): unknown {
+  return {
+    type: "stream_event",
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    parent_tool_use_id: null,
+    uuid: "u",
+    session_id: "s",
+  };
+}
+
+test("runHeadlessOrchestrator: forwards assistant text deltas to onDelta in order and enables includePartialMessages", async () => {
+  const deltas: string[] = [];
+  let capturedOptions: unknown;
+
+  const streamingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield textDeltaMessage("Orient");
+      yield textDeltaMessage("ing on ");
+      yield textDeltaMessage("the tree…");
+      // A non-text partial (tool-input JSON) must NOT be forwarded as prose.
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "input_json_delta", partial_json: '{"a":1}' },
+        },
+        parent_tool_use_id: null,
+        uuid: "u2",
+        session_id: "s",
+      };
+      yield okResult;
+    })();
+  };
+
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "orient",
+    onDelta: (t) => deltas.push(t),
+    queryFn: streamingQuery,
+  });
+
+  assert.equal(r.ok, true, "a streaming session must still terminate with the result message");
+  assert.deepEqual(
+    deltas,
+    ["Orient", "ing on ", "the tree…"],
+    "every text_delta fragment must be forwarded to onDelta in arrival order; non-text deltas excluded",
+  );
+  assert.equal(
+    (capturedOptions as { includePartialMessages?: boolean }).includePartialMessages,
+    true,
+    "includePartialMessages must be enabled when an onDelta sink is wired",
+  );
+  assert.equal(
+    r.proposal,
+    okResult.result,
+    "the authoritative proposal is still the result message's result, not the concatenated deltas",
+  );
+});
+
+test("runHeadlessOrchestrator: leaves includePartialMessages off when no onDelta sink is provided", async () => {
+  let capturedOptions: unknown;
+  const capturingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "orient",
+    queryFn: capturingQuery,
+  });
+
+  assert.equal(r.ok, true);
+  assert.notEqual(
+    (capturedOptions as { includePartialMessages?: boolean }).includePartialMessages,
+    true,
+    "a non-streaming consumer must not pay the partial-message cost (includePartialMessages stays off)",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // 6. Read-only tool surface — orientation tools in allowedTools, no write tools
 // ---------------------------------------------------------------------------
 

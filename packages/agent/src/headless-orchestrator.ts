@@ -41,6 +41,16 @@ export interface HeadlessOrchestratorArgs {
   maxTurns?: number;
   /** Hard budget ceiling in USD (the SDK aborts past it). Default: 1. */
   maxBudgetUsd?: number;
+  /**
+   * Optional sink for assistant TEXT DELTAS as they stream from the SDK (ADR-0108 Phase 2 streaming).
+   * When provided, the session enables `includePartialMessages` and forwards each
+   * `content_block_delta`/`text_delta` fragment here AS IT ARRIVES — so a consuming surface (the chat
+   * panel) can render tokens live instead of waiting for the whole multi-turn session to finish. Omit
+   * for a non-streaming consumer (the terminal `orchestrate` command) — partial messages stay off.
+   * The AUTHORITATIVE final proposal is still the result message's `result`; deltas are a live preview,
+   * never the verdict.
+   */
+  onDelta?: (text: string) => void;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
 }
@@ -90,6 +100,28 @@ function isResult(message: unknown): message is ResultLike {
   );
 }
 
+/**
+ * Pull the assistant text fragment out of a streaming partial message, or `null` when the message
+ * is not a text delta. Structural narrowing (mirrors {@link isResult}) over the SDK's
+ * `SDKPartialAssistantMessage` shape — `{ type: "stream_event", event: <BetaRawMessageStreamEvent> }`
+ * — drilling to a `content_block_delta` event carrying a `text_delta`. Non-text deltas (tool-input
+ * JSON, thinking, signatures) and every non-partial message return `null`, so only assistant prose
+ * streams to `onDelta`. Kept structural (no SDK type import beyond what this file already pins) so a
+ * partial-message reshape surfaces in the delta tests, not as a silent stream that stops flowing.
+ */
+function extractTextDelta(message: unknown): string | null {
+  if (typeof message !== "object" || message === null) return null;
+  if ((message as { type?: unknown }).type !== "stream_event") return null;
+  const event = (message as { event?: unknown }).event;
+  if (typeof event !== "object" || event === null) return null;
+  if ((event as { type?: unknown }).type !== "content_block_delta") return null;
+  const delta = (event as { delta?: unknown }).delta;
+  if (typeof delta !== "object" || delta === null) return null;
+  if ((delta as { type?: unknown }).type !== "text_delta") return null;
+  const text = (delta as { text?: unknown }).text;
+  return typeof text === "string" ? text : null;
+}
+
 // ---------------------------------------------------------------------------
 // Default runner (offline no-op stub — returns a minimal envelope body)
 // ---------------------------------------------------------------------------
@@ -137,11 +169,17 @@ export async function runHeadlessOrchestrator(
 
     const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
 
+    // Streaming is opt-in per consumer: only enable partial messages when a delta sink is wired
+    // (the chat panel). The terminal `orchestrate` command omits onDelta and pays no streaming cost.
+    const wantsDeltas = args.onDelta !== undefined;
+
     const options: Options = {
       cwd: args.cwd ?? process.cwd(),
       model: args.model ?? "claude-sonnet-4-6",
       maxTurns: args.maxTurns ?? 16,
       maxBudgetUsd: args.maxBudgetUsd ?? 1,
+      // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
+      ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // Read-only by construction: no Write/Edit/Bash in tools or allowedTools (Phase 1).
       tools: [],
       allowedTools,
@@ -164,7 +202,13 @@ export async function runHeadlessOrchestrator(
     let result: ResultLike | undefined;
     try {
       for await (const message of queryFn({ prompt: args.userPrompt, options })) {
-        if (isResult(message)) result = message;
+        if (isResult(message)) {
+          result = message;
+        } else if (wantsDeltas) {
+          // Forward each streamed assistant text fragment as it arrives (live token streaming).
+          const delta = extractTextDelta(message);
+          if (delta !== null && delta.length > 0) args.onDelta?.(delta);
+        }
       }
     } catch (e) {
       return {

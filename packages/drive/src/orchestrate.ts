@@ -50,6 +50,13 @@ export interface OrchestrateArgs {
   maxTurns?: number;
   /** Hard USD budget ceiling for the live session (live run only). */
   maxBudgetUsd?: number;
+  /**
+   * Optional sink for streamed assistant text deltas (ADR-0108 Phase 2 streaming) — forwarded to the
+   * headless runner so a consuming surface (the chat panel) can render tokens live as the session
+   * generates them, instead of waiting for the whole multi-turn session to finish. Omit for a
+   * non-streaming consumer (the terminal `orchestrate` command). The proposal is still the authority.
+   */
+  onDelta?: (text: string) => void;
 }
 
 /**
@@ -103,6 +110,7 @@ export async function orchestrate({
   model,
   maxTurns,
   maxBudgetUsd,
+  onDelta,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -139,6 +147,7 @@ export async function orchestrate({
       ...(model !== undefined ? { model } : {}),
       ...(maxTurns !== undefined ? { maxTurns } : {}),
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
+      ...(onDelta !== undefined ? { onDelta } : {}),
     });
   } finally {
     compositionInFlight = false;

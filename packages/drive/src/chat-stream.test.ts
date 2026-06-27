@@ -56,6 +56,18 @@ function queryYielding(messages: unknown[]): SdkQueryFn {
     })();
 }
 
+/** Build an SDK partial-assistant streaming message carrying one text-delta fragment — the shape
+ *  live `query()` emits when `includePartialMessages` is on, so the scripted double matches reality. */
+function textDeltaMessage(text: string): unknown {
+  return {
+    type: "stream_event",
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    parent_tool_use_id: null,
+    uuid: "u",
+    session_id: "s",
+  };
+}
+
 /**
  * A manually-resolvable promise — lets a scripted session park mid-flight so the first orchestrate
  * session can be held "in flight" while a second is attempted (the single-session guard test below).
@@ -193,6 +205,63 @@ test(
       done.type === "done" ? done.turns : undefined,
       OK_SDK_RESULT.num_turns,
       "done event must surface turns from the orchestrate result (num_turns)",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 3b. Streaming — assistant text deltas are forwarded as non-terminal `delta`
+//     events, in order, BEFORE the terminal `done` (the responsiveness fix,
+//     ADR-0108 Phase 2 streaming).
+// ---------------------------------------------------------------------------
+
+test(
+  "startChatStream: streams assistant text deltas as `delta` events, in order, before the terminal `done`",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+
+    // A scripted session that streams three text fragments then a terminal result. The done event's
+    // proposal is DISTINCT from the streamed fragments so we can prove the terminal answer is the
+    // authoritative result, not just the concatenated stream.
+    const events = await drain(
+      startChatStream({
+        intent: "Orient and propose.",
+        store,
+        queryFn: queryYielding([
+          textDeltaMessage("Orient"),
+          textDeltaMessage("ing on "),
+          textDeltaMessage("the tree…"),
+          OK_SDK_RESULT,
+        ]),
+      }),
+    );
+
+    // The delta events, in arrival order.
+    const deltaTexts = events
+      .filter((e): e is Extract<ChatStreamEvent, { type: "delta" }> => e.type === "delta")
+      .map((e) => e.text);
+    assert.deepEqual(
+      deltaTexts,
+      ["Orient", "ing on ", "the tree…"],
+      "each streamed assistant text fragment must surface as a `delta` event in order",
+    );
+
+    // Every delta precedes the terminal done — a thin client renders tokens live, then settles.
+    const doneIdx = events.findIndex((e) => e.type === "done");
+    const lastDeltaIdx = events.map((e) => e.type).lastIndexOf("delta");
+    assert.ok(doneIdx !== -1, "the stream must end with a terminal `done` event");
+    assert.ok(
+      lastDeltaIdx !== -1 && lastDeltaIdx < doneIdx,
+      "all `delta` events must precede the terminal `done` (no terminal event races ahead of a delta)",
+    );
+
+    const last = events[events.length - 1];
+    assert.equal(last?.type, "done", "the terminal event must be `done`");
+    assert.equal(
+      last?.type === "done" ? last.proposal : undefined,
+      OK_SDK_RESULT.result,
+      "the terminal `done` carries the AUTHORITATIVE proposal (the result message), not the stream",
     );
   },
 );
