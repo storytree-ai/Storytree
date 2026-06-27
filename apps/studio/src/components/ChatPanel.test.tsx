@@ -6,12 +6,12 @@
 // parses `data: <json>\n\n` SSE frames, and renders the terminal event into the
 // right UI state.
 //
-// Four contracts pinned:
-//   chp-done                   — `done` frame renders the proposal; busy clears; submit re-enabled
-//   chp-error                  — `error` frame renders a distinct error state (not "try again")
-//   chp-refused                — `refused` frame renders "busy — try again" (not a generic error)
-//   chp-blank-noop             — blank / whitespace intent never fires fetch
-//   chp-busy-blocks-concurrent — in-flight: submit disabled; concurrent click fires no extra fetch
+// Four contracts pinned (ADR-0122 — each `it(...)` LEADS with its contract id so
+// `storytree coverage chat-panel` reports 4/4):
+//   cp-renders-streamed-done-proposal              — POST {intent} → `done` frame renders the proposal; busy clears; submit re-enabled
+//   cp-renders-error-frame-as-error                — `error` frame renders a distinct error state (not "try again")
+//   cp-renders-refused-as-busy-retry               — `refused` frame renders "busy — try again" (not a generic error)
+//   cp-busy-while-streaming-blank-not-submittable  — blank/whitespace intent never POSTs; an in-flight submit blocks a concurrent POST
 //
 // global fetch is replaced with a scripted ReadableStream double — no live SDK, no DB, no imports
 // from @storytree/agent / @storytree/drive / @storytree/orchestrator / @storytree/cli (ADR-0004).
@@ -57,24 +57,32 @@ afterEach(() => {
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('ChatPanel', () => {
-  // ── chp-done ─────────────────────────────────────────────────────────────────
+  // ── cp-renders-streamed-done-proposal ─────────────────────────────────────────
   //
-  // The happy path — PROVES the panel reads the STREAM (the proposal arrives as a
+  // The happy path — PROVES (a) the panel POSTs the intent to /api/chat with a
+  // `{ intent }` JSON body, and (b) it reads the STREAM (the proposal arrives as a
   // parsed SSE `done` frame), not a one-shot `res.json()` body. If the panel used
   // `res.json()`, the "data: ...\n\n" wire format would fail to parse as JSON and
   // the proposal would never render.
-  it('chp-done: a `done` SSE frame renders the proposal text and re-enables the submit', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
+  it('cp-renders-streamed-done-proposal: POSTs {intent} to /api/chat, reads the stream, renders the proposal, re-enables submit', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
         sseResponse([{ type: 'done', proposal: 'Here is the plan.', costUsd: 0.04, turns: 2 }]),
-      ),
-    );
+      );
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<ChatPanel />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'What should we build?' } });
     fireEvent.click(screen.getByRole('button'));
     await flush();
+
+    // The wire contract: exactly ONE POST to /api/chat carrying { intent } as JSON.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('/api/chat');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ intent: 'What should we build?' });
 
     // The proposal text from the streamed `done` event is on-screen.
     expect(screen.getByText('Here is the plan.')).toBeTruthy();
@@ -82,12 +90,12 @@ describe('ChatPanel', () => {
     expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  // ── chp-error ─────────────────────────────────────────────────────────────────
+  // ── cp-renders-error-frame-as-error ───────────────────────────────────────────
   //
   // Fail-closed honesty: the panel surfaces the error message to the user rather
   // than silently clearing. Distinct from `refused` — an error is a real failure,
   // not a session-guard bounce.
-  it('chp-error: an `error` SSE frame renders a distinct error state (not silent, not "try again")', async () => {
+  it('cp-renders-error-frame-as-error: an `error` SSE frame renders a distinct error state (not silent, not "try again")', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -106,12 +114,12 @@ describe('ChatPanel', () => {
     expect(screen.queryByText(/try again/i)).toBeNull();
   });
 
-  // ── chp-refused ───────────────────────────────────────────────────────────────
+  // ── cp-renders-refused-as-busy-retry ──────────────────────────────────────────
   //
   // The single-session guard's UX (ADR-0108 d.6): a `refused` frame means a
   // session is already running — the user is told to try again later, NOT shown a
   // generic failure. The panel must NOT conflate this with an `error` state.
-  it('chp-refused: a `refused` SSE frame renders "busy — try again" (distinct from error)', async () => {
+  it('cp-renders-refused-as-busy-retry: a `refused` SSE frame renders "busy — try again" (distinct from error)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -132,12 +140,12 @@ describe('ChatPanel', () => {
     expect(screen.queryByText(/The agent crashed/)).toBeNull();
   });
 
-  // ── chp-blank-noop ────────────────────────────────────────────────────────────
+  // ── cp-busy-while-streaming-blank-not-submittable (blank facet) ────────────────
   //
   // Fail-closed submit: a blank or whitespace-only intent is not submittable — no
   // POST fires. This keeps the fetch-call-count assertions in the concurrent test
   // exact.
-  it('chp-blank-noop: a blank or whitespace-only intent never fires fetch', async () => {
+  it('cp-busy-while-streaming-blank-not-submittable: a blank or whitespace-only intent never fires fetch', async () => {
     vi.stubGlobal('fetch', vi.fn());
     render(<ChatPanel />);
     const btn = screen.getByRole('button');
@@ -154,7 +162,7 @@ describe('ChatPanel', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  // ── chp-busy-blocks-concurrent ────────────────────────────────────────────────
+  // ── cp-busy-while-streaming-blank-not-submittable (in-flight facet) ────────────
   //
   // While a stream is in flight the submit is disabled so a concurrent POST cannot
   // fire from the UI. The composition-level single-session guard is authoritative
@@ -164,7 +172,7 @@ describe('ChatPanel', () => {
   // Double-click pattern: both clicks fire synchronously; the first click sets
   // busy = true and React commits the state (button disabled) before the second
   // click fires; React suppresses onClick on a disabled button.
-  it('chp-busy-blocks-concurrent: a concurrent click while in-flight fires no extra fetch', async () => {
+  it('cp-busy-while-streaming-blank-not-submittable: a concurrent click while in-flight fires no extra fetch', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
