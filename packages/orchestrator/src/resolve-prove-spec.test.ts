@@ -667,6 +667,122 @@ test("REAL mode offline walk: fresh worktree + real proof command + spine commit
   }
 });
 
+// ── ADR-0127: the resolver injects a GATE-time per-contract coverage seam (real mode) ────────────
+// The seam reads the AUTHORED test file at GATE time (so it sees what the leaf actually wrote) and
+// classifies the unit's declared `## Contracts` against the VOUCHING test names (ADR-0126), returning
+// the {covered, uncovered} axis the gate stamps onto the verdict — or undefined (fail-closed).
+
+/** Resolve real mode over `workspace` with a dummy leaf + injected clean tree — only the seam matters. */
+function resolveRealForCoverage(spec: ReturnType<typeof loadById>, workspace: string) {
+  const real = spec.buildConfig!.real!;
+  return resolveProveSpec(spec, {
+    mode: "real",
+    workspace,
+    store: new InMemoryStore(),
+    runId: "cov",
+    signerInputs: { flag: "tester@example.com" },
+    authorOverride: new OwnedLoopAuthor({
+      model: scriptedWriterModel([]),
+      tools: new FileToolExecutor({ rootDir: workspace }),
+      scope: new PathWriteScope(real.scope),
+      writeTools: FILE_WRITE_TOOLS,
+    }),
+    treeState: async () => ({ commitSha: "deadbeefcafe", clean: true }),
+  });
+}
+
+/** A spec-borne real config over a single test/source pair (the coverage fixture's proof surface). */
+function coverageSpec(
+  id: string,
+  contracts: { id: string; title: string }[],
+  testRel: string,
+): ReturnType<typeof loadById> {
+  const scope = { testGlobs: [testRel], sourceGlobs: ["widget.ts"] };
+  return {
+    ...loadById("verdict-line"),
+    id,
+    contracts,
+    buildConfig: {
+      command: { file: "node", args: ["--test"] },
+      scope,
+      real: { testFile: testRel, sourceFile: "widget.ts", scope },
+    },
+  };
+}
+
+test("ADR-0127 — the injected contractCoverage seam classifies declared contracts via VOUCHING names", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-coverage-"));
+  try {
+    const testRel = "widget.test.ts";
+    await fs.writeFile(
+      path.join(workspace, testRel),
+      [
+        'import test from "node:test";',
+        'import assert from "node:assert/strict";',
+        "// c-1: a SUBSTANTIVE test (asserts runtime state) → vouches → covered",
+        'test("c-1: the widget doubles its input", () => {',
+        "  assert.equal(widget(2), 4);",
+        "});",
+        "// c-2: NAMED but HOLLOW (constant-only assertion) → does NOT vouch → uncovered (ADR-0126)",
+        'test("c-2: the widget is bounded", () => {',
+        "  assert.equal(1, 1);",
+        "});",
+        "// c-3 is declared but NO test names it → uncovered",
+        "",
+      ].join("\n"),
+    );
+    const spec = coverageSpec(
+      "coverage-fixture",
+      [
+        { id: "c-1", title: "doubles" },
+        { id: "c-2", title: "bounded" },
+        { id: "c-3", title: "missing" },
+      ],
+      testRel,
+    );
+    const result = resolveRealForCoverage(spec, workspace);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(typeof result.spec.contractCoverage, "function");
+    // c-1 covered (a substantive test names it); c-2 uncovered (named only by a HOLLOW test, ADR-0126);
+    // c-3 uncovered (no test names it). The seam reuses extractVouchingTestNames + the classifier.
+    assert.deepEqual(result.spec.contractCoverage!(), {
+      covered: ["c-1"],
+      uncovered: ["c-2", "c-3"],
+    });
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("ADR-0127 — the seam returns undefined when the unit declares NO contracts (nothing to attest)", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-coverage-none-"));
+  try {
+    await fs.writeFile(path.join(workspace, "widget.test.ts"), "// no contracts to map\n");
+    const spec = coverageSpec("coverage-none", [], "widget.test.ts");
+    const result = resolveRealForCoverage(spec, workspace);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.spec.contractCoverage!(), undefined);
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("ADR-0127 — the seam returns undefined when the authored test file is missing (fail-closed, never falsely covered)", async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-coverage-missing-"));
+  try {
+    // contracts declared, but the test file was never written → the surface can't be read.
+    const spec = coverageSpec("coverage-missing", [{ id: "c-1", title: "x" }], "widget.test.ts");
+    const result = resolveRealForCoverage(spec, workspace);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.spec.contractCoverage!(), undefined);
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
 // ── ADR-0057 keystone: node-borne proof config resolves; registry is fallback; walls still hold ──
 
 /** The 7 nodes migrated to a spec-borne `proof:` block (their registry twins are kept as the oracle). */

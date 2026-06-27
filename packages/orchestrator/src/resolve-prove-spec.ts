@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 
 import {
@@ -8,9 +9,11 @@ import {
 } from "@storytree/agent";
 import type { FeedbackCommand, ModelResponse, PhaseAuthor } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
+import type { ContractCoverageAxis } from "@storytree/proof-protocol";
 
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
+import { classifyDeclaredCoverage, extractVouchingTestNames } from "./proof/contract-coverage.js";
 import { PathWriteScope } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { ShellTestExecutor, runShellCommand } from "./shell-test-executor.js";
@@ -456,10 +459,42 @@ function resolveReal(
     now: opts.now ?? ((): string => new Date().toISOString()),
     prompts: realPrompts(spec, real, proofDisplay),
     runId: opts.runId,
+    // ADR-0127: the per-contract coverage axis seam, computed LAZILY at GATE so it reads the test the
+    // leaf actually authored (in a real build the test file does not exist at resolve time). It reuses
+    // the vouching extractor (ADR-0126) + the classifier — a hollow/skipped test does not count.
+    // Real mode only: dry-run / live-smoke prove a SYNTHETIC pair unrelated to the node's contracts, so
+    // they carry no axis (their proveSpec omits the seam).
+    contractCoverage: () => computeContractCoverage(spec, real.testFile, opts.workspace),
   };
   return liveAuthor !== undefined
     ? { ok: true, spec: proveSpec, liveAuthor }
     : { ok: true, spec: proveSpec };
+}
+
+/**
+ * The GATE-time per-contract coverage compute (ADR-0127): classify the unit's declared `## Contracts`
+ * against the VOUCHING test names (ADR-0126) extracted from the leaf-authored test file, returning the
+ * {covered, uncovered} axis the gate stamps onto the verdict. Read at GATE (the file is on disk +
+ * committed by then). FAIL-CLOSED throughout: a unit that declares no contracts (nothing to attest) or
+ * a test surface that cannot be read/parsed returns `undefined`, so the gate OMITS the axis rather than
+ * stamping a false "fully covered". Pure but for the one `readFileSync` of the authored test.
+ */
+function computeContractCoverage(
+  spec: NodeSpec,
+  testFileRel: string,
+  workspace: string,
+): ContractCoverageAxis | undefined {
+  if (spec.contracts.length === 0) return undefined;
+  const testAbs = path.join(workspace, testFileRel);
+  if (!existsSync(testAbs)) return undefined;
+  let testNames: string[];
+  try {
+    testNames = extractVouchingTestNames(readFileSync(testAbs, "utf8"));
+  } catch {
+    return undefined;
+  }
+  const report = classifyDeclaredCoverage(spec.id, spec.contracts, testNames);
+  return { covered: report.covered, uncovered: report.uncovered };
 }
 
 /** Resolve the tsx loader to an ABSOLUTE url usable by `node --import` in a bare worktree. */
