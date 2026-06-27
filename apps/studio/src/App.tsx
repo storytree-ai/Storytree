@@ -5,7 +5,7 @@ import { deriveLoadState, type LoadState } from './lib/loadState';
 import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
 import { useOperator } from './lib/operator';
 import { notifyStoreRecovered } from './lib/presence';
-import { membersHref, homeHref, libraryHref, treeHref, chatHref, useRoute } from './lib/route';
+import { membersHref, homeHref, libraryHref, treeHref, useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
 import { StoreBanner, type StorePhase } from './components/StoreBanner';
@@ -16,7 +16,7 @@ import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
 import { TreeView } from './components/TreeView';
 import { MembersPanel } from './components/MembersPanel';
-import { ChatPanel } from './components/ChatPanel';
+import { ChatDock } from './components/ChatDock';
 
 /** A non-member's MeInfo while it's still loading — never read as a member. */
 const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false };
@@ -154,7 +154,6 @@ export function App(): React.JSX.Element {
               <a href={homeHref}>Overview</a>
               <a href={treeHref}>Forest</a>
               <a href={libraryHref()}>Library</a>
-              <a href={chatHref}>Chat</a>
               {me?.role === 'admin' && <a href={membersHref}>Members</a>}
             </nav>
           )}
@@ -208,6 +207,11 @@ export function App(): React.JSX.Element {
                 )}
                 {status === 'ready' && <RouteView route={route} />}
               </main>
+              {/* The chat dock is a fixed, bottom-anchored OVERLAY on the forest map only — folded by
+                  default, expanded/dragged on demand (leg-7 chip 1). position:fixed means its DOM
+                  position doesn't affect layout, but it lives logically with the tree view. It is
+                  absent on Library / docs / Members. */}
+              {route.name === 'tree' && status === 'ready' && <ChatDock />}
             </div>
           }
         />
@@ -411,8 +415,6 @@ function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX
       return <AssetEditor mode="new" />;
     case 'tree':
       return <TreeView focus={route.focus} />;
-    case 'chat':
-      return <ChatPanel />;
     case 'members':
       return <MembersPanel />;
   }
