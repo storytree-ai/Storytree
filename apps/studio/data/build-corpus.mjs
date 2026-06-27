@@ -34,7 +34,7 @@
 // the parser use — one table, three consumers, ADR-0017 "templates -> schema".
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import {
   KIND_SPECS,
@@ -42,12 +42,19 @@ import {
   generateTemplate,
 } from '../../../packages/library/src/index.ts';
 
-const dataDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(dataDir, '..', '..', '..');
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..', '..', '..');
+// Path overrides (default = the real in-repo locations) let `--check` run against a temp fixture
+// tree — see packages/cli/src/corpus-build-check.test.ts — and keep the generator relocatable.
+const dataDir = process.env.STORYTREE_CORPUS_DATA_DIR
+  ? path.resolve(process.env.STORYTREE_CORPUS_DATA_DIR)
+  : here;
 const assetsFile = path.join(dataDir, 'assets.json');
 const knowledgeFile = path.join(dataDir, 'knowledge.json');
-const glossaryFile = path.join(repoRoot, 'docs', 'glossary.md'); // now a GENERATED view (written here)
-const glossarySidecarFile = path.join(repoRoot, 'docs', 'glossary.generated.md'); // retired sidecar — deleted
+const glossaryFile = process.env.STORYTREE_CORPUS_GLOSSARY
+  ? path.resolve(process.env.STORYTREE_CORPUS_GLOSSARY)
+  : path.join(repoRoot, 'docs', 'glossary.md'); // GENERATED view (written here)
+const glossarySidecarFile = path.join(path.dirname(glossaryFile), 'glossary.generated.md'); // retired sidecar — deleted
 
 const KNOWLEDGE_KINDS = new Set(Object.keys(KIND_SPECS));
 const GENERATED_TEMPLATE_KINDS = new Set([
@@ -99,7 +106,12 @@ function renderKnowledgeAsset(doc, prevAsset) {
   };
 }
 
-function buildAssets() {
+// Serialize an assets array to its exact on-disk form (the `--check` compare and the writer share it).
+const serializeAssets = (out) => JSON.stringify(out, null, 2) + '\n';
+
+// Pure: compute the assets array from knowledge.json (ordering seeded by the existing assets.json).
+// IO (the write) lives in runBuild so `--check` can regenerate without touching the tree.
+function computeAssets() {
   const existing = JSON.parse(readFileSync(assetsFile, 'utf8'));
   const docs = JSON.parse(readFileSync(knowledgeFile, 'utf8'));
   const docById = new Map(docs.map((d) => [d.id, d]));
@@ -158,7 +170,6 @@ function buildAssets() {
     });
   }
 
-  writeFileSync(assetsFile, JSON.stringify(out, null, 2) + '\n', 'utf8');
   return out;
 }
 
@@ -314,7 +325,9 @@ function assertGlossaryMembership(docById) {
   }
 }
 
-function buildGlossary() {
+// Pure: compute the full generated glossary text from knowledge.json. The write + sidecar retirement
+// live in runBuild so `--check` can regenerate without touching the tree.
+function computeGlossary() {
   const docs = JSON.parse(readFileSync(knowledgeFile, 'utf8'));
   const docById = new Map(docs.map((d) => [d.id, d]));
 
@@ -335,33 +348,67 @@ function buildGlossary() {
   blocks.push(TERM_MAP_SECTION);
 
   const generated = blocks.join('\n\n') + '\n';
-  // THE FLIP: the glossary is now generated. Write docs/glossary.md directly and
-  // retire the sidecar.
-  writeFileSync(glossaryFile, generated, 'utf8');
+  return generated;
+}
+
+// ---------------------------------------------------------------------------
+
+// LF-space compare so a Windows (CRLF) checkout never shows spurious drift — the build-agents.ts fix.
+const toLf = (s) => s.replace(/\r\n/g, '\n');
+
+// Default mode: (re)generate assets.json + glossary.md and retire the sidecar.
+function runBuild() {
+  const assets = computeAssets();
+  writeFileSync(assetsFile, serializeAssets(assets), 'utf8');
+  const glossary = computeGlossary();
+  writeFileSync(glossaryFile, glossary, 'utf8');
   let removedSidecar = false;
   if (existsSync(glossarySidecarFile)) {
     unlinkSync(glossarySidecarFile);
     removedSidecar = true;
   }
-
-  const headings = (s) => (s.match(/^## .+$/gm) ?? []).map((h) => h.trim());
-  const genHeadings = headings(generated);
-
-  return { glossaryFile, removedSidecar, genHeadings };
-}
-
-// ---------------------------------------------------------------------------
-
-function main() {
-  const assets = buildAssets();
-  const glossary = buildGlossary();
   const byCat = assets.reduce((acc, a) => ((acc[a.category] = (acc[a.category] ?? 0) + 1), acc), {});
+  const genHeadings = (glossary.match(/^## .+$/gm) ?? []).length;
   console.log(`build-corpus OK — wrote ${assets.length} assets -> ${assetsFile}`);
   console.log('  by category:', JSON.stringify(byCat));
-  console.log(`  wrote generated glossary -> ${glossary.glossaryFile} (${glossary.genHeadings.length} sections)`);
-  if (glossary.removedSidecar) {
+  console.log(`  wrote generated glossary -> ${glossaryFile} (${genHeadings} sections)`);
+  if (removedSidecar) {
     console.log('  retired sidecar -> docs/glossary.generated.md (deleted)');
   }
 }
 
-main();
+// `--check` mode (DB-free, wired into CI + `pnpm gate`): regenerate IN MEMORY and FAIL (exit 1) if
+// the on-disk generated views have drifted — so a stale glossary/assets.json can never merge clean.
+// The mirror of check:claude / check:agents for the corpus generator. Writes nothing.
+function runCheck() {
+  const assets = computeAssets();
+  const assetsGenerated = serializeAssets(assets);
+  const glossaryGenerated = computeGlossary();
+  const assetsOnDisk = existsSync(assetsFile) ? readFileSync(assetsFile, 'utf8') : '';
+  const glossaryOnDisk = existsSync(glossaryFile) ? readFileSync(glossaryFile, 'utf8') : '';
+
+  const drift = [];
+  if (toLf(assetsOnDisk) !== toLf(assetsGenerated)) drift.push(assetsFile);
+  if (toLf(glossaryOnDisk) !== toLf(glossaryGenerated)) drift.push(glossaryFile);
+  if (existsSync(glossarySidecarFile)) drift.push(`${glossarySidecarFile} (retired sidecar still present)`);
+
+  if (drift.length > 0) {
+    console.error(
+      'check:corpus-build — STALE generated views. Regenerate with ' +
+        '`npx tsx apps/studio/data/build-corpus.mjs` and commit:',
+    );
+    for (const d of drift) console.error('  ' + path.relative(repoRoot, d));
+    process.exit(1);
+  }
+  console.log(`check:corpus-build — assets.json + glossary.md in sync (${assets.length} assets).`);
+}
+
+function main() {
+  if (process.argv.includes('--check')) runCheck();
+  else runBuild();
+}
+
+// Entry-guard so the module can be imported without side effects; runs when invoked directly.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

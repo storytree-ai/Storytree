@@ -78,6 +78,12 @@ jobs:
       - name: .claude/agents in sync
         run: pnpm check:agents
 
+      # apps/studio/data/assets.json + docs/glossary.md are GENERATED VIEWS of knowledge.json
+      # (build-corpus.mjs). Fail if they have drifted from the structured source — a stale glossary or
+      # assets.json could otherwise merge clean (ADR-0120, finding 3a). DB-free, like the checks above.
+      - name: Corpus views in sync
+        run: pnpm check:corpus-build
+
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
       # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
       # why the checkout above takes no submodules). ADR-0056.
