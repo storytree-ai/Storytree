@@ -297,7 +297,7 @@ export interface CommentScope {
  */
 export interface MeInfo {
   email: string | null;
-  role: 'admin' | 'member' | null;
+  role: 'admin' | 'builder' | 'member' | null;
   status: 'invited' | 'active' | null;
   member: boolean;
   storeUnreachable?: boolean;
