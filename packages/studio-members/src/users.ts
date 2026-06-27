@@ -26,6 +26,22 @@ export const USER_STATUSES = ["invited", "active"] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
 
 // ---------------------------------------------------------------------------
+// Role scope (ADR-0117 — the brokered-write predicate)
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE: may a caller with this role POST a brokered write (a locally-signed verdict /
+ * presence declaration) through the members-gated write-broker? The brokered-write
+ * scope of `admin ⊇ builder ⊇ member` (ADR-0117 d.2): a `builder` and an `admin` may;
+ * a plain `member` may not. The broker ENDPOINT (apps/studio/server, ADR-0117 Unit 2)
+ * reads this predicate off the resolved role — the role-scope compute lives with the
+ * role model here, never re-inlined at the gate.
+ */
+export function mayBrokerWrite(role: UserRole): boolean {
+  return role === "admin" || role === "builder";
+}
+
+// ---------------------------------------------------------------------------
 // Email normalisation
 // ---------------------------------------------------------------------------
 
