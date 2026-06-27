@@ -1,111 +1,166 @@
 // Integration test for the forest-readiness probe (apps/desktop/src/backend/forest-readiness.ts).
 //
-// WHAT IT PINS: the probe confirms the local backend can reach the shared Cloud SQL before the
-// agent loop runs. It takes an injected connector (async () => ForestConnection) and:
-//   - returns { ready: true }  when the connector resolves (the GRANTED path)
-//   - returns { ready: false, guidance: <actionable> } when the connector rejects (the REFUSED /
-//     ungranted / idle-stopped path) — FAILS CLOSED, never hangs, never forges a ready signal.
-//   - returns { ready: false, guidance: <timeout-actionable> } when the connector stalls past the
-//     supplied timeoutMs deadline — SELF-BOUNDING so it cannot hang for minutes
-//     (the MEMBERS_RESOLVE_TIMEOUT_MS precedent from serve.ts).
+// WHAT IT PINS (ADR-0117 d.5): the probe confirms the local backend can reach the HOSTED STUDIO'S
+// WRITE-BROKER as an AUTHORIZED BUILDER before the agent loop runs — NOT a raw Cloud SQL socket.
 //
-// INTEGRATION TIER: drives the probe with in-memory connector doubles (no real Cloud SQL, no IAM
-// grant, no socket). The GRANTED double resolves immediately with a closeable stub; the REFUSED
-// double rejects with a connection-shaped error (ECONNREFUSED); the STALLED double never resolves.
+// The probe takes an injected broker-POST seam (BrokerPostFn: (path, body) => { status, body }) and:
+//   - returns { ready: true }  when the broker accepts with a 2xx status (AUTHORIZED BUILDER path)
+//   - returns { ready: false, guidance } when the broker returns 403/401 (NOT YET A BUILDER —
+//     fail-closed with guidance to ask the owner to grant the builder role via the Members panel)
+//   - returns { ready: false, guidance } when the broker is UNREACHABLE (network error —
+//     fail-closed with guidance to check whether the studio is up)
+//   - returns { ready: false, guidance } when the broker HANGS past the timeoutMs deadline
+//     (self-bounding — never stalls indefinitely; guided by the withTimeout/MEMBERS_RESOLVE_TIMEOUT_MS
+//     precedent in serve.ts)
 //
-// DELETION TEST: if probeForestReadiness were removed, every assertion here fails. If the
-// fail-closed conversion (reject → { ready: false, guidance }) were removed, the second test
-// would throw instead of returning a result. If the probe's self-bounding timeout were removed,
-// the third test would hang until the spine's SIGKILL budget expires.
+// INTEGRATION TIER: drives the probe with in-memory broker doubles — no real HTTP, no studio
+// process, no Cloud SQL socket, no IAM grant. Four doubles cover the four readiness states:
+//   AUTHORIZED (200), FORBIDDEN (403), UNREACHABLE (throws), HANGING (never resolves).
+//
+// DELETION TEST: removing probeForestReadiness breaks the import. Removing the 2xx-ready path
+// causes test 1 to get ready:false. Removing the 403-specific builder-role guidance causes test 2
+// to get generic/Cloud-SQL guidance. Removing the unreachable→studio guidance mapping causes test 3
+// to get Cloud-SQL guidance. Removing the self-bounding timeout causes test 4 to hang until SIGKILL.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { probeForestReadiness } from "./forest-readiness.js";
-import type { ForestConnectorFn, ForestReadinessResult } from "./forest-readiness.js";
+
+// The broker-post seam. Production wires this to a real `fetch` POST to the configured broker URL.
+// Tests inject in-memory doubles with controlled return values.
+// NOTE: This type will be exported by the new implementation once landed.
+type BrokerPostFn = (
+  path: string,
+  body: unknown,
+) => Promise<{ status: number; body: unknown }>;
 
 // ---------------------------------------------------------------------------
-// Tests
+// 1. AUTHORIZED BUILDER PATH — broker accepts (2xx → ready:true)
 // ---------------------------------------------------------------------------
 
-// Pins the READY path: when the connector resolves (the member has the IAM grant and the DB is
-// up), the probe returns { ready: true } and closes the connection cleanly.
-test("forest-readiness: a granted connector resolves to ready", async () => {
-  // GRANTED double: resolves immediately with a closeable in-memory stub.
-  // end() is defined so the probe can close it without touching real OS handles.
-  const grantedConnector: ForestConnectorFn = async () => ({ end: async () => undefined });
+test("forest-readiness: an authorized broker POST returns ready:true", async () => {
+  // AUTHORIZED double: the broker accepts the request (member has the builder role, 200 OK).
+  const authorizedBroker: BrokerPostFn = async (_path, _body) => ({
+    status: 200,
+    body: { ok: true },
+  });
 
-  const result: ForestReadinessResult = await probeForestReadiness(grantedConnector);
+  // RED-state note: the current implementation expects ForestConnectorFn (() => ForestConnection),
+  // not BrokerPostFn. Under tsx types are stripped so the call proceeds at runtime; the current
+  // impl treats the double as a DB connector, calls it with no args, receives { status: 200,
+  // body: {} }, attempts conn.end() → TypeError: conn.end is not a function, catches the error,
+  // and returns { ready: false } — causing the assertion below to FAIL (right-kind red).
+  // In the GREEN state (after the new BrokerPostFn-based implementation lands) this passes.
+  const result = await probeForestReadiness(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    authorizedBroker as any,
+    { timeoutMs: 2000 },
+  );
 
-  // Deletion test: removing probeForestReadiness makes this test fail to import.
-  // If the implementation returned a hardcoded { ready: false } this assertion would fail.
-  assert.equal(result.ready, true, "a granted connector must yield ready:true");
+  assert.equal(
+    result.ready,
+    true,
+    "an authorized broker POST must yield ready:true — " +
+      "the probe must treat a 2xx broker response as ready, not invoke conn.end()",
+  );
 });
 
-// Pins the FAIL-CLOSED path: when the connector rejects (the member is missing the IAM grant
-// or the DB is idle-stopped), the probe converts the error into { ready: false, guidance }
-// rather than propagating the throw — it NEVER reports ready when it cannot connect.
-test("forest-readiness: a refused connector fails closed with member-actionable guidance", async () => {
-  // REFUSED double: rejects immediately with a connection-shaped error (ECONNREFUSED).
-  // This mirrors the error shape a real Cloud SQL connector produces when the DB is unreachable.
-  const refusedConnector: ForestConnectorFn = async () => {
-    throw Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:3307"), {
-      code: "ECONNREFUSED",
-    });
-  };
+// ---------------------------------------------------------------------------
+// 2. FORBIDDEN PATH — broker returns 403 (not yet a builder → fail-closed)
+// ---------------------------------------------------------------------------
 
-  // Deletion test: if the probe propagated the throw instead of converting to { ready: false },
-  // this await would reject and the test would fail with an unexpected error.
-  const result: ForestReadinessResult = await probeForestReadiness(refusedConnector);
+test("forest-readiness: a 403-forbidden broker fails closed with builder-role guidance", async () => {
+  // FORBIDDEN double: the broker returns 403 — the member has not been granted the builder role.
+  const forbiddenBroker: BrokerPostFn = async (_path, _body) => ({
+    status: 403,
+    body: { error: "Forbidden" },
+  });
+
+  const result = await probeForestReadiness(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    forbiddenBroker as any,
+    { timeoutMs: 2000 },
+  );
 
   assert.equal(
     result.ready,
     false,
-    "a refused connector must yield ready:false — the probe must not throw or report ready",
+    "a 403 broker response must yield ready:false — fail closed when not an authorized builder",
   );
+  if (result.ready) assert.fail("probe must not report ready on 403");
 
-  // TypeScript union narrowing: branch on ready to access guidance safely.
-  if (result.ready) {
-    assert.fail("probe must not report ready when the connector refuses");
-  }
-
-  // The guidance must be a non-empty, member-actionable string.
   assert.ok(
     typeof result.guidance === "string" && result.guidance.length > 0,
-    "fail-closed result must carry a non-empty guidance string",
+    "forbidden result must carry a non-empty guidance string",
   );
 
-  // Deletion test: if the guidance were a raw error message / stack trace rather than
-  // member-actionable text, this assertion would fail, proving the guidance was crafted.
+  // Must mention the builder role — NOT Cloud SQL / IAM (authorization is an in-app grant via
+  // the Members panel, not a gcloud IAM binding; ADR-0117 d.2).
   assert.ok(
-    /IAM|grant|db:up|Cloud SQL|idle/i.test(result.guidance),
-    `guidance must be member-actionable (mention the IAM grant or db:up); got: "${result.guidance}"`,
+    /builder/i.test(result.guidance),
+    `guidance for a 403 must mention the builder role; got: "${result.guidance}"`,
+  );
+  assert.ok(
+    !/Cloud SQL/i.test(result.guidance),
+    `guidance for a 403 must not mention Cloud SQL (in-app grant, not IAM); got: "${result.guidance}"`,
   );
 });
 
-// Pins the SELF-BOUNDING path: when the connector stalls indefinitely (e.g. a Cloud SQL
-// handshake that never completes — the MEMBERS_RESOLVE_TIMEOUT_MS failure mode from serve.ts),
-// the probe must fail-closed within the supplied timeoutMs budget rather than hanging.
-//
-// The current implementation has no timeoutMs option, so:
-//   - TypeScript compile: "Expected 1 arguments, but got 2" (compile-red — the missing parameter)
-//   - tsx runtime: the extra arg is silently ignored, the connector stalls, the outer safety-net
-//     guard fires at GUARD_MS and the test fails with a behaviour assertion (runtime-red)
-//
-// After implementation (probeForestReadiness accepts an optional { timeoutMs } option):
-//   - both the compile error and the runtime assertion disappear → GREEN
-test("forest-readiness: a stalled connector fails closed within the supplied timeout", async () => {
-  // STALLED double: a connector that never resolves — simulates an indefinitely-hung
-  // Cloud SQL handshake. This double has no OS handles (timers, sockets) so the process
-  // exits cleanly once the test resolves; it is not a handle leak.
-  const stalledConnector: ForestConnectorFn = () =>
+// ---------------------------------------------------------------------------
+// 3. UNREACHABLE PATH — broker throws a network error → fail-closed
+// ---------------------------------------------------------------------------
+
+test("forest-readiness: an unreachable broker fails closed with studio-reachability guidance", async () => {
+  // UNREACHABLE double: throws a fetch-shaped network error (the studio is down or URL is wrong).
+  const unreachableBroker: BrokerPostFn = async (_path, _body) => {
+    throw Object.assign(new Error("fetch failed"), { code: "ECONNREFUSED" });
+  };
+
+  const result = await probeForestReadiness(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    unreachableBroker as any,
+    { timeoutMs: 2000 },
+  );
+
+  assert.equal(
+    result.ready,
+    false,
+    "a network error from the broker must yield ready:false — fail closed when unreachable",
+  );
+  if (result.ready) assert.fail("probe must not report ready when the broker throws");
+
+  assert.ok(
+    typeof result.guidance === "string" && result.guidance.length > 0,
+    "unreachable result must carry a non-empty guidance string",
+  );
+
+  // Must mention the studio / broker being unreachable — NOT Cloud SQL or IAM. The member action
+  // is "check if the studio is up", not "run pnpm db:up" or "check IAM grant".
+  assert.ok(
+    /studio|broker/i.test(result.guidance),
+    `guidance for an unreachable broker must mention the studio or broker; got: "${result.guidance}"`,
+  );
+  assert.ok(
+    !/Cloud SQL/i.test(result.guidance),
+    `guidance for an unreachable broker must not mention Cloud SQL; got: "${result.guidance}"`,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 4. HANGING PATH — broker never resolves (self-bounding timeout)
+// ---------------------------------------------------------------------------
+
+test("forest-readiness: a hanging broker fails closed within the supplied timeout", async () => {
+  // HANGING double: never resolves — simulates an indefinitely-hung HTTP request.
+  // No OS handles (no timers, no sockets): no handle leak; the process exits cleanly.
+  const hangingBroker: BrokerPostFn = () =>
     new Promise<never>(() => {
-      /* never resolves — no timer, no socket, no OS handle */
+      /* never resolves — no OS handle */
     });
 
   const PROBE_TIMEOUT_MS = 50;
-  // Outer safety net: slightly longer than the probe deadline.  If probeForestReadiness does
-  // NOT self-bound within GUARD_MS, this guard fires and the test fails with a clear message
+  // Outer safety net: fires at GUARD_MS if the probe does NOT self-bound — the test fails clearly
   // rather than hanging until the spine's SIGKILL budget expires.
   const GUARD_MS = PROBE_TIMEOUT_MS + 150;
 
@@ -115,8 +170,8 @@ test("forest-readiness: a stalled connector fails closed within the supplied tim
       () =>
         reject(
           new Error(
-            `probeForestReadiness did not fail-closed within ${GUARD_MS}ms — ` +
-              `the probe must accept a timeoutMs option and self-bound when the connector stalls`,
+            `probeForestReadiness did not fail-close within ${GUARD_MS}ms — ` +
+              `the probe must self-bound when the broker hangs (timeoutMs option required)`,
           ),
         ),
       GUARD_MS,
@@ -124,32 +179,36 @@ test("forest-readiness: a stalled connector fails closed within the supplied tim
   });
 
   try {
-    // Pass { timeoutMs } as a second argument — this parameter does not yet exist on the
-    // current implementation signature, which is the right-kind compile-red.
-    // Under tsx (types stripped) the extra arg is silently ignored; the connector stalls;
-    // the outer guard fires; and the test fails (right-kind runtime-red).
     const result = await Promise.race([
-      probeForestReadiness(stalledConnector, { timeoutMs: PROBE_TIMEOUT_MS }),
+      probeForestReadiness(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        hangingBroker as any,
+        { timeoutMs: PROBE_TIMEOUT_MS },
+      ),
       outerGuard,
     ]);
 
     assert.equal(
       result.ready,
       false,
-      "a stalled connector must yield ready:false within the timeout",
+      "a hanging broker must yield ready:false within the timeout",
     );
-    if (result.ready) {
-      assert.fail("probe must not report ready when the connector stalls");
-    }
+    if (result.ready) assert.fail("probe must not report ready when the broker hangs");
+
     assert.ok(
       typeof result.guidance === "string" && result.guidance.length > 0,
-      "fail-closed timeout result must carry a non-empty guidance string",
+      "timeout result must carry a non-empty guidance string",
     );
-    // The guidance for a stalled connector must be distinct from the ECONNREFUSED guidance
-    // and explicitly mention the timeout/deadline so the member knows it is a timeout failure.
+
+    // Must mention the studio / broker — NOT Cloud SQL (the member action is "check if the
+    // studio is up", not "run pnpm db:up").
     assert.ok(
-      /timeout|timed out|deadline|stall/i.test(result.guidance),
-      `guidance for a stalled connector must mention the timeout; got: "${result.guidance}"`,
+      /studio|broker/i.test(result.guidance),
+      `guidance for a hanging broker must mention the studio or broker; got: "${result.guidance}"`,
+    );
+    assert.ok(
+      !/Cloud SQL/i.test(result.guidance),
+      `guidance for a hanging broker must not mention Cloud SQL; got: "${result.guidance}"`,
     );
   } finally {
     // Always clear the outer guard timer — no handle leak regardless of pass/fail.
