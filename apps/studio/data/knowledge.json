@@ -378,7 +378,7 @@
     "updatedAt": "2026-06-08T00:00:00.000Z",
     "statement": "An owned-loop run/attempt is an execution event (many per node), never a new tree node — the execution environment is not the coordination structure.",
     "rule": "An owned-loop **run** (attempt) is recorded as an execution **event**, many-per-node — it is **never** a new node on the DAG. The coordination/scheduling grain (the node) is kept distinct from the execution grain (the run).",
-    "enforcedBy": "The event-store schema (`packages/store/src/schema.sql`): a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
+    "enforcedBy": "The event-store schema (`packages/library/src/store/schema.sql`): a run is a `run`-typed row in the event store keyed to its node id, with no node identity of its own and no slot in the node table for one to occupy.",
     "failureMode": "If the boundary is crossed, execution attempts proliferate as DAG nodes, conflating the execution grain with the coordination/scheduling grain and corrupting the tree the orchestrator schedules over.",
     "schemaVersion": 2
   },
