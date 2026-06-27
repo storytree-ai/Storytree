@@ -22,6 +22,15 @@
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
  * studio forest renders `depends_on`, forcing every code edge to be a declared edge also keeps the
  * coupling UI-visible (Gap B).
+ *
+ * It ALSO emits the ADR-0115 NON-BLOCKING declared-edge drift report — a sibling to the blocking
+ * check, not a change to it. The blocking check only sees edges whose importing package maps to a
+ * story (via `packageOwnership`); the report surfaces the inverse it cannot: declared cross-story
+ * edges that no code import backs (drift candidates) and code edges with no declaration — covering
+ * VIRTUAL stories (those owning no package) by deriving their real edges from their units'
+ * `proof.real.sourceFile` imports ({@link readVirtualStorySources} → {@link declaredEdgeDriftReport}).
+ * It WARNs and never sets a non-zero exit (best-effort, like `check:agents-sync` / `check:corpus-sync`),
+ * so the gate's pass/fail stays driven solely by {@link checkBoundaries}.
  */
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -29,7 +38,15 @@ import { fileURLToPath } from "node:url";
 
 import { loadNodeSpec } from "@storytree/orchestrator";
 
-import { checkBoundaries, extractImports, type Ownership, type SourceImport } from "./boundaries.js";
+import {
+  checkBoundaries,
+  declaredEdgeDriftReport,
+  extractImports,
+  formatDriftReport,
+  type Ownership,
+  type SourceImport,
+  type VirtualStorySource,
+} from "./boundaries.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const STORYTREE_SCOPE = "@storytree/";
@@ -135,11 +152,99 @@ function readOwnership(): Ownership {
   };
 }
 
+/** A module specifier carrying a glob metacharacter — write-scope BREADTH, not a concrete owned file. */
+function isGlobPattern(s: string): boolean {
+  return /[*?[\]{}]/.test(s);
+}
+
+/**
+ * The raw source text of every VIRTUAL story's unit `proof.real.sourceFile`s (ADR-0115 §1). A virtual
+ * story owns no package, so the pure judge cannot derive its real cross-story edges from `packageDeps`
+ * — instead it scans the imports of the source files its capabilities/contracts spotlight. We gather the
+ * concrete spotlight `sourceFile` plus any LITERAL `scope.sourceGlobs` entries (a WILDCARD glob is the
+ * write-scope breadth, not the unit's owned file — resolving it would over-attribute siblings owned by
+ * OTHER units/stories), read their text, and hand it to {@link declaredEdgeDriftReport}, which runs the
+ * shared {@link extractImports}. Best-effort: a malformed unit spec is skipped, never thrown, so the
+ * drift report can never crash the blocking gate.
+ */
+function readVirtualStorySources(virtualStories: Set<string>): VirtualStorySource[] {
+  const storiesDir = join(repoRoot, "stories");
+  const sources: VirtualStorySource[] = [];
+  if (!existsSync(storiesDir)) return sources;
+  for (const story of virtualStories) {
+    const storyDir = join(storiesDir, story);
+    if (!existsSync(storyDir)) continue;
+    const seen = new Set<string>(); // dedupe repo-relative source paths within this story
+    for (const ent of readdirSync(storyDir, { withFileTypes: true })) {
+      if (!ent.isFile() || !ent.name.endsWith(".md")) continue;
+      let real: { sourceFile: string; scope: { sourceGlobs: string[] } } | undefined;
+      try {
+        real = loadNodeSpec(join(storyDir, ent.name)).buildConfig?.real;
+      } catch {
+        continue; // a malformed unit spec must not crash the best-effort drift report
+      }
+      if (real === undefined) continue;
+      const candidates = [real.sourceFile, ...real.scope.sourceGlobs.filter((g) => !isGlobPattern(g))];
+      for (const rel of candidates) {
+        if (seen.has(rel)) continue;
+        seen.add(rel);
+        const abs = join(repoRoot, rel);
+        if (!existsSync(abs)) continue;
+        sources.push({ story, file: rel, content: readFileSync(abs, "utf8") });
+      }
+    }
+  }
+  return sources;
+}
+
+/**
+ * Emit the ADR-0115 non-blocking declared-edge drift report. A SIBLING to the blocking check above:
+ * it WARNs about declared cross-story edges no code backs (drift candidates) and code edges with no
+ * declaration, covering virtual stories via {@link readVirtualStorySources}. It NEVER sets a non-zero
+ * exit and is wrapped so any error degrades to a SKIP — mirroring the best-effort `check:agents-sync` /
+ * `check:corpus-sync` precedent. The gate's pass/fail stays driven solely by `checkBoundaries`.
+ */
+function reportEdgeDrift(input: {
+  ownership: Ownership;
+  packageDeps: Record<string, string[]>;
+  storyGraph: Record<string, string[]>;
+  consumedBy: Record<string, string[]>;
+}): void {
+  try {
+    const { ownership, packageDeps, storyGraph, consumedBy } = input;
+    const ownedStories = new Set<string>([
+      ...Object.values(ownership.organisms),
+      ...Object.values(ownership.surfaces ?? {}),
+    ]);
+    const virtualStories = new Set(Object.keys(storyGraph).filter((s) => !ownedStories.has(s)));
+    const report = declaredEdgeDriftReport({
+      ownership,
+      packageDeps,
+      storyGraph,
+      consumedBy,
+      virtualStorySources: readVirtualStorySources(virtualStories),
+    });
+    console.warn(formatDriftReport(report));
+  } catch (err) {
+    console.warn(
+      `[check:boundaries] ADR-0115 drift report SKIPPED (${(err as Error).message}); ` +
+        "the blocking boundary gate is unaffected.",
+    );
+  }
+}
+
 function main(): void {
+  const ownership = readOwnership();
+  const packageDeps = readPackageDeps();
   const { storyGraph, consumedBy } = readStoryGraphs();
+
+  // ADR-0115: the non-blocking declared-edge drift report. Printed every run, BEFORE the blocking
+  // verdict (so it shows even when the gate fails), and wrapped so it can NEVER change the exit code.
+  reportEdgeDrift({ ownership, packageDeps, storyGraph, consumedBy });
+
   const { violations } = checkBoundaries({
-    ownership: readOwnership(),
-    packageDeps: readPackageDeps(),
+    ownership,
+    packageDeps,
     storyGraph,
     consumedBy,
     sourceImports: readSourceImports(),
