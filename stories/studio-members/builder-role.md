@@ -4,7 +4,7 @@ tier: capability
 story: studio-members
 title: "A third role — builder — a member who may POST builds through the broker, resolved by the same access compute"
 outcome: "studio-members gains a `builder` role: a member who may POST brokered builds/writes (read + comment like a member, plus the brokered write scope), resolved by `resolveAccess`, holding no DB identity; `admin ⊇ builder ⊇ member`, and the last-admin guard is unaffected by builders."
-status: proposed
+status: building
 proof_mode: integration-test
 depends_on: [user-directory]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -49,11 +49,17 @@ the last-admin guard is unaffected by builders.
 same `resolveAccess` compute the directory owns; this capability extends that schema and that compute,
 so it couples to the directory's write boundary and access resolution.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The collaborators are real
-> and shipped: `packages/studio-members/src/users.ts` already defines `USER_ROLES = ["admin","member"]`,
-> the `User` zod schema (`role: z.enum(USER_ROLES)`), `resolveAccess` (verified email → row → role), and
-> the last-admin guards (`wouldOrphanAdminsOnRemove` / `wouldOrphanAdminsOnRole`). This capability adds
-> the third member to the enum and the `builder`-aware logic, test-first, in that module.
+> **Proof status (honest) — BUILT, leaf contracts green; authored `building`.** The role and its
+> `builder`-aware compute are landed (PR #409) and all three leaf contracts are proven green in
+> `users.test.ts` (PR #411, cited at `file:line` below): `packages/studio-members/src/users.ts` now
+> defines `USER_ROLES = ["admin","builder","member"]`, the `User` zod schema (`role: z.enum(USER_ROLES)`)
+> admits `builder`, `mayBrokerWrite` encodes the brokered-write scope (`admin ⊇ builder ⊇ member`), and
+> the last-admin guards (`wouldOrphanAdminsOnRemove` / `wouldOrphanAdminsOnRole`) still count
+> `role === "admin"` only — so a builder never perturbs the admin floor. It is NOT hand-stamped
+> `healthy`: that status is computed off the signed verdict log, never written into a spec (the
+> prove-it-gate), and the studio-members **Story** still owes its operator-attested UAT leg — the
+> Members-panel affordance that invites a builder (see Guidance). Authored status is therefore
+> `building`: the leaves are built and green; the story-level UAT remains.
 
 ## Guidance
 
@@ -118,24 +124,27 @@ The integration test would:
 ## Contracts (3)
 
 The test-proven leaf behaviours — each one isolated automated test (`node:test`, the
-`@storytree/studio-members` suite), collaborators stubbed where applicable. They extend the existing
-`users.test.ts`; cite at real `file:line` when built.
+`@storytree/studio-members` suite), collaborators stubbed where applicable. They are built and proven
+green in `users.test.ts`, cited at real `file:line` below.
 
 1. **`builder-is-a-valid-resolvable-role`** — `builder` validates and resolves as itself
    - **asserts —** `User.parse({ role: "builder", … })` succeeds and `{ role: "contributor" }` is
      refused at the write boundary; `resolveAccess` over a projection whose row is a `builder` returns
      `role: "builder"` (never coerced to `member`, never elevated to `admin`).
-   - **covers —** `packages/studio-members/src/users.ts` (`USER_ROLES` + `resolveAccess`) *(provisional)*
+   - **covers —** `packages/studio-members/src/users.ts` (`USER_ROLES` + `resolveAccess`)
+   - **proven by —** [`packages/studio-members/src/users.test.ts:87`](../../packages/studio-members/src/users.test.ts) (the `builder role: …` test, steps 1–2)
 2. **`builder-scope-is-between-member-and-admin`** — `admin ⊇ builder ⊇ member` for the brokered-write scope
    - **asserts —** the brokered-write predicate (the scope the broker gate reads off the resolved role)
      is satisfied by `builder` AND `admin`, and is NOT satisfied by `member`; a `builder` retains the
      `member` read+comment scope and does NOT gain admin-only powers (user management / asset writes).
-   - **covers —** `packages/studio-members/src/users.ts` (the role-scope compute)
+   - **covers —** `packages/studio-members/src/users.ts` (`mayBrokerWrite` — the role-scope compute)
+   - **proven by —** [`packages/studio-members/src/users.test.ts:139`](../../packages/studio-members/src/users.test.ts) (the `mayBrokerWrite: …` test)
 3. **`builders-do-not-perturb-the-last-admin-guard`** — the no-lockout floor counts admins only
    - **asserts —** with one admin and any number of builders, removing or down-roling the sole admin is
      refused (`wouldOrphanAdminsOnRemove` / `wouldOrphanAdminsOnRole` true), while removing or re-roling
      any builder is always allowed; with two admins, down-roling one to `builder` is allowed.
    - **covers —** `packages/studio-members/src/users.ts` (`adminCount` + the orphan guards)
+   - **proven by —** [`packages/studio-members/src/users.test.ts:87`](../../packages/studio-members/src/users.test.ts) (the `builder role: …` test, steps 3–6)
 
 ## Guidance — the slice that earns the signed verdict
 
