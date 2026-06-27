@@ -257,9 +257,17 @@ export function isStoryBuildable(
 export type StoryGoGreen = "build" | "adopt" | "none";
 
 /**
- * PURE: which go-green affordance `story` should surface (ADR-0094 decisions 1 & 3), gated on STATUS.
- * The studio reads this off `/api/tree` to choose Build vs Adopt vs nothing.
+ * PURE: which go-green affordance `story` should surface (ADR-0094 decisions 1 & 3), gated on STATUS —
+ * and, crucially, on PROOF (`proven`, ADR-0040). The studio reads this off `/api/tree` to choose Build
+ * vs Adopt vs nothing, and the adopt-POST precheck reuses it so the panel and the worker share ONE rule.
  *
+ * - **`proven` (a signed PASS crown verdict) → none, regardless of authored status.** Proof, not authored
+ *   `status:`, is the source of truth for "done" (ADR-0040, completing ADR-0031): a story's green hue
+ *   DERIVES from its signed verdict and authored `status:` can never paint green. `healthy` is itself
+ *   non-authorable (ADR-0020), so a brownfield port that has been adopted keeps its authored `mapped`
+ *   FOREVER while the world crown shows green — without this short-circuit it would keep offering **Adopt**
+ *   on an already-green tree (the bug ADR-0094 d.1 *"`healthy`: no go-green affordance"* always intended
+ *   to exclude, but which the status-only fold missed). `proven` is the verdict-aware reading of d.1.
  * - `proposed` → **build** iff there is a genuine real build to drive ({@link isStoryBuildable} `real`);
  *   else **none** (a proposed story with no real-buildable path).
  * - `mapped` → **adopt** iff the brownfield story declares `## Reliability Gates` to adopt; else **none**.
@@ -269,14 +277,23 @@ export type StoryGoGreen = "build" | "adopt" | "none";
  * - `healthy` / `unhealthy` / `building` / `retired` / unparseable → **none** (no user-facing go-green;
  *   red-recovery is the agent loop, ADR-0094 d.2).
  *
+ * `proven` defaults to `false` so an offline caller (no verdict events) keeps the status-only reading —
+ * it under-claims (still offers Adopt) rather than guessing a green it can't see, the same posture the
+ * world's hue takes offline (`provenStatus`). A caller that CAN read the signed verdict (the studio
+ * server's crown roll-up; the adopt-POST precheck) passes the real proven flag so the affordance follows
+ * the proof.
+ *
  * {@link isStoryBuildable} (the build MECHANISM the gate prechecks with) is deliberately UNCHANGED —
  * this is the affordance layer the studio renders, not the gate's drive determination.
  */
 export function storyGoGreen(
   story: NodeSpec,
   capabilities: readonly NodeSpec[],
+  proven = false,
 ): StoryGoGreen {
   if (story.tier !== "story") return "none";
+  // ADR-0040 / ADR-0094 d.1: a proven story is `healthy` in the world — done, no go-green action.
+  if (proven) return "none";
   switch (story.status) {
     case "proposed":
       return isStoryBuildable(story, capabilities, "real") ? "build" : "none";
