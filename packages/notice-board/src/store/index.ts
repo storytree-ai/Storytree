@@ -15,3 +15,14 @@ export type { MergeRetireStore } from "./ingest-merge.js";
 
 export { reapStaleSessions } from "./reaper.js";
 export type { ReaperStore } from "./reaper.js";
+
+// The per-unit write-CLAIM store (ADR-0009's claim on plain Postgres; the ADR-0033 §4 enforcing
+// upgrade of presence). Refuses a second concurrent holder of the same unit; node+pg-only.
+export { PgClaimStore } from "./claim-store.js";
+export type {
+  ClaimClient,
+  ClaimPool,
+  ClaimPoolClient,
+  ClaimOptions,
+  ClaimAuditEvent,
+} from "./claim-store.js";

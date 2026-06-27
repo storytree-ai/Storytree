@@ -122,6 +122,18 @@ const WRITE_TOOL_MATCHER = "Write|Edit";
 /** The in-process MCP server name the feedback tools live under (`mcp__spine__<tool>`). */
 const FEEDBACK_SERVER = "spine";
 
+/**
+ * SDK result subtypes that mean the leaf hit a COST CEILING (turn limit / USD budget), not a
+ * genuine error — so usable work may already be on disk. These map to an `exhausted` {@link AuthorResult}
+ * (ADR-0020: a ceiling is a cost guard, not a proof signal), letting the gate fall through to its own
+ * observation instead of discarding the paid slice. The other error subtypes (`error_during_execution`,
+ * `error_max_structured_output_retries`) are genuine failures with no salvageable work.
+ */
+const EXHAUSTION_SUBTYPES: ReadonlySet<string> = new Set([
+  "error_max_turns",
+  "error_max_budget_usd",
+]);
+
 /** Default per-slice feedback-run cap (shared across commands). */
 const DEFAULT_MAX_FEEDBACK_RUNS = 5;
 
@@ -464,7 +476,13 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       const detail = result.errors !== undefined && result.errors.length > 0
         ? `: ${result.errors.join("; ")}`
         : "";
-      return { ok: false, error: `SDK session ${result.subtype}${detail}` };
+      const error = `SDK session ${result.subtype}${detail}`;
+      // A turn/budget ceiling is a COST guard, not a proof signal: the leaf may have left usable work
+      // on disk, so the gate falls through to its own observation rather than discard the slice
+      // (the turn-ceiling cost-leak fix). A genuine error gets no `exhausted` flag — fail closed.
+      return EXHAUSTION_SUBTYPES.has(result.subtype)
+        ? { ok: false, exhausted: true, error }
+        : { ok: false, error };
     }
     return { ok: true };
   }

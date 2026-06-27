@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +16,7 @@ import type { UatTest, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
   findNodeSpecFile,
+  extractTestNames,
   resolveSignerFromEnv,
   platformShellCommand,
   runShellCommand,
@@ -27,6 +28,7 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
+import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -817,6 +819,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
       "  adopt            bring a brownfield story into the fold (ADR-0097): run the mapped→proposed entry · plan the coverage",
       "  build            drive red→green (ADR-0118): build <id> auto-routes by tier; node | story | gate --real nested",
+      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  node             drive ONE node through the prove-it-gate (alias of `build node`)",
       "  story            drive a WHOLE story's nodes in dependency order (alias of `build story`)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
@@ -887,6 +890,27 @@ function orchestrateHelp(): Envelope {
       "read several surfaces before proposing (the default 16 is tight for orientation).",
     ].join("\n"),
     next: ["storytree agents session-orchestrator", "storytree tree"],
+  };
+}
+
+function coverageHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree coverage <capability-id> — does every declared contract have an observed test? (ADR-0020).",
+      "",
+      "A signed --real green attests the ONE authored test the gate observed (ADR-0020 §3) — it cannot",
+      "forge it, but it never checks that EVERY `## Contracts` behaviour has a test (the leaf reliably",
+      "drops the hardest one). This flags the gap: a contract no observed test NAMES (the",
+      '`describe("<id>: …")` convention) is reported UNCOVERED.',
+      "",
+      "  storytree coverage <capability-id>   classify the capability's contracts (offline, read-only)",
+      "",
+      "Exits non-zero when a contract is uncovered (a green would over-claim); a fully-covered unit passes.",
+      "Static name-presence (the first slice, ADR-0020 follow-on): it catches a DROPPED contract; a hollow",
+      "test under the right name is the named follow-on.",
+    ].join("\n"),
+    next: ["storytree tree", "storytree coverage <capability-id>"],
   };
 }
 
@@ -1049,6 +1073,73 @@ function loadAdoptPlanStory(storiesDir: string, storyId: string): AdoptPlanStory
   } catch {
     return null;
   }
+}
+
+/** The directory prefix of a test glob, up to (not including) its first wildcard segment. */
+function globBaseDir(glob: string): string {
+  const base: string[] = [];
+  for (const seg of glob.split("/")) {
+    if (seg.includes("*")) break;
+    base.push(seg);
+  }
+  return base.join("/");
+}
+
+/** Recursively collect `*.test.ts` files under an absolute dir (a missing/odd dir yields none). */
+function walkTestFiles(absDir: string): string[] {
+  const out: string[] = [];
+  try {
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const full = path.join(absDir, entry.name);
+      if (entry.isDirectory()) out.push(...walkTestFiles(full));
+      else if (entry.isFile() && entry.name.endsWith(".test.ts")) out.push(full);
+    }
+  } catch {
+    // A missing / unreadable directory yields no test files.
+  }
+  return out;
+}
+
+/**
+ * A capability's coverage facts for the contract-coverage check (ADR-0020 follow-on): its declared
+ * `## Contracts` ids + the test names across its proof surface. Null for a missing/odd spec. The proof
+ * surface is the registered real-build test file when present (the EXACT file a signed `--real` green
+ * attests — the tightest honest signal for the gap), else the package/dir test files walked from the
+ * proof scope's test globs (a suite-proven capability). Pure-by-injection seam for `coverageCommand`.
+ */
+function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
+  const file = findNodeSpecFile(storiesDir, unitId);
+  if (file === null) return null;
+  let spec: ReturnType<typeof loadNodeSpec>;
+  try {
+    spec = loadNodeSpec(file);
+  } catch {
+    return null;
+  }
+  const real = spec.buildConfig?.real;
+  let absFiles: string[];
+  if (real?.testFile !== undefined) {
+    absFiles = [path.join(root, real.testFile)];
+  } else {
+    const globs = spec.buildConfig?.scope.testGlobs ?? [];
+    const dirs = [...new Set(globs.map((g) => path.join(root, globBaseDir(g))))];
+    absFiles = [...new Set(dirs.flatMap((d) => walkTestFiles(d)))];
+  }
+  const existing = absFiles.filter((f) => existsSync(f));
+  const testNames: string[] = [];
+  for (const f of existing) {
+    try {
+      testNames.push(...extractTestNames(readFileSync(f, "utf8")));
+    } catch {
+      // An unreadable test file contributes no names (fail-closed toward "uncovered").
+    }
+  }
+  return {
+    tier: spec.tier,
+    contractIds: spec.contracts.map((c) => c.id),
+    testNames,
+    testFiles: existing.map((f) => path.relative(root, f).replace(/\\/g, "/")),
+  };
 }
 
 /**
@@ -1661,10 +1752,22 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);
   }
 
+  if (area === "coverage") {
+    // ADR-0020 coverage-honesty follow-on — does every declared contract have an observed test? The
+    // unit loader is the pure-by-injection seam (reads the spec's `## Contracts` + the proof surface's
+    // test names off disk); the classifier is `@storytree/orchestrator`'s. Offline, read-only.
+    if (help) return coverageHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    const root = repoRoot();
+    return coverageCommand(sub, {
+      loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
+    });
+  }
+
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, build, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }

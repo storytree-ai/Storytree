@@ -10,7 +10,7 @@ proof_mode: UAT
 # in-process credential wiring, the shared-forest connection). The chat surface that ships INSIDE
 # this desktop is NOT a desktop capability — it is headless-orchestrator's Phase 2 (ADR-0108),
 # CONSUMED here (see depends_on + the Cross-story boundary section).
-capabilities: [credential-broker, electron-shell, local-backend-boot, local-credential-wiring, shared-forest-connection]
+capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, local-credential-wiring, shared-forest-connection]
 # Story-level edges (ADR-0010 §4 / ADR-0074 — these are the cross-story `depends_on` the boundary
 # gate (`check:boundaries`) enforces against apps/desktop/package.json's @storytree/* deps, ADR-0100;
 # ADR-0113 §8 requires the desktop → studio-server/drive edges to be DECLARED here or CI goes red):
@@ -39,11 +39,16 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, local-cred
 #                       persists them — no per-friend Cloud SQL IAM grant, no local DB connection. This is a
 #                       RUNTIME HTTP edge (a configured broker URL + a POST client), NOT a package import:
 #                       the desktop MUST NOT import apps/studio/server source (the surface boundary,
-#                       ADR-0100). So it adds NO new @storytree/* dep to apps/desktop/package.json for this
-#                       edge (the shapes POSTed come from @storytree/proof-protocol / @storytree/notice-board,
-#                       reachable transitively); `check:boundaries` needs no new declared PACKAGE edge for an
-#                       HTTP consumption. Declared here so the cross-story dependency is visible/forest-rendered.
-depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud]
+#                       ADR-0100). The studio-cloud edge itself adds no apps/studio/server import.
+#   - proof-protocol, notice-board — the WIRE SHAPES the broker write-client POSTs. The client imports
+#                       @storytree/proof-protocol (`Verdict`) and @storytree/notice-board (`PresenceDeclaration`)
+#                       to type — and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`).
+#                       Pure-zod protocol packages (no `pg`, no server) so brokers-not-direct still holds — but
+#                       they are NOT reachable transitively (this repo's pnpm strict isolation has no hoisting):
+#                       they are DECLARED deps in apps/desktop/package.json, so `check:boundaries` requires the
+#                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
+#                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
+depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
 # client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the
@@ -52,8 +57,9 @@ depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-clo
 # proof-off-tether sanction the local backend rides (and the broker holds no signing key); 0004 the
 # orchestrator/agent boundary preserved by topology (main IS the boundary); 0108 the chat surface that
 # ships here; 0021 keyless Cloud SQL IAM (the per-friend grant ADR-0117 REMOVES for friends); 0070 the
-# operator-attested appearance (and the live `builder` grant).
-decisions: [109, 111, 113, 117, 90, 91, 4, 108, 21, 70]
+# operator-attested appearance (and the live `builder` grant); 0119 (amends 113) the tsx-sidecar local
+# backend + the studio boot read route table.
+decisions: [109, 111, 113, 117, 119, 90, 91, 4, 108, 21, 70]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -142,6 +148,17 @@ deleted).
 
 ## Local-backend boundary call (decided here — the dependency-graph/layout call is the story-author's, not the owner's)
 
+> **Update ([ADR-0119](../../docs/decisions/0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md),
+> 2026-06-27, owner-directed).** Wiring the proven `createLocalBackend` factory into the real Electron
+> shell surfaced two corrections: (1) the drivers run as a **tsx sidecar** the Electron main spawns and
+> proxies `/api/*` to — bundling raw-TS drivers into the CJS main breaks `import.meta` (corpus paths +
+> the build path's `tsx` resolution); (2) the read route table is the studio's **boot set** —
+> `me` / `health` / `docs` / `tree` / `assets` / `comments` — NOT just health/tree/assets, because the
+> studio frontend boot-gates on `/api/me` and `Promise.all`s docs+assets+comments (a 404 → an error
+> screen, not the forest). The "minimal route table" described below is **superseded in part** by that
+> boot set; the re-compose-don't-import boundary call STANDS. The read router is headlessly provable (so
+> its green flips like any capability); the Electron sidecar-spawn + proxy is the operator-attested leg.
+
 ADR-0113 §1 phrases the thick client as "the Electron main process runs the real studio backend
 (`apps/studio/server`)." Taken literally that is a **surface→surface source import** — and it is
 forbidden: `apps/desktop/electron/static-server.ts` already states "the desktop must NOT import across
@@ -166,7 +183,35 @@ db-wake). If the studio route table later proves worth sharing verbatim between 
 it into a shared organism is a clean follow-on (it would touch the `studio` story) — deliberately NOT
 pulled into this story, to keep the thick-client journey small.
 
-## Capabilities (5)
+> **ADR-0119 update (two integration corrections — the boundary call STANDS).** Wiring the
+> `local-backend-boot` factory (PR #394) into the real Electron shell + the real studio frontend surfaced
+> two findings the owner directed be landed as a decision (ADR-0119, born accepted per ADR-0110):
+>
+> 1. **The drivers run as a `tsx` SIDECAR the Electron main spawns and proxies `/api/*` to — not bundled
+>    into the main.** `apps/desktop` builds the main as CJS (`esbuild --format=cjs`) and runs it under
+>    Electron's plain Node with NO `tsx`. Bundling the raw-TS drivers in was tested directly: esbuild
+>    "succeeds" but silently empties `import.meta.url` (corpus paths, `schema.sql`) and
+>    `import.meta.resolve("tsx")` (the build path's own tsx resolution) under CJS, quietly breaking the
+>    read AND build paths. So the main spawns a child Node process via `tsx`
+>    (`ELECTRON_RUN_AS_NODE=1 --import tsx`) that hosts the re-composed backend and listens on a
+>    `127.0.0.1` port; `static-server.ts` PROXIES `/api/*` to it and reaps it on quit. This is the honest
+>    realization of "the Electron main serves a local backend" — *serves via a sidecar it owns* — and the
+>    agent boundary (ADR-0004) is preserved by topology (the sidecar is a main-owned Node process; the
+>    renderer never imports `@storytree/agent`).
+> 2. **The desktop serves the studio's BOOT read set, not just `health`/`tree`/`assets`.** The studio
+>    frontend (`App.tsx`) **boot-gates on `/api/me`** (`meStatus` must reach `ready` with `member: true`)
+>    and its initial load is `Promise.all([/api/docs, /api/assets, /api/comments])` — ANY `404` rejects
+>    the whole load → an error screen, not the forest. So the boot READ set is
+>    `me`/`health`/`docs`/`tree`/`assets`/`comments`. The "minimal route table" above is therefore
+>    **superseded in part** by this boot set (ADR-0119 §2); the new
+>    [`boot-read-routes`](boot-read-routes.md) capability adds the three `local-backend-boot` did not
+>    (`me`/`docs`/`comments`). **The re-compose-don't-import boundary call is UNCHANGED** — the desktop
+>    OWNS a read router that re-composes the organism drivers (and re-reads `<repo>/docs` over `node:fs`)
+>    exactly as `devApi.ts` does; it never imports `apps/studio/server`. Verbatim full route-table
+>    sharing stays deferred (a shared read-route organism touching the `studio` story is the clean
+>    follow-on, ADR-0119 "Bad / accepted costs").
+
+## Capabilities (6)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -175,8 +220,9 @@ Listed roots-first (a capability appears after everything it depends on).
 | 1 | [`credential-broker`](credential-broker.md) | The member's Claude credential round-trips the OS keychain through a narrow port and is never written to localStorage or to plaintext disk. | contract-test (CI red→green) | — |
 | 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind a sign-in affordance. | operator-attested (ADR-0070) | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
-| 4 | [`local-credential-wiring`](local-credential-wiring.md) | The keychain-brokered credential is fed to the in-process local backend's build/orchestrate drivers (no TLS hop), and the renderer never receives the raw token. | contract-test (CI red→green) | `credential-broker`, `local-backend-boot` |
-| 5 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
+| 4 | [`boot-read-routes`](boot-read-routes.md) | The local backend adds the studio's remaining BOOT read routes — `me` (a local member identity), `docs` (read from the member's checkout), `comments` (an injected store seam) — re-composed from the organism drivers (never importing the studio server), so the frontend boots and renders the forest instead of an access/error screen (ADR-0119 §2). | contract-test (CI red→green) | `local-backend-boot` |
+| 5 | [`local-credential-wiring`](local-credential-wiring.md) | The keychain-brokered credential is fed to the in-process local backend's build/orchestrate drivers (no TLS hop), and the renderer never receives the raw token. | contract-test (CI red→green) | `credential-broker`, `local-backend-boot` |
+| 6 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
 
 The **chat surface** the member talks to (the renderer chat panel + the live loop stream) is **not a
 capability here** — its provable backend (the SSE route riding `orchestrate`) is
@@ -191,6 +237,8 @@ Authored from the intended data-flow; re-derive from the real imports/calls when
 `local-backend-boot` are the two roots.
 
 - `electron-shell` → `credential-broker` (the shell supplies the real keychain adapter to the broker port).
+- `boot-read-routes` → `local-backend-boot` (it EXTENDS the keystone's `/api/*` backend with the studio's
+  remaining boot read routes — the Electron main mounts both dispatchers on the same surface, ADR-0119 §2).
 - `local-credential-wiring` → `credential-broker`, `local-backend-boot` (it feeds the broker's credential
   into the backend the boot capability stands up — so it couples to both).
 - `shared-forest-connection` → `local-backend-boot` (the connection/readiness is the backend's store seam).
@@ -226,9 +274,17 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
   [`write-broker`](../studio-cloud/write-broker.md) over HTTPS, and the server persists them (the friend
   holds no DB identity). This is a **runtime HTTP edge** — a configured broker URL + a `fetch` POST client
   in [`shared-forest-connection`](shared-forest-connection.md) — NOT a source import: the desktop does NOT
-  import `apps/studio/server` (the surface boundary, ADR-0100), so it adds no new `@storytree/*` package
-  dep for this edge. The friend's in-app `builder` role (studio-members, consumed transitively through the
-  broker's gate) is what authorizes the POST.
+  import `apps/studio/server` (the surface boundary, ADR-0100). The friend's in-app `builder` role
+  (studio-members, consumed transitively through the broker's gate) is what authorizes the POST.
+- **`proof-protocol`, `notice-board`** — the **wire SHAPES** the broker client POSTs.
+  [`shared-forest-connection`](shared-forest-connection.md)'s write client imports
+  `@storytree/proof-protocol` (`Verdict`) and `@storytree/notice-board` (`PresenceDeclaration`) to type —
+  and the test to construct — the bytes it sends (contract `fr-write-brokers-not-direct`). They are pure-zod
+  protocol packages (no `pg`, no server), so brokers-not-direct holds; but they are **not** reachable
+  transitively (this repo's pnpm strict isolation has no hoisting), so they are DECLARED deps in
+  `apps/desktop/package.json` and the cross-story edges are declared in `depends_on` above — exactly the
+  ADR-0074 / ADR-0113 §8 "declare the edge, never work around it" pattern the drive-machinery / studio /
+  library edges follow.
 
 ## Story UAT
 
@@ -324,10 +380,17 @@ owner-fork bar):
 1. **The chat surface is consumed from `headless-orchestrator`, not re-owned here (decided).** Its
    provable SSE backend is that story's Phase 2 (ADR-0108); the renderer chat panel is a thin client
    over it. Surfaced so the boundary is visible.
-2. **Verbatim studio route-table sharing is deferred (decided).** The desktop mounts a minimal-to-journey
-   route table composed from the organism drivers; extracting the studio's full route table into a shared
-   organism (which would touch the `studio` story) is a clean follow-on, not pulled into this journey to
-   keep it small.
+2. **The desktop serves the studio's BOOT read set; verbatim full route-table sharing stays deferred
+   (decided, ADR-0119 §2).** The desktop mounts the studio's BOOT read routes
+   (`me`/`health`/`docs`/`tree`/`assets`/`comments`) — composed from the organism drivers and a read-only
+   `<repo>/docs` walk, NOT imported from the studio server — because the frontend boot-gates on `/api/me`
+   and `Promise.all`s docs+assets+comments (a minimal table that omitted these boots to an error screen,
+   ADR-0119 finding 2). This SUPERSEDES IN PART ADR-0113's "minimal route table" ([`boot-read-routes`](boot-read-routes.md)
+   adds the three `local-backend-boot` did not). The backend itself runs as a **tsx sidecar** the Electron
+   main spawns and proxies `/api/*` to (bundling raw-TS drivers into the CJS main breaks `import.meta`,
+   ADR-0119 finding 1 / §1). Extracting the studio's FULL route table into a shared read-route organism
+   (which would touch the `studio` story) is still a clean follow-on, not pulled into this journey to keep
+   it small.
 
 The only **owner-level** item is operational, not modeling, and ADR-0117 SIMPLIFIED it: it is no longer
 an attended Cloud SQL IAM `gcloud` grant but an **in-app `builder` mark in the Members panel** (ADR-0117

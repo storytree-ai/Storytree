@@ -8,6 +8,8 @@ decided: 2026-06-04
 
 **Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0005/0006/0008/0024/0027. **Amended by ADR-0010** (proof table, mock-UAT seam, cold-rebuild).
 
+**Superseded-in-part by [ADR-0010](0010-organism-model-story-bounded-context.md)** — this ADR's proof table, mock-UAT seam, and cold-rebuild definition are overtaken: the proof ladder shifts up one rung (the **UAT moves to the story**; the capability is proven by integration tests against real in-story collaborators), the one stubbable boundary is the declared cross-story interface, and cold-rebuild is restated as an authoring guideline keyed on a story's upstream *interfaces*.
+
 ## Decision
 
 Operationalize ADR-0002's three proof modes, and add a third.

@@ -12,8 +12,10 @@
  *      `session-orchestrator` — proof it reuses the Phase-1 composition, not a fork
  *      (`cs-drives-the-real-orchestrate-not-a-fork`, ADR-0108 d.2).
  *   6. The single-session guard holds: a second concurrent `startChatStream` is refused with a
- *      terminal `error` event while the first session is in-flight and left untouched
- *      (`cs-fails-closed-and-single-session`, ADR-0108 d.6).
+ *      distinct terminal `refused` event (carrying the reason) while the first session is in-flight
+ *      and left untouched (`cs-single-session-refused`, ADR-0108 d.6). A `refused` event is NOT an
+ *      `error`: the session never started, so a thin client can render a "busy / try again" signal
+ *      distinct from a genuine failure.
  *
  * IT REUSES THE PHASE-1 COMPOSITION (ADR-0108 d.2): the adapter calls `orchestrate()` — the
  * SAME composition the programmatic entry and terminal command use. It does not re-render the
@@ -252,8 +254,8 @@ test(
 
 // ---------------------------------------------------------------------------
 // 5. Single-session guard: a second concurrent session is refused with a
-//    terminal `error` event while the first is in-flight and untouched
-//    (contract `cs-fails-closed-and-single-session`, ADR-0108 d.6)
+//    distinct terminal `refused` event (NOT a generic `error`) while the first
+//    is in-flight and untouched (contract `cs-single-session-refused`, ADR-0108 d.6)
 // ---------------------------------------------------------------------------
 
 test(
@@ -306,19 +308,19 @@ test(
     unblock.resolve();
     const firstEvents = await firstDrain;
 
-    // --- Session 2 was refused with a terminal error event (the single-session guard) ---
+    // --- Session 2 was refused with a distinct terminal `refused` event (the single-session guard) ---
     assert.ok(secondEvents.length > 0, "the refused session must still yield a terminal event");
     const secondLast = secondEvents[secondEvents.length - 1];
     assert.ok(secondLast !== undefined, "the refused session must yield a terminal event");
     assert.equal(
       secondLast.type,
-      "error",
-      `the second concurrent session must terminate with an 'error' event; got '${secondLast.type}'`,
+      "refused",
+      `the second concurrent session must terminate with a distinct 'refused' event (not a generic 'error'); got '${secondLast.type}'`,
     );
     assert.match(
-      secondLast.type === "error" ? secondLast.error : "",
+      secondLast.type === "refused" ? secondLast.reason : "",
       /in-flight|concurrent|single session/i,
-      "the error must be the single-session refusal (ADR-0108 d.6), not some other failure",
+      "the refused event must carry the single-session reason (ADR-0108 d.6), not some other failure",
     );
     assert.ok(
       !secondQueryCalled,

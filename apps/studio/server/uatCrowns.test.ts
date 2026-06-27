@@ -10,8 +10,13 @@ import { describe, it, expect } from 'vitest';
 import { SIGNING_EVENT_KIND } from '@storytree/proof-protocol';
 import { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } from '@storytree/orchestrator';
 
-import { applyUatCrowns, applyCapCoverage, applyOpenQuestionGate } from './apiRouter.js';
-import type { TreeCapability, TreeStory } from '../src/types';
+import {
+  applyUatCrowns,
+  applyCapCoverage,
+  applyOpenQuestionGate,
+  applyStoryGoGreenProof,
+} from './apiRouter.js';
+import type { AdoptionPlan, AdoptGate, TreeCapability, TreeStory } from '../src/types';
 
 function story(id: string, over: Partial<TreeStory> = {}): TreeStory {
   return {
@@ -222,5 +227,65 @@ describe('applyOpenQuestionGate', () => {
     const stories = [story('unproven')];
     applyOpenQuestionGate(stories, new Map([['unproven', 1]]), gateStoryGreenOnOpenQuestions);
     expect(stories[0]!.verdict).toBeUndefined();
+  });
+});
+
+// ── ADR-0040 / ADR-0094 d.1: a PROVEN story offers NO go-green action (the storage-protocol bug) ──
+// applyStoryGoGreenProof reads the just-settled crown verdict and drops a stale Adopt/Build the file-only
+// assembly set from authored status — proof, not authored `status:`, is the source of truth for "done".
+// It is the panel-side reading of the SAME rule the spine predicate `storyGoGreen(…, proven)` enforces
+// for the adopt-POST worker, so the button and the worker can't diverge.
+describe('applyStoryGoGreenProof', () => {
+  const gates: AdoptGate[] = [
+    { id: 'storage-protocol#gate-1', kind: 'observe', command: 'pnpm --filter @storytree/storage-protocol test' },
+  ];
+  const adoption: AdoptionPlan = { capabilities: [], covered: [], uncovered: [] };
+
+  it('drops Adopt to none for a PROVEN brownfield port, clearing its adoptGates/adoption (the storage-protocol bug)', () => {
+    // mapped + gates ⇒ the assembly set goGreen 'adopt'; the crown then proved it green (signed pass).
+    const stories = [
+      story('storage-protocol', {
+        status: 'mapped',
+        goGreen: 'adopt',
+        adoptGates: gates,
+        adoption,
+        verdict: { outcome: 'pass', at: '2026-06-27T00:00:00.000Z' },
+      }),
+    ];
+    applyStoryGoGreenProof(stories);
+    expect(stories[0]!.goGreen).toBe('none'); // proven ⇒ no go-green action (Adopt button gone)
+    expect(stories[0]!.adoptGates).toBeUndefined(); // lean-wire invariant: gates ride only with 'adopt'
+    expect(stories[0]!.adoption).toBeUndefined();
+  });
+
+  it('drops Build to none for a PROVEN proposed story too (proof outranks the drive affordance)', () => {
+    const stories = [
+      story('nb', { goGreen: 'build', verdict: { outcome: 'pass', at: 'green-at' } }),
+    ];
+    applyStoryGoGreenProof(stories);
+    expect(stories[0]!.goGreen).toBe('none');
+  });
+
+  it('leaves an UNPROVEN story untouched — no crown verdict ⇒ Adopt stays (the not-yet-adopted state)', () => {
+    const stories = [
+      story('storage-protocol', { status: 'mapped', goGreen: 'adopt', adoptGates: gates }),
+    ];
+    applyStoryGoGreenProof(stories); // no verdict on the story
+    expect(stories[0]!.goGreen).toBe('adopt');
+    expect(stories[0]!.adoptGates).toEqual(gates);
+  });
+
+  it('only a PASS downgrades — a withered (fail) story keeps its affordance (recovery is the agent loop, not this pass)', () => {
+    const stories = [
+      story('red', { status: 'mapped', goGreen: 'adopt', adoptGates: gates, verdict: { outcome: 'fail', at: 'red-at' } }),
+    ];
+    applyStoryGoGreenProof(stories);
+    expect(stories[0]!.goGreen).toBe('adopt');
+  });
+
+  it('is a no-op for a proven story already at none (never throws, nothing to clear)', () => {
+    const stories = [story('done', { goGreen: 'none', verdict: { outcome: 'pass', at: 'green-at' } })];
+    applyStoryGoGreenProof(stories);
+    expect(stories[0]!.goGreen).toBe('none');
   });
 });

@@ -21,6 +21,8 @@ IAM DB auth, here extended to a runtime service-account principal).
 > client, members, and IAP model below stand; the "live builds / CLI / agent runtime out of scope for
 > the circle" scope is relaxed to allow build-triggering through a gated, build-capable worker.
 
+**Superseded-in-part by [ADR-0043](0043-app-owned-users-roles-and-ui-invitations.md)** — this ADR's access model is overtaken: the **IAP per-account allowlist** as the authorization gate and the **`STORYTREE_STUDIO_ADMINS` env-var admin list** are replaced by an app-owned `users` table with roles (IAP is demoted to authentication only); the `circle-onboarding` gcloud grant/revoke runbook gives way to in-UI invitations.
+
 ## Date
 
 2026-06-14

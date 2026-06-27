@@ -19,6 +19,8 @@ vocabulary of [ADR-0036](0036-story-world-studio-visualisation.md) /
 [ADR-0038](0038-story-world-vocabulary-recalibration.md) (the hex world, the hue ladder) and the
 transient-flash idiom already in `apps/studio/src/index.css` (`hlflash` / `cflash`).
 
+**Superseded-in-part by [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)** — this ADR's §6 "presence is NOT demoted (owner call 2026-06-14)" is reversed (session presence loses its orbiting-wisp role), and its named-deferred "in-flight 'building' shimmer (out of scope here)" item is now **in scope** and is ADR-0048's centrepiece. The verdict-bloom layer this ADR decides is otherwise untouched.
+
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0045*` on
 2026-06-13/14 — 0043 and 0044 are taken on `main`; 0045 is free (live DB carries no ADR rows of its
 own — ADRs are docs, ADR-0017/0018).

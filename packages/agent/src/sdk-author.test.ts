@@ -126,7 +126,7 @@ test("author => ok on an SDK success result, with cost/turns recorded", async ()
   assert.equal(author.totalCostUsd, 0.0421);
 });
 
-test("author => fail-closed on an SDK error result (max turns / budget)", async () => {
+test("author => EXHAUSTED (not a hard error) on a budget-ceiling result — work may be on disk", async () => {
   const author = new ClaudeAgentAuthor({
     cwd: CWD,
     isWriteAllowed: () => true,
@@ -147,6 +147,56 @@ test("author => fail-closed on an SDK error result (max turns / budget)", async 
   if (r.ok) return;
   assert.match(r.error, /error_max_budget_usd/);
   assert.match(r.error, /budget exceeded/);
+  // The cost guard is NOT a proof signal: the gate must be told to fall through to its own
+  // observation rather than discard the paid slice (the turn-ceiling cost-leak fix).
+  assert.equal(r.exhausted, true, "a budget-ceiling stop is exhaustion, not a genuine error");
+});
+
+test("author => EXHAUSTED on a turn-ceiling result (error_max_turns) — the discarded-green leak", async () => {
+  const author = new ClaudeAgentAuthor({
+    cwd: CWD,
+    isWriteAllowed: () => true,
+    queryFn: scripted([
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        num_turns: 16,
+        total_cost_usd: 0.42,
+        errors: ["reached the turn limit"],
+      },
+    ]),
+  });
+
+  const r = await author.author("IMPLEMENT", "implement it");
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.error, /error_max_turns/);
+  assert.equal(r.exhausted, true, "a turn-ceiling stop is exhaustion — green work must not be discarded");
+});
+
+test("author => a GENUINE error (error_during_execution) is NOT exhaustion — fail closed, no fall-through", async () => {
+  const author = new ClaudeAgentAuthor({
+    cwd: CWD,
+    isWriteAllowed: () => true,
+    queryFn: scripted([
+      {
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        num_turns: 2,
+        total_cost_usd: 0.03,
+        errors: ["the session crashed"],
+      },
+    ]),
+  });
+
+  const r = await author.author("IMPLEMENT", "implement it");
+  assert.equal(r.ok, false);
+  if (r.ok) return;
+  assert.match(r.error, /error_during_execution/);
+  // A real error produced no usable work — the gate must still fail closed, never observe.
+  assert.notEqual(r.exhausted, true, "a genuine execution error must not be marked exhausted");
 });
 
 test("author => fail-closed when the stream ends with NO result message", async () => {

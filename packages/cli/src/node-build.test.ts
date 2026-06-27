@@ -19,7 +19,7 @@ import {
   resolveVerdictStore,
   workspacePackageForSource,
 } from "@storytree/drive";
-import type { WispSmokeStore } from "@storytree/drive";
+import type { ClaimStoreLike, SessionIdentity, WispSmokeStore } from "@storytree/drive";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C), driven through `run` exactly as
@@ -180,7 +180,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
@@ -532,4 +532,83 @@ test("node build --dry-run --emit-wisp drives the smoke: building appended + del
   assert.equal(deleted.length, 1, "the transient row is hard-deleted once");
   assert.equal(deleted[0]![0], "library-cli");
   assert.match(deleted[0]![1]!, /^wisp-smoke-/);
+});
+
+// ── ADR-0121: the per-unit write-claim wired into the build (refuse a second concurrent builder) ──
+
+/** A fake claim store recording every claim/release; `acquired` decides the claim outcome. */
+function fakeClaimStore(acquired: boolean): {
+  store: ClaimStoreLike;
+  claims: string[];
+  releases: Array<[string, string]>;
+} {
+  const claims: string[] = [];
+  const releases: Array<[string, string]> = [];
+  const at = "2026-06-27T00:00:00.000Z";
+  const store: ClaimStoreLike = {
+    claim: async (req) => {
+      claims.push(req.unitId);
+      return acquired
+        ? {
+            acquired: true,
+            claim: { unitId: req.unitId, sessionId: req.sessionId, branch: req.branch, intent: req.intent ?? "", claimedAt: at, heartbeatAt: at },
+            reclaimed: false,
+          }
+        : {
+            acquired: false,
+            heldBy: { unitId: req.unitId, sessionId: "other-session-xyz", branch: "claude/other", intent: "real", claimedAt: at, heartbeatAt: at },
+          };
+    },
+    release: async (unitId, sessionId) => {
+      releases.push([unitId, sessionId]);
+      return true;
+    },
+  };
+  return { store, claims, releases };
+}
+
+const CLAIM_IDENTITY: SessionIdentity = { sessionId: "this-session-abc", branch: "claude/this" };
+
+test("node build REFUSES when another live session already holds the unit's claim (ADR-0121)", async () => {
+  const { store, claims, releases } = fakeClaimStore(false);
+  const env = await nodeBuild("library-cli", {
+    dryRun: true,
+    actor: "tester@example.com",
+    claim: { store },
+    presence: { identity: CLAIM_IDENTITY }, // identity is what makes the claim fire
+  });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /already being built by another live session/);
+  assert.match(env.body, /REFUSED \(ADR-0121\)/);
+  assert.match(env.body, /other-session-xyz/); // the holder is named
+  assert.deepEqual(claims, ["library-cli"], "claimed the unit once");
+  assert.equal(releases.length, 0, "nothing to release — the claim was never held by us");
+  assert.doesNotMatch(env.body, /verdict: {5}PASS/, "the gate never ran on a refused build");
+  assert.ok(env.next?.some((n) => n.includes("noticeboard")));
+});
+
+test("node build ACQUIRES the claim, runs the gate, and RELEASES it on success (ADR-0121)", async () => {
+  const { store, claims, releases } = fakeClaimStore(true);
+  const env = await nodeBuild("library-cli", {
+    dryRun: true,
+    actor: "tester@example.com",
+    claim: { store },
+    presence: { identity: CLAIM_IDENTITY },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /verdict: {5}PASS/, "the gate ran once the claim was held");
+  assert.deepEqual(claims, ["library-cli"], "claimed once");
+  assert.deepEqual(releases, [["library-cli", "this-session-abc"]], "released once, by this session");
+});
+
+test("node build does NOT claim when identity is absent (a non-worktree build does not contend)", async () => {
+  const { store, claims } = fakeClaimStore(false); // would refuse IF consulted
+  const env = await nodeBuild("library-cli", {
+    dryRun: true,
+    actor: "tester@example.com",
+    claim: { store },
+    presence: { identity: null }, // no worktree identity → no claim, build proceeds
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal(claims.length, 0, "claim store never consulted without an identity");
 });
