@@ -14,8 +14,11 @@ import { z } from "zod";
 // Roles & status
 // ---------------------------------------------------------------------------
 
-/** The two roles (ADR-0043 owner decision): admins manage; members read + comment. */
-export const USER_ROLES = ["admin", "member"] as const;
+/**
+ * The three roles (ADR-0043/ADR-0117): admins manage; builders read + comment + post brokered
+ * writes; members read + comment. Ordering: admin ⊇ builder ⊇ member.
+ */
+export const USER_ROLES = ["admin", "builder", "member"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 /** Lifecycle: invited (not yet signed in) → active (seen at least once). */

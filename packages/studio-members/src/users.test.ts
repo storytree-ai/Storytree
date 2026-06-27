@@ -10,6 +10,7 @@ import {
   resolveAccess,
   parseSeedAdmins,
   type UserDoc,
+  type UserRole,
 } from "./users.js";
 
 const user = (over: Partial<UserDoc> = {}): UserDoc =>
@@ -80,6 +81,46 @@ test("last-admin guard: cannot remove or downgrade the only admin", () => {
   assert.equal(wouldOrphanAdminsOnRole(solo, "admin@x.com", "admin"), false); // self-promote no-op
   // case-insensitive target match
   assert.equal(wouldOrphanAdminsOnRemove(solo, "ADMIN@X.com"), true);
+});
+
+test("builder role: User schema accepts 'builder', resolveAccess resolves it, last-admin guard counts only admins", () => {
+  // 1. The User schema must accept "builder" as a valid role.
+  //    Currently RED: USER_ROLES = ["admin","member"] and zod throws on "builder".
+  const builderDoc = User.parse({
+    email: "builder@x.com",
+    role: "builder",
+    status: "active",
+    invitedBy: null,
+    createdAt: "2026-06-14T00:00:00.000Z",
+    lastSeenAt: "2026-06-14T00:00:00.000Z",
+  }) as UserDoc;
+  assert.equal(builderDoc.role, "builder");
+
+  // 2. resolveAccess resolves a stored builder row with role "builder".
+  const seed = parseSeedAdmins("");
+  const resolved = resolveAccess([builderDoc], "builder@x.com", seed);
+  assert.deepEqual(resolved, {
+    email: "builder@x.com",
+    role: "builder",
+    status: "active",
+    seeded: false,
+  });
+
+  // 3. adminCount counts only admins — builders do not contribute (last-admin guard unaffected).
+  const adminDoc = user({ email: "admin@x.com", role: "admin" });
+  const mixed: readonly UserDoc[] = [adminDoc, builderDoc];
+  assert.equal(adminCount(mixed), 1);
+
+  // 4. Downgrading the sole admin TO builder orphans (builder ≠ admin);
+  //    re-roling a builder to member never orphans (builder is not an admin).
+  assert.equal(
+    wouldOrphanAdminsOnRole(mixed, "admin@x.com", "builder" as unknown as UserRole),
+    true,
+  );
+  assert.equal(wouldOrphanAdminsOnRole(mixed, "builder@x.com", "member"), false);
+
+  // 5. Removing a builder never orphans (only admins count toward the last-admin guard).
+  assert.equal(wouldOrphanAdminsOnRemove(mixed, "builder@x.com"), false);
 });
 
 test("resolveAccess: row wins, seed admin is admitted, everyone else is null", () => {
