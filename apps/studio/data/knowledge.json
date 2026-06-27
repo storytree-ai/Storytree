@@ -2964,5 +2964,42 @@
     "whatItIsNot": "Not an `organism` (asset:boundary): an organism is a REUSABLE bounded context other stories depend on (it draws inbound edges and may be `foundational`); a surface is consumed by no one. Not an exempt 'composition root' or 'just glue': the temptation is to hide the most-connected wiring nodes to reduce noise — rejected, because hiding them hides the most architecturally important relationships (the same call ADR-0074 §2 made for the cli/store hubs). Not a new kind of dependency EDGE: a surface's outbound edges obey the unchanged cross-story dependency-direction and no-cycle rules (asset:cross-story-dependency) — `surface` names the kind of NODE, not a different edge semantics.",
     "provenance": "Graduated (ADR-0095) from ADR-0100, which settled with the owner on 2026-06-24 that the boundary/observability graph must include consuming surfaces (apps + the public subrepo), not just organism packages. Distils the durable essence ADR-0074 §1/§2 left implicit (visibility-over-exemption stated only for packages) and ADR-0100 made explicit for surfaces: the sink-at-the-top node kind, the same-rule-as-an-organism coverage of its outbound edges, and the surfacing-a-surface-surfaces-its-latent-cycles property (the studio/studio-cloud/studio-members cycle). Consumers: story-author (classifies a surface and wires its depends_on), session-orchestrator / librarian-curator (reason about the observability world). The behavioural rule it rides on for cycle resolution is asset:cross-story-dependency.",
     "schemaVersion": 2
+  },
+  {
+    "kind": "pattern",
+    "id": "cli-surface-is-a-superset-of-the-ui",
+    "title": "The CLI surface is a superset of the UI",
+    "description": "Borrow the UI's workflow vocabulary on top of an agent-facing command surface, but keep a uniform grain-verb algebra below — relocate the primitives the UI never exposes, never drop them.",
+    "references": [
+      "asset:pull-based-context-architecture",
+      "asset:deep-modules",
+      "doc:decisions/0118-workflow-first-cli-surface-proof-commands-mirror-the-studio.md"
+    ],
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
+    "statement": "When a command surface is shaped to mirror a UI's workflows, borrow the UI's workflow VOCABULARY at the top, but keep a uniform `<grain> <verb>` ALGEBRA underneath; the primitives relocate beneath the workflows — they are never removed.",
+    "problem": "A UI user clicks one state-aware button, so the surface can hide every primitive behind it. An agent does not click — it composes, loops, and discovers — so it needs the primitives the UI never exposes (build a single node, sign a single gate). Shaping the command surface to *mirror* the UI one-for-one amputates exactly those primitives, and a later \"make it match the UI\" change keeps re-amputating them. The agent and the UI user are different users with different needs from the same surface.",
+    "approach": "Treat the surface as a SUPERSET of the UI, not a copy of it. The top level borrows the UI's workflow names so the two surfaces teach one mental model; beneath each workflow, keep a stable, uniform grain-verb algebra the agent can compose and loop over, reached by drilling in just-in-time (`asset:pull-based-context-architecture`). When a workflow absorbs a primitive, the primitive MOVES under it and keeps a back-compat alias — relocation, never removal. Workflow names may churn as the methodology grows; the grain algebra underneath stays stable.",
+    "tradeoffs": "You trade a clean one-to-one map to the UI for a top surface that carries more than the UI exposes and churns as workflows multiply. The payoff: the agent keeps predictable primitives to script against, and the two surfaces still teach the same goals.",
+    "provenance": "The durable rationale of ADR-0118 (workflow-first CLI surface): the agent-facing `storytree` CLI borrows the studio's workflow vocabulary on top while keeping the grain-verb primitives below. Authored during the ADR-0118 reshape.",
+    "schemaVersion": 2
+  },
+  {
+    "kind": "guardrail",
+    "id": "cli-relocations-keep-an-alias",
+    "title": "A relocated CLI verb keeps a back-compat alias",
+    "description": "When a workflow absorbs a CLI primitive, the old verb keeps a back-compat alias resolving to the same code path — the surface never silently drops or renames a primitive.",
+    "references": [
+      "asset:cli-surface-is-a-superset-of-the-ui",
+      "doc:decisions/0118-workflow-first-cli-surface-proof-commands-mirror-the-studio.md"
+    ],
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
+    "statement": "Every CLI verb the workflow-first reshape relocates keeps a back-compat alias that resolves to its new home; the surface never silently drops or renames a primitive out from under a caller.",
+    "rule": "When a workflow absorbs a proof primitive (the build/adopt/witness reshape, ADR-0118), the old grain verb does not disappear — it keeps a back-compat alias that resolves to the SAME code path as its workflow-first home. No caller, script, or agent habit breaks silently; a relocation is a move PLUS an alias, never a removal. This is the surface-level companion to `asset:cli-surface-is-a-superset-of-the-ui` — relocate the primitive, don't lose it.",
+    "enforcedBy": "The CLI back-compat alias-coverage suite (`packages/cli/src/cli-aliases.test.ts`, run in the package's `pnpm test` and in CI): a growing table of (relocated verb → alias) pairs, each asserting the alias resolves to the SAME envelope as its workflow-first home (a deepEqual over a side-effect-free dispatch), plus a coverage floor that fails if a unit relocates a verb but registers no alias row. A dropped or renamed alias fails the suite; a forgotten registration fails the floor.",
+    "failureMode": "If the boundary is crossed, a reshape renames or removes a verb without an alias, silently breaking every script, caller, or agent habit that invokes the old form — the exact silent breakage ADR-0118 forbids (its discipline mirrors the `story adopt-plan` redirect).",
+    "provenance": "Authored during the ADR-0118 reshape to make the 'every moved verb keeps a back-compat alias' promise mechanically enforced, not merely stated.",
+    "schemaVersion": 2
   }
 ]
