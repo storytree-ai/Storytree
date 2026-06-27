@@ -8,16 +8,18 @@ status: proposed
 proof_mode: integration-test
 depends_on: [headless-session-runner]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors a
-# test that imports a NOT-YET-EXISTING symbol from a NEW source file in @storytree/cli (red =
-# module-not-found against the source that does not exist at HEAD), then writes that one new source file
-# (green), driving the composition with an injected `queryFn` scripted double. `install: true` + a
-# typecheck wall because the new module lives in @storytree/cli and imports renderAgentPrompt + the
-# runner from @storytree/agent + @storytree/library (the proof runs in a fresh worktree — tsx + tsc need
-# the lockfile-only install, ADR-0031 §2). Single LITERAL source file (no `*`), so the default node:test
-# proof on the one test file is legal — no `proofCommand`. The scope stays within packages/drive (ADR-0087:
-# one concrete package per write scope) — the agent-side runner it calls is a CONSUMED dependency, not a
-# co-edited file.
+# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true): orchestrate.ts
+# already exists at HEAD (the Phase-1 composition landed #373), so this increment EDITS it rather than
+# authoring a net-new file. The leaf authors a NEW regression test (orchestrate-single-session.test.ts)
+# that FAILS against current behaviour — a second concurrent orchestrate() is today refused only by a
+# GENERIC error (no typed discriminator), so an assertion on a TYPED `refused`/`reason` result is red at
+# HEAD — then EDITS orchestrate.ts to add a composition-level single-session guard returning that typed
+# result (green). `install: true` + a typecheck wall because orchestrate.ts imports renderAgentPrompt +
+# the runner from @storytree/agent + @storytree/library (the proof runs in a fresh worktree — tsx + tsc
+# need the lockfile-only install, ADR-0031 §2). Single LITERAL source file (orchestrate.ts, no `*`), so
+# the default node:test proof on the one test file is legal — no `proofCommand`. The scope stays within
+# packages/drive (ADR-0087: one concrete package per write scope) — the agent-side runner whose
+# module-level inFlight guard this surfaces as a typed result is a CONSUMED dependency, not a co-edited file.
 proof:
   command:
     file: pnpm
@@ -26,11 +28,12 @@ proof:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
   real:
-    testFile: "packages/drive/src/orchestrate.test.ts"
+    testFile: "packages/drive/src/orchestrate-single-session.test.ts"
     sourceFile: "packages/drive/src/orchestrate.ts"
     scope:
-      testGlobs: ["packages/drive/src/orchestrate.test.ts"]
+      testGlobs: ["packages/drive/src/orchestrate-single-session.test.ts"]
       sourceGlobs: ["packages/drive/src/orchestrate.ts"]
+    editsExisting: true
     install: true
     typecheck:
       file: pnpm
@@ -53,8 +56,43 @@ the runner.
 > and drives the runner against the real seed corpus. Since ADR-0112 the composition lives in
 > `@storytree/drive`; `packages/cli` hosts `run()` + the `orchestrate` command, and the leaf's
 > `ClaudeAgentAuthor` stays in `@storytree/agent`.
+>
+> **Current `--real` increment — the composition-level TYPED single-session guard (contract 5).** The
+> single-session BRAKE (ADR-0108 d.6) is NOT unimplemented: it already lives in `runHeadlessOrchestrator`
+> (`@storytree/agent`) as a module-level `inFlight` flag, proven by `headless-orchestrator.test.ts`, and
+> `orchestrate()` inherits it transitively. What this increment adds is the COMPOSITION-level enforcement
+> with a TYPED `{ refused, reason }` result (today the refusal is a generic error a consumer cannot
+> distinguish from a hard failure) — read/propose only, no new authority.
 
 ## Guidance
+
+**THIS BUILD — the current `--real` increment (edit-existing): the composition-level TYPED single-session
+guard.** The single-session BRAKE (ADR-0108 d.6, "one orchestration session at a time") is ALREADY
+enforced for `orchestrate()` transitively — `runHeadlessOrchestrator` (`@storytree/agent`) holds a
+module-level `inFlight` flag and refuses a second concurrent run. What is MISSING is a COMPOSITION-level,
+TYPED refusal: today a concurrent `orchestrate()` returns a GENERIC `{ ok: false, error: "session
+in-flight…" }`, indistinguishable from any other failure, so a consumer (the chat surface) cannot tell
+"busy, retry" from a hard error. This increment makes `orchestrate()` itself enforce the brake and return
+a TYPED result — `{ ok: false, refused: true, reason: "single-session", error }` — the running session
+left untouched.
+
+- **EDIT-EXISTING, not net-new.** orchestrate.ts EXISTS; read it, ADD a new failing regression test
+  (`packages/drive/src/orchestrate-single-session.test.ts`), then EDIT orchestrate.ts. The red is a
+  RUNTIME assertion, never a missing-symbol import.
+- **The typed result type stays in `@storytree/drive`** (ADR-0087 — one package per write scope): widen
+  `OrchestrateResult` in orchestrate.ts to `HeadlessOrchestratorResult & { refused?: true; reason?:
+  "single-session" }` (or an equivalent in-package type). Do NOT edit `@storytree/agent`.
+- **The guard fires synchronously at the TOP of `orchestrate()`**, before the `await renderAgentPrompt`:
+  if a composition session is already in flight, return the typed refusal immediately; otherwise mark
+  in-flight, run, and clear the flag in a `finally`. This composition guard is the authoritative, typed
+  brake; the runner's `inFlight` flag remains a lower-level backstop.
+- **The RED the spine observes:** the new test starts a first `orchestrate()` whose injected `queryFn`
+  BLOCKS on a test-held promise so it stays in-flight, yields control, then awaits a SECOND `orchestrate()`
+  and asserts `second.refused === true` and `second.reason === "single-session"`. At HEAD there is no
+  typed field → `refused` is `undefined` → red. ASSERT THE TYPED FIELD, never a bare `ok === false`: a
+  bare `ok:false` is already green at HEAD (the runner enforces it) and would fail CONFIRM_RED.
+- **The GREEN:** after the composition guard is added the typed assertion passes; then unblock the first
+  session and assert it STILL completes normally with its proposal (the running session untouched).
 
 WHY THIS IS A CAPABILITY: it is where the runtime wires together — render the REAL `session-orchestrator`
 agent, assemble the orientation deps (the in-memory seed `store` + the real `stories/` corpus), drive
@@ -85,8 +123,9 @@ the declaration is not the deliverable, and the offline integration test does no
 the seed).
 
 READ/PROPOSE ONLY (ADR-0091): the composition surfaces a PROPOSAL. It holds no signing key, hands in no
-verdict, triggers no build, opens no PR, lands nothing. The single-session guard (ADR-0108 decision 6)
-is enforced here or in the runner (one orchestration at a time). Get this wrong — wiring a build/gate/PR
+verdict, triggers no build, opens no PR, lands nothing. The single-session guard (ADR-0108 decision 6) is
+enforced AT THE COMPOSITION (contract 5 — a typed `{ refused, reason }` refusal) over the runner's
+module-level `inFlight` backstop (one orchestration at a time). Get this wrong — wiring a build/gate/PR
 call — and you have crossed into Phase 3/4.
 
 OFFLINE-TESTABLE BY INJECTION: the integration test drives the composition with an injected `queryFn`
@@ -119,13 +158,15 @@ The integration test would:
    no build/PR/verdict side effect occurred (no worktree, no `events.verdict` write).
 5. A failed session (injected dead/error `queryFn`) → the entry returns a fail-closed result with the
    error, never a forged proposal.
-6. A second concurrent intent → refused (the single-session guard), the running orchestration untouched.
+6. A second concurrent intent → refused with a TYPED result (`{ refused, reason: "single-session" }`,
+   distinguishable from a generic failure), the running orchestration untouched (it completes normally).
 
-## Contracts (4)
+## Contracts (5)
 
 The test-proven leaf behaviours — each **one isolated automated test** (`node:test`, the
-`@storytree/cli` suite), collaborators stubbed. None exist yet; each is the assertion a contract test
-WILL prove against the real composition code once authored (provisional path — re-cite when built).
+`@storytree/drive` suite), collaborators stubbed. Contracts 1–4 are PROVEN by `orchestrate.test.ts` (the
+Phase-1 composition landed #373). Contract 5 is the current `--real` increment — the composition-level
+TYPED single-session guard (`orchestrate-single-session.test.ts`), authored test-first by the gated leaf.
 
 1. **`oc-renders-the-orchestrator-agent`** — the prompt is the rendered session-orchestrator, not a
    fork
@@ -148,35 +189,50 @@ WILL prove against the real composition code once authored (provisional path —
    - **asserts —** when the runner reports `{ ok: false, error }`, the entry surfaces that failure
      (never a forged proposal), and the single-session slot is released for the next intent.
    - **covers —** `packages/drive/src/orchestrate.ts` (the fail-closed path)
+5. **`oc-single-session-guard`** — a second concurrent orchestrate() is refused with a TYPED result
+   - **asserts —** while one `orchestrate()` session is in flight, a second concurrent call is refused
+     with a TYPED result (`{ ok: false, refused: true, reason: "single-session" }`) — distinguishable
+     from a generic failure — and the running session is untouched (it completes normally with its
+     proposal). The brake (ADR-0108 d.6) is enforced AT THE COMPOSITION, surfacing the runner's
+     module-level `inFlight` guard as a typed refusal a consumer can render as "busy, retry" rather than
+     a hard error. *(The runner-level guard alone is already proven by
+     `packages/agent/src/headless-orchestrator.test.ts`; this contract proves the COMPOSITION enforces it
+     AND types it.)*
+   - **covers —** `packages/drive/src/orchestrate.ts` (the composition-level single-session guard)
+     *(provisional path — re-cite at real `file:line` when built)*
 
-## Guidance — the net-new slice that earns the signed verdict
+## Guidance — the edit-existing slice that earns the signed verdict
 
-The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the Phase-1 composition
-as a new module in `packages/cli`, test-first.
+The brownfield rung toward `healthy` (ADR-0057 §3, EDIT-EXISTING): the Phase-1 composition
+(`packages/drive/src/orchestrate.ts`) already landed (#373) and is real. This increment EDITS it to add
+the composition-level TYPED single-session guard, test-first.
 
-- **The new test —** `packages/drive/src/orchestrate.test.ts` (`node:test` + `node:assert/strict`).
-  Import `{ orchestrate }` (or the chosen entry name) from `"./orchestrate.js"`. Build an
-  `InMemoryStore` + `loadCorpus` for the real seed, and an injected `queryFn` scripted double passed
-  through to the runner.
-- **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `orchestrate.ts`
-  does not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red). Assert
-  the entry renders the real `session-orchestrator` prompt, drives the runner against the real seed +
-  `stories/`, and surfaces the scripted proposal read/propose-only.
-- **The GREEN —** write `packages/drive/src/orchestrate.ts`: a plain async `orchestrate(args)` that
-  (1) renders the prompt via `renderAgentPrompt(store, "session-orchestrator")` (fail-closed if the
-  agent is missing — never a silent stub), (2) builds the orientation deps (the `store` + `storiesDir`),
-  (3) calls `runHeadlessOrchestrator` (the `@storytree/agent` runner) with the rendered prompt, the
-  programmatic intent as `userPrompt`, the orientation tools, and the injectable `queryFn`, and
-  (4) returns the surfaced proposal. Keep it a reusable package-level function (Phase 2 reuses it). After
-  it, the import resolves, the assertions hold, and the package suite + typecheck stay green.
+- **The new test —** `packages/drive/src/orchestrate-single-session.test.ts` (`node:test` +
+  `node:assert/strict`). Import `{ orchestrate }` from `"./orchestrate.js"`. Build an `InMemoryStore` +
+  `loadCorpus` for the real seed. Use the deterministic blocking-`queryFn` pattern (mirroring
+  `packages/agent/src/headless-orchestrator.test.ts`): the first `orchestrate()`'s injected `queryFn`
+  awaits a test-held promise so it stays in flight; the second `orchestrate()` is awaited while the first
+  is blocked; then the first is unblocked and drained.
+- **The RED the spine observes (before IMPLEMENT) —** orchestrate.ts EXISTS, so the red is a RUNTIME
+  assertion, not module-not-found: assert the second concurrent call returns a TYPED refusal
+  (`second.refused === true`, `second.reason === "single-session"`). At HEAD `orchestrate()` has no
+  composition guard and no typed field — a concurrent call is refused only by the runner's generic
+  `{ ok: false, error: "session in-flight…" }`, so `second.refused` is `undefined` → red. (Asserting a
+  bare `ok === false` would be GREEN at HEAD via the runner and fail CONFIRM_RED — assert the TYPED field.)
+- **The GREEN —** EDIT `packages/drive/src/orchestrate.ts`: widen `OrchestrateResult` (in-package) to
+  carry `refused?: true; reason?: "single-session"`, and add a composition-level guard that fires
+  synchronously at the TOP of `orchestrate()` (before `await renderAgentPrompt`): if a session is already
+  in flight return the typed refusal; otherwise mark in-flight, run, and clear the flag in a `finally`.
+  Then `second.refused === true` holds, the unblocked first session completes normally, and the package
+  suite + typecheck stay green.
 
 Rules:
 
-- **Render the agent, never fork it** — the prompt MUST come from `renderAgentPrompt(store,
-  "session-orchestrator")` (ADR-0051). The test pins this (`oc-renders-the-orchestrator-agent`).
-- **Programmatic intent, no chat endpoint** — the entry is a function / CLI arg; do NOT add an HTTP
-  route or SSE stream (Phase 2).
-- **Read/propose only** — surface a proposal; hold no signing key, hand in no verdict, trigger no
-  build, open no PR (ADR-0091). The single-session guard holds (ADR-0108 decision 6).
-- **Keep it reusable at the package level** — a plain async function the CLI command calls, so Phase 2's
-  studio worker reuses it, not a CLI-private closure.
+- **Edit, don't fork** — the existing render/runner wiring is untouched; this adds ONLY the guard + the
+  typed field. The prompt still comes from `renderAgentPrompt(store, "session-orchestrator")` (ADR-0051).
+- **The typed result stays in `@storytree/drive`** — do NOT edit `@storytree/agent` (ADR-0087, one
+  package per write scope). The runner's `inFlight` flag remains a lower-level backstop.
+- **Assert the TYPED field, never a bare `ok:false`** — the runner already makes a bare `ok:false` green
+  at HEAD; the genuine red is the typed discriminator (contract 5, `oc-single-session-guard`).
+- **Read/propose only** — surface a proposal / a typed refusal; hold no signing key, hand in no verdict,
+  trigger no build, open no PR (ADR-0091).
