@@ -61,6 +61,27 @@ const RELOCATIONS: readonly Relocation[] = [
     home: ["adopt", "gate", "library#gate-1", "--store", "memory"],
     alias: ["gate", "run", "library#gate-1", "--store", "memory"],
   },
+  // ── Unit C: the `witness` workflow (ADR-0118) ──────────────────────────────
+  {
+    what: "uat list → witness list",
+    home: ["witness", "list", "library"],
+    alias: ["uat", "list", "library"],
+  },
+  {
+    what: "uat attest → witness attest",
+    home: ["witness", "attest", "library#uat-1"],
+    alias: ["uat", "attest", "library#uat-1"],
+  },
+  {
+    what: "attest → witness vouch",
+    home: ["witness", "vouch", "library#uat-1"],
+    alias: ["attest", "library#uat-1"],
+  },
+  {
+    what: "attest list → witness vouch list",
+    home: ["witness", "vouch", "list", "library#uat-1"],
+    alias: ["attest", "list", "library#uat-1"],
+  },
 ];
 
 for (const reloc of RELOCATIONS) {
@@ -78,6 +99,6 @@ for (const reloc of RELOCATIONS) {
 
 test("the alias table covers every relocated verb landed so far (no silent coverage gap)", () => {
   // A floor that fails loudly if a future unit relocates a verb but forgets to register its alias row.
-  // Bump this as each reshape unit lands (build = 4 relocations; adopt gate = 1).
-  assert.ok(RELOCATIONS.length >= 5, "Unit A (build, 4) + Unit B (adopt gate, 1)");
+  // Bump this as each reshape unit lands (build = 4; adopt gate = 1; witness = 4).
+  assert.ok(RELOCATIONS.length >= 9, "Unit A (build, 4) + Unit B (adopt gate, 1) + Unit C (witness, 4)");
 });

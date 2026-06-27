@@ -31,7 +31,7 @@ import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
-import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
+import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
 import { graduateCommand, harnessMemoryDir } from "./graduate.js";
@@ -860,8 +860,9 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  library          explore + curate the Library (the knowledge tier)",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
-      "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
-      "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
+      "  witness          the operator proof workflow (ADR-0118): list · attest · vouch a story's UAT",
+      "  attest           record a per-UAT-test vouch (ADR-0044) — alias of `witness vouch`",
+      "  uat              per-test UAT proof (ADR-0082) — alias of `witness list` / `witness attest`",
       "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
       "  adopt            bring a brownfield story into the fold (ADR-0097): run the mapped→proposed entry · plan the coverage",
       "  build            drive red→green (ADR-0118): build <id> auto-routes by tier; node | story | gate --real nested",
@@ -1385,6 +1386,91 @@ function buildHelp(): Envelope {
   };
 }
 
+// ---------------------------------------------------------------------------
+// witness workflow (ADR-0118 — the human/operator proof workflow)
+// ---------------------------------------------------------------------------
+
+/** The session/agent identity for the proof commands (injected by tests; else derived from the worktree). */
+function sessionIdentity(deps: RunDeps): SessionIdentity | null {
+  return deps.presence !== undefined && deps.presence.identity !== undefined
+    ? deps.presence.identity
+    : deriveIdentity();
+}
+
+/** The per-test UAT opts threaded from argv — shared by `uat` and `witness list/attest` (one code path). */
+function makeUatOpts(values: { outcome?: string; signer?: string; note?: string }) {
+  return {
+    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values.note !== undefined ? { note: values.note } : {}),
+  };
+}
+
+/** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
+function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
+  return {
+    store: deps.uatStore ?? null,
+    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    gitState: readGitState,
+    identity,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    now: () => new Date(),
+  };
+}
+
+/** The attestation-vouch opts threaded from argv — shared by `attest` and `witness vouch`. */
+function makeAttestOpts(values: {
+  outcome?: string;
+  witness?: string;
+  signer?: string;
+  "relayed-by"?: string;
+  note?: string;
+}) {
+  return {
+    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+    ...(values.witness !== undefined ? { witness: values.witness } : {}),
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
+    ...(values.note !== undefined ? { note: values.note } : {}),
+  };
+}
+
+/** Wire the live attestation seams (store, identity, signer, clock) — shared by `attest` and `witness vouch`. */
+function makeAttestDeps(deps: RunDeps, identity: SessionIdentity | null): AttestDeps {
+  return {
+    store: deps.attestations ?? null,
+    identity,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    now: () => new Date(),
+  };
+}
+
+/**
+ * `storytree witness` — the human/operator proof WORKFLOW (ADR-0118). It cuts across adopt AND build
+ * (you witness a story's UAT whether it was adopted or built), so it is its OWN top-level workflow, not
+ * nested under either. The per-test UAT proof (`witness list`/`witness attest`) and the lower-rigor vouch
+ * (`witness vouch`) relocate here from `uat`/`attest`, which keep working as back-compat aliases.
+ */
+function witnessHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree witness — the human/operator proof workflow (ADR-0118): witness a story's UAT, whether",
+      "it was adopted or built (it cuts across both, so it is its own workflow).",
+      "",
+      "  storytree witness list <story-id> [--pg]            a story's UAT tests + proven state (was `uat list`)",
+      "  storytree witness attest <story>#uat-<n> --pg       sign an operator-attested verdict (was `uat attest`)",
+      "  storytree witness vouch <story>#uat-<n> --pg        record a lower-rigor attestation vouch (was `attest`)",
+      "  storytree witness vouch list <story>#uat-<n> --pg   a test's vouch history (was `attest list`)",
+      "",
+      "`witness attest` mints a real `operator-attested` verdict (events.verdict) — it can green a story's",
+      "UAT. A `witness vouch` is a signal only (events.attestation), never greens the story (ADR-0044). The",
+      "moved verbs keep working as back-compat aliases (`uat list`, `uat attest`, `attest`).",
+    ].join("\n"),
+    next: ["storytree witness list <story-id> --pg", "storytree tree <story-id> --pg"],
+  };
+}
+
 /**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
@@ -1607,57 +1693,53 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "attest") {
+    // `attest` is the back-compat alias for `witness vouch` (ADR-0118) — the SAME code path.
     if (help || sub === undefined) return attestHelp();
-    // Identity (the scribing agent for relayedBy): injected by tests; else derived from the worktree.
-    const identity =
-      deps.presence !== undefined && deps.presence.identity !== undefined
-        ? deps.presence.identity
-        : deriveIdentity();
+    const identity = sessionIdentity(deps);
     const isList = sub === "list";
     return attestCommand(
       { mode: isList ? "list" : "record", testId: isList ? third : sub },
-      {
-        ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-        ...(values.witness !== undefined ? { witness: values.witness } : {}),
-        ...(values.signer !== undefined ? { signer: values.signer } : {}),
-        ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
-        ...(values.note !== undefined ? { note: values.note } : {}),
-      },
-      {
-        store: deps.attestations ?? null,
-        identity,
-        resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-        now: () => new Date(),
-      },
+      makeAttestOpts(values),
+      makeAttestDeps(deps, identity),
     );
   }
 
   if (area === "uat") {
-    // ADR-0082 — the per-test UAT proof surface: `uat list <story>` (read) + `uat attest <test>` (write
-    // a signed operator-attested verdict). Identity (the no-self-attest guard) is injected by tests,
-    // else derived from the worktree; git state pins the attested commit.
+    // ADR-0082 — the per-test UAT proof surface. `uat list`/`uat attest` are the back-compat aliases for
+    // `witness list`/`witness attest` (ADR-0118) — the SAME code path, wired via makeUatDeps/makeUatOpts.
     if (help || sub === undefined) return uatHelp();
-    const identity =
-      deps.presence !== undefined && deps.presence.identity !== undefined
-        ? deps.presence.identity
-        : deriveIdentity();
+    const identity = sessionIdentity(deps);
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-    const uatDeps: UatDeps = {
-      store: deps.uatStore ?? null,
-      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
-      gitState: readGitState,
-      identity,
-      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-      now: () => new Date(),
-    };
-    const uatOpts = {
-      ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-      ...(values.signer !== undefined ? { signer: values.signer } : {}),
-      ...(values.note !== undefined ? { note: values.note } : {}),
-    };
+    const uatDeps = makeUatDeps(deps, identity, storiesDir);
+    const uatOpts = makeUatOpts(values);
     if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
     // bare: `storytree uat <story-id>` lists that story's tests.
+    return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
+  }
+
+  if (area === "witness") {
+    // ADR-0118 — the human/operator proof WORKFLOW. It cuts across adopt AND build (you witness a
+    // story's UAT either way), so it is its OWN workflow. `witness list`/`witness attest` are the per-test
+    // UAT proof (was `uat`); `witness vouch` is the lower-rigor ADR-0044 attestation (was `attest`). The
+    // old verbs keep working as back-compat aliases — these route to the SAME uat/attest code paths.
+    if (sub === undefined || help) return witnessHelp();
+    const identity = sessionIdentity(deps);
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    if (sub === "vouch") {
+      // `witness vouch <test>` (record) / `witness vouch list <test>` (history) — was `attest` / `attest list`.
+      const isList = third === "list";
+      return attestCommand(
+        { mode: isList ? "list" : "record", testId: isList ? fourth : third },
+        makeAttestOpts(values),
+        makeAttestDeps(deps, identity),
+      );
+    }
+    const uatDeps = makeUatDeps(deps, identity, storiesDir);
+    const uatOpts = makeUatOpts(values);
+    if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
+    if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
+    // bare `witness <story-id>` lists that story's UAT tests (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
 
@@ -1829,7 +1911,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, witness, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
