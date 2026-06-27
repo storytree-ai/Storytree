@@ -15,6 +15,7 @@ import {
 import type { UatTest, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
+  findNodeSpecFile,
   resolveSignerFromEnv,
   platformShellCommand,
   runShellCommand,
@@ -58,7 +59,7 @@ import {
   type UatDeps,
   type UatVerdictStoreLike,
 } from "./uat.js";
-import { gateCommand, gateHelp, type GateDeps } from "./gate.js";
+import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate } from "./gate-build-driver.js";
 
 /**
@@ -815,8 +816,9 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
       "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
       "  adopt            bring a brownfield story into the fold (ADR-0097): run the mapped→proposed entry · plan the coverage",
-      "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
-      "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
+      "  build            drive red→green (ADR-0118): build <id> auto-routes by tier; node | story | gate --real nested",
+      "  node             drive ONE node through the prove-it-gate (alias of `build node`)",
+      "  story            drive a WHOLE story's nodes in dependency order (alias of `build story`)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
@@ -1127,6 +1129,124 @@ function refuseMemoryStore(area: "node" | "story" | "gate", id: string | undefin
   };
 }
 
+// ---------------------------------------------------------------------------
+// build workflow (ADR-0118 — workflow-first CLI surface)
+// ---------------------------------------------------------------------------
+
+/** The argv subset the build/gate helpers read (a structural slice of `run`'s parsed `values`). */
+interface BuildValues {
+  "dry-run"?: boolean;
+  live?: boolean;
+  real?: boolean;
+  "emit-wisp"?: boolean;
+  dwell?: string;
+  model?: string;
+  budget?: string;
+  "max-turns"?: string;
+  actor?: string;
+  store?: string;
+  signer?: string;
+}
+
+/**
+ * The node/story build options threaded from argv. Both `build node` and `build story` (and their
+ * `node build`/`story build` back-compat aliases) take the SAME shape, so it is built once here — the
+ * single source the dispatch routes into, never re-typed per area (ADR-0118: relocate the primitive,
+ * don't fork it).
+ */
+function nodeStoryBuildOpts(values: BuildValues) {
+  return {
+    dryRun: values["dry-run"] === true,
+    live: values.live === true,
+    real: values.real === true,
+    emitWisp: values["emit-wisp"] === true,
+    ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
+    ...(values.model !== undefined ? { model: values.model } : {}),
+    ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+    ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+    ...(values.actor !== undefined ? { actor: values.actor } : {}),
+    ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+  };
+}
+
+/**
+ * Classify a bare `build <id>` target by tier — the CLI mirror of the studio's `routedBuildRunner`
+ * (ADR-0118 / ADR-0090): a unit whose spec is a `story` routes to the whole-story chain, anything else
+ * (a capability/leaf node — or an unknown id, which `nodeBuild` then guides on) to a single-node build.
+ * Pure over the stories dir; the auto-route forwards the operator's explicit flags (the CLI is a
+ * superset of the UI — it does not pin `--real`/openPr the way the single studio Build button does).
+ */
+export function classifyBuildTarget(id: string, storiesDir: string): "node" | "story" {
+  const file = findNodeSpecFile(storiesDir, id);
+  if (file === null) return "node";
+  try {
+    return loadNodeSpec(file).tier === "story" ? "story" : "node";
+  } catch {
+    return "node";
+  }
+}
+
+/** The `gate` invocation opts (signer + the build-tests `--real` switch), shared by `gate` and `build gate`. */
+function makeGateOpts(values: BuildValues): GateOpts {
+  return {
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values.real === true ? { real: true } : {}),
+  };
+}
+
+/**
+ * Wire the live `gate` seams (verdict store, gate/UAT loaders, git state, the observe runner, the
+ * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
+ * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
+ */
+function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+  return {
+    store: deps.uatStore ?? null,
+    loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
+    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    gitState: readGitState,
+    observe: observeCommand,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    driveBuildTestsGate: (gate, signer) =>
+      driveBuildTestsGate(gate, signer, {
+        storiesDir,
+        repoRoot: repoRoot(),
+        ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+        ...(values.model !== undefined ? { model: values.model } : {}),
+        ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+        ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+      }),
+    now: () => new Date(),
+  };
+}
+
+/**
+ * `storytree build` — the build WORKFLOW help (ADR-0118). Surfaces the goal (drive red→green) at the
+ * top, the tier auto-route, and the nested grain primitives; the moved verbs keep working as aliases.
+ */
+function buildHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree build — drive red→green (ADR-0118): the build workflow, mirroring the studio's Build button.",
+      "",
+      "  storytree build <id> [flags]                   AUTO-ROUTE by tier — a story id drives the whole-story",
+      "                                                 chain, anything else a single node (mirrors the studio).",
+      "  storytree build node <id> [flags]              drive ONE node through the prove-it-gate (was `node build`)",
+      "  storytree build node resolve <id>              FREE, read-only: how a node spec resolves (was `node resolve`)",
+      "  storytree build story <id> [flags]             drive a WHOLE story's nodes in dependency order (was `story build`)",
+      "  storytree build gate <story>#gate-<n> --real   earn a build-tests gate by a real red→green (was `gate run --real`)",
+      "",
+      "flags: --dry-run (scripted, offline) · --live (SDK smoke) · --real (real build) · --budget <usd> · --model <id>",
+      "",
+      "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",
+      "The moved verbs keep working as back-compat aliases (`node build`, `node resolve`, `story build`,",
+      "`gate run --real`), so no script or habit breaks — they just relocate under the build workflow.",
+    ].join("\n"),
+    next: ["storytree build node library-cli --dry-run", "storytree build story library --dry-run"],
+  };
+}
+
 /**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
@@ -1245,18 +1365,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     if (values.store === "memory") return refuseMemoryStore("node", third);
-    return nodeBuild(third, {
-      dryRun: values["dry-run"] === true,
-      live: values.live === true,
-      real: values.real === true,
-      emitWisp: values["emit-wisp"] === true,
-      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
-      ...(values.model !== undefined ? { model: values.model } : {}),
-      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      ...(values.actor !== undefined ? { actor: values.actor } : {}),
-      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-    });
+    // `node build <id>` is the back-compat alias for `build node <id>` (ADR-0118) — one code path.
+    return nodeBuild(third, nodeStoryBuildOpts(values));
   }
 
   if (area === "story") {
@@ -1271,18 +1381,53 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);
-    return storyBuild(third, {
-      dryRun: values["dry-run"] === true,
-      live: values.live === true,
-      real: values.real === true,
-      emitWisp: values["emit-wisp"] === true,
-      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
-      ...(values.model !== undefined ? { model: values.model } : {}),
-      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      ...(values.actor !== undefined ? { actor: values.actor } : {}),
-      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-    });
+    // `story build <id>` is the back-compat alias for `build story <id>` (ADR-0118) — one code path.
+    return storyBuild(third, nodeStoryBuildOpts(values));
+  }
+
+  if (area === "build") {
+    // ADR-0118 — the build WORKFLOW: the top-level goal `build`, with the grain primitives nested.
+    // `build <id>` AUTO-ROUTES by tier (mirroring the studio's single Build button / routedBuildRunner);
+    // `build node|story|gate` are the explicit primitives the old `node`/`story`/`gate run --real`
+    // verbs relocated to (those keep working as back-compat aliases above — one code path each).
+    if (help && sub === undefined) return buildHelp();
+    if (sub === undefined) return buildHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+
+    if (sub === "node") {
+      // `build node resolve <id>` (was `node resolve`) — FREE, read-only spec resolution, no build/spend.
+      if (third === "resolve") return nodeResolve(fourth);
+      if (third === undefined || help) return nodeHelp();
+      if (values.store === "memory") return refuseMemoryStore("node", third);
+      return nodeBuild(third, nodeStoryBuildOpts(values));
+    }
+    if (sub === "story") {
+      if (third === undefined || help) return storyHelp();
+      if (values.store === "memory") return refuseMemoryStore("story", third);
+      return storyBuild(third, nodeStoryBuildOpts(values));
+    }
+    if (sub === "gate") {
+      // `build gate <story>#gate-<n> --real` (was `gate run --real`) — the build-tests primitive. The
+      // observe path is NOT here: an observe gate is earned by adoption (`adopt gate`, ADR-0118), not a
+      // build. gateRun routes by kind+--real internally, so this is one code path with `gate run`.
+      if (third === undefined || help) return gateHelp();
+      if (values.store === "memory") return refuseMemoryStore("gate", third);
+      return gateCommand(
+        { mode: "run", target: third },
+        makeGateOpts(values),
+        makeGateDeps(deps, values, storiesDir),
+      );
+    }
+
+    // bare `build <id>` — auto-route by tier (a story → the whole-story chain, else a single node),
+    // forwarding the operator's explicit flags (the CLI is a superset of the UI: it does not pin
+    // --real/openPr the way the one studio Build button does — the operator says what they want).
+    const target = sub;
+    const kind = classifyBuildTarget(target, storiesDir);
+    if (values.store === "memory") return refuseMemoryStore(kind, target);
+    return kind === "story"
+      ? storyBuild(target, nodeStoryBuildOpts(values))
+      : nodeBuild(target, nodeStoryBuildOpts(values));
   }
 
   if (area === "noticeboard") {
@@ -1387,31 +1532,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // option (the internal "memory" seam is only ever injected into driveBuildTestsGate directly).
     if (values.store === "memory") return refuseMemoryStore("gate", third);
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-    const gateDeps: GateDeps = {
-      store: deps.uatStore ?? null,
-      loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
-      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
-      gitState: readGitState,
-      observe: observeCommand,
-      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-      // ADR-0098 (U2): the build driver for a `build-tests --real` run — resolves the `(build:)` node's
-      // real config, drives the prove-it-gate in a fresh worktree, and signs for the gate id. The
-      // store/worktree/leaf I/O lives here, keeping gate.ts pure (it just routes to this seam).
-      driveBuildTestsGate: (gate, signer) =>
-        driveBuildTestsGate(gate, signer, {
-          storiesDir,
-          repoRoot: repoRoot(),
-          ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-          ...(values.model !== undefined ? { model: values.model } : {}),
-          ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-          ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-        }),
-      now: () => new Date(),
-    };
-    const gateOpts = {
-      ...(values.signer !== undefined ? { signer: values.signer } : {}),
-      ...(values.real === true ? { real: true } : {}),
-    };
+    // The gate seams + opts are shared with the new `build gate --real` entry (ADR-0118): `gate run`
+    // stays as the back-compat alias for both the observe path (→ `adopt gate`, ADR-0118) and the
+    // build-tests path (→ `build gate --real`), wired through the same makeGateDeps/makeGateOpts.
+    const gateDeps = makeGateDeps(deps, values, storiesDir);
+    const gateOpts = makeGateOpts(values);
     if (sub === "run") return gateCommand({ mode: "run", target: third }, gateOpts, gateDeps);
     if (sub === "list") return gateCommand({ mode: "list", target: third }, gateOpts, gateDeps);
     // bare: `storytree gate <story-id>` lists that story's gates.
@@ -1539,7 +1664,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, build, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
