@@ -180,7 +180,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-session-stream, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
