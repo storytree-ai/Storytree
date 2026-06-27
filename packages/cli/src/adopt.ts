@@ -27,6 +27,7 @@
  */
 
 import { runAdopt, type AdoptDeps, type AdoptOpts } from "@storytree/drive";
+import type { PocketReading } from "@storytree/orchestrator";
 
 import { adoptPlanCommand, type AdoptPlanStory } from "./adopt-plan.js";
 import type { Envelope } from "./envelope.js";
@@ -52,6 +53,12 @@ export interface AdoptInvocation {
   mode: "run" | "plan";
   /** The story id for both modes. */
   target: string | undefined;
+  /**
+   * Plan mode only: the agent's per-pocket readings (ADR-0098 d.1, parsed from `--readings <file>`). When
+   * present the plan renders the ENRICHED proposal; absent → the mechanical covers-diff. The file IO lives
+   * in the live wiring (`commands.ts`); this carries the already-parsed map so routing stays offline-testable.
+   */
+  readings?: Readonly<Record<string, PocketReading>>;
 }
 
 export function adoptHelp(): Envelope {
@@ -97,7 +104,11 @@ export async function adoptCommand(
   deps: AdoptDispatchDeps,
 ): Promise<Envelope> {
   if (inv.mode === "plan") {
-    return adoptPlanCommand(inv.target, { loadStory: deps.loadPlanStory });
+    return adoptPlanCommand(
+      inv.target,
+      { loadStory: deps.loadPlanStory },
+      inv.readings !== undefined ? { readings: inv.readings } : {},
+    );
   }
   return runAdopt(inv.target, opts, deps);
 }

@@ -275,7 +275,7 @@
     "statement": "The language and runtime: TypeScript on Node 24, organised as pnpm workspaces.",
     "whatItIs": "storytree is a TypeScript / Node 24 / pnpm-workspaces monorepo. TypeScript gives typed boundaries and invalid-state modelling across the organism packages (e.g. `packages/proof-protocol`, `packages/library`); pnpm workspaces keep `packages/*` and `apps/*` independent but linked. It is model-agnostic and owns the loop.",
     "whyThis": "Chosen over v1's Rust for model-agnostic, own-the-loop development speed.",
-    "constraints": "Node 24 is the pinned runtime. Workspace structure: `packages/*` and `apps/*` are kept independent but linked.",
+    "constraints": "Node 24 is the pinned runtime. Workspace structure: `packages/*` and `apps/*` are kept independent but linked. **Strict module isolation — declare what you import.** pnpm runs with no hoisting (no `.npmrc`, no root `pnpm` field, no tsconfig `paths` — pure `moduleResolution: NodeNext`), so a workspace project (app or package) can import only the `@storytree/*` packages it declares in its OWN `package.json` `dependencies`. A transitive dep-of-a-dep is NOT resolvable — it is not symlinked into that project under `node_modules/@storytree/` — and `import type` does not dodge this, because `tsc` still needs the package resolvable to find the `.d.ts`. Fix: add the package as a `workspace:*` dependency and re-run `pnpm install`. The pure-zod PROTOCOL packages (`proof-protocol`, `notice-board`, `storage-protocol`) are safe to declare anywhere and do NOT breach the surface boundary — ADR-0100 forbids importing the source of another SURFACE (e.g. `apps/studio/server`), not a shared protocol package (these carry no `pg`/`node:`, so the browser-safe property holds). Corollary: when a project imports a cross-story `@storytree/*` shape, also declare the cross-story `depends_on` edge, or `check:boundaries` (ADR-0074) goes red. Treat spec claims of reachable transitively / no new dep as unreliable — verify.",
     "schemaVersion": 2
   },
   {
@@ -1852,6 +1852,29 @@
     "schemaVersion": 2
   },
   {
+    "kind": "process",
+    "id": "attempt-privileged-actions-approve-inline",
+    "title": "Attempt privileged actions, approve inline",
+    "description": "When an action needs the owner's authorization, attempt it yourself and let approval happen inline (issue the tool call so the harness surfaces its permission prompt, or ask a quick inline yes/no) — don't decline in prose and hand the command back for the owner to run in a terminal. The human still owns the sign-off; this changes the MECHANISM, not who decides.",
+    "statement": "For an action that needs owner authorization — `terraform apply`, a deploy, an infra or `gh` mutation, any outward-facing or hard-to-reverse op — ATTEMPT it yourself and let approval happen INLINE (issue the tool call so the harness surfaces its permission prompt, or ask one short inline yes/no), rather than declining in prose and handing the command back for the owner to run manually; the human still owns the sign-off, so this is an approval-MECHANISM way-of-working, NOT a request to auto-allow.",
+    "trigger": "A unit reaches a step that needs the owner's go-ahead before it can proceed — an irreversible, outward-facing, or otherwise privileged action (terraform/deploy/infra/`gh`/anything that touches a live external surface). The decision to do it is still the owner's (`owner-fork-bar`, `human-owns-the-outer-loop`); what this process governs is HOW you put that decision to them.",
+    "steps": "1. **Don't punt it to a terminal.** Refusing in prose — 'you should now run `terraform apply`' — and handing the command back is the failure this exists to stop: the owner is a solo operator, and context-switching to a terminal to run a command you could run is friction they asked to be gone (stated 2026-06-22, after an idle-stop `terraform apply` was punted to them).\n2. **For irreversible infra, plan first.** Default to a read-only preview — `terraform plan`, a dry-run, a diff — and show its output, so the owner approves against a concrete change, not a blind apply.\n3. **Issue the action and let the prompt surface.** Run the tool call; the harness's inline permission prompt IS the approval surface. Where a permission prompt doesn't apply, ask one short inline yes/no (a quick AskUserQuestion) — approving stays a single inline step, never a task handed off.\n4. **Keep the decision with the owner.** Surface the decision every time — the human owns the outer-loop sign-off (`asset:human-owns-the-outer-loop`); you are making the approval one click, not removing it.",
+    "surfaces": "**The session's own action surface** — the privileged tool call (terraform/deploy/`gh`/infra REST) and the harness permission prompt it raises, or an inline AskUserQuestion. No Library or repo state is written by this process itself; it shapes how an already-owner-owned action is put to the owner.",
+    "failureModes": "- **Declining in prose and handing the command back** — the recorded slip (the idle-stop `terraform apply` punted 2026-06-22): adds the exact terminal context-switch the owner wanted removed.\n- **Reading it as auto-allow** — graduating 'attempt it inline' into blanket `allow`-rules in `settings.json` on the strength of this alone. This is an approval-MECHANISM preference; the owner still approves each one. Don't widen permissions off it.\n- **Skipping the plan on irreversible infra** — issuing a blind `apply`/deploy without a `plan`/dry-run/diff first, so the owner approves a change they can't see.\n- **Removing the human from the call** — treating 'make approval one step' as license to decide an owner-owned, irreversible, or outward-facing action yourself (the `human-owns-the-outer-loop` boundary).",
+    "verification": "Not machine-checked — this is a way-of-working, not a gated path. The boundary it must not cross IS enforced elsewhere: `settings.json` permissions decide what runs without a prompt, and the inline permission prompt itself is the proof the owner approved a given action. Honouring 'attempt + inline approve' over 'decline in prose', and 'plan before irreversible apply', rests on the session following this process.",
+    "provenance": "Graduated 2026-06-27 from agent-memory (ADR-0095 — feedback `attempt-privileged-actions-ask-inline`, owner preference stated 2026-06-22). A way-of-working (an approval MECHANISM), so a `process` per ADR-0034 — no existing artifact covered the mechanism (the corpus had WHO approves, not HOW the action is put to them). Cites `human-owns-the-outer-loop` (the sign-off stays the owner's; this is not auto-allow) and `owner-fork-bar` (what rises to the owner is unchanged). Consumers: session-orchestrator.",
+    "references": [
+      "asset:human-owns-the-outer-loop",
+      "asset:owner-fork-bar",
+      "doc:decisions/0034-process-artifacts-ways-of-working.md",
+      "doc:decisions/0008-ui-drives-agents-approvals.md",
+      "doc:decisions/0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md"
+    ],
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "kind": "definition",
     "id": "noticeboard",
     "title": "noticeboard",
@@ -2323,6 +2346,27 @@
     "provenance": "Authored 2026-06-22 at the owner's steer, after two live OQs (`oq-edit-existing-refinements`, `oq-gate-as-proof-hygiene`) reached the owner reading like engineering-hygiene calls (a glob predicate, a proof-command scope) the owner could not adjudicate in seconds — a ROUTING gap, not a wording one. States once the bar that was previously restated, partially, across the `escalation` fields of session-orchestrator, guidance-curator, story-author, librarian-curator, and graduation-synthesist (reference-don't-restate; two-consumer-extraction — 5 current consumers). The sibling of `survival-test-for-adrs` (which routes a decision between an ADR and a unit's guidance) for the owner-vs-engineer axis; complements the `human-owns-the-outer-loop` guardrail (which fixes WHO performs an outer-loop transition) by fixing WHAT rises to one. Consumers: session-orchestrator (wired into rules); recommended for the OQ-authoring escalation paths (guidance-curator, graduation-synthesist).",
     "createdAt": "2026-06-22T00:00:00.000Z",
     "updatedAt": "2026-06-22T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
+    "id": "route-structural-forks-to-story-author",
+    "kind": "principle",
+    "title": "Route structural forks to story-author, not the owner",
+    "description": "A fork over the work hierarchy itself — which package owns what, how the dependency graph is wired, where a module lives, whether a new story is needed — is the story-author agent's call, not the human owner's; escalating it to the owner is mis-routing.",
+    "statement": "A fork whose subject is the WORK HIERARCHY — package layout, dependency-graph edges, where a module lives, story/capability boundaries — is decided by spawning the `story-author` agent (the role that owns WHAT), NOT by escalating to the human owner; raise it to the owner only when the structural call is genuinely irreversible, outward-facing, or unsettleable from the corpus.",
+    "why": "Package layout, dependency edges, and story boundaries ARE the work hierarchy, and the corpus already assigns authorship of the work hierarchy to `story-author` ('story-author owns WHAT'). So a structural fork has a defensible owner that is not the human: routing it to the owner is the `owner-fork-bar` failure in a specific dress — escalating uncertainty about an internal, reversible call rather than escalating a decision that is actually the owner's. It spends the owner's scarce adjudication channel on a question the corpus already routes elsewhere, and it stalls the unit behind a fork no one needs to make. The live tell: on the `packages/drive` extraction the layout fork (new package vs fold into orchestrator; where `renderAgentPrompt` lives) was escalated to the owner via AskUserQuestion, and the owner corrected — 'the answer to these questions should belong to story writer not to me'; re-routed to `story-author` it decided cleanly and landed green (PR #376, ADR-0112).",
+    "howToApply": "When a unit hinges on a structural / package / dependency / boundary call, do not put it to the owner — spawn the `story-author` agent to decide AND author it (design-only first if in plan mode), then reserve the ADR that records the decision (born `accepted` when the owner directed it in-conversation, per `adr new --decided`, ADR-0110; `proposed` while still exploring). Surface to the human owner only if the structural call is itself irreversible, outward-facing, or truly unsettleable from the decision log — the same `owner-fork-bar` discriminator, applied to structure. The discriminator is the SUBJECT of the fork, not your confidence in it: 'I am unsure which package owns this' is still story-author's call, not the owner's.",
+    "references": [
+      "asset:owner-fork-bar",
+      "asset:story-author",
+      "asset:human-owns-the-outer-loop",
+      "doc:decisions/0112-extract-the-build-orchestrate-drivers-into-packages-drive.md",
+      "doc:decisions/0110-collapse-the-redundant-end-of-flow-adr-ratification.md",
+      "doc:decisions/0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md"
+    ],
+    "provenance": "Graduated 2026-06-27 from agent-memory (ADR-0095 — feedback `route-layout-decisions-to-story-author`, owner correction 2026-06-26 on the `packages/drive` extraction). A specific APPLICATION of `owner-fork-bar` (escalate ownership, not uncertainty) on the owner-vs-story-author axis, kept as its own narrow principle rather than folded into `owner-fork-bar` (reference-don't-restate — cite, don't bloat the general principle with one domain's specifics). Consumers: session-orchestrator, story-author.",
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
     "schemaVersion": 2
   },
   {

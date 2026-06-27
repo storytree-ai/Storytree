@@ -102,3 +102,49 @@ test("adopt-plan stays ok:true even when caps are uncovered (a report, not a gat
   assert.equal(env.ok, true);
   assert.match(env.body, /\(0 covered, 2 uncovered\)/);
 });
+
+test("adopt-plan --readings renders the enriched proposal: stamped class + recommended gate + decisions", async () => {
+  const env = await adoptPlanCommand("library", deps(), {
+    readings: {
+      "seed-corpus-scripts": {
+        class: "R2",
+        title: "Seam out the seed orchestration",
+        proofCommand: "pnpm --filter @storytree/library test",
+        buildNode: "seed-corpus-scripts",
+        forks: [
+          {
+            id: "seam-shape",
+            question: "Should the seam take a Pool or the built Store?",
+            changesPublicSeam: true,
+            materiallyDifferentStrategies: false,
+            crossCuttingOrIrreversible: false,
+          },
+          {
+            id: "test-name",
+            question: "What to name the test file?",
+            changesPublicSeam: false,
+            materiallyDifferentStrategies: false,
+            crossCuttingOrIrreversible: false,
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /agent readings applied/);
+  // The uncovered pocket now shows its agent R2 class (no longer `unclassified`).
+  assert.match(env.body, /seed-corpus-scripts\s+UNCOVERED.*pocket: R2/);
+  // A recommend-only build-tests gate stanza is rendered in round-trippable form.
+  assert.match(env.body, /Recommended reliability gates \(1\)/);
+  assert.match(
+    env.body,
+    /_\(gate: build-tests\)_.*_\(covers: seed-corpus-scripts\)_.*_\(build: seed-corpus-scripts\)_/,
+  );
+  // The public-seam fork is escalated (the owner's call); the naming fork is routine (the leaf's).
+  assert.match(env.body, /ESCALATED — your call \(1\)/);
+  assert.match(env.body, /seam-shape/);
+  assert.match(env.body, /ROUTINE — the leaf decides \(1\)/);
+  assert.match(env.body, /test-name/);
+  // An unresolved escalated fork surfaces the fail-closed halt note.
+  assert.match(env.body, /escalated fork\(s\) unresolved/);
+});
