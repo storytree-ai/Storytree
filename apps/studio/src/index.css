@@ -2322,6 +2322,137 @@ mark.st-hl.flash {
   }
 }
 
+/* ── ChatPanel (chat-panel capability, ADR-0070) ─────────────────────────────────────────────────
+   The renderer chat panel: an intent textarea + Send, and the streamed terminal outcome (a `done`
+   proposal, a distinct `error` failure, a distinct `refused` "busy" state, or the honest absent-route
+   "unavailable" degrade). Reuses the Build affordance idiom (.build-spinner / .build-progress) so the
+   "working" state is consistent. The exact look is operator-attested (the desktop story's UAT leg 7),
+   so this is a clean, restrained baseline, not a signed visual verdict. */
+.chat-panel {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+}
+.chat-panel-head {
+  margin-bottom: 16px;
+}
+.chat-panel-title {
+  margin: 0 0 4px;
+}
+.chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+}
+.chat-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+.chat-input:disabled {
+  background: var(--surface-2);
+  opacity: 0.7;
+}
+.chat-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.chat-send {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chat-send:hover {
+  background: #4338ca;
+}
+.chat-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.chat-outcome {
+  margin-top: 16px;
+}
+.chat-busy-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.chat-busy-label {
+  font-weight: 600;
+  color: var(--accent);
+}
+/* The done proposal — the streamed plan, in a readable card with preserved line breaks. */
+.chat-proposal {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.chat-proposal-body {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.chat-proposal-meta {
+  margin: 10px 0 0;
+}
+/* The distinct error (failure) state — danger-hued, visibly NOT the refused/busy state. */
+.chat-error {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+.chat-error-label {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.chat-error-detail {
+  margin: 0;
+}
+/* The distinct refused ("busy — try again") state — warn-hued, recoverable, NOT a failure. */
+.chat-refused {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: 8px;
+  background: var(--warn-weak);
+}
+.chat-refused-label {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.chat-refused-detail {
+  margin: 0;
+}
+/* The honest absent-route degrade — muted, plainly "not here", never a hung spinner. */
+.chat-unavailable {
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.chat-unavailable-label {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.chat-unavailable-detail {
+  margin: 0;
+}
+
 .build-transcript {
   margin: 0;
   padding: 8px 10px 8px 26px;

@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -55,7 +55,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (7)
+## Capabilities (8)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -68,14 +68,15 @@ Listed roots-first (a capability appears after everything it depends on).
 | 5 | [`annotate-topic`](annotate-topic.md) | An operator anchors a comment onto a precise place in a rendered topic. | `dev-server-persistence-backbone`, `read-corpus` |
 | 6 | [`browse-library`](browse-library.md) | An operator explores the seeded guidance Library down to a single rendered artifact. | `dev-server-persistence-backbone`, `seed-library-corpus`, `read-corpus` |
 | 7 | [`author-library-artifact`](author-library-artifact.md) | An operator durably changes the Library's contents through the editor form. | `dev-server-persistence-backbone`, `browse-library` |
+| 8 | [`chat-panel`](chat-panel.md) | The studio frontend renders a chat panel — a thin client that POSTs the operator's intent to `/api/chat`, streams the SSE response, and renders the `done` proposal / `error` / `refused` outcomes (and an honest disabled state where the route is absent), importing no agent/drive/model code. | — |
 
 ## Dependency graph (code-derived)
 
 These are **within-story** edges, **read off the real source** (static analysis of the
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
-acyclic; `dev-server-persistence-backbone` and `seed-library-corpus` are the roots.
-(Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
+acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, and `chat-panel` are the
+roots. (Cross-story edges are NOT in this graph — they are boundary interfaces, declared in
 §"Cross-story boundary" below and encoded as frontmatter `depends_on` — ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
@@ -96,6 +97,16 @@ acyclic; `dev-server-persistence-backbone` and `seed-library-corpus` are the roo
   - AssetEditor's save()/remove() call api.createAsset/updateAsset/deleteAsset → POST/PATCH/DELETE /api/assets, whose handlers run readAssetInput, the dup/relock guards, createdAt/updatedAt stamping and writeStore (devApi.ts:291-321) — author's durable mutations are the backbone's asset handlers.
 - `author-library-artifact` → `browse-library`
   - After every save/delete, AssetEditor/AssetView call refreshAssets() then navigate into browse-library's surfaces — create/edit land on AssetView (the detail render browse-library owns), delete routes to the Library list (AssetView.tsx:36-38); author's post-mutation render path is browse-library's components.
+- `chat-panel` → (no within-story edge — a THIRD root)
+  - chat-panel is a self-contained behavioural component (the `BuildSection` precedent): its ONLY
+    backend seam is the studio `api` streaming client (the chat method it adds to api.ts / a lib helper),
+    not another capability's code. It does NOT couple to `dev-server-persistence-backbone` — the chat
+    route is not a persistence-backbone handler; it is the desktop's `chat-sse-mount` dispatcher (the
+    studio-dev-server mount of `/api/chat` is a separate follow-on, see chat-panel.md "Where /api/chat
+    lives"). The chat WIRE SHAPE it consumes (`chat-sse-mount`'s `done`/`error`/`refused` SSE frames) is a
+    CROSS-BOUNDARY contract (plain JSON over HTTP against a locally-declared type), NOT a within-story
+    code edge and NOT a package import — so it adds no frontmatter `depends_on` (within- or cross-story).
+    See chat-panel.md "No new cross-story edge".
 
 ## Cross-story boundary (ADR-0010 §4)
 
@@ -139,6 +150,19 @@ now declared + forest-rendered edges too, each read off real imports:
   declared a `cli` edge to reach them; the move carved them into `@storytree/drive` (owned by
   `drive-machinery`), so the studio now imports the narrower package and dropped its `@storytree/cli`
   dependency. The `cli` edge is gone from `depends_on`.
+
+**The `chat-panel` capability adds NO new cross-story edge (recorded — the wire-shape-only call).** The
+new [`chat-panel`](chat-panel.md) capability (the renderer chat panel) CONSUMES the `/api/chat` SSE wire
+shape (`chat-sse-mount`'s `done`/`error`/`refused` `data:` frames), but consuming a wire shape over HTTP
+is neither a package import nor a `depends_on` edge: the frames are plain JSON the panel parses against a
+LOCALLY-declared discriminated union, and `@storytree/drive` (where the `ChatStreamEvent` type lives) is
+on the `apps/studio/src` model-path FORBIDDEN list (`modelPathBoundary.test.ts`, ADR-0004 / ADR-0090 d.2)
+— so the panel must NOT import it. The panel's single backend seam is the studio's own `api` client (the
+`BuildSection` precedent), and it adds no `@storytree/*` runtime import the boundary scan (ADR-0100) would
+require a declared edge for. The cross-boundary CONTRACT is the wire shape itself, owned by `desktop`'s
+[`chat-sse-mount`](../desktop/chat-sse-mount.md); the panel is its consumer across the HTTP seam, enforced
+by both sides authoring to the same frame, not by a code edge. So `studio`'s `depends_on` is unchanged by
+this capability. (Full reasoning: chat-panel.md "No new cross-story edge".)
 
 ## Story UAT
 

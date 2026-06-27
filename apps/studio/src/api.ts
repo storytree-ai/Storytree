@@ -44,12 +44,110 @@ function jsonInit(method: string, body: unknown): RequestInit {
   };
 }
 
+// ── chat stream (chat-panel capability, ADR-0070) ───────────────────────────────────────────────
+//
+// The studio frontend's ONLY path to the desktop chat route is this streaming seam — the panel holds
+// no fetch and imports no agent/drive/model code (ADR-0004 / the modelPathBoundary wall). The chat
+// route answers `text/event-stream`, NOT a JSON body, so the http<T> helper above (which JSON.parses
+// the WHOLE body) cannot consume it; chatStream reads the response body stream directly, splits on the
+// SSE frame separator, and parses each `data:` line as plain JSON.
+//
+// THE WIRE SHAPE is the cross-boundary contract owned by `chat-sse-mount` (apps/desktop) — the
+// done/error/refused `data:` frames. It is declared HERE as plain studio types (a discriminated union),
+// NOT imported from @storytree/drive (forbidden in apps/studio/src): the frames are plain JSON, so the
+// studio rides the wire shape with a locally-declared type (the same move boot-read-routes makes for
+// LocalMe). Re-cite the producer at apps/desktop/src/backend/chat-sse-mount.ts.
+
+/** The terminal success frame — the streamed proposal text plus optional session metrics. */
+export interface ChatDoneEvent {
+  type: 'done';
+  proposal: string;
+  costUsd?: number;
+  turns?: number;
+}
+/** The terminal failure frame — a dead/errored session, rendered as a distinct error state. */
+export interface ChatErrorEvent {
+  type: 'error';
+  error: string;
+}
+/** The terminal single-session refusal (ADR-0108 d.6) — rendered as a distinct "busy" state, NOT a
+ *  failure (nothing failed; the session never started, so the operator can retry). */
+export interface ChatRefusedEvent {
+  type: 'refused';
+  reason: string;
+}
+/** One SSE `data:` frame from /api/chat, discriminated by `type`. */
+export type ChatEvent = ChatDoneEvent | ChatErrorEvent | ChatRefusedEvent;
+
+/** A frame that parses to JSON but isn't a recognised ChatEvent shape — defensively ignored. */
+function isChatEvent(value: unknown): value is ChatEvent {
+  if (value === null || typeof value !== 'object') return false;
+  const t = (value as { type?: unknown }).type;
+  return t === 'done' || t === 'error' || t === 'refused';
+}
+
+/**
+ * POST `intent` to /api/chat and stream the SSE response, invoking `onEvent` for each typed frame as
+ * it arrives. Resolves when the stream ends (the backend `end()`s the response after the terminal
+ * frame); REJECTS when the route is absent or the request fails (a non-OK status or a network error —
+ * the studio-standalone case where /api/chat is not mounted), so the caller can degrade honestly
+ * rather than hang on a stream that never arrives.
+ */
+async function chatStream(intent: string, onEvent: (event: ChatEvent) => void): Promise<void> {
+  const res = await fetch('/api/chat', jsonInit('POST', { intent }));
+  if (!res.ok || res.body === null) {
+    // Absent route / fail-closed backend (e.g. studio-standalone 404, or the intent guard's 400).
+    throw new Error(`chat unavailable (${res.status} ${res.statusText})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  // Parse complete SSE frames (separated by a blank line) out of the rolling buffer.
+  const drainFrames = (): void => {
+    let sep: number;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      for (const line of frame.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const json = line.slice('data:'.length).trim();
+        if (!json) continue;
+        try {
+          const parsed: unknown = JSON.parse(json);
+          if (isChatEvent(parsed)) onEvent(parsed);
+        } catch {
+          // A malformed frame is skipped, not fatal — the stream may still terminate cleanly.
+        }
+      }
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value !== undefined) {
+      buffer += decoder.decode(value, { stream: true });
+      drainFrames();
+    }
+    if (done) break;
+  }
+  // Flush any trailing frame the stream ended without a terminating blank line.
+  buffer += decoder.decode();
+  if (buffer && !buffer.endsWith('\n\n')) buffer += '\n\n';
+  drainFrames();
+}
+
 const q = encodeURIComponent;
 
 export const api = {
   listDocs: (): Promise<DocMeta[]> => http('/api/docs'),
   tree: (): Promise<TreePayload> => http('/api/tree'),
   docContent: (id: string): Promise<DocContent> => http(`/api/docs/content?id=${q(id)}`),
+
+  // The chat panel's single backend seam (chat-panel capability, ADR-0070 / ADR-0004). Streams the
+  // /api/chat SSE response, one onEvent per typed done/error/refused frame; rejects on an absent route.
+  chatStream,
 
   listComments: (topicId?: string): Promise<Comment[]> =>
     http(topicId ? `/api/comments?topicId=${q(topicId)}` : '/api/comments'),

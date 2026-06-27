@@ -169,6 +169,9 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // and the `cli` story's `organism-boundary-tooling` capability
   // (stories/cli/declared-edge-drift-report.md — the ADR-0115 declared-edge drift-report contract, an
   // editsExisting `real:` arm over packages/cli/src/boundaries.ts): declared-edge-drift-report.
+  // Plus the `studio` story's chat-panel capability (stories/studio/chat-panel.md — a NET-NEW `real:` arm:
+  // the renderer chat panel, the first studio frontend cap proof-wired for the vitest two-stage, ADR-0070;
+  // its real arm declares a vitest `proofCommand` since the studio suite is vitest, not node:test).
   // Most of the library
   // story's 7 capabilities are NO LONGER here:
   // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
@@ -183,7 +186,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

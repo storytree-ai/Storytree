@@ -8,8 +8,10 @@
 // drivers exactly as apps/studio/server/devApi.ts does — it does NOT import apps/studio/server (a
 // forbidden surface→surface coupling). It mounts the studio's BOOT read set so the frontend renders:
 //   - boot-read-routes (me/docs/comments) — the read router proven by boot-read-routes.test.ts
+//   - chat-sse-mount   (POST /api/chat → SSE) — the chat-sse-mount dispatcher (read/propose only, ADR-0091)
 //   - local-backend     (health/tree/assets [+ build, disabled here]) — the local-backend-boot factory
-// READ loop only (ADR-0119 §2): no build-trigger / adopt / chat-SSE — those are later increments.
+// READ/PROPOSE loop (ADR-0119 §2 + the chat-SSE increment): the chat surface is now mounted (orient +
+// propose via startChatStream); the build-trigger / adopt outer-loop paths are still later increments.
 
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -29,6 +31,7 @@ import { loadLocalSecrets } from "@storytree/drive/secrets";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
+import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
 
@@ -71,8 +74,10 @@ async function main(): Promise<void> {
     latestVerdicts: async () => null,
   };
 
-  // The two dispatchers the Electron main mounts in sequence (ADR-0119 §2): the boot-read router first
-  // (me/docs/comments), then the local-backend handler (health/tree/assets + its own 404 fall-through).
+  // The THREE dispatchers the Electron main mounts in sequence (ADR-0119 §2 + the chat-SSE increment):
+  // the boot-read router first (me/docs/comments), then the chat-SSE mount (POST /api/chat), then the
+  // local-backend handler (health/tree/assets + its own 404 fall-through). Each returns false for paths
+  // it does not own, so the chain resolves to the first dispatcher that claims the request.
   const bootRoutes = createBootReadRoutes({
     docsDir,
     listComments: async (filter) => {
@@ -82,6 +87,21 @@ async function main(): Promise<void> {
       return comments.list(f);
     },
   });
+
+  // The chat surface (chat-sse-mount, ADR-0108 Phase 2 / ADR-0091 read-propose-only): POST /api/chat
+  // starts a live session-orchestrator session via startChatStream and streams its done/error/refused
+  // events as SSE. No queryFn → the real SDK query() (CLAUDE_CODE_OAUTH_TOKEN hydrated by loadLocalSecrets
+  // above); the mount loads the seed corpus internally to render the session-orchestrator prompt.
+  //
+  // KNOWN LIMITATION (a follow-on, not glue): the landed createChatSseMount accepts only { queryFn? } — it
+  // cannot yet forward an OrientationRunner, so the live session's orientation tools fall back to the
+  // "(orientation runner not configured)" stub (headless-orchestrator.ts) and the agent cannot read the
+  // live tree/library/notice board. Wiring a real runner is blocked on a boundary fork (the runner is the
+  // CLI run() in @storytree/cli, which neither the desktop nor @storytree/drive may import) — tracked
+  // separately. The chat is a real orient+propose agent over its system prompt; live-state orientation is
+  // the next increment.
+  const chatMount = createChatSseMount({});
+
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -89,6 +109,7 @@ async function main(): Promise<void> {
       try {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
         if (await bootRoutes(req, res, pathname)) return;
+        if (await chatMount(req, res, pathname)) return;
         await localHandler(req, res);
       } catch (err) {
         if (!res.headersSent) {
