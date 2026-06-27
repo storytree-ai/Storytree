@@ -264,12 +264,20 @@ export function buildShareUrl(origin: string, search: string, hash: string): str
 }
 
 /**
- * ADR-0093 Unit 2b parity flag: render the forest world FROM the shared scene-graph
- * (the studio React mapper, `SceneView`) instead of the inline render. `?render=scene`
- * turns it on; anything else (incl. absence) keeps the canonical inline render —
- * byte-identical, zero risk to the look. Deliberately NOT a `CONTROLS` gear dial: it
- * is a transient parity switch for the owner's visual nod, not a user-facing setting.
+ * ADR-0093 Unit D: the shared scene-graph (the studio React mapper, `SceneView`) is now the
+ * DEFAULT forest-world render — absence ⇒ scene. The studio-only chrome that was inline-only
+ * (solar spokes, the distributed-consumer building stamps) is layered ON TOP of `<SceneView>`
+ * as sibling `<g>` (ADR-0093 Decision 2), so nothing regresses. The inline `<g>` render is kept
+ * reachable for ONE release as a safety net via the `?render=legacy` / `?render=inline` escape
+ * hatch — once the scene render is operator-attested across a release it can be deleted outright.
+ *
+ * Returns `true` to render the scene (the default + explicit `?render=scene`), `false` only for the
+ * legacy/inline escape. Deliberately NOT a `CONTROLS` gear dial: it is a transient escape hatch, not
+ * a user-facing setting.
  */
 export function readRenderScene(search: string): boolean {
-  return new URLSearchParams(search).get('render') === 'scene';
+  const render = new URLSearchParams(search).get('render');
+  // The one-release escape hatch back to the inline render; everything else (incl. absence and an
+  // unknown value) is the scene default.
+  return render !== 'legacy' && render !== 'inline';
 }

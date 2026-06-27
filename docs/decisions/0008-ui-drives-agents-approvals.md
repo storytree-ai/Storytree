@@ -7,6 +7,10 @@ decided: 2026-06-04
 
 **Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0006/0008/0010/0013/0014/0020 (this **inverts** their autonomous-cascade posture).
 
+**Superseded-in-part by [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)** — this ADR's single-local-operator identity assumption (the free-text `author` field) is narrowed to the *local dev* studio: hosted sessions carry a **verified identity** stamped from the IAP auth layer, not free text.
+
+**Superseded-in-part by [ADR-0043](0043-app-owned-users-roles-and-ui-invitations.md)** — the single-local-operator identity assumption (already narrowed by ADR-0042) is replaced by a real **app-owned user model**: an event-sourced `users` projection with `admin`/`member` roles authorizes who is in and what they may do, so identity is now a first-class part of the product, not a deployment detail.
+
 ## Decision
 
 The studio is the human surface and drives the agents.

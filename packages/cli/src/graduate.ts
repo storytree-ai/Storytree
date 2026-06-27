@@ -11,8 +11,10 @@
  * it surfaces everything it suppresses — duplicates, the deferred `user` tier, unparseable files — so
  * nothing is silently dropped (ADR-0095: no silent caps).
  */
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -114,6 +116,47 @@ export function projectSlug(absPath: string): string {
 /** The default harness agent-memory dir for a project: `<home>/.claude/projects/<slug>/memory`. */
 export function harnessMemoryDir(homeDir: string, projectPath: string): string {
   return path.join(homeDir, ".claude", "projects", projectSlug(projectPath), "memory");
+}
+
+/** This package's repo root, resolved from this file's location (packages/cli/src -> three up). */
+export function cliRepoRoot(): string {
+  return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+}
+
+/**
+ * The MAIN checkout's directory: the harness keys its agent-memory store by the PRIMARY working
+ * directory, never a worktree, so `git worktree list --porcelain` (whose first entry is always the
+ * main worktree) resolves it from inside a `.claude/worktrees/<name>` checkout. Falls back to `dir`
+ * when git can't answer — the resulting default dir is always overridable with `--memory-dir`.
+ */
+export function mainCheckoutDir(dir: string): string {
+  try {
+    const out = execFileSync("git", ["worktree", "list", "--porcelain"], {
+      cwd: dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    for (const line of out.split("\n")) {
+      if (line.startsWith("worktree ")) return path.resolve(line.slice("worktree ".length).trim());
+    }
+  } catch {
+    // git missing / not a repo — fall back to the given dir.
+  }
+  return dir;
+}
+
+/**
+ * The default harness agent-memory dir for the graduation worklist — keyed to the MAIN checkout
+ * (works from inside a worktree). The single resolver shared by the `library graduate` CLI dispatch
+ * and the `check:graduation-worklist` gate nudge, so the two never drift on where memory lives.
+ */
+export function defaultMemoryDir(homeDir: string): string {
+  return harnessMemoryDir(homeDir, mainCheckoutDir(cliRepoRoot()));
+}
+
+/** The seed corpus the offline worklist snapshot is built from (apps/studio/data/knowledge.json). */
+export function defaultSnapshotPath(): string {
+  return path.join(cliRepoRoot(), "apps", "studio", "data", "knowledge.json");
 }
 
 // ---- node: read the memory dir + the snapshot -----------------------------------------------
@@ -331,6 +374,45 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
         : "storytree library graduate --review   (full per-candidate detail)",
       "storytree library artifact list principle   (where feedback memory graduates)",
       "storytree library artifact list process     (where project memory graduates)",
+    ],
+  };
+}
+
+// ---- the pre-merge nudge (the `check:graduation-worklist` gate surface) ----------------------
+
+/** The gate-line tag, kept here so the pure nudge and the check script agree on it. */
+export const GRADUATION_NUDGE_TAG = "[check:graduation-worklist]";
+
+export type NudgeLevel = "OK" | "WARN";
+
+export interface GraduationNudge {
+  readonly level: NudgeLevel;
+  readonly lines: string[];
+}
+
+/**
+ * The pre-merge graduation NUDGE (ADR-0095 Decision 7): given the count of NOVEL agent-memory
+ * candidates the offline engine surfaced, decide whether a librarian graduation pass is due before
+ * the merge ceremony. Pure + deterministic — the {@link import("./check-graduation-worklist.js")}
+ * gate script does the I/O and prints these lines.
+ *
+ * This is the missing PROMPT, not a graduation decision: it surfaces that candidates EXIST so the
+ * orchestrator runs the pass; the genuine-durability judgment (and rejecting the event-specific
+ * majority, ADR-0095 D8) stays the librarian-curator's. So it is advisory-only — never an error
+ * level, exit 0 always (the best-effort posture of check:corpus-sync). `novel <= 0` → OK.
+ */
+export function graduationNudge(novel: number): GraduationNudge {
+  if (novel <= 0) {
+    return {
+      level: "OK",
+      lines: [`${GRADUATION_NUDGE_TAG} OK — no agent-memory candidates await graduation.`],
+    };
+  }
+  return {
+    level: "WARN",
+    lines: [
+      `${GRADUATION_NUDGE_TAG} WARN — ${novel} agent-memory candidate(s) await a librarian graduation pass before merge (ADR-0095 D7).`,
+      `${GRADUATION_NUDGE_TAG}   Review with \`pnpm storytree library graduate --review\`, then spawn the librarian-curator to graduate the genuinely durable ones (most may be event-specific and rejected, ADR-0095 D8).`,
     ],
   };
 }

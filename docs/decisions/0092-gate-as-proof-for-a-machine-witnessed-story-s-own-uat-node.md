@@ -15,6 +15,8 @@ would avoid touching ADR-0087). This **amends** [ADR-0059](0059-gate-as-proof-au
 [ADR-0087](0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md) (widens the
 structural scope bound to authoring-doc roots), without overturning either.
 
+**Superseded-in-part by [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)** — this ADR's **decisions 1 & 5** are overtaken: a brownfield story's UAT node does not earn the studio **Build** affordance via the gate-as-proof `real:` arm (its button-lighting purpose), and the library's 7 capabilities do not go green via brownfield `real:` arms — the library's green path is `## Reliability Gates` / Adopt (ADR-0085). Decisions 2 (`storyUatCompleteness` spec hygiene), 3 (node-verdict ≠ story-green-crown), and 4 (the ADR-0087 scope-bound amendment) stand.
+
 ## Context
 
 The studio's story-level Build (ADR-0090/0091) runs `storytree story build <id> --real`. For the

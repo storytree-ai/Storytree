@@ -1,7 +1,8 @@
 /**
  * Chat-stream adapter (ADR-0108 Phase 2):
  * Wraps the Phase-1 `orchestrate()` composition in an async-generator event stream suitable
- * for SSE delivery. The adapter never throws — errors are emitted as a terminal `error` event.
+ * for SSE delivery. The adapter never throws — a failed session is a terminal `error` event, and
+ * a single-session refusal (ADR-0108 d.6) is a distinct terminal `refused` event.
  *
  * Phase 2 surface shape (ADR-0108 d.1 / d.2):
  *   - intake: an HTTP POST body adapted by the route (the adapter itself is transport-agnostic)
@@ -40,8 +41,22 @@ export interface ChatStreamErrorEvent {
   error: string;
 }
 
+/**
+ * A terminal refused event — the single-session guard (ADR-0108 d.6) declined this session because
+ * one is already in flight. Distinct from `error`: nothing failed and the session never started, so
+ * a thin client can render a "busy — try again" signal rather than a failure. Carries the human
+ * reason for the refusal.
+ */
+export interface ChatStreamRefusedEvent {
+  type: "refused";
+  reason: string;
+}
+
 /** All events the chat stream can emit (discriminated by `type`). */
-export type ChatStreamEvent = ChatStreamDoneEvent | ChatStreamErrorEvent;
+export type ChatStreamEvent =
+  | ChatStreamDoneEvent
+  | ChatStreamErrorEvent
+  | ChatStreamRefusedEvent;
 
 // ---------------------------------------------------------------------------
 // Args
@@ -78,10 +93,11 @@ export interface StartChatStreamArgs {
 /**
  * Start an orchestrate session and yield its outcome as a typed event stream.
  *
- * The stream always terminates — either with a `done` event carrying the proposal text and
- * session metrics, or with an `error` event when the session fails. The stream NEVER throws;
- * any failure (agent absent, SDK error, unexpected exception) is emitted as a typed `error`
- * event so the caller can forward it directly to the SSE client.
+ * The stream always terminates — with a `done` event carrying the proposal text and session
+ * metrics, a `refused` event when the single-session guard (ADR-0108 d.6) declines a concurrent
+ * session, or an `error` event when the session fails. The stream NEVER throws; any failure
+ * (agent absent, SDK error, unexpected exception) is emitted as a typed `error` event so the
+ * caller can forward it directly to the SSE client.
  */
 export async function* startChatStream(
   args: StartChatStreamArgs,
@@ -98,6 +114,16 @@ export async function* startChatStream(
     });
 
     if (!result.ok) {
+      // The single-session guard (ADR-0108 d.6, inherited from runHeadlessOrchestrator's in-flight
+      // flag) is a refusal, not a failure — surface it as a distinct `refused` event so a thin
+      // client can show "busy — try again" rather than a generic error.
+      if (result.refused) {
+        yield {
+          type: "refused",
+          reason: result.error ?? "a session is already in progress",
+        };
+        return;
+      }
       yield { type: "error", error: result.error ?? "orchestrate failed" };
       return;
     }

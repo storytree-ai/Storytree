@@ -58,6 +58,9 @@ export {
 export {
   type SceneStatus,
   type SceneKind,
+  type BuildPhase,
+  type WispPhaseBand,
+  wispBand,
   type SceneNodeBase,
   type SceneG,
   type ScenePath,

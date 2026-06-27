@@ -16,6 +16,7 @@ export * from "./node-build.js";
 export * from "./story-build.js";
 export * from "./adopt.js";
 export * from "./orchestrate.js";
+export * from "./chat-stream.js";
 export * from "./wisp-smoke.js";
 export * from "./oq-gate.js";
 export * from "./resolve-report.js";

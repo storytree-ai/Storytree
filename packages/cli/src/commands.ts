@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,22 +15,26 @@ import {
 import type { UatTest, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
+  findNodeSpecFile,
+  extractVouchingTestNames,
   resolveSignerFromEnv,
   platformShellCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
-import { renderStoredDoc, syncSeedAgents, syncSeedCorpus } from "@storytree/library/store";
+import { renderStoredDoc, syncSeedAgents, syncSeedCorpus, computeExportedSeed } from "@storytree/library/store";
+import type { SeedEntry } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
+import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
-import { attestCommand, attestHelp, type AttestationStoreLike } from "./attest.js";
+import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
-import { graduateCommand, harnessMemoryDir } from "./graduate.js";
+import { graduateCommand, defaultMemoryDir, defaultSnapshotPath } from "./graduate.js";
 import type { Envelope } from "./envelope.js";
 import {
   libraryHealth,
@@ -59,7 +63,7 @@ import {
   type UatDeps,
   type UatVerdictStoreLike,
 } from "./uat.js";
-import { gateCommand, gateHelp, type GateDeps } from "./gate.js";
+import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate } from "./gate-build-driver.js";
 
 /**
@@ -185,6 +189,7 @@ export async function dashboard(store: Store): Promise<Envelope> {
     "  tree focus <id>               the local DAG of one artifact",
     "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
     "  sync-corpus                   migrate seed-only non-agent artifacts into live (needs --pg)",
+    "  export-corpus [--write]       export live non-agent bodies back to the seed (dry-run; needs --pg)",
     "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
     "  (coming soon: artifact comment)",
   );
@@ -204,29 +209,6 @@ export async function dashboard(store: Store): Promise<Envelope> {
 /** The repo root, resolved from this file's location (packages/cli/src -> three dirs up). */
 function repoRoot(): string {
   return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-}
-
-/**
- * The MAIN checkout's directory (the `library graduate` default, ADR-0095): the harness keys its
- * agent-memory store by the PRIMARY working directory, never a worktree, so `git worktree list
- * --porcelain` (whose first entry is always the main worktree) resolves it from inside a
- * `.claude/worktrees/<name>` checkout. Falls back to `dir` when git can't answer — the resulting
- * default dir is always overridable with `--memory-dir`.
- */
-function mainCheckoutDir(dir: string): string {
-  try {
-    const out = execFileSync("git", ["worktree", "list", "--porcelain"], {
-      cwd: dir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    for (const line of out.split("\n")) {
-      if (line.startsWith("worktree ")) return path.resolve(line.slice("worktree ".length).trim());
-    }
-  } catch {
-    // git missing / not a repo — fall back to the given dir.
-  }
-  return dir;
 }
 
 /** Count the generated non-template assets in apps/studio/data/assets.json (for count-reconciliation). */
@@ -703,6 +685,50 @@ export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
 }
 
 /**
+ * `storytree library export-corpus --pg [--write]` — the INVERSE of `sync-corpus` (ADR-0120): carry the
+ * canonical LIVE non-agent tier back into the seed (`apps/studio/data/knowledge.json`), the gap ADR-0103
+ * left as "later work". DRY-RUN by default (reports what it WOULD change, writes nothing); `--write`
+ * rewrites knowledge.json. Owner-directed policy (ADR-0120 a): OVERWRITE a seed body that drifted from
+ * a valid live one + ADD live-only artifacts, but NEVER delete a seed entry, NEVER touch agents/templates,
+ * and NEVER write a degraded/below-floor live body (it is refused and reported for a seed→live restore).
+ * Needs --pg (it reads the LIVE store); writing the file is a local edit, so re-run build-corpus after.
+ */
+export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean }): Promise<Envelope> {
+  if (deps.writable !== true) return notWritable(deps.store);
+  const write = opts.write === true;
+
+  const knowledgePath = path.join(repoRoot(), "apps", "studio", "data", "knowledge.json");
+  const seedEntries = JSON.parse(readFileSync(knowledgePath, "utf8")) as SeedEntry[];
+  const live = await deps.store.queryDocs();
+  const r = computeExportedSeed(seedEntries, live);
+
+  const lines = [
+    r.noop
+      ? "NOTHING TO EXPORT — every export-scope seed body already matches the live store."
+      : `${write ? "EXPORTED" : "WOULD EXPORT"} ${r.updated.length} update(s) + ${r.created.length} addition(s) from live → seed.`,
+    "",
+    `overwritten from live (${r.updated.length}): ${r.updated.join(", ") || "(none)"}`,
+    `added (live-only) (${r.created.length}): ${r.created.join(", ") || "(none)"}`,
+    `REFUSED — degraded/below-floor live body, restore seed→live instead (${r.skippedDegraded.length}): ${r.skippedDegraded.join(", ") || "(none)"}`,
+  ];
+
+  if (write && !r.noop) {
+    writeFileSync(knowledgePath, JSON.stringify(r.entries, null, 2) + "\n", "utf8");
+    lines.push("", `WROTE ${knowledgePath}. Now regenerate the views: npx tsx apps/studio/data/build-corpus.mjs`);
+  } else if (!write && !r.noop) {
+    lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply, then run build-corpus.mjs.");
+  }
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: write
+      ? ["npx tsx apps/studio/data/build-corpus.mjs   (regenerate assets.json + glossary.md)", "pnpm check:corpus-content"]
+      : ["storytree library export-corpus --pg --write   (apply)", "pnpm check:corpus-content   (the body-level drift report)"],
+  };
+}
+
+/**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
  * references (intra-library `asset:` edges + `doc:` source/ADR pointers, the latter surfaced on
  * demand) and the inbound `asset:` edges that point at it (a derived back-edge scan). Honest about
@@ -808,20 +834,27 @@ async function topHelp(store: Store): Promise<Envelope> {
     body: [
       "storytree — the agent's interface to the project (ADR-0023).",
       "",
-      "areas:",
+      "proof workflows (ADR-0118 — surface the GOAL; the grain primitives nest under each, reached by",
+      "drilling into `<workflow> --help`):",
+      "  adopt <story>    bring a brownfield story into the fold — observe-and-sign → mapped→proposed  (· plan · gate)",
+      "  build <id>       drive red→green — auto-routes node vs story by tier  (· build node | story | gate --real)",
+      "  witness <story>  the operator proof of a story's UAT — list · attest (a verdict) · vouch (a vouch, ADR-0044)",
+      "  tree [<story>]   orient: the work hierarchy + build surface + reliability-gate & UAT glyphs",
+      "",
+      "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
-      "  tree             the work hierarchy — stories, build surface, presence, verdict glyphs",
-      "  attest           record a per-UAT-test attestation (ADR-0044) — a signed vouch, not a verdict",
-      "  uat              per-test UAT proof (ADR-0082): list a story's tests · attest one (a real verdict)",
-      "  gate             brownfield reliability gates (ADR-0085): list a story's gates · run (observe-and-sign) one",
-      "  adopt            bring a brownfield story into the fold (ADR-0097): run the mapped→proposed entry · plan the coverage",
-      "  node             drive ONE node through the prove-it-gate (dry-run | live | real)",
-      "  story            drive a WHOLE story's nodes in dependency order (Phase E)",
+      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
+      "",
+      "the proof primitives relocated UNDER the workflows above (ADR-0118); the old grain verbs keep",
+      "working as back-compat aliases (nothing breaks, they just moved):",
+      "  node build → build node · story build → build story · node resolve → build node resolve",
+      "  gate run → adopt gate · gate run --real → build gate --real · gate list → tree",
+      "  uat list|attest → witness list|attest · attest → witness vouch",
       "",
       "start here:",
       "  storytree library    health + a map of every artifact + the commands",
@@ -889,6 +922,28 @@ function orchestrateHelp(): Envelope {
   };
 }
 
+function coverageHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree coverage <capability-id> — does every declared contract have an observed test? (ADR-0020).",
+      "",
+      "A signed --real green attests the ONE authored test the gate observed (ADR-0020 §3) — it cannot",
+      "forge it, but it never checks that EVERY `## Contracts` behaviour has a test (the leaf reliably",
+      "drops the hardest one). This flags the gap: a contract no SUBSTANTIVE test covers (the",
+      '`describe("<id>: …")` convention) is reported UNCOVERED.',
+      "",
+      "  storytree coverage <capability-id>   classify the capability's contracts (offline, read-only)",
+      "",
+      "Exits non-zero when a contract is uncovered (a green would over-claim); a fully-covered unit passes.",
+      "A test must RUN and ASSERT to count (ADR-0126): a hollow `assert(true)` (or a skipped test) under",
+      "the right name does NOT cover its contract. A substantive-but-irrelevant assertion still reads",
+      "covered — judging that is the deeper semantic-reviewer follow-on.",
+    ].join("\n"),
+    next: ["storytree tree", "storytree coverage <capability-id>"],
+  };
+}
+
 async function libraryHelp(store: Store): Promise<Envelope> {
   return {
     ok: true,
@@ -903,6 +958,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library sync-agents [--pg]       reconcile the agent tier to the seed (ADR-0055)",
       "  storytree library sync-corpus [--pg]       migrate seed-only non-agent artifacts into live (ADR-0103)",
+      "  storytree library export-corpus [--pg]     export live non-agent bodies back to the seed (ADR-0120)",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -1050,6 +1106,77 @@ function loadAdoptPlanStory(storiesDir: string, storyId: string): AdoptPlanStory
   }
 }
 
+/** The directory prefix of a test glob, up to (not including) its first wildcard segment. */
+function globBaseDir(glob: string): string {
+  const base: string[] = [];
+  for (const seg of glob.split("/")) {
+    if (seg.includes("*")) break;
+    base.push(seg);
+  }
+  return base.join("/");
+}
+
+/** Recursively collect `*.test.ts` files under an absolute dir (a missing/odd dir yields none). */
+function walkTestFiles(absDir: string): string[] {
+  const out: string[] = [];
+  try {
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const full = path.join(absDir, entry.name);
+      if (entry.isDirectory()) out.push(...walkTestFiles(full));
+      else if (entry.isFile() && entry.name.endsWith(".test.ts")) out.push(full);
+    }
+  } catch {
+    // A missing / unreadable directory yields no test files.
+  }
+  return out;
+}
+
+/**
+ * A capability's coverage facts for the contract-coverage check (ADR-0020 follow-on): its declared
+ * `## Contracts` ids + the VOUCHING test names across its proof surface (ADR-0126 — a test only counts
+ * if it runs and asserts substantively, so a hollow `assert(true)` is excluded). Null for a missing/odd
+ * spec. The proof surface is the registered real-build test file when present (the EXACT file a signed
+ * `--real` green attests — the tightest honest signal for the gap), else the package/dir test files
+ * walked from the proof scope's test globs (a suite-proven capability). Pure-by-injection seam for
+ * `coverageCommand`.
+ */
+function loadCoverageUnit(storiesDir: string, root: string, unitId: string): CoverageUnit | null {
+  const file = findNodeSpecFile(storiesDir, unitId);
+  if (file === null) return null;
+  let spec: ReturnType<typeof loadNodeSpec>;
+  try {
+    spec = loadNodeSpec(file);
+  } catch {
+    return null;
+  }
+  const real = spec.buildConfig?.real;
+  let absFiles: string[];
+  if (real?.testFile !== undefined) {
+    absFiles = [path.join(root, real.testFile)];
+  } else {
+    const globs = spec.buildConfig?.scope.testGlobs ?? [];
+    const dirs = [...new Set(globs.map((g) => path.join(root, globBaseDir(g))))];
+    absFiles = [...new Set(dirs.flatMap((d) => walkTestFiles(d)))];
+  }
+  const existing = absFiles.filter((f) => existsSync(f));
+  const testNames: string[] = [];
+  for (const f of existing) {
+    try {
+      // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so its contract
+      // reads uncovered.
+      testNames.push(...extractVouchingTestNames(readFileSync(f, "utf8")));
+    } catch {
+      // An unreadable test file contributes no names (fail-closed toward "uncovered").
+    }
+  }
+  return {
+    tier: spec.tier,
+    contractIds: spec.contracts.map((c) => c.id),
+    testNames,
+    testFiles: existing.map((f) => path.relative(root, f).replace(/\\/g, "/")),
+  };
+}
+
 /**
  * A story's adoptable facts for the adopt RUN engine (ADR-0097 / ADR-0106): its authored status, its
  * declared reliability gates, and its UAT legs. Null for a missing/odd spec or a non-story tier (a
@@ -1128,6 +1255,209 @@ function refuseMemoryStore(area: "node" | "story" | "gate", id: string | undefin
   };
 }
 
+// ---------------------------------------------------------------------------
+// build workflow (ADR-0118 — workflow-first CLI surface)
+// ---------------------------------------------------------------------------
+
+/** The argv subset the build/gate helpers read (a structural slice of `run`'s parsed `values`). */
+interface BuildValues {
+  "dry-run"?: boolean;
+  live?: boolean;
+  real?: boolean;
+  "emit-wisp"?: boolean;
+  dwell?: string;
+  model?: string;
+  budget?: string;
+  "max-turns"?: string;
+  actor?: string;
+  store?: string;
+  signer?: string;
+}
+
+/**
+ * The node/story build options threaded from argv. Both `build node` and `build story` (and their
+ * `node build`/`story build` back-compat aliases) take the SAME shape, so it is built once here — the
+ * single source the dispatch routes into, never re-typed per area (ADR-0118: relocate the primitive,
+ * don't fork it).
+ */
+function nodeStoryBuildOpts(values: BuildValues) {
+  return {
+    dryRun: values["dry-run"] === true,
+    live: values.live === true,
+    real: values.real === true,
+    emitWisp: values["emit-wisp"] === true,
+    ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
+    ...(values.model !== undefined ? { model: values.model } : {}),
+    ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+    ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+    ...(values.actor !== undefined ? { actor: values.actor } : {}),
+    ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+  };
+}
+
+/**
+ * Classify a bare `build <id>` target by tier — the CLI mirror of the studio's `routedBuildRunner`
+ * (ADR-0118 / ADR-0090): a unit whose spec is a `story` routes to the whole-story chain, anything else
+ * (a capability/leaf node — or an unknown id, which `nodeBuild` then guides on) to a single-node build.
+ * Pure over the stories dir; the auto-route forwards the operator's explicit flags (the CLI is a
+ * superset of the UI — it does not pin `--real`/openPr the way the single studio Build button does).
+ */
+export function classifyBuildTarget(id: string, storiesDir: string): "node" | "story" {
+  const file = findNodeSpecFile(storiesDir, id);
+  if (file === null) return "node";
+  try {
+    return loadNodeSpec(file).tier === "story" ? "story" : "node";
+  } catch {
+    return "node";
+  }
+}
+
+/** The `gate` invocation opts (signer + the build-tests `--real` switch), shared by `gate` and `build gate`. */
+function makeGateOpts(values: BuildValues): GateOpts {
+  return {
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values.real === true ? { real: true } : {}),
+  };
+}
+
+/**
+ * Wire the live `gate` seams (verdict store, gate/UAT loaders, git state, the observe runner, the
+ * signer resolver, the build-tests driver, the clock) — shared by the `gate` area and the new
+ * `build gate` entry so the two are literally one code path (ADR-0118 back-compat aliasing).
+ */
+function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): GateDeps {
+  return {
+    store: deps.uatStore ?? null,
+    loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
+    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    gitState: readGitState,
+    observe: observeCommand,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    driveBuildTestsGate: (gate, signer) =>
+      driveBuildTestsGate(gate, signer, {
+        storiesDir,
+        repoRoot: repoRoot(),
+        ...(values.store !== undefined ? { verdictStore: values.store } : {}),
+        ...(values.model !== undefined ? { model: values.model } : {}),
+        ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
+        ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
+      }),
+    now: () => new Date(),
+  };
+}
+
+/**
+ * `storytree build` — the build WORKFLOW help (ADR-0118). Surfaces the goal (drive red→green) at the
+ * top, the tier auto-route, and the nested grain primitives; the moved verbs keep working as aliases.
+ */
+function buildHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree build — drive red→green (ADR-0118): the build workflow, mirroring the studio's Build button.",
+      "",
+      "  storytree build <id> [flags]                   AUTO-ROUTE by tier — a story id drives the whole-story",
+      "                                                 chain, anything else a single node (mirrors the studio).",
+      "  storytree build node <id> [flags]              drive ONE node through the prove-it-gate (was `node build`)",
+      "  storytree build node resolve <id>              FREE, read-only: how a node spec resolves (was `node resolve`)",
+      "  storytree build story <id> [flags]             drive a WHOLE story's nodes in dependency order (was `story build`)",
+      "  storytree build gate <story>#gate-<n> --real   earn a build-tests gate by a real red→green (was `gate run --real`)",
+      "",
+      "flags: --dry-run (scripted, offline) · --live (SDK smoke) · --real (real build) · --budget <usd> · --model <id>",
+      "",
+      "An `observe` gate is NOT a build — it is observe-and-signed by adoption: `storytree adopt gate <id>`.",
+      "The moved verbs keep working as back-compat aliases (`node build`, `node resolve`, `story build`,",
+      "`gate run --real`), so no script or habit breaks — they just relocate under the build workflow.",
+    ].join("\n"),
+    next: ["storytree build node library-cli --dry-run", "storytree build story library --dry-run"],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// witness workflow (ADR-0118 — the human/operator proof workflow)
+// ---------------------------------------------------------------------------
+
+/** The session/agent identity for the proof commands (injected by tests; else derived from the worktree). */
+function sessionIdentity(deps: RunDeps): SessionIdentity | null {
+  return deps.presence !== undefined && deps.presence.identity !== undefined
+    ? deps.presence.identity
+    : deriveIdentity();
+}
+
+/** The per-test UAT opts threaded from argv — shared by `uat` and `witness list/attest` (one code path). */
+function makeUatOpts(values: { outcome?: string; signer?: string; note?: string }) {
+  return {
+    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values.note !== undefined ? { note: values.note } : {}),
+  };
+}
+
+/** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
+function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
+  return {
+    store: deps.uatStore ?? null,
+    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    gitState: readGitState,
+    identity,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    now: () => new Date(),
+  };
+}
+
+/** The attestation-vouch opts threaded from argv — shared by `attest` and `witness vouch`. */
+function makeAttestOpts(values: {
+  outcome?: string;
+  witness?: string;
+  signer?: string;
+  "relayed-by"?: string;
+  note?: string;
+}) {
+  return {
+    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
+    ...(values.witness !== undefined ? { witness: values.witness } : {}),
+    ...(values.signer !== undefined ? { signer: values.signer } : {}),
+    ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
+    ...(values.note !== undefined ? { note: values.note } : {}),
+  };
+}
+
+/** Wire the live attestation seams (store, identity, signer, clock) — shared by `attest` and `witness vouch`. */
+function makeAttestDeps(deps: RunDeps, identity: SessionIdentity | null): AttestDeps {
+  return {
+    store: deps.attestations ?? null,
+    identity,
+    resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+    now: () => new Date(),
+  };
+}
+
+/**
+ * `storytree witness` — the human/operator proof WORKFLOW (ADR-0118). It cuts across adopt AND build
+ * (you witness a story's UAT whether it was adopted or built), so it is its OWN top-level workflow, not
+ * nested under either. The per-test UAT proof (`witness list`/`witness attest`) and the lower-rigor vouch
+ * (`witness vouch`) relocate here from `uat`/`attest`, which keep working as back-compat aliases.
+ */
+function witnessHelp(): Envelope {
+  return {
+    ok: true,
+    body: [
+      "storytree witness — the human/operator proof workflow (ADR-0118): witness a story's UAT, whether",
+      "it was adopted or built (it cuts across both, so it is its own workflow).",
+      "",
+      "  storytree witness list <story-id> [--pg]            a story's UAT tests + proven state (was `uat list`)",
+      "  storytree witness attest <story>#uat-<n> --pg       sign an operator-attested verdict (was `uat attest`)",
+      "  storytree witness vouch <story>#uat-<n> --pg        record a lower-rigor attestation vouch (was `attest`)",
+      "  storytree witness vouch list <story>#uat-<n> --pg   a test's vouch history (was `attest list`)",
+      "",
+      "`witness attest` mints a real `operator-attested` verdict (events.verdict) — it can green a story's",
+      "UAT. A `witness vouch` is a signal only (events.attestation), never greens the story (ADR-0044). The",
+      "moved verbs keep working as back-compat aliases (`uat list`, `uat attest`, `attest`).",
+    ].join("\n"),
+    next: ["storytree witness list <story-id> --pg", "storytree tree <story-id> --pg"],
+  };
+}
+
 /**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
  * store-selection flag consumed by `main` (declared here so parsing does not reject it). Returns an
@@ -1174,6 +1504,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     "memory-dir"?: string;
     review?: boolean;
     readings?: string;
+    write?: boolean;
   };
   try {
     const parsed = parseArgs({
@@ -1217,6 +1548,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         "memory-dir": { type: "string" },
         review: { type: "boolean", default: false },
         readings: { type: "string" },
+        write: { type: "boolean", default: false },
       },
     });
     positionals = parsed.positionals;
@@ -1248,18 +1580,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     if (values.store === "memory") return refuseMemoryStore("node", third);
-    return nodeBuild(third, {
-      dryRun: values["dry-run"] === true,
-      live: values.live === true,
-      real: values.real === true,
-      emitWisp: values["emit-wisp"] === true,
-      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
-      ...(values.model !== undefined ? { model: values.model } : {}),
-      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      ...(values.actor !== undefined ? { actor: values.actor } : {}),
-      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-    });
+    // `node build <id>` is the back-compat alias for `build node <id>` (ADR-0118) — one code path.
+    return nodeBuild(third, nodeStoryBuildOpts(values));
   }
 
   if (area === "story") {
@@ -1274,18 +1596,53 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     if (values.store === "memory") return refuseMemoryStore("story", third);
-    return storyBuild(third, {
-      dryRun: values["dry-run"] === true,
-      live: values.live === true,
-      real: values.real === true,
-      emitWisp: values["emit-wisp"] === true,
-      ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
-      ...(values.model !== undefined ? { model: values.model } : {}),
-      ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      ...(values.actor !== undefined ? { actor: values.actor } : {}),
-      ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-    });
+    // `story build <id>` is the back-compat alias for `build story <id>` (ADR-0118) — one code path.
+    return storyBuild(third, nodeStoryBuildOpts(values));
+  }
+
+  if (area === "build") {
+    // ADR-0118 — the build WORKFLOW: the top-level goal `build`, with the grain primitives nested.
+    // `build <id>` AUTO-ROUTES by tier (mirroring the studio's single Build button / routedBuildRunner);
+    // `build node|story|gate` are the explicit primitives the old `node`/`story`/`gate run --real`
+    // verbs relocated to (those keep working as back-compat aliases above — one code path each).
+    if (help && sub === undefined) return buildHelp();
+    if (sub === undefined) return buildHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+
+    if (sub === "node") {
+      // `build node resolve <id>` (was `node resolve`) — FREE, read-only spec resolution, no build/spend.
+      if (third === "resolve") return nodeResolve(fourth);
+      if (third === undefined || help) return nodeHelp();
+      if (values.store === "memory") return refuseMemoryStore("node", third);
+      return nodeBuild(third, nodeStoryBuildOpts(values));
+    }
+    if (sub === "story") {
+      if (third === undefined || help) return storyHelp();
+      if (values.store === "memory") return refuseMemoryStore("story", third);
+      return storyBuild(third, nodeStoryBuildOpts(values));
+    }
+    if (sub === "gate") {
+      // `build gate <story>#gate-<n> --real` (was `gate run --real`) — the build-tests primitive. The
+      // observe path is NOT here: an observe gate is earned by adoption (`adopt gate`, ADR-0118), not a
+      // build. gateRun routes by kind+--real internally, so this is one code path with `gate run`.
+      if (third === undefined || help) return gateHelp();
+      if (values.store === "memory") return refuseMemoryStore("gate", third);
+      return gateCommand(
+        { mode: "run", target: third },
+        makeGateOpts(values),
+        makeGateDeps(deps, values, storiesDir),
+      );
+    }
+
+    // bare `build <id>` — auto-route by tier (a story → the whole-story chain, else a single node),
+    // forwarding the operator's explicit flags (the CLI is a superset of the UI: it does not pin
+    // --real/openPr the way the one studio Build button does — the operator says what they want).
+    const target = sub;
+    const kind = classifyBuildTarget(target, storiesDir);
+    if (values.store === "memory") return refuseMemoryStore(kind, target);
+    return kind === "story"
+      ? storyBuild(target, nodeStoryBuildOpts(values))
+      : nodeBuild(target, nodeStoryBuildOpts(values));
   }
 
   if (area === "noticeboard") {
@@ -1325,57 +1682,53 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "attest") {
+    // `attest` is the back-compat alias for `witness vouch` (ADR-0118) — the SAME code path.
     if (help || sub === undefined) return attestHelp();
-    // Identity (the scribing agent for relayedBy): injected by tests; else derived from the worktree.
-    const identity =
-      deps.presence !== undefined && deps.presence.identity !== undefined
-        ? deps.presence.identity
-        : deriveIdentity();
+    const identity = sessionIdentity(deps);
     const isList = sub === "list";
     return attestCommand(
       { mode: isList ? "list" : "record", testId: isList ? third : sub },
-      {
-        ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-        ...(values.witness !== undefined ? { witness: values.witness } : {}),
-        ...(values.signer !== undefined ? { signer: values.signer } : {}),
-        ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
-        ...(values.note !== undefined ? { note: values.note } : {}),
-      },
-      {
-        store: deps.attestations ?? null,
-        identity,
-        resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-        now: () => new Date(),
-      },
+      makeAttestOpts(values),
+      makeAttestDeps(deps, identity),
     );
   }
 
   if (area === "uat") {
-    // ADR-0082 — the per-test UAT proof surface: `uat list <story>` (read) + `uat attest <test>` (write
-    // a signed operator-attested verdict). Identity (the no-self-attest guard) is injected by tests,
-    // else derived from the worktree; git state pins the attested commit.
+    // ADR-0082 — the per-test UAT proof surface. `uat list`/`uat attest` are the back-compat aliases for
+    // `witness list`/`witness attest` (ADR-0118) — the SAME code path, wired via makeUatDeps/makeUatOpts.
     if (help || sub === undefined) return uatHelp();
-    const identity =
-      deps.presence !== undefined && deps.presence.identity !== undefined
-        ? deps.presence.identity
-        : deriveIdentity();
+    const identity = sessionIdentity(deps);
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-    const uatDeps: UatDeps = {
-      store: deps.uatStore ?? null,
-      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
-      gitState: readGitState,
-      identity,
-      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-      now: () => new Date(),
-    };
-    const uatOpts = {
-      ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-      ...(values.signer !== undefined ? { signer: values.signer } : {}),
-      ...(values.note !== undefined ? { note: values.note } : {}),
-    };
+    const uatDeps = makeUatDeps(deps, identity, storiesDir);
+    const uatOpts = makeUatOpts(values);
     if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
     // bare: `storytree uat <story-id>` lists that story's tests.
+    return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
+  }
+
+  if (area === "witness") {
+    // ADR-0118 — the human/operator proof WORKFLOW. It cuts across adopt AND build (you witness a
+    // story's UAT either way), so it is its OWN workflow. `witness list`/`witness attest` are the per-test
+    // UAT proof (was `uat`); `witness vouch` is the lower-rigor ADR-0044 attestation (was `attest`). The
+    // old verbs keep working as back-compat aliases — these route to the SAME uat/attest code paths.
+    if (sub === undefined || help) return witnessHelp();
+    const identity = sessionIdentity(deps);
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    if (sub === "vouch") {
+      // `witness vouch <test>` (record) / `witness vouch list <test>` (history) — was `attest` / `attest list`.
+      const isList = third === "list";
+      return attestCommand(
+        { mode: isList ? "list" : "record", testId: isList ? fourth : third },
+        makeAttestOpts(values),
+        makeAttestDeps(deps, identity),
+      );
+    }
+    const uatDeps = makeUatDeps(deps, identity, storiesDir);
+    const uatOpts = makeUatOpts(values);
+    if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
+    if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
+    // bare `witness <story-id>` lists that story's UAT tests (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
 
@@ -1390,31 +1743,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // option (the internal "memory" seam is only ever injected into driveBuildTestsGate directly).
     if (values.store === "memory") return refuseMemoryStore("gate", third);
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
-    const gateDeps: GateDeps = {
-      store: deps.uatStore ?? null,
-      loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
-      loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
-      gitState: readGitState,
-      observe: observeCommand,
-      resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-      // ADR-0098 (U2): the build driver for a `build-tests --real` run — resolves the `(build:)` node's
-      // real config, drives the prove-it-gate in a fresh worktree, and signs for the gate id. The
-      // store/worktree/leaf I/O lives here, keeping gate.ts pure (it just routes to this seam).
-      driveBuildTestsGate: (gate, signer) =>
-        driveBuildTestsGate(gate, signer, {
-          storiesDir,
-          repoRoot: repoRoot(),
-          ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-          ...(values.model !== undefined ? { model: values.model } : {}),
-          ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-          ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-        }),
-      now: () => new Date(),
-    };
-    const gateOpts = {
-      ...(values.signer !== undefined ? { signer: values.signer } : {}),
-      ...(values.real === true ? { real: true } : {}),
-    };
+    // The gate seams + opts are shared with the new `build gate --real` entry (ADR-0118): `gate run`
+    // stays as the back-compat alias for both the observe path (→ `adopt gate`, ADR-0118) and the
+    // build-tests path (→ `build gate --real`), wired through the same makeGateDeps/makeGateOpts.
+    const gateDeps = makeGateDeps(deps, values, storiesDir);
+    const gateOpts = makeGateOpts(values);
     if (sub === "run") return gateCommand({ mode: "run", target: third }, gateOpts, gateDeps);
     if (sub === "list") return gateCommand({ mode: "list", target: third }, gateOpts, gateDeps);
     // bare: `storytree gate <story-id>` lists that story's gates.
@@ -1514,10 +1847,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // flip `mapped → proposed`) — the SAME engine the studio's Adopt button drives (adoptStory). `adopt
     // plan <story>` is the offline adoption-plan classification (ADR-0097 Layer 2). The store / git /
     // observe / signer / status-flip seams mirror `gate` (the verdict store is the same PgWorkStore under
-    // --pg). `gate` is deliberately NOT nested here: an `observe` gate is earned by adoption, but a
-    // `build-tests` gate by a real red→green BUILD (ADR-0098), so `gate` spans both surfaces and stays
-    // its own area. The honesty walls (only a brownfield story, an observe gate, a resolved approver, the
-    // live store, a clean HEAD) live in drive's runAdopt; this just wires the live seams.
+    // --pg). ADR-0118: the OBSERVE gate primitive now nests here as `adopt gate <story>#gate-<n>`
+    // (observe-and-sign one observe gate — an observe gate IS earned by adoption); the `build-tests`
+    // gate, earned by a real red→green BUILD (ADR-0098), lives under `build gate --real` (Unit A), not
+    // here. This un-conflates the old `gate run` phase fork at the surface (ADR-0118): observe → adopt,
+    // build-tests → build. The honesty walls (only a brownfield story, an observe gate, a resolved
+    // approver, the live store, a clean HEAD) live in drive's runAdopt / the gate compute; CLI wires seams.
     if (help || sub === undefined) return adoptHelp();
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const adoptDeps: AdoptDispatchDeps = {
@@ -1556,14 +1891,37 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         adoptDeps,
       );
     }
+    // `adopt gate <story>#gate-<n>` — observe-and-sign ONE observe gate (ADR-0118; was `gate run <g>`,
+    // kept as a back-compat alias). The SAME gate code path as `gate run`; the gate's kind routes it (a
+    // build-tests gate is NOT adoption — the gate compute refuses it here, pointing at `build gate --real`).
+    if (sub === "gate") {
+      if (values.store === "memory") return refuseMemoryStore("gate", third);
+      return gateCommand(
+        { mode: "run", target: third },
+        makeGateOpts(values),
+        makeGateDeps(deps, values, storiesDir),
+      );
+    }
     // bare: `storytree adopt <story-id>` RUNS the adoption.
     return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);
+  }
+
+  if (area === "coverage") {
+    // ADR-0020 coverage-honesty follow-on — does every declared contract have an observed test? The
+    // unit loader is the pure-by-injection seam (reads the spec's `## Contracts` + the proof surface's
+    // test names off disk); the classifier is `@storytree/orchestrator`'s. Offline, read-only.
+    if (help) return coverageHelp();
+    const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
+    const root = repoRoot();
+    return coverageCommand(sub, {
+      loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
+    });
   }
 
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, attest, uat, gate, adopt, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, witness, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
@@ -1576,17 +1934,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (sub === "sync-agents") return syncAgentsCommand(deps);
   if (sub === "sync-corpus") return syncCorpusCommand(deps);
+  if (sub === "export-corpus") return exportCorpusCommand(deps, { write: values.write === true });
 
   if (sub === "graduate") {
     if (help) return graduateHelp();
     // Default the memory dir to the harness store keyed by the MAIN checkout (works from a worktree);
     // --memory-dir overrides. The snapshot is the offline seed corpus (ADR-0095 reads it, not the DB).
-    const memoryDir = values["memory-dir"] ?? harnessMemoryDir(os.homedir(), mainCheckoutDir(repoRoot()));
+    // `defaultMemoryDir`/`defaultSnapshotPath` are shared with the `check:graduation-worklist` gate
+    // nudge so the two never drift on where memory / the seed live (@storytree/cli graduate.ts).
+    const memoryDir = values["memory-dir"] ?? defaultMemoryDir(os.homedir());
     return graduateCommand(
       { review: values.review === true },
       {
         memoryDir,
-        snapshotPath: path.join(repoRoot(), "apps", "studio", "data", "knowledge.json"),
+        snapshotPath: defaultSnapshotPath(),
         now: new Date().toISOString().slice(0, 10),
       },
     );

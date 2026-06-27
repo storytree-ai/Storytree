@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { type AdrMeta } from "@storytree/drive";
@@ -18,6 +18,13 @@ import type { CheckResult } from "./health.js";
  *                            DB allocator + this gate close, ADR-0050) (GATE)
  *   2 adr-edge-integrity   — every supersedes / supersedes_in_part / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
+ *   3b supersede-in-part-note — the partial-supersession analogue of check 3: every
+ *                            `supersedes_in_part` target carries the standardized INCOMING note
+ *                            naming the superseding ADR (ADR-0037 §1 — incoming edges live as derived
+ *                            `## Status` prose). A partially-overtaken ADR is NOT flipped to
+ *                            superseded (it stays accepted, live in part), so check 3 structurally
+ *                            never sees it; without this, a stale body with no incoming note is
+ *                            gate-clean — the ADR-0011 §5 "DBOS stands" latent trap (GATE)
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
@@ -36,6 +43,7 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-number-unique",
   "adr-edge-integrity",
   "supersede-consistency",
+  "supersede-in-part-note",
   "story-decisions",
   "green-flip",
   "load-bearing-live",
@@ -58,6 +66,8 @@ export interface AdrHealthInputs {
   readonly adrs: AdrMeta[];
   /** Parse failures from loading the decisions dir (each line one file's error). */
   readonly parseErrors: string[];
+  /** Each ADR's body text (post-frontmatter) by number — what `supersede-in-part-note` reads (ADR-0037 §1). */
+  readonly adrBodies: ReadonlyMap<number, string>;
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
@@ -78,13 +88,26 @@ export function extractPathTokens(prose: string): string[] {
   return tokens;
 }
 
+/**
+ * Does an ADR body carry the standardized INCOMING note for being superseded-in-part by ADR-`n`?
+ * Canonical form (ADR-0037 §1, owner-ratified): `**Superseded-in-part by [ADR-NNNN](file)** — …` in
+ * the `## Status` section. The matcher is tolerant of case, of the hyphen/space in "in-part", and of
+ * ADR-number zero-padding, but it REQUIRES the "superseded-in-part by" phrasing keyed to the
+ * superseding ADR — the older "partially superseded by" wording is normalized to this, never matched.
+ */
+export function hasSupersededInPartNote(body: string, supersedingNumber: number): boolean {
+  return new RegExp(`superseded[\\s-]in[\\s-]part by\\s*\\[?ADR-0*${supersedingNumber}\\b`, "i").test(
+    body,
+  );
+}
+
 function result(name: string, failLines: string[], cleanNote: string, warn = false): CheckResult {
   if (failLines.length === 0) return { name, level: "PASS", lines: [cleanNote] };
   return { name, level: warn ? "WARN" : "FAIL", lines: failLines };
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, stories, guardrails, pathExists } = inputs;
+  const { adrs, parseErrors, adrBodies, stories, guardrails, pathExists } = inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -147,6 +170,32 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     }
   }
   results.push(result("supersede-consistency", inconsistent, "supersedes ⇔ superseded holds"));
+
+  // 3b supersede-in-part-note — the partial-supersession analogue of check 3. A `supersedes_in_part`
+  // target is NOT flipped to superseded (it stays accepted, still live in part), so check 3 never
+  // touches it. The consistency it owes instead: the partially-overtaken ADR must carry the
+  // standardized INCOMING note naming the superseding ADR (ADR-0037 §1 — incoming edges are derived
+  // `## Status` prose). Without it a stale body is gate-clean — the ADR-0011 §5 "DBOS stands" trap.
+  const missingPartNotes: string[] = [];
+  for (const a of adrs) {
+    for (const target of a.supersedesInPart) {
+      if (!byNumber.has(target)) continue; // dangling target → adr-edge-integrity (check 2) owns it
+      const body = adrBodies.get(target) ?? "";
+      if (!hasSupersededInPartNote(body, a.number)) {
+        missingPartNotes.push(
+          `ADR-${pad(target)} is superseded-in-part by ADR-${pad(a.number)} but carries no incoming note — ` +
+            `add to its ## Status: "**Superseded-in-part by [ADR-${pad(a.number)}](${a.file})** — <what's overtaken>"`,
+        );
+      }
+    }
+  }
+  results.push(
+    result(
+      "supersede-in-part-note",
+      missingPartNotes,
+      "every supersede-in-part target carries its incoming note",
+    ),
+  );
 
   // 4 story-decisions
   const badDecisions: string[] = [];
@@ -223,6 +272,23 @@ function pad(n: number): string {
 // NOTE: `loadAdrMetas` moved to `@storytree/drive` (the drive extraction) so the build drivers
 // can consume it without pulling cli's `adr-health` (and its `health.ts` `CheckResult` dep). Import
 // it from `@storytree/drive` if you need it here.
+
+/**
+ * Load each ADR's body text (everything after the frontmatter block) keyed by ADR number — the view
+ * the `supersede-in-part-note` check reads. A file with no/unterminated frontmatter contributes its
+ * whole content (the `adr-frontmatter` check owns that failure separately, so this stays fail-soft).
+ */
+export function loadAdrBodies(decisionsDir: string): Map<number, string> {
+  const bodies = new Map<number, string>();
+  for (const file of readdirSync(decisionsDir).sort()) {
+    const m = /^(\d{4})-.*\.md$/.exec(file);
+    if (m === null) continue;
+    const content = readFileSync(path.join(decisionsDir, file), "utf8");
+    const end = content.startsWith("---\n") ? content.indexOf("\n---", 4) : -1;
+    bodies.set(Number(m[1]), end === -1 ? content : content.slice(end + 4));
+  }
+  return bodies;
+}
 
 /** Load every story's decision view from `stories/<id>/story.md` (the node-spec light loader). */
 export function loadStoryDecisions(storiesDir: string): StoryDecisionsView[] {

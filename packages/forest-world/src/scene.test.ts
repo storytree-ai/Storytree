@@ -296,3 +296,31 @@ test('a territory with in-flight builds carries a wisp orbit; none → no wisps'
   const noWisp = buildScene(mkInput()); // mkTerritory default has no wisps
   assert.equal(firstByKind(mustByKind(noWisp, 'flora-layer'), 'wisps'), null);
 });
+
+// ---------- the phase-resolved wisp band (ADR-0048 §3 v2) ----------
+
+test('the wisp folds the live gate phase → a red/green band (location ⟂ form: phase is the rotation)', () => {
+  const wispFor = (phase?: 'AUTHOR_TEST' | 'CONFIRM_RED' | 'IMPLEMENT' | 'CONFIRM_GREEN' | 'GATE') => {
+    const scene = buildScene(
+      mkInput({
+        territories: [mkTerritory({ wisps: [{ runId: 'r1', title: 'building', ...(phase ? { phase } : {}) }] })],
+      }),
+    );
+    return mustByKind(scene, 'wisp');
+  };
+
+  // red while authoring the test / confirming the red.
+  assert.equal(wispFor('AUTHOR_TEST').phaseBand, 'red');
+  assert.equal(wispFor('CONFIRM_RED').phaseBand, 'red');
+  // green on the green observation + the gate.
+  assert.equal(wispFor('CONFIRM_GREEN').phaseBand, 'green');
+  assert.equal(wispFor('GATE').phaseBand, 'green');
+  // IMPLEMENT (writing the source) and an absent phase are the neutral teal "building" band.
+  assert.equal(wispFor('IMPLEMENT').phaseBand, 'building');
+  assert.equal(wispFor(undefined).phaseBand, 'building');
+
+  // location ⟂ form: the orbit ROTATION `phase` (a number, seeded from the runId) is UNCHANGED by
+  // the build phase — the band is a separate, additive field.
+  assert.equal(wispFor('GATE').phase, wispFor('CONFIRM_RED').phase);
+  assert.equal(typeof wispFor('GATE').phase, 'number');
+});

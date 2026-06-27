@@ -103,8 +103,9 @@ test("top help and the unknown-area guidance both list the adopt area", async ()
   assert.match(top.body, /^\s*adopt\b/m, "top help lists the adopt area");
   const unknown = await run(["wat"], { store });
   assert.equal(unknown.ok, false);
-  // the area roster is consistent — it now carries both adopt and the previously-missing drift
-  assert.match(unknown.body, /gate, adopt, node/);
+  // the area roster is consistent — it carries adopt, the new `build` workflow (ADR-0118, with
+  // node/story as its back-compat aliases), and the coverage-honesty check (ADR-0020).
+  assert.match(unknown.body, /gate, adopt, build, coverage, node/);
   assert.match(unknown.body, /story, drift, adr/);
 });
 

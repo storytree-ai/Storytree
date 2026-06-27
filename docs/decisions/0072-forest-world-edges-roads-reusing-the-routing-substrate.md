@@ -23,6 +23,8 @@ is the styling counterpart to [ADR-0069](0069-parameterise-the-forest-world-geom
 this ADR records the *direction*; the visual verdict is the owner's screenshot nod, after which a
 one-line default flip makes roads the bare `#/tree` world.
 
+**Superseded-in-part by [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md)** — this ADR's decisions 3–4 are reversed: the pond machinery is **removed entirely** rather than shelved-but-kept, and roads becomes **THE one world with no `?world=` selector** rather than shipping behind a default-OFF flag. Decisions 1–2 (pivot the edge art element from water to roads; the routing/geometry layer is the durable restyleable substrate) are kept.
+
 ## Context
 
 The forest map draws story **islands** connected by their dependency edges. Those edges have been

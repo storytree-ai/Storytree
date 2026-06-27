@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-27
 supersedes_in_part: [116]
+load_bearing: true
 ---
 # ADR-0118: Workflow-first CLI surface: proof commands mirror the studio's workflows, primitives nest below
 

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from "electron";
+import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -18,15 +19,81 @@ const appRoot = app.getAppPath();
 // Served over http://127.0.0.1 (not file://) so its absolute /assets/ paths resolve.
 const STUDIO_DIST = join(appRoot, "..", "studio", "dist");
 
+// The thick-local backend SIDECAR entry (ADR-0119 §1). A RAW-TS file run under `tsx` in a child Node
+// process — NOT bundled into this CJS main (esbuild empties its `import.meta` under CJS, breaking the
+// corpus paths + the build path). The main spawns it, reads its `127.0.0.1` port off stdout, and the
+// studio dist server PROXIES `/api/*` to it. It is excluded from `build:electron`'s esbuild entries.
+const BACKEND_ENTRY = join(appRoot, "electron", "backend-entry.ts");
+
 // The credential lives in the OS keychain, reached only through the broker in THIS (main)
 // process. The renderer never holds it (ADR-0109 §Decision 4).
 const broker = new CredentialBroker(new NapiKeychain());
 
 let studioUrl: string | null = null;
+let backendChild: ChildProcess | null = null;
+let backendPort: number | null = null;
+
+/**
+ * Spawn the thick-local backend sidecar as a child Node process via the Electron binary in Node mode
+ * (`ELECTRON_RUN_AS_NODE=1`, `--import tsx`) so no separate `node`/`tsx` on PATH is assumed (ADR-0119
+ * §1). Resolves with the `127.0.0.1` port it prints on stdout; rejects if it dies before reporting one.
+ * The agent boundary (ADR-0004) holds by topology — the sidecar is a main-owned Node process; the
+ * renderer never imports `@storytree/agent`.
+ */
+function startBackend(): Promise<number> {
+  return new Promise<number>((resolvePort, rejectPort) => {
+    const child = spawn(process.execPath, ["--import", "tsx", BACKEND_ENTRY], {
+      cwd: appRoot,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    backendChild = child;
+    let settled = false;
+    let buf = "";
+    const onData = (chunk: Buffer): void => {
+      buf += chunk.toString("utf8");
+      const m = buf.match(/STORYTREE_BACKEND_PORT=(\d+)/);
+      if (m && !settled) {
+        settled = true;
+        child.stdout?.removeListener("data", onData);
+        child.stdout?.resume(); // keep draining so the child never blocks on stdout backpressure
+        resolvePort(Number(m[1]));
+      }
+    };
+    child.stdout?.on("data", onData);
+    child.once("error", (err) => {
+      if (!settled) {
+        settled = true;
+        rejectPort(err);
+      }
+    });
+    child.once("exit", (code) => {
+      if (backendChild === child) backendChild = null;
+      if (!settled) {
+        settled = true;
+        rejectPort(new Error(`backend sidecar exited (code ${code ?? "null"}) before reporting a port`));
+      }
+    });
+  });
+}
 
 async function ensureStudioServed(): Promise<string> {
   if (studioUrl === null) {
-    const served = await serveStudio(STUDIO_DIST);
+    if (backendPort === null) {
+      try {
+        backendPort = await startBackend();
+      } catch (err) {
+        // Fall back to the Step-1 shell (serveStudio's 503) so the window still opens and shows the
+        // store-unavailable banner rather than failing to launch.
+        console.error(
+          `[main] thick-local backend failed to start: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    const served = await serveStudio(
+      STUDIO_DIST,
+      backendPort !== null ? { backendPort } : {},
+    );
     studioUrl = served.url;
   }
   return studioUrl;
@@ -70,4 +137,12 @@ void app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+// Reap the backend sidecar on quit so it never outlives the shell (ADR-0119 §1 lifecycle).
+app.on("will-quit", () => {
+  if (backendChild !== null) {
+    backendChild.kill("SIGTERM");
+    backendChild = null;
+  }
 });

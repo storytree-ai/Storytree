@@ -72,7 +72,9 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'bloom-ring': 'bloom-ring',
   'bloom-spark': 'bloom-spark',
   wisps: '',
-  wisp: 'world-wisp band-building',
+  // `wisp` composes its band from `phaseBand` in composeClass (band-red/green/building, ADR-0048
+  // §3 v2); the BASE here is just the role class. (A composeClass case overrides this entry.)
+  wisp: 'world-wisp',
   'wisp-hit': 'world-wisp-hit',
   'wisp-glow': 'world-wisp-glow',
   'wisp-dot': 'world-wisp-dot',
@@ -122,6 +124,10 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       return `world-bloom bloom-crown verdict-${node.outcome ?? 'pass'}`;
     case 'bloom-plant':
       return `world-bloom bloom-plant verdict-${node.outcome ?? 'pass'}`;
+    case 'wisp':
+      // ADR-0048 §3 v2: the wisp wears its live red→green band (the core already folded the gate
+      // phase → phaseBand). Default to the neutral teal `building` band when none is known.
+      return `world-wisp band-${node.phaseBand ?? 'building'}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;

@@ -8,12 +8,12 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
-import { buildScene, type SceneInput } from '@storytree/forest-world';
+import { buildScene, type BuildPhase, type SceneInput } from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView';
 
 afterEach(cleanup);
 
-function mkInput(): SceneInput {
+function mkInput(wispPhase?: BuildPhase): SceneInput {
   return {
     offset: { x: 0, y: 0 },
     width: 100,
@@ -40,14 +40,14 @@ function mkInput(): SceneInput {
         plants: [{ id: 'lib#c', status: 'unhealthy', x: 45, y: 55, title: 'cap c' }],
         treeTitle: 'lib — healthy',
         signpost: { outcome: null },
-        wisps: [{ runId: 'r1', title: 'building' }],
+        wisps: [{ runId: 'r1', title: 'building', ...(wispPhase ? { phase: wispPhase } : {}) }],
         plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
       },
     ],
   };
 }
 
-function renderScene(over: Partial<SceneCtx> = {}): {
+function renderScene(over: Partial<SceneCtx> = {}, wispPhase?: BuildPhase): {
   root: HTMLElement;
   ctx: SceneCtx;
 } {
@@ -62,7 +62,7 @@ function renderScene(over: Partial<SceneCtx> = {}): {
   };
   const { container } = render(
     <svg>
-      <SceneView scene={buildScene(mkInput())} ctx={ctx} />
+      <SceneView scene={buildScene(mkInput(wispPhase))} ctx={ctx} />
     </svg>,
   );
   return { root: container, ctx };
@@ -105,6 +105,22 @@ describe('SceneView — the studio scene mapper', () => {
     const wisp = root.querySelector('.world-wisp.band-building');
     expect(wisp).toBeTruthy();
     expect(wisp?.querySelector('animateTransform')).toBeTruthy();
+  });
+
+  it('colours the wisp band by the live gate phase (ADR-0048 §3 v2)', () => {
+    // a CONFIRM_RED build → a red-band wisp (and never a stale building band).
+    const red = renderScene({}, 'CONFIRM_RED').root;
+    expect(red.querySelector('.world-wisp.band-red')).toBeTruthy();
+    expect(red.querySelector('.world-wisp.band-building')).toBeNull();
+    // a GATE build → a green-band wisp.
+    const green = renderScene({}, 'GATE').root;
+    expect(green.querySelector('.world-wisp.band-green')).toBeTruthy();
+    // an absent phase keeps the neutral teal building band (back-compat).
+    const none = renderScene().root;
+    expect(none.querySelector('.world-wisp.band-building')).toBeTruthy();
+    expect(none.querySelector('.world-wisp.band-red')).toBeNull();
+    // the orbit still animates regardless of band.
+    expect(red.querySelector('.world-wisp.band-red animateTransform')).toBeTruthy();
   });
 
   it('selects the story on an island click; selects the capability on a plant click (stopping propagation)', () => {

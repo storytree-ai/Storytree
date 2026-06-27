@@ -15,7 +15,7 @@
 
 import { execFile } from "node:child_process";
 
-import type { PhaseAuthor } from "@storytree/agent";
+import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
 import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
   ChangeEvent,
@@ -89,6 +89,16 @@ export interface ProveSpec {
   binding?: ProvenBinding;
   /** ADR-0016 (optional): the change-log sink the emitted ChangeEvent is appended to. Absent = no emission. */
   changeStore?: ChangeStore;
+  /**
+   * ADR-0048 §3 v2 (optional): a phase OBSERVER the spine invokes as it commits to each phase
+   * (`AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`), so the in-flight-build wisp can
+   * colour by the LIVE red→green phase. Awaited before the phase proceeds (the real observer appends
+   * a `building` work-event — the CLI drive owns that WRITE, never the gate: "No orchestrator
+   * impurity", ADR-0048). Fired ONLY after the spine reaches a phase, so the colour signal is as
+   * honest as the verdict — a forged early green stops the wisp exactly where it stops the walk.
+   * DEFAULT-ABSENT ⇒ zero behaviour change: every pre-ADR-0048 caller omits it and is never called.
+   */
+  onPhase?: (phase: Phase) => void | Promise<void>;
 }
 
 /** The result of {@link proveUnit}: a signed pass, or a fail-closed refusal with the phase it died at. */
@@ -115,8 +125,14 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ── Phase 1: AUTHOR_TEST ────────────────────────────────────────────────
   // The leaf may write the TEST only. On a successful authoring step we advance to CONFIRM_RED.
   visited.push("AUTHOR_TEST");
+  await spec.onPhase?.("AUTHOR_TEST");
   const authored = await spec.author.author("AUTHOR_TEST", spec.prompts.authorTest);
-  if (!authored.ok) {
+  // Turn/budget exhaustion is a COST guard, not a proof signal (ADR-0020): the leaf hit its ceiling,
+  // but a usable (red) test may already be on disk. Fall through to CONFIRM_RED — the spine's own
+  // observation is the sole arbiter — rather than discard the PAID slice (the turn-ceiling cost-leak).
+  // A GENUINE authoring error (no work produced) still fails closed here.
+  const authorExhaustion = exhaustionReason(authored);
+  if (!authored.ok && authorExhaustion === null) {
     return fail("AUTHOR_TEST", `authoring the test failed (${authored.error})`, visited);
   }
   const toRed = advancePhase("AUTHOR_TEST");
@@ -128,17 +144,25 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // The spine OBSERVES the red itself. A forged/early green here is the attack ADR-0020 §3 stops.
   // No leaf runs in this phase (or any later one except IMPLEMENT) — the author is never invoked.
   visited.push("CONFIRM_RED");
+  await spec.onPhase?.("CONFIRM_RED");
   const redObs = await spec.testExecutor.run(spec.testId);
   const redGate = nextPhase("CONFIRM_RED", redObs);
   if (!redGate.ok) {
-    return fail("CONFIRM_RED", redGate.reason, visited);
+    // If the slice was exhausted AND no red landed, the actionable signal is "raise the ceiling and
+    // retry", not just "not red" — preserve that context the fall-through would otherwise swallow.
+    return fail("CONFIRM_RED", redGate.reason + exhaustionNote(authorExhaustion, "a red test"), visited);
   }
 
   // ── Phase 3: IMPLEMENT ──────────────────────────────────────────────────
   // The leaf may write SOURCE only (never the test it must satisfy). Advance to CONFIRM_GREEN.
   visited.push("IMPLEMENT");
+  await spec.onPhase?.("IMPLEMENT");
   const implemented = await spec.author.author("IMPLEMENT", spec.prompts.implement);
-  if (!implemented.ok) {
+  // Same fall-through as AUTHOR_TEST: an exhausted IMPLEMENT slice may have left GREEN code on disk,
+  // so let CONFIRM_GREEN observe it rather than discard the paid work (the discarded-green leak). The
+  // ceiling never gates the verdict — only the spine's observation does.
+  const implementExhaustion = exhaustionReason(implemented);
+  if (!implemented.ok && implementExhaustion === null) {
     return fail("IMPLEMENT", `implementing against the test failed (${implemented.error})`, visited);
   }
   const toGreen = advancePhase("IMPLEMENT");
@@ -149,16 +173,18 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // ── Phase 4: CONFIRM_GREEN ──────────────────────────────────────────────
   // The spine OBSERVES the green itself. A red here means the implementation is not proven.
   visited.push("CONFIRM_GREEN");
+  await spec.onPhase?.("CONFIRM_GREEN");
   const greenObs = await spec.testExecutor.run(spec.testId);
   const greenGate = nextPhase("CONFIRM_GREEN", greenObs);
   if (!greenGate.ok) {
-    return fail("CONFIRM_GREEN", greenGate.reason, visited);
+    return fail("CONFIRM_GREEN", greenGate.reason + exhaustionNote(implementExhaustion, "green"), visited);
   }
 
   // ── Phase 5: GATE (ADR-0020 §4 — the forensic floor) ────────────────────
   // Observe-only. Sign the verdict against a clean committed tree + a resolved signer, then append
   // the SIGNED promotion event. Any refusal here writes NO row.
   visited.push("GATE");
+  await spec.onPhase?.("GATE");
 
   const tree = await spec.treeState();
   if (!tree.clean) {
@@ -220,6 +246,28 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
 /** Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path. */
 function fail(failedAt: Phase, reason: string, phasesVisited: Phase[]): ProveResult {
   return { ok: false, failedAt, reason, phasesVisited };
+}
+
+/**
+ * The leaf's exhaustion reason, or `null` when the slice was a clean success OR a genuine error.
+ * An exhausted slice (the leaf hit its turn/budget ceiling — see {@link AuthorResult}'s `exhausted`)
+ * is treated as authoring-complete: the gate falls through to its own observation rather than
+ * discarding the paid work, and only the spine's red/green decides the verdict.
+ */
+function exhaustionReason(authored: AuthorResult): string | null {
+  return !authored.ok && authored.exhausted === true ? authored.error : null;
+}
+
+/**
+ * The actionable raise-the-ceiling note appended when an EXHAUSTED slice STILL failed its
+ * observation gate. Empty when the slice was not exhausted (a plain not-red/not-green, where the
+ * gate's own reason already says everything). `target` is what the leaf ran out of road before reaching.
+ */
+function exhaustionNote(reason: string | null, target: string): string {
+  return reason === null
+    ? ""
+    : ` — the leaf exhausted its turn/budget ceiling before reaching ${target} ` +
+        `(${reason}); raise --max-turns/--budget and retry`;
 }
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */

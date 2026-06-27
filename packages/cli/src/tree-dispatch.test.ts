@@ -159,5 +159,7 @@ test("tree --help is an ok envelope and the top help names the area", async () =
   assert.match(helpEnv.body, /✓ proven/);
 
   const top = await run([], { store: new InMemoryStore() });
-  assert.match(top.body, /tree {13}the work hierarchy/);
+  // ADR-0118 goal-first flip: `tree` is now surfaced as a proof workflow (`tree [<story>]`), not the
+  // old grain-area line — but the top help still names it with its work-hierarchy gloss.
+  assert.match(top.body, /^\s*tree \[<story>\].*the work hierarchy/m);
 });

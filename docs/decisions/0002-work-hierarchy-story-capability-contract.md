@@ -11,6 +11,8 @@ accepted
 
 > Amended by ADR-0010 (proof ladder, dependency grain, DAG grain).
 
+**Superseded-in-part by [ADR-0010](0010-organism-model-story-bounded-context.md)** — this ADR's proof-mode table is overtaken: the proof ladder shifts up one rung (the **UAT moves from the capability to the story**, the capability is proven by integration tests against real in-story collaborators), and the deferred DAG-grain question is resolved (stories carry declared-interface edges; capabilities carry a code-derived within-story graph).
+
 ## Date
 
 2026-06-03

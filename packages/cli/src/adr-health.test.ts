@@ -12,6 +12,8 @@ import {
   adrHealth,
   adrGateFailures,
   extractPathTokens,
+  hasSupersededInPartNote,
+  loadAdrBodies,
   loadStoryDecisions,
   type AdrHealthInputs,
   type GuardrailView,
@@ -37,6 +39,7 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
   return {
     adrs: [],
     parseErrors: [],
+    adrBodies: new Map(),
     stories: [],
     guardrails: [],
     pathExists: () => true,
@@ -100,6 +103,54 @@ test("supersede-consistency: both directions enforced", () => {
   assert.equal(levelOf(clean, "supersede-consistency"), "PASS");
 });
 
+test("supersede-in-part-note: a partial-supersession target must carry the standardized incoming note", () => {
+  // ADR-0077 supersedes ADR-0074 IN PART; 0074 stays accepted (live in part). check 3
+  // (supersede-consistency) structurally never sees it — only `supersedes`, not `supersedes_in_part`
+  // — so before this check a stale 0074 body with no incoming note was gate-clean (the bug, proven
+  // live). This is the partial-supersession analogue: the incoming note is what closes it.
+  const adrs = [adr(74, "accepted"), adr(77, "accepted", { supersedesInPart: [74] })];
+
+  // no incoming note on 0074 -> FAIL, and it GATES
+  const missing = adrHealth(
+    inputs({ adrs, adrBodies: new Map([[74, "## Status\n\naccepted — the store layer is visible.\n"]]) }),
+  );
+  assert.equal(levelOf(missing, "supersede-in-part-note"), "FAIL");
+  assert.ok(
+    adrGateFailures(missing).some((r) => r.name === "supersede-in-part-note"),
+    "a missing incoming note gates the merge",
+  );
+
+  // the canonical note present -> PASS
+  const present = adrHealth(
+    inputs({
+      adrs,
+      adrBodies: new Map([
+        [74, "## Status\n\naccepted\n\n**Superseded-in-part by [ADR-0077](0077-x.md)** — the store dissolved into the library.\n"],
+      ]),
+    }),
+  );
+  assert.equal(levelOf(present, "supersede-in-part-note"), "PASS");
+
+  // the older "partially superseded by" wording is NOT accepted — it must be normalized -> FAIL
+  const variant = adrHealth(
+    inputs({ adrs, adrBodies: new Map([[74, "**partially superseded by [ADR-0077](0077-x.md)** — overtaken."]]) }),
+  );
+  assert.equal(levelOf(variant, "supersede-in-part-note"), "FAIL");
+
+  // a dangling supersedes_in_part target is owned by adr-edge-integrity, not this check -> PASS here
+  const dangling = adrHealth(inputs({ adrs: [adr(2, "accepted", { supersedesInPart: [99] })] }));
+  assert.equal(levelOf(dangling, "supersede-in-part-note"), "PASS");
+});
+
+test("hasSupersededInPartNote: tolerant of case/hyphenation + zero-padding, keyed to the superseding ADR", () => {
+  assert.ok(hasSupersededInPartNote("**Superseded-in-part by [ADR-0019](x.md)** — …", 19));
+  assert.ok(hasSupersededInPartNote("superseded in part by ADR-19 …", 19)); // spaces + unpadded
+  assert.ok(hasSupersededInPartNote("SUPERSEDED-IN-PART BY [ADR-0118]", 118)); // case + 3-digit
+  assert.ok(!hasSupersededInPartNote("**Superseded-in-part by [ADR-0019]**", 18)); // wrong number
+  assert.ok(!hasSupersededInPartNote("partially superseded by [ADR-0019]", 19)); // variant rejected
+  assert.ok(!hasSupersededInPartNote("see ADR-0019 for context", 19)); // a bare mention is not a note
+});
+
 test("story-decisions: dangling or superseded deciding ADRs FAIL", () => {
   const story = (decisions: number[]): StoryDecisionsView => ({ id: "s", status: "proposed", decisions });
   const adrs = [adr(14, "superseded"), adr(27, "accepted", { supersedes: [14] })];
@@ -155,6 +206,7 @@ test("extractPathTokens: backticked repo paths only, line suffixes dropped", () 
 test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip drift", async () => {
   const { adrs, parseErrors } = loadAdrMetas(path.join(REPO_ROOT, "docs", "decisions"));
   assert.ok(adrs.length >= 37, `expected the full ADR corpus, parsed ${adrs.length}`);
+  const adrBodies = loadAdrBodies(path.join(REPO_ROOT, "docs", "decisions"));
   const stories = loadStoryDecisions(path.join(REPO_ROOT, "stories"));
   assert.ok(stories.length >= 5, `expected the story seed, parsed ${stories.length}`);
 
@@ -174,6 +226,7 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   const results = adrHealth({
     adrs,
     parseErrors,
+    adrBodies,
     stories,
     guardrails,
     pathExists: (rel) => existsSync(path.join(REPO_ROOT, rel)),
