@@ -23,6 +23,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
+import type { PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 import {
   BUILD_IN_FLIGHT_TTL_MS,
@@ -126,6 +127,17 @@ export interface LibraryBackend {
    * so the handler refuses with "needs the live store", mirroring the CLI's `--pg`-only refusal.
    */
   signUatVerdict?(verdict: Verdict, actor: string): Promise<Verdict>;
+
+  /**
+   * Persist a builder's BROKERED presence declaration into events.session via PgPresenceStore.declare
+   * — the SAME atomic append+upsert path `storytree noticeboard declare` and the presence hook write
+   * through (ADR-0033). Used by the write-broker (ADR-0117): a remote builder's local session declares
+   * its presence so it appears on the shared notice board / in the forest. Presence carries no signing
+   * chain (ADR-0033 d.1), so `actor` is advisory — the store anchors the row on the declaration's own
+   * sessionId. OPTIONAL: implemented only by the pg backend (the json backend has no events.session),
+   * so the broker refuses with "needs the live store", mirroring {@link signUatVerdict}.
+   */
+  declarePresence?(doc: PresenceDeclarationDoc, actor: string): Promise<PresenceDeclarationDoc>;
 
   /**
    * Active notice-board sessions (events.session projection, ADR-0033) with the
@@ -750,6 +762,20 @@ export class PgBackend implements LibraryBackend {
       actor,
     });
     return verdict;
+  }
+
+  /**
+   * Persist a brokered presence declaration into events.session via PgPresenceStore.declare — the SAME
+   * atomic append+upsert path `storytree noticeboard declare` and the presence hook use (ADR-0033). A
+   * real WRITE (not raced/swallowed like the advisory reads): a failure (down DB) propagates to the
+   * handler, mapped to 503. Presence carries no signing chain (ADR-0033 d.1), so `actor` is advisory —
+   * the store anchors the row on the declaration's own sessionId.
+   */
+  async declarePresence(doc: PresenceDeclarationDoc, _actor: string): Promise<PresenceDeclarationDoc> {
+    const { store } = await this.#ready();
+    const handle = this.#handle;
+    if (!handle) throw new Error('no pool');
+    return new store.PgPresenceStore(handle.pool).declare(doc);
   }
 
   /**
