@@ -14,7 +14,7 @@
 // an `invited` row flips to `active` on first request. Pure decisions over (method, path, access);
 // the one impure step — reading the projection + the activation upsert — is `resolveMembersAccess`.
 
-import { resolveAccess, parseSeedAdmins, normalizeEmail, type ResolvedAccess } from '@storytree/studio-members';
+import { resolveAccess, parseSeedAdmins, normalizeEmail, mayBrokerWrite, type ResolvedAccess } from '@storytree/studio-members';
 import { HttpError } from './httpUtil';
 import type { ApiPolicy, MeInfo } from './apiRouter';
 import type { LibraryBackend } from './libraryBackend';
@@ -104,6 +104,16 @@ export function createMembersPolicy(identity: string | null, access: ResolvedAcc
         // Non-member: the corpus (tree/library/docs/comments) is served nothing.
         throw new HttpError(403, 'not a member', { requestAccess: true });
       }
+      // ADR-0117 d.2: the write-broker is the ONE non-comment write a non-admin member may make — a
+      // builder (or admin) POSTs a locally-signed verdict / presence declaration through it so a
+      // builder's local build blooms in the shared forest. `mayBrokerWrite` is the single source of the
+      // brokered-write role scope (admin ⊇ builder); a plain member is refused here (403), and an
+      // identity-less caller already 401'd above. Without this exception the admin-only-by-method rule
+      // below would 403 a builder's POST.
+      if (pathname === '/api/write-broker') {
+        if (mayBrokerWrite(access.role)) return;
+        throw new HttpError(403, 'member scope — brokered writes need the builder role (ADR-0117)');
+      }
       // User management is admin-only (any method); asset/other writes are admin-only too. Comment
       // writes stay open to members (scoped to own comments below); GETs read the whole corpus.
       const adminOnly =
@@ -116,6 +126,9 @@ export function createMembersPolicy(identity: string | null, access: ResolvedAcc
     },
     commentScope: access ? { author: access.email, ownOnly: !isAdmin } : null,
     me: meFromAccess(identity, access),
+    // ADR-0117: thread the resolved access so the write-broker handler reads the role off the SAME
+    // ResolvedAccess the gate authorized from (not a lossy MeInfo reconstruction).
+    access,
   };
 }
 
@@ -142,5 +155,8 @@ export function createDegradedPolicy(identity: string | null, seedAdmins: Readon
     },
     commentScope: null,
     me: { email: identity, role: null, status: null, member: false, storeUnreachable: true, canWakeDb: mayWakeDb(identity, seedAdmins) },
+    // Membership couldn't be resolved (store down) — no resolved access, so brokered writes 503 here
+    // like the rest of the corpus (the gate above already refuses everything but health/me/wake).
+    access: null,
   };
 }

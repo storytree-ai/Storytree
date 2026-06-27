@@ -6,10 +6,29 @@
 // a fully-formed Verdict and persists it unchanged — after verifying it).
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Verdict } from '@storytree/proof-protocol';
-import { PresenceDeclaration, type PresenceDeclarationDoc } from '@storytree/notice-board';
+import type { Verdict } from '@storytree/proof-protocol';
+import type { PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { ResolvedAccess } from '@storytree/studio-members';
 import { HttpError, sendJson } from './httpUtil.js';
+
+// The verdict/presence zod schemas + the brokered-write role predicate (mayBrokerWrite) live in raw-TS
+// workspace packages whose `.js` re-export specifiers don't resolve under a no-tsx loader — and
+// apiRouter.ts (which imports this module) is reached by vite's config-load bundling. So import the
+// TYPES statically (erased) and load the runtime VALUES lazily, on first use: the SAME config-load
+// discipline libraryBackend.ts / apiRouter.ts follow, so the studio's `vite build` never reaches
+// proof-protocol's enums.js. Each is a bare-specifier dynamic import (externalized at config-bundle,
+// deferred to request time where tsx resolves it) and is cached by the ESM loader after the first call.
+let proofProtocolModule: Promise<typeof import('@storytree/proof-protocol')> | null = null;
+const loadProofProtocol = (): Promise<typeof import('@storytree/proof-protocol')> =>
+  (proofProtocolModule ??= import('@storytree/proof-protocol'));
+
+let noticeBoardModule: Promise<typeof import('@storytree/notice-board')> | null = null;
+const loadNoticeBoard = (): Promise<typeof import('@storytree/notice-board')> =>
+  (noticeBoardModule ??= import('@storytree/notice-board'));
+
+let studioMembersModule: Promise<typeof import('@storytree/studio-members')> | null = null;
+const loadStudioMembers = (): Promise<typeof import('@storytree/studio-members')> =>
+  (studioMembersModule ??= import('@storytree/studio-members'));
 
 // ---------------------------------------------------------------------------
 // Store-write seam (injected by the caller; the production wiring uses PgBackend +
@@ -77,7 +96,8 @@ export async function handleWriteBroker(
   }
 
   const role = ctx.access?.role;
-  if (!role || (role !== 'builder' && role !== 'admin')) {
+  const { mayBrokerWrite } = await loadStudioMembers();
+  if (!role || !mayBrokerWrite(role)) {
     throw new HttpError(403, 'builder or admin role required');
   }
 
@@ -101,6 +121,7 @@ export async function handleWriteBroker(
 
   if (type === 'verdict') {
     // ---- SHAPE wall (Verdict.safeParse strict) ----
+    const { Verdict } = await loadProofProtocol();
     const result = Verdict.safeParse(payload);
     if (!result.success) {
       throw new HttpError(400, `invalid verdict shape: ${result.error.message}`);
@@ -119,6 +140,7 @@ export async function handleWriteBroker(
     sendJson(res, 201, { ok: true, verdict: persisted });
   } else if (type === 'presence') {
     // ---- SHAPE wall (PresenceDeclaration.safeParse strict) ----
+    const { PresenceDeclaration } = await loadNoticeBoard();
     const result = PresenceDeclaration.safeParse(payload);
     if (!result.success) {
       throw new HttpError(400, `invalid presence shape: ${result.error.message}`);
