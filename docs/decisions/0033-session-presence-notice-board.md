@@ -15,6 +15,8 @@ holder of that name is renamed **`feedback-graduation`** (see
 
 **Superseded-in-part by [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)** — session presence is **demoted out of the orbiting-wisp role**: the thing that orbits a tree is now the in-flight mechanical *build* (a `building` work-event), not the *session*. The presence data model, the dock, and `noticeboard declare` all stand; only their orbiting-wisp role moves to the harness.
 
+**Superseded-in-part by [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md)** — Decision 4 ("No claims, no conflict refusal — named-deferred… It is not built now") is overtaken: ADR-0121 builds the typed-claims-with-refusal upgrade for the build surface (overlap conflicts became routine — the 2026-06-27 duplicate build). The advisory presence board (Decisions 1–3, 5) stands untouched.
+
 ## Date
 
 2026-06-11
