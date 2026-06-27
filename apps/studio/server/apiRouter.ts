@@ -1259,6 +1259,37 @@ export function applyOpenQuestionGate(
   }
 }
 
+/**
+ * Apply ADR-0040 / ADR-0094 d.1 to the go-green affordance: a story PROVEN green (a signed `pass` crown
+ * verdict) offers NO go-green action, regardless of its authored `status:`. A sibling pass to the crown
+ * passes above, run AFTER {@link applyUatCrowns} / {@link applyCapCoverage} (so the crown verdict it
+ * reads is settled) and BEFORE {@link applyOpenQuestionGate} (so it reads the CROWN's pass, matching the
+ * adopt-POST worker which gates on the same `rollupStoryGreen` crown — the panel and the worker can't
+ * diverge on what "proven" means).
+ *
+ * This is the panel-side reading of the SAME rule the spine predicate `storyGoGreen(spec, caps, proven)`
+ * enforces for the worker (its `proven` clause): a brownfield port keeps its authored `mapped` forever
+ * (`healthy` is non-authorable, ADR-0020) while its crown derives green from a signed `adopted` verdict,
+ * so without this it would keep offering **Adopt** on an already-green tree (the storage-protocol bug).
+ * It is computed as a separate pass — not inside the file-only assembly that first set `goGreen` — only
+ * because the crown verdict isn't known until the verdict events are folded in here.
+ *
+ * Conservative + one-directional: it ONLY ever DOWNGRADES a `build`/`adopt` affordance to `none` when the
+ * story is proven; it never invents an affordance the predicate wouldn't, and never touches an unproven
+ * story (offline / no crown ⇒ the assembly's status-only `goGreen` stands, under-claiming like the world
+ * hue). When it clears the affordance it also drops `adoptGates`/`adoption`, preserving the lean-wire
+ * invariant that those ride ONLY with `goGreen === 'adopt'`. Mutates `stories` in place.
+ */
+export function applyStoryGoGreenProof(stories: TreeStory[]): void {
+  for (const story of stories) {
+    if (story.verdict?.outcome !== 'pass') continue; // unproven ⇒ leave the status-only affordance.
+    if (story.goGreen === undefined || story.goGreen === 'none') continue;
+    story.goGreen = 'none';
+    delete story.adoptGates;
+    delete story.adoption;
+  }
+}
+
 /** The ids of the gates that `(covers:)` a capability — the covered cap's synthetic verdict draws its `at` from these. */
 function coveringGateIds(
   coverage: readonly { id: string; covers?: readonly string[] }[],
@@ -1649,6 +1680,12 @@ export async function handleApiRequest(
         if (uatTestsByStory.size > 0) {
           applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
         }
+        // ADR-0040 / ADR-0094 d.1: a story now PROVEN green (a signed pass crown, just settled above)
+        // offers NO go-green action — drop a stale Adopt/Build the file-only assembly set from authored
+        // status (a brownfield port keeps `mapped` forever though its crown is green). Run AFTER the
+        // crown passes and BEFORE the OQ gate so it reads the CROWN's pass — the same `rollupStoryGreen`
+        // crown the adopt-POST precheck gates on, so the panel affordance and the worker can't diverge.
+        applyStoryGoGreenProof(payload.stories);
         // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
         // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
         // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never

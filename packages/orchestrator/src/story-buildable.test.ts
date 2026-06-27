@@ -178,6 +178,38 @@ test("a MAPPED story lights Adopt regardless of buildability (Adopt is observe-a
   assert.equal(storyGoGreen(port, []), "adopt"); // …but Adopt-able via its reliability gate.
 });
 
+test("a PROVEN mapped story shows NO go-green action — proof outranks authored status (ADR-0040 / ADR-0094 d.1)", () => {
+  // The storage-protocol bug (owner-reported 2026-06-27): a brownfield port keeps its authored
+  // `mapped` FOREVER (`healthy` is non-authorable, ADR-0020) while its crown derives green from a
+  // signed `adopted` verdict. Without the `proven` short-circuit it would keep offering Adopt on an
+  // already-green tree. Same spec that lights Adopt unproven (below) must light NOTHING once proven.
+  const port = spec("storage-protocol", "story", {
+    status: "mapped",
+    reliabilityGates: [observeGate("storage-protocol#gate-1")],
+  });
+  assert.equal(storyGoGreen(port, []), "adopt"); // unproven: Adopt is the path to green…
+  assert.equal(storyGoGreen(port, [], true), "none"); // …proven: done, no go-green action.
+});
+
+test("proof outranks a proposed→build story too — proven ⇒ none even when a real drive exists", () => {
+  // The clause is verdict-first: it precedes the status switch, so a proven story is `none` whatever
+  // its authored status (a proposed story that reached a signed green is done, not still 'build').
+  const caps = [spec("c1", "capability", { buildConfig: realCfg })];
+  const story = spec("nb", "story", { capabilities: ["c1"], status: "proposed" });
+  assert.equal(storyGoGreen(story, caps), "build"); // unproven proposed + real drive ⇒ Build…
+  assert.equal(storyGoGreen(story, caps, true), "none"); // …proven ⇒ done.
+});
+
+test("proven defaults false — an offline caller keeps the status-only reading (under-claims, never guesses green)", () => {
+  // Parity with the world hue offline (provenStatus): with no verdict to read, the affordance follows
+  // authored status rather than fabricating a green it can't see. The 2-arg call is the offline form.
+  const port = spec("p", "story", {
+    status: "mapped",
+    reliabilityGates: [observeGate("p#gate-1")],
+  });
+  assert.equal(storyGoGreen(port, []), "adopt"); // 2-arg (proven defaults false) ≡ the pre-fix behaviour.
+});
+
 test("a HEALTHY story has no go-green affordance (re-verification aside)", () => {
   const caps = [spec("c1", "capability", { buildConfig: realCfg })];
   const story = spec("h", "story", { capabilities: ["c1"], status: "healthy" });
