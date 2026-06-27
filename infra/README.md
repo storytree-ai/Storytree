@@ -40,42 +40,31 @@ pnpm db:down      # stop  → ~$3-5/mo, storage only (activation-policy NEVER)
 pnpm db:status    # show state + activation policy
 ```
 
-### Auto-stop is idle-aware (`idle-stop.tf`)
+### Auto-stop is a fixed nightly window — 01:00–07:00 Australia/Sydney (`cost-backstop.tf`, ADR-0114)
 
-Two Terraform-managed mechanisms keep a forgotten instance from bleeding ~$25/mo —
-**without** stopping one you're actively using:
+The shared instance sleeps overnight and is up across the day, so the member-facing hosted studio
+(ADR-0042) is reliably reachable during waking hours without anyone running `db:up`. Two
+Terraform-managed Cloud Scheduler jobs PATCH the Cloud SQL Admin API directly (no app code), both
+running as one least-privilege SA (`sql-stopper`: `roles/cloudsql.editor` = `instances.update`, no
+keys):
 
-1. **Idle-aware Cloud Function** (`storytree-pg-idle-stop`, source in `functions/idle-stop/`)
-   — Cloud Scheduler pings it every 15 min (`idle_check_schedule`). It reads the Cloud
-   Monitoring `database/postgresql/num_backends` connection metric (EXCLUDING the
-   `cloudsqladmin` management database, whose ~2 background connections are constant) and
-   stops the instance **only after `idle_minutes` (default 300 = 5 h) with zero DB
-   connections**. While a session / the Cloud SQL Auth Proxy holds a connection, the timer
-   never fires — so it "counts from the last request" and won't kill live work. It runs as a
-   least-privilege SA (`sql-idle-stopper`: `roles/cloudsql.editor` + `roles/monitoring.viewer`,
-   no keys) and is invoked privately by the scheduler over an OIDC token (not public). On any
-   error, or when metric data is missing (e.g. a freshly-started instance), it **does not
-   stop** and logs loudly. The pure noop/stop decision lives in `functions/idle-stop/decide.js`
-   with offline unit tests (`pnpm check:idle-stop`).
+1. **STOP at 01:00** (`storytree-pg-stop-backstop`) — sets `activationPolicy=NEVER`.
+2. **START at 07:00** (`storytree-pg-start-window`) — sets `activationPolicy=ALWAYS`, bringing the
+   instance up before members arrive (the half that used to be missing — nothing auto-started it).
 
-   > **Correction (2026-06-22):** this shipped reading `database/network/connections`, which
-   > returns **no samples** for this instance — so the function was inoperative (empty data
-   > tripped the "don't stop" fail-safe every cycle) and the daily floor was doing all the
-   > stopping. Fixed to `num_backends` (minus `cloudsqladmin`); threshold re-tuned 8 h → 5 h
-   > to match the owner's real cadence. See ADR-0015 §5.
+Both are unconditional/idempotent — a no-op against an instance already in the target state. A manual
+`pnpm db:up` still works any time inside the sleep window (the 07:00 start is a floor, not a ceiling).
+The instance resource keeps `lifecycle.ignore_changes = [settings[0].activation_policy]`, so the
+out-of-band start/stop is never seen as Terraform drift.
 
-2. **Daily hard floor** (`storytree-pg-stop-backstop`, `cost-backstop.tf`) — the original
-   blunt cron, relaxed from **hourly to daily** (04:30 Australia/Sydney). It stops the
-   instance unconditionally, on purpose: it's the last line of cost defense for the case
-   where the idle function is itself broken. (It used to be hourly, which is what stopped an
-   instance mid-session.)
+> **History (ADR-0114, amending ADR-0015 §5):** this replaced an **idle-aware Cloud Function**
+> (`functions/idle-stop/`) that stopped the instance after 5 h of zero connections, plus a blunt
+> 04:30 daily floor. That posture had no morning auto-start (a stopped instance stayed down until a
+> human woke it) and could stop mid-day when quiet — both bad for hosted-studio members. The idle
+> function was paused, then fully torn down (its SAs, scheduler, bucket, and source removed).
 
-Tune via `terraform apply -var=idle_minutes=120` (or set it in `terraform.tfvars`).
-
-> **Known gap:** an Auth Proxy left running in the background keeps a connection open, so
-> the idle function will treat the instance as "active" indefinitely — the daily floor is
-> what catches that. Don't `pnpm db:down` at the end of a working session (owner call
-> 2026-06-13 — the automation is the stopper, not sessions); just close any background proxy.
+> Don't `pnpm db:down` at the end of a working session (owner call 2026-06-13 — the schedule is the
+> stopper, not sessions).
 
 Tear the whole thing down with `terraform destroy`.
 

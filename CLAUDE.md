@@ -169,8 +169,8 @@ file conflicts).
   sessions kept stopping it between bursts). Auto-stop is now a **fixed nightly window — asleep
   01:00–07:00 Australia/Sydney** (ADR-0114, `infra/cost-backstop.tf`): one Cloud Scheduler job STOPS it
   at 01:00 and a second STARTS it at 07:00, so it stays predictably up across the day for the
-  member-facing hosted studio (ADR-0042). The old idle-aware 5 h auto-stop (ADR-0015 §5,
-  `infra/idle-stop.tf`) is **paused** — superseded by this window. A manual `db:up` still works any
+  member-facing hosted studio (ADR-0042). The old idle-aware 5 h auto-stop (ADR-0015 §5) was
+  **removed** — superseded by this window (ADR-0114). A manual `db:up` still works any
   time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
   overnight stop.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.

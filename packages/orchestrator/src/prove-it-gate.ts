@@ -15,7 +15,7 @@
 
 import { execFile } from "node:child_process";
 
-import type { PhaseAuthor } from "@storytree/agent";
+import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
 import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
   ChangeEvent,
@@ -116,7 +116,12 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // The leaf may write the TEST only. On a successful authoring step we advance to CONFIRM_RED.
   visited.push("AUTHOR_TEST");
   const authored = await spec.author.author("AUTHOR_TEST", spec.prompts.authorTest);
-  if (!authored.ok) {
+  // Turn/budget exhaustion is a COST guard, not a proof signal (ADR-0020): the leaf hit its ceiling,
+  // but a usable (red) test may already be on disk. Fall through to CONFIRM_RED — the spine's own
+  // observation is the sole arbiter — rather than discard the PAID slice (the turn-ceiling cost-leak).
+  // A GENUINE authoring error (no work produced) still fails closed here.
+  const authorExhaustion = exhaustionReason(authored);
+  if (!authored.ok && authorExhaustion === null) {
     return fail("AUTHOR_TEST", `authoring the test failed (${authored.error})`, visited);
   }
   const toRed = advancePhase("AUTHOR_TEST");
@@ -131,14 +136,20 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const redObs = await spec.testExecutor.run(spec.testId);
   const redGate = nextPhase("CONFIRM_RED", redObs);
   if (!redGate.ok) {
-    return fail("CONFIRM_RED", redGate.reason, visited);
+    // If the slice was exhausted AND no red landed, the actionable signal is "raise the ceiling and
+    // retry", not just "not red" — preserve that context the fall-through would otherwise swallow.
+    return fail("CONFIRM_RED", redGate.reason + exhaustionNote(authorExhaustion, "a red test"), visited);
   }
 
   // ── Phase 3: IMPLEMENT ──────────────────────────────────────────────────
   // The leaf may write SOURCE only (never the test it must satisfy). Advance to CONFIRM_GREEN.
   visited.push("IMPLEMENT");
   const implemented = await spec.author.author("IMPLEMENT", spec.prompts.implement);
-  if (!implemented.ok) {
+  // Same fall-through as AUTHOR_TEST: an exhausted IMPLEMENT slice may have left GREEN code on disk,
+  // so let CONFIRM_GREEN observe it rather than discard the paid work (the discarded-green leak). The
+  // ceiling never gates the verdict — only the spine's observation does.
+  const implementExhaustion = exhaustionReason(implemented);
+  if (!implemented.ok && implementExhaustion === null) {
     return fail("IMPLEMENT", `implementing against the test failed (${implemented.error})`, visited);
   }
   const toGreen = advancePhase("IMPLEMENT");
@@ -152,7 +163,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const greenObs = await spec.testExecutor.run(spec.testId);
   const greenGate = nextPhase("CONFIRM_GREEN", greenObs);
   if (!greenGate.ok) {
-    return fail("CONFIRM_GREEN", greenGate.reason, visited);
+    return fail("CONFIRM_GREEN", greenGate.reason + exhaustionNote(implementExhaustion, "green"), visited);
   }
 
   // ── Phase 5: GATE (ADR-0020 §4 — the forensic floor) ────────────────────
@@ -220,6 +231,28 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
 /** Build a fail-closed {@link ProveResult}. NO signing row is ever written on this path. */
 function fail(failedAt: Phase, reason: string, phasesVisited: Phase[]): ProveResult {
   return { ok: false, failedAt, reason, phasesVisited };
+}
+
+/**
+ * The leaf's exhaustion reason, or `null` when the slice was a clean success OR a genuine error.
+ * An exhausted slice (the leaf hit its turn/budget ceiling — see {@link AuthorResult}'s `exhausted`)
+ * is treated as authoring-complete: the gate falls through to its own observation rather than
+ * discarding the paid work, and only the spine's red/green decides the verdict.
+ */
+function exhaustionReason(authored: AuthorResult): string | null {
+  return !authored.ok && authored.exhausted === true ? authored.error : null;
+}
+
+/**
+ * The actionable raise-the-ceiling note appended when an EXHAUSTED slice STILL failed its
+ * observation gate. Empty when the slice was not exhausted (a plain not-red/not-green, where the
+ * gate's own reason already says everything). `target` is what the leaf ran out of road before reaching.
+ */
+function exhaustionNote(reason: string | null, target: string): string {
+  return reason === null
+    ? ""
+    : ` — the leaf exhausted its turn/budget ceiling before reaching ${target} ` +
+        `(${reason}); raise --max-turns/--budget and retry`;
 }
 
 /** Turn a spine observation into an {@link EvidenceRef} backing the verdict (the captured red/green). */

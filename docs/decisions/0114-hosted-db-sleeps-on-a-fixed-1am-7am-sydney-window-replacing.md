@@ -43,9 +43,13 @@ for `storytree-pg`:
   This is the missing half: the instance is up before members arrive.
 - **Disable the idle-aware auto-stop** (`idle-stop.tf`) by **pausing** its 15-minute Cloud Scheduler
   check, so the instance stays up across the whole 07:00–01:00 window regardless of connection count.
-  The dormant idle-stop function/SA resources are retained-but-paused; full teardown is a follow-up
-  cleanup, deferred to avoid dropping the shared `google_project_service` API-enablement declarations
-  that currently live in that file and that the studio / CD rely on.
+  The dormant idle-stop function/SA resources were initially retained-but-paused, with full teardown
+  deferred to avoid dropping the shared `google_project_service` API-enablement declarations that
+  lived in that file and that the studio / CD rely on. **Update (2026-06-27): the teardown was
+  completed** — the idle function, its two SAs + IAM, the source bucket/object, and the 15-minute
+  scheduler are removed (`infra/idle-stop.tf` and `infra/functions/idle-stop/` deleted); the shared
+  `run`/`cloudbuild`/`artifactregistry` enablements were first relocated to `infra/services.tf`
+  (same resource addresses, a no-op move) so serving was never affected.
 
 The schedulers PATCH the Cloud SQL Admin API directly (no app code); the instance resource keeps
 `lifecycle.ignore_changes = [settings[0].activation_policy]` so the out-of-band start/stop is not seen

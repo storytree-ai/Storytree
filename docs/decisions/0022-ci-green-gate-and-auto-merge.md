@@ -13,6 +13,8 @@ cadence (`CLAUDE.md`: "merge-to-main-when-green") for a **solo, multi-machine** 
 Reconciled with [ADR-0008](0008-ui-drives-agents-approvals.md) (the *product's*
 approval-gated story-trunk) — see §Relationship.
 
+**Superseded-in-part by [ADR-0046](0046-continuous-deployment-for-the-hosted-studio.md)** — only this ADR's §"What this does NOT decide" scope clause ("Release / publish / deploy … CD beyond 'integrate to main' is out of scope") is overtaken: ADR-0042 created a hosting target, so merge→deploy CD is now in scope. The green-gate + auto-merge mechanism this ADR decides is unchanged and reused as the CD trigger edge.
+
 ## Date
 
 2026-06-08

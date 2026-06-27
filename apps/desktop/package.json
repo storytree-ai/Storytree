@@ -15,7 +15,9 @@
     "@napi-rs/keyring": "^1.1.6",
     "@storytree/drive": "workspace:*",
     "@storytree/library": "workspace:*",
-    "@storytree/orchestrator": "workspace:*"
+    "@storytree/notice-board": "workspace:*",
+    "@storytree/orchestrator": "workspace:*",
+    "@storytree/proof-protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

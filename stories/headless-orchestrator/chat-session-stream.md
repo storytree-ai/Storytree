@@ -49,13 +49,23 @@ thin-client chat panel — reusing the Phase-1 composition, read/propose only.
 streaming HTTP front of the Phase-1 composition: it drives `orchestrate` and forwards its live output to
 the client. It owns no loop logic of its own.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This is **ADR-0108 Phase 2** (the chat surface),
-> authored before implementation. It precedes no green. It REUSES the Phase-1 composition verbatim:
-> `orchestrate` (`packages/drive/src/orchestrate.ts`, the real `session-orchestrator` render + headless
-> session), which already exists and is real. Phase 2 adds a STREAM + an HTTP intake around it — not a
-> new loop, not a forked prompt. The renderer chat PANEL (the thin client) is operator-attested where it
-> ships (the `desktop` story's "feels like one app" UAT leg, ADR-0070 / ADR-0113); THIS capability owns
-> the provable SSE/intake BACKEND.
+> **Proof status (honest) — BUILT and GREEN (signed verdict).** This is **ADR-0108 Phase 2** (the chat
+> surface). The streaming core is real: `packages/drive/src/chat-stream.ts` (`startChatStream`, an
+> async-generator SSE-shaped event stream over the Phase-1 `orchestrate` composition), authored net-new
+> by the gated leaf in **PR #398** (verdict commit `f2d4ed5`); **PR #399** then completed the two
+> contract tests that were initially under-covered. This session added two refinements (already landed
+> green on this branch): (1) `chat-stream.ts` is now exported from the `@storytree/drive` barrel
+> (`packages/drive/src/index.ts`), so both the studio worker and the desktop local backend can mount the
+> one streaming core by package name; (2) a distinct terminal `refused` event
+> (`ChatStreamRefusedEvent`, chat-stream.ts:50) that surfaces the composition-level TYPED single-session
+> refusal (`orchestrate` returns `{ refused: true, reason: "single-session" }`, ADR-0108 d.6 / PR #416),
+> separate from the generic `error` event so a thin client can show "busy / try again". It REUSES the
+> Phase-1 composition verbatim: `orchestrate`
+> (`packages/drive/src/orchestrate.ts`, the real `session-orchestrator` render + headless session) —
+> Phase 2 is a STREAM + an HTTP intake around it, not a new loop or a forked prompt. The renderer chat
+> PANEL (the thin client) is still **operator-attested where it ships** (the `desktop` story's "feels
+> like one app" UAT leg, ADR-0070 / ADR-0113 — the thin client is not built yet); THIS capability owns
+> the provable SSE/intake BACKEND, which is green.
 
 ## Guidance
 
@@ -74,8 +84,11 @@ rests on.
 
 ONE STREAMING CORE, MOUNTED BY BOTH SURFACES (the studio-build precedent): the streaming adapter lives in
 `@storytree/drive` (beside `orchestrate.ts`), so BOTH consumers mount the SAME core — the studio worker
-(ADR-0090, when hosting returns) AND the desktop local backend (ADR-0113, where it ships first). This
-capability is OWNED by the headless-orchestrator story while its source sits physically in
+(ADR-0090, when hosting returns) AND the desktop local backend (ADR-0113, where it ships first). It is
+exported from the `@storytree/drive` barrel (`packages/drive/src/index.ts`), so both surfaces import the
+one core by package name — `import { startChatStream } from "@storytree/drive"` — rather than reaching
+into the source path or forking it (it was not importable before this session added the barrel line).
+This capability is OWNED by the headless-orchestrator story while its source sits physically in
 `@storytree/drive` (exactly as `orchestrator-composition` owns `orchestrate.ts` in drive). The HTTP
 MOUNTING (the `/api/chat` route + the SSE response wiring) is the consuming surface's thin glue (the
 desktop's `local-backend-boot`), over THIS streaming core.
@@ -90,9 +103,14 @@ no real socket).
 READ/PROPOSE ONLY, NO SIGNING (ADR-0091 / the Phase-2 wall): the chat surface streams an orient+propose
 session. It holds NO signing key, hands in NO verdict, triggers NO build, opens NO PR, lands NOTHING
 (Phases 3–5). Whole-loop authority + the accept-to-land gate are LATER increments — this capability adds
-the conversational surface over the read/propose runtime, nothing more. The single-session guard the
-composition enforces still holds (one orchestration at a time; a second concurrent chat session is
-refused).
+the conversational surface over the read/propose runtime, nothing more. The single-session guard is NOT
+re-implemented here: the authoritative TYPED brake is the composition-level guard in `orchestrate`
+(`packages/drive/src/orchestrate.ts`, ADR-0108 d.6 / PR #416), which returns `{ refused: true, reason:
+"single-session" }` synchronously when a session is already in flight (`runHeadlessOrchestrator`'s
+module-level `inFlight` flag is a lower-level backstop). `startChatStream` maps that typed refusal to a
+DISTINCT terminal `refused` stream event (chat-stream.ts:122) — separate from `error`, so a thin client
+can render "busy / try again" rather than a failure. One orchestration at a time; a second concurrent
+chat session is refused.
 
 THE THIN CLIENT NEVER IMPORTS THE AGENT (ADR-0108 d.1 / ADR-0004): the renderer chat panel sends messages
 and renders the stream; it never imports `@storytree/agent` and holds no model path. The agent boundary
@@ -126,58 +144,73 @@ The integration test would:
    was rendered, the orientation deps assembled over the real seed) — not a forked/bespoke session.
 4. Assert no build/PR/verdict side effect occurred (read/propose only, ADR-0091) — the adapter holds no
    signing key and no build runner.
-5. A failed session (injected dead/error `queryFn`) → the stream ends in a terminal ERROR event (an
-   honest failure), never a forged proposal and never a hung stream.
-6. A second concurrent chat session → refused (the single-session guard), the running session's stream
-   untouched.
+5. A failed session (a dead session — e.g. `session-orchestrator` absent from the store) → the stream
+   ends in a terminal ERROR event (an honest failure), never a forged proposal and never a hung stream,
+   and the SDK is never called (fail-closed before any spend).
+6. A second concurrent chat session, while the first is in-flight → ends in a DISTINCT terminal
+   `refused` event carrying the single-session reason (NOT a generic `error`, so a thin client can show
+   "busy / try again"), the SDK never reached, and the running session's stream left untouched.
 
-## Contracts (4)
+## Contracts (5)
 
-The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `@storytree/drive`
-suite), collaborators stubbed. None exist yet; each is the assertion a contract test WILL prove against
-the real adapter code once authored (provisional path — re-cite at real `file:line` when built).
+The test-proven leaf behaviours — each one assertion in the `@storytree/drive` suite
+(`node:test`), exercised against the real `orchestrate` composition with an injected `queryFn` scripted
+double. All five are now green (built net-new by #398, contract coverage completed by #399).
 
 1. **`cs-streams-session-output-as-events`** — the session's output is forwarded as a terminating event stream
-   - **asserts —** driving the adapter with a scripted session yields a sequence of typed events carrying
-     the live output and ending in a terminal DONE event with the proposal — the SSE shape the route
-     serialises (no real socket in the test).
-   - **covers —** `packages/drive/src/chat-stream.ts` (the stream) *(provisional path)*
+   - **asserts —** driving the adapter with a scripted session yields a sequence of typed events ending
+     in a terminal DONE event carrying the proposal — the SSE shape the route serialises (no real socket
+     in the test). The done event also surfaces `costUsd` and `turns` from the orchestrate result.
+   - **covers —** `packages/drive/src/chat-stream.test.ts:84` (terminal `done` + proposal),
+     `packages/drive/src/chat-stream.test.ts:170` (`costUsd`/`turns` surfaced)
 2. **`cs-drives-the-real-orchestrate-not-a-fork`** — the adapter reuses the Phase-1 composition
-   - **asserts —** the adapter drives `orchestrate` (the real composition) with the intake as the intent
-     and the injected `queryFn` passed through — it does NOT re-render the prompt or re-implement the
-     session (a stubbed `orchestrate` is asserted to have been called with the intent).
-   - **covers —** `packages/drive/src/chat-stream.ts` (the composition reuse)
+   - **asserts —** the adapter drives the REAL `orchestrate` composition with the intake as the intent
+     and the injected `queryFn` passed through — proven by capturing the system prompt fed to the SDK and
+     asserting it names `session-orchestrator` (the rendered Library agent), not a bespoke forked prompt.
+   - **covers —** `packages/drive/src/chat-stream.test.ts:206`
 3. **`cs-read-propose-only`** — no act side effect, no signing
-   - **asserts —** on a successful scripted session the adapter surfaces a proposal in its terminal event,
-     and no build/PR/verdict path is invoked — the adapter holds no signing key, no build runner
-     (read/propose only, ADR-0091).
-   - **covers —** `packages/drive/src/chat-stream.ts` (the read/propose boundary)
-4. **`cs-fails-closed-and-single-session`** — a dead session ends in an error event; concurrency is refused
-   - **asserts —** a dead/error session yields a terminal ERROR event (never a forged proposal, never a
-     hung stream), and a second concurrent session is refused (the single-session guard, ADR-0108 d.6),
-     the running session untouched.
-   - **covers —** `packages/drive/src/chat-stream.ts` (the fail-closed + single-session path)
+   - **asserts —** on a successful scripted session the adapter surfaces a proposal in its terminal `done`
+     event and nothing more. The "no build/PR/verdict side effect" half is true BY CONSTRUCTION, not by a
+     dedicated assertion: the adapter's only collaborator is `orchestrate` (chat-stream.ts:106), it holds
+     no signing key and no build runner, so there is no path through which it could sign, build, open a
+     PR, or land — there is nothing for a test to observe being NOT invoked (read/propose only, ADR-0091).
+   - **covers —** `packages/drive/src/chat-stream.test.ts:84` (the surfaced proposal is the proven half);
+     the no-side-effect half is structural — `packages/drive/src/chat-stream.ts:102` (`startChatStream`
+     calls only `orchestrate`, takes no signer/runner-of-builds)
+4. **`cs-fails-closed-on-dead-session`** — a dead session ends in a terminal `error` event
+   - **asserts —** a dead/error session (e.g. `session-orchestrator` absent, an SDK error) yields a
+     terminal `error` event — never a forged proposal, never a hung stream — and the SDK is never called
+     (fail-closed before any spend).
+   - **covers —** `packages/drive/src/chat-stream.test.ts:122`
+5. **`cs-single-session-refused`** — a second concurrent session ends in a DISTINCT `refused` event
+   - **asserts —** a second concurrent session yields a distinct terminal `refused` event carrying the
+     reason (the single-session guard, ADR-0108 d.6, enforced by the composition-level typed guard in
+     `orchestrate` — PR #416: `{ refused: true, reason: "single-session" }`; `runHeadlessOrchestrator`'s
+     `inFlight` flag is a backstop — and surfaced here as the `refused` event), while the running session
+     is left untouched and the SDK is never reached. Distinct from `error` so a thin client can render
+     "busy / try again".
+   - **covers —** `packages/drive/src/chat-stream.test.ts:261`; the `refused` event type at
+     `packages/drive/src/chat-stream.ts:50` and the refusal mapping at `packages/drive/src/chat-stream.ts:122`
 
-## Guidance — the net-new slice that earns the signed verdict
+## Guidance — the net-new slice that earned the signed verdict
 
-The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the chat streaming adapter
-as a new module in `@storytree/drive`, test-first.
+The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): the chat streaming adapter was
+authored as a new module in `@storytree/drive`, test-first. This records how it landed (now green).
 
-- **The new test —** `packages/drive/src/chat-stream.test.ts` (`node:test` + `node:assert/strict`).
-  Import `{ chatSessionStream }` (or the chosen name) from `"./chat-stream.js"`. Build an `InMemoryStore`
-  + `loadCorpus` for the real seed and an injected `queryFn` scripted double passed through to
-  `orchestrate`.
-- **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `chat-stream.ts` does
-  not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red). Assert the
-  event stream, the real-`orchestrate` reuse, the read/propose boundary, and the fail-closed +
-  single-session path.
-- **The GREEN —** write `packages/drive/src/chat-stream.ts`: an adapter that takes a chat intake (intent)
-  + the injectable `queryFn`/runner, drives `orchestrate`, and yields an async stream of typed events
-  (live output + a terminal done/error) the consuming route serialises as SSE. Reuse `orchestrate`
-  verbatim; hold no signing key, no build runner; enforce the single-session guard. After it, the import
-  resolves, the assertions hold, and the package suite + typecheck stay green. The HTTP mounting (the
-  `/api/chat` route + the SSE response) is the consuming surface's glue (the desktop's `local-backend-boot`),
-  over this core.
+- **The test —** `packages/drive/src/chat-stream.test.ts` (`node:test` + `node:assert/strict`). It
+  imports `{ startChatStream }` from `"./chat-stream.js"`, builds an `InMemoryStore` + `loadCorpus` for
+  the real seed, and injects a `queryFn` scripted double passed through to `orchestrate`.
+- **The RED the spine observed (before IMPLEMENT) —** the import resolved NOTHING — `chat-stream.ts` did
+  not exist at HEAD, so the test failed module-not-found (the net-new missing-symbol red). It asserts the
+  event stream, the real-`orchestrate` reuse, the read/propose boundary, the fail-closed (dead-session)
+  `error` path, and the distinct `refused` single-session path.
+- **The GREEN —** `packages/drive/src/chat-stream.ts`: `startChatStream` takes a chat intake (intent) +
+  the injectable `queryFn`/runner, drives `orchestrate`, and yields an async generator of typed events
+  (a terminal `done`/`error`/`refused`) the consuming route serialises as SSE. It reuses `orchestrate`
+  verbatim; holds no signing key, no build runner; and surfaces `orchestrate`'s composition-level typed
+  single-session refusal (PR #416) as a distinct `refused` event. The import resolves, the assertions hold, and the package suite + typecheck
+  are green. The HTTP mounting (the `/api/chat` route + the SSE response) is the consuming surface's glue
+  (the desktop's `local-backend-boot`), over this core.
 
 Rules:
 
@@ -185,7 +218,9 @@ Rules:
   The test pins this (`cs-drives-the-real-orchestrate-not-a-fork`).
 - **Read/propose only** — surface a proposal in the stream; hold no signing key, hand in no verdict,
   trigger no build, open no PR (ADR-0091). Phases 3–5 are out of scope.
-- **Fail closed, never hang** — a dead session ends in a terminal error event; the single-session guard
-  holds (ADR-0108 d.6). The test pins this.
+- **Fail closed, never hang** — a dead session ends in a terminal `error` event
+  (`cs-fails-closed-on-dead-session`). The inherited single-session guard ends a second concurrent
+  session in a DISTINCT terminal `refused` event, not an `error` (`cs-single-session-refused`,
+  ADR-0108 d.6). Both are pinned.
 - **Transport-agnostic core** — yield an event stream the route serialises as SSE; keep the core
   socket-free so it stays offline-testable.

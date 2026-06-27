@@ -157,11 +157,30 @@ export function storytreeDataApi(): Plugin {
           if (unit === null || unit.kind !== 'story') {
             return { ok: false, reason: `no story "${storyId}" (or its spec did not load)` };
           }
-          const { storyGoGreen } = await import('@storytree/orchestrator');
-          if (storyGoGreen(unit.spec, unit.caps) !== 'adopt') {
+          const { storyGoGreen, rollupStoryGreen } = await import('@storytree/orchestrator');
+          // ADR-0040 / ADR-0094 d.1: a story already PROVEN green has nothing to adopt, so refuse it
+          // here just as the /api/tree panel hides the Adopt button. The SAME predicate gates both, fed
+          // the SAME `rollupStoryGreen` crown the panel uses — reconstructed from the live verdict events
+          // (own-proof obligations + reliability gates, the cap clause vacuous for a capless port), the
+          // mirror of apiRouter's crown roll-up — so the worker can never adopt a story the panel hides.
+          // Offline (no verdict events) ⇒ proven=false: the status-only reading, matching the panel.
+          const events = (await backend.verdictEvents?.()) ?? null;
+          const proven =
+            events !== null &&
+            rollupStoryGreen(
+              unit.spec.capabilities,
+              [...unit.spec.uatTests.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map(
+                (o) => ({ id: o.id }),
+              ),
+              events,
+              unit.spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
+            ) === 'healthy';
+          if (storyGoGreen(unit.spec, unit.caps, proven) !== 'adopt') {
             return {
               ok: false,
-              reason: `story "${storyId}" is not adoptable — Adopt is the mapped→proposed entry for a brownfield story with \`## Reliability Gates\` (ADR-0097).`,
+              reason: proven
+                ? `story "${storyId}" is already proven green — its reliability gates carry a signed pass, so there is nothing to adopt (ADR-0040 / ADR-0094 d.1).`
+                : `story "${storyId}" is not adoptable — Adopt is the mapped→proposed entry for a brownfield story with \`## Reliability Gates\` (ADR-0097).`,
             };
           }
           return { ok: true };

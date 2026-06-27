@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import type { AddressInfo } from "node:net";
@@ -28,20 +28,50 @@ const CONTENT_TYPES: Record<string, string> = {
  * boundary). This serves the studio's already-public UI only; it carries no source, no
  * engine, no stories (ADR-0090 d.4).
  *
- * `/api/*` is deliberately NOT served — the worker backend is Step 2. A clean 503 lets the
- * studio fall back to its store-unavailable banner (proving the shell renders) instead of
- * being handed HTML for a JSON fetch.
+ * `/api/*` is PROXIED to the thick-local backend sidecar (ADR-0119 §1) when `backendPort` is given —
+ * a plain `node:http` request pipe, NO extra deps (the house posture). Without a sidecar (the Step-1
+ * shell, or the sidecar not yet started) it falls back to a clean 503 so the studio shows its
+ * store-unavailable banner instead of being handed HTML for a JSON fetch.
  */
-export function serveStudio(distDir: string): Promise<{ url: string; server: Server }> {
+export function serveStudio(
+  distDir: string,
+  opts?: { backendPort?: number },
+): Promise<{ url: string; server: Server }> {
   const root = normalize(distDir);
   const indexHtml = join(root, "index.html");
+  const backendPort = opts?.backendPort;
 
   const server = createServer((req, res) => {
     const rawPath = (req.url ?? "/").split("?")[0] ?? "/";
 
     if (rawPath.startsWith("/api/")) {
-      res.writeHead(503, { "content-type": "application/json; charset=utf-8" });
-      res.end('{"error":"no backend in the desktop shell (Step 1; worker wiring is Step 2)"}');
+      if (backendPort === undefined) {
+        res.writeHead(503, { "content-type": "application/json; charset=utf-8" });
+        res.end('{"error":"no local backend (sidecar not started)"}');
+        return;
+      }
+      // Pipe the full request (method + path + query + headers + body) to the sidecar and stream its
+      // response back. A connection error becomes a 502 JSON envelope (never HTML for a JSON fetch).
+      const proxyReq = httpRequest(
+        {
+          host: "127.0.0.1",
+          port: backendPort,
+          method: req.method,
+          path: req.url,
+          headers: req.headers,
+        },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+          proxyRes.pipe(res);
+        },
+      );
+      proxyReq.on("error", (err) => {
+        if (!res.headersSent) {
+          res.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        }
+        res.end(JSON.stringify({ error: `local backend unreachable: ${err.message}` }));
+      });
+      req.pipe(proxyReq);
       return;
     }
 

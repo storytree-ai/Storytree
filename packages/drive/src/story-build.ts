@@ -45,6 +45,7 @@ import {
   resolveDbProofEnv,
   resolveVerdictStore,
 } from "./node-build.js";
+import type { ClaimStoreLike } from "./node-build.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
 import { loadAdrMetas } from "./adr-metas.js";
@@ -314,6 +315,11 @@ export interface StoryBuildOpts {
    * plain checkout) — null on either side makes presence a silent no-op.
    */
   presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
+  /**
+   * Injectable for tests (ADR-0121): the per-unit write-claim store. Default = the `--store pg`
+   * pool's claim store (null in-memory). Identity is SHARED with `presence` (the worktree session).
+   */
+  claim?: { store?: ClaimStoreLike | null };
 }
 
 /** `storytree story build <story-id>` — the whole Phase-E walk, returned as one envelope. */
@@ -550,6 +556,13 @@ export async function storyBuild(
     now: () => new Date(),
   };
 
+  // The per-unit write-claim around the WHOLE story build (ADR-0121): a second concurrent
+  // `story build <same> --real` is hard-refused, keyed on the story id (the node-build claim covers a
+  // lone `node build`; this covers the story chain). Live exactly when verdicts persist (--store pg)
+  // and identity is worktree-derivable.
+  const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
+  const claimIdentity = ambient.identity;
+
   const runId = `story-${mode}-${Date.now().toString(36)}`;
   const budgetUsd = live || real ? (opts.budgetUsd ?? DEFAULT_STORY_BUDGET_USD) : undefined;
 
@@ -558,7 +571,37 @@ export async function storyBuild(
   // worktree add`, or a `pnpm install` failure it tears down and rethrows), and a throw before this
   // try would leak the Cloud SQL pool for the process lifetime.
   let worktree: BuildWorktree | undefined;
+  let claimHeld = false;
   try {
+    // Refuse a duplicate concurrent story build before cutting a worktree or spending (ADR-0121) —
+    // the ENFORCING twin of presence; a second `story build <same>` on the shared store is refused.
+    if (claimStore !== null && claimIdentity !== null) {
+      const claimRes = await claimStore.claim({
+        unitId: story.id,
+        sessionId: claimIdentity.sessionId,
+        branch: claimIdentity.branch,
+        intent: `story:${mode}`,
+      });
+      if (!claimRes.acquired) {
+        const held = claimRes.heldBy;
+        return {
+          ok: false,
+          body: [
+            `story "${story.id}" is already being built by another live session — REFUSED (ADR-0121).`,
+            "",
+            `held by:     ${held.sessionId} (branch ${held.branch})`,
+            `claimed at:  ${held.claimedAt}`,
+            "",
+            "Two sessions building one story race to promote duplicate branches. The claim refuses the",
+            "second rather than letting both spend and promote. Coordinate via the notice board, or wait",
+            "for the claim to be released on completion (or to age out if the holder died).",
+          ].join("\n"),
+          next: ["storytree noticeboard --pg", `storytree story build <other-id> ${real ? "--real" : "--live"}`],
+        };
+      }
+      claimHeld = true;
+    }
+
     // REAL mode: ONE shared worktree for the whole chain — each node authors + commits into it in
     // dependency order, so a later node sees earlier nodes' spine-committed source (intra-story deps
     // resolve; a fresh-per-node worktree off HEAD could not). Installed once iff ANY driven node
@@ -914,6 +957,14 @@ export async function storyBuild(
       ],
     };
   } finally {
+    // Release the story claim (ADR-0121); swallow failures (it ages out via stale-reclaim).
+    if (claimHeld && claimStore !== null && claimIdentity !== null) {
+      try {
+        await claimStore.release(story.id, claimIdentity.sessionId);
+      } catch {
+        // swallow
+      }
+    }
     if (worktree !== undefined) await worktree.remove();
     await storeChoice.close();
   }

@@ -186,6 +186,21 @@ export type {
   PocketClass,
 } from "./proof/adoption-proposal.js";
 export { classifyAdoption } from "./proof/adoption-proposal.js";
+// ADR-0020 coverage-honesty follow-on: the pure contract→test coverage classifier — maps each
+// declared `## Contracts` behaviour to an observed test by the naming convention, flagging the
+// uncovered (the gap a signed `--real` green leaves open: it attests ONE authored test, ADR-0020 §3).
+// Mirrors classifyAdoption one tier DOWN (capability→gate ⇒ contract→test). Offline, no store/git/clock.
+export type {
+  ContractCoverage,
+  ContractCoverageReport,
+  ContractCoverageSpec,
+} from "./proof/contract-coverage.js";
+export {
+  classifyContractCoverage,
+  classifyDeclaredCoverage,
+  extractTestNames,
+  testNameCoversContract,
+} from "./proof/contract-coverage.js";
 // ADR-0098 Layer 3 (U4): the pre-build batch decision-sweep — the deterministic owner-fork-bar
 // classifier (the d.5 escalate-ownership-not-uncertainty discriminator) + the partition + the
 // fail-closed halt gate the build-tests `--real` drive consults before any spend. Pure, offline; the

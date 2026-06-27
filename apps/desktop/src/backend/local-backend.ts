@@ -11,6 +11,26 @@ import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { writeToForestBroker } from "./forest-readiness.js";
+import type {
+  BrokerPostFn,
+  BrokerCallOptions,
+  ForestWrite,
+  ForestWriteResult,
+} from "./forest-readiness.js";
+
+// The verdict/presence zod schemas live in raw-TS workspace packages whose `.js` re-export
+// specifiers don't resolve under a non-tsx loader; load the runtime VALUES lazily, on first use —
+// the SAME discipline the orchestrator import below (and the studio's writeBroker.ts) follow, so a
+// future bundle of this module never reaches their enums at load time. Type-only imports are erased,
+// so forest-readiness's own `import type` of these shapes carries no runtime coupling to them.
+let proofProtocolModule: Promise<typeof import("@storytree/proof-protocol")> | null = null;
+const loadProofProtocol = (): Promise<typeof import("@storytree/proof-protocol")> =>
+  (proofProtocolModule ??= import("@storytree/proof-protocol"));
+let noticeBoardModule: Promise<typeof import("@storytree/notice-board")> | null = null;
+const loadNoticeBoard = (): Promise<typeof import("@storytree/notice-board")> =>
+  (noticeBoardModule ??= import("@storytree/notice-board"));
+
 // ---------- minimal HTTP helpers (local copies — not imported from studio) ----------
 
 class HttpError extends Error {
@@ -92,6 +112,13 @@ export interface LocalBackendDeps {
   store: string;
   /** Build seam; omit for read-only deployments. */
   build?: LocalBackendBuild;
+  /**
+   * Forest-write seam — the desktop persists its locally-signed verdict/presence to the SHARED
+   * forest THROUGH THE BROKER (ADR-0117), never a direct Cloud SQL connection. Omit to leave the
+   * forest-write route disabled (→ 404). Production wires {@link createBrokerForestWriter} over the
+   * configured studio broker URL.
+   */
+  forestWrite?: ForestWriter;
 }
 
 // ---------- tree discovery (uses the real orchestrator, lazily) ----------
@@ -186,6 +213,23 @@ export function createLocalBackend(
         // For now, return 202 with a stable envelope; the runner is wired but not yet polled.
         void deps.build.runner(unitId, () => undefined);
         sendJson(res, 202, { runId: unitId });
+      } else if (url.pathname === "/api/forest/write") {
+        // Persist a locally-signed verdict/presence to the SHARED forest THROUGH THE BROKER
+        // (ADR-0117) — the desktop's forest-write path is brokered, never a direct DB connection.
+        if (deps.forestWrite === undefined) throw new HttpError(404, "forest write is not enabled");
+        const method = req.method ?? "GET";
+        if (method !== "POST") throw new HttpError(405, `method ${method} not allowed`);
+        const input = await readJsonBody<Record<string, unknown>>(req);
+        const write = await parseForestWrite(input);
+        const result = await deps.forestWrite.write(write);
+        if (result.persisted) {
+          // The broker validated shape + attribution and persisted under its service-account identity.
+          sendJson(res, 201, { ok: true, body: result.body });
+        } else {
+          // Fail-closed, never forged: surface the broker's refusal status (or 502 when the broker
+          // was unreachable / timed out) with the member-actionable guidance.
+          sendJson(res, result.status ?? 502, { ok: false, error: result.guidance });
+        }
       } else {
         throw new HttpError(404, "unknown endpoint");
       }
@@ -197,4 +241,79 @@ export function createLocalBackend(
       }
     }
   };
+}
+
+// ---------- forest-write wiring (brokered, never a direct DB connection — ADR-0117) ----------
+
+/**
+ * Validate an incoming `{ type, payload }` forest-write request into a typed {@link ForestWrite}.
+ *
+ * Throws {@link HttpError}(400) on an unknown type or a payload that fails its protocol shape — the
+ * desktop fast-fails malformed local input before the network hop; the broker re-validates as the
+ * authority (ADR-0117 d.3). The zod schemas are lazy-loaded (the raw-TS `.js` re-export discipline).
+ */
+async function parseForestWrite(input: Record<string, unknown>): Promise<ForestWrite> {
+  const type = input["type"];
+  if (type === "verdict") {
+    const { Verdict } = await loadProofProtocol();
+    const parsed = Verdict.safeParse(input["payload"]);
+    if (!parsed.success) throw new HttpError(400, `invalid verdict shape: ${parsed.error.message}`);
+    return { type: "verdict", payload: parsed.data };
+  }
+  if (type === "presence") {
+    const { PresenceDeclaration } = await loadNoticeBoard();
+    const parsed = PresenceDeclaration.safeParse(input["payload"]);
+    if (!parsed.success) throw new HttpError(400, `invalid presence shape: ${parsed.error.message}`);
+    return { type: "presence", payload: parsed.data };
+  }
+  throw new HttpError(400, `unknown forest write type "${String(type)}"`);
+}
+
+/**
+ * Production {@link BrokerPostFn}: a real `fetch` POST to the configured studio broker base URL.
+ *
+ * Opens NO DB connection and imports NO `apps/studio/server` source — the cross-surface edge is an
+ * HTTP edge only (ADR-0117 d.1 / ADR-0100). Returns the broker's status + parsed JSON body so the
+ * write client can map it to a persisted / not-persisted result.
+ */
+export function createFetchBrokerPost(brokerBaseUrl: string): BrokerPostFn {
+  const base = brokerBaseUrl.replace(/\/+$/, "");
+  return async (apiPath, body) => {
+    const res = await fetch(`${base}${apiPath}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let parsed: unknown = null;
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text;
+      }
+    }
+    return { status: res.status, body: parsed };
+  };
+}
+
+/**
+ * The desktop's forest-write seam: persist a locally-signed verdict/presence to the shared forest
+ * THROUGH THE BROKER (ADR-0117) — never a direct Cloud SQL connection.
+ */
+export interface ForestWriter {
+  write: (write: ForestWrite) => Promise<ForestWriteResult>;
+}
+
+/**
+ * Production {@link ForestWriter}: brokered over a real `fetch` {@link BrokerPostFn} pointed at the
+ * configured studio broker URL. This is the desktop's ONLY forest-write path — there is no direct
+ * `@storytree/store` / `PgWorkStore` connector in the desktop write path (ADR-0117 d.1/d.5).
+ */
+export function createBrokerForestWriter(
+  brokerBaseUrl: string,
+  options?: BrokerCallOptions,
+): ForestWriter {
+  const brokerPost = createFetchBrokerPost(brokerBaseUrl);
+  return { write: (w) => writeToForestBroker(brokerPost, w, options) };
 }
