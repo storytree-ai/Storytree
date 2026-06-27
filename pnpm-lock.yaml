@@ -19,9 +19,15 @@ importers:
       '@storytree/library':
         specifier: workspace:*
         version: link:../../packages/library
+      '@storytree/notice-board':
+        specifier: workspace:*
+        version: link:../../packages/notice-board
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
+      '@storytree/proof-protocol':
+        specifier: workspace:*
+        version: link:../../packages/proof-protocol
     devDependencies:
       '@types/node':
         specifier: ^22.10.7
