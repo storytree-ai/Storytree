@@ -55,7 +55,14 @@ model-events), never by importing another organism's source.
 - **`packages/library`** — the library organism: the work-hierarchy schema (`schema.ts`, story /
   capability / contract, `Tier`/`Status`/`Unit`) and the knowledge-document schema (`knowledge.ts`,
   `knowledge-render.ts`, `knowledge-sources.ts`, `migrations.ts`, `library-doc.ts`,
-  `validateLibraryDoc`/`upcast`).
+  `validateLibraryDoc`/`upcast`) — the root barrel is pure-zod / browser-safe (the studio bundles it).
+  Its **node-only `store/` subpath** (`packages/library/src/store/`, imported as
+  `@storytree/library/store`) owns the library's persistence (ADR-0077 — moved here when the old
+  `@storytree/store` package dissolved): the shared Cloud SQL Postgres store (plain pg, **no DBOS**) —
+  `connection.ts` (Node connector + keyless IAM), `schema.sql`/`migrate.ts` (the `events` schema),
+  the corpus store `pg-store.ts`, the comment store `pg-comment-store.ts`, the ADR allocator
+  `adr-store.ts`, and `load-corpus.ts` (the library migration). It carries `node:`/`pg` imports, so it
+  is never re-exported from the root barrel — Node consumers import the subpath directly.
 - **`packages/notice-board`** — the notice-board organism (ADR-0068 step 6): the session-presence
   schema + staleness classification (`PresenceDeclarationDoc`/`classifyPresence`/`mergeDeclaration`/
   the staleness thresholds). Pure zod, browser-safe (the studio bundles it).
@@ -77,9 +84,6 @@ model-events), never by importing another organism's source.
   `anchor-compute.ts`/`hashSpan`, `rollup.ts`, `verdict-line.ts`, `attestations.ts`, `proof-status.ts`,
   `source-drift.ts`) — the COMPUTE moved out of the dissolved core; the DATA shapes it reads/returns
   are proof-protocol's.
-- **`packages/store`** — the Cloud SQL Postgres store (plain pg, **no DBOS**): `connection.ts`
-  (Node connector + keyless IAM), `schema.sql` (the `events` schema only), `pg-store.ts`,
-  `load-corpus.ts` (the library migration).
 - **`packages/cli`** — the choose-your-own-adventure Library/CLI surface (ADR-0023); also home to the
   ADR frontmatter parser (`adr-frontmatter.ts`) and the `stories/` corpus guard
   (`scripts/validate-corpus.ts`, run in its `test`).
@@ -169,7 +173,7 @@ file conflicts).
   `infra/idle-stop.tf`) is **paused** — superseded by this window. A manual `db:up` still works any
   time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
   overnight stop.
-  Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/store/src/load-corpus.ts`.
+  Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
   Live smoke (ADR-0030, subscription-billed): `pnpm storytree node build <id> --live`
