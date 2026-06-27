@@ -2529,11 +2529,31 @@
       "asset:prove-it-gate",
       "asset:prove-and-promote-ceremony",
       "asset:slow-growth-minimum-to-green",
-      "asset:cross-story-dependency"
+      "asset:cross-story-dependency",
+      "asset:audit-the-signed-verdict"
     ],
-    "provenance": "Authored 2026-06-16 at the owner's steer — the inner loop (leaf prove-it-gate → signed verdict) is one tool, not the whole job. Cited by session-orchestrator. Composes with slow-growth-minimum-to-green (the leaf's discipline inside a provable unit) and cross-story-dependency (the depends_on direction rule that orders the routing).",
+    "provenance": "Authored 2026-06-16 at the owner's steer — the inner loop (leaf prove-it-gate → signed verdict) is one tool, not the whole job. Cited by session-orchestrator. Composes with slow-growth-minimum-to-green (the leaf's discipline inside a provable unit) and cross-story-dependency (the depends_on direction rule that orders the routing). The post-proof companion is audit-the-signed-verdict (audit the leaf's green against the spec after routing).",
     "createdAt": "2026-06-16T00:00:00.000Z",
     "updatedAt": "2026-06-16T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
+    "kind": "principle",
+    "id": "audit-the-signed-verdict",
+    "title": "Audit the signed verdict against the spec",
+    "description": "A signed green --real verdict proves the leaf's authored test went red→green under the spine's eye — not that the test covers every contract the spec enumerates. Audit the authored test against the spec's contract list; and because the audit can err, confirm a suspected gap in the code (inherited ≠ absent) before raising it.",
+    "statement": "A signed GREEN verdict is a coverage CLAIM to audit, not a coverage GUARANTEE — read the authored test against the spec's contract list, and confirm a suspected gap in the code (inherited ≠ absent) before raising it.",
+    "why": "The prove-it-gate's guarantee is real but narrow: spine-observed red→green on the AUTHORED test. It is silent on test COMPLETENESS — the leaf chooses what to assert, and under turn pressure (the --max-turns ceiling, see orchestrate-route-supplement) it reliably drops the trickiest robustness/concurrency contract while still signing green. Trust the green alone and you land a unit that looks proven but under-covers its spec: an arc once signed a `shared-forest-connection` capability green while dropping a `bounded-never-hangs` contract (no timeout — a hanging connector hangs forever), caught only by a later audit. The mirror failure is over-eager auditing — calling a contract dropped because the unit's OWN test does not assert it, when the behaviour is INHERITED from a collaborator: a single-session guard once looked dropped from a stream adapter but was effective transitively through the runner's module-level in-flight flag; the adapter being stateless did not make the behaviour absent (a false gap-call). So even WITH the gate, a green's COVERAGE is a claim, not a proof — audit it, and audit your audit: both checks read the actual code, never its surface.",
+    "howToApply": "After a --real signed green on a multi-contract unit: (1) list the spec's enumerated contracts and find the assertion pinning each in the authored test; a contract with no assertion is a SUSPECTED gap, not a confirmed one. (2) For each suspected gap, trace the behaviour through the unit's collaborators — the runner it calls, a shared/base module, a dependency default — before concluding it is absent; a 'stateless' adapter often inherits a guard one level down (inherited ≠ absent). (3) When a gap is REAL and LATENT (no live consumer yet), land the core and raise a tracked capability gap — do NOT hand-author the missing proof (that forges the coverage the gate exists to earn) and do NOT silently skip it. This is the post-proof companion to orchestrate-route-supplement (which routes the unit in) and a sibling of verify-edit-write-persisted-or-escalate in the verify-the-claim family.",
+    "references": [
+      "asset:prove-it-gate",
+      "asset:orchestrate-route-supplement",
+      "asset:verify-edit-write-persisted-or-escalate",
+      "doc:decisions/0020-red-green-enforcement-on-the-owned-loop.md"
+    ],
+    "provenance": "Graduated 2026-06-27 (ADR-0095) from session agent-memory (leaf-drops-trickiest-contract): an inner-loop QA lesson the outer loop learned on the ADR-0113 thick-client arc — a signed green under-covered its spec (fr-bounded-never-hangs dropped from shared-forest-connection, gap-closed in a later PR) and a suspected gap was a false positive because the behaviour was inherited (the chat-session-stream single-session guard, corrected). Durable essence extracted; the event-record (PR numbers, dates) stays in git (ADR-0095 D5). Refines prove-it-gate (the gate proves the test passed, not that it covers the spec); composes with orchestrate-route-supplement (the routing it follows post-proof) and verify-edit-write-persisted-or-escalate (the verify-the-claim family). Consumers: session-orchestrator.",
+    "createdAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-06-27T00:00:00.000Z",
     "schemaVersion": 2
   },
   {
@@ -2627,6 +2647,7 @@
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:audit-the-signed-verdict",
       "asset:plain-language-first"
     ],
     "antiPatterns": [
@@ -2649,6 +2670,7 @@
       "asset:reference-dont-restate",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:audit-the-signed-verdict",
       "asset:plain-language-first",
       "asset:never-bypass-the-gate",
       "asset:agent-never-self-exempts",

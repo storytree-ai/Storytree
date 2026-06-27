@@ -263,7 +263,7 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 
 **Stands on** — assembled from these library artifacts; run `storytree agents session-orchestrator` for their full text:
 - **Ceremonies & context:** merge-ceremony, prove-and-promote-ceremony, library-edit-ceremony, pull-based-context-architecture, orchestrate-route-supplement
-- **Rules:** slow-growth-minimum-to-green, edit-first-curation, owner-fork-bar, reference-dont-restate, observability-first, verify-edit-write-persisted-or-escalate, plain-language-first
+- **Rules:** slow-growth-minimum-to-green, edit-first-curation, owner-fork-bar, reference-dont-restate, observability-first, verify-edit-write-persisted-or-escalate, audit-the-signed-verdict, plain-language-first
 - **Refuse:** never-bypass-the-gate, agent-never-self-exempts, approval-gated-trunk, human-owns-the-outer-loop, live-store-is-the-edit-surface
 
 <!-- AGENT:session-orchestrator END -->
