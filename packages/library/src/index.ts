@@ -17,6 +17,10 @@ export * from "./uat-tests.js";
 // ADR-0085 (ADR-0083 Fork B): the brownfield `## Reliability Gates` obligation set — the
 // author-declared gates that flip a brownfield/foundational story green, distinct from UAT.
 export * from "./reliability-gates.js";
+// ADR-0020 coverage-honesty follow-on: the `## Contracts` parser — a capability's declared leaf
+// contracts, so a coverage check can map each to an observed test (a signed `--real` green attests
+// ONE authored test, not every enumerated contract).
+export * from "./contracts.js";
 // ADR-0106 (amends 0044/0082/0097): the pure per-test UAT witness RESOLUTION — the asymmetric
 // classifier the adopt pass + studio share to resolve `either` into a binary human|machine witness.
 export * from "./witness-resolution.js";

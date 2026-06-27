@@ -9,8 +9,10 @@ import {
   UatWitness,
   parseUatTests,
   parseReliabilityGates,
+  parseContracts,
   type UatTest,
   type ReliabilityGate,
+  type ContractDecl,
 } from "@storytree/library";
 import { ProofMode } from "@storytree/proof-protocol";
 
@@ -125,6 +127,13 @@ export interface NodeSpec {
    * its ids roll into the story-green crown alongside the per-test UAT (ADR-0083 Fork A).
    */
   reliabilityGates: ReliabilityGate[];
+  /**
+   * A capability spec's `## Contracts` prose parsed into declared leaf contracts (ADR-0020
+   * coverage-honesty follow-on): one per numbered `**`id`**` item. `[]` when the spec declares none
+   * (a story / contract tier, or a capability that lists no contracts). The coverage check maps these
+   * to observed test names — a signed `--real` green attests ONE authored test, not every contract.
+   */
+  contracts: ContractDecl[];
   /** The file the spec was loaded from (for honest provenance in CLI output). */
   file: string;
 }
@@ -176,6 +185,9 @@ export function loadNodeSpec(file: string): NodeSpec {
     uatTests: parseUatTests(fm.id, body),
     // ADR-0085: the brownfield `## Reliability Gates` obligations, parsed off the same body.
     reliabilityGates: parseReliabilityGates(fm.id, body),
+    // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed off the
+    // same body — the coverage check maps each to an observed test.
+    contracts: parseContracts(body),
     file,
   };
 }

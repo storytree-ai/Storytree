@@ -41,6 +41,7 @@ function spec(
     guidance: undefined,
     uatTests: [],
     reliabilityGates: opts.reliabilityGates ?? [],
+    contracts: [],
     file: `${id}.md`,
   };
 }

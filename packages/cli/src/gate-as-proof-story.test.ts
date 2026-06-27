@@ -128,6 +128,7 @@ function gateAsProofStorySpec(storyFile: string, testFile: string): NodeSpec {
     guidance: undefined,
     uatTests: [],
     reliabilityGates: [],
+    contracts: [],
     file: "stories/demo/story.md",
   };
 }
