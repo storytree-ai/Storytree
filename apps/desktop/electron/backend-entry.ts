@@ -26,6 +26,9 @@ import {
   PgCommentStore,
   renderStoredDoc,
 } from "@storytree/library/store";
+import { PgPresenceStore } from "@storytree/notice-board/store";
+import { classifyPresence } from "@storytree/notice-board";
+import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
 
 import { createLocalBackend } from "../src/backend/local-backend.js";
@@ -42,6 +45,48 @@ const repoRoot = resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
 
+// ---------- verdict / activity / presence overlay drivers (ADR-0119 deferred overlay) ----------
+//
+// Re-composed from apps/studio/server's PgBackend reads (libraryBackend.ts) — the SAME raw SQL over
+// events.verdict / events.work_event + PgPresenceStore over events.session — so the desktop forest
+// paints the SAME proof-health / wisp / session layers as the hosted studio. NOT an import of
+// apps/studio/server (the surface boundary, ADR-0100). This is the operator-attested GLUE the desktop
+// story assigns to electron/backend-entry.ts (the sidecar wiring is attested, not a CI capability); the
+// CI-proven core is the tree-verdicts.ts fold, exercised through these seams by stubs. Each read is
+// ADVISORY (ADR-0033): null on ANY failure (stopped DB, missing table, timeout), never a throw, so a
+// down DB leaves the tree under-claiming rather than hanging /api/tree.
+
+const ADVISORY_TIMEOUT_MS = 4_000;
+// The in-flight-build TTL (ADR-0048 §2) — mirrors apps/studio/src/types `BUILD_IN_FLIGHT_TTL_MS`
+// (studio-local, not importable across the surface boundary); a dangling/hard-killed build clears in
+// minutes rather than orbiting forever.
+const IN_FLIGHT_TTL_MS = 20 * 60 * 1_000;
+const GATE_PHASES: ReadonlySet<string> = new Set([
+  "AUTHOR_TEST",
+  "CONFIRM_RED",
+  "IMPLEMENT",
+  "CONFIRM_GREEN",
+  "GATE",
+]);
+
+/** Race an advisory read against a short timeout; null on ANY failure (the PgBackend pattern). */
+async function advisory<T>(fn: () => Promise<T>): Promise<T | null> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("advisory read timed out")), ADVISORY_TIMEOUT_MS);
+    });
+    return await Promise.race([fn(), timeout]);
+  } catch {
+    return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+const toIso = (at: Date | string): string =>
+  at instanceof Date ? at.toISOString() : new Date(at).toISOString();
+
 // ---------- main ----------
 
 async function main(): Promise<void> {
@@ -53,9 +98,10 @@ async function main(): Promise<void> {
   const library = new PgLibraryStore(pool);
   const comments = new PgCommentStore(pool);
 
-  // The read backend the local-backend factory dispatches (the pg-backed shape, mirroring
-  // devApi.ts's PgBackend reads). Sessions/builds/verdicts are advisory tree overlays the boot read
-  // loop does not need — left null here (a later increment wires the activity/presence overlays).
+  // The read backend the local-backend factory dispatches (the pg-backed shape, mirroring devApi.ts's
+  // PgBackend reads). The verdict/activity/presence overlays are now WIRED (ADR-0119 deferred overlay)
+  // — the SAME SQL the studio's PgBackend runs — so the desktop forest paints proof-health, in-flight
+  // wisps, and the session dock identically to the hosted studio.
   const backend: LocalBackendBackend = {
     listAssets: async () => {
       const docs = await library.queryDocs();
@@ -69,9 +115,92 @@ async function main(): Promise<void> {
         return { db: "unreachable" as const };
       }
     },
-    activeSessions: async () => null,
-    inFlightBuilds: async () => null,
-    latestVerdicts: async () => null,
+    // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's
+    // own-verdict layer attaches directly (story/cap `.verdict`).
+    latestVerdicts: async () =>
+      advisory(async () => {
+        const res = await pool.query(
+          `SELECT DISTINCT ON (unit_id) unit_id, outcome, at
+             FROM events.verdict
+            ORDER BY unit_id, seq DESC`,
+        );
+        const out: Record<string, { outcome: "pass" | "fail"; at: string }> = {};
+        for (const raw of res.rows) {
+          const row = raw as { unit_id: string; outcome: string; at: Date | string };
+          if (row.outcome !== "pass" && row.outcome !== "fail") continue;
+          out[row.unit_id] = { outcome: row.outcome, at: toIso(row.at) };
+        }
+        return out;
+      }),
+    // The RAW signed-verdict event stream (events.verdict ORDER BY seq) shaped as `{ kind: 'signing',
+    // seq, doc }` — what the per-test crown roll-up (rollupStoryGreen/rollupCapStatus) reads.
+    verdictEvents: async () =>
+      advisory(async () => {
+        const res = await pool.query(`SELECT seq, doc FROM events.verdict ORDER BY seq`);
+        return res.rows.map((raw) => {
+          const row = raw as { seq: string | number; doc: unknown };
+          return { kind: SIGNING_EVENT_KIND, seq: Number(row.seq), doc: row.doc };
+        });
+      }),
+    // Active notice-board sessions (events.session) with the staleness band derived at read time — the
+    // session dock layer (ADR-0033), mirroring the studio PgBackend's activeSessions.
+    activeSessions: async () =>
+      advisory(async () => {
+        const docs = await new PgPresenceStore(pool).listActive();
+        const now = new Date();
+        return docs.map((d) => ({
+          sessionId: d.sessionId,
+          branch: d.branch,
+          workingOn: d.workingOn,
+          nodes: d.nodes,
+          band: classifyPresence(d.lastSeenAt, now),
+          lastSeenAt: d.lastSeenAt,
+        }));
+      }),
+    // In-flight builds (ADR-0048): the latest `building` work-event per unit whose run has NOT yet
+    // produced a signed verdict, TTL-filtered + phase-surfaced in JS — the orbiting-wisp layer. Mirrors
+    // the studio PgBackend's inFlightBuilds query + its rowsToBuildActivity fold (re-composed here).
+    inFlightBuilds: async () =>
+      advisory(async () => {
+        const res = await pool.query(
+          `WITH latest_building AS (
+             SELECT DISTINCT ON (unit_id)
+               unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase, at
+             FROM events.work_event
+             WHERE type = 'building'
+             ORDER BY unit_id, seq DESC
+           )
+           SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.at
+             FROM latest_building lb
+            WHERE lb.run_id IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM events.verdict v
+                 WHERE v.unit_id = lb.unit_id AND v.run_id = lb.run_id
+              )`,
+        );
+        const now = Date.now();
+        const out: { unitId: string; tier: string; runId: string; at: string; phase?: string }[] = [];
+        for (const raw of res.rows) {
+          const row = raw as {
+            unit_id: string;
+            tier: string;
+            run_id: string;
+            phase: string | null;
+            at: Date | string;
+          };
+          const at = toIso(row.at);
+          if (now - new Date(at).getTime() >= IN_FLIGHT_TTL_MS) continue; // past the TTL — cleared
+          const phase = row.phase != null && GATE_PHASES.has(row.phase) ? row.phase : undefined;
+          out.push({
+            unitId: row.unit_id,
+            tier: row.tier,
+            runId: row.run_id,
+            at,
+            ...(phase !== undefined ? { phase } : {}),
+          });
+        }
+        return out;
+      }),
   };
 
   // The THREE dispatchers the Electron main mounts in sequence (ADR-0119 §2 + the chat-SSE increment):
