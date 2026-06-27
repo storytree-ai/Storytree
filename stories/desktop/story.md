@@ -40,7 +40,7 @@ depends_on: [studio, drive-machinery, library, headless-orchestrator]
 # d.4 source guard (amended); 0091 the proof-off-tether sanction the local backend rides; 0004 the
 # orchestrator/agent boundary preserved by topology (main IS the boundary); 0108 the chat surface that
 # ships here; 0021 the member's keyless Cloud SQL IAM grant; 0070 the operator-attested appearance.
-decisions: [109, 111, 113, 90, 91, 4, 108, 21, 70]
+decisions: [109, 111, 113, 119, 90, 91, 4, 108, 21, 70]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -122,6 +122,17 @@ deleted).
   ADR-0113, so the gate is satisfied by declaring it, never worked around.
 
 ## Local-backend boundary call (decided here — the dependency-graph/layout call is the story-author's, not the owner's)
+
+> **Update ([ADR-0119](../../docs/decisions/0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md),
+> 2026-06-27, owner-directed).** Wiring the proven `createLocalBackend` factory into the real Electron
+> shell surfaced two corrections: (1) the drivers run as a **tsx sidecar** the Electron main spawns and
+> proxies `/api/*` to — bundling raw-TS drivers into the CJS main breaks `import.meta` (corpus paths +
+> the build path's `tsx` resolution); (2) the read route table is the studio's **boot set** —
+> `me` / `health` / `docs` / `tree` / `assets` / `comments` — NOT just health/tree/assets, because the
+> studio frontend boot-gates on `/api/me` and `Promise.all`s docs+assets+comments (a 404 → an error
+> screen, not the forest). The "minimal route table" described below is **superseded in part** by that
+> boot set; the re-compose-don't-import boundary call STANDS. The read router is headlessly provable (so
+> its green flips like any capability); the Electron sidecar-spawn + proxy is the operator-attested leg.
 
 ADR-0113 §1 phrases the thick client as "the Electron main process runs the real studio backend
 (`apps/studio/server`)." Taken literally that is a **surface→surface source import** — and it is
@@ -288,10 +299,14 @@ owner-fork bar):
 1. **The chat surface is consumed from `headless-orchestrator`, not re-owned here (decided).** Its
    provable SSE backend is that story's Phase 2 (ADR-0108); the renderer chat panel is a thin client
    over it. Surfaced so the boundary is visible.
-2. **Verbatim studio route-table sharing is deferred (decided).** The desktop mounts a minimal-to-journey
-   route table composed from the organism drivers; extracting the studio's full route table into a shared
-   organism (which would touch the `studio` story) is a clean follow-on, not pulled into this journey to
-   keep it small.
+2. **The desktop serves the studio's BOOT read route table; verbatim full sharing stays deferred
+   ([ADR-0119](../../docs/decisions/0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md)).**
+   The desktop read router re-composes the organism drivers to serve the studio's boot set (`me` /
+   `health` / `docs` / `tree` / `assets` / `comments`) — enough for the surface to render (the frontend
+   boot-gates on `/api/me` and `Promise.all`s docs/assets/comments, so the earlier "minimal route table"
+   was too minimal). Extracting a SHARED read-route organism both surfaces mount (which would touch the
+   `studio` story) is the clean consolidation — still a follow-on, not pulled into this journey to keep
+   it small. The runner runs as a **tsx sidecar** (ADR-0119 §1), not bundled into the Electron main.
 
 The only **owner-level** item is operational, not modeling: the **attended Cloud SQL IAM grant** of the
 trusted member's Google identity at delivery (ADR-0021 keyless) — a privileged action the human performs,
