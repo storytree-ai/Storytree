@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./build": "./src/build.ts",
+    "./build-worker": "./src/build-worker.ts",
     "./secrets": "./src/secrets.ts"
   },
   "scripts": {

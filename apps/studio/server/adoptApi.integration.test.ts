@@ -9,8 +9,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleApiRequest, type ApiContext, type AdoptContext, type BuildContext } from './apiRouter';
-import { BuildRegistry } from './buildRegistry';
-import type { BuildRunner, BuildEnvelope } from './buildWorker';
+// The worker machinery relocated into @storytree/drive (ADR-0133 d.3); handleAdopt wraps it unchanged.
+import { BuildRegistry, type BuildRunner, type BuildEnvelope } from '@storytree/drive/build-worker';
 import type { LibraryBackend } from './libraryBackend';
 import type { Paths } from './apiRouter';
 

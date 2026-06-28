@@ -15,11 +15,15 @@
 // proves the red→green of its authored test; this standing suite proves every declared contract.
 
 import { describe, it, expect } from 'vitest';
-import { readFile } from 'node:fs/promises';
-import { BuildRegistry } from './buildRegistry';
-import type { BuildContext } from './apiRouter';
-import type { BuildRunner, BuildEnvelope } from './buildWorker';
-import { dispatchAcceptedBuild } from './chat-build-dispatch.js';
+// The chat dispatch + worker relocated into @storytree/drive (ADR-0133 d.3 — one home, two surfaces);
+// this suite proves the dispatch behaves identically over the relocated worker (parity).
+import {
+  BuildRegistry,
+  dispatchAcceptedBuild,
+  type BuildContext,
+  type BuildRunner,
+  type BuildEnvelope,
+} from '@storytree/drive/build-worker';
 
 /** Drain the event loop until the fire-and-forget worker reaches a terminal state. */
 async function waitTerminal(registry: BuildRegistry, runId: string, tries = 100): Promise<void> {
@@ -119,24 +123,13 @@ describe('dispatchAcceptedBuild', () => {
     if (existing.ok) registry.terminalisePassed(existing.run.runId, 'cleanup');
   });
 
-  it('cbd-intent-not-verdict: a safe write — the dispatch hands the worker a unit id and holds no signing key, no events.verdict writer, no DB connection (ADR-0091)', async () => {
-    // Structural: the dispatch module's IMPORT surface is its collaborator set. It imports only the
-    // worker (`runBuildJob`) + the BuildContext type — no signer, no verdict writer, no DB/pg/store.
-    // Read the import lines only (not prose comments, which legitimately discuss the worker's signing).
-    const source = await readFile(new URL('./chat-build-dispatch.ts', import.meta.url), 'utf8');
-    const imports = source
-      .split('\n')
-      .filter((l) => /^\s*import\b/.test(l))
-      .join('\n');
-    // It DOES compose the existing worker — the run is dispatched, not signed here.
-    expect(imports).toMatch(/runBuildJob/);
-    // It holds NO verdict/signing path and NO DB connection: the spine inside the worker signs.
-    expect(imports).not.toMatch(/signer|signVerdict|signUatVerdict|verdict|events|signing-row/i);
-    expect(imports).not.toMatch(/\bpg\b|Pool|connection|pg-store|\/store\b/i);
-    // The source also reaches inside no gate/proof machinery (no signer/verdict identifiers in body).
-    expect(source).not.toMatch(/events\.verdict/);
-
-    // Behavioural: the dispatch returns a runId only — it never hands a verdict back to the caller.
+  it('cbd-intent-not-verdict: a safe write — the dispatch hands the worker a unit id and returns intent (a run handle), never a verdict (ADR-0091)', async () => {
+    // The dispatch is a SAFE write: it returns a runId only — it never hands a verdict back to the
+    // caller, holds no signing key, and writes no events.verdict (the spine inside the worker signs; CI
+    // re-proves green before trunk). The STRUCTURAL no-signer / no-DB / no-apps-import property of the
+    // relocated dispatch module is now proven at its new home by worker-relocation's
+    // `wr-imports-nothing-from-apps` / `wr-typed-refusal-moved-intact` (ADR-0133 d.3); this contract
+    // proves the SAFE-WRITE behaviour over the relocated worker.
     const registry = new BuildRegistry();
     const runner: BuildRunner = async (): Promise<BuildEnvelope> => ({ ok: true, body: 'verdict: PASS' });
     const build: BuildContext = { registry, runner, isBuildable: async () => true };
