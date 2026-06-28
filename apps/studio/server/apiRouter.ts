@@ -55,8 +55,13 @@ import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
 import type { InviteMailer } from './inviteMailer';
-import type { BuildRegistry } from './buildRegistry';
-import { runBuildJob, type BuildRunner } from './buildWorker';
+// The build worker machinery now lives in the shared @storytree/drive package (ADR-0133 d.3 — relocated
+// out of apps/studio/server so the desktop local backend may import it too; an app may not import another
+// app's server, ADR-0100). handleBuild/handleAdopt stay here as thin HTTP wrappers over the relocated
+// runBuildJob + BuildContext.
+import { runBuildJob, type BuildRegistry, type BuildRunner, type BuildContext } from '@storytree/drive/build-worker';
+// Re-export the relocated BuildContext so devApi.ts (and any other studio consumer) keeps importing it from here.
+export type { BuildContext };
 // writeBroker.ts is config-load-safe (it type-imports the raw-TS zod packages and loads their runtime
 // values lazily), so it can be statically imported here without pulling proof-protocol's enums.js into
 // vite's config-load graph — the same way libraryBackend.ts is statically imported.
@@ -1397,14 +1402,8 @@ export async function handleActivity(
 // runner + discovery) is injected via {@link ApiContext.build}, like dbWake/invites — absent (the
 // hosted server in Phase 1) → 404.
 
-/** The build seam injected into the route table: the run registry, the build runner, and discovery. */
-export interface BuildContext {
-  registry: BuildRegistry;
-  /** Drives one build (the worker); wired over the real `nodeBuild --live` in the dev front. */
-  runner: BuildRunner;
-  /** Whether `unitId` is a real buildable node — validated against the SAME discovery `node build` uses. */
-  isBuildable(unitId: string): Promise<boolean>;
-}
+// `BuildContext` is now defined in @storytree/drive/build-worker (relocated with the worker, ADR-0133 d.3)
+// and re-exported above; handleBuild below takes it as a parameter.
 
 /**
  * POST /api/build — dispatch a build intent (202 + runId; fire-and-forget worker, the client polls);

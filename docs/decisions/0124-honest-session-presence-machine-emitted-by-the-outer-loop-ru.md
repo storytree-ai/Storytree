@@ -1,12 +1,19 @@
 ---
-status: proposed
+status: superseded
 amends: [48]
 ---
 # ADR-0124: Honest session presence: machine-emitted by the outer-loop runtime, not self-declared
 
 ## Status
 
-proposed — direction directed by the owner in conversation on 2026-06-27 ("proceed" on the
+**Superseded by [ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md)**
+(2026-06-28) — the owner withdrew the planning-render direction after a forensic triangulation showed
+the bare map is *honest by absence*: ~92% of source work lands outside the inner loop, so almost nothing
+is mechanically driven to light a wisp. The planning claim does not get a world element; the studio dock
+([ADR-0033](0033-session-presence-notice-board.md)) suffices, and ADR-0048's build-only wisp stands. The
+original `proposed` body is retained below for the record.
+
+proposed (historical) — direction directed by the owner in conversation on 2026-06-27 ("proceed" on the
 recommendation to wire honest, runtime-emitted session presence), fulfilling the owner's long-standing
 prediction recorded in [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)'s own steer:
 *"We can take a look at 'I'm planning work around this' claims showing up in a different form later."*

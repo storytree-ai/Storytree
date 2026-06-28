@@ -44,12 +44,26 @@ export interface OrchestrateArgs {
    * orientation tools fall back to a no-op stub and the agent cannot actually orient.
    */
   runner?: OrientationRunner;
-  /** Live SDK leaf model (live run only). Default: the runner's (claude-sonnet-4-6). */
+  /** Model for the orchestrator session (live run only). Default: the headless orchestrator's
+   *  (claude-opus-4-8). */
   model?: string;
   /** Turn ceiling for the live session (live run only) — orientation needs headroom (default 16 is tight). */
   maxTurns?: number;
-  /** Hard USD budget ceiling for the live session (live run only). */
+  /** OPTIONAL hard USD budget ceiling for the live session — no ceiling by default (ADR-0131; the turn cap is the brake). */
   maxBudgetUsd?: number;
+  /**
+   * Optional sink for streamed assistant text deltas (ADR-0108 Phase 2 streaming) — forwarded to the
+   * headless runner so a consuming surface (the chat panel) can render tokens live as the session
+   * generates them, instead of waiting for the whole multi-turn session to finish. Omit for a
+   * non-streaming consumer (the terminal `orchestrate` command). The proposal is still the authority.
+   */
+  onDelta?: (text: string) => void;
+  /**
+   * Optional sink for EVERY SDK message as it streams (the trace seam, ADR-0108 §7) — forwarded to the
+   * headless runner so a caller can capture the agent's full turn/tool trail (what it DID), not just
+   * its answer. Raw SDK message shape; omit when no trace is needed.
+   */
+  onMessage?: (message: unknown) => void;
 }
 
 /**
@@ -103,6 +117,8 @@ export async function orchestrate({
   model,
   maxTurns,
   maxBudgetUsd,
+  onDelta,
+  onMessage,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -139,6 +155,8 @@ export async function orchestrate({
       ...(model !== undefined ? { model } : {}),
       ...(maxTurns !== undefined ? { maxTurns } : {}),
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
+      ...(onDelta !== undefined ? { onDelta } : {}),
+      ...(onMessage !== undefined ? { onMessage } : {}),
     });
   } finally {
     compositionInFlight = false;

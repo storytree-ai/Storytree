@@ -16,6 +16,7 @@ import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
 import { TreeView } from './components/TreeView';
 import { MembersPanel } from './components/MembersPanel';
+import { ChatDock } from './components/ChatDock';
 
 /** A non-member's MeInfo while it's still loading — never read as a member. */
 const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false };
@@ -206,6 +207,11 @@ export function App(): React.JSX.Element {
                 )}
                 {status === 'ready' && <RouteView route={route} />}
               </main>
+              {/* The chat dock is a fixed, bottom-anchored OVERLAY on the forest map only — folded by
+                  default, expanded/dragged on demand (leg-7 chip 1). position:fixed means its DOM
+                  position doesn't affect layout, but it lives logically with the tree view. It is
+                  absent on Library / docs / Members. */}
+              {route.name === 'tree' && status === 'ready' && <ChatDock />}
             </div>
           }
         />

@@ -28,9 +28,14 @@ export interface SdkCuratorArgs {
   cwd?: string;
   /** Model for the session. Default: claude-sonnet-4-6. */
   model?: string;
-  /** Turn ceiling (the curator is single-shot — a low default suffices). Default: 6. */
+  /** Turn ceiling — the runaway brake (the curator is single-shot — a low default suffices). Default: 6. */
   maxTurns?: number;
-  /** Hard budget ceiling in USD (the SDK aborts past it). Default: 0.5. */
+  /**
+   * OPTIONAL hard budget ceiling in USD (the SDK aborts past it). Default: NONE — no USD ceiling unless
+   * an explicit value is set (ADR-0131, completing ADR-0130). The curator is subscription-funded
+   * (ADR-0030/0067), so the SDK's metered `total_cost_usd` is a phantom; the {@link maxTurns} cap (6,
+   * single-shot) is the runaway brake.
+   */
   maxBudgetUsd?: number;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
@@ -78,7 +83,9 @@ export async function runSdkCurator(args: SdkCuratorArgs): Promise<SdkCuratorRes
     cwd: args.cwd ?? process.cwd(),
     model: args.model ?? "claude-sonnet-4-6",
     maxTurns: args.maxTurns ?? 6,
-    maxBudgetUsd: args.maxBudgetUsd ?? 0.5,
+    // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030/0067), so
+    // a metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.
+    ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     // Read-only by construction: the neighbourhood is in the prompt, the curator only emits JSON.
     tools: [],
     allowedTools: [],

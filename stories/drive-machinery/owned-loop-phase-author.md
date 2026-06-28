@@ -15,13 +15,14 @@ depends_on: [phase-scoped-write-wall, red-green-phase-machine]
 
 **Depends on —** [`phase-scoped-write-wall`](phase-scoped-write-wall.md), [`red-green-phase-machine`](red-green-phase-machine.md)
 
-> **Proof status (honest) — `mapped`, with no dedicated test file.** This adapter is the leaf in
-> EVERY offline gate test: the unit walk (`prove-it-gate.test.ts:106-237`), the genuine e2e
+> **Proof status (honest) — `mapped`, now with a dedicated characterization test.** This adapter is the
+> leaf in EVERY offline gate test: the unit walk (`prove-it-gate.test.ts:106-237`), the genuine e2e
 > (`prove-it-gate.e2e.test.ts:160`, `:214`), the dry-run glue (`resolve-prove-spec.test.ts:309`),
 > and the offline REAL-mode walk (`resolve-prove-spec.test.ts:539`) all drive a real
 > `OwnedLoopAuthor` — its dominant behaviour is observationally pinned by those suites
-> (`@storytree/orchestrator` 99/99, ran 2026-06-13). The fail-closed step-error path is the one
-> would-be contract below.
+> (`@storytree/orchestrator`, ran 2026-06-13). The fail-closed step-error path — the one path those
+> suites exercised only INDIRECTLY — is now pinned directly by `owned-loop-author.test.ts` (contract 3
+> below), so the `drive-machinery#gate-1` observe gate honestly covers this capability.
 
 ## Guidance
 
@@ -65,6 +66,6 @@ spine's observed red→green is caused by those writes alone.
    - **covers —** `owned-loop-author.ts:39-44`, `:53`
    - **proven by —** `prove-it-gate.e2e.test.ts:160` (REAL, passing — composition; the wall's own refusal mechanics are [`phase-scoped-write-wall`](phase-scoped-write-wall.md)'s contracts)
 3. **`failed-step-fails-closed`** — a `runStep` that ends `{ ok:false }` surfaces as a fail-closed `AuthorResult` (the gate then aborts the phase)
-   - **asserts —** a scripted model that halts mid-slice yields `{ ok:false, error }` from `author` and the gate dies at that authoring phase with no signing row.
+   - **asserts —** a scripted model that halts mid-slice (an empty terminal → `NoTerminalResult`, or a thrown turn → `ModelError`) yields `{ ok:false, error }` from `author` — the step's error surfaced verbatim, `exhausted` unset (a genuine fail-closed error, not a cost-guard exhaustion).
    - **covers —** `owned-loop-author.ts:59-62`
-   - **would-be test —** no offline test scripts a failing step through `OwnedLoopAuthor`; the path is exercised only indirectly today.
+   - **proven by —** `packages/orchestrator/src/owned-loop-author.test.ts` (REAL, passing — a green-on-arrival characterization at the AUTHOR level, ADR-0098; the gate-aborts-with-no-signing-row consequence is `prove-it-gate.test.ts`'s fail/exhausted fall-through).

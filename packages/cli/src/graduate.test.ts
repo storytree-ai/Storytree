@@ -11,6 +11,9 @@ import {
   projectSlug,
   harnessMemoryDir,
   graduateCommand,
+  graduationNudge,
+  defaultSnapshotPath,
+  GRADUATION_NUDGE_TAG,
 } from "./graduate.js";
 
 // ---- pure: the memory-file frontmatter parser -----------------------------------------------
@@ -203,4 +206,38 @@ test("graduate returns ok:false with guidance when the memory dir is unreadable"
   assert.equal(env.ok, false);
   assert.match(env.body, /could not read memory dir/);
   assert.ok((env.next ?? []).some((n) => n.includes("--memory-dir")));
+});
+
+// ---- the pre-merge nudge (the `check:graduation-worklist` gate surface) -----------------------
+
+test("graduationNudge: zero candidates reports OK with no WARN noise", () => {
+  const n = graduationNudge(0);
+  assert.equal(n.level, "OK");
+  assert.equal(n.lines.length, 1);
+  assert.match(n.lines[0] ?? "", /OK — no agent-memory candidates await graduation/);
+  // Every line is tagged so the gate output stays greppable.
+  assert.ok(n.lines.every((l) => l.startsWith(GRADUATION_NUDGE_TAG)));
+});
+
+test("graduationNudge: N>0 WARNs with the count and the actionable next step", () => {
+  const n = graduationNudge(3);
+  assert.equal(n.level, "WARN");
+  // The count is named so the orchestrator sees the backlog at the pre-merge moment (ADR-0095 D7).
+  assert.match(n.lines[0] ?? "", /WARN — 3 agent-memory candidate\(s\) await a librarian graduation pass/);
+  // The pointer routes to the review command AND names who applies the durability bar (D8).
+  const joined = n.lines.join("\n");
+  assert.match(joined, /storytree library graduate --review/);
+  assert.match(joined, /librarian-curator/);
+  assert.ok(n.lines.every((l) => l.startsWith(GRADUATION_NUDGE_TAG)));
+});
+
+test("graduationNudge: a negative count is treated as empty (defensive), not a WARN", () => {
+  assert.equal(graduationNudge(-1).level, "OK");
+});
+
+test("defaultSnapshotPath resolves to the seed corpus under apps/studio/data", () => {
+  assert.ok(
+    defaultSnapshotPath().endsWith(path.join("apps", "studio", "data", "knowledge.json")),
+    defaultSnapshotPath(),
+  );
 });

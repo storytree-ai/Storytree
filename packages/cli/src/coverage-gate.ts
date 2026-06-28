@@ -4,8 +4,9 @@
  * `storytree coverage <cap>` checks ONE capability on demand ({@link import("./coverage.js").coverageCommand},
  * ADR-0122). This sweeps EVERY capability that carries a registered real-build test surface
  * (`proof.real.testFile`) and WARNs — never blocks — when one declares a `## Contracts` behaviour no
- * observed test names. It is the contract→test analogue of `check:corpus-sync` / `check:agents-sync`:
- * a best-effort, local-only nudge wired into `pnpm gate`, NOT a hard build-blocking gate.
+ * SUBSTANTIVE test covers (a hollow `assert(true)` / skipped test does not count, ADR-0126). It is the
+ * contract→test analogue of `check:corpus-sync` / `check:agents-sync`: a best-effort, local-only nudge
+ * wired into `pnpm gate`, NOT a hard build-blocking gate.
  *
  * Why a WARN, never a block (ADR-0122 deferred the hard gate): a build-blocking step would strand
  * legitimately-unbuilt `proposed` capabilities, which are honestly uncovered. The real-build-surface
@@ -23,7 +24,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import { classifyContractCoverage, loadNodeSpec, extractTestNames } from "@storytree/orchestrator";
+import { classifyContractCoverage, loadNodeSpec, extractVouchingTestNames } from "@storytree/orchestrator";
 
 import type { CoverageUnit } from "./coverage.js";
 
@@ -118,9 +119,10 @@ export function formatCoverageGate(report: GateCoverageReport): { warn: boolean;
   }
   const lines = [
     `${TAG} WARN — ${report.underCovered.length} real-build capability(ies) declare a contract that NO ` +
-      "observed test names (a signed --real green attests ONE authored test, not every contract; " +
+      "SUBSTANTIVE test covers (a signed --real green attests ONE authored test, not every contract; " +
       "ADR-0020 §3 / ADR-0122). Advisory only — author a test NAMING each (the " +
-      '`describe("<id>: …")` convention), or split/retire the contract. ' +
+      '`describe("<id>: …")` convention) AND asserting substantively (a hollow `assert(true)` or skipped ' +
+      "test does not count, ADR-0126), or split/retire the contract. " +
       "Run `pnpm storytree coverage <cap>` for the per-contract report.",
   ];
   for (const u of report.underCovered) {
@@ -191,7 +193,9 @@ export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string)
     let testNames: string[] = [];
     if (existsSync(abs)) {
       try {
-        testNames = extractTestNames(readFileSync(abs, "utf8"));
+        // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
+        // named only by an `assert(true)` reads uncovered (not falsely covered).
+        testNames = extractVouchingTestNames(readFileSync(abs, "utf8"));
       } catch {
         testNames = []; // an unreadable test file contributes no names (fail-closed toward uncovered)
       }

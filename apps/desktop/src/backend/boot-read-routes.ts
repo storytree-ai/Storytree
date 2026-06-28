@@ -53,10 +53,19 @@ export interface CommentsFilter {
 /**
  * Constant local-member identity. Exported so the Electron main's operator-attested wiring test
  * can assert the /api/me response exactly matches this object.
+ *
+ * The operator is a full MEMBER on their own machine — NOT an admin. The desktop backend mounts no
+ * admin-only routes (no /api/users, no /api/uat/attest, no db-control — ADR-0119 omits the
+ * hosted-only members/invites/IAP/db-control concerns), so claiming admin would make the studio
+ * render admin-only UI (the Members nav + panel, the UAT "sign" button) that 404s against this
+ * backend and reads as broken instead of degrading honestly (chip 4, ADR-0113 arc). `member`
+ * unlocks exactly what the desktop DOES serve — read, comment, chat, build — and the studio's
+ * `me.role === 'admin'` gates hide the rest; a direct visit to #/members lands on MembersPanel's
+ * honest "Admins only" state rather than a hung "Loading members…".
  */
 export const LOCAL_ME: MeInfo = {
   email: null,
-  role: "admin",
+  role: "member",
   status: "active",
   member: true,
   canWakeDb: false,

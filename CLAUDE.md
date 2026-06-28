@@ -183,7 +183,8 @@ file conflicts).
   Live smoke (ADR-0030, subscription-billed): `pnpm storytree node build <id> --live`
   (`--dry-run` is the offline scripted walk). Phase E chains a WHOLE story in dependency order:
   `pnpm storytree story build <story-id> --dry-run | --live [--budget <usd>]` (topo order from
-  `depends_on`, story UAT node last, halt-is-never-a-pass; live default $10 total ceiling).
+  `depends_on`, story UAT node last, halt-is-never-a-pass; live/real have NO USD ceiling by default —
+  the turn cap is the runaway brake, ADR-0130 — and `--budget` opts into a total ceiling).
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
 - Library CLI (ADR-0023): `pnpm storytree library` (explore; offline). Writes need the live DB:
@@ -270,8 +271,8 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 **Escalation.** Owner-level calls (design forks worth an ADR, irreversible or outward-facing actions, anything the corpus doesn't settle) and any blocked landing (a red gate it can't resolve, a write that won't persist) are surfaced to the human outer loop with the reason — never decided unilaterally or worked around.
 
 **Stands on** — assembled from these library artifacts; run `storytree agents session-orchestrator` for their full text:
-- **Ceremonies & context:** merge-ceremony, prove-and-promote-ceremony, library-edit-ceremony, pull-based-context-architecture, orchestrate-route-supplement
-- **Rules:** slow-growth-minimum-to-green, edit-first-curation, owner-fork-bar, reference-dont-restate, observability-first, verify-edit-write-persisted-or-escalate, audit-the-signed-verdict, plain-language-first
+- **Ceremonies & context:** merge-ceremony, prove-and-promote-ceremony, library-edit-ceremony, attempt-privileged-actions-approve-inline, pull-based-context-architecture, orchestrate-route-supplement
+- **Rules:** slow-growth-minimum-to-green, edit-first-curation, owner-fork-bar, route-structural-forks-to-story-author, reference-dont-restate, observability-first, verify-edit-write-persisted-or-escalate, audit-the-signed-verdict, plain-language-first, meter-fail-closed-caps-in-real-cost
 - **Refuse:** never-bypass-the-gate, agent-never-self-exempts, approval-gated-trunk, human-owns-the-outer-loop, live-store-is-the-edit-surface
 
 <!-- AGENT:session-orchestrator END -->

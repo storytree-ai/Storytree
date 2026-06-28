@@ -9,6 +9,7 @@ import {
   EvidenceRef,
   Verdict,
   VerdictOutputVersion,
+  ContractCoverageAxis,
   SigningRow,
   TextQuote,
   Anchor,
@@ -121,6 +122,49 @@ test("Verdict: approvedBy is preserved when present and absent when omitted (ADR
   assert.equal(Verdict.parse({ ...base, approvedBy: "hua.mick@gmail.com" }).approvedBy, "hua.mick@gmail.com");
   // absent → undefined (a pre-ADR-0097 / non-adoption verdict round-trips)
   assert.equal(Verdict.parse(base).approvedBy, undefined);
+});
+
+test("ContractCoverageAxis round-trips a valid doc and rejects a malformed one (ADR-0127)", () => {
+  const valid = { covered: ["fr-connects", "fr-streams"], uncovered: ["fr-bounded-never-hangs"] };
+  assert.deepEqual(ContractCoverageAxis.parse(valid), valid);
+  // empty lists are valid — a fully-covered unit, or one that declares no contracts.
+  assert.deepEqual(ContractCoverageAxis.parse({ covered: [], uncovered: [] }), {
+    covered: [],
+    uncovered: [],
+  });
+  // a non-array member rejects (both axes are string id lists)
+  assert.equal(ContractCoverageAxis.safeParse({ covered: "a", uncovered: [] }).success, false);
+  // a missing list rejects (both are required when the axis is present)
+  assert.equal(ContractCoverageAxis.safeParse({ covered: [] }).success, false);
+  // unknown field (strict) rejects
+  assert.equal(
+    ContractCoverageAxis.safeParse({ covered: [], uncovered: [], extra: 1 }).success,
+    false,
+  );
+});
+
+test("Verdict: contractCoverage is preserved when present and absent when omitted (ADR-0127 back-compat)", () => {
+  const base = {
+    unitId: "shared-forest-connection",
+    proofMode: "capability" as const,
+    outcome: "pass" as const,
+    commitSha: "abc1234",
+    signer: "tester@example.com",
+    runId: "run-1",
+    evidence: [],
+    at: "2026-06-27T00:00:00.000Z",
+  };
+  // present → preserved (the declared contracts this signed green covered vs over-claimed)
+  const coverage = {
+    covered: ["fr-connects", "fr-streams"],
+    uncovered: ["fr-bounded-never-hangs"],
+  };
+  assert.deepEqual(
+    Verdict.parse({ ...base, contractCoverage: coverage }).contractCoverage,
+    coverage,
+  );
+  // absent → undefined (a pre-ADR-0127 / non-real-build verdict round-trips unchanged)
+  assert.equal(Verdict.parse(base).contractCoverage, undefined);
 });
 
 test("Verdict.outputVersion defaults cleanly to v1 when omitted (additive/back-compat)", () => {

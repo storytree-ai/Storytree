@@ -6,15 +6,16 @@
 // inside no gate/spine/leaf internals.
 
 import { describe, it, expect, vi } from 'vitest';
-import { BuildRegistry } from './buildRegistry';
+// The worker machinery relocated into @storytree/drive (ADR-0133 d.3); this suite proves the parity.
 import {
+  BuildRegistry,
   runBuildJob,
   buildRunnerFromNodeBuild,
   routedBuildRunner,
   type BuildEnvelope,
   type NodeBuildLike,
   type StoryBuildLike,
-} from './buildWorker';
+} from '@storytree/drive/build-worker';
 
 describe('runBuildJob', () => {
   // ubt-worker-streams-coarse-lines-to-run (pass path)

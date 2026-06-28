@@ -404,12 +404,39 @@ attestations (legs 1, 2, 5, 6-grant, 7).
 
 ## Open modeling calls (for the owner)
 
-None at the story-shape level — ADR-0113 settled the shape (thick-local, the inner-circle premise, the
-shared forest, minimal packaging). The local-backend boundary call (re-compose the organism drivers vs
-import the studio server) is a **dependency-graph/layout decision the story-author owns** (owner
-correction 2026-06-26) and is DECIDED above (re-compose), not escalated. Two items are RECORDED as
-decided-and-surfaced (forced by existing decisions, reversible, internal — not re-litigated per the
-owner-fork bar):
+One GENUINELY OPEN fork at the story-shape level (recorded below, escalated — not pre-decided), plus two
+decided-and-surfaced items. ADR-0113 settled the desktop's overall shape (thick-local, the inner-circle
+premise, the shared forest, minimal packaging); the local-backend boundary call (re-compose the organism
+drivers vs import the studio server) is a **dependency-graph/layout decision the story-author owns** (owner
+correction 2026-06-26) and is DECIDED above (re-compose), not escalated.
+
+### OPEN — the live chat's orientation `runner` needs a boundary decision (escalated to the owner)
+
+`chat-sse-mount` (PR #439) landed read/propose chat: a member chats to a real orient+propose agent over
+the rendered `session-orchestrator` prompt. But the live chat **cannot orient on live state**. A live
+`orchestrate`/`startChatStream` session needs an `OrientationRunner` for real orientation (else the agent
+gets the `(orientation runner not configured)` no-op stub and is blind to the live tree / library / notice
+board — see [`chat-sse-mount`](chat-sse-mount.md) "The deferred mount-deps extension is GLUE"). The runner
+is the CLI `run()` in `@storytree/cli`, which the desktop does **not** depend on (and arguably shouldn't,
+the ADR-0004 single-import-site posture), and `@storytree/drive` carries a HARD INVARIANT that it imports
+nothing from `@storytree/cli` (no cycle). So a boundary-preserving live runner needs a DESIGN DECISION the
+existing decisions do NOT settle — candidate shapes (not pre-chosen here):
+- **Extract the read-only orientation dispatch** into a package BOTH `cli` and the desktop sidecar can
+  import (the orientation tools are read-only — tree/library/notice-board reads — so a shared
+  orientation-dispatch organism would not drag the build/PR machinery across the boundary); OR
+- **Declare a new `desktop` → `cli` cross-story edge** (re-weighing the ADR-0004 posture for the
+  thick-local trusted-member phase, the way ADR-0113 already re-weighed ADR-0090 d.4); OR
+- something else.
+
+This is **NOT decided** — it is a real architectural fork the unit surfaced but did not resolve, escalated
+to the owner (it touches the ADR-0004 boundary posture, so it is above the story-author's pure
+layout domain). Until it is resolved, the landed chat is honest as a *prompt-grounded* orient+propose
+surface; live-state orientation is the next increment, gated on this call. (The mechanical mount-deps
+forwarding — `runner`/`model`/`maxTurns`/`maxBudgetUsd` through `ChatSseMountDeps` — is already recorded as
+operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open item is the prior question of
+*what runner there is to forward* without breaching the boundary.)
+
+### Recorded as decided-and-surfaced (forced by existing decisions, reversible, internal — not re-litigated per the owner-fork bar):
 
 1. **The chat surface's STREAMING CORE is consumed from `headless-orchestrator`; its desktop-side MOUNT
    is a desktop capability; its renderer PANEL is a `studio` component (decided — the cap-vs-glue +
@@ -429,13 +456,32 @@ owner-fork bar):
      glue chat-session-stream's Guidance assigns to "the consuming surface" lands HERE, proven.
    - The renderer chat **panel** (the thin client that POSTs the intake and renders the SSE stream) is a
      `studio` frontend component (`apps/studio/src`) — the desktop renders the COMPILED studio dist, so a
-     renderer panel is studio's surface, not the desktop's. Its provable geometry/behaviour (POSTs
-     intake; renders the streamed `done`/`error`/`refused`; shows busy/error/refused states) is a
-     `studio`-story contract (frontend-builder two-stage, ADR-0070); its *appearance inside the native
-     shell* is THIS story's already-declared operator-attested UAT leg 7 (the look is witnessed, never a
-     machine visual verdict). The panel is a follow-on owned by `studio` — deliberately NOT pulled into
-     this story (slow growth: the desktop's net-new is the mount; the panel rides studio's frontend
-     discipline next).
+     renderer panel is studio's surface, not the desktop's. **Now AUTHORED as the `studio`-story
+     [`chat-panel`](../studio/chat-panel.md) capability** (story-author 2026-06-27). Its provable
+     geometry/behaviour (POSTs intent once + busy state; renders the streamed `done`/`error`/`refused`
+     distinctly; degrades honestly to a disabled "no backend" state where the route is absent) is a
+     `studio`-story contract proven by `node:test`'s studio analog — vitest jsdom, the `BuildSection`
+     precedent (frontend-builder two-stage, ADR-0070); it imports NO agent/drive/model code and parses
+     SSE `data:` frames as plain JSON against a locally-declared type (so it adds no cross-story edge —
+     see chat-panel.md "No new cross-story edge"). Its *appearance inside the native shell* is THIS
+     story's already-declared operator-attested UAT leg 7 (the look is witnessed, never a machine visual
+     verdict — the panel author signs no visual verdict). The panel is owned by `studio` — deliberately
+     NOT a desktop capability (slow growth: the desktop's net-new is the mount; the panel rides studio's
+     frontend discipline).
+   - The **sidecar wiring** that chains `createChatSseMount` as a third dispatcher in
+     `apps/desktop/electron/backend-entry.ts` (alongside `createBootReadRoutes` + `createLocalBackend`)
+     is **operator-attested GLUE, NOT a capability** (story-author 2026-06-27 — the same call the
+     splitting-rule already made for boot-read-routes' and local-backend's wiring). The dispatcher is the
+     provable cap (`chat-sse-mount`, green); `electron/` is the operator-attested binding the
+     CI-provable core is deliberately electron-free of ("THE CI-PROVABLE CORE IS ELECTRON-FREE",
+     chat-sse-mount.md). There is no isolatable red→green seam in chaining a third already-proven
+     dispatcher into the Electron main — it is witnessed under UAT leg 7, not asserted in CI. The
+     **mount-deps extension** (forwarding `startChatStream`'s live `runner`/`model`/etc. so the live chat
+     actually ORIENTS) is **also operator-attested glue, not an offline-provable contract** — the
+     `OrientationRunner` is reachable ONLY via a real SDK tool-dispatch, which a scripted `queryFn` never
+     triggers, so a forwarded sentinel runner has no offline observable (full reasoning in chat-sse-mount.md
+     "The deferred mount-deps extension is GLUE"). The orchestrator executes both operator-attested under
+     leg 7.
 2. **The desktop serves the studio's BOOT read set; verbatim full route-table sharing stays deferred
    (decided, ADR-0119 §2).** The desktop mounts the studio's BOOT read routes
    (`me`/`health`/`docs`/`tree`/`assets`/`comments`) — composed from the organism drivers and a read-only

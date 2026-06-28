@@ -109,9 +109,10 @@ the renderer chat panel parses them):
 - **`POST /api/chat`** → a streaming `200` response with `Content-Type: text/event-stream`. The request
   body is `{ "intent": "<the chat message>" }` (a non-empty string; a missing/blank intent is a
   `400`). The response body is the session's typed events, each serialised as ONE SSE frame
-  (`data: <json>\n\n`, where `<json>` is the `ChatStreamEvent` — `{ "type": "done", "proposal", "costUsd",
-  "turns" }` | `{ "type": "error", "error" }` | `{ "type": "refused", "reason" }`). The stream ENDS
-  (the response is `end()`ed) after the terminal event. SSE event-name lines (`event: <type>`) are
+  (`data: <json>\n\n`, where `<json>` is the `ChatStreamEvent` — zero or more non-terminal
+  `{ "type": "delta", "text" }` token frames, then exactly one terminal `{ "type": "done", "proposal",
+  "costUsd", "turns" }` | `{ "type": "error", "error" }` | `{ "type": "refused", "reason" }`). The stream
+  ENDS (the response is `end()`ed) after the terminal event. SSE event-name lines (`event: <type>`) are
   OPTIONAL decoration; the `data:` frame is the contract the test pins.
 - **`*` (anything else)** → the dispatcher returns `false` (fall-through to the next dispatcher / the
   `local-backend-boot` 404). It is NOT a catch-all.
@@ -124,6 +125,14 @@ reaches the renderer live.) The dispatcher SETS the SSE response headers (`Conte
 text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`) BEFORE the first frame. The test
 asserts the response `Content-Type` is `text/event-stream` and that the streamed frames carry the scripted
 session's events ending in the terminal event.
+
+THIS MECHANISM ALREADY CARRIES TOKEN STREAMING — NO CODE CHANGE (commit `3d22f76`, ADR-0108 Phase 2
+streaming): the consumed core (`chat-session-stream`) now also yields **non-terminal `delta`** events
+(each an assistant text fragment as it generates, the responsiveness fix). Because the dispatcher
+serialises *every* event the generator yields as it arrives — never buffering, never matching on the
+event type — the new `delta` frames flow through to the renderer live through this exact "serialise,
+don't buffer" path, with no change to `chat-sse-mount.ts`. A new test `csm-streams-delta-frames` pins
+that the mount forwards each `delta` as an SSE frame, in order, before the terminal `done`.
 
 READ/PROPOSE ONLY, NO SIGNING (ADR-0091 / the Phase-2 wall — inherited from the consumed core): the chat
 mount streams an orient+propose session. It holds NO signing key, hands in NO verdict, triggers NO build,
@@ -171,10 +180,11 @@ with the live-spend collaborator (the SDK `query()`) injected as a scripted `que
 
 The integration test would:
 
-1. Build an `InMemoryStore` + `loadCorpus` for the real seed. Mount
-   `createChatSseMount({ store, queryFn })` (the chosen deps) behind a wrapper that sends a 404 when the
-   dispatcher returns `false`. Inject a `queryFn` scripted double whose session emits a success result
-   (a proposal + `costUsd`/`turns`), as `chat-stream.test.ts`'s `OK_SDK_RESULT` does.
+1. Mount `createChatSseMount({ queryFn })` behind a wrapper that sends a 404 when the dispatcher returns
+   `false`. (The mount loads its own seed-corpus store internally — `getDefaultStore()` over
+   `apps/studio/data/` — so the test injects ONLY the `queryFn` scripted double, not a store.) Inject a
+   `queryFn` scripted double whose session emits a success result (a proposal + `costUsd`/`turns`), as
+   `chat-stream.test.ts`'s `OK_SDK_RESULT` does.
 2. `POST /api/chat` with `{ intent: "what should I build next?" }` → a `200` response whose
    `Content-Type` is `text/event-stream`, whose body parses to a sequence of SSE `data:` frames ending in
    a terminal `done` event carrying the scripted proposal text (and `costUsd`/`turns`) — proving the real
@@ -194,10 +204,12 @@ The integration test would:
 ## Contracts (4)
 
 The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `desktop` suite),
-the live SDK collaborator injected as a scripted `queryFn` double. None exist yet; each is the assertion
-a contract test WILL prove against the real chat-mount code once authored (provisional path — re-cite at
-real `file:line` when built). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
-distinctly-named test in the single net-new test file, so the coverage check reports 4/4.
+the live SDK collaborator injected as a scripted `queryFn` double. All four are BUILT and GREEN (PR #439,
+the mount authored test-first). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
+distinctly-named test in the net-new test file, so `storytree coverage chat-sse-mount` reports 4/4. (The
+suite also carries a fifth distinctly-named test, `csm-streams-delta-frames`, pinning that the non-terminal
+`delta` token frames added in commit `3d22f76` flow through the same serialise-as-they-arrive path — an
+additional pin on contract 1's SSE-serialisation surface, not a separate mount observable.)
 
 1. **`csm-streams-events-as-sse`** — POST /api/chat streams the session's events back as SSE, read/propose only
    - **asserts —** a `POST /api/chat` with a valid `{ intent }` starts the REAL `startChatStream` /
@@ -246,15 +258,38 @@ new module, test-first.
 - **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `chat-sse-mount.ts`
   does not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red, ADR-0057).
   Assert the SSE stream (terminal `done`/`error`/`refused`), the blank-intent 400, and the fall-through.
-- **The GREEN —** write `apps/desktop/src/backend/chat-sse-mount.ts`: export the `ChatSseMountDeps`
-  interface (`{ store; queryFn?; runner?; model?; maxTurns?; maxBudgetUsd? }` — the forwarded
-  `startChatStream` seams) and `createChatSseMount(deps)` returning the async
+- **The GREEN (as it actually landed, PR #439) —** `apps/desktop/src/backend/chat-sse-mount.ts` exports
+  the `ChatSseMountDeps` interface (`{ queryFn? }`) and `createChatSseMount(deps)` returning the async
   `(req, res, pathname) => Promise<boolean>` dispatcher. On `POST /api/chat`: parse `{ intent }`
-  (400 if blank), set the SSE headers, iterate `startChatStream({ intent, store, ...seams })`, write each
+  (400 if blank), set the SSE headers, iterate `startChatStream({ intent, store, queryFn })`, write each
   event as an SSE `data:` frame, `end()` on the terminal event. Return `false` for any other path. NO
-  `electron`, NO `dom`, NO `apps/studio/server` import. After it, the import resolves, the assertions
-  hold, and the package suite + typecheck stay green. The Electron sidecar (`backend-entry.ts`) then
-  mounts this dispatcher alongside the boot-read + local-backend handlers (operator-attested wiring, not CI).
+  `electron`, NO `dom`, NO `apps/studio/server` import. The import resolves, the assertions hold, and the
+  package suite + typecheck are green (ADR-0122 coverage 4/4). The Electron sidecar (`backend-entry.ts`)
+  then mounts this dispatcher alongside the boot-read + local-backend handlers (operator-attested wiring,
+  not CI). **The store is loaded INTERNALLY, not injected:** the mount lazy-loads its own seed-corpus
+  `SeedStore` over `apps/studio/data/` (`getDefaultStore()`) rather than taking a `store` dep — so the
+  only injected seam is `queryFn` (the offline scripted double; omit for the real SDK default).
+
+> **The deferred mount-deps extension is GLUE, not a contract (decided, story-author 2026-06-27).** The
+> landed `ChatSseMountDeps = { queryFn? }` does NOT forward `startChatStream`'s live orientation seams
+> (`runner` / `model` / `maxTurns` / `maxBudgetUsd`). For a *live* run that matters: `orchestrate.ts`
+> documents that the `runner` (`OrientationRunner`) is REQUIRED for real orientation, "or the orientation
+> tools fall back to a no-op stub and the agent cannot actually orient" — so a live `createChatSseMount({})`
+> would converse + propose from the rendered `session-orchestrator` prompt but BLIND to live state (it
+> cannot read the live tree / library / notice board). Extending the deps to forward `runner` (and the
+> live-tuning `model`/`maxTurns`/`maxBudgetUsd`) is therefore real work — but it is **operator-attested
+> glue, NOT an offline-provable contract**, because the `OrientationRunner` is reachable ONLY through a
+> real SDK tool-dispatch: `runHeadlessOrchestrator` wires the runner into `options.mcpServers`, but a
+> scripted `queryFn` (the discipline every offline proof here uses) consumes `{ prompt, options }` and
+> yields canned messages — it NEVER emits a `tool_use`, so `OrientationTool.call()` → `runner(argv, deps)`
+> (`packages/agent/src/orientation-tools.ts`, the ONLY call site) never fires. A sentinel runner injected
+> into the mount would be wired but never invoked offline, so "the mount forwards the runner" has no
+> observable, offline-provable consequence at the mount's own scope. It is meaningfully exercised only in
+> a live run — i.e. the `desktop` Story UAT leg 7 (operator-attested, ADR-0070), the same leg the live
+> chat run already lives under. So the extension is folded into the operator-attested sidecar wiring
+> below, not authored as a new CI contract. (If the runner's wiring is ever made observable WITHOUT a live
+> SDK — e.g. a scripted `queryFn` that fakes a `tool_use` the SDK contract would route through the MCP
+> dispatch — that becomes a provable contract; today's scripted-`queryFn` discipline does not reach it.)
 
 Rules:
 

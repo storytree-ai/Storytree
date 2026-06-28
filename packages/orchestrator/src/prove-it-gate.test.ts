@@ -366,6 +366,64 @@ test("(i) IMPLEMENT a GENUINE error (not exhausted) => still fails closed at IMP
   assert.equal(await signingRows(store), 0);
 });
 
+// ── (j)–(m) ADR-0127: the per-contract coverage axis is stamped onto the signed verdict ──────────
+// ADR-0020 proves the ONE authored test went red→green; ADR-0127 records which DECLARED contracts a
+// signed green covered vs over-claimed, computed by an injected GATE-time seam (the real resolver
+// reads the authored test file + classifies; tests inject a fixture). The axis is stamped only on a
+// genuinely-signed verdict — a walk that dies before GATE produces no verdict and consults no seam.
+
+test("(j) coverage seam present => the axis is stamped on the verdict AND the persisted signing row", async () => {
+  const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  const coverage = { covered: ["c-1", "c-2"], uncovered: ["c-3"] };
+  // The seam is a THUNK computed lazily at GATE (the real resolver reads the authored test file
+  // there); here a fixture returns a fixed axis.
+  spec.contractCoverage = () => coverage;
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.verdict.contractCoverage, coverage);
+
+  // The stamped axis is on the PERSISTED signing row too, not only the returned verdict.
+  const signing = (await store.readEvents()).find((e) => e.kind === "signing");
+  assert.ok(signing !== undefined);
+  assert.deepEqual((signing.doc as Verdict).contractCoverage, coverage);
+});
+
+test("(k) no coverage seam => the verdict OMITS the axis (pre-ADR-0127 back-compat)", async () => {
+  const { spec } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  // no contractCoverage seam set — a pre-ADR-0127 caller
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal("contractCoverage" in result.verdict, false, "the key is OMITTED, not set to undefined");
+});
+
+test("(l) a seam returning undefined => the verdict OMITS the axis (fail-closed, never falsely covered)", async () => {
+  const { spec } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  // The unit declares no contracts, or its test surface can't be read — the axis is simply omitted.
+  spec.contractCoverage = () => undefined;
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal("contractCoverage" in result.verdict, false);
+});
+
+test("(m) the coverage seam is NEVER consulted when the walk fails before GATE (no verdict, no coverage)", async () => {
+  // A forged green at CONFIRM_RED aborts before any verdict is built — the seam must never run.
+  const { spec, store } = freshSpec({ observations: [GREEN, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  let consulted = false;
+  spec.contractCoverage = () => {
+    consulted = true;
+    return { covered: [], uncovered: [] };
+  };
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, false);
+  assert.equal(consulted, false, "no signed verdict => the coverage axis is never computed");
+  assert.equal(await signingRows(store), 0);
+});
+
 // ── gitTreeState typechecks + is constructible (NOT exercised against a live tree here) ──────────
 
 test("gitTreeState returns a callable treeState seam (constructible; not run against a live tree)", () => {

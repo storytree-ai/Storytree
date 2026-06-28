@@ -16,6 +16,19 @@ decide → decompose → build → curate → open the landing PR), and **one or
 time** to start. Per-session budget controls are deferred (owner: not a day-one concern). The chat
 surface's APPEARANCE is operator-attested under ADR-0070 when built.
 
+> **Amended by [ADR-0132](0132-the-desktop-chat-is-orchestrator-first-on-the-smartest-model.md)**
+> (accepted, 2026-06-28) — the Phase-2 chat surface is settled: orchestrator-first (no concierge) on the
+> smartest model (Opus), with a `storytree-guide` help specialist; §7 is reconciled (prose streaming is
+> the conversational rendering, the phase/tool trail the observability layer — "not the raw token stream"
+> amended accordingly); and the **deferred per-session budget** is resolved no-ceiling (the turn cap is the
+> brake, opt-in budget survives). The shape and phasing here stand.
+
+> **Amended in degree by [ADR-0131](0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md)**
+> — the IMPLEMENTATION of that no-USD-ceiling resolution (parallel to ADR-0132's declaration above):
+> `headless-orchestrator.ts` drops its `?? 1` USD default, so the orchestrator session runs bounded by
+> the turn cap (16) with `--budget` the opt-in. ADR-0131 also extends the same rule to the post-green
+> curator (ADR-0067). The single-session guard and the accept-to-land gate stay the load-bearing brakes.
+
 ## Context
 
 Today the session-orchestrator is a *generated prompt* (ADR-0051) that a human-run Claude Code session
@@ -137,6 +150,10 @@ loop, Phase 5 is hosting.
   terminal loop.
 - Per-session budget controls are deferred, not foreclosed — a natural follow-on when spend or the
   hosted phase makes them matter.
+  > **Update:** resolved no-ceiling — declared by
+  > [ADR-0132](0132-the-desktop-chat-is-orchestrator-first-on-the-smartest-model.md) and IMPLEMENTED by
+  > [ADR-0131](0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md) (which drops the
+  > orchestrator's `?? 1` USD default); the session runs bounded by the turn cap (16), `--budget` the opt-in.
 
 ## References
 

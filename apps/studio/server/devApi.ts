@@ -15,8 +15,9 @@ import { createBackend, selectedStore, type LibraryBackend } from './libraryBack
 import { createCodeStampProbe, type CodeStamp } from './codeStamp';
 import { handleApiRequest, resolveStudioPaths, type Paths, type BuildContext, type AdoptContext } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
-import { BuildRegistry } from './buildRegistry';
-import { routedBuildRunner, adoptRunnerFromAdoptStory } from './buildWorker';
+// The build worker machinery is relocated into @storytree/drive (ADR-0133 d.3 — a package both the studio
+// server and the desktop local backend may import; ADR-0100 forbids importing apps/studio/server).
+import { BuildRegistry, routedBuildRunner, adoptRunnerFromAdoptStory } from '@storytree/drive/build-worker';
 import { installDevServerResilience } from './devServerResilience';
 
 // Re-exported for the existing integration tests (the route table's real home).

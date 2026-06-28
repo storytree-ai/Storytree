@@ -52,7 +52,7 @@ function classificationLines(contracts: ContractCoverage[]): string[] {
   return contracts.map((c) =>
     c.covered
       ? `  ✓ ${c.contractId.padEnd(idWidth)}  COVERED    ${coveredByLine(c)}`
-      : `  ○ ${c.contractId.padEnd(idWidth)}  UNCOVERED  no observed test names it`,
+      : `  ○ ${c.contractId.padEnd(idWidth)}  UNCOVERED  no substantive test covers it`,
   );
 }
 
@@ -108,7 +108,8 @@ export async function coverageCommand(
       `⚠ ${report.uncovered.length} UNCOVERED contract(s): ${report.uncovered.join(", ")}`,
       "  A signed green over-claims these — the gate observes only the ONE authored test (ADR-0020 §3),",
       "  not every enumerated contract. Author a test that NAMES each (the `describe(\"<id>: …\")`",
-      "  convention), or split/retire the contract if it is not a real obligation.",
+      "  convention) AND asserts something substantive (a hollow `assert(true)` does not count, ADR-0126),",
+      "  or split/retire the contract if it is not a real obligation.",
     );
   }
 
@@ -117,9 +118,9 @@ export async function coverageCommand(
     unit.testFiles.length > 0
       ? `scanned ${unit.testFiles.length} test file(s): ${unit.testFiles.join(", ")}`
       : "scanned NO test files — the unit declares no real-build test surface to observe (so every contract reads uncovered).",
-    "COVERED = an observed test NAMES the contract (the naming convention). Static name-presence: it",
-    "catches a DROPPED contract; a hollow test under the right name is the named follow-on (a",
-    "runtime-observed coverage signal — ADR-0020 §4 reward-hacking guards).",
+    "COVERED = a SUBSTANTIVE test NAMES the contract (the naming convention). Static AST (ADR-0126): a",
+    "hollow `assert(true)` or a skipped test does NOT count, so it catches both a DROPPED contract and a",
+    "hollow one. A substantive-but-irrelevant assertion still reads covered — the semantic-reviewer follow-on.",
   );
 
   return {

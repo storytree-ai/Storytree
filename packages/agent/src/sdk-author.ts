@@ -103,9 +103,15 @@ export interface ClaudeAgentAuthorArgs {
   isWriteAllowed: (phase: AuthoringPhase, relPath: string) => boolean;
   /** Model for the SDK session. Default: claude-sonnet-4-6. */
   model?: string;
-  /** Per-slice turn ceiling. Default: 16. */
+  /** Per-slice turn ceiling — the runaway brake. Default: 16. */
   maxTurns?: number;
-  /** Per-slice hard budget ceiling in USD (the SDK aborts past it). Default: 1. */
+  /**
+   * OPTIONAL per-slice hard budget ceiling in USD (the SDK aborts past it). Default: NONE — no USD
+   * ceiling is enforced unless an explicit value is threaded down (ADR-0130). The leaf is
+   * subscription-funded (ADR-0030), so the SDK's metered `total_cost_usd` is a phantom that doesn't
+   * reflect our flat cost; the {@link maxTurns} cap is the genuine runaway brake. An operator may still
+   * opt into a cap via `--budget`, in which case `error_max_budget_usd` maps to `exhausted` as before.
+   */
   maxBudgetUsd?: number;
   /**
    * Spine-registered feedback commands exposed to the leaf as bounded in-process MCP tools
@@ -395,7 +401,10 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       cwd: this.#args.cwd,
       model: this.#args.model ?? "claude-sonnet-4-6",
       maxTurns: this.#args.maxTurns ?? 16,
-      maxBudgetUsd: this.#args.maxBudgetUsd ?? 1,
+      // No USD ceiling by default (ADR-0130): the leaf is subscription-funded (ADR-0030), so a metered
+      // dollar cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when an
+      // operator explicitly opted into a cap (`--budget`); absent, the SDK runs with no budget wall.
+      ...(this.#args.maxBudgetUsd !== undefined ? { maxBudgetUsd: this.#args.maxBudgetUsd } : {}),
       tools: LEAF_TOOLS,
       allowedTools: [...LEAF_TOOLS, ...this.feedbackToolNames],
       permissionMode: "bypassPermissions",

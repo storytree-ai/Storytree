@@ -59,7 +59,15 @@ the client. It owns no loop logic of its own.
 > one streaming core by package name; (2) a distinct terminal `refused` event
 > (`ChatStreamRefusedEvent`, chat-stream.ts:50) that surfaces the composition-level TYPED single-session
 > refusal (`orchestrate` returns `{ refused: true, reason: "single-session" }`, ADR-0108 d.6 / PR #416),
-> separate from the generic `error` event so a thin client can show "busy / try again". It REUSES the
+> separate from the generic `error` event so a thin client can show "busy / try again". A LATER session
+> (commit `3d22f76`) then added **token-delta streaming** (the responsiveness fix, ADR-0108 Phase 2):
+> a NEW **non-terminal** `delta` event (`{ type: "delta"; text }`) carries each assistant text fragment
+> as it generates, so zero or more `delta` events now precede the terminal `done`/`error`/`refused`. The
+> stream previously awaited the WHOLE multi-turn session and emitted one terminal `done`, so the client
+> saw only a spinner until the session finished; `startChatStream` now bridges `orchestrate`'s `onDelta`
+> sink (which enables the SDK's `includePartialMessages`) into yielded `delta` events via a FIFO queue —
+> the live preview. The terminal `done`'s `proposal` is still the AUTHORITATIVE result message, never the
+> concatenated stream. Covered by `cs-streams-text-deltas-before-done` (contract 6 below). It REUSES the
 > Phase-1 composition verbatim: `orchestrate`
 > (`packages/drive/src/orchestrate.ts`, the real `session-orchestrator` render + headless session) —
 > Phase 2 is a STREAM + an HTTP intake around it, not a new loop or a forked prompt. The renderer chat
@@ -95,10 +103,20 @@ desktop's `local-backend-boot`), over THIS streaming core.
 
 THE INTAKE IS HTTP, THE STREAM IS SSE (the Phase-2 surface shape, ADR-0108 d.1): a chat message arrives
 as an HTTP intake (a POST body / a function arg the route adapts), and the session's live output is
-delivered as a Server-Sent-Events stream (a sequence of typed events ending in a terminal done/error).
-The adapter is transport-shaped but transport-agnostic at its core: it yields an async stream of events
-the route serialises as SSE — so it stays offline-testable (the test consumes the event stream directly,
-no real socket).
+delivered as a Server-Sent-Events stream — zero or more **non-terminal `delta`** events (each carrying an
+assistant text fragment as it generates, `{ type: "delta"; text }`) followed by exactly one terminal
+`done`/`error`/`refused` event. The adapter is transport-shaped but transport-agnostic at its core: it
+yields an async stream of events the route serialises as SSE — so it stays offline-testable (the test
+consumes the event stream directly, no real socket).
+
+THE STREAM CARRIES A LIVE TOKEN PREVIEW, THE TERMINAL EVENT CARRIES THE TRUTH (the responsiveness fix,
+ADR-0108 Phase 2 streaming): the non-terminal `delta` events are a LIVE PREVIEW of the assistant's text
+as it generates — a thin client renders them token-by-token so the chat feels alive instead of showing a
+spinner until the whole multi-turn session finishes. `startChatStream` bridges `orchestrate`'s `onDelta`
+sink (which turns on the SDK's `includePartialMessages`) into yielded `delta` events through a FIFO queue,
+drained interleaved with completion so no fragment is dropped and no terminal event races ahead of a
+buffered delta. The AUTHORITATIVE answer is always the terminal `done`'s `proposal` (the `orchestrate`
+result message), NOT the concatenated `delta` stream — the client settles to the proposal on `done`.
 
 READ/PROPOSE ONLY, NO SIGNING (ADR-0091 / the Phase-2 wall): the chat surface streams an orient+propose
 session. It holds NO signing key, hands in NO verdict, triggers NO build, opens NO PR, lands NOTHING
@@ -139,7 +157,10 @@ The integration test would:
    session calls an orientation tool then emits a proposal.
 2. Consume the adapter's event stream → assert it yields a sequence of typed events carrying the
    session's live output and ending in a terminal DONE event with the surfaced proposal — the SSE shape
-   the route serialises.
+   the route serialises. A scripted session emitting partial-assistant text fragments yields one
+   non-terminal `delta` event per fragment, in order, all preceding the terminal `done` (the live token
+   preview, ADR-0108 Phase 2 streaming); the terminal `done`'s `proposal` is the authoritative answer,
+   distinct from the concatenated `delta` stream.
 3. Assert the adapter drove the REAL `orchestrate` composition (the real `session-orchestrator` prompt
    was rendered, the orientation deps assembled over the real seed) — not a forked/bespoke session.
 4. Assert no build/PR/verdict side effect occurred (read/propose only, ADR-0091) — the adapter holds no
@@ -151,37 +172,42 @@ The integration test would:
    `refused` event carrying the single-session reason (NOT a generic `error`, so a thin client can show
    "busy / try again"), the SDK never reached, and the running session's stream left untouched.
 
-## Contracts (5)
+## Contracts (6)
 
 The test-proven leaf behaviours — each one assertion in the `@storytree/drive` suite
 (`node:test`), exercised against the real `orchestrate` composition with an injected `queryFn` scripted
-double. All five are now green (built net-new by #398, contract coverage completed by #399).
+double. The first five landed green built net-new by #398, contract coverage completed by #399; the
+sixth (token-delta streaming) landed in commit `3d22f76`. (Line numbers below are documentation hints,
+not gate-enforced — they shift as the test file grows; the contract id + test name are the durable anchor.)
 
 1. **`cs-streams-session-output-as-events`** — the session's output is forwarded as a terminating event stream
    - **asserts —** driving the adapter with a scripted session yields a sequence of typed events ending
      in a terminal DONE event carrying the proposal — the SSE shape the route serialises (no real socket
      in the test). The done event also surfaces `costUsd` and `turns` from the orchestrate result.
-   - **covers —** `packages/drive/src/chat-stream.test.ts:84` (terminal `done` + proposal),
-     `packages/drive/src/chat-stream.test.ts:170` (`costUsd`/`turns` surfaced)
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "successful session terminates with a
+     `done` event" test for the terminal `done` + proposal, and the "done event surfaces costUsd and
+     turns" test)
 2. **`cs-drives-the-real-orchestrate-not-a-fork`** — the adapter reuses the Phase-1 composition
    - **asserts —** the adapter drives the REAL `orchestrate` composition with the intake as the intent
      and the injected `queryFn` passed through — proven by capturing the system prompt fed to the SDK and
      asserting it names `session-orchestrator` (the rendered Library agent), not a bespoke forked prompt.
-   - **covers —** `packages/drive/src/chat-stream.test.ts:206`
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "drives the real orchestrate composition" test)
 3. **`cs-read-propose-only`** — no act side effect, no signing
    - **asserts —** on a successful scripted session the adapter surfaces a proposal in its terminal `done`
      event and nothing more. The "no build/PR/verdict side effect" half is true BY CONSTRUCTION, not by a
      dedicated assertion: the adapter's only collaborator is `orchestrate` (chat-stream.ts:106), it holds
      no signing key and no build runner, so there is no path through which it could sign, build, open a
      PR, or land — there is nothing for a test to observe being NOT invoked (read/propose only, ADR-0091).
-   - **covers —** `packages/drive/src/chat-stream.test.ts:84` (the surfaced proposal is the proven half);
-     the no-side-effect half is structural — `packages/drive/src/chat-stream.ts:102` (`startChatStream`
-     calls only `orchestrate`, takes no signer/runner-of-builds)
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "successful session terminates with a
+     `done` event" test — the surfaced proposal is the proven half); the no-side-effect half is structural
+     — `startChatStream` in `packages/drive/src/chat-stream.ts` calls only `orchestrate`, takes no
+     signer/runner-of-builds
 4. **`cs-fails-closed-on-dead-session`** — a dead session ends in a terminal `error` event
    - **asserts —** a dead/error session (e.g. `session-orchestrator` absent, an SDK error) yields a
      terminal `error` event — never a forged proposal, never a hung stream — and the SDK is never called
      (fail-closed before any spend).
-   - **covers —** `packages/drive/src/chat-stream.test.ts:122`
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "when session-orchestrator is absent,
+     terminates with a typed `error` event" test)
 5. **`cs-single-session-refused`** — a second concurrent session ends in a DISTINCT `refused` event
    - **asserts —** a second concurrent session yields a distinct terminal `refused` event carrying the
      reason (the single-session guard, ADR-0108 d.6, enforced by the composition-level typed guard in
@@ -189,8 +215,17 @@ double. All five are now green (built net-new by #398, contract coverage complet
      `inFlight` flag is a backstop — and surfaced here as the `refused` event), while the running session
      is left untouched and the SDK is never reached. Distinct from `error` so a thin client can render
      "busy / try again".
-   - **covers —** `packages/drive/src/chat-stream.test.ts:261`; the `refused` event type at
-     `packages/drive/src/chat-stream.ts:50` and the refusal mapping at `packages/drive/src/chat-stream.ts:122`
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "second concurrent session is refused"
+     test); the `refused` event type and the refusal mapping in `packages/drive/src/chat-stream.ts`
+6. **`cs-streams-text-deltas-before-done`** — assistant text deltas stream as non-terminal `delta` events, in order, before the terminal `done`
+   - **asserts —** a scripted session that emits partial-assistant text fragments yields one non-terminal
+     `delta` event per fragment, IN ORDER, all preceding the terminal `done` (no terminal event races
+     ahead of a buffered delta) — the live token preview (ADR-0108 Phase 2 streaming). The terminal
+     `done`'s `proposal` is the AUTHORITATIVE result message, DISTINCT from the concatenated `delta`
+     stream — proving the client settles to the proposal, not the preview.
+   - **covers —** `packages/drive/src/chat-stream.test.ts` (the "streams assistant text deltas as `delta`
+     events, in order, before the terminal `done`" test); the non-terminal `delta` event type and the
+     `onDelta`→FIFO-queue bridge in `packages/drive/src/chat-stream.ts`
 
 ## Guidance — the net-new slice that earned the signed verdict
 
@@ -224,3 +259,9 @@ Rules:
   ADR-0108 d.6). Both are pinned.
 - **Transport-agnostic core** — yield an event stream the route serialises as SSE; keep the core
   socket-free so it stays offline-testable.
+- **Stream tokens live, settle to the truth** — forward each assistant text fragment as a non-terminal
+  `delta` event as it generates (the responsiveness fix, ADR-0108 Phase 2 streaming), bridged from
+  `orchestrate`'s `onDelta` sink via a FIFO queue so no fragment is dropped and no terminal event races
+  ahead of a buffered delta; the terminal `done`'s `proposal` (the result message) is always the
+  authoritative answer, never the concatenated stream. The test pins this
+  (`cs-streams-text-deltas-before-done`).

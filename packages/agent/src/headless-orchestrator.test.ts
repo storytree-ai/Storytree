@@ -78,6 +78,39 @@ test("runHeadlessOrchestrator: returns proposal text + cost + turns on a success
 });
 
 // ---------------------------------------------------------------------------
+// 1b. No USD budget ceiling by default — the turn cap is the brake (ADR-0131)
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: runs with NO USD budget ceiling by default — the turn cap is the brake (ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number; maxTurns?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number; maxTurns?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  const r = await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", queryFn });
+  assert.equal(r.ok, true);
+  // The session is subscription-funded (ADR-0030); ADR-0108's deferred per-session budget is resolved
+  // in the no-ceiling direction (ADR-0131) — so no phantom dollar wall by default…
+  assert.equal(opts?.maxBudgetUsd, undefined, "no maxBudgetUsd unless `orchestrate --budget` is set");
+  // …but the genuine runaway brake (the turn cap) stays in force.
+  assert.equal(opts?.maxTurns, 16, "the turn cap (16) remains the default runaway brake");
+});
+
+test("runHeadlessOrchestrator: passes an explicit maxBudgetUsd through (the opt-in cap survives, ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", maxBudgetUsd: 2, queryFn });
+  assert.equal(opts?.maxBudgetUsd, 2, "an operator-set budget is still honoured as a ceiling");
+});
+
+// ---------------------------------------------------------------------------
 // 2. Fail-closed — stream carries no result message
 // ---------------------------------------------------------------------------
 
@@ -193,10 +226,101 @@ test("runHeadlessOrchestrator: refuses a second concurrent run while one is in f
 });
 
 // ---------------------------------------------------------------------------
+// 5b. Streaming — assistant text deltas are forwarded to onDelta as they arrive,
+//     and the session enables includePartialMessages (ADR-0108 Phase 2 streaming)
+// ---------------------------------------------------------------------------
+
+/** Build an SDK partial-assistant streaming message carrying one text-delta fragment.
+ *  Mirrors the live `SDKPartialAssistantMessage` shape so the scripted double matches `query()`. */
+function textDeltaMessage(text: string): unknown {
+  return {
+    type: "stream_event",
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    parent_tool_use_id: null,
+    uuid: "u",
+    session_id: "s",
+  };
+}
+
+test("runHeadlessOrchestrator: forwards assistant text deltas to onDelta in order and enables includePartialMessages", async () => {
+  const deltas: string[] = [];
+  let capturedOptions: unknown;
+
+  const streamingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield textDeltaMessage("Orient");
+      yield textDeltaMessage("ing on ");
+      yield textDeltaMessage("the tree…");
+      // A non-text partial (tool-input JSON) must NOT be forwarded as prose.
+      yield {
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "input_json_delta", partial_json: '{"a":1}' },
+        },
+        parent_tool_use_id: null,
+        uuid: "u2",
+        session_id: "s",
+      };
+      yield okResult;
+    })();
+  };
+
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "orient",
+    onDelta: (t) => deltas.push(t),
+    queryFn: streamingQuery,
+  });
+
+  assert.equal(r.ok, true, "a streaming session must still terminate with the result message");
+  assert.deepEqual(
+    deltas,
+    ["Orient", "ing on ", "the tree…"],
+    "every text_delta fragment must be forwarded to onDelta in arrival order; non-text deltas excluded",
+  );
+  assert.equal(
+    (capturedOptions as { includePartialMessages?: boolean }).includePartialMessages,
+    true,
+    "includePartialMessages must be enabled when an onDelta sink is wired",
+  );
+  assert.equal(
+    r.proposal,
+    okResult.result,
+    "the authoritative proposal is still the result message's result, not the concatenated deltas",
+  );
+});
+
+test("runHeadlessOrchestrator: leaves includePartialMessages off when no onDelta sink is provided", async () => {
+  let capturedOptions: unknown;
+  const capturingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "orient",
+    queryFn: capturingQuery,
+  });
+
+  assert.equal(r.ok, true);
+  assert.notEqual(
+    (capturedOptions as { includePartialMessages?: boolean }).includePartialMessages,
+    true,
+    "a non-streaming consumer must not pay the partial-message cost (includePartialMessages stays off)",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // 6. Read-only tool surface — orientation tools in allowedTools, no write tools
 // ---------------------------------------------------------------------------
 
-test("runHeadlessOrchestrator: wires orientation tools in allowedTools and excludes write tools", async () => {
+test("runHeadlessOrchestrator: wires orientation tools in allowedTools (when a runner is present) and excludes write tools", async () => {
   let capturedOptions: unknown;
 
   const capturingQuery: SdkQueryFn = ({ options }) => {
@@ -209,6 +333,9 @@ test("runHeadlessOrchestrator: wires orientation tools in allowedTools and exclu
   const r = await runHeadlessOrchestrator({
     systemPrompt: "SYS",
     userPrompt: "orient",
+    // A runner IS present, so the orientation surface is wired (ADR-0108 §7 scale-down: no runner
+    // → no orientation tools; see the dedicated test below).
+    runner: fixedRunner({ ok: true, body: "## seed tree" }),
     queryFn: capturingQuery,
   });
 
@@ -247,6 +374,92 @@ test("runHeadlessOrchestrator: wires orientation tools in allowedTools and exclu
       );
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// 6b. Scale-down (ADR-0108 §7) — with NO runner, no orientation tools are wired,
+//     so the agent can't burn a turn on dead stub calls (the desktop "hello" fix).
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: wires NO orientation tools when no runner is present (the §7 scale-down)", async () => {
+  let capturedOptions: unknown;
+  const capturingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+
+  // NO runner injected — exactly the desktop chat's live config (createChatSseMount({})).
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    queryFn: capturingQuery,
+  });
+
+  assert.equal(r.ok, true, "a runnerless session must still succeed (a plain conversational turn)");
+
+  const opts = capturedOptions as {
+    allowedTools?: string[];
+    mcpServers?: Record<string, unknown>;
+  };
+  const allowed = opts.allowedTools ?? [];
+  const orientationWired = allowed.some((n) =>
+    /tree|library|noticeboard|orientation/.test(n),
+  );
+  assert.ok(
+    !orientationWired,
+    `with no runner, NO orientation tools may be advertised — the agent must not be invited to make ` +
+      `dead stub calls (the §7 scale-down); got allowedTools: ${JSON.stringify(allowed)}`,
+  );
+  assert.ok(
+    !("orientation" in (opts.mcpServers ?? {})),
+    "with no runner, the orientation MCP server must not be mounted",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 6c. The trace seam (ADR-0108 §7) — onMessage receives EVERY SDK message in
+//     order, and a throwing sink can never break the session loop.
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: onMessage receives every SDK message in arrival order (the trace seam)", async () => {
+  const seen: string[] = [];
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    onMessage: (m) => seen.push(String((m as { type?: unknown }).type)),
+    queryFn: queryYielding([
+      { type: "system", subtype: "init" },
+      { type: "assistant", message: { content: [{ type: "text", text: "hi" }] } },
+      okResult,
+    ]),
+  });
+
+  assert.equal(r.ok, true);
+  assert.deepEqual(
+    seen,
+    ["system", "assistant", "result"],
+    "onMessage must fire for EVERY message (not just the result) in arrival order — the trace seam",
+  );
+});
+
+test("runHeadlessOrchestrator: a throwing onMessage sink never breaks the session", async () => {
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    onMessage: () => {
+      throw new Error("a buggy trace sink");
+    },
+    queryFn: queryYielding([{ type: "assistant" }, okResult]),
+  });
+
+  assert.equal(
+    r.ok,
+    true,
+    "a trace sink that throws must be swallowed — observability must never break the session",
+  );
+  assert.equal(r.proposal, okResult.result, "the proposal is still extracted despite the throwing sink");
 });
 
 // ---------------------------------------------------------------------------

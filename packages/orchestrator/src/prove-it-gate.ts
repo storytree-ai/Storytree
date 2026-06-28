@@ -19,6 +19,7 @@ import type { AuthorResult, PhaseAuthor } from "@storytree/agent";
 import type { ChangeStore, Store } from "@storytree/storage-protocol";
 import type {
   ChangeEvent,
+  ContractCoverageAxis,
   EvidenceRef,
   ProofMode,
   Verdict,
@@ -89,6 +90,16 @@ export interface ProveSpec {
   binding?: ProvenBinding;
   /** ADR-0016 (optional): the change-log sink the emitted ChangeEvent is appended to. Absent = no emission. */
   changeStore?: ChangeStore;
+  /**
+   * ADR-0127 (optional): the per-contract coverage axis, computed LAZILY at GATE time and stamped onto
+   * the signed verdict. A THUNK — not a value — because in a real build the test file is authored
+   * DURING the walk, so coverage is unknowable at resolve time; the gate consults it only once it
+   * reaches GATE (a genuinely-signed green), so an aborted walk stamps nothing. It returns `undefined`
+   * when the unit declares no contracts or its test surface cannot be read (fail-closed — the axis is
+   * OMITTED, never falsely "fully covered"). Absent on every pre-ADR-0127 caller, so existing
+   * behaviour is unchanged.
+   */
+  contractCoverage?: () => ContractCoverageAxis | undefined;
   /**
    * ADR-0048 §3 v2 (optional): a phase OBSERVER the spine invokes as it commits to each phase
    * (`AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`), so the in-flight-build wisp can
@@ -200,6 +211,11 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     return fail("GATE", `no signer resolved: ${signer.error}`, visited);
   }
 
+  // ADR-0127: the per-contract coverage axis, computed lazily HERE (the test file is on disk and
+  // committed by now). Consulted only on this signed-green path, so an aborted walk stamps nothing
+  // (test m). A thunk returning undefined (no contracts / unreadable surface) leaves the key OFF.
+  const coverage = spec.contractCoverage?.();
+
   const verdict: Verdict = {
     unitId: spec.unitId,
     proofMode: spec.proofMode,
@@ -213,6 +229,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     evidence: [toEvidence(redObs), toEvidence(greenObs)],
     at: spec.now(),
     ...(spec.binding !== undefined ? { boundHash: spec.binding.boundHash } : {}),
+    ...(coverage !== undefined ? { contractCoverage: coverage } : {}),
   };
 
   // The signed promotion event: healthy/proven is reachable ONLY through this append (never authored).

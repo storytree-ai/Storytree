@@ -1,3 +1,5 @@
+import ts from "typescript";
+
 import type { ContractDecl } from "@storytree/library";
 
 /**
@@ -11,21 +13,31 @@ import type { ContractDecl } from "@storytree/library";
  * and nothing caught the under-coverage. So "trustworthy" is correctly scoped to "cannot forge the
  * authored test," not "the whole spec is proven."
  *
- * This is the FIRST SLICE the owner chose: a structural, offline check that maps each declared
- * contract to an OBSERVED test by the naming convention — a contract is covered iff some test names it
- * (the convention `describe("<contract-id>: …")`, proven real by `declare-presence`'s three contracts
- * naming `presence.test.ts`'s three suites). Pure-by-injection (contract ids + test names in, report
- * out), deterministic, order-preserving — it mirrors {@link import("./adoption-proposal.js").classifyAdoption}
+ * This is the structural, offline check: it maps each declared contract to an OBSERVED test by the
+ * naming convention — a contract is covered iff some test names it (the convention
+ * `describe("<contract-id>: …")`, proven real by `declare-presence`'s three contracts naming
+ * `presence.test.ts`'s three suites). Pure-by-injection (contract ids + test names in, report out),
+ * deterministic, order-preserving — it mirrors {@link import("./adoption-proposal.js").classifyAdoption}
  * one tier DOWN (that is capability→gate coverage; this is contract→test coverage). No store / git / clock.
  *
- * Honest limits (named follow-on, mirroring adoption-proposal's "trusts the declaration; coverage
- * MEASUREMENT is follow-on"):
- *  - It is STATIC NAME-PRESENCE, not runtime observation: a test NAMED for a contract counts as
- *    covering it. It catches the DOCUMENTED failure mode (a DROPPED contract — no test names it at
- *    all). It does NOT catch a hollow test (`assert(true)` under the right name) — detecting that is
- *    the deeper follow-on (ADR-0020 §4 reward-hacking guards), and a runtime-observed coverage signal
- *    is the heavier mechanism the owner deferred.
- *  - The convention it enforces (a test name carries its contract's id) becomes a checkable standard.
+ * HOLLOW-TEST DETECTION (ADR-0126, owner-directed 2026-06-27 — static AST over a runtime signal):
+ * the first slice (ADR-0122) counted a test NAMED for a contract even if it was HOLLOW (`assert(true)`
+ * under the right name). That is now closed at the EXTRACTION step: {@link extractVouchingTestNames}
+ * parses the test source (the TypeScript compiler AST) and feeds the classifier only the names of tests
+ * that actually VOUCH — a test that runs (not `.skip`/`.todo`) AND asserts something SUBSTANTIVE (an
+ * `assert`/`expect` call with ≥1 argument that is not a trivially-constant literal). A hollow test is
+ * simply absent from the observed names, so its contract reads UNCOVERED. Still STATIC and offline —
+ * no execution, no `t.assert` plan-counting (this codebase asserts via `node:assert/strict`, which a
+ * runtime reporter never counts), aligning with ADR-0020 §4's "no `assert(true)` / skipped-test" guards
+ * as a lint-shaped rule.
+ *
+ * Honest limit (the named escalation path): detection is CONSERVATIVE — it flags only a clearly-hollow
+ * test (no assertion, a constant-only assertion, or a skip), never a real test, biasing toward
+ * "covered" to avoid false-hollows. A test that asserts something SUBSTANTIVE but semantically
+ * IRRELEVANT to its contract (`assert.ok(unrelated)` under the right name) still reads covered —
+ * judging that is the deeper follow-on (a semantic reviewer-agent, ADR-0122 / ADR-0020 §4), not a
+ * structural check. The convention it enforces (a test name carries its contract's id) stays a
+ * checkable standard.
  */
 
 // ---------------------------------------------------------------------------
@@ -85,6 +97,181 @@ export function extractTestNames(testSource: string): string[] {
     names.push(match[2] ?? "");
   }
   return names;
+}
+
+// ---------------------------------------------------------------------------
+// Hollow-test detection (ADR-0126): a test only VOUCHES if it runs and asserts substantively
+// ---------------------------------------------------------------------------
+
+/** A test/suite call observed in a test file's AST — the hollow-detection unit (ADR-0126). */
+export interface ObservedTest {
+  /** The test/suite name (the first string-literal arg) — what contract ids are matched against. */
+  name: string;
+  /** Skipped — `.skip`/`.todo` on the call, OR nested under one. A skipped test never runs, so it cannot vouch. */
+  skipped: boolean;
+  /**
+   * VOUCHES for its name iff it is NOT skipped AND its lexical region contains ≥1 SUBSTANTIVE
+   * assertion — an `assert`/`expect` call with ≥1 argument that is not a trivially-constant literal.
+   * A hollow `assert(true)` (or no assertion at all) does NOT vouch. Only vouching names reach the
+   * coverage classifier (so a hollow test's contract reads UNCOVERED).
+   */
+  vouches: boolean;
+}
+
+/** The test-runner call roots whose first string arg names a test/suite (mirrors `extractTestNames`). */
+const TEST_CALL_ROOTS = new Set(["describe", "test", "it"]);
+/** Modifiers that mean "named but never runs" — a `.skip`/`.todo` test asserts nothing at runtime. */
+const SKIP_MODIFIERS = new Set(["skip", "todo"]);
+/** The assertion-API roots this codebase uses: `node:assert/strict` (`assert.*`) and vitest (`expect`). */
+const ASSERTION_NAMES = new Set(["assert", "expect"]);
+
+/**
+ * Walk a call's callee expression to its leftmost root identifier, collecting the member names along
+ * the way. `describe.each([...])(name, …)` → root `describe`, members `["each"]`; `assert.ok(x)` →
+ * root `assert`, members `["ok"]`; `expect(x).toBe(y)` → root `expect`, members `["toBe"]`;
+ * `t.assert.ok(x)` → root `t`, members `["ok", "assert"]`. Unwraps call/paren/non-null wrappers.
+ */
+function calleeParts(expr: ts.Expression): { root: string | undefined; members: string[] } {
+  const members: string[] = [];
+  let node: ts.Expression = expr;
+  for (;;) {
+    if (ts.isPropertyAccessExpression(node)) {
+      members.push(node.name.text);
+      node = node.expression;
+    } else if (ts.isElementAccessExpression(node)) {
+      node = node.expression;
+    } else if (ts.isCallExpression(node)) {
+      node = node.expression; // descend e.g. `describe.each([...])(…)`'s inner call
+    } else if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) {
+      node = node.expression;
+    } else {
+      break;
+    }
+  }
+  return { root: ts.isIdentifier(node) ? node.text : undefined, members };
+}
+
+/** The name a `describe`/`test`/`it` call declares — its first string-literal-like arg, or null. */
+function testCallName(arg: ts.Expression | undefined): string | null {
+  if (arg === undefined) return null;
+  if (ts.isStringLiteralLike(arg)) return arg.text; // string + no-substitution template
+  if (ts.isTemplateExpression(arg)) {
+    // A template with `${…}`: the literal spans still carry any id prefix (mirrors `extractTestNames`).
+    return arg.head.text + arg.templateSpans.map((s) => s.literal.text).join("");
+  }
+  return null;
+}
+
+/** Is this node a `describe`/`test`/`it` call? Returns its declared name + own skip/todo modifier, or null. */
+function matchTestCall(node: ts.Node): { name: string; ownSkip: boolean } | null {
+  if (!ts.isCallExpression(node)) return null;
+  const { root, members } = calleeParts(node.expression);
+  if (root === undefined || !TEST_CALL_ROOTS.has(root)) return null;
+  const name = testCallName(node.arguments[0]);
+  if (name === null) return null;
+  return { name, ownSkip: members.some((m) => SKIP_MODIFIERS.has(m)) };
+}
+
+/** A trivially-constant literal: a scalar (or a unary/binary/paren of scalars). NOT an identifier/call/array/object. */
+function isTriviallyConstant(expr: ts.Expression): boolean {
+  let e: ts.Expression = expr;
+  while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) {
+    e = e.expression;
+  }
+  switch (e.kind) {
+    case ts.SyntaxKind.TrueKeyword:
+    case ts.SyntaxKind.FalseKeyword:
+    case ts.SyntaxKind.NullKeyword:
+    case ts.SyntaxKind.NumericLiteral:
+    case ts.SyntaxKind.BigIntLiteral:
+    case ts.SyntaxKind.StringLiteral:
+    case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+      return true;
+  }
+  if (ts.isIdentifier(e) && e.text === "undefined") return true;
+  if (ts.isPrefixUnaryExpression(e)) return isTriviallyConstant(e.operand); // `!true`, `-1`
+  if (ts.isBinaryExpression(e)) return isTriviallyConstant(e.left) && isTriviallyConstant(e.right); // `1 === 1`
+  return false; // identifiers, property access, calls, arrays, objects, templates-with-subs → substantive
+}
+
+/** Gather every argument across a call/member chain — `expect(x).toBe(y)` yields `[y, x]`; `assert(c)` yields `[c]`. */
+function chainArguments(call: ts.CallExpression): ts.Expression[] {
+  const args: ts.Expression[] = [];
+  let node: ts.Expression = call;
+  for (;;) {
+    if (ts.isCallExpression(node)) {
+      args.push(...node.arguments);
+      node = node.expression;
+    } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      node = node.expression;
+    } else if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) {
+      node = node.expression;
+    } else {
+      break;
+    }
+  }
+  return args;
+}
+
+/**
+ * Is `node` a SUBSTANTIVE assertion — an `assert`/`expect` call with ≥1 argument that references runtime
+ * state (not a trivially-constant literal)? `assert(true)` / `expect(true).toBe(true)` / `assert.equal(1, 1)`
+ * are NOT substantive (constant-only → hollow); `assert.ok(result.bounded)` / `expect(x).toBe(5)` are.
+ */
+function isSubstantiveAssertion(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node)) return false;
+  const { root, members } = calleeParts(node.expression);
+  const isAssertion =
+    (root !== undefined && ASSERTION_NAMES.has(root)) || members.some((m) => ASSERTION_NAMES.has(m));
+  if (!isAssertion) return false;
+  return chainArguments(node).some((a) => !isTriviallyConstant(a));
+}
+
+/**
+ * PURE: parse a test file's SOURCE (the TypeScript compiler AST) into the {@link ObservedTest}s it
+ * declares — each `describe`/`test`/`it` call with its name, whether it is skipped (own or inherited
+ * from a skipped ancestor), and whether it VOUCHES (runs AND has a substantive assertion anywhere in
+ * its region, including nested tests). Source-ordered, deterministic, offline — no execution. A file
+ * that cannot be parsed contributes no tests (fail-closed toward "uncovered").
+ */
+export function analyzeObservedTests(testSource: string): ObservedTest[] {
+  const sf = ts.createSourceFile("__coverage__.ts", testSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const collected: { test: ObservedTest; pos: number }[] = [];
+  /** Post-order: returns whether `node`'s subtree holds a substantive assertion. Skip flows top-down. */
+  function visit(node: ts.Node, ancestorSkipped: boolean): boolean {
+    const test = matchTestCall(node);
+    const skippedHere = ancestorSkipped || (test !== null && test.ownSkip);
+    // A test-call node is not itself an assertion; otherwise check this node directly.
+    let subtreeSubstantive = test === null && isSubstantiveAssertion(node);
+    ts.forEachChild(node, (child) => {
+      // NB: forEachChild short-circuits on a TRUTHY return — keep this callback returning void.
+      if (visit(child, skippedHere)) subtreeSubstantive = true;
+    });
+    if (test !== null) {
+      collected.push({
+        test: { name: test.name, skipped: skippedHere, vouches: subtreeSubstantive && !skippedHere },
+        pos: node.getStart(sf),
+      });
+    }
+    return subtreeSubstantive;
+  }
+  ts.forEachChild(sf, (child) => {
+    visit(child, false);
+  });
+  collected.sort((a, b) => a.pos - b.pos);
+  return collected.map((c) => c.test);
+}
+
+/**
+ * PURE: the observed test names that VOUCH for their contract — the hollow-aware replacement for
+ * {@link extractTestNames} as the coverage check's input (ADR-0126). A test whose region has no
+ * substantive assertion, or that is skipped, is OMITTED — so a contract named only by a hollow test
+ * reads UNCOVERED. The drop-in for `extractTestNames` in the coverage loaders.
+ */
+export function extractVouchingTestNames(testSource: string): string[] {
+  return analyzeObservedTests(testSource)
+    .filter((t) => t.vouches)
+    .map((t) => t.name);
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,8 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { readFileSync } from "node:fs";
+import { readFileSync, promises as fsp } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -124,6 +125,215 @@ test("local-backend: GET /api/tree returns { stories: [] } from real discovery o
       0,
       "real discovery over a non-existent dir returns zero stories, not an error",
     );
+  });
+});
+
+// ===========================================================================
+// VERDICT / ACTIVITY / PRESENCE OVERLAY (ADR-0119 deferred overlay) — the desktop forest paints
+// proof-health from signed verdicts, NOT the authored-status brown the bare tree fell back to.
+//
+// These pin the chip's outcome end-to-end over the REAL route dispatch + REAL discovery: GET /api/tree
+// folds an injected signed-verdict fixture into island/plant hue (green from a signed pass), and
+// GET /api/activity + GET /api/presence serve the in-flight-build / session overlays (advisory: a null
+// seam answers a 200 `{ builds: null }` / `{ sessions: null }`, never a 404 or a crash).
+// ===========================================================================
+
+const TS = "2026-06-27T10:00:00.000Z";
+
+/** A full signed PASS verdict event for `unitId` (rollupStatus requires the doc to parse as a Verdict). */
+function passEvent(
+  seq: number,
+  unitId: string,
+  proofMode: "capability" | "story" | "contract",
+): { kind: string; seq: number; doc: unknown } {
+  return {
+    kind: "signing",
+    seq,
+    doc: Verdict.parse({
+      unitId,
+      proofMode,
+      outcome: "pass",
+      commitSha: "ca".repeat(20),
+      signer: "ci@example.com",
+      runId: `run-${unitId}`,
+      at: TS,
+    }),
+  };
+}
+
+/** Seed a temp stories dir with one `proposed` story `alpha` + cap `cap-a` + one `## Story UAT` leg. */
+async function seedStoriesDir(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "local-backend-tree-"));
+  const storyDir = path.join(dir, "alpha");
+  await fsp.mkdir(storyDir);
+  await fsp.writeFile(
+    path.join(storyDir, "story.md"),
+    [
+      "---",
+      'id: "alpha"',
+      "tier: story",
+      'title: "Alpha story"',
+      'outcome: "the alpha outcome"',
+      "status: proposed",
+      "proof_mode: UAT",
+      "capabilities: [cap-a]",
+      "---",
+      "",
+      "# Alpha",
+      "",
+      "## Story UAT",
+      "",
+      "1. **The one leg** (witness: machine) — it works end to end.",
+    ].join("\n"),
+    "utf8",
+  );
+  await fsp.writeFile(
+    path.join(storyDir, "cap-a.md"),
+    [
+      "---",
+      'id: "cap-a"',
+      "tier: capability",
+      'title: "Capability A"',
+      'outcome: "the cap-a outcome"',
+      "status: proposed",
+      "proof_mode: contract-test",
+      "---",
+      "",
+      "# Capability A",
+    ].join("\n"),
+    "utf8",
+  );
+  return {
+    dir,
+    cleanup: async () => {
+      await fsp.rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+/** The stub backend with verdict-overlay seams overridden. */
+function overlayBackend(over: Partial<LocalBackendDeps["backend"]>): LocalBackendDeps["backend"] {
+  return { ...stubBackend(), ...over };
+}
+
+// THE CHIP'S OUTCOME: a signed-verdict fixture greens the island AND the plant on the live /api/tree.
+test("local-backend: GET /api/tree paints proof-health — a signed-verdict fixture greens the island and plant", async () => {
+  const { dir, cleanup } = await seedStoriesDir();
+  try {
+    const backend = overlayBackend({
+      latestVerdicts: async () => ({ "cap-a": { outcome: "pass", at: TS } }),
+      verdictEvents: async () => [
+        passEvent(1, "cap-a", "capability"),
+        passEvent(2, "alpha#uat-1", "story"),
+      ],
+    });
+    const handler = createLocalBackend({ storiesDir: dir, docsDir: NO_DOCS_DIR, backend, store: "pg" });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/tree`);
+      assert.equal(res.status, 200, "tree must be 200");
+      const body = (await res.json()) as { stories: Array<Record<string, unknown>> };
+      const alpha = body.stories.find((s) => s["id"] === "alpha");
+      assert.ok(alpha, "the seeded story is in the payload");
+
+      // Deletion test: drop the verdict fold and these are undefined → the island/plant stay brown.
+      const storyVerdict = alpha["verdict"] as { outcome?: string } | undefined;
+      assert.equal(
+        storyVerdict?.outcome,
+        "pass",
+        "the ISLAND greens — story.verdict.outcome=pass from the per-test crown roll-up",
+      );
+      const caps = alpha["capabilities"] as Array<Record<string, unknown>>;
+      const capVerdict = caps[0]?.["verdict"] as { outcome?: string } | undefined;
+      assert.equal(
+        capVerdict?.outcome,
+        "pass",
+        "the PLANT greens — cap.verdict.outcome=pass from its own signed verdict",
+      );
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+// Advisory under-claim: with null verdict seams (the json backend / a down DB) the tree carries NO
+// verdict — the authored brown stands, never a forged green (ADR-0033 presence-block discipline).
+test("local-backend: GET /api/tree under-claims (no verdict) when the verdict seams answer null", async () => {
+  const { dir, cleanup } = await seedStoriesDir();
+  try {
+    const handler = createLocalBackend({
+      storiesDir: dir,
+      docsDir: NO_DOCS_DIR,
+      backend: stubBackend(), // all seams null
+      store: "pg",
+    });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/tree`);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { stories: Array<Record<string, unknown>> };
+      const alpha = body.stories.find((s) => s["id"] === "alpha");
+      assert.ok(alpha);
+      assert.equal(alpha["verdict"], undefined, "no crown verdict — the island keeps its authored hue");
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+// GET /api/activity serves the in-flight-build overlay (the wisp layer) from the injected seam.
+test("local-backend: GET /api/activity returns the in-flight-build overlay { builds } from the seam", async () => {
+  const builds = [{ unitId: "cap-a", tier: "capability", runId: "run-1", at: TS, phase: "IMPLEMENT" }];
+  const backend = overlayBackend({ inFlightBuilds: async () => builds });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200, "activity must be 200");
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.deepEqual(body["builds"], builds, "{ builds } is the backend's inFlightBuilds result");
+  });
+});
+
+// GET /api/activity is advisory: a null seam (down DB / json) answers 200 { builds: null } — never 404.
+test("local-backend: GET /api/activity is advisory — 200 { builds: null } when the seam can't answer", async () => {
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(), // inFlightBuilds → null
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200, "advisory absence is a 200, not a 404 or 500");
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body["builds"], null, "{ builds: null } is the honest advisory-absent answer");
+  });
+});
+
+// GET /api/presence serves the active-session overlay (the session dock) from the injected seam.
+test("local-backend: GET /api/presence returns the active-session overlay { sessions } from the seam", async () => {
+  const sessions = [
+    { sessionId: "s1", branch: "b1", workingOn: "x", nodes: ["alpha"], band: "fresh", lastSeenAt: TS },
+  ];
+  const backend = overlayBackend({ activeSessions: async () => sessions });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/presence`);
+    assert.equal(res.status, 200, "presence must be 200");
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.deepEqual(body["sessions"], sessions, "{ sessions } is the backend's activeSessions result");
   });
 });
 

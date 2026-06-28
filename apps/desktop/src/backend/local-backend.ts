@@ -7,9 +7,6 @@
 // discovery, library reads) the studio server is built from, exactly as devApi.ts does.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 
 import { writeToForestBroker } from "./forest-readiness.js";
 import type {
@@ -18,6 +15,8 @@ import type {
   ForestWrite,
   ForestWriteResult,
 } from "./forest-readiness.js";
+import { readTreeWithCaps, foldVerdicts } from "./tree-verdicts.js";
+import type { DTVerdict, DTVerdictEvent } from "./tree-verdicts.js";
 
 // The verdict/presence zod schemas live in raw-TS workspace packages whose `.js` re-export
 // specifiers don't resolve under a non-tsx loader; load the runtime VALUES lazily, on first use —
@@ -121,45 +120,49 @@ export interface LocalBackendDeps {
   forestWrite?: ForestWriter;
 }
 
-// ---------- tree discovery (uses the real orchestrator, lazily) ----------
+// ---------- tree read + verdict overlay (re-composes the studio's GET /api/tree, ADR-0119 overlay) ----------
 
 /**
- * Scan `storiesDir` with the real orchestrator discovery and return the minimal `{ stories }`
- * envelope. Returns `{ stories: [] }` gracefully for a non-existent or empty dir — the CI test
- * drives this path with a temp dir that does not exist.
+ * Build the verdict-enriched `/api/tree` payload: read the authored tree with FULL capabilities, then
+ * fold in the signed-verdict overlay (the studio tree-handler's enrichment, re-composed in
+ * `tree-verdicts.ts`) so the desktop forest paints proof-health like the hosted studio — green from a
+ * signed `verdict.outcome === 'pass'`, not the authored-status brown the bare tree fell back to.
  *
- * Loaded LAZILY so the module is safe to import in environments where the orchestrator's raw-TS
- * `.js` re-export specifiers are not yet resolvable at import time (the Vite config-load trap
- * `devApi.ts` already navigates).
+ * Every overlay leg is advisory (ADR-0033): a `null` source (the json backend / a down DB) leaves the
+ * authored hue — the tree UNDER-claims, never over-claims, and never throws. Seeds `sessions`/`builds`
+ * on first load (the `/api/presence` + `/api/activity` polls then keep them fresh) — parity with the
+ * studio handler. The verdict pg SQL lives behind `deps.backend` (electron/backend-entry.ts); this
+ * module stays pg-free (the desktop's brokered-only write boundary, ADR-0117).
  */
-async function readLocalTree(storiesDir: string): Promise<{ stories: unknown[] }> {
-  if (!existsSync(storiesDir)) return { stories: [] };
-
-  // Lazy import — avoids the raw-TS `.js` re-export trap at module-load time.
-  const { loadNodeSpec } = await import("@storytree/orchestrator");
-
-  const stories: unknown[] = [];
-  for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
-    if (!ent.isDirectory()) continue;
-    const storyFile = path.join(storiesDir, ent.name, "story.md");
-    if (!existsSync(storyFile)) continue;
-    try {
-      const spec = loadNodeSpec(storyFile);
-      stories.push({
-        id: ent.name,
-        title: spec.title,
-        outcome: spec.outcome,
-        status: spec.status ?? null,
-        capabilities: [],
-        dependsOn: spec.dependsOn,
-        consumedBy: spec.consumedBy,
-      });
-    } catch {
-      // A malformed spec is tolerated — the tree renders what it can.
-      stories.push({ id: ent.name, title: ent.name, status: null, capabilities: [] });
-    }
-  }
-  return { stories };
+async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, unknown>> {
+  const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(deps.storiesDir);
+  // Run the advisory reads in parallel so a down DB costs one timeout budget, not five.
+  const [latestVerdicts, verdictEvents, sessions, builds, assets] = await Promise.all([
+    deps.backend.latestVerdicts() as Promise<Record<string, DTVerdict> | null>,
+    (deps.backend.verdictEvents?.() ?? Promise.resolve(null)) as Promise<readonly DTVerdictEvent[] | null>,
+    deps.backend.activeSessions(),
+    deps.backend.inFlightBuilds(),
+    deps.backend.listAssets().catch(() => null),
+  ]);
+  // The OQ green-gate reads the open-questions' `references` (ADR-0107) — filtered from the asset list.
+  const openQuestions = (Array.isArray(assets) ? assets : [])
+    .filter(
+      (a): a is { id: string; category: string; references?: readonly string[] } =>
+        typeof a === "object" &&
+        a !== null &&
+        (a as { category?: unknown }).category === "open-question" &&
+        typeof (a as { id?: unknown }).id === "string",
+    )
+    .map((a) => (a.references !== undefined ? { id: a.id, references: a.references } : { id: a.id }));
+  await foldVerdicts(stories, uatTestsByStory, coverageByStory, {
+    latestVerdicts,
+    verdictEvents,
+    openQuestions,
+  });
+  const payload: Record<string, unknown> = { stories };
+  if (sessions && sessions.length > 0) payload["sessions"] = sessions;
+  if (builds && builds.length > 0) payload["builds"] = builds;
+  return payload;
 }
 
 // ---------- factory ----------
@@ -171,11 +174,15 @@ async function readLocalTree(storiesDir: string): Promise<{ stories: unknown[] }
  * thick-client journey needs. Desktop-irrelevant hosted concerns (IAP / members / invites /
  * db-control / db-wake) are NOT ported.
  *
- * - GET  /api/health  — store + db probe envelope (NEVER 503)
- * - GET  /api/tree    — the story tree from real orchestrator discovery over `storiesDir`
- * - GET  /api/assets  — library assets from the injected `backend`
- * - POST /api/build   — dispatch a build intent via the injected `build` seam (404 when absent)
- * - *    /api/*       — 404 with an error body
+ * - GET  /api/health   — store + db probe envelope (NEVER 503)
+ * - GET  /api/tree     — the story tree from real orchestrator discovery over `storiesDir`, ENRICHED
+ *                        with the signed-verdict overlay so islands/plants paint proof-health (ADR-0119
+ *                        deferred overlay) — green from a signed pass, not authored brown
+ * - GET  /api/activity — the in-flight-build wisp layer (ADR-0048), `{ builds }`
+ * - GET  /api/presence — the active-session layer (ADR-0033), `{ sessions }`
+ * - GET  /api/assets   — library assets from the injected `backend`
+ * - POST /api/build    — dispatch a build intent via the injected `build` seam (404 when absent)
+ * - *    /api/*        — 404 with an error body
  */
 export function createLocalBackend(
   deps: LocalBackendDeps,
@@ -193,8 +200,17 @@ export function createLocalBackend(
         sendJson(res, 200, { store: deps.store, ...health });
       } else if (url.pathname === "/api/tree") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
-        const tree = await readLocalTree(deps.storiesDir);
-        sendJson(res, 200, tree);
+        sendJson(res, 200, await buildTreePayload(deps));
+      } else if (url.pathname === "/api/activity") {
+        // The in-flight-build wisp layer (ADR-0048), polled by the world — `{ builds }` (advisory: null
+        // when the backend can't answer). Mirrors the studio's GET /api/activity (handleActivity).
+        if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
+        sendJson(res, 200, { builds: await deps.backend.inFlightBuilds() });
+      } else if (url.pathname === "/api/presence") {
+        // The active-session layer (ADR-0033), polled by the world — `{ sessions }` (advisory: null when
+        // the backend can't answer). Mirrors the studio's GET /api/presence (handlePresence).
+        if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
+        sendJson(res, 200, { sessions: await deps.backend.activeSessions() });
       } else if (url.pathname === "/api/assets") {
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
         const assets = await deps.backend.listAssets();

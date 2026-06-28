@@ -36,6 +36,30 @@ export const VerdictOutputVersion = z.literal("v1");
 export type VerdictOutputVersion = z.infer<typeof VerdictOutputVersion>;
 
 /**
+ * The per-contract coverage axis a signed green CARRIES (ADR-0127, Option A of ADR-0122). ADR-0020
+ * makes red→green non-forgeable for the ONE authored test the spine observed, but a capability that
+ * declares N `## Contracts` can reach a signed green on one proven test — coverage of the REST was
+ * only live-DERIVABLE (re-computed each run by `storytree coverage` / `check:coverage`). This records
+ * the fact ON the verdict so it is ATTESTED at sign time, not merely re-derivable against
+ * possibly-changed source later.
+ *
+ * Deliberately MINIMAL (owner-directed 2026-06-27): just the two declared-contract-id lists — the
+ * contracts a SUBSTANTIVE test covered (ADR-0126 vouching) vs the ones the green over-claimed. The
+ * covering test name(s) stay live-derivable (`storytree coverage`), not frozen here. `covered` ∪
+ * `uncovered` is the unit's declared contract set at sign time; `uncovered` non-empty means the green
+ * over-claims those contracts. Both lists are `[]` for a unit that declares no contracts.
+ */
+export const ContractCoverageAxis = z
+  .object({
+    /** Declared contract ids a SUBSTANTIVE observed test named (covered), in declared order. */
+    covered: z.array(z.string()),
+    /** Declared contract ids no substantive test named — the green over-claims these (ADR-0122). */
+    uncovered: z.array(z.string()),
+  })
+  .strict();
+export type ContractCoverageAxis = z.infer<typeof ContractCoverageAxis>;
+
+/**
  * A verdict: the prove-it-gate's output (ADR-0020 §4). Pinned to a commit SHA and a
  * resolved signer; the `runId` ties it to the run that produced it.
  *
@@ -71,6 +95,15 @@ export const Verdict = z
      * verdicts predating ADR-0016 (and every current caller until gate-emits-change wires it) carry none.
      */
     boundHash: z.string().optional(),
+    /**
+     * ADR-0127 (per-contract coverage axis, Option A of ADR-0122): which DECLARED `## Contracts` this
+     * green covered vs over-claimed, attested at sign time. OPTIONAL/additive — only a `--real`
+     * red→green green that resolves a unit's contracts carries it; every prior verdict (and the
+     * adopted / operator-attested paths, which prove a whole command/witness, not named per-contract
+     * tests) round-trips unchanged without it. A reader keys behaviour off its presence, never its
+     * absence (a missing axis means "not recorded", never "fully covered").
+     */
+    contractCoverage: ContractCoverageAxis.optional(),
     evidence: z.array(EvidenceRef).default([]),
     at: z.string(),
   })

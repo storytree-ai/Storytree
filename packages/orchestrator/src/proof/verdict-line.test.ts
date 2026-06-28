@@ -63,4 +63,37 @@ describe("verdictLine", () => {
     const line = verdictLine(verdict);
     assert.ok(line.startsWith("PASS some-other-unit ("), `expected unitId in: ${line}`);
   });
+
+  // ── ADR-0127: the per-contract coverage axis is surfaced when present ───────────────────────────
+
+  it("appends a coverage summary + flags the uncovered contracts when contractCoverage is present", () => {
+    const verdict: Verdict = {
+      ...base,
+      contractCoverage: {
+        covered: ["fr-connects", "fr-streams", "fr-reconnects"],
+        uncovered: ["fr-bounded-never-hangs"],
+      },
+    };
+    const line = verdictLine(verdict);
+    // the base line is preserved verbatim, with a coverage clause appended
+    assert.ok(
+      line.startsWith(
+        "PASS verdict-line (contract) — signed by hua.mick@gmail.com @ abc1234, 2026-06-10T00:00:00.000Z",
+      ),
+      line,
+    );
+    assert.match(line, /coverage 3\/4 contracts/);
+    assert.match(line, /uncovered: fr-bounded-never-hangs/);
+  });
+
+  it("reports full coverage with no uncovered clause when every contract is covered", () => {
+    const verdict: Verdict = { ...base, contractCoverage: { covered: ["c-1", "c-2"], uncovered: [] } };
+    const line = verdictLine(verdict);
+    assert.match(line, /coverage 2\/2 contracts/);
+    assert.doesNotMatch(line, /uncovered/);
+  });
+
+  it("omits the coverage clause entirely when contractCoverage is absent (pre-ADR-0127 back-compat)", () => {
+    assert.doesNotMatch(verdictLine(base), /coverage/);
+  });
 });

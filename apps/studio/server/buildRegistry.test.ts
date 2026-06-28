@@ -4,7 +4,8 @@
 // NO proof logic (the spine still signs); it only holds run state + the coarse progress.
 
 import { describe, it, expect } from 'vitest';
-import { BuildRegistry } from './buildRegistry';
+// The worker machinery relocated into @storytree/drive (ADR-0133 d.3); this suite proves the parity.
+import { BuildRegistry } from '@storytree/drive/build-worker';
 
 describe('BuildRegistry', () => {
   // brr-create-run-mints-building-run

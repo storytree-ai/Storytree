@@ -1367,7 +1367,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     );
   }
 
-  const capCount = stories.reduce((n, s) => n + s.capabilities.length, 0);
   const selected = selectedStory ? stories.find((s) => s.id === selectedStory) : undefined;
   // ADR-0041: only fresh/stale sessions count as "active" and orbit as wisps;
   // possibly-dead sessions park in the dock (the history/debugging surface).
@@ -1432,30 +1431,21 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
 
   return (
     <div className="tree-wrap pad">
-      <div className="tree-toolbar">
-        <h2>Story forest</h2>
-        <span className="muted small">
-          {stories.length} stories · {capCount} capabilities
-          {sessions.length > 0 && (
-            <>
-              {' · '}
-              <button
-                type="button"
-                className="tree-link"
-                onClick={() => setSessionDock({ kind: 'list' })}
-              >
-                {orbiting.length > 0
-                  ? `${orbiting.length} active session${orbiting.length === 1 ? '' : 's'}${
-                      parked.length > 0 ? ` (+${parked.length} aged)` : ''
-                    }`
-                  : `${parked.length} aged session${parked.length === 1 ? '' : 's'}`}
-              </button>
-            </>
-          )}{' '}
-          — foundations at the bottom, dependents fan upward. Each story is one tree in the forest;
-          its capabilities garden around its island. Click an island for the capability DAG.
-        </span>
-      </div>
+      {sessions.length > 0 && (
+        <div className="tree-toolbar">
+          <button
+            type="button"
+            className="tree-link"
+            onClick={() => setSessionDock({ kind: 'list' })}
+          >
+            {orbiting.length > 0
+              ? `${orbiting.length} active session${orbiting.length === 1 ? '' : 's'}${
+                  parked.length > 0 ? ` (+${parked.length} aged)` : ''
+                }`
+              : `${parked.length} aged session${parked.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      )}
 
       <div className="tree-layout">
         <SharedIslandsPanel
