@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import type { Comment, GuidanceAsset } from '../src/types';
 
 const ADR_0002 = 'decisions/0002-work-hierarchy-story-capability-contract.md';
+const ADR_0013 = 'decisions/0013-structured-corpus-markdown-as-view.md';
 const DOC_URL = `/#/doc/${encodeURIComponent(ADR_0002)}`;
 
 const studioDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,11 +50,11 @@ test('story UAT (steps 1-3, 7-9): backbone up → read an ADR → cross-link hop
   await expect(page.locator('article.doc h1').first()).toBeVisible();
   expect(page.url()).toContain('#/doc/decisions%2F0002');
 
-  // —— Step 3: the in-corpus cross-link hop. The glossary's intro cites ADR-0002 with a
-  // docs-root-relative markdown link; resolveDocHref turns it into an internal
-  // #/doc/<relpath> nav, the sibling renders from disk, and the browser's Back returns to
-  // the glossary — the corpus is genuinely navigable, not a single page.
-  await page.goto('/#/doc/glossary.md');
+  // —— Step 3: the in-corpus cross-link hop. ADR-0013 cites ADR-0002 with a docs-root-relative
+  // markdown link; resolveDocHref turns it into an internal #/doc/<relpath> nav, the sibling
+  // renders from disk, and the browser's Back returns to ADR-0013 — the corpus is genuinely
+  // navigable, not a single page. (Formerly demonstrated via docs/glossary.md, retired by ADR-0135.)
+  await page.goto(`/#/doc/${encodeURIComponent(ADR_0013)}`);
   await expect(page.locator('article.doc h1').first()).toBeVisible();
   await page
     .locator(`article.doc a[href="#/doc/${encodeURIComponent(ADR_0002)}"]`)
@@ -62,7 +63,7 @@ test('story UAT (steps 1-3, 7-9): backbone up → read an ADR → cross-link hop
   await expect(page).toHaveURL(/#\/doc\/decisions%2F0002/);
   await expect(page.locator('article.doc h1').first()).toContainText('ADR-0002');
   await page.goBack();
-  await expect(page).toHaveURL(/#\/doc\/glossary\.md$/);
+  await expect(page).toHaveURL(/#\/doc\/decisions%2F0013/);
   await expect(page.locator('article.doc h1').first()).toBeVisible();
 
   // —— Step 7: the Library landing renders the seeded corpus — one live-count type card

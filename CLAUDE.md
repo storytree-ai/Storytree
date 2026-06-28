@@ -1,13 +1,17 @@
 # storytree — agent onboarding
 
-**New session? Read this first, then `docs/glossary.md` (authoritative terms).** This file is the
-one-read orientation; it overrides any stale prose in `README.md`, `.env.example`, or the infra docs.
+**New session? Read this first.** Term definitions are authoritative in the **Library** — look them up
+just-in-time (`storytree library artifact <term>`) when you hit one you don't know; don't pre-read a
+glossary (ADR-0135 retired `docs/glossary.md`; ADR-0023's choose-your-own-adventure, pull-based model).
+This file is the one-read orientation; it overrides any stale prose in `README.md`, `.env.example`, or
+the infra docs.
 
 ## What this is
 
 A v2 rebuild of the AgenticEngineering project: a multi-agent system that grows software as a DAG of
 **stories**, watched live. Work hierarchy: **story > capability > contract**, split by proof mode
-(ADR-0002 / ADR-0010; `docs/glossary.md` is authoritative).
+(ADR-0002 / ADR-0010; the Library's `definition` artifacts are authoritative — `storytree library
+artifact <term>`).
 
 - **TypeScript + Node 24 + pnpm workspaces** (`corepack enable pnpm`; pnpm@9.15.0). Workspaces:
   `packages/*`, `apps/*`.
@@ -126,9 +130,9 @@ file conflicts).
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.
 - **SEED / EXPORT VIEW:** `apps/studio/data/knowledge.json` (the structured corpus the DB was migrated
-  from) + the **generated** `apps/studio/data/assets.json` + `docs/glossary.md` (via
-  `npx tsx apps/studio/data/build-corpus.mjs`; never hand-edit the generated two). These reflect the
-  seed, not live CLI edits — a DB→seed export is later work.
+  from) + the **generated** `apps/studio/data/assets.json` (via
+  `npx tsx apps/studio/data/build-corpus.mjs`; never hand-edit the generated file). These reflect the
+  seed, not live CLI edits. (`docs/glossary.md` was a second generated view, retired by ADR-0135.)
 - **STUDIO UI (one parallel session at a time):** the live store is now the **default**
   (`oq-studio-store-default` → B) — `pnpm --filter studio dev` reads/writes the live DB and sees CLI
   edits (bring the DB up first with `pnpm db:up`). For offline work set `STORYTREE_STUDIO_STORE=json`

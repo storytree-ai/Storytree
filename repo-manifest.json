@@ -21,7 +21,7 @@
     "dirs": {
       "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli).",
       "apps": "Workspace apps (studio).",
-      "docs": "ADRs + generated glossary + open-questions backlog + research notes (see docs.* below).",
+      "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
       "infra": "Terraform / GCP infra (Cloud SQL, idle-stop).",
       "scripts": "Repo-level maintenance scripts (e.g. this manifest check).",
@@ -36,8 +36,7 @@
       "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model."
     },
     "files": {
-      "glossary.md": "GENERATED from the Library (knowledge.json) by apps/studio/data/build-corpus.mjs; read by the studio. Not hand-authored — a Library projection, not a standalone doc.",
-      "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the generated glossary, the ADRs, and Library units' references. A threaded cross-reference ledger, not atomic Library units."
+      "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the ADRs and Library units' references. A threaded cross-reference ledger, not atomic Library units."
     }
   },
   "packageOwnership": {

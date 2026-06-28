@@ -125,10 +125,10 @@ async function seedDocsDir(): Promise<{ dir: string; cleanup: () => Promise<void
     ].join("\n"),
     "utf8",
   );
-  // A Reference-group doc: glossary.md (no frontmatter, no status/decided)
+  // A Reference-group doc: open-questions.md (no frontmatter, no status/decided)
   await fs.writeFile(
-    path.join(dir, "glossary.md"),
-    ["# Glossary", "", "Shared terminology for the system."].join("\n"),
+    path.join(dir, "open-questions.md"),
+    ["# Open questions", "", "Deferred decisions for the system."].join("\n"),
     "utf8",
   );
   return {
@@ -257,10 +257,10 @@ test("boot-read-routes: GET /api/docs returns a bare DocMeta array from the real
       );
 
       // --- Reference doc ---
-      const ref = docs.find((d) => d["id"] === "glossary.md");
-      assert.ok(ref !== undefined, "the reference doc (glossary.md) must appear in the result");
+      const ref = docs.find((d) => d["id"] === "open-questions.md");
+      assert.ok(ref !== undefined, "the reference doc (open-questions.md) must appear in the result");
       assert.equal(ref["group"], "Reference", "a doc at the root must have group='Reference'");
-      assert.equal(ref["title"], "Glossary", "title must be extracted from the H1");
+      assert.equal(ref["title"], "Open questions", "title must be extracted from the H1");
       assert.equal(
         ref["status"],
         undefined,

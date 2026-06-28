@@ -110,20 +110,20 @@ Durable project knowledge lives in the **Library** — a typed artifact tier
 into the shared Cloud SQL Postgres store (ADR-0017 / ADR-0019), browsed in the studio,
 and explored from the CLI (`pnpm storytree library`).
 
-The Library's source of truth is the structured `knowledge.json`; two views are
-**generated** from it by `apps/studio/data/build-corpus.mjs` and must never be hand-edited:
-`apps/studio/data/assets.json` (the rendered corpus) and
-[`docs/glossary.md`](docs/glossary.md) (the authoritative terms). To change the Library,
-edit `knowledge.json` (or use the CLI against the live DB) and re-run the generator.
+The Library's source of truth is the structured `knowledge.json`;
+`apps/studio/data/assets.json` (the rendered corpus) is **generated** from it by
+`apps/studio/data/build-corpus.mjs` and must never be hand-edited. Term definitions are
+authoritative as Library `definition` artifacts, looked up just-in-time (ADR-0135 retired the
+old generated `docs/glossary.md`). To change the Library, edit `knowledge.json` (or use the
+CLI against the live DB) and re-run the generator.
 
 What remains under `docs/` is therefore intentionally lean — everything else durable has
 folded into the Library:
 
-- **`docs/decisions/`** — the ADRs (0001–0023). Immutable, dated decision records; also
+- **`docs/decisions/`** — the ADRs. Immutable, dated decision records; also
   the source-of-record the studio folds in as the Library's read-only `adr` category.
-- **`docs/glossary.md`** — generated from the Library (see above).
 - **`docs/open-questions.md`** — the deferred-decisions backlog, cited by section number
-  (`§n`) from the glossary and the ADRs.
+  (`§n`) from the ADRs and Library units.
 - **`docs/research/`** — long-form decision-provenance behind specific ADRs.
 
 The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md).

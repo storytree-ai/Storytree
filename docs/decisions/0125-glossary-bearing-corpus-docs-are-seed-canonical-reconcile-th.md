@@ -1,11 +1,17 @@
 ---
-status: proposed
+status: superseded
 decided: 2026-06-27
 amends: [23, 103, 120]
 ---
 # ADR-0125: Glossary-bearing corpus docs are seed-canonical; reconcile them to live
 
 ## Status
+
+**superseded by [ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md)
+(2026-06-28)** — the owner chose to RETIRE `docs/glossary.md` outright rather than build this
+reconcile, so the canonicality call below is moot: with the file gone, the Library's definition
+artifacts are the sole term authority and there is no seed-canonical glossary subset to reconcile. The
+original proposal is kept below as history.
 
 proposed — surfaced 2026-06-27 while landing ADR-0120, whose new `check:corpus-content` body-diff found
 10 drifted docs (8 stale-in-live). The owner DEFERRED the model call — reconciled both directions by

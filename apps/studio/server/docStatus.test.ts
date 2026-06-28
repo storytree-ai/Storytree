@@ -27,7 +27,7 @@ describe('parseDocStatus', () => {
   });
 
   it('is tolerant — null for a non-ADR filename, a missing block, or an unknown status', () => {
-    expect(parseDocStatus('glossary.md', '# Glossary\n\nNo frontmatter here.')).toBeNull();
+    expect(parseDocStatus('open-questions.md', '# Open questions\n\nNo frontmatter here.')).toBeNull();
     expect(parseDocStatus('0001-x.md', '# ADR with no frontmatter')).toBeNull();
     expect(parseDocStatus('0001-x.md', '---\nstatus: ratified\n---\n# ADR')).toBeNull(); // not a known status
     expect(parseDocStatus('0001-x.md', '---\nstatus: accepted')).toBeNull(); // unterminated block
@@ -49,7 +49,7 @@ describe('listDocs surfaces ADR status onto DocMeta', () => {
       '---\nstatus: accepted\n---\n# ADR-0002: Second\n\nAn accepted decision.\n',
     );
     // A reference doc (no frontmatter) — must NOT carry a status.
-    await fs.writeFile(path.join(docsDir, 'glossary.md'), '# Glossary\n\nAuthoritative terms.\n');
+    await fs.writeFile(path.join(docsDir, 'open-questions.md'), '# Open questions\n\nDeferred decisions.\n');
   });
 
   afterAll(async () => {
@@ -68,8 +68,8 @@ describe('listDocs surfaces ADR status onto DocMeta', () => {
     expect(byId['decisions/0002-second.md']).toMatchObject({ group: 'Decisions', status: 'accepted' });
     expect(byId['decisions/0002-second.md']?.decided).toBeUndefined(); // no decided in frontmatter
 
-    const glossary = byId['glossary.md'];
-    expect(glossary?.group).toBe('Reference');
-    expect(glossary?.status).toBeUndefined(); // reference docs carry no status chip
+    const reference = byId['open-questions.md'];
+    expect(reference?.group).toBe('Reference');
+    expect(reference?.status).toBeUndefined(); // reference docs carry no status chip
   });
 });
