@@ -76,6 +76,18 @@ function queryYielding(messages: unknown[]): QueryFn {
     })();
 }
 
+/** An SDK partial-assistant streaming message carrying one text-delta fragment — the live
+ *  `query()` shape, so the scripted double drives the same delta path the real session does. */
+function textDeltaMessage(text: string): unknown {
+  return {
+    type: "stream_event",
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    parent_tool_use_id: null,
+    uuid: "u",
+    session_id: "s",
+  };
+}
+
 /**
  * A scripted queryFn that throws on the first iteration — drives the `error` SSE frame path.
  * The error propagates through runHeadlessOrchestrator's inner try-catch, which returns
@@ -213,6 +225,66 @@ test(
           OK_SDK_RESULT.result,
           "done event must carry the proposal from the scripted session — " +
             "proof the mount drives the real startChatStream composition, not a fork",
+        );
+      }
+    });
+  },
+);
+
+// STREAMING: assistant text deltas stream as `delta` SSE frames AS THEY ARRIVE, in order, before
+// the terminal `done` frame (the responsiveness fix — the desktop SSE mount forwards each frame the
+// streaming core yields). A thin client appends each delta to a live render instead of spinning
+// until the whole session finishes.
+//
+// DELETION TEST: if the mount buffered the whole stream and emitted only the terminal frame, the
+// delta-frame assertions would fail. If it dropped non-terminal events, deltaTexts would be empty.
+test(
+  "csm-streams-delta-frames: assistant text deltas stream as `delta` SSE frames, in order, before the terminal done",
+  async () => {
+    const handler = createChatSseMount({
+      queryFn: queryYielding([
+        textDeltaMessage("Pro"),
+        textDeltaMessage("posing"),
+        textDeltaMessage("…"),
+        OK_SDK_RESULT,
+      ]),
+    });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "stream me some tokens" }),
+      });
+
+      assert.equal(res.status, 200, "a streaming session is still a 200 text/event-stream response");
+      const body = await res.text();
+      const events = parseSseFrames(body);
+
+      const deltaTexts = events
+        .filter((e): e is Extract<ChatStreamEvent, { type: "delta" }> => e.type === "delta")
+        .map((e) => e.text);
+      assert.deepEqual(
+        deltaTexts,
+        ["Pro", "posing", "…"],
+        "each assistant text fragment must be forwarded as a `delta` SSE frame in order",
+      );
+
+      const doneIdx = events.findIndex((e) => e.type === "done");
+      const lastDeltaIdx = events.map((e) => e.type).lastIndexOf("delta");
+      assert.ok(doneIdx !== -1, "the stream must end with a terminal `done` frame");
+      assert.ok(
+        lastDeltaIdx !== -1 && lastDeltaIdx < doneIdx,
+        "every `delta` frame must precede the terminal `done` frame",
+      );
+
+      const last = events[events.length - 1];
+      assert.equal(last?.type, "done", "terminal SSE event must be `done`");
+      if (last?.type === "done") {
+        assert.equal(
+          last.proposal,
+          OK_SDK_RESULT.result,
+          "the terminal done frame carries the authoritative proposal (the result), not the stream",
         );
       }
     });

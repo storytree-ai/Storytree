@@ -31,16 +31,39 @@ export interface HeadlessOrchestratorArgs {
   /** Working directory for the SDK session. Defaults to process.cwd(). */
   cwd?: string;
   /**
-   * Injectable runner for the orientation tools (the real CLI `run(argv, deps)` or an offline
-   * stub). Defaults to a no-op stub when absent (offline tests that don't exercise the runner).
+   * Injectable runner for the orientation tools (the real CLI `run(argv, deps)`). The orientation
+   * tool surface is wired ONLY when a runner is present (ADR-0108 §7 scale-down): with no runner,
+   * NO orientation tools are advertised — wiring them to a dead stub just invited the agent to make
+   * useless tool calls (a wasted turn + a "runner not configured" line that leaked into the reply).
+   * Absent → a plain conversational session over the system prompt, no orientation surface.
    */
   runner?: OrientationRunner;
-  /** Model for the session. Default: claude-sonnet-4-6. */
+  /** Model for the session. Default: claude-opus-4-8 (the orchestrator runs on the most capable
+   *  model — the §7 scale-down removed the per-message bloat, so Opus's latency is acceptable). */
   model?: string;
   /** Turn ceiling. Default: 16. */
   maxTurns?: number;
   /** Hard budget ceiling in USD (the SDK aborts past it). Default: 1. */
   maxBudgetUsd?: number;
+  /**
+   * Optional sink for assistant TEXT DELTAS as they stream from the SDK (ADR-0108 Phase 2 streaming).
+   * When provided, the session enables `includePartialMessages` and forwards each
+   * `content_block_delta`/`text_delta` fragment here AS IT ARRIVES — so a consuming surface (the chat
+   * panel) can render tokens live instead of waiting for the whole multi-turn session to finish. Omit
+   * for a non-streaming consumer (the terminal `orchestrate` command) — partial messages stay off.
+   * The AUTHORITATIVE final proposal is still the result message's `result`; deltas are a live preview,
+   * never the verdict.
+   */
+  onDelta?: (text: string) => void;
+  /**
+   * Optional sink for EVERY SDK message as it streams (the trace seam, ADR-0108 §7). Unlike
+   * `onDelta` (assistant prose only), this fires for the whole conversation — system init, each
+   * assistant turn (text + tool_use), each tool_result, and the terminal result — so a caller can
+   * capture/surface what the agent actually DID each turn (the phase/tool trail), not just its answer.
+   * Raw SDK message shape (the consumer narrows structurally); never throws into the loop. Omit when
+   * no trace is needed (the default).
+   */
+  onMessage?: (message: unknown) => void;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
 }
@@ -90,14 +113,27 @@ function isResult(message: unknown): message is ResultLike {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Default runner (offline no-op stub — returns a minimal envelope body)
-// ---------------------------------------------------------------------------
-
-const defaultRunner: OrientationRunner = async (_argv, _deps) => ({
-  ok: false,
-  body: "(orientation runner not configured — inject a runner for real orientation)",
-});
+/**
+ * Pull the assistant text fragment out of a streaming partial message, or `null` when the message
+ * is not a text delta. Structural narrowing (mirrors {@link isResult}) over the SDK's
+ * `SDKPartialAssistantMessage` shape — `{ type: "stream_event", event: <BetaRawMessageStreamEvent> }`
+ * — drilling to a `content_block_delta` event carrying a `text_delta`. Non-text deltas (tool-input
+ * JSON, thinking, signatures) and every non-partial message return `null`, so only assistant prose
+ * streams to `onDelta`. Kept structural (no SDK type import beyond what this file already pins) so a
+ * partial-message reshape surfaces in the delta tests, not as a silent stream that stops flowing.
+ */
+function extractTextDelta(message: unknown): string | null {
+  if (typeof message !== "object" || message === null) return null;
+  if ((message as { type?: unknown }).type !== "stream_event") return null;
+  const event = (message as { event?: unknown }).event;
+  if (typeof event !== "object" || event === null) return null;
+  if ((event as { type?: unknown }).type !== "content_block_delta") return null;
+  const delta = (event as { delta?: unknown }).delta;
+  if (typeof delta !== "object" || delta === null) return null;
+  if ((delta as { type?: unknown }).type !== "text_delta") return null;
+  const text = (delta as { text?: unknown }).text;
+  return typeof text === "string" ? text : null;
+}
 
 /** The in-process MCP server name the orientation tools live under (`mcp__orientation__<tool>`). */
 const ORIENTATION_SERVER = "orientation";
@@ -127,8 +163,12 @@ export async function runHeadlessOrchestrator(
   inFlight = true;
 
   try {
-    const runner = args.runner ?? defaultRunner;
-    const orientationTools = buildOrientationTools(runner, { store: null });
+    // Orientation tools are wired ONLY when a real runner is present (ADR-0108 §7 scale-down). With
+    // no runner there is nothing for them to read, so advertising them to a dead stub just burned a
+    // turn on useless calls and leaked "(orientation runner not configured)" into the reply. No
+    // runner → no orientation surface → a plain conversational turn over the system prompt.
+    const orientationTools =
+      args.runner !== undefined ? buildOrientationTools(args.runner, { store: null }) : [];
 
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
     const allowedTools = orientationTools.map(
@@ -137,34 +177,60 @@ export async function runHeadlessOrchestrator(
 
     const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
 
+    // Streaming is opt-in per consumer: only enable partial messages when a delta sink is wired
+    // (the chat panel). The terminal `orchestrate` command omits onDelta and pays no streaming cost.
+    const wantsDeltas = args.onDelta !== undefined;
+
     const options: Options = {
       cwd: args.cwd ?? process.cwd(),
-      model: args.model ?? "claude-sonnet-4-6",
+      model: args.model ?? "claude-opus-4-8",
       maxTurns: args.maxTurns ?? 16,
       maxBudgetUsd: args.maxBudgetUsd ?? 1,
+      // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
+      ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // Read-only by construction: no Write/Edit/Bash in tools or allowedTools (Phase 1).
       tools: [],
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
-      mcpServers: {
-        [ORIENTATION_SERVER]: createSdkMcpServer({
-          name: ORIENTATION_SERVER,
-          version: "1.0.0",
-          tools: orientationTools.map((ot) =>
-            tool(ot.name, `Read-only ${ot.name} orientation command.`, {}, async () => {
-              const text = await ot.call();
-              return { content: [{ type: "text" as const, text }] };
-            }),
-          ),
-        }),
-      },
+      // Mount the orientation MCP server ONLY when there are tools to mount (a runner was provided).
+      ...(orientationTools.length > 0
+        ? {
+            mcpServers: {
+              [ORIENTATION_SERVER]: createSdkMcpServer({
+                name: ORIENTATION_SERVER,
+                version: "1.0.0",
+                tools: orientationTools.map((ot) =>
+                  tool(ot.name, `Read-only ${ot.name} orientation command.`, {}, async () => {
+                    const text = await ot.call();
+                    return { content: [{ type: "text" as const, text }] };
+                  }),
+                ),
+              }),
+            },
+          }
+        : {}),
     };
 
     let result: ResultLike | undefined;
     try {
       for await (const message of queryFn({ prompt: args.userPrompt, options })) {
-        if (isResult(message)) result = message;
+        // The trace seam (ADR-0108 §7): surface every message so a caller can capture the agent's
+        // turn/tool trail. Guarded so a throwing sink can never break the session loop.
+        if (args.onMessage !== undefined) {
+          try {
+            args.onMessage(message);
+          } catch {
+            /* a trace sink must never break the session */
+          }
+        }
+        if (isResult(message)) {
+          result = message;
+        } else if (wantsDeltas) {
+          // Forward each streamed assistant text fragment as it arrives (live token streaming).
+          const delta = extractTextDelta(message);
+          if (delta !== null && delta.length > 0) args.onDelta?.(delta);
+        }
       }
     } catch (e) {
       return {

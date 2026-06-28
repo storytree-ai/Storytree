@@ -27,6 +27,7 @@ import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 // The local mirror of the chat-sse-mount SSE `data:` frames (the cross-boundary wire shape). Defined
 // here too so the scripted seam yields exactly what the route emits — the panel re-declares its own.
 type ChatEvent =
+  | { type: 'delta'; text: string }
   | { type: 'done'; proposal: string; costUsd?: number; turns?: number }
   | { type: 'error'; error: string }
   | { type: 'refused'; reason: string };
@@ -106,6 +107,41 @@ describe('ChatPanel', () => {
 
     expect(screen.getByText(/Here is the plan: build it\./)).toBeTruthy();
     // busy ended — the input is usable again for a follow-up.
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false);
+  });
+
+  // ── cp-streams-delta-text ───────────────────────────────────────────────────
+  it('cp-streams-delta-text: delta frames render incrementally while busy, then the done proposal settles', async () => {
+    // Hold the stream open mid-flight: emit two deltas, park on a gate, then emit the terminal done
+    // only once released. This lets us observe the LIVE streaming render (mid-flight) AND the settle.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
+      onEvent({ type: 'delta', text: 'Orienting' });
+      onEvent({ type: 'delta', text: ' on the tree…' });
+      await gate; // hold open — the panel is still busy/streaming here
+      onEvent({ type: 'done', proposal: 'I propose: build it.', turns: 2 });
+    });
+
+    const { container } = render(<ChatPanel />);
+    typeAndSubmit('what should I build?');
+    await flush();
+
+    // Mid-stream: the accumulated delta text is rendered live, and the panel is still busy/streaming
+    // (input disabled, no terminal render yet).
+    expect(screen.getByText(/Orienting on the tree…/)).toBeTruthy();
+    expect(container.querySelector('.chat-streaming-text')).toBeTruthy();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(true);
+    expect(container.querySelector('.chat-proposal')).toBeNull();
+
+    // Release the gate → the terminal done settles to the authoritative proposal and ends busy.
+    release();
+    await flush();
+
+    expect(screen.getByText(/I propose: build it\./)).toBeTruthy();
+    expect(container.querySelector('.chat-proposal')).toBeTruthy();
+    // The live streaming view is gone once settled; the input is usable again for a follow-up.
+    expect(container.querySelector('.chat-streaming-text')).toBeNull();
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false);
   });
 
