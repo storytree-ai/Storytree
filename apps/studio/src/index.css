@@ -1589,7 +1589,7 @@ mark.st-hl.flash {
   width: 100%;
 }
 
-/* the world (top-down field; portrait — scrolls from the foundation upward) */
+/* the world (top-down field; portrait — pan/zoom from the foundation upward) */
 .world-frame {
   position: relative;
   /* Height of the folded chat dock bar — lifts the gear/session-dock clear of it (scoped to the map). */
@@ -1600,22 +1600,24 @@ mark.st-hl.flash {
   box-shadow: var(--shadow);
   background: linear-gradient(160deg, var(--board-1), var(--board-2));
 }
-.world-scroll {
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: 78vh;
-  overscroll-behavior: contain; /* wheel at the world edge must not scroll the page */
+.world-viewport {
+  height: 78vh;
+  overflow: hidden; /* no scrollbar — pan/zoom navigates (owner UX feedback) */
+  touch-action: none; /* gestures drive the camera, not the page */
+  cursor: grab;
+  user-select: none;
 }
-.world-scroll:focus-visible {
+.world-viewport:active {
+  cursor: grabbing;
+}
+.world-viewport:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 .world-scene {
   display: block;
   width: 100%;
-  max-width: 980px; /* zoom cap — keeps tiles sane in a wide column */
-  margin: 0 auto;
-  height: auto;
+  height: 100%; /* fill the viewport; the camera handles framing/centring */
 }
 
 /* hex board: the pale coast + extruded land tiles */

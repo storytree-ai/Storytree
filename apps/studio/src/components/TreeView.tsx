@@ -69,6 +69,16 @@ import {
 } from '../lib/solarLayout.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
+  fitWorld,
+  limitsForFit,
+  clampScale,
+  centerOn,
+  panBy,
+  zoomAt,
+  type Camera,
+  type ScaleLimits,
+} from '../lib/worldCamera.js';
+import {
   promotedStamps,
   stampsByCarrier,
   sharedIslandStories,
@@ -1234,34 +1244,163 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     [world, substrateMode, substrateTuning],
   );
 
-  // The world reads bottom-up (foundation at the bottom), so the frame opens
-  // scrolled to the bottom; selecting / deep-linking a story scrolls its
-  // territory into view. SVG elements have no offsetTop and the scene is
-  // width-capped + centred, so the offset comes from rect deltas.
+  // The map navigates by PAN + ZOOM (owner UX feedback), not a scrollbar: a
+  // pixel-space camera (lib/worldCamera) drives a `<g transform>` over the
+  // world-unit content. The world reads bottom-up (foundation at the bottom),
+  // so mount FITS the world to the frame width and pins its bottom; deep-link /
+  // selecting a story centres + zooms on that territory.
   const frameRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const scrollToStory = (storyId: string, smooth: boolean): void => {
-    const frame = frameRef.current;
-    const svg = svgRef.current;
-    const territory = world?.territories.find((t) => t.story.id === storyId);
-    if (!frame || !svg || !territory || !world) return;
-    const scale = svg.clientWidth / world.width;
-    const svgTop =
-      svg.getBoundingClientRect().top - frame.getBoundingClientRect().top + frame.scrollTop;
-    const y = (territory.centroid.y + world.offset.y) * scale + svgTop;
-    frame.scrollTo({ top: y - frame.clientHeight / 2, behavior: smooth ? 'smooth' : 'auto' });
-  };
-  // Mount: a deep link wins; otherwise land on the foundation (the bottom).
+  const [cam, setCam] = useState<Camera | null>(null);
+  const limitsRef = useRef<ScaleLimits>({ min: 0.01, max: 100 });
+  // `animate` is on only for the programmatic mount/select moves (smooth);
+  // every interactive handler (wheel/drag/keys) turns it off so dragging and
+  // zooming feel crisp rather than lagging behind a transition.
+  const [animate, setAnimate] = useState(false);
+  // Drag-pan bookkeeping: the down anchor (+ whether it moved past the click
+  // threshold), the last pointer pos (for incremental panBy deltas), and a flag
+  // that swallows the click a drag would otherwise fire (so a pan never selects).
+  const dragRef = useRef<{ x: number; y: number; moved: boolean; lastX: number; lastY: number } | null>(
+    null,
+  );
+  const suppressClickRef = useRef(false);
+
+  // Mount / world change: fit to width, pin the foundation; a deep link wins.
   useLayoutEffect(() => {
-    if (!world) return;
-    if (selectedStory) scrollToStory(selectedStory, false);
-    else frameRef.current?.scrollTo({ top: frameRef.current.scrollHeight });
+    if (!world || !frameRef.current) return;
+    const fw = frameRef.current.clientWidth;
+    const fh = frameRef.current.clientHeight;
+    const fit = fitWorld(world.width, world.height, fw, fh, {
+      padding: 16,
+      maxScale: 980 / world.width, // the old .world-scene 980px width cap, as a scale ceiling
+      align: 'bottom',
+    });
+    limitsRef.current = limitsForFit(fit.scale);
+    setAnimate(false);
+    if (selectedStory) {
+      const territory = world.territories.find((t) => t.story.id === selectedStory);
+      if (territory) {
+        const wc = { x: territory.centroid.x + world.offset.x, y: territory.centroid.y + world.offset.y };
+        const focus = clampScale(
+          Math.max(fit.scale, (limitsRef.current.min / 0.4) * 1.6),
+          limitsRef.current,
+        );
+        setCam(centerOn(wc.x, wc.y, fw, fh, focus, limitsRef.current));
+        return;
+      }
+    }
+    setCam(fit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world]);
+
+  // Select / deep-link change: centre + zoom on the territory (smoothly).
   useEffect(() => {
-    if (selectedStory && world) scrollToStory(selectedStory, true);
+    if (!selectedStory || !world || !cam || !frameRef.current) return;
+    const territory = world.territories.find((t) => t.story.id === selectedStory);
+    if (!territory) return;
+    const wc = { x: territory.centroid.x + world.offset.x, y: territory.centroid.y + world.offset.y };
+    // ≈1.6× the fit scale, but never zoom OUT below the current view.
+    const focus = clampScale(
+      Math.max(cam.scale, (limitsRef.current.min / 0.4) * 1.6),
+      limitsRef.current,
+    );
+    setAnimate(true);
+    setCam(centerOn(wc.x, wc.y, frameRef.current.clientWidth, frameRef.current.clientHeight, focus, limitsRef.current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStory]);
+
+  // Wheel → zoom-to-cursor. React's onWheel can be passive (preventDefault
+  // no-ops), so bind a NATIVE non-passive listener. State is read via the
+  // functional updater + limitsRef so the handler can stay identity-stable.
+  const onWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const rect = (svgRef.current ?? frameRef.current)?.getBoundingClientRect();
+    if (!rect) return;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1; // scroll up = zoom in
+    setAnimate(false);
+    setCam((c) => (c ? zoomAt(c, px, py, factor, limitsRef.current) : c));
+  }, []);
+  // Attach the wheel listener via a callback ref so it binds exactly when the
+  // viewport node mounts. (A useEffect keyed on the stable handler would run once
+  // on the pre-world "Growing…" placeholder render — when frameRef is still null —
+  // and never re-bind after the real viewport appears.) frameRef is still the
+  // measurement handle (clientWidth/getBoundingClientRect); the callback keeps it
+  // in sync and owns the native non-passive wheel binding.
+  const bindViewport = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (frameRef.current) frameRef.current.removeEventListener('wheel', onWheel);
+      frameRef.current = el;
+      if (el) el.addEventListener('wheel', onWheel, { passive: false });
+    },
+    [onWheel],
+  );
+
+  // Drag → pan. Pointer capture keeps the gesture even if it leaves the frame.
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    // Start each gesture fresh: clear any suppression a prior drag left set when
+    // its synthetic click never arrived, so a real click is never wrongly eaten.
+    suppressClickRef.current = false;
+    dragRef.current = { x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) d.moved = true;
+    const dx = e.clientX - d.lastX;
+    const dy = e.clientY - d.lastY;
+    d.lastX = e.clientX;
+    d.lastY = e.clientY;
+    setAnimate(false);
+    setCam((c) => (c ? panBy(c, dx, dy) : c));
+  }, []);
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (d?.moved) suppressClickRef.current = true; // a drag must not register as a click
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be gone */
+    }
+    dragRef.current = null;
+  }, []);
+
+  // WASD / arrows → pan (the div is tabIndex={0}). Arrow keys preventDefault so
+  // the page never scrolls; modifier-held or input-focused keystrokes pass through.
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+    const STEP = 60;
+    let dx = 0;
+    let dy = 0;
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'w':
+        dy = STEP; // move the view up by panning content down
+        break;
+      case 'ArrowDown':
+      case 's':
+        dy = -STEP;
+        break;
+      case 'ArrowLeft':
+      case 'a':
+        dx = STEP;
+        break;
+      case 'ArrowRight':
+      case 'd':
+        dx = -STEP;
+        break;
+      default:
+        return;
+    }
+    if (e.key.startsWith('Arrow')) e.preventDefault();
+    setAnimate(false);
+    setCam((c) => (c ? panBy(c, dx, dy) : c));
+  }, []);
 
   const focusStoryId = hoverStory ?? selectedStory;
   // Focus walks the SAME declared ∪ derived edge set the roads and ranking
@@ -1414,10 +1553,21 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const roadClass = (e: WorldEdge): string => roadClassByEnds(e.from, e.to);
 
   const clearSelection = (): void => {
+    // A drag that released over the map fires a synthetic click — swallow it so
+    // panning never clears the selection (the flag is set in onPointerUp).
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     setSelectedCap(null);
     navigate(treeHref);
   };
   const selectStory = (storyId: string, capId: string | null): void => {
+    // A pan-drag must not register as a select (see clearSelection).
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     // Real cli/store stories (ADR-0074 §3) are selectable like any island and show their
     // capability trees. Only a SYNTHETIC fallback hub (absent from the story payload) has
     // no panel to open, so guard that case alone.
@@ -1464,18 +1614,21 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         />
         <div className="world-frame">
           <div
-            className="world-scroll"
-            ref={frameRef}
+            className="world-viewport"
+            ref={bindViewport}
             tabIndex={0}
-            aria-label="story forest map (scrollable)"
+            aria-label="story forest map (pan and zoom)"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onKeyDown={onKeyDown}
             onClick={(e) => {
-              if (e.target === e.currentTarget) clearSelection(); // gutters beside the capped scene
+              if (e.target === e.currentTarget) clearSelection(); // gutters beside the scene
             }}
           >
           <svg
             ref={svgRef}
             className="world-scene world-roads"
-            viewBox={`0 0 ${world.width} ${world.height}`}
             onClick={(e) => {
               if (e.target === e.currentTarget) clearSelection();
             }}
@@ -1494,6 +1647,18 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               </marker>
             </defs>
 
+            {/* Pan/zoom camera (lib/worldCamera): translate+scale the world-unit
+                content into the no-viewBox pixel space. defs stay OUTSIDE (they
+                are not positional). Hidden until the first frame is computed so
+                there's no flash of un-framed content. */}
+            <g
+              className="world-camera"
+              transform={cam ? `translate(${cam.tx} ${cam.ty}) scale(${cam.scale})` : undefined}
+              style={{
+                transition: animate ? 'transform .35s ease' : 'none',
+                visibility: cam ? undefined : 'hidden',
+              }}
+            >
             {renderScene && scene ? (
               // ADR-0093 Unit D: render FROM the shared scene-graph via the thin React mapper — now
               // the DEFAULT (the `?render=legacy`/`inline` escape hatch falls to the inline `<g>`
@@ -1627,6 +1792,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               ))}
             </g>
             )}
+            </g>
           </svg>
           </div>
           {sessionDock && (
