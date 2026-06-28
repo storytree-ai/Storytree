@@ -234,7 +234,7 @@ test("buildLibraryDoc(fields) persists a STRUCTURED doc that round-trips with no
     title: "spine",
     description: "the control-flow layer",
     body: "IGNORED derived body",
-    references: ["doc:glossary.md"],
+    references: ["doc:decisions/0017-cross-cutting-knowledge-tier.md"],
     fields: {
       oneLine: "The control-flow layer.",
       whatItIs: "The deterministic routing layer.",
@@ -273,8 +273,6 @@ test("buildLibraryDoc merges over the existing doc, preserving write-only metada
       references: [],
       oneLine: "old one-line",
       whatItIs: "old what-it-is",
-      glossarySection: "Studio & tooling",
-      glossaryBody: "the canonical glossary paragraph",
       schemaVersion: 1,
       createdAt: "2026-06-01T00:00:00Z",
       updatedAt: "2026-06-01T00:00:00Z",
@@ -294,11 +292,11 @@ test("buildLibraryDoc merges over the existing doc, preserving write-only metada
     },
     existing,
   );
-  // Edited fields win; glossary metadata + original createdAt survive the edit.
+  // Edited fields win; the write-only schemaVersion + original createdAt survive the edit — the
+  // editor never sends them, so they must ride through the merge from the existing doc, not the input.
   assert.equal(doc["oneLine"], "new one-line");
   assert.equal(doc["title"], "spine (edited)");
-  assert.equal(doc["glossarySection"], "Studio & tooling");
-  assert.equal(doc["glossaryBody"], "the canonical glossary paragraph");
+  assert.equal(doc["schemaVersion"], 1);
   assert.equal(doc["createdAt"], "2026-06-01T00:00:00Z");
 });
 

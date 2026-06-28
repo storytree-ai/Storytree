@@ -12,9 +12,9 @@
 //
 // SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
 //   • apps/studio/data/knowledge.json is the STRUCTURED SOURCE of the Library.
-//   • apps/studio/data/assets.json and docs/glossary.md are GENERATED VIEWS, built
-//     by apps/studio/data/build-corpus.mjs from knowledge.json — NEVER hand-edit
-//     them. (This API's POST/PATCH to assets.json is dev-authoring only; whatever
+//   • apps/studio/data/assets.json is a GENERATED VIEW, built by
+//     apps/studio/data/build-corpus.mjs from knowledge.json — NEVER hand-edit it.
+//     (This API's POST/PATCH to assets.json is dev-authoring only; whatever
 //     it writes gets CLOBBERED on the next build-corpus run — edit knowledge.json
 //     and rebuild instead.)
 //   • The Library is ALSO migrated into the shared Cloud SQL Postgres store
@@ -1147,7 +1147,7 @@ export async function readTree(
  * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082) to the tree payload. A
  * story that declares per-test UAT tests has its crown set from `rollupStoryGreen` — the AND of TWO
  * necessary clauses: (a) EVERY declared capability is proven `healthy`, and (b) the per-test UAT
- * AND-roll-up is green. Capabilities-green is now a NECESSARY condition (the glossary dependency rule),
+ * AND-roll-up is green. Capabilities-green is now a NECESSARY condition (the capabilities-green dependency rule),
  * so the crown is NEVER its own unit-id verdict and NEVER a green while any capability is red/unproven:
  * healthy ⇒ a pass crown, unhealthy ⇒ a fail crown (a red plant or a UAT regression), unproven ⇒ NO
  * verdict (the crown under-claims to `mapped`, never a stale green). A story with zero capabilities

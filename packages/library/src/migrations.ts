@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -92,6 +92,24 @@ export const MIGRATIONS: readonly Migration[] = [
       const antiPatternRefs = assetRefsOf(antiPatterns);
       if (antiPatternRefs.length > 0) out["antiPatterns"] = antiPatternRefs;
       return out;
+    },
+  },
+  {
+    version: 3,
+    name: "drop-glossary-projection-fields",
+    up(doc) {
+      // ADR-0135 retired docs/glossary.md (the Library's `definition` artifacts are the sole term
+      // authority). The glossary-projection metadata that fed the generated file — glossarySection
+      // / glossaryTerm / glossaryBody — is now inert and removed from the schema, so strip it; and
+      // drop the now-dangling `doc:glossary.md` citation each carried (the file is gone). Applies to
+      // every structured kind (the fields lived in commonShape). Mechanical + idempotent.
+      const { glossarySection: _gs, glossaryTerm: _gt, glossaryBody: _gb, ...rest } = doc;
+      if (Array.isArray(rest["references"])) {
+        rest["references"] = (rest["references"] as unknown[]).filter(
+          (r) => r !== "doc:glossary.md",
+        );
+      }
+      return rest;
     },
   },
 ];

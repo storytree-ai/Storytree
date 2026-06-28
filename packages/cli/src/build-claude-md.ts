@@ -1,5 +1,5 @@
 // Shape CLAUDE.md's operating-discipline region from the `session-orchestrator` library agent
-// (ADR-0051). The region between the AGENT markers is a GENERATED VIEW — like docs/glossary.md is
+// (ADR-0051). The region between the AGENT markers is a GENERATED VIEW — like assets.json is
 // generated from the definitions — so the discipline an agent runs on has ONE source of truth (the
 // library artifact) and can never drift from a hand-copy again.
 //

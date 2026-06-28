@@ -103,9 +103,6 @@ const ENVELOPE_FIELDS = new Set([
   "references",
   "provenance",
   "schemaVersion",
-  "glossarySection",
-  "glossaryTerm",
-  "glossaryBody",
   "createdAt",
   "updatedAt",
 ]);
@@ -259,8 +256,8 @@ export interface AssetWriteInput {
  * asset exactly as before.
  *
  * `existing` (the current stored doc, if any) is merged UNDER the new values so write-only metadata
- * the editor never sees — glossarySection / glossaryTerm / glossaryBody, the doc-level createdAt,
- * schemaVersion — is preserved across edits rather than dropped. Empty per-kind fields are OMITTED
+ * the editor never sees — the doc-level createdAt, schemaVersion — is preserved across edits rather
+ * than dropped. Empty per-kind fields are OMITTED
  * (Markdown is non-empty, and renderBody skips absent optional fields — so clearing an optional
  * field cleanly drops its section).
  */

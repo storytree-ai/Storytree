@@ -723,7 +723,7 @@ export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean 
     ok: true,
     body: lines.join("\n"),
     next: write
-      ? ["npx tsx apps/studio/data/build-corpus.mjs   (regenerate assets.json + glossary.md)", "pnpm check:corpus-content"]
+      ? ["npx tsx apps/studio/data/build-corpus.mjs   (regenerate assets.json)", "pnpm check:corpus-content"]
       : ["storytree library export-corpus --pg --write   (apply)", "pnpm check:corpus-content   (the body-level drift report)"],
   };
 }

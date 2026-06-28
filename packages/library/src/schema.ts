@@ -105,7 +105,7 @@ export function effectiveUatWitness(declared: UatWitness | undefined): UatWitnes
 const base = {
   id: z.string(),
   title: z.string(),
-  outcome: z.string(), // single-sentence value statement (glossary: `outcome`)
+  outcome: z.string(), // single-sentence value statement (the `outcome` definition)
   status: Status,
   proof_note: Markdown.optional(), // honest proof caveat — a typed prose field, not a body
 } as const;

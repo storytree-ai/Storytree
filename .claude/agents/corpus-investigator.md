@@ -58,7 +58,7 @@ Read / Glob / Grep; read-only Bash (the `storytree library` READ commands — `-
 ## Context — load this before you start
 
 ### Doc-vs-implementation precedence  [principle]
-**The principle.** Implementation is ground truth and doc text is a hypothesis about it; when a finding shows a doc claim (ADR, glossary, guideline, spec) disagrees with the code, the gap itself is the load-bearing surface, not metadata to a move that took the doc at face value.
+**The principle.** Implementation is ground truth and doc text is a hypothesis about it; when a finding shows a doc claim (ADR, definition, guideline, spec) disagrees with the code, the gap itself is the load-bearing surface, not metadata to a move that took the doc at face value.
 
 ## Why
 

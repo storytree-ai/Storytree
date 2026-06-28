@@ -20,7 +20,7 @@ test("groups asset: refs by their category and doc: refs by decisions/ vs other"
       "asset:red-green",
       "doc:decisions/0007-proof-model.md",
       "asset:approval-gated-trunk",
-      "doc:glossary.md",
+      "doc:open-questions.md",
       "asset:owned-loop",
     ],
     resolve,
@@ -33,7 +33,7 @@ test("groups asset: refs by their category and doc: refs by decisions/ vs other"
   const principles = groups.find((g) => g.group === "Principles");
   assert.deepEqual(principles?.items, [{ ref: "asset:red-green", label: "Red-green" }]);
   const docs = groups.find((g) => g.group === "Docs & references");
-  assert.deepEqual(docs?.items, [{ ref: "doc:glossary.md", label: "glossary.md" }]);
+  assert.deepEqual(docs?.items, [{ ref: "doc:open-questions.md", label: "open-questions.md" }]);
 });
 
 test("keeps reference order within a group", () => {

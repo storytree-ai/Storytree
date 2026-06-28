@@ -43,7 +43,6 @@
     "description": "A unit reaches `healthy` only via earned, on-disk evidence — never a hand-edit.",
     "body": "**The principle.** A unit reaches `healthy` only through earned, on-disk evidence produced by one of its proof modes — never a hand-edit.\n\n## Why\n\nWithout an evidence gate, `healthy` becomes a claim rather than a proof — a unit can be marked done by assertion, and the trunk silently accumulates unproven work. The gate **refuses** invalid work rather than warning about it, so an unproven unit cannot pass at all.\n\n## How to apply\n\nAsk: is there earned, on-disk evidence from one of this unit's proof modes at HEAD? If not, it is not `healthy`, and no hand-edit can make it so. Corollary — **cold-rebuild** (an authoring guideline, not a gate): a story should be written self-contained enough that a cold agent — from the story's spec plus its upstream stories' declared interfaces, and nothing else — could rebuild it and pass its UAT (the internals may differ). It is not the definition of `healthy` and is never machine-enforced (ADR-0010 §6).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0007-proof-model.md",
       "asset:never-bypass-the-gate",
       "asset:gate"
@@ -301,9 +300,7 @@
     "title": "Standalone-resilient library",
     "description": "Structure a unit as a library with minimal load-bearing deps, exercised end-to-end by integration tests, behind a thin CLI/adapter wrapper.",
     "body": "**The pattern.** Structure a unit as a library with minimal load-bearing dependencies, exercised end-to-end by integration tests, behind a thin CLI/adapter wrapper.\n\n## Problem\n\nUnits that are tangled into their surroundings cannot be proven in isolation and break whenever the surrounding code churns.\n\n## Approach\n\nBuild each unit as a library with minimal load-bearing dependencies, exercised end-to-end by integration tests, behind a thin CLI/adapter wrapper.\n\n## Tradeoffs\n\nYou trade the discipline of keeping dependencies minimal and wrapping the library thinly against tighter, more convenient coupling to the surroundings. The library shape keeps the unit provable in isolation and resilient to surrounding churn.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "provenance": "Carried from v1.",
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
@@ -323,11 +320,11 @@
   {
     "id": "glossary-wins",
     "category": "pattern",
-    "title": "When a term is in question, the glossary wins",
-    "description": "docs/glossary.md is the authoritative terminology every layer speaks; when a term’s meaning is contested, it wins.",
-    "body": "**The pattern.** When a term's meaning is in question, `docs/glossary.md` is authoritative — it wins, and the reasoning lives in the cited ADR.\n\n## Problem\n\nWith multiple layers each speaking the same vocabulary, a contested term can mean different things in different places unless one source is named authoritative.\n\n## Approach\n\nEvery layer — the organism packages' types, the orchestrator, the studio, the ADRs — uses the glossary's terms as defined. When a term's meaning is in question, `docs/glossary.md` wins; the reasoning behind the definition lives in the cited ADR.\n\n## Tradeoffs\n\nYou trade local freedom to redefine a term against a single authoritative vocabulary. Deferring to the glossary constrains how a layer may use a word, but guarantees every layer speaks the same language when it matters.",
+    "title": "When a term is in question, the definition artifact wins",
+    "description": "The Library's definition artifacts are the authoritative terminology every layer speaks; when a term’s meaning is contested, the definition wins.",
+    "body": "**The pattern.** When a term's meaning is in question, the Library's `definition` artifact for it is authoritative — it wins, and the reasoning lives in the cited ADR.\n\n## Problem\n\nWith multiple layers each speaking the same vocabulary, a contested term can mean different things in different places unless one source is named authoritative.\n\n## Approach\n\nEvery layer — the organism packages' types, the orchestrator, the studio, the ADRs — uses terms as the Library's `definition` artifacts define them, looked up just-in-time (`storytree library artifact <term>`). When a term's meaning is in question, the definition wins; the reasoning behind it lives in the cited ADR.\n\n## Tradeoffs\n\nYou trade local freedom to redefine a term against a single authoritative vocabulary. Deferring to the canonical definition constrains how a layer may use a word, but guarantees every layer speaks the same language when it matters.",
     "references": [
-      "doc:glossary.md",
+      "doc:decisions/0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
@@ -413,7 +410,6 @@
     "description": "The top-level unit of work you watch grow, and a node on the DAG the studio renders.",
     "body": "**In one line.** The top-level unit of work you watch grow — a bounded context / organism, self-contained and independently deployable, composed of capabilities and proven as a whole by integrated UAT.\n\n## What it is\n\nThe top-level unit of work you watch grow, and a node on the DAG the studio renders. A **bounded context / organism** — self-contained and **independently deployable** (the microservice grain), *composed of capabilities*. The map grain: the thing a newcomer points at (\"the event store\", \"the tree renderer\"). A story is **proven as a whole by ≥1 integrated UAT** (acceptance walkthrough of the organism against real collaborators), not a pure rollup of its capabilities. Inside it capabilities share machinery (DRY is good); across stories behaviour is duplicated, not shared, except through a declared **boundary** (ADR-0010).\n\n## What it is not\n\nDeliberately bigger than v1's story (the unit v1/Agentic called a \"story\" is now a **capability**). Unlike a pure rollup, a story carries its own integrated UAT rather than deriving its health solely from its capabilities.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:capability",
       "asset:boundary",
@@ -430,7 +426,6 @@
     "description": "An organ within a story (bounded context): independently viable, proven by ≥1 integration test against real in-story collaborators (no stubs within the organism), and composed of contracts.",
     "body": "**In one line.** An organ within a story (bounded context): independently viable, proven by integration tests against real in-story collaborators, and composed of contracts.\n\n## What it is\n\nAn **organ within a story** (bounded context): independently viable, proven by ≥1 **integration test** against **real in-story collaborators** (no stubs within the organism), and composed of **contracts**. The within-story dependencies are drawn between capabilities (code-derived; see **dependency**). This is the unit v1 (Agentic) called a \"story\".\n\n## What it is not\n\nIt no longer carries the UAT — that moved up to the story. A unit is a capability — not a **contract** — if it is an integration-wired organ rather than a single isolated behaviour (ADR-0010).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:story",
       "asset:contract",
@@ -446,7 +441,6 @@
     "description": "A single test-proven behaviour within a capability: one automated, isolated unit test (collaborators stubbed).",
     "body": "**In one line.** A single test-proven behaviour within a capability — the leaf of the proof ladder, proven by one automated, isolated unit test (collaborators stubbed).\n\n## What it is\n\nA single **test-proven behaviour** within a capability: one automated, **isolated** unit test (collaborators stubbed). The leaf — the bottom rung of the proof ladder (unit → integration → UAT).\n\n## What it is not\n\nA unit is a contract — not a **capability** — if the only honest proof is an isolated automated assertion, with no wired-up organ around it.",
     "references": [
-      "doc:glossary.md",
       "asset:capability",
       "asset:contract-test",
       "asset:proof-mode"
@@ -461,7 +455,6 @@
     "description": "A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019).",
     "body": "**In one line.** A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019).\n\n## What it is\n\nA unit being worked **on the DAG** — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019). The coordination/scheduling grain: the thing the orchestrator schedules and the isolation/claim layer is keyed on.\n\n## What it is not\n\nDistinct from a **run**: an owned-loop run/attempt against a node is an execution event (many-per-node), never a new node. The execution environment is not the coordination structure (ADR-0004, ADR-0009).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
       "doc:decisions/0009-concurrency-isolation-id-allocation.md",
       "doc:decisions/0019-library-tier-name-and-defer-dbos.md",
@@ -478,7 +471,6 @@
     "description": "A single per-node execution attempt, recorded as an event in the event store — many-per-node, never a new node.",
     "body": "**In one line.** A single per-node execution attempt, recorded as an event in the event store — many-per-node, never a new node.\n\n## What it is\n\nA single per-node **execution** attempt, recorded as an event in the event store — many-per-node, never a new node. Here `run` is strictly the per-node execution attempt (ADR-0004; see `open-questions.md` §3, §8).\n\n## What it is not\n\nDistinct from v1's overloaded `runs`/`test_runs` table (per-build vs per-event vs id-keyed dir). Distinct from a **node**: a run is the execution grain, not the coordination grain.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
       "asset:node",
       "asset:event"
@@ -494,7 +486,6 @@
     "description": "A prose journey, run end-to-end against real collaborators, that proves a story (the whole organism) meets its goal.",
     "body": "**In one line.** A prose journey, run end-to-end against real collaborators, that proves a story (the whole organism) meets its goal.\n\n## What it is\n\nA prose journey, run end-to-end against *real* collaborators, that proves a **story** (the whole organism) meets its goal. Minimal-first: ship one that proves the goal, grow more as defects surface.\n\n## What it is not\n\nLives at the **story** level only — capabilities get integration tests, contracts get isolated unit tests, not UATs (ADR-0010).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:story",
       "asset:proof-mode",
@@ -510,7 +501,6 @@
     "description": "The automated test that proves a contract: the isolated unit test at the bottom rung of the proof ladder (unit → integration → UAT).",
     "body": "**In one line.** The automated test that proves a contract — the isolated unit test at the bottom rung of the proof ladder (unit → integration → UAT).\n\n## What it is\n\nThe automated test that proves a contract: the **isolated unit test** at the bottom rung of the proof ladder (unit → integration → UAT). Collaborators are stubbed, for fast feedback during the build.",
     "references": [
-      "doc:glossary.md",
       "asset:contract",
       "asset:proof-mode",
       "asset:uat"
@@ -525,7 +515,6 @@
     "description": "A directed edge, defined at two altitudes (ADR-0010).",
     "body": "**In one line.** A directed edge between units, defined at two altitudes: code-derived capability→capability edges within a story, and declared boundaries across stories (ADR-0010).\n\n## What it is\n\nA directed edge, defined at two altitudes (ADR-0010). **Within a story**, capability→capability edges are **code-derived** (static analysis of imports/calls): inside the boundary a dependency *is* the code coupling, read off the source, not hand-authored. **Across stories**, one story may depend on another **only** through a declared, documented **boundary** (§4) — hidden cross-story coupling is forbidden. You cannot prove a unit that stands on an unproven one.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:boundary",
       "asset:capability",
@@ -542,7 +531,6 @@
     "description": "The declared, documented seam between two stories — the only legal cross-story coupling: two organisms dependent to deliver an outcome but each still functioning in isolation against the seam, the…",
     "body": "**In one line.** The declared, documented seam between two stories — the only legal cross-story coupling, the way a frontend depends on a database.\n\n## What it is\n\nThe declared, documented seam between two stories — the **only** legal cross-story coupling: two organisms dependent to deliver an outcome but each still functioning in isolation against the seam, the way a frontend depends on a database. The seam need not be a code import: a surface may depend on another surface's **delivered build artifact** (consuming its compiled output via a declared cross-story `depends_on` edge) — declared for honesty + forest visibility even though the import-scan gate cannot enforce it, since there is no import to cover (ADR-0100 §3, ADR-0111 §4).\n\n## What it is not\n\nNot a generic `interface`: the name is provisional, because bare `interface` collides with TS `interface` (the same collision that sank `component` in ADR-0002). The candidates are **`boundary`** or **`port`**, to be ratified when `packages/proof-protocol` formalises the schema (ADR-0010 §4).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "doc:decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md",
@@ -561,7 +549,6 @@
     "description": "A typed record of a state change (owned-loop events + orchestrator events) — the unit of observability.",
     "body": "**In one line.** A typed record of a state change (owned-loop events plus orchestrator events) — the unit of observability.\n\n## What it is\n\nA typed record of a state change (owned-loop events + orchestrator events) — the unit of observability. If a state change isn't an event the UI can render, it doesn't exist (ADR-0001, observability-first). Defined alongside the schema in `packages/proof-protocol`. Includes operator-actor events (see **approval event / promotion event**), not just agent activity.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md",
       "asset:event-log",
       "asset:pi-event-stream",
@@ -578,7 +565,6 @@
     "description": "The typed, append-only record in the event store — one row per state change — that is the single source of truth the studio renders and the only thing written.",
     "body": "**In one line.** The typed, append-only record in the event store — one row per state change — that is the single source of truth the studio renders and the only thing written.\n\n## What it is\n\nThe typed, **append-only** record in the event store — one row per state change — that is the single source of truth the studio renders and the only thing **written**. The artifact behind the `event` term.\n\n## What it is not\n\nDistinct from the derived **node rollup**, which is read off the log rather than written (ADR-0006).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0006-event-store-observability-surface.md",
       "asset:event",
       "asset:node-rollup"
@@ -593,7 +579,6 @@
     "description": "The current status and latest verdict per story / capability / contract, derived as a projection over the event log and never hand-maintained.",
     "body": "**In one line.** The current status and latest verdict per story / capability / contract, derived as a projection over the event log and never hand-maintained.\n\n## What it is\n\nThe current status and latest `verdict` **per** story / capability / contract, derived as a **projection** over the event log and never hand-maintained. A capability's lifecycle status (proposed / building / healthy; unhealthy computed) is *read off* the log, not written beside it. v2's answer to v1's per-build `runs`-grain mess (ADR-0006).\n\n## What it is not\n\nDistinct from the **event log**: the log is the only thing written, while the rollup is a derived projection over it — never a separately maintained record.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0006-event-store-observability-surface.md",
       "asset:event-log",
       "asset:event",
@@ -609,7 +594,6 @@
     "description": "The owned loop's structured lifecycle event stream (plus edit-tool diffs/patches) emitted as it works inside a node — the agent-activity ingest channel into the event store, normalized by packages/agent.",
     "body": "**In one line.** The owned loop's structured lifecycle event stream (plus edit-tool diffs) emitted as it works inside a node — the agent-activity ingest channel into the event store, normalized by packages/agent.\n\n## What it is\n\nThe owned loop's structured lifecycle event stream (plus `edit`-tool diffs/patches) emitted as it works inside a node — the **agent-activity ingest channel** into the event store, normalized by `packages/agent`. One of exactly two defined ingest channels.\n\n## What it is not\n\nNot the only ingest channel: the other is orchestrator events (ADR-0001, ADR-0006, ADR-0011).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0006-event-store-observability-surface.md",
       "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
@@ -627,7 +611,6 @@
     "description": "Typed events with actor = operator recorded in the event store: an approval / steering event (a human in-loop intervention) and a signed promotion event (the human accepting a unit's green result o…",
     "body": "**In one line.** Typed operator-actor events in the event store: an approval / steering event (a human in-loop intervention) and a signed promotion event (the human accepting a unit's green result onto the trunk).\n\n## What it is\n\nTyped events with `actor = operator` recorded in the event store: an **approval / steering event** (a human in-loop intervention) and a signed **promotion event** (the human accepting a unit's green result onto the trunk, carrying operator identity and, for a story, the UAT verdict). Part of the same observability record as the owned loop's own activity (ADR-0008).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
       "asset:event",
       "asset:approval",
@@ -645,7 +628,6 @@
     "description": "The directed acyclic graph the studio renders and watches grow.",
     "body": "**In one line.** The directed acyclic graph the studio renders and watches grow — stories as visible nodes, capability dependencies as the fine-grained edges beneath.\n\n## What it is\n\nThe directed acyclic graph the studio renders and watches grow. Stories are its visible nodes; capability dependencies are the fine-grained edges beneath. The exact inter-level grain is open (see ADR-0002 → \"What this does NOT decide\").",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
       "asset:story",
       "asset:capability",
@@ -662,7 +644,6 @@
     "description": "A structural enforcement point that refuses invalid work rather than warning.",
     "body": "**In one line.** A structural enforcement point that refuses invalid work rather than warning about it.\n\n## What it is\n\nA structural enforcement point that **refuses** invalid work rather than warning. storytree keeps the commit-time / promotion gate (ADR-0001 cites it as a proven v1 idea).\n\n## What it is not\n\nNot an `approval` (a human admitting work that has already passed the gate's content invariants) and not a mere warning — a gate structurally blocks, it does not advise.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md",
       "asset:approval",
       "asset:never-bypass-the-gate",
@@ -678,7 +659,6 @@
     "description": "A proof mode (alongside UAT, integration-test and contract-test) for behavioural/guardrail surfaces that have neither an honest scripted UAT nor an isolatable automated test — e.g.",
     "body": "**In one line.** A proof mode for behavioural/guardrail surfaces with neither an honest scripted UAT nor an isolatable automated test, where promotion to `healthy` is an explicit, per-unit, operator-granted signed event.\n\n## What it is\n\nA proof mode (alongside UAT, integration-test and contract-test) for behavioural/guardrail surfaces that have neither an honest scripted UAT nor an isolatable automated test — e.g. the orchestrator's own routing / approval / steering discipline. Promotion to `healthy` is an explicit, per-unit, **operator-granted** attestation recorded as a typed **signed event**; an agent can never self-exempt, and the attestation is distinguishable in the audit trail from a UAT walkthrough sign.\n\n## What it is not\n\nDistinct from `mapped`, which is a *status* (the authored brownfield state that reaches `healthy` via an observe-and-signed `adopted` verdict, ADR-0085 / ADR-0097 / ADR-0105), not a proof mode. Distinct also from a UAT walkthrough sign, from which it is separable in the audit trail.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0007-proof-model.md",
       "asset:proof-mode",
       "asset:agent-never-self-exempts"
@@ -694,7 +674,6 @@
     "description": "Two distinct senses v1 conflated and v2 keeps separate;",
     "body": "**In one line.** A term carrying two distinct senses that v1 conflated and v2 keeps separate — DAG-stabilisation and cold-rebuild — so it must always be qualified.\n\n## What it is\n\nTwo **distinct** senses v1 conflated and v2 keeps separate; always qualify which is meant. (1) *DAG-stabilisation* — the dependency DAG is iterated to a fixed point before any unit goes red (owned by the decomposition/scheduler loop; see `open-questions.md` §4). (2) *cold-rebuild* — see the separate `cold-rebuild` definition.\n\n## What it is not\n\nNot a single concept — using it unqualified is the v1 conflation v2 exists to prevent. The two senses are independent: DAG-stabilisation concerns scheduling order, while cold-rebuild concerns story self-containment.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0003-v1-reversal-ledger.md",
       "doc:decisions/0007-proof-model.md",
       "asset:cold-rebuild"
@@ -710,7 +689,6 @@
     "description": "An authoring guideline (not a gate), at story grain: a story should be self-contained enough that a cold agent could rebuild it from its own spec plus its upstream stories' declared interfaces — and pass its UAT.",
     "body": "**The principle.** A story should be written self-contained enough that a cold agent — given the story's own spec **plus the declared interfaces of its upstream stories** (never their internals), and nothing else — could rebuild it and pass its UAT.\n\n## Why\n\nIt is an **authoring guideline** (not a gate), at **story grain**: self-containment is what lets a story be rebuilt and re-proven without spelunking its neighbours' internals. The rebuilt *internals* may legitimately differ — many implementations satisfy one UAT.\n\n## How to apply\n\nWhen authoring a story, check it could be rebuilt from its own spec + its upstream stories' **declared interfaces** alone. This is the cold-rebuild sense of `convergence`, distinct from DAG-stabilisation. It is **not** the definition of `healthy` (earned via the proof modes / prove-it-gate) and is **not machine-enforced** — v1 carried it as guidance for agents authoring stories and never tested it.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "doc:decisions/0007-proof-model.md",
       "doc:decisions/0006-event-store-observability-surface.md"
@@ -726,7 +704,6 @@
     "description": "A code-enforced ceiling on a node's spine loop that bounds a runaway. The ceiling's unit — once open — is resolved for the subscription-funded SDK by ADR-0130/0131: the default brake is the turn cap (maxTurns), which maps to real work, while the USD ceiling was dropped as a default (a phantom under flat/subscription billing) and survives only as an opt-in --budget escape hatch.",
     "body": "**In one line.** A code-enforced ceiling on a node's spine loop that bounds a runaway. The default brake is the turn cap (`maxTurns`); the USD ceiling was dropped as a default — a phantom under subscription billing — and is now an opt-in `--budget` escape hatch (ADR-0130/0131).\n\n## What it is\n\nA code-enforced ceiling on a node's spine loop. The loop terminates on green **or** budget-exhausted, the latter a typed terminal event with per-round cost visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting v1's \"cascade rounds are not a cost\". The ceiling's unit — left open in v1 — is resolved for the subscription-funded SDK by ADR-0130/0131: the default brake is the **turn cap** (`maxTurns`), which maps to real work, while the **USD ceiling was removed as a default** because the SDK's metered `total_cost_usd` is a phantom under flat/subscription billing; a dollar cap survives only as an opt-in `--budget` escape hatch (see `meter-fail-closed-caps-in-real-cost`).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
       "doc:decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md",
       "doc:decisions/0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md",
@@ -745,7 +722,6 @@
     "description": "A first-class, typed operator act (actor = operator) in which the human accepts an agent action, or a capability's green result, onto the trunk via the studio.",
     "body": "**In one line.** A first-class, typed operator act (actor = operator) in which the human accepts an agent action, or a capability's green result, onto the trunk via the studio.\n\n## What it is\n\nA first-class, typed operator act (`actor = operator`) in which the human accepts an agent action, or a capability's green result, **onto the trunk** via the studio. The trunk is **approval-gated**: a green signal is a *request for human diff-review*, not an automatic merge (inverts v1's auto-merge-on-green).\n\n## What it is not\n\nDistinct from a **gate** (which structurally refuses invalid work); an approval is the human admitting work that has already passed the gate's content invariants.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
       "asset:gate",
       "asset:approval-event-promotion-event",
@@ -763,7 +739,6 @@
     "description": "The Pass/Fail outcome of a story's UAT.",
     "body": "**In one line.** The Pass/Fail outcome of a story's UAT.\n\n## What it is\n\nThe Pass/Fail outcome of a story's UAT. Reserved for UAT outcomes.\n\n## What it is not\n\nv1 also used \"verdict\" for agent conclusions and evidence-row states — those are different concepts and do not claim the word here.",
     "references": [
-      "doc:glossary.md",
       "asset:uat",
       "asset:node-rollup",
       "asset:evidence"
@@ -778,7 +753,6 @@
     "description": "The forensic record that a unit's tests went red→green and its story's UAT was signed: an audit trail, not itself the gate.",
     "body": "**In one line.** The forensic record that a unit's tests went red→green and its story's UAT was signed — an audit trail, not itself the gate.\n\n## What it is\n\nThe forensic record that a unit's tests went red→green and its story's UAT was signed: an audit trail.\n\n## What it is not\n\nNot itself the gate — evidence records what happened; the gate is the enforcement point that consumes it.",
     "references": [
-      "doc:glossary.md",
       "asset:gate",
       "asset:verdict",
       "asset:proof-hash",
@@ -795,7 +769,6 @@
     "description": "A hash of a unit's proof-bearing content (outcome, contracts, …) that invalidates a prior verdict when the content changes.",
     "body": "**In one line.** A hash of a unit's proof-bearing content (outcome, contracts, …) that invalidates a prior verdict when the content changes.\n\n## What it is\n\nA hash of a unit's proof-bearing content (outcome, contracts, …) that invalidates a prior verdict when the content changes.",
     "references": [
-      "doc:glossary.md",
       "asset:verdict",
       "asset:evidence"
     ],
@@ -809,7 +782,6 @@
     "description": "The discipline that a failing (red) contract test is authored before the implementation that turns it green.",
     "body": "**The principle.** A failing (red) contract test is authored before the implementation that turns it green.\n\n## Why\n\nA test that has never been seen to fail is not trusted evidence — writing the implementation first invites tests shaped to pass vacuously. Authoring the test red first proves it actually exercises the behaviour.\n\n## How to apply\n\nWrite the contract test, watch it fail (red), then write the implementation that turns it green. This is a discipline — **not** a synonym for the noun `contract`.",
     "references": [
-      "doc:glossary.md",
       "asset:contract"
     ],
     "provenance": "Per the v1→v2 term map, v1's \"story is a contract\" / red-green reads as this principle, not the noun `contract`.",
@@ -823,7 +795,6 @@
     "description": "No mocks within an organism: capability integration tests and the story UAT both run against real in-story collaborators.",
     "body": "**In one line.** The rule that there are no mocks within an organism — capability integration tests and the story UAT both run against real in-story collaborators — with the sole stubbable boundary being the declared cross-story boundary.\n\n## What it is\n\n**No mocks within an organism**: capability integration tests and the story UAT both run against real in-story collaborators. The one stubbable boundary is the declared cross-story **boundary** — a story's UAT may run against a stubbed / contract-tested version of an upstream story's interface (like acceptance-testing a frontend against a stubbed database). Isolated unit (contract) tests still stub freely.\n\n## What it is not\n\nThis is isolation, not theatre — stubbing at the declared cross-story seam is legitimate, whereas faking collaborators inside the organism is a structural defect.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:boundary",
       "asset:uat",
@@ -839,9 +810,7 @@
     "title": "defects-amend-the-owning-story",
     "description": "A defect amends the capability whose contract it violates (reverting it to building), rather than spawning a new unit.",
     "body": "**The principle.** When a defect violates a capability's contract, amend the owning capability (reverting it to `building`) rather than spawning a new unit.\n\n## Why\n\nA defect could be filed as a brand-new unit, fragmenting ownership of a behaviour across the unit that owns it and the unit that records its bug.\n\n## How to apply\n\nRoute the defect to the capability whose contract it violates; revert that capability to `building` and fix it under its existing contract. You trade a new unit's clean slate for a single accountable owner per behaviour and an intact contract/evidence chain on the original capability.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -851,9 +820,7 @@
     "title": "fail-closed-on-dirty-tree",
     "description": "A command that writes attestable evidence refuses to run on a dirty working tree (writes nothing, non-zero exit code).",
     "body": "**The principle.** A command that writes attestable evidence must not run on a dirty working tree — it writes nothing and exits non-zero.\n\n## Why\n\nEvidence attributed to a clean commit could silently include uncommitted changes, corrupting the proof/evidence chain that promotion depends on.\n\n## How to apply\n\nHave such a command check working-tree cleanliness before doing any evidence-writing work and abort on a dirty tree — the load-bearing guarantee is that it writes nothing (no signing row, no event), with a non-zero exit code. Make it a code-path guard, not a warning, so the boundary is non-bypassable in practice. (Reserving a distinct exit code for the dirty-tree refusal — rather than the generic non-zero every refusal returns today — is a cheap future hardening, not a current guarantee.)",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z"
   },
@@ -863,9 +830,7 @@
     "title": "verification-wins",
     "description": "The stance that binding to external truth via tests + on-disk evidence overrides LLM memory consolidation / recency (\"recency-wins\").",
     "body": "**The principle.** Binding to external truth via tests + on-disk evidence **overrides** LLM memory consolidation / recency (\"recency-wins\").\n\n## Why\n\nA confident-but-stale model recollection can override what the tests and evidence actually show. v2 rejects Dreams-style memory reconciliation in favour of a commit/event-bound evidence chain.\n\n## How to apply\n\nWhen the model's memory and the evidence chain disagree, the evidence wins — trust the tests + on-disk record over recency.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "provenance": "The learning loop's v2 home is open (`open-questions.md` §5).",
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
@@ -877,7 +842,6 @@
     "description": "A typed write-ownership record (a row/event in the one shared event store) naming what a node intends to write, checked under a serializable/unique constraint at node-schedule time;",
     "body": "**In one line.** A typed write-ownership record in the one shared event store, naming what a node intends to write and checked under a serializable/unique constraint at node-schedule time — a conflict is a hard refusal, never a warning.\n\n## What it is\n\nA typed **write-ownership** record (a row/event in the one shared event store) naming what a node intends to write, checked under a serializable/unique constraint at **node-schedule time**; a conflict is a **hard refusal** (a `claim-conflict-refused` event), never a warning.\n\nGranularity, the conflict-resolution ceremony, and whether code *edits* still use a git branch/worktree per node are open (`open-questions.md` §3).\n\n## What it is not\n\nNot v1's per-worktree `session_claims` table (Agentic ADR-0022): the v2 successor now lives in the single shared Postgres store (ADR-0009).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0009-concurrency-isolation-id-allocation.md",
       "asset:write-ownership"
     ],
@@ -892,7 +856,6 @@
     "description": "The single vocabulary for what surface/unit a node claims the right to write, used by the claim / conflict-detection layer.",
     "body": "**In one line.** The single vocabulary for what surface/unit a node claims the right to write, used by the claim / conflict-detection layer.\n\n## What it is\n\nThe single vocabulary for *what surface/unit* a node claims the right to write, used by the claim / conflict-detection layer. It unifies v1's scattered terms (`declared_scope` vs per-agent `does_not_touch`) into one concept (ADR-0009); the exact shape (node-scoped vs file-glob) is open (`open-questions.md` §3).\n\n## What it is not\n\nNot v1's scattered, split vocabulary (`declared_scope` and per-agent `does_not_touch`), which this single concept replaces.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0009-concurrency-isolation-id-allocation.md",
       "asset:claim"
     ],
@@ -906,9 +869,7 @@
     "title": "studio",
     "description": "The live PixiJS web IDE that renders the tree and drives the agents (diffs, approvals, steering, per-node chat).",
     "body": "**In one line.** The live PixiJS web IDE that renders the tree and drives the agents — diffs, approvals, steering, per-node chat.\n\n## What it is\n\nThe live PixiJS web IDE that renders the tree and **drives** the agents (diffs, approvals, steering, per-node chat).\n\n## What it is not\n\nNot v1's read-only `dashboard`, which it supersedes — the studio is a richer, driving surface, not merely a renamed view.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -919,7 +880,6 @@
     "description": "The thin custom TypeScript layer (packages/orchestrator) over plain Postgres (DBOS deferred, ADR-0019): owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).",
     "body": "**In one line.** The thin custom TypeScript layer (`packages/orchestrator`) over plain Postgres (DBOS deferred, ADR-0019) that owns the story-DAG, the scheduler, and the event store, and is the only module that drives `packages/agent` (the owned loop).\n\n## What it is\n\nThe thin custom TypeScript layer (`packages/orchestrator`) over plain Postgres — DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection (ADR-0001): it owns the story-DAG, the scheduler, and the event store, and is the **only** module that drives `packages/agent` (the owned loop). It is the code-sequenced **spine** and the sole **fan-out** point — it schedules nodes; owned-loop nodes never schedule child nodes.\n\n## What it is not\n\nDistinct from an owned-loop session, which owns work *inside* a node (ADR-0004, ADR-0005, ADR-0011).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
@@ -939,7 +899,6 @@
     "description": "The code-sequenced control-flow layer (the orchestrator over plain Postgres, DBOS deferred — ADR-0019) that owns closed, deterministic routing: the order steps run in, when a loop iterates, which branch is taken.",
     "body": "**In one line.** The code-sequenced control-flow layer (the orchestrator over plain Postgres, DBOS deferred — ADR-0019) that owns closed, deterministic routing — the order steps run in, when a loop iterates, which branch is taken.\n\n## What it is\n\nThe code-sequenced control-flow layer (the orchestrator over plain Postgres — DBOS is deferred, ADR-0019) that owns **closed, deterministic routing**: the order steps run in, when a loop iterates, which branch is taken. The discriminator (carried verbatim from Agentic ADR-0026): *if a for-loop or a match could express the routing, the spine owns it; if the routing needs the model to decide what comes next, the leaf (owned-loop node) owns it.*\n\n## What it is not\n\nNot the **leaf** — the leaf runtime the spine delegates to (live: the Claude Agent SDK; offline/fallback: the owned loop — ADR-0030).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
       "doc:decisions/0019-library-tier-name-and-defer-dbos.md",
       "doc:decisions/0030-all-in-on-claude-agent-sdk.md",
@@ -957,7 +916,6 @@
     "description": "A single step in a code-sequenced cascade whose work is owned by the leaf runtime (what to write, how to satisfy a contract) rather than by the spine — the control-flow sense of \"leaf\"…",
     "body": "**In one line.** A single step in a code-sequenced cascade whose work is owned by the leaf runtime (what to write, how to satisfy a contract) rather than by the spine — the control-flow sense of \"leaf\".\n\n## What it is\n\nA single step in a code-sequenced cascade whose work is owned by the **leaf runtime** (what to write, how to satisfy a contract) rather than by the spine — the **control-flow** sense of \"leaf\" (ADR-0005, ADR-0011). The leaf runs behind the executor seam: live, the Claude Agent SDK; offline/fallback, the owned loop (ADR-0030).\n\n## What it is not\n\nDistinct from **contract**, the *leaf tier* of the work hierarchy (ADR-0002); the two senses of \"leaf\" must not be conflated.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
       "doc:decisions/0030-all-in-on-claude-agent-sdk.md",
       "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
@@ -974,7 +932,6 @@
     "description": "The project-owned thin wrapper (`packages/agent`) and typed-event parser over the leaf surface (prompt / steer / follow-up + lifecycle events + edit-tool diffs).",
     "body": "**In one line.** The project-owned thin wrapper (`packages/agent`) and typed-event parser over the leaf surface (`prompt` / `steer` / `follow-up` + lifecycle events + `edit`-tool diffs).\n\n## What it is\n\nThe project-owned **thin wrapper** (`packages/agent`) and typed-event parser over the leaf surface (`prompt` / `steer` / `follow-up` + lifecycle events + `edit`-tool diffs). The **sole** surface through which a leaf runtime is invoked and the **only** place a model runtime is imported. It hosts both executors behind the `PhaseAuthor` seam: the owned loop on the Messages API (offline/deterministic + pivot-out fallback, ADR-0011) and the Claude Agent SDK leaf (`ClaudeAgentAuthor` — the live runtime, ADR-0030); it normalizes the stream into the typed events the event store renders, and exposes nothing model-shaped upward.\n\n## What it is not\n\nNo third-party agent framework other than the single-import-site Agent SDK sits in this role; `packages/storage-protocol` and `apps/studio` never parse the leaf's stream directly (ADR-0004, ADR-0006, ADR-0011, ADR-0030).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
       "doc:decisions/0006-event-store-observability-surface.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
@@ -994,7 +951,6 @@
     "description": "The canonical integrated mainline a capability lands on once approved.",
     "body": "**In one line.** The canonical integrated mainline a capability lands on once approved.\n\n## What it is\n\nThe canonical **integrated mainline** a capability lands on once **approved**. In v2 the trunk is **approval-gated** (a human admits a green result), never auto-merge-on-green, and never holds knowingly-broken intermediate states (ADR-0008).\n\n## What it is not\n\nNot v1's trunk, which it supersedes — v1's auto-merged on green and tolerated broken intermediate states under an eventual-consistency posture.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
       "asset:approval-gated-trunk"
     ],
@@ -1008,7 +964,6 @@
     "description": "A first-class, typed operator act of redirecting an in-flight owned-loop run mid-execution (the owned loop's steer operation), recorded as an event in the event store.",
     "body": "**In one line.** A first-class, typed operator act of redirecting an in-flight owned-loop run mid-execution (the owned loop's `steer` operation), recorded as an event in the event store.\n\n## What it is\n\nA first-class, typed operator act of **redirecting an in-flight owned-loop run mid-execution** (the owned loop's `steer` operation), recorded as an event in the event store.\n\n## What it is not\n\nDistinct from **approval**: steering is the in-loop counterpart — the human shapes an action *while it runs*, rather than only accepting/rejecting its result (ADR-0008).",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0008-ui-drives-agents-approvals.md",
       "asset:approval"
     ],
@@ -1021,9 +976,7 @@
     "title": "ADR",
     "description": "Architecture Decision Record under docs/decisions/, capturing a cross-cutting decision.",
     "body": "**In one line.** An Architecture Decision Record under `docs/decisions/`, capturing a cross-cutting decision.\n\n## What it is\n\nAn Architecture Decision Record under `docs/decisions/`, capturing a cross-cutting decision.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -1033,9 +986,7 @@
     "title": "fixture",
     "description": "A test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing.",
     "body": "**In one line.** A test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing.\n\n## What it is\n\nA test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -1045,9 +996,7 @@
     "title": "ndjson",
     "description": "Newline-delimited JSON;",
     "body": "**In one line.** Newline-delimited JSON — the line-delimited record format (a candidate backing for the event stream).\n\n## What it is\n\nNewline-delimited JSON; the line-delimited record format, a candidate backing for the event stream.\n\n## What it is not\n\nNot to be called \"JSONL\": v1 used \"JSONL\" interchangeably — v2 standardizes on **ndjson**.",
-    "references": [
-      "doc:glossary.md"
-    ],
+    "references": [],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z"
   },
@@ -1058,7 +1007,6 @@
     "description": "In storytree, a tree/game art asset for the isometric renderer (ADR-0001, deferred).",
     "body": "**In one line.** In storytree, a tree/game art asset for the isometric renderer (ADR-0001, deferred).\n\n## What it is\n\nIn storytree, a **tree/game art asset** for the isometric renderer (ADR-0001, deferred).\n\n## What it is not\n\nNot v1's \"asset\" (shared DRY content under `assets/`), which does not carry — guard against the collision when importing v1 docs.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0001-foundational-stack.md"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
@@ -1081,7 +1029,6 @@
     "description": "A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring to proven to pruned.",
     "body": "**In one line.** A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring through proven to pruned.\n\n## What it is\n\nStatus lives on every tier (story / capability / contract) and is drawn from six states:\n\n- **proposed** — authored but not yet selected for implementation; the initial state.\n\n- **building** — selected and under active implementation (v1: `under_construction`); written at pickup as the first commit, before any code edits.\n\n- **healthy** — proven: the unit reached `healthy` through its tier's proof mode at HEAD — a story by a UAT pass over fresh green capabilities, a capability by integration tests over fresh green contracts, a contract by its isolated unit test (or, where neither honest test exists, operator-attested) (ADR-0010).\n\n- **unhealthy** — a once-healthy capability that has drifted (a contract test now fails, owned files changed, or the proof no longer matches HEAD); **computed** from evidence, never written to disk.\n\n- **mapped** — brownfield: the authored status of a capability mapped in from an existing target-repo suite, awaiting **adoption** — a pre-proof authored state like `proposed`, and distinct from `healthy` the same way. Its go-green path is *adopt*: the spine observes the existing suite green at a clean HEAD and signs an `adopted` verdict, transitioning it to `healthy` (ADR-0085 / ADR-0097). Adopt (observe) and drive (a red→green) are **peer best-efforts** to bring code under the TDD umbrella; the `adopted` basis records *how* a green was established — value-neutral provenance that ranks nothing; an `adopted` `healthy` is a full peer of a driven one (ADR-0105).\n\n- **retired** — terminal off-tree state: pruned from the active tree; may carry `retired_reason` (prose) and `superseded_by` (an edge to its replacement).\n\n## What it is not\n\n`healthy` is not `mapped` and not `unhealthy`. `mapped` is the authored brownfield status a capability sits in *before* adoption — the brownfield counterpart of `proposed`; adoption observes its existing suite green and signs an `adopted` verdict to reach `healthy`, a full peer of a driven green (ADR-0085 / ADR-0105). `unhealthy` is a once-healthy unit that has since drifted, computed from evidence and never written to disk.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "asset:proof-mode",
       "asset:node-rollup",
@@ -1101,7 +1048,6 @@
     "description": "The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.",
     "body": "**In one line.** The four core fields a unit carries — outcome, guidance, title, id — covering its value statement, rebuild context, human label, and unique identifier.\n\n## What it is\n\nThe four core fields a unit carries:\n\n- **outcome** — a capability's plain-English, single-sentence value statement, with no conjunctions (if it needs them, split the unit instead).\n\n- **guidance** — non-obvious technical context needed to rebuild a unit; only what an agent could not derive from outcome + proof.\n\n- **title** — a short human label for a unit; not load-bearing for proof.\n\n- **id** — a unit's unique identifier. v2 must allocate these **conflict-free across concurrent sessions** — a stated goal. An earlier DBOS spike showed durable, collision-free workflow IDs as one candidate mechanism, but DBOS is deferred (ADR-0019), so that mechanism is reference, not the adopted id-allocation path.",
     "references": [
-      "doc:glossary.md",
       "doc:decisions/0019-library-tier-name-and-defer-dbos.md"
     ],
     "createdAt": "2026-06-08T00:00:00.000Z",
@@ -1126,7 +1072,7 @@
     "category": "principle",
     "title": "Doc-vs-implementation precedence",
     "description": "Implementation is ground truth; when a doc claim and the code disagree, the gap itself is the load-bearing surface — surface it, do not build on the doc claim.",
-    "body": "**The principle.** Implementation is ground truth and doc text is a hypothesis about it; when a finding shows a doc claim (ADR, glossary, guideline, spec) disagrees with the code, the gap itself is the load-bearing surface, not metadata to a move that took the doc at face value.\n\n## Why\n\nIt is easy to author the next move — 'extend the code so the doc holds', 'tighten the invariant' — on top of a doc claim a recent finding has already shown false. That move is built on a phantom premise. The honest first question is whether the doc needs correcting to match the code (most common) or the code needs extending to make the doc's claim hold (rarer, an operator call).\n\n## How to apply\n\nDiscriminator: does a recent investigation name a doc-vs-code gap, AND does your pending move cite that same doc as load-bearing? Yes on both → reshape any framing that takes the claim at face value and surface the gap to the operator (the doc, its exact claim, the observed behaviour, one question: correct the doc or extend the code?) without pre-deciding. Three resolutions: correct the doc (most common; the downstream move usually dissolves), route code-extension as its own bounded unit (operator-directed), or defer.",
+    "body": "**The principle.** Implementation is ground truth and doc text is a hypothesis about it; when a finding shows a doc claim (ADR, definition, guideline, spec) disagrees with the code, the gap itself is the load-bearing surface, not metadata to a move that took the doc at face value.\n\n## Why\n\nIt is easy to author the next move — 'extend the code so the doc holds', 'tighten the invariant' — on top of a doc claim a recent finding has already shown false. That move is built on a phantom premise. The honest first question is whether the doc needs correcting to match the code (most common) or the code needs extending to make the doc's claim hold (rarer, an operator call).\n\n## How to apply\n\nDiscriminator: does a recent investigation name a doc-vs-code gap, AND does your pending move cite that same doc as load-bearing? Yes on both → reshape any framing that takes the claim at face value and surface the gap to the operator (the doc, its exact claim, the observed behaviour, one question: correct the doc or extend the code?) without pre-deciding. Three resolutions: correct the doc (most common; the downstream move usually dissolves), route code-extension as its own bounded unit (operator-directed), or defer.",
     "references": [
       "asset:assess-tradeoffs-by-naming-both-sides"
     ],
@@ -1363,7 +1309,7 @@
     "category": "process",
     "title": "Library edit ceremony",
     "description": "How a session writes Library state: explore offline, search first, then CLI writes with `--pg` against the live store — never by hand-editing the seed.",
-    "body": "**The ceremony.** A session changes Library state only through the CLI against the live Cloud SQL store — explore offline, search before writing, then `pnpm db:up` and write with `--pg` — never by hand-editing the seed or generated files.\n\n## Trigger\n\nA session needs to change Library state — edit an artifact's fields or author a new artifact — rather than merely read it. (Pure reads need no ceremony: they run offline against the in-memory seed. `artifact comment` and retire are not yet CLI surfaces.)\n\n## Steps\n\n1. **Explore offline.** `pnpm storytree library` (the dashboard) is the first command when working with the Library; drill in with `pnpm storytree library artifact <id>`, `pnpm storytree library artifact list <category>`, and `pnpm storytree library tree focus <id>`. Reads run against the in-memory seed — no DB needed.\n2. **Search before you write** (asset:edit-first-curation). Real search is deferred (ADR-0023 §6) — `artifact list <category>` is the interim discovery path. Find the closest existing artifact and edit it by default; reaching for `artifact new` must be justified by why editing wasn't right. `new` refuses an existing id and points at `edit`.\n3. **Bring the DB up:** `pnpm db:up`. The instance is stopped by default for cost and idle-stops after ~60 minutes of zero connections.\n4. **Write through the CLI with `--pg`:** `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`, or `pnpm storytree library artifact new --file <doc.json> --pg`. Writes are **refused without `--pg`**; every write re-validates at the boundary (`validateLibraryDoc`) and returns a failure as guidance rather than persisting.\n5. **Mind the `--json` trap:** `pnpm` swallows the `--json` flag (it is reserved by pnpm). Pass a doc via `--file`, or use inline `--json` only via `npx tsx packages/cli/src/main.ts …`.\n6. **If a write can't connect,** the DB has likely idle-stopped — re-run `pnpm db:up` and retry.\n7. **Keep sessions off the same artifact.** Different artifacts never contend (per-id rows, transactional upserts); the **same** artifact across two sessions is not coordinated — claims are DBOS-deferred — so don't co-edit one artifact in parallel.\n\n## Surfaces\n\n- **Library** — the only surface written. Each CLI write lands in the live Cloud SQL store as one event plus a transactional projection upsert; this store is the **live source of truth** for artifact state. Reads touch it only with `--pg`; offline reads come from the in-memory seed.\n- **Repo** — read-only here. `apps/studio/data/knowledge.json` is the migration seed/export, and `apps/studio/data/assets.json` + `docs/glossary.md` are **generated** from it (`build-corpus.mjs`). The ceremony reads the seed (via the offline CLI) and never writes any of the three; a DB→seed export is later work, so the seed lags live edits by design.\n\n## Failure modes\n\n- **Hand-editing `knowledge.json` for a live change** — the edit is invisible to the live store, to parallel sessions, and to the studio; seed and DB silently diverge, and the next migration decides which version survives.\n- **Running `load-corpus.ts --force` against a live DB carrying CLI edits** — the seed overwrites the live state and **reverts those edits**; with no DB→seed export, they are simply lost.\n- **Hand-editing the generated `assets.json` or `docs/glossary.md`** — the next `build-corpus.mjs` run erases the edit.\n- **Skipping the search step** — duplicate artifacts split authority and sever the evidence chain (asset:edit-first-curation); consumers no longer know which doc is canonical.\n- **Co-editing the same artifact from two sessions** — writes are uncoordinated, so the last upsert silently wins and the other session's edit vanishes without an error.\n- **Forgetting `pnpm db:up`** — writes fail to connect after an idle-stop; harmless, but the session stalls until it re-runs `db:up`.\n\n## Verification\n\nThe write-path guards are machine-checked: the CLI **refuses** any write without `--pg`, `artifact new` refuses an existing id, and `validateLibraryDoc` rejects an invalid doc at the boundary — none of these can be skipped by forgetting them. Nothing, however, checks that a session searched before writing, that `knowledge.json` or the generated files weren't hand-edited, or that `load-corpus.ts --force` isn't run over live CLI edits — those steps rest entirely on the session honouring the ceremony.",
+    "body": "**The ceremony.** A session changes Library state only through the CLI against the live Cloud SQL store — explore offline, search before writing, then `pnpm db:up` and write with `--pg` — never by hand-editing the seed or generated files.\n\n## Trigger\n\nA session needs to change Library state — edit an artifact's fields or author a new artifact — rather than merely read it. (Pure reads need no ceremony: they run offline against the in-memory seed. `artifact comment` and retire are not yet CLI surfaces.)\n\n## Steps\n\n1. **Explore offline.** `pnpm storytree library` (the dashboard) is the first command when working with the Library; drill in with `pnpm storytree library artifact <id>`, `pnpm storytree library artifact list <category>`, and `pnpm storytree library tree focus <id>`. Reads run against the in-memory seed — no DB needed.\n2. **Search before you write** (asset:edit-first-curation). Real search is deferred (ADR-0023 §6) — `artifact list <category>` is the interim discovery path. Find the closest existing artifact and edit it by default; reaching for `artifact new` must be justified by why editing wasn't right. `new` refuses an existing id and points at `edit`.\n3. **Bring the DB up:** `pnpm db:up`. The instance is stopped by default for cost and idle-stops after ~60 minutes of zero connections.\n4. **Write through the CLI with `--pg`:** `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`, or `pnpm storytree library artifact new --file <doc.json> --pg`. Writes are **refused without `--pg`**; every write re-validates at the boundary (`validateLibraryDoc`) and returns a failure as guidance rather than persisting.\n5. **Mind the `--json` trap:** `pnpm` swallows the `--json` flag (it is reserved by pnpm). Pass a doc via `--file`, or use inline `--json` only via `npx tsx packages/cli/src/main.ts …`.\n6. **If a write can't connect,** the DB has likely idle-stopped — re-run `pnpm db:up` and retry.\n7. **Keep sessions off the same artifact.** Different artifacts never contend (per-id rows, transactional upserts); the **same** artifact across two sessions is not coordinated — claims are DBOS-deferred — so don't co-edit one artifact in parallel.\n\n## Surfaces\n\n- **Library** — the only surface written. Each CLI write lands in the live Cloud SQL store as one event plus a transactional projection upsert; this store is the **live source of truth** for artifact state. Reads touch it only with `--pg`; offline reads come from the in-memory seed.\n- **Repo** — read-only here. `apps/studio/data/knowledge.json` is the migration seed/export, and `apps/studio/data/assets.json` is **generated** from it (`build-corpus.mjs`). The ceremony reads the seed (via the offline CLI) and never writes either; a DB→seed export is later work, so the seed lags live edits by design.\n\n## Failure modes\n\n- **Hand-editing `knowledge.json` for a live change** — the edit is invisible to the live store, to parallel sessions, and to the studio; seed and DB silently diverge, and the next migration decides which version survives.\n- **Running `load-corpus.ts --force` against a live DB carrying CLI edits** — the seed overwrites the live state and **reverts those edits**; with no DB→seed export, they are simply lost.\n- **Hand-editing the generated `assets.json`** — the next `build-corpus.mjs` run erases the edit.\n- **Skipping the search step** — duplicate artifacts split authority and sever the evidence chain (asset:edit-first-curation); consumers no longer know which doc is canonical.\n- **Co-editing the same artifact from two sessions** — writes are uncoordinated, so the last upsert silently wins and the other session's edit vanishes without an error.\n- **Forgetting `pnpm db:up`** — writes fail to connect after an idle-stop; harmless, but the session stalls until it re-runs `db:up`.\n\n## Verification\n\nThe write-path guards are machine-checked: the CLI **refuses** any write without `--pg`, `artifact new` refuses an existing id, and `validateLibraryDoc` rejects an invalid doc at the boundary — none of these can be skipped by forgetting them. Nothing, however, checks that a session searched before writing, that `knowledge.json` or the generated files weren't hand-edited, or that `load-corpus.ts --force` isn't run over live CLI edits — those steps rest entirely on the session honouring the ceremony.",
     "references": [
       "doc:decisions/0023-library-cli-choose-your-own-adventure.md",
       "doc:decisions/0017-cross-cutting-knowledge-tier.md",
@@ -1380,7 +1326,7 @@
     "category": "definition",
     "title": "library",
     "description": "The shared knowledge tier — schema-validated artifact docs in the live Cloud SQL store, read just-in-time by sessions via the CLI, by humans via the studio.",
-    "body": "**In one line.** The shared **knowledge tier**: schema-validated artifact docs — definitions, principles, patterns, guardrails, techstack, processes, open questions — living in the shared Cloud SQL Postgres store, read just-in-time by sessions through the CLI and by humans through the studio.\n\n## What it is\n\nOne of the project's three working surfaces — the story tree is the **work**, the noticeboard is the **sessions**, the library is the **knowledge** (ADR-0034). It is a corpus tier parallel to the work hierarchy: structured documents discriminated by `kind` ∈ {definition, principle, pattern, guardrail, techstack, process, open-question} (`process` is the newest, ADR-0034), stored as **JSONB docs, zod-validated at the write boundary**, with relationships as ID references inside the docs (ADR-0017). History = events, current state = projection. The **live shared Cloud SQL Postgres store is the source of truth for artifact state** (ADR-0023 §11); git holds the code plus *generated* views (`docs/glossary.md`, `assets.json`), and `apps/studio/data/knowledge.json` is the migration seed/export, not the edit-here surface. Sessions reach it just-in-time through the exploratory `storytree library` CLI — dashboard → kind → artifact → local DAG, choose-your-own-adventure, never a corpus dump (ADR-0023) — and humans through the studio. Artifacts are **downstream and derived**: they cite their source ADRs via `references` and reference-don't-restate; on disagreement the cited ADR wins.\n\n## What it is not\n\nNot the **glossary** — `docs/glossary.md` is a *generated projection* of library docs, not a peer source. Not the **studio** — the UI window onto the library (and the rest of the system), not the tier itself. Not **`docs/decisions/` ADRs** — those are the source/history layer where decisions are made; library artifacts are derived from them and cite them. Not the **`stories/` tree** — that is the work to be built; the library is the knowledge consumed while building it.",
+    "body": "**In one line.** The shared **knowledge tier**: schema-validated artifact docs — definitions, principles, patterns, guardrails, techstack, processes, open questions — living in the shared Cloud SQL Postgres store, read just-in-time by sessions through the CLI and by humans through the studio.\n\n## What it is\n\nOne of the project's three working surfaces — the story tree is the **work**, the noticeboard is the **sessions**, the library is the **knowledge** (ADR-0034). It is a corpus tier parallel to the work hierarchy: structured documents discriminated by `kind` ∈ {definition, principle, pattern, guardrail, techstack, process, open-question} (`process` is the newest, ADR-0034), stored as **JSONB docs, zod-validated at the write boundary**, with relationships as ID references inside the docs (ADR-0017). History = events, current state = projection. The **live shared Cloud SQL Postgres store is the source of truth for artifact state** (ADR-0023 §11); git holds the code plus the *generated* `assets.json` view, and `apps/studio/data/knowledge.json` is the migration seed/export, not the edit-here surface. Sessions reach it just-in-time through the exploratory `storytree library` CLI — dashboard → kind → artifact → local DAG, choose-your-own-adventure, never a corpus dump (ADR-0023) — and humans through the studio. Artifacts are **downstream and derived**: they cite their source ADRs via `references` and reference-don't-restate; on disagreement the cited ADR wins.\n\n## What it is not\n\nNot the **studio** — the UI window onto the library (and the rest of the system), not the tier itself. Not **`docs/decisions/` ADRs** — those are the source/history layer where decisions are made; library artifacts are derived from them and cite them. Not the **`stories/` tree** — that is the work to be built; the library is the knowledge consumed while building it.",
     "references": [
       "doc:decisions/0017-cross-cutting-knowledge-tier.md",
       "doc:decisions/0018-knowledge-tier-phase1-structured-source.md",
@@ -1591,7 +1537,6 @@
     "references": [
       "doc:decisions/0010-organism-model-story-bounded-context.md",
       "doc:decisions/0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md",
-      "doc:glossary.md",
       "asset:deep-modules",
       "asset:splitting-rule",
       "asset:cross-story-dependency"
@@ -1636,9 +1581,8 @@
     "category": "principle",
     "title": "The survival test for ADRs",
     "description": "Author an ADR only when the decision would outlive the unit that prompted it; otherwise it lives in the unit's guidance.",
-    "body": "**The principle.** Author an ADR only when the decision passes the survival test — \"would this outlive the unit that prompted it?\" — otherwise the decision lives in the unit's own guidance.\n\n## Why\n\nADRs are the cross-cutting decision record (glossary); filling them with unit-local calls buries the load-bearing decisions under noise, while leaving genuinely cross-cutting calls in a unit's guidance hides them from every other unit they govern.\n\n## How to apply\n\nWhen an authoring pass surfaces a decision, ask the survival question. Passes → draft the ADR in the same session (narrow shared authority); fails → write it into the unit's guidance field. Amending an EXISTING ADR is always surfaced to the owner, never done unilaterally.",
+    "body": "**The principle.** Author an ADR only when the decision passes the survival test — \"would this outlive the unit that prompted it?\" — otherwise the decision lives in the unit's own guidance.\n\n## Why\n\nADRs are the cross-cutting decision record; filling them with unit-local calls buries the load-bearing decisions under noise, while leaving genuinely cross-cutting calls in a unit's guidance hides them from every other unit they govern.\n\n## How to apply\n\nWhen an authoring pass surfaces a decision, ask the survival question. Passes → draft the ADR in the same session (narrow shared authority); fails → write it into the unit's guidance field. Amending an EXISTING ADR is always surfaced to the owner, never done unilaterally.",
     "references": [
-      "doc:glossary.md",
       "asset:signal-and-noise"
     ],
     "provenance": "Harvested from V1 `story-writer` (survival test for ADRs); graduated for v2 (owner call, 2026-06-14). Consumers: guidance-curator.",
@@ -1816,8 +1760,8 @@
     "id": "librarian-curator",
     "category": "agent",
     "title": "librarian-curator",
-    "description": "The keeper of the Library as a library: it dedupes new material against the existing corpus, maintains cross-references and the reference tier (definitions / glossary / techstack), prunes reconstructible guidance, and keeps the ADR decision log's statuses / edges / load_bearing set honest — structure and history, not rule content.",
-    "body": "**The agent.** The keeper of the Library as a library: dedupe against the corpus, maintain cross-references and the reference tier, prune reconstructible guidance, and keep the ADR decision log honest — structure and history, not rule content or work units.\n\n## Role\n\nlibrarian-curator keeps the corpus coherent. Before anything new lands it checks novelty against the existing corpus (the anti-slop dedupe), folds duplicates via edit-first, and extracts a shared unit only when two-or-more CURRENT consumers share it. It owns the reference tier — definitions, the generated glossary view, techstack — and structural health: cross-links resolve, reconstructible generic-craft guidance is pruned, the Library stays standalone-resilient. It also keeps the DECISION LOG honest (the docs/decisions ADRs — the append-only history tier): it maintains ADR frontmatter `status`, supersession edges, and the curated `load_bearing` current-state set (surfaced by `storytree adr list`), and — extending ADR-0084's agent green-flip — it MAY flip an ADR to `superseded` as curation, PROVIDED the flip projects the ADR's own `## Status` prose (it transcribes evidence, never invents a flip, ADR-0006/0031/0086). A substantive re-decision is COPY-ON-WRITE — a new ADR (`storytree adr new --pg`) that supersedes the old, the old body preserved as superseded history — never an in-place edit of a decided body. Per ADR-0095 (amending ADR-0032) it also GRADUATES durable agent-memory into the Library — a third signal source alongside comments and cites: it extracts the durable ESSENCE from the private memory silo, deriving the definitions / principles that flow into agent guidance through the render pipeline (ADR-0051/0053) and routing a way-of-working to a `process` or design rationale to an open-question. It graduates ONLY genuinely durable, reusable material (the no-bloat bar, ADR-0095 D8) — the Library, ADRs excepted, holds only such 'able' artifacts, never event-specific cruft whose record stays in git / the ADR (D5) — then DELETES the graduated memory rather than caching it, dogfooding the Library as the canonical read surface (D6). The mechanical candidate core is `graduationCandidates` (@storytree/library, ADR-0095 D3); the genuine-durability judgment is the librarian's. It does NOT author the work hierarchy (story-author) or the behavioural rule content (guidance-curator), and never flips `accepted → proposed`; it curates where things sit, whether they belong, and whether the decision log still tells the truth.\n\n## Outcome\n\nNew material is either a genuinely novel unit or an edit to the existing one — never a near-duplicate; every extracted unit names its 2+ consumers; the reference tier is internally consistent and the glossary view regenerates clean; pruning proposals cite the blind-reconstruction test. The decision log stays honest: every ADR `status` projects its `## Status` prose, every supersession is recorded as an outgoing edge (the `supersede-consistency` gate), every `load_bearing` ADR is accepted (the `load-bearing-live` gate), and a re-decision leaves the old body intact as superseded history. Graduated agent-memory yields ONLY genuine durable artifacts — the durable essence captured into the right kind BEFORE the source memory is deleted (capture-then-delete, never a speculative drop, ADR-0095 D6/D8), redundant or event-specific candidates rejected (D5), and the derived definitions / principles reaching agent guidance through the render pipeline (D4). Writes persist through the CLI boundary or the librarian escalates.\n\n## Context\n\n- asset:standalone-resilient-library\n- asset:pull-based-context-architecture\n- asset:signal-and-noise\n\n## Tools\n\nRead / Grep / Glob (incl. the agent-memory store `~/.claude/projects/<project>/memory/` for the ADR-0095 graduation pass); `storytree library` read + `artifact edit|new --pg` (validated boundary) + the `graduationCandidates` engine (@storytree/library) for candidate generation; `storytree adr list` (read the decision log) + Edit on `docs/decisions/*.md` frontmatter (`status` / supersession edges / `load_bearing`) and `storytree adr new --pg` for a copy-on-write re-decision; the corpus-build view regeneration. Least-authority: no story authoring, no gate; never `accepted → proposed` (un-deciding stays human-only); a graduated memory is deleted only AFTER its essence lands in the Library (ADR-0095 D6).\n\n## Workflow\n\n**session_start:** read the live corpus index (`--pg`) and the area in question.\n\n1. Novelty check — does an existing unit already cover this? Dedupe against the corpus before any new write.\n2. If covered, edit-first; if shared by 2+ consumers, extract a unit naming them; below two, leave it in place.\n3. Maintain the reference tier + cross-links; flag reconstructible guidance for pruning (blind-reconstruction test).\n4. Graduate durable agent-memory (ADR-0095) — read the agent-memory corpus and run the candidate engine (`graduationCandidates`, @storytree/library); for each NOVEL candidate clearing the genuine-durability bar (D8), author its durable ESSENCE into the right kind — a definition / principle (these flow into agent guidance, D4), a `process` for a way-of-working, an open-question for design rationale — then DELETE the source memory (capture-then-delete, D6). Reject redundant or event-specific candidates and prune a memory with no durable essence; the Library, ADRs excepted, takes only 'able' artifacts (D5).\n5. Decision-log hygiene (ADR-0086) — when a unit overtook a decision, project the ADRs' `## Status` prose into frontmatter: flip a wholly-dead ADR to `superseded` (recording the `supersedes` edge on the superseding ADR), keep the `load_bearing` set honest, and route a substantive re-decision through copy-on-write (`storytree adr new --pg`). Never invent a flip the prose does not support.\n6. Verify writes persisted and the glossary view regenerates. Stop — rule content is guidance-curator's, work units are story-author's.\n\n## Rules\n\n- asset:edit-first-curation\n- asset:two-consumer-extraction\n- asset:reference-dont-restate\n- asset:glossary-wins\n- asset:doc-vs-implementation-precedence\n- asset:guidance-quality\n- asset:pair-the-fence-with-the-affordance\n- asset:example-carries-the-discriminator\n\n## Anti-patterns\n\n- asset:live-store-is-the-edit-surface\n- asset:never-bypass-the-gate\n\n## Escalation\n\nAn ADR supersession whose `## Status` prose does not yet declare the decision dead is NOT flipped — the prose is edited first (a substantive change, copy-on-write) or the call is surfaced; `accepted → proposed` un-deciding stays human-only. A prune that removes a unit other units cite, a structural change to the reference tier, or a dedupe judgement the owner should ratify is surfaced, not enacted; structural integrity vetoes deletion.",
+    "description": "The keeper of the Library as a library: it dedupes new material against the existing corpus, maintains cross-references and the reference tier (definitions / techstack), prunes reconstructible guidance, and keeps the ADR decision log's statuses / edges / load_bearing set honest — structure and history, not rule content.",
+    "body": "**The agent.** The keeper of the Library as a library: dedupe against the corpus, maintain cross-references and the reference tier, prune reconstructible guidance, and keep the ADR decision log honest — structure and history, not rule content or work units.\n\n## Role\n\nlibrarian-curator keeps the corpus coherent. Before anything new lands it checks novelty against the existing corpus (the anti-slop dedupe), folds duplicates via edit-first, and extracts a shared unit only when two-or-more CURRENT consumers share it. It owns the reference tier — definitions, techstack — and structural health: cross-links resolve, reconstructible generic-craft guidance is pruned, the Library stays standalone-resilient. It also keeps the DECISION LOG honest (the docs/decisions ADRs — the append-only history tier): it maintains ADR frontmatter `status`, supersession edges, and the curated `load_bearing` current-state set (surfaced by `storytree adr list`), and — extending ADR-0084's agent green-flip — it MAY flip an ADR to `superseded` as curation, PROVIDED the flip projects the ADR's own `## Status` prose (it transcribes evidence, never invents a flip, ADR-0006/0031/0086). A substantive re-decision is COPY-ON-WRITE — a new ADR (`storytree adr new --pg`) that supersedes the old, the old body preserved as superseded history — never an in-place edit of a decided body. Per ADR-0095 (amending ADR-0032) it also GRADUATES durable agent-memory into the Library — a third signal source alongside comments and cites: it extracts the durable ESSENCE from the private memory silo, deriving the definitions / principles that flow into agent guidance through the render pipeline (ADR-0051/0053) and routing a way-of-working to a `process` or design rationale to an open-question. It graduates ONLY genuinely durable, reusable material (the no-bloat bar, ADR-0095 D8) — the Library, ADRs excepted, holds only such 'able' artifacts, never event-specific cruft whose record stays in git / the ADR (D5) — then DELETES the graduated memory rather than caching it, dogfooding the Library as the canonical read surface (D6). The mechanical candidate core is `graduationCandidates` (@storytree/library, ADR-0095 D3); the genuine-durability judgment is the librarian's. It does NOT author the work hierarchy (story-author) or the behavioural rule content (guidance-curator), and never flips `accepted → proposed`; it curates where things sit, whether they belong, and whether the decision log still tells the truth.\n\n## Outcome\n\nNew material is either a genuinely novel unit or an edit to the existing one — never a near-duplicate; every extracted unit names its 2+ consumers; the reference tier is internally consistent; pruning proposals cite the blind-reconstruction test. The decision log stays honest: every ADR `status` projects its `## Status` prose, every supersession is recorded as an outgoing edge (the `supersede-consistency` gate), every `load_bearing` ADR is accepted (the `load-bearing-live` gate), and a re-decision leaves the old body intact as superseded history. Graduated agent-memory yields ONLY genuine durable artifacts — the durable essence captured into the right kind BEFORE the source memory is deleted (capture-then-delete, never a speculative drop, ADR-0095 D6/D8), redundant or event-specific candidates rejected (D5), and the derived definitions / principles reaching agent guidance through the render pipeline (D4). Writes persist through the CLI boundary or the librarian escalates.\n\n## Context\n\n- asset:standalone-resilient-library\n- asset:pull-based-context-architecture\n- asset:signal-and-noise\n\n## Tools\n\nRead / Grep / Glob (incl. the agent-memory store `~/.claude/projects/<project>/memory/` for the ADR-0095 graduation pass); `storytree library` read + `artifact edit|new --pg` (validated boundary) + the `graduationCandidates` engine (@storytree/library) for candidate generation; `storytree adr list` (read the decision log) + Edit on `docs/decisions/*.md` frontmatter (`status` / supersession edges / `load_bearing`) and `storytree adr new --pg` for a copy-on-write re-decision; the corpus-build view regeneration. Least-authority: no story authoring, no gate; never `accepted → proposed` (un-deciding stays human-only); a graduated memory is deleted only AFTER its essence lands in the Library (ADR-0095 D6).\n\n## Workflow\n\n**session_start:** read the live corpus index (`--pg`) and the area in question.\n\n1. Novelty check — does an existing unit already cover this? Dedupe against the corpus before any new write.\n2. If covered, edit-first; if shared by 2+ consumers, extract a unit naming them; below two, leave it in place.\n3. Maintain the reference tier + cross-links; flag reconstructible guidance for pruning (blind-reconstruction test).\n4. Graduate durable agent-memory (ADR-0095) — read the agent-memory corpus and run the candidate engine (`graduationCandidates`, @storytree/library); for each NOVEL candidate clearing the genuine-durability bar (D8), author its durable ESSENCE into the right kind — a definition / principle (these flow into agent guidance, D4), a `process` for a way-of-working, an open-question for design rationale — then DELETE the source memory (capture-then-delete, D6). Reject redundant or event-specific candidates and prune a memory with no durable essence; the Library, ADRs excepted, takes only 'able' artifacts (D5).\n5. Decision-log hygiene (ADR-0086) — when a unit overtook a decision, project the ADRs' `## Status` prose into frontmatter: flip a wholly-dead ADR to `superseded` (recording the `supersedes` edge on the superseding ADR), keep the `load_bearing` set honest, and route a substantive re-decision through copy-on-write (`storytree adr new --pg`). Never invent a flip the prose does not support.\n6. Verify writes persisted. Stop — rule content is guidance-curator's, work units are story-author's.\n\n## Rules\n\n- asset:edit-first-curation\n- asset:two-consumer-extraction\n- asset:reference-dont-restate\n- asset:glossary-wins\n- asset:doc-vs-implementation-precedence\n- asset:guidance-quality\n- asset:pair-the-fence-with-the-affordance\n- asset:example-carries-the-discriminator\n\n## Anti-patterns\n\n- asset:live-store-is-the-edit-surface\n- asset:never-bypass-the-gate\n\n## Escalation\n\nAn ADR supersession whose `## Status` prose does not yet declare the decision dead is NOT flipped — the prose is edited first (a substantive change, copy-on-write) or the call is surfaced; `accepted → proposed` un-deciding stays human-only. A prune that removes a unit other units cite, a structural change to the reference tier, or a dedupe judgement the owner should ratify is surfaced, not enacted; structural integrity vetoes deletion.",
     "references": [
       "asset:standalone-resilient-library",
       "asset:pull-based-context-architecture",
@@ -1852,7 +1796,7 @@
       "asset:exploration-principles",
       "asset:orchestrator-is-sole-fan-out"
     ],
-    "provenance": "Renamed library-investigator → corpus-investigator (owner call, 2026-06-14) and its inputs graduated (authoritative-source-beats-derived, no-claim-without-evidence now live). Imported and EVOLVED from V1 `legacy/Agentic/agents/orchestration/system-investigator/` (contract.yml + inputs.yml + process.yml). Disposition = evolve (ADR-0029 roster mapping: system-investigator -> library-investigator). CARRIED almost verbatim: the read-only floor, one-question-per-invocation, the structured findings/assumption_violations/summary return shape, authoritative-source-beats-derived precedence, the verifiable-evidence_path rule, no-speculation, no-spawn, no-fix-just-surface, and the judgment-vs-state-claim escalation. CHANGED: the SOURCE MAP is re-pointed from V1's on-disk YAML corpus (contract.yml / agents/README.md / schemas/*.schema.json / stories/*.yml / evidence/runs/*.jsonl / .claude/agents/*.md) to v2's authoritative sources — the LIVE Cloud SQL Library reached via the `storytree library` CLI (ADR-0023), packages/library/src/knowledge.ts (the zod schema), docs/decisions/*.md, docs/glossary.md, and the event log / node rollup (ADR-0006). ADDED a v2-specific STALENESS CHECK step + rule: because artifact state now lives in one shared DB many sessions mutate concurrently (ADR-0009/0023), a brief is stale by default, so the agent must read the live `--pg`/event-log source for state claims rather than the offline seed or the brief's premise — this makes its verify-before-acting role MORE load-bearing than in V1. DROPPED V1 specifics the reversals obsoleted: Rust/cargo commands, the per-agent contract.yml/inputs.yml/process.yml authority walls, the YAML-files-as-source framing, and the session-orchestrator-spawns-it framing (the deterministic spine, not an orchestrator agent, fans it out; ADR-0004/0005). Folded per ADR-0029 §'V1 bucket -> v2 field': scope.purpose -> oneLine/role, scope.owns+outcome.outputs -> owns, scope.does_not_touch -> doesNotTouch, scope.authority -> authority, outcome.success_criteria -> outcome, inputs.required_reading+context -> requiredReading, inputs.tools+commands -> tools, process.workflow -> workflow, guidance.{rules,anti_patterns,escalation} -> rules/antiPatterns/escalation; V1 `parameters` (question/pointers) dropped as a runtime concern per ADR-0029. DRY retrofit (2026-06-10): restated discipline moved out of rules/antiPatterns/body into typed refs per the ADR-0029 reference-don't-restate design rule; the prose now lives in the cited existing units + docs/research/agent-guidance-candidates.json.\n\nOwner reshape retrofit (2026-06-11): the prose authority walls (owns/doesNotTouch/authority) dropped — scope walls are enforced by code and guardrails, never described in guidance — and requiredReading/rules/antiPatterns retyped to `asset:` ref lists (the `storytree agents <name>` renderer injects the cited units; ADRs are searched just-in-time, not preloaded); any output-contract prose the dropped fields carried moved into `outcome`. See ADR-0029 §\"Owner reshape (2026-06-11)\".",
+    "provenance": "Renamed library-investigator → corpus-investigator (owner call, 2026-06-14) and its inputs graduated (authoritative-source-beats-derived, no-claim-without-evidence now live). Imported and EVOLVED from V1 `legacy/Agentic/agents/orchestration/system-investigator/` (contract.yml + inputs.yml + process.yml). Disposition = evolve (ADR-0029 roster mapping: system-investigator -> library-investigator). CARRIED almost verbatim: the read-only floor, one-question-per-invocation, the structured findings/assumption_violations/summary return shape, authoritative-source-beats-derived precedence, the verifiable-evidence_path rule, no-speculation, no-spawn, no-fix-just-surface, and the judgment-vs-state-claim escalation. CHANGED: the SOURCE MAP is re-pointed from V1's on-disk YAML corpus (contract.yml / agents/README.md / schemas/*.schema.json / stories/*.yml / evidence/runs/*.jsonl / .claude/agents/*.md) to v2's authoritative sources — the LIVE Cloud SQL Library reached via the `storytree library` CLI (ADR-0023), packages/library/src/knowledge.ts (the zod schema), docs/decisions/*.md, and the event log / node rollup (ADR-0006). ADDED a v2-specific STALENESS CHECK step + rule: because artifact state now lives in one shared DB many sessions mutate concurrently (ADR-0009/0023), a brief is stale by default, so the agent must read the live `--pg`/event-log source for state claims rather than the offline seed or the brief's premise — this makes its verify-before-acting role MORE load-bearing than in V1. DROPPED V1 specifics the reversals obsoleted: Rust/cargo commands, the per-agent contract.yml/inputs.yml/process.yml authority walls, the YAML-files-as-source framing, and the session-orchestrator-spawns-it framing (the deterministic spine, not an orchestrator agent, fans it out; ADR-0004/0005). Folded per ADR-0029 §'V1 bucket -> v2 field': scope.purpose -> oneLine/role, scope.owns+outcome.outputs -> owns, scope.does_not_touch -> doesNotTouch, scope.authority -> authority, outcome.success_criteria -> outcome, inputs.required_reading+context -> requiredReading, inputs.tools+commands -> tools, process.workflow -> workflow, guidance.{rules,anti_patterns,escalation} -> rules/antiPatterns/escalation; V1 `parameters` (question/pointers) dropped as a runtime concern per ADR-0029. DRY retrofit (2026-06-10): restated discipline moved out of rules/antiPatterns/body into typed refs per the ADR-0029 reference-don't-restate design rule; the prose now lives in the cited existing units + docs/research/agent-guidance-candidates.json.\n\nOwner reshape retrofit (2026-06-11): the prose authority walls (owns/doesNotTouch/authority) dropped — scope walls are enforced by code and guardrails, never described in guidance — and requiredReading/rules/antiPatterns retyped to `asset:` ref lists (the `storytree agents <name>` renderer injects the cited units; ADRs are searched just-in-time, not preloaded); any output-contract prose the dropped fields carried moved into `outcome`. See ADR-0029 §\"Owner reshape (2026-06-11)\".",
     "createdAt": "2026-06-11T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z"
   },
@@ -1882,8 +1826,7 @@
     "description": "Rename the whole story-DAG surface from `tree` to `forest`, and call each individual story a `tree` — a forest of trees; the project name `storytree` stays unchanged. Parked until a quiet, no-active-sessions window.",
     "body": "**The proposal.** Rename the whole story-DAG surface from **tree** to **forest**, and call each individual story a **tree** — a forest of trees. The project name **storytree** / **story tree** stays unchanged; only the internal surface vocabulary moves.\n\n## Motivation\n\nThe single word *tree* is overloaded: today it names BOTH the entire DAG of every story (the work surface, the Tree UI, `storytree tree`) AND, loosely, any subtree within it. A forest/tree split gives each grain its own noun — the **forest** is everything you watch grow; a **tree** is one story (its capabilities are the branches). It reads naturally (you tend a forest made of individual trees) and removes the everyday \"which tree do you mean?\" ambiguity in prose and code. The project keeps its name (**storytree**), so this is a vocabulary cleanup, not a rebrand.\n\n## The change\n\nBefore → after:\n\n- The whole DAG of all stories — the work surface, today **tree** / **story tree** — → **forest**.\n- One top-level story as rendered in the DAG → **a tree** (its capabilities become the **branches**).\n- CLI: `storytree tree` → `storytree forest` (keep `tree` as a deprecated alias for one release).\n- Studio: the **Tree UI** / tree view → **Forest UI** / forest view; route `/api/tree` → `/api/forest`; the `TreePayload` / `TreeStory` / `TreeCapability` / `TreeSession` types → `Forest*`.\n- Library/glossary: the `story-tree` definition → **forest** (the term it defines), keeping `story-tree` as a redirect alias.\n- Skills: `story-tree`, `tree-ui-open` → `forest`, `forest-ui-open`.\n- UNCHANGED: the project name **storytree** (the `@storytree/*` npm scope, the `storytree` CLI binary, the repo, the studio product name) and the **story / capability / contract** work-hierarchy nouns.\n\n## Scope\n\nSurfaces touched: `packages/library` (schema + the tree-named types); `packages/cli` (`storytree tree`, the tree skills, command help); `apps/studio` (the Tree UI components, the `/api/tree` route in `server/apiRouter.ts`, the `Tree*` TS types in `src/types.ts`); `docs/` (the `story-tree` glossary term and ADR/README prose that says \"the tree\" at the collection grain); and the library artifact `story-tree` itself. Stored data: the `story-tree` library doc id, plus the `apps/studio/data/knowledge.json` seed and the generated `assets.json` / `docs/glossary.md`. Explicit NON-goals (leave untouched): the npm scope `@storytree/*`, the `storytree` CLI binary name, the story/capability/contract vocabulary, and the DB schema (the `events.*` tables are not named \"tree\").\n\n## Migration plan\n\n1. Land an ADR recording the decision (the forest/tree split and the unchanged project name) so the rename has a deciding record.\n2. Rename in `packages/library` first (schema + types); `pnpm -r typecheck` green.\n3. Rename the CLI command + skills; keep `storytree tree` as a thin deprecated alias that prints a one-line notice and forwards to `forest`; `pnpm -r test` green.\n4. Rename the studio surfaces (`/api/tree` → `/api/forest`, `Tree*` types → `Forest*`, component/file names); keep the old route aliased for one release; `pnpm --filter studio build` green.\n5. Migrate the library: rename the `story-tree` artifact id → `forest` (`storytree library artifact edit … --pg`), add a `forest` / `story-tree` redirect, fix every `asset:story-tree` and `doc:` reference, update the `knowledge.json` seed, and regenerate the derived view (`npx tsx apps/studio/data/build-corpus.mjs`).\n6. Sweep the remaining prose (README, CLAUDE.md, ADRs, docs) for \"the tree\" at the collection grain → \"the forest\".\n7. Full gate green (`pnpm gate`) + a studio smoke; drop the deprecated aliases a release later.\n\n## Readiness\n\nRun this in a QUIET window: the noticeboard (`storytree noticeboard`) shows no other active sessions and no open PR touches the `packages/library` / `apps/studio` tree surfaces — a rename this wide conflicts with any parallel branch. Bring the DB up but otherwise leave it idle (the library-id rename is a `--pg` write). Kick off only from a green gate on `main`. Because it spans core + cli + studio + the library + docs in one sweep, give it a single dedicated session rather than interleaving it with feature work.\n\n## Risks\n\nA half-applied rename is the main hazard — a `tree` left in code while `forest` lands elsewhere, or a dangling `asset:story-tree` reference after the library id moves. Mitigations: keep the deprecated aliases (`storytree tree`, `/api/tree`, the `story-tree` artifact redirect) for one release so nothing 404s mid-migration; do core → cli → studio → library → docs in that order, gating green at each step; and grep for the collection-grain `tree` after the sweep. One term needs the owner to confirm at execution time: whether the rendered unit that becomes *a tree* is the **story** (recommended — a forest of stories) or the **capability** — the original note said \"the individual capability days are the trees\", so pin the exact grain before step 2.",
     "references": [
-      "asset:story-tree",
-      "doc:glossary.md"
+      "asset:story-tree"
     ],
     "createdAt": "2026-06-14T00:00:00.000Z",
     "updatedAt": "2026-06-14T00:00:00.000Z"
@@ -1989,7 +1932,6 @@
     "references": [
       "doc:decisions/0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md",
       "doc:decisions/0010-organism-model-story-bounded-context.md",
-      "doc:glossary.md",
       "asset:journey-principle",
       "asset:splitting-rule",
       "asset:dependency",
@@ -2202,8 +2144,7 @@
       "doc:decisions/0044-per-uat-test-human-attestation.md",
       "doc:decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md",
       "asset:uat",
-      "asset:contract",
-      "doc:glossary.md"
+      "asset:contract"
     ],
     "createdAt": "2026-06-15T00:00:00.000Z",
     "updatedAt": "2026-06-15T00:00:00.000Z"

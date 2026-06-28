@@ -129,7 +129,7 @@ export function rollupStoryUat(
  * necessary clauses — (a) the **capability clause**: EVERY declared capability is proven `healthy`
  * (its own {@link rollupStatus} over the signed verdicts); and (b) the **UAT clause**: the story's
  * own per-test UAT roll-up ({@link rollupStoryUat}) is `healthy`. This makes capabilities-green a
- * NECESSARY condition for the crown, reconciling it with the glossary's standing dependency rule —
+ * NECESSARY condition for the crown, reconciling it with the standing dependency rule —
  * *"you cannot prove a unit that stands on an unproven one"* — and refining ADR-0040 §2 / ADR-0082's
  * *"only the story's own UAT greens it"*: six green plants still are not SUFFICIENT (the UAT clause
  * must also hold), but a crown can never be `healthy` while any plant is red or unproven.

@@ -87,7 +87,7 @@ function storyUatProofLine(
 /**
  * ADR-0083 Fork A: the story CROWN rolled up from BOTH necessary clauses — (every declared capability
  * proven `healthy`) AND (the per-test UAT roll-up green) — as a report line. Pure (`rollupStoryGreen`).
- * Capabilities-green is a necessary condition (the glossary dependency rule), refining ADR-0082's
+ * Capabilities-green is a necessary condition (the capabilities-green dependency rule), refining ADR-0082's
  * UAT-only crown: six green plants are still not sufficient, but a crown can never be green while any
  * capability is red or unproven. A story with zero capabilities (a foundational port) satisfies the
  * capability clause vacuously — its green derives entirely from the per-test UAT.

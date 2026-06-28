@@ -14,7 +14,7 @@
 // Asset write semantics (pg): a structured Knowledge unit is persisted as a STRUCTURED doc, not a
 // rendered body (option C of oq-library-doc-shape, ADR-0013/0017/0023). The studio editor sends the
 // per-kind `fields`; PgBackend builds the structured doc via `buildLibraryDoc`, MERGING over the
-// existing stored doc so write-only metadata (glossary*, doc-level createdAt, schemaVersion) survives
+// existing stored doc so write-only metadata (the doc-level createdAt, schemaVersion) survives
 // the edit. Reads render each stored Library doc back into the GuidanceAsset wire shape via
 // renderStoredDoc (a structured unit → renderBody(doc) for `body` PLUS its per-kind `fields`; a doc
 // that already has a string body — template / adr — → served as-is). A non-structured category, or a
@@ -604,7 +604,7 @@ export class PgBackend implements LibraryBackend {
     const { store, library } = await this.#ready();
     const existing = await library.getDoc(id);
     if (!existing) return null;
-    // Merge over the existing stored doc so write-only metadata (glossary*, doc createdAt,
+    // Merge over the existing stored doc so write-only metadata (the doc createdAt,
     // schemaVersion) survives the edit instead of being dropped.
     const doc = store.buildLibraryDoc({ ...input, id }, existing);
     const stored = await library.upsertDoc({

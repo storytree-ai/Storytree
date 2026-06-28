@@ -128,7 +128,7 @@ test("the CLI refuses --store memory for a build — there is no run-without-per
 });
 
 test("tree focus <id> renders the node's outbound source refs", async () => {
-  // glossary-wins references doc: pointers (ADRs/glossary) — outbound 'source' edges.
+  // glossary-wins references doc: pointers (ADRs) — outbound 'source' edges.
   const env = await run(["library", "tree", "focus", "glossary-wins"], { store: await seeded() });
   assert.equal(env.ok, true);
   assert.match(env.body, /— tree focus/);

@@ -48,10 +48,10 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 2, "current version is 2 (agent-context-assembly-reshape)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 3, "current version is 3 (drop-glossary-projection-fields)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
-  assert.equal((validated as { schemaVersion?: number }).schemaVersion, 2);
+  assert.equal((validated as { schemaVersion?: number }).schemaVersion, 3);
 });
 
 test("upcast: idempotent — upcast(upcast(x)) deep-equals upcast(x)", () => {
@@ -94,7 +94,7 @@ function v1AgentPreReshape(): Record<string, unknown> {
     authority: "May do nothing.",
     outcome: "The migration test passes.",
     requiredReading:
-      "ADR-0020 and the glossary. Doctrine: `asset:reference-dont-restate` (candidate), `asset:edit-first-curation`.",
+      "ADR-0020 and the corpus. Doctrine: `asset:reference-dont-restate` (candidate), `asset:edit-first-curation`.",
     tools: "Read-only fixtures.",
     workflow: "1. Run. 2. Stop.",
     rules: "- **Edit first** -> `asset:edit-first-curation`.\n- A role-shape rule with no citation.",
@@ -121,7 +121,7 @@ test("upcast: v1 agent unit is reshaped — walls dropped, refs extracted, valid
 
 test("upcast: v1 agent with no asset refs in requiredReading falls back to references", () => {
   const doc = v1AgentPreReshape();
-  doc["requiredReading"] = "ADR-0032 and the glossary only — no asset refs here.";
+  doc["requiredReading"] = "ADR-0032 and the corpus only — no asset refs here.";
   delete doc["rules"];
   delete doc["antiPatterns"];
   const out = upcast(doc);
@@ -150,6 +150,58 @@ test("upcast: agent reshape is idempotent and leaves non-agent kinds untouched b
   });
   assert.equal(oq["context"], "Prose context, not a ref list.");
   assert.doesNotThrow(() => validateLibraryDoc(oq));
+});
+
+// Migration #3 (ADR-0135): docs/glossary.md is retired, so the glossary-projection metadata
+// (glossarySection / glossaryTerm / glossaryBody) is stripped — it no longer exists in the schema —
+// and the now-dangling `doc:glossary.md` citation each unit carried is dropped.
+test("upcast: migration #3 strips glossary* fields + the doc:glossary.md citation, stamps v3", () => {
+  const out = upcast({
+    kind: "definition",
+    id: "spine",
+    title: "spine",
+    description: "the control-flow layer",
+    schemaVersion: 2,
+    references: ["doc:glossary.md", "doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
+    oneLine: "The control-flow layer.",
+    whatItIs: "The deterministic routing layer.",
+    glossarySection: "Studio & tooling",
+    glossaryTerm: "**spine**",
+    glossaryBody: "the canonical glossary paragraph",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-09T00:00:00.000Z",
+  });
+  for (const gone of ["glossarySection", "glossaryTerm", "glossaryBody"]) {
+    assert.equal(gone in out, false, `${gone} stripped`);
+  }
+  assert.deepEqual(
+    out["references"],
+    ["doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
+    "the dangling doc:glossary.md citation is dropped; the other refs are kept in order",
+  );
+  assert.equal(out["schemaVersion"], 3, "stamped to v3");
+  // The stripped doc passes the strict validator (the glossary fields are gone from the schema).
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+test("upcast: migration #3 is a no-op on a doc with no glossary projection (idempotent)", () => {
+  const clean = {
+    kind: "principle",
+    id: "red-green",
+    title: "Red-green",
+    description: "prove it",
+    schemaVersion: 2,
+    references: ["doc:decisions/0010-proof-modes.md"],
+    statement: "Red, then green.",
+    why: "Evidence over assertion.",
+    howToApply: "Write the failing test first.",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-09T00:00:00.000Z",
+  };
+  const out = upcast(clean);
+  assert.deepEqual(out["references"], ["doc:decisions/0010-proof-modes.md"], "refs untouched");
+  assert.equal(out["schemaVersion"], 3, "still stamped to v3");
+  assert.deepEqual(upcast(out), out, "idempotent");
 });
 
 test("MIGRATIONS: registry is ordered and reaches CURRENT_SCHEMA_VERSION", () => {

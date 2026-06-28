@@ -80,7 +80,7 @@ Run the **deletion test**: imagine deleting the module. If complexity vanishes, 
 
 ## Why
 
-ADRs are the cross-cutting decision record (glossary); filling them with unit-local calls buries the load-bearing decisions under noise, while leaving genuinely cross-cutting calls in a unit's guidance hides them from every other unit they govern.
+ADRs are the cross-cutting decision record; filling them with unit-local calls buries the load-bearing decisions under noise, while leaving genuinely cross-cutting calls in a unit's guidance hides them from every other unit they govern.
 
 ## How to apply
 

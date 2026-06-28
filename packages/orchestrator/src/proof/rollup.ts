@@ -8,7 +8,7 @@ import type { Status } from "@storytree/proof-protocol";
 import type { StoreEvent } from "@storytree/storage-protocol";
 
 /**
- * The node-rollup COMPUTE (ADR-0006 / ADR-0020, glossary "node rollup"): a unit's lifecycle status
+ * The node-rollup COMPUTE (ADR-0006 / ADR-0020, the "node rollup" definition): a unit's lifecycle status
  * DERIVED as a pure function over the event log, never hand-maintained. MOVED here from
  * `@storytree/core`'s `rollup.ts` (ADR-0068 step 1): deriving status is the farmer organism's ruler.
  * The DATA shapes it reads ({@link Verdict}, {@link WorkEventDoc}, the kind literals, {@link Status})

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * The `## Contracts` prose parser (ADR-0020 coverage-honesty follow-on): a capability spec lists its
- * leaf contracts — the test-proven behaviours (glossary: `contract`) — as numbered items under a
+ * leaf contracts — the test-proven behaviours (the `contract` definition) — as numbered items under a
  * `## Contracts` section, each led by a bold code-span id (e.g. `**\`fr-bounded-never-hangs\`**`).
  * This parser pulls those declared ids (+ titles) into structured data, so a coverage check can ask
  * *"does every declared contract have an observed test?"* — the gap a signed `--real` green leaves
