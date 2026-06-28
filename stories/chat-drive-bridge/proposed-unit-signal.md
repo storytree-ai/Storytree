@@ -173,6 +173,17 @@ The test-proven leaf behaviours — each **one isolated automated test** (`node:
 `@storytree/agent` suite), the SDK `query()` injected as a scripted double. Contract 1 is the
 keystone — the FIRST drivable leaf of this story.
 
+> **COVERAGE CONVENTION — REQUIRED, or the verdict reads 0/4 (ADR-0122 / ADR-0126).** The
+> contract-coverage classifier is STRUCTURAL: a contract is "covered" only when some test's NAME
+> carries the contract id as a whole token (the convention `test("<contract-id>: …")` /
+> `describe("<contract-id>: …")`) AND that test asserts something SUBSTANTIVE. A descriptive-only test
+> name (e.g. `test("captures the proposed id")`) leaves the contract UNCOVERED even though the
+> behaviour is tested — a signed green then over-claims. So author **one named, substantive test per
+> contract below**, its name beginning with the contract id, and ASSERT ALL FOUR — including
+> `pus-tool-is-read-only` (the ADR-0091 wall: it must be a real assertion that the surface exposes no
+> `Write`/`Edit`/`Bash` tool and `options.tools` is `[]`, not merely that `propose_unit` is present).
+> Target: **4/4 covered.**
+
 1. **`pus-captures-tool-declared-unit-id`** — the tool's `unitId` arg becomes `proposedUnitId`
    - **asserts —** when the scripted session invokes `propose_unit({ unitId })`, the runner surfaces
      that `unitId` on `HeadlessOrchestratorResult.proposedUnitId` — the id is the agent's structural
@@ -230,6 +241,11 @@ Rules:
 - **Structural, not parsed** — the id comes from the typed tool arg, never a regex over the prose
   (`pus-signal-not-parsed-from-prose`). This is the non-spoofable property ADR-0108 d.3 requires.
 - **Read-only, no authority added** — `propose_unit` declares; it does not act (`pus-tool-is-read-only`,
-  ADR-0091). No write tool exists; the agent holds no key.
+  ADR-0091). No write tool exists; the agent holds no key. PROVE it: a test named
+  `pus-tool-is-read-only: …` that captures the session `options` and asserts `options.tools` is `[]`
+  and no allowed tool matches `Write`/`Edit`/`Bash`.
+- **Name every test for its contract (coverage convention)** — each contract gets one substantive
+  test whose name begins with the contract id, so the ADR-0122/0126 classifier reads 4/4 (a
+  descriptive-only name reads UNCOVERED — the gap that makes a signed green over-claim).
 - **Stay in `@storytree/agent`** — the write scope is one package (ADR-0087). Do NOT edit
   `@storytree/drive` here; the threading onto `orchestrate`/`startChatStream` is capability 2.
