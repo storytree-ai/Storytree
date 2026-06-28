@@ -14,8 +14,11 @@
 // an explicit Build button. The ONLY trigger for a build dispatch is the operator CLICKING that
 // button — never a free-text "yes" parsed from the conversation. The panel holds NO code path that
 // auto-dispatches on stream-end or on any prose input. The accept affordance is absent when the
-// `done` frame has no `proposedUnitId` (nothing safe to dispatch). After the click, the panel renders
-// the run's coarse progress (polled via api.buildStatus) to a terminal state — the build journey in
+// `done` frame has no `proposedUnitId` (nothing safe to dispatch). The click POSTs through the
+// `api.acceptBuild` seam to the DISTINCT /api/chat/accept route, which records accept-PROVENANCE —
+// that the build came from a human accepting a chat proposal, not a generic build POST (ADR-0133 d.3;
+// the routing is identical, only the provenance differs). After the click, the panel renders the run's
+// coarse progress (polled via the SAME api.buildStatus) to a terminal state — the build journey in
 // the same conversation (ADR-0108 d.7).
 //
 // THIN CLIENT — NO AGENT, NO DRIVE, NO MODEL PATH (ADR-0004 / ADR-0108 d.1). The panel's ONLY path to
@@ -145,14 +148,17 @@ export function ChatPanel(): React.JSX.Element {
 
   /** The Build button's click handler — the human's deliberate accept gate (ADR-0108 d.3).
    *  ONLY an explicit click here dispatches a build; no prose text and no stream-end auto-dispatches.
-   *  Calls api.build(proposedUnitId) EXACTLY once, then transitions the build phase to polling. */
+   *  Calls api.acceptBuild(proposedUnitId) EXACTLY once — the DISTINCT /api/chat/accept route that
+   *  records accept-PROVENANCE (this build came from a human accepting a chat proposal, not a generic
+   *  build POST; ADR-0133 d.3). The routing is identical to build(); only the provenance differs. Then
+   *  transitions the build phase to polling (the SAME api.buildStatus poll — one registry). */
   const handleBuildClick = useCallback((): void => {
     if (phase.kind !== 'done' || phase.proposedUnitId === undefined) return;
     if (buildPhase.kind !== 'idle') return; // guard against a second dispatch
     const unitId = phase.proposedUnitId;
     setBuildPhase({ kind: 'starting' });
     api
-      .build(unitId)
+      .acceptBuild(unitId)
       .then(({ runId }) => {
         setBuildPhase({ kind: 'building', runId, transcript: [] });
       })

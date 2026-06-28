@@ -195,6 +195,17 @@ export const api = {
     http('/api/build', jsonInit('POST', { unitId })),
   buildStatus: (runId: string): Promise<BuildStatus> =>
     http(`/api/build?runId=${q(runId)}`),
+  // Accept a chat PROPOSAL into a build (ADR-0108 d.3 / ADR-0133 d.3). acceptBuild() posts the SAME
+  // build INTENT as build() — a safe write, never a verdict — but to /api/chat/accept, the DISTINCT
+  // route whose whole purpose is accept-PROVENANCE: it records that the build came from a human
+  // accepting a chat proposal, not a generic build POST. The routing is identical (the desktop mounts
+  // both over the SAME BuildContext/registry — apps/desktop/src/backend/accept-dispatch.ts), only the
+  // provenance differs. The minted run is polled via the SAME buildStatus() above (one registry, one
+  // GET /api/build?runId poll). The accept route's 202 body is { ok: true, runId }; we read only runId
+  // (http<T> already throws on a non-2xx — 404 not-buildable / 409 build-already-running / 400 missing
+  // unitId — so a RESOLVED promise IS ok:true), hence the BuildIntentResult shape, as adopt() does.
+  acceptBuild: (unitId: string): Promise<BuildIntentResult> =>
+    http('/api/chat/accept', jsonInit('POST', { unitId })),
   // Adopt a brownfield (`mapped`) story (ADR-0097 Layer 1). adopt() posts an adoption INTENT that
   // mirrors build() exactly: it returns a `runId` and the spine runs the adoption fire-and-forget in
   // the SAME build registry (flips the story `mapped → proposed` + observe-and-signs its `observe`

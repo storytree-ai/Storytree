@@ -6,7 +6,7 @@
 //     nothing safe to dispatch (atl-no-button-without-proposed-id),
 //   • a `done` frame WITH `proposedUnitId` shows the proposal text AND an explicit Build button
 //     (atl-build-button-on-proposed-id),
-//   • clicking Build dispatches api.build(proposedUnitId) EXACTLY once; stream-end alone and any
+//   • clicking Build dispatches api.acceptBuild(proposedUnitId) EXACTLY once; stream-end alone and any
 //     free-text prose cannot trigger it — only the explicit click (atl-click-dispatches-accepted-id),
 //   • after clicking Build the panel renders the run's coarse progress to a terminal state, and a
 //     FAILED build renders honestly — never a forged success (atl-click-dispatches-accepted-id siblings),
@@ -31,11 +31,13 @@ type ChatEvent =
   | { type: 'error'; error: string }
   | { type: 'refused'; reason: string };
 
-// Mock the api seam — chatStream (the existing streaming seam) plus the new build/buildStatus
-// calls the panel will make after the operator clicks the explicit Build affordance.
+// Mock the api seam — chatStream (the existing streaming seam) plus the acceptBuild/buildStatus
+// calls the panel will make after the operator clicks the explicit Build affordance. acceptBuild()
+// is the DISTINCT accept-provenance seam (POST /api/chat/accept, ADR-0133 d.3) the click now drives —
+// NOT the generic build() (that stays the BuildSection island's path).
 const apiMock = vi.hoisted(() => ({
   chatStream: vi.fn<(intent: string, onEvent: (event: ChatEvent) => void) => Promise<void>>(),
-  build: vi.fn<(unitId: string) => Promise<BuildIntentResult>>(),
+  acceptBuild: vi.fn<(unitId: string) => Promise<BuildIntentResult>>(),
   buildStatus: vi.fn<(runId: string) => Promise<BuildStatus>>(),
 }));
 vi.mock('../api', () => ({ api: apiMock }));
@@ -61,7 +63,7 @@ function typeAndSubmit(intent: string): void {
 beforeEach(() => {
   vi.useFakeTimers();
   apiMock.chatStream.mockReset();
-  apiMock.build.mockReset();
+  apiMock.acceptBuild.mockReset();
   apiMock.buildStatus.mockReset();
 });
 
@@ -112,13 +114,13 @@ describe('ChatPanel — accept-to-land affordance', () => {
   });
 
   // ── atl-click-dispatches-accepted-id ──────────────────────────────────────────
-  it('atl-click-dispatches-accepted-id: clicking Build calls api.build(proposedUnitId) exactly once; stream-end alone does NOT dispatch', async () => {
+  it('atl-click-dispatches-accepted-id: clicking Build calls api.acceptBuild(proposedUnitId) exactly once; stream-end alone does NOT dispatch', async () => {
     const proposedUnitId = 'chat-drive-bridge#proposal-id-threading';
     apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
       onEvent({ type: 'done', proposal: 'I propose: build it.', proposedUnitId });
     });
     // build returns a runId; buildStatus keeps the run in-flight (no terminal yet).
-    apiMock.build.mockResolvedValue({ runId: 'run-accept-1' });
+    apiMock.acceptBuild.mockResolvedValue({ runId: 'run-accept-1' });
     apiMock.buildStatus.mockResolvedValue({
       runId: 'run-accept-1',
       unitId: proposedUnitId,
@@ -131,16 +133,16 @@ describe('ChatPanel — accept-to-land affordance', () => {
     await flush();
 
     // The stream ended — NO auto-dispatch (the agent proposed; the human has NOT clicked yet).
-    expect(apiMock.build).not.toHaveBeenCalled();
+    expect(apiMock.acceptBuild).not.toHaveBeenCalled();
 
     // Click the explicit Build button — the human's deliberate accept gate (ADR-0108 d.3).
     const buildBtn = screen.getByRole('button', { name: /build/i });
     fireEvent.click(buildBtn);
     await flush();
 
-    // api.build was called EXACTLY once with the accepted unit id.
-    expect(apiMock.build).toHaveBeenCalledTimes(1);
-    expect(apiMock.build).toHaveBeenCalledWith(proposedUnitId);
+    // api.acceptBuild was called EXACTLY once with the accepted unit id.
+    expect(apiMock.acceptBuild).toHaveBeenCalledTimes(1);
+    expect(apiMock.acceptBuild).toHaveBeenCalledWith(proposedUnitId);
   });
 
   // ── atl-click-dispatches-accepted-id (sibling: progress render) ───────────────
@@ -149,7 +151,7 @@ describe('ChatPanel — accept-to-land affordance', () => {
     apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
       onEvent({ type: 'done', proposal: 'I propose: build it.', proposedUnitId });
     });
-    apiMock.build.mockResolvedValue({ runId: 'run-accept-2' });
+    apiMock.acceptBuild.mockResolvedValue({ runId: 'run-accept-2' });
     // First poll: still building, a transcript line is available.
     apiMock.buildStatus
       .mockResolvedValueOnce({
@@ -188,7 +190,7 @@ describe('ChatPanel — accept-to-land affordance', () => {
   });
 
   // ── atl-no-free-text-build-path ───────────────────────────────────────────────
-  it('atl-no-free-text-build-path: typing "yes build it" into the chat and submitting does NOT call api.build — the ONLY trigger is the explicit Build button click', async () => {
+  it('atl-no-free-text-build-path: typing "yes build it" into the chat and submitting does NOT call api.acceptBuild — the ONLY trigger is the explicit Build button click', async () => {
     const proposedUnitId = 'chat-drive-bridge#proposal-id-threading';
     // First call: returns the proposal carrying the unit id.
     apiMock.chatStream.mockImplementationOnce(async (_intent, onEvent) => {
@@ -198,7 +200,7 @@ describe('ChatPanel — accept-to-land affordance', () => {
     apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
       onEvent({ type: 'done', proposal: 'I noted your response.' });
     });
-    apiMock.build.mockResolvedValue({ runId: 'run-prose-1' });
+    apiMock.acceptBuild.mockResolvedValue({ runId: 'run-prose-1' });
 
     render(<ChatPanel />);
     // Get the proposal with proposedUnitId onto the screen.
@@ -206,7 +208,7 @@ describe('ChatPanel — accept-to-land affordance', () => {
     await flush();
 
     // Now type prose that sounds like acceptance and submit via the Send button.
-    // This is a SECOND chatStream call — NOT an api.build call.
+    // This is a SECOND chatStream call — NOT an api.acceptBuild call.
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'yes build it' } });
     fireEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -214,8 +216,8 @@ describe('ChatPanel — accept-to-land affordance', () => {
 
     // chatStream WAS called a second time (the user submitted a follow-up intent)…
     expect(apiMock.chatStream).toHaveBeenCalledTimes(2);
-    // …but api.build was NEVER called — prose cannot trigger the build gate.
-    expect(apiMock.build).not.toHaveBeenCalled();
+    // …but api.acceptBuild was NEVER called — prose cannot trigger the build gate.
+    expect(apiMock.acceptBuild).not.toHaveBeenCalled();
   });
 
   // ── atl-click-dispatches-accepted-id (sibling: failed render) ─────────────────
@@ -224,7 +226,7 @@ describe('ChatPanel — accept-to-land affordance', () => {
     apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
       onEvent({ type: 'done', proposal: 'I propose: build it.', proposedUnitId });
     });
-    apiMock.build.mockResolvedValue({ runId: 'run-accept-fail' });
+    apiMock.acceptBuild.mockResolvedValue({ runId: 'run-accept-fail' });
     // The poll surfaces a terminal FAILED status with a reason.
     apiMock.buildStatus.mockResolvedValue({
       runId: 'run-accept-fail',
