@@ -157,10 +157,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // model-runtime-seam, owned-turn-loop; the four `headless-orchestrator`-story capabilities
   // (stories/headless-orchestrator/*.md — each a NET-NEW `real:` arm): headless-session-runner,
   // orchestrator-composition, orientation-tool-surface (ADR-0108 Phase 1) + chat-session-stream
-  // (ADR-0108 Phase 2) + that story's no-phantom-budget-ceiling CONTRACT
-  // (stories/headless-orchestrator/no-phantom-budget-ceiling.md — an EDITS-EXISTING `real:` arm removing
-  // the phantom $1 default from runHeadlessOrchestrator's SDK options, ADR-0132 d4 / ADR-0130);
-  // and the three thick-client `desktop`-story capabilities (stories/desktop/*.md,
+  // (ADR-0108 Phase 2); and the three thick-client `desktop`-story capabilities (stories/desktop/*.md,
   // ADR-0113 — each a NET-NEW `real:` arm): local-backend-boot, local-credential-wiring,
   // shared-forest-connection (the last RE-HOMED by ADR-0117 — same proof file, now a broker client), plus
   // two more desktop `real:` caps beyond that original ADR-0113 trio: boot-read-routes (ADR-0119, the boot
@@ -189,7 +186,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, no-phantom-budget-ceiling, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
