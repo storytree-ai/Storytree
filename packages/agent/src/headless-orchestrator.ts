@@ -41,9 +41,15 @@ export interface HeadlessOrchestratorArgs {
   /** Model for the session. Default: claude-opus-4-8 (the orchestrator runs on the most capable
    *  model — the §7 scale-down removed the per-message bloat, so Opus's latency is acceptable). */
   model?: string;
-  /** Turn ceiling. Default: 16. */
+  /** Turn ceiling — the runaway brake. Default: 16. */
   maxTurns?: number;
-  /** Hard budget ceiling in USD (the SDK aborts past it). Default: 1. */
+  /**
+   * OPTIONAL hard budget ceiling in USD (the SDK aborts past it). Default: NONE — no USD ceiling unless
+   * an explicit value is set (ADR-0131, completing ADR-0130). The session is subscription-funded
+   * (ADR-0030), so the SDK's metered `total_cost_usd` is a phantom; the {@link maxTurns} cap is the
+   * runaway brake. The per-session budget control ADR-0108 deferred is resolved here in the no-ceiling
+   * direction — an operator may still opt into a cap via `orchestrate --budget`.
+   */
   maxBudgetUsd?: number;
   /**
    * Optional sink for assistant TEXT DELTAS as they stream from the SDK (ADR-0108 Phase 2 streaming).
@@ -185,7 +191,9 @@ export async function runHeadlessOrchestrator(
       cwd: args.cwd ?? process.cwd(),
       model: args.model ?? "claude-opus-4-8",
       maxTurns: args.maxTurns ?? 16,
-      maxBudgetUsd: args.maxBudgetUsd ?? 1,
+      // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030), so a
+      // metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.
+      ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
       ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // Read-only by construction: no Write/Edit/Bash in tools or allowedTools (Phase 1).

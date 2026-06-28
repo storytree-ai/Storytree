@@ -78,6 +78,39 @@ test("runHeadlessOrchestrator: returns proposal text + cost + turns on a success
 });
 
 // ---------------------------------------------------------------------------
+// 1b. No USD budget ceiling by default — the turn cap is the brake (ADR-0131)
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: runs with NO USD budget ceiling by default — the turn cap is the brake (ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number; maxTurns?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number; maxTurns?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  const r = await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", queryFn });
+  assert.equal(r.ok, true);
+  // The session is subscription-funded (ADR-0030); ADR-0108's deferred per-session budget is resolved
+  // in the no-ceiling direction (ADR-0131) — so no phantom dollar wall by default…
+  assert.equal(opts?.maxBudgetUsd, undefined, "no maxBudgetUsd unless `orchestrate --budget` is set");
+  // …but the genuine runaway brake (the turn cap) stays in force.
+  assert.equal(opts?.maxTurns, 16, "the turn cap (16) remains the default runaway brake");
+});
+
+test("runHeadlessOrchestrator: passes an explicit maxBudgetUsd through (the opt-in cap survives, ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", maxBudgetUsd: 2, queryFn });
+  assert.equal(opts?.maxBudgetUsd, 2, "an operator-set budget is still honoured as a ceiling");
+});
+
+// ---------------------------------------------------------------------------
 // 2. Fail-closed — stream carries no result message
 // ---------------------------------------------------------------------------
 

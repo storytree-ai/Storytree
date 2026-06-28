@@ -49,7 +49,7 @@ export interface OrchestrateArgs {
   model?: string;
   /** Turn ceiling for the live session (live run only) — orientation needs headroom (default 16 is tight). */
   maxTurns?: number;
-  /** Hard USD budget ceiling for the live session (live run only). */
+  /** OPTIONAL hard USD budget ceiling for the live session — no ceiling by default (ADR-0131; the turn cap is the brake). */
   maxBudgetUsd?: number;
   /**
    * Optional sink for streamed assistant text deltas (ADR-0108 Phase 2 streaming) — forwarded to the

@@ -60,6 +60,34 @@ test("runSdkCurator fails closed on a non-success / error result, surfacing cost
   assert.match(r.error ?? "", /error_max_turns/);
 });
 
+test("runSdkCurator runs with NO USD budget ceiling by default — the turn cap is the brake (ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number; maxTurns?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number; maxTurns?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  const r = await runSdkCurator({ systemPrompt: "SYS", userPrompt: "judge", queryFn });
+  assert.equal(r.ok, true);
+  // Subscription-funded (ADR-0067/0030) → no phantom dollar wall by default…
+  assert.equal(opts?.maxBudgetUsd, undefined, "no maxBudgetUsd unless one is explicitly set");
+  // …but the single-shot turn cap (6) is still in force.
+  assert.equal(opts?.maxTurns, 6, "the curator turn cap (6) remains the runaway brake");
+});
+
+test("runSdkCurator passes an explicit maxBudgetUsd through (the opt-in cap survives, ADR-0131)", async () => {
+  let opts: { maxBudgetUsd?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxBudgetUsd?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  await runSdkCurator({ systemPrompt: "SYS", userPrompt: "judge", maxBudgetUsd: 0.5, queryFn });
+  assert.equal(opts?.maxBudgetUsd, 0.5, "an operator-set budget is still honoured as a ceiling");
+});
+
 test("runSdkCurator never throws — a throwing query is returned as an error result", async () => {
   const throwing: SdkQueryFn = () =>
     (async function* () {

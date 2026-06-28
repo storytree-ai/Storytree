@@ -9,6 +9,12 @@ amends: [5]
 
 accepted (2026-06-28) — decided/directed by the owner in conversation on 2026-06-28. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+> **Completed by [ADR-0131](0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md)**
+> — this ADR's explicit build-harness-only scope carve-out (the orchestrator and curator SDK sessions,
+> named below as "out of scope... separate decisions") is now lifted: ADR-0131 extends the
+> no-USD-ceiling default to both. The build-harness decision here is unchanged; the carve-out is the
+> only thing widened.
+
 ## Context
 
 The inner-loop build harness (`node build --real` / `story build --real`, the drive over the prove-it

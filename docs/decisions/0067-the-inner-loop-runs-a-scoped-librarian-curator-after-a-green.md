@@ -24,6 +24,13 @@ human to do it by hand. This ADR adds the missing **cleanup** half — a curator
 green build and actually retires / reframes / raises. The §5 gate is unchanged and still runs first
 (it is a real GATE; curation is advisory and runs only once the build is already green).
 
+> **Amended in degree by [ADR-0131](0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md)**
+> — the post-green curator's USD budget default (`sdk-curator.ts`'s `?? 0.5`, the cost knob this ADR's
+> Consequences flag as "one place to tune") is removed: under subscription billing the metered `$` is a
+> phantom, so the curator runs bounded by its single-shot turn cap (6), with `--budget` the opt-in. Every
+> other property here — best-effort, never-fails-the-build, `tools: []` read-only, the kind-fence — is
+> untouched.
+
 ## Context
 
 Open-questions accumulate and go stale. An OQ is opened to track an undecided fork; the
@@ -124,6 +131,10 @@ signal, it *prunes/reshapes* the OQs a settled decision has overtaken. Five part
 - A live curation pass spends subscription budget once per green story build; it is bounded (one
   agent call, scoped context) and best-effort. If it proves noisy or costly, the trigger is one place
   to tune (e.g. only-when-relevant-OQs-exist) — flagged, not pre-solved.
+  > **Update:** the USD budget knob is now removed by
+  > [ADR-0131](0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md) — under subscription
+  > billing the metered `$` is a phantom, so the curator is bounded by its turn cap (6), not a `$0.50`
+  > estimate that could truncate a borderline pass. The "one place to tune" stays the trigger, not a $-wall.
 - The auto-retire affordance is a deliberate, owner-authorised crossing of "no machine writes the
   knowledge tier" for one bounded subset; the kind-fence + recorded rationale + history-preserving
   delete keep it auditable and reversible (the deleted event carries the full prior state).
