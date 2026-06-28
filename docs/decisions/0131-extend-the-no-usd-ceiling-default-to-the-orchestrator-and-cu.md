@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-28
 amends: [130, 108, 67]
+load_bearing: true
 ---
 # ADR-0131: Extend the no-USD-ceiling default to the orchestrator and curator SDK sessions (completing ADR-0130)
 
