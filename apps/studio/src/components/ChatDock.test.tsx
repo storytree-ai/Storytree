@@ -6,7 +6,7 @@
 // border, shadow, the look inside the native shell) is the `desktop` story's operator-attested UAT
 // leg 7, witnessed by the owner, never a machine verdict here. So: NO color / pixel / shadow / radius
 // assertion lives in this file — only fold/expand state, drag-resize mechanics (clamped), the
-// fixed/bottom-anchored/above-the-map overlay geometry, and conversation-state survival across a fold.
+// absolute/bottom-anchored/on-the-map-frame overlay geometry, and conversation-state survival across a fold.
 //
 //   • folded by default       — the body (and its input) is `hidden`, out of the a11y tree; toggle is
 //                                aria-expanded="false" (cd-folded-by-default),
@@ -16,8 +16,8 @@
 //                                (cd-collapses-on-click),
 //   • drag-resize (clamped)    — dragging the top-edge separator UP grows the dock, DOWN shrinks it,
 //                                clamped to [MIN, MAX] (cd-drag-resizes-clamped),
-//   • overlays the map         — the root is position:fixed, bottom:0, z-index numeric → it floats
-//                                OVER the map rather than taking layout space (cd-overlays-the-map),
+//   • overlays the map         — the root is position:absolute, bottom:0, z-index numeric → it floats
+//                                OVER the map frame rather than taking layout space (cd-overlays-the-map),
 //   • state survives a fold    — typed text persists across fold→unfold, proving ChatPanel stays
 //                                MOUNTED under `hidden` (cd-state-survives-fold).
 //
@@ -148,12 +148,13 @@ describe('ChatDock', () => {
   });
 
   // ── cd-overlays-the-map ──────────────────────────────────────────────────────
-  it('cd-overlays-the-map: the root is a fixed, bottom-anchored overlay above the map (position:fixed, bottom:0, numeric z-index)', () => {
+  it('cd-overlays-the-map: the root is an absolute, bottom-anchored overlay on the map frame (position:absolute, bottom:0, numeric z-index)', () => {
     const { container } = render(<ChatDock />);
     const root = dockRoot(container);
 
-    // Fixed + bottom-anchored: it floats over the map rather than consuming layout space.
-    expect(root.style.position).toBe('fixed');
+    // Absolute + bottom-anchored: it floats over the MAP FRAME (its positioned offsetParent) rather
+    // than consuming layout space — not fixed to the whole app.
+    expect(root.style.position).toBe('absolute');
     expect(root.style.bottom).toBe('0px');
     expect(root.style.left).toBe('0px');
     expect(root.style.right).toBe('0px');
