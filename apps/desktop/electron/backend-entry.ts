@@ -35,6 +35,13 @@ import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
+import { createBuildRouteMount } from "../src/backend/build-route.js";
+import { createAcceptDispatchMount } from "../src/backend/accept-dispatch.js";
+// The build worker REGISTRY + routedBuildRunner come from the shared @storytree/drive package (ADR-0133
+// d.3 — never apps/studio/server, ADR-0100). build-worker imports only node:crypto, so it is safe to
+// import statically here (the build ENTRIES nodeBuild/storyBuild are lazily imported inside the runner).
+import { BuildRegistry, routedBuildRunner } from "@storytree/drive/build-worker";
+import type { BuildContext } from "@storytree/drive/build-worker";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
 
@@ -231,6 +238,78 @@ async function main(): Promise<void> {
   // the next increment.
   const chatMount = createChatSseMount({});
 
+  // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
+  // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) and
+  // createAcceptDispatchMount (POST /api/chat/accept) drive a real build from the human's click. The
+  // routedBuildRunner ROUTES by tier (a story → `story build --real` that persists verdicts + opens the
+  // auto-merging PR; a node → `node build --live`); the build ENTRIES + discovery are imported LAZILY
+  // inside the closures (the raw-TS `.js` re-export trap, exactly the devApi.ts recipe). This wiring is
+  // OPERATOR-ATTESTED (verified by the live walk, ADR-0070), NOT a CI assertion — a node:test over the
+  // real routedBuildRunner would spawn a subscription-billed `--real` build on a gate pass (the live
+  // spend ADR-0010 §5 forbids); the CI-proven cores are the mount factories over an INJECTED BuildContext
+  // (build-route.test.ts / accept-dispatch.test.ts). A SAFE write — the spend is the human's click, not
+  // this wiring; the spine signs, CI re-proves green before trunk (ADR-0091 / ADR-0022).
+  const loadBuildUnit = async (
+    unitId: string,
+  ): Promise<
+    | { kind: "node"; spec: import("@storytree/orchestrator").NodeSpec }
+    | {
+        kind: "story";
+        spec: import("@storytree/orchestrator").NodeSpec;
+        caps: import("@storytree/orchestrator").NodeSpec[];
+      }
+    | null
+  > => {
+    const { findNodeSpecFile, loadNodeSpec } = await import("@storytree/orchestrator");
+    const file = findNodeSpecFile(storiesDir, unitId);
+    if (file === null) return null;
+    let spec: import("@storytree/orchestrator").NodeSpec;
+    try {
+      spec = loadNodeSpec(file);
+    } catch {
+      return null; // a malformed spec is not buildable, never a crash
+    }
+    if (spec.tier !== "story") return { kind: "node", spec };
+    const caps = spec.capabilities
+      .map((id) => {
+        const f = findNodeSpecFile(storiesDir, id);
+        if (f === null) return null;
+        try {
+          return loadNodeSpec(f);
+        } catch {
+          return null;
+        }
+      })
+      .filter((s): s is import("@storytree/orchestrator").NodeSpec => s !== null);
+    return { kind: "story", spec, caps };
+  };
+  const build: BuildContext = {
+    registry: new BuildRegistry(),
+    runner: routedBuildRunner({
+      classify: async (unitId) => ((await loadBuildUnit(unitId))?.kind === "story" ? "story" : "node"),
+      nodeBuild: async (unitId, opts) => {
+        const { nodeBuild } = await import("@storytree/drive/build");
+        return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
+      },
+      storyBuild: async (unitId, opts) => {
+        const { storyBuild } = await import("@storytree/drive/build");
+        return storyBuild(unitId, opts);
+      },
+    }),
+    isBuildable: async (unitId) => {
+      const unit = await loadBuildUnit(unitId);
+      if (unit === null) return false;
+      const { resolveBuildConfig, isStoryBuildable } = await import("@storytree/orchestrator");
+      // A story is buildable when `story build <id> --real` has real work; a node when it carries a proof
+      // config (the SAME discovery the CLI prechecks with) — exactly devApi.ts's isBuildable.
+      return unit.kind === "story"
+        ? isStoryBuildable(unit.spec, unit.caps, "real")
+        : resolveBuildConfig(unit.spec) != null;
+    },
+  };
+  const buildRouteMount = createBuildRouteMount(build);
+  const acceptMount = createAcceptDispatchMount(build);
+
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -239,6 +318,8 @@ async function main(): Promise<void> {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
+        if (await buildRouteMount(req, res, pathname)) return;
+        if (await acceptMount(req, res, pathname)) return;
         await localHandler(req, res);
       } catch (err) {
         if (!res.headersSent) {
