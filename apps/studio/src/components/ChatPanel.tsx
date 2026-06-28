@@ -10,6 +10,14 @@
 //   • a REJECTED seam  → an honest disabled "chat is unavailable" state (the route is absent — the
 //     studio-standalone case where /api/chat is not mounted), never a hung stream, never a crash.
 //
+// ACCEPT-TO-LAND AFFORDANCE (ADR-0108 d.3): a `done` frame that carries a `proposedUnitId` shows
+// an explicit Build button. The ONLY trigger for a build dispatch is the operator CLICKING that
+// button — never a free-text "yes" parsed from the conversation. The panel holds NO code path that
+// auto-dispatches on stream-end or on any prose input. The accept affordance is absent when the
+// `done` frame has no `proposedUnitId` (nothing safe to dispatch). After the click, the panel renders
+// the run's coarse progress (polled via api.buildStatus) to a terminal state — the build journey in
+// the same conversation (ADR-0108 d.7).
+//
 // THIN CLIENT — NO AGENT, NO DRIVE, NO MODEL PATH (ADR-0004 / ADR-0108 d.1). The panel's ONLY path to
 // the chat route is the `api.chatStream` seam; it imports no agent/drive/model code and never imports
 // `ChatStreamEvent` from @storytree/drive (forbidden in apps/studio/src by modelPathBoundary.test.ts).
@@ -20,24 +28,47 @@
 // The panel's look inside the native shell is the `desktop` story's operator-attested UAT leg 7 — the
 // component author signs no visual verdict.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import type { ChatEvent } from '../api.js';
+import type { BuildStatus } from '../types.js';
 
-/** The panel's local phase: idle (offer the input) → busy (streaming; `streamed` accumulates the
+/** Poll cadence for the dispatched build run's coarse transcript (mirrors BuildSection's BUILD_POLL_MS).
+ *  The interval must be < the test's tick(2_000) window so one tick drives exactly one poll. */
+const CHAT_BUILD_POLL_MS = 1_500;
+
+/** Local extension of the done frame shape that adds the optional `proposedUnitId` the wire carries
+ *  when the agent proposes a specific capability to build (accept-to-land-affordance, ADR-0108 d.3).
+ *  The base ChatDoneEvent in api.ts does not yet declare this field; we read it via a local
+ *  intersection type so the panel can act on it without coupling to a future api.ts change. */
+type ChatDoneWithUnitId = Extract<ChatEvent, { type: 'done' }> & { proposedUnitId?: string };
+
+/** The panel's local chat phase: idle (offer the input) → busy (streaming; `streamed` accumulates the
  *  assistant text deltas as they arrive so the operator sees tokens live) → a terminal render, OR
- *  the honest absent-route degrade. The terminal frames map one-to-one onto the wire shape. */
+ *  the honest absent-route degrade. The terminal frames map one-to-one onto the wire shape.
+ *  `done` carries the optional `proposedUnitId` the accept affordance acts on. */
 type Phase =
   | { kind: 'idle' }
   | { kind: 'busy'; streamed: string }
-  | { kind: 'done'; proposal: string; costUsd?: number; turns?: number }
+  | { kind: 'done'; proposal: string; costUsd?: number; turns?: number; proposedUnitId?: string }
   | { kind: 'error'; error: string }
   | { kind: 'refused'; reason: string }
   | { kind: 'unavailable'; detail: string };
 
+/** The panel's build dispatch phase — idle until the operator explicitly clicks the Build button
+ *  (ADR-0108 d.3). Mirrors usePollableRun in BuildSection but scoped inline to the chat panel
+ *  (the seam is the chat panel's, not the island's; the poll path is chat-scoped). */
+type BuildPhase =
+  | { kind: 'idle' }
+  | { kind: 'starting' }
+  | { kind: 'building'; runId: string; transcript: string[] }
+  | { kind: 'terminal'; status: BuildStatus }
+  | { kind: 'error'; message: string };
+
 export function ChatPanel(): React.JSX.Element {
   const [intent, setIntent] = useState('');
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
+  const [buildPhase, setBuildPhase] = useState<BuildPhase>({ kind: 'idle' });
   // A re-entrancy guard so a double-submit (two synchronous clicks before the stream starts) cannot
   // fire a second POST. State alone is racy across synchronous events in the same tick; the ref flips
   // immediately. Mirrors usePollableRun's single-in-flight guard in BuildSection.
@@ -81,14 +112,19 @@ export function ChatPanel(): React.JSX.Element {
           return;
         }
         switch (terminal.type) {
-          case 'done':
+          case 'done': {
+            // Read the optional proposedUnitId the wire carries (accept-to-land-affordance, ADR-0108
+            // d.3) via the local extension type — the base ChatDoneEvent doesn't declare it yet.
+            const doneExt = terminal as ChatDoneWithUnitId;
             setPhase({
               kind: 'done',
               proposal: terminal.proposal,
               ...(terminal.costUsd !== undefined ? { costUsd: terminal.costUsd } : {}),
               ...(terminal.turns !== undefined ? { turns: terminal.turns } : {}),
+              ...(doneExt.proposedUnitId !== undefined ? { proposedUnitId: doneExt.proposedUnitId } : {}),
             });
             break;
+          }
           case 'error':
             setPhase({ kind: 'error', error: terminal.error });
             break;
@@ -106,6 +142,62 @@ export function ChatPanel(): React.JSX.Element {
         inFlight.current = false;
       });
   }, [intent]);
+
+  /** The Build button's click handler — the human's deliberate accept gate (ADR-0108 d.3).
+   *  ONLY an explicit click here dispatches a build; no prose text and no stream-end auto-dispatches.
+   *  Calls api.build(proposedUnitId) EXACTLY once, then transitions the build phase to polling. */
+  const handleBuildClick = useCallback((): void => {
+    if (phase.kind !== 'done' || phase.proposedUnitId === undefined) return;
+    if (buildPhase.kind !== 'idle') return; // guard against a second dispatch
+    const unitId = phase.proposedUnitId;
+    setBuildPhase({ kind: 'starting' });
+    api
+      .build(unitId)
+      .then(({ runId }) => {
+        setBuildPhase({ kind: 'building', runId, transcript: [] });
+      })
+      .catch((e: unknown) => {
+        setBuildPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+      });
+  }, [phase, buildPhase.kind]);
+
+  /** Poll for the dispatched run's coarse transcript. Active ONLY while a run is building; the
+   *  interval tears itself down the moment a terminal status (passed/failed) lands or the component
+   *  unmounts — no further fetches after the run ends (ADR-0090 poll posture). `activeBuildRunId`
+   *  is the stable key: it's non-null only when building, so the effect is a no-op at all other
+   *  phases (idle/starting/terminal/error). */
+  const activeBuildRunId = buildPhase.kind === 'building' ? buildPhase.runId : null;
+  useEffect(() => {
+    if (activeBuildRunId === null) return;
+    const runId = activeBuildRunId;
+    let cancelled = false;
+
+    const poll = async (): Promise<void> => {
+      if (cancelled) return;
+      let status: BuildStatus;
+      try {
+        status = await api.buildStatus(runId);
+      } catch (e) {
+        if (!cancelled) {
+          setBuildPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
+      if (cancelled) return;
+      if (status.status === 'building') {
+        setBuildPhase({ kind: 'building', runId, transcript: status.transcript });
+      } else {
+        // passed | failed — the effect cleans up on the next render (activeBuildRunId → null).
+        setBuildPhase({ kind: 'terminal', status });
+      }
+    };
+
+    const id = setInterval(() => void poll(), CHAT_BUILD_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [activeBuildRunId]);
 
   return (
     <div className="chat-panel">
@@ -188,6 +280,23 @@ export function ChatPanel(): React.JSX.Element {
                 )}
               </p>
             )}
+            {/* Accept affordance — shown ONLY when the agent attached a machine-actionable
+                proposedUnitId (ADR-0108 d.3). A done frame WITHOUT proposedUnitId shows the
+                proposal text and NO Build button — nothing safe to dispatch. The ONLY trigger for
+                a build is the explicit button click; no prose text can substitute for it. */}
+            {phase.proposedUnitId !== undefined && (
+              <div className="chat-accept">
+                {buildPhase.kind === 'idle' && (
+                  <button
+                    type="button"
+                    className="btn chat-build-btn"
+                    onClick={handleBuildClick}
+                  >
+                    Build
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -209,8 +318,50 @@ export function ChatPanel(): React.JSX.Element {
           <div className="chat-unavailable">
             <p className="small chat-unavailable-label">Chat is unavailable here.</p>
             <p className="small chat-unavailable-detail muted">
-              This studio isn’t serving the chat route — chat runs inside the desktop app. ({phase.detail})
+              This studio isn't serving the chat route — chat runs inside the desktop app. ({phase.detail})
             </p>
+          </div>
+        )}
+
+        {/* Build progress — rendered while the dispatched run is in-flight OR terminal. The build
+            journey shows in the SAME conversation: proposal → accept → progress → landed (ADR-0108
+            d.7). The panel owns no build logic; it polls api.buildStatus and renders what arrives. */}
+        {(buildPhase.kind === 'building' || buildPhase.kind === 'terminal') && (
+          <div className="chat-build-progress">
+            {buildPhase.kind === 'building' && buildPhase.transcript.length > 0 && (
+              <ol className="chat-build-transcript">
+                {buildPhase.transcript.map((line, i) => (
+                  <li key={i} className="chat-build-transcript-line">{line}</li>
+                ))}
+              </ol>
+            )}
+            {buildPhase.kind === 'terminal' && (
+              <>
+                {buildPhase.status.transcript.length > 0 && (
+                  <ol className="chat-build-transcript">
+                    {buildPhase.status.transcript.map((line, i) => (
+                      <li key={i} className="chat-build-transcript-line">{line}</li>
+                    ))}
+                  </ol>
+                )}
+                {buildPhase.status.status === 'passed' && (
+                  <div className="chat-build-passed">
+                    <p className="small verdict-pass">Build passed</p>
+                    {buildPhase.status.envelope !== undefined && (
+                      <p className="small chat-build-envelope">{buildPhase.status.envelope}</p>
+                    )}
+                  </div>
+                )}
+                {buildPhase.status.status === 'failed' && (
+                  <div className="chat-build-failed">
+                    <p className="small verdict-fail">Build failed</p>
+                    {buildPhase.status.reason !== undefined && (
+                      <p className="small chat-build-reason">{buildPhase.status.reason}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
