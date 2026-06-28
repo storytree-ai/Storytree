@@ -451,7 +451,7 @@ export interface DriveNodeArgs {
   signer: string;
   /** SDK leaf model (live only). */
   model?: string;
-  /** Per-authoring-slice USD ceiling, SDK-enforced (live only). */
+  /** OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live only). Absent = no USD ceiling (ADR-0130). */
   budgetUsd?: number;
   /** Per-authoring-slice turn ceiling, SDK-enforced (live only). Default: 16. */
   maxTurns?: number;
@@ -750,7 +750,11 @@ export interface NodeBuildOpts {
   real?: boolean;
   /** `--model` — the SDK leaf's model (live/real only). Default: claude-sonnet-4-6. */
   model?: string;
-  /** `--budget` — per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default: 1. */
+  /**
+   * `--budget` — OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default:
+   * NONE — no USD ceiling (ADR-0130); the leaf is subscription-funded (ADR-0030), so a metered dollar
+   * cap is a phantom. The per-slice turn cap (`--max-turns`, default 16) is the runaway brake.
+   */
   budgetUsd?: number;
   /** `--max-turns` — per-authoring-slice turn ceiling, SDK-enforced (live/real only). Default: 16. */
   maxTurns?: number;
@@ -1328,7 +1332,8 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "  storytree node build <id> --live [--model <id>] [--budget <usd>] [--actor <email>]",
       "      the ADR-0030 live smoke: a REAL Claude Agent SDK leaf (subscription-funded) authors",
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
-      "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). Default budget: $1/slice.",
+      "      Needs Claude Code auth (CLAUDE_CODE_OAUTH_TOKEN). No USD ceiling by default (ADR-0130;",
+      "      the turn cap is the brake) — --budget opts into a per-slice cap.",
       "",
       "  storytree node build <id> --real [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",

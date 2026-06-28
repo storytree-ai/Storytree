@@ -15,6 +15,12 @@ decided: 2026-06-04
 > owned loop. The spine/leaf discriminator and the code-sequences-vs-model-judges split are
 > unchanged.
 
+> **Amended in degree by [ADR-0130](0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md)**
+> — the per-node budget's *default USD ceiling* (the Open question below) is resolved in the no-ceiling
+> direction: under subscription billing the metered `$`-budget is a phantom, so it is removed as a
+> default. "Per-node budget is first-class" and "terminates on green **or** budget-exhausted" stand —
+> the runaway terminal is now the **turn cap**, and the USD path survives as the opt-in `--budget`.
+
 ## Decision
 
 The orchestrator (TypeScript over DBOS workflows) owns code-sequenced control-flow; a pi session's model loop owns leaf judgment.
@@ -28,3 +34,7 @@ The orchestrator (TypeScript over DBOS workflows) owns code-sequenced control-fl
 ## Open
 
 Budget unit + default ceiling (iterations / tokens / wall-cost) open-q §6 · terminal-event vocabulary ADR-0006.
+
+> Default-ceiling update: the **USD** default ceiling is resolved (removed) by
+> [ADR-0130](0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md) — phantom under
+> subscription billing; the turn cap is the brake, `--budget` the opt-in USD path.

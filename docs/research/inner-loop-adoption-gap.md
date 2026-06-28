@@ -183,10 +183,12 @@ ceiling is roughly the **~50 clean + the code-cores of the ~218 mixed** — a la
 **not** 100%, and the docs/ADR/corpus tail stays out until ADR-0057 E. ADR-0129 records that fork
 (OQ1 goal / OQ2 ratio / OQ3 the tail) as a copy-on-write record, not an implied mandate.
 
-> **Update 2026-06-28 (owner-directed):** the inner-loop **USD budget ceilings are being removed** — the
+> **Update 2026-06-28 (owner-directed, landed):** the inner-loop **USD budget ceilings are removed**
+> ([ADR-0130](../decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md)) — the
 > builds are subscription-funded ([ADR-0030](../decisions/0030-all-in-on-claude-agent-sdk.md)), so a
 > `$`-budget caps against a *phantom* metered cost while the **turn cap** remains the real runaway brake.
-> This removes the friction lever's cost term for the clean units. Tracked as a separate build chip.
+> No USD ceiling is enforced by default now; `--budget` is an opt-in cap. This removes the friction
+> lever's cost term for the clean units.
 
 **Do not** (per scope): start the Phase 3 build, raise budgets, or "enforce" driving in guidance — those
 are the owner's calls. This document is the evidence to make them.

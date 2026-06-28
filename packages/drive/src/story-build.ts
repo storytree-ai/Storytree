@@ -118,18 +118,15 @@ function storyGreenLine(
  * is the orchestrator's {@link runStoryBuild} (runSequence underneath): a node that fails closed
  * HALTS the story, later nodes never run, and a halted run is NEVER a pass.
  *
- * Live runs carry a TOTAL budget ceiling (default $10), checked fail-closed before each node;
- * each authoring slice is additionally capped at min($1, remaining) via the SDK's own enforcement.
+ * Live/real runs carry NO USD budget ceiling by default (ADR-0130): the leaf is subscription-funded
+ * (ADR-0030), so a metered dollar cap is a phantom — the per-slice TURN cap is the runaway brake. An
+ * operator may still opt into a TOTAL ceiling with `--budget <usd>`, checked fail-closed before each
+ * node; when set, each slice may draw the remaining total (no artificial per-slice sub-cap).
  *
  * The story's own UAT node is driven only when the story declares `uat_witness: machine`
  * (ADR-0040). Absent or `human` — the fail-closed default — the gate builds the capabilities and
  * WITHHOLDS the story node: a machine never drives or signs a human-witnessed ceremony.
  */
-
-/** The default TOTAL ceiling for a live story run (ADR-0005's per-node budget, at story grain). */
-const DEFAULT_STORY_BUDGET_USD = 10;
-/** The per-authoring-slice cap inside a story run (the `node build --live` default). */
-const SLICE_BUDGET_USD = 1;
 
 const HONEST_FRAMING_STORY_DRY =
   "honest framing: a story dry-run proves the CHAINING — capabilities topo-ordered from depends_on,\n" +
@@ -141,10 +138,10 @@ const HONEST_FRAMING_STORY_DRY =
 function honestFramingStoryLive(persisted: boolean): string {
   return (
     "honest framing: a live story build proves the CHAIN with a REAL Claude Agent SDK leaf per node\n" +
-    "(ADR-0030, subscription-funded) under the total budget ceiling — genuine authoring, hook-held\n" +
-    "write walls, spine-observed red→green per node. The TASK per node is still the synthetic\n" +
-    "add(2,3) pair in a temp workspace (`node build --real` is the per-node real path; chaining\n" +
-    "REAL builds is later work). Authored statuses are untouched; " +
+    "(ADR-0030, subscription-funded; no USD ceiling by default — the turn cap is the brake, ADR-0130)\n" +
+    "— genuine authoring, hook-held write walls, spine-observed red→green per node. The TASK per node\n" +
+    "is still the synthetic add(2,3) pair in a temp workspace (`node build --real` is the per-node real\n" +
+    "path; chaining REAL builds is later work). Authored statuses are untouched; " +
     (persisted
       ? "the signed verdicts PERSISTED to\nthe shared store (events.verdict)."
       : "the verdicts landed in an\nin-memory store and are gone.")
@@ -242,7 +239,10 @@ export interface StoryBuildOpts {
   real?: boolean;
   /** `--model` — the SDK leaf's model (live/real only). */
   model?: string;
-  /** `--budget` — TOTAL USD ceiling across every node (live/real only). Default: 10. */
+  /**
+   * `--budget` — OPTIONAL TOTAL USD ceiling across every node (live/real only). Default: NONE — no USD
+   * ceiling (ADR-0130); the per-slice turn cap is the runaway brake. Set it to opt into a total cap.
+   */
   budgetUsd?: number;
   /** `--max-turns` — per-authoring-slice turn ceiling, SDK-enforced (live/real only). */
   maxTurns?: number;
@@ -344,11 +344,11 @@ export async function storyBuild(
         "pick exactly one mode:\n" +
         "  --dry-run   offline scripted walk of every node, topo-ordered (zero cost)\n" +
         "  --live      a real Claude Agent SDK leaf per node (subscription-funded), SYNTHETIC task,\n" +
-        "              under a TOTAL budget ceiling (--budget, default $10; each slice capped at $1)\n" +
+        "              no USD ceiling by default — the turn cap brakes each slice (--budget opts into one)\n" +
         "  --real      ADR-0057 §3 expansion D: chain node build --real over the WHOLE story —\n" +
         "              each node authored for real in ONE shared worktree in dependency order, signed,\n" +
         "              the proven chain promoted ONCE at the stacked HEAD (a halt parks the prefix\n" +
-        "              local-only). Subscription-funded; same total budget ceiling",
+        "              local-only). Subscription-funded; no USD ceiling by default (--budget opts into one)",
       next: [
         `storytree story build ${storyId} --dry-run`,
         `storytree story build ${storyId} --live`,
@@ -564,7 +564,9 @@ export async function storyBuild(
   const claimIdentity = ambient.identity;
 
   const runId = `story-${mode}-${Date.now().toString(36)}`;
-  const budgetUsd = live || real ? (opts.budgetUsd ?? DEFAULT_STORY_BUDGET_USD) : undefined;
+  // ADR-0130: no USD ceiling by default — `--budget` is opt-in. Unset → undefined → runStoryBuild
+  // runs unbounded (the per-slice turn cap is the brake). A dry-run never carries a budget.
+  const budgetUsd = live || real ? opts.budgetUsd : undefined;
 
   // The verdict store (and its pg pool/connector) is already open; cut the worktree INSIDE the try
   // so its `finally` ALWAYS closes the store — `createBuildWorktree` can throw (a failed `git
@@ -661,7 +663,8 @@ export async function storyBuild(
             ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
             ...(override !== undefined ? { authorOverride: override } : {}),
             ...(opts.model !== undefined ? { model: opts.model } : {}),
-            budgetUsd: Math.min(SLICE_BUDGET_USD, remainingUsd ?? SLICE_BUDGET_USD),
+            // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
+            ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
             ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
           });
           if (built.liveAuthor !== undefined) leaves.set(spec.id, built.liveAuthor);
@@ -682,9 +685,8 @@ export async function storyBuild(
           presence: ambient,
           ...(phasePrompts !== undefined ? { phasePrompts } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
-          ...(live
-            ? { budgetUsd: Math.min(SLICE_BUDGET_USD, remainingUsd ?? SLICE_BUDGET_USD) }
-            : {}),
+          // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
+          ...(live && remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
         });
         if (!drive.resolved) {
           // Unreachable past the precheck, but stays fail-closed rather than trusting it.
@@ -796,7 +798,13 @@ export async function storyBuild(
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
       `store:       ${storeChoice.label}`,
-      `budget:      ${budgetUsd !== undefined ? `$${budgetUsd.toFixed(2)} total ceiling (each slice capped at $${SLICE_BUDGET_USD.toFixed(2)})` : "none — a dry-run spends nothing"}`,
+      `budget:      ${
+        budgetUsd !== undefined
+          ? `$${budgetUsd.toFixed(2)} total ceiling (operator-set; each slice may draw the remaining total)`
+          : real || live
+            ? "none — no USD ceiling (ADR-0130: subscription-funded; the turn cap is the brake)"
+            : "none — a dry-run spends nothing"
+      }`,
       `order:       ${order.map((n) => n.id).join(" → ")}`,
       `             (${capabilities.length} capabilities topo-ordered from depends_on, then the story's UAT node)`,
       `uat witness: ${witness}${story.uatWitness === undefined ? " (undeclared — the fail-closed default, ADR-0040)" : " (declared)"}${storyWithheld ? " — the story UAT node is withheld from the gate" : ""}`,
@@ -988,8 +996,8 @@ export function storyHelp(): Envelope {
       "",
       "  storytree story build <story-id> --live [--budget <usd>] [--model <id>] [--actor <email>]",
       "      the same chain with a REAL Claude Agent SDK leaf per node (subscription-funded), but the",
-      "      TASK per node is still the synthetic add(2,3) pair. --budget is the TOTAL ceiling across",
-      "      every node (default $10), enforced fail-closed before each node; each slice capped at $1.",
+      "      TASK per node is still the synthetic add(2,3) pair. No USD ceiling by default (ADR-0130) —",
+      "      the per-slice turn cap is the brake; --budget opts into a TOTAL ceiling across every node.",
       "",
       "  storytree story build <story-id> --real [--budget <usd>] [--model <id>] [--max-turns <n>] [--actor <email>]",
       "      ADR-0057 §3 expansion D — chain node build --real over the WHOLE story: each node",
@@ -997,7 +1005,8 @@ export function storyHelp(): Envelope {
       "      earlier nodes' committed source), signed, the proven chain promoted ONCE at the stacked",
       "      HEAD (land via a NON-SQUASH PR). A node failing closed HALTS the chain; the proven prefix",
       "      is parked LOCAL-ONLY (never pushed). Every driven node must be REAL-buildable (a real:",
-      "      arm). Same total budget ceiling. The default $10 may be low for a multi-node real chain.",
+      "      arm). No USD ceiling by default (ADR-0130); --budget opts into a total ceiling. The turn",
+      "      cap (--max-turns, default 16) is the runaway brake.",
       "",
       "  --store     (--live/--real) ALWAYS pg (ADR-0060/0081): the build owns the DB — it persists",
       "      building marks + signed verdicts (events.work_event/events.verdict) so real work feeds",
