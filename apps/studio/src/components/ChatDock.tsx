@@ -2,8 +2,9 @@
 // forest map (owner feedback, leg-7 chip 1; ADR-0108 / ADR-0113 desktop "an actual agent you can
 // chat to"). It is FOLDED by default; the operator clicks the toggle bar to EXPAND it out over the
 // top of the map, and DRAGS its top edge to resize (taller/shorter). Because the root is
-// position:fixed, the dock floats over the map — the operator trades map-space for chat-space on
-// demand, the map keeps its full layout underneath.
+// position:absolute, the dock floats over the MAP FRAME (its positioned offsetParent, .world-frame)
+// rather than the whole app — the operator trades map-space for chat-space on demand, the map keeps
+// its full layout underneath.
 //
 // WRAPS, never folds-into, ChatPanel: the dock owns only the chrome (the toggle, the resize grabber,
 // the body shell). ChatPanel and its 5 streaming contracts (ChatPanel.test.tsx) stay intact (slow
@@ -15,8 +16,8 @@
 // THIN CLIENT — React + ChatPanel ONLY. No agent / drive / cli / orchestrator (the model-path wall,
 // modelPathBoundary.test.ts); ChatPanel's sole route to the chat is the `api` streaming seam.
 //
-// GEOMETRY HERE, APPEARANCE OWNER-ATTESTED (ADR-0070): the structural/geometry style (fixed, bottom,
-// z-index, the dragged height) is INLINE so it's robustly assertable and CSS-load-independent; the
+// GEOMETRY HERE, APPEARANCE OWNER-ATTESTED (ADR-0070): the structural/geometry style (absolute,
+// bottom, z-index, the dragged height) is INLINE so it's robustly assertable and CSS-load-independent; the
 // dock's look (background, border-top, shadow, radius, the toggle/grabber cosmetics) lives in
 // index.css and is the `desktop` story's operator-attested UAT leg 7 — this file signs no visual
 // verdict and asserts no appearance.
@@ -30,9 +31,14 @@ const MIN_HEIGHT = 160;
 const DEFAULT_HEIGHT = 320;
 const VIEWPORT_MARGIN = 100;
 
-function maxHeight(): number {
-  const innerH = typeof window !== 'undefined' ? window.innerHeight : 768;
-  return Math.max(MIN_HEIGHT, innerH - VIEWPORT_MARGIN);
+function maxHeight(root: HTMLElement | null): number {
+  // Clamp the expanded dock to the MAP FRAME (its positioned offsetParent = .world-frame) so the
+  // toggle/grabber stay visible and the dock never overflows the map. Falls back to the viewport
+  // when there is no frame (standalone render), keeping the geometry deterministic.
+  const frame = root?.offsetParent as HTMLElement | null;
+  const frameH = frame && frame.clientHeight > 0 ? frame.clientHeight : null;
+  const base = frameH ?? (typeof window !== 'undefined' ? window.innerHeight : 768);
+  return Math.max(MIN_HEIGHT, base - VIEWPORT_MARGIN);
 }
 
 function clamp(value: number, lo: number, hi: number): number {
@@ -46,13 +52,16 @@ export function ChatDock(): React.JSX.Element {
   // Drag bookkeeping in a ref so the window listeners read live values, not a stale closure.
   const drag = useRef<{ startY: number; startHeight: number } | null>(null);
 
+  // The dock root — its offsetParent is the positioned map frame (.world-frame), the clamp ceiling.
+  const asideRef = useRef<HTMLElement>(null);
+
   const toggle = useCallback((): void => {
     setExpanded((e) => !e);
   }, []);
 
   // Resize by dragging the top edge: UP (smaller clientY) GROWS the dock, DOWN shrinks it. Listeners
   // ride `window` so the drag continues even if the cursor leaves the thin grabber. Clamped to
-  // [MIN_HEIGHT, maxHeight()].
+  // [MIN_HEIGHT, maxHeight(asideRef.current)] (the map frame, falling back to the viewport).
   const onDragStart = useCallback(
     (e: React.MouseEvent): void => {
       e.preventDefault(); // suppress text selection while dragging
@@ -62,7 +71,7 @@ export function ChatDock(): React.JSX.Element {
         const d = drag.current;
         if (!d) return;
         const next = d.startHeight + (d.startY - ev.clientY); // up = larger height
-        setHeight(clamp(next, MIN_HEIGHT, maxHeight()));
+        setHeight(clamp(next, MIN_HEIGHT, maxHeight(asideRef.current)));
       };
       const onUp = (): void => {
         drag.current = null;
@@ -77,13 +86,17 @@ export function ChatDock(): React.JSX.Element {
 
   return (
     <aside
+      ref={asideRef}
       className="chat-dock"
+      // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
+      // .world-frame), not the whole app; z 6 sits above the in-frame map overlays (z 2–5) and
+      // below the transient tooltips (z 55–60).
       style={{
-        position: 'fixed',
+        position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 50,
+        zIndex: 6,
         ...(expanded ? { height: `${height}px` } : {}),
       }}
     >

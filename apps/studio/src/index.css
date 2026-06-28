@@ -1592,6 +1592,8 @@ mark.st-hl.flash {
 /* the world (top-down field; portrait — scrolls from the foundation upward) */
 .world-frame {
   position: relative;
+  /* Height of the folded chat dock bar — lifts the gear/session-dock clear of it (scoped to the map). */
+  --chat-dock-h: 46px;
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
@@ -2498,7 +2500,10 @@ mark.st-hl.flash {
 .chat-dock {
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  /* Frosted overlay (consistent with the Shared-Islands panel) — 90% keeps the conversation readable. */
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
   border-top: 1px solid var(--border);
   border-top-left-radius: 12px;
   border-top-right-radius: 12px;
@@ -2871,7 +2876,7 @@ mark.st-hl.flash {
 .session-dock {
   position: absolute;
   left: 10px;
-  bottom: 10px;
+  bottom: calc(10px + var(--chat-dock-h, 0px));
   z-index: 3; /* above the legend dock (2) */
   width: 300px;
   max-width: calc(100% - 20px);
@@ -3099,7 +3104,7 @@ button.legend-tile:hover {
 .world-gear-dock {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--chat-dock-h, 0px));
   z-index: 3;
   display: flex;
   flex-direction: column;

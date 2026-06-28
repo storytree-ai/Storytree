@@ -78,6 +78,7 @@ import {
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
+import { ChatDock } from './ChatDock.js';
 import type { BuildActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
@@ -1645,6 +1646,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
           <WorldSettingsPanel search={search} onCommit={commitSearch} />
+          {/* chat overlays the MAP (absolute within .world-frame), not the whole app (owner UX feedback) */}
+          <ChatDock />
         </div>
 
         {selected && (
