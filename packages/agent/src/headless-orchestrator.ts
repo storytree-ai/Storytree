@@ -38,7 +38,8 @@ export interface HeadlessOrchestratorArgs {
    * Absent → a plain conversational session over the system prompt, no orientation surface.
    */
   runner?: OrientationRunner;
-  /** Model for the session. Default: claude-sonnet-4-6. */
+  /** Model for the session. Default: claude-opus-4-8 (the orchestrator runs on the most capable
+   *  model — the §7 scale-down removed the per-message bloat, so Opus's latency is acceptable). */
   model?: string;
   /** Turn ceiling. Default: 16. */
   maxTurns?: number;
@@ -182,7 +183,7 @@ export async function runHeadlessOrchestrator(
 
     const options: Options = {
       cwd: args.cwd ?? process.cwd(),
-      model: args.model ?? "claude-sonnet-4-6",
+      model: args.model ?? "claude-opus-4-8",
       maxTurns: args.maxTurns ?? 16,
       maxBudgetUsd: args.maxBudgetUsd ?? 1,
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.

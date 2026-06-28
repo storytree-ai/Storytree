@@ -44,7 +44,8 @@ export interface OrchestrateArgs {
    * orientation tools fall back to a no-op stub and the agent cannot actually orient.
    */
   runner?: OrientationRunner;
-  /** Live SDK leaf model (live run only). Default: the runner's (claude-sonnet-4-6). */
+  /** Model for the orchestrator session (live run only). Default: the headless orchestrator's
+   *  (claude-opus-4-8). */
   model?: string;
   /** Turn ceiling for the live session (live run only) — orientation needs headroom (default 16 is tight). */
   maxTurns?: number;
