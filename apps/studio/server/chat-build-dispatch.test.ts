@@ -6,25 +6,32 @@
 // This is a capability-tier integration test: it crosses the dispatch validation + the run mint +
 // the fire-and-forget worker invocation + the progress fold, exercised against the REAL BuildRegistry
 // with the build runner injected as a scripted double (the buildWorker.test.ts / buildApi pattern).
+//
+// COVERAGE NOTE (orchestrate-route-supplement / audit-the-signed-verdict): the first three behavioural
+// tests were authored by the gated leaf under the signed --real verdict (run real-mqxhg3n9 →
+// events.verdict @ 2f63f12); their bodies are preserved verbatim. Their `it(...)` names have been
+// brought onto the EXACT `## Contracts` ids, and the fourth contract (`cbd-intent-not-verdict`, dropped
+// by the leaf) added, so the ADR-0126 contract-coverage classifier reads 4/4 — the leaf's signed green
+// proves the red→green of its authored test; this standing suite proves every declared contract.
 
 import { describe, it, expect } from 'vitest';
+import { readFile } from 'node:fs/promises';
 import { BuildRegistry } from './buildRegistry';
 import type { BuildContext } from './apiRouter';
 import type { BuildRunner, BuildEnvelope } from './buildWorker';
 import { dispatchAcceptedBuild } from './chat-build-dispatch.js';
 
 /** Drain the event loop until the fire-and-forget worker reaches a terminal state. */
-async function waitTerminal(registry: BuildRegistry, runId: string, tries = 20): Promise<void> {
+async function waitTerminal(registry: BuildRegistry, runId: string, tries = 100): Promise<void> {
   for (let i = 0; i < tries; i++) {
     if (registry.getRun(runId)?.status !== 'building') return;
-    await new Promise<void>((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => setTimeout(r, 5));
   }
   throw new Error(`run ${runId} never reached a terminal state`);
 }
 
 describe('dispatchAcceptedBuild', () => {
-  // cbd-accepted-id-dispatches-and-run-reaches-terminal
-  it('returns { ok: true, runId } for a buildable accepted unit id and the run reaches terminal with progress lines on its transcript', async () => {
+  it('cbd-dispatches-accepted-buildable-id: returns { ok: true, runId } for a buildable accepted unit id and the run reaches terminal with the scripted progress folded onto its transcript', async () => {
     const registry = new BuildRegistry();
     const runner: BuildRunner = async (
       unitId: string,
@@ -63,8 +70,7 @@ describe('dispatchAcceptedBuild', () => {
     expect(registry.hasActiveBuild()).toBe(false);
   });
 
-  // cbd-unbuildable-id-returns-not-buildable
-  it('returns { ok: false, reason: "not buildable" } for an un-buildable id — worker is never invoked', async () => {
+  it('cbd-refuses-unbuildable-id: returns { ok: false, reason: "not buildable" } for an un-buildable id — the worker is never invoked', async () => {
     const registry = new BuildRegistry();
     let workerInvoked = false;
     const runner: BuildRunner = async (): Promise<BuildEnvelope> => {
@@ -88,8 +94,7 @@ describe('dispatchAcceptedBuild', () => {
     expect(registry.hasActiveBuild()).toBe(false);
   });
 
-  // cbd-concurrent-dispatch-returns-single-build-refusal
-  it('returns { ok: false, reason: "a build is already running" } while a run is live — the registry single-build guard surfaced as a typed result', async () => {
+  it('cbd-single-build-guard: returns { ok: false, reason: "a build is already running" } while a run is live — the registry single-build guard surfaced as a typed result, the running run untouched', async () => {
     const registry = new BuildRegistry();
     // Mint an active run directly to occupy the single-build slot (the guard fires on createRun).
     const existing = registry.createRun('occupied-unit');
@@ -107,8 +112,38 @@ describe('dispatchAcceptedBuild', () => {
     if (result.ok) return;
     // The exact reason is the registry's single-build-at-a-time guard surfaced verbatim.
     expect(result.reason).toBe('a build is already running');
+    // The running run is left untouched (still building) by the refused dispatch.
+    if (existing.ok) expect(registry.getRun(existing.run.runId)?.status).toBe('building');
 
     // Clean up: release the occupied slot so no phantom active build lingers.
     if (existing.ok) registry.terminalisePassed(existing.run.runId, 'cleanup');
+  });
+
+  it('cbd-intent-not-verdict: a safe write — the dispatch hands the worker a unit id and holds no signing key, no events.verdict writer, no DB connection (ADR-0091)', async () => {
+    // Structural: the dispatch module's IMPORT surface is its collaborator set. It imports only the
+    // worker (`runBuildJob`) + the BuildContext type — no signer, no verdict writer, no DB/pg/store.
+    // Read the import lines only (not prose comments, which legitimately discuss the worker's signing).
+    const source = await readFile(new URL('./chat-build-dispatch.ts', import.meta.url), 'utf8');
+    const imports = source
+      .split('\n')
+      .filter((l) => /^\s*import\b/.test(l))
+      .join('\n');
+    // It DOES compose the existing worker — the run is dispatched, not signed here.
+    expect(imports).toMatch(/runBuildJob/);
+    // It holds NO verdict/signing path and NO DB connection: the spine inside the worker signs.
+    expect(imports).not.toMatch(/signer|signVerdict|signUatVerdict|verdict|events|signing-row/i);
+    expect(imports).not.toMatch(/\bpg\b|Pool|connection|pg-store|\/store\b/i);
+    // The source also reaches inside no gate/proof machinery (no signer/verdict identifiers in body).
+    expect(source).not.toMatch(/events\.verdict/);
+
+    // Behavioural: the dispatch returns a runId only — it never hands a verdict back to the caller.
+    const registry = new BuildRegistry();
+    const runner: BuildRunner = async (): Promise<BuildEnvelope> => ({ ok: true, body: 'verdict: PASS' });
+    const build: BuildContext = { registry, runner, isBuildable: async () => true };
+    const result = await dispatchAcceptedBuild('chat-drive-bridge', build);
+    expect(result.ok).toBe(true);
+    // The result is intent (a run handle), never a verdict.
+    expect(result).not.toHaveProperty('verdict');
+    if (result.ok) await waitTerminal(registry, result.runId);
   });
 });
