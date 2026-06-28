@@ -287,7 +287,7 @@ test("runHeadlessOrchestrator: leaves includePartialMessages off when no onDelta
 // 6. Read-only tool surface — orientation tools in allowedTools, no write tools
 // ---------------------------------------------------------------------------
 
-test("runHeadlessOrchestrator: wires orientation tools in allowedTools and excludes write tools", async () => {
+test("runHeadlessOrchestrator: wires orientation tools in allowedTools (when a runner is present) and excludes write tools", async () => {
   let capturedOptions: unknown;
 
   const capturingQuery: SdkQueryFn = ({ options }) => {
@@ -300,6 +300,9 @@ test("runHeadlessOrchestrator: wires orientation tools in allowedTools and exclu
   const r = await runHeadlessOrchestrator({
     systemPrompt: "SYS",
     userPrompt: "orient",
+    // A runner IS present, so the orientation surface is wired (ADR-0108 §7 scale-down: no runner
+    // → no orientation tools; see the dedicated test below).
+    runner: fixedRunner({ ok: true, body: "## seed tree" }),
     queryFn: capturingQuery,
   });
 
@@ -338,6 +341,92 @@ test("runHeadlessOrchestrator: wires orientation tools in allowedTools and exclu
       );
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// 6b. Scale-down (ADR-0108 §7) — with NO runner, no orientation tools are wired,
+//     so the agent can't burn a turn on dead stub calls (the desktop "hello" fix).
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: wires NO orientation tools when no runner is present (the §7 scale-down)", async () => {
+  let capturedOptions: unknown;
+  const capturingQuery: SdkQueryFn = ({ options }) => {
+    capturedOptions = options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+
+  // NO runner injected — exactly the desktop chat's live config (createChatSseMount({})).
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    queryFn: capturingQuery,
+  });
+
+  assert.equal(r.ok, true, "a runnerless session must still succeed (a plain conversational turn)");
+
+  const opts = capturedOptions as {
+    allowedTools?: string[];
+    mcpServers?: Record<string, unknown>;
+  };
+  const allowed = opts.allowedTools ?? [];
+  const orientationWired = allowed.some((n) =>
+    /tree|library|noticeboard|orientation/.test(n),
+  );
+  assert.ok(
+    !orientationWired,
+    `with no runner, NO orientation tools may be advertised — the agent must not be invited to make ` +
+      `dead stub calls (the §7 scale-down); got allowedTools: ${JSON.stringify(allowed)}`,
+  );
+  assert.ok(
+    !("orientation" in (opts.mcpServers ?? {})),
+    "with no runner, the orientation MCP server must not be mounted",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 6c. The trace seam (ADR-0108 §7) — onMessage receives EVERY SDK message in
+//     order, and a throwing sink can never break the session loop.
+// ---------------------------------------------------------------------------
+
+test("runHeadlessOrchestrator: onMessage receives every SDK message in arrival order (the trace seam)", async () => {
+  const seen: string[] = [];
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    onMessage: (m) => seen.push(String((m as { type?: unknown }).type)),
+    queryFn: queryYielding([
+      { type: "system", subtype: "init" },
+      { type: "assistant", message: { content: [{ type: "text", text: "hi" }] } },
+      okResult,
+    ]),
+  });
+
+  assert.equal(r.ok, true);
+  assert.deepEqual(
+    seen,
+    ["system", "assistant", "result"],
+    "onMessage must fire for EVERY message (not just the result) in arrival order — the trace seam",
+  );
+});
+
+test("runHeadlessOrchestrator: a throwing onMessage sink never breaks the session", async () => {
+  const r = await runHeadlessOrchestrator({
+    systemPrompt: "SYS",
+    userPrompt: "hello",
+    onMessage: () => {
+      throw new Error("a buggy trace sink");
+    },
+    queryFn: queryYielding([{ type: "assistant" }, okResult]),
+  });
+
+  assert.equal(
+    r.ok,
+    true,
+    "a trace sink that throws must be swallowed — observability must never break the session",
+  );
+  assert.equal(r.proposal, okResult.result, "the proposal is still extracted despite the throwing sink");
 });
 
 // ---------------------------------------------------------------------------

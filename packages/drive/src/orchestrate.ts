@@ -57,6 +57,12 @@ export interface OrchestrateArgs {
    * non-streaming consumer (the terminal `orchestrate` command). The proposal is still the authority.
    */
   onDelta?: (text: string) => void;
+  /**
+   * Optional sink for EVERY SDK message as it streams (the trace seam, ADR-0108 §7) — forwarded to the
+   * headless runner so a caller can capture the agent's full turn/tool trail (what it DID), not just
+   * its answer. Raw SDK message shape; omit when no trace is needed.
+   */
+  onMessage?: (message: unknown) => void;
 }
 
 /**
@@ -111,6 +117,7 @@ export async function orchestrate({
   maxTurns,
   maxBudgetUsd,
   onDelta,
+  onMessage,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -148,6 +155,7 @@ export async function orchestrate({
       ...(maxTurns !== undefined ? { maxTurns } : {}),
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
       ...(onDelta !== undefined ? { onDelta } : {}),
+      ...(onMessage !== undefined ? { onMessage } : {}),
     });
   } finally {
     compositionInFlight = false;

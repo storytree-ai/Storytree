@@ -31,8 +31,11 @@ export interface HeadlessOrchestratorArgs {
   /** Working directory for the SDK session. Defaults to process.cwd(). */
   cwd?: string;
   /**
-   * Injectable runner for the orientation tools (the real CLI `run(argv, deps)` or an offline
-   * stub). Defaults to a no-op stub when absent (offline tests that don't exercise the runner).
+   * Injectable runner for the orientation tools (the real CLI `run(argv, deps)`). The orientation
+   * tool surface is wired ONLY when a runner is present (ADR-0108 §7 scale-down): with no runner,
+   * NO orientation tools are advertised — wiring them to a dead stub just invited the agent to make
+   * useless tool calls (a wasted turn + a "runner not configured" line that leaked into the reply).
+   * Absent → a plain conversational session over the system prompt, no orientation surface.
    */
   runner?: OrientationRunner;
   /** Model for the session. Default: claude-sonnet-4-6. */
@@ -51,6 +54,15 @@ export interface HeadlessOrchestratorArgs {
    * never the verdict.
    */
   onDelta?: (text: string) => void;
+  /**
+   * Optional sink for EVERY SDK message as it streams (the trace seam, ADR-0108 §7). Unlike
+   * `onDelta` (assistant prose only), this fires for the whole conversation — system init, each
+   * assistant turn (text + tool_use), each tool_result, and the terminal result — so a caller can
+   * capture/surface what the agent actually DID each turn (the phase/tool trail), not just its answer.
+   * Raw SDK message shape (the consumer narrows structurally); never throws into the loop. Omit when
+   * no trace is needed (the default).
+   */
+  onMessage?: (message: unknown) => void;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
 }
@@ -122,15 +134,6 @@ function extractTextDelta(message: unknown): string | null {
   return typeof text === "string" ? text : null;
 }
 
-// ---------------------------------------------------------------------------
-// Default runner (offline no-op stub — returns a minimal envelope body)
-// ---------------------------------------------------------------------------
-
-const defaultRunner: OrientationRunner = async (_argv, _deps) => ({
-  ok: false,
-  body: "(orientation runner not configured — inject a runner for real orientation)",
-});
-
 /** The in-process MCP server name the orientation tools live under (`mcp__orientation__<tool>`). */
 const ORIENTATION_SERVER = "orientation";
 
@@ -159,8 +162,12 @@ export async function runHeadlessOrchestrator(
   inFlight = true;
 
   try {
-    const runner = args.runner ?? defaultRunner;
-    const orientationTools = buildOrientationTools(runner, { store: null });
+    // Orientation tools are wired ONLY when a real runner is present (ADR-0108 §7 scale-down). With
+    // no runner there is nothing for them to read, so advertising them to a dead stub just burned a
+    // turn on useless calls and leaked "(orientation runner not configured)" into the reply. No
+    // runner → no orientation surface → a plain conversational turn over the system prompt.
+    const orientationTools =
+      args.runner !== undefined ? buildOrientationTools(args.runner, { store: null }) : [];
 
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
     const allowedTools = orientationTools.map(
@@ -185,23 +192,37 @@ export async function runHeadlessOrchestrator(
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
-      mcpServers: {
-        [ORIENTATION_SERVER]: createSdkMcpServer({
-          name: ORIENTATION_SERVER,
-          version: "1.0.0",
-          tools: orientationTools.map((ot) =>
-            tool(ot.name, `Read-only ${ot.name} orientation command.`, {}, async () => {
-              const text = await ot.call();
-              return { content: [{ type: "text" as const, text }] };
-            }),
-          ),
-        }),
-      },
+      // Mount the orientation MCP server ONLY when there are tools to mount (a runner was provided).
+      ...(orientationTools.length > 0
+        ? {
+            mcpServers: {
+              [ORIENTATION_SERVER]: createSdkMcpServer({
+                name: ORIENTATION_SERVER,
+                version: "1.0.0",
+                tools: orientationTools.map((ot) =>
+                  tool(ot.name, `Read-only ${ot.name} orientation command.`, {}, async () => {
+                    const text = await ot.call();
+                    return { content: [{ type: "text" as const, text }] };
+                  }),
+                ),
+              }),
+            },
+          }
+        : {}),
     };
 
     let result: ResultLike | undefined;
     try {
       for await (const message of queryFn({ prompt: args.userPrompt, options })) {
+        // The trace seam (ADR-0108 §7): surface every message so a caller can capture the agent's
+        // turn/tool trail. Guarded so a throwing sink can never break the session loop.
+        if (args.onMessage !== undefined) {
+          try {
+            args.onMessage(message);
+          } catch {
+            /* a trace sink must never break the session */
+          }
+        }
         if (isResult(message)) {
           result = message;
         } else if (wantsDeltas) {
