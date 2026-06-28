@@ -168,12 +168,15 @@ the definition of `healthy` (earned via the proof modes / prove-it-gate) and is
 **not machine-enforced** — v1 carried it as guidance for agents authoring stories
 and never tested it (ADR-0010 §6; ADR-0007; carried from Agentic ADR-0006/0027).
 
-**per-node budget** — A code-enforced ceiling (iterations / token-cost /
-wall-cost — exact unit TBD) on a node's spine loop. The loop terminates on green
-**or** budget-exhausted, the latter a typed terminal event with per-round cost
-visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting
-v1's "cascade rounds are not a cost"; the concrete unit and default ceiling stay
-open (`open-questions.md` §6).
+**per-node budget** — A code-enforced ceiling on a node's spine loop that
+bounds a runaway. The loop terminates on green **or** budget-exhausted, the
+latter a typed terminal event with per-round cost visible in the event store.
+Resurrected for pay-as-you-go (ADR-0005), inverting v1's "cascade rounds are not
+a cost". The unit, once open, is now resolved for the subscription-funded SDK
+(ADR-0130/0131): the default brake is the **turn cap** (`maxTurns`), which maps
+to real work; the **USD ceiling was dropped as a default** — a phantom under
+flat/subscription billing — surviving only as an opt-in `--budget` escape hatch
+(see `meter-fail-closed-caps-in-real-cost`).
 
 **approval** (approval-gated trunk) — A first-class, typed operator act
 (`actor = operator`) in which the human accepts an agent action, or a

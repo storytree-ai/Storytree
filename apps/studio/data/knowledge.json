@@ -960,23 +960,45 @@
     "schemaVersion": 2
   },
   {
+    "id": "meter-fail-closed-caps-in-real-cost",
+    "kind": "principle",
+    "title": "Meter a fail-closed cap in real cost",
+    "description": "A fail-closed cap must be denominated in a currency that maps to the cost it exists to bound. Under flat/subscription billing the SDK's metered total_cost_usd is a phantom (list-price token math, not our flat spend), so a dollar wall gives no real protection while halting funded work — bound the runaway by the resource that maps to real work (turns), and make the dollar cap an opt-in escape hatch, not a default.",
+    "statement": "A fail-closed cap must meter in a currency that maps to real cost. Under flat/subscription billing a metered-dollar ceiling is a phantom — it gives no protection while halting funded work — so bound the runaway by the resource that maps to real work (turns), not dollars, and keep the dollar cap as an opt-in escape hatch.",
+    "why": "A fail-closed cap exists to stop a runaway, so it must be denominated in something the runaway actually consumes. The Claude Agent SDK leaf, orchestrator, and curator are all subscription-funded (ADR-0030) — a flat monthly cost, not metered per token — yet the SDK still reports a `total_cost_usd` computed from *list-price* token rates: a phantom number that does not reflect our spend (the work costs the same flat amount whether it runs or not). A default ceiling against that phantom adds no real cost protection while artificially halting funded work — ADR-0130's `chat-sse-mount` build stalled mid-slice on a phantom $1 wall and needed `--budget` raised purely to clear it. The turn cap (`maxTurns`) is the genuine brake because turns map to real work — they bound how long any one slice can churn regardless of estimated dollars. The same judgment was reached independently across three SDK sessions (ADR-0130: the build leaf + drive; ADR-0131: the chat orchestrator + the post-green curator), all of which dropped the USD default for this reason.",
+    "howToApply": "Before adding or keeping a `$`/cost ceiling on an agent loop, ask whether the metered currency maps to OUR marginal cost. Under flat/subscription billing it does not — so make the dollar cap an opt-in escape hatch (e.g. `--budget`), never a default, and let the resource that maps to real work (the turn cap) be the runaway brake. Keep the plumbing; change only the default — the capability to bound a slice by the SDK's estimate survives for the operator who wants it, it just stops firing on a phantom by default. The discriminator is the BILLING MODEL, not the metric's familiarity: dollars feel like the natural unit, but a unit that does not track our spend is the wrong unit for a fail-closed cap.",
+    "references": [
+      "doc:decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md",
+      "doc:decisions/0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md",
+      "doc:decisions/0030-all-in-on-claude-agent-sdk.md",
+      "asset:per-node-budget"
+    ],
+    "provenance": "Graduated 2026-06-28 from ADR-0130 and ADR-0131 (the two-consumer trigger: the same judgment was established across three subscription-funded SDK sessions — the build leaf + drive in ADR-0130, the chat orchestrator + post-green curator in ADR-0131). Refines the `per-node-budget` definition, whose ceiling-unit/default was left open (ADR-0005, open-questions §6): this principle resolves the currency choice for the subscription-funded case. Kept as its own principle rather than folded into `per-node-budget` (that is a definition of the mechanism; this is a judgment about how to choose its currency — reference-don't-restate). Consumers: session-orchestrator.",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z",
+    "schemaVersion": 2
+  },
+  {
     "kind": "definition",
     "id": "per-node-budget",
     "title": "per-node budget",
-    "description": "A code-enforced ceiling (iterations / token-cost / wall-cost — exact unit TBD) on a node's spine loop.",
+    "description": "A code-enforced ceiling on a node's spine loop that bounds a runaway. The ceiling's unit — once open — is resolved for the subscription-funded SDK by ADR-0130/0131: the default brake is the turn cap (maxTurns), which maps to real work, while the USD ceiling was dropped as a default (a phantom under flat/subscription billing) and survives only as an opt-in --budget escape hatch.",
     "references": [
       "doc:glossary.md",
       "doc:decisions/0005-orchestration-spine-code-vs-judgment.md",
+      "doc:decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md",
+      "doc:decisions/0131-extend-the-no-usd-ceiling-default-to-the-orchestrator-and-cu.md",
       "asset:spine-sequences-leaf-judges",
-      "asset:event"
+      "asset:event",
+      "asset:meter-fail-closed-caps-in-real-cost"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z",
     "glossarySection": "Proof, evidence & gating",
-    "glossaryBody": "A code-enforced ceiling (iterations / token-cost /\nwall-cost — exact unit TBD) on a node's spine loop. The loop terminates on green\n**or** budget-exhausted, the latter a typed terminal event with per-round cost\nvisible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting\nv1's \"cascade rounds are not a cost\"; the concrete unit and default ceiling stay\nopen (`open-questions.md` §6).",
-    "oneLine": "A code-enforced ceiling (iterations / token-cost / wall-cost — exact unit TBD) on a node's spine loop.",
-    "whatItIs": "A code-enforced ceiling (iterations / token-cost / wall-cost — exact unit TBD) on a node's spine loop. The loop terminates on green **or** budget-exhausted, the latter a typed terminal event with per-round cost visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting v1's \"cascade rounds are not a cost\".",
-    "provenance": "The concrete unit and default ceiling stay open (`open-questions.md` §6).",
+    "glossaryBody": "A code-enforced ceiling on a node's spine loop that\nbounds a runaway. The loop terminates on green **or** budget-exhausted, the\nlatter a typed terminal event with per-round cost visible in the event store.\nResurrected for pay-as-you-go (ADR-0005), inverting v1's \"cascade rounds are not\na cost\". The unit, once open, is now resolved for the subscription-funded SDK\n(ADR-0130/0131): the default brake is the **turn cap** (`maxTurns`), which maps\nto real work; the **USD ceiling was dropped as a default** — a phantom under\nflat/subscription billing — surviving only as an opt-in `--budget` escape hatch\n(see `meter-fail-closed-caps-in-real-cost`).",
+    "oneLine": "A code-enforced ceiling on a node's spine loop that bounds a runaway. The default brake is the turn cap (`maxTurns`); the USD ceiling was dropped as a default — a phantom under subscription billing — and is now an opt-in `--budget` escape hatch (ADR-0130/0131).",
+    "whatItIs": "A code-enforced ceiling on a node's spine loop. The loop terminates on green **or** budget-exhausted, the latter a typed terminal event with per-round cost visible in the event store. Resurrected for pay-as-you-go (ADR-0005), inverting v1's \"cascade rounds are not a cost\". The ceiling's unit — left open in v1 — is resolved for the subscription-funded SDK by ADR-0130/0131: the default brake is the **turn cap** (`maxTurns`), which maps to real work, while the **USD ceiling was removed as a default** because the SDK's metered `total_cost_usd` is a phantom under flat/subscription billing; a dollar cap survives only as an opt-in `--budget` escape hatch (see `meter-fail-closed-caps-in-real-cost`).",
+    "provenance": "Resurrected for pay-as-you-go (ADR-0005). The ceiling unit/default, left open in v1 (`open-questions.md` §6), was resolved 2026-06-28 by ADR-0130/0131: the turn cap is the default brake; the USD ceiling is opt-in only (`--budget`), a phantom under subscription billing. See `meter-fail-closed-caps-in-real-cost`.",
     "schemaVersion": 2
   },
   {
@@ -2695,7 +2717,8 @@
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
       "asset:audit-the-signed-verdict",
-      "asset:plain-language-first"
+      "asset:plain-language-first",
+      "asset:meter-fail-closed-caps-in-real-cost"
     ],
     "antiPatterns": [
       "asset:never-bypass-the-gate",
@@ -2721,6 +2744,7 @@
       "asset:verify-edit-write-persisted-or-escalate",
       "asset:audit-the-signed-verdict",
       "asset:plain-language-first",
+      "asset:meter-fail-closed-caps-in-real-cost",
       "asset:never-bypass-the-gate",
       "asset:agent-never-self-exempts",
       "asset:approval-gated-trunk",

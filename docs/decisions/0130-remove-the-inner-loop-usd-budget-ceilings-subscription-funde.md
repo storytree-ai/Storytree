@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-06-28
 amends: [5]
+load_bearing: true
 ---
 # ADR-0130: Remove the inner-loop USD budget ceilings (subscription-funded; the turn cap is the brake)
 
