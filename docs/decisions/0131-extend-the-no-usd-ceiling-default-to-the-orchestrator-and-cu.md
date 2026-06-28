@@ -69,6 +69,11 @@ no-USD-ceiling, with the turn cap as the uniform runaway brake.
 - [ADR-0108](0108-chat-driven-orchestration-a-server-side-session-orchestrator.md) — **resolves its
   deferred per-session budget control** in the no-ceiling direction (the orchestrator session's
   `?? 1` default).
+- [ADR-0132](0132-the-desktop-chat-is-orchestrator-first-on-the-smartest-model.md) — **parallel
+  declaration.** Landed first (a sibling session) and DECLARED the orchestrator's no-USD-ceiling budget
+  as part of the desktop-chat shape, but did not change the code. This ADR is the IMPLEMENTATION (drops
+  the `?? 1` in `headless-orchestrator.ts`) and additionally covers the curator (ADR-0067), which
+  ADR-0132 does not touch. The two converge — neither supersedes the other.
 - [ADR-0067](0067-the-inner-loop-runs-a-scoped-librarian-curator-after-a-green.md) — the post-green
   librarian-curator whose `?? 0.5` default this removes; its best-effort, never-fails-the-build,
   read-only properties are untouched.
