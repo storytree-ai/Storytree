@@ -186,11 +186,15 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // story is not real-buildable.
   // And the four `chat-drive-bridge`-story capabilities (stories/chat-drive-bridge/*.md — ADR-0108
   // Phase 3+4 the propose→drive bridge, each a NET-NEW `real:` arm): accept-to-land-affordance,
-  // chat-build-dispatch, proposal-id-threading, proposed-unit-signal (the first, proposed-unit-signal,
-  // landed with a signed verdict; the rest are authored, awaiting their drives).
+  // chat-build-dispatch, proposal-id-threading, proposed-unit-signal (all four now landed with signed
+  // verdicts — the bridge's machine-provable surface is complete).
+  // And the three `desktop-build-mount`-story capabilities (stories/desktop-build-mount/*.md — ADR-0133,
+  // the desktop becomes a full propose→accept→drive→land surface by relocating the build worker to a
+  // shared package and mounting it on the desktop sidecar): desktop-accept-dispatch, desktop-build-route,
+  // worker-relocation (each a `real:` arm; authored, awaiting their drives).
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
