@@ -1,31 +1,18 @@
-// GENERATOR (inverse of bootstrap): knowledge.json -> the derived artifacts.
+// GENERATOR (inverse of bootstrap): knowledge.json -> the derived asset store.
 //
 //   npx tsx apps/studio/data/build-corpus.mjs
 //
 // Reads apps/studio/data/knowledge.json (the structured source of truth) and
-// regenerates:
-//   (a) apps/studio/data/assets.json — each knowledge unit's `body` rendered via
-//       @storytree/library renderBody (category = kind, id/references/timestamps kept);
-//       PLUS the generated template-<kind> units (definition / principle / pattern /
-//       guardrail / techstack / open-question) via generateTemplate, and template-adr
-//       kept verbatim (it scaffolds the ADR source layer, not a knowledge kind).
-//   (b) docs/glossary.md — the glossary is now a GENERATED VIEW of knowledge.json
-//       (owner decision #2: the glossary becomes a generated view of the structured
-//       knowledge source, not a hand-edited file). Every glossary member is a knowledge
-//       unit carrying `glossarySection` (the `## ` heading it sits under). Sections, the
-//       preamble, the lifecycle-section intro, and the "## v1 -> v2 term map" table are
-//       emitted in the order fixed by GLOSSARY_SECTION_ORDER, which also fixes the within-
-//       section term order. Each term renders as `**label** — paragraph`:
-//         - label    = `glossaryTerm ?? title` (the exact bolded label, asides/casing).
-//         - paragraph for a `definition` = `whatItIs` + (whatItIsNot ? " " + whatItIsNot : "")
-//                      — round-1 split the authoritative paragraph into oneLine/whatItIs/
-//                      whatItIsNot/seeAlso; recomposing whatItIs+whatItIsNot preserves the
-//                      definition's full meaning (seeAlso is links/provenance, not prose).
-//         - paragraph for a NON-definition (principle/pattern/guardrail) = its one-line
-//                      `description` (those members have no whatItIs; their glossary form is
-//                      a terse one-liner). NOTE: `cold-rebuild`'s authoritative glossary
-//                      entry is a rich multi-clause paragraph that `description` does not
-//                      fully carry — see the build-corpus report; flagged for owner review.
+// regenerates apps/studio/data/assets.json — each knowledge unit's `body`
+// rendered via @storytree/library renderBody (category = kind, id/references/
+// timestamps kept); PLUS the generated template-<kind> units (definition /
+// principle / pattern / guardrail / techstack / open-question) via
+// generateTemplate, and template-adr kept verbatim (it scaffolds the ADR source
+// layer, not a knowledge kind).
+//
+// (docs/glossary.md was a second generated view of knowledge.json; it was RETIRED
+// by ADR-0135 — the Library's definition artifacts are the sole term authority and
+// terms are looked up just-in-time, so there is no longer a generated dictionary.)
 //
 // Asset ORDERING is taken from the existing assets.json; the field VALUES
 // (title/description/references/body) are rendered from knowledge.json — the
@@ -33,7 +20,7 @@
 // renderBody/generateTemplate are driven by the same KIND_SPECS the schema and
 // the parser use — one table, three consumers, ADR-0017 "templates -> schema".
 
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import {
@@ -44,17 +31,13 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
-// Path overrides (default = the real in-repo locations) let `--check` run against a temp fixture
-// tree — see packages/cli/src/corpus-build-check.test.ts — and keep the generator relocatable.
+// Path override (default = the real in-repo location) lets `--check` run against a temp fixture tree —
+// see packages/cli/src/corpus-build-check.test.ts — and keeps the generator relocatable.
 const dataDir = process.env.STORYTREE_CORPUS_DATA_DIR
   ? path.resolve(process.env.STORYTREE_CORPUS_DATA_DIR)
   : here;
 const assetsFile = path.join(dataDir, 'assets.json');
 const knowledgeFile = path.join(dataDir, 'knowledge.json');
-const glossaryFile = process.env.STORYTREE_CORPUS_GLOSSARY
-  ? path.resolve(process.env.STORYTREE_CORPUS_GLOSSARY)
-  : path.join(repoRoot, 'docs', 'glossary.md'); // GENERATED view (written here)
-const glossarySidecarFile = path.join(path.dirname(glossaryFile), 'glossary.generated.md'); // retired sidecar — deleted
 
 const KNOWLEDGE_KINDS = new Set(Object.keys(KIND_SPECS));
 const GENERATED_TEMPLATE_KINDS = new Set([
@@ -84,7 +67,7 @@ const TEMPLATE_GLOSS = {
 };
 
 // ---------------------------------------------------------------------------
-// (a) assets.json
+// assets.json
 // ---------------------------------------------------------------------------
 
 // Render one knowledge doc into a runtime-store asset. `category` is the doc's
@@ -174,233 +157,36 @@ function computeAssets() {
 }
 
 // ---------------------------------------------------------------------------
-// (b) docs/glossary.md
-// ---------------------------------------------------------------------------
-
-// The glossary preamble (title + lead paragraph), verbatim. Emitted before the
-// first term section.
-const GLOSSARY_PREAMBLE = `# Glossary
-
-Authoritative terminology for storytree. Every layer — the library schema, the
-orchestrator, the studio UI, and the ADRs — uses these words as defined
-here. When a term's meaning is in question, **this file wins**. The reasoning
-and the tier-boundary rules live in
-[ADR-0002](decisions/0002-work-hierarchy-story-capability-contract.md).`;
-
-// The lifecycle section carries an intro paragraph before its bolded terms.
-// Keyed by section heading; emitted right after the `## ` heading.
-const SECTION_INTROS = {
-  "Lifecycle (a capability's status)": `Status lives on every tier (story / capability / contract); a **story**'s state is
-not a pure rollup — it carries its own UAT proof (ADR-0010) on top of its
-capabilities'. Carried from v1's lifecycle, with
-\`under_construction\` renamed to **building** and the health metaphor kept (we did
-*not* rename \`healthy\` to "proven" — "proven" stays as general proof-mode
-language, \`healthy\` is the status word).`,
-};
-
-// The ordered list of `## ` term sections, and the id order within each (matches
-// docs/glossary.md). Members are knowledge units of ANY kind that carry
-// `glossarySection`: definitions render from whatItIs+whatItIsNot, non-definitions
-// (principle/pattern/guardrail — e.g. prove-it-gate, cold-rebuild, red-green, and the
-// "Principles & patterns" block) from their one-line `description`. This list fixes
-// heading order and within-section term order; `glossarySection` on each unit is the
-// membership predicate (see assertGlossaryMembership).
-const GLOSSARY_SECTION_ORDER = [
-  { heading: 'The work hierarchy', ids: ['story', 'capability', 'contract'] },
-  {
-    heading: 'Supporting terms',
-    ids: [
-      'node', 'run', 'uat', 'contract-test', 'dependency', 'boundary', 'event',
-      'event-log', 'node-rollup', 'pi-event-stream', 'approval-event-promotion-event', 'dag',
-    ],
-  },
-  {
-    heading: "Lifecycle (a capability's status)",
-    ids: ['lifecycle-status'],
-  },
-  {
-    heading: 'Proof, evidence & gating',
-    ids: [
-      'gate', 'prove-it-gate', 'proof-mode', 'operator-attested', 'convergence',
-      'cold-rebuild', 'per-node-budget', 'approval', 'verdict', 'evidence',
-      'proof-hash', 'red-green', 'mock-uat-seam',
-    ],
-  },
-  {
-    heading: 'Principles & patterns (carried from v1)',
-    ids: [
-      'deep-modules', 'defects-amend-the-owning-story', 'fail-closed-on-dirty-tree',
-      'standalone-resilient-library', 'verification-wins', 'human-owns-the-outer-loop',
-    ],
-  },
-  { heading: 'Unit fields', ids: ['unit-fields'] },
-  { heading: 'Concurrency & isolation', ids: ['claim', 'write-ownership', 'noticeboard'] },
-  {
-    heading: 'Studio & tooling',
-    ids: [
-      'story-tree', 'library', 'studio', 'orchestrator', 'spine', 'leaf-step-leaf-judgment',
-      'pi-adapter', 'trunk', 'steering', 'adr', 'fixture', 'ndjson', 'asset',
-    ],
-  },
-];
-
-// The "## v1 -> v2 term map" section, verbatim — has no definition units and would
-// be lost if the glossary were rebuilt purely from them. Carried through unchanged.
-const TERM_MAP_SECTION = `## v1 → v2 term map
-
-For reading v1 (Agentic) docs. Left = what v1 wrote; right = how to read it here.
-
-| v1 term | storytree |
-|---|---|
-| story | **capability** (the in-story provable unit, now integration-proven; ADR-0010) |
-| epic | a grouping — closest is **story**; a dedicated epic tier is deferred |
-| \`contract.yml\` (per-agent) | — dropped (v2 has no per-agent contract file) |
-| "story is a contract" / red-green | the **red-green** principle / a capability's proof — not the noun \`contract\` |
-| acceptance / acceptance.tests | a story's **UAT** + its capabilities' **integration tests** + their **contract tests** (ADR-0010) |
-| depends_on / predecessor / prerequisite | **dependency** (in-story: code-derived; cross-story: via a **boundary**; ADR-0010) |
-| under_construction | **building** |
-| healthy / proven | **healthy** |
-| dashboard | **studio** |
-| \`manual_signings\` (ADR-0024) | **operator-attested** proof mode (ADR-0007) |
-| \`session_claims\` table (ADR-0022) | **claim** in the shared store (ADR-0009) |
-| \`declared_scope\` / \`does_not_touch\` | **write-ownership** (one vocabulary; ADR-0009) |
-| \`runs\` / \`test_runs\` (per-build) | a per-node **run** (execution event) + the **node rollup** projection (ADR-0004, ADR-0006) |
-| auto-merge-on-green trunk | the **approval-gated trunk** (human admits green; ADR-0008) |
-| asset (shared DRY content) | — dropped; in storytree **asset = tree art** (ADR-0001) |
-| pattern (the \`patterns/\` subsystem) | — dropped; named patterns (e.g. standalone-resilient-library) carry |
-| deployment (v1, ×3 overload) | — not carried; v1 conflated VCS-exclusion vs runtime-artifact-exclusion (ADR-0003) — guard against the overload, do not reintroduce the word |`;
-
-/**
- * Render one knowledge unit as a glossary term entry: `label — paragraph`.
- *   - label     = the verbatim bolded label. `glossaryTerm` carries the FULL label markup
- *                 (its own `**…**` markers, plus any plain-text aside that sits OUTSIDE the
- *                 bold in the glossary, e.g. `**run** (owned-loop run / attempt)`); when
- *                 absent the label is just the bolded `title`.
- *   - paragraph = `glossaryBody`, the term's canonical glossary blurb stored VERBATIM (the
- *                 exact prose after `**label** — ` in docs/glossary.md). This is the
- *                 authoritative source line, intentionally distinct from the Library body
- *                 fields, so the regenerated glossary is BYTE-IDENTICAL to its source.
- *                 FALLBACK (only when `glossaryBody` is absent): recompose from the Library
- *                 fields — a `definition`'s `whatItIs` + (whatItIsNot ? " " + whatItIsNot : ""),
- *                 or any other kind's one-line `description`.
- */
-function renderGlossaryTerm(doc) {
-  const label = doc.glossaryTerm ?? `**${doc.title}**`;
-  const paragraph =
-    doc.glossaryBody ??
-    (doc.kind === 'definition'
-      ? doc.whatItIs + (doc.whatItIsNot ? ' ' + doc.whatItIsNot : '')
-      : doc.description);
-  return `${label} — ${paragraph}`;
-}
-
-/**
- * Guard against glossary drift: every unit carrying `glossarySection` must be placed
- * in GLOSSARY_SECTION_ORDER (right heading + listed id), and every listed id must exist
- * and carry a matching `glossarySection`. Throws on any mismatch so the order table and
- * the source can never silently diverge.
- */
-function assertGlossaryMembership(docById) {
-  const placed = new Map(); // id -> heading
-  for (const section of GLOSSARY_SECTION_ORDER) {
-    for (const id of section.ids) {
-      const doc = docById.get(id);
-      if (!doc) throw new Error(`glossary order lists unknown id ${id}`);
-      if (doc.glossarySection !== section.heading) {
-        throw new Error(
-          `glossary id ${id}: glossarySection ${JSON.stringify(doc.glossarySection)} ` +
-            `!= ordered section ${JSON.stringify(section.heading)}`,
-        );
-      }
-      placed.set(id, section.heading);
-    }
-  }
-  for (const doc of docById.values()) {
-    if (doc.glossarySection && !placed.has(doc.id)) {
-      throw new Error(
-        `unit ${doc.id} has glossarySection ${JSON.stringify(doc.glossarySection)} ` +
-          `but is not placed in GLOSSARY_SECTION_ORDER`,
-      );
-    }
-  }
-}
-
-// Pure: compute the full generated glossary text from knowledge.json. The write + sidecar retirement
-// live in runBuild so `--check` can regenerate without touching the tree.
-function computeGlossary() {
-  const docs = JSON.parse(readFileSync(knowledgeFile, 'utf8'));
-  const docById = new Map(docs.map((d) => [d.id, d]));
-
-  assertGlossaryMembership(docById);
-
-  const blocks = [GLOSSARY_PREAMBLE];
-
-  for (const section of GLOSSARY_SECTION_ORDER) {
-    blocks.push(`## ${section.heading}`);
-    if (SECTION_INTROS[section.heading]) {
-      blocks.push(SECTION_INTROS[section.heading]);
-    }
-    for (const id of section.ids) {
-      blocks.push(renderGlossaryTerm(docById.get(id)));
-    }
-  }
-
-  blocks.push(TERM_MAP_SECTION);
-
-  const generated = blocks.join('\n\n') + '\n';
-  return generated;
-}
-
-// ---------------------------------------------------------------------------
 
 // LF-space compare so a Windows (CRLF) checkout never shows spurious drift — the build-agents.ts fix.
 const toLf = (s) => s.replace(/\r\n/g, '\n');
 
-// Default mode: (re)generate assets.json + glossary.md and retire the sidecar.
+// Default mode: (re)generate assets.json.
 function runBuild() {
   const assets = computeAssets();
   writeFileSync(assetsFile, serializeAssets(assets), 'utf8');
-  const glossary = computeGlossary();
-  writeFileSync(glossaryFile, glossary, 'utf8');
-  let removedSidecar = false;
-  if (existsSync(glossarySidecarFile)) {
-    unlinkSync(glossarySidecarFile);
-    removedSidecar = true;
-  }
   const byCat = assets.reduce((acc, a) => ((acc[a.category] = (acc[a.category] ?? 0) + 1), acc), {});
-  const genHeadings = (glossary.match(/^## .+$/gm) ?? []).length;
   console.log(`build-corpus OK — wrote ${assets.length} assets -> ${assetsFile}`);
   console.log('  by category:', JSON.stringify(byCat));
-  console.log(`  wrote generated glossary -> ${glossaryFile} (${genHeadings} sections)`);
-  if (removedSidecar) {
-    console.log('  retired sidecar -> docs/glossary.generated.md (deleted)');
-  }
 }
 
 // `--check` mode (DB-free, wired into CI + `pnpm gate`): regenerate IN MEMORY and FAIL (exit 1) if
-// the on-disk generated views have drifted — so a stale glossary/assets.json can never merge clean.
-// The mirror of check:claude / check:agents for the corpus generator. Writes nothing.
+// the on-disk assets.json has drifted — so a stale assets.json can never merge clean. The mirror of
+// check:claude / check:agents for the corpus generator. Writes nothing.
 function runCheck() {
   const assets = computeAssets();
   const assetsGenerated = serializeAssets(assets);
-  const glossaryGenerated = computeGlossary();
   const assetsOnDisk = existsSync(assetsFile) ? readFileSync(assetsFile, 'utf8') : '';
-  const glossaryOnDisk = existsSync(glossaryFile) ? readFileSync(glossaryFile, 'utf8') : '';
 
-  const drift = [];
-  if (toLf(assetsOnDisk) !== toLf(assetsGenerated)) drift.push(assetsFile);
-  if (toLf(glossaryOnDisk) !== toLf(glossaryGenerated)) drift.push(glossaryFile);
-  if (existsSync(glossarySidecarFile)) drift.push(`${glossarySidecarFile} (retired sidecar still present)`);
-
-  if (drift.length > 0) {
+  if (toLf(assetsOnDisk) !== toLf(assetsGenerated)) {
     console.error(
-      'check:corpus-build — STALE generated views. Regenerate with ' +
+      'check:corpus-build — STALE assets.json. Regenerate with ' +
         '`npx tsx apps/studio/data/build-corpus.mjs` and commit:',
     );
-    for (const d of drift) console.error('  ' + path.relative(repoRoot, d));
+    console.error('  ' + path.relative(repoRoot, assetsFile));
     process.exit(1);
   }
-  console.log(`check:corpus-build — assets.json + glossary.md in sync (${assets.length} assets).`);
+  console.log(`check:corpus-build — assets.json in sync (${assets.length} assets).`);
 }
 
 function main() {

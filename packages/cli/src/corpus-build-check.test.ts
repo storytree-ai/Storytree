@@ -1,12 +1,13 @@
 // Red→green for `apps/studio/data/build-corpus.mjs --check` (ADR-0120, finding 3a): the corpus
-// generator now has a DB-free drift gate, wired into `pnpm gate` + CI, so a STALE assets.json or
-// glossary.md can no longer merge clean (before this, build-corpus had no --check and nothing in CI
-// compared the generated views to their knowledge.json source).
+// generator has a DB-free drift gate, wired into `pnpm gate` + CI, so a STALE assets.json can no
+// longer merge clean (before this, build-corpus had no --check and nothing in CI compared the
+// generated view to its knowledge.json source). (docs/glossary.md was a second generated view, gated
+// the same way; retired by ADR-0135 — the Library's definition artifacts are the term authority.)
 //
 // This is an end-to-end test of the real script: it copies the real (in-sync) corpus into a temp
-// fixture tree, points build-corpus at it via STORYTREE_CORPUS_DATA_DIR / STORYTREE_CORPUS_GLOSSARY,
-// and asserts --check passes on the clean tree (GREEN) and exits non-zero on each kind of drift (RED).
-// Spawned (not imported) so it stays boundary-clean: cli never imports apps/studio source.
+// fixture tree, points build-corpus at it via STORYTREE_CORPUS_DATA_DIR, and asserts --check passes on
+// the clean tree (GREEN) and exits non-zero on drift (RED). Spawned (not imported) so it stays
+// boundary-clean: cli never imports apps/studio source.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,27 +21,23 @@ const CLI_DIR = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 const SCRIPT = path.join(REPO_ROOT, "apps", "studio", "data", "build-corpus.mjs");
 const REAL_DATA = path.join(REPO_ROOT, "apps", "studio", "data");
-const REAL_GLOSSARY = path.join(REPO_ROOT, "docs", "glossary.md");
 
-/** Lay down a fresh in-sync fixture tree (real knowledge.json + its generated views) in a temp dir. */
-function fixture(): { dataDir: string; glossary: string } {
+/** Lay down a fresh in-sync fixture tree (real knowledge.json + its generated assets.json) in a temp dir. */
+function fixture(): { dataDir: string } {
   const dataDir = mkdtempSync(path.join(tmpdir(), "corpus-build-check-"));
   copyFileSync(path.join(REAL_DATA, "knowledge.json"), path.join(dataDir, "knowledge.json"));
   copyFileSync(path.join(REAL_DATA, "assets.json"), path.join(dataDir, "assets.json"));
-  const glossary = path.join(dataDir, "glossary.md");
-  copyFileSync(REAL_GLOSSARY, glossary);
-  return { dataDir, glossary };
+  return { dataDir };
 }
 
 /** Run `build-corpus.mjs --check` against the fixture; return its exit status + stderr (never throws). */
-function runCheck(fx: { dataDir: string; glossary: string }): { status: number; stderr: string } {
+function runCheck(fx: { dataDir: string }): { status: number; stderr: string } {
   try {
     execFileSync(process.execPath, ["--import", "tsx", SCRIPT, "--check"], {
       cwd: CLI_DIR,
       env: {
         ...process.env,
         STORYTREE_CORPUS_DATA_DIR: fx.dataDir,
-        STORYTREE_CORPUS_GLOSSARY: fx.glossary,
       },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -69,33 +66,15 @@ test("--check: FAILS when assets.json has drifted from knowledge.json", () => {
   assert.match(stderr, /assets\.json/);
 });
 
-test("--check: FAILS when glossary.md has drifted", () => {
-  const fx = fixture();
-  writeFileSync(fx.glossary, readFileSync(fx.glossary, "utf8") + "\n\nstray hand-edit\n", "utf8");
-
-  const { status, stderr } = runCheck(fx);
-  assert.equal(status, 1);
-  assert.match(stderr, /glossary\.md/);
-});
-
-test("--check: FAILS when knowledge.json was edited but the views were not regenerated", () => {
+test("--check: FAILS when knowledge.json was edited but assets.json was not regenerated", () => {
   const fx = fixture();
   const kPath = path.join(fx.dataDir, "knowledge.json");
   const docs = JSON.parse(readFileSync(kPath, "utf8")) as { description?: string }[];
-  // `description` flows into every rendered asset but never changes glossary MEMBERSHIP (which keys on
-  // id + glossarySection), so this is a clean stale-views case, not an assertGlossaryMembership crash.
+  // `description` flows into every rendered asset, so a knowledge edit without a rebuild leaves a stale
+  // assets.json the --check must catch.
   docs[0]!.description = `${docs[0]!.description ?? ""} (edited, views not rebuilt)`;
   writeFileSync(kPath, JSON.stringify(docs, null, 2) + "\n", "utf8");
 
   const { status } = runCheck(fx);
   assert.equal(status, 1);
-});
-
-test("--check: FAILS when the retired glossary sidecar reappears", () => {
-  const fx = fixture();
-  writeFileSync(path.join(fx.dataDir, "glossary.generated.md"), "# stale sidecar\n", "utf8");
-
-  const { status, stderr } = runCheck(fx);
-  assert.equal(status, 1);
-  assert.match(stderr, /sidecar/);
 });

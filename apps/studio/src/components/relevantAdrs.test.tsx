@@ -13,7 +13,7 @@ const data = vi.hoisted(() => ({
   docs: [
     { id: 'decisions/0017-the-library-tier.md', title: 'The library tier', group: 'Decisions', excerpt: '', status: 'accepted' },
     { id: 'decisions/0097-brownfield.md', title: 'Brownfield go-green', group: 'Decisions', excerpt: '', status: 'accepted' },
-    { id: 'glossary.md', title: 'Glossary', group: 'Reference', excerpt: '' },
+    { id: 'open-questions.md', title: 'Open questions', group: 'Reference', excerpt: '' },
   ] as DocMeta[],
 }));
 vi.mock('../lib/appData', () => ({ useAppData: () => ({ docs: data.docs }) }));
@@ -26,7 +26,7 @@ describe('adrNumberOf', () => {
   it('extracts the 4-digit number from a Decisions doc id', () => {
     expect(adrNumberOf('decisions/0017-the-library-tier.md')).toBe(17);
     expect(adrNumberOf('decisions/0097-brownfield.md')).toBe(97);
-    expect(adrNumberOf('glossary.md')).toBeNull();
+    expect(adrNumberOf('open-questions.md')).toBeNull();
   });
 });
 

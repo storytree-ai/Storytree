@@ -44,10 +44,11 @@ npx tsx apps/studio/data/build-corpus.mjs   # regenerate the Library from knowle
 
 The Library is **generated, not seeded.** The structured source of truth is
 [`data/knowledge.json`](data/knowledge.json); `build-corpus.mjs` renders it into
-two derived views — [`data/assets.json`](data/assets.json) (what the UI reads) and
-[`../../docs/glossary.md`](../../docs/glossary.md). Never hand-edit those two
-outputs; edit `knowledge.json` and rebuild. The old `data/seed.assets.mjs` seeder
-is **retired**. The library is **also** migrated into the shared Cloud SQL Postgres
+[`data/assets.json`](data/assets.json) (what the UI reads). Never hand-edit that
+output; edit `knowledge.json` and rebuild. The old `data/seed.assets.mjs` seeder
+is **retired** (and `docs/glossary.md`, formerly a second generated view, was
+retired by ADR-0135 — the Library's definition artifacts are the term authority).
+The library is **also** migrated into the shared Cloud SQL Postgres
 store ([`packages/store`](../../packages/store)); the studio ↔ store swap (reading
 the Library from Postgres instead of the local JSON) is still **pending**.
 
@@ -171,13 +172,12 @@ cards at runtime (served live by the dev API, not stored in `assets.json`).
   new decisions can be authored as `adr` artifacts. Durable guidance is still
   **synthesised out of** the ADRs into principles/patterns/guardrails, each citing
   its source ADR via `references`.
-- **Glossary → definitions.** Every `**term** — …` in `docs/glossary.md` becomes a
-  `definition` artifact at build time. Conversely `glossary.md` is now a *generated
-  view* of `knowledge.json` (built by `build-corpus.mjs`), the cited source being
-  the structured knowledge units.
+- **Definitions are the term authority.** Each term is a `definition` artifact in the
+  Library, looked up just-in-time. (A generated `docs/glossary.md` formerly mirrored them as
+  one page; ADR-0135 retired it — the structured knowledge units are the source.)
 - **Text-quote anchoring** (W3C Web Annotation) for the highlight layer — see
   "Commenting" above. No anchoring/markdown-highlight dependency; hand-rolled.
-- **`GuidanceAsset`, not bare `asset`.** The glossary reserves **`asset`** for
+- **`GuidanceAsset`, not bare `asset`.** The corpus reserves **`asset`** for
   tree/game art (open-questions §9 / adjudication §J say the knowledge tier must
   be renamed when it returns). The type is `GuidanceAsset`; the UI says
   "artifact". This re-opens §9's parked tier as a concrete model worth a look
