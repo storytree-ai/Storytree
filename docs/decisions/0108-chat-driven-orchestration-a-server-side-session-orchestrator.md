@@ -16,6 +16,13 @@ decide → decompose → build → curate → open the landing PR), and **one or
 time** to start. Per-session budget controls are deferred (owner: not a day-one concern). The chat
 surface's APPEARANCE is operator-attested under ADR-0070 when built.
 
+> **Amended by [ADR-0132](0132-the-desktop-chat-is-orchestrator-first-on-the-smartest-model.md)**
+> (accepted, 2026-06-28) — the Phase-2 chat surface is settled: orchestrator-first (no concierge) on the
+> smartest model (Opus), with a `storytree-guide` help specialist; §7 is reconciled (prose streaming is
+> the conversational rendering, the phase/tool trail the observability layer — "not the raw token stream"
+> amended accordingly); and the **deferred per-session budget** is resolved no-ceiling (the turn cap is the
+> brake, opt-in budget survives). The shape and phasing here stand.
+
 ## Context
 
 Today the session-orchestrator is a *generated prompt* (ADR-0051) that a human-run Claude Code session
