@@ -179,7 +179,8 @@ file conflicts).
   Live smoke (ADR-0030, subscription-billed): `pnpm storytree node build <id> --live`
   (`--dry-run` is the offline scripted walk). Phase E chains a WHOLE story in dependency order:
   `pnpm storytree story build <story-id> --dry-run | --live [--budget <usd>]` (topo order from
-  `depends_on`, story UAT node last, halt-is-never-a-pass; live default $10 total ceiling).
+  `depends_on`, story UAT node last, halt-is-never-a-pass; live/real have NO USD ceiling by default —
+  the turn cap is the runaway brake, ADR-0130 — and `--budget` opts into a total ceiling).
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
 - Library CLI (ADR-0023): `pnpm storytree library` (explore; offline). Writes need the live DB:

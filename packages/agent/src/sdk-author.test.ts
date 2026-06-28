@@ -185,6 +185,49 @@ test("author => EXHAUSTED on a turn-ceiling result (error_max_turns) — the dis
   assert.equal(r.exhausted, true, "a turn-ceiling stop is exhaustion — green work must not be discarded");
 });
 
+// ── The SDK options the leaf runs under: no USD ceiling by default (ADR-0130) ─
+
+/** A query seam that records the `options` it was handed, then yields a bare success result. */
+function capturingQueryFn(): { fn: SdkQueryFn; last: () => Options | undefined } {
+  let captured: Options | undefined;
+  const fn: SdkQueryFn = async function* ({ options }) {
+    captured = options;
+    yield { type: "result", subtype: "success", is_error: false, num_turns: 1, total_cost_usd: 0 };
+  };
+  return { fn, last: () => captured };
+}
+
+test("author runs with NO USD budget ceiling by default — the turn cap is the brake (ADR-0130)", async () => {
+  const cap = capturingQueryFn();
+  const author = new ClaudeAgentAuthor({ cwd: CWD, isWriteAllowed: () => true, queryFn: cap.fn });
+
+  const r = await author.author("AUTHOR_TEST", "author the failing test");
+  assert.deepEqual(r, { ok: true });
+  const options = cap.last();
+  assert.ok(options !== undefined, "the query seam saw the options");
+  // The keystone: a subscription-funded leaf (ADR-0030) gets no phantom dollar wall by default…
+  assert.equal(
+    options?.maxBudgetUsd,
+    undefined,
+    "no maxBudgetUsd is passed to the SDK unless --budget was explicitly set",
+  );
+  // …but the genuine runaway brake (the turn cap) is still in force.
+  assert.equal(options?.maxTurns, 16, "the turn cap remains the default runaway brake");
+});
+
+test("author passes an explicit --budget through as maxBudgetUsd (the opt-in cap survives, ADR-0130)", async () => {
+  const cap = capturingQueryFn();
+  const author = new ClaudeAgentAuthor({
+    cwd: CWD,
+    isWriteAllowed: () => true,
+    maxBudgetUsd: 3,
+    queryFn: cap.fn,
+  });
+
+  await author.author("IMPLEMENT", "implement it");
+  assert.equal(cap.last()?.maxBudgetUsd, 3, "an operator-set budget is still honoured as a ceiling");
+});
+
 test("author => a GENUINE error (error_during_execution) is NOT exhaustion — fail closed, no fall-through", async () => {
   const author = new ClaudeAgentAuthor({
     cwd: CWD,
