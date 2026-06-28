@@ -184,9 +184,13 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // are real-buildable again ONLY to be driven via their gate, not a blanket story Build — the gate's
   // verdict signs FOR the gate id and greens no capability, so the other five caps stay arm-less and the
   // story is not real-buildable.
+  // And the four `chat-drive-bridge`-story capabilities (stories/chat-drive-bridge/*.md — ADR-0108
+  // Phase 3+4 the propose→drive bridge, each a NET-NEW `real:` arm): accept-to-land-affordance,
+  // chat-build-dispatch, proposal-id-threading, proposed-unit-signal (the first, proposed-unit-signal,
+  // landed with a signed verdict; the rest are authored, awaiting their drives).
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
+    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
