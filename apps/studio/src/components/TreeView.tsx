@@ -2450,66 +2450,68 @@ function SharedIslandsPanel({
 
   return (
     <div className="shared-islands-panel" ref={panelRef}>
-      {/* The relocated world legend (ABOVE the islands). Controlled: the panel owns the open
-          chip via the shared right-flyout, and renders the drawer body to the RIGHT — so a chip
-          expansion never shoves the panel's content down. */}
-      <section className="panel-section panel-legend">
-        <h3 className="panel-head">Legend</h3>
-        <WorldLegend
-          stories={stories}
-          builds={builds}
-          now={now}
-          hidden={hidden}
-          onToggleStatus={onToggleStatus}
-          onResetHidden={onResetHidden}
-          open={legendOpen}
-          onToggle={(key) =>
-            key ? dispatch({ type: 'toggle', key: legendKey(key) }) : dispatch({ type: 'close' })
-          }
-          renderDrawer={false}
-          barClassName="legend-bar-panel"
-        />
-      </section>
+      <div className="shared-islands-panel-body">
+        {/* The relocated world legend (ABOVE the islands). Controlled: the panel owns the open
+            chip via the shared right-flyout, and renders the drawer body to the RIGHT — so a chip
+            expansion never shoves the panel's content down. */}
+        <section className="panel-section panel-legend">
+          <h3 className="panel-head">Legend</h3>
+          <WorldLegend
+            stories={stories}
+            builds={builds}
+            now={now}
+            hidden={hidden}
+            onToggleStatus={onToggleStatus}
+            onResetHidden={onResetHidden}
+            open={legendOpen}
+            onToggle={(key) =>
+              key ? dispatch({ type: 'toggle', key: legendKey(key) }) : dispatch({ type: 'close' })
+            }
+            renderDrawer={false}
+            barClassName="legend-bar-panel"
+          />
+        </section>
 
-      <section className="panel-section panel-islands">
-        <h3 className="panel-head">Shared Islands</h3>
-        {islands.length === 0 ? (
-          <p className="panel-empty">No shared islands. (Set <code>?buildings=off</code> to draw them on the map instead.)</p>
-        ) : (
-          <div className="shared-islands-list">
-            {islands.map((s) => (
-              <div
-                key={s.id}
-                className="shared-island-slot"
-                ref={(el) => {
-                  if (el) islandRefs.current.set(s.id, el);
-                  else islandRefs.current.delete(s.id);
-                }}
-              >
-                <SharedIslandCard
-                  story={s}
-                  stories={stories}
-                  hidden={hidden}
-                  builds={builds}
-                  now={now}
-                  highlighted={s.id === highlightId}
-                  substrateMode={substrateMode}
-                  substrateTuning={substrateTuning}
-                  onSelect={() => onSelectIsland(s.id)}
-                />
-                <button
-                  type="button"
-                  className={`shared-island-detail-toggle${openIslandId === s.id ? ' on' : ''}`}
-                  aria-expanded={openIslandId === s.id}
-                  onClick={() => dispatch({ type: 'toggle', key: `island:${s.id}` })}
+        <section className="panel-section panel-islands">
+          <h3 className="panel-head">Shared Islands</h3>
+          {islands.length === 0 ? (
+            <p className="panel-empty">No shared islands. (Set <code>?buildings=off</code> to draw them on the map instead.)</p>
+          ) : (
+            <div className="shared-islands-list">
+              {islands.map((s) => (
+                <div
+                  key={s.id}
+                  className="shared-island-slot"
+                  ref={(el) => {
+                    if (el) islandRefs.current.set(s.id, el);
+                    else islandRefs.current.delete(s.id);
+                  }}
                 >
-                  {s.id} · details
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+                  <SharedIslandCard
+                    story={s}
+                    stories={stories}
+                    hidden={hidden}
+                    builds={builds}
+                    now={now}
+                    highlighted={s.id === highlightId}
+                    substrateMode={substrateMode}
+                    substrateTuning={substrateTuning}
+                    onSelect={() => onSelectIsland(s.id)}
+                  />
+                  <button
+                    type="button"
+                    className={`shared-island-detail-toggle${openIslandId === s.id ? ' on' : ''}`}
+                    aria-expanded={openIslandId === s.id}
+                    onClick={() => dispatch({ type: 'toggle', key: `island:${s.id}` })}
+                  >
+                    {s.id} · details
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* The ONE right-flyout (a self-contained box anchored to the panel's right edge): either
           the open legend row's drawer body, or the open shared island's detail. */}

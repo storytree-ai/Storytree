@@ -1577,18 +1577,16 @@ mark.st-hl.flash {
   margin: 0;
   font-size: 19px;
 }
-/* The detail panel OVERLAYS the world from the right edge (absolute inside
-   this wrapper) — opening or resizing it never reflows or rescales the world. */
+/* The world is full-bleed (the base layer); the Shared Islands panel + legend
+   float OVER it as a translucent overlay, and the detail panel overlays from the
+   right edge (both absolute inside this wrapper) — opening, expanding, or resizing
+   any of them never reflows or rescales the world (owner ask 2026-06-28). */
 .tree-layout {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
 }
-/* the world fills the row beside the permanent left Shared Islands panel (ADR-0088) */
+/* the world is the full-bleed base; the Shared Islands panel floats over it (ADR-0088) */
 .tree-layout > .world-frame {
-  flex: 1 1 auto;
-  min-width: 0;
+  width: 100%;
 }
 
 /* the world (top-down field; portrait — scrolls from the foundation upward) */
@@ -1881,21 +1879,33 @@ mark.st-hl.flash {
    vertical content never reflows.
    ============================================================================ */
 .shared-islands-panel {
-  position: relative;
-  flex: 0 0 240px;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
   width: 240px;
-  align-self: stretch;
-  max-height: 78vh;
-  overflow-y: auto;
-  overflow-x: visible;
+  max-height: calc(78vh - 24px);
+  overflow: visible; /* the inner body scrolls; the panel root must NOT clip the right flyout */
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 12px 12px 16px;
-  border: 1px solid var(--border);
   border-radius: 14px;
-  background: linear-gradient(170deg, var(--board-1), var(--board-2));
-  box-shadow: var(--shadow);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.18);
+}
+/* the inner scroll container — keeps the panel root overflow-visible so the flyout escapes */
+.shared-islands-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: visible;
 }
 .shared-islands-panel .panel-section {
   display: flex;
@@ -1995,11 +2005,13 @@ mark.st-hl.flash {
   width: 320px;
   max-height: calc(78vh - 24px);
   overflow-y: auto;
-  z-index: 4; /* above the floating side panel */
-  background: var(--surface);
+  z-index: 5; /* above the floating Shared Islands panel overlay */
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-strong);
   border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.2);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.24);
   padding: 12px 14px;
 }
 .panel-flyout-head {
