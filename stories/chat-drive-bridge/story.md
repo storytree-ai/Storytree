@@ -13,7 +13,7 @@ proof_mode: UAT
 # leg 4 — its GEOMETRY/BEHAVIOUR (the button dispatches a build, progress renders) is machine-witnessed.
 # The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 # driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
-capabilities: [proposed-unit-signal, proposal-id-threading, chat-build-dispatch, accept-to-land-affordance]
+capabilities: [proposed-unit-signal, proposal-id-threading, chat-build-dispatch, accept-to-land-affordance, desktop-build-dispatch-mount]
 # WHY A NEW STORY, NOT AN EDIT TO headless-orchestrator: that story is ADR-0108 Phases 1–2 and is
 # read/propose ONLY — its proof posture explicitly rests on "no builds, no signing, no landing" and it
 # states "Phases 3–5 ... remain out of scope." Adding DRIVE authority would break that invariant.
@@ -194,15 +194,20 @@ signed verdict per session, then the next is spawned. The honest status is `prop
 Status stays `proposed` for every unit — `healthy` is earned through the prove-it-gate AND the
 operator's attestation of the affordance; it is never authored (ADR-0020).
 
-## Capabilities (4)
+## Capabilities (5)
 
-Listed roots-first (a capability appears after everything it depends on). All four are **proof-wired**
-(ADR-0057 — each carries a `proof:` block with a `real:` arm describing a genuine additive net-new
-red→green against the real package/app source), so they form a **dependency-closed, acyclic set in
-which every member resolves a `real:` arm** — exactly what makes the WHOLE story story-`real`-buildable
-(`isStoryBuildable`). The affordance's APPEARANCE is NOT a separate capability (it has no isolatable
-red→green — it is the human-witness Story UAT leg, mirroring headless-orchestrator's live leg 4); the
-`accept-to-land-affordance` capability owns the affordance's machine-provable GEOMETRY/BEHAVIOUR.
+Listed roots-first (a capability appears after everything it depends on). All five are **proof-wired**
+(ADR-0057 — each carries a `proof:` block with a `real:` arm describing a genuine additive net-new /
+edit-existing red→green against the real package/app source), so they form a **dependency-closed, acyclic
+set in which every member resolves a `real:` arm** — exactly what makes the WHOLE story
+story-`real`-buildable (`isStoryBuildable`). The affordance's APPEARANCE is NOT a separate capability (it
+has no isolatable red→green — it is the human-witness Story UAT leg, mirroring headless-orchestrator's
+live leg 4); the `accept-to-land-affordance` capability owns the affordance's machine-provable
+GEOMETRY/BEHAVIOUR. The 5th capability — `desktop-build-dispatch-mount` — is the consuming-surface GLUE
+that mounts cap 3's dispatch core on the desktop backend so cap 4's accept-to-land click actually reaches
+a build (its CI-proven core is the registry-backed `/api/build` POST+GET on the local backend factory; the
+`backend-entry.ts` production wiring over the real `routedBuildRunner` is the desktop's operator-attested
+sidecar glue, exercised in UAT leg 5, not a standing CI assertion).
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
@@ -210,13 +215,18 @@ red→green — it is the human-witness Story UAT leg, mirroring headless-orches
 | 2 | [`proposal-id-threading`](proposal-id-threading.md) | The `proposedUnitId` is threaded through the `orchestrate()` composition and surfaced on `startChatStream`'s terminal `done` event (and thereby the SSE wire), reusing the Phase-1/2 chain verbatim. | `proposed-unit-signal` |
 | 3 | [`chat-build-dispatch`](chat-build-dispatch.md) | Given a human-ACCEPTED unit id, a chat-surface build-dispatch validates the unit is buildable and routes it to the EXISTING drive worker (`routedBuildRunner` / `runBuildJob` / the registry), returning a runId, and the worker's coarse progress is streamed back over the chat surface — a safe build INTENT, never a verdict-in. | `proposal-id-threading` |
 | 4 | [`accept-to-land-affordance`](accept-to-land-affordance.md) | The chat thin client renders an explicit, non-spoofable Build affordance ONLY on a proposal carrying a `proposedUnitId`; clicking it dispatches the build through the `api` seam and renders the run's progress — the human accept-to-land gate (geometry/behaviour machine-witnessed; appearance operator-attested). | `chat-build-dispatch` |
+| 5 | [`desktop-build-dispatch-mount`](desktop-build-dispatch-mount.md) | The desktop local backend serves a registry-backed `/api/build` (POST dispatch via the chat-build-dispatch core → `{ runId }`; `GET ?runId` → `{ status, transcript }`) over the routed build runner wired in `backend-entry.ts`, so the ChatPanel accept-to-land click drives a real build to a signed verdict + non-draft PR from inside the app, not a 404. | `chat-build-dispatch` |
 
 ## Dependency graph (will be code-derived)
 
 These are **within-story** edges. Until the code exists they are authored from the intended data-flow;
 when the units are built they MUST be re-derived from the real imports/calls between capabilities
-(static analysis, ADR-0010 §3) and corrected if the code disagrees. The graph is a chain;
-`proposed-unit-signal` is the root (the agent-side capture leaf, no in-story upstream).
+(static analysis, ADR-0010 §3) and corrected if the code disagrees. The graph is a chain 1→2→3 that
+FORKS at `chat-build-dispatch` (cap 3): both `accept-to-land-affordance` (cap 4, the client front) and
+`desktop-build-dispatch-mount` (cap 5, the backend mount) depend on the dispatch core and on nothing
+deeper in-story. `proposed-unit-signal` is the root (the agent-side capture leaf, no in-story upstream).
+Still acyclic — the fork's two arms (4, 5) are independent (neither imports the other; they meet only
+over the runtime `api`/HTTP wire, not a source edge).
 
 - `proposal-id-threading` → `proposed-unit-signal`
   - The threading reads the typed `proposedUnitId` the signal capability surfaces on
@@ -233,6 +243,14 @@ when the units are built they MUST be re-derived from the real imports/calls bet
     proposal carrying a `proposedUnitId` and, on click, calls the dispatch through the `api` seam and
     renders the run's progress. It owns no dispatch/validation logic — it adapts the dispatch into a
     UI gesture, so it couples to the dispatch's seam and to nothing deeper.
+- `desktop-build-dispatch-mount` → `chat-build-dispatch`
+  - The mount is the desktop BACKEND front of the dispatch: it serves the registry-backed `/api/build`
+    (POST+GET) the affordance's `api.build` / `api.buildStatus` calls reach, re-composing cap 3's
+    dispatch-core run-lifecycle behaviour locally (the desktop MAY NOT import `apps/studio/server`,
+    ADR-0100 — so it mirrors `dispatchAcceptedBuild`'s behaviour behind the SAME wire contract rather
+    than importing it). It couples to the dispatch's BEHAVIOUR + the wire contract, and to nothing
+    deeper in-story. It is independent of cap 4: the two are the backend and client halves of the same
+    seam, meeting over the runtime `api`/HTTP wire, not a source import.
 
 ## Cross-story boundary (ADR-0010 §4)
 
