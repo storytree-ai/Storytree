@@ -11,11 +11,20 @@ import { PgClaimStore } from "./claim-store.js";
  *   - the released branch's node_claim rows are gone
  *   - the surviving branch's claim is untouched
  *   - exactly one 'released' claim_event row was appended per cleared claim
- *
- * Requires STORYTREE_DB_NAME (a disposable test DB, e.g. storytree_test).
  */
+
+// DB-backed proof (ADR-0064): runs ONLY when STORYTREE_DB_NAME names a disposable test DB. The spine
+// forces it (storytree_test) for the db:true proof; absent (the offline package suite) the test skips,
+// so this file never touches production and never reds the offline gate.
+const DB = process.env["STORYTREE_DB_NAME"];
+
+// Names the contract id as the leading token (ADR-0122/0126 coverage convention) so the
+// check:coverage sweep — which scans only this real testFile — credits the contract this live proof
+// actually attests. The A2/A3 contracts are pure and proven in the offline @storytree/notice-board
+// suite (claim.test.ts / claim-store.test.ts), outside this DB-gated file by design.
 test(
-  "PgClaimStore.releaseClaimsByBranch: bulk-releases all claims on a branch, leaves other branches intact, appends one released audit event per claim",
+  "release-claims-by-branch-clears-the-branch: PgClaimStore.releaseClaimsByBranch bulk-releases all claims on a branch, leaves other branches intact, appends one released audit event per claim",
+  { skip: !DB },
   async () => {
     const { pool, connector } = await createTestPool();
     try {
@@ -37,9 +46,7 @@ test(
       assert.equal(before.rows.length, 3, "three claims seeded across two branches");
 
       // The method under test: bulk-release all claims on branchX.
-      // cast to any: releaseClaimsByBranch is the new method under test, not yet on PgClaimStore
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const count = (await (store as any).releaseClaimsByBranch(branchX)) as number;
+      const count = await store.releaseClaimsByBranch(branchX);
       assert.equal(count, 2, "released count equals the number of seeded claims on branchX");
 
       // branchX's node_claim rows are gone.

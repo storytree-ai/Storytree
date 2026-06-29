@@ -104,3 +104,57 @@ export function isReclaimable(
 ): boolean {
   return now.getTime() - new Date(claim.heartbeatAt).getTime() >= staleMs;
 }
+
+// ---------------------------------------------------------------------------
+// Pure heartbeat bump (ADR-0138 §4) — the cheap mid-flight liveness refresh
+// the header above named as a follow-on, made load-bearing by the wisp-claim:
+// a live session's claim must NEVER age out, so the loops' own trace signals
+// (SDK turn / tool-call / phase events) bump the heartbeat as they fire.
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE: refresh a claim's heartbeat to `now` WITHOUT the re-acquire/refuse path (cheaper than
+ * {@link isReclaimable}'s store-side `claim()` round-trip). Returns a NEW claim identical to `claim`
+ * except `heartbeatAt`, which becomes `now.toISOString()` — nothing else moves (not even
+ * `claimedAt`). No clock read (the caller passes `now`), no store touch, no mutation of the input;
+ * the store-side mirror that writes the bump is `PgClaimStore.bumpHeartbeat`.
+ */
+export function bumpHeartbeat(claim: ClaimDocT, now: Date): ClaimDocT {
+  return { ...claim, heartbeatAt: now.toISOString() };
+}
+
+// ---------------------------------------------------------------------------
+// Work-time claim request (ADR-0138 §3) — the claim generalises from build-time
+// ("real" / "live-smoke") to the outer loop's work ("edit" / "orchestrate"), so
+// the orchestrator can hold a story-claim before it spawns any subagent.
+// ---------------------------------------------------------------------------
+
+/**
+ * The work KINDS a work-time claim carries (ADR-0138 §3): an `edit` (a focused change) or an
+ * `orchestrate` (a session holding a story while it spawns subagents). The kind becomes the claim's
+ * `intent` — informational, never load-bearing for the refusal (like every other `intent`).
+ */
+export type WorkClaimKind = "edit" | "orchestrate";
+
+/** What {@link workClaimRequest} needs to build a work-time {@link ClaimRequest}. */
+export interface WorkClaimArgs {
+  unitId: string;
+  sessionId: string;
+  branch: string;
+  /** The work kind, stamped as the claim's `intent`. */
+  kind: WorkClaimKind;
+}
+
+/**
+ * PURE: build the work-time {@link ClaimRequest} for a unit, stamping `intent` from the work `kind`
+ * (ADR-0138 §3 — generalising the claim beyond the build-only trigger). Builtins-only; the store
+ * stamps `claimedAt` / `heartbeatAt` when the request is taken.
+ */
+export function workClaimRequest(args: WorkClaimArgs): ClaimRequest {
+  return {
+    unitId: args.unitId,
+    sessionId: args.sessionId,
+    branch: args.branch,
+    intent: args.kind,
+  };
+}

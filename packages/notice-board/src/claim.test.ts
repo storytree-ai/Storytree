@@ -5,6 +5,8 @@ import {
   ClaimDoc,
   CLAIM_STALE_RECLAIM_MS,
   isReclaimable,
+  bumpHeartbeat,
+  workClaimRequest,
   type ClaimDocT,
 } from "./claim.js";
 
@@ -69,4 +71,63 @@ test("isReclaimable: an explicit staleMs overrides the default", () => {
   // Default 2h → not yet reclaimable; a 5-minute override → reclaimable.
   assert.equal(isReclaimable(sample({ heartbeatAt: tenMinutesAgo }), now), false);
   assert.equal(isReclaimable(sample({ heartbeatAt: tenMinutesAgo }), now, 5 * 60 * 1_000), true);
+});
+
+// ── bumpHeartbeat (A2, ADR-0138 §4): the pure mid-flight liveness refresh ─────
+
+test("bumpHeartbeat: resets heartbeatAt to `now`, so a stale claim is no longer reclaimable", () => {
+  const now = new Date("2026-06-27T12:00:00.000Z");
+  // A claim whose heartbeat is two thresholds old → stale (the precondition the contract names).
+  const stale = sample({ heartbeatAt: new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString() });
+  assert.equal(isReclaimable(stale, now), true, "precondition: the claim is stale");
+
+  const bumped = bumpHeartbeat(stale, now);
+  assert.equal(bumped.heartbeatAt, now.toISOString(), "heartbeat reset to now");
+  assert.equal(isReclaimable(bumped, now), false, "the bumped claim is no longer reclaimable");
+});
+
+test("bumpHeartbeat: changes ONLY heartbeatAt (every other field preserved), and never mutates the input", () => {
+  const now = new Date("2026-06-27T12:00:00.000Z");
+  const claim = sample({ heartbeatAt: "2026-06-27T00:00:00.000Z" });
+  const bumped = bumpHeartbeat(claim, now);
+
+  // Identical to the input save for heartbeatAt.
+  assert.deepEqual({ ...bumped, heartbeatAt: claim.heartbeatAt }, claim);
+  // Pure: a new object, and the input's heartbeat is untouched.
+  assert.notEqual(bumped, claim);
+  assert.equal(claim.heartbeatAt, "2026-06-27T00:00:00.000Z", "the input claim is not mutated");
+});
+
+// ── workClaimRequest (A3, ADR-0138 §3): the pure work-time request builder ────
+
+test("workClaimRequest: stamps intent from the work kind, preserving attribution", () => {
+  const base = {
+    unitId: "wisp-as-story-claim",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+  };
+  const edit = workClaimRequest({ ...base, kind: "edit" });
+  const orchestrate = workClaimRequest({ ...base, kind: "orchestrate" });
+
+  assert.equal(edit.intent, "edit");
+  assert.equal(orchestrate.intent, "orchestrate");
+  for (const req of [edit, orchestrate]) {
+    assert.equal(req.unitId, base.unitId);
+    assert.equal(req.sessionId, base.sessionId);
+    assert.equal(req.branch, base.branch);
+  }
+});
+
+test("workClaimRequest: the built request round-trips through ClaimDoc.parse once the store stamps timestamps", () => {
+  const req = workClaimRequest({
+    unitId: "wisp-as-story-claim",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+    kind: "orchestrate",
+  });
+  // The store stamps claimedAt/heartbeatAt; the stamped request must be a legitimate ClaimDoc.
+  const stampedAt = "2026-06-29T00:00:00.000Z";
+  const doc = ClaimDoc.parse({ ...req, claimedAt: stampedAt, heartbeatAt: stampedAt });
+  assert.equal(doc.intent, "orchestrate");
+  assert.equal(doc.unitId, "wisp-as-story-claim");
 });

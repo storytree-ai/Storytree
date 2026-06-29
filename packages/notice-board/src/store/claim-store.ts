@@ -271,6 +271,36 @@ export class PgClaimStore {
     }
   }
 
+  /**
+   * Bump the heartbeat on `unitId` IFF held by `sessionId` (a session can only refresh its OWN
+   * claim's liveness) — the store-side mirror of {@link bumpHeartbeat from claim.ts}, the cheap
+   * mid-flight refresh the loops' trace signals call so a live session's claim never ages out
+   * (ADR-0138 §4). Touches ONLY `heartbeat_at`; it never re-acquires, refuses, or appends a
+   * `claim_event` — a heartbeat is a high-frequency liveness signal, not a state transition, so
+   * auditing every bump would flood the log. Returns true when our row was refreshed; false when
+   * there was nothing of ours to bump (released, never held, or held by another). Atomic.
+   */
+  async bumpHeartbeat(unitId: string, sessionId: string): Promise<boolean> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      const upd = await client.query(
+        `UPDATE events.node_claim SET heartbeat_at = now()
+           WHERE unit_id = $1 AND session_id = $2
+         RETURNING ${CLAIM_COLUMNS}`,
+        [unitId, sessionId],
+      );
+      const bumped = (upd.rows as ClaimRow[])[0];
+      await client.query("COMMIT");
+      return bumped !== undefined;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async #appendEvent(
     client: ClaimClient,
     unitId: string,

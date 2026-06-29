@@ -62,6 +62,10 @@ class FakeClaimClient {
   insertRaceLost = false;
   /** The row a DELETE (release) returns; undefined = nothing of ours to release. */
   deleteReturns?: ClaimRow;
+  /** The rows a releaseClaimsByBranch DELETE returns; the bulk branch-clear can remove many. */
+  branchDeleteReturns?: ClaimRow[];
+  /** The row a bumpHeartbeat UPDATE returns; undefined = nothing of ours to bump. */
+  bumpReturns?: ClaimRow;
   /** When set, any query whose text includes this fragment throws. */
   failOnPattern?: string;
 
@@ -88,8 +92,18 @@ class FakeClaimClient {
       }
       return { rows: this.winnerRow ? [this.winnerRow] : [] };
     }
+    // The heartbeat bump is the only UPDATE whose SET clause STARTS with heartbeat_at (claim()'s
+    // multi-column UPDATE never contains the literal "SET heartbeat_at = now()") — route it first.
+    if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = now()")) {
+      return { rows: this.bumpReturns ? [this.bumpReturns] : [] };
+    }
     if (head.startsWith("UPDATE") && text.includes("events.node_claim")) {
       return { rows: [rowFromWriteValues(values)] };
+    }
+    // The bulk branch-clear (releaseClaimsByBranch) deletes by `branch` alone and can return MANY
+    // rows; release() deletes one by (unit_id, session_id). Route the branch form first.
+    if (head.startsWith("DELETE") && text.includes("WHERE branch =")) {
+      return { rows: this.branchDeleteReturns ?? [] };
     }
     if (head.startsWith("DELETE")) {
       return { rows: this.deleteReturns ? [this.deleteReturns] : [] };
@@ -256,6 +270,76 @@ test("release (held by us): DELETE removes the row, 'released' event, returns tr
 test("release (nothing of ours): DELETE removes nothing → returns false, no 'released' event", async () => {
   const client = new FakeClaimClient(); // deleteReturns undefined
   const ok = await storeWith(client).release("chat-session-stream", "session-B");
+  assert.equal(ok, false);
+  assert.equal(client.events.length, 0);
+  assert.ok(commits(client));
+});
+
+// ── releaseClaimsByBranch (A1, ADR-0138 §4): the CI merge bulk-clear ──────────
+// The DB-level atomicity is proven live in claim-store-release-by-branch.live.test.ts (the --real
+// arm). This offline control-flow test keeps the method EXERCISED in the package suite + CI, where
+// the live file skips for want of a DB — so the bulk-release never goes uncovered.
+
+test("releaseClaimsByBranch: bulk-DELETE by branch → returns the count, one 'released' event per cleared claim, COMMIT", async () => {
+  const client = new FakeClaimClient();
+  client.branchDeleteReturns = [
+    heldRow({ unit_id: "unit-alpha", session_id: "sess-A", branch: "claude/x" }),
+    heldRow({ unit_id: "unit-beta", session_id: "sess-B", branch: "claude/x" }),
+  ];
+  const count = await storeWith(client).releaseClaimsByBranch("claude/x");
+
+  assert.equal(count, 2, "returns the number of cleared claims");
+  assert.ok(
+    client.calls.some((c) => c.text.includes("DELETE FROM events.node_claim WHERE branch =")),
+    "deletes by branch alone",
+  );
+  // One 'released' audit event per cleared claim, attributed to each claim's own session.
+  assert.deepEqual(client.events, [
+    { unitId: "unit-alpha", type: "released", sessionId: "sess-A" },
+    { unitId: "unit-beta", type: "released", sessionId: "sess-B" },
+  ]);
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("releaseClaimsByBranch (no claims on the branch): returns 0, no 'released' event, still COMMITs", async () => {
+  const client = new FakeClaimClient(); // branchDeleteReturns undefined → nothing matched
+  const count = await storeWith(client).releaseClaimsByBranch("claude/empty");
+  assert.equal(count, 0);
+  assert.equal(client.events.length, 0);
+  assert.ok(commits(client));
+});
+
+test("releaseClaimsByBranch: a DB error mid-transaction → ROLLBACK, no COMMIT, client released", async () => {
+  const client = new FakeClaimClient();
+  client.branchDeleteReturns = [heldRow({ unit_id: "unit-alpha", session_id: "sess-A", branch: "claude/x" })];
+  client.failOnPattern = "INSERT INTO events.claim_event"; // blow up the audit append
+  await assert.rejects(() => storeWith(client).releaseClaimsByBranch("claude/x"), /Fake-induced failure/);
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.ok(client.released);
+});
+
+// ── bumpHeartbeat (A2, ADR-0138 §4): the store-side liveness refresh ──────────
+
+test("bumpHeartbeat (held by us): UPDATE refreshes heartbeat_at → returns true, COMMIT, and NO audit event", async () => {
+  const client = new FakeClaimClient();
+  client.bumpReturns = heldRow({ session_id: "session-B" });
+  const ok = await storeWith(client).bumpHeartbeat("chat-session-stream", "session-B");
+
+  assert.equal(ok, true);
+  assert.ok(
+    client.calls.some((c) => c.text.includes("SET heartbeat_at = now()")),
+    "the bump UPDATE was issued",
+  );
+  // A heartbeat is a high-frequency liveness signal, not a state transition — never audited.
+  assert.equal(client.events.length, 0, "no claim_event for a heartbeat bump");
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("bumpHeartbeat (nothing of ours): UPDATE matches no row → returns false, no audit event, still COMMITs", async () => {
+  const client = new FakeClaimClient(); // bumpReturns undefined
+  const ok = await storeWith(client).bumpHeartbeat("chat-session-stream", "session-B");
   assert.equal(ok, false);
   assert.equal(client.events.length, 0);
   assert.ok(commits(client));
