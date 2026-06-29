@@ -1,13 +1,17 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-06-29
 ---
 # ADR-0136: App-driven story go-green lives in the forest-map Build affordance, not the chat smoke loop
 
 ## Status
 
-proposed — surfaced by the 2026-06-28 desktop-drive live walk (ADR-0108 Phase 3/4 + ADR-0133 d.3).
-A triage follow-on recommendation awaiting owner ratification of the direction (and of the one open
-fork in §Decision). Not yet built.
+accepted — owner-ratified 2026-06-29 in design discussion. App-driven **whole-story go-green stays the
+forest-map Adopt/Build button** (option c, the recommendation below). The chat's positive role — bring
+stories in via the story-author, drive changes by spawning the inner loop — is settled in **ADR-0137**;
+the "chat smoke loop" framing in this title/body is the *pre-ADR-0137* understanding, kept as history.
+The open fork in §Decision is resolved (see the inline note). Surfaced by the 2026-06-28 desktop-drive
+live walk (ADR-0108 Phase 3/4 + ADR-0133 d.3).
 
 ## Context
 
@@ -83,6 +87,13 @@ is not story-buildable; escalating means resolving the node to its **parent stor
 accept-provenance ADR-0108 d.3 deliberately keeps legible ("I accepted `proposal-id-threading`, but it
 built the whole thick-client story"), and blurring the ADR-0099-B node-smoke / story-real honesty
 boundary.
+
+**RESOLVED 2026-06-29 (owner):** neither pole of the binary below — the chat does **not** reach
+story-real-PR directly at all. Per **ADR-0137**, the chat is the session-orchestrator: it brings a story
+IN (`mapped`/`proposed`) by spawning the story-author, and drives CHANGES/fixes by spawning the
+inner-loop leaf; the forest-map **Adopt/Build** button stays the human's deliberate whole-story
+go-green. So go-green is the forest map's (this ADR), and the chat's reach is *authoring + spawning the
+inner loop* (ADR-0137), not a story-real escalation. The original fork, kept as posed:
 
 **Open fork for the owner (the one genuine decision this ADR poses):** should the **chat conversation**
 *also* be able to reach the story-real-PR path — e.g. a deliberate *secondary* "Build the parent story"
