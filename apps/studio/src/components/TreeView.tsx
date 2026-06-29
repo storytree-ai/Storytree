@@ -1264,6 +1264,16 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     null,
   );
   const suppressClickRef = useRef(false);
+  // Camera re-fit on frame RESIZE (owner UX: the map fills the window, so maximizing must re-frame).
+  // `worldRef` lets the stable ResizeObserver handler read the current world; `atFitRef` is true while
+  // the camera sits at the programmatic fit and flips false on any manual pan/zoom — the observer
+  // re-fits ONLY when atFit, so a user who has zoomed into a territory is never yanked on resize.
+  const worldRef = useRef(world);
+  worldRef.current = world;
+  const atFitRef = useRef(true);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const refitRafRef = useRef<number | null>(null);
+  const lastSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   // Mount / world change: fit to width, pin the foundation; a deep link wins.
   useLayoutEffect(() => {
@@ -1274,6 +1284,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       padding: 16,
       maxScale: 980 / world.width, // the old .world-scene 980px width cap, as a scale ceiling
       align: 'bottom',
+      fit: 'contain', // show the WHOLE forest in the window-filling viewport, not a width-clipped slice
     });
     limitsRef.current = limitsForFit(fit.scale);
     setAnimate(false);
@@ -1285,10 +1296,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           Math.max(fit.scale, (limitsRef.current.min / 0.4) * 1.6),
           limitsRef.current,
         );
+        atFitRef.current = false; // a deep-linked territory view is not the plain fit — resize won't re-fit it
         setCam(centerOn(wc.x, wc.y, fw, fh, focus, limitsRef.current));
         return;
       }
     }
+    atFitRef.current = true;
     setCam(fit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world]);
@@ -1304,10 +1317,33 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       Math.max(cam.scale, (limitsRef.current.min / 0.4) * 1.6),
       limitsRef.current,
     );
+    atFitRef.current = false; // focused on a territory — a later resize preserves this view, not a re-fit
     setAnimate(true);
     setCam(centerOn(wc.x, wc.y, frameRef.current.clientWidth, frameRef.current.clientHeight, focus, limitsRef.current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStory]);
+
+  // Re-fit the world to the CURRENT frame size (the plain fit, no deep-link) — shared by the
+  // ResizeObserver below so a window resize / maximize re-frames the map to fill. Re-derives the
+  // zoom limits from the new fit scale and marks the camera "at fit".
+  const refit = useCallback(() => {
+    const el = frameRef.current;
+    const w = worldRef.current;
+    if (!el || !w) return;
+    const fw = el.clientWidth;
+    const fh = el.clientHeight;
+    if (fw <= 0 || fh <= 0) return;
+    const fit = fitWorld(w.width, w.height, fw, fh, {
+      padding: 16,
+      maxScale: 980 / w.width,
+      align: 'bottom',
+      fit: 'contain',
+    });
+    limitsRef.current = limitsForFit(fit.scale);
+    atFitRef.current = true;
+    setAnimate(false);
+    setCam(fit);
+  }, []);
 
   // Wheel → zoom-to-cursor. React's onWheel can be passive (preventDefault
   // no-ops), so bind a NATIVE non-passive listener. State is read via the
@@ -1319,6 +1355,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1; // scroll up = zoom in
+    atFitRef.current = false; // manual zoom — resize must not yank the view back to fit
     setAnimate(false);
     setCam((c) => (c ? zoomAt(c, px, py, factor, limitsRef.current) : c));
   }, []);
@@ -1331,10 +1368,46 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const bindViewport = useCallback(
     (el: HTMLDivElement | null) => {
       if (frameRef.current) frameRef.current.removeEventListener('wheel', onWheel);
+      // Tear down the prior observer + any pending re-fit when the node detaches/replaces.
+      if (roRef.current) {
+        roRef.current.disconnect();
+        roRef.current = null;
+      }
+      if (refitRafRef.current != null) {
+        cancelAnimationFrame(refitRafRef.current);
+        refitRafRef.current = null;
+      }
+      lastSizeRef.current = null;
       frameRef.current = el;
-      if (el) el.addEventListener('wheel', onWheel, { passive: false });
+      if (el) {
+        el.addEventListener('wheel', onWheel, { passive: false });
+        // Re-fit when the frame changes size — the map now fills the window, so maximizing/resizing
+        // (and the post-mount flex settle) must re-frame the world to fill, not strand it at the old
+        // size. Only when the camera is still at the fit (atFitRef) — a panned/zoomed view is kept.
+        // Coalesced to one re-fit per frame; the camera transform doesn't change layout, so the
+        // observer can't feed back (no scrollbar, no flicker). Guarded for non-DOM test envs — jsdom
+        // ships no ResizeObserver, and the resize re-fit is a browser-only enhancement.
+        if (typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => {
+          const node = frameRef.current;
+          if (!node) return;
+          const w = node.clientWidth;
+          const h = node.clientHeight;
+          const last = lastSizeRef.current;
+          if (last && last.w === w && last.h === h) return; // ignore no-op callbacks
+          lastSizeRef.current = { w, h };
+          if (!atFitRef.current) return; // user has panned/zoomed — leave their view
+          if (refitRafRef.current != null) cancelAnimationFrame(refitRafRef.current);
+          refitRafRef.current = requestAnimationFrame(() => {
+            refitRafRef.current = null;
+            refit();
+          });
+        });
+        ro.observe(el);
+        roRef.current = ro;
+      }
     },
-    [onWheel],
+    [onWheel, refit],
   );
 
   // Drag → pan. Pointer capture keeps the gesture even if it leaves the frame.
@@ -1354,6 +1427,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     const dy = e.clientY - d.lastY;
     d.lastX = e.clientX;
     d.lastY = e.clientY;
+    atFitRef.current = false; // manual pan — preserve this view across a later resize
     setAnimate(false);
     setCam((c) => (c ? panBy(c, dx, dy) : c));
   }, []);
@@ -1398,6 +1472,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         return;
     }
     if (e.key.startsWith('Arrow')) e.preventDefault();
+    atFitRef.current = false; // manual keyboard pan — preserve this view across a later resize
     setAnimate(false);
     setCam((c) => (c ? panBy(c, dx, dy) : c));
   }, []);

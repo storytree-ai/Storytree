@@ -129,6 +129,31 @@ describe('fitWorld', () => {
     expect(fitWorld(0, 100, 600, 900, { maxScale: 3 })).toEqual({ tx: 0, ty: 0, scale: 3 });
     expect(fitWorld(100, 100, 0, 900)).toEqual({ tx: 0, ty: 0, scale: 1 });
   });
+
+  it('contain: a portrait world fits FULLY inside a landscape frame (height-limited)', () => {
+    const worldW = 1000;
+    const worldH = 2000;
+    const frameW = 1600;
+    const frameH = 900;
+    const cam = fitWorld(worldW, worldH, frameW, frameH, { padding: 0, align: 'bottom', fit: 'contain' });
+    // height is the binding dimension: scale = frameH/worldH, smaller than the width fit (1.6)
+    expect(cam.scale).toBeCloseTo(frameH / worldH, 9);
+    // the WHOLE world is visible: top edge >= 0 and bottom edge <= frameH
+    expect(worldToScreen(cam, 0, 0).y).toBeGreaterThanOrEqual(-1e-6);
+    expect(worldToScreen(cam, 0, worldH).y).toBeLessThanOrEqual(frameH + 1e-6);
+  });
+
+  it('contain: a wide world is width-limited (equals the default width fit)', () => {
+    const contain = fitWorld(2000, 500, 600, 900, { padding: 0, fit: 'contain' });
+    const width = fitWorld(2000, 500, 600, 900, { padding: 0 });
+    expect(contain.scale).toBeCloseTo(width.scale, 9); // width binds, so contain == the width fit
+  });
+
+  it("default fit ('width') is unchanged, with or without the explicit option", () => {
+    const implicit = fitWorld(1000, 2000, 600, 900, { padding: 20, align: 'bottom' });
+    const explicit = fitWorld(1000, 2000, 600, 900, { padding: 20, align: 'bottom', fit: 'width' });
+    expect(explicit).toEqual(implicit);
+  });
 });
 
 describe('limitsForFit', () => {
