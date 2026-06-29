@@ -1,12 +1,19 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-06-21
 amends: [84, 37]
-load_bearing: true
 ---
 # ADR-0086: Librarian-curated ADR lifecycle: supersede authority, copy-on-write edits, searchable load-bearing list
 
 ## Status
+
+**Superseded by [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)**
+(2026-06-29) — ADR-0139 reverses this ADR's conclusion that `supersedes_in_part` + an in-prose note is
+the clean steady state (see Consequences below), moves the copy-on-write line of §D so that removing
+overtaken prose is an in-place correction, and retires the `load_bearing` tag of §E (active ⟺
+load-bearing). It restates and keeps in force this ADR's still-true parts: the `adr list` query (§A),
+the spawn-`librarian-curator`-at-landing discipline (§B), and the librarian's supersede authority with
+the transcribe-not-invent invariant (§C). The body below is preserved unchanged as history.
 
 accepted (2026-06-21) — decided in conversation by the owner, who, worried about ADR bloat and
 context-rot for future sessions, directed four changes to the ADR lifecycle (A–E below). Flipped to
