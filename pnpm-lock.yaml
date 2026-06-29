@@ -38,6 +38,9 @@ importers:
       esbuild:
         specifier: ^0.24.2
         version: 0.24.2
+      playwright-core:
+        specifier: ^1.61.1
+        version: 1.61.1
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
@@ -2867,6 +2870,11 @@ packages:
 
   playwright-core@1.60.0:
     resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright-core@1.61.1:
+    resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -6074,6 +6082,8 @@ snapshots:
   pkce-challenge@5.0.1: {}
 
   playwright-core@1.60.0: {}
+
+  playwright-core@1.61.1: {}
 
   playwright@1.60.0:
     dependencies:

@@ -206,6 +206,15 @@ function renderNode(
   if (node.kind === 'flora-hit' || node.kind === 'wisp-hit' || node.kind === 'hit')
     props.fill = 'transparent';
   if (node.kind === 'bloom-anchor') props['aria-hidden'] = 'true';
+  // Stamp ids into the DOM so TreeView can select by COORDINATE hit-test (robust where the bubbled
+  // `click` event is not — Electron retargets a captured click; a moved click can target a non-leaf
+  // common ancestor). The per-node onClick above still drives the clean case.
+  if (node.kind === 'territory' || node.kind === 'ground' || node.kind === 'tile' || node.kind === 'hit') {
+    if (node.id) props['data-story-id'] = node.id;
+  } else if (node.kind === 'flora') {
+    if (node.id) props['data-cap-id'] = node.id;
+    if (storyId) props['data-story-id'] = storyId;
+  }
 
   switch (node.el) {
     case 'circle':
