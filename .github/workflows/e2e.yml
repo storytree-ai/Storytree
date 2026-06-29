@@ -52,10 +52,8 @@ jobs:
       # headless test runner, not a user-facing browser). Inherited by the launched Electron because
       # the spec spreads process.env into _electron.launch's env.
       ELECTRON_DISABLE_SANDBOX: "1"
-      # The Electron binary download MUST NOT be skipped. electron's install.js exits early (no
-      # download, so no path.txt, so `_electron.launch` throws "failed to install correctly") if this
-      # env is truthy ANYWHERE in the runtime. Force it empty (falsy) at the job level so it can't be
-      # inherited from the image/runner — the earlier runs' postinstall short-circuited exactly here.
+      # Belt-and-braces: never let electron's install.js skip the binary download (the real failure was
+      # its extract step, fixed in the install step below — but a skipped download would also break it).
       ELECTRON_SKIP_BINARY_DOWNLOAD: ""
     steps:
       - name: Checkout
@@ -83,24 +81,28 @@ jobs:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-33.4.11
 
-      # Make sure the Electron binary is actually present, then VERIFY it — `_electron.launch` fails
-      # with the opaque "Electron failed to install correctly" when electron's postinstall didn't write
-      # path.txt (its binary download was skipped/short-circuited, as it was in the first CI runs). We
-      # force a clean (re)install DIRECTLY in the resolved electron dir — defeating its isInstalled()
-      # short-circuit AND any pnpm side-effect that didn't persist to node_modules — print full output
-      # so a genuine download error is visible, and fail loudly if the binary still isn't resolvable.
-      # Scoped to this job: the verify/deploy jobs never launch Electron, so they skip this ~100MB cost.
+      # Install the Electron binary, then VERIFY it resolves — without this `_electron.launch` throws the
+      # opaque "Electron failed to install correctly". Electron's postinstall DOWNLOADS the platform zip
+      # fine (into ~/.cache/electron), but its bundled extract-zip step silently produces an INCOMPLETE
+      # dist on Node 24 in this container (only icudtl.dat — no binary, no path.txt — yet exits 0). So we
+      # let install.js fetch the zip, then EXTRACT IT OURSELVES with python3 (the image ships python3 but
+      # not unzip/bsdtar), make the binary executable (python's zipfile drops the exec bit), and write the
+      # path.txt index.js reads. Proven against this exact image. Scoped to this job — the verify/deploy
+      # jobs never launch Electron, so they skip the ~100MB binary entirely.
       - name: Install + verify the Electron binary
         working-directory: apps/desktop
         run: |
           set -e
-          echo "ELECTRON_SKIP_BINARY_DOWNLOAD='${ELECTRON_SKIP_BINARY_DOWNLOAD-<unset>}'"
           ED="$(node -p "require('path').dirname(require.resolve('electron/package.json'))")"
           echo "electron package dir: $ED"
-          echo "path.txt present after pnpm install? $([ -f "$ED/path.txt" ] && echo yes || echo no)"
-          rm -rf "$ED/dist" "$ED/path.txt"
-          (cd "$ED" && node install.js)
-          test -f "$ED/path.txt" || { echo "::error::electron path.txt still missing after install.js"; exit 1; }
+          node "$ED/install.js" >/dev/null 2>&1 || true   # fetches the zip to ~/.cache/electron (extract is the broken part)
+          ZIP="$(find "$HOME/.cache/electron" -name '*.zip' | head -1)"
+          test -n "$ZIP" || { echo "::error::electron binary zip was not downloaded to ~/.cache/electron"; exit 1; }
+          echo "extracting $ZIP"
+          rm -rf "$ED/dist"; mkdir -p "$ED/dist"
+          python3 -m zipfile -e "$ZIP" "$ED/dist/"
+          chmod +x "$ED/dist/electron"
+          printf electron > "$ED/path.txt"
           node -e "const fs=require('fs');const ep=require('electron');console.log('resolved electron binary:',ep);if(!fs.existsSync(ep)){console.error('::error::electron binary missing at '+ep);process.exit(1)}"
           echo "electron binary verified"
 
