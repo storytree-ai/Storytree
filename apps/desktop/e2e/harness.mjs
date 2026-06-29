@@ -127,8 +127,13 @@ export async function stubApi(win) {
  * forest painted and the camera settled at the fit. Always `app.close()` in a finally.
  */
 export async function launchOffline() {
+  // In CI the app runs as root in a container under xvfb, where Chromium needs these to start: no SUID
+  // sandbox as root, a real /tmp instead of a tiny container /dev/shm, and software GL (no GPU). They
+  // are CI-only (gated on $CI) so local runs stay realistic, and none touch the pointer/selection paths
+  // these specs guard. The ELECTRON_DISABLE_SANDBOX env the workflow sets is belt-and-braces alongside.
+  const ciArgs = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : [];
   const app = await electron.launch({
-    args: ['.'],
+    args: ['.', ...ciArgs],
     cwd: appDir,
     // Inert for the desktop sidecar (see file header) but kept so intent reads as offline; the real
     // offline guarantee is the stubs below, not this env.

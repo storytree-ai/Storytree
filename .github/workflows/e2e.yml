@@ -70,6 +70,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Cache the Electron binary download (@electron/get's cache) so re-runs don't re-fetch ~100MB.
+      # Keyed on the runner OS + the pinned electron version, so a version bump busts it.
+      - name: Cache the Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-33.4.11
+
+      # pnpm v9 does NOT run a dependency's install scripts unless it is allow-listed in
+      # `pnpm.onlyBuiltDependencies` — and the repo allow-lists none, so `pnpm install` above SKIPS
+      # electron's postinstall (the binary download) and `_electron.launch` then fails with "Electron
+      # failed to install correctly". Run electron's own installer explicitly here (scoped to this job —
+      # the verify/deploy jobs never launch Electron, so they should NOT pay this ~100MB download).
+      - name: Download the Electron binary
+        working-directory: apps/desktop
+        run: node node_modules/electron/install.js
+
       # Builds the studio dist + the Electron main (apps/desktop `pretest:e2e`), then runs the specs
       # under a virtual X server (Electron is a headed app, so it needs a display even "headless").
       # The specs are offline (stubbed /api/*) — no DB, no secrets.
