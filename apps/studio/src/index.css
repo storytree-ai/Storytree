@@ -1638,6 +1638,13 @@ mark.st-hl.flash {
   height: 100%; /* fill the viewport; the camera handles framing/centring */
 }
 
+/* The generous, invisible per-story hit rect (SceneView hitsLayerToBack): covers a story's crown +
+   island + nameplate so node-click stays reliable at the zoomed-out contain fit — the pointer cursor
+   advertises the whole region as selectable. */
+.world-story-hit {
+  cursor: pointer;
+}
+
 /* hex board: the pale coast + extruded land tiles */
 .hex-empty {
   fill: var(--hex-empty);

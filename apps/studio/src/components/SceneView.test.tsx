@@ -91,13 +91,26 @@ describe('SceneView — the studio scene mapper', () => {
     expect(root.querySelector('.story-tree')?.classList.contains('is-filtered')).toBe(false);
   });
 
-  it('omits the website delegation hit layer (the studio binds per-node handlers)', () => {
+  it('renders the generous per-story hit rect at the BACK — transparent, behind the flora', () => {
     const { root } = renderScene();
-    // the hit rect's tell is rx=14; no rect carries it (the layer is skipped). The
-    // rects present are the nameplate bg (rx 7) + the signpost post (rx 1.1).
-    const rects = [...root.querySelectorAll('rect')];
-    expect(rects.some((r) => r.getAttribute('rx') === '14.0')).toBe(false);
-    expect(root.querySelector('.world-plate-bg')).toBeTruthy();
+    // the hit rect's tell is rx=14: it IS rendered now (the studio uses it for forgiving node-click
+    // at the zoomed-out contain fit), and transparent so it never paints over the world.
+    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === '14.0');
+    expect(hit).toBeTruthy();
+    expect(hit?.getAttribute('fill')).toBe('transparent');
+    expect(hit?.classList.contains('world-story-hit')).toBe(true);
+    // it sits BEHIND the flora in document/paint order, so island tiles + plants still win their own
+    // clicks: the nameplate (a flora descendant) must FOLLOW the hit rect in the document.
+    const plate = root.querySelector('.world-plate-bg')!;
+    expect(hit!.compareDocumentPosition(plate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('selects the story when its generous hit rect is clicked (forgiving node-click)', () => {
+    const onSelectStory = vi.fn();
+    const { root } = renderScene({ onSelectStory });
+    const hit = [...root.querySelectorAll('rect')].find((r) => r.getAttribute('rx') === '14.0')!;
+    fireEvent.click(hit);
+    expect(onSelectStory).toHaveBeenCalledWith('lib');
   });
 
   it('drives an animated wisp orbit + an aria-hidden-free render of the static look', () => {
