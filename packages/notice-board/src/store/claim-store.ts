@@ -240,6 +240,37 @@ export class PgClaimStore {
     );
   }
 
+  /**
+   * Bulk-release every claim whose `branch` column equals `branch`. Deletes all matching
+   * `events.node_claim` rows in one transaction and appends one `released` audit event per cleared
+   * claim to `events.claim_event`. Returns the number of claims released.
+   *
+   * This is the guaranteed machine clear the CI merge job calls — `release()` drops one claim by
+   * `(unitId, sessionId)`; this drops ALL of a merged branch's claims by `branch` alone.
+   */
+  async releaseClaimsByBranch(branch: string): Promise<number> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      const del = await client.query(
+        `DELETE FROM events.node_claim WHERE branch = $1 RETURNING ${CLAIM_COLUMNS}`,
+        [branch],
+      );
+      const removed = del.rows as ClaimRow[];
+      for (const row of removed) {
+        const doc = rowToDoc(row);
+        await this.#appendEvent(client, row.unit_id, "released", row.session_id, doc);
+      }
+      await client.query("COMMIT");
+      return removed.length;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async #appendEvent(
     client: ClaimClient,
     unitId: string,
