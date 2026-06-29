@@ -1270,6 +1270,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     null,
   );
   const suppressClickRef = useRef(false);
+  // True for the instant between a per-node onClick (SceneView) handling a clean tap and that click
+  // bubbling to the viewport — so the viewport's coordinate-hit-test FALLBACK never double-handles a
+  // clean click. The fallback exists because a tap's `click` event is unreliable in the desktop build:
+  // Electron retargets a captured click to the viewport, and a moved click can fire on a non-leaf
+  // common ancestor that carries no handler. Reset at the start of every gesture (onPointerDown).
+  const handledRef = useRef(false);
   // Camera re-fit on frame RESIZE (owner UX: the map fills the window, so maximizing must re-frame).
   // `worldRef` lets the stable ResizeObserver handler read the current world; `atFitRef` is true while
   // the camera sits at the programmatic fit and flips false on any manual pan/zoom — the observer
@@ -1422,8 +1428,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     // Start each gesture fresh: clear any suppression a prior drag left set when
     // its synthetic click never arrived, so a real click is never wrongly eaten.
     suppressClickRef.current = false;
+    handledRef.current = false;
     dragRef.current = { x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // NB: pointer capture is taken LAZILY in onPointerMove, once a real drag begins — NOT here on the
+    // press. Capturing on press made the eventual CLICK retarget to this viewport (its capture target)
+    // in the Electron build, so a node click ran the background clearSelection instead of selecting it
+    // and the detail panel never opened (owner: the pan feature broke clicking nodes). A plain click
+    // must stay capture-free so it reaches the node.
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
@@ -1435,6 +1446,16 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       d.lastX = e.clientX;
       d.lastY = e.clientY;
       return;
+    }
+    if (!d.moved) {
+      // The press just became a real drag — capture the pointer NOW (lazily) so a pan that runs off
+      // the frame keeps tracking. Doing it here, not on pointerdown, keeps a plain click capture-free
+      // so its click reaches the node (see onPointerDown).
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture may be unavailable */
+      }
     }
     d.moved = true;
     const dx = e.clientX - d.lastX;
@@ -1669,6 +1690,41 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     navigate(treeFocusHref(storyId));
   };
 
+  /**
+   * Select by HIT-TESTING the pointer position rather than trusting the `click` event's target — the
+   * robust fallback for the scene render. The per-node onClick handles a clean click, but in the desktop
+   * build a tap's click is unreliable: Electron retargets a captured click to the viewport, and a click
+   * whose pointerdown/up straddle two SVG layers (e.g. a crown circle vs the per-story hit rect) fires on
+   * a non-leaf common ancestor that carries no handler. Coordinates never lie: resolve the element under
+   * the release point and read its `data-cap-id` / `data-story-id` (stamped by SceneView). A pan-drag's
+   * synthetic click is swallowed via `suppressClickRef`; an empty-map tap clears.
+   */
+  const sceneTapSelect = (clientX: number, clientY: number): void => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    const el = typeof document === 'undefined' ? null : document.elementFromPoint(clientX, clientY);
+    const capEl = el?.closest('[data-cap-id]') ?? null;
+    if (capEl) {
+      const capId = capEl.getAttribute('data-cap-id');
+      const storyId = capEl.getAttribute('data-story-id');
+      if (capId && storyId) {
+        selectStory(storyId, capId);
+        return;
+      }
+    }
+    const storyEl = el?.closest('[data-story-id]') ?? null;
+    const storyId = storyEl?.getAttribute('data-story-id');
+    if (storyId) {
+      selectStory(storyId, null);
+      return;
+    }
+    // empty map (moat / gutter) → clear (suppress already handled above)
+    setSelectedCap(null);
+    navigate(treeHref);
+  };
+
   return (
     <div className="tree-wrap pad">
       {sessions.length > 0 && (
@@ -1712,14 +1768,27 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             onPointerUp={onPointerUp}
             onKeyDown={onKeyDown}
             onClick={(e) => {
-              if (e.target === e.currentTarget) clearSelection(); // gutters beside the scene
+              if (!renderScene) {
+                if (e.target === e.currentTarget) clearSelection(); // legacy: per-element selects nodes
+                return;
+              }
+              // scene: the per-node onClick handled a clean click (handledRef); otherwise this click
+              // didn't reach a node handler (Electron capture-retarget, or a moved click's non-leaf
+              // target) — fall back to a coordinate hit-test so the tap still selects.
+              if (handledRef.current) {
+                handledRef.current = false;
+                return;
+              }
+              sceneTapSelect(e.clientX, e.clientY);
             }}
           >
           <svg
             ref={svgRef}
             className="world-scene world-roads"
             onClick={(e) => {
-              if (e.target === e.currentTarget) clearSelection();
+              // scene selection is handled on the viewport (coordinate hit-test); here only the legacy
+              // render clears on a true background click.
+              if (!renderScene && e.target === e.currentTarget) clearSelection();
             }}
           >
             <defs>
@@ -1764,8 +1833,15 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                     roadClassByEnds,
                     hidden,
                     onHoverStory: setHoverStory,
-                    onSelectStory: (id) => selectStory(id, null),
-                    onSelectCap: (storyId, capId) => selectStory(storyId, capId),
+                    // mark the click handled so the viewport's hit-test fallback doesn't re-fire it
+                    onSelectStory: (id) => {
+                      handledRef.current = true;
+                      selectStory(id, null);
+                    },
+                    onSelectCap: (storyId, capId) => {
+                      handledRef.current = true;
+                      selectStory(storyId, capId);
+                    },
                   }}
                 />
                 <StudioWorldChrome
