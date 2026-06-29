@@ -241,3 +241,76 @@ export const findEmptyPoint = (win) =>
     }
     return null;
   });
+
+// ── camera (pan/zoom) helpers ────────────────────────────────────────────────────────────────────────
+//
+// The pan/zoom camera is the SVG `<g class="world-camera" transform="translate(tx ty) scale(scale)">`
+// (apps/studio/src/components/TreeView.tsx, the worldCamera lib). A PAN changes only the translation
+// (panBy keeps scale); a ZOOM changes the scale (zoomAt, which also re-centres on the cursor, so it
+// moves the translation too). Reading the transform is therefore how a spec tells a pan from a zoom:
+// translate-changed-but-scale-equal is a pan; scale-changed is a zoom.
+
+/**
+ * Read the world camera's transform: the parsed `{ tx, ty, scale }` plus the `raw` attribute string.
+ * Returns null before the first frame is framed (the `<g>` has no transform until then). Parses the
+ * three numbers out of `translate(tx ty) scale(scale)` positionally (translate's two, then scale's one).
+ */
+export const readCameraTransform = (win) =>
+  win.evaluate(() => {
+    const g = document.querySelector('g.world-camera');
+    const raw = g ? g.getAttribute('transform') : null;
+    if (!raw) return null;
+    const nums = (raw.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+    if (nums.length < 3) return null;
+    return { tx: nums[0], ty: nums[1], scale: nums[2], raw };
+  });
+
+/**
+ * Poll the camera transform until its `raw` string differs from `prevRaw`, then return the new parsed
+ * transform. The pan/zoom handlers set `animate:false`, so the change lands within a frame or two — but
+ * a React re-render is async, so a spec reads the post-gesture transform through this rather than racing
+ * it. On timeout it returns the latest transform anyway, so the caller's assertion fails with the real
+ * (unchanged) values rather than on a thrown timeout.
+ */
+export async function waitForCameraChange(win, prevRaw, { timeout = 4000 } = {}) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const cur = await readCameraTransform(win);
+    if (cur && cur.raw !== prevRaw) return cur;
+    if (Date.now() > deadline) return cur;
+    await win.waitForTimeout(60);
+  }
+}
+
+// ── left-panel drawer helpers ────────────────────────────────────────────────────────────────────────
+//
+// The Shared-Islands panel carries two independent `<details>` drawers — `.panel-drawer.panel-legend`
+// (uncontrolled) and `.panel-drawer.panel-islands` (controlled by React state) — each a clickable
+// `summary.panel-drawer-head` bar, both collapsed by default. They are plain HTML, NOT subject to the
+// SVG pointer-capture trap the map clicks guard against, so a Playwright locator click (real input,
+// with actionability + scroll-into-view) is the right tool here — coordinate clicks are only needed
+// for the SVG viewport.
+
+/** Click a drawer's summary bar to toggle it. `drawerSelector` targets the `<details>`, e.g.
+ *  '.panel-drawer.panel-legend'. */
+export const toggleDrawer = (win, drawerSelector) =>
+  win.locator(`${drawerSelector} > summary.panel-drawer-head`).click();
+
+/** Whether a `<details>` drawer is currently open (its DOM `.open`). */
+export const drawerOpen = (win, drawerSelector) =>
+  win.evaluate((sel) => {
+    const d = document.querySelector(sel);
+    return !!(d && d.open);
+  }, drawerSelector);
+
+/** Wait until a drawer reaches the wanted open state (throws on timeout — the controlled islands drawer
+ *  confirms its toggle through a React re-render, so a spec waits for the state rather than racing it). */
+export const waitDrawer = (win, drawerSelector, want, { timeout = 4000 } = {}) =>
+  win.waitForFunction(
+    ([sel, w]) => {
+      const d = document.querySelector(sel);
+      return !!(d && d.open) === w;
+    },
+    [drawerSelector, want],
+    { timeout },
+  );
