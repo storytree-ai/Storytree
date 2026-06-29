@@ -194,6 +194,27 @@ test("enforced-by-anchors: a dangling path token WARNs (never FAILs)", () => {
   assert.deepEqual(adrGateFailures(results), [], "a WARN never gates");
 });
 
+test("supersedes-in-part-retired: a supersedes_in_part edge WARNs, never FAILs (ADR-0139 transition)", () => {
+  // no in-part edges -> PASS
+  const clean = adrHealth(inputs({ adrs: [adr(10, "accepted"), adr(19, "accepted")] }));
+  assert.equal(levelOf(clean, "supersedes-in-part-retired"), "PASS");
+  // an ADR still carrying supersedes_in_part -> WARN (the consolidation worklist), never a gate failure.
+  // The target carries its 3b incoming note (as the 20 real in-part ADRs do), so 3b passes and only the
+  // new WARN fires — the transition state ADR-0139 expects until the pass clears the edges.
+  const withEdge = adrHealth(
+    inputs({
+      adrs: [adr(10, "accepted"), adr(19, "accepted", { supersedesInPart: [10] })],
+      adrBodies: new Map([[10, "## Status\n**Superseded-in-part by [ADR-0019](0019-x.md)** — overtaken."]]),
+    }),
+  );
+  assert.equal(levelOf(withEdge, "supersedes-in-part-retired"), "WARN");
+  assert.deepEqual(adrGateFailures(withEdge), [], "a WARN never gates");
+  // names the carrying ADR and its target so the fix is obvious
+  const line = withEdge.find((r) => r.name === "supersedes-in-part-retired")?.lines.join(" ") ?? "";
+  assert.match(line, /ADR-0019/);
+  assert.match(line, /0010/);
+});
+
 test("extractPathTokens: backticked repo paths only, line suffixes dropped", () => {
   const tokens = extractPathTokens(
     "see `packages/cli/src/health.ts:84-102` and `apps/studio` but not prose/paths or `claim-conflict-refused`",

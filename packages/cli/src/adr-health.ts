@@ -25,6 +25,9 @@ import type { CheckResult } from "./health.js";
  *                            superseded (it stays accepted, live in part), so check 3 structurally
  *                            never sees it; without this, a stale body with no incoming note is
  *                            gate-clean — the ADR-0011 §5 "DBOS stands" latent trap (GATE)
+ *   3c supersedes-in-part-retired — ADR-0139 retires the `supersedes_in_part` edge; any ADR still
+ *                            carrying one is the consolidation worklist (WARN until the pass clears
+ *                            them, then this flips to GATE + the field drops from the frontmatter schema)
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
@@ -194,6 +197,31 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
       "supersede-in-part-note",
       missingPartNotes,
       "every supersede-in-part target carries its incoming note",
+    ),
+  );
+
+  // 3c supersedes-in-part-retired (WARN) — ADR-0139 retires the `supersedes_in_part` edge: an accepted
+  // ADR may no longer sit "live in part" with overtaken prose still in its body. Until the consolidation
+  // pass converts every existing edge (correct the target in place if the decision stands, or fully
+  // supersede it if it changed), this WARNs and lists them as the worklist; it flips to a GATE FAIL — and
+  // `supersedes_in_part` drops from the strict frontmatter schema (@storytree/drive), check 3b retiring
+  // alongside — once the last edge is gone.
+  const retiredInPart: string[] = [];
+  for (const a of adrs) {
+    if (a.supersedesInPart.length > 0) {
+      retiredInPart.push(
+        `ADR-${pad(a.number)} carries a retired \`supersedes_in_part\` edge (→ ${a.supersedesInPart
+          .map(pad)
+          .join(", ")}) — correct the target in place or fully supersede it (ADR-0139).`,
+      );
+    }
+  }
+  results.push(
+    result(
+      "supersedes-in-part-retired",
+      retiredInPart,
+      "no ADR carries a retired supersedes_in_part edge (ADR-0139)",
+      true,
     ),
   );
 
