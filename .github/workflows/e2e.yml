@@ -52,6 +52,11 @@ jobs:
       # headless test runner, not a user-facing browser). Inherited by the launched Electron because
       # the spec spreads process.env into _electron.launch's env.
       ELECTRON_DISABLE_SANDBOX: "1"
+      # The Electron binary download MUST NOT be skipped. electron's install.js exits early (no
+      # download, so no path.txt, so `_electron.launch` throws "failed to install correctly") if this
+      # env is truthy ANYWHERE in the runtime. Force it empty (falsy) at the job level so it can't be
+      # inherited from the image/runner — the earlier runs' postinstall short-circuited exactly here.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -78,14 +83,26 @@ jobs:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-33.4.11
 
-      # pnpm v9 does NOT run a dependency's install scripts unless it is allow-listed in
-      # `pnpm.onlyBuiltDependencies` — and the repo allow-lists none, so `pnpm install` above SKIPS
-      # electron's postinstall (the binary download) and `_electron.launch` then fails with "Electron
-      # failed to install correctly". Run electron's own installer explicitly here (scoped to this job —
-      # the verify/deploy jobs never launch Electron, so they should NOT pay this ~100MB download).
-      - name: Download the Electron binary
+      # Make sure the Electron binary is actually present, then VERIFY it — `_electron.launch` fails
+      # with the opaque "Electron failed to install correctly" when electron's postinstall didn't write
+      # path.txt (its binary download was skipped/short-circuited, as it was in the first CI runs). We
+      # force a clean (re)install DIRECTLY in the resolved electron dir — defeating its isInstalled()
+      # short-circuit AND any pnpm side-effect that didn't persist to node_modules — print full output
+      # so a genuine download error is visible, and fail loudly if the binary still isn't resolvable.
+      # Scoped to this job: the verify/deploy jobs never launch Electron, so they skip this ~100MB cost.
+      - name: Install + verify the Electron binary
         working-directory: apps/desktop
-        run: node node_modules/electron/install.js
+        run: |
+          set -e
+          echo "ELECTRON_SKIP_BINARY_DOWNLOAD='${ELECTRON_SKIP_BINARY_DOWNLOAD-<unset>}'"
+          ED="$(node -p "require('path').dirname(require.resolve('electron/package.json'))")"
+          echo "electron package dir: $ED"
+          echo "path.txt present after pnpm install? $([ -f "$ED/path.txt" ] && echo yes || echo no)"
+          rm -rf "$ED/dist" "$ED/path.txt"
+          (cd "$ED" && node install.js)
+          test -f "$ED/path.txt" || { echo "::error::electron path.txt still missing after install.js"; exit 1; }
+          node -e "const fs=require('fs');const ep=require('electron');console.log('resolved electron binary:',ep);if(!fs.existsSync(ep)){console.error('::error::electron binary missing at '+ep);process.exit(1)}"
+          echo "electron binary verified"
 
       # Builds the studio dist + the Electron main (apps/desktop `pretest:e2e`), then runs the specs
       # under a virtual X server (Electron is a headed app, so it needs a display even "headless").
