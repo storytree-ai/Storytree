@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-13
-supersedes_in_part: [22]
 ---
 
 # ADR-0046: Continuous deployment for the hosted studio (merge → deploy)
@@ -18,14 +17,12 @@ It closes the merge→deploy gap that ADR-0042 left open and that bit us in prac
 "Circle"→"Members" rename (`studio-members`, PR #102) merged to `main` but the live Cloud Run
 service kept serving the OLD bundle until someone re-ran the manual runbook.
 
-**Supersedes in part [ADR-0022](0022-ci-green-gate-and-auto-merge.md)** — only its §"What this does
-NOT decide" clause *"Release / publish / deploy … CD beyond 'integrate to main' is out of scope"*.
-That scope boundary was correct when written (`apps/studio` had no hosting target);
-[ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) created one, so the boundary now needs moving.
-The green-gate + auto-merge mechanism ADR-0022 decides is **unchanged and reused** as the trigger
-edge. Builds on [ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) (keyless / no JSON
-keys) and [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) (the Cloud Run + IAP posture this CD
-must preserve, not regress).
+Extends [ADR-0022](0022-ci-green-gate-and-auto-merge.md): its green-gate + auto-merge mechanism is
+reused **unchanged** as this CD's trigger edge ([ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)
+created the hosting target that brought merge→deploy into scope). Builds on
+[ADR-0021](0021-keyless-agent-session-auth-and-db-bootstrap.md) (keyless / no JSON keys) and
+[ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) (the Cloud Run + IAP posture this CD must
+preserve, not regress).
 
 *Numbering note:* `docs/decisions/` runs 0001–0045 on disk; checked `git branch -a` (no
 `docs/decisions/0046*` on any local or remote branch) — 0046 is free. ADRs are docs, not DB rows

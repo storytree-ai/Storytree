@@ -13,8 +13,6 @@ cadence (`CLAUDE.md`: "merge-to-main-when-green") for a **solo, multi-machine** 
 Reconciled with [ADR-0008](0008-ui-drives-agents-approvals.md) (the *product's*
 approval-gated story-trunk) — see §Relationship.
 
-**Superseded-in-part by [ADR-0046](0046-continuous-deployment-for-the-hosted-studio.md)** — only this ADR's §"What this does NOT decide" scope clause ("Release / publish / deploy … CD beyond 'integrate to main' is out of scope") is overtaken: ADR-0042 created a hosting target, so merge→deploy CD is now in scope. The green-gate + auto-merge mechanism this ADR decides is unchanged and reused as the CD trigger edge.
-
 ## Date
 
 2026-06-08
@@ -98,8 +96,10 @@ who clicks merge here. The `hold` label / draft is the explicit brake if review 
 ## What this does NOT decide
 
 - **Squash vs merge-commit** — kept `--merge` to match history.
-- **Release / publish / deploy** — no package is published and `apps/studio` has no hosting
-  target; CD beyond "integrate to `main`" is out of scope.
+- **Release / publish / deploy** — no package is published. (Studio CD was out of scope when this
+  ADR was written; once a hosting target existed, merge→deploy CD for the hosted studio was decided
+  by [ADR-0046](0046-continuous-deployment-for-the-hosted-studio.md), reusing this gate + auto-merge
+  as its trigger.)
 - **Branch protection** — deliberately skipped (paywalled + unnecessary for one author); the
   gate is enforced by *convention* (merge only via the workflow), not by a server-side rule.
 

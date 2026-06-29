@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-20
-supersedes_in_part: [74]
 ---
 # ADR-0077: Dissolve the store into library: shared substrate to library, tenant drawers to their organisms
 
@@ -13,9 +12,9 @@ the owner concluded the `store` should not be a peer organism at all: *"store sh
 the library. It's just a foundational component of the library. The library is meant to be
 centralised knowledge management for the whole system, so everything you mentioned in the store is
 part of knowledge management. Just because that part of the library serves many more surfaces doesn't
-mean it shouldn't be part of the library."* This **supersedes in part** [ADR-0074](0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md) §2,
-which had promoted `store` to a first-class hub organism — for `store` only. The `cli` hub modeling
-(also from §2) is untouched and stands.
+mean it shouldn't be part of the library."* This records the store-dissolution decision;
+[ADR-0074](0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md) §2's `cli` hub
+modeling and its boundary gate stand.
 
 ## Context
 
@@ -127,8 +126,8 @@ empty package, story, and boundary fixtures).
 ## References
 
 - [ADR-0074](0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md) — store-as-hub
-  organism (§2), **superseded in part here** for `store` only; the `cli` hub modeling and the boundary
-  gate itself stand.
+  organism (§2): the `store` half is dissolved here; the `cli` hub modeling and the boundary gate
+  itself stand.
 - [ADR-0075](0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md) — ports as root
   organisms; **stands and is reinforced** (library now declares `→ base` as a real downward edge).
 - [ADR-0068](0068-make-the-organism-model-physical-real-story-isolation-and-th.md) — the organism
