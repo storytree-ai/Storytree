@@ -82,7 +82,7 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'plate-bg': 'world-plate-bg',
   'plate-id': 'world-plate-id',
   'plate-sub': 'world-plate-sub',
-  hit: '',
+  hit: 'world-story-hit',
 };
 
 const fmt = (n: number): string => n.toFixed(1);
@@ -145,7 +145,11 @@ function handlersFor(
   switch (node.kind) {
     case 'territory':
     case 'ground':
-    case 'tile': {
+    case 'tile':
+    // The generous per-story hit rect (`hit`) shares the island's hover+select: a click anywhere in
+    // a story's region (crown, a gap between crown blobs, the moat margin around the island, or the
+    // nameplate) selects it — restoring node-click at the zoomed-out contain fit (ADR #486).
+    case 'hit': {
       const id = node.id ?? storyId;
       if (!id) return {};
       return {
@@ -169,23 +173,38 @@ function handlersFor(
   }
 }
 
+/**
+ * Move the core's `hits-layer` (which `buildScene` appends LAST — painted on top, for the website's
+ * delegation surface) to just behind the coast/ground/flora — directly after the empty moat. The
+ * studio binds per-node React handlers instead, so its generous per-story hit rects must sit at the
+ * BACK: there they catch a click on a story's crown / a gap between its crown blobs / the moat margin
+ * around its island / its nameplate and SELECT the story (restoring node-click at the zoomed-out
+ * `fit:'contain'` framing, #486), while the island tiles and the per-capability plants layered on top
+ * still win their own clicks (the tiles re-select the same story; a plant selects its capability).
+ */
+function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
+  const hitsIdx = children.findIndex((c) => c.kind === 'hits-layer');
+  if (hitsIdx < 0) return children;
+  const out = [...children];
+  const [hits] = out.splice(hitsIdx, 1);
+  if (hits) out.splice(out.findIndex((c) => c.kind === 'empties-layer') + 1, 0, hits);
+  return out;
+}
+
 function renderNode(
   node: SceneNode,
   key: React.Key,
   storyId: string | undefined,
   ctx: SceneCtx,
 ): React.JSX.Element | null {
-  // The delegation hit layer is for the website (event delegation); the studio binds
-  // per-node React handlers directly, so it never renders the hit rects (they would
-  // otherwise paint over the islands and swallow the per-element clicks).
-  if (node.kind === 'hits-layer') return null;
   const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
   const cls = composeClass(node, ctx);
   if (cls) props.className = cls;
   if (node.transform) props.transform = node.transform;
   if (node.opacity != null) props.opacity = node.opacity;
   if (node.strokeWidth != null) props.strokeWidth = node.strokeWidth;
-  if (node.kind === 'flora-hit' || node.kind === 'wisp-hit') props.fill = 'transparent';
+  if (node.kind === 'flora-hit' || node.kind === 'wisp-hit' || node.kind === 'hit')
+    props.fill = 'transparent';
   if (node.kind === 'bloom-anchor') props['aria-hidden'] = 'true';
 
   switch (node.el) {
@@ -239,7 +258,10 @@ function renderNode(
   }
   if (node.el === 'g') {
     const childStory = node.kind === 'territory' ? node.id : storyId;
-    node.children.forEach((c, i) => {
+    // At the world root, sink the hit layer to the back so its rects catch clicks without covering
+    // the island tiles / plants on top (see hitsLayerToBack).
+    const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
+    children.forEach((c, i) => {
       const el = renderNode(c, i, childStory, ctx);
       if (el) kids.push(el);
     });
