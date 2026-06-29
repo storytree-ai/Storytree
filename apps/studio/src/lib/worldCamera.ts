@@ -75,14 +75,19 @@ export interface FitOpts {
   padding?: number;
   maxScale?: number;
   align?: 'bottom' | 'center';
+  /** 'width' (default) fits the world to the frame WIDTH (a tall forest overflows vertically and is
+   *  panned through); 'contain' fits the WHOLE world inside the frame (the smaller of the width/height
+   *  fit), so a portrait forest shows in full on a large/maximized window. */
+  fit?: 'width' | 'contain';
 }
 
 /**
- * Fit the world to the frame WIDTH (the forest reads as a tall portrait column),
- * horizontally centred. `align` pins the vertical: 'bottom' (default) lands the
- * world's bottom near the frame bottom — the foundation, where the world reads
- * from; 'center' centres it. A non-positive dimension yields a safe identity-ish
- * camera rather than NaN.
+ * Fit the world to the frame. `fit` (default 'width') fits to the frame WIDTH — the forest reads as a
+ * tall portrait column that overflows vertically and is panned through; 'contain' fits the WHOLE world
+ * inside the frame (the smaller of the width/height fit), so a portrait forest shows IN FULL on a
+ * large/maximized window. Horizontally centred. `align` pins the vertical: 'bottom' (default) lands the
+ * world's bottom near the frame bottom — the foundation, where the world reads from; 'center' centres
+ * it. A non-positive dimension yields a safe identity-ish camera rather than NaN.
  */
 export function fitWorld(
   worldW: number,
@@ -95,7 +100,9 @@ export function fitWorld(
   if (worldW <= 0 || worldH <= 0 || frameW <= 0 || frameH <= 0) {
     return { tx: 0, ty: 0, scale: opts?.maxScale ?? 1 };
   }
-  let scale = (frameW - 2 * pad) / worldW;
+  const widthScale = (frameW - 2 * pad) / worldW;
+  let scale =
+    opts?.fit === 'contain' ? Math.min(widthScale, (frameH - 2 * pad) / worldH) : widthScale;
   if (opts?.maxScale !== undefined) scale = Math.min(scale, opts.maxScale);
   const tx = (frameW - worldW * scale) / 2;
   const ty =
