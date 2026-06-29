@@ -19,6 +19,8 @@ ratification). **Supersedes [ADR-0124]** (which proposed runtime-emitted plannin
 **amends [ADR-0048]** by resolving its §5 named-deferred "quieter planning form" as *deliberately not
 built*.
 
+**Superseded-in-part by [ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)** — session activity IS now rendered (honestly): the forced, CI-cleared story-claim renders as the wisp, so "don't render session activity" is overtaken for the coordination job; honest-by-absence still holds (an empty map = no session holds any node).
+
 ## Context
 
 [ADR-0124](0124-honest-session-presence-machine-emitted-by-the-outer-loop-ru.md) (proposed) read
