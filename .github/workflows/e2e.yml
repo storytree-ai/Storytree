@@ -52,6 +52,9 @@ jobs:
       # headless test runner, not a user-facing browser). Inherited by the launched Electron because
       # the spec spreads process.env into _electron.launch's env.
       ELECTRON_DISABLE_SANDBOX: "1"
+      # Belt-and-braces: never let electron's install.js skip the binary download (the real failure was
+      # its extract step, fixed in the install step below — but a skipped download would also break it).
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -78,14 +81,30 @@ jobs:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-33.4.11
 
-      # pnpm v9 does NOT run a dependency's install scripts unless it is allow-listed in
-      # `pnpm.onlyBuiltDependencies` — and the repo allow-lists none, so `pnpm install` above SKIPS
-      # electron's postinstall (the binary download) and `_electron.launch` then fails with "Electron
-      # failed to install correctly". Run electron's own installer explicitly here (scoped to this job —
-      # the verify/deploy jobs never launch Electron, so they should NOT pay this ~100MB download).
-      - name: Download the Electron binary
+      # Install the Electron binary, then VERIFY it resolves — without this `_electron.launch` throws the
+      # opaque "Electron failed to install correctly". Electron's postinstall DOWNLOADS the platform zip
+      # fine (into ~/.cache/electron), but its bundled extract-zip step silently produces an INCOMPLETE
+      # dist on Node 24 in this container (only icudtl.dat — no binary, no path.txt — yet exits 0). So we
+      # let install.js fetch the zip, then EXTRACT IT OURSELVES with python3 (the image ships python3 but
+      # not unzip/bsdtar), make the binary executable (python's zipfile drops the exec bit), and write the
+      # path.txt index.js reads. Proven against this exact image. Scoped to this job — the verify/deploy
+      # jobs never launch Electron, so they skip the ~100MB binary entirely.
+      - name: Install + verify the Electron binary
         working-directory: apps/desktop
-        run: node node_modules/electron/install.js
+        run: |
+          set -e
+          ED="$(node -p "require('path').dirname(require.resolve('electron/package.json'))")"
+          echo "electron package dir: $ED"
+          node "$ED/install.js" >/dev/null 2>&1 || true   # fetches the zip to ~/.cache/electron (extract is the broken part)
+          ZIP="$(find "$HOME/.cache/electron" -name '*.zip' | head -1)"
+          test -n "$ZIP" || { echo "::error::electron binary zip was not downloaded to ~/.cache/electron"; exit 1; }
+          echo "extracting $ZIP"
+          rm -rf "$ED/dist"; mkdir -p "$ED/dist"
+          python3 -m zipfile -e "$ZIP" "$ED/dist/"
+          chmod +x "$ED/dist/electron"
+          printf electron > "$ED/path.txt"
+          node -e "const fs=require('fs');const ep=require('electron');console.log('resolved electron binary:',ep);if(!fs.existsSync(ep)){console.error('::error::electron binary missing at '+ep);process.exit(1)}"
+          echo "electron binary verified"
 
       # Builds the studio dist + the Electron main (apps/desktop `pretest:e2e`), then runs the specs
       # under a virtual X server (Electron is a headed app, so it needs a display even "headless").
