@@ -1,23 +1,29 @@
 ---
-status: proposed
+status: accepted
+load_bearing: true
+decided: 2026-06-29
+amends: [121, 33]
+supersedes_in_part: [48, 128]
 ---
 # ADR-0138: The wisp is a forced, CI-cleared story-claim — one coordination and observability layer
 
 ## Status
 
-proposed — directed by the owner 2026-06-29 in design discussion with the orchestrator (the ADR-0137
-workflow: the orchestrator holds the discussion and authors the ADR), drafted by the orchestrator from
-that discussion. The owner made the four load-bearing calls recorded here: **story** grain, **hard
-refuse**, **trace-driven** staleness, and **claim-at-spawn by guidance** with ADR-authoring as the sole
-claim-free action. Content is complete; awaiting the owner's accept nod (ADR-0110 — design-time
-direction is ratification). **On accept, the librarian-curator finalizes the edges** — flip
-[ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md)'s render-decision to
-superseded-in-part and reconcile the two open-questions this resolves (below). Supersedes-in-part
+accepted — directed and green-lit by the owner 2026-06-29 in design discussion with the orchestrator
+(the ADR-0137 workflow: the orchestrator holds the discussion and authors the ADR), drafted by the
+orchestrator from that discussion; design-time direction IS ratification
+([ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md)). The owner made the four
+load-bearing calls recorded here: **story** grain, **hard refuse**, **trace-driven** staleness, and
+**claim-at-spawn by guidance** with ADR-authoring as the sole claim-free action. Edges finalized by the
+librarian-curator on accept: **supersedes-in-part**
 [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) (the wisp = the build) and
 [ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md) (don't render session
-activity); amends [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) /
+activity); **amends** [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) /
 [ADR-0033](0033-session-presence-notice-board.md) (the claim); builds on
-[ADR-0137](0137-chat-is-the-full-session-orchestrator-it-spawns-the-inner-lo.md).
+[ADR-0137](0137-chat-is-the-full-session-orchestrator-it-spawns-the-inner-lo.md) (prose-only, no
+frontmatter edge). The two open-questions this resolves/narrows
+(`oq-wisp-coverage-target`, `oq-fix-drive-build-shape`) are reconciled in the live store on the same
+accept pass.
 
 ## Context
 

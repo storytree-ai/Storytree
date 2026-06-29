@@ -192,9 +192,16 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // the desktop becomes a full propose→accept→drive→land surface by relocating the build worker to a
   // shared package and mounting it on the desktop sidecar): desktop-accept-dispatch, desktop-build-route,
   // worker-relocation (each a `real:` arm; authored, awaiting their drives).
+  // And the four PROVABLE `wisp-as-story-claim`-story capabilities (stories/wisp-as-story-claim/*.md —
+  // ADR-0138, the forest wisp becomes a forced, CI-cleared story-CLAIM): claim-store-work-time (A — an
+  // editsExisting db-backed `real:` arm over PgClaimStore's releaseClaimsByBranch), render-claim-as-wisp
+  // (B — a NET-NEW pure fold of node_claim rows into map activity), colour-by-subagent (C — a NET-NEW pure
+  // subagent→colour mapping) and take-claim-at-spawn (E — a NET-NEW pure spawn-claim seam). The story's
+  // other two caps are operator-attested (no `real:` arm, witnessed not built): ci-clear-on-merge (D, glue)
+  // and appearance-uat (F, the §5-honesty-wall human UAT).
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, cloud-sql-admin-rest, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, seed-corpus-scripts, shared-forest-connection, source-drift, tree-view, verdict-glyphs, verdict-line, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, render-claim-as-wisp, seed-corpus-scripts, shared-forest-connection, source-drift, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

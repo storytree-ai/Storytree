@@ -26,6 +26,8 @@ above `fresh`. **Applies [ADR-0020](0020-red-green-enforcement-on-the-owned-loop
 [ADR-0030](0030-claude-agent-sdk-live-runtime.md)** — the signal is sourced from the prove-it-gate's
 phase walk and the leaf executor it drives.
 
+**Superseded-in-part by [ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)** — the wisp is now the render of a forced story-CLAIM, not only of a build; the build becomes a colour STATE of the claim wisp (honest-by-absence generalises).
+
 *Numbering note:* 0046 is the latest on `main`; 0047 is taken by open draft PR #109
 (`inbound-signal-librarian`). 0048 is free across all fetched refs and the live DB carries no ADR
 rows (ADRs are docs, ADR-0017/0018).
