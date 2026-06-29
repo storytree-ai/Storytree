@@ -1,0 +1,77 @@
+name: e2e-desktop
+
+# Electron end-to-end tests for the storytree desktop app (apps/desktop/e2e/*.e2e.mjs).
+#
+# WHY A SEPARATE WORKFLOW (not part of ci.yml's `verify`): these specs need the BUILT studio dist +
+# the Electron main + a real (headed) Electron Chromium under a virtual display — heavier and slower
+# than the offline `pnpm -r test` gate, and the regression they guard (forest-map pointer capture)
+# reproduces ONLY in Electron. Keeping them here means:
+#   • NON-BLOCKING for now — ci.yml's `automerge` needs only `verify`, so a red/flaky e2e run never
+#     blocks a merge. Promote to a required check (or add to automerge's `needs`) once it's proven
+#     stable over a stretch of runs. (The specs themselves are offline + deterministic — they stub
+#     every /api/* call, so no DB or secrets are needed; see apps/desktop/e2e/harness.mjs.)
+#   • PATH-SCOPED — only runs when the desktop, the studio it bundles, the shared packages, or this
+#     workflow change, so doc-only / unrelated PRs don't pay the Electron build cost.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/studio/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/studio/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+
+# A new push to the same PR/branch supersedes an in-flight run.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-desktop:
+    name: e2e-desktop
+    runs-on: ubuntu-latest
+    # The official Playwright image carries every system lib Electron's Chromium needs PLUS xvfb —
+    # far more robust than apt-get'ing the (frequently-renamed, e.g. the 24.04 `t64`) deps by hand.
+    # Pin to the playwright-core version in apps/desktop/package.json so the runtime matches.
+    container: mcr.microsoft.com/playwright:v1.61.1-jammy
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      # The container runs as root, where Electron refuses the SUID sandbox; disable it for CI (a
+      # headless test runner, not a user-facing browser). Inherited by the launched Electron because
+      # the spec spreads process.env into _electron.launch's env.
+      ELECTRON_DISABLE_SANDBOX: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds the studio dist + the Electron main (apps/desktop `pretest:e2e`), then runs the specs
+      # under a virtual X server (Electron is a headed app, so it needs a display even "headless").
+      # The specs are offline (stubbed /api/*) — no DB, no secrets.
+      - name: Run desktop E2E (xvfb + headless Electron)
+        run: xvfb-run -a pnpm --filter desktop test:e2e
