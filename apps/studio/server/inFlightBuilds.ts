@@ -7,7 +7,7 @@
 // NEWEST `building` row per unit, so `doc->>'phase'` is the LIVE phase the wisp colours from.
 
 import { BUILD_IN_FLIGHT_TTL_MS } from '../src/types';
-import type { BuildActivity, BuildPhase } from '../src/types';
+import type { BuildActivity, BuildPhase, SubagentColourState } from '../src/types';
 
 /** One raw row from the `inFlightBuilds` query (the scalar projection of `events.work_event`). */
 export interface BuildRow {
@@ -17,6 +17,8 @@ export interface BuildRow {
   at: Date | string;
   /** `doc->>'phase'` — the live gate phase, or null for a pre-ADR-0048 `building` mark. */
   phase?: string | null;
+  /** `doc->>'colourState'` — the live subagent role (ADR-0138 §5), or null for a pre-ADR-0138 mark. */
+  colour_state?: string | null;
 }
 
 const GATE_PHASES: ReadonlySet<string> = new Set<BuildPhase>([
@@ -27,9 +29,24 @@ const GATE_PHASES: ReadonlySet<string> = new Set<BuildPhase>([
   'GATE',
 ]);
 
+/** The three ADR-0138 §5 subagent colour-states — guards the advisory `doc->>'colourState'` read so a
+ *  malformed value (or the §5-forbidden "green"/"bloom") can never reach the wisp. */
+const COLOUR_STATES: ReadonlySet<string> = new Set<SubagentColourState>([
+  'authoring',
+  'proving',
+  'supplementing',
+]);
+
 /** Narrow a raw `doc->>'phase'` value to a recognised {@link BuildPhase}, or undefined. */
 function toPhase(raw: string | null | undefined): BuildPhase | undefined {
   return raw != null && GATE_PHASES.has(raw) ? (raw as BuildPhase) : undefined;
+}
+
+/** Narrow a raw `doc->>'colourState'` value to a recognised {@link SubagentColourState}, or undefined
+ *  (ADR-0138 §5). A pre-ADR-0138 row (null) or a malformed/forbidden value yields undefined → the build
+ *  wisp keeps its plain `phaseBand` look (back-compat). */
+function toColourState(raw: string | null | undefined): SubagentColourState | undefined {
+  return raw != null && COLOUR_STATES.has(raw) ? (raw as SubagentColourState) : undefined;
 }
 
 /**
@@ -44,12 +61,14 @@ export function rowsToBuildActivity(rows: readonly BuildRow[], now: Date): Build
     const at = row.at instanceof Date ? row.at.toISOString() : new Date(row.at).toISOString();
     if (now.getTime() - new Date(at).getTime() >= BUILD_IN_FLIGHT_TTL_MS) continue;
     const phase = toPhase(row.phase);
+    const colourState = toColourState(row.colour_state);
     out.push({
       unitId: row.unit_id,
       tier: row.tier,
       runId: row.run_id,
       at,
       ...(phase !== undefined ? { phase } : {}),
+      ...(colourState !== undefined ? { colourState } : {}),
     });
   }
   return out;

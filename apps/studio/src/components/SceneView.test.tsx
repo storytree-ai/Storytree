@@ -8,12 +8,17 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
-import { buildScene, type BuildPhase, type SceneInput } from '@storytree/forest-world';
+import {
+  buildScene,
+  type BuildPhase,
+  type ClaimColourState,
+  type SceneInput,
+} from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView';
 
 afterEach(cleanup);
 
-function mkInput(wispPhase?: BuildPhase): SceneInput {
+function mkInput(wispPhase?: BuildPhase, claimState: ClaimColourState = 'authoring'): SceneInput {
   return {
     offset: { x: 0, y: 0 },
     width: 100,
@@ -41,13 +46,18 @@ function mkInput(wispPhase?: BuildPhase): SceneInput {
         treeTitle: 'lib — healthy',
         signpost: { outcome: null },
         wisps: [{ runId: 'r1', title: 'building', ...(wispPhase ? { phase: wispPhase } : {}) }],
+        claims: [{ key: 's1', title: 'a session is working lib', colourState: claimState }],
         plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
       },
     ],
   };
 }
 
-function renderScene(over: Partial<SceneCtx> = {}, wispPhase?: BuildPhase): {
+function renderScene(
+  over: Partial<SceneCtx> = {},
+  wispPhase?: BuildPhase,
+  claimState?: ClaimColourState,
+): {
   root: HTMLElement;
   ctx: SceneCtx;
 } {
@@ -62,7 +72,7 @@ function renderScene(over: Partial<SceneCtx> = {}, wispPhase?: BuildPhase): {
   };
   const { container } = render(
     <svg>
-      <SceneView scene={buildScene(mkInput(wispPhase))} ctx={ctx} />
+      <SceneView scene={buildScene(mkInput(wispPhase, claimState))} ctx={ctx} />
     </svg>,
   );
   return { root: container, ctx };
@@ -134,6 +144,42 @@ describe('SceneView — the studio scene mapper', () => {
     expect(none.querySelector('.world-wisp.band-red')).toBeNull();
     // the orbit still animates regardless of band.
     expect(red.querySelector('.world-wisp.band-red animateTransform')).toBeTruthy();
+  });
+
+  it('maps a story-claim wisp to a DISTINCT class + an animated orbit (ADR-0138 §5)', () => {
+    const { root } = renderScene({}, undefined, 'authoring');
+    const claim = root.querySelector('.world-claim-wisp.state-authoring');
+    expect(claim).toBeTruthy();
+    // it carries its own glow/dot parts and a transparent hit — its OWN family, not the build wisp's.
+    expect(claim?.querySelector('.world-claim-wisp-glow')).toBeTruthy();
+    expect(claim?.querySelector('.world-claim-wisp-dot')).toBeTruthy();
+    expect(root.querySelector('.world-claim-wisp-hit')?.getAttribute('fill')).toBe('transparent');
+    // it orbits (the rotation is geometry, seeded from the claim key).
+    expect(claim?.querySelector('animateTransform')).toBeTruthy();
+  });
+
+  it('colours the claim wisp by the subagent colour-state (authoring / proving / supplementing)', () => {
+    expect(renderScene({}, undefined, 'authoring').root.querySelector('.world-claim-wisp.state-authoring')).toBeTruthy();
+    expect(renderScene({}, undefined, 'proving').root.querySelector('.world-claim-wisp.state-proving')).toBeTruthy();
+    expect(
+      renderScene({}, undefined, 'supplementing').root.querySelector('.world-claim-wisp.state-supplementing'),
+    ).toBeTruthy();
+  });
+
+  it('§5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)', () => {
+    // The at-risk state is "proving" (the in-flight hue that must NOT read as the proven-green bloom):
+    // the claim wisp must wear world-claim-wisp, and NOTHING on the claim layer may carry the bloom /
+    // verdict-pass classes that ONLY a signed verdict earns (ADR-0045).
+    const { root } = renderScene({}, undefined, 'proving');
+    const claim = root.querySelector('.world-claim-wisp.state-proving')!;
+    expect(claim).toBeTruthy();
+    // the claim wisp itself is not a bloom …
+    expect(claim.classList.contains('world-bloom')).toBe(false);
+    expect(claim.classList.contains('verdict-pass')).toBe(false);
+    // … and no descendant under the claim orbit is one either.
+    expect(claim.closest('.world-claim-wisp')?.querySelector('.world-bloom')).toBeNull();
+    expect(claim.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
+    expect(claim.querySelector('.verdict-pass')).toBeNull();
   });
 
   it('selects the story on an island click; selects the capability on a plant click (stopping propagation)', () => {

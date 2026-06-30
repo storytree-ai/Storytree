@@ -40,7 +40,8 @@ import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
-import { useBuildActivity } from '../lib/buildActivity';
+import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
+import { claimColourState } from '../lib/claimColour';
 import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
 import { docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
@@ -89,7 +90,7 @@ import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { ChatDock } from './ChatDock.js';
-import type { BuildActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
   rand01,
@@ -830,7 +831,12 @@ function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
   };
 }
 
-function territoryToScene(t: Territory, now: Date, builds: BuildActivity[]): SceneInput['territories'][number] {
+function territoryToScene(
+  t: Territory,
+  now: Date,
+  builds: BuildActivity[],
+  claims: ClaimActivity[],
+): SceneInput['territories'][number] {
   const story = t.story;
   const st = (story.status ?? 'unknown') as SceneStatus;
   const caps = story.capabilities.length;
@@ -864,6 +870,15 @@ function territoryToScene(t: Territory, now: Date, builds: BuildActivity[]): Sce
       title: `${b.unitId} — building (${b.tier})${b.phase ? ` · ${b.phase}` : ''} · ${formatAge(b.at, now)} · run ${b.runId}`,
       // ADR-0048 §3 v2: the live gate phase → the core folds it to the wisp's red→green band.
       ...(b.phase ? { phase: b.phase } : {}),
+      // ADR-0138 §5: the live subagent role the work-event stamped → an additive role tint (back-compat).
+      ...(b.colourState ? { colourState: b.colourState } : {}),
+    })),
+    // ADR-0138 §5: one orbiting CLAIM wisp per claim on this story — "a session is here" (coordination,
+    // NOT a proof). Keyed by sessionId (its own stable identity); coloured by the intent → colour-state.
+    claims: claims.map((c) => ({
+      key: c.sessionId,
+      title: `${c.unitId} — ${c.branch} is working this story (${c.intent}) · claimed ${formatAge(c.at, now)} — a claim, not a proof`,
+      colourState: claimColourState(c.intent),
     })),
     plate: {
       w: plate.w,
@@ -887,6 +902,7 @@ export function worldToScene(
   relaxedCells: RelaxedCell[] | null,
   now: Date,
   buildsByStory: Map<string, BuildActivity[]>,
+  claimsByStory: Map<string, ClaimActivity[]> = new Map(),
 ): SceneInput {
   const roads = world.lineRoads ?? world.solar?.roads ?? [];
   return {
@@ -904,7 +920,7 @@ export function worldToScene(
       title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
     })),
     territories: world.territories.map((t) =>
-      territoryToScene(t, now, buildsByStory.get(t.story.id) ?? []),
+      territoryToScene(t, now, buildsByStory.get(t.story.id) ?? [], claimsByStory.get(t.story.id) ?? []),
     ),
   };
 }
@@ -955,6 +971,44 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
 function readPlantsScatter(): boolean {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('plants') === 'scatter';
+}
+
+/**
+ * The story-CLAIM layer flag (ADR-0138 §5). DEFAULT OFF so `main` shows no visual change until the
+ * owner attests the look (operator-attested, ADR-0070) — mirrors the `?render=`/`?substrate=` escape
+ * pattern. `'live'` renders the real claims off `/api/activity`; `'demo'` ALSO injects a synthetic
+ * claim per a couple of visible stories across the three colour-states, so the look is previewable +
+ * deep-linkable WITHOUT a live DB (a render seam, like injecting `now` for blooms — a demo claim is
+ * honest: it never paints green, the §5 wall holds). `'off'` (absence / any other value) = no claim layer.
+ */
+type ClaimsMode = 'off' | 'live' | 'demo';
+function readClaimsMode(search: string = defaultSearch()): ClaimsMode {
+  const v = new URLSearchParams(search).get('claims');
+  if (v === 'demo') return 'demo';
+  if (v === 'on' || v === 'live' || v === '1' || v === 'true') return 'live';
+  return 'off';
+}
+
+/**
+ * Synthetic DEMO claims (ADR-0138 §5) for DB-free preview / deep-link attestation: one claim per the
+ * first few visible stories, cycling the three intents so the owner sees all three colour-states
+ * orbiting distinct stories at once. Honest by construction — a demo claim carries `kind: "claim"` and
+ * an intent that folds to a coordination state, so it can NEVER paint the proven-green bloom (the §5
+ * wall holds even in demo). Pure: stories in, claim activities out.
+ */
+const DEMO_CLAIM_INTENTS = ['edit', 'real', 'orchestrate'] as const;
+function demoClaims(stories: TreeStory[]): ClaimActivity[] {
+  return stories.slice(0, DEMO_CLAIM_INTENTS.length).map((s, i) => {
+    const intent = DEMO_CLAIM_INTENTS[i % DEMO_CLAIM_INTENTS.length] ?? 'orchestrate';
+    return {
+      unitId: s.id,
+      kind: 'claim' as const,
+      sessionId: `demo-${s.id}`,
+      branch: `claude/demo-${intent}`,
+      intent,
+      at: new Date().toISOString(),
+    };
+  });
 }
 
 /** Stories tagged `render: building` (ADR-0076 §2) are EXCLUDED from the map and their
@@ -1140,6 +1194,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // ticker usePresence publishes.
   const [seedBuilds, setSeedBuilds] = useState<BuildActivity[] | undefined>(undefined);
   const rawBuilds = useBuildActivity(seedBuilds);
+  // In-flight story CLAIMS (ADR-0138 §5): the coordination signal the orbiting CLAIM wisp is sourced
+  // from — "a session is working this story". Seeded from the tree payload, then polled on the SAME
+  // /api/activity wire as builds. Rendered only behind the `?claims=` flag (default off, §J).
+  const [seedClaims, setSeedClaims] = useState<ClaimActivity[] | undefined>(undefined);
+  const rawClaims = useClaimActivity(seedClaims);
   // The session dock: the board-level list (toolbar count click) or one session's
   // detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
   // including nodes:[] hook declarations — are reachable ONLY through the list.
@@ -1172,6 +1231,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         setStories(presentStories(p.stories));
         setSeedSessions(p.sessions ?? []);
         setSeedBuilds(p.builds ?? []);
+        setSeedClaims(p.claims ?? []);
       })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -1588,6 +1648,31 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return byStory;
   }, [rawBuilds, now, storyIds, capOwner]);
 
+  // The claim layer flag (ADR-0138 §5, §J): default OFF. `demo` injects synthetic claims client-side
+  // (DB-free preview); `live` uses the polled `/api/activity` claims; `off` ⇒ no claim layer at all.
+  const claimsMode = useMemo(() => readClaimsMode(search), [search]);
+
+  /**
+   * Story CLAIMS grouped by the story territory their unit resolves to (ADR-0138 §5) — sibling to
+   * `buildsByStory`. EMPTY unless the `?claims=` flag is set (so `main` stays visually inert). In
+   * `demo` mode the claims are synthetic (DB-free); in `live` mode they're the polled rows. A claim
+   * whose unit no loaded story owns anchors nowhere (no wisp). No client-side TTL re-age: the server
+   * already drops a stale claim (ADR-0138 §5), so a still-claimed story just keeps orbiting.
+   */
+  const claimsByStory = useMemo(() => {
+    const byStory = new Map<string, ClaimActivity[]>();
+    if (claimsMode === 'off' || !stories) return byStory;
+    const source = claimsMode === 'demo' ? demoClaims(stories) : rawClaims;
+    for (const c of source) {
+      const storyId = storyIds.has(c.unitId) ? c.unitId : capOwner.get(c.unitId);
+      if (storyId === undefined) continue;
+      const list = byStory.get(storyId);
+      if (list) list.push(c);
+      else byStory.set(storyId, [c]);
+    }
+    return byStory;
+  }, [claimsMode, rawClaims, stories, storyIds, capOwner]);
+
   // ADR-0093 Unit 2b: the shared scene-graph render, behind `?render=scene` (default
   // off ⇒ the inline render below is untouched / byte-identical). The scene is
   // focus-AGNOSTIC (focus / hover / selection are applied by the mapper per render),
@@ -1595,8 +1680,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // never on hover. Hooks live above the early returns (the world may still be null).
   const renderScene = useMemo(() => readRenderScene(search), [search]);
   const scene = useMemo(
-    () => (world ? buildScene(worldToScene(world, relaxedCells, now, buildsByStory)) : null),
-    [world, relaxedCells, now, buildsByStory],
+    () => (world ? buildScene(worldToScene(world, relaxedCells, now, buildsByStory, claimsByStory)) : null),
+    [world, relaxedCells, now, buildsByStory, claimsByStory],
   );
 
   if (loadError) {
@@ -1748,6 +1833,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           islands={sharedIslands}
           stories={stories}
           builds={rawBuilds}
+          claimsByStory={claimsByStory}
           now={now}
           hidden={hidden}
           highlightId={highlightShared}
@@ -1946,6 +2032,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   // The world orbits the HARNESS now (ADR-0048 §5): in-flight
                   // builds only. Session presence lives in the dock / panel.
                   builds={buildsByStory.get(t.story.id) ?? []}
+                  // ADR-0138 §5: the story-claim wisps (flag-gated, default empty).
+                  claims={claimsByStory.get(t.story.id) ?? []}
                   now={now}
                   onHover={(on) => setHoverStory(on ? t.story.id : null)}
                   onSelect={(capId) => selectStory(t.story.id, capId)}
@@ -2590,6 +2678,7 @@ function SharedIslandCard({
   stories,
   hidden,
   builds,
+  claims = [],
   now,
   highlighted,
   substrateMode,
@@ -2601,6 +2690,8 @@ function SharedIslandCard({
   stories: TreeStory[];
   hidden: ReadonlySet<string>;
   builds: BuildActivity[];
+  /** ADR-0138 §5: this story's claim wisps (flag-gated, default `[]`). */
+  claims?: ClaimActivity[];
   now: Date;
   highlighted: boolean;
   /** The map's ground substrate (the default mesh, or null for plain hex tiles), so the panel
@@ -2666,6 +2757,7 @@ function SharedIslandCard({
             className={`hex-territory st-${st}`}
             hidden={hidden}
             builds={builds}
+            claims={claims}
             now={now}
             onHover={() => {}}
             onSelect={() => onSelect()}
@@ -2721,6 +2813,7 @@ function SharedIslandsPanel({
   islands,
   stories,
   builds,
+  claimsByStory,
   now,
   hidden,
   highlightId,
@@ -2733,6 +2826,9 @@ function SharedIslandsPanel({
   islands: TreeStory[];
   stories: TreeStory[];
   builds: BuildActivity[];
+  /** ADR-0138 §5: claims grouped by story (flag-gated, empty unless `?claims=`), so each shared-island
+   *  card can orbit its OWN story's claim wisps in the preview. */
+  claimsByStory: Map<string, ClaimActivity[]>;
   now: Date;
   hidden: ReadonlySet<string>;
   highlightId: string | null;
@@ -2789,7 +2885,10 @@ function SharedIslandsPanel({
     ? flyout.open.slice('island:'.length)
     : null;
 
-  const model = legendModelFor(stories, builds, now);
+  // ADR-0138 §5: the flat claim list for the legend's "sessions working" row (flag-gated → empty
+  // unless `?claims=` is set, so the legend stays unchanged on `main`).
+  const panelClaims = useMemo(() => [...claimsByStory.values()].flat(), [claimsByStory]);
+  const model = legendModelFor(stories, builds, now, panelClaims);
   const openIsland = openIslandId ? islands.find((s) => s.id === openIslandId) : undefined;
 
   return (
@@ -2804,6 +2903,7 @@ function SharedIslandsPanel({
           <WorldLegend
             stories={stories}
             builds={builds}
+            claims={panelClaims}
             now={now}
             hidden={hidden}
             onToggleStatus={onToggleStatus}
@@ -2841,6 +2941,7 @@ function SharedIslandsPanel({
                     stories={stories}
                     hidden={hidden}
                     builds={builds}
+                    claims={claimsByStory.get(s.id) ?? []}
                     now={now}
                     highlighted={s.id === highlightId}
                     substrateMode={substrateMode}
@@ -3203,6 +3304,7 @@ function TerritoryFlora({
   className,
   hidden,
   builds,
+  claims = [],
   now,
   onHover,
   onSelect,
@@ -3213,6 +3315,9 @@ function TerritoryFlora({
   className: string;
   hidden: ReadonlySet<string>;
   builds: BuildActivity[];
+  /** ADR-0138 §5: the story-CLAIM wisps to orbit this island ("a session is here"). Flag-gated
+   *  (default `[]`), so the inline path renders no claim layer until `?claims=` is set. */
+  claims?: ClaimActivity[];
   now: Date;
   onHover: (on: boolean) => void;
   onSelect: (capId: string | null) => void;
@@ -3358,6 +3463,35 @@ function TerritoryFlora({
                 <circle className="world-wisp-hit" r={12} fill="transparent" />
                 <circle className="world-wisp-glow" r={6.5} />
                 <circle className="world-wisp-dot" r={2.8} />
+              </g>
+            </g>
+          );
+        })}
+      </g>
+
+      {/* In-flight story-CLAIM wisps (ADR-0138 §5): a session is working this story (coordination,
+          NOT a proof — §5 honesty wall). A DISTINCT class family from the build wisp, orbiting a touch
+          wider + slower, coloured by what the orchestrator is doing. Mirrors the shared scene path's
+          buildClaimWisps so the legacy inline render can't drift from the scene render. Never a bloom. */}
+      <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
+        {claims.map((c) => {
+          const phase = rand01(hash(c.sessionId)) * 360;
+          const state = claimColourState(c.intent);
+          return (
+            <g key={`claim:${c.sessionId}`} className={`world-claim-wisp state-${state}`}>
+              <title>{`${c.unitId} — ${c.branch} is working this story (${c.intent}) · claimed ${formatAge(c.at, now)} — a claim, not a proof`}</title>
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from={`${phase} 0 0`}
+                to={`${phase + 360} 0 0`}
+                dur="9s"
+                repeatCount="indefinite"
+              />
+              <g transform={`translate(${t.radius * 0.72 + 22} 0)`}>
+                <circle className="world-claim-wisp-hit" r={12} fill="transparent" />
+                <circle className="world-claim-wisp-glow" r={6.5} />
+                <circle className="world-claim-wisp-dot" r={2.8} />
               </g>
             </g>
           );

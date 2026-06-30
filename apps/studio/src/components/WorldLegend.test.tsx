@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { WorldLegend, legendFacts, treeForm } from './WorldLegend';
-import type { BuildActivity, TreeCapability, TreeStory, WorkStatus } from '../types';
+import type { BuildActivity, ClaimActivity, TreeCapability, TreeStory, WorkStatus } from '../types';
 
 const cap = (
   id: string,
@@ -52,6 +52,15 @@ const buildFor = (unitId: string, at: string): BuildActivity => ({
   tier: 'capability',
   runId: `run-${unitId}`,
   at,
+});
+
+const claimFor = (unitId: string, intent: string): ClaimActivity => ({
+  unitId,
+  kind: 'claim',
+  sessionId: `sess-${unitId}`,
+  branch: `claude/${unitId}`,
+  intent,
+  at: '2026-06-13T23:55:00.000Z',
 });
 
 /** Today's corpus shape offline: proposed+mapped only (a zero-cap proposed story now
@@ -225,6 +234,30 @@ describe('WorldLegend (adaptive bar)', () => {
   it('no builds → no building row', () => {
     renderLegend(offlineWorld());
     expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
+  });
+
+  it('a story claim lights the "sessions working" row with the §5 honesty caption (ADR-0138)', () => {
+    renderLegend(offlineWorld(), { claims: [claimFor('studio', 'real')] });
+    const chip = screen.getByRole('button', { name: 'sessions working' });
+    expect(chip).toBeTruthy();
+    fireEvent.click(chip);
+    // the §5 wall, in operator language: a claim is coordination, NOT a proof; only the bloom is a verdict.
+    expect(screen.getByText(/NOT a proof/)).toBeTruthy();
+    expect(screen.getByText(/coordination/)).toBeTruthy();
+    // all three colour-state swatches are offered in the drawer (the tile LABELS — the caption prose
+    // also names them, so scope to the tile-label spans).
+    const labels = [...document.querySelectorAll('.legend-tile-label')].map((n) => n.textContent);
+    for (const state of ['authoring', 'proving', 'supplementing']) {
+      expect(labels).toContain(state);
+    }
+  });
+
+  it('no claims → no "sessions working" row (flag off / nothing claimed → the legend is unchanged)', () => {
+    renderLegend(offlineWorld());
+    expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
+    // default (claims prop omitted) also yields no row — back-compat with every existing caller.
+    renderLegend(offlineWorld(), { builds: [buildFor('studio', '2026-06-13T23:55:00.000Z')] });
+    expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
   });
 
   it('a machine-witnessed world has no signpost states at all', () => {

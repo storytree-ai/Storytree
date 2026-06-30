@@ -78,6 +78,14 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'wisp-hit': 'world-wisp-hit',
   'wisp-glow': 'world-wisp-glow',
   'wisp-dot': 'world-wisp-dot',
+  // the story-CLAIM wisp (ADR-0138 §5): a DISTINCT class family from the build wisp — never
+  // world-bloom/verdict-pass (the §5 honesty wall). `claim-wisp` composes its colour-state in
+  // composeClass (state-authoring/proving/supplementing); the parts reuse fixed classes.
+  'claim-wisps': '',
+  'claim-wisp': 'world-claim-wisp',
+  'claim-wisp-hit': 'world-claim-wisp-hit',
+  'claim-wisp-glow': 'world-claim-wisp-glow',
+  'claim-wisp-dot': 'world-claim-wisp-dot',
   plate: 'world-plate',
   'plate-bg': 'world-plate-bg',
   'plate-id': 'world-plate-id',
@@ -126,8 +134,17 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       return `world-bloom bloom-plant verdict-${node.outcome ?? 'pass'}`;
     case 'wisp':
       // ADR-0048 §3 v2: the wisp wears its live red→green band (the core already folded the gate
-      // phase → phaseBand). Default to the neutral teal `building` band when none is known.
-      return `world-wisp band-${node.phaseBand ?? 'building'}`;
+      // phase → phaseBand). Default to the neutral teal `building` band when none is known. ADR-0138
+      // §5: when the work-event also stamped a subagent role, add a `role-<colourState>` tint
+      // ALONGSIDE the band (advisory, back-compat — absent → the plain band look, unchanged).
+      return `world-wisp band-${node.phaseBand ?? 'building'}${
+        node.colourState ? ` role-${node.colourState}` : ''
+      }`;
+    case 'claim-wisp':
+      // ADR-0138 §5: a claim wisp is its OWN class family, coloured by what the orchestrator is doing
+      // on the claimed story. NEVER world-bloom / verdict-pass — a claim is not a proof (the honesty
+      // wall, asserted in SceneView.test.tsx). `colourState` is always present on a claim wisp.
+      return `world-claim-wisp state-${node.colourState ?? 'supplementing'}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;
@@ -203,7 +220,12 @@ function renderNode(
   if (node.transform) props.transform = node.transform;
   if (node.opacity != null) props.opacity = node.opacity;
   if (node.strokeWidth != null) props.strokeWidth = node.strokeWidth;
-  if (node.kind === 'flora-hit' || node.kind === 'wisp-hit' || node.kind === 'hit')
+  if (
+    node.kind === 'flora-hit' ||
+    node.kind === 'wisp-hit' ||
+    node.kind === 'claim-wisp-hit' ||
+    node.kind === 'hit'
+  )
     props.fill = 'transparent';
   if (node.kind === 'bloom-anchor') props['aria-hidden'] = 'true';
   // Stamp ids into the DOM so TreeView can select by COORDINATE hit-test (robust where the bubbled
@@ -252,7 +274,10 @@ function renderNode(
 
   const kids: React.ReactNode[] = [];
   if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
-  if (node.kind === 'wisp' && node.phase != null) {
+  // Both the build wisp (ADR-0048) and the story-claim wisp (ADR-0138) orbit — the rotation is the
+  // node's `phase` (geometry, seeded by runId / claim key). The claim orbits a touch slower so the two
+  // layers read as distinct in motion when both are present on one island.
+  if ((node.kind === 'wisp' || node.kind === 'claim-wisp') && node.phase != null) {
     kids.push(
       React.createElement('animateTransform', {
         key: '__spin',
@@ -260,7 +285,7 @@ function renderNode(
         type: 'rotate',
         from: `${fmt(node.phase)} 0 0`,
         to: `${fmt(node.phase + 360)} 0 0`,
-        dur: '6s',
+        dur: node.kind === 'claim-wisp' ? '9s' : '6s',
         repeatCount: 'indefinite',
       }),
     );

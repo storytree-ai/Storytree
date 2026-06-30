@@ -75,6 +75,9 @@ const GATE_PHASES: ReadonlySet<string> = new Set([
   "CONFIRM_GREEN",
   "GATE",
 ]);
+// The three ADR-0138 §5 subagent colour-states — guards the advisory `doc->>'colourState'` read so a
+// malformed value (or the §5-forbidden "green"/"bloom") can never reach the build wisp's role tint.
+const COLOUR_STATES: ReadonlySet<string> = new Set(["authoring", "proving", "supplementing"]);
 // The claim stale-reclaim window (ADR-0138 §5) — mirrors CLAIM_STALE_RECLAIM_MS in
 // @storytree/notice-board and the studio inFlightActivity fold (re-composed here, the surface
 // boundary): a claim whose heartbeat aged out belongs to a crashed holder, so the wisp self-heals
@@ -175,14 +178,17 @@ async function main(): Promise<void> {
     inFlightBuilds: async () =>
       advisory(async () => {
         const res = await pool.query(
+          // ADR-0138 §5: `doc->>'colourState'` rides alongside `phase` — the live subagent role tint
+          // (advisory; null on a pre-ADR-0138 mark). Mirrors the studio PgBackend.inFlightBuilds SQL.
           `WITH latest_building AS (
              SELECT DISTINCT ON (unit_id)
-               unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase, at
+               unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase,
+               doc->>'colourState' AS colour_state, at
              FROM events.work_event
              WHERE type = 'building'
              ORDER BY unit_id, seq DESC
            )
-           SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.at
+           SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.colour_state, lb.at
              FROM latest_building lb
             WHERE lb.run_id IS NOT NULL
               AND NOT EXISTS (
@@ -191,24 +197,35 @@ async function main(): Promise<void> {
               )`,
         );
         const now = Date.now();
-        const out: { unitId: string; tier: string; runId: string; at: string; phase?: string }[] = [];
+        const out: {
+          unitId: string;
+          tier: string;
+          runId: string;
+          at: string;
+          phase?: string;
+          colourState?: string;
+        }[] = [];
         for (const raw of res.rows) {
           const row = raw as {
             unit_id: string;
             tier: string;
             run_id: string;
             phase: string | null;
+            colour_state: string | null;
             at: Date | string;
           };
           const at = toIso(row.at);
           if (now - new Date(at).getTime() >= IN_FLIGHT_TTL_MS) continue; // past the TTL — cleared
           const phase = row.phase != null && GATE_PHASES.has(row.phase) ? row.phase : undefined;
+          const colourState =
+            row.colour_state != null && COLOUR_STATES.has(row.colour_state) ? row.colour_state : undefined;
           out.push({
             unitId: row.unit_id,
             tier: row.tier,
             runId: row.run_id,
             at,
             ...(phase !== undefined ? { phase } : {}),
+            ...(colourState !== undefined ? { colourState } : {}),
           });
         }
         return out;

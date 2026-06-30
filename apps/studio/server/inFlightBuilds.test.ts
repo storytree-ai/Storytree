@@ -53,4 +53,28 @@ describe('rowsToBuildActivity — the in-flight-build row fold', () => {
     expect(out[0]?.at).toBe(fresh);
     expect(out[0]?.phase).toBe('CONFIRM_GREEN');
   });
+
+  it('surfaces the live subagent colourState alongside the phase (ADR-0138 §5)', () => {
+    const out = rowsToBuildActivity(
+      [{ unit_id: 'studio', tier: 'capability', run_id: 'r', at: fresh, phase: 'CONFIRM_RED', colour_state: 'proving' }],
+      NOW,
+    );
+    expect(out).toEqual([
+      { unitId: 'studio', tier: 'capability', runId: 'r', at: fresh, phase: 'CONFIRM_RED', colourState: 'proving' },
+    ]);
+  });
+
+  it('omits colourState for a pre-ADR-0138 row (null) or a malformed/forbidden value (back-compat)', () => {
+    // null → omitted (the plain phaseBand look, unchanged)
+    const none = rowsToBuildActivity([{ unit_id: 'a', tier: 'story', run_id: 'r', at: fresh, colour_state: null }], NOW);
+    expect('colourState' in (none[0] ?? {})).toBe(false);
+    // an absent column → omitted
+    const absent = rowsToBuildActivity([{ unit_id: 'b', tier: 'story', run_id: 'r', at: fresh }], NOW);
+    expect('colourState' in (absent[0] ?? {})).toBe(false);
+    // §5 wall: the forbidden "green"/"bloom" tokens are NEVER surfaced — they narrow to undefined.
+    for (const bad of ['green', 'bloom', 'nonsense']) {
+      const out = rowsToBuildActivity([{ unit_id: 'x', tier: 'story', run_id: 'r', at: fresh, colour_state: bad }], NOW);
+      expect('colourState' in (out[0] ?? {})).toBe(false);
+    }
+  });
 });

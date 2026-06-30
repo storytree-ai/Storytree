@@ -2956,6 +2956,50 @@ mark.st-hl.flash {
   .world-wisp.band-green .world-wisp-glow { animation: none; opacity: 0.45; }
 }
 
+/* OPTIONAL build-wisp ROLE TINT (ADR-0138 §5): when the live work-event stamped a subagent role, a
+   `role-*` class rides ALONGSIDE the red→green band — a small extra dot ring in the role hue, so a
+   build's wisp also reads "which subagent" without losing the red/green band. Back-compat: absent → no
+   change. Subtle by design (the band still carries the primary signal); never green (proving ≠ proof). */
+.world-wisp.role-authoring .world-wisp-dot { stroke: #d9920a; }
+.world-wisp.role-proving .world-wisp-dot { stroke: #0e9aa0; }
+.world-wisp.role-supplementing .world-wisp-dot { stroke: #8b5cf6; }
+
+/* story-CLAIM wisp (ADR-0138 §5): "a session is working this story" — the COORDINATION signal, a
+   DISTINCT layer from the build wisp (observability) and, critically, from the verdict bloom (proof).
+   §5 HONESTY WALL (non-negotiable): a claim is NEVER a proof — only a signed verdict paints the green
+   bloom (ADR-0045). So the claim wisp is deliberately kept clear of the bloom's look: a HOLLOW ring
+   (stroke, no fill) with a small solid core, orbiting a touch wider + slower than the build wisp, in
+   per-role hues that avoid the healthy-green bloom hue. proving = TEAL/CYAN (the in-flight hue, NOT the
+   healthy green), authoring = AMBER/GOLD, supplementing = VIOLET. The hollow-ring silhouette + the
+   non-green hue are what make a claimed-but-not-proven story unmistakable from a proven-green one. */
+.world-claim-wisp {
+  cursor: pointer;
+  animation: wisp-in 0.6s ease-out both;
+}
+.world-claim-wisp-glow {
+  fill: none;
+  stroke: var(--claim-hue, #8b5cf6);
+  stroke-width: 1.6;
+  opacity: 0.7;
+  animation: claim-orbit-pulse 2.2s ease-in-out infinite;
+}
+.world-claim-wisp-dot {
+  fill: var(--claim-hue, #8b5cf6);
+  stroke: #ffffff;
+  stroke-width: 1;
+  opacity: 0.95;
+}
+.world-claim-wisp.state-authoring { --claim-hue: #d9920a; } /* amber / gold — story-author edits */
+.world-claim-wisp.state-proving { --claim-hue: #0e9aa0; }   /* teal / cyan — in-flight, NOT bloom-green */
+.world-claim-wisp.state-supplementing { --claim-hue: #8b5cf6; } /* violet — glue / orchestration */
+@keyframes claim-orbit-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-claim-wisp-glow { animation: none; opacity: 0.7; }
+}
+
 /* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
    signed verdict just landed on this territory, kin to the hlflash/cflash
    transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:

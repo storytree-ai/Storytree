@@ -67,6 +67,7 @@ function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInp
     plants: [{ id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a — proven' }],
     treeTitle: 'library — healthy',
     wisps: [],
+    claims: [],
     plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'library', subText: 'healthy · 3 caps', title: 'The library' },
     ...over,
   };
@@ -323,4 +324,78 @@ test('the wisp folds the live gate phase → a red/green band (location ⟂ form
   // the build phase — the band is a separate, additive field.
   assert.equal(wispFor('GATE').phase, wispFor('CONFIRM_RED').phase);
   assert.equal(typeof wispFor('GATE').phase, 'number');
+});
+
+// ---------- the story-CLAIM wisp + the §5 honesty wall (ADR-0138) ----------
+
+test('a territory with a claim carries a DISTINCT claim-wisp orbit (key-seeded); none → no claim wisps', () => {
+  const withClaim = buildScene(
+    mkInput({
+      territories: [
+        mkTerritory({ claims: [{ key: 's1', title: 'a session is here', colourState: 'authoring' }] }),
+      ],
+    }),
+  );
+  const orbit = mustByKind(withClaim, 'claim-wisps');
+  const wisp = mustByKind(orbit, 'claim-wisp');
+  // the claim wisp carries its subagent colour-state (form) and a key-seeded orbit rotation (geometry).
+  assert.equal(wisp.colourState, 'authoring');
+  assert.equal(typeof wisp.phase, 'number');
+  // its OWN drawable family — distinct circles, never the build-wisp kinds.
+  assert.ok(firstByKind(wisp, 'claim-wisp-glow') && firstByKind(wisp, 'claim-wisp-dot') && firstByKind(wisp, 'claim-wisp-hit'));
+
+  const noClaim = buildScene(mkInput()); // mkTerritory default has no claims
+  assert.equal(firstByKind(mustByKind(noClaim, 'flora-layer'), 'claim-wisps'), null);
+});
+
+test('each claim intent → its colour-state on the claim wisp (authoring / proving / supplementing)', () => {
+  const claimFor = (colourState: 'authoring' | 'proving' | 'supplementing') => {
+    const scene = buildScene(
+      mkInput({ territories: [mkTerritory({ claims: [{ key: 'k', title: 't', colourState }] })] }),
+    );
+    return mustByKind(scene, 'claim-wisp');
+  };
+  assert.equal(claimFor('authoring').colourState, 'authoring');
+  assert.equal(claimFor('proving').colourState, 'proving');
+  assert.equal(claimFor('supplementing').colourState, 'supplementing');
+});
+
+test('§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
+  // A claim in EVERY colour-state, including the at-risk "proving" (the in-flight hue that must NOT
+  // read as the proven-green bloom): the claim layer must emit no bloom drawable and no `outcome`.
+  for (const colourState of ['authoring', 'proving', 'supplementing'] as const) {
+    const scene = buildScene(
+      mkInput({ territories: [mkTerritory({ claims: [{ key: 'k', title: 't', colourState }] })] }),
+    );
+    const orbit = mustByKind(scene, 'claim-wisps');
+    // no bloom drawable family on the claim orbit …
+    for (const bloomKind of ['bloom-anchor', 'bloom-crown', 'bloom-plant', 'bloom-ring', 'bloom-spark']) {
+      assert.equal(firstByKind(orbit, bloomKind), null, `claim orbit must carry no ${bloomKind}`);
+    }
+    // … and no node under it carries a verdict `outcome` (the bloom's hue driver).
+    const walk = (n: SceneNode): void => {
+      assert.equal(n.outcome, undefined, 'a claim-layer node must never carry a verdict outcome');
+      for (const c of children(n)) walk(c);
+    };
+    walk(orbit);
+  }
+});
+
+test('a BUILD wisp can carry the live subagent colourState (ADR-0138 §5) — additive to phaseBand, absent by default', () => {
+  // back-compat: no colourState stamped → the wisp has none (the phaseBand look is unchanged).
+  const plain = buildScene(mkInput({ territories: [mkTerritory({ wisps: [{ runId: 'r', title: 'b' }] })] }));
+  assert.equal(mustByKind(plain, 'wisp').colourState, undefined);
+  // stamped → the build wisp carries the role tint ALONGSIDE its red→green band.
+  const tinted = buildScene(
+    mkInput({ territories: [mkTerritory({ wisps: [{ runId: 'r', title: 'b', phase: 'CONFIRM_RED', colourState: 'proving' }] })] }),
+  );
+  const wisp = mustByKind(tinted, 'wisp');
+  assert.equal(wisp.colourState, 'proving');
+  assert.equal(wisp.phaseBand, 'red'); // the band still folds from the gate phase, unchanged
+});
+
+test('buildScene stays deterministic with a claim layer present (same input → byte-identical)', () => {
+  const withClaims = (): SceneInput =>
+    mkInput({ territories: [mkTerritory({ claims: [{ key: 's1', title: 't', colourState: 'proving' }] })] });
+  assert.deepEqual(buildScene(withClaims()), buildScene(withClaims()));
 });

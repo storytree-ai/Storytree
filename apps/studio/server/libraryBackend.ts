@@ -860,14 +860,17 @@ export class PgBackend implements LibraryBackend {
           // pre-ADR-0048 mark. DISTINCT ON … ORDER BY seq DESC already takes the newest, so a unit
           // mid-build re-colours as the spine writes each phase.
           return handle.pool.query(
+            // ADR-0138 §5: `doc->>'colourState'` rides alongside `phase` — the live subagent role the
+            // latest `building` mark stamped (advisory role tint; null on a pre-ADR-0138 mark).
             `WITH latest_building AS (
                SELECT DISTINCT ON (unit_id)
-                 unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase, at
+                 unit_id, tier, doc->>'runId' AS run_id, doc->>'phase' AS phase,
+                 doc->>'colourState' AS colour_state, at
                FROM events.work_event
                WHERE type = 'building'
                ORDER BY unit_id, seq DESC
              )
-             SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.at
+             SELECT lb.unit_id, lb.tier, lb.run_id, lb.phase, lb.colour_state, lb.at
                FROM latest_building lb
               WHERE lb.run_id IS NOT NULL
                 AND NOT EXISTS (

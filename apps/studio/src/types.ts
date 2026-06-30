@@ -512,6 +512,9 @@ export interface TreePayload {
   sessions?: TreeSession[];
   /** Present only when the live store answered AND at least one build is in flight (ADR-0048). */
   builds?: BuildActivity[];
+  /** Present only when the live store answered AND at least one story is CLAIMED (ADR-0138 §5) — so
+   *  the world paints claim wisps on first load too (sibling to `builds`, mirrors its seed contract). */
+  claims?: ClaimActivity[];
 }
 
 // ---------- per-UAT-test attestations (ADR-0044) ----------
@@ -637,6 +640,48 @@ export interface BuildActivity {
    * studio is browser-bundled, so it duplicates the literal union rather than importing the contract).
    */
   phase?: BuildPhase;
+  /**
+   * The live SUBAGENT colour-state the latest `building` work-event stamped (ADR-0138 §5,
+   * `WorkEventDoc.colourState`) — the role the orchestrator was running when the mark was emitted.
+   * Advisory + optional + back-compat, EXACTLY like `phase`: absent for a pre-ADR-0138 row (or the
+   * json/down-DB read), in which case the build wisp keeps its plain `phaseBand` look. Threaded onto
+   * the build wisp as a role tint. Mirrors `SubagentColourState` (the studio is browser-bundled, so
+   * it duplicates the literal union rather than importing `@storytree/drive`).
+   */
+  colourState?: SubagentColourState;
+}
+
+/**
+ * The three ADR-0138 §5 subagent colour-states — what the orchestrator is doing on a claimed story:
+ * `authoring` (story-author), `proving` (red→green leaf), `supplementing` (glue). Mirrors
+ * `@storytree/drive`'s `subagentColourState` OUTPUT locally (like {@link BuildPhase} mirrors the
+ * proof-protocol enum) — the studio is browser-bundled and must NOT import the drive/agent packages
+ * (`modelPathBoundary.test.ts`). GUARANTEED never `green`/`bloom`: a claim is a coordination signal,
+ * never a proof (only a signed verdict paints the green bloom — the §5 honesty wall).
+ */
+export type SubagentColourState = 'authoring' | 'proving' | 'supplementing';
+
+/**
+ * A story CLAIM the world renders as an orbiting coordination wisp (ADR-0138 §5): the live
+ * `events.node_claim` for a claimed story, folded server-side ({@link import('../server/inFlightActivity').claimsToActivity}).
+ * `kind: "claim"` is the DISCRIMINATOR — the renderer paints this VISIBLY DISTINCT from a proven-green
+ * bloom (ADR-0045): a claim is "a session is working this story," never a proof. The wire shape mirrors
+ * the server's `ClaimActivity`; the colour is folded from `intent` client-side (lib/claimColour.ts).
+ */
+export interface ClaimActivity {
+  /** The claimed unit — a story or capability id (resolves to a territory). */
+  unitId: string;
+  /** Discriminator: always "claim" — never "green"/"bloom" (the §5 honesty wall). */
+  kind: 'claim';
+  /** The claiming session — the claim wisp's stable identity (orbit phase, react key). */
+  sessionId: string;
+  /** The claim's branch (released on its CI merge — ADR-0138 §4). */
+  branch: string;
+  /** The free-prose intent the spine stamped ("edit"|"real"|"orchestrate", or other) — folded to a
+   *  colour-state client-side; an unknown intent defaults to `supplementing` (never throws). */
+  intent: string;
+  /** ISO string of when the claim was taken (`claimed_at`). */
+  at: string;
 }
 
 /**
@@ -652,12 +697,14 @@ export type BuildPhase =
   | 'GATE';
 
 /**
- * GET /api/activity — the in-flight-build layer alone (ADR-0048), polled like
- * /api/presence. Always a 200: `null` is the advisory-absent answer (down DB /
- * json store), never a 503; `[]` means nothing is building right now.
+ * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims), polled like
+ * /api/presence. Always a 200: `null` is the advisory-absent answer (down DB / json store), never a
+ * 503; `[]` means nothing is building / claimed right now. `claims` is optional on the wire (a narrow
+ * backend may omit it → treated as `null`), back-compat with a pre-ADR-0138 server that sent only `builds`.
  */
 export interface ActivityPayload {
   builds: BuildActivity[] | null;
+  claims?: ClaimActivity[] | null;
 }
 
 // ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------

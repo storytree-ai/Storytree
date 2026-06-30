@@ -27,9 +27,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { anyInFlight, anyRecentLanding } from '../lib/activity';
-import type { BuildActivity, TreeStory } from '../types';
+import type { BuildActivity, ClaimActivity, SubagentColourState, TreeStory } from '../types';
 
-export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'building' | 'decor';
+export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'building' | 'claim' | 'decor';
 
 /**
  * Status fan order: the growth ladder, then the failure state. `building` and
@@ -239,6 +239,20 @@ function BuildWispIcon(): React.JSX.Element {
   );
 }
 
+/** The story-CLAIM wisp (ADR-0138 §5) — the world's OWN `world-claim-wisp state-<x>` classes (the
+ *  hollow ring + core), so the legend swatch can never drift from the live claim wisp AND can never be
+ *  mistaken for the green bloom (the §5 honesty wall, in the legend too). `state` picks the role hue. */
+function ClaimWispIcon({ state }: { state: SubagentColourState }): React.JSX.Element {
+  return (
+    <svg viewBox="-8 -8 16 16" aria-hidden="true">
+      <g className={`world-claim-wisp state-${state}`}>
+        <circle className="world-claim-wisp-glow" r={5.5} />
+        <circle className="world-claim-wisp-dot" r={2.2} />
+      </g>
+    </svg>
+  );
+}
+
 /** The recently-landed bloom (ADR-0045) — the world's `world-bloom` classes, so
  *  the legend swatch can never drift from the live halo + sparkles. */
 function BloomIcon(): React.JSX.Element {
@@ -357,12 +371,24 @@ export interface LegendModel {
 
 /** Derive the legend's grounded model from the loaded world — the chip rows + the facts the
  *  drawer bodies read. Pure (no state); shared by the dock and the Shared Islands panel so the
- *  two render the SAME legend. Exported as {@link legendModelFor} for the panel's flyout. */
-export function legendModelFor(stories: TreeStory[], builds: BuildActivity[], now: Date): LegendModel {
-  return legendModel(stories, builds, now);
+ *  two render the SAME legend. Exported as {@link legendModelFor} for the panel's flyout.
+ *  `claims` (ADR-0138 §5) is optional + defaults to none, so a caller that doesn't render the claim
+ *  layer (the flag is off) keeps the legend exactly as it was. */
+export function legendModelFor(
+  stories: TreeStory[],
+  builds: BuildActivity[],
+  now: Date,
+  claims: ClaimActivity[] = [],
+): LegendModel {
+  return legendModel(stories, builds, now, claims);
 }
 
-function legendModel(stories: TreeStory[], builds: BuildActivity[], now: Date): LegendModel {
+function legendModel(
+  stories: TreeStory[],
+  builds: BuildActivity[],
+  now: Date,
+  claims: ClaimActivity[] = [],
+): LegendModel {
   const facts = legendFacts(stories);
   const totals = (st: string): { stories: number; caps: number } =>
     facts.statusTotals.get(st) ?? { stories: 0, caps: 0 };
@@ -437,6 +463,16 @@ function legendModel(stories: TreeStory[], builds: BuildActivity[], now: Date): 
       visible: building,
       icons: <BuildWispIcon />,
     },
+    {
+      // The coordination layer (ADR-0138 §5): a claim wisp orbits while a SESSION is working a story
+      // ("someone is here"), coloured by what the orchestrator is doing. NOT a proof — only the green
+      // bloom is a signed verdict (the §5 honesty wall). Drops out when nothing is claimed (flag off
+      // → no claims → no row), so `main` never shows it until the owner attests.
+      key: 'claim',
+      label: 'sessions working',
+      visible: claims.length > 0,
+      icons: <ClaimWispIcon state="authoring" />,
+    },
     { key: 'decor', label: 'decoration', visible: true, icons: <ConiferIcon /> },
   ];
   return { facts, rows, totals, anyWitnessed, unknownPresent: present('unknown') };
@@ -451,6 +487,7 @@ export function legendRowLabel(key: RowKey): string {
       proof: 'proof',
       activity: 'activity',
       building: 'building',
+      claim: 'sessions working',
       decor: 'decoration',
     } as const
   )[key];
@@ -643,6 +680,40 @@ export function LegendDrawerBody({
       </>,
     );
   }
+  if (rowKey === 'claim') {
+    return region(
+      'sessions working',
+      <>
+        <div className="legend-fan">
+          <Tile
+            icon={<ClaimWispIcon state="authoring" />}
+            label="authoring"
+            note="a session is shaping the story (story-author)"
+          />
+          <Tile
+            icon={<ClaimWispIcon state="proving" />}
+            label="proving"
+            note="driving the red-green gate — a claim, NOT yet a proof"
+          />
+          <Tile
+            icon={<ClaimWispIcon state="supplementing" />}
+            label="supplementing"
+            note="wiring / glue around the story"
+          />
+        </div>
+        <p className="legend-cap">
+          A hollow orbiting ring means <strong>a session is working this story</strong> right now —
+          the <strong>coordination</strong> signal (so another session waits / pulls after its merge
+          instead of stomping it, ADR-0138). Its colour says what the orchestrator is doing:{' '}
+          <strong>authoring</strong> (amber), <strong>proving</strong> (teal), or{' '}
+          <strong>supplementing</strong> (violet). It is <strong>NOT a proof</strong>: a claim — even
+          a “proving” one — never greens the story. Only the green <strong>bloom</strong> is a signed
+          verdict (ADR-0045), and only a signed pass paints the crown. The ring self-clears when the
+          session’s branch merges or its claim goes stale.
+        </p>
+      </>,
+    );
+  }
   return region(
     'decoration',
     <>
@@ -673,6 +744,7 @@ export function LegendDrawerBody({
 export function WorldLegend({
   stories,
   builds = [],
+  claims = [],
   now,
   hidden,
   onToggleStatus,
@@ -684,6 +756,9 @@ export function WorldLegend({
 }: {
   stories: TreeStory[];
   builds?: BuildActivity[];
+  /** ADR-0138 §5: in-flight story claims; default none, so a caller with the flag off keeps the
+   *  legend unchanged (no "sessions working" row). */
+  claims?: ClaimActivity[];
   now: Date;
   hidden: ReadonlySet<string>;
   onToggleStatus: (st: string) => void;
@@ -720,7 +795,7 @@ export function WorldLegend({
     };
   }, [open, controlled]);
 
-  const model = legendModel(stories, builds, now);
+  const model = legendModel(stories, builds, now, claims);
   const toggle = (key: RowKey): void => {
     if (controlled) onToggle?.(open === key ? null : key);
     else setOpenState((cur) => (cur === key ? null : key));
