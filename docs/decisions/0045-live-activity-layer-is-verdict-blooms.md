@@ -14,12 +14,18 @@ owner 2026-06-14 in conversation and recorded the same day. **Amends
 verdict-derived green: the bloom announces the very transition the hue durably records),
 **amends [ADR-0041](0041-possibly-dead-wisps-park-in-the-dock.md) / applies
 [ADR-0033](0033-session-presence-notice-board.md)** (it sits the new bloom layer *beside* the
-session-presence wisps without changing them — presence is **not** demoted). It reuses the visual
+session-presence wisps without changing them — this ADR does not demote presence, though ADR-0048
+later moved its orbiting-wisp role to the harness; see the Correction below). It reuses the visual
 vocabulary of [ADR-0036](0036-story-world-studio-visualisation.md) /
 [ADR-0038](0038-story-world-vocabulary-recalibration.md) (the hex world, the hue ladder) and the
 transient-flash idiom already in `apps/studio/src/index.css` (`hlflash` / `cflash`).
 
-**Superseded-in-part by [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)** — this ADR's §6 "presence is NOT demoted (owner call 2026-06-14)" is reversed (session presence loses its orbiting-wisp role), and its named-deferred "in-flight 'building' shimmer (out of scope here)" item is now **in scope** and is ADR-0048's centrepiece. The verdict-bloom layer this ADR decides is otherwise untouched.
+**Correction ([ADR-0048](0048-in-flight-build-is-the-primary-wisp.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** §6's "presence is
+NOT demoted" is reversed — session presence loses its **orbiting-wisp role** to the harness-driven
+in-flight build (the presence model, dock, and `noticeboard declare` stay; only the orbiting role
+moves). And the named-deferred "in-flight 'building' shimmer" is now **in scope** as ADR-0048's
+centrepiece. The verdict-bloom CORE this ADR decides (Decisions 1–5) STANDS untouched.
 
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0045*` on
 2026-06-13/14 — 0043 and 0044 are taken on `main`; 0045 is free (live DB carries no ADR rows of its
@@ -94,7 +100,11 @@ endpoint, or infra.
    landing, not who is online; it fades as the event ages — the durable result is the plant colour
    (ADR-0040).*
 
-6. **Presence is NOT demoted (owner call 2026-06-14).** The session-presence wisps and dock
+6. **Presence is NOT demoted (owner call 2026-06-14).** *(Reversed by
+   [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): session presence
+   loses its orbiting-wisp role to the harness-driven in-flight build; the presence model and dock
+   stay.)* The session-presence wisps and dock
    (ADR-0033/0041) stay a **first-class** hosted layer — they serve multi-dev awareness on the
    shared studio page, which the bloom (a record of *past* landings) does not replace. The bloom is
    *added beside* presence, not in place of it. Presence's **reliability** is improved on a
@@ -118,6 +128,8 @@ endpoint, or infra.
   seconds instead of on the next tree load. Deliberately not built: `/api/tree` must stay one-shot.
 - **In-flight "building" shimmer** — a pre-verdict pulse while a unit is actively being built.
   Would lean on live presence/work-event state rather than a signed fact; out of scope here.
+  *(Now IN scope — built as the primary wisp, sourced from the harness `building` work-event, per
+  [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) (ADR-0139).)*
 
 ## Consequences
 

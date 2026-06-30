@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-14
-supersedes_in_part: [45]
 amends: [41]
 ---
 
@@ -18,10 +17,11 @@ We can take a look at 'I'm planning work around this' claims showing up in a dif
 **Demotes session presence out of the orbiting-wisp role ([ADR-0033](0033-session-presence-notice-board.md))**
 — the *session* no longer orbits a tree; the *mechanical build* does. Session presence stays (the data
 model, the dock) but loses the orbiting-wisp role (ADR-0033 corrected in place per
-[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). **Supersedes in part
-[ADR-0045](0045-live-activity-layer-is-verdict-blooms.md)** — it reverses §6's "presence is NOT
-demoted (owner call 2026-06-14)" and *picks up* its §117 named-deferred item ("in-flight 'building'
-shimmer… out of scope here"), which is now in scope and is the centrepiece. **Amends
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). **Reverses
+[ADR-0045](0045-live-activity-layer-is-verdict-blooms.md)'s §6 "presence is NOT demoted (owner call
+2026-06-14)" and picks up its named-deferred in-flight 'building' shimmer** — now in scope as this
+ADR's centrepiece (ADR-0045 corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). **Amends
 [ADR-0041](0041-possibly-dead-wisps-park-in-the-dock.md)** — the wisp gains a new `building` band
 above `fresh`. **Applies [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) /
 [ADR-0030](0030-claude-agent-sdk-live-runtime.md)** — the signal is sourced from the prove-it-gate's
