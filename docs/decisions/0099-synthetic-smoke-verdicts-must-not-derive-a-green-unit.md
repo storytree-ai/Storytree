@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-23
-supersedes_in_part: [81]
 amends: [7, 20]
 load_bearing: true
 ---
@@ -28,14 +27,14 @@ The owed guard test landed (a `--store pg` synthetic walk is refused).
 
 This ADR **amends [ADR-0007](0007-proof-model.md)** (the proof-mode vocabulary gains a synthetic/real
 distinction) and **[ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md)** (the no-forged-healthy
-enforcement extends to the `--live` persistence path). It **supersedes in part
+enforcement extends to the `--live` persistence path). It **narrows
 [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)**: ADR-0081's invariant
-that **a `--live` build always persists** is overtaken (a `--live` smoke now runs in-memory and is
-`--store pg`-refused, exactly as a `--dry-run` already was), while ADR-0081's other half — **no
-`--store memory` CLI opt-out** (`refuseMemoryStore`) — is **preserved**: there is still no user-facing
-persist-nothing flag; `--live` simply no longer persists by construction. ADR-0081 stays `accepted`;
-the partial-reversal edge is visible in `adr list --current`. It overturns no honesty wall — it CLOSES
-a hole in one.
+that **a `--live` build always persists** no longer holds for `--live` (a `--live` smoke now runs
+in-memory and is `--store pg`-refused, exactly as a `--dry-run` already was, so only `--real`
+persists), while ADR-0081's core — **no `--store memory` CLI opt-out** (`refuseMemoryStore`) — stands;
+ADR-0081 is corrected in place
+([ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). It overturns no
+honesty wall — it CLOSES a hole in one.
 
 ## Context
 
@@ -151,11 +150,10 @@ verdict again.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — red-green enforcement, "a scripted /
   synthetic PASS persisted would be a forged healthy" (**amended**: the no-forged-healthy enforcement
   extends to the `--live` persistence path, not just dry-runs).
-- [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md) — **superseded in
-  part**: its "a live/real build always persists" invariant is overtaken for `--live` (a synthetic
-  `--live` smoke now runs in-memory and is `--store pg`-refused, like a `--dry-run`); its "no
-  `--store memory` CLI opt-out" (`refuseMemoryStore`) is **preserved** — there is still no persist-
-  nothing flag, the smoke just no longer persists by construction. ADR-0081 stays `accepted`.
+- [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md) — **narrowed**
+  (corrected in place per ADR-0139): its "a live/real build always persists" invariant no longer holds
+  for `--live` (a synthetic `--live` smoke now runs in-memory and is `--store pg`-refused, like a
+  `--dry-run`); its core "no `--store memory` CLI opt-out" (`refuseMemoryStore`) stands.
 - [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) — disowned the
   library's synthetic live arms as an authoring guideline; this ADR makes it a spine-enforced wall.
 - [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the coverage

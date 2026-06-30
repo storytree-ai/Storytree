@@ -1,20 +1,24 @@
 ---
 status: accepted
 decided: 2026-06-20
-supersedes_in_part: [60]
 ---
 # ADR-0081: Remove the --store memory opt-out: live and real builds always persist
 
 ## Status
 
 accepted (2026-06-20) — direct owner decision this session ("yes proceed to remove it"), out of the
-notice-board wisp diagnostic. **Supersedes in part [ADR-0060](0060-live-and-real-builds-own-the-database-default-store-pg-auto.md)**
-— ADR-0060 §1 kept `--store memory` as an explicit opt-out so a `--live`/`--real` build could run
-without persisting; this removes that opt-out from the CLI surface. The rest of ADR-0060 stands:
-live/real default to `pg`, the preflight auto-starts the Cloud SQL instance, and `--dry-run` stays
-in-memory and `--store pg`-refused.
+notice-board wisp diagnostic. **Removes the `--store memory` opt-out that
+[ADR-0060](0060-live-and-real-builds-own-the-database-default-store-pg-auto.md) §1 kept** (a
+`--live`/`--real` build that persists nothing); the rest of ADR-0060 stands — live/real default to
+`pg`, the preflight auto-starts the Cloud SQL instance, and `--dry-run` stays in-memory and
+`--store pg`-refused (ADR-0060 corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)).
 
-**Superseded-in-part by [ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md)** — this ADR's invariant that **a `--live` build always persists** is overtaken: a synthetic `--live` smoke now runs in-memory and is `--store pg`-refused (exactly as a `--dry-run` already was), so only `--real` persists to `pg`. This ADR's other half — the **no `--store memory` CLI opt-out** (`refuseMemoryStore`) — is preserved.
+**Correction ([ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the "a `--live`
+build always persists" invariant below was later narrowed — a synthetic `--live` smoke runs in-memory
+and is `--store pg`-refused (like a `--dry-run`), so only `--real` persists to `pg`. The core
+decision — **no `--store memory` CLI opt-out** (`refuseMemoryStore`) — stands.
 
 ## Context
 
@@ -48,9 +52,12 @@ test-injection seam:
 
 1. **The CLI refuses `--store memory`.** `storytree node build` / `story build` with `--store memory`
    returns a fail-closed envelope (`refuseMemoryStore`, `packages/cli/src/commands.ts`) pointing at
-   `pnpm db:status`: a `--live`/`--real` build always persists, a `--dry-run` is already in-memory —
-   there is no run-without-persisting mode.
-2. **A live/real build always persists.** `effectiveVerdictStore` keeps defaulting an unset `--store`
+   `pnpm db:status`: a `--real` build persists, a `--live` smoke and `--dry-run` run in-memory (per the
+   Status correction) — there is no `--store memory` opt-out.
+2. **A live/real build always persists.** *(Narrowed for `--live` —
+   [ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md): a synthetic `--live`
+   smoke runs in-memory and is `--store pg`-refused, so only `--real` persists; see the Status
+   correction.)* `effectiveVerdictStore` keeps defaulting an unset `--store`
    to `pg`; the DB preflight (ADR-0060 `ensureDbUp`) still auto-starts the instance and **refuses**
    (fix the DB) if it cannot — but the refusal no longer offers the deleted `--store memory` escape.
 3. **The in-memory store survives only as a programmatic test seam.** `resolveVerdictStore` still maps
@@ -61,9 +68,10 @@ test-injection seam:
 
 ## Consequences
 
-- **Good:** every live/real build is recorded — real, billed work always lands a verdict and feeds the
-  studio. The footgun (real work that vanishes) is gone, and the invariant simplifies to "live/real
-  always persist".
+- **Good:** every real build is recorded — real, billed work always lands a verdict and feeds the
+  studio. The footgun (real work that vanishes) is gone. *(The "live/real always persist" invariant was
+  later narrowed for `--live` — [ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md);
+  a synthetic `--live` smoke does not persist, only `--real` does.)*
 - **Cost / accepted consequence:** a genuinely unraisable DB now BLOCKS the automated leaf entirely —
   there is no ephemeral escape. Judged correct: manual edit → gate → commit still flows, and the
   instance is reliable and auto-starts. If a real outage ever demands it, a narrow env-gated override
@@ -73,7 +81,7 @@ test-injection seam:
 
 ## References
 
-- [ADR-0060](0060-live-and-real-builds-own-the-database-default-store-pg-auto.md) — superseded in part
+- [ADR-0060](0060-live-and-real-builds-own-the-database-default-store-pg-auto.md) — corrected in place
   (§1's `--store memory` opt-out removed; its default-`pg` + preflight stand).
 - [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) — the in-flight build is the primary wisp
   (what persistence feeds).

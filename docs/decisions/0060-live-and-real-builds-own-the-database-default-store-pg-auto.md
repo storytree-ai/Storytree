@@ -14,7 +14,12 @@ it"). Processes and retires the open-question artifact `oq-store-pg-default-for-
 the primary orbiting wisp but left its note "to SEE a wisp, run a build with `--store pg`" — i.e. the
 signal was opt-in; this ADR makes a live/real build feed it by default.
 
-**Superseded-in-part by [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)** — §1's `--store memory` explicit opt-out (a `--live`/`--real` build that persists nothing) is removed from the CLI surface; the in-memory store survives only as an internal test-injection seam. The rest of this ADR stands: live/real still default to `pg`, the preflight still auto-starts Cloud SQL, and `--dry-run` stays in-memory and `--store pg`-refused.
+**Correction ([ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)): §1's `--store
+memory` opt-out was removed** — there is no run-live/real-without-persisting flag; the in-memory store
+survives only as an internal test-injection seam, and the `--store memory` references in Decision §1,
+§2, and the Cost note below are corrected accordingly. The rest of this ADR stands: live/real default
+to `pg`, the preflight auto-starts Cloud SQL, and `--dry-run` stays in-memory and `--store pg`-refused.
 
 **Correction (2026-06-22) — the cold-start timing below is wrong; the poll budget has been raised.**
 The "~60–90s … ≤180s" figures in this ADR were an estimate. A real GCP cold start measures ~5–6 min
@@ -49,14 +54,16 @@ gate (`pnpm -r test`) and CI must stay DB-free.
 A `--live`/`--real` build **owns the database**:
 
 1. **Default `--store` to `pg`** for `--live`/`--real` (`node build` and `story build`). An unset
-   `--store` persists; `--store memory` is the explicit opt-out (run live/real without persisting — no
-   wisp/bloom). `--dry-run` is unchanged: in-memory by default, `--store pg` refused (ADR-0020).
+   `--store` persists. *(The original `--store memory` opt-out — run live/real without persisting — was
+   removed by [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md); a
+   live/real build now always persists.)* `--dry-run` is unchanged: in-memory by default, `--store pg`
+   refused (ADR-0020).
 2. **Preflight the DB** at the start of the pipeline, before any store setup, worktree, or spend:
    probe the live store; if it is unreachable, run the `db:up` equivalent
    (`gcloud sql instances patch … --activation-policy ALWAYS`) and poll until it accepts connections
-   (≤180s) — otherwise **refuse** the build with a clear reason (pointing at `pnpm db:status` and the
-   `--store memory` escape hatch). No silent in-memory fallback: a build that means to persist says so
-   when it cannot.
+   (≤180s) — otherwise **refuse** the build with a clear reason (pointing at `pnpm db:status`; the
+   `--store memory` escape hatch this once offered was removed by [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)).
+   No silent in-memory fallback: a build that means to persist says so when it cannot.
 
 Implemented in `packages/cli/src/db-control.ts` (`ensureDbUp` — the decision flow over injected
 effects, unit-tested with a fake clock; `probeLiveDb`/`startLiveDb`/`ensureLiveDb` — the real wiring;
@@ -71,7 +78,9 @@ CI never reach this path (it fires only for live/real with an effective `pg` sto
   loudly rather than silently dropping its verdict.
 - **Cost:** a cold instance adds a one-time ~60–90s auto-start wait to the first live/real build of a
   session. Live/real builds now depend on `gcloud` + ambient ADC (already required for `db:up`,
-  ADR-0021); a genuinely offline live/real run must pass `--store memory`.
+  ADR-0021). *(The original escape — "a genuinely offline live/real run must pass `--store memory`" —
+  no longer exists: [ADR-0081](0081-remove-the-store-memory-opt-out-live-and-real-builds-always.md)
+  removed the opt-out; a genuinely unraisable DB now blocks the automated leaf, by design.)*
 - **Unchanged invariants:** `--dry-run` stays in-memory and `--store pg`-refused (ADR-0020); the
   offline gate (`pnpm -r test`) and CI stay DB-free; remote/offline sessions (which cannot run
   live/real anyway) are unaffected.
