@@ -5,10 +5,14 @@
 // reads events.node_claim needs a DB (activityApi integration test + operator-attested
 // deep-link), but the stale-drop filter and the ADR-0138 §5 honesty-wall discriminator
 // are pure data math — red-green here without a DB.
+//
+// Runner: VITEST (describe/it/expect) — the studio package is a Vite app whose suite is
+// `vitest run`, exactly like the sibling inFlightBuilds.test.ts. (The leaf authored this
+// node:test-style under the isolated --real proof; converted to vitest in consolidation so
+// it runs in the package suite — the vitest-runner-mismatch learning.)
 
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { claimsToActivity } from './inFlightActivity.js';
+import { describe, it, expect } from 'vitest';
+import { claimsToActivity } from './inFlightActivity';
 
 // Mirrors CLAIM_STALE_RECLAIM_MS from @storytree/notice-board (2 hours).
 // A claim whose heartbeatAt is past this threshold is stale: the holder crashed/was
@@ -21,7 +25,7 @@ const freshHb = new Date(NOW.getTime() - 60_000).toISOString();
 // Just past the threshold — the claim should be dropped
 const staleHb = new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS - 1).toISOString();
 
-describe('claimsToActivity — the claim row fold', () => {
+describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — the claim row fold', () => {
   it('B1: maps a fresh claim row to a kind:"claim" ClaimActivity with correct fields', () => {
     const out = claimsToActivity(
       [
@@ -36,7 +40,7 @@ describe('claimsToActivity — the claim row fold', () => {
       ],
       NOW,
     );
-    assert.deepEqual(out, [
+    expect(out).toEqual([
       {
         unitId: 'render-claim-as-wisp',
         kind: 'claim',
@@ -62,7 +66,7 @@ describe('claimsToActivity — the claim row fold', () => {
       ],
       NOW,
     );
-    assert.deepEqual(out, []);
+    expect(out).toEqual([]);
   });
 
   it('B1: mixed batch — only the fresh claim survives the stale-drop', () => {
@@ -87,13 +91,10 @@ describe('claimsToActivity — the claim row fold', () => {
       ],
       NOW,
     );
-    assert.deepEqual(
-      out.map((a) => a.unitId),
-      ['alive'],
-    );
+    expect(out.map((a) => a.unitId)).toEqual(['alive']);
   });
 
-  it('B2 honesty wall: kind is "claim", never "green" or "bloom" (ADR-0138 §5)', () => {
+  it('claim-activity-is-visibly-distinct-from-proven-green: kind is "claim", never "green"/"bloom" (ADR-0138 §5)', () => {
     // A claim-activity must carry a discriminator that keeps it visually distinct from
     // the proven-green bloom (ADR-0045). The fold enforces this in data, before any pixel.
     const out = claimsToActivity(
@@ -109,12 +110,12 @@ describe('claimsToActivity — the claim row fold', () => {
       ],
       NOW,
     );
-    assert.strictEqual(out.length, 1);
-    assert.strictEqual(out[0]?.kind, 'claim');
+    expect(out.length).toBe(1);
+    expect(out[0]?.kind).toBe('claim');
     // Explicit wall — these are the discriminators a renderer would use for the
     // proven-green bloom; a claim must never carry them.
-    assert.notStrictEqual(out[0]?.kind, 'green');
-    assert.notStrictEqual(out[0]?.kind, 'bloom');
+    expect(out[0]?.kind).not.toBe('green');
+    expect(out[0]?.kind).not.toBe('bloom');
   });
 
   it('B1: normalises a Date claimed_at to an ISO string', () => {
@@ -131,6 +132,6 @@ describe('claimsToActivity — the claim row fold', () => {
       ],
       NOW,
     );
-    assert.strictEqual(out[0]?.at, freshHb);
+    expect(out[0]?.at).toBe(freshHb);
   });
 });

@@ -9,7 +9,10 @@
  * they are defined inline so this file imports ONLY node: builtins and relative modules
  * (the worktree has no node_modules — a package value import would crash the proof run).
  *
- * Named for their contract ids (ADR-0122 / ADR-0126):
+ * Named for the spec's declared contract id (ADR-0122 / ADR-0126): the one provable contract is
+ * `spawn-seam-proceeds-on-acquire-and-waits-on-refusal`, whose two arms (acquire→proceed,
+ * refuse→wait surfacing the holder) are exercised by the three cases below (the scs-* labels mark
+ * the sub-arms; contract 2 `orchestrator-acquires-before-spawn` is DEFERRED behind ADR-0137 Phase 3):
  *   - scs-acquired-fresh-proceeds     — acquired (fresh) → proceed: true, no heldBy
  *   - scs-acquired-reclaimed-proceeds — acquired (reclaimed stale holder) → proceed: true, no heldBy
  *   - scs-refused-exposes-holder      — refused → proceed: false with heldBy surfacing the holder
@@ -57,7 +60,7 @@ function sampleClaim(over: Partial<ClaimDocLike> = {}): ClaimDocLike {
 // scs-acquired-fresh-proceeds — a freshly-acquired claim yields proceed: true
 // ---------------------------------------------------------------------------
 
-test("scs-acquired-fresh-proceeds: acquired (fresh) claim → { proceed: true } with no heldBy", () => {
+test("spawn-seam-proceeds-on-acquire-and-waits-on-refusal — scs-acquired-fresh-proceeds: acquired (fresh) claim → { proceed: true } with no heldBy", () => {
   const result: ClaimResultLike = {
     acquired: true,
     claim: sampleClaim(),
@@ -75,7 +78,7 @@ test("scs-acquired-fresh-proceeds: acquired (fresh) claim → { proceed: true } 
 // scs-acquired-reclaimed-proceeds — reclaiming a stale holder still yields proceed: true
 // ---------------------------------------------------------------------------
 
-test("scs-acquired-reclaimed-proceeds: acquired (reclaimed stale holder) → { proceed: true } with no heldBy", () => {
+test("spawn-seam-proceeds-on-acquire-and-waits-on-refusal — scs-acquired-reclaimed-proceeds: acquired (reclaimed stale holder) → { proceed: true } with no heldBy", () => {
   const result: ClaimResultLike = {
     acquired: true,
     claim: sampleClaim({ intent: "orchestrate" }),
@@ -97,7 +100,7 @@ test("scs-acquired-reclaimed-proceeds: acquired (reclaimed stale holder) → { p
 // scs-refused-exposes-holder — a refused claim yields proceed: false and surfaces the holder
 // ---------------------------------------------------------------------------
 
-test("scs-refused-exposes-holder: refused → { proceed: false } surfacing sessionId / branch / intent", () => {
+test("spawn-seam-proceeds-on-acquire-and-waits-on-refusal — scs-refused-exposes-holder: refused → { proceed: false } surfacing sessionId / branch / intent", () => {
   const holder = sampleClaim({
     sessionId: "clever-cannon-1ff4cb",
     branch: "claude/clever-cannon-1ff4cb",

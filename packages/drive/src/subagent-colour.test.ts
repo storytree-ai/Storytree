@@ -37,7 +37,7 @@ test("subagentColourState('supplementing') returns the 'supplementing' colour-st
 
 // ── Visual distinction: all three produce distinct tokens ─────────────────
 
-test("subagentColourState produces a distinct token for each of the three roles", () => {
+test("subagent-role-maps-to-distinct-colour-state: subagentColourState produces a distinct token for each of the three roles", () => {
   const authoring = subagentColourState("authoring");
   const proving = subagentColourState("proving");
   const supplementing = subagentColourState("supplementing");
