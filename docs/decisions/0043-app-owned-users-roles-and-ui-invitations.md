@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-14
-supersedes_in_part: [8, 42]
 ---
 
 # ADR-0043: App-owned users, roles, and invitations from the UI
@@ -9,12 +8,13 @@ supersedes_in_part: [8, 42]
 ## Status
 
 accepted (2026-06-14) — owner decision: the trusted circle should be **real users tracked in the
-system**, invitable **from the studio UI**, with **roles**. **Supersedes in part
-[ADR-0008](0008-ui-drives-agents-approvals.md)** (the single-local-operator identity assumption —
-already narrowed by ADR-0042, now replaced by a real user model) and **[ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)**
-(its access model: the IAP per-account allowlist as the authorization gate, and the env-var admin
-list, both superseded by the app-owned model below). Builds on ADR-0042's serve mode + IAP
-authentication and ADR-0021's keyless store access.
+system**, invitable **from the studio UI**, with **roles**. **Replaces**
+[ADR-0008](0008-ui-drives-agents-approvals.md)'s single-local-operator identity assumption (already
+narrowed by ADR-0042) and [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)'s IAP-allowlist
+authorization model (the per-account allowlist as the gate + the env-var admin list) with the
+app-owned user model below (ADR-0008 and ADR-0042 corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). Builds on
+ADR-0042's serve mode + IAP authentication and ADR-0021's keyless store access.
 
 ## Date
 

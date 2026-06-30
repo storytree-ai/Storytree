@@ -7,9 +7,7 @@ decided: 2026-06-04
 
 **Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0006/0008/0010/0013/0014/0020 (this **inverts** their autonomous-cascade posture).
 
-**Superseded-in-part by [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md)** — this ADR's single-local-operator identity assumption (the free-text `author` field) is narrowed to the *local dev* studio: hosted sessions carry a **verified identity** stamped from the IAP auth layer, not free text.
-
-**Superseded-in-part by [ADR-0043](0043-app-owned-users-roles-and-ui-invitations.md)** — the single-local-operator identity assumption (already narrowed by ADR-0042) is replaced by a real **app-owned user model**: an event-sourced `users` projection with `admin`/`member` roles authorizes who is in and what they may do, so identity is now a first-class part of the product, not a deployment detail.
+**Correction ([ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) → [ADR-0043](0043-app-owned-users-roles-and-ui-invitations.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's core decision — the studio drives the agents, the trunk is approval-gated, the human owns the outer loop — STANDS in full and is current. Overtaken only: its **single-local-operator identity assumption** (the free-text `author` field), which evolved in a chain — first **narrowed by [ADR-0042]** (hosted sessions carry a verified IAP identity; local dev keeps the free-text field) **then replaced by [ADR-0043]** (an app-owned `users` projection with `admin`/`member` roles and invitations from the UI). The ADR-0043 app-owned user model is the current truth.
 
 ## Decision
 
