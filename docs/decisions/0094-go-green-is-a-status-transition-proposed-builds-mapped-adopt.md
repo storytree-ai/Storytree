@@ -2,7 +2,6 @@
 status: accepted
 load_bearing: true
 decided: 2026-06-22
-supersedes_in_part: [92]
 amends: [90, 91]
 ---
 # ADR-0094: Go-green is a status transition: proposed builds, mapped adopts, red-recovery deferred
@@ -84,16 +83,18 @@ author-declared red→green). *(Amends [ADR-0090](0090-ui-driven-orchestration-h
 / [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md), which defined the
 single status-blind Build affordance.)*
 
-**4. Reframe ADR-0092 (`supersedes_in_part`).** A brownfield story's UAT node does **not** earn the
-studio **Build** affordance via a gate-as-proof `real:` arm, and the library's caps do **not** go green
-via brownfield `real:` arms — the library's green path is `## Reliability Gates` (ADR-0085). This
-overtakes **ADR-0092 decisions 1 (the gate-as-proof story-node arm's *button-lighting purpose*) and 5
-(the 7 caps' brownfield `real:` arms)**. What **survives** ADR-0092 and is NOT retired: **decision 2**
-(`storyUatCompleteness` as a spec-hygiene check), **decision 3** (the node-verdict-≠-story-green-crown
-honesty boundary), and **decision 4** (the [ADR-0087](0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md)
-authoring-doc scope-bound amendment). ADR-0092 therefore stays `accepted` with this partial-reversal
-edge visible in `adr list --current`, rather than being fully superseded — a full supersede would
-dishonestly kill its still-true parts.
+**4. Correct ADR-0092 in place: its studio-Build purpose is overtaken.** A brownfield story's UAT node
+does **not** earn the studio **Build** affordance via a gate-as-proof `real:` arm, and the library's
+caps do **not** go green via brownfield `real:` arms — the library's green path is `## Reliability Gates`
+(ADR-0085). This overtakes **ADR-0092 decision 1's *button-lighting purpose*** (the gate-as-proof
+story-node arm) **and decision 5's *buildability purpose*** (the 7 caps' brownfield `real:` arms). What
+**survives** ADR-0092: decision 1's gate-as-proof MECHANISM (the `real:` arm via `editsExisting` over
+`stories/<story>/story.md`, the AUTHOR_TEST→…→GATE ladder), **decision 2** (`storyUatCompleteness` as a
+spec-hygiene check), **decision 3** (the node-verdict-≠-story-green-crown honesty boundary), and
+**decision 4** (the [ADR-0087](0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md)
+authoring-doc scope-bound amendment). Because ADR-0092's core stands, it is **corrected in place**
+([ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)) and stays
+`accepted` — not fully superseded.
 
 **5. The library gets `## Reliability Gates`.** As the canonical brownfield story, the library declares
 `observe` gates over its existing passing suites (`@storytree/library`, `@storytree/cli`,
@@ -110,9 +111,9 @@ ADR's shape is accepted.)*
   user-facing red-recovery is excluded by construction until observed — the YAGNI the owner asked for.
 - ADR-0085's brownfield-green path becomes the library's *actual* path, so the library can reach an
   honest signed green instead of being stranded at `mapped`.
-- The decision log **retires the stale signal** (ADR-0092's button purpose) via `supersedes_in_part`
-  while **preserving** its still-valid parts — the decision-log discipline (ADR-0086), not an orphan
-  additive ADR.
+- ADR-0092 is **corrected in place** ([ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+  its overtaken Build-button purpose is fixed while its still-valid parts (decisions 2–4 + the
+  gate-as-proof mechanism) stay — truth-maintenance, not an orphan additive ADR.
 
 **Bad / costs / follow-on (surfaced, not buried).**
 - This **partly unwinds ADR-0092** (landed PR #305, curated PR #306): the gate-as-proof story-node arm
@@ -133,7 +134,7 @@ ADR's shape is accepted.)*
   author-declared `## Reliability Gates` + `observe`/`adopted` (the path this ADR routes brownfield to;
   **left untouched**).
 - [ADR-0092](0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md) — gate-as-proof story
-  UAT node; **decisions 1 & 5 overtaken here** (`supersedes_in_part`), decisions 2–4 stand.
+  UAT node; **decisions 1 & 5 overtaken here** (corrected in place per ADR-0139), decisions 2–4 stand.
 - [ADR-0090](0090-ui-driven-orchestration-hosted-build-capable-backend-thin-cl.md) /
   [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md) — the status-blind
   Build affordance this **amends** to be status-aware.
