@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-20
-supersedes_in_part: [44]
 amends: [40]
 ---
 # ADR-0082: Per-test UAT tests earn green by declared witness; story UAT greens when all pass
@@ -10,8 +9,8 @@ amends: [40]
 
 accepted (2026-06-20) — direct owner decision in conversation, recorded the same day. Reconciles the
 proof model across three ADRs: it adopts [ADR-0007](0007-proof-model.md)'s `operator-attested` mode
-as a *real proof* for human-witnessed work, **supersedes-in-part [ADR-0044](0044-per-uat-test-human-attestation.md)**
-§2/§3 (a human stamp is no longer confined to a never-green signal), and **amends
+as a *real proof* for human-witnessed work, **narrows [ADR-0044](0044-per-uat-test-human-attestation.md)**
+§2/§3 in place (a human stamp is no longer confined to a never-green signal), and **amends
 [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md)** §2 (the story's own UAT
 green becomes the AND-roll-up of its per-test UAT verdicts, not a single UAT-node verdict).
 
@@ -102,6 +101,6 @@ does — the rollup never re-judges, it derives.
 - [ADR-0007](0007-proof-model.md) — the `operator-attested` proof mode this adopts as a real green path.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — *green = a signed gate verdict*, preserved.
 - [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — verdict-derived green (amended §2: per-test AND-roll-up).
-- [ADR-0044](0044-per-uat-test-human-attestation.md) — per-test UAT (superseded-in-part §2/§3: a human stamp can now be a proof).
+- [ADR-0044](0044-per-uat-test-human-attestation.md) — per-test UAT (its §2/§3 never-green framing narrowed here: a human stamp can now be a proof).
 - `packages/library/src/uat-tests.ts` — the per-test UAT data + parser (already built).
 - `packages/orchestrator/src/proof/uat-proof.ts` (+ `.test.ts`) — the compute this ADR adds.

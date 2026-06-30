@@ -18,13 +18,6 @@ two-stage proof — geometry/behaviour red-green, the look built then surfaced f
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 — its docked-line
 connections (§1) and the manual `render: building` tag both stand.
 
-**Superseded-in-part by [ADR-0102](0102-shared-islands-promote-edges-to-per-island-icon-stamps.md)**
-(accepted, 2026-06-25) — §3's *generic, consumer-only* bookshelf stamp is replaced by per-island icon
-stamps in BOTH directions (an island carries the icon of what it depends on, so placement is the
-direction), and a building's edges are **promoted** to those stamps rather than dropped (honoring
-ADR-0074 §1 "never drop edges"). The off-map Shared Islands **panel** (§1, §2), the legend relocation
-(§4), and the BuildingLegend removal (§5) all stand.
-
 ## Context
 
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 decided that a
@@ -76,6 +69,13 @@ story list before exclusion) is unchanged: every island that uses a shared islan
 small bookshelf, the "uses this shared island" marker. Clicking a consumer focuses/highlights the
 corresponding shared island in the panel — co-location plus a click, replacing the suppressed edges.
 The `buildings` flag (default ON, escape `?buildings=off`) still governs the stamps.
+
+*(The generic, consumer-only bookshelf stamp described here was later replaced by per-island icon
+stamps in both directions — you carry the icon of what you depend on, and a building's edges are
+promoted to those stamps rather than dropped:
+[ADR-0102](0102-shared-islands-promote-edges-to-per-island-icon-stamps.md). The off-map panel (§1/§2),
+legend move (§4), and BuildingLegend removal (§5) stand; corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
 
 **4. The world legend moves into the panel; its drawers pop RIGHT.**
 `WorldLegend` is relocated out of the bottom bar into the Shared Islands panel as a section ABOVE

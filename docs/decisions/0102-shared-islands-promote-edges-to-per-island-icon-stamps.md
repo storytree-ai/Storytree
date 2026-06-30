@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-25
-supersedes_in_part: [88]
 ---
 # ADR-0102: Shared islands promote their edges to per-island icon stamps (you carry the icon of what you depend on)
 
@@ -17,11 +16,10 @@ operator-attested under [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-s
 two-stage proof — geometry/behaviour red-green, the look surfaced for the owner's nod (the model does
 not wait on it).
 
-**Supersedes_in_part [ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md):**
-its *generic, consumer-only* bookshelf stamp is replaced by **per-island icon stamps in both directions**
-(you carry the icon of what you depend on), and a building's edges are **promoted** to those stamps rather
-than dropped. The building still lives off-map in the Shared Islands **panel** (§1, §2); the legend
-relocation (§4) and BuildingLegend removal (§5) **stand**, as does
+**Replaces [ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md)'s generic,
+consumer-only bookshelf stamp** with per-island icon stamps in both directions (you carry the icon of
+what you depend on), promoting a building's edges to those stamps rather than dropping them. ADR-0088's
+off-map panel, the legend relocation (§4), and the BuildingLegend removal (§5) stand, as does
 [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md)'s manual
 `render: building` tag.
 
@@ -129,10 +127,10 @@ future call**, not decided here.
 - **The "city" is the source-hub signal**, and its legibility (a coherent skyline vs clutter) is an
   **appearance** call, owner-attested at build (ADR-0070) — treat the *density itself* as the primary
   signal, the individual icons as secondary.
-- **Supersedes_in_part ADR-0088**: its *generic, consumer-only* bookshelf stamp is replaced by per-island
-  stamps in both directions, and a building's edges are promoted (kept as stamps), not dropped. The
-  building stays off-map in the panel (§1, §2); the legend move (§4) and BuildingLegend removal (§5) stand;
-  ADR-0076's manual `render: building` tag stands.
+- **Replaces ADR-0088's generic consumer-only bookshelf stamp** with per-island stamps in both
+  directions, and promotes (keeps as stamps) a building's edges rather than dropping them. ADR-0088's
+  panel, legend move (§4), and BuildingLegend removal (§5) stand; ADR-0076's manual `render: building`
+  tag stands.
 - **Not built here (the build, behind a flag, one frontend unit):** every-island icons, the
   promote-on-`render:building` edge transform (both directions), the depender-carries-depended placement,
   the source-hub city, and the `cli` `render: building` flip — sequenced with the two-stage visual proof
@@ -143,7 +141,7 @@ future call**, not decided here.
 - [ADR-0074](0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md) §1 ("de-noise visually,
   never drop edges" — the principle this honors) / §2 (visibility-over-exemption),
   [ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md) (Shared Islands panel —
-  its generic-stamp model superseded_in_part here; panel/legend/removal stand),
+  its generic-stamp model is replaced here; panel/legend/removal stand),
   [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 (the original
   distributed stamp + the manual-tag-never-derived precedent — the tag stands),
   [ADR-0100](0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md) (brought the

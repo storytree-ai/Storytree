@@ -15,14 +15,6 @@ refines that to the **individual UAT test**, because a story has one tree but ma
 some tests need a human while others a machine can prove. The green-is-a-signed-gate-verdict rule
 (ADR-0040/ADR-0020) is untouched.
 
-**Superseded in part by [ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)
-(2026-06-20):** decisions §2/§3 — that a human stamp is only ever a never-green `events.attestation`
-signal that does not roll up — are overtaken. A test *declared* `witness: human` now earns a real
-`operator-attested` signed verdict (ADR-0007) that greens it, and a story's own UAT greens as the
-AND-roll-up of its per-test verdicts. The attestation signal survives, narrowed to the lower-rigor
-relayed vouch (§4) and "I also eyeballed it" marks; §1/§4/§5 and the green-is-a-signed-verdict rule
-stand.
-
 ## Date
 
 2026-06-14
@@ -57,6 +49,15 @@ the story/capability to attach such a signal to, and ADR-0040's signpost is stor
 3. **No story roll-up.** Per-test attestations accumulate on the tests; they do not derive a
    story-level hue. The world stays story-grained (ADR-0040) and a fully-human-attested story is
    not thereby "green" — the owner explicitly does not want that conflation.
+
+*(§2's "not a gate verdict / never written to `events.verdict`" and §3's "no story roll-up / not
+thereby green" were later overtaken for a declared-`witness: human` test:
+[ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) makes such a test
+earn a real `operator-attested` signed verdict that greens it, and a story's own UAT greens as the
+AND-roll-up of its per-test verdicts. The `events.attestation` signal survives, narrowed to the
+relayed vouch and "I also eyeballed it" marks; §1/§4/§5 stand. Corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
+
 4. **The human path: observe → tell the agent → signed signal.** When the owner says "I saw test X
    work," the agent records a human attestation for that test id, `signer` = the owner's identity,
    `relayedBy` = the agent — an honest, auditable "the owner vouched, the agent scribed." A later
