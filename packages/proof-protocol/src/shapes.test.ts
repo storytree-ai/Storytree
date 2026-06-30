@@ -302,6 +302,39 @@ test("WorkEventDoc carries an optional red-green build phase on the wire (ADR-00
   assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "building", phase: "SHIPPING" }).success, false);
 });
 
+test("WorkEventDoc carries an optional subagent colour-state on the wire (ADR-0138 §5)", () => {
+  // The subagent colour axis: a `building` work-event may ALSO carry the colour-state of the active
+  // subagent (authoring / proving / supplementing), so the wisp colours by WHAT the orchestrator is
+  // doing on the claimed story — again with NO new lifecycle word, riding the SAME `building` doc.
+  const withColour = {
+    unitId: "stories/library",
+    event: "building" as const,
+    runId: "run-1",
+    tier: "story" as const,
+    phase: "IMPLEMENT" as const,
+    colourState: "proving" as const,
+  };
+  assert.deepEqual(WorkEventDoc.parse(withColour), withColour);
+  // every subagent colour-state is accepted on the wire.
+  for (const colourState of ["authoring", "proving", "supplementing"] as const) {
+    assert.equal(
+      WorkEventDoc.safeParse({ unitId: "u", event: "building", colourState }).success,
+      true,
+      colourState,
+    );
+  }
+  // BACK-COMPAT: a building doc with NO colourState still round-trips (every pre-ADR-0138 writer
+  // omits it — the wisp falls back to the coarse phase band).
+  assert.deepEqual(WorkEventDoc.parse({ unitId: "u", event: "building" }), {
+    unitId: "u",
+    event: "building",
+  });
+  // HONESTY WALL (ADR-0045 / ADR-0099): "green"/"bloom" are NOT colour-states — only a signed PASS
+  // verdict paints the bloom, so a claim colour can never be mistaken for a proof on the wire.
+  assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "building", colourState: "green" }).success, false);
+  assert.equal(WorkEventDoc.safeParse({ unitId: "u", event: "building", colourState: "bloom" }).success, false);
+});
+
 test("the work/signing store kinds are the published literals", () => {
   assert.equal(WORK_EVENT_KIND, "work");
   assert.equal(SIGNING_EVENT_KIND, "signing");

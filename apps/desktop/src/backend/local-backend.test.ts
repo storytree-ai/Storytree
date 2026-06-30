@@ -316,6 +316,51 @@ test("local-backend: GET /api/activity is advisory — 200 { builds: null } when
   });
 });
 
+// GET /api/activity ALSO surfaces story claims (ADR-0138): the claim wisp layer rides the SAME wire as
+// builds. A claim carries kind:"claim" (the §5 honesty wall) — it must render distinct from a green bloom.
+test("local-backend: GET /api/activity surfaces story claims { builds, claims } from the seam, distinct from a proven-green bloom", async () => {
+  const claims = [
+    { unitId: "wisp-as-story-claim", kind: "claim", sessionId: "s1", branch: "b1", intent: "orchestrate", at: TS },
+  ];
+  const backend = overlayBackend({ inFlightClaims: async () => claims });
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend,
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200, "activity must be 200");
+    const body = (await res.json()) as { builds: unknown; claims: Array<{ kind: string }> };
+    assert.deepEqual(body.claims, claims, "{ claims } is the backend's inFlightClaims result");
+    assert.equal(body.builds, null, "builds is independently advisory-null here");
+    // §5 honesty wall: every claim activity is discriminated kind:"claim", never green/bloom.
+    for (const c of body.claims) {
+      assert.equal(c.kind, "claim");
+      assert.ok(!["green", "bloom"].includes(c.kind));
+    }
+  });
+});
+
+// GET /api/activity claims are advisory: a seam that omits inFlightClaims answers { claims: null } — never throws.
+test("local-backend: GET /api/activity is advisory for claims — { claims: null } when the seam omits inFlightClaims", async () => {
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(), // no inFlightClaims → claims: null
+    store: "pg",
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/activity`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body["claims"], null, "{ claims: null } is the honest advisory-absent answer");
+  });
+});
+
 // GET /api/presence serves the active-session overlay (the session dock) from the injected seam.
 test("local-backend: GET /api/presence returns the active-session overlay { sessions } from the seam", async () => {
   const sessions = [

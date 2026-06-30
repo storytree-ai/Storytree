@@ -34,6 +34,21 @@ export const BuildPhase = z.enum([
 export type BuildPhase = z.infer<typeof BuildPhase>;
 
 /**
+ * The subagent COLOUR-STATE a `building` work-event was emitted under (ADR-0138 §5) — the wisp's
+ * colour axis GENERALISED from the gate `phase` to what the orchestrator is doing on the claimed
+ * story: `authoring` (story-author), `proving` (the red→green leaf — the old build-wisp, now a
+ * colour *state*), `supplementing` (glue / non-leaf orchestration). Like `BuildPhase`, proof-protocol
+ * owns this as wire DATA (the bottom root depends on nothing); `@storytree/drive`'s
+ * `subagentColourState` maps a role/intent to one of these tokens and the phase writer stamps it.
+ *
+ * HONESTY WALL (ADR-0045 / ADR-0099): a colour-state is a CLAIM signal, NEVER a proof — `proving` is
+ * not green. Only a signed PASS verdict paints the green bloom, so these tokens deliberately exclude
+ * `green`/`bloom`; a claimed-but-not-proven wisp must render visibly distinct from a proven one.
+ */
+export const ColourState = z.enum(["authoring", "proving", "supplementing"]);
+export type ColourState = z.infer<typeof ColourState>;
+
+/**
  * The doc carried by a lifecycle work event. `event` is the lifecycle change (NOT the StoreEvent
  * `type`, which stays in the created/updated/deleted vocabulary); `runId` ties a `building` mark
  * to the run that picked the unit up; `tier` feeds the `events.work_event.tier` column when the
@@ -43,6 +58,11 @@ export type BuildPhase = z.infer<typeof BuildPhase>;
  * wisp colours red (AUTHOR_TEST/CONFIRM_RED) → green (CONFIRM_GREEN/GATE) from it. It is NOT a new
  * lifecycle word (ADR-0048 "No new lifecycle word"): the `event` stays `building`; `phase` rides as
  * an extra field. Optional — absent on every pre-ADR-0048 `building` row (read as the coarse band).
+ *
+ * `colourState` (ADR-0138 §5) is the parallel SUBAGENT colour axis the phase writer stamps when a
+ * spawned subagent's role/intent is known — authoring / proving / supplementing. Like `phase`, it
+ * rides on the SAME `building` event (no new lifecycle word) and is optional (absent ⇒ the wisp falls
+ * back to the coarse phase band). The honesty wall holds: it is never `green`/`bloom` (see ColourState).
  */
 export const WorkEventDoc = z
   .object({
@@ -51,6 +71,7 @@ export const WorkEventDoc = z
     runId: z.string().optional(),
     tier: Tier.optional(),
     phase: BuildPhase.optional(),
+    colourState: ColourState.optional(),
   })
   .strict();
 export type WorkEventDoc = z.infer<typeof WorkEventDoc>;

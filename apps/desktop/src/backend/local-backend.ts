@@ -84,6 +84,12 @@ export interface LocalBackendBackend {
   latestVerdicts: () => Promise<unknown>;
   /** Optional — absent on the json backend; the handler falls back gracefully when missing. */
   verdictEvents?: () => Promise<unknown>;
+  /**
+   * In-flight story CLAIMS (ADR-0138) — the coordination wisp layer, sibling to {@link inFlightBuilds}.
+   * Optional like {@link verdictEvents}: a narrow stub may omit it, and `/api/activity` falls back to
+   * `null` (advisory absence). Production wires it (electron/backend-entry.ts) to fold events.node_claim.
+   */
+  inFlightClaims?: () => Promise<unknown[] | null>;
 }
 
 /**
@@ -178,7 +184,8 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
  * - GET  /api/tree     — the story tree from real orchestrator discovery over `storiesDir`, ENRICHED
  *                        with the signed-verdict overlay so islands/plants paint proof-health (ADR-0119
  *                        deferred overlay) — green from a signed pass, not authored brown
- * - GET  /api/activity — the in-flight-build wisp layer (ADR-0048), `{ builds }`
+ * - GET  /api/activity — the map-activity wisp layer: in-flight builds (ADR-0048) + story claims
+ *                        (ADR-0138), `{ builds, claims }` — both advisory
  * - GET  /api/presence — the active-session layer (ADR-0033), `{ sessions }`
  * - GET  /api/assets   — library assets from the injected `backend`
  * - POST /api/build    — dispatch a build intent via the injected `build` seam (404 when absent)
@@ -202,10 +209,16 @@ export function createLocalBackend(
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
         sendJson(res, 200, await buildTreePayload(deps));
       } else if (url.pathname === "/api/activity") {
-        // The in-flight-build wisp layer (ADR-0048), polled by the world — `{ builds }` (advisory: null
-        // when the backend can't answer). Mirrors the studio's GET /api/activity (handleActivity).
+        // The map-activity wisp layer, polled by the world — `{ builds, claims }` (each advisory: null
+        // when the backend can't answer). Builds (ADR-0048) + story claims (ADR-0138) ride the SAME
+        // wire; a claim carries `kind: "claim"` (the §5 honesty wall) so it renders distinct from a
+        // proven-green bloom. Mirrors the studio's GET /api/activity (handleActivity).
         if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
-        sendJson(res, 200, { builds: await deps.backend.inFlightBuilds() });
+        const [builds, claims] = await Promise.all([
+          deps.backend.inFlightBuilds(),
+          deps.backend.inFlightClaims?.() ?? Promise.resolve(null),
+        ]);
+        sendJson(res, 200, { builds, claims });
       } else if (url.pathname === "/api/presence") {
         // The active-session layer (ADR-0033), polled by the world — `{ sessions }` (advisory: null when
         // the backend can't answer). Mirrors the studio's GET /api/presence (handlePresence).
