@@ -1,17 +1,17 @@
 ---
 status: accepted
 decided: 2026-06-13
-supersedes_in_part: [13]
 ---
 
 # ADR-0039: JSON is the structured corpus source format — the pure-YAML unit migration is retired
 
 ## Status
 
-accepted (2026-06-13, owner) — **supersedes [ADR-0013](0013-structured-corpus-markdown-as-view.md)
-in part**: the "YAML is the source of truth" format call (Decision #1's encoding choice and §5's
-corpus-wide YAML ambition) is overtaken; ADR-0013's substance — structure over prose, schema-enforced
-discipline, markdown as a rendered view, validatable `covers` — stands unchanged, carried by JSON.
+accepted (2026-06-13, owner) — **reverses [ADR-0013](0013-structured-corpus-markdown-as-view.md)'s
+format call to JSON**: the "YAML is the source of truth" format call (Decision #1's encoding choice
+and §5's corpus-wide YAML ambition) is overtaken; ADR-0013's substance — structure over prose,
+schema-enforced discipline, markdown as a rendered view, validatable `covers` — stands unchanged,
+carried by JSON.
 **Processes and retires** the open-question `oq-corpus-source-format` (owner studio comment
 **"Go with A"**, 2026-06-09; format clarified by the owner 2026-06-13: **JSON everywhere**) — the
 fifth application of [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) §6's lifecycle

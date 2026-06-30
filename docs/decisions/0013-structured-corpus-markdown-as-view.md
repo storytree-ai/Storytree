@@ -11,15 +11,21 @@ accepted (2026-06-06) — **extends** [ADR-0002](0002-work-hierarchy-story-capab
 and [ADR-0010](0010-organism-model-story-bounded-context.md) (the work-hierarchy schema)
 toward its `packages/core` encoding.
 
-> **Amended same day (2026-06-06)** — format resolved to **YAML**; markdown reframed as a
+> **Amended same day (2026-06-06)** — format resolved (then) to **YAML**; markdown reframed as a
 > *rendered content-type for prose fields*, not a document container (it forced a dumb
 > structure-vs-readable choice); narrative is structured into typed fields, decomposed only
 > where it pays; the principle is **corpus-wide** (ADRs included — work units convert first
-> in practice). Revised Decision below. (Owner conversation, 2026-06-06.)
+> in practice). Revised Decision below. (Owner conversation, 2026-06-06.) *(The YAML format call
+> was later reversed to JSON — see the correction below.)*
 
-> **Scope note (library tier):** "YAML is the source of truth" below scopes the work-hierarchy units. The **library** tier's structured source on disk is **JSON** (`apps/studio/data/knowledge.json`, ADR-0018) — same structured-source / markdown-as-view principle, JSON encoding.
-
-**Superseded-in-part by [ADR-0039](0039-json-structured-source-format.md)** (accepted, 2026-06-13, owner: "Go with A" — JSON everywhere) — the **format call is reversed: JSON** is the single structured corpus source format. The planned corpus-wide YAML conversion (§5 and the "required migration" consequence) is retired: its one artifact (`stories/studio/browse-library.yaml`) is deleted, and work units stay **frontmatter-markdown** deliberately. Everything else below — structure over prose, schema-enforced discipline, markdown as a rendered view, validatable `covers` — stands, carried by JSON.
+*(Correction — the format call is now **JSON**, not YAML:
+[ADR-0039](0039-json-structured-source-format.md) (owner, "Go with A — JSON everywhere") makes JSON
+the single structured corpus source format; the library tier's structured source on disk is JSON
+(`knowledge.json`, ADR-0018). This ADR's structured-source / markdown-as-view principle stands
+unchanged, carried by JSON — only the encoding flips. The corpus-wide YAML conversion (§5 and the
+"required migration" consequence) is retired: its one artifact (`stories/studio/browse-library.yaml`)
+is deleted and work units stay **frontmatter-markdown** deliberately. Corrected in place per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
 
 ## Date
 
@@ -47,9 +53,11 @@ Prose can't be queried, validated, or assembled programmatically.
 
 ## Decision
 
-1. **One structured format — YAML is the source of truth.** Everything queried, validated,
+1. **One structured format — YAML is the source of truth.** *(Format call since reversed to
+   **JSON** — [ADR-0039](0039-json-structured-source-format.md); the structured-source principle
+   here stands, only the encoding flips. See the Status correction.)* Everything queried, validated,
    or graphed — capability list, dependency edges, contracts (`id`/assertion/`covers`),
-   `proof_mode`, `status`, relationships — lives as **structured YAML fields**. Narrative is
+   `proof_mode`, `status`, relationships — lives as **structured** fields. Narrative is
    **not** exiled to a freeform body: it lives in **typed fields too** (a UAT's ordered
    `steps[]` of `{action, success}`, discrete `guidance[]` notes, a framing/`proof_note`
    field), decomposed **only where granular pull / query / validate pays** — long-form prose
@@ -65,8 +73,8 @@ Prose can't be queried, validated, or assembled programmatically.
 3. **Markdown is a rendered content-type, not the document container.** A prose field's value
    may be markdown-formatted text; the web UI renders it. Markdown stops being the *file
    format* (which forced the dumb structure-vs-readable choice) and becomes a *value type* for
-   prose. The source is YAML; humans read the rendered UI, so raw-file ergonomics don't
-   dictate the format. Any whole-document markdown view is **generated** from the YAML —
+   prose. The source is structured; humans read the rendered UI, so raw-file ergonomics don't
+   dictate the format. Any whole-document markdown view is **generated** from the structured source —
    output, not input.
 4. **`covers` becomes validatable.** A contract's `covers` pointer is structured
    (`{file, lines}`, e.g. `{apps/studio/src/components/Library.tsx, "16-17"}`) so it can be
@@ -99,8 +107,8 @@ Prose can't be queried, validated, or assembled programmatically.
 ## What this does NOT decide
 
 - **single-file-per-unit vs a combined document** — lands with the `packages/core` schema.
-  (YAML is decided; there is no separate prose body — narrative lives in typed fields, see
-  Decision #1/#3.)
+  (the structured format is decided; there is no separate prose body — narrative lives in typed
+  fields, see Decision #1/#3.)
 - The exact **zod/JSON-Schema shape** and the cross-story **boundary** term
   (`boundary`/`port`, still TBD per ADR-0010 §4).
 - Whether the studio **edits** structured units directly or via a form — a studio concern.
