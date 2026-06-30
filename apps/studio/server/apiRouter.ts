@@ -1377,19 +1377,25 @@ export async function handlePresence(
 }
 
 /**
- * GET /api/activity — the in-flight-build layer ALONE (ADR-0048), polled cheaply
- * by the world (sibling to /api/presence). inFlightBuilds() is contractually
- * non-throwing: a down DB / json backend answers 200 `{builds: null}` (advisory
- * absence, never a 503), so the only error path is the 405 method guard.
- * Exported for the integration test (the handlePresence pattern).
+ * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims), polled
+ * cheaply by the world (sibling to /api/presence). Both reads are contractually non-throwing: a down
+ * DB / json backend answers 200 `{builds: null, claims: null}` (advisory absence, never a 503), so the
+ * only error path is the 405 method guard. A claim carries `kind: "claim"` (the §5 honesty wall) so the
+ * renderer paints it VISIBLY DISTINCT from a proven-green bloom — a claim is never a proof. `inFlightClaims`
+ * is OPTIONAL (a narrow mock may omit it → `null`). Exported for the integration test (handlePresence pattern).
  */
 export async function handleActivity(
   req: IncomingMessage,
   res: ServerResponse,
-  backend: Pick<LibraryBackend, 'inFlightBuilds'>,
+  backend: Pick<LibraryBackend, 'inFlightBuilds' | 'inFlightClaims'>,
 ): Promise<void> {
   if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-  sendJson(res, 200, { builds: await backend.inFlightBuilds() });
+  // Builds and claims ride the SAME wire; run in parallel so a down DB costs one timeout budget.
+  const [builds, claims] = await Promise.all([
+    backend.inFlightBuilds(),
+    backend.inFlightClaims?.() ?? Promise.resolve(null),
+  ]);
+  sendJson(res, 200, { builds, claims });
 }
 
 // ---------- UI-driven build (intent + status, ADR-0090 Phase 1 "the local loop") ----------

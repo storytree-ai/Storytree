@@ -35,6 +35,8 @@ import {
 } from '../src/types';
 import { rowsToBuildActivity } from './inFlightBuilds';
 import type { BuildRow } from './inFlightBuilds';
+import { claimsToActivity } from './inFlightActivity';
+import type { ClaimActivity, ClaimRow } from './inFlightActivity';
 
 /** Latest-per-(testId,witness) attestation marks for one story's tests, keyed by test id. */
 export type StoryAttestations = Record<string, { human?: Attestation; machine?: Attestation }>;
@@ -154,6 +156,16 @@ export interface LibraryBackend {
    * {@link activeSessions}: NEVER throws — `null` for json / a down DB.
    */
   inFlightBuilds(): Promise<BuildActivity[] | null>;
+
+  /**
+   * In-flight story CLAIMS (ADR-0138): every live `events.node_claim` row folded (via the pure
+   * `claimsToActivity`) into a claimed-but-not-proven map activity (`kind: "claim"`), so a CLAIMED
+   * story orbits a wisp VISIBLY DISTINCT from a proven-green bloom — the §5 honesty wall (a claim is
+   * never a proof). Same advisory contract as {@link inFlightBuilds}: NEVER throws — `null` for the
+   * json backend / a down DB. OPTIONAL like {@link verdictEvents}: a narrow mock may omit it, and the
+   * `/api/activity` handler falls back to `null` (advisory absence, never an over-claim).
+   */
+  inFlightClaims?(): Promise<ClaimActivity[] | null>;
 
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
@@ -278,6 +290,10 @@ export class JsonBackend implements LibraryBackend {
 
   async inFlightBuilds(): Promise<BuildActivity[] | null> {
     return null; // no events.work_event behind the JSON files — activity silently absent
+  }
+
+  async inFlightClaims(): Promise<ClaimActivity[] | null> {
+    return null; // no events.node_claim behind the JSON files — claim wisps silently absent
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {
@@ -868,6 +884,44 @@ export class PgBackend implements LibraryBackend {
         (res as { rows: BuildRow[] }).rows,
         new Date(),
       );
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * In-flight story claims (ADR-0138): every live `events.node_claim` row, folded into a
+   * claimed-but-not-proven map activity via `claimsToActivity` (the pure §5 honesty-wall fold —
+   * `kind: "claim"`, stale-dropped, never a proven-green discriminator). `node_claim.unit_id` is the
+   * PRIMARY KEY, so there is at most ONE row per unit — no `DISTINCT ON` needed (unlike the building
+   * query, whose append-only work-events need the newest-per-unit pick). Same advisory contract / 4s
+   * race as inFlightBuilds: null on any failure (stopped instance, missing table, pool build error),
+   * never a throw — a claim wisp is advisory and silently absent when the store can't answer.
+   */
+  async inFlightClaims(): Promise<ClaimActivity[] | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('claim probe timed out')), 4000);
+      });
+      const res = await Promise.race([
+        (async () => {
+          await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error('no pool');
+          return handle.pool.query(
+            `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
+               FROM events.node_claim`,
+          );
+        })(),
+        timeout,
+      ]);
+      // The stale-drop filter + the §5 honesty-wall `kind: "claim"` discriminator are the pure
+      // claimsToActivity fold (red-green in inFlightActivity.test.ts); this method owns only the
+      // live query + the 4s race.
+      return claimsToActivity((res as { rows: ClaimRow[] }).rows, new Date());
     } catch {
       return null;
     } finally {

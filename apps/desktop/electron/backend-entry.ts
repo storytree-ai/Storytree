@@ -75,6 +75,11 @@ const GATE_PHASES: ReadonlySet<string> = new Set([
   "CONFIRM_GREEN",
   "GATE",
 ]);
+// The claim stale-reclaim window (ADR-0138 §5) — mirrors CLAIM_STALE_RECLAIM_MS in
+// @storytree/notice-board and the studio inFlightActivity fold (re-composed here, the surface
+// boundary): a claim whose heartbeat aged out belongs to a crashed holder, so the wisp self-heals
+// rather than orbiting forever.
+const CLAIM_STALE_RECLAIM_MS = 2 * 60 * 60 * 1_000; // 2 h
 
 /** Race an advisory read against a short timeout; null on ANY failure (the PgBackend pattern). */
 async function advisory<T>(fn: () => Promise<T>): Promise<T | null> {
@@ -204,6 +209,49 @@ async function main(): Promise<void> {
             runId: row.run_id,
             at,
             ...(phase !== undefined ? { phase } : {}),
+          });
+        }
+        return out;
+      }),
+    // In-flight story CLAIMS (ADR-0138): every live events.node_claim row folded into a
+    // claimed-but-not-proven map activity (`kind: "claim"`) — the coordination wisp layer, sibling to
+    // inFlightBuilds. `unit_id` is the PRIMARY KEY so at most one row per unit (no DISTINCT ON needed).
+    // A stale claim (heartbeat aged past CLAIM_STALE_RECLAIM_MS) is dropped so a crashed holder's wisp
+    // self-heals. §5 honesty wall: `kind: "claim"` is NEVER a proven-green bloom. Mirrors the studio
+    // PgBackend.inFlightClaims + its claimsToActivity fold (re-composed here, the surface boundary).
+    inFlightClaims: async () =>
+      advisory(async () => {
+        const res = await pool.query(
+          `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
+             FROM events.node_claim`,
+        );
+        const now = Date.now();
+        const out: {
+          unitId: string;
+          kind: "claim";
+          sessionId: string;
+          branch: string;
+          intent: string;
+          at: string;
+        }[] = [];
+        for (const raw of res.rows) {
+          const row = raw as {
+            unit_id: string;
+            session_id: string;
+            branch: string;
+            intent: string;
+            claimed_at: Date | string;
+            heartbeat_at: Date | string;
+          };
+          const hbAt = toIso(row.heartbeat_at);
+          if (now - new Date(hbAt).getTime() > CLAIM_STALE_RECLAIM_MS) continue; // stale — self-heals
+          out.push({
+            unitId: row.unit_id,
+            kind: "claim",
+            sessionId: row.session_id,
+            branch: row.branch,
+            intent: row.intent,
+            at: toIso(row.claimed_at),
           });
         }
         return out;
