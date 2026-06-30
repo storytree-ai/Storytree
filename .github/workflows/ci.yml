@@ -213,7 +213,9 @@ jobs:
         continue-on-error: true
         run: pnpm install --frozen-lockfile
 
-      - name: Retire the merged session + sweep possibly-dead presence rows (fail-soft)
+      # Also releases the merged branch's node_claim story-claims (ADR-0138 §4 — the guaranteed
+      # machine clear of the wisp-claim, keyed on the head-ref branch). Fail-soft, same writer.
+      - name: Retire the merged session + release its claims + sweep possibly-dead rows (fail-soft)
         if: startsWith(github.event.pull_request.head.ref, 'claude/')
         continue-on-error: true
         env:

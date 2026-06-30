@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 import { createPool, closePool } from "@storytree/library/store";
 import type { PoolHandle } from "@storytree/library/store";
 import { PgPresenceStore } from "./presence-store.js";
+import { PgClaimStore } from "./claim-store.js";
 import { reapStaleSessions } from "./reaper.js";
 
 /**
@@ -72,6 +73,50 @@ export async function retireMergedSession(
   }
 }
 
+/** The structural slice of `PgClaimStore` this writer needs — keeps the unit test offline. */
+export interface BranchClaimReleaseStore {
+  releaseClaimsByBranch(branch: string): Promise<number>;
+}
+
+/**
+ * Release ALL of a merged branch's `events.node_claim` rows, FAIL-SOFT — the guaranteed machine
+ * clear the wisp-claim needs (ADR-0138 §4). This is the fix for the "never cleared" failure mode
+ * that once demoted coordination presence (ADR-0124, superseded): the merge to main IS the
+ * authoritative "this branch's work is done" fact, so the merge job releases its story-claim. Calls
+ * `store.releaseClaimsByBranch(branch)` (capability `claim-store-work-time`, A1), which drops every
+ * row whose `branch` column equals `branch` and appends a `released` audit event per cleared claim,
+ * in one transaction.
+ *
+ * Returns the released count (>= 0, where 0 is a clean no-op — a branch holding no claims) on
+ * success, or `-1` when the call threw (DB down, transient) — caught and logged, NEVER rethrown,
+ * exactly like the presence retire. A release failure must not fail the merge job (the merge already
+ * landed; the claim is advisory coordination state). The trace-driven staleness reclaim (A2) is the
+ * backstop if a clear is ever missed.
+ *
+ * NOTE: keyed on the FULL branch (`claude/<slug>` or a `claude/real/<unit>-<run>` promotion branch),
+ * NOT the tail-derived sessionId the presence retire uses — `node_claim.branch` stores the full
+ * branch, and the claim is per-unit, not per-session.
+ */
+export async function releaseBranchClaims(
+  store: BranchClaimReleaseStore,
+  branch: string,
+  log: (msg: string) => void = console.log,
+): Promise<number> {
+  try {
+    const released = await store.releaseClaimsByBranch(branch);
+    if (released === 0) {
+      log(`[ingest-merge] no claims held by "${branch}" — nothing to release (no-op).`);
+    } else {
+      log(`[ingest-merge] released ${released} claim(s) for branch "${branch}".`);
+    }
+    return released;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`[ingest-merge] claim release failed for "${branch}" (advisory — ignored): ${message}`);
+    return -1;
+  }
+}
+
 /**
  * Script entry: read the head ref (or bare sessionId) + the merged-at timestamp from
  * argv/env, open a live keyless pool, retire the session, then tear down. NEVER invoked
@@ -94,6 +139,8 @@ async function main(): Promise<void> {
     return; // exit 0
   }
   const sessionId = sessionIdFromBranch(headRef);
+  // The FULL branch (not the tail-derived sessionId) — node_claim is keyed by branch.
+  const branch = headRef.trim();
 
   let handle: PoolHandle | undefined;
   try {
@@ -106,6 +153,10 @@ async function main(): Promise<void> {
     //    catches sessions that re-declared after their merge, merged under a different branch,
     //    or never merged at all. Both reuse this one keyless pool. Fail-soft — never rethrows.
     await reapStaleSessions(store, new Date());
+    // 3) Release ALL of the merged branch's node_claim rows (ADR-0138 §4 — the guaranteed machine
+    //    clear of the story-claim wisp, the fix for "never cleared"). Keyed on the full head-ref
+    //    branch, not the presence sessionId. Reuses this same pool; fail-soft — never rethrows.
+    await releaseBranchClaims(new PgClaimStore(handle.pool), branch);
   } catch (err) {
     // Pool acquisition / connector failure (DB idle-stopped, no creds) — advisory, ignore.
     const message = err instanceof Error ? err.message : String(err);
