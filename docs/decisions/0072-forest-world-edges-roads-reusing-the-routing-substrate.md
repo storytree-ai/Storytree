@@ -23,7 +23,13 @@ is the styling counterpart to [ADR-0069](0069-parameterise-the-forest-world-geom
 this ADR records the *direction*; the visual verdict is the owner's screenshot nod, after which a
 one-line default flip makes roads the bare `#/tree` world.
 
-**Superseded-in-part by [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md)** — this ADR's decisions 3–4 are reversed: the pond machinery is **removed entirely** rather than shelved-but-kept, and roads becomes **THE one world with no `?world=` selector** rather than shipping behind a default-OFF flag. Decisions 1–2 (pivot the edge art element from water to roads; the routing/geometry layer is the durable restyleable substrate) are kept.
+**Correction ([ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** rollout
+decisions 3–4 below were overtaken — the pond machinery is **removed entirely** (not shelved-but-kept),
+and roads is **THE only world with no `?world=` selector** (not a default-OFF flag). The §3, §4, and
+Consequences references to the shelved-ponds / coexisting-skins model are corrected accordingly. The
+core — decisions 1–2 (pivot the edge art element from water to roads; the routing/geometry layer is the
+durable restyleable substrate) — stands.
 
 ## Context
 
@@ -61,24 +67,35 @@ should change. The open question this ADR settles: do we *delete* the water/pond
    dependency-edge signal owns one swappable art element, and we are swapping it. The topology
    helpers are not touched.
 
-3. **Shelf the pond machinery — keep it, do not delete it.** `placePond` / `placePondAt` /
-   `placeWeldPond` / `seatCrescentPond` / `pondRing` / `fusedPondShape` / `weldPondShape` /
-   `carvePondInlets` / `loopGapArcs` / `crownDisk` / `mergeInletBearings` / `pondRadiusForDegree` /
-   `embayCoast` / `crescentApplies` / `nearestRimDock` / `fusedMouthPath` / `extendEndpoint` /
-   `weldBothEnds`, the `inland-water` + `weld-pond-above` render groups, the `.inland-pond-*` CSS,
-   and the `weld` / `fusedPondMouth` / `coast=crescent` flags all stay defined and tested. In roads
-   mode they are simply **not invoked** (the seam: `inland = { ponds: [], channels: [] }`), so the
-   helpers remain available for later reuse without dead-code churn.
+3. **Shelf the pond machinery — keep it, do not delete it.** *(Reversed by
+   [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md), per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): the pond
+   machinery was **removed entirely**, not shelved — git history is the archive.)* `placePond` /
+   `placePondAt` / `placeWeldPond` / `seatCrescentPond` / `pondRing` / `fusedPondShape` /
+   `weldPondShape` / `carvePondInlets` / `loopGapArcs` / `crownDisk` / `mergeInletBearings` /
+   `pondRadiusForDegree` / `embayCoast` / `crescentApplies` / `nearestRimDock` / `fusedMouthPath` /
+   `extendEndpoint` / `weldBothEnds`, the `inland-water` + `weld-pond-above` render groups, the
+   `.inland-pond-*` CSS, and the `weld` / `fusedPondMouth` / `coast=crescent` flags were originally
+   to stay defined and tested, simply **not invoked** in roads mode (the seam:
+   `inland = { ponds: [], channels: [] }`).
 
-4. **Ship behind a new flag, default OFF, owner-attested.** A new world selector (`?world=roads`)
-   turns roads on; the water world stays byte-identical when off and remains the bare `#/tree`
-   default until the owner attests the roads look. The geometry of any new road-specific pure helper
-   is proven red→green ([ADR-0020](0020-red-green-on-the-owned-loop.md) / spine-observed); the
-   *appearance* is owner-attested ([ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)) —
-   no self-signed visual verdict, and the default flip waits for the owner's nod.
+4. **Ship behind a new flag, default OFF, owner-attested.** *(Reversed by
+   [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md), per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): roads became
+   **THE only world** — no `?world=` selector and no water path.)* As originally shipped, a new world
+   selector (`?world=roads`) turned roads on; the water world stayed byte-identical when off and
+   remained the bare `#/tree` default until the owner attested the roads look. The geometry of any new
+   road-specific pure helper is proven red→green ([ADR-0020](0020-red-green-on-the-owned-loop.md) /
+   spine-observed); the *appearance* is owner-attested ([ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)) —
+   no self-signed visual verdict.
 
 ## Consequences
 
+  *(The shelve/flag/coexist model in the three bullets below was reversed by
+  [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md), per
+  [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): the two skins do
+  NOT coexist — the water/pond stack was removed — and reverting is git-history recovery, not a flag
+  flip.)*
 - **Good.** Cheap pivot — the topology substrate and the render-pass scaffolding are reused, so roads
   is mostly a styling swap plus an `inland`-gating seam. The water/pond work is preserved, not lost:
   if ponds (or a water world) are wanted again, the machinery is one flag away. Default-off + flag
@@ -102,4 +119,5 @@ should change. The open question this ADR settles: do we *delete* the water/pond
 - [`apps/studio/src/components/TreeView.tsx`](../../apps/studio/src/components/TreeView.tsx) —
   `buildWorld` / `buildBundle` / `buildBasin`, the edge render passes, the scene className.
 - [`apps/studio/src/lib/riverGeometry.ts`](../../apps/studio/src/lib/riverGeometry.ts) — the pure
-  routing/geometry helpers (reused) and the pond helpers (shelved).
+  routing/geometry helpers (reused) and the pond helpers (removed by
+  [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md), per ADR-0139 — not shelved).

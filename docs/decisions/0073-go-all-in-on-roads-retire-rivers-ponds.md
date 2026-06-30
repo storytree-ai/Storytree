@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-18
-supersedes_in_part: [72]
 amends: [62]
 ---
 # ADR-0073: Go all-in on roads; retire rivers & ponds
@@ -18,11 +17,13 @@ ponds are removed) is the owner's firm call; the **appearance** is owner-atteste
 the decision and the cut; the Dorfromantik look is judged by the owner's screenshot nod on the hosted
 `#/tree` — the owner gave that nod on 2026-06-21, moving the status to `accepted`.
 
-This **supersedes in part [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md)**
-— it keeps that ADR's decisions 1–2 (pivot the edge art element from water to roads; the
-routing/geometry layer is the durable, restyleable substrate) and **reverses its decisions 3–4**
-(*shelf the pond machinery, keep it* → **remove it**; *ship behind a flag, default OFF* → **roads is
-THE world, no selector**). It carries forward the **amends** of
+This keeps [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md)'s decisions 1–2
+(pivot the edge art element from water to roads; the routing/geometry layer is the durable, restyleable
+substrate) and overtakes its rollout decisions 3–4 (*shelf the pond machinery, keep it* → **remove it**;
+*ship behind a flag, default OFF, `?world=` selector* → **roads is THE world, no selector**). Per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) that overtake is
+recorded as a cross-reference with ADR-0072 corrected in place, not a frontmatter supersede edge. It
+carries forward the **amends** of
 [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) (the dependency-edge
 signal keeps its meaning; its one art element is now roads, with no water alternative).
 
@@ -108,8 +109,8 @@ selectors.
 ## References
 
 - [ADR-0072](0072-forest-world-edges-roads-reusing-the-routing-substrate.md) — roads as a default-off
-  flag with shelved ponds; this supersedes its decisions 3–4 (shelf→remove, flag→default) and keeps
-  1–2 (water→road art element; routing substrate is durable/restyleable).
+  flag with shelved ponds; this corrects in place its decisions 3–4 (shelve→remove, flag→only-world)
+  and keeps 1–2 (water→road art element; routing substrate is durable/restyleable).
 - [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) — one element per
   signal; this amends it (the edge signal's art element is now roads, no water alternative).
 - [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the geometry is a
