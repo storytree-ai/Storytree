@@ -13,9 +13,18 @@ approved the direction and the rename in conversation — this ADR records it fo
 holder of that name is renamed **`feedback-graduation`** (see
 [ADR-0032](0032-cite-graduation-mechanism.md), which reshaped it).
 
-**Superseded-in-part by [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)** — session presence is **demoted out of the orbiting-wisp role**: the thing that orbits a tree is now the in-flight mechanical *build* (a `building` work-event), not the *session*. The presence data model, the dock, and `noticeboard declare` all stand; only their orbiting-wisp role moves to the harness.
+**Correction ([ADR-0048](0048-in-flight-build-is-the-primary-wisp.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** session presence
+is **demoted out of the orbiting-wisp role** — the *session* no longer orbits a tree; the in-flight
+mechanical *build* does. This ADR's presence model, dock, and `noticeboard declare` (Decisions 1–3, 5)
+all stand; only the later-attached orbiting-wisp role moves to the harness.
 
-**Superseded-in-part by [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md)** — Decision 4 ("No claims, no conflict refusal — named-deferred… It is not built now") is overtaken: ADR-0121 builds the typed-claims-with-refusal upgrade for the build surface (overlap conflicts became routine — the 2026-06-27 duplicate build). The advisory presence board (Decisions 1–3, 5) stands untouched.
+**Correction ([ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 4's "It
+is not built now" was overtaken — the typed-claims-with-refusal upgrade §4 named-deferred was BUILT for
+the build surface once overlap became routine (the 2026-06-27 duplicate build); Decision 4 and the
+"What this does NOT decide" bullet below are corrected accordingly. The advisory presence board
+(Decisions 1–3, 5) stands untouched.
 
 ## Date
 
@@ -93,11 +102,14 @@ Two things changed since V1:
      debounced `lastSeenAt` heartbeat); a statusline failure renders nothing and cannot loop the
      agent.
 
-4. **No claims, no conflict refusal — named-deferred.** V1 ADR-0022's typed-claims-with-refusal
-   gate is the explicit upgrade path **if** overlap conflicts become routine (the ADR-numbering
-   collisions suggest they might), exactly as DBOS is deferred-but-named (ADR-0019). It is not
-   built now: the board *shows* overlap; humans and sessions negotiate. Evidence for "routine"
-   accrues in the board's own event history.
+4. **No claims, no conflict refusal — named-deferred.** *(Since built for the build surface by
+   [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md), per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): the "It is not
+   built now" below held at the time, but the upgrade was built once overlap became routine.)* V1
+   ADR-0022's typed-claims-with-refusal gate is the explicit upgrade path **if** overlap conflicts
+   become routine (the ADR-numbering collisions suggest they might), exactly as DBOS is
+   deferred-but-named (ADR-0019). As authored it was not built: the board *shows* overlap; humans and
+   sessions negotiate. Evidence for "routine" accrues in the board's own event history.
 
 5. **The names.** `notice-board` = this story (presence/coordination — the legacy-lineage meaning).
    The cite/graduation story (ADR-0032's build vehicle) is renamed `feedback-graduation`. V1's
@@ -128,7 +140,9 @@ Two things changed since V1:
   call).~~ Resolved — see "Owner decisions (2026-06-11)" below: it ships.
 - Any messaging semantics (threads, replies, addressed delivery) — posts *for* other sessions stay
   on the existing comment substrate if ever needed; this ADR is presence-only.
-- Claims (Decision 4): deliberately deferred, revisit on observed routine conflicts.
+- Claims (Decision 4): deferred at the time; since built for the build surface by
+  [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) once conflicts
+  proved routine.
 
 ## Owner decisions (2026-06-11)
 
