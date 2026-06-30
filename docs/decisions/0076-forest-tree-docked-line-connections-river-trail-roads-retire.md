@@ -20,8 +20,6 @@ owner-attested appearance). The default is now ON (escape `?buildings=off`). Ame
 [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md) — roads stay the one world, but
 their *rendering* changes (trails → docked lines) and the trail routing machinery is retired.
 
-**Superseded-in-part by [ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md)** (accepted, 2026-06-22) — §2's building *rendering placement* is overtaken: a building-class story no longer "drops out of the layout" with no home of its own (nor, in the interim owner-pivot `buildingIsland` mode, as an on-map edgeless island) — it now renders its full island in a permanent off-map **"Shared Islands"** left panel. §1 (docked-line connections), the manual `render: building` tag, and the consumer bookshelf STAMPS all stand.
-
 ## Context
 
 [ADR-0073](0073-go-all-in-on-roads-retire-rivers-ponds.md) made roads the single world and
@@ -73,7 +71,12 @@ Rather than drawing it as its own (de-connected) island, the map:
 
 - **removes the building's own island** from the layout — it does not render as a node, and
   because it leaves the laid-out story set its connection lines never enter the road/rank
-  graph (so nothing to drop); and
+  graph (so nothing to drop); *(this placement — "removes the building's own island / does not
+  render as a node" — was later overtaken: a building-class story now renders its full island in a
+  permanent off-map **"Shared Islands"** panel
+  ([ADR-0088](0088-building-class-stories-surface-in-a-permanent-shared-islands.md)); §1 docked
+  lines, the `render: building` tag, and the consumer stamps stand. Corrected in place per
+  [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)* and
 - **stamps a small building icon on every island that connects to it** — its *consumer set*:
   every story whose `depends_on` names the building **∪** the building's own `consumed_by`,
   resolved symmetrically from both declaration styles (ADR-0074 §4 / `fullConnectionSet`).

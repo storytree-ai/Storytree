@@ -1,7 +1,6 @@
 ---
 status: accepted
 decided: 2026-06-22
-supersedes_in_part: [76]
 ---
 # ADR-0088: Building-class stories surface in a permanent Shared Islands left panel
 
@@ -14,9 +13,10 @@ redundant building legend retired. The structural decision stands as owner-direc
 **appearance** (panel look/sizing, the in-panel island rendering, the right-pop boxes) is
 operator-attested under [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)'s
 two-stage proof — geometry/behaviour red-green, the look built then surfaced for the owner's nod
-(pending at landing; the model does not wait on it). Supersedes **in part**
-[ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 — its docked-line
-connections (§1) and the manual `render: building` tag both stand.
+(pending at landing; the model does not wait on it). Refines
+[ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) §2 — replacing its
+distributed-only building placement; 0076's docked-line connections (§1) and the manual
+`render: building` tag stand.
 
 ## Context
 
@@ -107,7 +107,7 @@ With the shared islands rendered in the panel and the stamps explained there, th
 
 ## References
 
-- [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) — the distributed-bookshelf building model; §2 superseded in part here (the docked-line connections §1 and the manual `render: building` tag stand). The interim on-map edgeless building-island (`buildingIsland` mode) was an owner pivot under 0076; this ADR is the amendment that supersedes it.
+- [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) — the distributed-bookshelf building model; §2's distributed-only placement is replaced here (the docked-line connections §1 and the manual `render: building` tag stand). The interim on-map edgeless building-island (`buildingIsland` mode) was an owner pivot under 0076; this ADR is the amendment that supersedes it.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — the two-stage visual proof (geometry red-green + owner-attested appearance) this work follows.
 - [ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md) — one-element-per-signal: a shared island in the panel is a render placement, not a new signal.
 - [ADR-0036](0036-story-world-studio-visualisation.md) / [ADR-0038](0038-story-world-vocabulary-recalibration.md) — the forest-world island vocabulary the panel island reuses.
