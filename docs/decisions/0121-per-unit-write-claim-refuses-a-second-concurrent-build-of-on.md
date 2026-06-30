@@ -3,7 +3,6 @@ status: accepted
 load_bearing: true
 decided: 2026-06-27
 amends: [9]
-supersedes_in_part: [33]
 ---
 # ADR-0121: Per-unit write-claim refuses a second concurrent build of one unit
 
@@ -14,12 +13,13 @@ alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
 **Amends** [ADR-0009](0009-concurrency-isolation-id-allocation.md) without overturning it: it *enacts*
 ADR-0009's typed claim on plain Postgres (the DBOS substrate ADR-0009 assumed was deferred by
-[ADR-0019](0019-library-tier-name-and-defer-dbos.md), so the claim was named-but-unbuilt). **Supersedes
-in part** [ADR-0033](0033-session-presence-notice-board.md): it overturns that ADR's **Decision 4**
-("No claims, no conflict refusal — named-deferred… It is not built now") by *building* the
-typed-claims-with-refusal upgrade ADR-0033 §4 deferred until overlap conflicts became routine — the
-evidence arrived (the 2026-06-27 duplicate build below). ADR-0033's advisory presence board (Decisions
-1–3, 5) stands untouched; only the deferral of the enforcing claim is overtaken. Resolves
+[ADR-0019](0019-library-tier-name-and-defer-dbos.md), so the claim was named-but-unbuilt). **Builds the
+typed-claims-with-refusal upgrade [ADR-0033](0033-session-presence-notice-board.md) §4 named-deferred**
+— that ADR's **Decision 4** deferred the enforcing claim ("No claims, no conflict refusal… It is not
+built now") *until* overlap conflicts became routine; the evidence arrived (the 2026-06-27 duplicate
+build below), so this builds it for the build surface. ADR-0033's advisory presence board (Decisions
+1–3, 5) stands untouched; only the deferral of the enforcing claim is overtaken (ADR-0033 corrected in
+place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)). Resolves
 open-questions §3 (b) claim granularity and (c) the conflict-resolution ceremony for the build surface.
 
 ## Context
