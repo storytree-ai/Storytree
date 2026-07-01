@@ -37,6 +37,10 @@ import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 import { createBuildRouteMount } from "../src/backend/build-route.js";
 import { createAcceptDispatchMount } from "../src/backend/accept-dispatch.js";
+import { credentialedBuildRunner } from "../src/backend/credentialed-build-runner.js";
+import { CredentialBroker } from "../src/credential/broker.js";
+import { CREDENTIAL_ENV_VAR } from "../src/credential/kinds.js";
+import { NapiKeychain } from "../src/keychain/napi-adapter.js";
 // The build worker REGISTRY + routedBuildRunner come from the shared @storytree/drive package (ADR-0133
 // d.3 — never apps/studio/server, ADR-0100). build-worker imports only node:crypto, so it is safe to
 // import statically here (the build ENTRIES nodeBuild/storyBuild are lazily imported inside the runner).
@@ -105,6 +109,14 @@ const toIso = (at: Date | string): string =>
 // ---------- main ----------
 
 async function main(): Promise<void> {
+  // Record which credential env vars the operator EXPLICITLY set, BEFORE any hydration runs — the
+  // precedence anchor for the build path (explicit env > keychain > secrets file, the secrets.ts
+  // posture): once loadLocalSecrets fills the file tier below, "explicit" and "file-hydrated" are
+  // indistinguishable in process.env, so the distinction must be captured here.
+  const explicitCredentialEnv: ReadonlySet<string> = new Set(
+    Object.values(CREDENTIAL_ENV_VAR).filter((name) => (process.env[name] ?? "").trim() !== ""),
+  );
+
   // Fill STORYTREE_DB_USER (the keyless IAM principal) from ~/.storytree/secrets.json when unset —
   // env always wins (ADR-0021 / the drive secrets seam). createPool needs it to authenticate.
   loadLocalSecrets();
@@ -348,18 +360,36 @@ async function main(): Promise<void> {
       .filter((s): s is import("@storytree/orchestrator").NodeSpec => s !== null);
     return { kind: "story", spec, caps };
   };
+  // The credential bridge wired into the build path (ADR-0109 Step 2 / ADR-0113 §5, the
+  // local-credential-wiring glue): the keychain-held credential is read PER BUILD — in this
+  // main-owned sidecar, through the SAME CredentialBroker over the SAME OS keychain the Electron
+  // main writes (the sidecar IS the Electron binary in Node mode, so the keychain entry is
+  // reachable and, on macOS, ACL-matched) — and made ambient for exactly the build's duration
+  // (the SDK leaf's auth is ambient; nodeBuild/storyBuild take no env), then scrubbed.
+  // Per-build reads mean sign-in-after-launch works without a restart and sign-out fails the
+  // next build closed (the bridge's typed rejection → an honest failed run, never an empty
+  // token). The raw token never rides the spawn env, an HTTP hop, a sink line, or any
+  // renderer-reachable surface (ADR-0109 d.4). Precedence: explicit env (recorded above) >
+  // keychain > the secrets file loadLocalSecrets hydrated. Proven offline by
+  // credentialed-build-runner.test.ts over an injected env; this composition over the real
+  // NapiKeychain is sidecar glue, operator-attested like the rest of this file.
   const build: BuildContext = {
     registry: new BuildRegistry(),
-    runner: routedBuildRunner({
-      classify: async (unitId) => ((await loadBuildUnit(unitId))?.kind === "story" ? "story" : "node"),
-      nodeBuild: async (unitId, opts) => {
-        const { nodeBuild } = await import("@storytree/drive/build");
-        return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
-      },
-      storyBuild: async (unitId, opts) => {
-        const { storyBuild } = await import("@storytree/drive/build");
-        return storyBuild(unitId, opts);
-      },
+    runner: credentialedBuildRunner({
+      broker: new CredentialBroker(new NapiKeychain()),
+      explicitEnvVars: explicitCredentialEnv,
+      runner: routedBuildRunner({
+        classify: async (unitId) =>
+          (await loadBuildUnit(unitId))?.kind === "story" ? "story" : "node",
+        nodeBuild: async (unitId, opts) => {
+          const { nodeBuild } = await import("@storytree/drive/build");
+          return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
+        },
+        storyBuild: async (unitId, opts) => {
+          const { storyBuild } = await import("@storytree/drive/build");
+          return storyBuild(unitId, opts);
+        },
+      }),
     }),
     isBuildable: async (unitId) => {
       const unit = await loadBuildUnit(unitId);

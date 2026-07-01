@@ -81,6 +81,16 @@ worker, and the headless-orchestrator runtime) instead of a hosted one.
    no TLS hop, no server-side persistence, the credential never leaves the member's machine. This is a *stronger* BYO
    posture than brokering to a hosted box, and it keeps the renderer/keychain isolation ADR-0109 d.4 requires.
 
+   **Correction (2026-07-02, per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** "the SAME (main)
+   process" is overtaken by the [ADR-0119](0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md)
+   topology — the backend runs as a backend **sidecar**, a child Node process the Electron main OWNS (same
+   Electron binary, `ELECTRON_RUN_AS_NODE`) — so the keychain read now happens **per-build inside that
+   main-owned sidecar** (`apps/desktop/src/backend/credentialed-build-runner.ts` composes the credential
+   bridge around the routed build runner; wired in `apps/desktop/electron/backend-entry.ts`). Everything
+   this item decides holds unchanged: same machine, no TLS hop, no server-side persistence, and the
+   renderer never sees the token (ADR-0109 d.4).
+
 6. **Shared Cloud SQL stays the source of truth — one living forest.** The member's builds, verdicts, and presence
    write to the SHARED Cloud SQL Postgres (ADR-0017 / ADR-0023), so his work blooms in the same forest the owner
    watches — the whole point of sharing with the circle. This requires granting his Google identity Cloud SQL IAM

@@ -48,11 +48,15 @@ drivers (no TLS hop), and the renderer never receives the raw token.
 - [`local-backend-boot`](local-backend-boot.md) — it feeds the credential INTO the backend that
   capability stands up, so it couples to the backend's driver-invocation seam.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. It is the redefinition of
-> **ADR-0109 Step 2** ("wire the held credential into each build intent") made LOCAL: the brokered token
-> is handed to the in-process backend drivers in the SAME (main) process — **no TLS hop**, no server-side
-> persistence (ADR-0113 §5). The collaborators are real: the broker (`apps/desktop/src/credential/`,
-> Step 1) and the secrets-hydration seam `@storytree/drive`'s build path uses (`loadLocalSecrets` reads
+> **Proof status (honest) — code BUILT, still `proposed` (no signed verdict yet).** The net-new bridge
+> module + test exist (`apps/desktop/src/backend/credential-bridge.ts` / `.test.ts`), and the sidecar
+> composition glue is wired (`credentialed-build-runner.ts` composes the bridge around the routed build
+> runner; `apps/desktop/electron/backend-entry.ts` mounts it) — CI-proven at the wrapper tier. Since
+> ADR-0119 the backend is a main-OWNED sidecar process, so the keychain read happens per-build in that
+> sidecar (still no TLS hop, no server-side persistence; ADR-0113 §5 as corrected). The capability keeps
+> `proposed` until a signed verdict lands through the gate. It remains the redefinition of **ADR-0109
+> Step 2** made LOCAL; the collaborators: the broker (`apps/desktop/src/credential/`, Step 1) and the
+> secrets-hydration seam `@storytree/drive`'s build path uses (`loadLocalSecrets` reads
 > `CLAUDE_CODE_OAUTH_TOKEN` from the environment the SDK leaf consumes).
 
 ## Guidance
@@ -109,14 +113,15 @@ The integration test would:
 ## Contracts (3)
 
 The test-proven leaf behaviours — each one isolated automated test (`node:test`, the `desktop` suite),
-collaborators stubbed. None exist yet; each is the assertion a contract test WILL prove against the real
-bridge code once authored (provisional path — re-cite at real `file:line` when built).
+collaborators stubbed. The bridge module and its test file are built
+(`apps/desktop/src/backend/credential-bridge.ts` / `.test.ts`); the paths below are the real module
+(line refs kept coarse — file-level).
 
 1. **`cb-feeds-credential-in-process`** — the brokered token reaches the driver path in-process
    - **asserts —** given a token stored via the broker, the bridge supplies it to the injected
      driver-invocation seam on the in-process secrets/env path (the path the SDK leaf reads), with no
      outbound HTTP/TLS request in the hand-off.
-   - **covers —** `apps/desktop/src/backend/credential-bridge.ts` (the in-process feed) *(provisional path)*
+   - **covers —** `apps/desktop/src/backend/credential-bridge.ts` (the in-process feed)
 2. **`cb-renderer-never-gets-raw-token`** — no renderer-reachable getter returns the raw credential
    - **asserts —** the bridge exposes no path that returns the raw token to a renderer-reachable surface
      — the credential reaches only the in-process driver path (ADR-0109 d.4 preserved).

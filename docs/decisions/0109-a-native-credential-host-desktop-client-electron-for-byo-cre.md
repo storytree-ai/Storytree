@@ -71,6 +71,17 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
 - **Step 2 — wire to the worker.** The shell injects the held credential into each build intent over TLS
   to the (eventually hosted) worker. Lands alongside ADR-0090 Phase 3 / ADR-0108 Phase 5 hosting.
 
+  **Correction (2026-07-02, per
+  [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Step 2 was
+  **redefined by [ADR-0113](0113-thick-local-desktop-for-the-inner-circle-the-drive-machinery.md) §5**
+  for the inner-circle phase — the worker boots locally, so the hand-off is local and in-process on the
+  member's machine (no TLS hop, no server-side persistence) — and is now **BUILT**: the keychain-held
+  credential is fed per-build into the main-owned backend sidecar
+  ([ADR-0119](0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md)) via
+  `apps/desktop/src/backend/credentialed-build-runner.ts`. The keychain posture and d.4 renderer
+  isolation stand; the over-TLS form returns only with the deferred hosted phase (ADR-0090 Phase 3 /
+  ADR-0108 Phase 5).
+
 ## Consequences
 
 **Good**
