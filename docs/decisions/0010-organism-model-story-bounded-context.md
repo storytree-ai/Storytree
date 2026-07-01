@@ -2,14 +2,13 @@
 status: accepted
 load_bearing: true
 decided: 2026-06-06
-supersedes_in_part: [2, 7]
 ---
 
 # ADR-0010: The organism model — story as bounded context, the proof ladder, and cross-story interfaces
 
 ## Status
 
-accepted (2026-06-06) — supersedes the relevant parts of ADR-0002 and ADR-0007; resolves adjudication call A.
+accepted (2026-06-06) — corrects [ADR-0002](0002-work-hierarchy-story-capability-contract.md) and [ADR-0007](0007-proof-model.md) in place (per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)); resolves adjudication call A.
 
 ## Date
 
@@ -124,9 +123,9 @@ bite.
 
 ## Consequences
 
-- **Amends ADR-0002** — the proof-mode table, the dependency grain, and the deferred
+- **Corrects [ADR-0002](0002-work-hierarchy-story-capability-contract.md) in place** (per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)) — the proof-mode table, the dependency grain, and the deferred
   DAG-grain question (§2, §3 here).
-- **Amends ADR-0007** — the proof table, the mock-UAT seam, and the cold-rebuild
+- **Corrects [ADR-0007](0007-proof-model.md) in place** (per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)) — the proof table, the mock-UAT seam, and the cold-rebuild
   definition (§2, §5, §6 here).
 - **glossary** — `UAT` (now story-level), `capability` (integration-proven), `dependency`
   (split: in-story code-derived vs cross-story interface), `cold-rebuild`, and the
@@ -142,6 +141,6 @@ bite.
 
 ## References
 
-- ADR-0002 (work hierarchy — amended here), ADR-0007 (proof model — amended here).
+- [ADR-0002](0002-work-hierarchy-story-capability-contract.md) (work hierarchy — corrected in place per ADR-0139), [ADR-0007](0007-proof-model.md) (proof model — corrected in place per ADR-0139).
 - `docs/adjudication.md` call A (resolved here).
 - Design conversation, 2026-06-06 (the rainforest/organism reframe).

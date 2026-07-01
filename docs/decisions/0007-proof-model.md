@@ -6,9 +6,9 @@ decided: 2026-06-04
 
 # ADR-0007: Proof model
 
-**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0005/0006/0008/0024/0027. **Amended by ADR-0010** (proof table, mock-UAT seam, cold-rebuild).
+**Status:** accepted (2026-06-04; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — full rationale: v1 ADR-0005/0006/0008/0024/0027.
 
-**Superseded-in-part by [ADR-0010](0010-organism-model-story-bounded-context.md)** — this ADR's proof table, mock-UAT seam, and cold-rebuild definition are overtaken: the proof ladder shifts up one rung (the **UAT moves to the story**; the capability is proven by integration tests against real in-story collaborators), the one stubbable boundary is the declared cross-story interface, and cold-rebuild is restated as an authoring guideline keyed on a story's upstream *interfaces*.
+**Correction ([ADR-0010](0010-organism-model-story-bounded-context.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's core — the **proof model** (the three proof modes operationalized, the **operator-attested** third mode, and **red-before-green** as a structural spine discipline) — STANDS in full and is current. Overtaken only: the **proof table** (the proof ladder shifts up one rung — the UAT moves to the story; the capability is proven by integration tests against real in-story collaborators), the **mock-UAT seam** (the one stubbable boundary is now the declared cross-story interface — no mocks *within* an organism), and the **cold-rebuild** definition (restated as an authoring guideline keyed on a story's upstream *interfaces*). The Decision prose below already reflects ADR-0010's ladder.
 
 ## Decision
 

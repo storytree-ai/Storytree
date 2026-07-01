@@ -9,9 +9,7 @@ load_bearing: true
 
 accepted
 
-> Amended by ADR-0010 (proof ladder, dependency grain, DAG grain).
-
-**Superseded-in-part by [ADR-0010](0010-organism-model-story-bounded-context.md)** — this ADR's proof-mode table is overtaken: the proof ladder shifts up one rung (the **UAT moves from the capability to the story**, the capability is proven by integration tests against real in-story collaborators), and the deferred DAG-grain question is resolved (stories carry declared-interface edges; capabilities carry a code-derived within-story graph).
+**Correction ([ADR-0010](0010-organism-model-story-bounded-context.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's core — the three-tier work hierarchy (**story / capability / contract**) with the **proof mode as the tier boundary**, and the "capability" naming decision — STANDS in full and is current. Overtaken only: the original **proof-ladder assignment** (the capability originally carried the integrated UAT; the story was a pure rollup) and the deferred **DAG-grain** question — [ADR-0010] shifts the UAT up to the story (the capability is proven by integration tests against real in-story collaborators) and resolves the grain (a within-story code-derived capability graph; a cross-story declared-interface story graph). The Decision and "What this does NOT decide" prose below already reflect ADR-0010's ladder.
 
 ## Date
 
