@@ -60,7 +60,7 @@ export type {
   RenderDigestResult,
   RenderAgentFileResult,
 } from "./render-agent.js";
-export { PgCommentStore, mergeCommentPatch } from "./pg-comment-store.js";
+export { PgCommentStore, mergeCommentPatch, normalizeCommentAnchor } from "./pg-comment-store.js";
 export type {
   Comment,
   CommentAnchor,

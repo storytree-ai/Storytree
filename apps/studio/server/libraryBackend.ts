@@ -939,8 +939,15 @@ export class PgBackend implements LibraryBackend {
   }
 
   async createComment(comment: Comment): Promise<Comment> {
-    const { comments } = await this.#ready();
-    const created = await comments.create(comment, DEFAULT_ACTOR);
+    const { store, comments } = await this.#ready();
+    // ADR-0140 block-anchor lockstep: the studio's Comment type still carries the legacy
+    // kind:'text' anchor (the old annotate.ts path, removed later by the
+    // remove-text-selection-anchoring cap), so normalize at this write boundary to the library
+    // store's canonical anchor shape — the same normalisation PgCommentStore.create applies internally.
+    const created = await comments.create(
+      { ...comment, anchor: store.normalizeCommentAnchor(comment.anchor) },
+      DEFAULT_ACTOR,
+    );
     return created as Comment;
   }
 

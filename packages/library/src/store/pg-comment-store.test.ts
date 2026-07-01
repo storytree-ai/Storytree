@@ -80,7 +80,24 @@ test("mergeCommentPatch does not mutate the input doc", () => {
   assert.notEqual(merged, original, "returns a new object");
 });
 
-test("PgCommentStore module imports and constructs from a pool-like object", () => {
+test("bpa-merge-preserves-the-block-anchor: mergeCommentPatch preserves a block anchor across body/resolve edits and does not mutate", () => {
+  const blockComment = sampleComment({
+    anchor: { kind: "block", blockId: "b-introduction", headingSlug: null, headingText: null, color: null },
+  });
+  const edited = mergeCommentPatch(blockComment, {
+    body: "edited",
+    resolved: true,
+    resolvedAt: "2026-06-02T00:00:00Z",
+  });
+  assert.equal(edited.body, "edited", "body patch applied");
+  assert.equal(edited.resolved, true, "resolve toggled");
+  assert.equal(edited.anchor.kind, "block", "the block anchor kind survives the merge");
+  assert.equal(edited.anchor.blockId, "b-introduction", "the blockId survives the merge (anchor is not patchable)");
+  assert.equal(blockComment.body, "original", "input is not mutated");
+  assert.notEqual(edited, blockComment, "returns a new object");
+});
+
+test("bpa-store-constructs-over-the-new-shape: PgCommentStore module imports and constructs from a pool-like object", () => {
   // No SQL is issued by the constructor, so a bare object stands in for a Pool offline.
   const store = new PgCommentStore({} as never);
   assert.ok(store instanceof PgCommentStore);
@@ -120,7 +137,7 @@ function callNormalizeAnchor(raw: unknown): Record<string, unknown> {
   return (fn as (r: unknown) => Record<string, unknown>)(raw);
 }
 
-test("normalizeCommentAnchor: block anchor is returned canonical with blockId and no legacy text-span fields", () => {
+test("bpa-block-anchor-is-the-stored-shape: normalizeCommentAnchor returns a block anchor canonical (blockId kept, legacy text-span fields stripped)", () => {
   // A raw incoming anchor that carries both the new blockId AND the legacy text-span
   // fields that the normaliser must strip.
   const canonical = callNormalizeAnchor({

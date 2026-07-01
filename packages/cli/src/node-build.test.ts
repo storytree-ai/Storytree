@@ -199,9 +199,16 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // subagent→colour mapping) and take-claim-at-spawn (E — a NET-NEW pure spawn-claim seam). The story's
   // other two caps are operator-attested (no `real:` arm, witnessed not built): ci-clear-on-merge (D, glue)
   // and appearance-uat (F, the §5-honesty-wall human UAT).
+  // And the eight PROVABLE `library-review`-story capabilities (stories/library-review/*.md — ADR-0140,
+  // the word-processor Review mode for library open-questions): the five backend LEAF arms
+  // block-position-comment-anchor (the block-anchor comment model + the normalizeCommentAnchor write
+  // boundary), suggestion-edit-store, accept-reject-suggestion-api, member-suggest-write-policy,
+  // review-refresh-feed; and the three LOOK caps with vitest two-stage `real:` arms (ADR-0070):
+  // review-mode-toggle, inline-comment-thread, collapsed-suggestion-view. The ninth cap,
+  // remove-text-selection-anchoring, is GLUE (no `real:` arm) so it is absent here.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-to-land-affordance, ambient-integration, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, leaf-tool-surface, local-backend-boot, local-credential-wiring, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, render-claim-as-wisp, seed-corpus-scripts, shared-forest-connection, source-drift, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-reject-suggestion-api, accept-to-land-affordance, ambient-integration, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, gate-emits-change, headless-session-runner, inline-comment-thread, leaf-tool-surface, local-backend-boot, local-credential-wiring, member-suggest-write-policy, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, render-claim-as-wisp, review-mode-toggle, review-refresh-feed, seed-corpus-scripts, shared-forest-connection, source-drift, suggestion-edit-store, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
