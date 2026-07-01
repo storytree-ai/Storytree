@@ -2,7 +2,6 @@
 status: accepted
 load_bearing: true
 decided: 2026-06-10
-supersedes_in_part: [11]
 amends: [12]
 ---
 
@@ -10,9 +9,10 @@ amends: [12]
 
 ## Status
 
-accepted (2026-06-10, owner) — **supersedes [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)
-in part** (the owned loop is demoted from *the* leaf runtime to one executor implementation;
-"Anthropic-only for now" deepens to all-in), **amends [ADR-0012](0012-tool-execution-pluggable-sandbox.md)**
+accepted (2026-06-10, owner) — **demotes [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)**
+(the owned loop drops from *the* leaf runtime to one executor implementation; "Anthropic-only for now"
+deepens to all-in — ADR-0011 corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)),
+**amends [ADR-0012](0012-tool-execution-pluggable-sandbox.md)**
 (the live sandbox is now supplied by the rented runtime; the `ToolExecutor` seam becomes the
 pivot-out seam), and **reaffirms [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md)'s
 trust base** (spine-observed proof never enters the rented runtime).
@@ -88,7 +88,7 @@ Four things changed (owner, 2026-06-10):
 
 ## Consequences
 
-- **Supersedes ADR-0011 §§1–2 in part.** §3's seam discipline carries — pointed the other
+- **Demotes ADR-0011 §§1–2.** §3's seam discipline carries — pointed the other
   way: the seam now protects *exit from* the Anthropic SDK rather than entry. ADR-0004/0005
   boundary rules carry verbatim: a **single** model-runtime import site (now including the
   Agent SDK package), orchestrator-only driver, *run ≠ node*, no agent-spawns-agent.
@@ -122,7 +122,7 @@ Four things changed (owner, 2026-06-10):
 
 ## References
 
-- [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) (superseded in part),
+- [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) (corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)),
   [ADR-0012](0012-tool-execution-pluggable-sandbox.md) (amended), [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md),
   [ADR-0023](0023-library-cli-choose-your-own-adventure.md), [ADR-0003](0003-v1-reversal-ledger.md) (ledger).
 - Anthropic billing change, effective 2026-06-15: programmatic-usage credit for Agent SDK /

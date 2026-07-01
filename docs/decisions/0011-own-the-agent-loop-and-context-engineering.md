@@ -14,7 +14,7 @@ accepted (2026-06-06) — **reverses** ADR-0001's *pi* per-node runtime and its
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)); **amends**
 ADR-0004 and ADR-0005 (the boundary now wraps an owned loop, not pi).
 
-**Superseded-in-part by [ADR-0030](0030-all-in-on-claude-agent-sdk.md)** (accepted, 2026-06-10) — §§1–2 are demoted: the **Claude Agent SDK** becomes the live runtime (subscription auth), the owned loop becomes the offline/test executor + pivot-out fallback, and "own context engineering / never delegate to a third-party harness" reframes to owning the **map and pull surfaces** (story tree, Library, CLI). §3's seam discipline carries, pointed the other way.
+**Correction ([ADR-0030](0030-all-in-on-claude-agent-sdk.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the owned loop this ADR builds STANDS — small, green, and now the **offline/deterministic (ScriptedModel) executor + the pivot-out fallback runtime** ([ADR-0030] Decision 4 keeps it as the pivot target, not deleted); §3's pivot-seam discipline carries, pointed the other way (the seam now guards *exit from* the rented SDK, not entry to a raw-API loop); §4's boundary discipline — a single model-runtime import site (now including the Agent SDK package, [ADR-0030]), orchestrator-only driver, spine/leaf split, run≠node, no agent-spawns-agent — carries **verbatim**; and §5's thin orchestrator + event store + TS/Node/pnpm stand. Overtaken is §§1–2's PRIMACY: the owned loop is demoted from *the* live leaf runtime to one executor implementation — the live runtime is now the **Claude Agent SDK** on subscription auth ([ADR-0030]) — and §2's "own context engineering / never delegate to a third-party harness" reframes to owning the **map and pull surfaces** (story tree, Library, CLI), not the window/loop. The demoted spots below are corrected in place to point here.
 
 ## Date
 
@@ -47,12 +47,16 @@ Two things changed that bet (owner, 2026-06-06):
 1. **Own the agent loop.** Build the per-node leaf runtime ourselves — a minimal tool-use
    loop on the model's Messages API (`messages.create` with `tools` → dispatch `tool_use`
    → feed `tool_result` → loop to `end_turn`). This **replaces pi as the leaf**; pi leaves
-   the runtime path.
+   the runtime path. *(Built — but demoted by [ADR-0030](0030-all-in-on-claude-agent-sdk.md)
+   from *the* live leaf to the offline/deterministic executor + pivot-out fallback; the live
+   runtime is the Claude Agent SDK. See the Correction above.)*
 2. **Own context engineering.** The assembly of each node's context — which slice of the
    story / capability / contract corpus and event-store state enters the window, pulled
    just-in-time — is first-class **owned code**, never delegated to a third-party harness.
    It is the layer storytree most needs to control, and the substrate ADR-0013 makes
-   queryable.
+   queryable. *([ADR-0030](0030-all-in-on-claude-agent-sdk.md) WITHDREW "never delegated to a
+   third-party harness" and reframed context engineering to owning the map and pull surfaces
+   (story tree, Library, CLI), not the window/loop. See the Correction above.)*
 3. **Start on the Anthropic SDK; keep a pivot trigger.** Build the loop directly on
    `@anthropic-ai/sdk` (the Messages API), accepting **Anthropic-only** for now. This
    **relaxes** ADR-0001's model-agnostic non-negotiable to a *revisit-if-it-bites*
@@ -60,7 +64,10 @@ Two things changed that bet (owner, 2026-06-06):
    lock-in friction), we pivot. Keep the model call behind a **thin internal seam** so a
    future provider swap is a backend change, not a rewrite — but do **not** build a
    multi-provider abstraction now (YAGNI; the any-provider goal is downgraded, not
-   re-committed).
+   re-committed). *(This thin-seam / pivot discipline CARRIES per
+   [ADR-0030](0030-all-in-on-claude-agent-sdk.md), pointed the other way — the seam now guards
+   *exit from* the rented Claude Agent SDK (the live runtime), not entry to a raw-API loop. See
+   the Correction above.)*
 4. **The boundary stands; the thing behind it changes.** ADR-0004's single-boundary
    discipline is kept and strengthened: the owned loop lives in **one package**
    (provisionally `packages/agent`, replacing `packages/pi-adapter`), is the **sole** place
@@ -89,7 +96,10 @@ Two things changed that bet (owner, 2026-06-06):
 - **Amends ADR-0004 / ADR-0005** — the boundary now wraps `packages/agent` (the owned
   loop), not pi; the leaf is the owned loop, not a pi session. The structural rules (single
   import site, orchestrator-only driver, spine/leaf discriminator, run≠node, sole fan-out)
-  carry **verbatim**.
+  carry **verbatim**. *(The LIVE leaf is now the Claude Agent SDK executor per
+  [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — `packages/agent` is the offline/fallback
+  executor; the structural boundary rules still carry verbatim, ADR-0030 keeping them — the
+  single import site now including the Agent SDK package. See the Correction above.)*
 - **Reversal ledger** — [ADR-0003](0003-v1-reversal-ledger.md) records this v2-internal
   reversal (pi → owned loop; model-agnostic relaxed) so the v1-0003 disposition
   (Claude-sub → pi) is not left stale.
