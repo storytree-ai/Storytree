@@ -212,6 +212,78 @@ test("declare (re-declare): merges with existing row; startedAt anchored, workin
   assert.ok(client.released, "client released");
 });
 
+test("declare (ambient, reactivate:false): a done row is NOT resurrected — no event, no upsert, doc returned unchanged", async () => {
+  // The observed live failure: a merge retires the session row to done, then an idle
+  // tab's statusline heartbeat re-declares and flips it back to active. The ambient
+  // path must be a no-op against a retired row.
+  const retired = sampleDoc({ status: "done", lastSeenAt: "2026-06-11T02:00:00.000Z" });
+  const client = new FakeClient();
+  client.projectionRows = [{ id: retired.sessionId, doc: retired }];
+  const pool = new FakePool(client);
+  const store = new PgPresenceStore(pool as never);
+
+  const incoming = sampleDoc({
+    status: "active",
+    workingOn: "session active (auto-declared)",
+    lastSeenAt: "2026-06-11T03:00:00.000Z",
+  });
+  const result = await store.declare(incoming, { reactivate: false });
+
+  assert.equal(result.status, "done", "retired row stays done");
+  assert.equal(result.lastSeenAt, retired.lastSeenAt, "lastSeenAt stays truthful (not bumped)");
+  assert.equal(countMatching(client.calls, "INSERT INTO events.session_event"), 0, "no event appended");
+  assert.equal(countMatching(client.calls, "ON CONFLICT"), 0, "no projection upsert");
+  assert.ok(
+    !client.calls.some((c) => c.text.includes("COMMIT")),
+    "no COMMIT — the transaction is abandoned, not written",
+  );
+  assert.ok(client.released, "client released");
+});
+
+test("declare (ambient, reactivate:false): an ACTIVE row still heartbeats normally (merge + upsert)", async () => {
+  const existing = sampleDoc({ status: "active", lastSeenAt: "2026-06-11T01:00:00.000Z" });
+  const client = new FakeClient();
+  client.projectionRows = [{ id: existing.sessionId, doc: existing }];
+  const pool = new FakePool(client);
+  const store = new PgPresenceStore(pool as never);
+
+  const incoming = sampleDoc({ status: "active", lastSeenAt: "2026-06-11T02:00:00.000Z" });
+  const result = await store.declare(incoming, { reactivate: false });
+
+  assert.equal(result.status, "active", "active row stays active");
+  assert.equal(result.lastSeenAt, incoming.lastSeenAt, "lastSeenAt bumped");
+  assert.equal(countMatching(client.calls, "INSERT INTO events.session_event"), 1, "one event appended");
+  assert.equal(countMatching(client.calls, "ON CONFLICT"), 1, "one upsert");
+});
+
+test("declare (ambient, reactivate:false): no existing row still creates one (fresh-worktree self-heal)", async () => {
+  const client = new FakeClient(); // projectionRows = [] → no existing row
+  const pool = new FakePool(client);
+  const store = new PgPresenceStore(pool as never);
+  const doc = sampleDoc();
+
+  const result = await store.declare(doc, { reactivate: false });
+
+  assert.equal(result.status, "active", "fresh row created active");
+  assert.equal(countMatching(client.calls, "INSERT INTO events.session_event"), 1, "one event appended");
+  assert.equal(countMatching(client.calls, "ON CONFLICT"), 1, "one upsert");
+});
+
+test("declare (explicit, default opts): a done row IS reactivated — the deliberate signal still works", async () => {
+  const retired = sampleDoc({ status: "done" });
+  const client = new FakeClient();
+  client.projectionRows = [{ id: retired.sessionId, doc: retired }];
+  const pool = new FakePool(client);
+  const store = new PgPresenceStore(pool as never);
+
+  const incoming = sampleDoc({ status: "active", workingOn: "back on it" });
+  const result = await store.declare(incoming);
+
+  assert.equal(result.status, "active", "explicit declare flips done back to active");
+  assert.equal(result.workingOn, "back on it", "workingOn updated");
+  assert.equal(countMatching(client.calls, "INSERT INTO events.session_event"), 1, "one event appended");
+});
+
 test("done: returns null when projection row is missing; ROLLBACK issued, client released", async () => {
   const client = new FakeClient(); // projectionRows = [] → no row
   const pool = new FakePool(client);

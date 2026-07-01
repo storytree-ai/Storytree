@@ -50,24 +50,35 @@ function makeDoc(overrides: Partial<PresenceDeclarationDoc> = {}): PresenceDecla
 
 interface CallRecordingStore extends PresenceStoreLike {
   declareCalls: PresenceDeclarationDoc[];
+  declareOpts: Array<{ reactivate?: boolean } | undefined>;
   doneCalls: Array<{ sessionId: string; lastSeenAt: string }>;
   docs: Map<string, PresenceDeclarationDoc>;
 }
 
-function makeRecordingStore(active: PresenceDeclarationDoc[] = []): CallRecordingStore {
+function makeRecordingStore(seed: PresenceDeclarationDoc[] = []): CallRecordingStore {
   const docs = new Map<string, PresenceDeclarationDoc>();
-  for (const doc of active) {
+  for (const doc of seed) {
     docs.set(doc.sessionId, doc);
   }
   const declareCalls: PresenceDeclarationDoc[] = [];
+  const declareOpts: Array<{ reactivate?: boolean } | undefined> = [];
   const doneCalls: Array<{ sessionId: string; lastSeenAt: string }> = [];
   return {
     declareCalls,
+    declareOpts,
     doneCalls,
     docs,
-    async declare(doc: PresenceDeclarationDoc): Promise<PresenceDeclarationDoc> {
+    async declare(
+      doc: PresenceDeclarationDoc,
+      opts?: { reactivate?: boolean },
+    ): Promise<PresenceDeclarationDoc> {
       declareCalls.push(doc);
+      declareOpts.push(opts);
       const existing = docs.get(doc.sessionId);
+      // Models the PgPresenceStore contract: an ambient declare never resurrects a retired row.
+      if (existing !== undefined && existing.status === "done" && opts?.reactivate === false) {
+        return existing;
+      }
       const persisted: PresenceDeclarationDoc =
         existing !== undefined ? { ...doc, startedAt: existing.startedAt } : doc;
       docs.set(persisted.sessionId, persisted);
@@ -547,6 +558,57 @@ test("statuslineGlance: self-heal persists — the next expired beat finds the r
   const second = store.declareCalls[1];
   assert.ok(second !== undefined);
   assert.equal(second.lastSeenAt, NOW.toISOString(), "second beat is a lastSeenAt heartbeat");
+});
+
+// ---------------------------------------------------------------------------
+// statuslineGlance — the ambient beat never resurrects a retired row
+// ---------------------------------------------------------------------------
+
+test("statuslineGlance: own row retired to done (merge-retire) — heartbeat does NOT flip it back to active", async () => {
+  // The observed live failure: the session's PR merged, ingest-merge retired the row
+  // to done, but the still-open idle tab keeps firing the statusline heartbeat. The
+  // row is invisible to listActive, so the self-heal branch fires — it must declare
+  // ambiently (reactivate: false) so the store refuses the resurrection.
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      status: "done",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null); // expired debounce — the beat fires
+
+  const line = await statuslineGlance(deps, state, 60_000);
+
+  assert.equal(
+    store.docs.get(IDENTITY.sessionId)?.status,
+    "done",
+    "retired row must stay done after an ambient heartbeat",
+  );
+  assert.equal(store.declareOpts[0]?.reactivate, false, "ambient declare carries reactivate: false");
+  assert.ok(line.length > 0, "glance still renders");
+});
+
+test("statuslineGlance: heartbeat bump of an active own row is also ambient (reactivate: false)", async () => {
+  // Closes the race where a merge retires the row between the glance's listActive
+  // and its declare — every ambient write carries the flag, not just the self-heal.
+  const store = makeRecordingStore([
+    makeDoc({
+      sessionId: IDENTITY.sessionId,
+      branch: IDENTITY.branch,
+      nodes: ["ambient-integration"],
+      status: "active",
+    }),
+  ]);
+  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
+
+  await statuslineGlance(deps, state, 60_000);
+
+  assert.ok(store.declareCalls.length >= 1, "heartbeat declared");
+  assert.equal(store.declareOpts[0]?.reactivate, false, "bump declare carries reactivate: false");
+  assert.equal(store.docs.get(IDENTITY.sessionId)?.status, "active", "active row still bumps");
 });
 
 // ---------------------------------------------------------------------------

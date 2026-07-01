@@ -150,6 +150,12 @@ export async function sessionHook(
  * `nodes: []` doc instead of silently staying off the board forever. The
  * check rides the same debounce; `nodes: []` is all automation can honestly
  * claim — sessions anchor their own story nodes via `noticeboard declare`.
+ *
+ * Every write here is AMBIENT (`reactivate: false`): a row already retired to
+ * `status: "done"` (merge-retire, the ADR-0079 reaper) is never flipped back
+ * to active by this beat — an idle-but-open tab must not resurrect a session
+ * whose branch already merged. Only a deliberate signal reactivates: an
+ * explicit `noticeboard declare` or a build's `withPresence`.
  */
 export async function statuslineGlance(
   deps: AmbientDeps,
@@ -195,7 +201,7 @@ export async function statuslineGlance(
               startedAt: nowIso,
               lastSeenAt: nowIso,
             };
-      await store.declare(doc);
+      await store.declare(doc, { reactivate: false });
       state.writeLastBump(nowIso);
     } catch {
       // fail-silent

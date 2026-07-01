@@ -68,9 +68,21 @@ export class PgPresenceStore {
    * is found for the same `sessionId`, the doc is merged via `mergeDeclaration`
    * (anchors `sessionId`/`startedAt` from the existing row).
    *
+   * `opts.reactivate: false` marks an AMBIENT declare (the statusline
+   * heartbeat/self-heal): when the stored row is already `status: "done"`
+   * (merge-retired, reaped) the call is a no-op — no event, no upsert, the
+   * retired doc returned unchanged — so background automation can never flip a
+   * retired session back to active. The default (`true`) is the explicit path
+   * (`noticeboard declare`, a build's `withPresence`), which deliberately can.
+   * The guard reads the row inside the same transaction, so a retire landing
+   * just before the heartbeat's write is still respected.
+   *
    * Returns the persisted (possibly merged) doc.
    */
-  async declare(doc: PresenceDeclarationDoc): Promise<PresenceDeclarationDoc> {
+  async declare(
+    doc: PresenceDeclarationDoc,
+    opts?: { reactivate?: boolean },
+  ): Promise<PresenceDeclarationDoc> {
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
@@ -81,8 +93,13 @@ export class PgPresenceStore {
       const existingRow = (selectRes.rows as SessionRow[])[0];
       let persisted: PresenceDeclarationDoc;
       if (existingRow !== undefined) {
+        const existing = existingRow.doc as PresenceDeclarationDoc;
+        if (opts?.reactivate === false && existing.status === "done") {
+          await client.query("ROLLBACK");
+          return existing;
+        }
         const { sessionId: _id, startedAt: _sa, ...patch } = doc;
-        persisted = mergeDeclaration(existingRow.doc as PresenceDeclarationDoc, patch);
+        persisted = mergeDeclaration(existing, patch);
       } else {
         persisted = doc;
       }

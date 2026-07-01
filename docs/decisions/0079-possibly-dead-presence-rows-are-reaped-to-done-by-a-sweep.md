@@ -17,6 +17,17 @@ this condition, and narrows ADR-0041 Decision 2 (possibly-dead rows no longer pa
 automation stays advisory and never blocks, and the owner-set thresholds (fresh < 1 h,
 possibly-dead ≥ 4 h) are untouched.
 
+**Correction ([ADR-0141](0141-ambient-presence-heartbeat-never-resurrects-a-retired-sessio.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
+safety rationale — "a session that is merely quiet-but-alive re-declares on its next heartbeat and
+`PgPresenceStore.declare`'s upsert flips it back to `active`" — is overtaken. That very mechanism
+was what kept zombies alive: an idle-but-open tab's heartbeat resurrected merge-retired rows
+indefinitely, defeating both this sweep and the merge-retire backstop (the Context's "re-declare
+after merge" failure, observed again live 2026-07-02). The ambient heartbeat now declares with
+`reactivate: false` and can never flip a `done` row back; reactivation requires an **explicit**
+signal (`noticeboard declare`, a `SessionStart`, a build's `withPresence`). The sweep itself —
+selector, threshold, ride-along wiring — stands unchanged.
+
 ## Context
 
 The notice-board's `events.session` projection accumulates zombie rows: sessions whose
@@ -74,9 +85,12 @@ without bound.
    threshold.
 
 3. **The reap threshold is the existing `possibly-dead` band (≥ 4 h).** No new constant. This is
-   safe because retiring is **non-destructive**: a session that is merely quiet-but-alive
-   re-declares on its next heartbeat and `PgPresenceStore.declare`'s upsert flips it back to
-   `active`/`fresh`. Only rows that *stay* quiet remain retired.
+   safe because retiring is **non-destructive**: the full record survives in the append-only
+   history, and a quiet-but-alive session comes back the moment it sends an **explicit** signal —
+   `noticeboard declare`, a `SessionStart`, a build's `withPresence` — flipping the row back to
+   `active`/`fresh` *(originally "re-declares on its next heartbeat"; corrected per the Correction
+   above / [ADR-0141](0141-ambient-presence-heartbeat-never-resurrects-a-retired-sessio.md): the
+   ambient beat never reactivates a `done` row)*. Only rows that *stay* quiet remain retired.
 
 4. **Fail-soft, always.** Presence is advisory (ADR-0033) and the sweep runs inside the merge
    job, so every failure path — a `listActive` that never returns, one row's `done()` throwing —

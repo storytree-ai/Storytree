@@ -109,9 +109,11 @@ export function classifyPresence(lastSeenAt: string, now: Date): StalenessClass 
  * merged under a different branch, or never merged at all. The data-side janitor ADR-0041
  * reserved is now enacted by ADR-0079, and this is its selector.
  *
- * Retiring is NON-destructive: a merely quiet-but-alive session re-declares on its next
- * heartbeat and the upsert flips it back to active/fresh — so the threshold can be the same
- * `possibly-dead` band the world already stops orbiting.
+ * Retiring is NON-destructive: the full record survives in the event history, and an EXPLICIT
+ * re-declare (`noticeboard declare`, a `SessionStart`, a build's `withPresence`) flips the row
+ * back to active/fresh. The ambient statusline heartbeat deliberately does NOT (ADR-0141,
+ * `reactivate: false`) — a reaped or merge-retired row stays retired until the session does
+ * something deliberate.
  *
  * The `status === "active"` guard is defensive: callers typically pass `listActive()` output
  * (already active-only), but a `done` row must never be re-reaped regardless of input.

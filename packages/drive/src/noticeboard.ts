@@ -17,7 +17,15 @@ import type { Envelope } from "./envelope.js";
 // ---------------------------------------------------------------------------
 
 export interface PresenceStoreLike {
-  declare(doc: PresenceDeclarationDoc): Promise<PresenceDeclarationDoc>;
+  /**
+   * `opts.reactivate: false` marks an ambient (automation) declare: the store must
+   * NOT flip an existing `status: "done"` row back to active — only an explicit
+   * declare (the default) may. See `PgPresenceStore.declare`.
+   */
+  declare(
+    doc: PresenceDeclarationDoc,
+    opts?: { reactivate?: boolean },
+  ): Promise<PresenceDeclarationDoc>;
   done(sessionId: string, lastSeenAt: string): Promise<PresenceDeclarationDoc | null>;
   listActive(): Promise<PresenceDeclarationDoc[]>;
   history(
