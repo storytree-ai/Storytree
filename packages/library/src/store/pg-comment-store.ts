@@ -15,16 +15,75 @@ import type { Pool, PoolClient } from "pg";
 
 const DEFAULT_ACTOR = "system";
 
-/** Where on a topic a comment is attached (mirror of apps/studio CommentAnchor). */
+/**
+ * Where on a topic a comment is attached (ADR-0140 block-anchor model).
+ *
+ * - `topic`   — the whole document / artifact.
+ * - `section` — a specific heading (`headingSlug` matches the rendered id).
+ * - `block`   — a specific content block within the topic (`blockId` is the stable handle).
+ *
+ * The W3C text-quote fields (`quote`/`prefix`/`suffix`/`startOffset`) are LEGACY — present
+ * as optional fields so existing stored docs and test fixtures remain valid TypeScript, but
+ * they are stripped by {@link normalizeCommentAnchor} at every write boundary and must never
+ * appear on a canonical stored doc.  `kind:"text"` is also legacy and is downgraded to
+ * `"topic"` by the normaliser.
+ */
 export interface CommentAnchor {
-  kind: "topic" | "section" | "text";
+  kind: "topic" | "section" | "block";
+  /** Stable block identifier; present when kind === "block". */
+  blockId?: string;
   headingSlug: string | null;
   headingText: string | null;
-  quote: string | null;
-  prefix: string | null;
-  suffix: string | null;
-  startOffset: number | null;
+  /** @deprecated Legacy text-span field — stripped by normalizeCommentAnchor. */
+  quote?: string | null;
+  /** @deprecated Legacy text-span field — stripped by normalizeCommentAnchor. */
+  prefix?: string | null;
+  /** @deprecated Legacy text-span field — stripped by normalizeCommentAnchor. */
+  suffix?: string | null;
+  /** @deprecated Legacy text-span field — stripped by normalizeCommentAnchor. */
+  startOffset?: number | null;
   color: string | null;
+}
+
+/**
+ * PURE: canonical write-boundary normaliser (ADR-0140).
+ *
+ * Enforces the block-anchored comment model on any raw incoming anchor value:
+ * - `kind:"block"`   → kept canonical with `blockId`; legacy text-span fields stripped.
+ * - `kind:"section"` → kept; legacy text-span fields stripped.
+ * - `kind:"topic"`   → kept; legacy text-span fields stripped.
+ * - `kind:"text"` or any unknown kind → downgraded to the safe `"topic"` default,
+ *   mirroring the studio `readAnchor` precedent (`apiRouter.ts`).
+ *
+ * Called by {@link PgCommentStore.create} and {@link PgCommentStore.update} so the stored
+ * JSONB doc is always canonical.
+ */
+export function normalizeCommentAnchor(raw: unknown): CommentAnchor {
+  const r =
+    typeof raw === "object" && raw !== null
+      ? (raw as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+
+  const kind = r["kind"];
+  const headingSlug = typeof r["headingSlug"] === "string" ? r["headingSlug"] : null;
+  const headingText = typeof r["headingText"] === "string" ? r["headingText"] : null;
+  const color = typeof r["color"] === "string" ? r["color"] : null;
+
+  if (kind === "block") {
+    const anchor: CommentAnchor = { kind: "block", headingSlug, headingText, color };
+    const rawBlockId = r["blockId"];
+    if (typeof rawBlockId === "string") {
+      anchor.blockId = rawBlockId;
+    }
+    return anchor;
+  }
+
+  if (kind === "section") {
+    return { kind: "section", headingSlug, headingText, color };
+  }
+
+  // topic, text, or any unknown kind → safe default: topic.
+  return { kind: "topic", headingSlug, headingText, color };
 }
 
 /** A forum comment — the full JSONB doc stored verbatim (mirror of apps/studio Comment). */
