@@ -102,9 +102,10 @@ export function storytreeDataApi(): Plugin {
       // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
       const build: BuildContext = {
         registry: buildRegistry,
-        // The worker routes by tier (ADR-0090): a story id → `story build --real` (the honest
-        // whole-story chain — authors each capability for real, promotes a branch to land); a node
-        // id → `node build --live` (the single-node synthetic-pipeline build). drive + orchestrator are
+        // The worker routes by tier (ADR-0090/0144): a story id → `story build --real` (the honest
+        // whole-story chain — authors each capability for real, opens the auto-merging PR); a node
+        // id → `node build --real` (the node's REAL proof, verdict persisted; a PASS parks a
+        // claude/real/<unit>-<run> branch the human lands — ADR-0031/0136). drive + orchestrator are
         // imported LAZILY inside the closures.
         runner: routedBuildRunner({
           classify: async (unitId) =>
