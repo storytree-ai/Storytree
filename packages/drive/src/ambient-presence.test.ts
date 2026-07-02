@@ -20,6 +20,7 @@ import {
   sessionHook,
   statuslineGlance,
   auditHookConfig,
+  undeclaredSessionNudge,
 } from "./ambient-presence.js";
 
 import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
@@ -799,4 +800,21 @@ test("statuslineGlance: no claims dep (older caller) → beat unchanged, nothing
   const deps: AmbientDeps = { store, identity: IDENTITY, now: () => NOW };
   const line = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
   assert.notEqual(line, "");
+});
+
+// ---------------------------------------------------------------------------
+// undeclaredSessionNudge (ADR-0143)
+// ---------------------------------------------------------------------------
+
+test("undeclaredSessionNudge: a worktree identity gets the one-line anchor prompt naming the declare command", () => {
+  const line = undeclaredSessionNudge(IDENTITY);
+  assert.match(line, /UNDECLARED/);
+  assert.match(line, new RegExp(IDENTITY.sessionId));
+  assert.match(line, /noticeboard declare --working-on "<what>" --node <story-id> --pg/);
+  assert.match(line, /ADR-0142/);
+  assert.equal(line.trim().split("\n").length, 1, "exactly one line — SessionStart stdout is model context");
+});
+
+test("undeclaredSessionNudge: a plain checkout (null identity) stays silent", () => {
+  assert.equal(undeclaredSessionNudge(null), "");
 });
