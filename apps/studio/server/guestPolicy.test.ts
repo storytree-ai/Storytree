@@ -106,3 +106,42 @@ describe('createMembersPolicy / meFromAccess — store up: canWakeDb rides the r
     expect(corpus?.details).toMatchObject({ requestAccess: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// ADR-0140: member-suggest write policy
+// A member may author suggestions (additive proposals); only admin may decide
+// (accept/reject) or hard-edit assets. The "who may decide" 403 for members
+// is enforced HERE in the gate, before the handleSuggestionDecision handler.
+// ---------------------------------------------------------------------------
+
+describe('createMembersPolicy — member-suggest write policy (ADR-0140)', () => {
+  it('mswp-member-may-post-suggestion: a member MAY POST to the suggestion-create path (additive proposal, like /api/comments)', () => {
+    // A suggestion is a member-authored additive proposal. The gate must permit this POST —
+    // the suggestion-create path joins /api/comments as a member-permitted non-GET.
+    // CURRENTLY FAILS: the adminOnly guard catches every non-GET that is not /api/comments,
+    // so this throws 403. The fix must extend the member-permitted set to include /api/suggestions.
+    expect(gateError(createMembersPolicy(MEMBER, memberAccess), 'POST', '/api/suggestions')).toBeNull();
+  });
+
+  it('mswp-member-may-not-decide: a member POST to the suggestion-decision path is 403 (deciding is admin-only)', () => {
+    // Accepting or rejecting a suggestion is an admin/owner act. The decision path must be
+    // refused for a member even after the suggestion-create path is opened up.
+    const err = gateError(createMembersPolicy(MEMBER, memberAccess), 'POST', '/api/suggestions/decision');
+    expect(err?.status).toBe(403);
+  });
+
+  it('mswp-member-may-not-hard-edit: a member POST to an asset path is still 403 (hard-edit stays admin-only)', () => {
+    // The only write route to a doc for a member is via a suggestion — direct asset edits are refused.
+    const err = gateError(createMembersPolicy(MEMBER, memberAccess), 'POST', '/api/assets');
+    expect(err?.status).toBe(403);
+  });
+
+  it('mswp-admin-may-do-all-four: an admin may comment, suggest, accept/reject, and hard-edit', () => {
+    // admin ⊇ member: an admin may do everything a member may, plus the decision and hard-edit paths.
+    const p = createMembersPolicy(ADMIN, adminAccess);
+    expect(gateError(p, 'POST', '/api/comments')).toBeNull();
+    expect(gateError(p, 'POST', '/api/suggestions')).toBeNull();
+    expect(gateError(p, 'POST', '/api/suggestions/decision')).toBeNull();
+    expect(gateError(p, 'POST', '/api/assets')).toBeNull();
+  });
+});
