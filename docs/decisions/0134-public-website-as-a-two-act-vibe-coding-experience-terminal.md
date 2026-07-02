@@ -1,9 +1,19 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-02
 ---
 # ADR-0134: Public website as a two-act vibe-coding experience: terminal storm to a calm guided forest
 
 ## Status
+
+accepted (2026-07-02) — the owner declared the two-act design settled at the act1-terminal-storm
+attestation gate: witnessed the built Act 1 storm end-to-end (boot → send/audio unlock → 12-window
+peak → dim → calm home, skip/Escape, reduced-motion calm-only), attested the cap's UAT legs 1–4, and
+directed the home flip (storytree-web PR #18, merged 2026-07-02 — the storm is now the live front
+door). Design-time alignment IS the ratification ([ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md));
+no second end-of-flow ask. Of §5's deferred items, the replay / deep-link UX was decided at the same
+gate — **replay every visit** (skip is not remembered); the asset/perf/mobile budget rides with the
+remaining Act 2 build.
 
 proposed (2026-06-28) — explored with the owner in conversation on 2026-06-28.
 [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) decided the *renderer*
