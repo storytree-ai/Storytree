@@ -11,5 +11,14 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
     environment: 'node',
+    // Under `pnpm -r test` this suite shares the box with three other packages' suites while
+    // vitest runs a fork per core — vitest's default 5s testTimeout then kills starved (but
+    // functionally sound) tests mid-fetch, and the killed test's still-in-flight request lands
+    // LATER, mutating the file's shared stub state under a subsequent test (the observed
+    // signed.length +1 cross-test bleed). No test here depends on wall-clock speed — the only
+    // timing behaviours under test use their own injected deadlines — so a generous ceiling
+    // trades nothing: a genuine hang still fails, load-induced slowness no longer does.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });

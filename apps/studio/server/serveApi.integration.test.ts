@@ -596,12 +596,13 @@ describe('store outage degrades to health/me only', () => {
     await new Promise<void>((resolve) => hung.listen(0, '127.0.0.1', resolve));
     const hbase = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;
     try {
-      const started = Date.now();
       const me = await fetch(`${hbase}/api/me`, { headers: iap(ADMIN) });
       expect(me.status).toBe(200);
       expect(await me.json()).toMatchObject({ storeUnreachable: true, canWakeDb: true });
-      // Proves it degraded on the deadline rather than blocking on the never-settling listUsers.
-      expect(Date.now() - started).toBeLessThan(2_000);
+      // That the fetch RESOLVED at all proves the deadline degraded it: listUsers never settles,
+      // so the 50ms timeout path is the only way an answer exists. No wall-clock assertion — on a
+      // loaded box (pnpm -r test) elapsed time measures CPU starvation, not the deadline; a
+      // regression that removes the deadline still fails here, as a test timeout.
     } finally {
       await new Promise<void>((resolve, reject) => hung.close((e) => (e ? reject(e) : resolve())));
     }
