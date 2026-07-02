@@ -116,7 +116,9 @@ This is **ADR-0108 Phase 3 (drive authority), built the way ADR-0137 sharpened i
 orientation surface + `propose_unit`; it can orient and propose, and the human's accept click can
 dispatch a build (chat-drive-bridge / desktop-build-mount), but the orchestrator itself cannot SPAWN
 anything. "Chat brings a story in" and "chat fixes a bug through the inner loop" are unreachable — not
-undecided (ADR-0108 decided them; ADR-0137 sharpened how), just unbuilt.
+undecided (ADR-0108 decided them; ADR-0137 sharpened how), just unbuilt. *(Build state: capabilities
+1–3 below are green under signed `--real` verdicts; the runtime mount — caps 4–5 — is what keeps the
+chat propose-only today.)*
 
 The build shape ADR-0137 decision 1 pins, verbatim:
 
@@ -234,7 +236,8 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
   (`resolveSpawnClaim`, `packages/agent/src/spawn-claim.ts`) and the work-time claim-store deltas
   (`PgClaimStore.claim()` / `bumpHeartbeat`), and REALISES that story's deferred E2 contract
   (`orchestrator-acquires-before-spawn` in `take-claim-at-spawn.md` — "when Phase 3 lands, this
-  becomes a real contract (likely its own capability)"; `claim-gated-spawn` is that capability). The
+  becomes a real contract (likely its own capability)"; `claim-gated-spawn` is that capability — built,
+  green under a signed `--real` PASS). The
   wisp RENDER + colour-by-subagent stay that story's (the gate stamps the work-kind `intent` the
   colour layer reads; witnessing the colour is that story's appearance UAT, not duplicated here).
 - **`notice-board`** — the claim primitive: `workClaimRequest` / `ClaimResult` / `bumpHeartbeat`
@@ -351,12 +354,14 @@ isolatable over injected doubles; the surface and composition are integration te
 in-story collaborators (the real E1 seam, the real rendered `story-author` agent, the real seed) with
 the SDK `query()` scripted (ADR-0010 §5).
 
-**Honest status — `proposed`.** Nothing here is `healthy`: per ADR-0020, `healthy` is only ever
-DERIVED from signed verdicts, and this story has none yet. The five capabilities are proof-wired so
-the spine can drive their offline suites red→green
-(`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven UAT node is
-WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the operator's
-live-spawn attestation (legs 5–7).
+**Honest status — `proposed`.** Authored status stays `proposed` everywhere: per ADR-0020, `healthy`
+is only ever DERIVED from signed verdicts. Three of the five capabilities now carry signed `--real`
+PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spawn`);
+`spawn-tool-surface` and `spawn-deps-composition` — the runtime mount — are unbuilt, so the chat still
+cannot spawn. The five capabilities are proof-wired so the spine can drive their offline suites
+red→green (`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven
+UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the
+operator's live-spawn attestation (legs 5–7).
 
 ## Open modeling calls (for the owner / the orchestrator)
 

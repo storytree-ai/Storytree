@@ -5,11 +5,14 @@ title: "The agent runtime — the swappable leaf behind the PhaseAuthor seam"
 outcome: "The spine hands a leaf one authoring slice and gets back an authored deliverable (or a fail-closed refusal) without caring which model runtime answered — the owned loop or the live Claude Agent SDK, both behind one seam that never observes red/green or reports a verdict."
 status: proposed
 proof_mode: UAT
-# Root organism (ADR-0075): packages/agent imports NO @storytree/* package — its only runtime deps
-# are @anthropic-ai/* + zod (verified: packages/agent/package.json, and a grep of src for @storytree/
-# finds only comments naming its CONSUMERS). It is a true root, the swappable model runtime the whole
-# build machinery points at. depends_on: [] by construction.
-depends_on: []
+# Near-root organism (ADR-0075, amended in degree by ADR-0138 §3): packages/agent's runtime deps are
+# @anthropic-ai/* + zod + ONE @storytree package — @storytree/notice-board (pure zod, browser-safe),
+# whose work-time claim primitive (workClaimRequest) the claim-at-spawn gate consumes
+# (packages/agent/src/claim-gated-spawn.ts, the chat-subagent-spawn story's claim-gated-spawn
+# capability — code hosted in this package under that story's declared edge, ADR-0004 forcing the
+# spawn machinery here). "No claim, no subagent" made the claim primitive part of the agent's own
+# spawning discipline, so the edge is genuine and declared. notice-board never imports agent — acyclic.
+depends_on: [notice-board]
 # The buildable capability set (ADR-0057): listing a capability id here is what makes the STORY
 # story-level buildable — `isStoryBuildable` requires a non-empty, dependency-closed, acyclic set in
 # which EVERY listed capability resolves a `real:` proof arm. ONLY the 3 proof-wired capabilities are
@@ -30,8 +33,10 @@ consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the owned loop on the raw Messages API (11), the single model-runtime
 # import site (4), all-in on the Claude Agent SDK as the live leaf + the PhaseAuthor pivot seam (30),
 # the leaf's bounded feedback tools (35), the organism rebuild that gave this package the model-event
-# vocabulary port (68), and ports-as-root-organisms (75) under which this leaf is a declared root.
-decisions: [4, 11, 30, 35, 68, 75]
+# vocabulary port (68), ports-as-root-organisms (75) under which this leaf was a declared root, and
+# the claim-at-spawn wall (138) whose "no claim, no subagent" gave the package its one outbound
+# @storytree edge (notice-board's claim primitive).
+decisions: [4, 11, 30, 35, 68, 75, 138]
 ---
 
 # The agent runtime — the swappable leaf behind the PhaseAuthor seam
@@ -86,11 +91,14 @@ the rules confirms the SPLIT:
 Run the direction test both ways. *Does the agent need drive-machinery's delivered outcome to author
 a slice?* **No** — the leaf authors against a prompt + its tools; it never drives a gate, never reads
 a verdict. *Does drive-machinery (and cli) need the agent's delivered outcome?* **Yes** — both import
-`@storytree/agent` as a runtime dependency. So the edges point **into** agent (it is a sink), and
-`agent depends_on: []`. No path returns from agent to any consumer, so the graph stays acyclic
-(ADR-0058 §4). This is the *root-organism* shape (ADR-0058 §2): depended-upon-by-several, depending on
-nothing — the same emergent shape as `proof-protocol` and `library`, earned by being depended upon,
-not declared.
+`@storytree/agent` as a runtime dependency. So the consumer edges point **into** agent. Outbound it
+carries exactly ONE edge: `agent → notice-board` (the claim-at-spawn gate consumes the work-time
+claim primitive `workClaimRequest` — ADR-0138 §3's "no claim, no subagent" made the claim part of
+the agent's own spawning discipline; direction test: the gate genuinely needs the claim primitive's
+delivered outcome to spawn). `notice-board` (→ `library` → the protocol roots) never imports agent,
+so no path returns from agent to any consumer and the graph stays acyclic (ADR-0058 §4). This is a
+*near-root* shape: depended-upon-by-several, depending only on the pure claim/presence primitive —
+`proof-protocol` and `library` remain the true roots.
 
 ## Honest status
 
@@ -169,7 +177,8 @@ contract shape IS the coupling) and marked.
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
 
-**Cross-story:** none outbound (`depends_on: []`). Inbound: the `PhaseAuthor` seam (and the
+**Cross-story:** one outbound — `notice-board` (`claim-gated-spawn.ts`, hosted here by the
+chat-subagent-spawn story, value-imports `workClaimRequest`; see the frontmatter note). Inbound: the `PhaseAuthor` seam (and the
 re-exported model-event vocabulary `port`) is consumed by `drive-machinery` (the spine's
 `OwnedLoopAuthor`, the gate, the prove-spec resolver) and bound to `ClaudeAgentAuthor` in the CLI's
 build path — declared as the drive-machinery `depends_on agent` edge and this story's `consumed_by:

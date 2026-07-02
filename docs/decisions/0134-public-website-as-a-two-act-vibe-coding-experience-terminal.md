@@ -14,6 +14,9 @@ door). Design-time alignment IS the ratification ([ADR-0110](0110-collapse-the-r
 no second end-of-flow ask. Of §5's deferred items, the returning-visitor half of the replay /
 deep-link UX was decided at the same gate — **replay every visit** (skip is not remembered); whether
 Act 2 deep-links standalone and the asset/perf/mobile budget ride with the remaining Act 2 build.
+*(Since decided: [ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md),
+2026-07-03 — Act 2's walkthrough re-decided onto the real 2.5D map at its attestation gate, and the
+deep-link half closed: replay-only is final. Noted in place per ADR-0139.)*
 
 proposed (2026-06-28) — explored with the owner in conversation on 2026-06-28.
 [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) decided the *renderer*
@@ -113,7 +116,15 @@ can read.*
    - **Tech:** the [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
      **R3F WebGL island**, lazy-loaded at the inflection, riding the artifacts-not-source flow over
      **fictional** demo data (boundary preserved). It is a *stylized teaching diorama*, not the real
-     operable studio; the CTA points to the real product.
+     operable studio; the CTA points to the real product. *(Re-decided 2026-07-03 at the walkthrough's
+     attestation gate —
+     [ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md): the
+     walkthrough grows the **real 2.5D map** (the synced `buildScene` scene graph as the site's SVG,
+     with game-tutorial callouts anchored to the element each beat teaches), because the 3D forest
+     "doesnt represent story tree" — the product is 2.5D. Act 1 and the inflection stay as built; the
+     R3F island's public surface is the landing moment, and the spatial forest retreats to
+     far-future. Diorama framing, fictional data, and the honest CTA are unchanged. Noted in place
+     per ADR-0139.)*
 
 4. **Standing obligations (inherited from
    [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)).** A non-WebGL /
@@ -130,9 +141,10 @@ can read.*
    [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)); the **asset / perf
    / mobile budget**, LOD strategy, and shader art direction; and **replay/skip UX** and whether Act 2
    deep-links standalone. *(The replay half was decided 2026-07-02 at the Act 1 attestation gate —
-   **replay every visit**, as built: a seeded deterministic storm, skip not remembered; the Act 2
-   deep-link half remains open with the still-unbuilt Act 2 walkthrough — its empty-land opening went
-   live with the inflection, 2026-07-02. Corrected in place per ADR-0139.)*
+   **replay every visit**, as built: a seeded deterministic storm, skip not remembered. The Act 2
+   deep-link half was closed 2026-07-03 at the walkthrough's gate
+   ([ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)): **replay-only
+   is final — no standalone deep-link into the walk.** Corrected in place per ADR-0139.)*
 
 ## Consequences
 
@@ -146,7 +158,9 @@ can read.*
   **additive** — a front-door over the existing consuming surface — not a rewrite of the render core.
 - The per-act split keeps cost honest: Act 1 is cheap DOM/audio; the expensive WebGL surface is confined
   to Act 2 and lazy-loaded behind the inflection, so first paint and the SEO-bearing copy pages are
-  unaffected.
+  unaffected. *(Since [ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md),
+  2026-07-03: confined further — the WebGL surface is the inflection's landing moment only; the Act 2
+  walk itself is 2.5D SVG. The cost-honesty claim holds a fortiori. Corrected in place per ADR-0139.)*
 - The public/private boundary is untouched (fictional data, artifacts-not-source).
 
 **Bad / costs.**

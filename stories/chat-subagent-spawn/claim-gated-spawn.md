@@ -13,13 +13,15 @@ decisions: [138, 137, 121, 142]
 # module-not-found at HEAD), then writes that one new source file (green). The gate composes two
 # ALREADY-BUILT seams it does not own: the E1 acquire-or-wait decision (resolveSpawnClaim,
 # packages/agent/src/spawn-claim.ts — same package, runtime import) and the work-time claim request
-# (workClaimRequest, @storytree/notice-board — a workspace dep packages/agent already carries). The
-# claim STORE is injected (a structural { claim, bumpHeartbeat } shape mirroring PgClaimStore), so the
-# proof runs offline over a recording fake — the pg half is wisp-as-story-claim's own proven ground,
-# never re-proven here. The RED is a runtime module-not-found; ordering/refusal/heartbeat are runtime
-# behaviours (never a type-only red). NO install / NO typecheck arm: workspace-internal runtime imports
-# only, injected store — the take-claim-at-spawn precedent. Scope stays within packages/agent
-# (ADR-0087). Single LITERAL source file — default node:test proof, no proofCommand.
+# (workClaimRequest, @storytree/notice-board — a workspace dep this capability ADDED to
+# packages/agent; the story's declared notice-board edge made physical). The claim STORE is injected
+# (a structural { claim, bumpHeartbeat } shape mirroring PgClaimStore), so the proof runs offline
+# over a recording fake — the pg half is wisp-as-story-claim's own proven ground, never re-proven
+# here. The RED is a runtime module-not-found; ordering/refusal/heartbeat are runtime behaviours
+# (never a type-only red). `install: true` + a typecheck wall because the module value-imports
+# @storytree/notice-board (the story-author-spawn precedent — a bare no-install worktree cannot
+# resolve a package import). Scope stays within packages/agent (ADR-0087). Single LITERAL source
+# file — default node:test proof, no proofCommand.
 proof:
   command:
     file: pnpm
@@ -33,6 +35,10 @@ proof:
     scope:
       testGlobs: ["packages/agent/src/claim-gated-spawn.test.ts"]
       sourceGlobs: ["packages/agent/src/claim-gated-spawn.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/agent", "typecheck"]
 ---
 
 # The claim-at-spawn gate — no claim, no subagent

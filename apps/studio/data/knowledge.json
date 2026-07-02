@@ -3027,5 +3027,24 @@
     "description": "Under ADR-0137 the orchestrator spawns the leaf to drive a bug/change red→green, but the routed node path today is the non-persisting --live smoke (no wisp) and node build --real persists a verdict + a parked branch, not an auto-merging PR. Settle how a single-contract fix-drive persists (wisps) and lands.",
     "schemaVersion": 3,
     "recommendation": "**NARROWED (2026-06-29, still open) by [ADR-0138](doc:decisions/0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md §Consequences).** A fix's CLAIM now shows on the map regardless of build shape (the forced story-claim wisp), so the \"does a single-contract fix wisp at all\" half is settled — it does, via the claim. What REMAINS open (the residual this is narrowed to): how a single-contract fix's signed VERDICT + parked BRANCH actually LANDS — the proving colour and the signed verdict still require the `--real` drive (ADR-0099-B untouched), and a one-contract `node build --real` produces a verdict + a parked `claude/real/<id>-<run>` branch but NOT an auto-merging PR (only `story build --real` opens one, ADR-0136). So the live question is the landing affordance for a single-contract fix-drive (Options A/B/C below). Decide alongside ADR-0108 Phase 3 / ADR-0137.\n\nLean A: route the spawned fix-drive to `node build --real` so it wisps and signs a genuine verdict (respecting ADR-0099-B — only a synthetic smoke is barred from persisting), and land via the human accept-to-land gate, adding the node-level landing affordance as the small new piece. Non-binding until the owner decides; this is a Phase-3 build-shape fork ADR-0137 explicitly deferred, not a re-decision of ADR-0099-B/0136. Decide it alongside building ADR-0108 Phase 3 / ADR-0137."
+  },
+  {
+    "kind": "definition",
+    "id": "work-hierarchy-is-disk-canonical",
+    "title": "work hierarchy is disk-canonical",
+    "description": "Work-hierarchy units — story / capability / contract — are frontmatter-markdown FILES under stories/<story-id>/ in the repo, landed through the PR; they are never authored as --pg live-store artifacts.",
+    "references": [
+      "asset:story",
+      "asset:capability",
+      "asset:live-store-is-the-edit-surface",
+      "doc:decisions/0039-json-structured-source-format.md"
+    ],
+    "createdAt": "2026-07-03T00:00:00.000Z",
+    "updatedAt": "2026-07-03T00:00:00.000Z",
+    "oneLine": "The work hierarchy (story / capability / contract) lives as frontmatter-markdown files under stories/ — disk-canonical, landed via the PR — while the knowledge tier lives in the live --pg store; author each tier on its own canonical surface.",
+    "whatItIs": "Authoring a story (or capability/contract) means creating frontmatter-markdown FILES under `stories/<story-id>/*.md` in the worktree, landed through the PR — never a `pnpm storytree library artifact new --pg` write. The work hierarchy is **disk-canonical**: loaded by `loadNodeSpec` (`packages/orchestrator/src/node-spec.ts`), read live by the studio from `<repo>/stories` (`apps/studio/server/apiRouter.ts`, `packages/cli/src/tree.ts`), and guarded by the `stories/` corpus guard (`packages/cli/scripts/validate-corpus.ts`; ADR-0039, which deliberately kept the work-hierarchy units frontmatter-markdown while the knowledge tier went JSON/JSONB). Authoring consequence: a new `--real`-armed capability changes the CLI real-buildable help list, so the `packages/cli/src/node-build.test.ts` snapshot must be updated with it or the gate fails.",
+    "whatItIsNot": "Not the knowledge/library tier model: the-live-store-is-the-edit-surface (ADR-0023) applies to definitions, principles, patterns, guardrails, processes, and open-questions — which ARE `--pg` — and that line misreads as covering stories. It does not: `library artifact new --pg` validates against `LibraryDoc = Knowledge | LibraryAsset` and schema-REJECTS a story or capability. Open-questions, by contrast, are live-only `--pg` artifacts (a `.strict()` schema with no `status` field — disposition goes in `recommendation`, or retire-with-reason per ADR-0065). One boundary, two halves: knowledge tier → the live store; work hierarchy → disk.",
+    "provenance": "Graduated 2026-07-03 from agent-memory stories-are-disk-canonical-not-pg (ADR-0095) — a recurring authoring trap with no prior Library home: the two canonical surfaces (knowledge → live store, work hierarchy → disk) were each documented alone, and the missing contrast misrouted a story-author brief to --pg (schema-rejected). The event-record stays in git (D5); this definition carries the durable surface-ownership fact. Complements asset:live-store-is-the-edit-surface (the knowledge tier half of the same boundary). Consumers: story-author (authors the files), session-orchestrator (briefs the spawn).",
+    "schemaVersion": 3
   }
 ]

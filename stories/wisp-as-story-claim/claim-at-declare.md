@@ -3,7 +3,7 @@ id: "claim-at-declare"
 tier: capability
 story: wisp-as-story-claim
 title: "Claim-at-declare — anchoring a node on the notice board takes the work-time story claim"
-outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the statusline heartbeat bumps the session's claim heartbeats, and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN wiring (capability E) stays deferred behind ADR-0137 Phase 3."
+outcome: "Declaring presence on a story (`storytree noticeboard declare --node <story> --pg`) ALSO takes the work-time claim on it (intent `orchestrate`) — one ceremony step = presence + wisp; `noticeboard done` bulk-releases every claim the session holds, the statusline heartbeat bumps the session's claim heartbeats, and a refusal never fails the declare — it surfaces the holder loudly. The cheap acquisition wiring for ADR-0138 §3's work-time claim, landed by ADR-0142; the claim-at-SPAWN gate (capability E's E2) has since landed as chat-subagent-spawn's claim-gated-spawn, awaiting only its runtime mount."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
@@ -70,9 +70,11 @@ fresh branch, re-declare → the wisp lifecycle across a landing is a blink, nev
 
 **Relation to capability E ([`take-claim-at-spawn`](take-claim-at-spawn.md)):** this wiring **neither
 replaces nor blocks** E2's claim-at-SPAWN path (ADR-0142 leg 2, verbatim). E1's pure acquire-or-wait
-seam is built and proven; E2's spawn-path wiring stays deferred behind ADR-0137 Phase 3. When the
-orchestrator actually spawns, the spawn becomes the hard point (*no claim, no subagent*, ADR-0138 §3);
-declare-time acquisition remains the session-grain wiring alongside it.
+seam is built and proven; E2's GATE has since landed as chat-subagent-spawn's
+[`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) (signed `--real` PASS), with only the
+runtime mount still deferred. When the orchestrator actually spawns, the spawn becomes the hard point
+(*no claim, no subagent*, ADR-0138 §3); declare-time acquisition remains the session-grain wiring
+alongside it.
 
 ## How it was proven
 

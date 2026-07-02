@@ -2409,5 +2409,21 @@
     ],
     "createdAt": "2026-06-29T00:00:00.000Z",
     "updatedAt": "2026-06-29T00:00:00.000Z"
+  },
+  {
+    "id": "work-hierarchy-is-disk-canonical",
+    "category": "definition",
+    "title": "work hierarchy is disk-canonical",
+    "description": "Work-hierarchy units — story / capability / contract — are frontmatter-markdown FILES under stories/<story-id>/ in the repo, landed through the PR; they are never authored as --pg live-store artifacts.",
+    "body": "**In one line.** The work hierarchy (story / capability / contract) lives as frontmatter-markdown files under stories/ — disk-canonical, landed via the PR — while the knowledge tier lives in the live --pg store; author each tier on its own canonical surface.\n\n## What it is\n\nAuthoring a story (or capability/contract) means creating frontmatter-markdown FILES under `stories/<story-id>/*.md` in the worktree, landed through the PR — never a `pnpm storytree library artifact new --pg` write. The work hierarchy is **disk-canonical**: loaded by `loadNodeSpec` (`packages/orchestrator/src/node-spec.ts`), read live by the studio from `<repo>/stories` (`apps/studio/server/apiRouter.ts`, `packages/cli/src/tree.ts`), and guarded by the `stories/` corpus guard (`packages/cli/scripts/validate-corpus.ts`; ADR-0039, which deliberately kept the work-hierarchy units frontmatter-markdown while the knowledge tier went JSON/JSONB). Authoring consequence: a new `--real`-armed capability changes the CLI real-buildable help list, so the `packages/cli/src/node-build.test.ts` snapshot must be updated with it or the gate fails.\n\n## What it is not\n\nNot the knowledge/library tier model: the-live-store-is-the-edit-surface (ADR-0023) applies to definitions, principles, patterns, guardrails, processes, and open-questions — which ARE `--pg` — and that line misreads as covering stories. It does not: `library artifact new --pg` validates against `LibraryDoc = Knowledge | LibraryAsset` and schema-REJECTS a story or capability. Open-questions, by contrast, are live-only `--pg` artifacts (a `.strict()` schema with no `status` field — disposition goes in `recommendation`, or retire-with-reason per ADR-0065). One boundary, two halves: knowledge tier → the live store; work hierarchy → disk.",
+    "references": [
+      "asset:story",
+      "asset:capability",
+      "asset:live-store-is-the-edit-surface",
+      "doc:decisions/0039-json-structured-source-format.md"
+    ],
+    "provenance": "Graduated 2026-07-03 from agent-memory stories-are-disk-canonical-not-pg (ADR-0095) — a recurring authoring trap with no prior Library home: the two canonical surfaces (knowledge → live store, work hierarchy → disk) were each documented alone, and the missing contrast misrouted a story-author brief to --pg (schema-rejected). The event-record stays in git (D5); this definition carries the durable surface-ownership fact. Complements asset:live-store-is-the-edit-surface (the knowledge tier half of the same boundary). Consumers: story-author (authors the files), session-orchestrator (briefs the spawn).",
+    "createdAt": "2026-07-03T00:00:00.000Z",
+    "updatedAt": "2026-07-03T00:00:00.000Z"
   }
 ]

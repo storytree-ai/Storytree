@@ -100,6 +100,14 @@ netcode are the real cost centres and remain open.
 > land. The asset / perf /
 > mobile budget, LOD strategy, painterly shaders, and any presence netcode genuinely remain open,
 > carried as that story's open modeling calls.
+>
+> **Correction (2026-07-03)** — at the Act 2 walkthrough's attestation gate the owner re-decided
+> that surface onto the **real 2.5D map**
+> ([ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)): the R3F
+> island's public surface is now the inflection's landing moment only, and the spatial 3D forest
+> retreats to far-future ("always on the cards in the far future" — the owner's words). This ADR's
+> renderer choice stands for whenever the forest is next rendered spatially; it is no longer the
+> Act 2 walkthrough's mount.
 
 ## Consequences
 
@@ -123,9 +131,13 @@ netcode are the real cost centres and remain open.
 - **A new asset / perf budget and mobile story** are required (GPU-compressed textures, instancing, LOD,
   no-WebGL path) before this ships to real visitors. *(Since 2026-07-02 the island **has** shipped to
   real visitors, in a deliberately minimal form — the inflection's empty land, one lazy chunk, no heavy
-  assets — with the no-WebGL / reduced-motion / import-failure exits built and owner-attested. The full
-  asset / perf / mobile budget remains an open owner call and rides with the Act 2 walkthrough build,
-  which is what adds real asset weight. Corrected in place per ADR-0139.)*
+  assets — with the no-WebGL / reduced-motion / import-failure exits built and owner-attested. Since
+  2026-07-03 the Act 2 walkthrough no longer rides the island
+  ([ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md) — it walks the
+  real 2.5D map), so the budget obligation scopes to the landing moment (~331 kB gzip, lazy, fetched
+  only at the transform click) and no longer grows with the walkthrough. It remains an open owner
+  call — no preference expressed at the 2026-07-03 gate — with its urgency reduced. Corrected in
+  place per ADR-0139.)*
 - The branch point (R3F consumes the semantic layer, not the 2D primitives) adds a small amount of
   conceptual surface to the shared-core contract that the implementing story must hold precisely.
 
