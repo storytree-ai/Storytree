@@ -153,7 +153,9 @@ whole (owner decision 6):
   existing pages — coherent, just not yet transformative. *(The flip moment itself — "presentable" —
   was the owner-attestation HALT: **cleared 2026-07-02**, attested + live at web main `3e53f14`.)*
 - **Increment E — `storm-to-forest-inflection`** — the transform replaces the interim landing; the
-  calm land carries the CTA/links until the walkthrough lands.
+  calm land carries the CTA/links until the walkthrough lands. *(The transform-lands HALT:
+  **cleared 2026-07-02**, attested + live at web main `6546486` — see the cap's proof status for
+  the record.)*
 - **Increment F — `act2-beat-director`** (parent-only) then **G — `act2-guided-walkthrough`** — the
   beats grow in place; the walkthrough may land beats incrementally (the director is data-driven),
   each merge leaving a complete-so-far guided arc ending at the CTA.

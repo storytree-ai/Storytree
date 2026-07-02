@@ -93,7 +93,11 @@ netcode are the real cost centres and remain open.
 > call on the package home was made there: the R3F mapper lives **parent-side as
 > `packages/forest-world-r3f`**, owned by that story — and the package is now BUILT: the pure
 > `world-to-3d.ts` descriptor mapping is leaf-proven (red→green, a signed PASS), with the
-> `<ForestWorldCanvas>` + drei `MapControls` dev harness landed as witnessed glue. The asset / perf /
+> `<ForestWorldCanvas>` + drei `MapControls` dev harness landed as witnessed glue. Later the same day
+> (the inflection cap, owner-attested, web main `6546486`) the island reached the **public site** for
+> the first time — mounted client-only, lazy-loaded at the click of ADR-0134's inflection exactly per
+> Decision 3 (behind interaction: first fetch at the click, no prefetch), resolving into Act 2's empty
+> land. The asset / perf /
 > mobile budget, LOD strategy, painterly shaders, and any presence netcode genuinely remain open,
 > carried as that story's open modeling calls.
 
@@ -117,7 +121,11 @@ netcode are the real cost centres and remain open.
 - **Accessibility / SEO are forfeited inside the canvas** and must be bought back with a real fallback — a
   standing obligation, not a one-off.
 - **A new asset / perf budget and mobile story** are required (GPU-compressed textures, instancing, LOD,
-  no-WebGL path) before this ships to real visitors.
+  no-WebGL path) before this ships to real visitors. *(Since 2026-07-02 the island **has** shipped to
+  real visitors, in a deliberately minimal form — the inflection's empty land, one lazy chunk, no heavy
+  assets — with the no-WebGL / reduced-motion / import-failure exits built and owner-attested. The full
+  asset / perf / mobile budget remains an open owner call and rides with the Act 2 walkthrough build,
+  which is what adds real asset weight. Corrected in place per ADR-0139.)*
 - The branch point (R3F consumes the semantic layer, not the 2D primitives) adds a small amount of
   conceptual surface to the shared-core contract that the implementing story must hold precisely.
 

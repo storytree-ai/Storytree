@@ -96,7 +96,13 @@ can read.*
    appears amid the noise. A single click **transforms** rather than navigates: the terminals fall
    silent, collapse, and their fragments drop into the ground — the noise becomes the *soil/seed* of the
    calm world that fades up. This is also the natural point to **lazy-load the R3F bundle** (the exhale
-   buys the load).
+   buys the load). *(Built as designed and owner-attested 2026-07-02 — UAT legs 1–4 per
+   [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md); live on the public
+   site, storytree-web PR #19 → web main `6546486`. The click is the only route to the R3F bundle —
+   first fetch at the click, no prefetch — and the transform resolves into Act 2's calm empty land; the
+   guided walkthrough that grows it is the remaining Act 2 build. As-built map:
+   [`stories/website-experience/storm-to-forest-inflection.md`](../../stories/website-experience/storm-to-forest-inflection.md).
+   Noted in place per ADR-0139.)*
 
 3. **Act 2 — the calm forest (the alternative, guided).** Silence resolves into a calm, *empty* land —
    no story nodes yet. An **auto-guided, visitor-paced** walkthrough (the deliberate inverse of Act 1's
@@ -125,7 +131,8 @@ can read.*
    / mobile budget**, LOD strategy, and shader art direction; and **replay/skip UX** and whether Act 2
    deep-links standalone. *(The replay half was decided 2026-07-02 at the Act 1 attestation gate —
    **replay every visit**, as built: a seeded deterministic storm, skip not remembered; the Act 2
-   deep-link half remains open with the unbuilt Act 2. Corrected in place per ADR-0139.)*
+   deep-link half remains open with the still-unbuilt Act 2 walkthrough — its empty-land opening went
+   live with the inflection, 2026-07-02. Corrected in place per ADR-0139.)*
 
 ## Consequences
 
