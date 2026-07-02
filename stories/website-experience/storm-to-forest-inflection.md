@@ -31,11 +31,62 @@ the walkthrough will grow on.
 without the storm; [`web-experience-sync`](web-experience-sync.md) — the R3F island it lazy-loads
 must already be on the site as the synced artifact.
 
-> **Proof status (honest) — `proposed`, operator-attested (ADR-0070).** The transform is the
-> experience's hinge — ADR-0134 §2's "the way out" and the second half of the thesis gesture (same
-> input, opposite outcome). Whether it LANDS — the dimming reads as relief, the collapse reads as
-> the noise becoming the soil of the calm world, the load hides behind the exhale — is irreducibly
-> a human judgement on the real site.
+> **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-02); the authored status stays
+> `proposed`.** Built by the `frontend-builder` in `storytree-web` (branch
+> `claude/storm-to-forest-inflection`, witnessed @ `2869504` on PR #19 with a 10/10 parent-side
+> Playwright behaviour witness), then **attested by the owner — HuaMick, 2026-07-02** (agent-relayed
+> scribe per ADR-0044 §4; the declared-witness `operator-attested` verdict of ADR-0082): UAT legs
+> 1–4 below witnessed on the local preview (:4321) at that SHA — the dim + the ONE calm affordance
+> at peak, the click that transforms in place (audio decaying rather than cutting, terminals
+> collapsing, phosphor fragments falling as soil, the land fading up as one continuous moment),
+> DevTools confirming the R3F chunks were first fetched AT the click, and the empty navigable land
+> with the interim CTA. The attestation is recorded as an owner comment on storytree-web PR #19,
+> squash-merged → web main `6546486`: **the inflection is live behind the storm's calm card** (CD
+> green; markers + no eager R3F verified on the live site). The parent pins `web/` @ `6546486`;
+> `check:web-experience` / `check:web-engine` / `check:web-grounding` witnessed OK against the
+> pinned tree. The feel was human-judged end to end; nothing here is self-signed (ADR-0070).
+
+## As built (web main `6546486`)
+
+Real `file:line` into the pinned `web/` tree (paths relative to the submodule root):
+
+- **The calm card's button became the transform** (`src/pages/index.astro:141`,
+  `data-storm-transform`): the engine binds it (`src/scripts/act1-storm.ts:321`), while the
+  pre-paint inline script keeps owning skip / `Escape` / the classic-view exit
+  (`data-storm-disarm`) — the way out works even if the engine module never loads. All three
+  `data-experience-*` markers stay physically in the entry page's own source (entry `:74`, skip
+  `:78`, fallback `:178`) — the upstream gate greps the page text, so a refactor that moves one
+  into a child component un-arms or reds it.
+- **One click starts the load AND the exhale together** (`src/scripts/act1-storm.ts:486`):
+  `import('./inflection')` is the ONLY route to R3F — the dynamic-import seam
+  `check:web-experience` sanctions, no prefetch, so the first fetch happens AT the click (UAT 3);
+  `StormAudio.quell()` decays the soundscape over ~1.6s rather than cutting (`:491`; `:213` —
+  `halt()` stays the hard stop); terminals CRT-power-off in a 62 ms stagger (`COLLAPSE_STAGGER`,
+  `:28`); up to 88 seeded WAAPI phosphor fragments fall from the collapsing terminals into a
+  scaleY soil mound (`FRAG_CAP`, `:29`).
+- **The land resolves only when BOTH the import and the settle beat are done**
+  (`Promise.all([islandReady, beat])`, `src/scripts/act1-storm.ts:570`; `SETTLE_BEAT` 2800 ms,
+  `:30`): a fast network waits for the choreography, a slow one gets the graceful resting-soil
+  posture — then the `is-resolved` fade-up + focus handoff (`:579`–`:583`). An import rejection
+  logs one console line and gracefully disarms to the calm view.
+- **The mounted island is the synced artifact, filtered EMPTY** (`src/scripts/inflection.tsx`):
+  `mountForestLand(container) → { unmount() }` (`:98`, handle `:88` — `halt()` tears the island
+  down with the timers and fragments) renders a hand-authored one-territory `'proposed'`
+  `SceneInput` (`:51`) through the synced `src/lib/forest-world-r3f/` copies (`@generated` ×4:
+  `index.ts`, `world-to-3d.ts`, `ForestWorldCanvas.tsx`, `act2-director.ts`) and filters
+  descriptors to `hex-ground` only (`:100`; witnessed log `hex-ground 19 · story-tree 0 · …`,
+  `:105`) — the land resolves empty of story nodes because ground REQUIRES a territory and a
+  territory always emits a tree; the emptiness is a surface filter, which
+  `act2-guided-walkthrough` replaces with beat-driven scene rebuilds rather than stacking on.
+- **The empty land carries the interim CTA** (`src/pages/index.astro:161`–`168`): how-it-works /
+  get-involved links + the classic-front-page exit via the existing disarm — a mid-arc visitor is
+  never stranded (owner decision 6).
+- **The first site-side R3F sync + deps landed with this cap** (commit `bb6884a`): `three` /
+  `@react-three/fiber` / `@react-three/drei` / `zod`, with `react` + `react-dom` promoted to
+  runtime dependencies (`package.json:19`–`25`); the public build compiles the `.tsx` island via
+  `vite.esbuild { jsx: 'automatic', jsxImportSource: 'react' }` (`astro.config.mjs:52`) — Astro's
+  base tsconfig `jsx: "preserve"` otherwise silently degrades to the classic transform and the
+  chunk throws at runtime while the build stays green; the walkthrough inherits this setting.
 
 ## Guidance
 
@@ -65,6 +116,13 @@ BUILD SHAPE: `storytree-web` repo work on its own rail, `frontend-builder` drivi
 animation is DOM/CSS (it animates Act 1's own elements), the fade-up is the island's first render.
 
 ## UAT (operator-attested)
+
+> **ATTESTED — all four legs witnessed by the owner (HuaMick), 2026-07-02**, on the local preview
+> (fresh `npm run build` + `npx astro preview --host 127.0.0.1`, :4321) at `2869504`, squash-merged
+> to web main as `6546486` and live since; the record is an owner comment on storytree-web PR #19
+> (agent-relayed per ADR-0044 §4). Leg 3's machine floor is additionally held by
+> `check:web-experience` (the lazy-load wall) and the 10/10 Playwright behaviour witness (zero R3F
+> pre-click; chunks first fetched at the click), both OK against the parent's `web/` pin.
 
 1. **The dimming and the one calm thing.** _(witness: human)_ At peak, the storm dims and exactly
    one calm storytree affordance appears; it reads as the obvious way out, not another demand.
