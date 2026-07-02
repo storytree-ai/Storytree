@@ -110,6 +110,14 @@ jobs:
       - name: web engine in sync
         run: pnpm check:web-engine
 
+      # The two-act experience's rollout guard (ADR-0134, stories/website-experience): an
+      # experience entry page (one carrying data-experience-entry) must keep the skip +
+      # reduced-motion/no-WebGL affordance markers and a WebGL-free Act 1 static closure.
+      # SKIPs while the pinned site hasn't adopted the experience — the guard lands before
+      # the storm. Needs the cloned web/ above.
+      - name: web experience guarded
+        run: pnpm check:web-experience
+
       - name: Typecheck
         run: pnpm -r typecheck
 

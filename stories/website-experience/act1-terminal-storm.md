@@ -13,7 +13,8 @@ decisions: [134]
 # spine cannot observe a red→green inside it — and the storm's real risk is FEEL (pacing, overwhelm,
 # audio, the diegetic reading), which no machine can honestly judge. Its machine floor is owned
 # upstream by `experience-rollout-guardrails` (`check:web-experience`: the skip + fallback markers
-# present, no static R3F reachability from Act 1) — do NOT duplicate those assertions here. NO
+# present, no static R3F reachability from Act 1; ARMED by `data-experience-entry` on the entry
+# page — this cap ships all three markers together) — do NOT duplicate those assertions here. NO
 # `proof:` block — operator-attested capabilities are witnessed, not `--real`-built. The
 # frontend-builder is the inner-loop role; the owner witnesses on the live/preview site; appearance
 # is never self-signed.
@@ -66,7 +67,10 @@ THE DRAMATURGY (ADR-0134 §1, owner decisions 2026-07-02 — the spec of the fee
 - **The exits stay live.** The persistent skip control (`data-experience-skip`) and the
   reduced-motion / no-WebGL static-calm fallback (`data-experience-fallback`) ship IN THIS
   increment's markup — the upstream gate refuses the merge without them. `prefers-reduced-motion`
-  visitors are never played the storm at all.
+  visitors are never played the storm at all. The entry page also declares
+  **`data-experience-entry`** (the adoption marker that ARMS `check:web-experience` — as built,
+  the gate SKIPs until a `src/pages/` page carries it, then fails closed; all THREE markers land
+  together or the wall never stands watch).
 - **Interim coherence.** Until `storm-to-forest-inflection` lands, the storm's calm affordance and
   the skip both resolve to the static calm fallback + the existing site pages — coherent, just not
   yet transformative.
