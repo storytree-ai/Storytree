@@ -3,7 +3,7 @@ status: accepted
 load_bearing: true
 decided: 2026-06-29
 amends: [121, 33]
-supersedes_in_part: [48, 128]
+supersedes: [48]
 ---
 # ADR-0138: The wisp is a forced, CI-cleared story-claim — one coordination and observability layer
 
@@ -15,10 +15,12 @@ orchestrator from that discussion; design-time direction IS ratification
 ([ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md)). The owner made the four
 load-bearing calls recorded here: **story** grain, **hard refuse**, **trace-driven** staleness, and
 **claim-at-spawn by guidance** with ADR-authoring as the sole claim-free action. Edges finalized by the
-librarian-curator on accept: **supersedes-in-part**
-[ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) (the wisp = the build) and
-[ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md) (don't render session
-activity); **amends** [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) /
+librarian-curator on accept: **supersedes** [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md)
+(fully — the wisp is the claim now, not the build; ADR-0048's build-wisp becomes a colour state) and
+**corrects [ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md) in place**
+(per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); session activity
+IS rendered, now honestly — honest-by-absence generalises); **amends**
+[ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md) /
 [ADR-0033](0033-session-presence-notice-board.md) (the claim); builds on
 [ADR-0137](0137-chat-is-the-full-session-orchestrator-it-spawns-the-inner-lo.md) (prose-only, no
 frontmatter edge). The two open-questions this resolves/narrows
@@ -142,10 +144,12 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
 
 ## References
 
-- [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) — the build-wisp; **superseded-in-part** (the
-  wisp is now the claim; the build is a colour state).
+- [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) — the build-wisp; **superseded** (the wisp is
+  now the claim; the build is a colour state).
 - [ADR-0128](0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md) — honest-by-absence /
-  "don't render session activity"; **superseded-in-part** (session activity *is* rendered, now honestly).
+  "don't render session activity"; **corrected in place** (per
+  [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); session activity *is*
+  rendered, now honestly).
 - [ADR-0124](0124-honest-session-presence-machine-emitted-by-the-outer-loop-ru.md) — the
   machine-emitted-presence *direction*, previously withdrawn for unreliability; **realised here** via the
   forced + CI-cleared claim.

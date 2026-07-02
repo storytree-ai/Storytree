@@ -19,7 +19,19 @@ ratification). **Supersedes [ADR-0124]** (which proposed runtime-emitted plannin
 **amends [ADR-0048]** by resolving its §5 named-deferred "quieter planning form" as *deliberately not
 built*.
 
-**Superseded-in-part by [ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)** — session activity IS now rendered (honestly): the forced, CI-cleared story-claim renders as the wisp, so "don't render session activity" is overtaken for the coordination job; honest-by-absence still holds (an empty map = no session holds any node).
+**Correction ([ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's core —
+**the bare forest map is honest by absence**, and the real lever is **inner-loop ADOPTION** (a process
+fact, not a render gap; Context + Decision 4) — STANDS and even **generalises**: an empty map now means
+**no session holds any node** (not merely "no build is running"). Overtaken only: the
+**render-recommendation** — Decisions 1/2/3 ("session / planning presence is NOT rendered"; §3 "ADR-0048
+§5's planning form resolved as deliberately not built"). ADR-0138 resolves it the other way for the
+**coordination** job: the forced, CI-cleared story-**claim** at story grain IS now rendered as the wisp,
+so session activity is rendered *honestly* (the build becomes a colour STATE; the §5 honesty wall keeps
+claim ≠ proof). The distinction ADR-0138 draws: this ADR answered the **observability** job correctly but
+read that answer onto the **coordination** job, which ADR-0138 corrects. (ADR-0048, whose build-only wisp
+this ADR affirmed, is now itself superseded by ADR-0138 — the affirmation was a point-in-time snapshot,
+reversed the next day.)
 
 ## Context
 
@@ -47,7 +59,9 @@ right now," which is true ~92% of the time because most work grows *outside* the
 planning would not have fixed this — a wisp is driven by a **build**, not a declared node; the ~37
 concurrent sessions already appear in the studio **dock** ([ADR-0033](0033-session-presence-notice-board.md)),
 they simply (correctly) do not orbit a tree they are not building. ADR-0048's "honest by absence"
-property held exactly as designed.
+property held exactly as designed. *(This forensic finding stands — it answers the **observability** job
+(a render does not raise the driving rate). ADR-0138 later renders the separate **coordination** signal;
+see the Correction above.)*
 
 What the bare map actually signals is a **process** fact, not a rendering gap: **the inner loop is the
 exception, not the default path.** That is the real lever — tracked separately, not decided here.
@@ -57,6 +71,8 @@ exception, not the default path.** That is the real lever — tracked separately
 1. **Session / planning presence is NOT rendered in the forest world.** ADR-0048's demotion of session
    presence out of the orbiting role **stands and is vindicated**; the world orbits builds and blooms
    verdicts only. The studio **dock** (ADR-0033) remains the home for advisory session presence.
+   *(Overtaken by ADR-0138 — see the Correction above: for the coordination job, the forced story-claim
+   IS now rendered as the wisp; session activity is rendered honestly.)*
 
 2. **ADR-0124 is superseded, not built.** Its premise — that the missing signal was a *render* — is
    refuted by the evidence: the signal isn't missing, the *driving* is. Runtime-emitted planning
@@ -66,6 +82,8 @@ exception, not the default path.** That is the real lever — tracked separately
 3. **ADR-0048 §5's deferred "quieter planning form" is resolved as deliberately not built.** The owner
    has now made the "later owner call" ADR-0048 deferred it to: the planning claim does not get a world
    element. The dock is sufficient.
+   *(Overtaken by ADR-0138 — see the Correction above: ADR-0138 IS the subsequent "later owner call",
+   decided the other way; the claim gets a world element after all, as the story-claim wisp.)*
 
 4. **The real gap — inner-loop adoption — is named and tracked, not decided here.** *Why* ~92% of source
    changes bypass `node build --real` / `story build --real`, and what would make driving the default
@@ -88,6 +106,9 @@ exception, not the default path.** That is the real lever — tracked separately
 - **Good.** The decision log matches reality: a contradicted `proposed` ADR is retired, and ADR-0048's
   honest-by-absence property is reaffirmed with evidence, so "render planning" is not re-litigated.
   Future sessions calibrate to *the bare map is honest — raise driving, do not add a render.*
+  *(The "do not add a render" calibration is overtaken by ADR-0138 — see the Correction above:
+  honest-by-absence still holds and generalises, but the coordination claim IS now rendered honestly. The
+  standing calibration is: raise driving, AND the claim-wisp shows who holds each story.)*
 - **Cost / open.** The actionable question (inner-loop adoption) is deferred to a separate
   investigation, so the world stays a low-signal surface until more work is driven — honest, but quiet.
 - **Numbering.** `0128` was reserved from the store allocator ([ADR-0050](0050-adr-numbers-allocated-from-the-store.md));
@@ -98,7 +119,9 @@ exception, not the default path.** That is the real lever — tracked separately
 - [ADR-0124](0124-honest-session-presence-machine-emitted-by-the-outer-loop-ru.md) — superseded here;
   the planning-render direction withdrawn.
 - [ADR-0048](0048-in-flight-build-is-the-primary-wisp.md) — the build-only wisp + §5's deferred planning
-  form (resolved here as not-built); the "honest by absence" property this confirms.
+  form (resolved here as not-built); the "honest by absence" property this confirms. *(§5's planning form
+  is subsequently built as the story-claim wisp, and ADR-0048 itself superseded, by ADR-0138 — see the
+  Correction above; "honest by absence" carries forward and generalises.)*
 - [ADR-0033](0033-session-presence-notice-board.md) — the dock / advisory session presence that stays.
 - [ADR-0108](0108-chat-driven-orchestration-a-server-side-session-orchestrator.md) /
   [ADR-0112](0112-extract-the-build-orchestrate-drivers-into-packages-drive.md) /

@@ -42,9 +42,10 @@ edges:
     to: take-claim-at-spawn
     rationale: "F witnesses that a claimed story (claimed at spawn by E) orbits exactly one wisp."
 # Deciding ADRs (ADR-0037 §2): 0138 is the decision this story realises; it amends 0121/0033 (the claim),
-# supersedes-in-part 0048 (the wisp = the build) and 0128 (don't render session activity), builds on 0137
-# (the orchestrator that holds + spawns under the claim), and keeps the §5 honesty wall (0045/0099).
-decisions: [138, 121, 33, 48, 128, 137, 45, 99, 70]
+# supersedes 0048 (fully — the wisp is the claim now, not the build) and corrects 0128 in place (session
+# activity IS rendered, honestly), builds on 0137 (the orchestrator that holds + spawns under the claim),
+# and keeps the §5 honesty wall (0045/0099).
+decisions: [138, 121, 33, 128, 137, 45, 99, 70]
 ---
 
 # The forest wisp becomes a forced, CI-cleared story-claim

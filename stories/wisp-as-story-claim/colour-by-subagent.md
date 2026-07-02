@@ -7,7 +7,7 @@ outcome: "The phase→colour writer generalises so the wisp colour reflects the 
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
-decisions: [138, 48, 137]
+decisions: [138, 137]
 # Node-borne proof config (ADR-0057 keystone A). The provable delta is a PURE mapping: subagent-role / intent
 # → colour-state. NET-NEW, builtins-only — the leaf authors a net-new pure module
 # packages/drive/src/subagent-colour.ts (type-only imports of BuildPhase/Tier are erased), tested offline.
