@@ -46,7 +46,9 @@ presence block in when the live store is reachable.
 
 ## Guidance
 
-The implementation is `packages/cli/src/tree.ts` — a SELF-CONTAINED command module (every handler
+The implementation now lives at `packages/drive/src/tree.ts` (relocated per the ADR-0112
+drive-extraction pattern; `packages/cli/src/tree.ts` remains as a thin re-export shim, so the
+registered proof above is unchanged) — a SELF-CONTAINED command module (every handler
 returns the `Envelope` from `./envelope.js`). Do NOT touch `commands.ts` or `main.ts` (outside
 your write scope) — the spine wires the dispatch afterwards. Two views: **bare**
 (`storytree tree`) — all stories; **focused** (`storytree tree <story-id>`) — one story's nodes,

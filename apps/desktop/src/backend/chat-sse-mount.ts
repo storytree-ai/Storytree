@@ -172,6 +172,28 @@ async function loadDefaultStore(): Promise<SeedStore> {
  */
 type SseMountQueryFn = (args: { prompt: string; options: unknown }) => AsyncIterable<unknown>;
 
+/**
+ * The envelope shape an orientation command returns (structurally matches @storytree/agent's
+ * OrientationEnvelope and @storytree/drive's Envelope — defined locally, same reason as
+ * {@link SseMountQueryFn}).
+ */
+interface SseOrientationEnvelope {
+  readonly ok: boolean;
+  readonly body: string;
+  readonly doctrine?: readonly string[];
+  readonly next?: readonly string[];
+}
+
+/**
+ * The injectable orientation runner type (structurally compatible with @storytree/agent's
+ * OrientationRunner). The live composition is @storytree/drive's `createOrientationRunner`
+ * over the sidecar's live stores (backend-entry.ts); tests inject a scripted double.
+ */
+export type SseOrientationRunner = (
+  argv: readonly string[],
+  deps: unknown,
+) => Promise<SseOrientationEnvelope>;
+
 /** Dependencies injected into {@link createChatSseMount}. */
 export interface ChatSseMountDeps {
   /**
@@ -179,6 +201,14 @@ export interface ChatSseMountDeps {
    * spend (ADR-0010 §5). Omit for a live run (the real SDK `query()` is used by default).
    */
   queryFn?: SseMountQueryFn;
+  /**
+   * The read-only orientation runner the session's tools dispatch through (the ADR-0108
+   * orientation surface). Present → the session advertises the tree/library/noticeboard
+   * orientation tools and the agent reads the REAL three surfaces. Absent → no orientation
+   * tools are advertised (the §7 scale-down: a plain conversational session).
+   * READ/PROPOSE ONLY either way (the Phase-2 wall, ADR-0091) — the runner carries no write verb.
+   */
+  runner?: SseOrientationRunner;
 }
 
 // ---------- Bridge startChatStream ----------
@@ -192,6 +222,7 @@ type BridgedStartStream = (args: {
   intent: string;
   store: SeedStore;
   queryFn?: SseMountQueryFn;
+  runner?: SseOrientationRunner;
 }) => AsyncGenerator<ChatStreamEvent>;
 
 const bridgedStart = startChatStream as unknown as BridgedStartStream;
@@ -245,11 +276,17 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn only when present (exactOptionalPropertyTypes).
-    const streamArgs: { intent: string; store: SeedStore; queryFn?: SseMountQueryFn } = {
+    // Build args — forward queryFn/runner only when present (exactOptionalPropertyTypes).
+    const streamArgs: {
+      intent: string;
+      store: SeedStore;
+      queryFn?: SseMountQueryFn;
+      runner?: SseOrientationRunner;
+    } = {
       intent,
       store,
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
+      ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
     };
 
     // Stream each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives.

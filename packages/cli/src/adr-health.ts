@@ -16,18 +16,16 @@ import type { CheckResult } from "./health.js";
  *   1 adr-frontmatter      — every docs/decisions file parses with a known status (GATE)
  *   1b adr-number-unique   — no two ADR files share a number (the parallel-authoring collision the
  *                            DB allocator + this gate close, ADR-0050) (GATE)
- *   2 adr-edge-integrity   — every supersedes / supersedes_in_part / amends target exists (GATE)
+ *   2 adr-edge-integrity   — every supersedes / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
- *   3b supersede-in-part-note — the partial-supersession analogue of check 3: every
- *                            `supersedes_in_part` target carries the standardized INCOMING note
- *                            naming the superseding ADR (ADR-0037 §1 — incoming edges live as derived
- *                            `## Status` prose). A partially-overtaken ADR is NOT flipped to
- *                            superseded (it stays accepted, live in part), so check 3 structurally
- *                            never sees it; without this, a stale body with no incoming note is
- *                            gate-clean — the ADR-0011 §5 "DBOS stands" latent trap (GATE)
- *   3c supersedes-in-part-retired — ADR-0139 retires the `supersedes_in_part` edge; any ADR still
- *                            carrying one is the consolidation worklist (WARN until the pass clears
- *                            them, then this flips to GATE + the field drops from the frontmatter schema)
+ *   3b supersedes-in-part-retired — ADR-0139 retired the `supersedes_in_part` edge ("live in part" is
+ *                            no longer a state — edges are binary: full `supersedes` or additive
+ *                            `amends`). The strict frontmatter schema (@storytree/drive) drops the
+ *                            field, so a file still carrying it fails to parse (check 1 is the deep,
+ *                            un-bypassable floor); this is the friendly, ADR-0139-citing gate —
+ *                            `loadRetiredInPartEdges` raw-scans frontmatter and this FAILs on any hit
+ *                            (GATE). The former `supersede-in-part-note` incoming-note check (the
+ *                            partial-edge analogue of check 3) retired alongside the edge.
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
@@ -46,7 +44,7 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-number-unique",
   "adr-edge-integrity",
   "supersede-consistency",
-  "supersede-in-part-note",
+  "supersedes-in-part-retired",
   "story-decisions",
   "green-flip",
   "load-bearing-live",
@@ -69,8 +67,11 @@ export interface AdrHealthInputs {
   readonly adrs: AdrMeta[];
   /** Parse failures from loading the decisions dir (each line one file's error). */
   readonly parseErrors: string[];
-  /** Each ADR's body text (post-frontmatter) by number — what `supersede-in-part-note` reads (ADR-0037 §1). */
-  readonly adrBodies: ReadonlyMap<number, string>;
+  /**
+   * Pre-computed FAIL lines for `supersedes-in-part-retired` — one per decisions file whose raw
+   * frontmatter still carries the ADR-0139-retired `supersedes_in_part` key (`loadRetiredInPartEdges`).
+   */
+  readonly retiredInPartEdges: string[];
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
@@ -91,26 +92,13 @@ export function extractPathTokens(prose: string): string[] {
   return tokens;
 }
 
-/**
- * Does an ADR body carry the standardized INCOMING note for being superseded-in-part by ADR-`n`?
- * Canonical form (ADR-0037 §1, owner-ratified): `**Superseded-in-part by [ADR-NNNN](file)** — …` in
- * the `## Status` section. The matcher is tolerant of case, of the hyphen/space in "in-part", and of
- * ADR-number zero-padding, but it REQUIRES the "superseded-in-part by" phrasing keyed to the
- * superseding ADR — the older "partially superseded by" wording is normalized to this, never matched.
- */
-export function hasSupersededInPartNote(body: string, supersedingNumber: number): boolean {
-  return new RegExp(`superseded[\\s-]in[\\s-]part by\\s*\\[?ADR-0*${supersedingNumber}\\b`, "i").test(
-    body,
-  );
-}
-
 function result(name: string, failLines: string[], cleanNote: string, warn = false): CheckResult {
   if (failLines.length === 0) return { name, level: "PASS", lines: [cleanNote] };
   return { name, level: warn ? "WARN" : "FAIL", lines: failLines };
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, adrBodies, stories, guardrails, pathExists } = inputs;
+  const { adrs, parseErrors, retiredInPartEdges, stories, guardrails, pathExists } = inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -143,7 +131,7 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   // 2 adr-edge-integrity
   const dangling: string[] = [];
   for (const a of adrs) {
-    for (const target of [...a.supersedes, ...a.supersedesInPart, ...a.amends]) {
+    for (const target of [...a.supersedes, ...a.amends]) {
       if (!byNumber.has(target)) {
         dangling.push(`ADR-${pad(a.number)} names ADR-${pad(target)}, which does not exist`);
       }
@@ -174,54 +162,18 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   }
   results.push(result("supersede-consistency", inconsistent, "supersedes ⇔ superseded holds"));
 
-  // 3b supersede-in-part-note — the partial-supersession analogue of check 3. A `supersedes_in_part`
-  // target is NOT flipped to superseded (it stays accepted, still live in part), so check 3 never
-  // touches it. The consistency it owes instead: the partially-overtaken ADR must carry the
-  // standardized INCOMING note naming the superseding ADR (ADR-0037 §1 — incoming edges are derived
-  // `## Status` prose). Without it a stale body is gate-clean — the ADR-0011 §5 "DBOS stands" trap.
-  const missingPartNotes: string[] = [];
-  for (const a of adrs) {
-    for (const target of a.supersedesInPart) {
-      if (!byNumber.has(target)) continue; // dangling target → adr-edge-integrity (check 2) owns it
-      const body = adrBodies.get(target) ?? "";
-      if (!hasSupersededInPartNote(body, a.number)) {
-        missingPartNotes.push(
-          `ADR-${pad(target)} is superseded-in-part by ADR-${pad(a.number)} but carries no incoming note — ` +
-            `add to its ## Status: "**Superseded-in-part by [ADR-${pad(a.number)}](${a.file})** — <what's overtaken>"`,
-        );
-      }
-    }
-  }
-  results.push(
-    result(
-      "supersede-in-part-note",
-      missingPartNotes,
-      "every supersede-in-part target carries its incoming note",
-    ),
-  );
-
-  // 3c supersedes-in-part-retired (WARN) — ADR-0139 retires the `supersedes_in_part` edge: an accepted
-  // ADR may no longer sit "live in part" with overtaken prose still in its body. Until the consolidation
-  // pass converts every existing edge (correct the target in place if the decision stands, or fully
-  // supersede it if it changed), this WARNs and lists them as the worklist; it flips to a GATE FAIL — and
-  // `supersedes_in_part` drops from the strict frontmatter schema (@storytree/drive), check 3b retiring
-  // alongside — once the last edge is gone.
-  const retiredInPart: string[] = [];
-  for (const a of adrs) {
-    if (a.supersedesInPart.length > 0) {
-      retiredInPart.push(
-        `ADR-${pad(a.number)} carries a retired \`supersedes_in_part\` edge (→ ${a.supersedesInPart
-          .map(pad)
-          .join(", ")}) — correct the target in place or fully supersede it (ADR-0139).`,
-      );
-    }
-  }
+  // 3b supersedes-in-part-retired (GATE, ADR-0139) — the `supersedes_in_part` edge is retired: "live in
+  // part" is no longer a state (edges are binary — full `supersedes` or additive `amends`). The strict
+  // frontmatter schema (@storytree/drive) drops the field, so a file still carrying it fails to parse —
+  // check 1 `adr-frontmatter` is the deep, un-bypassable floor; this is the friendly, ADR-0139-citing
+  // gate, fed the raw-scan hits `loadRetiredInPartEdges` pre-computes ("correct the target in place or
+  // fully supersede it"). The former `supersede-in-part-note` incoming-note check (the partial-edge
+  // analogue of check 3) retired alongside the edge.
   results.push(
     result(
       "supersedes-in-part-retired",
-      retiredInPart,
+      retiredInPartEdges,
       "no ADR carries a retired supersedes_in_part edge (ADR-0139)",
-      true,
     ),
   );
 
@@ -302,20 +254,32 @@ function pad(n: number): string {
 // it from `@storytree/drive` if you need it here.
 
 /**
- * Load each ADR's body text (everything after the frontmatter block) keyed by ADR number — the view
- * the `supersede-in-part-note` check reads. A file with no/unterminated frontmatter contributes its
- * whole content (the `adr-frontmatter` check owns that failure separately, so this stays fail-soft).
+ * Raw-scan each `NNNN-*.md` file's FRONTMATTER for the ADR-0139-retired `supersedes_in_part` key,
+ * returning one pre-computed FAIL line per offending file — the view the `supersedes-in-part-retired`
+ * gate reads. It scans the frontmatter block only (not the body), so a prose mention of the retired
+ * term never false-positives; a file with no/unterminated frontmatter contributes nothing (the
+ * `adr-frontmatter` check owns that failure), so this stays fail-soft. On the post-consolidation repo
+ * it returns []. Note the strict frontmatter schema also rejects the key on parse (the deep floor) —
+ * this scan is the dedicated gate that names the offending file with the ADR-0139 fix.
  */
-export function loadAdrBodies(decisionsDir: string): Map<number, string> {
-  const bodies = new Map<number, string>();
+export function loadRetiredInPartEdges(decisionsDir: string): string[] {
+  const found: string[] = [];
   for (const file of readdirSync(decisionsDir).sort()) {
     const m = /^(\d{4})-.*\.md$/.exec(file);
     if (m === null) continue;
     const content = readFileSync(path.join(decisionsDir, file), "utf8");
-    const end = content.startsWith("---\n") ? content.indexOf("\n---", 4) : -1;
-    bodies.set(Number(m[1]), end === -1 ? content : content.slice(end + 4));
+    if (!content.startsWith("---\n")) continue;
+    const end = content.indexOf("\n---", 4);
+    if (end === -1) continue;
+    const frontmatter = content.slice(4, end + 1);
+    if (/^supersedes_in_part\s*:/m.test(frontmatter)) {
+      found.push(
+        `ADR-${m[1]} (${file}) carries a retired \`supersedes_in_part\` frontmatter edge — ` +
+          `correct the target in place or fully supersede it (ADR-0139).`,
+      );
+    }
   }
-  return bodies;
+  return found;
 }
 
 /** Load every story's decision view from `stories/<id>/story.md` (the node-spec light loader). */

@@ -8,9 +8,13 @@ import { z } from "zod";
  * and the frontmatter transcribes it — never an invented write. ADR-0084 widened WHO may perform that
  * transcription: an AGENT (not only a human) may flip an ADR `proposed → accepted` (the green flip).
  * ADR-0086 widened it further: the `librarian-curator` may also flip an ADR to `superseded` as part of
- * curation (still a projection of the `## Status` prose, never invented). Edges are OUTGOING only
- * (`supersedes` / `supersedes_in_part` / `amends`); incoming notes stay prose in the target file,
- * derived — never double-entered.
+ * curation (still a projection of the `## Status` prose, never invented). Edges are OUTGOING only and
+ * BINARY (`supersedes` = full / `amends` = strictly additive); incoming notes stay prose in the target
+ * file, derived — never double-entered.
+ *
+ * `supersedes_in_part` was RETIRED by ADR-0139 ("live in part" is no longer a state), so the strict
+ * schema no longer accepts it: a file still carrying that key fails to parse loudly, caught by the
+ * `adr-frontmatter` health check (the deep floor) and named by the `supersedes-in-part-retired` gate.
  *
  * `load_bearing` (ADR-0086) is the editorial CURRENT-STATE tag: the small curated set of ADRs a new
  * session must calibrate to. It replaces the hand-maintained `CLAUDE.md` list — surfaced by
@@ -30,7 +34,6 @@ const AdrFrontmatter = z
       .transform((d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d))
       .optional(),
     supersedes: z.array(AdrNumber).default([]),
-    supersedes_in_part: z.array(AdrNumber).default([]),
     amends: z.array(AdrNumber).default([]),
     load_bearing: z.boolean().default(false),
   })
@@ -43,7 +46,6 @@ export interface AdrMeta {
   status: AdrStatus;
   decided?: string;
   supersedes: number[];
-  supersedesInPart: number[];
   amends: number[];
   /** The ADR-0086 current-state tag: a curated load-bearing ADR a new session must calibrate to. */
   loadBearing: boolean;
@@ -72,7 +74,6 @@ export function parseAdrFrontmatter(file: string, content: string): AdrMeta {
     file,
     status: fm.status,
     supersedes: fm.supersedes,
-    supersedesInPart: fm.supersedes_in_part,
     amends: fm.amends,
     loadBearing: fm.load_bearing,
   };

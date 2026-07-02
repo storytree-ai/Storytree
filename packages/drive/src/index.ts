@@ -24,3 +24,13 @@ export * from "./curate.js";
 export * from "./noticeboard.js";
 export * from "./ambient-presence.js";
 export * from "./db-control.js";
+// The read/orientation surface (the ADR-0112 pattern, applied to the ADR-0108 orientation gap):
+// the tree view, the library dashboard + its health checks and doctrine pointers, and the
+// composed read-only orientation runner the desktop sidecar hands to the chat session.
+export * from "./tree.js";
+export * from "./tree-verdicts.js";
+export * from "./tree-attestations.js";
+export * from "./health.js";
+export * from "./doctrine.js";
+export * from "./library-dashboard.js";
+export * from "./orientation-runner.js";
