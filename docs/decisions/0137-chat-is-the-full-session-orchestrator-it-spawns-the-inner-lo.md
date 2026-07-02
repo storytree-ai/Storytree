@@ -1,17 +1,22 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-02
+amends: [108]
+load_bearing: true
 ---
 # ADR-0137: Chat is the full session-orchestrator: it spawns the inner loop; ADRs are its one direct write
 
 ## Status
 
-proposed — directed by the owner 2026-06-29 in design discussion with the orchestrator, and drafted by
-the orchestrator from that discussion (the workflow this ADR itself sanctions, decision 2). It mostly
-**affirms the already-accepted ADR-0108**; what is genuinely NEW is the ADR-authoring carve-out
-(decision 2), the sharpening of *how* ADR-0108 Phase 3 is built (decision 1), and the consultative
-change/fix routing model (decision 4 — owner-confirmed 2026-06-29: a bug is a missing contract). The
-content is now complete; awaiting the owner's nod to flip to accepted. Amends ADR-0108; upholds
-ADR-0091.
+accepted — directed by the owner 2026-06-29 in design discussion with the orchestrator, drafted by
+the orchestrator from that discussion (the workflow this ADR itself sanctions, decision 2), and
+**green-lit by the owner 2026-07-02** ("proceed to build Phase 3" — the nod the proposed status
+awaited; the agent-permitted green flip, ADR-0084). It mostly **affirms the already-accepted
+ADR-0108**; what is genuinely NEW is the ADR-authoring carve-out (decision 2), the sharpening of
+*how* ADR-0108 Phase 3 is built (decision 1), and the consultative change/fix routing model
+(decision 4 — owner-confirmed 2026-06-29: a bug is a missing contract). Amends ADR-0108; upholds
+ADR-0091. Built on since accept by ADR-0138 (the claim-at-spawn wall: the orchestrator takes the
+story-claim before any spawn; ADR-authoring is the sole claim-free act).
 
 ## Context
 
