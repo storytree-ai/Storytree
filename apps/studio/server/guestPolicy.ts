@@ -116,10 +116,14 @@ export function createMembersPolicy(identity: string | null, access: ResolvedAcc
       }
       // User management is admin-only (any method); asset/other writes are admin-only too. Comment
       // writes stay open to members (scoped to own comments below); GETs read the whole corpus.
+      // ADR-0140: suggestion-CREATE (POST /api/suggestions exact) is also member-permitted — a
+      // suggestion is an additive proposal, like a comment. The decision sub-path
+      // (/api/suggestions/decision) is NOT exempted and remains admin-only (deciding is an owner act).
+      const memberPermittedWrite = pathname === '/api/comments' || pathname === '/api/suggestions';
       const adminOnly =
         pathname === '/api/users' ||
         pathname.startsWith('/api/users/') ||
-        (method !== 'GET' && pathname !== '/api/comments');
+        (method !== 'GET' && !memberPermittedWrite);
       if (adminOnly && !isAdmin) {
         throw new HttpError(403, 'member scope — asset editing and user management are admin-only (ADR-0043)');
       }
