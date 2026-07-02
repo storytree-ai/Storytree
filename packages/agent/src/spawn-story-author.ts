@@ -8,8 +8,10 @@
  * path falls outside the injectable isWriteAllowed predicate (default: stories/**) BEFORE the
  * write lands. Bash is never in the tool surface — a shell write would bypass the fence.
  *
- * Result: { ok: true, summary, turns?, costUsd? } or { ok: false, error } — NEVER a verdict
- * (ADR-0091: the shape is the wall; there is nothing verdict-like to hand in).
+ * Result: { ok: true, summary, turns?, costUsd?, violations } or { ok: false, error, violations }
+ * — NEVER a verdict (ADR-0091: the shape is the wall; there is nothing verdict-like to hand in).
+ * Every denied write is recorded as a typed violation on the result, so the caller can see the
+ * fence held without the denial ever having landed.
  *
  * Turn cap (default 16) is the runaway brake; no USD ceiling by default (ADR-0130/0131).
  */
@@ -73,14 +75,31 @@ export interface SpawnStoryAuthorArgs {
   queryFn?: SdkQueryFn;
 }
 
+/** A write the fence denied — recorded on the result, never landed. */
+export interface ScopeViolation {
+  /** The tool that attempted the write (Write | Edit). */
+  tool: string;
+  /** The path as the tool call carried it ("" when unreadable — the fail-closed arm). */
+  path: string;
+  /** The denial reason the hook returned. */
+  reason: string;
+}
+
 /**
  * The spawn result — never a verdict (ADR-0091: the shape is the wall).
  * { ok: true }  — session succeeded; summary is the SDK result.result field.
  * { ok: false } — session failed/ended early; error describes what happened.
+ * Both arms carry the fence's denied writes as typed violations (empty when the scope held).
  */
 export type SpawnStoryAuthorResult =
-  | { ok: true; summary: string; turns?: number; costUsd?: number }
-  | { ok: false; error: string };
+  | {
+      ok: true;
+      summary: string;
+      turns?: number;
+      costUsd?: number;
+      violations: ScopeViolation[];
+    }
+  | { ok: false; error: string; violations: ScopeViolation[] };
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -131,6 +150,7 @@ export async function runSpawnStoryAuthor(
   const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
   const isWriteAllowed = args.isWriteAllowed ?? DEFAULT_IS_WRITE_ALLOWED;
   const cwd = args.cwd;
+  const violations: ScopeViolation[] = [];
 
   const options: Options = {
     cwd,
@@ -151,15 +171,25 @@ export async function runSpawnStoryAuthor(
             async (input) => {
               if (input.hook_event_name !== "PreToolUse") return {};
 
-              const filePath = extractFilePath(input.tool_input);
-              if (filePath === null) {
+              // Record the denial on the result AND return the deny decision — the write
+              // never lands, and the caller can see the fence held (the typed violation).
+              const deny = (violationPath: string, reason: string): object => {
+                violations.push({ tool: input.tool_name, path: violationPath, reason });
                 return {
                   hookSpecificOutput: {
                     hookEventName: "PreToolUse",
                     permissionDecision: "deny",
-                    permissionDecisionReason: `write refused: '${input.tool_name}' call carries no readable file_path (fail-closed)`,
+                    permissionDecisionReason: reason,
                   },
                 };
+              };
+
+              const filePath = extractFilePath(input.tool_input);
+              if (filePath === null) {
+                return deny(
+                  "",
+                  `write refused: '${input.tool_name}' call carries no readable file_path (fail-closed)`,
+                );
               }
 
               const rel = path
@@ -167,23 +197,17 @@ export async function runSpawnStoryAuthor(
                 .replace(/\\/g, "/");
 
               if (rel.startsWith("..") || path.isAbsolute(rel)) {
-                return {
-                  hookSpecificOutput: {
-                    hookEventName: "PreToolUse",
-                    permissionDecision: "deny",
-                    permissionDecisionReason: `write refused: '${filePath}' resolves outside the workspace`,
-                  },
-                };
+                return deny(
+                  filePath,
+                  `write refused: '${filePath}' resolves outside the workspace`,
+                );
               }
 
               if (!isWriteAllowed(rel)) {
-                return {
-                  hookSpecificOutput: {
-                    hookEventName: "PreToolUse",
-                    permissionDecision: "deny",
-                    permissionDecisionReason: `write refused by scope: '${input.tool_name}' may not write '${rel}' (outside stories/**)`,
-                  },
-                };
+                return deny(
+                  rel,
+                  `write refused by scope: '${input.tool_name}' may not write '${rel}' (outside stories/**)`,
+                );
               }
 
               return {};
@@ -200,13 +224,18 @@ export async function runSpawnStoryAuthor(
       if (isResult(message)) result = message;
     }
   } catch (e) {
-    return { ok: false, error: `SDK session failed: ${(e as Error).message}` };
+    return {
+      ok: false,
+      error: `SDK session failed: ${(e as Error).message}`,
+      violations,
+    };
   }
 
   if (result === undefined) {
     return {
       ok: false,
       error: "SDK session ended without a result message (fail-closed)",
+      violations,
     };
   }
 
@@ -215,7 +244,11 @@ export async function runSpawnStoryAuthor(
       result.errors !== undefined && result.errors.length > 0
         ? `: ${result.errors.join("; ")}`
         : "";
-    return { ok: false, error: `SDK session ${result.subtype}${detail}` };
+    return {
+      ok: false,
+      error: `SDK session ${result.subtype}${detail}`,
+      violations,
+    };
   }
 
   return {
@@ -223,5 +256,6 @@ export async function runSpawnStoryAuthor(
     summary: result.result ?? "",
     turns: result.num_turns,
     costUsd: result.total_cost_usd,
+    violations,
   };
 }

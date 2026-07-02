@@ -395,3 +395,119 @@ test("the result shape carries no verdict or proof field — the shape is the wa
   assert.ok(!("signed" in r), "result must carry no signed field");
   assert.ok(!("signing" in r), "result must carry no signing field");
 });
+
+// ---------------------------------------------------------------------------
+// Contract coverage (verbatim ids from stories/chat-subagent-spawn/story-author-spawn.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * A scripted session that FIRES the write-fence hook mid-stream, the way the real SDK
+ * would: one Write inside stories/**, one outside — so denials are recorded as typed
+ * violations on the result the runner returns.
+ */
+function sessionAttemptingWrites(
+  writes: Array<{ tool: string; filePath: string }>,
+): { fn: SdkQueryFn; hookOutputs: unknown[] } {
+  const hookOutputs: unknown[] = [];
+  const fn: SdkQueryFn = (q) =>
+    (async function* () {
+      const hook = extractScopeHook(q.options);
+      for (const w of writes) {
+        hookOutputs.push(await hook(preToolUseInput(w.tool, w.filePath), "tu-w", SIGNAL));
+      }
+      yield SUCCESS_RESULT;
+    })();
+  return { fn, hookOutputs };
+}
+
+test("sas-write-scope-fenced-to-the-work-hierarchy: an in-scope write is permitted, an out-of-scope write is denied before landing and recorded as a typed violation, and Bash is never in the tool surface", async () => {
+  const { fn, hookOutputs } = sessionAttemptingWrites([
+    { tool: "Write", filePath: "stories/demo/story.md" },
+    { tool: "Write", filePath: "packages/agent/src/evil.ts" },
+  ]);
+  let captured: unknown;
+  const capturing: SdkQueryFn = (q) => {
+    captured = q.options;
+    return fn(q);
+  };
+
+  const r = await runSpawnStoryAuthor({
+    systemPrompt: "SYS",
+    userPrompt: "author the story",
+    cwd: CWD,
+    queryFn: capturing,
+  });
+
+  // The inside write was permitted (empty hook output — the write may land).
+  assert.deepEqual(hookOutputs[0], {}, "a Write inside stories/** must be permitted");
+  // The outside write was DENIED fail-closed BEFORE it landed…
+  const deny = denyOf(hookOutputs[1]);
+  assert.equal(deny.decision, "deny", "a Write outside stories/** must be denied before landing");
+  // …and recorded as a typed violation on the result.
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.violations.length, 1, "exactly the denied write must be recorded as a violation");
+  const v = r.violations[0];
+  assert.ok(v !== undefined);
+  assert.equal(v.tool, "Write");
+  assert.equal(v.path, "packages/agent/src/evil.ts");
+  assert.match(v.reason, /outside stories/, "the violation must carry the denial reason");
+  // Bash is never in the session's tool surface (no shell bypass of the fence).
+  const o = captured as { tools?: string[]; allowedTools?: string[] };
+  assert.equal((o.tools ?? []).includes("Bash"), false, "Bash must never be in tools");
+  assert.equal((o.allowedTools ?? []).includes("Bash"), false, "Bash must never be allow-listed");
+});
+
+test("sas-typed-result-never-a-verdict: a successful session returns { ok: true, summary }, a dead/empty session returns { ok: false, error } (never a throw, never a forged success), and the shape carries no verdict/signing/proof field", async () => {
+  // Success arm: summary read off the SDK result message.
+  const ok = await runSpawnStoryAuthor({
+    systemPrompt: "SYS",
+    userPrompt: "x",
+    cwd: CWD,
+    queryFn: queryYielding([SUCCESS_RESULT]),
+  });
+  assert.equal(ok.ok, true);
+  if (ok.ok) {
+    assert.equal(ok.summary, SUCCESS_RESULT.result, "summary must be the SDK result text");
+  }
+
+  // Dead/empty session: { ok: false, error } — never a forged success, never a throw.
+  const dead = await runSpawnStoryAuthor({
+    systemPrompt: "SYS",
+    userPrompt: "x",
+    cwd: CWD,
+    queryFn: queryYielding([{ type: "assistant" }]),
+  });
+  assert.equal(dead.ok, false, "a session with no result message must never forge a success");
+  if (!dead.ok) assert.ok(dead.error.length > 0, "the failure must carry an error description");
+
+  // Structurally nothing verdict-like exists for the chat to relay (ADR-0091).
+  for (const r of [ok, dead]) {
+    assert.ok(!("verdict" in r), "no verdict field (ADR-0091)");
+    assert.ok(!("signing" in r), "no signing field");
+    assert.ok(!("proofStatus" in r), "no proof-status field");
+  }
+});
+
+test("sas-turn-cap-is-the-brake: the options carry a maxTurns ceiling (default 16, caller-overridable) and NO USD budget unless explicitly passed (ADR-0130/0131)", async () => {
+  // Default: turn cap 16, no USD ceiling.
+  const a = capturingQuery([SUCCESS_RESULT]);
+  await runSpawnStoryAuthor({ systemPrompt: "SYS", userPrompt: "x", cwd: CWD, queryFn: a.fn });
+  const defaults = a.opts() as { maxTurns?: unknown; maxBudgetUsd?: unknown };
+  assert.equal(defaults.maxTurns, 16, "the default turn ceiling must be 16");
+  assert.equal(defaults.maxBudgetUsd, undefined, "no USD budget unless explicitly passed");
+
+  // Caller-overridable turn cap; explicit budget passes through as the opt-in.
+  const b = capturingQuery([SUCCESS_RESULT]);
+  await runSpawnStoryAuthor({
+    systemPrompt: "SYS",
+    userPrompt: "x",
+    cwd: CWD,
+    maxTurns: 45,
+    maxBudgetUsd: 2,
+    queryFn: b.fn,
+  });
+  const overridden = b.opts() as { maxTurns?: unknown; maxBudgetUsd?: unknown };
+  assert.equal(overridden.maxTurns, 45, "the turn ceiling must be caller-overridable");
+  assert.equal(overridden.maxBudgetUsd, 2, "an explicit budget must pass through (the opt-in)");
+});
