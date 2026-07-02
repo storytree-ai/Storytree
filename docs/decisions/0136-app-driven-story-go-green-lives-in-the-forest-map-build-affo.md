@@ -28,6 +28,11 @@ Why, mechanically:
   auto-merging PR), and a **node**/capability id to `node build --live` (an in-memory **smoke**: the
   synthetic `add(2,3)` task, the node's real proof not run, nothing persisted, **no PR**). So the walk
   took the node→smoke path: it proved the live drive loop, but opened no PR and landed nothing.
+  *(Overtaken in degree 2026-07-02 by
+  [ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md): the routed NODE
+  dispatch now drives `node build --real` — the node's real proof, verdict persisted, PASS parked on a
+  `claude/real/<unit>-<run>` branch. Landing stays the human gate; still no auto-PR per node accept —
+  this ADR's wall stands.)*
 - **The routing is already tier-correct.** A story id would correctly drive `--real`→PR today. The gap
   is *not* the router — it is *which tier the chat proposes.*
 - **The chat proposes nodes by design.** The chat surface IS the rendered `session-orchestrator`
@@ -37,7 +42,9 @@ Why, mechanically:
 - **The node path is deliberately a non-persisting smoke (ADR-0099-B).** A single-node `--live` build
   runs a synthetic task — it proves the *pipeline*, not the node's feature — so its PASS may **never**
   land in `events.verdict` (the forged-green back-door ADR-0099 closes). The `routedBuildRunner` node
-  branch therefore omits `--store pg` on purpose.
+  branch therefore omits `--store pg` on purpose. *(Since ADR-0144 the node branch is no longer the
+  smoke at all — it drives `node build --real` + `--store pg`, a REAL persisting drive; ADR-0099-B's
+  wall is untouched because it bars only SYNTHETIC persists. The smoke stays a CLI pipeline check.)*
 
 The crucial finding: **the deliberate story→`--real`→PR op already exists in the UI** — it is the
 ADR-0094 *status-aware* forest-map **story Build affordance** (`BuildSection`, `scope='story'`,
@@ -67,6 +74,10 @@ correct and already-decided* (ADR-0094), but *not currently reachable in the des
 2. **The chat propose→accept loop's role is orient + propose the minimal provable unit + (on accept)
    smoke the drive pipeline** (ADR-0099-B). It proves the loop is alive and routes the *minimal* unit;
    it does not land a whole story. The 2026-06-28 walk did exactly what this loop is for.
+   *(Amended by ADR-0144: on accept the routed NODE dispatch now drives `node build --real` — the
+   node's real proof, persisted verdict, parked branch — not the smoke. The role framing stands:
+   propose the minimal provable unit, never land a whole story; only a story `--real` opens the
+   auto-merging PR.)*
 3. **Immediate clean increment, no further decision needed:** wire the `goGreen` affordance into the
    desktop `/api/tree` using the **already-imported** `@storytree/orchestrator` `storyGoGreen` (the
    build/adopt/none decision, `packages/orchestrator/src/story-build.ts`) plus the `applyStoryGoGreenProof`
@@ -113,7 +124,8 @@ through the already-decided story Build path — not a re-decision of (a) or (b)
   surfaces, two purposes), not a missing capability. The router was never the problem.
 - **Cost / residual:** until the §3 `goGreen` wiring lands, the desktop forest map shows no story Build
   button (the affordance is data-starved), so the *only* build trigger in the desktop today is the chat
-  smoke path. The wiring is the thing that actually makes the headline reachable in the desktop.
+  dispatch path (at this ADR's writing the node smoke; since ADR-0144 a real `node build --real`). The
+  wiring is the thing that actually makes the headline reachable in the desktop.
 - **Deferred by the fork:** if the owner wants the chat to reach story-real (a/b/blend), that is a
   separate follow-on increment with its own provable unit.
 
@@ -126,6 +138,9 @@ through the already-decided story Build path — not a re-decision of (a) or (b)
 - **ADR-0119** — the desktop re-composes the studio tree fold (the discipline §3's wiring extends from
   the hue overlay to the go-green affordance).
 - **ADR-0133 d.3** — the desktop build mount + the relocated `routedBuildRunner`.
+- **[ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md)** — amends this
+  ADR in degree: the routed node dispatch is now `node build --real` (real proof, persisted verdict,
+  parked branch, human-gated landing); the story-Build/PR wall here stands.
 - Code — `packages/drive/src/build-worker.ts` (`routedBuildRunner`, tier routing);
   `apps/desktop/electron/backend-entry.ts` (`BuildContext` wiring, `classify`/`nodeBuild`/`storyBuild`);
   `apps/desktop/src/backend/tree-verdicts.ts` (`foldVerdicts` — **skips** the go-green pass, the wiring

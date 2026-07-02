@@ -132,7 +132,7 @@ describe('routedBuildRunner', () => {
     expect(lines.some((l) => /auto-merges to trunk/i.test(l))).toBe(true);
   });
 
-  it('routes a NODE id to nodeBuild --live (single-node, synthetic pipeline, NON-persisting)', async () => {
+  it('routes a NODE id to nodeBuild --real (real proof, persisting; parked-branch landing)', async () => {
     const nodeBuild = vi.fn<NodeBuildLike>(async () => ({ ok: true, body: 'verdict: PASS' }));
     const storyBuild = vi.fn<StoryBuildLike>(async () => ({ ok: true, body: 'story' }));
     const runner = routedBuildRunner({
@@ -148,14 +148,14 @@ describe('routedBuildRunner', () => {
     expect(storyBuild).not.toHaveBeenCalled();
     const [unitId, opts] = nodeBuild.mock.calls[0]!;
     expect(unitId).toBe('library-cli');
-    expect(opts).toMatchObject({ live: true });
-    // ADR-0099-B: a single-node `--live` smoke is SYNTHETIC, so it must NOT persist — the node branch
-    // omits `verdictStore`. Passing `--store pg` here would be refused downstream (`resolveVerdictStore`,
-    // a synthetic walk) and terminalise the UI Build as FAILED. Mirrors the buildRunnerFromNodeBuild guard.
-    expect(opts.verdictStore).toBeUndefined();
-    expect(opts.real).toBeFalsy();
-    expect(opts.dryRun).toBeFalsy();
-    expect(lines.some((l) => /single-node --live/i.test(l))).toBe(true);
+    // ADR-0144: a chat/UI-accepted NODE drives the node's REAL proof and PERSISTS the signed verdict
+    // (ADR-0099-B bars only SYNTHETIC persists — a real drive persisting is the honest artifact).
+    expect(opts).toMatchObject({ real: true, dryRun: false, verdictStore: 'pg' });
+    expect(opts.live).not.toBe(true);
+    // ADR-0136: landing stays the human gate — a node --real parks a claude/real/<unit>-<run> branch,
+    // it never opens the auto-merging PR (only a story --real does), so openPr must be absent.
+    expect('openPr' in opts).toBe(false);
+    expect(lines.some((l) => /--real/i.test(l) && /park/i.test(l))).toBe(true);
   });
 
   it('threads an actor flag to the routed entry when given', async () => {
