@@ -251,6 +251,27 @@ export async function statuslineGlance(
 }
 
 // ---------------------------------------------------------------------------
+// undeclaredSessionNudge (ADR-0143)
+// ---------------------------------------------------------------------------
+
+/**
+ * The one line the SessionStart hook injects into a fresh worktree session's context (ADR-0143) —
+ * the narrow, deliberate amendment of the hook's print-nothing contract. PURE and offline: no store
+ * read, no clock — a recognised worktree identity in, the static anchor prompt out (`""` for a
+ * plain checkout, so non-session shells stay silent). One line only: SessionStart stdout lands in
+ * the model's context, and this is the ceremony the session must see first — anchoring via
+ * `noticeboard declare --node` is what lights the story wisp (ADR-0142).
+ */
+export function undeclaredSessionNudge(identity: SessionIdentity | null): string {
+  if (identity === null) return "";
+  return (
+    `[storytree] Session "${identity.sessionId}" is UNDECLARED — once you know your unit, anchor it ` +
+    "(this lights the story wisp on the map, ADR-0142): " +
+    'pnpm storytree noticeboard declare --working-on "<what>" --node <story-id> --pg\n'
+  );
+}
+
+// ---------------------------------------------------------------------------
 // auditHookConfig
 // ---------------------------------------------------------------------------
 
