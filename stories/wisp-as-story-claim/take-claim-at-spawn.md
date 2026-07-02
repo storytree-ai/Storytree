@@ -7,7 +7,7 @@ outcome: "A claim-acquisition seam the session-orchestrator calls BEFORE it spaw
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
-decisions: [138, 137, 30]
+decisions: [138, 137, 30, 142]
 # Node-borne proof config (ADR-0057 keystone A). The provable delta is a PURE seam: a function the
 # orchestrator calls before spawning that decides acquire-or-wait from a ClaimResult and, on refusal,
 # surfaces the holder. NET-NEW, builtins-only — the leaf authors a net-new packages/agent/src/spawn-claim.ts
@@ -41,6 +41,12 @@ the orchestrator waits or picks other work. The de-facto hard point is the spawn
 (ADR-0138 §3). The seam is **built and proven now**; the actual wiring into the spawn path is **deferred**
 behind ADR-0137 Phase 3 (the orchestrator actually spawning), which is UNBUILT.
 
+> **ADR-0142 (post-delivery):** the spawn wiring is no longer the only acquisition path — the work-time
+> claim is now taken at **declare-time** (`noticeboard declare --node` claims; `done` releases; the
+> statusline heartbeat bumps — the landed [`claim-at-declare`](claim-at-declare.md) capability). That
+> wiring *neither replaces nor blocks* E2 (ADR-0142 leg 2): the spawn-path acquisition below stays a
+> real, deferred follow-on for when the orchestrator actually spawns.
+
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (A3's work-time `ClaimRequest` intent
 builder; the seam acquires with `kind: "edit" | "orchestrate"`).
 
@@ -62,7 +68,9 @@ a `ClaimResult` from `@storytree/notice-board` (`{ acquired: true, claim, reclai
 `heldBy.intent`) so the orchestrator can name who has the story and wait for its merge / pick other work. The
 type-only import of `ClaimResult` is erased, so the module stays builtins-only and offline-buildable. Keep it
 PURE: a `ClaimResult` in, a `{ proceed: true } | { proceed: false; heldBy: … }` decision out; no store, no
-clock, no spawn. This is the testable decision boundary; the live acquire happens in the deferred wiring.
+clock, no spawn. This is the testable decision boundary; the live SPAWN-path acquire happens in the
+deferred wiring (the live session-grain acquire landed at declare-time — ADR-0142,
+[`claim-at-declare`](claim-at-declare.md)).
 
 **E2 (DEFERRED — blocked on ADR-0137 Phase 3, do NOT build now).** The actual wiring: before
 `packages/agent/src/headless-orchestrator.ts` spawns a subagent, call `PgClaimStore.claim()` with the
@@ -71,7 +79,9 @@ work-time `ClaimRequest` (A3) for the story id; feed the `ClaimResult` to the E1
 `onMessage` trace seam (`headless-orchestrator.ts:73`) feeds A2's heartbeat bump so the claim never ages out
 mid-orchestration. This wiring depends on the orchestrator **actually spawning** (ADR-0137 Phase 3, which is
 UNBUILT, ADR-0108 Phase 3 drive-authority), so it is captured here as a deferred follow-on, NOT a blocker on
-the E1 seam. When Phase 3 lands, this becomes a real contract (likely its own capability).
+the E1 seam. When Phase 3 lands, this becomes a real contract (likely its own capability). Until then the
+session-grain acquisition runs at declare-time (ADR-0142, [`claim-at-declare`](claim-at-declare.md)) —
+which neither replaces nor blocks this wiring.
 
 Do NOT touch files outside your write scope. Keep the proved unit a pure seam so the default node:test
 single-file proof runs it install-free.

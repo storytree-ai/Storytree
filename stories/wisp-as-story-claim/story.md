@@ -13,9 +13,12 @@ proof_mode: operator-attested
 # subagent, claimed visibly distinct from proven-green, the wisp clearing on merge. That is a human-eyes
 # leg (ADR-0070): the UAT node (capability F) is operator-attested, never self-attested. uat_witness is
 # absent ⇒ `human` (ADR-0040 fail-closed) — the appearance cannot be machine-witnessed.
-capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn, appearance-uat]
+capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn, claim-at-declare, appearance-uat]
 # The within-story DAG (ADR-0010 §3): A is the root (the claim-store deltas everything stands on); B, C,
 # D, E each consume A; F (the appearance UAT) depends on B, C, D, E. Mirrors the capability depends_on.
+# claim-at-declare joined AFTER delivery (ADR-0142, landed work documented post-hoc): the declare-time
+# acquisition wiring for §3's work-time claim — it consumes A like its siblings; F predates it, so no F
+# edge is claimed.
 edges:
   - from: render-claim-as-wisp
     to: claim-store-work-time
@@ -29,6 +32,9 @@ edges:
   - from: take-claim-at-spawn
     to: claim-store-work-time
     rationale: "E's spawn-seam acquires a work-time claim via A3's work-time `ClaimRequest` intent helper."
+  - from: claim-at-declare
+    to: claim-store-work-time
+    rationale: "The declare-time acquisition (ADR-0142) claims via A3's `workClaimRequest` and adds the session-scoped bulk twins of A1/A2 (`releaseClaimsBySession` / `bumpHeartbeatsBySession`) to the same PgClaimStore."
   - from: appearance-uat
     to: render-claim-as-wisp
     rationale: "F witnesses the rendered claim-wisp B produces (one wisp per claimed story)."
@@ -44,8 +50,10 @@ edges:
 # Deciding ADRs (ADR-0037 §2): 0138 is the decision this story realises; it amends 0121/0033 (the claim),
 # supersedes 0048 (fully — the wisp is the claim now, not the build) and corrects 0128 in place (session
 # activity IS rendered, honestly), builds on 0137 (the orchestrator that holds + spawns under the claim),
-# and keeps the §5 honesty wall (0045/0099).
-decisions: [138, 121, 33, 128, 137, 45, 99, 70]
+# and keeps the §5 honesty wall (0045/0099). 0142 (amends 0138/0033) landed post-delivery: claim-at-declare
+# is the live work-time acquisition, the branch dies on merge (CI-refused reuse), the wisp survives a
+# landing as a blink (re-declare re-claims).
+decisions: [138, 142, 121, 33, 128, 137, 45, 99, 70]
 ---
 
 # The forest wisp becomes a forced, CI-cleared story-claim
@@ -84,6 +92,16 @@ stands on. B (render the claim as a wisp), C (colour by subagent/intent), D (CI 
 (take the claim at spawn) each consume A and are independent of each other. F (the operator-attested
 appearance UAT) is the human-eyes leg, last, depending on B, C, D, E.
 
+**Post-delivery: the acquisition landed at declare-time (ADR-0142).** E's spawn-path wiring (E2) was
+deferred behind ADR-0137 Phase 3, which left the delivered layer with **no live acquisition path** — a
+well-behaved session showed no wisp between builds. [ADR-0142](../../docs/decisions/0142-branch-dies-on-merge-the-wisp-survives-via-claim-at-declare.md)
+(amends 0138/0033) closed that gap the cheap way: `noticeboard declare --node <story> --pg` now also
+takes the work-time claim ([`claim-at-declare`](claim-at-declare.md), landed PR #535), `done`
+bulk-releases, the statusline heartbeat keeps claims out of stale-reclaim, and CI refuses a PR from an
+already-merged head branch (*a branch is one landed unit* — what keeps D's branch-keyed clear from ever
+erasing live work). Claim-at-SPAWN (E2) stays correctly deferred; when Phase 3 lands, the spawn becomes
+the hard point alongside the declare-time wiring.
+
 ## Story UAT
 
 The single human-witnessed walkthrough that proves the story's goal end-to-end on the **real forest map**.
@@ -91,9 +109,10 @@ Operator-attested (ADR-0070): an agent cannot drive or self-attest a "does it LO
 is the §5 honesty wall made visual. Each leg is _(witness: human)_.
 
 1. **One wisp per claimed story.** _(witness: human)_ With the studio open on the forest map, a session
-   claims a story (via the spawn seam, E) and exactly **one** wisp orbits **that story's** node — not its
-   capabilities, not a second wisp. A second session claiming the same story is **refused and told the
-   holder** (no second wisp appears).
+   claims a story (live path: the declare ceremony, [`claim-at-declare`](claim-at-declare.md) / ADR-0142;
+   the spawn seam E stays the deferred hard point) and exactly **one** wisp orbits **that story's**
+   node — not its capabilities, not a second wisp. A second session claiming the same story is **refused
+   and told the holder** (no second wisp appears).
 2. **Colour shifts by the active subagent.** _(witness: human)_ As the orchestrator authors (story-author),
    then proves (the red→green leaf), then supplements (glue) on the claimed story, the wisp's colour
    **changes** to reflect the active subagent/intent — distinguishable to the eye across the three states.
