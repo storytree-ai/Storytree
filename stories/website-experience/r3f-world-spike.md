@@ -53,11 +53,15 @@ third mapper: a pure, deterministic **world-to-3D mapping** turns a real `@story
 **Depends on —** (root — no within-story upstream; its one cross-story seam is
 `@storytree/forest-world`, rolled up into the story's `depends_on`.)
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. Neither the package nor
-> any R3F code exists anywhere in the workspace; `packages/forest-world/src/scene.ts` (the semantic
-> layer: `SceneKind` / `SceneStatus` / positions / variants) is the built input this mapper consumes.
-> The natural first provable unit of the whole story — 3D risk is retired before any experience work
-> stands on it.
+> **Proof status (honest) — BUILT, leaf-proven; the authored status stays `proposed`.** The gated
+> SDK leaf authored `world-to-3d.test.ts` red → `world-to-3d.ts` green through the real
+> prove-it-gate (run `real-mr2pftl5`, signed PASS @ `a4993f9` 2026-07-02, persisted to
+> `events.verdict`; package typecheck + suite observed green in the installed worktree), the three
+> contracts are cited at real `file:line` below (`storytree coverage r3f-world-spike` → 3/3), and
+> the R3F canvas + drei `MapControls` dev harness (`pnpm --filter @storytree/forest-world-r3f dev`)
+> draws a real `buildScene` world in 3D — the eyes-witnessed half. 3D risk is retired before any
+> experience work stands on it; `healthy` stays earned, never authored (ADR-0020) — the crown
+> derives from the signed verdict.
 
 ## Guidance
 
@@ -116,25 +120,28 @@ input maps deterministically to typed 3D descriptors that carry the semantic lay
 
 ## Contracts (3)
 
-Each one isolated automated test (`node:test`, the package suite). None exist yet; re-cite at real
-`file:line` when built. Per ADR-0122 each contract id leads a distinctly-named test so
-`storytree coverage r3f-world-spike` reports 3/3.
+Each one isolated automated test (`node:test`, the package suite), cited at real `file:line`. Per
+ADR-0122 each contract id leads a distinctly-named test; `storytree coverage r3f-world-spike`
+reports 3/3.
 
 1. **`r3f-mapping-is-deterministic`** — same World in, same descriptors out
    - **asserts —** two `worldTo3d` runs over the same real `buildScene` output are deep-equal, and
      descriptor ordering is stable — the 3D layer inherits the core's determinism, so the synced
      artifact can be drift-gated byte-stably.
-   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:108`
 2. **`r3f-semantic-layer-maps-faithfully`** — kind → mesh family, position → transform, status → variant
    - **asserts —** the core kind families (hex ground, story tree, road, wisp) each yield their
      typed descriptor branch with transforms derived from the World geometry, and each folded
      `SceneStatus` selects a distinct material/mesh variant.
-   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:120`
 3. **`r3f-unknown-kind-skips-visibly`** — the mapping is total, never a throw
    - **asserts —** an unhandled `SceneKind` maps to an explicit `skipped` descriptor naming the
      kind; nothing is silently dropped and nothing throws — a core addition can never crash the
      site's 3D island, only degrade visibly.
-   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:221`
 
 ## Guidance — the slice that earns the signed verdict
 

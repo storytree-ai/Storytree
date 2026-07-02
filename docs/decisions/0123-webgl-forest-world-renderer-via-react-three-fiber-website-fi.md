@@ -84,6 +84,16 @@ website's two-act "vibe-coding game" experience concept; the exact package home 
 shaders are authored; and any realtime multiplayer / presence networking. The signature look and the
 netcode are the real cost centres and remain open.
 
+> **Correction (2026-07-02) — two of the deferrals have since resolved.** The experience concept is
+> [ADR-0134](0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md) (proposed), unpacked
+> in [`stories/website-experience/`](../../stories/website-experience/story.md). The `story-author`
+> call on the package home was made there: the R3F mapper lives **parent-side as
+> `packages/forest-world-r3f`**, owned by that story — and the package is now BUILT: the pure
+> `world-to-3d.ts` descriptor mapping is leaf-proven (red→green, a signed PASS), with the
+> `<ForestWorldCanvas>` + drei `MapControls` dev harness landed as witnessed glue. The asset / perf /
+> mobile budget, LOD strategy, painterly shaders, and any presence netcode genuinely remain open,
+> carried as that story's open modeling calls.
+
 ## Consequences
 
 **Good.**

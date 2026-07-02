@@ -95,6 +95,18 @@ leverage.
    ranking, mesh/coast invariants, **scene-graph correctness** — the dogfood
    [ADR-0066](0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md) Decision 2 wanted.
 
+   > **Correction (2026-07-02) — how the extraction landed (function names, not the decision).** The
+   > core ships both pure layers, but not under the names sketched above: the geometry kernel is
+   > module-level (`substrate` / `coast` / `ranking` / `hex` / `rng` / `sizing`) — there is **no
+   > `buildWorld` and no `World` type in the package** — and the scene-graph builder is
+   > **`buildScene` over the core's OWN minimal `SceneInput` contract** (the "own minimal input
+   > contract" clause above, taken literally). World-assembly (`buildWorld`) stayed **surface-side
+   > studio chrome** (`apps/studio/src/components/TreeView.tsx`), per Decision 4's look-only line;
+   > each surface adapts its own data to `SceneInput`. And since
+   > [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) (which amends
+   > this ADR) the scene-graph feeds a **third** mapper — `packages/forest-world-r3f` (typed 3D
+   > instance descriptors) — a peer of the two mappers decided here.
+
 2. **The studio renders FROM the core through a thin React mapper** ([ADR-0062](0062-the-forest-world-is-the-observability-layer-rendered-one-art.md)
    refactors): its world layer becomes a walk of the core's scene-graph emitting React `<g>`/`<path>`/
    `<circle>` with the studio's own class names + per-node handlers, with the studio's chrome — panels,
