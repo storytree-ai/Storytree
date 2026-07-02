@@ -104,7 +104,6 @@ function listing(
       file: `${String(number).padStart(4, "0")}-x.md`,
       status,
       supersedes: [],
-      supersedesInPart: [],
       amends: [],
       loadBearing: false,
       ...extra,
@@ -116,7 +115,7 @@ function listing(
 const SAMPLE: AdrListing[] = [
   listing(11, "accepted", "Own the agent loop", { loadBearing: true }),
   listing(14, "superseded", "Notice board v1"),
-  listing(19, "accepted", "Library tier & defer DBOS", { loadBearing: true, supersedesInPart: [11] }),
+  listing(19, "accepted", "Library tier & defer DBOS", { loadBearing: true }),
   listing(27, "accepted", "Supersede the notice board", { supersedes: [14] }),
   listing(86, "proposed", "ADR lifecycle curation"),
 ];
@@ -154,7 +153,7 @@ test("renderAdrList --status filters to an exact status", () => {
 
 test("renderAdrList shows outgoing edges and the derived superseded-by back-edge", () => {
   const lines = renderAdrList(SAMPLE, {}).join("\n");
-  assert.match(lines, /supersedes-in-part 0011/); // 0019's outgoing edge
+  assert.match(lines, /supersedes 0014/); // 0027's outgoing edge
   assert.match(lines, /superseded by 0027/); // 0014's derived back-edge
 });
 
@@ -298,7 +297,7 @@ test("adr list reads the decisions dir and renders the rows (offline, no allocat
   await withDecisionsDir(async (dir) => {
     writeFileSync(
       path.join(dir, "0019-lib.md"),
-      "---\nstatus: accepted\nload_bearing: true\nsupersedes_in_part: [11]\n---\n# ADR-0019: Library tier\n## Status\naccepted.\n",
+      "---\nstatus: accepted\nload_bearing: true\n---\n# ADR-0019: Library tier\n## Status\naccepted.\n",
     );
     writeFileSync(
       path.join(dir, "0086-x.md"),

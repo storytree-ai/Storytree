@@ -282,9 +282,9 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 // derived from the live frontmatter, so the list can never drift from the files. Two cuts:
 //   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
 //   --load-bearing   only the curated `load_bearing: true` set (the editorial calibrate-to-these list)
-// Outgoing edges (supersedes / supersedes-in-part / amends) and the derived `superseded by` back-edge
-// are shown inline so the reversal story reads off the graph, not off prose. Read-only + offline (it
-// reads docs/decisions on disk) — no DB, no API key.
+// Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and the
+// derived `superseded by` back-edge are shown inline so the reversal story reads off the graph, not off
+// prose. Read-only + offline (it reads docs/decisions on disk) — no DB, no API key.
 
 /** A parsed ADR for the `list` view: frontmatter meta + the H1 title. */
 export interface AdrListing {
@@ -329,8 +329,6 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     rows.push(`${m.loadBearing ? "★" : " "} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
     const edges: string[] = [];
     if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
-    if (m.supersedesInPart.length > 0)
-      edges.push(`supersedes-in-part ${m.supersedesInPart.map(pad).join(", ")}`);
     if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
     const back = supersededBy.get(m.number);
     if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(pad).join(", ")}`);
