@@ -32,6 +32,7 @@ import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
 import { createOrientationRunner } from "@storytree/drive";
 
+import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
@@ -66,7 +67,9 @@ const docsDir = resolve(repoRoot, "docs");
 // story assigns to electron/backend-entry.ts (the sidecar wiring is attested, not a CI capability); the
 // CI-proven core is the tree-verdicts.ts fold, exercised through these seams by stubs. Each read is
 // ADVISORY (ADR-0033): null on ANY failure (stopped DB, missing table, timeout), never a throw, so a
-// down DB leaves the tree under-claiming rather than hanging /api/tree.
+// down DB leaves the tree under-claiming rather than hanging /api/tree. Failures are LOGGED (once
+// per failing streak, src/backend/advisory.ts) so a silently-stale overlay is distinguishable from
+// a genuinely empty one in the sidecar's stderr (inherited by the Electron main).
 
 const ADVISORY_TIMEOUT_MS = 4_000;
 // The in-flight-build TTL (ADR-0048 §2) — mirrors apps/studio/src/types `BUILD_IN_FLIGHT_TTL_MS`
@@ -89,20 +92,9 @@ const COLOUR_STATES: ReadonlySet<string> = new Set(["authoring", "proving", "sup
 // rather than orbiting forever.
 const CLAIM_STALE_RECLAIM_MS = 2 * 60 * 60 * 1_000; // 2 h
 
-/** Race an advisory read against a short timeout; null on ANY failure (the PgBackend pattern). */
-async function advisory<T>(fn: () => Promise<T>): Promise<T | null> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("advisory read timed out")), ADVISORY_TIMEOUT_MS);
-    });
-    return await Promise.race([fn(), timeout]);
-  } catch {
-    return null;
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
+// Race an advisory read against a short timeout; null on ANY failure (the PgBackend pattern),
+// each failure logged once per streak to stderr (the CI-proven core, src/backend/advisory.ts).
+const advisory = createAdvisoryReader({ timeoutMs: ADVISORY_TIMEOUT_MS });
 
 const toIso = (at: Date | string): string =>
   at instanceof Date ? at.toISOString() : new Date(at).toISOString();
@@ -158,7 +150,7 @@ async function main(): Promise<void> {
     // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's
     // own-verdict layer attaches directly (story/cap `.verdict`).
     latestVerdicts: async () =>
-      advisory(async () => {
+      advisory("latest-verdicts", async () => {
         const res = await pool.query(
           `SELECT DISTINCT ON (unit_id) unit_id, outcome, at
              FROM events.verdict
@@ -174,11 +166,11 @@ async function main(): Promise<void> {
       }),
     // The RAW signed-verdict event stream — what the per-test crown roll-up
     // (rollupStoryGreen/rollupCapStatus) reads; advisory here (null on any failure).
-    verdictEvents: async () => advisory(readVerdictEventRows),
+    verdictEvents: async () => advisory("verdict-events", readVerdictEventRows),
     // Active notice-board sessions (events.session) with the staleness band derived at read time — the
     // session dock layer (ADR-0033), mirroring the studio PgBackend's activeSessions.
     activeSessions: async () =>
-      advisory(async () => {
+      advisory("active-sessions", async () => {
         const docs = await presence.listActive();
         const now = new Date();
         return docs.map((d) => ({
@@ -194,7 +186,7 @@ async function main(): Promise<void> {
     // produced a signed verdict, TTL-filtered + phase-surfaced in JS — the orbiting-wisp layer. Mirrors
     // the studio PgBackend's inFlightBuilds query + its rowsToBuildActivity fold (re-composed here).
     inFlightBuilds: async () =>
-      advisory(async () => {
+      advisory("in-flight-builds", async () => {
         const res = await pool.query(
           // ADR-0138 §5: `doc->>'colourState'` rides alongside `phase` — the live subagent role tint
           // (advisory; null on a pre-ADR-0138 mark). Mirrors the studio PgBackend.inFlightBuilds SQL.
@@ -255,7 +247,7 @@ async function main(): Promise<void> {
     // self-heals. §5 honesty wall: `kind: "claim"` is NEVER a proven-green bloom. Mirrors the studio
     // PgBackend.inFlightClaims + its claimsToActivity fold (re-composed here, the surface boundary).
     inFlightClaims: async () =>
-      advisory(async () => {
+      advisory("in-flight-claims", async () => {
         const res = await pool.query(
           `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
              FROM events.node_claim`,
