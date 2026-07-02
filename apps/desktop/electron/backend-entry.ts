@@ -327,7 +327,9 @@ async function main(): Promise<void> {
   // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) and
   // createAcceptDispatchMount (POST /api/chat/accept) drive a real build from the human's click. The
   // routedBuildRunner ROUTES by tier (a story → `story build --real` that persists verdicts + opens the
-  // auto-merging PR; a node → `node build --live`); the build ENTRIES + discovery are imported LAZILY
+  // auto-merging PR; a node → `node build --real` that persists the signed verdict and parks a
+  // claude/real/<unit>-<run> branch the human lands — ADR-0144/0031/0136); the build ENTRIES +
+  // discovery are imported LAZILY
   // inside the closures (the raw-TS `.js` re-export trap, exactly the devApi.ts recipe). This wiring is
   // OPERATOR-ATTESTED (verified by the live walk, ADR-0070), NOT a CI assertion — a node:test over the
   // real routedBuildRunner would spawn a subscription-billed `--real` build on a gate pass (the live

@@ -206,6 +206,15 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // review-refresh-feed; and the three LOOK caps with vitest two-stage `real:` arms (ADR-0070):
   // review-mode-toggle, inline-comment-thread, collapsed-suggestion-view. The ninth cap,
   // remove-text-selection-anchoring, is GLUE (no `real:` arm) so it is absent here.
+  // And the five `chat-subagent-spawn`-story capabilities (stories/chat-subagent-spawn/*.md —
+  // ADR-0137 / ADR-0108 Phase 3, the desktop chat's session-orchestrator gains subagent-spawning
+  // under the claim-at-spawn wall): story-author-spawn (the write-fenced spawned story-author
+  // session), builder-spawn-dispatch (the worker-routed builder dispatch), claim-gated-spawn (the
+  // no-claim-no-subagent gate, realising wisp-as-story-claim's deferred E2), spawn-tool-surface
+  // (the two typed spawn tools mounted on the chat session, walls pinned) and
+  // spawn-deps-composition (the drive-side deps assembly threaded through orchestrate()). All five
+  // carry `real:` arms (authored, awaiting their drives); the live spawn walk is the story's
+  // operator-attested UAT legs, not a capability.
   // And the four parent-side LEAF caps of the `website-experience` story
   // (stories/website-experience/*.md — ADR-0134 the two-act vibe-coding experience, over the
   // ADR-0123 R3F mapper): r3f-world-spike (NET-NEW — the pure world→3D descriptor mapping; the
@@ -215,9 +224,13 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // experience-rollout-guardrails (NET-NEW — the check:web-experience pure judge). The story's
   // other four caps are operator-attested web-repo work (no `real:` arm — the storm, the
   // inflection, the Act 2 walkthrough, the info-page triage), so they are absent here.
+  // And the desktop-build-mount story's post-landing increment routed-node-real-dispatch
+  // (stories/desktop-build-mount/routed-node-real-dispatch.md — ADR-0144, an editsExisting `real:` arm
+  // over packages/drive/src/build-worker.ts: the routed NODE dispatch drives `node build --real` with
+  // persist semantics instead of the synthetic `--live` smoke).
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-reject-suggestion-api, accept-to-land-affordance, act2-beat-director, ambient-integration, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, builder-role, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, headless-session-runner, inline-comment-thread, leaf-tool-surface, local-backend-boot, local-credential-wiring, member-suggest-write-policy, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, r3f-world-spike, render-claim-as-wisp, review-mode-toggle, review-refresh-feed, seed-corpus-scripts, shared-forest-connection, source-drift, suggestion-edit-store, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, web-experience-sync, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-reject-suggestion-api, accept-to-land-affordance, act2-beat-director, ambient-integration, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, builder-role, builder-spawn-dispatch, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-gated-spawn, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, headless-session-runner, inline-comment-thread, leaf-tool-surface, local-backend-boot, local-credential-wiring, member-suggest-write-policy, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, r3f-world-spike, render-claim-as-wisp, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, shared-forest-connection, source-drift, spawn-deps-composition, spawn-tool-surface, story-author-spawn, suggestion-edit-store, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, web-experience-sync, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

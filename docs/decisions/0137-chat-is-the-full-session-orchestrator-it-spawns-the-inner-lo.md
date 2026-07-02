@@ -1,17 +1,22 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-07-02
+amends: [108]
+load_bearing: true
 ---
 # ADR-0137: Chat is the full session-orchestrator: it spawns the inner loop; ADRs are its one direct write
 
 ## Status
 
-proposed — directed by the owner 2026-06-29 in design discussion with the orchestrator, and drafted by
-the orchestrator from that discussion (the workflow this ADR itself sanctions, decision 2). It mostly
-**affirms the already-accepted ADR-0108**; what is genuinely NEW is the ADR-authoring carve-out
-(decision 2), the sharpening of *how* ADR-0108 Phase 3 is built (decision 1), and the consultative
-change/fix routing model (decision 4 — owner-confirmed 2026-06-29: a bug is a missing contract). The
-content is now complete; awaiting the owner's nod to flip to accepted. Amends ADR-0108; upholds
-ADR-0091.
+accepted — directed by the owner 2026-06-29 in design discussion with the orchestrator, drafted by
+the orchestrator from that discussion (the workflow this ADR itself sanctions, decision 2), and
+**green-lit by the owner 2026-07-02** ("proceed to build Phase 3" — the nod the proposed status
+awaited; the agent-permitted green flip, ADR-0084). It mostly **affirms the already-accepted
+ADR-0108**; what is genuinely NEW is the ADR-authoring carve-out (decision 2), the sharpening of
+*how* ADR-0108 Phase 3 is built (decision 1), and the consultative change/fix routing model
+(decision 4 — owner-confirmed 2026-06-29: a bug is a missing contract). Amends ADR-0108; upholds
+ADR-0091. Built on since accept by ADR-0138 (the claim-at-spawn wall: the orchestrator takes the
+story-claim before any spawn; ADR-authoring is the sole claim-free act).
 
 ## Context
 
@@ -113,7 +118,11 @@ The owner's framing sharpens two things ADR-0108 left implicit:
   must BOUND the consultation (know when enough roles have weighed in) and route an upward clarification
   cleanly back to the human; and a real *unit-level* drive is still a smoke today (ADR-0099-B), so the
   leaf re-driving a single contract for a fix is itself a build-shape detail to settle when Phase 3 is
-  built.
+  built. *(Settled 2026-07-02 by
+  [ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md), resolving
+  `oq-fix-drive-build-shape` Option A: the routed node dispatch drives `node build --real` with persist
+  semantics — real proof, signed verdict to `events.verdict`, PASS parked on a `claude/real/*` branch;
+  landing stays the human gate, no auto-PR per node accept.)*
 
 **Neutral**
 - Affirms, does not retire, ADR-0108's shape and phasing; the terminal session-orchestrator is
@@ -136,7 +145,9 @@ The owner's framing sharpens two things ADR-0108 left implicit:
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the live Claude Agent SDK runtime (the
   subagent-capable author).
 - ADR-0099-B — node `--live` smoke is synthetic; a real unit-level drive is the primitive a bug-fix
-  path needs.
+  path needs — since built:
+  [ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md) routes the node
+  dispatch to `node build --real` (persisting), settling the build-shape residual above.
 - ADR-0128 / ADR-0129 + `docs/research/inner-loop-adoption-gap.md` — drive authority is the lever.
 - `orchestrate-route-supplement` (Library pattern) — decompose → route → supplement with subagents;
   decision 4 extends it into the change/fix domain.

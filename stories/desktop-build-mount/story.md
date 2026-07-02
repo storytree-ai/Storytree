@@ -15,7 +15,7 @@ proof_mode: UAT
 # OFFLINE (scripted build runner, ADR-0010 §5 — never a live SDK build on a gate pass). The story-level
 # uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT
 # node stays withheld; the crown derives from the per-leg roll-up.
-capabilities: [worker-relocation, desktop-build-route, desktop-accept-dispatch]
+capabilities: [worker-relocation, desktop-build-route, desktop-accept-dispatch, routed-node-real-dispatch]
 # WHY A NEW STORY, NOT AN EDIT TO chat-drive-bridge OR desktop OR studio-build:
 #   - chat-drive-bridge is ADR-0108 Phase 3+4's BRIDGE (the proposed-unit signal, the id threading, the
 #     dispatch CORE, the accept affordance). Its four machine-provable capabilities are landed + green; its
@@ -91,7 +91,11 @@ depends_on: [drive-machinery, studio-build, chat-drive-bridge, desktop, library]
 # story build --real, the single agent boundary); 22 (CI re-proves green before the trunk — the backstop for
 # the deferred-broker risk + what lands the PR the worker opens). Context: 0048 (the build wisp the dispatched
 # run blooms) / 0070 (the live driven appearance is operator-attested, chat-drive-bridge's legs 5–6).
-decisions: [133, 108, 113, 117, 91, 4, 100, 119, 90, 22]
+# Post-landing increment (2026-07-02): 144 (owner-directed — the routed NODE dispatch drives
+# `node build --real` with persist semantics instead of the synthetic `--live` smoke; landing stays the
+# human gate over the parked branch, ADR-0136 amended in degree). Capability routed-node-real-dispatch;
+# the story's other caps and its own status are untouched.
+decisions: [133, 108, 113, 117, 91, 4, 100, 119, 90, 22, 144]
 ---
 
 # The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop
@@ -121,7 +125,10 @@ tree fast. ADR-0133 decision 3 names this story's mechanism exactly: *relocate t
 - **DRIVE → the build worker exists, but ONLY in `apps/studio/server` (built).** `routedBuildRunner` +
   `runBuildJob` + the `BuildRegistry` (`apps/studio/server/buildWorker.ts`, `buildRegistry.ts`) route a
   STORY id → `story build --real` (persists real verdicts, opens the NON-DRAFT PR CI auto-merges, ADR-0022)
-  / a NODE id → `node build --live` (synthetic, non-persisting). `handleBuild` (`apps/studio/server/
+  / a NODE id → `node build --live` (synthetic, non-persisting — the shape at authoring time; ADR-0144
+  later re-routed the node arm to the node's REAL proof with persist semantics, capability 4
+  [`routed-node-real-dispatch`](routed-node-real-dispatch.md), landing staying the human gate over the
+  parked branch). `handleBuild` (`apps/studio/server/
   apiRouter.ts`) is `POST /api/build {unitId} → 202 {runId}` + `GET /api/build?runId`, behind the injected
   `BuildContext { registry, runner, isBuildable }` wired by `devApi.ts`. And `dispatchAcceptedBuild`
   (`apps/studio/server/chat-build-dispatch.ts`, the chat-drive-bridge dispatch CORE) reuses that worker —
@@ -211,9 +218,9 @@ signed verdict per session, then the next is spawned. The honest status is `prop
 Status stays `proposed` for every unit — `healthy` is earned through the prove-it-gate (and, for the live
 legs that belong to chat-drive-bridge, the operator's attestation); it is never authored (ADR-0020).
 
-## Capabilities (3)
+## Capabilities (4)
 
-Listed roots-first (a capability appears after everything it depends on). All three are **proof-wired**
+Listed roots-first (a capability appears after everything it depends on). All four are **proof-wired**
 (ADR-0057 — each carries a `proof:` block with a `real:` arm describing a genuine additive net-new
 red→green against the real package/app source), so they form a **dependency-closed, acyclic set in which
 every member resolves a `real:` arm** — what makes the WHOLE story story-`real`-buildable
@@ -224,13 +231,15 @@ every member resolves a `real:` arm** — what makes the WHOLE story story-`real
 | 1 | [`worker-relocation`](worker-relocation.md) | The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, `dispatchAcceptedBuild`, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. | — |
 | 2 | [`desktop-build-route`](desktop-build-route.md) | The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build` runner + `@storytree/orchestrator` discovery for `isBuildable`); a scripted runner proves the route without SDK spend. | `worker-relocation` |
 | 3 | [`desktop-accept-dispatch`](desktop-accept-dispatch.md) | An accepted `proposedUnitId` POSTed to the desktop backend reaches `dispatchAcceptedBuild` over the relocated worker, mints a run, fires `runBuildJob`, and the worker's coarse progress is read back over the desktop surface — the accept click's mechanism, end-to-end on the desktop, with a scripted runner. | `desktop-build-route` |
+| 4 | [`routed-node-real-dispatch`](routed-node-real-dispatch.md) | A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line naming the real red→green, the persisted verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (story branch unchanged). Post-landing increment, ADR-0144. | `worker-relocation` |
 
 ## Dependency graph (will be code-derived)
 
 These are **within-story** edges. Until the code exists they are authored from the intended data-flow; when
 the units are built they MUST be re-derived from the real imports/calls between capabilities (static
-analysis, ADR-0010 §3) and corrected if the code disagrees. The graph is a chain; `worker-relocation` is
-the root (the package-home leaf, no in-story upstream).
+analysis, ADR-0010 §3) and corrected if the code disagrees. The graph is a tree rooted at
+`worker-relocation` (the package-home leaf, no in-story upstream): the desktop mount chain hangs off it,
+and the ADR-0144 routing flip hangs off it directly.
 
 - `desktop-build-route` → `worker-relocation`
   - The route mounts a `BuildContext` over the relocated worker — it imports `BuildRegistry` /
@@ -242,6 +251,11 @@ the root (the package-home leaf, no in-story upstream).
     (one in-flight run, the shared poll), and calls `dispatchAcceptedBuild` (also relocated, capability 1)
     over it. It is the accept-click front of the build route's worker wiring; it couples to the route's
     mounted context and to nothing deeper in-story.
+- `routed-node-real-dispatch` → `worker-relocation`
+  - The ADR-0144 flip EDITS the node arm of `routedBuildRunner` inside the relocated
+    `packages/drive/src/build-worker.ts` — the file capability 1 created. It couples to the relocated
+    worker's routing composition and to nothing else in-story (the accept path that CALLS the routed
+    runner is consumed through the story's existing `chat-drive-bridge` edge, unchanged).
 
 ## Cross-story boundary (ADR-0010 §4)
 
