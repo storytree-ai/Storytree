@@ -33,8 +33,10 @@ consumed_by: []
 # Deciding ADRs (ADR-0037 §2): the experience concept + the per-act tech split and the owner
 # decisions of 2026-07-02 that unpacked it (134); the renderer — R3F + drei as the THIRD
 # forest-world mapper, client-only island, mandatory fallback, package home delegated to this
-# story (123); the shared render core + the sync-into-submodule artifact flow the mapper joins (93).
-decisions: [93, 123, 134]
+# story (123); the shared render core + the sync-into-submodule artifact flow the mapper joins (93);
+# the 2026-07-03 re-decision at the walkthrough's attestation gate — Act 2 walks the real 2.5D map,
+# the R3F island scoped to the inflection's landing moment, replay-only final (145).
+decisions: [93, 123, 134, 145]
 ---
 
 # The two-act vibe-coding experience — the public site's front door enacts chaos → calm
@@ -131,7 +133,7 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the five approved beats as typed data, advancing one tap at a time; green appears only with a signed-proof marker; the wrong-way road is flagged from data. | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
 | 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, one calm affordance; a single click transforms — silence, collapse into soil — and lazy-loads the R3F island into the empty calm land. | (look) | `act1-terminal-storm`, `web-experience-sync` |
-| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | The five-beat, visitor-paced, plain-language walkthrough grows the fictional forest over the synced director + mapper, to the pull-back and the CTA. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
+| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | The five-beat, visitor-paced, plain-language walkthrough grows the fictional forest over the synced director ON THE REAL 2.5D MAP (ADR-0145; anchored-callout narration), to the pull-back and the CTA. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
 | 8 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough` |
 
 ## Dependency graph and the incremental rollout plan
@@ -158,7 +160,10 @@ whole (owner decision 6):
   the record.)*
 - **Increment F — `act2-beat-director`** (parent-only) then **G — `act2-guided-walkthrough`** — the
   beats grow in place; the walkthrough may land beats incrementally (the director is data-driven),
-  each merge leaving a complete-so-far guided arc ending at the CTA.
+  each merge leaving a complete-so-far guided arc ending at the CTA. *(G's first build — over the
+  R3F island — was refused at its 2026-07-03 attestation gate and re-decided onto the real 2.5D map
+  with anchored-callout narration, ADR-0145; the walkthrough HALT stands until the rebuild is
+  attested. Web draft PR #20 closed superseded, its machine floor recorded there.)*
 - **Increment H — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set.
 
@@ -248,9 +253,11 @@ Surfaced rather than guessed — none blocks the first increments:
    makes every replay identical (`STORM_SEED`, `web/src/scripts/storm-script.ts:16`), and the skip
    is deliberately NOT remembered (no localStorage) — the persistent skip control stays the floor
    on every visit. Zero code change.
-2. **Act 2 replay / deep-link UX** (deferred by ADR-0134 §5): does the calm forest have a stable URL
-   a visitor (or the CTA funnel) can enter without the storm? Interacts with call 1; the skip
-   affordance implies at least an anchor.
+2. **Act 2 replay / deep-link UX** (deferred by ADR-0134 §5) — **CLOSED (owner, 2026-07-03, at the
+   walkthrough's attestation gate,
+   [ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)):
+   replay-only is FINAL — the experience replays every visit and Act 2 gets NO standalone
+   deep-link.** The persistent skip control (call 1) stays the floor; no anchor URL is owed.
 3. **The asset / perf / mobile budget and LOD strategy** (ADR-0123 flags it as required before real
    visitors; rollout makes visitors real EARLY). The fallback path is the authored floor for weak
    devices; a formal budget (bundle size, texture compression, frame floor) is an owner call —
