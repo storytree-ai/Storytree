@@ -50,8 +50,9 @@ The owner's framing sharpens two things ADR-0108 left implicit:
 1. **The desktop chat realizes ADR-0108's whole-loop authority by SPAWNING subagents into the
    inner-loop scaffolding** — the sharpening of how Phase 3 (drive authority) is built. The
    orchestrator's power is to SPAWN and route, never to write code or sign:
-   - Bring a story in (`mapped`/`proposed`) → spawn the **story-author** (the live Library write; often
-     a single spawn — "literally just a story writer").
+   - Bring a story in (`mapped`/`proposed`) → spawn the **story-author** (the work-hierarchy write —
+     disk-canonical `stories/**` frontmatter files, ADR-0039 — made in the spawned session, never the
+     chat; often a single spawn — "literally just a story writer").
    - Bug fix / change → spawn the **inner-loop builder leaf** to drive the change red→green; the spine
      observes RED→GREEN and SIGNS, CI re-proves, the human lands (ADR-0091 + ADR-0022, verbatim).
    It ADHERES TO the existing strong scaffolding (the prove-it-gate, the phase machine, the signing
