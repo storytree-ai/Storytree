@@ -12,14 +12,13 @@ function doc(frontmatter: string): string {
 test("parses status, decided, and outgoing edges", () => {
   const meta = parseAdrFrontmatter(
     FILE,
-    doc("status: accepted\ndecided: 2026-06-12\nsupersedes: [14]\nsupersedes_in_part: [1, 11]\namends: [30]"),
+    doc("status: accepted\ndecided: 2026-06-12\nsupersedes: [14]\namends: [30]"),
   );
   assert.equal(meta.number, 42);
   assert.equal(meta.file, FILE);
   assert.equal(meta.status, "accepted");
   assert.equal(meta.decided, "2026-06-12");
   assert.deepEqual(meta.supersedes, [14]);
-  assert.deepEqual(meta.supersedesInPart, [1, 11]);
   assert.deepEqual(meta.amends, [30]);
 });
 
@@ -28,8 +27,14 @@ test("edges default to empty; decided is optional", () => {
   assert.equal(meta.status, "proposed");
   assert.equal(meta.decided, undefined);
   assert.deepEqual(meta.supersedes, []);
-  assert.deepEqual(meta.supersedesInPart, []);
   assert.deepEqual(meta.amends, []);
+});
+
+test("rejects the retired supersedes_in_part edge (ADR-0139: edges are binary — amends or supersedes)", () => {
+  // ADR-0139 retired `supersedes_in_part`; the strict schema no longer accepts the key, so a file
+  // still carrying it fails to parse loudly (the `adr-frontmatter` health-check floor) rather than
+  // silently sitting "live in part".
+  assert.throws(() => parseAdrFrontmatter(FILE, doc("status: accepted\nsupersedes_in_part: [1, 11]")));
 });
 
 test("load_bearing parses (ADR-0086) and defaults to false", () => {

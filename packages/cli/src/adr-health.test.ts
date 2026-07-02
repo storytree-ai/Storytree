@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,8 +13,7 @@ import {
   adrHealth,
   adrGateFailures,
   extractPathTokens,
-  hasSupersededInPartNote,
-  loadAdrBodies,
+  loadRetiredInPartEdges,
   loadStoryDecisions,
   type AdrHealthInputs,
   type GuardrailView,
@@ -28,7 +28,6 @@ function adr(number: number, status: AdrMeta["status"], edges?: Partial<AdrMeta>
     file: `${String(number).padStart(4, "0")}-x.md`,
     status,
     supersedes: [],
-    supersedesInPart: [],
     amends: [],
     loadBearing: false,
     ...edges,
@@ -39,7 +38,7 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
   return {
     adrs: [],
     parseErrors: [],
-    adrBodies: new Map(),
+    retiredInPartEdges: [],
     stories: [],
     guardrails: [],
     pathExists: () => true,
@@ -83,7 +82,7 @@ test("adr-number-unique: two files sharing a number FAIL (the parallel-authoring
 test("adr-edge-integrity: a dangling edge target FAILs", () => {
   const ok = adrHealth(inputs({ adrs: [adr(1, "accepted"), adr(2, "accepted", { amends: [1] })] }));
   assert.equal(levelOf(ok, "adr-edge-integrity"), "PASS");
-  const bad = adrHealth(inputs({ adrs: [adr(2, "accepted", { supersedesInPart: [99] })] }));
+  const bad = adrHealth(inputs({ adrs: [adr(2, "accepted", { amends: [99] })] }));
   assert.equal(levelOf(bad, "adr-edge-integrity"), "FAIL");
 });
 
@@ -101,54 +100,6 @@ test("supersede-consistency: both directions enforced", () => {
     inputs({ adrs: [adr(14, "superseded"), adr(27, "accepted", { supersedes: [14] })] }),
   );
   assert.equal(levelOf(clean, "supersede-consistency"), "PASS");
-});
-
-test("supersede-in-part-note: a partial-supersession target must carry the standardized incoming note", () => {
-  // ADR-0077 supersedes ADR-0074 IN PART; 0074 stays accepted (live in part). check 3
-  // (supersede-consistency) structurally never sees it — only `supersedes`, not `supersedes_in_part`
-  // — so before this check a stale 0074 body with no incoming note was gate-clean (the bug, proven
-  // live). This is the partial-supersession analogue: the incoming note is what closes it.
-  const adrs = [adr(74, "accepted"), adr(77, "accepted", { supersedesInPart: [74] })];
-
-  // no incoming note on 0074 -> FAIL, and it GATES
-  const missing = adrHealth(
-    inputs({ adrs, adrBodies: new Map([[74, "## Status\n\naccepted — the store layer is visible.\n"]]) }),
-  );
-  assert.equal(levelOf(missing, "supersede-in-part-note"), "FAIL");
-  assert.ok(
-    adrGateFailures(missing).some((r) => r.name === "supersede-in-part-note"),
-    "a missing incoming note gates the merge",
-  );
-
-  // the canonical note present -> PASS
-  const present = adrHealth(
-    inputs({
-      adrs,
-      adrBodies: new Map([
-        [74, "## Status\n\naccepted\n\n**Superseded-in-part by [ADR-0077](0077-x.md)** — the store dissolved into the library.\n"],
-      ]),
-    }),
-  );
-  assert.equal(levelOf(present, "supersede-in-part-note"), "PASS");
-
-  // the older "partially superseded by" wording is NOT accepted — it must be normalized -> FAIL
-  const variant = adrHealth(
-    inputs({ adrs, adrBodies: new Map([[74, "**partially superseded by [ADR-0077](0077-x.md)** — overtaken."]]) }),
-  );
-  assert.equal(levelOf(variant, "supersede-in-part-note"), "FAIL");
-
-  // a dangling supersedes_in_part target is owned by adr-edge-integrity, not this check -> PASS here
-  const dangling = adrHealth(inputs({ adrs: [adr(2, "accepted", { supersedesInPart: [99] })] }));
-  assert.equal(levelOf(dangling, "supersede-in-part-note"), "PASS");
-});
-
-test("hasSupersededInPartNote: tolerant of case/hyphenation + zero-padding, keyed to the superseding ADR", () => {
-  assert.ok(hasSupersededInPartNote("**Superseded-in-part by [ADR-0019](x.md)** — …", 19));
-  assert.ok(hasSupersededInPartNote("superseded in part by ADR-19 …", 19)); // spaces + unpadded
-  assert.ok(hasSupersededInPartNote("SUPERSEDED-IN-PART BY [ADR-0118]", 118)); // case + 3-digit
-  assert.ok(!hasSupersededInPartNote("**Superseded-in-part by [ADR-0019]**", 18)); // wrong number
-  assert.ok(!hasSupersededInPartNote("partially superseded by [ADR-0019]", 19)); // variant rejected
-  assert.ok(!hasSupersededInPartNote("see ADR-0019 for context", 19)); // a bare mention is not a note
 });
 
 test("story-decisions: dangling or superseded deciding ADRs FAIL", () => {
@@ -194,25 +145,27 @@ test("enforced-by-anchors: a dangling path token WARNs (never FAILs)", () => {
   assert.deepEqual(adrGateFailures(results), [], "a WARN never gates");
 });
 
-test("supersedes-in-part-retired: a supersedes_in_part edge WARNs, never FAILs (ADR-0139 transition)", () => {
-  // no in-part edges -> PASS
-  const clean = adrHealth(inputs({ adrs: [adr(10, "accepted"), adr(19, "accepted")] }));
+test("supersedes-in-part-retired: a retired supersedes_in_part edge now FAILs and GATES (ADR-0139 endgame)", () => {
+  // 0 retired edges detected -> PASS (the post-consolidation steady state)
+  const clean = adrHealth(inputs({ retiredInPartEdges: [] }));
   assert.equal(levelOf(clean, "supersedes-in-part-retired"), "PASS");
-  // an ADR still carrying supersedes_in_part -> WARN (the consolidation worklist), never a gate failure.
-  // The target carries its 3b incoming note (as the 20 real in-part ADRs do), so 3b passes and only the
-  // new WARN fires — the transition state ADR-0139 expects until the pass clears the edges.
-  const withEdge = adrHealth(
+  // a file still carrying the retired edge (raw-scanned + pre-computed by loadRetiredInPartEdges) ->
+  // FAIL, and — unlike the WARN-first transition state — it now GATES the merge.
+  const dirty = adrHealth(
     inputs({
-      adrs: [adr(10, "accepted"), adr(19, "accepted", { supersedesInPart: [10] })],
-      adrBodies: new Map([[10, "## Status\n**Superseded-in-part by [ADR-0019](0019-x.md)** — overtaken."]]),
+      retiredInPartEdges: [
+        "ADR-0010 (0010-x.md) carries a retired `supersedes_in_part` frontmatter edge — correct the target in place or fully supersede it (ADR-0139).",
+      ],
     }),
   );
-  assert.equal(levelOf(withEdge, "supersedes-in-part-retired"), "WARN");
-  assert.deepEqual(adrGateFailures(withEdge), [], "a WARN never gates");
-  // names the carrying ADR and its target so the fix is obvious
-  const line = withEdge.find((r) => r.name === "supersedes-in-part-retired")?.lines.join(" ") ?? "";
-  assert.match(line, /ADR-0019/);
-  assert.match(line, /0010/);
+  assert.equal(levelOf(dirty, "supersedes-in-part-retired"), "FAIL");
+  assert.ok(
+    adrGateFailures(dirty).some((r) => r.name === "supersedes-in-part-retired"),
+    "a retired supersedes_in_part edge now gates the merge (ADR-0139)",
+  );
+  // the pre-computed line names the offending file so the fix is obvious
+  const line = dirty.find((r) => r.name === "supersedes-in-part-retired")?.lines.join(" ") ?? "";
+  assert.match(line, /ADR-0010/);
 });
 
 test("extractPathTokens: backticked repo paths only, line suffixes dropped", () => {
@@ -227,7 +180,7 @@ test("extractPathTokens: backticked repo paths only, line suffixes dropped", () 
 test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip drift", async () => {
   const { adrs, parseErrors } = loadAdrMetas(path.join(REPO_ROOT, "docs", "decisions"));
   assert.ok(adrs.length >= 37, `expected the full ADR corpus, parsed ${adrs.length}`);
-  const adrBodies = loadAdrBodies(path.join(REPO_ROOT, "docs", "decisions"));
+  const retiredInPartEdges = loadRetiredInPartEdges(path.join(REPO_ROOT, "docs", "decisions"));
   const stories = loadStoryDecisions(path.join(REPO_ROOT, "stories"));
   assert.ok(stories.length >= 5, `expected the story seed, parsed ${stories.length}`);
 
@@ -247,7 +200,7 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   const results = adrHealth({
     adrs,
     parseErrors,
-    adrBodies,
+    retiredInPartEdges,
     stories,
     guardrails,
     pathExists: (rel) => existsSync(path.join(REPO_ROOT, rel)),
@@ -261,5 +214,34 @@ test("REPO gate: every ADR parses, edges and story decisions hold, no green-flip
   const anchors = results.find((r) => r.name === "enforced-by-anchors");
   if (anchors !== undefined && anchors.level === "WARN") {
     console.log(`enforced-by-anchors WARN:\n  ${anchors.lines.join("\n  ")}`);
+  }
+  // ADR-0139 endgame: the accepted set carries NO retired supersedes_in_part edge (0, on the real repo).
+  assert.deepEqual(retiredInPartEdges, [], "no ADR frontmatter carries the retired supersedes_in_part edge");
+});
+
+// --- (c) loadRetiredInPartEdges (the raw frontmatter scan behind the gate) ----------------------
+
+test("loadRetiredInPartEdges: detects the retired key in FRONTMATTER only, not body prose (ADR-0139)", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "adr-retired-"));
+  try {
+    // FRONTMATTER carries the retired edge -> one FAIL line naming the file + the ADR-0139 fix
+    writeFileSync(
+      path.join(dir, "0011-own-the-loop.md"),
+      "---\nstatus: accepted\nsupersedes_in_part: [5]\n---\n# ADR-0011\n",
+    );
+    // clean frontmatter, even though the BODY mentions the retired term in prose -> not flagged
+    writeFileSync(
+      path.join(dir, "0019-library-tier.md"),
+      "---\nstatus: accepted\namends: [11]\n---\n# ADR-0019\nNote: supersedes_in_part was retired by ADR-0139.\n",
+    );
+    // a non-ADR filename is ignored entirely
+    writeFileSync(path.join(dir, "README.md"), "supersedes_in_part: [1]\n");
+
+    const hits = loadRetiredInPartEdges(dir);
+    assert.equal(hits.length, 1, "only the frontmatter carrier is flagged (body prose + non-ADR files ignored)");
+    assert.match(hits[0] ?? "", /ADR-0011/);
+    assert.match(hits[0] ?? "", /ADR-0139/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
