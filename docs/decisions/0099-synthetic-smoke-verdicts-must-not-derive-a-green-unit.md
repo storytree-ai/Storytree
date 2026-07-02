@@ -23,7 +23,11 @@ in `node-build.ts` / `story-build.ts` pass `mode !== "real"`, `gate-build-driver
 `false`). The studio node-Build smoke was made non-persisting too —
 `apps/studio/server/buildWorker.ts` dropped its pinned `verdictStore: 'pg'` (aligning with ADR-0094:
 the legitimate go-green is the status-aware story-level Build(`--real`) / Adopt, never a node smoke).
-The owed guard test landed (a `--store pg` synthetic walk is refused).
+The owed guard test landed (a `--store pg` synthetic walk is refused). *(Since 2026-07-02 the routed
+UI node dispatch is no longer the smoke at all —
+[ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md) routes it to
+`node build --real`, the persisting REAL path this ADR explicitly reserves persistence for. The wall
+here is unchanged: a synthetic walk still never persists, and the smoke remains CLI-only.)*
 
 This ADR **amends [ADR-0007](0007-proof-model.md)** (the proof-mode vocabulary gains a synthetic/real
 distinction) and **[ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md)** (the no-forged-healthy

@@ -187,10 +187,19 @@ export interface BuildEnvelope {
  */
 export type BuildRunner = (unitId: string, sink: (line: string) => void) => Promise<BuildEnvelope>;
 
-/** The Phase-1 options the worker passes to `nodeBuild` — single node, live mode, pg verdict store. */
+/** The Phase-1 options the worker passes to `nodeBuild` — single node, real mode, pg verdict store. */
 export interface NodeBuildLikeOpts {
-  live: boolean;
-  /** ADR-0099-B: optional — a `--live` smoke must NOT persist, so the node runner omits it (in-memory). */
+  /**
+   * The synthetic `--live` smoke flag. Optional here: the routed node branch (ADR-0144) omits it
+   * (a real `--real` drive), while `buildRunnerFromNodeBuild` still passes it for the standalone
+   * smoke adapter. The two production adapters spread routed opts last so a routed `real:true` wins.
+   */
+  live?: boolean;
+  /**
+   * ADR-0144: the routed node branch passes `'pg'` so the signed verdict persists to
+   * `events.verdict`. A standalone `--live` smoke still omits it (ADR-0099-B: synthetic walks
+   * must not persist).
+   */
   verdictStore?: string;
   real?: boolean;
   dryRun?: boolean;
@@ -313,13 +322,17 @@ export interface RoutedBuildDeps {
  * A {@link BuildRunner} that routes by unit KIND (ADR-0090): a STORY id → `story build <id> --real`
  * — the honest whole-story chain (each node authored for real in a shared worktree, then the proven
  * chain promoted as a branch to land), which PERSISTS its real red→green verdicts (`--store pg`);
- * a NODE id → `node build <id> --live` — the single-node build that proves the PIPELINE on a synthetic
- * task (not the node's real feature), which must NOT persist (ADR-0099-B: a synthetic `--live` smoke
- * may never plant a forged green in `events.verdict`, so the node branch omits `verdictStore` and runs
- * in-memory — passing `--store pg` would be refused downstream as a synthetic walk, terminalising the
- * UI Build as FAILED). Discovery (`classify`) is injected, so this is fully offline-testable; the dev
- * front wires it over the orchestrator's spec discovery + the lazily-imported `nodeBuild`/`storyBuild`.
- * Emits ONE coarse mode line, then defers to the chosen entry's envelope.
+ * a NODE id → `node build <id> --real` — drives the node's REAL proof (ADR-0144): the leaf authors
+ * the node's genuine test/impl in a fresh worktree, the spine observes RED→GREEN and SIGNS, and the
+ * signed verdict PERSISTS to `events.verdict` (`verdictStore: 'pg'`). ADR-0099-B bars only SYNTHETIC
+ * persists; a real drive of an existing contract is the opposite — the honest artifact. The synthetic
+ * `--live` smoke (ADR-0099-B's concern) is still available at the CLI via `buildRunnerFromNodeBuild`
+ * — it is simply no longer what a human's accept dispatches (ADR-0144). ADR-0136 wall: only a story
+ * `--real` opens the auto-merging PR; a node `--real` PASS parks the proven commit on a
+ * `claude/real/<unit>-<run>` branch (ADR-0031) for the human to land non-squash. Discovery
+ * (`classify`) is injected, so this is fully offline-testable; the dev front wires it over the
+ * orchestrator's spec discovery + the lazily-imported `nodeBuild`/`storyBuild`. Emits ONE coarse
+ * mode line, then defers to the chosen entry's envelope.
  */
 export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
   const actorOpt = deps.actor !== undefined ? { actor: deps.actor } : {};
@@ -335,12 +348,13 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
         ...actorOpt,
       });
     }
-    // ADR-0099-B: a single-node `--live` smoke is SYNTHETIC (proves the pipeline on `add(2,3)`), so its
-    // PASS must never persist — `verdictStore` is omitted (in-memory). Passing `--store pg` here is
-    // refused downstream (`resolveVerdictStore`, a synthetic walk), which would terminalise the UI Build
-    // as FAILED rather than run the smoke. The legitimate go-green is the STATUS-AWARE story affordance.
-    sink('▸ mode: single-node --live — proves the build pipeline on a synthetic task');
-    return deps.nodeBuild(unitId, { live: true, dryRun: false, real: false, ...actorOpt });
+    // ADR-0144: the node branch drives the node's REAL proof, not the synthetic --live smoke.
+    // `real: true` + `verdictStore: 'pg'` — the spine observes genuine RED→GREEN and SIGNS; the
+    // verdict persists to events.verdict (honest, not forged — ADR-0099-B bars only synthetic walks).
+    // ADR-0136 wall: `openPr` is NOT passed — a node --real PASS parks the proven commit on a
+    // `claude/real/<unit>-<run>` branch (ADR-0031) for the human to land non-squash deliberately.
+    sink('▸ mode: node --real — real red→green, persists signed verdict to events.verdict, parks claude/real/<unit>-<run> branch (ADR-0031/ADR-0136: the human lands non-squash)');
+    return deps.nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', ...actorOpt });
   };
 }
 

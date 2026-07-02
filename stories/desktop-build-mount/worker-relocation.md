@@ -167,7 +167,9 @@ test of the relocation, not a single isolated assertion.
 REUSES THE ADR-0090 WORKER VERBATIM (ADR-0133 d.3): the relocation MOVES the existing worker; it adds no
 build path, no second orchestrator boundary. `routedBuildRunner` still routes a STORY id → `story build
 --real` and a NODE id → `node build --live` exactly as before; the move changes WHERE the machinery lives,
-not WHAT it does. The studio Build button and (after capabilities 2–3) the desktop both drive the SAME
+not WHAT it does. *(Historical note: the node arm's `--live` opts were later re-decided by ADR-0144 —
+the routed node dispatch now drives `node build --real` with persist semantics; that flip is the sibling
+capability [`routed-node-real-dispatch`](routed-node-real-dispatch.md), not part of this relocation.)* The studio Build button and (after capabilities 2–3) the desktop both drive the SAME
 relocated worker — one worker, two surfaces.
 
 PROOF INTEGRITY (ADR-0091): the relocated dispatch + worker hold no signing key and no verdict path; the

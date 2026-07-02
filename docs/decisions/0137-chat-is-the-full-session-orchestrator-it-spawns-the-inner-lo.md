@@ -119,7 +119,11 @@ The owner's framing sharpens two things ADR-0108 left implicit:
   must BOUND the consultation (know when enough roles have weighed in) and route an upward clarification
   cleanly back to the human; and a real *unit-level* drive is still a smoke today (ADR-0099-B), so the
   leaf re-driving a single contract for a fix is itself a build-shape detail to settle when Phase 3 is
-  built.
+  built. *(Settled 2026-07-02 by
+  [ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md), resolving
+  `oq-fix-drive-build-shape` Option A: the routed node dispatch drives `node build --real` with persist
+  semantics — real proof, signed verdict to `events.verdict`, PASS parked on a `claude/real/*` branch;
+  landing stays the human gate, no auto-PR per node accept.)*
 
 **Neutral**
 - Affirms, does not retire, ADR-0108's shape and phasing; the terminal session-orchestrator is
@@ -142,7 +146,9 @@ The owner's framing sharpens two things ADR-0108 left implicit:
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the live Claude Agent SDK runtime (the
   subagent-capable author).
 - ADR-0099-B — node `--live` smoke is synthetic; a real unit-level drive is the primitive a bug-fix
-  path needs.
+  path needs — since built:
+  [ADR-0144](0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md) routes the node
+  dispatch to `node build --real` (persisting), settling the build-shape residual above.
 - ADR-0128 / ADR-0129 + `docs/research/inner-loop-adoption-gap.md` — drive authority is the lever.
 - `orchestrate-route-supplement` (Library pattern) — decompose → route → supplement with subagents;
   decision 4 extends it into the change/fix domain.

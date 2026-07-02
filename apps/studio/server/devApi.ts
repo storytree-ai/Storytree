@@ -55,7 +55,8 @@ export function storytreeDataApi(): Plugin {
 
       // UI-driven build (ADR-0090 "the local loop"): the server-process worker boundary. One
       // in-memory run registry per dev server; the runner ROUTES by unit tier — a story id drives
-      // the EXISTING `story build --real` chain, a node id the EXISTING `node build --live` path —
+      // the EXISTING `story build --real` chain, a node id the EXISTING `node build --real` path
+      // (ADR-0144: the real proof, persisted verdict, parked branch — no longer the --live smoke) —
       // and the discovery validates ids the SAME way the CLI prechecks (`resolveBuildConfig` /
       // `isStoryBuildable`). cli + orchestrator are imported LAZILY (inside the closures) so this
       // Vite plugin never pulls them at config-load time (the raw-TS `.js` re-export trap; the same
@@ -102,9 +103,10 @@ export function storytreeDataApi(): Plugin {
       // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
       const build: BuildContext = {
         registry: buildRegistry,
-        // The worker routes by tier (ADR-0090): a story id → `story build --real` (the honest
-        // whole-story chain — authors each capability for real, promotes a branch to land); a node
-        // id → `node build --live` (the single-node synthetic-pipeline build). drive + orchestrator are
+        // The worker routes by tier (ADR-0090/0144): a story id → `story build --real` (the honest
+        // whole-story chain — authors each capability for real, opens the auto-merging PR); a node
+        // id → `node build --real` (the node's REAL proof, verdict persisted; a PASS parks a
+        // claude/real/<unit>-<run> branch the human lands — ADR-0031/0136). drive + orchestrator are
         // imported LAZILY inside the closures.
         runner: routedBuildRunner({
           classify: async (unitId) =>
