@@ -11,6 +11,8 @@ accepted (2026-06-27) — decided/directed by the owner in conversation on 2026-
 alignment IS the ratification (ADR-0110); no second end-of-flow ask. Scoped deliberately to the
 **renderer/framework** for a spatial forest-world view; the public website's "vibe-coding game"
 experience concept that motivated it is still in design (a separate session) and is **not** decided here.
+*(Since decided: [ADR-0134](0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md),
+accepted 2026-07-02 — its Act 1 storm is now the live front door. Noted in place per ADR-0139.)*
 
 ## Context
 
@@ -85,7 +87,8 @@ shaders are authored; and any realtime multiplayer / presence networking. The si
 netcode are the real cost centres and remain open.
 
 > **Correction (2026-07-02) — two of the deferrals have since resolved.** The experience concept is
-> [ADR-0134](0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md) (proposed), unpacked
+> [ADR-0134](0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md) (accepted
+> 2026-07-02), unpacked
 > in [`stories/website-experience/`](../../stories/website-experience/story.md). The `story-author`
 > call on the package home was made there: the R3F mapper lives **parent-side as
 > `packages/forest-world-r3f`**, owned by that story — and the package is now BUILT: the pure

@@ -51,7 +51,11 @@ consumes `forest-world`, and nothing consumes it.
 The public website is **`storytree-web`**, a separate *public* repo vendored as the
 [`web/`](../../.gitmodules) submodule — the system's front door. It renders the same forest-world look
 the studio shows, but as build-time **string SVG** over its own fictional "Cohoot" demo data, in a
-thin Astro page shell with its own here.now deploy rail (merge = publish). [ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+thin Astro page shell with its own here.now deploy rail (merge = publish). *(Since 2026-07-02 home
+first-paints [ADR-0134](../../docs/decisions/0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md)'s
+Act 1 terminal storm — storytree-web PR #18; the calm forest-world view survives on the same entry
+page as the storm's skip / reduced-motion fallback, `data-experience-fallback` — still rendered, no
+longer the unconditional first paint.)* [ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
 made it a tracked story so it stops being invisible; [ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
 brings it into the boundary graph as a first-class **consuming surface** — a node whose render-core
 edge is rendered and enforced, exactly like an organism's, by the gate that already runs.

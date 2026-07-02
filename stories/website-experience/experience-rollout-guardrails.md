@@ -56,7 +56,8 @@ real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02
 > the four contracts are cited at real `file:line` below (`storytree coverage
 > experience-rollout-guardrails` → 4/4). The orchestrator glue is landed: the root
 > `check:web-experience` script, its `pnpm gate` slot, and the CI step after "web engine in sync" —
-> verified against the real pinned site (bootstrap SKIP: no entry marker yet). The ADEQUACY of the
+> verified against the real pinned site (bootstrap SKIP at that pre-storm pin — no entry marker yet;
+> ARMED + OK since the 2026-07-02 home flip put all three markers on the entry page). The ADEQUACY of the
 > exits (does the fallback read as a real calm view; does the skip land well) stays human —
 > story-UAT leg 3 — the gate guards PRESENCE and the no-WebGL floor, which is exactly what a machine
 > can honestly hold; `healthy` stays earned, never authored (ADR-0020).

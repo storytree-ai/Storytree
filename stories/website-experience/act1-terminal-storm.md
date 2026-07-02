@@ -34,10 +34,50 @@ only replace the live home once the calm exits are machine-guarded (owner decisi
 hit every increment). This is also THE HOME FLIP increment: `index.astro` becomes the storm, an
 owner call on "presentable" (a HALT point, story open call 5).
 
-> **Proof status (honest) — `proposed`, operator-attested (ADR-0070).** A felt overwhelm cannot be
-> machine-driven or self-attested; an agent can never self-exempt a surface to `healthy` (ADR-0044).
-> The machine-checkable floor (skip/fallback markers, the no-WebGL wall) is deliberately homed
-> upstream in `check:web-experience`; what remains here is exactly the human-judgement surface.
+> **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-02); the authored status stays
+> `proposed`.** Built by the `frontend-builder` in `storytree-web` (branch
+> `claude/act1-terminal-storm`, witnessed @ `796d65a` on PR #18 with 23/23 parent-side Playwright
+> behaviour checks), then **attested by the owner — HuaMick, 2026-07-02** (agent-relayed scribe per
+> ADR-0044 §4; the declared-witness `operator-attested` verdict of ADR-0082): UAT legs 1–4 below
+> witnessed on the local preview (:4321), including the first human ears on the audio mix — the
+> boot, the send unlocking audio, the 12-window peak parked on demands under `AGENTS: 12 ▲`, the
+> dim + calm card, the skip mid-storm, and the reduced-motion calm view — plus the home-flip
+> "presentable" call (story open call 5: DONE). The attestation is recorded as an owner comment on
+> storytree-web PR #18, squash-merged → web main `3e53f14`: **the storm IS the live front door**
+> (CD green; all three markers verified on the live site). The parent pins `web/` @ `3e53f14`,
+> arming `check:web-experience` in CI — witnessed ARMED + OK against the pinned tree. The feel was
+> human-judged end to end; nothing here is self-signed (ADR-0070).
+
+## As built (web main `3e53f14`)
+
+Real `file:line` into the pinned `web/` tree (paths relative to the submodule root):
+
+- **The entry page carries all THREE markers physically in its own source** (learning: the
+  upstream gate greps the entry page's text, then walks imports — a refactor that moves one marker
+  into a child component un-arms or reds `check:web-experience`): `data-experience-entry` on the
+  storm section (`src/pages/index.astro:74`), the persistent skip control `data-experience-skip`
+  (`:78`, doubling as a `data-storm-disarm` target), the calm view `data-experience-fallback`
+  (`:147`) — today's home content byte-for-byte (Keystatic `home.json` + TreeWorld untouched).
+- **Arming is pre-paint and calm-by-default** (`src/pages/index.astro:31`, `is:inline`): the storm
+  arms only for motion-OK, JS-on visitors (`:35`); `prefers-reduced-motion` and no-JS visitors get
+  the calm view and are never played the storm. The disarm path (skip / calm affordance / `Escape`,
+  `:41`–`:67`) lives in the same inline script, so the exit works even if the engine module never
+  loads.
+- **The plan is pure and SEEDED** (`src/scripts/storm-script.ts`): `STORM_SEED` fixed at `:16` —
+  the same storm on every load, which is also the owner's returning-visitor call as built (replay
+  every visit; the skip is not remembered) — `mulberry32` PRNG `:18` (no `Math.random`),
+  `buildStormPlan` `:305` (deterministic, testable without a browser), 11 sub-agent `ROLES` + the
+  boot terminal = the 12-window hard cap (`:68`), every terminal parking on an unanswerable demand
+  with the boot parking LAST on `awaiting instructions` (`:60`).
+- **The engine is one rAF loop, no WebGL bytes** (`src/scripts/act1-storm.ts`): `runStorm()`
+  `:270`, the single full-viewport grain canvas `:215`, synthesized Web Audio created/resumed only
+  inside the send gesture (`unlock()` `:39` — silence before), `window.__stormHalt` registered for
+  the disarm seam (`:490`).
+- **Choreography witnessed:** send → first sub-agent ≈ 4s → 12-window cap ≈ 27s → boot parks last
+  ≈ 34s → dim + the one calm card ≈ 37s (`data-calm-affordance`, `src/pages/index.astro:134` — for
+  this increment it resolves like the skip; the transform is `storm-to-forest-inflection`'s job).
+- **Deferred by design to the inflection:** the transform/collapse/soil moment, the R3F island,
+  and the site-side r3f sync — the storm ships zero WebGL, as the upstream wall demands.
 
 ## Guidance
 
@@ -83,6 +123,12 @@ NOT parent-spine proof — the honest verdict here is the witnessed one.
 ## UAT (operator-attested)
 
 Human-witnessed legs on the live/preview site (an agent may stage; a human renders the verdict):
+
+> **ATTESTED — all four legs witnessed by the owner (HuaMick), 2026-07-02**, on the local preview
+> (`npm run preview`, :4321) at `796d65a`, squash-merged to web main as `3e53f14` and live since;
+> the record is an owner comment on storytree-web PR #18 (agent-relayed per ADR-0044 §4). Leg 4's
+> machine floor is additionally held by `check:web-experience`, ARMED + OK against the parent's
+> `web/` pin.
 
 1. **The boot.** _(witness: human)_ Fresh visit: ONE CRT terminal, already logged into a coding
    agent, suggested prompt chips + a type-in line, silence. Nothing else moves.

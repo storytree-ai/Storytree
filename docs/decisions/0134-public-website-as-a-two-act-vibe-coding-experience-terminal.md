@@ -11,9 +11,9 @@ attestation gate: witnessed the built Act 1 storm end-to-end (boot → send/audi
 peak → dim → calm home, skip/Escape, reduced-motion calm-only), attested the cap's UAT legs 1–4, and
 directed the home flip (storytree-web PR #18, merged 2026-07-02 — the storm is now the live front
 door). Design-time alignment IS the ratification ([ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md));
-no second end-of-flow ask. Of §5's deferred items, the replay / deep-link UX was decided at the same
-gate — **replay every visit** (skip is not remembered); the asset/perf/mobile budget rides with the
-remaining Act 2 build.
+no second end-of-flow ask. Of §5's deferred items, the returning-visitor half of the replay /
+deep-link UX was decided at the same gate — **replay every visit** (skip is not remembered); whether
+Act 2 deep-links standalone and the asset/perf/mobile budget ride with the remaining Act 2 build.
 
 proposed (2026-06-28) — explored with the owner in conversation on 2026-06-28.
 [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) decided the *renderer*
@@ -31,13 +31,16 @@ keep-static triage), and the R3F mapper's package home (parent-side, a new
 [`stories/website-experience/`](../../stories/website-experience/story.md), per owner direction of
 2026-07-02. Of §5's deferred items, the asset/perf/mobile budget and the replay / deep-link UX
 remain open, carried as that story's open modeling calls. Stays **proposed** — owner-directed —
-while the design settles.
+while the design settles. *(Overtaken later the same day at the attestation gate — see the accepted
+entry above: replay decided, the ADR accepted.)*
 
 ## Context
 
 The public site (`storytree-web` — an Astro static + Keystatic brochure, a consuming surface per
 [ADR-0100](0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)) today *explains*
-storytree in copy. The owner wants visitors to *feel* the value proposition instead — the difference
+storytree in copy *(the world as authored, 2026-06-28; since 2026-07-02 the built Act 1 storm is the
+live front door, the old home surviving as its in-page calm fallback/skip target)*. The owner wants
+visitors to *feel* the value proposition instead — the difference
 between today's chaotic agentic coding and storytree's calm, legible, watched-live forest. Show, don't
 tell.
 
@@ -120,7 +123,9 @@ can read.*
    **package home** (a `story-author` call per
    [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)); the **asset / perf
    / mobile budget**, LOD strategy, and shader art direction; and **replay/skip UX** and whether Act 2
-   deep-links standalone.
+   deep-links standalone. *(The replay half was decided 2026-07-02 at the Act 1 attestation gate —
+   **replay every visit**, as built: a seeded deterministic storm, skip not remembered; the Act 2
+   deep-link half remains open with the unbuilt Act 2. Corrected in place per ADR-0139.)*
 
 ## Consequences
 
@@ -149,7 +154,10 @@ can read.*
   the build shape.
 - **Accessibility / SEO inside the experience must be bought back** with the mandatory fallback and skip
   — a standing obligation, not a one-off.
-- A **returning-visitor story** is required so the storm isn't re-imposed every visit.
+- A **returning-visitor story** is required so the storm isn't re-imposed every visit. *(Resolved
+  2026-07-02, the other way: the owner decided **replay every visit** — the seeded storm replays by
+  design, the persistent skip + reduced-motion/no-JS calm view are the floor, and the skip is
+  deliberately not remembered. Corrected in place per ADR-0139.)*
 - This is the *parent* repo's decision; the build lands in the **separate `storytree-web` repo** (its own
   CD), so the work must branch off *its* `origin/main`, not the parent's submodule pin.
 

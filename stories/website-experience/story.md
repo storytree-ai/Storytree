@@ -151,7 +151,7 @@ whole (owner decision 6):
   skip control and the static-calm fallback live from the same merge. Until the inflection lands,
   the storm's calm affordance and the skip both resolve to the fallback's static calm view + the
   existing pages — coherent, just not yet transformative. *(The flip moment itself — "presentable" —
-  is an owner attestation; a HALT point.)*
+  was the owner-attestation HALT: **cleared 2026-07-02**, attested + live at web main `3e53f14`.)*
 - **Increment E — `storm-to-forest-inflection`** — the transform replaces the interim landing; the
   calm land carries the CTA/links until the walkthrough lands.
 - **Increment F — `act2-beat-director`** (parent-only) then **G — `act2-guided-walkthrough`** — the
@@ -241,9 +241,11 @@ is recorded, never presumed (ADR-0044).
 
 Surfaced rather than guessed — none blocks the first increments:
 
-1. **The returning-visitor story** (ADR-0134 names it required). The persistent skip control is the
-   authored FLOOR; whether a return visit auto-skips (localStorage), deep-links to the forest, or
-   replays the storm is an experience-design call worth deciding before increment D goes wide.
+1. **The returning-visitor story** (ADR-0134 names it required) — **CLOSED (owner, 2026-07-02, at
+   the increment-D attestation gate): a return visit REPLAYS the storm, as built.** The seeded plan
+   makes every replay identical (`STORM_SEED`, `web/src/scripts/storm-script.ts:16`), and the skip
+   is deliberately NOT remembered (no localStorage) — the persistent skip control stays the floor
+   on every visit. Zero code change.
 2. **Act 2 replay / deep-link UX** (deferred by ADR-0134 §5): does the calm forest have a stable URL
    a visitor (or the CTA funnel) can enter without the storm? Interacts with call 1; the skip
    affordance implies at least an anchor.
@@ -256,3 +258,6 @@ Surfaced rather than guessed — none blocks the first increments:
    when the triage lands (ADR-0134 flags it as load-bearing for the build shape).
 5. **The home-flip moment** ("as soon as presentable", increment D) is an owner attestation by
    definition — the driving session HALTs and asks rather than deciding presentability itself.
+   **DONE (owner-attested 2026-07-02):** the storm was attested presentable (UAT legs 1–4, audio
+   included) and flipped live — storytree-web PR #18 → web main `3e53f14`, the live front door
+   since; see [`act1-terminal-storm`](act1-terminal-storm.md)'s proof status for the record.
