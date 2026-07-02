@@ -11,7 +11,7 @@
  * implement those affordances.
  */
 
-import { createContext, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 // ── Mode type & context ──────────────────────────────────────────────────────
 
@@ -42,10 +42,32 @@ export function ReviewToggle({ children }: ReviewToggleProps) {
 
   return (
     <ReviewModeContext.Provider value={mode}>
-      <button type="button" onClick={toggle}>
+      <button type="button" className="btn small review-mode-toggle" onClick={toggle}>
         {mode === 'view' ? 'View' : 'Review'}
       </button>
       {children}
     </ReviewModeContext.Provider>
+  );
+}
+
+/**
+ * Lays out a topic surface for the current mode: in Review the side `panel`
+ * (the commenting affordance — today CommentPanel, replaced in-flow by cap 7)
+ * renders next to the document; in View it is hidden and the document takes
+ * the full width.
+ */
+export function ReviewLayout({
+  children,
+  panel,
+}: {
+  children: React.ReactNode;
+  panel: React.ReactNode;
+}) {
+  const mode = useContext(ReviewModeContext);
+  return (
+    <div className={mode === 'review' ? 'doc-layout' : 'doc-layout doc-layout-view'}>
+      {children}
+      {mode === 'review' ? panel : null}
+    </div>
   );
 }

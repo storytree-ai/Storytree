@@ -4,11 +4,11 @@
 // Pins the GEOMETRY/BEHAVIOUR only — the toggle's appearance is the story's owner-attested UAT
 // leg 1, witnessed by the owner and NEVER a machine visual verdict here. What is proved:
 //   • in the default View posture, no commenting/suggesting affordances are visible
-//     (rt-defaults-to-view),
+//     (rmt-defaults-to-view-read-only),
 //   • clicking the toggle flips to Review and the affordances become visible
-//     (rt-flip-to-review-exposes-affordances),
+//     (rmt-review-shows-the-affordances),
 //   • a second click flips back to View and the affordances are hidden again
-//     (rt-flip-back-to-view-hides-affordances).
+//     (rmt-flips-back-to-view).
 //
 // No API, no timer, no fetch — the toggle holds no backend seam. The affordance presence is
 // asserted via a minimal context-consumer child: the stand-in for caps 7 and 8, which gate their
@@ -33,8 +33,8 @@ function TestAffordances() {
 afterEach(cleanup);
 
 describe('ReviewToggle', () => {
-  // ── rt-defaults-to-view ─────────────────────────────────────────────────────────
-  it('rt-defaults-to-view: renders the toggle switch and defaults to View — no affordances visible', () => {
+  // ── rmt-defaults-to-view-read-only ──────────────────────────────────────────────
+  it('rmt-defaults-to-view-read-only: renders the toggle switch and defaults to View — no affordances visible', () => {
     render(
       <ReviewToggle>
         <TestAffordances />
@@ -46,8 +46,8 @@ describe('ReviewToggle', () => {
     expect(screen.queryByTestId('review-affordances')).toBeNull();
   });
 
-  // ── rt-flip-to-review-exposes-affordances ────────────────────────────────────────
-  it('rt-flip-to-review-exposes-affordances: clicking the toggle flips to Review and the affordances become visible', () => {
+  // ── rmt-review-shows-the-affordances ─────────────────────────────────────────────
+  it('rmt-review-shows-the-affordances: clicking the toggle flips to Review and the affordances become visible', () => {
     render(
       <ReviewToggle>
         <TestAffordances />
@@ -63,8 +63,8 @@ describe('ReviewToggle', () => {
     expect(screen.getByTestId('review-affordances')).toBeTruthy();
   });
 
-  // ── rt-flip-back-to-view-hides-affordances ───────────────────────────────────────
-  it('rt-flip-back-to-view-hides-affordances: a second click flips back to View and hides the affordances', () => {
+  // ── rmt-flips-back-to-view ──────────────────────────────────────────────────────
+  it('rmt-flips-back-to-view: a second click flips back to View and hides the affordances', () => {
     render(
       <ReviewToggle>
         <TestAffordances />

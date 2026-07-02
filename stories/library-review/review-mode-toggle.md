@@ -59,9 +59,13 @@ affordances are shown — proven by behaviour, the appearance operator-attested.
 component whose state (View vs Review) is the signal the comment-thread + suggestion surfaces (caps 7,
 8) read to decide whether to show their affordances. It holds no backend seam of its own.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. There is no mode switch
-> today (the studio always shows the right-panel comment form in `CommentPanel.tsx`). This capability
-> adds the View ↔ Review toggle and the mode state it exposes. Its appearance inside the studio is the
+> **Proof status (honest) — BUILT, signed REAL PASS.** Run `real-mr446rcm`, verdict signed by
+> hua.mick@gmail.com `@ 8a37714` (2026-07-02T23:12Z), clean bootstrap trail
+> (AUTHOR_TEST→CONFIRM_RED→IMPLEMENT→CONFIRM_GREEN→GATE), coverage 3/3 after the `rmt-*` retitle.
+> The toggle + `ReviewModeContext` live at `apps/studio/src/components/ReviewToggle.tsx`; wiring
+> (consolidation, not leaf-proven): mounted on both topic surfaces (`AssetView.tsx` / `DocView.tsx`)
+> via `ReviewLayout`, gating today's `CommentPanel` on Review mode. The authored `status` stays
+> `proposed` (rollup derives healthy from the event log). Its appearance inside the studio is the
 > story's operator-attested UAT leg 1 (ADR-0070 — the look is witnessed, never a machine visual verdict).
 
 ## Guidance
@@ -120,24 +124,23 @@ render, the mode state, and the affordance-gating signal are all real. It would:
 ## Contracts (3)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
-jsdom, `apps/studio/src/components/ReviewToggle.test.tsx`). None exist yet; each is the assertion a
-contract test WILL prove once authored (re-cite at real `file:line` when built). Per ADR-0122 each
-contract id leads a distinctly-named test so `storytree coverage review-mode-toggle` reports 3/3. None
-is an APPEARANCE assertion — the look is the story's operator-attested UAT leg 1 (ADR-0070).
+jsdom, `apps/studio/src/components/ReviewToggle.test.tsx`). Built and green: each contract id leads
+its test (ADR-0122), `storytree coverage review-mode-toggle` reports 3/3. None is an APPEARANCE
+assertion — the look is the story's operator-attested UAT leg 1 (ADR-0070).
 
 1. **`rmt-defaults-to-view-read-only`** — the toggle defaults to View with no commenting/suggesting affordances
    - **asserts —** on first render the mode is View, the switch reads "View", and the
      commenting/suggesting affordance slot is not shown — reading is the default posture.
-   - **covers —** `apps/studio/src/components/ReviewToggle.tsx` (the default + View render) *(provisional path)*
+   - **covers —** `apps/studio/src/components/ReviewToggle.tsx:36-47` (the default + View render); test at `ReviewToggle.test.tsx:37`
 2. **`rmt-review-shows-the-affordances`** — flipping to Review exposes the commenting + suggesting affordances
    - **asserts —** firing the switch flips the mode to Review, the switch reads "Review", and the gated
      affordance slot becomes visible (the children render) — Review turns collaboration on.
-   - **covers —** `apps/studio/src/components/ReviewToggle.tsx` (the flip-to-Review + affordance gating) *(provisional path)*
+   - **covers —** `apps/studio/src/components/ReviewToggle.tsx:39-48` (the flip-to-Review + affordance gating); test at `ReviewToggle.test.tsx:50`
 3. **`rmt-flips-back-to-view`** — the switch is two-way and exposes the mode to its children
    - **asserts —** firing the switch from Review flips back to View and hides the affordances again, and
      the mode value exposed to the gated children reads `'review'` in Review and `'view'` in View — the
      signal caps 7/8 consume.
-   - **covers —** `apps/studio/src/components/ReviewToggle.tsx` (the two-way flip + exposed mode) *(provisional path)*
+   - **covers —** `apps/studio/src/components/ReviewToggle.tsx:24,39-48` (the two-way flip + the `ReviewModeContext` mode); test at `ReviewToggle.test.tsx:67`
 
 ## Guidance — the net-new slice that earns the signed verdict
 

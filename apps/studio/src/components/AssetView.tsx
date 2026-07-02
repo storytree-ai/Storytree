@@ -10,6 +10,7 @@ import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
 import { CommentPanel } from './CommentPanel';
+import { ReviewLayout, ReviewToggle } from './ReviewToggle';
 
 export function AssetView({ id }: { id: string }): React.JSX.Element {
   const { assets, refreshAssets } = useAppData();
@@ -50,8 +51,22 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
   }
 
   return (
-    <div className="doc-layout">
-      <article className="doc asset-detail" ref={articleRef} {...ann.articleHandlers}>
+    <ReviewToggle>
+      <ReviewLayout
+        panel={
+          <CommentPanel
+            topicKind="asset"
+            topicId={asset.id}
+            headings={headings}
+            operator={operator}
+            target={ann.target}
+            setTarget={ann.setTarget}
+            focusId={ann.focusId}
+            onJump={ann.jumpToAnchor}
+          />
+        }
+      >
+        <article className="doc asset-detail" ref={articleRef} {...ann.articleHandlers}>
         <div className="doc-crumb muted small">
           <a href={libraryHref()}>library</a> / {asset.id}
         </div>
@@ -106,19 +121,9 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
           </button>
         </div>
         {ann.overlays}
-      </article>
-
-      <CommentPanel
-        topicKind="asset"
-        topicId={asset.id}
-        headings={headings}
-        operator={operator}
-        target={ann.target}
-        setTarget={ann.setTarget}
-        focusId={ann.focusId}
-        onJump={ann.jumpToAnchor}
-      />
-    </div>
+        </article>
+      </ReviewLayout>
+    </ReviewToggle>
   );
 }
 

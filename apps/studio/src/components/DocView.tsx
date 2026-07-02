@@ -8,6 +8,7 @@ import { useAnnotations } from '../lib/useAnnotations';
 import type { DocContent } from '../types';
 import { Markdown, type CommentTarget } from './Markdown';
 import { CommentPanel } from './CommentPanel';
+import { ReviewLayout, ReviewToggle } from './ReviewToggle';
 
 export function DocView({ id }: { id: string }): React.JSX.Element {
   const { docTitles } = useAppData();
@@ -69,24 +70,29 @@ export function DocView({ id }: { id: string }): React.JSX.Element {
   }
 
   return (
-    <div className="doc-layout">
-      <div className="doc-main">
-        <article className="doc" ref={articleRef} {...ann.articleHandlers}>
-          <div className="doc-crumb muted small">docs / {id}</div>
-          {markdown}
-          {ann.overlays}
-        </article>
-      </div>
-      <CommentPanel
-        topicKind="doc"
-        topicId={id}
-        headings={headings}
-        operator={operator}
-        target={ann.target}
-        setTarget={setTarget}
-        focusId={ann.focusId}
-        onJump={ann.jumpToAnchor}
-      />
-    </div>
+    <ReviewToggle>
+      <ReviewLayout
+        panel={
+          <CommentPanel
+            topicKind="doc"
+            topicId={id}
+            headings={headings}
+            operator={operator}
+            target={ann.target}
+            setTarget={setTarget}
+            focusId={ann.focusId}
+            onJump={ann.jumpToAnchor}
+          />
+        }
+      >
+        <div className="doc-main">
+          <article className="doc" ref={articleRef} {...ann.articleHandlers}>
+            <div className="doc-crumb muted small">docs / {id}</div>
+            {markdown}
+            {ann.overlays}
+          </article>
+        </div>
+      </ReviewLayout>
+    </ReviewToggle>
   );
 }
