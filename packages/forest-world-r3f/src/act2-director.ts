@@ -8,66 +8,91 @@
 // live in the web repo keyed by beat id (the fictional-data precedent,
 // ADR-0093 §3/§4). No narration strings live here.
 //
+// The beat shapes are ZOD schemas (the exported contract) — the site parses its
+// beat copy against `BeatScript` at build time, and advance() parses each beat
+// before applying it, so the teaching claims are RUNTIME contracts, not type
+// hints: a green-without-marker limb is refused loudly, never rendered.
+//
 // FENCES: no live data ever; no React/three.js; interpolation is the canvas
 // layer's job.
+
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Camera
 // ---------------------------------------------------------------------------
 
-/** A declared camera target for a beat. */
-export interface CameraTarget {
-  /** Semantic anchor the camera frames (not a coordinate — the canvas resolves it). */
-  focus: string;
-  /** Zoom level: 0 = widest possible, 1 = tightest close-up. */
-  zoom: number;
-}
+/** A declared camera target for a beat: a semantic anchor the camera frames
+ *  (not a coordinate — the canvas resolves it) plus a zoom level
+ *  (0 = widest possible, 1 = tightest close-up). */
+export const CameraTarget = z
+  .object({
+    focus: z.string().min(1),
+    zoom: z.number(),
+  })
+  .strict();
+export type CameraTarget = z.infer<typeof CameraTarget>;
 
 // ---------------------------------------------------------------------------
-// Delta shapes (discriminated union)
+// Delta shapes (discriminated union) — the exported contract
 // ---------------------------------------------------------------------------
 
-/** A capability limb in the branch-caps delta. */
-export interface LimbDelta {
-  /** Stable id for this capability limb. */
-  id: string;
-  /** Display label (site-side narration key provides the copy). */
-  label: string;
-  /** Whether this limb has a signed passing proof. */
-  green: boolean;
-  /**
-   * The signed-proof marker — present and non-empty on every GREEN limb.
-   * A limb CANNOT be coloured green without this marker: the verification-gap
-   * answer is enforced in data, not applied as a presentation hint by the canvas.
-   * Absent on unproven limbs.
-   */
-  signedProof?: string;
-}
+/**
+ * A capability limb in the branch-caps delta.
+ *
+ * The signed-proof marker (`signedProof`) is present and non-empty on every
+ * GREEN limb — the refine REFUSES a limb coloured green without it. The
+ * verification-gap answer is enforced in data, not applied as a presentation
+ * hint by the canvas: a "done"-without-proof delta cannot colour the tree.
+ */
+export const LimbDelta = z
+  .object({
+    /** Stable id for this capability limb. */
+    id: z.string().min(1),
+    /** Display label (site-side narration key provides the copy). */
+    label: z.string().min(1),
+    /** Whether this limb has a signed passing proof. */
+    green: z.boolean(),
+    /** The signed-proof marker — required (non-empty) whenever `green` is true. */
+    signedProof: z.string().min(1).optional(),
+  })
+  .strict()
+  .refine((limb) => !limb.green || limb.signedProof !== undefined, {
+    message:
+      'a green limb MUST carry a non-empty signedProof marker — no signed proof, no green',
+  });
+export type LimbDelta = z.infer<typeof LimbDelta>;
 
-/** A road in the add-roads delta. */
-export interface RoadDelta {
-  /** Source node id. */
-  from: string;
-  /** Target node id. */
-  to: string;
-  /**
-   * Non-empty when this road is a declared layer violation — the antipattern
-   * name, flagged FROM THE DATA, not added as a presentation hint by the canvas.
-   * Absent on valid DAG dependency roads.
-   */
-  violation?: string;
-}
+/**
+ * A road in the add-roads delta. `violation` is non-empty when this road is a
+ * declared layer violation — the antipattern name, flagged FROM THE DATA, not
+ * added as a presentation hint by the canvas. Absent on valid DAG dependency roads.
+ */
+export const RoadDelta = z
+  .object({
+    /** Source node id. */
+    from: z.string().min(1),
+    /** Target node id. */
+    to: z.string().min(1),
+    /** The declared layer violation (the antipattern name); absent on valid roads. */
+    violation: z.string().min(1).optional(),
+  })
+  .strict();
+export type RoadDelta = z.infer<typeof RoadDelta>;
 
-/** The delta for a single beat — what the world GAINS this beat. */
-export type BeatDelta =
-  | { kind: 'plant-story'; storyId: string; label: string }
-  | { kind: 'attach-wisp'; storyId: string }
-  | { kind: 'branch-caps'; limbs: LimbDelta[] }
-  | { kind: 'add-roads'; roads: RoadDelta[] }
-  | { kind: 'pull-back' };
+/** The delta for a single beat — what the world GAINS this beat, in the
+ *  mapper's semantic vocabulary (never pixels). */
+export const BeatDelta = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('plant-story'), storyId: z.string().min(1), label: z.string().min(1) }).strict(),
+  z.object({ kind: z.literal('attach-wisp'), storyId: z.string().min(1) }).strict(),
+  z.object({ kind: z.literal('branch-caps'), limbs: z.array(LimbDelta) }).strict(),
+  z.object({ kind: z.literal('add-roads'), roads: z.array(RoadDelta) }).strict(),
+  z.object({ kind: z.literal('pull-back') }).strict(),
+]);
+export type BeatDelta = z.infer<typeof BeatDelta>;
 
 // ---------------------------------------------------------------------------
-// Beat
+// Beat + script contract
 // ---------------------------------------------------------------------------
 
 /**
@@ -76,16 +101,24 @@ export type BeatDelta =
  * The narration key is a lookup into the web repo's copy; the module never
  * contains the narration string itself (fictional-data precedent, ADR-0093).
  */
-export interface Beat {
-  /** Stable, unique id for this beat. */
-  id: string;
-  /** Narration key — the site looks up its copy by this key. */
-  narrationKey: string;
-  /** Camera target declared by this beat. */
-  camera: CameraTarget;
-  /** What the world GAINS this beat (the mapper's semantic vocabulary). */
-  delta: BeatDelta;
-}
+export const Beat = z
+  .object({
+    /** Stable, unique id for this beat. */
+    id: z.string().min(1),
+    /** Narration key — the site looks up its copy by this key. */
+    narrationKey: z.string().min(1),
+    /** Camera target declared by this beat. */
+    camera: CameraTarget,
+    /** What the world GAINS this beat (the mapper's semantic vocabulary). */
+    delta: BeatDelta,
+  })
+  .strict();
+export type Beat = z.infer<typeof Beat>;
+
+/** The script contract — the site parses its beat data against THIS at build
+ *  time, so site-side copy keyed by beat id can never drift shape-wise. */
+export const BeatScript = z.array(Beat);
+export type BeatScript = z.infer<typeof BeatScript>;
 
 // ---------------------------------------------------------------------------
 // Director state
@@ -154,6 +187,9 @@ function applyDelta(world: WorldState, delta: BeatDelta): WorldState {
  * Advance the director by exactly one beat (visitor-paced: one call = one tap).
  *
  * Pure: the input `state` is never mutated.
+ * REFUSES a contract-violating beat: the beat is parsed against the exported
+ * `Beat` contract before it is applied, so a green-without-marker limb THROWS
+ * here (a faked "done" cannot colour the tree even in fiction).
  * Parks on the final CTA state: calling advance() when `state.done` is a no-op
  * that returns the same state object unchanged.
  */
@@ -163,6 +199,8 @@ export function advance(state: DirectorState, script: Beat[]): DirectorState {
   const beat = script[state.beatIndex];
   // Guard: beatIndex out of bounds (e.g. empty script) → park as done.
   if (beat === undefined) return { ...state, done: true };
+
+  Beat.parse(beat);
 
   const newIndex = state.beatIndex + 1;
   return {
@@ -177,7 +215,9 @@ export function advance(state: DirectorState, script: Beat[]): DirectorState {
 // The five approved research-table beats — the exported default script
 // ---------------------------------------------------------------------------
 
-const act2Script: Beat[] = [
+/** The exported default script IS the five approved research-table beats
+ *  (docs/research/vibe-coding-gripes-2026.md "The Act 2 spine", via ADR-0134). */
+export const defaultScript: BeatScript = [
   // Beat 1 — Plant a story: a seed grows into a tree with its OUTCOME on a label.
   // Intent becomes a thing on the map, not buried in a chat log.
   {
@@ -267,4 +307,4 @@ const act2Script: Beat[] = [
   },
 ];
 
-export default act2Script;
+export default defaultScript;

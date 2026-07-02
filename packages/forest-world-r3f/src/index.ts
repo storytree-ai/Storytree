@@ -12,3 +12,21 @@ export {
   type SkippedDescriptor,
   type Descriptor3D,
 } from './world-to-3d.js';
+
+// The Act 2 beat director (the act2-beat-director capability): pure, visitor-paced
+// choreography — zod contracts + a pure state machine, no React/three imports.
+// The schema consts (CameraTarget/LimbDelta/RoadDelta/BeatDelta/Beat/BeatScript)
+// are value+type merged exports (the proof-protocol idiom).
+export {
+  advance,
+  initialState,
+  defaultScript,
+  CameraTarget,
+  LimbDelta,
+  RoadDelta,
+  BeatDelta,
+  Beat,
+  BeatScript,
+  type WorldState,
+  type DirectorState,
+} from './act2-director.js';

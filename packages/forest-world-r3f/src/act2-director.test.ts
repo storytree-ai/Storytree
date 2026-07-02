@@ -2,35 +2,43 @@
 //
 // This is an INTEGRATION test: it walks the REAL default five-beat script through
 // the REAL advance() state machine, verifying the contractual properties the node
-// spec mandates:
+// spec mandates. Per ADR-0122 each declared contract id LEADS a distinctly-named
+// test so `storytree coverage act2-beat-director` reports full coverage:
 //
-//   • visitor-paced: advance() moves exactly one beat per call and parks on the
-//     final CTA state — the deliberate inverse of Act 1's all-at-once.
-//   • beat 3 green capability limbs carry the signed-proof marker — a limb that
-//     lacks the marker cannot be coloured green (the verification-gap answer).
-//   • beat 4 wrong-way UI→DB road carries a declared layer-violation flag
-//     FROM ITS DATA — the antipattern is flagged in the delta, not as a
-//     presentation hint added by the canvas.
-//   • the exported default script IS the five approved research-table beats,
-//     in sequence, walking end-to-end through the full state machine.
+//   • abd-advance-is-visitor-paced-and-deterministic — advance() moves exactly
+//     one beat per call, two walks of the same script are deep-equal, state never
+//     changes without a call, and past-done advances are parking no-ops.
+//   • abd-green-only-on-signed-proof — a limb renders green only when its delta
+//     carries the signed-proof marker; a green-without-marker delta is refused
+//     loudly (the verification-gap answer, enforced at runtime, not a type hint).
+//   • abd-wrong-way-road-is-flagged-from-data — the beat-4 UI→DB road is flagged
+//     as an antipattern because its data declares the layer violation, distinct
+//     from every well-directed road.
+//   • abd-default-script-is-the-five-approved-beats — the exported default script
+//     validates against the exported `BeatScript` zod contract (the same contract
+//     the site parses its beat copy against), is exactly the five approved
+//     research-table beats in order, and walks end-to-end to the CTA state.
 //
-// WHY THIS IS ONE ORGANISM: the beat contract (typed BeatDelta), the advance()
-// state machine, and the five-beat default script are inseparable. The test
-// therefore walks the REAL script through the REAL machine — not an isolated
+// WHY THIS IS ONE ORGANISM: the beat contract (zod BeatDelta), the advance()
+// state machine, and the five-beat default script are inseparable. The tests
+// therefore walk the REAL script through the REAL machine — not an isolated
 // single-assertion stub.
 //
-// The import from './act2-director.js' is the RED anchor: the module does not
-// exist yet. Every test fails with "Cannot find module" — the right-kind red
-// (missing implementation, not a syntax error in the test).
+// The import from './act2-director.js' was the RED anchor: the module did not
+// exist at HEAD, so every test failed with "Cannot find module" — the right-kind
+// red (missing implementation, not a syntax error in the test).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Default export: the five-beat Beat[] script.
-// Named exports: the pure advance() function, the zero DirectorState, and types.
+// Named exports: the pure advance() function, the zero DirectorState, the five-beat
+// default script, the zod contracts, and the inferred types. The default export is
+// the same script object as `defaultScript` (pinned below).
 import act2Script, {
   advance,
   initialState,
+  defaultScript,
+  BeatScript,
   type Beat,
   type BeatDelta,
   type LimbDelta,
@@ -39,62 +47,17 @@ import act2Script, {
 } from './act2-director.js';
 
 // ---------------------------------------------------------------------------
-// THE FIVE-BEAT DEFAULT SCRIPT
+// abd-advance-is-visitor-paced-and-deterministic
 // ---------------------------------------------------------------------------
 
-test('act2-default-script: default export is an array of exactly 5 beats', () => {
-  assert.ok(Array.isArray(act2Script), 'default export is an array');
-  assert.equal(act2Script.length, 5, 'exactly 5 beats in the default script');
-});
-
-test('act2-default-script: all 5 beats carry id, narrationKey, camera, and delta', () => {
-  for (const [i, beat] of act2Script.entries()) {
-    assert.equal(typeof beat.id, 'string', `beat[${i}] id is a string`);
-    assert.ok(beat.id.length > 0, `beat[${i}] id is non-empty`);
-    assert.equal(typeof beat.narrationKey, 'string', `beat[${i}] narrationKey is a string`);
-    assert.ok(beat.narrationKey.length > 0, `beat[${i}] narrationKey is non-empty`);
-    assert.ok(beat.camera != null, `beat[${i}] camera is present`);
-    assert.ok(beat.delta != null, `beat[${i}] delta is present`);
-  }
-  // All ids must be unique — each beat is distinct
-  const ids = act2Script.map((b: Beat) => b.id);
-  assert.equal(new Set(ids).size, 5, 'all beat ids are unique');
-});
-
-test('act2-default-script: delta kinds follow the five approved research-table beats in order', () => {
-  // The five approved beats in sequence (verbatim in spirit, per node spec):
-  //   1. plant-story  — a seed grows into a tree with its OUTCOME on a label
-  //   2. attach-wisp  — a soft wisp drifts over the tree
-  //   3. branch-caps  — capability limbs; green only on a signed passing proof
-  //   4. add-roads    — DAG roads; one road flagged as a declared layer violation
-  //   5. pull-back    — camera widens to the full legible forest → done: true (CTA)
-  const expectedKinds: BeatDelta['kind'][] = [
-    'plant-story',
-    'attach-wisp',
-    'branch-caps',
-    'add-roads',
-    'pull-back',
-  ];
-  const actualKinds = act2Script.map((b: Beat) => b.delta.kind);
-  assert.deepEqual(actualKinds, expectedKinds, 'delta kinds match the five approved beats in order');
-});
-
-// ---------------------------------------------------------------------------
-// VISITOR-PACED STATE MACHINE
-// ---------------------------------------------------------------------------
-
-test('act2-initial-state: beatIndex is 0, done is false, world and camera are non-null', () => {
-  assert.equal(initialState.beatIndex, 0, 'initial beatIndex is 0 (no beats applied yet)');
-  assert.equal(initialState.done, false, 'initial done is false');
-  assert.ok(initialState.world != null, 'initial world is non-null');
-  assert.ok(initialState.camera != null, 'initial camera is non-null');
-});
-
-test('act2-advance: visitor-paced — moves exactly one beat per call, never more', () => {
+test('abd-advance-is-visitor-paced-and-deterministic: one tap = one beat, two walks deep-equal, no mutation, past-done parks', () => {
+  // One beat per call: beatIndex increments by exactly 1, done only on the fifth.
   let state: DirectorState = initialState;
+  const walk1: DirectorState[] = [];
   for (let i = 0; i < 5; i++) {
     const prevIndex = state.beatIndex;
-    state = advance(state, act2Script);
+    state = advance(state, defaultScript);
+    walk1.push(state);
     assert.equal(
       state.beatIndex,
       prevIndex + 1,
@@ -102,53 +65,41 @@ test('act2-advance: visitor-paced — moves exactly one beat per call, never mor
     );
     assert.equal(state.done, i === 4, `step ${i + 1}: done is ${i === 4}`);
   }
-});
 
-test('act2-advance: camera follows each beat\'s declared camera target', () => {
-  let state: DirectorState = initialState;
-  for (const beat of act2Script) {
-    state = advance(state, act2Script);
-    assert.deepEqual(
-      state.camera,
-      beat.camera,
-      `after beat '${beat.id}': state.camera reflects beat.camera`,
-    );
+  // Deterministic: a second walk of the same script is deep-equal state-for-state.
+  let state2: DirectorState = initialState;
+  const walk2: DirectorState[] = [];
+  for (let i = 0; i < 5; i++) {
+    state2 = advance(state2, defaultScript);
+    walk2.push(state2);
   }
-});
+  assert.deepEqual(walk2, walk1, 'two walks of the same script are deep-equal (no RNG, no timers)');
 
-test('act2-advance: pure function — does not mutate the input DirectorState', () => {
-  // Spread to get a fresh object (protects against Object.freeze false negatives)
+  // State never changes without a call: advance() does not mutate its input.
   const s: DirectorState = { ...initialState };
   const indexBefore = s.beatIndex;
   const doneBefore = s.done;
-  advance(s, act2Script);
+  advance(s, defaultScript);
   assert.equal(s.beatIndex, indexBefore, 'advance does not mutate input.beatIndex');
   assert.equal(s.done, doneBefore, 'advance does not mutate input.done');
-});
 
-test('act2-advance: parks on the final CTA state — advance past done is a no-op', () => {
-  // Walk all 5 beats to reach done
-  let state: DirectorState = initialState;
-  for (let i = 0; i < 5; i++) state = advance(state, act2Script);
-  assert.equal(state.done, true, 'done after walking all 5 beats');
-  const finalIndex = state.beatIndex;
-
-  // Call advance again — must return the same CTA state, not advance further
-  const parked = advance(state, act2Script);
+  // Past-done advances are parking no-ops: the CTA state is returned unchanged.
+  const parked = advance(state, defaultScript);
+  assert.equal(parked, state, 'advance past done returns the SAME state object (a true no-op)');
   assert.equal(parked.done, true, 'still done after advancing past the end');
   assert.equal(
     parked.beatIndex,
-    finalIndex,
+    state.beatIndex,
     'beatIndex does not increase past done — the state is parked on the CTA',
   );
 });
 
 // ---------------------------------------------------------------------------
-// BEAT 3: SIGNED-PROOF MARKER — no proof, no green
+// abd-green-only-on-signed-proof
 // ---------------------------------------------------------------------------
 
-test('act2-beat3: green capability limbs carry the signed-proof marker — no proof, no green', () => {
-  const beat3 = act2Script[2]!;
+test('abd-green-only-on-signed-proof: green limbs carry the marker; a green-without-marker delta is refused loudly', () => {
+  const beat3 = defaultScript[2]!;
   assert.equal(beat3.delta.kind, 'branch-caps', 'beat 3 delta is branch-caps');
 
   // Narrow to the branch-caps variant (Extract is safe: BeatDelta is a discriminated union)
@@ -165,33 +116,58 @@ test('act2-beat3: green capability limbs carry the signed-proof marker — no pr
       `green limb '${limb.id}' must carry a non-empty signedProof marker (the proof IS the proof)`,
     );
   }
-});
 
-test('act2-beat3: non-green limbs do NOT carry the signed-proof marker — demonstrates the verification gap', () => {
-  const beat3 = act2Script[2]!;
-  const delta = beat3.delta as Extract<BeatDelta, { kind: 'branch-caps' }>;
-
-  // Beat 3 MUST show the verification gap: at least one limb is still not proven
+  // Beat 3 MUST also show the verification gap: at least one limb is still not
+  // proven, and no unproven limb wears the marker.
   const notGreen = delta.limbs.filter((l: LimbDelta) => !l.green);
   assert.ok(
     notGreen.length > 0,
     'beat 3 must have at least one non-green limb (in-progress or proposed) to show the gap',
   );
   for (const limb of notGreen) {
-    // A "done"-without-proof delta cannot colour a limb green — no marker on the unproven
     assert.ok(
       limb.signedProof == null || limb.signedProof.length === 0,
       `non-green limb '${limb.id}' must NOT carry a signedProof marker`,
     );
   }
+
+  // THE REFUSAL: a mutated script whose beat-3 delta claims green WITHOUT the
+  // marker is refused by the director — a faked "done" cannot colour the tree
+  // even in fiction. (The type allows it; the RUNTIME contract refuses it.)
+  const mutated: Beat[] = defaultScript.map((b, i) =>
+    i === 2
+      ? {
+          ...b,
+          delta: {
+            kind: 'branch-caps' as const,
+            limbs: [{ id: 'cap-faked-done', label: 'Faked done', green: true }],
+          },
+        }
+      : b,
+  );
+  let toBeat3: DirectorState = initialState;
+  toBeat3 = advance(toBeat3, mutated); // beat 1
+  toBeat3 = advance(toBeat3, mutated); // beat 2
+  assert.throws(
+    () => advance(toBeat3, mutated),
+    'the director refuses a green-without-marker delta (contract violation)',
+  );
+
+  // The exported contract itself refuses the same script — the site's build-time
+  // parse catches a faked green before it ever reaches a canvas.
+  assert.equal(
+    BeatScript.safeParse(mutated).success,
+    false,
+    'BeatScript.safeParse refuses a script whose green limb lacks the signedProof marker',
+  );
 });
 
 // ---------------------------------------------------------------------------
-// BEAT 4: DECLARED LAYER VIOLATION — antipattern flagged from the data
+// abd-wrong-way-road-is-flagged-from-data
 // ---------------------------------------------------------------------------
 
-test('act2-beat4: the wrong-way UI→DB road is flagged with a declared layer-violation in its delta', () => {
-  const beat4 = act2Script[3]!;
+test('abd-wrong-way-road-is-flagged-from-data: exactly one road declares the layer violation, and it is the UI→DB skip', () => {
+  const beat4 = defaultScript[3]!;
   assert.equal(beat4.delta.kind, 'add-roads', 'beat 4 delta is add-roads');
 
   const delta = beat4.delta as Extract<BeatDelta, { kind: 'add-roads' }>;
@@ -203,7 +179,8 @@ test('act2-beat4: the wrong-way UI→DB road is flagged with a declared layer-vi
     'beat 4 has at least 2 roads (DAG road + the wrong-way UI→DB antipattern)',
   );
 
-  // Exactly one road must carry a declared violation — the antipattern is flagged FROM ITS DATA
+  // Exactly one road carries a declared violation — the antipattern is flagged
+  // FROM ITS DATA (a declared layer violation), distinct from every well-directed road.
   const violations = delta.roads.filter(
     (r: RoadDelta) => r.violation != null && r.violation.length > 0,
   );
@@ -214,51 +191,83 @@ test('act2-beat4: the wrong-way UI→DB road is flagged with a declared layer-vi
     typeof v.violation === 'string' && v.violation.length > 0,
     'the violation label is a non-empty string (the antipattern name, not a presentation hint)',
   );
+  // The flagged road IS the wrong-way UI→DB road skipping the service layer.
+  assert.equal(v.from, 'ui', 'the flagged road starts at the UI');
+  assert.equal(v.to, 'db', 'the flagged road ends at the DB (skipping the service layer)');
 });
 
 // ---------------------------------------------------------------------------
-// END-TO-END INTEGRATION WALK
+// abd-default-script-is-the-five-approved-beats
 // ---------------------------------------------------------------------------
 
-test('act2-director: full five-beat walk — produces the declared CTA end-state', () => {
-  let state: DirectorState = initialState;
+test('abd-default-script-is-the-five-approved-beats: validates against BeatScript and walks end-to-end to the CTA', () => {
+  // The exported default script validates against the exported zod contract —
+  // the SAME contract the site parses its beat copy against at build time.
+  const parsed = BeatScript.safeParse(defaultScript);
+  assert.equal(parsed.success, true, 'defaultScript validates against the BeatScript contract');
 
+  // The default export IS the default script (both surfaces stay pinned together).
+  assert.equal(act2Script, defaultScript, 'the default export is the defaultScript');
+
+  // Exactly the five approved research-table beats, in order:
+  //   1. plant-story  — a seed grows into a tree with its OUTCOME on a label
+  //   2. attach-wisp  — a soft wisp drifts over the tree
+  //   3. branch-caps  — capability limbs; green only on a signed passing proof
+  //   4. add-roads    — DAG roads; one road flagged as a declared layer violation
+  //   5. pull-back    — camera widens to the full legible forest → done: true (CTA)
+  assert.equal(defaultScript.length, 5, 'exactly 5 beats in the default script');
+  const expectedKinds: BeatDelta['kind'][] = [
+    'plant-story',
+    'attach-wisp',
+    'branch-caps',
+    'add-roads',
+    'pull-back',
+  ];
+  const actualKinds = defaultScript.map((b: Beat) => b.delta.kind);
+  assert.deepEqual(actualKinds, expectedKinds, 'delta kinds match the five approved beats in order');
+
+  // All beat ids are unique — the site keys its narration copy by beat id.
+  const ids = defaultScript.map((b: Beat) => b.id);
+  assert.equal(new Set(ids).size, 5, 'all beat ids are unique');
+
+  // End-to-end integration walk: the full five-beat walk produces the CTA end-state.
+  let state: DirectorState = initialState;
   const beatIndexSeq: number[] = [];
   const doneSeq: boolean[] = [];
-
-  for (const beat of act2Script) {
-    state = advance(state, act2Script);
+  for (const beat of defaultScript) {
+    state = advance(state, defaultScript);
     beatIndexSeq.push(state.beatIndex);
     doneSeq.push(state.done);
     // Camera must follow each beat's declared target at every step
-    assert.deepEqual(
-      state.camera,
-      beat.camera,
-      `camera follows beat '${beat.id}'`,
-    );
+    assert.deepEqual(state.camera, beat.camera, `camera follows beat '${beat.id}'`);
   }
-
-  // beatIndex increments 1 → 5 across the five beats
   assert.deepEqual(
     beatIndexSeq,
     [1, 2, 3, 4, 5],
     'beatIndex increments 1→5 across the five approved beats',
   );
-
-  // done is false for all beats except the fifth (the CTA state)
   assert.deepEqual(
     doneSeq,
     [false, false, false, false, true],
     'done is true only after the fifth beat (the pull-back / CTA)',
   );
-
-  // The terminal state IS the CTA state
   assert.equal(state.done, true, 'terminal state: done is true');
   assert.equal(state.beatIndex, 5, 'terminal state: beatIndex is 5');
   // Camera is parked on the pull-back (the whole legible forest)
   assert.deepEqual(
     state.camera,
-    act2Script[4]!.camera,
+    defaultScript[4]!.camera,
     'terminal camera = beat 5 camera (pull-back to the full forest)',
   );
+});
+
+// ---------------------------------------------------------------------------
+// Auxiliary: the zero state
+// ---------------------------------------------------------------------------
+
+test('act2-initial-state: beatIndex is 0, done is false, world and camera are non-null', () => {
+  assert.equal(initialState.beatIndex, 0, 'initial beatIndex is 0 (no beats applied yet)');
+  assert.equal(initialState.done, false, 'initial done is false');
+  assert.ok(initialState.world != null, 'initial world is non-null');
+  assert.ok(initialState.camera != null, 'initial camera is non-null');
 });
