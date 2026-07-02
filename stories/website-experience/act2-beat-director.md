@@ -47,14 +47,25 @@ and the exported default script IS the five approved beats, walking end-to-end.
 **Depends on —** [`r3f-world-spike`](r3f-world-spike.md) — the director lives in the mapper's
 package and emits the World / scene inputs the mapper draws.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The five beats are
-> APPROVED CONTENT — the beat table in
+> **Proof status (honest) — BUILT, leaf-proven; the authored status stays `proposed`.** The gated
+> SDK leaf authored the NET-NEW director through the real prove-it-gate: the test observed red at
+> HEAD (module-not-found — `act2-director.ts` did not exist), then the pure module green (run
+> `real-mr32b6ib`, signed PASS @ `2358bc4` 2026-07-02, persisted to `events.verdict`; package
+> typecheck + suite observed green in the installed worktree). Consolidated on top (never amending
+> the verdict commit): the `zod` dep (orchestrator glue, a leaf never touches package.json) and the
+> exported ZOD contract this spec names — `BeatScript` / `Beat` / `BeatDelta` / `LimbDelta`
+> (`packages/forest-world-r3f/src/act2-director.ts:120`/`:104`/`:48`), with `advance()`
+> (`act2-director.ts:196`) parsing each beat before applying it so a green-without-marker limb is
+> REFUSED at runtime (`Beat.parse`, `act2-director.ts:203`; the `LimbDelta` refine,
+> `act2-director.ts:60`) — the teaching claims are runtime contracts, not type hints; the named
+> `defaultScript` export (`act2-director.ts:220`, the five approved beats) and the pure director
+> surface re-exported from the root barrel (`packages/forest-world-r3f/src/index.ts:32`); and
+> contract-id-led tests (`storytree coverage act2-beat-director` → 4/4) adding the two-walk
+> determinism, mutated-script refusal, and contract-parse assertions. The five beats were APPROVED
+> CONTENT before the build — the beat table in
 > [docs/research/vibe-coding-gripes-2026.md](../../docs/research/vibe-coding-gripes-2026.md) ("The
-> Act 2 spine") carried through ADR-0134 and the owner decisions of 2026-07-02 — but no choreography
-> machinery exists anywhere. This capability makes the choreography a provable ENGINE rather than
-> ad-hoc site script, so the teaching claims Act 2 stakes ("green only on signed proof"; "the
-> wrong-way road is visible the moment it's drawn") are enforced by data contracts a test can hold,
-> not by copywriting.
+> Act 2 spine") carried through ADR-0134 and the owner decisions of 2026-07-02; the choreography is
+> now a provable ENGINE rather than ad-hoc site script.
 
 ## Guidance
 
@@ -120,19 +131,19 @@ reports 4/4.
 1. **`abd-advance-is-visitor-paced-and-deterministic`** — one tap, one beat, same walk every time
    - **asserts —** `advance()` moves exactly one beat per call, two walks of the same script are
      deep-equal, state never changes without a call, and past-`done` advances are parking no-ops.
-   - **covers —** `packages/forest-world-r3f/src/act2-director.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
 2. **`abd-green-only-on-signed-proof`** — the beat-3 thesis is a data contract, not copy
    - **asserts —** a limb renders green only when its delta carries the signed-proof marker; a
      green-without-marker delta is refused loudly.
-   - **covers —** `packages/forest-world-r3f/src/act2-director.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
 3. **`abd-wrong-way-road-is-flagged-from-data`** — the antipattern is visible by construction
    - **asserts —** the beat-4 UI→DB road emits an antipattern-flagged road descriptor because its
      data declares the layer violation, distinct from every well-directed road.
-   - **covers —** `packages/forest-world-r3f/src/act2-director.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
 4. **`abd-default-script-is-the-five-approved-beats`** — the shipped choreography is the approved one
    - **asserts —** the exported default script validates against the exported contract, is exactly
      the five beats above in order, and walks end-to-end to the CTA state.
-   - **covers —** `packages/forest-world-r3f/src/act2-director.ts` *(provisional path)*
+   - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
 
 ## Guidance — the slice that earns the signed verdict
 
