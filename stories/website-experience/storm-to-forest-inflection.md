@@ -76,8 +76,10 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
   `index.ts`, `world-to-3d.ts`, `ForestWorldCanvas.tsx`, `act2-director.ts`) and filters
   descriptors to `hex-ground` only (`:100`; witnessed log `hex-ground 19 · story-tree 0 · …`,
   `:105`) — the land resolves empty of story nodes because ground REQUIRES a territory and a
-  territory always emits a tree; the emptiness is a surface filter, which
-  `act2-guided-walkthrough` replaces with beat-driven scene rebuilds rather than stacking on.
+  territory always emits a tree; the emptiness is a surface filter. *(How the walkthrough grows
+  the land was re-decided 2026-07-03 — ADR-0145: the walk happens on the real 2.5D map, not this
+  R3F island; the island stays this cap's attested landing moment, and the landing→2.5D-walk
+  handoff is `act2-guided-walkthrough`'s design seam.)*
 - **The empty land carries the interim CTA** (`src/pages/index.astro:161`–`168`): how-it-works /
   get-involved links + the classic-front-page exit via the existing disarm — a mid-arc visitor is
   never stranded (owner decision 6).
