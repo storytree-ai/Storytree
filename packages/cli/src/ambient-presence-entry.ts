@@ -4,7 +4,7 @@ import * as os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { sessionHook, statuslineGlance } from "@storytree/drive";
+import { sessionHook, statuslineGlance, undeclaredSessionNudge } from "@storytree/drive";
 import type { AmbientDeps, HeartbeatState } from "@storytree/drive";
 import { deriveIdentity } from "@storytree/drive";
 import type { PresenceStoreLike } from "@storytree/drive";
@@ -20,8 +20,12 @@ import { loadLocalSecrets } from "./secrets.js";
  *
  * HARD CONTRACT (the V1 hook-loop lesson, encoded): ALWAYS exit 0, bounded time, and silent on
  * every failure path — no output when the DB is down, no error ever surfaces into the session.
- * The hook modes print NOTHING even on success (SessionStart stdout lands in the model's
- * context); statusline prints at most the one glance line. This command must NEVER be registered
+ * The hook modes print nothing on success with ONE deliberate exception (ADR-0143): `start` in a
+ * recognised session worktree prints the single undeclared-session nudge line — SessionStart
+ * stdout lands in the model's context, and that is exactly the lever: the agent sees the anchor
+ * ceremony (ADR-0142: declare --node lights the story wisp) as its first instruction. The nudge is
+ * static and offline-computable, so it adds no DB coupling and no new failure path. `end` prints
+ * nothing; statusline prints at most the one glance line. This command must NEVER be registered
  * on a blocking-capable hook event (`Stop`, `PreToolUse`, `UserPromptSubmit`) — `auditHookConfig`
  * in `ambient-presence.ts` keys on the "ambient-presence" name to enforce exactly that.
  */
@@ -117,6 +121,10 @@ async function main(): Promise<void> {
         workingOn: `interactive session on ${identity.branch}`,
         timeoutMs: STORE_TIMEOUT_MS,
       });
+      // The one deliberate SessionStart print (ADR-0143): inject the anchor ceremony into the
+      // fresh session's context. Static + offline — printed whether or not the declare above
+      // reached the store, because the nudge is for the AGENT, not a status of the write.
+      if (mode === "start") process.stdout.write(undeclaredSessionNudge(identity));
     }
   } catch {
     // unreachable by the module's own contract — belt-and-suspenders silence
