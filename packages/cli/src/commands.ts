@@ -28,6 +28,7 @@ import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
+import { branchNext, branchHelp } from "./branch.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentsHelp } from "./agents.js";
@@ -792,6 +793,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
+      "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
@@ -979,6 +981,15 @@ export interface RunDeps {
    * command then omits it and `runHeadlessOrchestrator` uses the real SDK `query()` (the live leg).
    */
   readonly orchestrate?: { readonly queryFn?: SdkQueryFn };
+  /**
+   * The `storytree branch` seams (ADR-0142): an injected `runGit`/`generateName` make the
+   * dead-branch detection + fresh cut offline-testable (the deriveIdentity pattern). Absent in
+   * production — real git and a random claude/<name> are used.
+   */
+  readonly branch?: {
+    readonly runGit?: (args: readonly string[]) => string;
+    readonly generateName?: () => string;
+  };
 }
 
 /** Best-effort current git branch (recorded on an ADR allocation for audit); "unknown" if git can't answer. */
@@ -1614,6 +1625,44 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     );
   }
 
+  if (area === "branch") {
+    // ADR-0142 — a branch dies on merge. `branch next` is the merge ceremony's post-merge leg in
+    // one verb: detect the dead branch, cut + switch a fresh claude/<name> from origin/main, and
+    // re-take presence. The re-declare recurses through the SAME noticeboard dispatch above, so
+    // whatever that path wires (claim-at-declare re-lighting the story wisp) runs on the fresh
+    // branch too — one code path, never a hand-copied declare.
+    if (help || sub === undefined) return branchHelp();
+    if (sub !== "next") {
+      return {
+        ok: false,
+        body: `unknown branch command "${sub}". try: storytree branch next`,
+        next: ["storytree branch next", "storytree branch --help"],
+      };
+    }
+    const identity = sessionIdentity(deps);
+    const presenceStore = deps.presence?.store ?? null;
+    return branchNext({
+      ...(deps.branch?.runGit !== undefined ? { runGit: deps.branch.runGit } : {}),
+      ...(deps.branch?.generateName !== undefined ? { generateName: deps.branch.generateName } : {}),
+      presence: presenceStore,
+      identity,
+      redeclare:
+        presenceStore !== null
+          ? (args) =>
+              run(
+                [
+                  "noticeboard",
+                  "declare",
+                  "--working-on",
+                  args.workingOn,
+                  ...args.nodes.flatMap((n) => ["--node", n]),
+                ],
+                deps,
+              )
+          : null,
+    });
+  }
+
   if (area === "tree") {
     if (help) return treeViewHelp();
     return treeCommand(sub, {
@@ -1869,7 +1918,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, tree, witness, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, branch, tree, witness, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
