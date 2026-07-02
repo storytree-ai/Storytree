@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { SyncedFile } from "./web-engine-sync.js";
 import {
   ENGINE_DIR,
   bannerFor,
@@ -107,4 +108,91 @@ test("detectEngineDrift flags a stale leftover no longer in the core", () => {
 
 test("normalizeEol collapses CRLF to LF", () => {
   assert.equal(normalizeEol("a\r\nb\r\n"), "a\nb\n");
+});
+
+// ── Generalisation 2: .tsx is engine source ──────────────────────────────────────────
+
+/** R3F-style fixture: a .tsx component + an index barrel + a .test.tsx that must be filtered. */
+const R3F_CORE = new Map<string, string>([
+  ["Mapper.tsx", "import { Scene } from '@storytree/forest-world';\nexport const Mapper = () => null;\n"],
+  ["index.tsx", "export { Mapper } from './Mapper.js';\n"],
+  ["Mapper.test.tsx", "// excluded test file\n"],
+]);
+
+test("isEngineSource accepts .tsx — R3F component files are engine source", () => {
+  // FAILS: currently isEngineSource only passes .ts, not .tsx
+  assert.equal(isEngineSource("Mapper.tsx"), true);
+  assert.equal(isEngineSource("index.tsx"), true);
+  assert.equal(isEngineSource("Mapper.test.tsx"), false); // invariant: .test.tsx stays excluded
+});
+
+test("computeSyncPlan includes .tsx engine sources and filters .test.tsx", () => {
+  const plan = computeSyncPlan(R3F_CORE);
+  // FAILS: currently [] because .tsx is not recognised as an engine source
+  assert.deepEqual(plan.map((p) => p.file), ["Mapper.tsx", "index.tsx"]);
+});
+
+// ── Generalisation 1: package-parameterised plans ────────────────────────────────────
+// The implementation will add an optional destDir parameter to computeSyncPlan.
+// This cast lets us exercise the future runtime behaviour before the type signature is updated.
+const computeSyncPlanFor = computeSyncPlan as unknown as (
+  s: ReadonlyMap<string, string>,
+  destDir: string,
+) => SyncedFile[];
+
+test("computeSyncPlan uses the destDir parameter for synced paths", () => {
+  const plan = computeSyncPlanFor(
+    new Map([["Scene.ts", "export const x = 1;\n"]]),
+    "src/lib/forest-world-r3f",
+  );
+  assert.equal(plan.length, 1);
+  // FAILS: current implementation ignores the second arg and always uses ENGINE_DIR
+  assert.equal(plan[0]!.path, "src/lib/forest-world-r3f/Scene.ts");
+});
+
+// ── Generalisation 3: workspace-import rewriting ─────────────────────────────────────
+
+test("computeSyncPlan rewrites @storytree/forest-world to ../forest-world in synced R3F content", () => {
+  const core = new Map([
+    ["Mapper.tsx", "import { Scene } from '@storytree/forest-world';\nexport const Mapper = () => null;\n"],
+  ]);
+  const plan = computeSyncPlan(core);
+  // FAILS initially because plan is [] (.tsx not yet an engine source)
+  assert.equal(plan.length, 1, "Mapper.tsx must appear in the sync plan");
+  const { content } = plan[0]!;
+  assert.ok(
+    !content.includes("@storytree/forest-world"),
+    "workspace specifier must be rewritten in the synced copy",
+  );
+  assert.ok(
+    content.includes("'../forest-world'") || content.includes('"../forest-world"'),
+    "must rewrite to the sibling synced core dir",
+  );
+});
+
+test("computeSyncPlan throws on an unresolvable @storytree/* workspace import", () => {
+  const badCore = new Map([["Mapper.tsx", "import { x } from '@storytree/library';\n"]]);
+  // FAILS: currently computeSyncPlan silently returns [] for .tsx files (they are filtered),
+  // so no error is thrown — assert.throws fails because no exception occurs.
+  assert.throws(
+    () => computeSyncPlan(badCore),
+    (err: unknown) => {
+      assert.ok(err instanceof Error, "must throw an Error");
+      assert.match(err.message, /@storytree\/library/i);
+      return true;
+    },
+  );
+});
+
+// ── Generalisation 4: drift spans both dirs (.tsx leftovers are detected) ────────────
+
+test("detectEngineDrift flags a stale .tsx leftover in the synced dir", () => {
+  const plan = computeSyncPlan(new Map([["Scene.ts", "export const x = 1;\n"]]));
+  const synced = new Map(plan.map((p) => [p.file, p.content]));
+  synced.set("Mapper.tsx", "// stale leftover R3F component\n");
+  const problems = detectEngineDrift(plan, (f) => synced.get(f) ?? null, [...synced.keys()]);
+  // FAILS: isEngineSource("Mapper.tsx") currently returns false, so the leftover is invisible
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0]!.file, "Mapper.tsx");
+  assert.match(problems[0]!.reason, /no longer in the core/);
 });

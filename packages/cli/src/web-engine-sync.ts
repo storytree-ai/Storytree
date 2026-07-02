@@ -25,9 +25,13 @@ export const ENGINE_DIR = "src/lib/forest-world";
 export const REQUIRED_ENGINE_FILES = ["scene.ts", "index.ts"] as const;
 
 /** Drop a file from the sync set — test files (node:test, `node:` imports) and
- *  declaration maps never ship to the browser bundle. */
+ *  declaration maps never ship to the browser bundle. `.tsx` is included so R3F
+ *  component layers in sibling packages (e.g. forest-world-r3f) are also synced. */
 export function isEngineSource(file: string): boolean {
-  return file.endsWith(".ts") && !file.endsWith(".test.ts") && !file.endsWith(".d.ts");
+  return (file.endsWith(".ts") || file.endsWith(".tsx"))
+    && !file.endsWith(".test.ts")
+    && !file.endsWith(".test.tsx")
+    && !file.endsWith(".d.ts");
 }
 
 /** Normalise EOL so a CRLF checkout of the synced copy never reads as drift — the
@@ -74,16 +78,48 @@ export interface SyncedFile {
 }
 
 /**
+ * The only `@storytree/*` workspace specifier that may appear in a synced file — it
+ * references the sibling synced core dir so the site consumes ONE copy of the geometry,
+ * never a private duplicate. Any other `@storytree/*` is a plan-time error: the synced
+ * artifact must never smuggle a private package reference the website cannot resolve.
+ */
+const ALLOWED_WORKSPACE_SPECIFIER = "@storytree/forest-world";
+const WORKSPACE_IMPORT_RE = /@storytree\/[a-zA-Z0-9_-]+/g;
+
+/** Rewrite `@storytree/forest-world` → `../forest-world` (the sibling synced dir) and
+ *  throw immediately on any other `@storytree/*` specifier found in the source. */
+function rewriteWorkspaceImports(source: string): string {
+  return source.replace(WORKSPACE_IMPORT_RE, (match) => {
+    if (match === ALLOWED_WORKSPACE_SPECIFIER) {
+      return "../forest-world";
+    }
+    throw new Error(
+      `Synced file contains an unresolvable workspace import: ${match}. ` +
+        `Only '${ALLOWED_WORKSPACE_SPECIFIER}' is allowed in synced sources ` +
+        `(the website cannot resolve private @storytree/* packages).`,
+    );
+  });
+}
+
+/**
  * Compute the exact synced fileset from the core sources (file name → raw source).
  * Pure + deterministic: the same core always yields the same plan, so the sync
  * (which writes it) and the check (which compares against it) agree by construction.
  * Non-source files are filtered; the result is sorted for a stable order.
+ *
+ * `destDir` — the web-relative destination dir (defaults to `ENGINE_DIR`). Pass an
+ * explicit dir to sync a second package (e.g. "src/lib/forest-world-r3f") without
+ * changing the existing plan for the core package.
  */
-export function computeSyncPlan(coreSources: ReadonlyMap<string, string>): SyncedFile[] {
+export function computeSyncPlan(
+  coreSources: ReadonlyMap<string, string>,
+  destDir: string = ENGINE_DIR,
+): SyncedFile[] {
   const plan: SyncedFile[] = [];
   for (const [file, source] of coreSources) {
     if (!isEngineSource(file)) continue;
-    plan.push({ file, path: `${ENGINE_DIR}/${file}`, content: syncedContent(file, source) });
+    const rewrittenSource = rewriteWorkspaceImports(source);
+    plan.push({ file, path: `${destDir}/${file}`, content: syncedContent(file, rewrittenSource) });
   }
   return plan.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 }
