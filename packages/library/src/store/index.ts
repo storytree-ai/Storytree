@@ -67,6 +67,13 @@ export type {
   CommentPatch,
   CommentFilter,
 } from "./pg-comment-store.js";
+export {
+  PgSuggestionStore,
+  applySuggestionTransition,
+  mergeSuggestionPatch,
+  SuggestionSchema,
+} from "./pg-suggestion-store.js";
+export type { Suggestion, SuggestionPatch, SuggestionFilter } from "./pg-suggestion-store.js";
 export { PgAdrStore } from "./adr-store.js";
 export type { AdrAllocatorClient, AdrAllocation } from "./adr-store.js";
 // Cloud SQL Admin REST client (ADR-0063): db-control over REST instead of the gcloud subprocess.

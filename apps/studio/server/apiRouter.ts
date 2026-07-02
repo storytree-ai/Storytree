@@ -66,6 +66,7 @@ export type { BuildContext };
 // values lazily), so it can be statically imported here without pulling proof-protocol's enums.js into
 // vite's config-load graph — the same way libraryBackend.ts is statically imported.
 import { handleWriteBroker, type WriteBrokerBackend } from './writeBroker';
+import { handleSuggestionDecision, type SuggestionDecisionBackend } from './suggestionApi';
 
 const ASSET_CATEGORIES: AssetCategory[] = [
   'definition',
@@ -1567,6 +1568,74 @@ function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
   };
 }
 
+// ---------- suggestion decision (ADR-0140 — accept/reject through the store's atomic transition) ----------
+//
+// POST /api/suggestions/decision runs cap 3's handleSuggestionDecision over the live suggestion
+// store. The gate (member-suggest-write-policy) already refused every non-admin caller, so the
+// handler assumes an authorized decider. Like writeBrokerBackend, the LibraryBackend suggestion
+// seam is OPTIONAL (json backend has no events.suggestion), so this adapter refuses with 503 when
+// the live store isn't behind the backend.
+
+/**
+ * Adapt the studio's {@link LibraryBackend} to cap 3's {@link SuggestionDecisionBackend} seam.
+ *
+ * Seam impedance, made explicit: the handler transitions the record ITSELF and hands the closed
+ * result to `saveSuggestion`, while the store's one write path is the atomic
+ * `transitionSuggestion` (event append + projection upsert, re-checking open-ness). So save maps
+ * the already-transitioned record BACK onto the store transition — deriving the action from the
+ * record's status — and a lost race (someone else decided between the handler's read and this
+ * write) surfaces as the store's closed-suggestion error, mapped to 409 like the handler's own.
+ *
+ * ACCEPT IS DEFERRED, LOUDLY (the honesty wall): `applyToAsset` needs a blockId → asset-body
+ * splice, and the block model is not settled yet (the review-refresh-feed / inline-comment-thread /
+ * collapsed-suggestion-view caps own it — no blockId→body mapping exists anywhere in the studio
+ * today). Rather than a splice that silently corrupts structured docs, or flipping a suggestion to
+ * `accepted` WITHOUT applying it, accept refuses with 501 BEFORE any status transition persists
+ * (the handler applies before it saves). Reject — which never touches the doc — works end-to-end.
+ */
+function suggestionDecisionBackend(backend: LibraryBackend): SuggestionDecisionBackend {
+  const needsPg = (): HttpError =>
+    new HttpError(503, 'deciding a suggestion needs the live store (pg) — bring the DB up (pnpm db:up)');
+  return {
+    async getSuggestion(id) {
+      if (!backend.getSuggestion) throw needsPg();
+      return backend.getSuggestion(id);
+    },
+    async saveSuggestion(s) {
+      if (!backend.transitionSuggestion) throw needsPg();
+      if (s.status === 'open') {
+        throw new Error('saveSuggestion called with an open suggestion — the handler transitions before saving');
+      }
+      const action = s.status === 'accepted' ? 'accept' : 'reject';
+      let updated;
+      try {
+        updated = await backend.transitionSuggestion(
+          s.id,
+          action,
+          s.decidedBy ?? 'unknown',
+          s.decidedAt ?? new Date().toISOString(),
+        );
+      } catch (err) {
+        // The store's closed-suggestion guard fired: someone decided between the handler's read and
+        // this write. The same wall the handler maps for its own transition — answer 409, not 500.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Cannot decide a closed suggestion')) throw new HttpError(409, msg);
+        throw err;
+      }
+      if (!updated) throw new HttpError(404, `suggestion "${s.id}" not found`);
+      return updated;
+    },
+    async applyToAsset() {
+      throw new HttpError(
+        501,
+        'accepting a suggestion is not wired yet — applying the proposed content needs the block model ' +
+          '(blockId → asset-body splice) the Review-mode UI caps settle (ADR-0140); reject works, and no ' +
+          'suggestion is ever marked accepted without its content applied',
+      );
+    },
+  };
+}
+
 // ---------- the dispatch ----------
 
 /** Everything one front (dev plugin / hosted server) wires into the route table. */
@@ -1758,6 +1827,17 @@ export async function handleApiRequest(
         backend: writeBrokerBackend(ctx.backend),
         caller: ctx.policy?.me.email ?? null,
         access: ctx.policy?.access ?? null,
+      });
+    } else if (url.pathname === '/api/suggestions/decision') {
+      // ADR-0140: the suggestion accept/reject decision. The policy gate already enforced the
+      // member-suggest write policy (deciding is admin-only; a member POST 403'd before reaching
+      // here), so the handler runs as cap 3 proved it: 404 unknown id, 409 already-closed, reject
+      // transitions the record, accept refuses 501 until the block-apply model lands (see
+      // suggestionDecisionBackend — never accepted-without-applied).
+      if ((req.method ?? 'GET') !== 'POST') throw new HttpError(405, 'method not allowed');
+      await handleSuggestionDecision(req, res, {
+        backend: suggestionDecisionBackend(ctx.backend),
+        caller: ctx.policy?.me.email ?? null,
       });
     } else {
       throw new HttpError(404, 'unknown endpoint');

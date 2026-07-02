@@ -174,6 +174,25 @@ export interface LibraryBackend {
   /** Returns `true` if a row was removed, `false` if `id` did not exist. */
   deleteComment(id: string): Promise<boolean>;
 
+  // ----- suggestions (ADR-0140, member-suggest-write-policy) -----
+  // The suggestion-decision seam behind POST /api/suggestions/decision. OPTIONAL like
+  // {@link signUatVerdict}: implemented only by the pg backend (PgSuggestionStore over
+  // events.suggestion_event / events.suggestion) — the json backend omits them, so the route
+  // refuses with "needs the live store" (503) instead of pretending to decide.
+  /** One suggestion by id, or `null` when absent. */
+  getSuggestion?(id: string): Promise<Suggestion | null>;
+  /**
+   * Apply an accept/reject decision through the store's atomic transition (append the
+   * `transitioned` event + upsert the projection). Returns the updated suggestion, `null` if the
+   * id does not exist; throws the store's closed-suggestion error on a re-decide race.
+   */
+  transitionSuggestion?(
+    id: string,
+    action: 'accept' | 'reject',
+    decidedBy: string,
+    decidedAt: string,
+  ): Promise<Suggestion | null>;
+
   // ----- members (app-owned users, ADR-0043) -----
   // The app-owned directory the hosted server authorizes from. The last-admin guard and zod
   // validation are enforced at the write boundary; a guard violation throws an error whose
@@ -441,7 +460,7 @@ function lastAdminError(message: string): Error {
 // `store.X` call sites below are unchanged.
 //
 // Types are `import type` only (fully erased under verbatimModuleSyntax), so they add no runtime import.
-import type { PoolHandle, PgLibraryStore, PgCommentStore } from '@storytree/library/store';
+import type { PoolHandle, PgLibraryStore, PgCommentStore, PgSuggestionStore, Suggestion } from '@storytree/library/store';
 import type { PgUserStore } from '@storytree/studio-members/store';
 import type { PgAttestationStore, PgWorkStore } from '@storytree/orchestrator/store';
 
@@ -552,6 +571,7 @@ export class PgBackend implements LibraryBackend {
   #handle: PoolHandle | null = null;
   #library: PgLibraryStore | null = null;
   #comments: PgCommentStore | null = null;
+  #suggestions: PgSuggestionStore | null = null;
   #users: PgUserStore | null = null;
   #attestations: PgAttestationStore | null = null;
   #work: PgWorkStore | null = null;
@@ -561,6 +581,7 @@ export class PgBackend implements LibraryBackend {
     store: StoreModule;
     library: PgLibraryStore;
     comments: PgCommentStore;
+    suggestions: PgSuggestionStore;
     users: PgUserStore;
     attestations: PgAttestationStore;
     work: PgWorkStore;
@@ -569,6 +590,7 @@ export class PgBackend implements LibraryBackend {
       this.#store === null ||
       this.#library === null ||
       this.#comments === null ||
+      this.#suggestions === null ||
       this.#users === null ||
       this.#attestations === null ||
       this.#work === null
@@ -579,6 +601,7 @@ export class PgBackend implements LibraryBackend {
       this.#handle = handle;
       this.#library = new store.PgLibraryStore(handle.pool);
       this.#comments = new store.PgCommentStore(handle.pool);
+      this.#suggestions = new store.PgSuggestionStore(handle.pool);
       this.#users = new store.PgUserStore(handle.pool);
       this.#attestations = new store.PgAttestationStore(handle.pool);
       // The work-hierarchy event store (events.verdict): the studio's `signUatVerdict` appends a
@@ -589,6 +612,7 @@ export class PgBackend implements LibraryBackend {
       store: this.#store,
       library: this.#library,
       comments: this.#comments,
+      suggestions: this.#suggestions,
       users: this.#users,
       attestations: this.#attestations,
       work: this.#work,
@@ -967,6 +991,25 @@ export class PgBackend implements LibraryBackend {
   async deleteComment(id: string): Promise<boolean> {
     const { comments } = await this.#ready();
     return comments.remove(id, DEFAULT_ACTOR);
+  }
+
+  // ----- suggestions (PgSuggestionStore over events.suggestion_event / events.suggestion) -----
+
+  async getSuggestion(id: string): Promise<Suggestion | null> {
+    const { suggestions } = await this.#ready();
+    const all = await suggestions.list();
+    return all.find((s) => s.id === id) ?? null;
+  }
+
+  async transitionSuggestion(
+    id: string,
+    action: 'accept' | 'reject',
+    decidedBy: string,
+    decidedAt: string,
+  ): Promise<Suggestion | null> {
+    const { suggestions } = await this.#ready();
+    // The decider IS the audit actor — a decision is attributed, never 'operator'.
+    return suggestions.transition(id, action, decidedBy, decidedAt, decidedBy);
   }
 
   // ----- users (PgUserStore over events."user") -----
