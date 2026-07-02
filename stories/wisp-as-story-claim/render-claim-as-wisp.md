@@ -7,7 +7,7 @@ outcome: "The wisp source reads `events.node_claim` alongside the `building` row
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
-decisions: [138, 48, 45, 99]
+decisions: [138, 45, 99]
 # Node-borne proof config (ADR-0057 keystone A). The §5-load-bearing delta is PURE DATA MATH: the fold that
 # turns node_claim rows into map activity, with a distinct discriminator for claimed-vs-proven. NET-NEW,
 # builtins-only — mirrors the existing apps/studio/server/inFlightBuilds.test.ts (pure, NO DB, NO install).

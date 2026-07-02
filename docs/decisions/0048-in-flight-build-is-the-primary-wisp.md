@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-06-14
 amends: [41]
 ---
@@ -7,6 +7,17 @@ amends: [41]
 # ADR-0048: The in-flight build is the primary wisp — harness-driven, self-cleaning presence
 
 ## Status
+
+**Superseded by [ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)**
+(2026-06-29) — ADR-0138 re-decides *what the wisp renders*: the wisp is now the render of a forced,
+CI-cleared story-**claim** (the one coordination + observability layer), not the in-flight build. This
+ADR's central decision — the build is the *primary* wisp, sourced from the harness not the session
+(Decision 1), with coordination/"planning" presence demoted out of the orbiting role and its form
+*deferred to a later owner call* (Decision 5) — is overturned: ADR-0138 IS that later owner call, decided
+the opposite way. ADR-0048's build-wisp is **not deleted** — it becomes the *proving* colour STATE of the
+claim-wisp — and "honest by absence" **generalises** (an empty map now means no session holds any node).
+Owner-directed 2026-06-29 and operator-attested 2026-06-30. The original body below is preserved unchanged
+as history.
 
 accepted (2026-06-14; ratified 2026-06-20) — owner steer in conversation 2026-06-14: *"go all in on the harness so that
 when the leaf agents run the mechanical red-green TDD process, the UI is updated. This should make it
@@ -26,8 +37,6 @@ ADR's centrepiece (ADR-0045 corrected in place per
 above `fresh`. **Applies [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) /
 [ADR-0030](0030-claude-agent-sdk-live-runtime.md)** — the signal is sourced from the prove-it-gate's
 phase walk and the leaf executor it drives.
-
-**Superseded-in-part by [ADR-0138](0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)** — the wisp is now the render of a forced story-CLAIM, not only of a build; the build becomes a colour STATE of the claim wisp (honest-by-absence generalises).
 
 *Numbering note:* 0046 is the latest on `main`; 0047 is taken by open draft PR #109
 (`inbound-signal-librarian`). 0048 is free across all fetched refs and the live DB carries no ADR
