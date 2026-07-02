@@ -55,7 +55,8 @@ export function storytreeDataApi(): Plugin {
 
       // UI-driven build (ADR-0090 "the local loop"): the server-process worker boundary. One
       // in-memory run registry per dev server; the runner ROUTES by unit tier — a story id drives
-      // the EXISTING `story build --real` chain, a node id the EXISTING `node build --live` path —
+      // the EXISTING `story build --real` chain, a node id the EXISTING `node build --real` path
+      // (ADR-0144: the real proof, persisted verdict, parked branch — no longer the --live smoke) —
       // and the discovery validates ids the SAME way the CLI prechecks (`resolveBuildConfig` /
       // `isStoryBuildable`). cli + orchestrator are imported LAZILY (inside the closures) so this
       // Vite plugin never pulls them at config-load time (the raw-TS `.js` re-export trap; the same
