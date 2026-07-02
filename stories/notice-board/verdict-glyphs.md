@@ -60,7 +60,9 @@ persists under the STORY's own id), never a roll-up inferred from its children �
 capabilities pass" and "the story passed UAT" are different claims, and the glyph only ever
 reports a signed verdict.
 
-The implementation is `packages/cli/src/tree-verdicts.ts` — a SELF-CONTAINED module of pure
+The implementation now lives at `packages/drive/src/tree-verdicts.ts` (relocated per the
+ADR-0112 drive-extraction pattern; `packages/cli/src/tree-verdicts.ts` remains as a thin
+re-export shim, so the registered proof is unchanged) — a SELF-CONTAINED module of pure
 functions plus one reader wrapper (no Envelope: `tree.ts` does the rendering). Do NOT touch
 `tree.ts`, `tree.test.ts`, `commands.ts`, `main.ts`, or `noticeboard.ts` (all outside your write
 scope — `tree.ts` is ANOTHER capability's registered REAL surface): the spine wires `treeCommand`

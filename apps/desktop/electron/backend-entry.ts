@@ -30,6 +30,7 @@ import { PgPresenceStore } from "@storytree/notice-board/store";
 import { classifyPresence } from "@storytree/notice-board";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
+import { createOrientationRunner } from "@storytree/drive";
 
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
@@ -124,6 +125,18 @@ async function main(): Promise<void> {
   const { pool, connector } = await createPool();
   const library = new PgLibraryStore(pool);
   const comments = new PgCommentStore(pool);
+  const presence = new PgPresenceStore(pool);
+
+  // The RAW signed-verdict event stream (events.verdict ORDER BY seq) shaped as `{ kind: 'signing',
+  // seq, doc }` — shared by the backend's advisory overlay read below AND the orientation runner's
+  // verdict reader (which wants the throw-on-failure form; drive's readVerdictEvents catches it).
+  const readVerdictEventRows = async (): Promise<{ kind: string; seq: number; doc: unknown }[]> => {
+    const res = await pool.query(`SELECT seq, doc FROM events.verdict ORDER BY seq`);
+    return res.rows.map((raw) => {
+      const row = raw as { seq: string | number; doc: unknown };
+      return { kind: SIGNING_EVENT_KIND, seq: Number(row.seq), doc: row.doc };
+    });
+  };
 
   // The read backend the local-backend factory dispatches (the pg-backed shape, mirroring devApi.ts's
   // PgBackend reads). The verdict/activity/presence overlays are now WIRED (ADR-0119 deferred overlay)
@@ -159,21 +172,14 @@ async function main(): Promise<void> {
         }
         return out;
       }),
-    // The RAW signed-verdict event stream (events.verdict ORDER BY seq) shaped as `{ kind: 'signing',
-    // seq, doc }` — what the per-test crown roll-up (rollupStoryGreen/rollupCapStatus) reads.
-    verdictEvents: async () =>
-      advisory(async () => {
-        const res = await pool.query(`SELECT seq, doc FROM events.verdict ORDER BY seq`);
-        return res.rows.map((raw) => {
-          const row = raw as { seq: string | number; doc: unknown };
-          return { kind: SIGNING_EVENT_KIND, seq: Number(row.seq), doc: row.doc };
-        });
-      }),
+    // The RAW signed-verdict event stream — what the per-test crown roll-up
+    // (rollupStoryGreen/rollupCapStatus) reads; advisory here (null on any failure).
+    verdictEvents: async () => advisory(readVerdictEventRows),
     // Active notice-board sessions (events.session) with the staleness band derived at read time — the
     // session dock layer (ADR-0033), mirroring the studio PgBackend's activeSessions.
     activeSessions: async () =>
       advisory(async () => {
-        const docs = await new PgPresenceStore(pool).listActive();
+        const docs = await presence.listActive();
         const now = new Date();
         return docs.map((d) => ({
           sessionId: d.sessionId,
@@ -306,14 +312,24 @@ async function main(): Promise<void> {
   // events as SSE. No queryFn → the real SDK query() (CLAUDE_CODE_OAUTH_TOKEN hydrated by loadLocalSecrets
   // above); the mount loads the seed corpus internally to render the session-orchestrator prompt.
   //
-  // KNOWN LIMITATION (a follow-on, not glue): the landed createChatSseMount accepts only { queryFn? } — it
-  // cannot yet forward an OrientationRunner, so the live session's orientation tools fall back to the
-  // "(orientation runner not configured)" stub (headless-orchestrator.ts) and the agent cannot read the
-  // live tree/library/notice board. Wiring a real runner is blocked on a boundary fork (the runner is the
-  // CLI run() in @storytree/cli, which neither the desktop nor @storytree/drive may import) — tracked
-  // separately. The chat is a real orient+propose agent over its system prompt; live-state orientation is
-  // the next increment.
-  const chatMount = createChatSseMount({});
+  // THE ORIENTATION SEAM (closing the old boundary fork): the session's read-only orientation tools
+  // (tree/library/noticeboard) dispatch through @storytree/drive's createOrientationRunner — the
+  // drive-resident composition of the SAME three read commands the terminal CLI serves (the CLI's
+  // run() itself stays in @storytree/cli, which this sidecar may not import; ADR-0112) — composed
+  // here over the LIVE stores: the pg library store (dashboard), the stories/ dir + signed-verdict
+  // log (tree), and the presence store (noticeboard + the tree's sessions block). The verdict read
+  // shares readVerdictEventRows with the forest overlays; a down DB throws inside the reader and the
+  // tree renders with the proof columns silently absent (the offline-silent contract),
+  // never a hung tool. Attestation vouch-marks are not wired here (no attestation read in this
+  // sidecar yet) — that column is silently absent, an honest under-claim. READ/PROPOSE only either
+  // way: the runner carries no write verb (the Phase-2 wall, ADR-0091).
+  const orientationRunner = createOrientationRunner({
+    store: library,
+    storiesDir,
+    presence,
+    verdicts: { readEvents: readVerdictEventRows },
+  });
+  const chatMount = createChatSseMount({ runner: orientationRunner });
 
   // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
   // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) and

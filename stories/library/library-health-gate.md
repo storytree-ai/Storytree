@@ -32,7 +32,7 @@ proof:
 
 ## Guidance
 
-One PURE module (`packages/cli/src/health.ts`) surfaced three ways (a dashboard banner, the `--check` report, the ADR-0022 CI gate) — NOT a standalone doctor. Filesystem (`docExists`) and the generated-asset count are INJECTED via `HealthOpts` (`health.ts:33-42`) so it stays node-light and unit-testable offline.
+One PURE module — now living at `packages/drive/src/health.ts` (relocated per the ADR-0112 drive-extraction pattern; `packages/cli/src/health.ts` remains as a thin re-export shim, so the registered proof paths below are unchanged) — surfaced three ways (a dashboard banner, the `--check` report, the ADR-0022 CI gate) — NOT a standalone doctor. Filesystem (`docExists`) and the generated-asset count are INJECTED via `HealthOpts` (`health.ts:33-42`) so it stays node-light and unit-testable offline.
 
 The code edge for the `depends_on`: `health.ts:2` imports `upcastAndValidate` + `KIND_SPECS` from `@storytree/library`; schema-conformance (`health.ts:84-102`) literally calls `upcastAndValidate(bodyOf(d))` per structured doc (`health.ts:89`) — so it is a real consumer of BOTH the schema and migrate capabilities (it forwards-then-validates, which is why a doc that only needs upcasting still PASSes).
 

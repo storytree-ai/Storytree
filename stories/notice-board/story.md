@@ -121,7 +121,7 @@ lone import root (`packages/core/src/presence.ts:1` imports only `zod`).
     `main.ts:11`/`:38` constructs the store on the shared pool and the dispatch injects it
     (`commands.ts:785`).
 - `tree-view` → `declare-presence`
-  - `packages/cli/src/tree.ts:13` imports `classifyPresence`, called for the presence-block
+  - `packages/drive/src/tree.ts:13` (the module's home since the ADR-0112 relocation; `packages/cli/src/tree.ts` is a re-export shim) imports `classifyPresence`, called for the presence-block
     bands (`tree.ts:232`) — thresholds never recomputed.
 - `tree-view` → `noticeboard-cli`
   - an edge the designed graph MISSED: `tree.ts:16` imports `type PresenceStoreLike` from
@@ -149,8 +149,9 @@ lone import root (`packages/core/src/presence.ts:1` imports only `zod`).
     and fail-silent (`ambient-presence-entry.ts:54-57`) — a direct code edge the designed graph
     only implied ("the same store path the CLI uses").
 - `verdict-glyphs` — no outbound within-story import
-  - `packages/cli/src/tree-verdicts.ts:11` imports only `SIGNING_EVENT_KIND` + `Verdict` from
-    `@storytree/core` — the drive machinery's verdict vocabulary (cross-story, declared below);
+  - `packages/drive/src/tree-verdicts.ts:11` (home since the ADR-0112 relocation; the cli path
+    is a re-export shim) imports only `SIGNING_EVENT_KIND` + `Verdict` from
+    `@storytree/proof-protocol` — the verdict vocabulary port (cross-story, declared below);
     its reader is the structural `VerdictReaderLike` slice of `PgWorkStore`, closed at
     `main.ts:12`/`:41`. Within the story it is a second code-grain root; its authored
     `depends_on: [tree-view]` is the build-order/design edge realized by the reverse import

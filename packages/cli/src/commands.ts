@@ -38,10 +38,10 @@ import { graduateCommand, defaultMemoryDir, defaultSnapshotPath } from "./gradua
 import type { Envelope } from "./envelope.js";
 import {
   libraryHealth,
-  libraryHealthCheap,
   worstLevel,
   gateFailures,
   levelCounts,
+  RETIRED_FIELDS,
 } from "./health.js";
 import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestrator";
 import type { PocketReading } from "@storytree/orchestrator";
@@ -66,13 +66,8 @@ import {
 import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
 import { driveBuildTestsGate } from "./gate-build-driver.js";
 
-/**
- * Fields removed by a past migration that must not reappear (design §4 check 2): `seeAlso`
- * (migration #1, the sources incident) + the agent kind's prose authority walls and
- * `requiredReading` (migration #2, the ADR-0029 owner reshape — walls are code/guardrails,
- * context is a typed ref-list).
- */
-const RETIRED_FIELDS = ["seeAlso", "owns", "doesNotTouch", "authority", "requiredReading"];
+// RETIRED_FIELDS (the retired-field denylist) moved to `@storytree/drive`'s health module with
+// the checks it feeds — re-imported via the ./health.js shim above.
 
 /**
  * The Library artifact whose doctrine every write surface surfaces (search-before-write). Rendered
@@ -153,58 +148,11 @@ function idTitleRows(docs: readonly StoredDoc[]): string[] {
   return sorted.map((d) => `  ${d.id.padEnd(width)}  ${fieldOf(d, "title")}`);
 }
 
-/** `storytree library` — health check + a map of every artifact + the surface command list. */
-export async function dashboard(store: Store): Promise<Envelope> {
-  const docs = await store.queryDocs();
-  if (docs.length === 0) {
-    return {
-      ok: false,
-      body: "Library: EMPTY — no artifacts in the store.",
-      next: ["seed it: STORYTREE_DB_USER=<iam-email> npx tsx packages/store/src/load-corpus.ts"],
-    };
-  }
-  const groups = groupByKind(docs);
-  const kinds = orderedKinds(groups.keys());
-  // Real health banner from the CHEAP checks (skip the fs-heavy referential-integrity) — design §4 surface a.
-  const cheap = libraryHealthCheap(docs, {
-    currentSchemaVersion: CURRENT_SCHEMA_VERSION,
-    retiredFields: RETIRED_FIELDS,
-  });
-  const { fail, warn } = levelCounts(cheap);
-  const banner =
-    fail === 0 && warn === 0
-      ? `Library: OK — ${docs.length} artifacts across ${kinds.length} categories.`
-      : `Library: ${fail} FAIL, ${warn} WARN — run \`storytree library --check\` for detail.`;
-  const lines: string[] = [banner, ""];
-  for (const kind of kinds) {
-    const arr = groups.get(kind) ?? [];
-    lines.push(`${kind}  (${arr.length})`, ...idTitleRows(arr), "");
-  }
-  lines.push(
-    "commands  (drill in with `storytree library <command> --help`):",
-    "  artifact <id>                 view one artifact",
-    "  artifact list <category>      list a category",
-    "  artifact new | edit <id>      create / edit (writes need --pg)",
-    "  artifact retire <id>          retire one artifact + rationale (needs --pg)",
-    "  tree focus <id>               the local DAG of one artifact",
-    "  sync-agents                   reconcile the agent tier to the seed (needs --pg)",
-    "  sync-corpus                   migrate seed-only non-agent artifacts into live (needs --pg)",
-    "  export-corpus [--write]       export live non-agent bodies back to the seed (dry-run; needs --pg)",
-    "  graduate [--review]           agent-memory → Library worklist (ADR-0095, read-only)",
-    "  (coming soon: artifact comment)",
-  );
-  return {
-    ok: true,
-    body: lines.join("\n"),
-    // The just-in-time / drill-in-to-earn-the-detail stance is library doctrine, surfaced as a
-    // pointer rather than restated here (ADR-0023 §4, ADR-0029 §7).
-    doctrine: [await renderDoctrine(store, "pull-based-context-architecture")],
-    next: [
-      "storytree library artifact <id>",
-      `storytree library artifact list ${kinds[0] ?? "<category>"}`,
-    ],
-  };
-}
+// `dashboard` (the bare `storytree library` view) moved to `@storytree/drive` (library-dashboard.ts,
+// the ADR-0112 pattern) so the desktop orientation runner renders the SAME dashboard — re-exported
+// here for back-compat; the dispatch below keeps calling it.
+import { dashboard } from "@storytree/drive";
+export { dashboard };
 
 /** The repo root, resolved from this file's location (packages/cli/src -> three dirs up). */
 function repoRoot(): string {

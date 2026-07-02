@@ -528,6 +528,99 @@ test(
   },
 );
 
+// ORIENTATION SEAM (the ADR-0108 orientation gap): an injected orientation runner must be
+// forwarded through startChatStream → orchestrate → runHeadlessOrchestrator, which wires the
+// read-only orientation tool surface (mcp__orientation__tree/library/noticeboard) into the
+// session. Without this seam the chat agent cannot read the live tree/library/notice board
+// (the §7 scale-down: no runner → NO orientation tools advertised).
+//
+// DELETION TEST: dropping the runner forwarding in the mount (or in the bridged startChatStream
+// args) removes the orientation MCP server from the captured session options — the allowedTools
+// and mcpServers assertions fail.
+test(
+  "csm-forwards-orientation-runner: an injected runner wires the orientation tool surface into the session",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    // A live-shaped orientation runner double (what backend-entry composes from the live stores
+    // via @storytree/drive's createOrientationRunner) — the mount must hand it to the session.
+    const runner = async (argv: readonly string[]): Promise<{ ok: boolean; body: string }> => ({
+      ok: true,
+      body: `live-shaped ${argv.join(" ")} view`,
+    });
+
+    const handler = createChatSseMount({ queryFn: capturingQuery, runner });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "orient on the live surfaces" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text(); // drain the stream so the session settles
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    const opts = capturedOptions as {
+      allowedTools?: string[];
+      mcpServers?: Record<string, unknown>;
+    };
+    const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
+    for (const name of ["tree", "library", "noticeboard"]) {
+      assert.ok(
+        allowed.includes(`mcp__orientation__${name}`),
+        `the injected runner must wire the '${name}' orientation tool into allowedTools; ` +
+          `got: ${JSON.stringify(allowed)}`,
+      );
+    }
+    assert.ok(
+      "orientation" in (opts.mcpServers ?? {}),
+      "the orientation MCP server must be mounted when a runner is injected",
+    );
+  },
+);
+
+// ORIENTATION SEAM (baseline): with NO runner injected, no orientation tools are advertised
+// (the §7 scale-down) — the mount must not invent a dead surface.
+test(
+  "csm-forwards-orientation-runner: without a runner, no orientation tools are advertised",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "plain conversational turn" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text();
+    });
+
+    const opts = capturedOptions as { allowedTools?: string[] };
+    const allowed = opts.allowedTools ?? [];
+    assert.ok(
+      !allowed.some((n) => n.startsWith("mcp__orientation__")),
+      `with no runner, no orientation tools may be advertised; got: ${JSON.stringify(allowed)}`,
+    );
+  },
+);
+
 // STATIC BOUNDARY CHECK: the chat-sse-mount source must import startChatStream from
 // @storytree/drive (by package name), never from apps/studio/server (the forbidden
 // surface→surface coupling), and must carry no pg or Cloud SQL connector imports
