@@ -54,13 +54,25 @@ leftovers in EITHER synced dir.
 **Depends on —** [`r3f-world-spike`](r3f-world-spike.md) — you cannot sync a package that does not
 exist.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** Today's mechanism is single-package by
-> construction: `web-engine-sync.ts` hardcodes one `ENGINE_DIR` (`src/lib/forest-world`), counts only
-> `.ts` as engine source (`isEngineSource` — `.tsx` is excluded), and `rewriteImports` touches only
-> RELATIVE `./x.js` specifiers (a bare `@storytree/forest-world` import would sync over verbatim and
-> break the site build). The shell (`web-engine.ts`) reads exactly `packages/forest-world/src`. This
-> capability generalises the PURE core; edit-first-curation — extend the existing module and its
-> existing gate, never a parallel sibling sync.
+> **Proof status (honest) — BUILT, leaf-proven; the authored status stays `proposed`.** The gated
+> SDK leaf generalised the pure core EDITS-EXISTING through the real prove-it-gate: the new
+> assertions observed red against the single-package HEAD, then `web-engine-sync.ts` green (run
+> `real-mr2yo6s8`, signed PASS @ `9d3c0b9` 2026-07-02, persisted to `events.verdict`; package
+> typecheck + suite observed green in the installed worktree). Consolidated on top (never amending
+> the verdict commit): contract-id-led tests (`storytree coverage web-experience-sync` → 4/4), and
+> one AUDIT correction the real tree demanded — the leaf's workspace-import matcher was not
+> specifier-anchored, so the real core's COMMENT mentions of `@storytree/*`
+> (`packages/forest-world/src/index.ts:1`, `scene.ts:193`) would have churned the synced bytes and
+> crashed the core plan; the rewrite/no-smuggling wall now matches import positions only
+> (`WORKSPACE_SPECIFIER_RE`, `packages/cli/src/web-engine-sync.ts:142`). The package descriptor is
+> `EnginePackage` (`CORE_PACKAGE` / `R3F_PACKAGE` / `ENGINE_PACKAGES`,
+> `packages/cli/src/web-engine-sync.ts:51`/`:64`/`:75`), carrying srcDir → destDir, the fail-loud
+> floor, and byte-exact banner prose. The shell glue is landed: `web-engine.ts` iterates
+> `ENGINE_PACKAGES` for sync and check with PER-PACKAGE bootstrap allowance. Witnessed against the
+> real pinned `web/` tree: `check:web-engine` → OK 8 core files BYTE-IDENTICAL (the no-churn
+> guarantee held) + SKIP `src/lib/forest-world-r3f` (site not yet adopted); after a trial sync, OK
+> 11 files across both dirs; the trial artifacts were then cleaned — this increment is parent-side
+> only. `healthy` stays earned, never authored (ADR-0020).
 
 ## Guidance
 
@@ -92,10 +104,13 @@ THE FOUR GENERALISATIONS (the pure core's new behaviour, each an assertion the l
    in either synced dir, with the same EOL-insensitive compare.
 
 GLUE, NAMED: the `web-engine.ts` shell gains the second source dir + `REQUIRED` floor for the r3f
-package; the storytree-web repo adds the public npm deps (`three`, `@react-three/fiber`,
-`@react-three/drei`, `react`) to ITS `package.json` so the synced `.tsx` compiles — a web-repo
-change on its own rail (branch off ITS `origin/main`), witnessed by the site building, outside this
-parent gate. Neither is the leaf's slice.
+package (**landed** — the shell iterates `ENGINE_PACKAGES` in both modes,
+`packages/cli/src/web-engine.ts:92`/`:141`, each package held to its `requiredFiles` floor with
+per-package bootstrap SKIP until the site adopts its dir); the storytree-web repo adds the public
+npm deps (`three`, `@react-three/fiber`, `@react-three/drei`, `react`) to ITS `package.json` so the
+synced `.tsx` compiles — a web-repo change on its own rail (branch off ITS `origin/main`), witnessed
+by the site building, outside this parent gate — **outstanding**, it lands with the increment that
+first syncs the artifact site-side (the inflection chain). Neither is the leaf's slice.
 
 ## Integration test
 
@@ -127,19 +142,23 @@ leads a distinctly-named test so `storytree coverage web-experience-sync` report
    - **asserts —** a two-package plan lands r3f files under `src/lib/forest-world-r3f/` with
      r3f-naming banners while the core package's plan stays byte-identical to today's — the
      mechanism generalises without churning the already-synced artifact.
-   - **covers —** `packages/cli/src/web-engine-sync.ts` (`computeSyncPlan`) *(provisional)*
+   - **covers —** `packages/cli/src/web-engine-sync.ts:168` (`computeSyncPlan(sources, pkg)`) +
+     `:97` (`bannerFor(file, pkg)`) + the descriptors `:51`/`:64`
 2. **`wes-tsx-is-engine-source`** — the component layer syncs, tests and decls never do
    - **asserts —** `.tsx` passes the engine-source filter; `.test.ts` / `.test.tsx` / `.d.ts` are
      excluded.
-   - **covers —** `packages/cli/src/web-engine-sync.ts` (`isEngineSource`) *(provisional)*
+   - **covers —** `packages/cli/src/web-engine-sync.ts:80` (`isEngineSource`)
 3. **`wes-core-import-rewrites-to-sibling`** — one core copy on the site, no smuggled specifiers
    - **asserts —** `@storytree/forest-world` imports in a synced r3f file rewrite to the sibling
-     `../forest-world` dir; any other `@storytree/*` specifier fails the plan loudly.
-   - **covers —** `packages/cli/src/web-engine-sync.ts` (`rewriteImports` / plan validation) *(provisional)*
+     `../forest-world` dir; any other `@storytree/*` specifier fails the plan loudly; COMMENT
+     mentions are untouched (specifier-anchored — the real core names packages in prose).
+   - **covers —** `packages/cli/src/web-engine-sync.ts:142` (`WORKSPACE_SPECIFIER_RE`) + `:146`
+     (`rewriteWorkspaceImports`)
 4. **`wes-drift-covers-both-dirs`** — the ONE gate guards the whole artifact
    - **asserts —** modified / missing / stale files in EITHER synced dir red `detectEngineDrift`
      with the path named; a faithful two-dir state is green.
-   - **covers —** `packages/cli/src/web-engine-sync.ts` (`detectEngineDrift`) *(provisional)*
+   - **covers —** `packages/cli/src/web-engine-sync.ts:193` (`detectEngineDrift`, composed
+     per-package by the shell: `packages/cli/src/web-engine.ts:92`)
 
 ## Guidance — the slice that earns the signed verdict
 
