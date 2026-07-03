@@ -228,9 +228,22 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // (stories/desktop-build-mount/routed-node-real-dispatch.md — ADR-0144, an editsExisting `real:` arm
   // over packages/drive/src/build-worker.ts: the routed NODE dispatch drives `node build --real` with
   // persist semantics instead of the synthetic `--live` smoke).
+  // And the four PROVABLE `spawn-visibility`-story capabilities (stories/spawn-visibility/*.md —
+  // ADR-0137 Phase-3 UAT follow-on, making a live spawn VISIBLE): chat-spawn-trace-events (the drive
+  // seam threading the swallowed spawn traces onto the chat stream), claim-wisp-cold-start (the
+  // desktop advisory per-read budget so a fresh claim survives a DB cold-start) and the two
+  // frontend two-stage caps chat-panel-spawn-render + live-story-island-refresh (ADR-0070 — geometry
+  // machine-proven `real:` arm, on-screen/on-map appearance operator-attested).
+  // And the four `terminal-chat`-story capabilities (stories/terminal-chat/*.md — ADR-0137 Phase-3 UAT
+  // feedback, ADR-0070 two-stage: the desktop chat panel feels like a terminal): the three thin-client
+  // caps multi-turn-transcript (the persistent scrollback), auto-grow-input (the growing input) and
+  // transcript-reset (clear + abort), each an editsExisting vitest `real:` arm over ChatPanel.tsx /
+  // api.ts; and the OPTIONAL/STRETCH backend-chat-reset-route (a desktop node:test arm over the
+  // sidecar reset route — buildable but HELD, so it lands separately). The terminal FEEL is the
+  // story's operator-attested UAT legs, not a capability.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-reject-suggestion-api, accept-to-land-affordance, act2-beat-director, ambient-integration, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, builder-role, builder-spawn-dispatch, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-session-stream, chat-sse-mount, claim-gated-spawn, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, headless-session-runner, inline-comment-thread, leaf-tool-surface, local-backend-boot, local-credential-wiring, member-suggest-write-policy, model-runtime-seam, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, r3f-world-spike, render-claim-as-wisp, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, shared-forest-connection, source-drift, spawn-deps-composition, spawn-tool-surface, story-author-spawn, suggestion-edit-store, take-claim-at-spawn, tree-view, verdict-glyphs, verdict-line, web-experience-sync, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-reject-suggestion-api, accept-to-land-affordance, act2-beat-director, ambient-integration, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, builder-role, builder-spawn-dispatch, change-event-store, change-store-pg, chat-build-dispatch, chat-panel, chat-panel-spawn-render, chat-session-stream, chat-spawn-trace-events, chat-sse-mount, claim-gated-spawn, claim-store-work-time, claim-wisp-cold-start, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, declare-presence, declared-edge-drift-report, desktop-accept-dispatch, desktop-build-route, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, headless-session-runner, inline-comment-thread, leaf-tool-surface, live-story-island-refresh, local-backend-boot, local-credential-wiring, member-suggest-write-policy, model-runtime-seam, multi-turn-transcript, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, presence-store, proposal-id-threading, proposed-unit-signal, r3f-world-spike, render-claim-as-wisp, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, shared-forest-connection, source-drift, spawn-deps-composition, spawn-tool-surface, story-author-spawn, suggestion-edit-store, take-claim-at-spawn, transcript-reset, tree-view, verdict-glyphs, verdict-line, web-experience-sync, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

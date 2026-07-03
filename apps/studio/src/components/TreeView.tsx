@@ -2065,8 +2065,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
           <WorldSettingsPanel search={search} onCommit={commitSearch} />
-          {/* chat overlays the MAP (absolute within .world-frame), not the whole app (owner UX feedback) */}
-          <ChatDock />
+          {/* chat overlays the MAP (absolute within .world-frame), not the whole app (owner UX feedback).
+              onReloadTree reuses the SAME reloadTree onCrownRefresh uses (below): a story-author spawn
+              finish authored a new story, so the map reloads live (live-story-island-refresh, ADR-0137). */}
+          <ChatDock onReloadTree={reloadTree} />
         </div>
 
         {selected && (

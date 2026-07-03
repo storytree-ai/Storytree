@@ -308,6 +308,24 @@ describe('comment scope (preserved from ADR-0042 d.3)', () => {
     expect(seen.createdComment?.author).toBe(MEMBER);
   });
 
+  it('a block-anchored comment round-trips: readAnchor keeps kind block + blockId (ADR-0140)', async () => {
+    const res = await fetch(`${base}/api/comments`, {
+      method: 'POST',
+      headers: iap(MEMBER),
+      body: JSON.stringify({
+        topicKind: 'asset',
+        topicId: 'some-asset',
+        body: 'inline thread comment',
+        anchor: { kind: 'block', blockId: 'b-1a2b3c4d' },
+      }),
+    });
+    expect(res.status).toBe(201);
+    // The router must not downgrade the block anchor to 'topic' or drop its handle —
+    // the store boundary (normalizeCommentAnchor) is the canonical wall downstream.
+    expect(seen.createdComment?.anchor.kind).toBe('block');
+    expect(seen.createdComment?.anchor.blockId).toBe('b-1a2b3c4d');
+  });
+
   it("a member edits their own comment but not another author's; an admin may touch any", async () => {
     const own = await fetch(`${base}/api/comments?id=mine`, {
       method: 'PATCH',

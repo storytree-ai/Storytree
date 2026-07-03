@@ -16,6 +16,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -26,11 +27,12 @@ import {
   PgCommentStore,
   renderStoredDoc,
 } from "@storytree/library/store";
-import { PgPresenceStore } from "@storytree/notice-board/store";
+import { PgPresenceStore, PgClaimStore } from "@storytree/notice-board/store";
 import { classifyPresence } from "@storytree/notice-board";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
-import { createOrientationRunner } from "@storytree/drive";
+import { createOrientationRunner, deriveIdentity, buildSpawnDeps } from "@storytree/drive";
+import type { SpawnSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
@@ -57,6 +59,30 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
+
+// ---------- session identity (ADR-0033) for the chat spawn surface ----------
+//
+// The spawn claim (ADR-0138 §2) stamps a real holder so a refusal names who holds a story. The
+// canonical identity is the worktree name + HEAD branch (deriveIdentity, the same key the terminal
+// session declares). A member's desktop checkout is usually a plain clone (not a `.claude/worktrees/*`
+// worktree), so deriveIdentity returns null there — we fall back to a desktop-scoped id off the repo
+// basename, still carrying the live HEAD branch. null only when git itself is unreachable (then the
+// spawn surface fails closed and the chat mounts propose-only).
+function deriveChatIdentity(root: string): { sessionId: string; branch: string } | null {
+  const runGit = (args: string[]): string =>
+    execFileSync("git", args, { cwd: root, encoding: "utf8" }).toString().trim();
+  const viaWorktree = deriveIdentity(runGit);
+  if (viaWorktree !== null) return viaWorktree;
+  try {
+    const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
+    const top = runGit(["rev-parse", "--show-toplevel"]);
+    const base = top.split(/[/\\]/).filter((p) => p.length > 0).pop() ?? "";
+    if (branch.length === 0 || base.length === 0) return null;
+    return { sessionId: `desktop-${base}`, branch };
+  } catch {
+    return null;
+  }
+}
 
 // ---------- verdict / activity / presence overlay drivers (ADR-0119 deferred overlay) ----------
 //
@@ -246,8 +272,14 @@ async function main(): Promise<void> {
     // A stale claim (heartbeat aged past CLAIM_STALE_RECLAIM_MS) is dropped so a crashed holder's wisp
     // self-heals. §5 honesty wall: `kind: "claim"` is NEVER a proven-green bloom. Mirrors the studio
     // PgBackend.inFlightClaims + its claimsToActivity fold (re-composed here, the surface boundary).
+    // claim-wisp-cold-start (FIX 2b): the CLAIMS read alone gets a softer per-read budget — a larger
+    // timeout + one retry — so a just-taken claim survives a DB cold-start that exceeds the shared 4s
+    // (the fresh wisp is not silently dropped). The other four reads keep the shared 4s so /api/tree
+    // never waits longer for them. Still advisory: a genuinely down DB nulls promptly (bounded retry).
     inFlightClaims: async () =>
-      advisory("in-flight-claims", async () => {
+      advisory(
+        "in-flight-claims",
+        async () => {
         const res = await pool.query(
           `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
              FROM events.node_claim`,
@@ -282,7 +314,9 @@ async function main(): Promise<void> {
           });
         }
         return out;
-      }),
+        },
+        { timeoutMs: 15_000, retryOnce: true },
+      ),
   };
 
   // The THREE dispatchers the Electron main mounts in sequence (ADR-0119 §2 + the chat-SSE increment):
@@ -321,7 +355,9 @@ async function main(): Promise<void> {
     presence,
     verdicts: { readEvents: readVerdictEventRows },
   });
-  const chatMount = createChatSseMount({ runner: orientationRunner });
+  // The chat mount is composed AFTER the build context below — its OPTIONAL spawn surface
+  // (ADR-0137 Phase 3) needs the live BuildContext (the builder spawn's third caller of the routed
+  // worker). See the `chatMount` composition after `acceptMount`.
 
   // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
   // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) and
@@ -414,6 +450,70 @@ async function main(): Promise<void> {
   };
   const buildRouteMount = createBuildRouteMount(build);
   const acceptMount = createAcceptDispatchMount(build);
+
+  // ---------- the chat SPAWN surface (ADR-0137 Phase 3 — the sidecar wiring) ----------
+  //
+  // Compose the REAL spawn deps and thread them into the chat mount so the desktop
+  // session-orchestrator gains SPAWN power (spawn the story-author to bring a story in; spawn the
+  // builder leaf to drive a change red→green) — never raw Write/Bash (ADR-0137 d.1). The chat itself
+  // still carries `tools: []`; the writes happen only inside the spawned subagents under their own
+  // fences, and the spine remains the sole signer, the human the sole lander.
+  //
+  // OPERATOR-ATTESTED GLUE (like the build path above): a node:test over this composition would spawn
+  // subscription-billed SDK sessions on a gate pass (ADR-0010 §5 forbids the live spend). The
+  // CI-proven cores are buildSpawnDeps (packages/drive/src/spawn-deps.test.ts) and the mount's spawn
+  // forwarding (chat-sse-mount.test.ts) over injected doubles; this file composes the real pieces:
+  //   - store       — the live pg library store (renders the story-author agent fail-closed, ADR-0051)
+  //   - claimStore  — the live pg claim store, adapted to the gate's narrow claim/bumpHeartbeat seam
+  //   - identity    — the ADR-0033 session key (worktree name / desktop-scoped id + live HEAD branch),
+  //                   stamped into every spawn claim so a refusal names a real holder (ADR-0138 §2)
+  //   - build       — the SAME routed BuildContext the accept click drives (a third caller, ADR-0090)
+  //   - cwd         — the repo checkout the spawned story-author writes its stories/** under
+  //
+  // FAIL-CLOSED / DEGRADE-QUIET: a blank identity, an absent story-author agent, or an unreachable git
+  // yields NO spawn surface — the chat mounts propose-only (byte-identical to today), logged once to
+  // stderr. The spawn power is additive; its absence never breaks the read/propose chat.
+  const identity = deriveChatIdentity(repoRoot);
+  let spawn: SpawnSurfaceDeps | undefined;
+  if (identity === null) {
+    console.error(
+      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn surface",
+    );
+  } else {
+    const claims = new PgClaimStore(pool);
+    // Adapt PgClaimStore to the gate's narrow ClaimStore seam: its bumpHeartbeat takes (unitId,
+    // sessionId) and returns a boolean; the seam wants bumpHeartbeat(unitId): Promise<void> (the
+    // heartbeat is always this session's, ADR-0138 §4).
+    const claimStore: SpawnSurfaceDeps["store"] = {
+      claim: (req) => claims.claim(req),
+      bumpHeartbeat: async (unitId) => {
+        await claims.bumpHeartbeat(unitId, identity.sessionId);
+      },
+    };
+    const composed = await buildSpawnDeps({
+      store: library,
+      claimStore,
+      sessionId: identity.sessionId,
+      branch: identity.branch,
+      cwd: repoRoot,
+      build,
+    });
+    if (composed.ok) {
+      spawn = composed.deps;
+      console.error(
+        `[backend-entry] spawn surface composed — chat can spawn the inner loop ` +
+          `(session ${identity.sessionId} on ${identity.branch})`,
+      );
+    } else {
+      console.error(
+        `[backend-entry] spawn surface NOT composed (chat stays propose-only): ${composed.error}`,
+      );
+    }
+  }
+  const chatMount = createChatSseMount({
+    runner: orientationRunner,
+    ...(spawn !== undefined ? { spawn } : {}),
+  });
 
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 

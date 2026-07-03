@@ -25,12 +25,16 @@ capabilities: [block-position-comment-anchor, suggestion-edit-store, accept-reje
 # work (the inline UI, the accept/reject route, the policy evolution) all sits in apps/studio, but the
 # persistence + role compute are library / studio-members organisms, so the edges are declared.
 depends_on: [library, studio-members]
-# Relevant ADRs: ADR-0140 (Library Review mode) — the governing decision.
-# The governing ADR records the model below: block-position (not text-span) comment anchoring,
-# suggestions-as-proposals (accept/reject, proposed-result-by-default rendering, no strikethrough),
-# the member/owner role split, async live-refresh (no real-time), and the clean removal of the old
-# text-selection / quote anchoring.
-decisions: [140]
+# Relevant ADRs: ADR-0140 (Library Review mode) — the governing model; ADR-0146 (amends 0140) — the
+# editing interaction: Review-mode editing is a split-pane markdown editor with CriticMarkup tracking.
+# ADR-0140 records the model: block-position (not text-span) comment anchoring, suggestions-as-proposals
+# (accept/reject, proposed-result-by-default rendering, no strikethrough), the member/owner role split,
+# async live-refresh (no real-time), and the clean removal of the old text-selection / quote anchoring.
+# ADR-0146 settles HOW you author: a top-left View↔Edit toggle, a split markdown-source + live-preview
+# pane, and comments + tracked changes as CriticMarkup inserted by a toolbar — reusing the caps-6–8 DATA
+# proofs (block model, suggestion store + routes, accept-apply splice) while superseding their standalone
+# UI components.
+decisions: [140, 146]
 ---
 
 # Review mode — a word-processor collaboration layer for library documents
@@ -40,10 +44,13 @@ block position, and proposes a collapsed suggestion the owner accepts — commen
 placed in the document flow (never a side panel), and the old text-selection anchoring is gone.
 
 This is a responsive, word-processor-feel collaboration layer for library documents — especially
-**open questions**, the unresolved decisions a team argues out before they become ADRs. It replaces
-the current right-panel comment form ([`CommentPanel.tsx`](../../apps/studio/src/components/CommentPanel.tsx))
-and the old text-selection / quote anchoring (`annotate.ts` + `useAnnotations.tsx`) with two moves
-borrowed from a word processor and a code review:
+**open questions**, the unresolved decisions a team argues out before they become ADRs. It replaced
+the old right-panel comment form (`CommentPanel.tsx`) and the old text-selection / quote anchoring
+(`annotate.ts` + `useAnnotations.tsx`) — all three now DELETED (cap 9, the clean swap) — with two moves
+borrowed from a word processor and a code review. **The landed editing surface is the split-pane
+markdown editor (ADR-0146, amending ADR-0140):** a top-left View↔Edit toggle, a markdown source pane +
+live preview, and comments + tracked changes as CriticMarkup inserted by a toolbar. The two moves below
+are the model ADR-0140 fixed; ADR-0146 settled how you author them:
 
 - **A Review toggle (View ↔ Review)** — a mode switch, like a word processor's. View is the read
   posture; Review turns on commenting and suggesting.
@@ -171,19 +178,37 @@ drive are human-witness actions (`_(witness: human)_`, ADR-0070 / ADR-0040), rec
 
 ## Proof
 
-**Honest status — building through the prove-it-gate; 6 of 9 capabilities BUILT.** The five LEAF caps
-(1–5) each signed a REAL PASS through `node build --real --store pg`: cap 1 run `real-mr22bwt5`
-(verdict @ `879608f`), cap 2 run `real-mr24u2mt` (@ `d597d36`), cap 3 run `real-mr3is5wu`
-(@ `b33d27c` — the accept-APPLY half deferred loudly, see its spec), cap 4 run `real-mr3kexsx`
-(@ `a62393c`), cap 5 run `real-mr41u3ro` (@ `6c06f94`). Cap 6 (the Review toggle, LOOK) signed its
-behaviour stage (run `real-mr446rcm`, @ `8a37714`); the look was owner-approved in-session 2026-07-03,
-formal UAT-leg-1 attestation held until caps 7/8 give Review mode its real affordances. During cap 6's
-taste round the owner retired the right-hand `CommentPanel` from the topic surfaces entirely — ahead
-of cap 9's clean swap, so the Review affordances arrive IN the document flow at caps 7/8 (the
-text-selection `<mark>` highlight layer remains until cap 9 deletes it). Remaining: caps 7–8 (LOOK,
-two-stage per ADR-0070) and cap 9 (GLUE — "the suite stays green AND the text-anchor path is gone").
-Authored `status` fields stay `proposed` throughout — `healthy` is earned through the gate, never
-authored (ADR-0020).
+**Honest status — all 9 capabilities BUILT; the frontend surface PIVOTED to the split-pane editor
+(ADR-0146).** The five LEAF caps (1–5) each signed a REAL PASS through `node build --real --store pg`:
+cap 1 run `real-mr22bwt5` (verdict @ `879608f`), cap 2 run `real-mr24u2mt` (@ `d597d36`), cap 3 run
+`real-mr3is5wu` (@ `b33d27c` — the accept-APPLY half deferred loudly, see its spec), cap 4 run
+`real-mr3kexsx` (@ `a62393c`), cap 5 run `real-mr41u3ro` (@ `6c06f94`) — the block-anchor comment
+model, the suggestion store, the accept/reject route + accept-apply splice, the member-suggest policy,
+and the live-refresh feed. These DATA/behaviour layers all STAND. Cap 6 (the toggle, LOOK) signed its
+behaviour stage (run `real-mr446rcm`, @ `8a37714`); caps 7 (`InlineCommentThread`, @ `dfacfbb`) and 8
+(`SuggestionView`, @ `b65087f`) signed their behaviour stages. Cap 9 (GLUE — the clean swap) is LANDED
++ green on branch `claude/split-editor-refine-e89a5f`: `annotate.ts` / `useAnnotations.tsx` /
+`CommentPanel.tsx` deleted, `kind:'text'` retired from `CommentAnchor` + server `readAnchor`, dead
+`<mark>.st-hl` CSS removed; studio typecheck + 623 tests green and a grep-absence of the text-anchor
+symbols confirms no two systems side by side.
+
+**The frontend PIVOT (ADR-0146, amending ADR-0140).** Two same-session look-rejections (the
+affordance-pill compose, then an interim inline-prose direction — neither its own ADR) resolved into a
+**split-pane markdown editor with CriticMarkup**: a **top-left View↔Edit toggle**, an editable markdown
+**source pane (left)** + **live preview (right)**, and comments + tracked changes as CriticMarkup
+(`{++ins++}` / `{--del--}` / `{~~old~>new~~}` / `{>>comment<<}` / `{==hl==}`) inserted by a toolbar.
+The editor shell lives at `apps/studio/src/components/ReviewEditor.tsx` (+ `lib/criticmarkup.ts`,
+`ReviewToggle.tsx` relabeled View/Edit), mounted in `AssetView.tsx`. The caps-6–8 **DATA/behaviour
+proofs are reused** as the layer under this editor (the block model `lib/blocks.ts`, the suggestion
+store + create/decision routes, the accept-apply splice); the caps-7/8 **standalone UI components**
+(`InlineCommentThread`, `SuggestionView`) are **superseded** by the editor surface — their data
+verdicts remain valid history, their standalone UI is no longer mounted (see each cap's proof-status
+note). Retiring those superseded components (and the dead `ReviewBlocks.tsx`) is a follow-on.
+
+Authored `status` fields stay `proposed` for the LEAF/LOOK caps (`healthy` is earned through the gate,
+never authored — ADR-0020); cap 9 (GLUE, no gate arm) is flipped to `accepted` per ADR-0084, its bar
+(suite green + text-anchor path gone) being met on the branch. The story's appearance is owner-attested
+(ADR-0070); the owner approved the editor look in-session 2026-07-03.
 
 ## Open modeling calls (for the owner)
 
@@ -201,7 +226,19 @@ Surfaced rather than guessed — easy to revise (plain files), flagged for the o
    there (`pg-suggestion-store.ts`) so both ride the studio's existing PgBackend `#ready()` path. An
    alternative — a single combined "review-event" store — was rejected (the splitting-rule: comments
    and suggestions have distinct outcomes + distinct status models). Recorded, not re-litigated.
-3. **`studio`-story reconciliation (a follow-on, not this pass).** Once capability 9 lands, the
-   `studio` story's `annotate-topic` capability is superseded and its text-anchor contracts are dead.
-   Reconciling that (mark superseded, drop the contracts) is a `librarian-curator` job AFTER the
-   removal lands — surfaced here so it is not lost, deliberately NOT done while authoring this story.
+3. **`studio`-story reconciliation (a follow-on, now that cap 9 has landed).** Capability 9 has landed
+   (the clean swap), so the `studio` story's `annotate-topic` capability is superseded and its 11
+   text-anchor contracts (`at-text-anchor-from-selection`, `at-refind-quote-*`, `at-apply-highlights-*`,
+   `at-anchor-builders-shape`, etc.) describe code that is now DELETED. The librarian pass at this
+   landing marked `stories/studio/annotate-topic.md` as superseded-by-`library-review` with a note (see
+   that file); a full retirement of the dead contract bodies (they still describe live `file:line`
+   refs into deleted code) is FLAGGED as a story-author follow-on rather than gutted in this pass.
+4. **Superseded frontend UI components (ADR-0146 follow-on).** The caps-7/8 UI components
+   (`InlineCommentThread.tsx`, `SuggestionView.tsx`) and the dead `ReviewBlocks.tsx` are superseded by
+   the `ReviewEditor` split-pane surface; their DATA/behaviour verdicts stand, but the standalone
+   components are no longer mounted. Retiring the dead component files + tests is a librarian /
+   story-author follow-on (ADR-0146 Consequences), surfaced here.
+5. **The story UAT spec still tests the removed text-selection flow.** `apps/studio/uat/story-uat.spec.ts`
+   still drives `mark.st-hl` / drag-to-comment — a Playwright UAT (NOT in the vitest gate, so
+   non-blocking) that is now obsolete against the block/editor model. A UAT-leg rewrite to the editor
+   journey is a story-author / librarian follow-on, flagged here.

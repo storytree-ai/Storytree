@@ -529,28 +529,6 @@ code {
 .md-heading:hover .md-anchor {
   opacity: 1;
 }
-.md-comment-btn {
-  margin-left: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 12px;
-  padding: 1px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.1s;
-  vertical-align: middle;
-}
-.md-heading:hover .md-comment-btn {
-  opacity: 1;
-}
-.md-comment-btn.has-comments {
-  opacity: 1;
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-weak);
-}
-
 .markdown p,
 .markdown ul,
 .markdown ol {
@@ -635,12 +613,36 @@ code {
 .doc-layout.doc-layout-view {
   grid-template-columns: minmax(0, 1fr);
 }
-/* The View ↔ Review mode switch sits above the document, right-aligned like a
-   word-processor mode control. (.btn.review-mode-toggle outranks .btn's inline-flex,
-   which would void the auto margin.) */
-.btn.review-mode-toggle {
-  display: flex;
-  margin: 12px 16px 0 auto;
+/* The View ↔ Edit mode switch (ADR-0146): a compact segmented control at the TOP-LEFT of the
+   topic surface. Two [View | Edit] segments; the active one is tinted. It is one button
+   (the proven toggle) — a click flips the mode. */
+.review-mode-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  margin: 14px 0 4px 40px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: pointer;
+  font: inherit;
+}
+.review-mode-seg {
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  border-radius: 6px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.review-mode-seg.is-active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.review-mode-toggle:hover .review-mode-seg:not(.is-active) {
+  color: var(--text);
 }
 .doc {
   padding: 26px 40px 80px;
@@ -652,128 +654,12 @@ code {
   font-family: var(--mono);
 }
 
-.comments {
-  position: sticky;
-  top: 0;
-  align-self: start;
-  height: calc(100vh - 52px);
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-  padding: 18px 16px 60px;
-}
-.comments-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.comments-head h3 {
-  margin: 0;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .toggle {
   font-size: 12px;
   color: var(--muted);
   display: flex;
   align-items: center;
   gap: 5px;
-}
-
-.composer {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-  margin-bottom: 16px;
-}
-.target-select,
-.composer-body {
-  width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
-  background: var(--surface);
-}
-.target-select {
-  margin-bottom: 8px;
-}
-.composer-body {
-  resize: vertical;
-  line-height: 1.5;
-}
-.composer-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-}
-
-.comment-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.comment {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: var(--surface);
-}
-.comment.resolved {
-  opacity: 0.66;
-  background: var(--good-weak);
-  border-color: #cfe7d8;
-}
-.comment-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.comment-author {
-  font-weight: 600;
-  font-size: 13px;
-}
-.section-tag {
-  display: inline-block;
-  font-size: 11.5px;
-  background: var(--accent-weak);
-  color: var(--accent);
-  border-radius: 5px;
-  padding: 1px 7px;
-  margin-bottom: 6px;
-}
-.comment-body {
-  font-size: 13.5px;
-}
-.comment-body p:last-child {
-  margin-bottom: 0;
-}
-.comment-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-.pill {
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 7px;
-  border-radius: 10px;
-}
-.resolved-pill {
-  background: var(--good-weak);
-  color: var(--good);
 }
 
 /* ---------- buttons ---------- */
@@ -1232,206 +1118,9 @@ a.stat:hover {
   padding-right: 46px;
 }
 
-mark.st-hl {
-  background-color: color-mix(in srgb, var(--hl, #f5c542) 36%, transparent);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0 1px;
-  cursor: pointer;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  transition: background-color 0.12s;
-}
-mark.st-hl:hover {
-  background-color: color-mix(in srgb, var(--hl, #f5c542) 58%, transparent);
-}
-mark.st-hl[data-resolved] {
-  background-color: color-mix(in srgb, var(--hl, #f5c542) 13%, transparent);
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--hl, #f5c542) 55%, transparent);
-}
-mark.st-hl.flash {
-  animation: hlflash 1s ease;
-}
-@keyframes hlflash {
-  0%,
-  100% {
-    background-color: color-mix(in srgb, var(--hl, #f5c542) 36%, transparent);
-  }
-  30% {
-    background-color: color-mix(in srgb, var(--hl, #f5c542) 88%, transparent);
-  }
-}
-
-.gutter {
-  position: absolute;
-  top: 0;
-  right: 12px;
-  width: 14px;
-  height: 100%;
-  pointer-events: none;
-}
-.gutter-tick {
-  position: absolute;
-  right: 0;
-  width: 11px;
-  height: 7px;
-  border: none;
-  border-radius: 2px;
-  cursor: pointer;
-  pointer-events: auto;
-  opacity: 0.85;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
-}
-.gutter-tick:hover {
-  opacity: 1;
-  width: 14px;
-}
-.gutter-tick.resolved {
-  opacity: 0.38;
-}
-
-.sel-popover {
-  position: fixed;
-  transform: translate(-50%, calc(-100% - 9px));
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: #1f2430;
-  border-radius: 9px;
-  padding: 6px 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
-  z-index: 60;
-}
-.sel-popover::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 10px;
-  height: 10px;
-  background: #1f2430;
-  transform: translateX(-50%) rotate(45deg);
-}
-.sel-colors {
-  display: flex;
-  gap: 5px;
-}
-.sel-color {
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-}
-.sel-color.active {
-  border-color: #fff;
-}
-.sel-comment-btn {
-  border: none;
-  background: #fff;
-  color: #1f2430;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.sel-comment-btn:hover {
-  background: #e9e9ee;
-}
-
-.hovercard {
-  position: fixed;
-  transform: translateY(calc(-100% - 10px));
-  max-width: 280px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 8px 10px;
-  box-shadow: var(--shadow);
-  z-index: 55;
-  pointer-events: none;
-  font-size: 12.5px;
-}
-.hovercard-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 3px;
-}
-.hovercard-body {
-  color: #374151;
-}
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-  flex: 0 0 auto;
-}
-
-.composer-hint {
-  margin: 0 0 10px;
-}
-.text-target {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 5px 8px;
-  margin-bottom: 8px;
-  font-size: 12.5px;
-}
-.text-target-quote {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-style: italic;
-  color: #374151;
-}
-.text-target-clear {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--muted);
-  padding: 0 2px;
-}
-.quote-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 2px 8px;
-  margin-bottom: 6px;
-  font-size: 11.5px;
-  font-style: italic;
-  color: #374151;
-  cursor: pointer;
-}
-.quote-tag:hover {
-  border-color: var(--accent);
-}
-.comment.flash {
-  animation: cflash 1.2s ease;
-}
-@keyframes cflash {
-  0%,
-  100% {
-    box-shadow: none;
-  }
-  25% {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-}
+/* The old text-selection / quote-highlight commenting layer (the range highlight marks, the
+   gutter, the select-to-comment popover, the hovercard, and the quote-tag composer) was removed
+   with the clean swap to block placement (remove-text-selection-anchoring, ADR-0146). */
 
 /* category dots + sidebar sub-items */
 .cat-dot {
@@ -2536,6 +2225,14 @@ mark.st-hl.flash {
   font-size: 13px;
   line-height: 1.65;
 }
+/* One exchange in the persistent transcript — a `› <prompt>` echo above its reply, stacked
+   top-to-bottom like terminal output (multi-turn-transcript). Prior exchanges never replaced; the
+   surface auto-scrolls to the newest. The terminal LOOK of the stack is operator-attested (ADR-0070). */
+.chat-exchange {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 /* The echoed prompt line: `› <what they typed>` above the reply. */
 .chat-echo {
   margin: 0;
@@ -2652,6 +2349,13 @@ mark.st-hl.flash {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
+  /* Auto-grow (auto-grow-input): the one-row resting height, and the max the JS recompute clamps to
+     before the box scrolls inside itself. The JS sets the exact height from scrollHeight per keystroke
+     (jsdom can't lay that out); these bound it. overflow-y starts hidden — the recompute flips it to
+     `auto` past the cap. The comfortable feel is the story's operator-attested UAT leg (ADR-0070). */
+  min-height: 20px;
+  max-height: 160px;
+  overflow-y: hidden;
 }
 .chat-input::placeholder {
   color: var(--chat-muted);
@@ -2661,6 +2365,26 @@ mark.st-hl.flash {
 }
 .chat-input:disabled {
   opacity: 0.6;
+}
+/* The reset ("new chat") icon button — a muted restart glyph beside send, no label, no button chrome.
+   Clears the transcript to a fresh terminal + aborts the in-flight stream (transcript-reset). The
+   look/feel is the story's operator-attested UAT leg (ADR-0070). */
+.chat-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--chat-chevron);
+  cursor: pointer;
+}
+.chat-reset:hover {
+  color: var(--chat-sage);
+}
+.chat-reset-icon {
+  display: block;
 }
 /* The icon send button — a return-arrow in forest sage, no "Send" label, no button chrome. */
 .chat-send {
@@ -3730,3 +3454,383 @@ button.legend-tile:hover {
     display: none;
   }
 }
+
+/* ---------- Review-mode editor (ADR-0146 — split-pane markdown editor + CriticMarkup) ----------
+   Replaces the ReviewBlocks click-to-edit surface. VIEW mode: clean rendered prose. EDIT mode:
+   a quiet real-editor split — a monospace source pane on the left, a live rendered preview on the
+   right, a CriticMarkup toolbar above. Panes stack on narrow widths. The now-unused ReviewBlocks
+   styles (.review-block*, .review-editable, .block-editor, .review-comment-affordance) are removed. */
+
+.review-view {
+  /* View posture — the rendered prose flows exactly as a read-only document. */
+}
+
+/* The toolbar: a quiet strip of editor buttons above the split. Clean, not loud. */
+.review-editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.cm-tool-group {
+  display: inline-flex;
+  gap: 4px;
+}
+.cm-tool-group-md {
+  padding-left: 8px;
+  margin-left: 2px;
+  border-left: 1px solid var(--border-strong);
+}
+.cm-tool {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.cm-tool:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+.cm-tool-md {
+  min-width: 30px;
+  font-family: var(--mono);
+}
+.cm-tool-spacer {
+  flex: 1;
+}
+.cm-save {
+  margin-left: auto;
+}
+.cm-cancel {
+  margin-left: auto;
+}
+/* When Cancel + Save sit together, only the first (Cancel) takes the auto margin that
+   pushes the pair to the right; Save follows it with a small gap. */
+.cm-cancel + .cm-save {
+  margin-left: 0;
+}
+.cm-save-note {
+  margin: -4px 0 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.cm-save-note-saved {
+  color: var(--good);
+  background: var(--good-weak);
+}
+.cm-save-note-local {
+  color: var(--warn);
+  background: var(--warn-weak);
+}
+.cm-save-note-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+/* The split — source | preview. A BOUNDED, equal-height editor: the split has a fixed
+   viewport-relative height and BOTH panes scroll INTERNALLY (like a real code/split editor).
+   This is deliberate over content-driven stretch, which grew the textarea to the full document
+   height (so the whole PAGE scrolled — an insert snapped it to the bottom) and toggled a
+   page scrollbar on every reflow (the flicker). Fixed height + inner overflow fixes both, and
+   the two panes are exactly equal (each fills the same container height). Stacks below 860px. */
+.review-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: stretch;
+  height: 68vh;
+  min-height: 420px;
+}
+@media (max-width: 860px) {
+  .review-split {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+/* Each pane is a flex column (label + body); min-height:0 lets the scrolling body shrink
+   inside the fixed-height pane instead of overflowing it. */
+.review-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.review-pane-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.review-source-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  /* Fill the bounded pane and scroll internally; resize:none because the pane sets the height.
+     scrollbar-gutter:stable reserves the scrollbar's width so it never toggles the layout. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  resize: none;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  tab-size: 2;
+}
+.review-source-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak);
+}
+.review-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 4px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-wrap: break-word;
+}
+@media (max-width: 860px) {
+  /* Stacked: give each pane a comfortable fixed height so they still scroll internally. */
+  .review-source-textarea,
+  .review-preview-body {
+    height: 52vh;
+  }
+}
+
+/* ---- CriticMarkup tracked-change rendering (the core of the preview) ---- */
+.cm-preview {
+  display: block;
+}
+/* Insertion — green, underlined. */
+.cm-ins {
+  color: var(--good);
+  background: var(--good-weak);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--good) 60%, transparent);
+  text-underline-offset: 2px;
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 1px;
+}
+/* Deletion — red, struck through. */
+.cm-del {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 1px;
+}
+/* Substitution — old struck then new added, snug together (its own inner spans reset margin). */
+.cm-sub {
+  border-radius: 2px;
+  margin: 0 1px;
+}
+.cm-sub .cm-ins,
+.cm-sub .cm-del {
+  margin: 0;
+}
+.cm-sub .cm-del {
+  margin-right: 1px;
+}
+/* Highlight — yellow marker. */
+.cm-mark {
+  background: #fff3bf;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 1px;
+}
+/* Comment — a small inline bubble in the margin colour. */
+.cm-comment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0 2px;
+  padding: 1px 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--accent-weak);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 10px;
+  vertical-align: baseline;
+}
+.cm-comment-glyph {
+  font-size: 11px;
+}
+/* Keep the preview's inline change elements from forcing block breaks: the base markdown text
+   runs render as .markdown blocks, the change spans sit inline within the flow. */
+.cm-preview > .markdown {
+  display: inline;
+}
+.cm-preview > .markdown > :first-child {
+  display: inline;
+}
+
+/* inline comment thread — a light card in the flow (used by InlineCommentThread, retained) */
+.inline-comment-thread {
+.inline-comment-thread {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-weak);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+  font-size: 13px;
+}
+.inline-comment-thread ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.inline-comment-thread li {
+  padding: 4px 0;
+}
+.inline-comment-thread li + li {
+  border-top: 1px solid var(--border);
+}
+.inline-comment-thread textarea {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.inline-comment-thread textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.inline-comment-thread button {
+  margin-top: 6px;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+.inline-comment-thread button:hover {
+  background: var(--accent-weak);
+}
+
+/* suggestion slot — the block's pending suggested edit, quiet, under the prose */
+.suggestion-slot {
+  margin: 8px 0 12px;
+}
+.suggestion-slot-label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.suggestion-view {
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+.suggestion-proposed {
+  margin: 0;
+}
+.suggestion-toggle {
+  font: inherit;
+  font-size: 11px;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.suggestion-toggle:hover {
+  color: var(--accent);
+}
+/* the audited original: muted, boxed — never struck through (ADR-0140) */
+.suggestion-original {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.suggestion-compose {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.suggestion-compose input {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.suggestion-compose input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.suggestion-compose button,
+.suggestion-decision button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.suggestion-compose button:hover,
+.suggestion-decision button:hover {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+.suggestion-decision {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* The per-block suggest-compose monospace box is retired: composing a suggestion is now
+   click-to-edit-in-place on the block itself (see .block-editor above). */

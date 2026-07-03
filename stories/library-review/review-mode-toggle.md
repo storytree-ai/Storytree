@@ -59,18 +59,21 @@ affordances are shown — proven by behaviour, the appearance operator-attested.
 component whose state (View vs Review) is the signal the comment-thread + suggestion surfaces (caps 7,
 8) read to decide whether to show their affordances. It holds no backend seam of its own.
 
-> **Proof status (honest) — BUILT, signed REAL PASS.** Run `real-mr446rcm`, verdict signed by
-> hua.mick@gmail.com `@ 8a37714` (2026-07-02T23:12Z), clean bootstrap trail
-> (AUTHOR_TEST→CONFIRM_RED→IMPLEMENT→CONFIRM_GREEN→GATE), coverage 3/3 after the `rmt-*` retitle.
-> The toggle + `ReviewModeContext` live at `apps/studio/src/components/ReviewToggle.tsx`; wiring
-> (consolidation, not leaf-proven): mounted on both topic surfaces (`AssetView.tsx` / `DocView.tsx`).
-> During the cap 6 taste round the owner retired the right-hand `CommentPanel` from the topic surfaces
-> entirely (it didn't fit the Google-Docs direction), so in this cap's landed state Review mode gates
-> the affordances caps 7/8 render IN the document flow — nothing extra shows until those land. The
-> authored `status` stays `proposed` (rollup derives healthy from the event log). Its appearance inside
-> the studio is the story's operator-attested UAT leg 1 (ADR-0070 — the look is witnessed, never a
-> machine visual verdict); the owner approved the toggle look in-session 2026-07-03, formal leg-1
-> attestation held until caps 7/8 give Review mode its real affordances.
+> **Proof status (honest) — BUILT, signed REAL PASS; relabeled View↔Edit under ADR-0146.** Run
+> `real-mr446rcm`, verdict signed by hua.mick@gmail.com `@ 8a37714` (2026-07-02T23:12Z), clean bootstrap
+> trail (AUTHOR_TEST→CONFIRM_RED→IMPLEMENT→CONFIRM_GREEN→GATE), coverage 3/3 after the `rmt-*` retitle.
+> The proven two-state toggle behaviour + `ReviewModeContext` live at
+> `apps/studio/src/components/ReviewToggle.tsx` and STAND — this cap's verdict is valid. **ADR-0146
+> (amending ADR-0140) reuses that proven behaviour under a presentation change:** the toggle is relabeled
+> **View ↔ Edit**, repositioned **top-left** of the topic surface, and now feeds the `ReviewEditor`
+> split-pane markdown editor (`apps/studio/src/components/ReviewEditor.tsx`, mounted in `AssetView.tsx`)
+> — Edit mode enters the editor rather than merely gating in-flow affordances. That relabel/reposition
+> is a presentation change over the proven two-state behaviour, not a re-proof. During the cap 6 taste
+> round the owner retired the right-hand `CommentPanel` from the topic surfaces entirely (it didn't fit
+> the Google-Docs direction); the editor surface (ADR-0146) is what now carries commenting + suggesting.
+> The authored `status` stays `proposed` (rollup derives healthy from the event log). Its appearance is
+> the story's operator-attested UAT leg 1 (ADR-0070); the owner approved the toggle look in-session
+> 2026-07-03, subsumed into the editor's owner-attested look under ADR-0146.
 
 ## Guidance
 

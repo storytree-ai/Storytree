@@ -4,7 +4,7 @@ tier: capability
 story: library-review
 title: "The old text-selection / quote anchoring is removed — a clean swap"
 outcome: "The text-selection / quote anchoring is gone: `annotate.ts` quote-matching, the select-to-highlight popover in `useAnnotations.tsx`, the `kind:'text'` comment anchor, and the range `<mark>` highlights are deleted; the studio suite + typecheck stay green and no text-anchor path remains — a clean swap to block-position placement, not two systems side by side."
-status: proposed
+status: accepted
 proof_mode: integration-test
 # GLUE — no `--real` arm. This capability has NO isolatable red→green test of its own: deleting dead
 # code does not introduce a behaviour to drive from RED to GREEN. Its proof is "the suite stays green
@@ -29,10 +29,20 @@ remains — a clean swap to block-position placement, not two systems side by si
 be green before the old commenting path is deleted, or the surface is left unable to comment. This is
 the last cap in the story's build order for exactly that reason (the dependency graph drives it last).
 
-> **Proof status (honest) — NOT BUILT, `proposed`. GLUE, not leaf.** This is a deletion + cleanup, not
-> a new behaviour. There is nothing to drive RED→GREEN — the proof is the suite STAYING green after the
-> dead code is removed AND the text-anchor path being demonstrably absent. The owner wants the dead code
-> GONE (a clean swap), not two systems side by side.
+> **Proof status (honest) — LANDED, `accepted`. GLUE, not leaf (the clean swap).** Built and green on
+> branch `claude/split-editor-refine-e89a5f`. Both bar conditions are met: (1) the studio suite stays
+> green — `pnpm --filter studio typecheck` + 623 tests pass after the removal; (2) the text-anchor path
+> is GONE — `annotate.ts`, `useAnnotations.tsx`, and `CommentPanel.tsx` are deleted, `kind:'text'` is
+> retired from `CommentAnchor` + the server `readAnchor` (a legacy text anchor now downgrades to
+> `topic`), the dead `<mark>.st-hl` CSS is removed, and a grep-absence of `computeTextAnchor` /
+> `findQuoteRange` / `applyHighlights` / `textAnchorFrom` / `mark.st-hl` / `kind === 'text'` across
+> `apps/studio/src` (and the built dist) confirms no text-anchor surface remains. Block-position
+> placement is the only commenting model — no two systems side by side. There was no RED→GREEN to drive
+> (removal adds no behaviour); the proof is the suite STAYING green plus that grep-absence, an
+> orchestrator-supplemented verification, per the GLUE bar below. ADR-0084 lets an agent flip
+> `proposed → accepted` once the work is done and the prose supports it — it is, so this cap is
+> `accepted`. (The `studio`-story text-anchor CONTRACT reconciliation is the follow-on — see open call
+> #3 / the story's open call #3, flagged for the `librarian-curator`, not done in this removal.)
 
 ## Guidance
 

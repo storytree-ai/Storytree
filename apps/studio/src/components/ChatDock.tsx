@@ -45,7 +45,17 @@ function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, value));
 }
 
-export function ChatDock(): React.JSX.Element {
+/** Props for ChatDock. `onReloadTree` is the map-refresh callback TreeView injects
+ *  (live-story-island-refresh, ADR-0137): when the chat surface sees a spawn-FINISHED frame for a
+ *  STORY-AUTHOR (a new story was authored to stories/, so the tree changed), the dock invokes it so the
+ *  just-authored island appears live on the forest map. A plain React callback — the dock imports no
+ *  drive/agent (the model-path wall); TreeView owns `reloadTree` and passes it down. Optional: the dock
+ *  renders standalone with no callback (no reload fires). */
+export interface ChatDockProps {
+  onReloadTree?: () => void;
+}
+
+export function ChatDock({ onReloadTree }: ChatDockProps = {}): React.JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
 
@@ -58,6 +68,18 @@ export function ChatDock(): React.JSX.Element {
   const toggle = useCallback((): void => {
     setExpanded((e) => !e);
   }, []);
+
+  // The fence (live-story-island-refresh, ADR-0137): a spawn-FINISHED frame reloads the map ONLY for a
+  // STORY-AUTHOR role — a story-author finish authored a NEW story to stories/, so the tree changed. A
+  // BUILDER finish drove an EXISTING node (nothing new to show) and a `started` frame (never surfaced
+  // here — ChatPanel only relays `finished`) has authored nothing yet; neither reloads. The reload
+  // reuses TreeView's existing `reloadTree` (passed in as `onReloadTree`) — no new fetch/tree loader.
+  const handleSpawnFinished = useCallback(
+    (frame: { role: string; unitId: string; ok?: boolean }): void => {
+      if (frame.role === 'story-author') onReloadTree?.();
+    },
+    [onReloadTree],
+  );
 
   // Resize by dragging the top edge: UP (smaller clientY) GROWS the dock, DOWN shrinks it. Listeners
   // ride `window` so the drag continues even if the cursor leaves the thin grabber. Clamped to
@@ -145,7 +167,7 @@ export function ChatDock(): React.JSX.Element {
       {/* ChatPanel stays MOUNTED; `hidden` (not conditional render) preserves conversation state and
           drops the folded body from the a11y tree. */}
       <div className="chat-dock-body" hidden={!expanded}>
-        <ChatPanel />
+        <ChatPanel onSpawnFinished={handleSpawnFinished} />
       </div>
     </aside>
   );

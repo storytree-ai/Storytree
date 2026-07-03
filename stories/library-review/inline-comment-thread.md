@@ -60,14 +60,19 @@ the next poll without a reload. Never a side panel. Proven by behaviour, the app
 renders + posts), [`review-refresh-feed`](review-refresh-feed.md) (the live source it polls),
 [`review-mode-toggle`](review-mode-toggle.md) (it shows only in Review mode).
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The old text-selection
-> `<mark>` highlight layer (`useAnnotations.tsx`) is still live on the topic surfaces, but the
-> right-hand `CommentPanel` was retired from them at cap 6 (owner call — it didn't fit the
-> Google-Docs direction), so there is currently NO comment-writing surface on a topic until this cap
-> lands its in-flow thread. This capability renders the thread IN the document flow above its block
-> (a code-review thread), placeable at any block in Review mode (cap 6's `ReviewModeContext` is built
-> and mounted on both surfaces). Its appearance is the story's operator-attested UAT leg 2 (ADR-0070
-> — the look is witnessed, never a machine visual verdict).
+> **Proof status (honest) — DATA/BEHAVIOUR VERDICT STANDS; the standalone UI is SUPERSEDED (ADR-0146).**
+> This cap's `real:` behaviour arm signed a REAL PASS (`InlineCommentThread` verdict `@ dfacfbb`) — the
+> block-anchored comment DATA/behaviour layer it proved (a comment renders in the document flow above
+> its block, a new comment POSTs a `kind:'block'` anchor through the `api` seam, the feed-driven
+> refresh, the Review-only affordance) is VALID and STANDS as the layer under the editor. But the
+> `InlineCommentThread` UI COMPONENT is **superseded by the `ReviewEditor` split-pane surface**
+> (ADR-0146, which amends ADR-0140): Review-mode editing is now a split source/preview markdown editor
+> with CriticMarkup comments (`{>>comment<<}`), so the standalone in-flow thread component is no longer
+> the mounted commenting surface. The DATA proof (block anchor + comment store + feed) is reused under
+> that editor; only the rendered UI moved. Reconciling this cap's UI to the editor model (and the
+> superseded `InlineCommentThread.tsx` component itself) is a librarian / story-author follow-on
+> (ADR-0146 Consequences), surfaced, not done here. Its original appearance leg (UAT leg 2) is subsumed
+> by the editor's owner-attested look (ADR-0070).
 
 ## Guidance
 

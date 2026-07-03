@@ -35,6 +35,7 @@ import type { SdkQueryFn } from "@storytree/agent";
 // RED: chat-stream.ts does not exist yet — module-not-found is the right-kind red.
 import { startChatStream } from "./chat-stream.js";
 import type { ChatStreamEvent } from "./chat-stream.js";
+import type { SpawnSurfaceDeps } from "./spawn-deps.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,6 +89,45 @@ const OK_SDK_RESULT = {
   total_cost_usd: 0.02,
   result: "I propose: build the chat-stream adapter as the next Phase-2 capability.",
 };
+
+/** A minimal spawn-deps double — enough to mount the two claim-gated spawn tools. The gate/runners
+ *  never fire in these tests (the scripted session only orients); the point is that the deps are
+ *  FORWARDED to orchestrate so the tools are advertised. */
+function spawnDepsDouble(): SpawnSurfaceDeps {
+  return {
+    store: {
+      claim: async (req) => ({
+        acquired: true as const,
+        claim: {
+          unitId: req.unitId,
+          sessionId: req.sessionId,
+          branch: req.branch,
+          intent: req.intent ?? "orchestrate",
+          claimedAt: "2026-07-03T00:00:00.000Z",
+          heartbeatAt: "2026-07-03T00:00:00.000Z",
+        },
+        reclaimed: false,
+      }),
+      bumpHeartbeat: async () => {},
+    },
+    sessionId: "sess-chat",
+    branch: "claude/sess-chat",
+    spawnStoryAuthor: async () => "story-author spawn summary",
+    spawnBuilder: async () => "builder dispatched",
+  };
+}
+
+/** Capture the SDK Options the session was launched with (allowedTools is the observable). */
+function capturingQueryFn(): { fn: SdkQueryFn; lastOptions: () => Record<string, unknown> } {
+  let captured: Record<string, unknown> = {};
+  const fn: SdkQueryFn = ({ options }) => {
+    captured = options as Record<string, unknown>;
+    return (async function* () {
+      yield OK_SDK_RESULT;
+    })();
+  };
+  return { fn, lastOptions: () => captured };
+}
 
 // ---------------------------------------------------------------------------
 // 1. Successful session → terminal `done` event with proposal
@@ -317,6 +357,68 @@ test(
       /session-orchestrator/,
       "the system prompt must name 'session-orchestrator' — proof the adapter drives the REAL " +
         "orchestrate composition (the rendered Library agent), not a fork (ADR-0108 d.2)",
+    );
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 4b. Spawn pass-through (ADR-0137 Phase 3): injected spawn deps are forwarded to
+//     orchestrate, mounting the two claim-gated spawn tools; absent → propose-only,
+//     byte-identical to today (the additive-threading wall, mirroring `runner`).
+// ---------------------------------------------------------------------------
+
+test(
+  "startChatStream: forwards spawn deps to orchestrate — the spawn tools mount on the session (ADR-0137 Phase 3)",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+    const q = capturingQueryFn();
+
+    const events = await drain(
+      startChatStream({
+        intent: "Orient and propose the next unit.",
+        store,
+        queryFn: q.fn,
+        spawn: spawnDepsDouble(),
+      }),
+    );
+
+    const last = events[events.length - 1];
+    assert.equal(last?.type, "done", `capturing session must reach a terminal 'done' (got '${last?.type}')`);
+
+    const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
+    assert.ok(
+      tools.includes("mcp__spawn__spawn_story_author"),
+      `mcp__spawn__spawn_story_author must be advertised when spawn deps are forwarded; got ${JSON.stringify(tools)}`,
+    );
+    assert.ok(
+      tools.includes("mcp__spawn__spawn_builder"),
+      `mcp__spawn__spawn_builder must be advertised when spawn deps are forwarded; got ${JSON.stringify(tools)}`,
+    );
+    // The existing propose surface is untouched — additive threading, not a fork.
+    assert.ok(
+      tools.includes("mcp__proposal__propose_unit"),
+      "mcp__proposal__propose_unit stays mounted alongside the spawn tools",
+    );
+  },
+);
+
+test(
+  "startChatStream: without spawn deps the session stays propose-only — no mcp__spawn__* tool advertised (the §7 scale-down)",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+    const q = capturingQueryFn();
+
+    await drain(
+      startChatStream({ intent: "Orient and propose.", store, queryFn: q.fn }),
+    );
+
+    const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
+    assert.equal(
+      tools.some((t) => t.startsWith("mcp__spawn__")),
+      false,
+      `no mcp__spawn__* tool may appear without spawn deps; got ${JSON.stringify(tools)}`,
     );
   },
 );

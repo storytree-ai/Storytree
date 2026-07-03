@@ -16,7 +16,10 @@ import type {
   MeInfo,
   NewComment,
   PresencePayload,
+  ReviewFeedPayload,
   StoreHealth,
+  SuggestionRecord,
+  TopicKind,
   TreePayload,
   UatVerdictResult,
   UserRole,
@@ -83,15 +86,33 @@ export interface ChatRefusedEvent {
   type: 'refused';
   reason: string;
 }
+/** A NON-terminal spawn frame (spawn-visibility story, ADR-0137) — the orchestrator session spawned a
+ *  sub-agent (a story-author or a builder) for a unit. Like a `delta`, it appends to the live
+ *  transcript and NEVER terminates the stream. `phase: "started"` announces the spawn; the matching
+ *  `phase: "finished"` resolves it (`ok: false` marks an honest failure). PLAIN JSON — declared here
+ *  studio-local (never imported from @storytree/drive, ADR-0004 / the modelPathBoundary wall). The
+ *  producer is chat-sse-mount (apps/desktop) / chat-stream (packages/drive). */
+export interface ChatSpawnEvent {
+  type: 'spawn';
+  phase: 'started' | 'finished';
+  role: string;
+  unitId: string;
+  ok?: boolean;
+}
 /** One SSE `data:` frame from /api/chat, discriminated by `type`. A stream is zero or more
- *  non-terminal `delta` frames followed by exactly one terminal `done`/`error`/`refused` frame. */
-export type ChatEvent = ChatDeltaEvent | ChatDoneEvent | ChatErrorEvent | ChatRefusedEvent;
+ *  non-terminal `delta`/`spawn` frames followed by exactly one terminal `done`/`error`/`refused` frame. */
+export type ChatEvent =
+  | ChatDeltaEvent
+  | ChatDoneEvent
+  | ChatErrorEvent
+  | ChatRefusedEvent
+  | ChatSpawnEvent;
 
 /** A frame that parses to JSON but isn't a recognised ChatEvent shape — defensively ignored. */
 function isChatEvent(value: unknown): value is ChatEvent {
   if (value === null || typeof value !== 'object') return false;
   const t = (value as { type?: unknown }).type;
-  return t === 'delta' || t === 'done' || t === 'error' || t === 'refused';
+  return t === 'delta' || t === 'done' || t === 'error' || t === 'refused' || t === 'spawn';
 }
 
 /**
@@ -100,9 +121,19 @@ function isChatEvent(value: unknown): value is ChatEvent {
  * frame); REJECTS when the route is absent or the request fails (a non-OK status or a network error —
  * the studio-standalone case where /api/chat is not mounted), so the caller can degrade honestly
  * rather than hang on a stream that never arrives.
+ *
+ * `signal` — an OPTIONAL AbortSignal (transcript-reset). Forwarded to `fetch`, so a reset can
+ * `controller.abort()` the in-flight stream (the fetch rejects with an AbortError and the reader tears
+ * down), leaving no zombie stream settling into a cleared panel. Threading a fetch option stays inside
+ * the thin-client wall — no agent/drive/model import, no wire-shape change. The existing two-arg
+ * callers keep working (the parameter is optional).
  */
-async function chatStream(intent: string, onEvent: (event: ChatEvent) => void): Promise<void> {
-  const res = await fetch('/api/chat', jsonInit('POST', { intent }));
+async function chatStream(
+  intent: string,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch('/api/chat', { ...jsonInit('POST', { intent }), ...(signal ? { signal } : {}) });
   if (!res.ok || res.body === null) {
     // Absent route / fail-closed backend (e.g. studio-standalone 404, or the intent guard's 400).
     throw new Error(`chat unavailable (${res.status} ${res.statusText})`);
@@ -165,6 +196,28 @@ export const api = {
     http(`/api/comments?id=${q(id)}`, jsonInit('PATCH', patch)),
   deleteComment: (id: string): Promise<{ ok: true }> =>
     http(`/api/comments?id=${q(id)}`, { method: 'DELETE' }),
+
+  // Review-mode suggestion seam (ADR-0140). createSuggestion posts a member PROPOSAL (the
+  // member-suggest policy gate opens exactly this path); decideSuggestion drives the admin-only
+  // accept/reject route; reviewFeed is cap 5's one-poll comments+suggestions payload.
+  createSuggestion: (input: {
+    blockId: string;
+    proposedText: string;
+    topicKind?: TopicKind;
+    topicId?: string;
+    originalText?: string;
+  }): Promise<SuggestionRecord> => http('/api/suggestions', jsonInit('POST', input)),
+  decideSuggestion: (input: {
+    id: string;
+    decision: 'accept' | 'reject';
+  }): Promise<SuggestionRecord> =>
+    // The component seam speaks {id, decision}; cap 3's route speaks {suggestionId, action}.
+    http(
+      '/api/suggestions/decision',
+      jsonInit('POST', { suggestionId: input.id, action: input.decision }),
+    ),
+  reviewFeed: (topicId: string): Promise<ReviewFeedPayload> =>
+    http(`/api/review/feed?topicId=${q(topicId)}`),
 
   listAssets: (): Promise<GuidanceAsset[]> => http('/api/assets'),
   createAsset: (input: AssetInput): Promise<GuidanceAsset> =>

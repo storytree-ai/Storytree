@@ -8,14 +8,17 @@
 //   - identity-less POST → 401 (IAP authenticates; fail-closed) — nothing transitioned
 //   - a member POST      → 403 (deciding is admin-only, the cap 4 gate) — nothing transitioned
 //   - an admin REJECT    → 200, the record transitioned to rejected via the store seam
-//   - an admin ACCEPT    → 501 and the record stays OPEN (the honesty wall: applyToAsset is
-//                          deferred until the block model settles — a suggestion is NEVER marked
-//                          accepted without its content applied, and 501 fires BEFORE the save)
+//   - an admin ACCEPT of a DOC suggestion → 501 and the record stays OPEN (the remaining honesty
+//                          wall: docs are files on disk, not writable through this backend — a
+//                          suggestion is NEVER marked accepted without its content applied, and
+//                          the refusal fires BEFORE the save)
+//   - an admin ACCEPT whose target asset is missing → 404, the record stays OPEN
 //   - an unknown id      → 404; a re-decide of a closed record → 409 (the store race wall)
 //   - a backend without the suggestion seam (json) → 503, mirroring the write-broker's refusal
 //
-// The suggestion-CREATE path (/api/suggestions, member-permitted by the same gate) has no route
-// yet — it lands with the Review-mode UI caps; the gate opening it first is the point of cap 4.
+// The HAPPY accept path (block located, original verified, body spliced + persisted) is proven in
+// suggestionAcceptApplyApi.integration.test.ts; the create path (/api/suggestions) in
+// suggestionCreateApi.integration.test.ts (ADR-0140 caps 7/8).
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { AddressInfo } from 'node:net';
@@ -206,12 +209,27 @@ describe('mounted /api/suggestions/decision — admin-gated (ADR-0140)', () => {
     expect(stored?.decidedBy).toBe(ADMIN);
   });
 
-  it('an admin ACCEPT refuses 501 and the record stays OPEN — never accepted-without-applied', async () => {
-    // The honesty wall: applyToAsset (blockId → asset-body splice) is deferred until the block
-    // model settles in the Review-mode UI caps. The 501 fires BEFORE any transition persists, so a
-    // suggestion can never read `accepted` while the doc was never changed.
-    const res = await post({ suggestionId: 'sug-1', action: 'accept' }, ADMIN);
+  it('an admin ACCEPT of a DOC suggestion refuses 501 and the record stays OPEN — docs are files on disk', async () => {
+    // The remaining honesty wall (asset accept-apply is wired — see
+    // suggestionAcceptApplyApi.integration.test.ts): a doc topic is a file on disk, not writable
+    // through this backend. The 501 fires BEFORE any transition persists, so a suggestion can
+    // never read `accepted` while the doc was never changed.
+    suggestionsDb.set('sug-doc', {
+      ...openSuggestion(),
+      id: 'sug-doc',
+      topicKind: 'doc',
+      topicId: 'decisions/0140-review-mode.md',
+    });
+    const res = await post({ suggestionId: 'sug-doc', action: 'accept' }, ADMIN);
     expect(res.status).toBe(501);
+    expect(suggestionsDb.get('sug-doc')?.status).toBe('open');
+  });
+
+  it('an admin ACCEPT whose target asset is missing is 404 and the record stays OPEN', async () => {
+    // The stub backend serves NO assets, so sug-1 (an asset suggestion) has nothing to apply to.
+    // The refusal fires BEFORE the transition persists — never accepted-without-applied.
+    const res = await post({ suggestionId: 'sug-1', action: 'accept' }, ADMIN);
+    expect(res.status).toBe(404);
     expect(suggestionsDb.get('sug-1')?.status).toBe('open');
   });
 

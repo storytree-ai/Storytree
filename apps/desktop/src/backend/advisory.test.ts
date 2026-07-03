@@ -154,6 +154,106 @@ async function withServer(
   }
 }
 
+// ---------------------------------------------------------------------------
+// claim-wisp-cold-start (FIX 2b): the claims read gets a SOFTER per-read budget so a slow-but-
+// under-budget DB cold-start survives (the fresh claim wisp is not dropped at 4s) — WITHOUT slowing
+// the other four reads or letting /api/tree hang. The softening is a per-call timeoutMs override
+// (and/or retryOnce). Timers are driven DETERMINISTICALLY: `setTimeout` is mocked (node:test mock
+// timers) and advanced with tick(); the read fn is an ON-DEMAND-RESOLVED deferred we control — NO
+// real wall-clock wait. `flush` drains the microtask queue so the Promise.race settles after a tick.
+// ---------------------------------------------------------------------------
+
+/** A promise whose resolution we trigger by hand — the controllable cold-start read. */
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+/** Yield enough microtask turns for a settled Promise.race to propagate to its awaiter. */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+}
+
+// cwc-claims-read-survives-cold-start — a claims read with the softer budget, given a fn that
+// resolves AFTER the shared 4s but WITHIN the softened budget, returns the CLAIM (not null).
+// RED at HEAD: createAdvisoryReader ignores the per-call override, so the read nulls at 4s.
+test("cwc-claims-read-survives-cold-start", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { lines, log } = captureLog();
+  const advisory = createAdvisoryReader({ log }); // shared default 4s
+
+  // A cold-starting DB: the query is a deferred we resolve after advancing past the shared 4s.
+  const claim = [{ unitId: "spawn-visibility", kind: "claim" as const }];
+  const d = deferred<typeof claim>();
+
+  // The claims read opts into a softer 10s per-read budget at its call site.
+  const read = advisory("in-flight-claims", () => d.promise, { timeoutMs: 10_000 });
+
+  // Advance past the shared 4s (the old drop point) but UNDER the softened 10s: no timeout fires.
+  t.mock.timers.tick(5_000);
+  await flush();
+  // The cold-start warms up and the query resolves — within the softened budget.
+  d.resolve(claim);
+  const result = await read;
+
+  assert.deepEqual(
+    result,
+    claim,
+    "the claim survives a slow-but-under-budget cold-start — not dropped at 4s",
+  );
+  assert.equal(lines.length, 0, "a survived cold-start is not a failure — nothing logged");
+});
+
+// cwc-only-the-claims-read-gets-the-softer-budget — a NON-claims read (no override) given the same
+// slow cold-start STILL nulls at the shared 4s. The softening is targeted, never a blanket raise.
+test("cwc-only-the-claims-read-gets-the-softer-budget", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { lines, log } = captureLog();
+  const advisory = createAdvisoryReader({ log }); // shared default 4s
+
+  // A deferred that never resolves within the window — the slow cold-start.
+  const d = deferred<string>();
+
+  // No opts → the shared 4s applies. This read should time out at 4s.
+  const read = advisory("latest-verdicts", () => d.promise);
+
+  // Advance to the shared 4s: the timeout arm wins for a non-claims read.
+  t.mock.timers.tick(4_000);
+  await flush();
+  const result = await read;
+
+  assert.equal(result, null, "a non-claims read keeps the shared 4s — nulls, never a blanket raise");
+  assert.equal(lines.length, 1, "the timeout is logged as a failure");
+  assert.ok(lines[0]?.includes("latest-verdicts"));
+  assert.ok(lines[0]?.includes("timed out"));
+});
+
+// cwc-still-null-on-genuine-failure — a genuinely failing claims read (throws) still returns null
+// (never a throw); with retryOnce the fn is invoked at most TWICE (retry fires at most once — no
+// unbounded loop), so a genuinely down DB still nulls promptly.
+test("cwc-still-null-on-genuine-failure", async () => {
+  const { lines, log } = captureLog();
+  const advisory = createAdvisoryReader({ log });
+
+  let calls = 0;
+  const failing = async (): Promise<never> => {
+    calls += 1;
+    throw new Error("connection refused");
+  };
+
+  const result = await advisory("in-flight-claims", failing, {
+    timeoutMs: 10_000,
+    retryOnce: true,
+  });
+
+  assert.equal(result, null, "a genuinely failing claims read still nulls — never a throw (ADR-0033)");
+  assert.equal(calls, 2, "retryOnce fires at most ONCE — the fn is invoked twice, no unbounded loop");
+  assert.equal(lines.length, 1, "one failure line for the streak");
+});
+
 test("advisory: a failing overlay read logs AND the route still answers the advisory-null shape", async () => {
   const { lines, log } = captureLog();
   const advisory = createAdvisoryReader({ log });

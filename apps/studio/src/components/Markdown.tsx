@@ -6,17 +6,10 @@ import { useAppData } from '../lib/appData';
 import { docHref } from '../lib/route';
 import { mermaidSource, resolveDocHref, slugify } from '../lib/markdown';
 
-export interface CommentTarget {
-  slug: string;
-  text: string;
-}
-
 interface MarkdownProps {
   children: string;
   /** Current doc id, so relative in-corpus links resolve. */
   baseDocId?: string;
-  /** When set, headings render a "comment on section" affordance (data-slug). */
-  onCommentHeading?: (target: CommentTarget) => void;
 }
 
 // Mermaid runs author-supplied diagram source, so initialize it once, lazily, on the client:
@@ -82,13 +75,9 @@ function nodeToText(node: ReactNode): string {
 }
 
 /**
- * Renders markdown. Headings get stable slug ids (matching comment anchors) and
- * an optional "comment on section" button tagged with `data-slug` — the live
- * comment count on that button is set imperatively by the annotation layer, so
- * this subtree can be memoized and never reconciled (which would strip
- * highlight marks).
+ * Renders markdown. Headings get stable slug ids (so in-corpus `#slug` links resolve).
  */
-export function Markdown({ children, baseDocId = '', onCommentHeading }: MarkdownProps): React.JSX.Element {
+export function Markdown({ children, baseDocId = '' }: MarkdownProps): React.JSX.Element {
   const { docIds } = useAppData();
 
   function heading(level: 1 | 2 | 3 | 4) {
@@ -102,17 +91,6 @@ export function Markdown({ children, baseDocId = '', onCommentHeading }: Markdow
             #
           </a>
           <span className="md-heading-text">{kids}</span>
-          {onCommentHeading && (
-            <button
-              type="button"
-              className="md-comment-btn"
-              data-slug={slug}
-              onClick={() => onCommentHeading({ slug, text })}
-              title="Comment on this section"
-            >
-              💬
-            </button>
-          )}
         </Tag>
       );
     };
