@@ -27,13 +27,17 @@ agent (ADR-0051), **driving the spine without ever handing in a verdict** (ADR-0
 **accept-to-land the permanent human gate** (d.3). Its accepted costs explicitly name that it "runs
 agent-authored orchestration (decompose, **spawn subagents**, open PRs)."
 
-But the BUILD is phased, and only Phases 1–2 are realized in the desktop chat: today it is a
-**read/propose-only** headless session (`packages/agent/src/headless-orchestrator.ts` — `tools: []` +
-orientation + `propose_unit`). It can orient and propose; it cannot spawn anything or drive. The
-desktop-drive walk (2026-06-28) added a propose→accept→**dispatch** bridge (click Build →
-`routedBuildRunner`), but the orchestrator still does not SPAWN the inner loop. So "chat brings a story
-in" or "chat fixes a bug through the inner loop" is unreachable — **not because it's undecided**
-(ADR-0108 decided it) but because **Phase 3 (drive authority) is unbuilt.**
+But the BUILD is phased, and at decision time only Phases 1–2 were realized in the desktop chat: it
+was a **read/propose-only** headless session (`packages/agent/src/headless-orchestrator.ts` —
+`tools: []` + orientation + `propose_unit`). It could orient and propose; it could not spawn anything
+or drive. The desktop-drive walk (2026-06-28) had added a propose→accept→**dispatch** bridge (click
+Build → `routedBuildRunner`), but the orchestrator still did not SPAWN the inner loop. So "chat brings
+a story in" or "chat fixes a bug through the inner loop" was unreachable — **not because it was
+undecided** (ADR-0108 decided it) but because **Phase 3 (drive authority) was unbuilt.** *(Since
+built: `stories/chat-subagent-spawn` landed all five machine capabilities green under signed `--real`
+verdicts — the claim-gated spawn tools mounted on `runHeadlessOrchestrator`, the real spawn-deps
+composition threaded through `orchestrate()`; the live desktop spawn walks remain the story's
+operator-attested UAT legs.)*
 
 The owner's framing sharpens two things ADR-0108 left implicit:
 

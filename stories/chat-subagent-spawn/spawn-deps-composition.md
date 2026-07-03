@@ -55,13 +55,15 @@ the Phase-1/2 chain.
 consumes) and the three handlers it composes: [`story-author-spawn`](story-author-spawn.md),
 [`builder-spawn-dispatch`](builder-spawn-dispatch.md), [`claim-gated-spawn`](claim-gated-spawn.md).
 
-> **Proof status (honest) — `proposed`.** This is the thin shell that turns the mechanisms into the
-> LIVE shape: the spawned story-author must be the RENDERED LIBRARY AGENT (ADR-0051's
-> one-loop-definition, extended to subagents — edit the artifact, regenerate, and the terminal
-> story-author and the spawned story-author move together), the claim must carry WHO is claiming
-> (session identity + branch + work kind, so the refusal names a real holder and the wisp colour
-> layer reads a real role), and the whole thing must ride the EXISTING `orchestrate` chain, never a
-> fork.
+> **Proof status (honest) — `proposed`, green under a signed `--real` PASS.** Built and proven
+> (`packages/drive/src/spawn-deps.ts` + `spawn-deps.test.ts`, 3/3 contracts): the thin shell that
+> turns the mechanisms into the LIVE shape — the spawned story-author IS the RENDERED LIBRARY AGENT
+> (ADR-0051's one-loop-definition, extended to subagents — edit the artifact, regenerate, and the
+> terminal story-author and the spawned story-author move together), the claim carries WHO is
+> claiming (session identity + branch + work kind, so the refusal names a real holder and the wisp
+> colour layer reads a real role), and the whole thing rides the EXISTING `orchestrate` chain, never
+> a fork. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020),
+> never authored.
 
 ## Guidance
 

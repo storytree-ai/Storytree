@@ -73,6 +73,11 @@ The forces that make the pivot cheap and coherent:
    and are owner-attested, live surfaces — keep them, including the R3F-mounted landing moment if
    that is what the transition rides ("if its built ontop of a 3d engine then keep it"). How the
    landing hands off to the 2.5D walk is the rebuild's design seam; the owner gate judges the result.
+   *(Update 2026-07-03, web main `281b1e6`: Act 1's ENDING was subsequently reworked, owner-directed
+   and attested — the peak calm card became a diegetic finale terminal offering a two-option fork
+   (transform vs. an external exit). This is coherent with "keep Act 1 as built": the storm, the
+   arming, and the storm→land transform choreography are all unchanged; only the peak affordance's
+   form changed. See [`stories/website-experience/act1-terminal-storm.md`](../../stories/website-experience/act1-terminal-storm.md).)*
 4. **Narration is anchored callout boxes.** Each beat's copy appears in a callout pointing at the
    exact map element it teaches — "where your eyes should go" — not a fixed panel the visitor reads
    at the bottom. Plain language and the build-time narration/script validation wall carry over.

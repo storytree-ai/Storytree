@@ -79,6 +79,35 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
 - **Deferred by design to the inflection:** the transform/collapse/soil moment, the R3F island,
   and the site-side r3f sync — the storm ships zero WebGL, as the upstream wall demands.
 
+## As built — the finale rework (web main `281b1e6`, 2026-07-03, owner-directed)
+
+The owner re-directed Act 1's ending and escape hatch in-session (2026-07-03); built by the
+`frontend-builder`, audited + independently re-witnessed (23/23 Playwright checks + mobile fit),
+**attested by the owner** ("amazing, land this" — recorded as an owner comment on storytree-web
+PR #21, agent-relayed per ADR-0044 §4 / ADR-0082), squash-merged → web main `281b1e6`, CD green,
+live. Supersedes the calm-card details of the `3e53f14` section above:
+
+- **The escape hatch dropped the storm analogy**: the persistent skip control now reads
+  `show me a better way →` (`src/pages/index.astro:79`) — text only; href, both markers, and the
+  engine-independent inline disarm path are unchanged.
+- **The calm card became the finale terminal** (`#storm-finale`, `src/pages/index.astro:142`):
+  at peak the scene still dims, but the affordance is now diegetic — a larger `swarm — root`
+  terminal CRT-powers-on above the dimmer and streams a seeded 8-line concession
+  (`FINALE_LINES` / `buildFinalePlan`, `src/scripts/storm-script.ts:441`/`:466` — pure,
+  `mulberry32`, same fiction discipline: no real products named in the stream), ending on the
+  offer pill `want me to show you?`. `data-calm-affordance` is gone (nothing machine-held it).
+- **The ending is now a two-option fork**, revealed only after the stream lands
+  (`src/pages/index.astro:153`): `show me the better way →` carries `data-storm-transform` (the
+  inflection trigger — `storm-to-forest-inflection`'s transform is unchanged, just re-homed), and
+  `i'm fine with this` — a ghost anchor to `https://claude.com/product/claude-code`, the
+  owner-sanctioned joke exit (the one real-product reference, living only as the link's
+  destination, never in the streamed fiction).
+- **Choreography witnessed:** …boot parks last ≈ 34s → dim → finale terminal powers on → ~10s
+  stream → the two options fade in (status flips to blinking `waiting on you`); the finale joins
+  the transform's collapse with the same CRT power-off. Skip / `Escape` / reduced-motion / no-JS
+  exits all re-witnessed intact; the finale streams on the engine's single rAF loop
+  (`streamFinale`, `src/scripts/act1-storm.ts:475`).
+
 ## Guidance
 
 THE DRAMATURGY (ADR-0134 §1, owner decisions 2026-07-02 — the spec of the feel):

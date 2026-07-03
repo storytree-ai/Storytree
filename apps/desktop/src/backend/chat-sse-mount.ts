@@ -11,7 +11,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import type { ChatStreamEvent } from "@storytree/drive";
+import type { ChatStreamEvent, SpawnSurfaceDeps } from "@storytree/drive";
 import { startChatStream } from "@storytree/drive";
 
 // ---------- HTTP helpers (local copies — not imported from studio) ----------
@@ -209,6 +209,16 @@ export interface ChatSseMountDeps {
    * READ/PROPOSE ONLY either way (the Phase-2 wall, ADR-0091) — the runner carries no write verb.
    */
   runner?: SseOrientationRunner;
+  /**
+   * OPTIONAL spawn surface deps (ADR-0137 Phase 3). Present → the chat session mounts the
+   * claim-gated `spawn_story_author` / `spawn_builder` tools (the orchestrator can spawn the inner
+   * loop). Absent → propose-only, byte-identical to today (the same §7 scale-down as `runner`). The
+   * mount FORWARDS this opaque token through to `startChatStream` → `orchestrate`; it never
+   * constructs it — the sidecar (backend-entry.ts) composes the real deps via `buildSpawnDeps`.
+   * The chat session itself still carries NO Write/Edit/Bash (ADR-0137 d.1); the writes happen only
+   * inside the spawned subagents under their own fences.
+   */
+  spawn?: SpawnSurfaceDeps;
 }
 
 // ---------- Bridge startChatStream ----------
@@ -223,6 +233,7 @@ type BridgedStartStream = (args: {
   store: SeedStore;
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
+  spawn?: SpawnSurfaceDeps;
 }) => AsyncGenerator<ChatStreamEvent>;
 
 const bridgedStart = startChatStream as unknown as BridgedStartStream;
@@ -276,17 +287,19 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn/runner only when present (exactOptionalPropertyTypes).
+    // Build args — forward queryFn/runner/spawn only when present (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
       store: SeedStore;
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;
+      spawn?: SpawnSurfaceDeps;
     } = {
       intent,
       store,
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
       ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
+      ...(deps.spawn !== undefined ? { spawn: deps.spawn } : {}),
     };
 
     // Stream each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives.

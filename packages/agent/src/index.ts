@@ -74,3 +74,16 @@ export type {
   HeadlessOrchestratorResult,
 } from "./headless-orchestrator.js";
 export { runHeadlessOrchestrator } from "./headless-orchestrator.js";
+
+// The spawn seams (ADR-0137 Phase 3 / chat-subagent-spawn): the write-fenced story-author
+// spawn runner and the claim-gated spawn tool surface's dep contract — consumed by
+// @storytree/drive's spawn-deps composition, which renders the story-author prompt,
+// composes the claim/build deps, and threads them through orchestrate() to the runtime.
+export type {
+  SpawnStoryAuthorArgs,
+  SpawnStoryAuthorResult,
+  ScopeViolation,
+} from "./spawn-story-author.js";
+export { runSpawnStoryAuthor } from "./spawn-story-author.js";
+export type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
+export { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";

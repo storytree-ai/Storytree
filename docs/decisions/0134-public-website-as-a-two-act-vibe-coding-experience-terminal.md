@@ -105,7 +105,15 @@ can read.*
    first fetch at the click, no prefetch — and the transform resolves into Act 2's calm empty land; the
    guided walkthrough that grows it is the remaining Act 2 build. As-built map:
    [`stories/website-experience/storm-to-forest-inflection.md`](../../stories/website-experience/storm-to-forest-inflection.md).
-   Noted in place per ADR-0139.)*
+   Noted in place per ADR-0139.)* *(Correction 2026-07-03, web main `281b1e6`, owner-directed at the
+   Act 1 finale gate: the "one calm storytree affordance" is now a **diegetic finale terminal** — at
+   peak the root agent itself powers on a larger terminal and concedes the swarm isn't working, then
+   offers **two** options: `show me the better way →` (this transform, choreography unchanged) and an
+   external ghost exit for anyone who genuinely prefers the terminal wall. The §2 core stands — peak →
+   dim → an affordance → one click transforms, lazy-load at the click; only the affordance's FORM and
+   the added second exit changed. As-built map:
+   [`stories/website-experience/act1-terminal-storm.md`](../../stories/website-experience/act1-terminal-storm.md)
+   "As built — the finale rework".)*
 
 3. **Act 2 — the calm forest (the alternative, guided).** Silence resolves into a calm, *empty* land —
    no story nodes yet. An **auto-guided, visitor-paced** walkthrough (the deliberate inverse of Act 1's

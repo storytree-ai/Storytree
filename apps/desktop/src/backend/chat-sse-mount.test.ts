@@ -46,6 +46,9 @@ import type { ChatStreamEvent } from "@storytree/drive";
  */
 type QueryFn = NonNullable<ChatSseMountDeps["queryFn"]>;
 
+/** The spawn deps type — derived from the mount's own deps so the double stays in sync. */
+type SpawnDeps = NonNullable<ChatSseMountDeps["spawn"]>;
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -74,6 +77,33 @@ function queryYielding(messages: unknown[]): QueryFn {
     (async function* () {
       for (const m of messages) yield m;
     })();
+}
+
+/** A minimal spawn-deps double — enough to mount the two claim-gated spawn tools. Its gate/runners
+ *  never fire (the scripted session only orients); the point is the mount FORWARDS it to the
+ *  session so the spawn tools are advertised (mirrors what backend-entry composes via buildSpawnDeps). */
+function spawnDepsDouble(): SpawnDeps {
+  return {
+    store: {
+      claim: async (req: { unitId: string; sessionId: string; branch: string; intent?: string }) => ({
+        acquired: true as const,
+        claim: {
+          unitId: req.unitId,
+          sessionId: req.sessionId,
+          branch: req.branch,
+          intent: req.intent ?? "orchestrate",
+          claimedAt: "2026-07-03T00:00:00.000Z",
+          heartbeatAt: "2026-07-03T00:00:00.000Z",
+        },
+        reclaimed: false,
+      }),
+      bumpHeartbeat: async () => {},
+    },
+    sessionId: "sess-desktop",
+    branch: "claude/sess-desktop",
+    spawnStoryAuthor: async () => "story-author spawn summary",
+    spawnBuilder: async () => "builder dispatched",
+  } as SpawnDeps;
 }
 
 /** An SDK partial-assistant streaming message carrying one text-delta fragment — the live
@@ -617,6 +647,90 @@ test(
     assert.ok(
       !allowed.some((n) => n.startsWith("mcp__orientation__")),
       `with no runner, no orientation tools may be advertised; got: ${JSON.stringify(allowed)}`,
+    );
+  },
+);
+
+// SPAWN SEAM (ADR-0137 Phase 3): injected spawn deps must be forwarded through the mount →
+// startChatStream → orchestrate → runHeadlessOrchestrator, which mounts the two claim-gated spawn
+// tools (mcp__spawn__spawn_story_author / spawn_builder) into the session. This is the desktop half
+// of the sidecar wiring — the sidecar (backend-entry.ts) composes the real deps via buildSpawnDeps
+// and hands them to createChatSseMount; the mount only forwards.
+//
+// DELETION TEST: dropping the spawn forwarding in the mount (or in the bridged startChatStream args)
+// removes the spawn MCP server from the captured session options — this allowedTools assertion fails.
+test(
+  "csm-forwards-spawn-deps: injected spawn deps wire the claim-gated spawn tools into the session",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery, spawn: spawnDepsDouble() });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "bring a story in" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text(); // drain the stream so the session settles
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    const opts = capturedOptions as {
+      allowedTools?: string[];
+      mcpServers?: Record<string, unknown>;
+    };
+    const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
+    for (const name of ["spawn_story_author", "spawn_builder"]) {
+      assert.ok(
+        allowed.includes(`mcp__spawn__${name}`),
+        `the injected spawn deps must wire '${name}' into allowedTools; got: ${JSON.stringify(allowed)}`,
+      );
+    }
+    assert.ok(
+      "spawn" in (opts.mcpServers ?? {}),
+      "the spawn MCP server must be mounted when spawn deps are injected",
+    );
+  },
+);
+
+// SPAWN SEAM (baseline): with NO spawn deps injected, no spawn tools are advertised (the §7
+// scale-down) — the propose-only surface is byte-identical to today; the mount invents no dead surface.
+test(
+  "csm-forwards-spawn-deps: without spawn deps, no spawn tools are advertised (propose-only, unchanged)",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "plain conversational turn" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text();
+    });
+
+    const opts = capturedOptions as { allowedTools?: string[] };
+    const allowed = opts.allowedTools ?? [];
+    assert.ok(
+      !allowed.some((n) => n.startsWith("mcp__spawn__")),
+      `with no spawn deps, no spawn tools may be advertised; got: ${JSON.stringify(allowed)}`,
     );
   },
 );

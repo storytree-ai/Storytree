@@ -141,21 +141,13 @@ file conflicts).
 
 ## How to run
 
-- **Remote (web/VM) sessions** run in an ephemeral container (Claude Code on the web): GitHub only
-  via MCP, and **egress is 443-only** — an HTTPS proxy where the "Network access" setting picks
-  *which hosts*, not *which ports* (so even "Full" can't open another port; "Custom" only narrows
-  hosts). The offline gate (`pnpm -r typecheck && pnpm -r test`) is fully runnable and is your green
-  signal; the Node `>=24` engine warning is harmless (the container ships v22). The keyless DB path
-  is **not** what's missing here: `gcloud` is no longer required (`db:up`/`down`/`status` are REST
-  now, ADR-0063), and on VM sessions the `storytree-remote-dev` service-account key (carried in env)
-  + the `scripts/remote-session-setup.sh` SessionStart hook hydrate ADC + `~/.storytree/secrets.json`,
-  so the REST **control plane** (`db:status`, the activation flip) works. What still **can't** work
-  here: anything that opens a DB *connection* — live/`--pg` library writes, live story builds,
-  `db:up`'s connection-readiness poll — because Postgres' data socket is port **3307**, which the
-  443-only egress blocks (control plane works; the data plane hangs). Use a laptop session (direct
-  network) or a hosted HTTPS/443 DB bridge; don't burn time on the connector here. *(Durable home for
-  this kind of ways-of-working is a `process` artifact, ADR-0034 — write it from a session that has
-  the DB.)*
+- **Remote (web/VM) sessions ONLY** (Claude Code on the web — ephemeral container, GitHub via MCP,
+  **443-only egress**) can't open a DB *data* connection: Postgres' data socket is port **3307**,
+  which the 443-only egress blocks, so live/`--pg` writes and live builds hang there (the REST
+  **control plane** — `db:status`, the activation flip — still works; `gcloud` is not required,
+  ADR-0063). **This caveat is remote-only. On a laptop / direct-network session the DB is reachable —
+  do NOT infer "unreachable" from your environment; PROBE it** (see the Cloud SQL bullet's
+  probe-don't-assume rule). Full remote-session detail: ADR-0063 / ADR-0034.
 - Install: `corepack enable pnpm` · `pnpm install`
 - **Fresh worktree?** A new git worktree has NO `node_modules` — run `pnpm install` in it FIRST, or
   the gate / `pnpm storytree …` / `tsx` all fail. And invoke the CLI as **`pnpm storytree …`** (not a
@@ -177,6 +169,12 @@ file conflicts).
   **removed** — superseded by this window (ADR-0114). A manual `db:up` still works any
   time inside the sleep window (a no-op if already up); re-`db:up` if a query can't connect after the
   overnight stop.
+  **Probe, don't assume — never conclude the DB is unreachable from the environment.** Verify with a
+  direct connector `SELECT 1` (via `@storytree/library/store` `createPool`) before deciding it's down.
+  A `db:up`/preflight "unreachable within Ns" at status **RUNNABLE** is almost always a slow cold-start
+  (can exceed the 420s poll — seen ~21 min after the overnight stop), not a wedge: wait + re-probe. A
+  direct `SELECT 1` is the definitive check (it connected in ~340 ms once warm while `db:up`'s own poll
+  was still timing out). The 3307-blocked caveat above applies to REMOTE sessions only.
   Run the library migration: `STORYTREE_DB_USER=<iam-email> npx tsx packages/library/src/store/load-corpus.ts`.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
