@@ -30,6 +30,7 @@ import type { SdkQueryFn, OrientationRunner } from "@storytree/agent";
 
 import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
+import type { SpawnSurfaceDeps } from "./spawn-deps.js";
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -111,6 +112,15 @@ export interface StartChatStreamArgs {
   maxTurns?: number;
   /** Hard USD budget ceiling for the live session (live run only). */
   maxBudgetUsd?: number;
+  /**
+   * OPTIONAL spawn surface deps (ADR-0137 Phase 3): when present, the underlying
+   * `orchestrate()` session mounts `spawn_story_author` / `spawn_builder` as claim-gated MCP
+   * tools so the chat can spawn the inner loop. Absent → the session is byte-identical to the
+   * propose-only surface (the same additive threading as `runner`; no fork of the Phase-1/2 chain).
+   * The desktop sidecar composes the real deps via `buildSpawnDeps` and passes them through the
+   * chat mount; offline tests inject a scripted double.
+   */
+  spawn?: SpawnSurfaceDeps;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +182,7 @@ export async function* startChatStream(
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
+    ...(args.spawn !== undefined ? { spawn: args.spawn } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))
     .catch((error: unknown): SessionOutcome => ({ ok: false, error }))
