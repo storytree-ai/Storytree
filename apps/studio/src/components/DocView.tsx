@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { useOperator } from '../lib/operator';
-import { parseHeadings } from '../lib/markdown';
 import { sectionAnchor, topicAnchor } from '../lib/annotate';
 import { useAnnotations } from '../lib/useAnnotations';
 import type { DocContent } from '../types';
 import { Markdown, type CommentTarget } from './Markdown';
-import { CommentPanel } from './CommentPanel';
+import { ReviewToggle } from './ReviewToggle';
 
 export function DocView({ id }: { id: string }): React.JSX.Element {
   const { docTitles } = useAppData();
-  const [operator] = useOperator();
   const [content, setContent] = useState<DocContent | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -41,7 +38,6 @@ export function DocView({ id }: { id: string }): React.JSX.Element {
     };
   }, [id, setTarget]);
 
-  const headings = useMemo(() => (content ? parseHeadings(content.markdown) : []), [content]);
   const onHeading = useCallback(
     (t: CommentTarget) => setTarget(sectionAnchor(t.slug, t.text)),
     [setTarget],
@@ -69,24 +65,18 @@ export function DocView({ id }: { id: string }): React.JSX.Element {
   }
 
   return (
-    <div className="doc-layout">
-      <div className="doc-main">
-        <article className="doc" ref={articleRef} {...ann.articleHandlers}>
-          <div className="doc-crumb muted small">docs / {id}</div>
-          {markdown}
-          {ann.overlays}
-        </article>
+    <ReviewToggle>
+      {/* The right-hand CommentPanel is retired from this surface (owner call, cap 6):
+          Review-mode affordances arrive IN the document flow at caps 7/8. */}
+      <div className="doc-layout doc-layout-view">
+        <div className="doc-main">
+          <article className="doc" ref={articleRef} {...ann.articleHandlers}>
+            <div className="doc-crumb muted small">docs / {id}</div>
+            {markdown}
+            {ann.overlays}
+          </article>
+        </div>
       </div>
-      <CommentPanel
-        topicKind="doc"
-        topicId={id}
-        headings={headings}
-        operator={operator}
-        target={ann.target}
-        setTarget={setTarget}
-        focusId={ann.focusId}
-        onJump={ann.jumpToAnchor}
-      />
-    </div>
+    </ReviewToggle>
   );
 }

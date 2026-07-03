@@ -60,11 +60,14 @@ the next poll without a reload. Never a side panel. Proven by behaviour, the app
 renders + posts), [`review-refresh-feed`](review-refresh-feed.md) (the live source it polls),
 [`review-mode-toggle`](review-mode-toggle.md) (it shows only in Review mode).
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. Today comments render in
-> the right-panel `CommentPanel.tsx` form + as `<mark>` highlights via `useAnnotations.tsx`. This
-> capability renders the thread IN the document flow above its block instead (a code-review thread),
-> placeable at any block. Its appearance is the story's operator-attested UAT leg 2 (ADR-0070 — the
-> look is witnessed, never a machine visual verdict).
+> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The old text-selection
+> `<mark>` highlight layer (`useAnnotations.tsx`) is still live on the topic surfaces, but the
+> right-hand `CommentPanel` was retired from them at cap 6 (owner call — it didn't fit the
+> Google-Docs direction), so there is currently NO comment-writing surface on a topic until this cap
+> lands its in-flow thread. This capability renders the thread IN the document flow above its block
+> (a code-review thread), placeable at any block in Review mode (cap 6's `ReviewModeContext` is built
+> and mounted on both surfaces). Its appearance is the story's operator-attested UAT leg 2 (ADR-0070
+> — the look is witnessed, never a machine visual verdict).
 
 ## Guidance
 

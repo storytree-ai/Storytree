@@ -2,22 +2,18 @@ import { useMemo, useRef } from 'react';
 import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { useOperator } from '../lib/operator';
 import { formatDateTime } from '../lib/format';
-import { parseHeadings } from '../lib/markdown';
 import { useAnnotations } from '../lib/useAnnotations';
 import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib/route';
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
-import { CommentPanel } from './CommentPanel';
+import { ReviewToggle } from './ReviewToggle';
 
 export function AssetView({ id }: { id: string }): React.JSX.Element {
   const { assets, refreshAssets } = useAppData();
-  const [operator] = useOperator();
   const articleRef = useRef<HTMLElement>(null);
   const asset = assets.find((a) => a.id === id);
   const ann = useAnnotations(id, articleRef, asset?.body ?? '');
-  const headings = useMemo(() => (asset ? parseHeadings(asset.body) : []), [asset]);
   // Memoized so React renders it once and never strips the highlight marks.
   const body = useMemo(() => <Markdown>{asset?.body ?? ''}</Markdown>, [asset?.body]);
   // "Sources": the unit's `references` grouped by the type of thing each points at, resolved live
@@ -50,8 +46,11 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
   }
 
   return (
-    <div className="doc-layout">
-      <article className="doc asset-detail" ref={articleRef} {...ann.articleHandlers}>
+    <ReviewToggle>
+      {/* The right-hand CommentPanel is retired from this surface (owner call, cap 6):
+          Review-mode affordances arrive IN the document flow at caps 7/8. */}
+      <div className="doc-layout doc-layout-view">
+        <article className="doc asset-detail" ref={articleRef} {...ann.articleHandlers}>
         <div className="doc-crumb muted small">
           <a href={libraryHref()}>library</a> / {asset.id}
         </div>
@@ -106,19 +105,9 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
           </button>
         </div>
         {ann.overlays}
-      </article>
-
-      <CommentPanel
-        topicKind="asset"
-        topicId={asset.id}
-        headings={headings}
-        operator={operator}
-        target={ann.target}
-        setTarget={ann.setTarget}
-        focusId={ann.focusId}
-        onJump={ann.jumpToAnchor}
-      />
-    </div>
+        </article>
+      </div>
+    </ReviewToggle>
   );
 }
 

@@ -171,14 +171,19 @@ drive are human-witness actions (`_(witness: human)_`, ADR-0070 / ADR-0040), rec
 
 ## Proof
 
-**Honest status — `proposed` (authored, not built).** Nothing here is proven through the prove-it-gate
-yet. The five LEAF caps (1–5) are armed with `--real` proof config so the orchestrator can drive each
-through `node build --real --store pg` — intentional (the owner wants them built through the inner loop
-to exercise the wisp pipeline). The three LOOK caps (6–8) are two-stage (vitest behaviour red→green +
-operator-attested appearance, ADR-0070 — the look is witnessed, never a machine visual verdict). The
-removal (9) is GLUE — proven by "the suite stays green AND the text-anchor path is gone", an
-orchestrator-supplemented step with no isolated red→green of its own. `healthy` is earned through the
-gate, never authored (ADR-0020).
+**Honest status — building through the prove-it-gate; 6 of 9 capabilities BUILT.** The five LEAF caps
+(1–5) each signed a REAL PASS through `node build --real --store pg`: cap 1 run `real-mr22bwt5`
+(verdict @ `879608f`), cap 2 run `real-mr24u2mt` (@ `d597d36`), cap 3 run `real-mr3is5wu`
+(@ `b33d27c` — the accept-APPLY half deferred loudly, see its spec), cap 4 run `real-mr3kexsx`
+(@ `a62393c`), cap 5 run `real-mr41u3ro` (@ `6c06f94`). Cap 6 (the Review toggle, LOOK) signed its
+behaviour stage (run `real-mr446rcm`, @ `8a37714`); the look was owner-approved in-session 2026-07-03,
+formal UAT-leg-1 attestation held until caps 7/8 give Review mode its real affordances. During cap 6's
+taste round the owner retired the right-hand `CommentPanel` from the topic surfaces entirely — ahead
+of cap 9's clean swap, so the Review affordances arrive IN the document flow at caps 7/8 (the
+text-selection `<mark>` highlight layer remains until cap 9 deletes it). Remaining: caps 7–8 (LOOK,
+two-stage per ADR-0070) and cap 9 (GLUE — "the suite stays green AND the text-anchor path is gone").
+Authored `status` fields stay `proposed` throughout — `healthy` is earned through the gate, never
+authored (ADR-0020).
 
 ## Open modeling calls (for the owner)
 
