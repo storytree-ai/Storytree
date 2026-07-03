@@ -94,11 +94,12 @@ means "proven against its declared obligations," not "correct in every unstated 
 | Hidden coupling / blast radius (a 3-file fix lands as a 14-file PR) | **Declared-edge drift detection** — real edges are derived from `sourceFile` imports and compared to declared edges; undeclared coupling is reported | ADR-0115 · `packages/cli/src/boundaries.ts:503` (`declaredEdgeDriftReport`) |
 | **Duplication instead of reuse** (GitClear: clones 8.3%→12.3%; auth logic in 7 places) | **GAP.** storytree's organism model deliberately **duplicates behaviour *across* organisms** (ADR-0010/0068 — DRY is wrong across bounded contexts); *within* a codebase, **nothing detects or gates code clones**. The map shows *coupling*, not *duplication* | **see gaps (in-domain #3)** |
 
-> ⚠ **Site over-claim to fix.** The Act-2 beat table in the gripes doc folds "duplication (10)" into
-> **beat 4** ("stories connect via roads"). But roads show *coupling and layer-jumps*, **not code
-> clones** — the mechanism doesn't detect duplication. Either the walkthrough should stop implying it
-> answers duplication, or a clone-detection mechanism has to exist first. Flagged for the owner and for
-> Phase 2's reveal design.
+> ⚠ **Site over-claim — RESOLVED (owner 2026-07-03: out of scope; correct the claim).** The Act-2 beat
+> table in the gripes doc folded "duplication (10)" into **beat 4** ("stories connect via roads"). But
+> roads show *coupling and layer-jumps*, **not code clones** — the mechanism doesn't detect duplication.
+> Clone-detection is out of scope (owner's call), so the walkthrough **stops implying it answers
+> duplication**: the gripes-doc beat table is corrected, and Phase 2's reveal design inherits the
+> corrected beat-4.
 
 ---
 
@@ -126,16 +127,19 @@ means "proven against its declared obligations," not "correct in every unstated 
 | Pain (verified 2026) | storytree today | Verdict |
 |---|---|---|
 | **Security of AI-generated code** — ~45% of AI code introduces an OWASP Top-10 flaw; security pass-rate flat ~55% over two years while functional correctness climbed ~50%→95% (Veracode 2025 / Spring 2026; reasoning models reach 70–72%, still sub-production) | The prove-it-gate proves **functional** red→green. A vulnerability that *passes the tests* lands green. There is **no security/SAST/vuln dimension** in the proof machinery (grep of `docs/decisions/` for security = only storytree's *own* op-sec: write-scope, injection-safe arg vectors, IAP, keyless auth) | **GAP (in-domain #1)** |
-| **Slopsquatting / hallucinated deps** — LLMs name a non-existent package in ~1-in-5 samples (2025 baseline; 2026 frontier ~5%), 43% repeatably → a squattable supply-chain vector | A dep add is **spine-driven, never the leaf's** (ADR-0064 amends ADR-0031 §2 — "the leaf can never add a dependency" stands; the *spine* runs a declared `real.addDeps: […]`) with injection-safe arg vectors (`execFile`, no flag injection — ADR-0064 §2 / ADR-0087), but **nothing checks a package name is real / non-malicious** before it's added — write-scope bounds *what file* is written, not *whether a dep exists* | **GAP (in-domain #2)** |
+| **Slopsquatting / hallucinated deps** — LLMs name a non-existent package at **4.62–6.10%** on the 2026 frontier cohort (["The Range Shrinks, the Threat Remains"](https://arxiv.org/abs/2605.17062)), down from Spracklen 2025's 5.2–21.7% but **not retired**: 127 names invented identically across five models (53 still registrable), 43% repeatable → a squattable supply-chain vector (real Jan-2026 npm incident) | A dep add is **spine-driven, never the leaf's** (ADR-0064 amends ADR-0031 §2 — "the leaf can never add a dependency" stands; the *spine* runs a declared `real.addDeps: […]`) with injection-safe arg vectors (`execFile`, no flag injection — ADR-0064 §2 / ADR-0087), but **nothing checks a package name is real / non-malicious** before it's added — write-scope bounds *what file* is written, not *whether a dep exists* | **GAP (in-domain #2)** |
 | **Cost / economics** — agentic coding ~1000× the tokens of non-agentic use; up to 30× cost variance on identical repeat runs (Stanford Digital Economy Lab, 2026) | storytree **removed USD ceilings** (subscription-funded) and made the **turn cap the runaway brake** (ADR-0130/0131) — so *per-slice runaway is bounded by design*. But there is **no cost observability/prediction** for the broader token economics | **PARTIAL / by-design** — see gaps #4 |
 | **Skill atrophy / deskilling** — directional: Anthropic Feb-2026 RCT, 52 mostly-junior engineers, AI-assisted 50% vs hand-coding 67% on a comprehension/debugging quiz (surfaced in search, *not* in the adversarially-verified core — treat as directional) | A human-development concern; no storytree mechanism, and arguably none belongs | **out-of-domain** — see gaps |
 
 ---
 
-## The gaps — raised to the owner (do NOT self-decide; owner-fork-bar)
+## The gaps — raised to the owner · **RESOLVED 2026-07-03**
 
-Each was verified corpus-silent against the live decision log. Split by whether it plausibly *belongs*
-in storytree's problem domain.
+Each was verified corpus-silent against the live decision log, then **raised to the owner** (owner-fork-bar
+— not self-decided). The owner's calls are recorded inline below (2026-07-03). Split by whether it
+plausibly *belongs* in storytree's problem domain. **No ADR is drafted here** — an *ADR-worthy* verdict
+means a future session reserves + drafts the decision under the owner's direction; this record is that
+direction.
 
 ### In-domain — plausible extensions of the proof/legibility model (each may warrant an ADR)
 
@@ -146,16 +150,39 @@ in storytree's problem domain.
    or is this deliberately out of scope — proof covers only what the author's tests encode, security
    included?
 
+   **→ OWNER (2026-07-03): ADR-worthy.** The proof model should gain a **security dimension**; a future
+   session reserves + drafts the ADR under the owner's direction (a SAST/vuln check as a proof mode or
+   gate is the design space — not drafted here).
+
 2. **Dependency provenance / anti-slopsquatting.** The spine can add declared deps (ADR-0064; the leaf
    still cannot); nothing verifies the package **exists / is non-malicious** before the add. *Question:*
    should a dep-add earn an existence/provenance check (a small, cheap gate), or is that the human's
    review at the merge ceremony?
+
+   **→ OWNER (2026-07-03): fold into gap 1's security ADR.** Checked against the latest evidence first
+   (the owner asked whether frontier models retired the threat): the 2026 re-evaluation
+   *["The Range Shrinks, the Threat Remains"](https://arxiv.org/abs/2605.17062)* (Claude Sonnet 4.6 /
+   Haiku 4.5, GPT-5.4-mini, Gemini 2.5 Pro, DeepSeek V3.2; ~200k prompts) puts hallucination at
+   **4.62–6.10%** — down from Spracklen 2025's 5.2–21.7% (the *worst* case collapsed; the floor barely
+   moved), with **127 names invented identically across all five models, 53 still registrable** after
+   registry defenses, and a real Jan-2026 npm incident (`react-codeshift`, 237 repos). The threat is
+   **smaller but live**, and the *effective* defense is a **reputation/provenance** signal
+   (Socket.dev-class) — not a cheap existence check (a slopsquatted package *does* exist). Because that
+   is one concrete instance of gap 1's security dimension, dep-provenance is **folded into gap 1's future
+   security-proof ADR** (existence vs reputation vs the existing spine-only, declared, human-reviewed
+   dep-add backstop, weighed as one design question) — not a separate decision.
 
 3. **Code-clone / duplication detection.** Nothing gates *within*-codebase duplication (GitClear's core
    finding). The organism model duplicates *across* organisms by design; *within*, clones are ungated —
    **and the website's Act-2 beat-4 currently over-claims coverage of this**. *Question:* build a
    clone-detection signal (a check, or a Library "reference-don't-restate" enforcement on code), or
    accept it as out of scope and **correct the site's claim**?
+
+   **→ OWNER (2026-07-03): out of scope; correct the claim.** No clone-detection mechanism — the organism
+   model deliberately duplicates across bounded contexts, it is the softest-evidenced gripe, and it was
+   *not* re-confirmed in the 2026 refresh. The Act-2 walkthrough **stops implying beat-4 answers
+   duplication** (beat-4 shows coupling / layer-jumps only). Corrected here — the ⚠ callout above and the
+   gripes doc's beat table — and carried into the site by Phase 2 (the walkthrough-expansion chip).
 
 ### Scoping-confirmation — likely out of domain, surfaced so the omission is *chosen*, not accidental
 
@@ -169,6 +196,11 @@ in storytree's problem domain.
 6. **Skill atrophy / deskilling** and **7. maintainer inbound-slop triage** — human-development and
    OSS-contributor-triage concerns respectively; no mechanism, and arguably none should exist. Confirm
    these are outside the problem statement.
+
+   **→ OWNER (2026-07-03): all four out of scope — confirmed.** Cost observability (4) is answered
+   *by-design* (subscription-funded + turn-cap runaway brake, ADR-0130/0131 — metered cost traded away);
+   productivity-measurement (5), skill atrophy (6), and maintainer inbound-slop triage (7) are
+   human / economic / OSS-triage concerns outside "grow your tree." Deliberate omissions, not accidents.
 
 > The gaps do **not** block Phase 2 (the walkthrough expansion): the walk teaches the *covered* side of
 > this map. The gaps are exactly what we deliberately *don't* show — pending the owner's call on whether
@@ -204,5 +236,6 @@ Pain evidence and its reliability flags live in [`vibe-coding-gripes-2026.md`](v
 (base + 2026 refresh). Primary sources for the 2026 additions: Stack Overflow 2025 Developer Survey
 (survey.stackoverflow.co/2025/ai); METR RCT + 2026 uplift update (metr.org); Veracode GenAI Code
 Security 2025 / Spring 2026; USENIX Security 2025 (Spracklen et al.) + arXiv:2501.19012 on package
-hallucination; Stanford Digital Economy Lab, arXiv:2604.22750 (agentic token cost). storytree mechanism
+hallucination, and the 2026 frontier-cohort re-evaluation arXiv:2605.17062 ("The Range Shrinks, the
+Threat Remains"); Stanford Digital Economy Lab, arXiv:2604.22750 (agentic token cost). storytree mechanism
 cites are to the live corpus (`storytree adr list`) and code anchors as of 2026-07-03.

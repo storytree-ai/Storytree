@@ -100,7 +100,7 @@ still ask a human (**75.3%**): "when I don't trust AI's answers."
 | **1 · Plant a story** | Capture intent as one bounded, named unit before code | Orphaned architecture; no mental-model owner (13) | A seed grows into a tree with its **outcome on a label** — intent is a thing on the map, not buried in a chat log |
 | **2 · Watch a wisp** | See agents work live without babysitting each step | Babysitting fatigue; botsitting hours (17) | A soft **wisp** drifts over the tree — presence without obligation |
 | **3 · It branches** | "Done" = signed proof, not the agent's word | Grades-own-homework; reward hacking; fake "done" (1, 3, 4) | Limbs green **only on a signed passing test** — a faked "done" can't color the tree |
-| **4 · Stories connect** | Architecture legible — every dependency a visible, directed road | Layer-jumps, god-modules, duplication, hidden coupling (9–12) | A UI→DB **wrong-way road** skipping the service layer is visible the moment it's drawn; a cycle is a loop of roads; a god-module is the territory every road piles into |
+| **4 · Stories connect** | Architecture legible — every dependency a visible, directed road | Layer-jumps, god-modules, hidden coupling (9, 11, 12) — **not duplication (10)**, which roads don't detect (owner 2026-07-03: clone-detection out of scope) | A UI→DB **wrong-way road** skipping the service layer is visible the moment it's drawn; a cycle is a loop of roads; a god-module is the territory every road piles into |
 | **5 · Pull back** | One calm, persistent overview across many agents & sessions | Terminal sprawl; amnesia; done-vs-in-flight unknowable (14–19) | The **whole forest on one screen** — green = proven, sapling = in-progress, withered = broken |
 
 ## What hurts most (synthesis)
@@ -126,7 +126,10 @@ still ask a human (**75.3%**): "when I don't trust AI's answers."
   the "61% frustration / 23% of regressions" stats circulating in DEV over-editing posts (untraced to a
   primary study — do not use).
 - Slopsquatting (hallucinated package names pre-registered as malware; USENIX 2025: ~21.7% open-model /
-  ~5.2% commercial hallucination rates) is real and citable but likely off-thesis for the site.
+  ~5.2% commercial; the 2026 frontier cohort compressed this to ~4.6–6.1% but did **not** retire it —
+  arXiv:2605.17062, "The Range Shrinks, the Threat Remains") is real and citable. Owner 2026-07-03:
+  dep-provenance folds into the gap-1 security-proof ADR (see the coverage map); still off-thesis as a
+  *site beat*.
 
 ## § 2026 refresh (verified 2026-07-03)
 
