@@ -52,22 +52,20 @@ The library is **also** migrated into the shared Cloud SQL Postgres
 store ([`packages/store`](../../packages/store)); the studio ↔ store swap (reading
 the Library from Postgres instead of the local JSON) is still **pending**.
 
-## Commenting — text-quote anchoring
+## Commenting — block placement + the Review-mode editor
 
-The headline feature. The hard part of attaching a comment to a span of text is
-**anchoring** it durably. We use the W3C Web Annotation **text-quote** model
-([`src/lib/annotate.ts`](src/lib/annotate.ts)): a `text` comment stores the exact
-`quote` plus ~32 chars of `prefix`/`suffix` context and a `startOffset` hint. To
-render, we re-find the quote in the live DOM — scoped to its section heading for
-speed and disambiguation — and wrap it in `<mark>` elements. This survives
-re-render and edits above it, where character offsets or XPath would break.
+Comments attach to a **content block** (`kind: 'block'`, the stable `splitBlocks`
+handle; ADR-0140) and render inline in the document flow. Review-mode editing is a
+top-left **View ↔ Edit** toggle: Edit is a split-pane markdown **source** editor
+(left) + live **preview** (right), with a toolbar that inserts **CriticMarkup**
+tracked-changes / comments (`{++ins++}` · `{--del--}` · `{~~old~>new~~}` ·
+`{>>comment<<}` · `{==hl==}`); ADR-0146, [`src/components/ReviewEditor.tsx`](src/components/ReviewEditor.tsx),
+parser in [`src/lib/criticmarkup.ts`](src/lib/criticmarkup.ts).
 
-The annotation layer ([`src/lib/useAnnotations.tsx`](src/lib/useAnnotations.tsx))
-adds: a selection popover (pick a highlight colour → comment), inline highlights,
-a margin **gutter** showing comment density, **hover preview cards**, click-a-
-highlight-to-focus-its-thread, and resolve-fades-the-highlight. The rendered
-markdown is memoized so React never reconciles it away (which would strip the
-injected marks); all comment-reactive decoration is applied imperatively.
+The old W3C text-quote anchoring (the `annotate.ts` / `useAnnotations.tsx`
+select-to-highlight popover, the range `<mark>` highlights, the margin gutter, and
+the `kind: 'text'` anchor) was **removed** — a clean swap to block placement
+(`remove-text-selection-anchoring`, ADR-0146).
 
 ## Data model
 
@@ -207,9 +205,9 @@ apps/studio
     ├── App.tsx             # shell: loads docs/artifacts/comments, routes
     ├── api.ts · types.ts   # typed client · shared on-disk shapes
     ├── lib/
-    │   ├── annotate.ts        # text-quote anchoring + highlight DOM surgery
-    │   ├── useAnnotations.tsx # selection popover · highlights · gutter · hovercards
+    │   ├── criticmarkup.ts    # CriticMarkup parser (tracked-change segments for the preview)
+    │   ├── blocks.ts          # splitBlocks + block-anchor helpers (ADR-0140)
     │   ├── route.ts · markdown.ts · templates.ts · appData.ts · operator.ts · format.ts
-    └── components/         # Sidebar · Markdown · DocView · CommentPanel
+    └── components/         # Sidebar · Markdown · DocView · ReviewEditor · ReviewToggle
         ·                   # Library · AssetView · AssetEditor · Home
 ```

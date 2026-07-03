@@ -13,14 +13,18 @@ export type TopicKind = 'doc' | 'asset';
  *
  * - `topic`   — the whole document/artifact.
  * - `section` — a specific heading (`headingSlug` matches the rendered id).
- * - `text`    — an exact span, anchored by the W3C Web Annotation **text-quote**
- *   model: the exact `quote` plus a little `prefix`/`suffix` context so it can be
- *   re-found after the doc re-renders or is edited. `headingSlug` scopes the
- *   search; `startOffset` is a position hint for disambiguation; `color` is the
- *   highlight tag.
+ * - `block`   — a specific content block within the topic (`blockId` is the stable
+ *   handle; ADR-0140 block-anchor model). This is the live commenting model.
+ *
+ * The old `text` (W3C text-quote) kind is RETIRED (remove-text-selection-anchoring, ADR-0146):
+ * text-selection anchoring is a clean swap to block placement. The `quote`/`prefix`/`suffix`/
+ * `startOffset`/`color` fields remain only as inert nullable columns the store round-trips (the
+ * write boundary `normalizeCommentAnchor` strips them); no client code reads or writes them.
  */
 export interface CommentAnchor {
-  kind: 'topic' | 'section' | 'text';
+  kind: 'topic' | 'section' | 'block';
+  /** Stable block handle; present when kind === 'block'. */
+  blockId?: string;
   headingSlug: string | null;
   headingText: string | null;
   quote: string | null;
@@ -53,6 +57,33 @@ export interface NewComment {
   anchor: CommentAnchor;
   body: string;
   author: string;
+}
+
+/**
+ * A suggestion — a member's proposed edit to one block of a topic (ADR-0140).
+ * Mirrors the store record (packages/library/src/store/pg-suggestion-store.ts):
+ * `block` is the stable block handle (the splitBlocks id), `proposed`/`original`
+ * the replacement and the drift witness.
+ */
+export interface SuggestionRecord {
+  id: string;
+  topicKind: TopicKind;
+  topicId: string;
+  block: string;
+  proposed: string;
+  original: string;
+  status: 'open' | 'accepted' | 'rejected';
+  author: string;
+  createdAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
+/** One poll of a topic's review surface: its comments + its suggestions (cap 5's feed). */
+export interface ReviewFeedPayload {
+  topicId: string;
+  comments: Comment[];
+  suggestions: SuggestionRecord[];
 }
 
 /**
@@ -732,19 +763,3 @@ export interface BuildStatus {
   reason?: string;
 }
 
-/** Highlight colour palette for text-anchored comments. */
-export interface HighlightColor {
-  id: string;
-  label: string;
-  value: string;
-}
-
-export const HIGHLIGHT_COLORS: HighlightColor[] = [
-  { id: 'yellow', label: 'Yellow', value: '#f5c542' },
-  { id: 'green', label: 'Green', value: '#34c759' },
-  { id: 'blue', label: 'Blue', value: '#3b9eff' },
-  { id: 'pink', label: 'Pink', value: '#ff5fa2' },
-  { id: 'purple', label: 'Purple', value: '#af52de' },
-];
-
-export const DEFAULT_HIGHLIGHT = '#f5c542';

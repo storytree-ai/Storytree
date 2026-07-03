@@ -67,6 +67,10 @@ export type { BuildContext };
 // vite's config-load graph — the same way libraryBackend.ts is statically imported.
 import { handleWriteBroker, type WriteBrokerBackend } from './writeBroker';
 import { handleSuggestionDecision, type SuggestionDecisionBackend } from './suggestionApi';
+import { handleSuggestionCreate, type SuggestionCreateBackend } from './suggestionCreateApi';
+// The shared block model (ADR-0140): the SAME deterministic split/splice the Review-mode client
+// keys its threads by — pure, browser-safe, imported the way server code already imports ../src.
+import { applySuggestionToBody } from '../src/lib/blocks';
 import {
   handleReviewFeed,
   type ReviewFeedCommentStore,
@@ -271,16 +275,22 @@ function asNumberOrNull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-/** Normalise an incoming comment anchor (topic / section / text-quote). */
+/** Normalise an incoming comment anchor (topic / section / block). */
 function readAnchor(raw: Record<string, unknown>): CommentAnchor {
   const kindRaw = asString(raw.kind);
   const headingSlug = asString(raw.headingSlug).trim() || null;
   const quote = typeof raw.quote === 'string' && raw.quote.length > 0 ? raw.quote : null;
+  const blockId = asString(raw.blockId).trim() || null;
   let kind: CommentAnchor['kind'] = 'topic';
-  if (kindRaw === 'text' && quote) kind = 'text';
+  // Block anchor (ADR-0140): carry the handle through — the store boundary's
+  // normalizeCommentAnchor is the canonical wall and keeps kind:'block' + blockId.
+  // The old kind:'text' is retired (remove-text-selection-anchoring): a legacy text
+  // anchor now degrades to 'topic' (its span fields ride inert; the store strips them).
+  if (kindRaw === 'block' && blockId) kind = 'block';
   else if (kindRaw === 'section' && headingSlug) kind = 'section';
   return {
     kind,
+    ...(kind === 'block' && blockId !== null ? { blockId } : {}),
     headingSlug,
     headingText: asString(raw.headingText).trim() || null,
     quote,
@@ -1581,6 +1591,9 @@ function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
 // seam is OPTIONAL (json backend has no events.suggestion), so this adapter refuses with 503 when
 // the live store isn't behind the backend.
 
+/** The suggestion record as cap 3's seam reads it (its local SuggestionRecord, via the seam's types). */
+type FetchedSuggestion = NonNullable<Awaited<ReturnType<SuggestionDecisionBackend['getSuggestion']>>>;
+
 /**
  * Adapt the studio's {@link LibraryBackend} to cap 3's {@link SuggestionDecisionBackend} seam.
  *
@@ -1591,20 +1604,33 @@ function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
  * record's status — and a lost race (someone else decided between the handler's read and this
  * write) surfaces as the store's closed-suggestion error, mapped to 409 like the handler's own.
  *
- * ACCEPT IS DEFERRED, LOUDLY (the honesty wall): `applyToAsset` needs a blockId → asset-body
- * splice, and the block model is not settled yet (the review-refresh-feed / inline-comment-thread /
- * collapsed-suggestion-view caps own it — no blockId→body mapping exists anywhere in the studio
- * today). Rather than a splice that silently corrupts structured docs, or flipping a suggestion to
- * `accepted` WITHOUT applying it, accept refuses with 501 BEFORE any status transition persists
- * (the handler applies before it saves). Reject — which never touches the doc — works end-to-end.
+ * ACCEPT IS WIRED for `asset` topics (ADR-0140 caps 7/8 — the block model landed in
+ * ../src/lib/blocks): `applyToAsset` reads the CURRENT asset, locates the target block by its
+ * content-hash handle, verifies the recorded `original` still matches (the drift witness), and
+ * persists the spliced body through the SAME admin asset-write path the editor uses
+ * (`backend.updateAsset`, every other field preserved). A failed locate/verify throws 409 —
+ * BEFORE the status transition persists (cap 3's handler applies before it saves), so a
+ * suggestion is never marked accepted without its content applied and stays open for a re-try
+ * against the current text. Two honesty walls remain LOUD:
+ *  - a `doc` suggestion refuses 501 — docs are files on disk, not writable through this backend;
+ *  - a STRUCTURED asset (per-kind `fields` — the body is a DERIVED render, option C) refuses 409
+ *    rather than splicing a render the next field-edit would clobber (or lossily collapsing the
+ *    structure into a body, which the admin editor never does).
+ * Reject — which never touches the doc — is unchanged.
+ *
+ * The seam's `applyToAsset(topicId, proposed, block)` doesn't carry the record's `original` /
+ * `topicKind`, so this per-request adapter remembers the record its own `getSuggestion` answered
+ * (the handler always reads before it applies) and takes the drift witness from there.
  */
 function suggestionDecisionBackend(backend: LibraryBackend): SuggestionDecisionBackend {
   const needsPg = (): HttpError =>
     new HttpError(503, 'deciding a suggestion needs the live store (pg) — bring the DB up (pnpm db:up)');
+  let fetched: FetchedSuggestion | null = null;
   return {
     async getSuggestion(id) {
       if (!backend.getSuggestion) throw needsPg();
-      return backend.getSuggestion(id);
+      fetched = await backend.getSuggestion(id);
+      return fetched;
     },
     async saveSuggestion(s) {
       if (!backend.transitionSuggestion) throw needsPg();
@@ -1630,13 +1656,90 @@ function suggestionDecisionBackend(backend: LibraryBackend): SuggestionDecisionB
       if (!updated) throw new HttpError(404, `suggestion "${s.id}" not found`);
       return updated;
     },
-    async applyToAsset() {
-      throw new HttpError(
-        501,
-        'accepting a suggestion is not wired yet — applying the proposed content needs the block model ' +
-          '(blockId → asset-body splice) the Review-mode UI caps settle (ADR-0140); reject works, and no ' +
-          'suggestion is ever marked accepted without its content applied',
-      );
+    async applyToAsset(topicId, proposed, block) {
+      // The record this request's getSuggestion answered — the handler's order (read → apply →
+      // save) guarantees it; the guard is defence in depth against a re-ordered caller.
+      const s = fetched;
+      if (!s || s.topicId !== topicId || s.block !== block) {
+        throw new HttpError(
+          500,
+          'applyToAsset called without the suggestion being read first — the decision handler reads before it applies',
+        );
+      }
+      if (s.topicKind === 'doc') {
+        // The narrowed honesty wall: docs are FILES on disk (served read-only from <repo>/docs),
+        // not writable through this backend — accepting one stays a LOUD 501, before any transition
+        // persists (never accepted-without-applied).
+        throw new HttpError(
+          501,
+          'accepting a doc suggestion is not wired — docs are files on disk (read-only through this ' +
+            'backend); the suggestion stays open, and no suggestion is ever marked accepted without ' +
+            'its content applied',
+        );
+      }
+      const asset = (await backend.listAssets()).find((a) => a.id === topicId);
+      if (!asset) {
+        throw new HttpError(404, `asset "${topicId}" not found — cannot apply the suggestion; it stays open`);
+      }
+      if (asset.fields && Object.keys(asset.fields).length > 0) {
+        // A structured unit's body is a DERIVED render of its per-kind fields (option C) — a body
+        // splice cannot honestly represent the edit (persisting it would either be clobbered by the
+        // next field edit or lossily collapse the structure). Refuse; the suggestion stays open.
+        throw new HttpError(
+          409,
+          `cannot apply — "${topicId}" is a structured unit whose body is a derived render of its ` +
+            'fields; edit the fields in the asset editor instead. The suggestion stays open.',
+        );
+      }
+      const result = applySuggestionToBody(asset.body, {
+        blockId: block,
+        original: s.original,
+        proposed,
+      });
+      if (!result.ok) {
+        throw new HttpError(
+          409,
+          result.reason === 'block-not-found'
+            ? `cannot apply — block "${block}" no longer exists in "${topicId}" (block-not-found); ` +
+              'the suggestion stays open and nothing was changed'
+            : `cannot apply — the block's current text has drifted from the suggestion's recorded ` +
+              `original (original-drifted); the suggestion stays open and nothing was changed`,
+        );
+      }
+      // Persist through the SAME admin asset-write path the editor uses — every field except the
+      // body preserved from the current asset (updateAsset re-validates at the store's boundary).
+      const updated = await backend.updateAsset(topicId, {
+        id: asset.id,
+        category: asset.category,
+        title: asset.title,
+        description: asset.description,
+        body: result.body,
+        references: asset.references,
+        ...(asset.provenance ? { provenance: asset.provenance } : {}),
+      });
+      if (!updated) {
+        throw new HttpError(404, `asset "${topicId}" vanished mid-apply — the suggestion stays open`);
+      }
+    },
+  };
+}
+
+// ---------- suggestion create (ADR-0140 caps 7/8 — the member proposal write) ----------
+//
+// POST /api/suggestions (exact path — the cap 4 gate opens exactly this to members) runs
+// handleSuggestionCreate over the live suggestion store. The author is stamped from the verified
+// caller inside the handler; this adapter only carries the persistence seam, refusing 503 when
+// the backend has no suggestion store (json), like the decision route's needsPg.
+
+/** Adapt the backend's optional suggestion-create to the create handler's seam (503 when absent). */
+function suggestionCreateBackend(backend: LibraryBackend): SuggestionCreateBackend {
+  return {
+    async createSuggestion(s) {
+      if (!backend.createSuggestion) {
+        throw new HttpError(503, 'creating a suggestion needs the live store (pg) — bring the DB up (pnpm db:up)');
+      }
+      // The author IS the audit actor — a proposal is attributed.
+      return backend.createSuggestion(s, s.author);
     },
   };
 }
@@ -1880,11 +1983,22 @@ export async function handleApiRequest(
         commentStore: reviewFeedCommentStore(ctx.backend),
         suggestionStore: reviewFeedSuggestionStore(ctx.backend),
       });
+    } else if (url.pathname === '/api/suggestions') {
+      // ADR-0140 caps 7/8: member suggestion-CREATE. The policy gate already permits a member
+      // POST at exactly this path (cap 4's member-permitted write set — the decision sub-path
+      // stays admin-only); the handler stamps the author from the verified identity (a body
+      // author is never trusted) and answers 405 for any non-POST. json backend (no suggestion
+      // seam) → 503 via the adapter, like the decision route.
+      await handleSuggestionCreate(req, res, {
+        backend: suggestionCreateBackend(ctx.backend),
+        caller: ctx.policy?.me.email ?? null,
+      });
     } else if (url.pathname === '/api/suggestions/decision') {
       // ADR-0140: the suggestion accept/reject decision. The policy gate already enforced the
       // member-suggest write policy (deciding is admin-only; a member POST 403'd before reaching
       // here), so the handler runs as cap 3 proved it: 404 unknown id, 409 already-closed, reject
-      // transitions the record, accept refuses 501 until the block-apply model lands (see
+      // transitions the record, accept APPLIES the proposed block splice to the asset BEFORE the
+      // transition persists (409 on block-not-found / original-drifted, 501 for doc topics — see
       // suggestionDecisionBackend — never accepted-without-applied).
       if ((req.method ?? 'GET') !== 'POST') throw new HttpError(405, 'method not allowed');
       await handleSuggestionDecision(req, res, {

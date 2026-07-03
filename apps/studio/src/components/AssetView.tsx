@@ -1,21 +1,17 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { formatDateTime } from '../lib/format';
-import { useAnnotations } from '../lib/useAnnotations';
 import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib/route';
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
+import { ReviewEditor } from './ReviewEditor';
 import { ReviewToggle } from './ReviewToggle';
 
 export function AssetView({ id }: { id: string }): React.JSX.Element {
   const { assets, refreshAssets } = useAppData();
-  const articleRef = useRef<HTMLElement>(null);
   const asset = assets.find((a) => a.id === id);
-  const ann = useAnnotations(id, articleRef, asset?.body ?? '');
-  // Memoized so React renders it once and never strips the highlight marks.
-  const body = useMemo(() => <Markdown>{asset?.body ?? ''}</Markdown>, [asset?.body]);
   // "Sources": the unit's `references` grouped by the type of thing each points at, resolved live
   // against the loaded corpus (asset:<id> -> its category). A view, never stored.
   const sources = useMemo(
@@ -47,10 +43,10 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
 
   return (
     <ReviewToggle>
-      {/* The right-hand CommentPanel is retired from this surface (owner call, cap 6):
-          Review-mode affordances arrive IN the document flow at caps 7/8. */}
+      {/* Review-mode affordances arrive IN the document flow (ADR-0146 editor). The old
+          text-selection commenting layer is removed — a clean swap to block placement (cap 9). */}
       <div className="doc-layout doc-layout-view">
-        <article className="doc asset-detail" ref={articleRef} {...ann.articleHandlers}>
+        <article className="doc asset-detail">
         <div className="doc-crumb muted small">
           <a href={libraryHref()}>library</a> / {asset.id}
         </div>
@@ -63,7 +59,12 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
         <h1>{asset.title}</h1>
         <p className="lede">{asset.description}</p>
 
-        <div className="asset-body">{body}</div>
+        {/* Review-mode surface (ADR-0146): View shows clean rendered prose; Edit is a
+            split-pane markdown editor with a CriticMarkup toolbar + live preview. Replaces
+            the ReviewBlocks click-to-edit surface. */}
+        <div className="asset-body">
+          <ReviewEditor asset={asset} />
+        </div>
 
         {(sources.length > 0 || asset.provenance) && (
           <div className="asset-refs">
@@ -104,7 +105,6 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
             Delete
           </button>
         </div>
-        {ann.overlays}
         </article>
       </div>
     </ReviewToggle>

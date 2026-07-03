@@ -4,7 +4,10 @@ tier: capability
 story: studio
 title: "Annotate a topic with anchored comments"
 outcome: "An operator anchors a comment onto a precise place in a rendered topic."
-status: "proposed"
+status: "retired"
+# RETIRED — superseded by the `library-review` story (ADR-0140 / ADR-0146). The text-selection / quote
+# anchoring this capability describes is DELETED (the `remove-text-selection-anchoring` clean swap);
+# block-position anchoring in the split-pane editor replaces it. Contracts below describe deleted code.
 proof_mode: "integration-test"
 depends_on: [dev-server-persistence-backbone, read-corpus]
 ---
@@ -15,7 +18,19 @@ depends_on: [dev-server-persistence-backbone, read-corpus]
 
 **Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md), [`read-corpus`](read-corpus.md)
 
-> **Proof status (honest) —** CODE EXISTS AND RUNS, NO AUTOMATED PROOF YET. The studio runs under `pnpm --filter studio dev` and the whole annotate flow (select → colour popover → Post; section/topic via dropdown/heading button; reload re-find + re-highlight; gutter/hover/focus navigation; doc AND asset surfaces) is implemented and wired (annotate.ts, useAnnotations.tsx, CommentPanel.tsx, Markdown.tsx, DocView.tsx, AssetView.tsx, devApi.ts, operator.ts). But there is NO automated test suite and NO scripted integration test (package.json: dev/build/preview/typecheck only; a glob for **/*.{test,spec}.{ts,tsx} under apps/studio returns nothing). Every contract describes the isolated unit test that WOULD prove a leaf; the integration test describes the walkthrough that WOULD prove the capability against its real in-story collaborators. Persistence and corpus-rendering are the real in-story collaborators (the code-derived depends_on), exercised live by the integration test, not stubbed. Nothing here is 'proven' or 'healthy'.
+> **⚠️ SUPERSEDED by the `library-review` story (ADR-0140 / ADR-0146) — the text-selection surface is
+> DELETED.** The whole W3C text-quote / select-to-highlight annotation approach this capability describes
+> (`annotate.ts`, the `useAnnotations.tsx` popover, `CommentPanel.tsx`, the `<mark>.st-hl` highlights,
+> the `kind:'text'` comment anchor) has been REMOVED in a clean swap — the `library-review` cap
+> `remove-text-selection-anchoring` (LANDED). Commenting now rides a **block-position** anchor rendered
+> in the document flow, authored through the split-pane markdown editor (`ReviewEditor.tsx`, ADR-0146).
+> **The 11 contracts below and the integration test describe DELETED code** (`annotate.ts:*`,
+> `useAnnotations.tsx:*`) and their `file:line` refs no longer resolve — they are retained here as
+> superseded HISTORY, not a live worklist. A full retirement of these dead contract bodies is a
+> story-author follow-on (surfaced by the `library-review` librarian pass). Do NOT build against this
+> capability.
+>
+> **Prior proof status (superseded, kept for history) —** CODE EXISTED AND RAN, NO AUTOMATED PROOF. The studio ran under `pnpm --filter studio dev` and the whole annotate flow (select → colour popover → Post; section/topic via dropdown/heading button; reload re-find + re-highlight; gutter/hover/focus navigation; doc AND asset surfaces) was implemented and wired (annotate.ts, useAnnotations.tsx, CommentPanel.tsx, Markdown.tsx, DocView.tsx, AssetView.tsx, devApi.ts, operator.ts) — all now deleted or reshaped. There was NO automated test suite and NO scripted integration test. Every contract below describes the isolated unit test that WOULD have proven a leaf of that (now-removed) surface.
 
 ## Guidance
 

@@ -60,11 +60,20 @@ decision through the `api` seam. Proven by behaviour, the appearance operator-at
 controls drive), [`suggestion-edit-store`](suggestion-edit-store.md) (the suggestion record it renders),
 [`review-mode-toggle`](review-mode-toggle.md) (compose shows only in Review mode).
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. There is no suggestion UI
-> today (the studio's only doc-change path is the admin whole-doc `AssetEditor.tsx` form). This
-> capability renders a suggestion as a collapsed proposed-result with a "show change" toggle and the
-> owner/admin accept/reject controls. Its appearance is the story's operator-attested UAT leg 4
-> (ADR-0070 — the look is witnessed, never a machine visual verdict).
+> **Proof status (honest) — DATA/BEHAVIOUR VERDICT STANDS; the standalone UI is SUPERSEDED (ADR-0146).**
+> This cap's `real:` behaviour arm signed a REAL PASS (`SuggestionView` verdict `@ b65087f`) — the
+> suggestion DATA/behaviour layer it proved (proposed-result-by-default with no strikethrough, the
+> "show change" expand, a member composing a proposal POSTed through the `api` seam, role-gated
+> Accept/Reject driving the decision, plus the accept-apply splice) is VALID and STANDS as the layer
+> under the editor. But the `SuggestionView` UI COMPONENT is **superseded by the `ReviewEditor`
+> split-pane surface** (ADR-0146, which amends ADR-0140): a suggestion is now expressed as a CriticMarkup
+> substitution (`{~~original~>proposed~~}`) rendered as a tracked change in the editor's preview, with
+> accept/reject rewriting it back to clean markdown — so the standalone collapsed-suggestion card is no
+> longer the mounted surface. The DATA proof (suggestion store + create/decision routes + accept-apply
+> splice) is reused under that editor; only the rendered UI moved. Reconciling this cap's UI to the
+> editor model (and the superseded `SuggestionView.tsx` component itself) is a librarian / story-author
+> follow-on (ADR-0146 Consequences), surfaced, not done here. Its original appearance leg (UAT leg 4) is
+> subsumed by the editor's owner-attested look (ADR-0070).
 
 ## Guidance
 

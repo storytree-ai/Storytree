@@ -188,6 +188,13 @@ export interface LibraryBackend {
    */
   listSuggestions?(filter?: SuggestionFilter): Promise<Suggestion[]>;
   /**
+   * Persist a NEW open suggestion (member-suggest create, ADR-0140) through the store's atomic
+   * create (append the `created` event + upsert the projection; the store's zod boundary
+   * validates the doc). Same optionality posture as {@link getSuggestion}: pg only; the json
+   * backend omits it and POST /api/suggestions refuses 503.
+   */
+  createSuggestion?(s: Suggestion, actor: string): Promise<Suggestion>;
+  /**
    * Apply an accept/reject decision through the store's atomic transition (append the
    * `transitioned` event + upsert the projection). Returns the updated suggestion, `null` if the
    * id does not exist; throws the store's closed-suggestion error on a re-decide race.
@@ -1010,6 +1017,12 @@ export class PgBackend implements LibraryBackend {
   async listSuggestions(filter?: SuggestionFilter): Promise<Suggestion[]> {
     const { suggestions } = await this.#ready();
     return suggestions.list(filter);
+  }
+
+  async createSuggestion(s: Suggestion, actor: string): Promise<Suggestion> {
+    const { suggestions } = await this.#ready();
+    // The author IS the audit actor — a proposal is attributed, never 'system'.
+    return suggestions.create(s, actor);
   }
 
   async transitionSuggestion(

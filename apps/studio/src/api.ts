@@ -16,7 +16,10 @@ import type {
   MeInfo,
   NewComment,
   PresencePayload,
+  ReviewFeedPayload,
   StoreHealth,
+  SuggestionRecord,
+  TopicKind,
   TreePayload,
   UatVerdictResult,
   UserRole,
@@ -165,6 +168,28 @@ export const api = {
     http(`/api/comments?id=${q(id)}`, jsonInit('PATCH', patch)),
   deleteComment: (id: string): Promise<{ ok: true }> =>
     http(`/api/comments?id=${q(id)}`, { method: 'DELETE' }),
+
+  // Review-mode suggestion seam (ADR-0140). createSuggestion posts a member PROPOSAL (the
+  // member-suggest policy gate opens exactly this path); decideSuggestion drives the admin-only
+  // accept/reject route; reviewFeed is cap 5's one-poll comments+suggestions payload.
+  createSuggestion: (input: {
+    blockId: string;
+    proposedText: string;
+    topicKind?: TopicKind;
+    topicId?: string;
+    originalText?: string;
+  }): Promise<SuggestionRecord> => http('/api/suggestions', jsonInit('POST', input)),
+  decideSuggestion: (input: {
+    id: string;
+    decision: 'accept' | 'reject';
+  }): Promise<SuggestionRecord> =>
+    // The component seam speaks {id, decision}; cap 3's route speaks {suggestionId, action}.
+    http(
+      '/api/suggestions/decision',
+      jsonInit('POST', { suggestionId: input.id, action: input.decision }),
+    ),
+  reviewFeed: (topicId: string): Promise<ReviewFeedPayload> =>
+    http(`/api/review/feed?topicId=${q(topicId)}`),
 
   listAssets: (): Promise<GuidanceAsset[]> => http('/api/assets'),
   createAsset: (input: AssetInput): Promise<GuidanceAsset> =>

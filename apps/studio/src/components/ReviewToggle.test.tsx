@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 //
-// Behaviour test for the View ↔ Review mode toggle (ADR-0140: the word-processor mode switch).
-// Pins the GEOMETRY/BEHAVIOUR only — the toggle's appearance is the story's owner-attested UAT
-// leg 1, witnessed by the owner and NEVER a machine visual verdict here. What is proved:
+// Behaviour test for the View ↔ Edit mode toggle (ADR-0146: the top-left word-processor mode
+// switch; the CONTEXT VALUE is unchanged — 'view' | 'review' — only the visible label became
+// View | Edit). Pins the GEOMETRY/BEHAVIOUR only — the toggle's appearance is the story's
+// owner-attested UAT leg, witnessed by the owner and NEVER a machine visual verdict here. Proved:
 //   • in the default View posture, no commenting/suggesting affordances are visible
 //     (rmt-defaults-to-view-read-only),
-//   • clicking the toggle flips to Review and the affordances become visible
+//   • clicking the toggle flips to Edit ('review') and the affordances become visible
 //     (rmt-review-shows-the-affordances),
 //   • a second click flips back to View and the affordances are hidden again
 //     (rmt-flips-back-to-view).
@@ -41,7 +42,7 @@ describe('ReviewToggle', () => {
       </ReviewToggle>,
     );
     // The mode switch is always rendered (it is the entire point of this component).
-    expect(screen.getByRole('button', { name: /view|review/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /view|edit/i })).toBeTruthy();
     // In the default View posture the context publishes 'view', so consumers render nothing.
     expect(screen.queryByTestId('review-affordances')).toBeNull();
   });
@@ -57,7 +58,7 @@ describe('ReviewToggle', () => {
     expect(screen.queryByTestId('review-affordances')).toBeNull();
 
     // Flip to Review.
-    fireEvent.click(screen.getByRole('button', { name: /view|review/i }));
+    fireEvent.click(screen.getByRole('button', { name: /view|edit/i }));
 
     // The context now publishes 'review'; the consumer's marker is visible.
     expect(screen.getByTestId('review-affordances')).toBeTruthy();
@@ -70,7 +71,7 @@ describe('ReviewToggle', () => {
         <TestAffordances />
       </ReviewToggle>,
     );
-    const toggle = screen.getByRole('button', { name: /view|review/i });
+    const toggle = screen.getByRole('button', { name: /view|edit/i });
 
     // Flip to Review…
     fireEvent.click(toggle);
