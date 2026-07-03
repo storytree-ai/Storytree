@@ -2414,6 +2414,7 @@
       "asset:edit-first-curation",
       "asset:defects-amend-the-owning-story",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:probe-dont-assume-db-reachability",
       "asset:pair-the-fence-with-the-affordance",
       "asset:example-carries-the-discriminator"
     ],
@@ -2434,6 +2435,7 @@
       "asset:edit-first-curation",
       "asset:defects-amend-the-owning-story",
       "asset:verify-edit-write-persisted-or-escalate",
+      "asset:probe-dont-assume-db-reachability",
       "asset:live-store-is-the-edit-surface",
       "asset:never-bypass-the-gate",
       "asset:agent-never-self-exempts",
@@ -2485,6 +2487,26 @@
       "doc:decisions/0122-per-contract-coverage-check-map-each-declared-contract-to-an.md"
     ],
     "description": "A signed green --real verdict proves the leaf's authored test went red→green under the spine's eye — not that the test covers every contract the spec enumerates. Run `storytree coverage <cap>` to mechanically flag the dropped contract, then audit the authored test against the spec's contract list; and because the audit can err, confirm a suspected gap in the code (inherited ≠ absent) before raising it.",
+    "schemaVersion": 3
+  },
+  {
+    "id": "probe-dont-assume-db-reachability",
+    "kind": "principle",
+    "title": "Probe DB reachability, never infer it",
+    "description": "Never conclude the shared Cloud SQL store is unreachable by inferring it from the environment or session type — verify with a direct connector `SELECT 1` (`@storytree/library/store` `createPool`). A `db:up`/preflight timeout at status RUNNABLE is a slow cold-start to wait out and re-probe, not a wedge; the 443-only egress block on Postgres' data socket (port 3307) is remote-web/VM-session-only and says nothing about a laptop/direct-network session.",
+    "statement": "Before concluding the DB is unreachable — and especially before skipping a live `--pg` write for that reason — PROBE it: open a direct connector and run `SELECT 1` via `@storytree/library/store` `createPool`. Never INFER unreachability from the environment or session type. A `db:up`/preflight `unreachable within Ns` while the instance status is RUNNABLE is a slow cold-start to wait out and re-probe, not a wedge. The remote-web/VM 443-only egress block on Postgres' data socket (port 3307) is REMOTE-SESSION-ONLY; on a laptop/direct-network session it is not in play, so it is never a reason to declare the store unreachable there.",
+    "why": "A live-registration step was once skipped on a LAPTOP session (direct network, DB confirmed RUNNABLE, every probe connecting) because the agent reasoned '443-only egress blocks port 3307' — CLAUDE.md's remote-web/VM caveat mis-applied to a session where it did not hold. The story was authored to disk but the live `--pg` registration never ran, for a reason that was not real. Two facts make an assumed-false reachability unsafe. First, the 3307-egress block is genuinely REMOTE-only: remote-web/VM sessions run behind a 443-only HTTPS proxy where even 'Full' access cannot open Postgres' data socket (port 3307), while `gcloud` is no longer required for the REST control plane (ADR-0063) and DB auth is keyless Cloud SQL IAM over ambient ADC (ADR-0021) — so on a laptop/direct-network session the data plane is reachable and the caveat is inapplicable. Second, a timeout at RUNNABLE is almost always a slow cold-start, not a wedge: the instance stops nightly (asleep 01:00–07:00 Australia/Sydney, ADR-0114) and after an overnight stop the first connection can exceed `db:up`'s 420 s readiness poll — a direct `createPool` `SELECT 1` connected in ~340 ms once warm while the poll was still timing out, and a cold-start of ~21 min has been seen. Inferring 'unreachable' from either signal skips a write that would have persisted; the probe is cheap and definitive.",
+    "howToApply": "When any preflight, `db:up`, or tool reports the DB unreachable — or you are tempted to skip a live `--pg` write because you believe it is — do NOT reason from the session/environment type. Open a direct connector and run `SELECT 1` via `@storytree/library/store` `createPool` (keyless IAM, ADR-0021); a fast connect (sub-second once warm) is the definitive proof the store is reachable and the write should proceed. If the probe itself times out while the instance status is RUNNABLE, treat it as a slow cold-start: `db:up` (a no-op if already up), wait, and re-probe — the poll can time out before the instance finishes waking (up to ~21 min after the overnight stop, ADR-0114). Only conclude 'unreachable' when a direct probe genuinely fails to connect after a warm-up window — and only invoke the 443/3307-egress explanation on a confirmed remote-web/VM session (ADR-0063), never on a laptop/direct-network one. This is the DB-reachability member of the verify-the-claim family alongside `verify-edit-write-persisted-or-escalate`: the failure it prevents is skipping a live `--pg` write because reachability was assumed-false rather than probed.",
+    "references": [
+      "asset:verify-edit-write-persisted-or-escalate",
+      "asset:live-store-is-the-edit-surface",
+      "doc:decisions/0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md",
+      "doc:decisions/0063-db-control-over-the-cloud-sql-admin-rest-api-retire-the-gclo.md",
+      "doc:decisions/0021-keyless-agent-session-auth-and-db-bootstrap.md"
+    ],
+    "provenance": "Authored 2026-07-03 after a live UAT walk where a spawned story-author agent on a LAPTOP session (direct network, DB RUNNABLE, probes connecting) skipped a live `--pg` node registration, concluding '443-only egress blocks port 3307' — CLAUDE.md's remote-web/VM caveat mis-applied to a direct-network session. Owner directive: DB-reachability is probe-not-assume. Sibling of `verify-edit-write-persisted-or-escalate` in the verify-the-claim family. Consumers: story-author.",
+    "createdAt": "2026-07-03T00:00:00.000Z",
+    "updatedAt": "2026-07-03T00:00:00.000Z",
     "schemaVersion": 3
   },
   {
