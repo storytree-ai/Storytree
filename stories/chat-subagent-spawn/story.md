@@ -117,8 +117,10 @@ orientation surface + `propose_unit`; it can orient and propose, and the human's
 dispatch a build (chat-drive-bridge / desktop-build-mount), but the orchestrator itself cannot SPAWN
 anything. "Chat brings a story in" and "chat fixes a bug through the inner loop" are unreachable — not
 undecided (ADR-0108 decided them; ADR-0137 sharpened how), just unbuilt. *(Build state: capabilities
-1–3 below are green under signed `--real` verdicts; the runtime mount — caps 4–5 — is what keeps the
-chat propose-only today.)*
+1–4 below are green under signed `--real` verdicts — the agent-side mount included; cap 5,
+`spawn-deps-composition` — the drive-side threading through `orchestrate()` — is what keeps the chat
+propose-only today: the optional `spawn` dep exists on `runHeadlessOrchestrator` but nothing composes
+real spawn deps into it yet.)*
 
 The build shape ADR-0137 decision 1 pins, verbatim:
 
@@ -355,10 +357,11 @@ in-story collaborators (the real E1 seam, the real rendered `story-author` agent
 the SDK `query()` scripted (ADR-0010 §5).
 
 **Honest status — `proposed`.** Authored status stays `proposed` everywhere: per ADR-0020, `healthy`
-is only ever DERIVED from signed verdicts. Three of the five capabilities now carry signed `--real`
-PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spawn`);
-`spawn-tool-surface` and `spawn-deps-composition` — the runtime mount — are unbuilt, so the chat still
-cannot spawn. The five capabilities are proof-wired so the spine can drive their offline suites
+is only ever DERIVED from signed verdicts. Four of the five capabilities now carry signed `--real`
+PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spawn`,
+`spawn-tool-surface` — the agent-side mount, an optional `spawn` dep on `runHeadlessOrchestrator`);
+`spawn-deps-composition` — the drive-side threading through `orchestrate()` — is unbuilt, so nothing
+composes real spawn deps into the mount and the chat still cannot spawn. The five capabilities are proof-wired so the spine can drive their offline suites
 red→green (`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven
 UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the
 operator's live-spawn attestation (legs 5–7).
