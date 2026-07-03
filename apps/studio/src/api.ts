@@ -103,9 +103,19 @@ function isChatEvent(value: unknown): value is ChatEvent {
  * frame); REJECTS when the route is absent or the request fails (a non-OK status or a network error —
  * the studio-standalone case where /api/chat is not mounted), so the caller can degrade honestly
  * rather than hang on a stream that never arrives.
+ *
+ * `signal` — an OPTIONAL AbortSignal (transcript-reset). Forwarded to `fetch`, so a reset can
+ * `controller.abort()` the in-flight stream (the fetch rejects with an AbortError and the reader tears
+ * down), leaving no zombie stream settling into a cleared panel. Threading a fetch option stays inside
+ * the thin-client wall — no agent/drive/model import, no wire-shape change. The existing two-arg
+ * callers keep working (the parameter is optional).
  */
-async function chatStream(intent: string, onEvent: (event: ChatEvent) => void): Promise<void> {
-  const res = await fetch('/api/chat', jsonInit('POST', { intent }));
+async function chatStream(
+  intent: string,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch('/api/chat', { ...jsonInit('POST', { intent }), ...(signal ? { signal } : {}) });
   if (!res.ok || res.body === null) {
     // Absent route / fail-closed backend (e.g. studio-standalone 404, or the intent guard's 400).
     throw new Error(`chat unavailable (${res.status} ${res.statusText})`);
