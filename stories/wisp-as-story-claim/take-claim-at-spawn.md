@@ -3,7 +3,7 @@ id: "take-claim-at-spawn"
 tier: capability
 story: wisp-as-story-claim
 title: "Take the claim at spawn — the acquisition seam the orchestrator calls before spawning a subagent"
-outcome: "A claim-acquisition seam the session-orchestrator calls BEFORE it spawns any subagent: acquire the story-claim with the work-kind intent, and on refusal surface the holder so the orchestrator waits or picks other work — the seam built and proven; the spawn-path GATE since graduated and landed as chat-subagent-spawn's claim-gated-spawn, with only the runtime mount (that story's spawn-tool-surface / spawn-deps-composition caps) still deferred."
+outcome: "A claim-acquisition seam the session-orchestrator calls BEFORE it spawns any subagent: acquire the story-claim with the work-kind intent, and on refusal surface the holder so the orchestrator waits or picks other work — the seam built and proven; the spawn-path GATE since graduated and landed as chat-subagent-spawn's claim-gated-spawn, and the runtime mount since landed too (that story's spawn-tool-surface / spawn-deps-composition caps, green under signed --real verdicts)."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
@@ -13,12 +13,13 @@ decisions: [138, 137, 30, 142]
 # surfaces the holder. NET-NEW, builtins-only — the leaf authors a net-new packages/agent/src/spawn-claim.ts
 # whose seam consumes a ClaimResult (type-only import of @storytree/notice-board's ClaimResult is erased) and
 # returns a proceed/wait decision naming the holder. The red is the missing module. NO `install`/`db`: the
-# seam is a PURE decision over an injected ClaimResult (it does NOT itself open a pool — that is the deferred
-# wiring), so the default node:test single-file proof runs it install-free. The wiring into the spawn path
-# was a DEFERRED contract below, blocked on ADR-0137 Phase 3; its GATE half has since GRADUATED and LANDED
-# as chat-subagent-spawn's claim-gated-spawn (packages/agent/src/claim-gated-spawn.ts, signed --real PASS) —
-# only the runtime mount (headless-orchestrator.ts wiring; that story's spawn-tool-surface /
-# spawn-deps-composition caps) remains unbuilt. Neither ever blocked this seam.
+# seam is a PURE decision over an injected ClaimResult (it does NOT itself open a pool — that was the
+# deferred wiring), so the default node:test single-file proof runs it install-free. The wiring into the
+# spawn path was a DEFERRED contract below, blocked on ADR-0137 Phase 3; its GATE half has since GRADUATED
+# and LANDED as chat-subagent-spawn's claim-gated-spawn (packages/agent/src/claim-gated-spawn.ts, signed
+# --real PASS), and the runtime mount has since landed too (the claim-gated spawn tools mounted on
+# runHeadlessOrchestrator + the real spawn-deps composition threaded through orchestrate(); that story's
+# spawn-tool-surface / spawn-deps-composition caps, signed --real PASSes). Neither ever blocked this seam.
 proof:
   command:
     file: pnpm
@@ -43,9 +44,11 @@ the orchestrator waits or picks other work. The de-facto hard point is the spawn
 deferred wiring's gate half **graduated into its own capability**,
 [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
 (`packages/agent/src/claim-gated-spawn.ts`, green under a signed `--real` PASS: acquire-before-spawn,
-holder-naming refusal, trace→heartbeat bump, fail-closed blank-id wall). What remains **deferred** is only
-the runtime MOUNT — `headless-orchestrator.ts` actually calling the gate before a spawn
-(chat-subagent-spawn's unbuilt `spawn-tool-surface` / `spawn-deps-composition` caps).
+holder-naming refusal, trace→heartbeat bump, fail-closed blank-id wall). The runtime MOUNT has since
+landed too — `runHeadlessOrchestrator` mounts the claim-gated spawn tools and the real spawn-deps
+composition threads through `orchestrate()` (that story's `spawn-tool-surface` /
+`spawn-deps-composition` caps, green under signed `--real` PASSes); only the desktop sidecar glue
+composing real deps (`backend-entry.ts`, operator-attested) and the live spawn walks remain.
 
 > **ADR-0142 (post-delivery):** the spawn wiring is no longer the only acquisition path — the work-time
 > claim is now taken at **declare-time** (`noticeboard declare --node` claims; `done` releases; the
@@ -58,16 +61,17 @@ builder; the seam acquires with `kind: "edit" | "orchestrate"`).
 
 > **Proof status (honest) — `proposed`.** The provable piece is the PURE seam — a decision over a
 > `ClaimResult` (acquired → proceed; refused → wait, naming the holder) — net-new and builtins-only. The
-> spawn-path wiring was a clearly-marked DEFERRED contract blocked on ADR-0137 Phase 3; its GATE half is
-> now REALISED by chat-subagent-spawn's [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
-> (green under a signed verdict) — only the runtime mount remains deferred. Neither ever blocked the seam.
+> spawn-path wiring was a clearly-marked DEFERRED contract blocked on ADR-0137 Phase 3; it is now
+> REALISED by chat-subagent-spawn's [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
+> (green under a signed verdict), with the runtime mount since landed as well (that story's
+> `spawn-tool-surface` / `spawn-deps-composition` caps). Neither ever blocked the seam.
 
 ## Guidance
 
 ADR-0138 §3 makes the orchestrator hold a story-claim before it spawns a subagent — the **only** claim-free
 action is authoring an ADR (its sole direct write, no story node). The provable unit HERE is the SEAM, not
-the spawn wiring (whose gate half has since been built in chat-subagent-spawn's `claim-gated-spawn`; the
-runtime mount that actually spawns is still unbuilt).
+the spawn wiring (since built in chat-subagent-spawn: the gate in `claim-gated-spawn`, the runtime mount
+in `spawn-tool-surface` / `spawn-deps-composition` — all green under signed `--real` PASSes).
 
 **E1 — the pure acquire-or-wait seam (net-new, `packages/agent/src/spawn-claim.ts`).** A function that, given
 a `ClaimResult` from `@storytree/notice-board` (`{ acquired: true, claim, reclaimed }` |
@@ -77,10 +81,11 @@ a `ClaimResult` from `@storytree/notice-board` (`{ acquired: true, claim, reclai
 type-only import of `ClaimResult` is erased, so the module stays builtins-only and offline-buildable. Keep it
 PURE: a `ClaimResult` in, a `{ proceed: true } | { proceed: false; heldBy: … }` decision out; no store, no
 clock, no spawn. This is the testable decision boundary; the live SPAWN-path acquire happens in the
-graduated gate (chat-subagent-spawn's `claim-gated-spawn`) once its runtime mount lands (the live
-session-grain acquire landed at declare-time — ADR-0142, [`claim-at-declare`](claim-at-declare.md)).
+graduated gate (chat-subagent-spawn's `claim-gated-spawn`), now mounted on the runtime by that story's
+`spawn-tool-surface` / `spawn-deps-composition` caps (the live session-grain acquire also landed at
+declare-time — ADR-0142, [`claim-at-declare`](claim-at-declare.md)).
 
-**E2 (GRADUATED — the gate half landed; only the runtime mount remains deferred).** The wiring: before
+**E2 (GRADUATED — realised in full: the gate AND the runtime mount landed).** The wiring: before
 `packages/agent/src/headless-orchestrator.ts` spawns a subagent, call `PgClaimStore.claim()` with the
 work-time `ClaimRequest` (A3) for the story id; feed the `ClaimResult` to the E1 seam; spawn only on
 `proceed`, else wait / surface the holder; and release / let CI clear (capability D) on completion. The
@@ -90,9 +95,11 @@ mid-orchestration. This was captured as a deferred follow-on blocked on ADR-0137
 chat-subagent-spawn's [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
 (`packages/agent/src/claim-gated-spawn.ts`) IS that capability, green under a signed `--real` PASS
 (claim acquired via the injected store BEFORE the spawn fn runs, refusal names the holder verbatim, trace
-signals bump the heartbeat, blank story id fails closed). What is NOT yet built is the runtime MOUNT — the
-`headless-orchestrator.ts` wiring that calls the gate before a live spawn (that story's `spawn-tool-surface`
-/ `spawn-deps-composition` caps). The session-grain acquisition also runs at declare-time (ADR-0142,
+signals bump the heartbeat, blank story id fails closed). The runtime MOUNT has since landed too: that
+story's `spawn-tool-surface` wraps each spawn tool in the gate on `runHeadlessOrchestrator`, and its
+`spawn-deps-composition` threads the real spawn deps through `orchestrate()` (both green under signed
+`--real` PASSes); only the desktop sidecar glue composing real deps (`backend-entry.ts`,
+operator-attested) remains. The session-grain acquisition also runs at declare-time (ADR-0142,
 [`claim-at-declare`](claim-at-declare.md)) — the two paths coexist by design.
 
 Do NOT touch files outside your write scope. Keep the proved unit a pure seam so the default node:test
@@ -108,7 +115,7 @@ proof file.
 
 Exercised against its **real collaborator** — the pure seam itself over the real `ClaimResult` shape
 (ADR-0010 §5): a result in, a decision out, no store. The live `PgClaimStore.claim()` call at spawn is the
-runtime mount's job (chat-subagent-spawn's unbuilt composition caps), not here.
+runtime mount's job (chat-subagent-spawn's composition caps, since landed), not here.
 
 ## Contracts (2)
 
@@ -123,7 +130,8 @@ The test-proven leaf behaviour, plus the wiring contract that has since graduate
    - **covers —** `packages/agent/src/spawn-claim.ts`
    - **proven by —** `packages/agent/src/spawn-claim.test.ts` (net-new, offline, authored by the leaf).
 2. **`orchestrator-acquires-before-spawn`** _(GRADUATED — realised by chat-subagent-spawn's
-   `claim-gated-spawn`; only the runtime mount remains)_ — the orchestrator acquires the story-claim (via
+   `claim-gated-spawn`, mounted by its `spawn-tool-surface` / `spawn-deps-composition` caps)_ — the
+   orchestrator acquires the story-claim (via
    `PgClaimStore.claim()` with the work-time intent) and spawns a subagent ONLY on proceed, releasing /
    letting CI clear on completion.
    - **asserts —** before `headless-orchestrator.ts` spawns, it claims the story id and spawns iff the E1
@@ -135,9 +143,10 @@ The test-proven leaf behaviour, plus the wiring contract that has since graduate
      [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
      (`packages/agent/src/claim-gated-spawn.ts`, 4/4 contracts green under a signed `--real` PASS): the
      claim is acquired via the injected store BEFORE the spawn fn runs, a refusal names the holder
-     verbatim, trace signals bump the heartbeat, and a blank story id is a fail-closed refusal. What is NOT
-     yet built is the runtime mount — `headless-orchestrator.ts` actually calling the gate before a live
-     spawn (chat-subagent-spawn's unbuilt `spawn-tool-surface` / `spawn-deps-composition` caps). This
+     verbatim, trace signals bump the heartbeat, and a blank story id is a fail-closed refusal. The
+     runtime mount has since landed too — `spawn-tool-surface` mounts the claim-gated spawn tools on
+     `runHeadlessOrchestrator` and `spawn-deps-composition` threads the real deps through
+     `orchestrate()`, both green under signed `--real` PASSes. This
      contract stays recorded here as the named cross-story home; it has no test in THIS capability's
      `proof.real.testFile`, so it remains on `check:coverage`'s advisory uncovered list permanently
      (expected, WARN-only) and is never driven `--real` from here.

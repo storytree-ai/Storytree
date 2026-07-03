@@ -20,6 +20,8 @@ import { runHeadlessOrchestrator } from "@storytree/agent";
 
 import { renderAgentPrompt } from "@storytree/library/store";
 
+import type { SpawnSurfaceDeps } from "./spawn-deps.js";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -64,6 +66,18 @@ export interface OrchestrateArgs {
    * its answer. Raw SDK message shape; omit when no trace is needed.
    */
   onMessage?: (message: unknown) => void;
+  /**
+   * OPTIONAL spawn surface deps: when present, orchestrate() mounts `spawn_story_author` and
+   * `spawn_builder` as claim-gated MCP tools in the headless session (ADR-0137 Phase 3).
+   * Absent → session byte-identical to the propose-only surface (additive threading only,
+   * the §7 scale-down mirror from the orientation surface).
+   *
+   * The claim deps carry the session's `sessionId` + `branch` (ADR-0033 identity key, ADR-0138 §2/§5)
+   * and stamp work KIND per tool into the claim's `intent` so a refusal names a real holder and the
+   * wisp's colour-by-subagent layer shows a real role. Blank identity is a fail-closed refusal at the
+   * ClaimDoc wall — never a default.
+   */
+  spawn?: SpawnSurfaceDeps;
 }
 
 /**
@@ -119,6 +133,7 @@ export async function orchestrate({
   maxBudgetUsd,
   onDelta,
   onMessage,
+  spawn,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -157,6 +172,7 @@ export async function orchestrate({
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
       ...(onDelta !== undefined ? { onDelta } : {}),
       ...(onMessage !== undefined ? { onMessage } : {}),
+      ...(spawn !== undefined ? { spawn } : {}),
     });
   } finally {
     compositionInFlight = false;

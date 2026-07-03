@@ -111,16 +111,17 @@ verdict, and leaves landing to the human.
 
 This is **ADR-0108 Phase 3 (drive authority), built the way ADR-0137 sharpened it** (accepted
 2026-07-02): the desktop chat's session-orchestrator gains **orchestration (spawn) power, not raw
-`Write`/`Bash`**. Today the chat runtime (`runHeadlessOrchestrator`,
-`packages/agent/src/headless-orchestrator.ts`) is read/propose only — `tools: []` + the read-only
-orientation surface + `propose_unit`; it can orient and propose, and the human's accept click can
-dispatch a build (chat-drive-bridge / desktop-build-mount), but the orchestrator itself cannot SPAWN
-anything. "Chat brings a story in" and "chat fixes a bug through the inner loop" are unreachable — not
-undecided (ADR-0108 decided them; ADR-0137 sharpened how), just unbuilt. *(Build state: capabilities
-1–4 below are green under signed `--real` verdicts — the agent-side mount included; cap 5,
-`spawn-deps-composition` — the drive-side threading through `orchestrate()` — is what keeps the chat
-propose-only today: the optional `spawn` dep exists on `runHeadlessOrchestrator` but nothing composes
-real spawn deps into it yet.)*
+`Write`/`Bash`**. When this story was authored the chat runtime (`runHeadlessOrchestrator`,
+`packages/agent/src/headless-orchestrator.ts`) was read/propose only — `tools: []` + the read-only
+orientation surface + `propose_unit`; it could orient and propose, and the human's accept click could
+dispatch a build (chat-drive-bridge / desktop-build-mount), but the orchestrator itself could not SPAWN
+anything. "Chat brings a story in" and "chat fixes a bug through the inner loop" were unreachable — not
+undecided (ADR-0108 decided them; ADR-0137 sharpened how), just unbuilt. *(Build state: all five
+capabilities below are green under signed `--real` verdicts — the agent-side mount AND the drive-side
+composition included: `packages/drive/src/spawn-deps.ts` assembles the real spawn deps and
+`orchestrate()` threads them through to the runtime. What keeps the DESKTOP chat propose-only today is
+only the sidecar glue — `apps/desktop/electron/backend-entry.ts` does not yet compose real spawn deps
+into the chat mount (operator-attested wiring) — plus the operator-attested UAT legs 5–7.)*
 
 The build shape ADR-0137 decision 1 pins, verbatim:
 
@@ -357,11 +358,13 @@ in-story collaborators (the real E1 seam, the real rendered `story-author` agent
 the SDK `query()` scripted (ADR-0010 §5).
 
 **Honest status — `proposed`.** Authored status stays `proposed` everywhere: per ADR-0020, `healthy`
-is only ever DERIVED from signed verdicts. Four of the five capabilities now carry signed `--real`
+is only ever DERIVED from signed verdicts. All five capabilities now carry signed `--real`
 PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spawn`,
-`spawn-tool-surface` — the agent-side mount, an optional `spawn` dep on `runHeadlessOrchestrator`);
-`spawn-deps-composition` — the drive-side threading through `orchestrate()` — is unbuilt, so nothing
-composes real spawn deps into the mount and the chat still cannot spawn. The five capabilities are proof-wired so the spine can drive their offline suites
+`spawn-tool-surface` — the agent-side mount, an optional `spawn` dep on `runHeadlessOrchestrator` —
+and `spawn-deps-composition` — the drive-side composition, `packages/drive/src/spawn-deps.ts`,
+threaded through `orchestrate()`). What keeps the desktop chat propose-only today is only the sidecar
+glue (`backend-entry.ts` does not yet compose real spawn deps into the chat mount — operator-attested
+wiring) plus the operator-attested legs 5–7. The five capabilities are proof-wired so the spine can drive their offline suites
 red→green (`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven
 UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the
 operator's live-spawn attestation (legs 5–7).

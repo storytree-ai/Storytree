@@ -99,11 +99,14 @@ well-behaved session showed no wisp between builds. [ADR-0142](../../docs/decisi
 takes the work-time claim ([`claim-at-declare`](claim-at-declare.md), landed PR #535), `done`
 bulk-releases, the statusline heartbeat keeps claims out of stale-reclaim, and CI refuses a PR from an
 already-merged head branch (*a branch is one landed unit* — what keeps D's branch-keyed clear from ever
-erasing live work). Claim-at-SPAWN (E2) has since begun landing: its GATE half graduated as
+erasing live work). Claim-at-SPAWN (E2) has since landed: its GATE half graduated as
 chat-subagent-spawn's [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md)
-(`packages/agent/src/claim-gated-spawn.ts`, signed `--real` PASS); only the runtime mount (that story's
-unbuilt `spawn-tool-surface` / `spawn-deps-composition` caps) still stands between here and the spawn
-becoming the hard point alongside the declare-time wiring.
+(`packages/agent/src/claim-gated-spawn.ts`, signed `--real` PASS), and the runtime mount followed
+(that story's `spawn-tool-surface` / `spawn-deps-composition` caps, signed `--real` PASSes — the
+claim-gated spawn tools mounted on `runHeadlessOrchestrator`, the real spawn deps threaded through
+`orchestrate()`); only the desktop sidecar glue composing real deps (`backend-entry.ts`,
+operator-attested) still stands between here and the spawn being the live hard point alongside the
+declare-time wiring.
 
 ## Story UAT
 
@@ -113,8 +116,9 @@ is the §5 honesty wall made visual. Each leg is _(witness: human)_.
 
 1. **One wisp per claimed story.** _(witness: human)_ With the studio open on the forest map, a session
    claims a story (live path: the declare ceremony, [`claim-at-declare`](claim-at-declare.md) / ADR-0142;
-   the spawn-path gate is built — chat-subagent-spawn's `claim-gated-spawn` — awaiting its runtime
-   mount) and exactly **one** wisp orbits **that story's**
+   the spawn-path gate is built and mounted — chat-subagent-spawn's `claim-gated-spawn` via its
+   `spawn-tool-surface` / `spawn-deps-composition` caps — awaiting only the desktop sidecar glue) and
+   exactly **one** wisp orbits **that story's**
    node — not its capabilities, not a second wisp. A second session claiming the same story is **refused
    and told the holder** (no second wisp appears).
 2. **Colour shifts by the active subagent.** _(witness: human)_ As the orchestrator authors (story-author),
