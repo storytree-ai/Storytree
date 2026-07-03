@@ -272,8 +272,14 @@ async function main(): Promise<void> {
     // A stale claim (heartbeat aged past CLAIM_STALE_RECLAIM_MS) is dropped so a crashed holder's wisp
     // self-heals. §5 honesty wall: `kind: "claim"` is NEVER a proven-green bloom. Mirrors the studio
     // PgBackend.inFlightClaims + its claimsToActivity fold (re-composed here, the surface boundary).
+    // claim-wisp-cold-start (FIX 2b): the CLAIMS read alone gets a softer per-read budget — a larger
+    // timeout + one retry — so a just-taken claim survives a DB cold-start that exceeds the shared 4s
+    // (the fresh wisp is not silently dropped). The other four reads keep the shared 4s so /api/tree
+    // never waits longer for them. Still advisory: a genuinely down DB nulls promptly (bounded retry).
     inFlightClaims: async () =>
-      advisory("in-flight-claims", async () => {
+      advisory(
+        "in-flight-claims",
+        async () => {
         const res = await pool.query(
           `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
              FROM events.node_claim`,
@@ -308,7 +314,9 @@ async function main(): Promise<void> {
           });
         }
         return out;
-      }),
+        },
+        { timeoutMs: 15_000, retryOnce: true },
+      ),
   };
 
   // The THREE dispatchers the Electron main mounts in sequence (ADR-0119 §2 + the chat-SSE increment):

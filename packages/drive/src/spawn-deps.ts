@@ -37,6 +37,7 @@ import { renderAgentPrompt } from "@storytree/library/store";
 
 import type { BuildContext } from "./build-worker.js";
 import { spawnBuilderDispatch } from "./spawn-builder.js";
+import type { SpawnTrace } from "./spawn-trace.js";
 
 // Re-exported so drive-side consumers (orchestrate.ts, the desktop sidecar) have a
 // named, stable type off this module rather than a deep reach into @storytree/agent.
@@ -127,7 +128,7 @@ export async function buildSpawnDeps(
       // so the claim heartbeat (ADR-0138 §4) is bumped at the session's edges; the
       // finer per-message bump needs a trace seam on the runner (agent-package
       // follow-on, flagged — not smuggled in here).
-      onTrace({ type: "spawn_started", role: "story-author", unitId });
+      onTrace({ type: "spawn_started", role: "story-author", unitId } satisfies SpawnTrace);
       const result = await runSpawnStoryAuthor({
         systemPrompt,
         userPrompt: `Unit: ${unitId}\n\n${userPrompt}`,
@@ -135,7 +136,7 @@ export async function buildSpawnDeps(
         ...(args.queryFn !== undefined ? { queryFn: args.queryFn } : {}),
         ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
       });
-      onTrace({ type: "spawn_finished", role: "story-author", unitId, ok: result.ok });
+      onTrace({ type: "spawn_finished", role: "story-author", unitId, ok: result.ok } satisfies SpawnTrace);
       if (!result.ok) {
         return `story-author session failed: ${result.error}`;
       }
@@ -147,9 +148,9 @@ export async function buildSpawnDeps(
     },
 
     spawnBuilder: async ({ unitId }, onTrace) => {
-      onTrace({ type: "spawn_started", role: "builder", unitId });
+      onTrace({ type: "spawn_started", role: "builder", unitId } satisfies SpawnTrace);
       const dispatched = await spawnBuilderDispatch(unitId, args.build);
-      onTrace({ type: "spawn_finished", role: "builder", unitId, ok: dispatched.ok });
+      onTrace({ type: "spawn_finished", role: "builder", unitId, ok: dispatched.ok } satisfies SpawnTrace);
       if (!dispatched.ok) {
         return `build refused: ${dispatched.reason}`;
       }

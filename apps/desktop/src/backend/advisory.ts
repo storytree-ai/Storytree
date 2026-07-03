@@ -17,29 +17,72 @@ export interface AdvisoryReaderOptions {
   log?: (line: string) => void;
 }
 
-export type AdvisoryRead = <T>(name: string, fn: () => Promise<T>) => Promise<T | null>;
+/**
+ * Per-CALL budget override for a single advisory read (claim-wisp-cold-start / FIX 2b). The other
+ * four reads pass nothing and keep the shared default — the softening is targeted, never a blanket
+ * raise of the shared `timeoutMs` (which would make a slow verdicts/activity read hold /api/tree
+ * longer on every poll).
+ */
+export interface AdvisoryReadOptions {
+  /** Overrides the shared default for THIS read only — a softer budget for a slow DB cold-start. */
+  timeoutMs?: number;
+  /** Re-race `fn()` ONCE on the first failure before nulling. Bounded: at most one retry, so a
+   * genuinely down DB still nulls promptly and /api/tree never hangs on an unbounded loop. */
+  retryOnce?: boolean;
+}
+
+export type AdvisoryRead = <T>(
+  name: string,
+  fn: () => Promise<T>,
+  opts?: AdvisoryReadOptions,
+) => Promise<T | null>;
 
 /**
  * Build an advisory reader: race `fn` against the timeout, null on ANY failure (the PgBackend
- * pattern), logging each read's failure once per (name, cause) streak.
+ * pattern), logging each read's failure once per (name, cause) streak. A read MAY pass a per-call
+ * `opts` to soften its own budget (a larger `timeoutMs` and/or a single `retryOnce`) — used only by
+ * the claims read on a DB cold-start; every other read keeps the shared default.
  */
 export function createAdvisoryReader(options: AdvisoryReaderOptions = {}): AdvisoryRead {
-  const timeoutMs = options.timeoutMs ?? 4_000;
+  const defaultTimeoutMs = options.timeoutMs ?? 4_000;
   const log = options.log ?? ((line: string) => console.error(line));
   // Last-logged failure message per read name — the dedupe state. An entry is cleared on success,
   // so a re-failure after recovery starts a new streak and logs again.
   const lastFailure = new Map<string, string>();
 
-  return async <T>(name: string, fn: () => Promise<T>): Promise<T | null> => {
-    let timer: NodeJS.Timeout | undefined;
+  return async <T>(
+    name: string,
+    fn: () => Promise<T>,
+    opts: AdvisoryReadOptions = {},
+  ): Promise<T | null> => {
+    const timeoutMs = opts.timeoutMs ?? defaultTimeoutMs;
+
+    // One race of fn() against a fresh timeout; the timer is always cleared in finally.
+    const raceOnce = async (): Promise<T> => {
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`timed out after ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        });
+        return await Promise.race([fn(), timeout]);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    };
+
     try {
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
-      });
-      const result = await Promise.race([fn(), timeout]);
+      let result: T;
+      try {
+        result = await raceOnce();
+      } catch (firstErr) {
+        // Bounded retry: on a cold-start-shaped first failure, re-race ONCE before nulling. A second
+        // failure falls through to the null-on-failure arm — no unbounded loop.
+        if (!opts.retryOnce) throw firstErr;
+        result = await raceOnce();
+      }
       lastFailure.delete(name);
       return result;
     } catch (err) {
@@ -49,8 +92,6 @@ export function createAdvisoryReader(options: AdvisoryReaderOptions = {}): Advis
         log(`[backend] advisory read '${name}' failed: ${message}`);
       }
       return null;
-    } finally {
-      if (timer !== undefined) clearTimeout(timer);
     }
   };
 }

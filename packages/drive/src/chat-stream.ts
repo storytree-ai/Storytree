@@ -31,6 +31,7 @@ import type { SdkQueryFn, OrientationRunner } from "@storytree/agent";
 import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
 import type { SpawnSurfaceDeps } from "./spawn-deps.js";
+import { asSpawnTrace } from "./spawn-trace.js";
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -45,6 +46,24 @@ import type { SpawnSurfaceDeps } from "./spawn-deps.js";
 export interface ChatStreamDeltaEvent {
   type: "delta";
   text: string;
+}
+
+/**
+ * A NON-terminal streaming event — a spawn-boundary trace surfaced as it fires (ADR-0137 Phase 3 /
+ * chat-spawn-trace-events). When `startChatStream` is driven WITH spawn deps, the boundary traces
+ * the claim gate would otherwise swallow are narrowed to {@link import("./spawn-trace.js").SpawnTrace}
+ * and pushed onto the SAME FIFO the deltas use — interleaved and ordered, before the single terminal
+ * event. `phase` maps `spawn_started`→`"started"` / `spawn_finished`→`"finished"`; `ok` is carried
+ * only on `finished`. Absent spawn deps → no spawn events (byte-identical to the propose-only surface).
+ * The trace ALSO still bumps the claim heartbeat (ADR-0138 §4): the interception is additive, never a
+ * theft of the signal.
+ */
+export interface ChatStreamSpawnEvent {
+  type: "spawn";
+  phase: "started" | "finished";
+  role: "story-author" | "builder";
+  unitId: string;
+  ok?: boolean;
 }
 
 /** A terminal done event — the proposal text plus session metrics. */
@@ -82,6 +101,7 @@ export interface ChatStreamRefusedEvent {
  *  of done/error/refused; zero or more non-terminal `delta` events may precede it. */
 export type ChatStreamEvent =
   | ChatStreamDeltaEvent
+  | ChatStreamSpawnEvent
   | ChatStreamDoneEvent
   | ChatStreamErrorEvent
   | ChatStreamRefusedEvent;
@@ -154,15 +174,61 @@ type SessionOutcome =
 export async function* startChatStream(
   args: StartChatStreamArgs,
 ): AsyncGenerator<ChatStreamEvent> {
-  // The bridge: buffered text fragments + a single-slot "wake" so the drain loop can park when the
-  // queue is empty and the session hasn't settled, and resume the instant either changes.
-  const queue: string[] = [];
+  // The bridge: a single FIFO of buffered non-terminal items (assistant text `delta`s and spawn
+  // boundary `spawn` events) + a single-slot "wake" so the drain loop can park when the queue is
+  // empty and the session hasn't settled, and resume the instant either changes. The queue holds a
+  // discriminated item so deltas and spawn events interleave in arrival order on the ONE FIFO (no
+  // second queue, no second drain loop — the buffered-push + single-slot-wake ordering discipline).
+  type QueueItem =
+    | { kind: "delta"; text: string }
+    | { kind: "spawn"; event: ChatStreamSpawnEvent };
+  const queue: QueueItem[] = [];
   let wake: (() => void) | null = null;
   const signal = (): void => {
     const w = wake;
     wake = null;
     if (w !== null) w();
   };
+
+  // Wrap the injected spawn deps (when present) so their boundary traces surface OUT to the chat
+  // stream as `spawn` events, WITHOUT stealing the claim heartbeat bump (ADR-0138 §4). The wrap
+  // composes each spawn handler's `onTrace`: it still calls the ORIGINAL onTrace (the gate's
+  // heartbeat sink, preserved) AND, when a message narrows to a SpawnTrace, pushes a
+  // ChatStreamSpawnEvent onto the SAME FIFO and signals — exactly as `onDelta` does. Absent spawn
+  // deps ⇒ no wrap ⇒ byte-identical to the propose-only surface (no `spawn` events).
+  const wrappedSpawn: SpawnSurfaceDeps | undefined =
+    args.spawn === undefined
+      ? undefined
+      : (() => {
+          const original = args.spawn;
+          const composeTrace =
+            (onTrace: (msg: unknown) => void) =>
+            (msg: unknown): void => {
+              // Preserve the gate's heartbeat bump (and any other original behaviour) first.
+              onTrace(msg);
+              const trace = asSpawnTrace(msg);
+              if (trace === null) return;
+              const event: ChatStreamSpawnEvent =
+                trace.type === "spawn_started"
+                  ? { type: "spawn", phase: "started", role: trace.role, unitId: trace.unitId }
+                  : {
+                      type: "spawn",
+                      phase: "finished",
+                      role: trace.role,
+                      unitId: trace.unitId,
+                      ok: trace.ok,
+                    };
+              queue.push({ kind: "spawn", event });
+              signal();
+            };
+          return {
+            ...original,
+            spawnStoryAuthor: (spawnArgs, onTrace) =>
+              original.spawnStoryAuthor(spawnArgs, composeTrace(onTrace)),
+            spawnBuilder: (spawnArgs, onTrace) =>
+              original.spawnBuilder(spawnArgs, composeTrace(onTrace)),
+          };
+        })();
 
   // The session resolves to a typed outcome and NEVER rejects (orchestrate never throws, and the
   // .catch keeps us robust regardless) — so the terminal branch reads the value via `await session`
@@ -174,7 +240,7 @@ export async function* startChatStream(
     store: args.store,
     onDelta: (text: string) => {
       if (text.length === 0) return;
-      queue.push(text);
+      queue.push({ kind: "delta", text });
       signal();
     },
     ...(args.queryFn !== undefined ? { queryFn: args.queryFn } : {}),
@@ -182,7 +248,7 @@ export async function* startChatStream(
     ...(args.model !== undefined ? { model: args.model } : {}),
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
-    ...(args.spawn !== undefined ? { spawn: args.spawn } : {}),
+    ...(wrappedSpawn !== undefined ? { spawn: wrappedSpawn } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))
     .catch((error: unknown): SessionOutcome => ({ ok: false, error }))
@@ -196,7 +262,7 @@ export async function* startChatStream(
   while (!done || queue.length > 0) {
     const next = queue.shift();
     if (next !== undefined) {
-      yield { type: "delta", text: next };
+      yield next.kind === "delta" ? { type: "delta", text: next.text } : next.event;
       continue;
     }
     // Queue empty and session not done: park until a delta is pushed or the session settles.
