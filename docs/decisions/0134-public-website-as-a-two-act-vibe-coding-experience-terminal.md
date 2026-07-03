@@ -16,7 +16,11 @@ deep-link UX was decided at the same gate — **replay every visit** (skip is no
 Act 2 deep-links standalone and the asset/perf/mobile budget ride with the remaining Act 2 build.
 *(Since decided: [ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md),
 2026-07-03 — Act 2's walkthrough re-decided onto the real 2.5D map at its attestation gate, and the
-deep-link half closed: replay-only is final. Noted in place per ADR-0139.)*
+deep-link half closed: replay-only is final; and
+[ADR-0148](0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md), 2026-07-03 — Act 2
+became the **website-first walk that grows into an orchestrator-guided forest**, and the classic front
+page retired as a capable-visitor destination (the no-JS / reduced-motion fallback stays,
+gate-enforced). Noted in place per ADR-0139.)*
 
 proposed (2026-06-28) — explored with the owner in conversation on 2026-06-28.
 [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) decided the *renderer*

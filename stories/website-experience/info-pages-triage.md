@@ -6,8 +6,8 @@ title: "The info-page triage — every legacy page folded, discarded, or kept, a
 outcome: "Every legacy informational page (how-it-works, roadmap, landscape, constitution, contact, get-involved — and the 404) carries an explicit, EXECUTED disposition: folded into Act 2 where natural, discarded, or kept as a plain static page; kept pages are reachable from the calm world with no orphan links anywhere; check:web-grounding stays green over every surviving claim; and the disposition set answers whether Keystatic survives — recorded as its own ADR when decided."
 status: proposed
 proof_mode: operator-attested
-depends_on: [act2-guided-walkthrough]
-decisions: [134]
+depends_on: [act2-guided-walkthrough, act2-guided-forest]
+decisions: [134, 148]
 # OPERATOR-ATTESTED, human witness — owner decision 5 (2026-07-02) names the triage itself as
 # owner-attested CONTENT work: which page folds, which dies, and which stays is editorial judgement
 # about the site's voice, not a machine call. The machine floor it must leave green already exists:
@@ -26,9 +26,12 @@ kept pages are reachable from the calm world with no orphan links anywhere; `che
 stays green over every surviving claim; and the disposition set answers whether **Keystatic
 survives** — recorded as its own ADR when decided.
 
-**Depends on —** [`act2-guided-walkthrough`](act2-guided-walkthrough.md) — you cannot fold a page
-into an Act 2 that is not there; the fold targets (which beat absorbs which page's job) only become
-concrete once the beats exist on the site.
+**Depends on —** [`act2-guided-walkthrough`](act2-guided-walkthrough.md) (increment G) — you cannot
+fold a page into an Act 2 that is not there; the fold targets (which beat absorbs which page's job)
+only become concrete once the beats exist on the site. Also
+[`act2-guided-forest`](act2-guided-forest.md) (increment H, ADR-0148) — the roadmap-class fold
+targets ("what's coming" behind the pull-back / "what's next") live in H's upstream-forest reveal, so
+they are only concrete once the guided forest exists.
 
 > **Proof status (honest) — `proposed`, operator-attested.** The current pages exist today in the
 > web repo (`web/src/pages/*.astro`); nothing about their fate is decided beyond the triage FRAME

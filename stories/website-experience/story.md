@@ -12,7 +12,7 @@ proof_mode: UAT
 # extended web-engine drift gate (the synced R3F artifact is byte-fresh) and the new
 # `check:web-experience` rollout guard (skip + fallback markers present, no R3F reachable from
 # Act 1) — each an honest spine-observable check. Each Story-UAT leg below marks its own witness.
-capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, info-pages-triage]
+capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
 # Consumer-side outbound edges (the ADR-0058 delivered-outcome test, run both ways):
 #  - forest-world: the R3F mapper (`packages/forest-world-r3f`, this story's parent-side package —
 #    see "Structural calls" below) IMPORTS `@storytree/forest-world` and consumes its semantic layer
@@ -35,8 +35,11 @@ consumed_by: []
 # forest-world mapper, client-only island, mandatory fallback, package home delegated to this
 # story (123); the shared render core + the sync-into-submodule artifact flow the mapper joins (93);
 # the 2026-07-03 re-decision at the walkthrough's attestation gate — Act 2 walks the real 2.5D map,
-# the R3F island scoped to the inflection's landing moment, replay-only final (145).
-decisions: [93, 123, 134, 145]
+# the R3F island scoped to the inflection's landing moment, replay-only final (145); the SECOND
+# 2026-07-03 re-decision at that same gate — Act 2 is the vibe coder's request handled the storytree
+# way: a website-first walk (increment G) that grows into an orchestrator-guided upstream forest
+# (increment H), ship-G-now/extend-H-next (148).
+decisions: [93, 123, 134, 145, 148]
 ---
 
 # The two-act vibe-coding experience — the public site's front door enacts chaos → calm
@@ -64,12 +67,23 @@ five-row beat table IS the approved Act 2 spine, carried verbatim into `act2-bea
 - **The inflection.** At peak, everything dims and one calm storytree affordance appears. A single
   click TRANSFORMS rather than navigates — terminals fall silent, collapse, fragments drop into the
   ground as soil — and the exhale buys the lazy-load of the R3F bundle.
-- **Act 2 — the calm forest.** Silence resolves into an empty land. An AUTO-GUIDED, VISITOR-PACED
-  walkthrough (one Next-tap per beat, plain language — the tonal inverse of Act 1) grows the forest
-  through the five approved beats: plant a story → watch a wisp → it branches (green only on signed
-  proof) → stories connect (roads; the wrong-way UI→DB road as the visible antipattern) → pull back
-  (the whole legible forest) → CTA. A **stylized teaching diorama over FICTIONAL data**
-  (ADR-0056/0066/0093 boundary), never the operable studio.
+- **Act 2 — the calm forest, the request done right (ADR-0148).** Silence resolves into an empty
+  land carrying Act 1's SAME request ("build me a shopping website" — one prompt, two ways). The
+  session orchestrator answers it the storytree way in two increments the owner sequenced
+  ship-now/extend-next:
+  - **G — the website-first walk.** The orchestrator proposes a MOCK LOCAL WEBSITE (no backend, an
+    honest minimum that meets the vibe coder where they are) in a short scripted exchange; the
+    AUTO-GUIDED, VISITOR-PACED five-beat walk (one Next-tap per beat, plain language — the tonal
+    inverse of Act 1) then grows THAT one website story green: plant a story → watch a wisp → it
+    branches (green only on signed proof) → stories connect (roads; the wrong-way UI→DB road as the
+    visible antipattern) → pull back (the whole legible forest) → a CTA that hands off to "what's
+    next."
+  - **H — the guided forest.** As the user asks "what's next," the orchestrator guides them UPSTREAM
+    — a database and a proper backend as PROPOSED trees above the website (stories at every DAG
+    level, not just leaves), each inspectable (what it is + why) and walked green progressively;
+    complexity SCAFFOLDED, revealed on demand, never dumped.
+  A **stylized teaching diorama over FICTIONAL data** (ADR-0056/0066/0093 boundary), never the
+  operable studio.
 - **Rollout — replace home incrementally.** The storm becomes the live homepage as soon as it is
   presentable; Act 2 grows in place on the real here.now CD rail (every merge to `storytree-web`
   main publishes). CONSEQUENCE (owner decision 6, 2026-07-02): the skip affordance and the
@@ -118,7 +132,7 @@ felt surface a machine cannot judge. Structure/choreography is parent-side and p
 fictional demo data stay site-side (the Cohoot precedent — the boundary keeps the site's content in
 the site's repo).
 
-## Capabilities (8)
+## Capabilities (9)
 
 Listed roots-first. **Class** — LEAF (parent-side isolatable red→green, armed `--real` so the
 orchestrator drives it through `node build <id> --real --store pg`), LOOK (web-repo build whose
@@ -131,10 +145,11 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | `check:web-experience` (parent-side, check:web-grounding pattern) fails the gate when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. | yes | — |
 | 3 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `r3f-world-spike` |
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the five approved beats as typed data, advancing one tap at a time; green appears only with a signed-proof marker; the wrong-way road is flagged from data. | yes | `r3f-world-spike` |
-| 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
+| 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
 | 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, one calm affordance; a single click transforms — silence, collapse into soil — and lazy-loads the R3F island into the empty calm land. | (look) | `act1-terminal-storm`, `web-experience-sync` |
-| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | The five-beat, visitor-paced, plain-language walkthrough grows the fictional forest over the synced director ON THE REAL 2.5D MAP (ADR-0145; anchored-callout narration), to the pull-back and the CTA. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
-| 8 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough` |
+| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **Increment G (ADR-0148) — the website-first walk:** the reused prompt opens it, the orchestrator proposes a MOCK website (no backend) in a scripted exchange, and the five-beat visitor-paced 2.5D walk (ADR-0145; anchored callouts) grows THAT one website story green to a CTA that hands off to "what's next." | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
+| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **Increment H (ADR-0148) — the guided forest:** from G's "what's next," the orchestrator guides the user UPSTREAM to a PROPOSED database + backend (stories at every DAG level, not just leaves), each inspectable (what/why) and walked green progressively; complexity scaffolded, never dumped. | (look) | `act2-guided-walkthrough` |
+| 9 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough`, `act2-guided-forest` |
 
 ## Dependency graph and the incremental rollout plan
 
@@ -158,14 +173,30 @@ whole (owner decision 6):
   calm land carries the CTA/links until the walkthrough lands. *(The transform-lands HALT:
   **cleared 2026-07-02**, attested + live at web main `6546486` — see the cap's proof status for
   the record.)*
-- **Increment F — `act2-beat-director`** (parent-only) then **G — `act2-guided-walkthrough`** — the
-  beats grow in place; the walkthrough may land beats incrementally (the director is data-driven),
-  each merge leaving a complete-so-far guided arc ending at the CTA. *(G's first build — over the
-  R3F island — was refused at its 2026-07-03 attestation gate and re-decided onto the real 2.5D map
-  with anchored-callout narration, ADR-0145; the walkthrough HALT stands until the rebuild is
-  attested. Web draft PR #20 closed superseded, its machine floor recorded there.)*
-- **Increment H — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
-  Keystatic call falls out of the disposition set.
+- **Increment F — `act2-beat-director`** (parent-only) — the choreography engine; **BUILT +
+  leaf-proven** (run `real-mr32b6ib`, signed PASS @ `2358bc4`). The beats become provable data before
+  any site build walks them.
+- **Increment G — `act2-guided-walkthrough`, the WEBSITE-FIRST WALK (ADR-0148).** The reused prompt
+  ("build me a shopping website") opens Act 2; the orchestrator proposes a MOCK local website (no
+  backend) in a short scripted exchange; the visitor-paced five-beat 2.5D walk (ADR-0145; anchored
+  callouts) grows THAT one website story green to a CTA that hands off to "what's next." The
+  walkthrough may land beats incrementally (the director is data-driven), each merge leaving a
+  complete-so-far arc that opens from the prompt+proposal and ends on the "what's next" CTA. This is
+  the **ship-now** increment. *(History: the first build — over the R3F island — was refused at its
+  2026-07-03 attestation gate and re-decided onto the real 2.5D map, ADR-0145; the 2.5D build then
+  reached its gate 2026-07-03, was judged good progress, and was re-directed to this website-first
+  framing, ADR-0148. Web draft PR #20 closed superseded, its machine floor recorded there. The
+  walkthrough HALT stands until G is attested.)*
+- **Increment H — `act2-guided-forest`, the GUIDED FOREST (ADR-0148).** From G's "what's next," the
+  orchestrator guides the user UPSTREAM to a PROPOSED database + backend (stories at every DAG level,
+  not just leaves), each inspectable (what/why) and walked green progressively; complexity scaffolded,
+  never dumped. This is the **extend-next** increment — it lands AFTER G ships, extending the same
+  Act 2 surface. Until H lands, G's "what's next" CTA resolves to the real product / get-involved, so
+  the site stays coherent.
+- **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
+  Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
+  roadmap's "what's coming" behind the pull-back / "what's next") are only concrete once both Act 2
+  increments exist.
 
 Within-story edges, with the reason each exists: `web-experience-sync → r3f-world-spike` (you cannot
 sync a package that does not exist); `act2-beat-director → r3f-world-spike` (the director lives in
@@ -174,8 +205,11 @@ may only face visitors with the exits machine-guarded); `storm-to-forest-inflect
 act1-terminal-storm` (there is no peak to transform without the storm), `→ web-experience-sync` (the
 R3F island it lazy-loads must be on the site); `act2-guided-walkthrough →` all three of the
 inflection (the land it grows on), the director (the script it walks), the sync (the artifact rail);
-`info-pages-triage → act2-guided-walkthrough` (you cannot fold a page into an Act 2 that is not
-there).
+`act2-guided-forest → act2-guided-walkthrough` (increment H opens from G's "what's next" CTA and
+extends G's scripted-orchestrator seam + proven 2.5D substrate — no upstream forest to reveal until
+the website walk it grows from exists); `info-pages-triage →` both `act2-guided-walkthrough` (you
+cannot fold a page into an Act 2 that is not there) and `act2-guided-forest` (the roadmap-class fold
+targets live in the "what's next" upstream reveal).
 
 ## The boundary, held
 
@@ -197,7 +231,8 @@ visitor arc plus the two machine gates; the list grows only when a real defect e
 case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human, the gates machine.
 
 1. **One prompt breeds the storm.** _(witness: human)_ Land on the live home: a single retro CRT
-   terminal, already logged into a coding agent, offers suggested chips and a prompt line. Send ONE
+   terminal, already logged into a coding agent, offers suggested chips and a prompt line leading
+   with **"build me a shopping website"** (the prompt reused across both acts, ADR-0148). Send ONE
    prompt. **Success —** audio unlocks on that gesture; the agent "thinks," then sub-agents spawn AS
    new terminals (diegetic — the visitor never opens a window), tiling/overlapping toward a peak of
    ~10–12; each terminal streams plausible-but-opaque activity and parks on an unanswerable demand;
@@ -214,18 +249,28 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human
    storytree affordance appear amid the noise. Click once. **Success —** the terminals fall silent
    and collapse, their fragments drop into the ground as soil, the calm empty land fades up — a
    TRANSFORM in place, not a navigation; the R3F bundle loads only now, behind the exhale.
-5. **The same gesture grows order.** _(witness: human)_ Advance the walkthrough one Next-tap per
-   beat, in plain language throughout: plant a story (a seed grows into a tree with its outcome on
-   a label) → watch a wisp (presence without obligation) → it branches (limbs turn green ONLY on a
-   signed passing proof) → stories connect (roads — the wrong-way UI→DB road skipping the service
-   layer is visibly flagged as the antipattern) → pull back (one legible forest: green = proven,
-   sapling = in-progress, withered = broken). **Success —** the arc ends on the CTA to the real
-   product; at no beat does the visitor work harder than one tap — the Act 1 contrast lands.
-6. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean
+5. **The same request, done right — the website-first walk (increment G).** _(witness: human)_ On the
+   calm land carrying the SAME "build me a shopping website" request, the session orchestrator
+   proposes a MOCK local website (no backend — honest, meeting the vibe coder where they are) in a
+   short scripted exchange; then advance the walk one Next-tap per beat, in plain language: plant that
+   website story (a seed grows into a tree with its outcome on a label) → watch a wisp (presence
+   without obligation) → it branches (limbs turn green ONLY on a signed passing proof) → stories
+   connect (roads — the wrong-way UI→DB road skipping the service layer is visibly flagged as the
+   antipattern) → pull back (one legible forest: green = proven, sapling = in-progress, withered =
+   broken). **Success —** Act 2 reads as Act 1's request answered; the proposal is honest and does not
+   overwhelm; the arc ends on a CTA that hands off to "what's next"; at no beat does the visitor work
+   harder than one tap — the Act 1 contrast lands.
+6. **The orchestrator guides upstream — the guided forest (increment H).** _(witness: human)_ From
+   the "what's next" CTA, ask what comes next. **Success —** the orchestrator guides the visitor
+   UPSTREAM to a PROPOSED database + backend (because the mock's Cart / Payments / Receipts cannot
+   truly work without them), shown as proposed trees ABOVE the website with stories at every DAG level
+   (not just leaves); each is inspectable (what it is + why proposed) and walked green progressively on
+   demand; complexity is revealed as asked-for, never dumped up front and never hidden.
+7. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean
    HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
    byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
    flows from the parent, never hand-ported.
-7. **The surrounding pages are dispositioned.** _(witness: human)_ Walk the legacy pages
+8. **The surrounding pages are dispositioned.** _(witness: human)_ Walk the legacy pages
    (how-it-works, roadmap, landscape, constitution, contact, get-involved). **Success —** each is
    explicitly folded into Act 2, discarded, or kept as a reachable plain static page; no orphan
    links; `check:web-grounding` still green over every surviving claim.
@@ -237,10 +282,11 @@ earned through the gate, never authored (ADR-0020). The four LEAF caps are armed
 proof config so the orchestrator drives each through `node build <id> --real --store pg` in
 dependency order — with the one documented pre-step that `r3f-world-spike`'s package scaffold
 (package.json + deps + tsconfig + `repo-manifest.json` ownership) is orchestrator-supplemented GLUE
-before its leaf runs (a leaf can never touch package.json, ADR-0031 §2). The four web-side caps are
-built in the `storytree-web` repo (branching off ITS `origin/main`, its own CD) by the
-`frontend-builder` role and witnessed by the owner (ADR-0070 two-stage; appearance and feel are
-never self-signed) — each an explicit HALT point for the driving session. The story goes green only
+before its leaf runs (a leaf can never touch package.json, ADR-0031 §2). The five web-side caps (the
+storm, the inflection, the two Act 2 increments G + H, and the page triage) are built in the
+`storytree-web` repo (branching off ITS `origin/main`, its own CD) by the `frontend-builder` role and
+witnessed by the owner (ADR-0070 two-stage; appearance and feel are never self-signed) — each an
+explicit HALT point for the driving session. The story goes green only
 when the machine legs' gates run green at a clean HEAD AND the human legs are attested — attestation
 is recorded, never presumed (ADR-0044).
 
