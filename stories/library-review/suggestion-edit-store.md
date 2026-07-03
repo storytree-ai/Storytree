@@ -49,11 +49,16 @@ open→accepted / open→rejected and refuses re-deciding a closed suggestion.
 
 **Depends on —** (root — no within-story upstream)
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. There is no suggestion
-> store today. The leaf authors a new `packages/library/src/store/pg-suggestion-store.ts` modelled on
-> the existing `pg-comment-store.ts` (the house event+projection shape:
-> `events.suggestion_event` append-only + an `events.suggestion` projection, written atomically in one
-> transaction), with pure helpers (`mergeSuggestionPatch`, `applySuggestionTransition`) tested offline.
+> **Proof status (honest) — BUILT via the prove-it-gate (run `real-mr24u2mt`, signed PASS, verdict
+> @ `d597d36`, an ancestor of main; coverage 4/4).** The leaf authored
+> `packages/library/src/store/pg-suggestion-store.ts` exactly as specified: the fail-closed
+> `SuggestionSchema` zod boundary (`:25-40`, applied at `create` via `SuggestionSchema.parse`,
+> `:152`), the pure `applySuggestionTransition` state machine (`:61` — open→accepted/rejected,
+> closed refuses re-decision), the pure `mergeSuggestionPatch` (`:89`, the `mergeCommentPatch`
+> invariants), and the `PgSuggestionStore` event+projection class (`:119`, mirroring
+> `PgCommentStore`). The `ses-*` contract tests run in `pg-suggestion-store.test.ts` (node:test,
+> offline; live SQL stays behind `STORYTREE_DB_LIVE`). Frontmatter stays `proposed` — status is
+> earned through the rollup (the house convention).
 
 ## Guidance
 

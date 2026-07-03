@@ -62,16 +62,20 @@ comment validates at the store's write boundary.
 
 **Depends on —** (root — no within-story upstream)
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. The `CommentAnchor`
-> interface exists today in `packages/library/src/store/pg-comment-store.ts:19-28` (and its mirror in
-> `apps/studio/src/types.ts:22-31`) carrying the text-quote model (`kind: 'topic'|'section'|'text'`,
-> `quote`, `prefix`, `suffix`, `startOffset`) — a bare interface with NO runtime representation (no
-> validator, no normalizer). This capability REPLACES the `text` kind with a `block` kind anchored to a
-> block position, removes the quote-span fields from the stored shape, and ADDS the runtime
-> write-boundary normalizer `normalizeCommentAnchor` (the observable behaviour the proof witnesses,
-> mirroring the studio's `apiRouter.ts` `readAnchor`). The pure `mergeCommentPatch` helper + the offline
-> import/construct checks already run in `pg-comment-store.test.ts` (node:test, no DB); this adds the
-> normalizer + block-anchor assertions there.
+> **Proof status (honest) — BUILT via the prove-it-gate (run `real-mr22bwt5`, signed PASS, verdict
+> @ `879608f`, an ancestor of main; coverage 3/3).** The runtime write-boundary normalizer
+> `normalizeCommentAnchor` lives at `packages/library/src/store/pg-comment-store.ts:61-87`: a
+> `kind: 'block'` anchor (with its `blockId` handle) returns canonical, the legacy
+> `quote`/`prefix`/`suffix`/`startOffset` span fields are stripped, and a legacy/`text`/unknown kind
+> downgrades to the safe `topic` default; `create`/`update` apply it so the stored doc is always
+> canonical. **Landed nuance vs the authored outcome:** the text-quote fields remain on the
+> `CommentAnchor` interface (`:31`) as optional `@deprecated` LEGACY fields (so existing stored docs
+> and fixtures stay valid TypeScript) — they never survive the write boundary, but the interface is
+> not span-free; the canonical STORED shape is. The `bpa-*` contract tests run in
+> `pg-comment-store.test.ts` (node:test, offline). **Consolidation glue (not leaf-proven):** the
+> studio mirror moved in lockstep (`apps/studio/src/types.ts` `CommentAnchor` + `apiRouter.ts`
+> `readAnchor`), commit `8607e57`. Frontmatter stays `proposed` — status is earned through the rollup
+> (the house convention).
 
 ## Guidance
 
