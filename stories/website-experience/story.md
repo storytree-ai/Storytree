@@ -61,9 +61,13 @@ five-row beat table IS the approved Act 2 spine, carried verbatim into `act2-bea
   (~10–12 windows cap), each parking on an unanswerable demand (`awaiting instructions`,
   `Postgres or SQLite? (y/n)`), under an arcade HUD `AGENTS: n ▲`. Plain DOM/CSS + a canvas grain
   pass + Web Audio. **No WebGL in Act 1.**
-- **The inflection.** At peak, everything dims and one calm storytree affordance appears. A single
-  click TRANSFORMS rather than navigates — terminals fall silent, collapse, fragments drop into the
-  ground as soil — and the exhale buys the lazy-load of the R3F bundle.
+- **The inflection.** At peak, everything dims and the peak affordance appears amid the noise. A
+  single click TRANSFORMS rather than navigates — terminals fall silent, collapse, fragments drop
+  into the ground as soil — and the exhale buys the lazy-load of the R3F bundle. *(As built, web main
+  `281b1e6`, owner-directed 2026-07-03: the peak affordance is a **diegetic finale terminal** — the
+  root agent concedes the swarm isn't working and offers a two-option fork, `show me the better
+  way →` (this transform) and an external ghost exit; see
+  [`act1-terminal-storm`](act1-terminal-storm.md) "As built — the finale rework".)*
 - **Act 2 — the calm forest.** Silence resolves into an empty land. An AUTO-GUIDED, VISITOR-PACED
   walkthrough (one Next-tap per beat, plain language — the tonal inverse of Act 1) grows the forest
   through the five approved beats: plant a story → watch a wisp → it branches (green only on signed
@@ -132,7 +136,7 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | 3 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `r3f-world-spike` |
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the five approved beats as typed data, advancing one tap at a time; green appears only with a signed-proof marker; the wrong-way road is flagged from data. | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
-| 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, one calm affordance; a single click transforms — silence, collapse into soil — and lazy-loads the R3F island into the empty calm land. | (look) | `act1-terminal-storm`, `web-experience-sync` |
+| 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, the peak affordance's transform option (a diegetic finale terminal as of web `281b1e6`); a single click transforms — silence, collapse into soil — and lazy-loads the R3F island into the empty calm land. | (look) | `act1-terminal-storm`, `web-experience-sync` |
 | 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | The five-beat, visitor-paced, plain-language walkthrough grows the fictional forest over the synced director ON THE REAL 2.5D MAP (ADR-0145; anchored-callout narration), to the pull-back and the CTA. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
 | 8 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough` |
 

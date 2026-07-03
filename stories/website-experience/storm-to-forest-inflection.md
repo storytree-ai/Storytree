@@ -57,6 +57,11 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
   `data-experience-*` markers stay physically in the entry page's own source (entry `:74`, skip
   `:78`, fallback `:178`) — the upstream gate greps the page text, so a refactor that moves one
   into a child component un-arms or reds it.
+  *(Correction 2026-07-03, web main `281b1e6`: Act 1's owner-directed finale rework replaced the
+  calm card with the diegetic finale terminal `#storm-finale` — `data-storm-transform` now lives
+  on its primary option (`src/pages/index.astro:153`, engine binding re-homed) alongside an
+  external ghost exit. This cap's transform choreography is UNCHANGED; only the trigger's host
+  moved. See `act1-terminal-storm` "As built — the finale rework".)*
 - **One click starts the load AND the exhale together** (`src/scripts/act1-storm.ts:486`):
   `import('./inflection')` is the ONLY route to R3F — the dynamic-import seam
   `check:web-experience` sanctions, no prefetch, so the first fetch happens AT the click (UAT 3);
