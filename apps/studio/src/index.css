@@ -2536,6 +2536,14 @@ mark.st-hl.flash {
   font-size: 13px;
   line-height: 1.65;
 }
+/* One exchange in the persistent transcript — a `› <prompt>` echo above its reply, stacked
+   top-to-bottom like terminal output (multi-turn-transcript). Prior exchanges never replaced; the
+   surface auto-scrolls to the newest. The terminal LOOK of the stack is operator-attested (ADR-0070). */
+.chat-exchange {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 /* The echoed prompt line: `› <what they typed>` above the reply. */
 .chat-echo {
   margin: 0;
@@ -2652,6 +2660,13 @@ mark.st-hl.flash {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
+  /* Auto-grow (auto-grow-input): the one-row resting height, and the max the JS recompute clamps to
+     before the box scrolls inside itself. The JS sets the exact height from scrollHeight per keystroke
+     (jsdom can't lay that out); these bound it. overflow-y starts hidden — the recompute flips it to
+     `auto` past the cap. The comfortable feel is the story's operator-attested UAT leg (ADR-0070). */
+  min-height: 20px;
+  max-height: 160px;
+  overflow-y: hidden;
 }
 .chat-input::placeholder {
   color: var(--chat-muted);
@@ -2661,6 +2676,26 @@ mark.st-hl.flash {
 }
 .chat-input:disabled {
   opacity: 0.6;
+}
+/* The reset ("new chat") icon button — a muted restart glyph beside send, no label, no button chrome.
+   Clears the transcript to a fresh terminal + aborts the in-flight stream (transcript-reset). The
+   look/feel is the story's operator-attested UAT leg (ADR-0070). */
+.chat-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--chat-chevron);
+  cursor: pointer;
+}
+.chat-reset:hover {
+  color: var(--chat-sage);
+}
+.chat-reset-icon {
+  display: block;
 }
 /* The icon send button — a return-arrow in forest sage, no "Send" label, no button chrome. */
 .chat-send {
