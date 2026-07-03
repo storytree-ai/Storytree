@@ -19,6 +19,8 @@ import { z } from "zod";
 import type { SdkQueryFn } from "./sdk-author.js";
 import { buildOrientationTools } from "./orientation-tools.js";
 import type { OrientationRunner } from "./orientation-tools.js";
+import { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
+import type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +75,15 @@ export interface HeadlessOrchestratorArgs {
   onMessage?: (message: unknown) => void;
   /** Injected for offline tests; defaults to the real SDK `query()`. */
   queryFn?: SdkQueryFn;
+  /**
+   * OPTIONAL spawn surface deps: when present, the session mounts `spawn_story_author`
+   * and `spawn_builder` as claim-gated MCP tools. Absent → the session is byte-identical
+   * to the propose-only surface — no spawn tools are advertised (§7 scale-down mirror).
+   *
+   * The chat keeps `tools: []` regardless — spawn power, not write power (ADR-0137 d.1).
+   * Writes happen inside the SPAWNED sessions under their own per-scope fences.
+   */
+  spawn?: SpawnSurfaceDeps;
 }
 
 export interface HeadlessOrchestratorResult {
@@ -214,11 +225,16 @@ export async function runHeadlessOrchestrator(
     const orientationTools =
       args.runner !== undefined ? buildOrientationTools(args.runner, { store: null }) : [];
 
+    // Spawn tools are wired ONLY when spawn deps are present (same §7 scale-down mirror as
+    // orientation tools). Absent deps → no spawn tools advertised → byte-identical to Phase-1/2.
+    const spawnTools = args.spawn !== undefined ? buildSpawnTools(args.spawn) : [];
+
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
     // The propose_unit tool is always available (it is the non-spoofable declaration surface).
     const allowedTools = [
       `mcp__${PROPOSAL_SERVER}__propose_unit`,
       ...orientationTools.map((t) => `mcp__${ORIENTATION_SERVER}__${t.name}`),
+      ...spawnTools.map((t) => `mcp__${SPAWN_SERVER}__${t.name}`),
     ];
 
     const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
@@ -243,6 +259,7 @@ export async function runHeadlessOrchestrator(
       systemPrompt: args.systemPrompt,
       // The proposal MCP server is always mounted (the non-spoofable propose_unit tool).
       // The orientation MCP server is only mounted when a runner is present (§7 scale-down).
+      // The spawn MCP server is only mounted when spawn deps are present (same §7 mirror).
       mcpServers: {
         [PROPOSAL_SERVER]: createSdkMcpServer({
           name: PROPOSAL_SERVER,
@@ -272,6 +289,15 @@ export async function runHeadlessOrchestrator(
                     return { content: [{ type: "text" as const, text }] };
                   }),
                 ),
+              }),
+            }
+          : {}),
+        ...(spawnTools.length > 0
+          ? {
+              [SPAWN_SERVER]: createSdkMcpServer({
+                name: SPAWN_SERVER,
+                version: "1.0.0",
+                tools: spawnTools,
               }),
             }
           : {}),
