@@ -1,9 +1,9 @@
 // act2-director.test.ts — Act 2 beat director: pure, visitor-paced choreography.
 //
-// This is an INTEGRATION test: it walks the REAL default five-beat script through
+// This is an INTEGRATION test: it walks the REAL default seven-beat script through
 // the REAL advance() state machine, verifying the contractual properties the node
-// spec mandates. Per ADR-0122 each declared contract id LEADS a distinctly-named
-// test so `storytree coverage act2-beat-director` reports full coverage:
+// spec mandates (ADR-0147). Per ADR-0122 each declared contract id LEADS a
+// distinctly-named test so `storytree coverage act2-beat-director` reports full coverage:
 //
 //   • abd-advance-is-visitor-paced-and-deterministic — advance() moves exactly
 //     one beat per call, two walks of the same script are deep-equal, state never
@@ -14,26 +14,29 @@
 //   • abd-wrong-way-road-is-flagged-from-data — the beat-4 UI→DB road is flagged
 //     as an antipattern because its data declares the layer violation, distinct
 //     from every well-directed road.
-//   • abd-default-script-is-the-five-approved-beats — the exported default script
+//   • abd-default-script-is-the-seven-approved-beats — the exported default script
 //     validates against the exported `BeatScript` zod contract (the same contract
-//     the site parses its beat copy against), is exactly the five approved
-//     research-table beats in order, and walks end-to-end to the CTA state.
+//     the site parses its beat copy against), is exactly the seven approved
+//     research-table beats in order (ADR-0147: beat-5-grow-forest + beat-6-connect-
+//     stories added; pull-back renumbered to beat-7-pull-back), and walks end-to-end
+//     to the CTA state.
+//   • abd-world-holds-multiple-stories — WorldState.stories is an array of per-story
+//     nodes each carrying a tri-state status (proven / building / broken);
+//     plant-story seeds stories[0]; grow-forest (beat 5) raises sibling stories with
+//     a genuinely mixed status so the pull-back legend is HONEST (the latent
+//     over-claim ADR-0147 fixes).
 //
 // WHY THIS IS ONE ORGANISM: the beat contract (zod BeatDelta), the advance()
-// state machine, and the five-beat default script are inseparable. The tests
+// state machine, and the seven-beat default script are inseparable. The tests
 // therefore walk the REAL script through the REAL machine — not an isolated
 // single-assertion stub.
-//
-// The import from './act2-director.js' was the RED anchor: the module did not
-// exist at HEAD, so every test failed with "Cannot find module" — the right-kind
-// red (missing implementation, not a syntax error in the test).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Named exports: the pure advance() function, the zero DirectorState, the five-beat
-// default script, the zod contracts, and the inferred types. The default export is
-// the same script object as `defaultScript` (pinned below).
+// Named exports: the pure advance() function, the zero DirectorState, the
+// default script, the zod contracts, and the inferred types. The default export
+// is the same script object as `defaultScript` (pinned below).
 import act2Script, {
   advance,
   initialState,
@@ -51,10 +54,14 @@ import act2Script, {
 // ---------------------------------------------------------------------------
 
 test('abd-advance-is-visitor-paced-and-deterministic: one tap = one beat, two walks deep-equal, no mutation, past-done parks', () => {
-  // One beat per call: beatIndex increments by exactly 1, done only on the fifth.
+  // Mechanics test: script-length-agnostic (works with 5 or 7 beats).
+  // The COUNT is pinned separately in abd-default-script-is-the-seven-approved-beats.
+  const BEATS = defaultScript.length;
+
+  // One beat per call: beatIndex increments by exactly 1, done only on the last beat.
   let state: DirectorState = initialState;
   const walk1: DirectorState[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < BEATS; i++) {
     const prevIndex = state.beatIndex;
     state = advance(state, defaultScript);
     walk1.push(state);
@@ -63,13 +70,13 @@ test('abd-advance-is-visitor-paced-and-deterministic: one tap = one beat, two wa
       prevIndex + 1,
       `step ${i + 1}: beatIndex increments by exactly 1 (visitor tap = one beat)`,
     );
-    assert.equal(state.done, i === 4, `step ${i + 1}: done is ${i === 4}`);
+    assert.equal(state.done, i === BEATS - 1, `step ${i + 1}: done is ${i === BEATS - 1}`);
   }
 
   // Deterministic: a second walk of the same script is deep-equal state-for-state.
   let state2: DirectorState = initialState;
   const walk2: DirectorState[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < BEATS; i++) {
     state2 = advance(state2, defaultScript);
     walk2.push(state2);
   }
@@ -197,10 +204,10 @@ test('abd-wrong-way-road-is-flagged-from-data: exactly one road declares the lay
 });
 
 // ---------------------------------------------------------------------------
-// abd-default-script-is-the-five-approved-beats
+// abd-default-script-is-the-seven-approved-beats  (ADR-0147)
 // ---------------------------------------------------------------------------
 
-test('abd-default-script-is-the-five-approved-beats: validates against BeatScript and walks end-to-end to the CTA', () => {
+test('abd-default-script-is-the-seven-approved-beats: validates against BeatScript and walks end-to-end to the CTA', () => {
   // The exported default script validates against the exported zod contract —
   // the SAME contract the site parses its beat copy against at build time.
   const parsed = BeatScript.safeParse(defaultScript);
@@ -209,28 +216,50 @@ test('abd-default-script-is-the-five-approved-beats: validates against BeatScrip
   // The default export IS the default script (both surfaces stay pinned together).
   assert.equal(act2Script, defaultScript, 'the default export is the defaultScript');
 
-  // Exactly the five approved research-table beats, in order:
-  //   1. plant-story  — a seed grows into a tree with its OUTCOME on a label
-  //   2. attach-wisp  — a soft wisp drifts over the tree
-  //   3. branch-caps  — capability limbs; green only on a signed passing proof
-  //   4. add-roads    — DAG roads; one road flagged as a declared layer violation
-  //   5. pull-back    — camera widens to the full legible forest → done: true (CTA)
-  assert.equal(defaultScript.length, 5, 'exactly 5 beats in the default script');
-  const expectedKinds: BeatDelta['kind'][] = [
+  // ADR-0147: exactly SEVEN approved beats (not five).
+  // Beats 1–4 kept verbatim; pull-back RENUMBERED beat-7-pull-back;
+  // two new beats added: beat-5-grow-forest and beat-6-connect-stories.
+  assert.equal(defaultScript.length, 7, 'exactly 7 beats in the default script (ADR-0147)');
+
+  // Beat IDs are position-honest (id number = position in the arc):
+  const expectedIds = [
+    'beat-1-plant-story',
+    'beat-2-attach-wisp',
+    'beat-3-branch-caps',
+    'beat-4-add-roads',
+    'beat-5-grow-forest',      // NEW (ADR-0147)
+    'beat-6-connect-stories',  // NEW (ADR-0147)
+    'beat-7-pull-back',        // RENUMBERED (was beat-5-pull-back, ADR-0147)
+  ];
+  assert.deepEqual(
+    defaultScript.map((b: Beat) => b.id),
+    expectedIds,
+    'beat ids are exactly the 7 position-honest approved ids (ADR-0147)',
+  );
+
+  // Delta kinds in order:
+  //   beat-6-connect-stories reuses add-roads (inter-story dependency roads are
+  //   already modelled by the existing road mechanism — no new road mechanism)
+  const expectedKinds = [
     'plant-story',
     'attach-wisp',
     'branch-caps',
     'add-roads',
+    'grow-forest',  // new delta kind (ADR-0147)
+    'add-roads',    // beat-6-connect-stories reuses add-roads
     'pull-back',
   ];
-  const actualKinds = defaultScript.map((b: Beat) => b.delta.kind);
-  assert.deepEqual(actualKinds, expectedKinds, 'delta kinds match the five approved beats in order');
+  assert.deepEqual(
+    defaultScript.map((b: Beat) => b.delta.kind),
+    expectedKinds,
+    'delta kinds match the 7 approved beats in order',
+  );
 
   // All beat ids are unique — the site keys its narration copy by beat id.
   const ids = defaultScript.map((b: Beat) => b.id);
-  assert.equal(new Set(ids).size, 5, 'all beat ids are unique');
+  assert.equal(new Set(ids).size, 7, 'all 7 beat ids are unique');
 
-  // End-to-end integration walk: the full five-beat walk produces the CTA end-state.
+  // End-to-end integration walk: the full seven-beat walk produces the CTA end-state.
   let state: DirectorState = initialState;
   const beatIndexSeq: number[] = [];
   const doneSeq: boolean[] = [];
@@ -243,21 +272,111 @@ test('abd-default-script-is-the-five-approved-beats: validates against BeatScrip
   }
   assert.deepEqual(
     beatIndexSeq,
-    [1, 2, 3, 4, 5],
-    'beatIndex increments 1→5 across the five approved beats',
+    [1, 2, 3, 4, 5, 6, 7],
+    'beatIndex increments 1→7 across the seven approved beats',
   );
   assert.deepEqual(
     doneSeq,
-    [false, false, false, false, true],
-    'done is true only after the fifth beat (the pull-back / CTA)',
+    [false, false, false, false, false, false, true],
+    'done is true only after the seventh beat (the pull-back / CTA)',
   );
   assert.equal(state.done, true, 'terminal state: done is true');
-  assert.equal(state.beatIndex, 5, 'terminal state: beatIndex is 5');
+  assert.equal(state.beatIndex, 7, 'terminal state: beatIndex is 7');
   // Camera is parked on the pull-back (the whole legible forest)
   assert.deepEqual(
     state.camera,
-    defaultScript[4]!.camera,
-    'terminal camera = beat 5 camera (pull-back to the full forest)',
+    defaultScript[6]!.camera,
+    'terminal camera = beat 7 camera (pull-back to the full forest)',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// abd-world-holds-multiple-stories  (ADR-0147)
+// ---------------------------------------------------------------------------
+
+test('abd-world-holds-multiple-stories: WorldState.stories is an array; plant-story seeds stories[0]; grow-forest raises sibling stories with mixed status', () => {
+  // ADR-0147: the world no longer holds ONE story — WorldState.stories is an array
+  // of per-story nodes, each { id, label, hasWisp, status, limbs }.
+  // The initial world has an empty stories array (not a bare storyId string).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initWorld = initialState.world as any;
+  assert.ok(
+    Array.isArray(initWorld.stories),
+    'initial world.stories is an empty array (ADR-0147: world holds multiple stories, not a single storyId string)',
+  );
+  assert.equal(initWorld.stories.length, 0, 'initial world has no stories yet');
+
+  // After beat-1 (plant-story), stories[0] is seeded with the planted story.
+  // plant-story no longer OVERWRITES — it seeds stories[0] (ADR-0147 §THE MODEL).
+  let state: DirectorState = advance(initialState, defaultScript);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const worldAfterPlant = state.world as any;
+  assert.ok(
+    Array.isArray(worldAfterPlant.stories),
+    'world.stories is an array after plant-story',
+  );
+  assert.equal(worldAfterPlant.stories.length, 1, 'exactly one story after plant-story (stories[0] seeded)');
+  assert.equal(
+    worldAfterPlant.stories[0].id,
+    'story-outcome-api',
+    'stories[0].id matches the planted story id',
+  );
+  assert.ok(
+    typeof worldAfterPlant.stories[0].label === 'string' &&
+      worldAfterPlant.stories[0].label.length > 0,
+    'stories[0].label is a non-empty string (the outcome label on the map)',
+  );
+
+  // After beat-5 (grow-forest), the world holds MULTIPLE stories (neighbor islands).
+  // Advance beats 1–5: plant-story, attach-wisp, branch-caps, add-roads, grow-forest.
+  let s: DirectorState = initialState;
+  for (let i = 0; i < 5; i++) {
+    s = advance(s, defaultScript);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const worldAfterGrow = s.world as any;
+  assert.ok(
+    Array.isArray(worldAfterGrow.stories),
+    'world.stories is still an array after grow-forest',
+  );
+  assert.ok(
+    worldAfterGrow.stories.length > 1,
+    'more than one story after grow-forest (sibling island stories raised, ADR-0147)',
+  );
+
+  // Each story carries a tri-state status: proven | building | broken.
+  // This is the ADR-0147 fix for the "latent over-claim" (all stories previously
+  // folded to a single amber hue; no broken state existed).
+  const validStatuses = new Set(['proven', 'building', 'broken']);
+  const statuses: string[] = (worldAfterGrow.stories as Array<{ status: string }>).map(
+    (st) => st.status,
+  );
+  for (const status of statuses) {
+    assert.ok(
+      validStatuses.has(status),
+      `story status '${status}' must be one of proven/building/broken (ADR-0147 tri-state)`,
+    );
+  }
+
+  // The status set is GENUINELY MIXED — at least two distinct statuses present
+  // so the pull-back legend is HONEST (not uniform amber).
+  assert.ok(
+    new Set(statuses).size >= 2,
+    'story statuses are genuinely mixed after grow-forest (at least 2 distinct values — the forest is not uniform)',
+  );
+
+  // The grow-forest beat (beat 5) uses the 'grow-forest' delta kind — a new entry
+  // in the BeatDelta discriminated union (ADR-0147).
+  const beat5 = defaultScript[4]!;
+  assert.equal(
+    beat5.id,
+    'beat-5-grow-forest',
+    "beat at index 4 has id 'beat-5-grow-forest' (ADR-0147)",
+  );
+  assert.equal(
+    beat5.delta.kind,
+    'grow-forest',
+    "beat-5 delta kind is 'grow-forest' (new discriminated-union variant, ADR-0147)",
   );
 });
 
