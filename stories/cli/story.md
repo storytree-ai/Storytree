@@ -3,7 +3,7 @@ id: "cli"
 tier: story
 title: "The CLI — one agent-facing command surface that wires every organism together"
 outcome: "Every organism is reachable through one agent-facing CLI that hydrates credentials, dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition root that wires the system into one command."
-status: mapped
+status: proposed
 proof_mode: UAT
 # Agent-exercised: the UAT is an agent running a few core commands and reading the envelope, so the
 # story is machine-witnessed (ADR-0040). Offline commands run with no DB; the live `--pg` legs are
@@ -159,14 +159,18 @@ floor**, starting by adopting the existing green suite and GROWING a `_(gate: bu
 genuine red→green regression leg) the moment observation proves insufficient — a real dispatch/envelope
 defect slips through, or the live `--pg` credential-hydration leg earns a standing offline test.
 
-1. **The CLI hub's own suite is green** _(gate: observe)_ `pnpm --filter @storytree/cli test`. The
+1. **The CLI hub's own suite is green** _(gate: observe)_ _(covers: unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling)_ `pnpm --filter @storytree/cli test`. The
    spine runs it at a clean committed HEAD and OBSERVES it green — the `run` verb dispatch + typed
-   `Envelope` contract, the offline-safe `--pg` write gate (a write refused offline with guidance, not
-   a silent no-op), credential hydration (`secrets.ts`), and the genuinely CLI-resident authoring
-   primitives this story owns (the `stories/` YAML corpus guard `scripts/validate-corpus.ts` and the
-   ADR frontmatter parser `adr-frontmatter.ts`) all pass offline (no DB, no API key) — then signs an
+   `Envelope` contract (**unified-command-dispatch**: `cli.test.ts` / `cli-aliases.test.ts` /
+   `tree-dispatch.test.ts`), the offline-safe `--pg` write gate (a write refused offline with guidance,
+   not a silent no-op), credential hydration (`secrets.ts`), the genuinely CLI-resident authoring
+   primitives this story owns (**cli-resident-corpus-tools**: the `stories/` YAML corpus guard
+   `scripts/validate-corpus.ts` and the ADR frontmatter parser `adr-frontmatter.ts`), and the
+   organism-boundary analyser (**organism-boundary-tooling**: `boundaries.ts` / `boundaries.test.ts`,
+   the pure judge behind `check:boundaries`) all pass offline (no DB, no API key) — then signs an
    `adopted` verdict (`storytree gate run cli#gate-1 --pg`). This observes the whole `packages/cli`
-   suite, which is the connective-tissue behaviour this hub owns; the deep per-domain journeys it
+   suite, which is the connective-tissue behaviour this hub owns; the three caps above green via this
+   gate's `(covers:)` (ADR-0097 §5); the deep per-domain journeys it
    surfaces are adopted by their own organisms' gates (`library`'s `library-cli`, `drive-machinery`'s
    `build-drive-cli`). The live `--pg` credential-hydration + pull (Story UAT leg 4) is DB-gated and
    skipped by default — it becomes a `build-tests` gate here if it ever earns a standing offline test.
