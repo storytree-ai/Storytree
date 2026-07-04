@@ -37,6 +37,7 @@ import type { SpawnSurfaceDeps } from "@storytree/drive";
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
+import { acquireBackendStore, degradedBackend } from "../src/backend/sidecar-startup.js";
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 import { createBuildRouteMount } from "../src/backend/build-route.js";
@@ -126,6 +127,80 @@ const advisory = createAdvisoryReader({ timeoutMs: ADVISORY_TIMEOUT_MS });
 const toIso = (at: Date | string): string =>
   at instanceof Date ? at.toISOString() : new Date(at).toISOString();
 
+// ---------- listen / shutdown (shared by the live + degraded paths) ----------
+
+/** Bind the server to an ephemeral 127.0.0.1 port and print the ONE handshake line main.ts parses. */
+async function announce(server: import("node:http").Server): Promise<number> {
+  await new Promise<void>((res) => server.listen(0, "127.0.0.1", res));
+  const { port } = server.address() as AddressInfo;
+  // The ONE line main.ts parses off stdout — everything else logs to stderr so it can't be mistaken
+  // for the handshake.
+  process.stdout.write(`STORYTREE_BACKEND_PORT=${port}\n`);
+  return port;
+}
+
+/** Reap cleanly when the Electron main kills us on quit: run `cleanup` once, then exit. */
+function installShutdown(
+  server: import("node:http").Server,
+  cleanup: () => Promise<void>,
+): void {
+  let closing = false;
+  const shutdown = (signal: string): void => {
+    if (closing) return;
+    closing = true;
+    console.error(`[backend-entry] ${signal} — shutting down`);
+    server.close(() => {
+      void cleanup().finally(() => process.exit(0));
+    });
+    // Belt-and-braces: never hang the parent's quit on a stuck socket.
+    setTimeout(() => process.exit(0), 3000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}
+
+/**
+ * Serve the DEGRADED read shell when the store could not be acquired (down/unreachable DB, missing IAM
+ * user). The window still OPENS: the boot read routes serve docs (comments empty), the local backend
+ * renders the authored tree with no proof overlays, and /api/health reports `unreachable` — which the
+ * studio turns into its "Start DB" banner rather than the old "sidecar not started" dead-end. No chat /
+ * build / spawn surface (those need the live stores); they return 404 until the DB is back and the app
+ * is relaunched. This is the graceful-degrade counterpart to `main()`'s full wiring.
+ */
+async function serveDegraded(reason: string): Promise<void> {
+  console.error(
+    `[backend-entry] store unavailable — serving the DEGRADED read shell (no chat/build/spawn) ` +
+      `until the DB is reachable: ${reason}`,
+  );
+  const bootRoutes = createBootReadRoutes({ docsDir, listComments: async () => [] });
+  const localHandler = createLocalBackend({
+    storiesDir,
+    docsDir,
+    backend: degradedBackend(),
+    store: "pg",
+  });
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    void (async () => {
+      try {
+        const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+        if (await bootRoutes(req, res, pathname)) return;
+        await localHandler(req, res);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+        }
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+    })();
+  });
+  const port = await announce(server);
+  console.error(
+    `[backend-entry] DEGRADED backend listening on 127.0.0.1:${port} (repo ${repoRoot}) — DB unreachable`,
+  );
+  installShutdown(server, () => Promise.resolve());
+}
+
 // ---------- main ----------
 
 async function main(): Promise<void> {
@@ -141,7 +216,17 @@ async function main(): Promise<void> {
   // env always wins (ADR-0021 / the drive secrets seam). createPool needs it to authenticate.
   loadLocalSecrets();
 
-  const { pool, connector } = await createPool();
+  // Acquire the store TOLERANTLY: createPool throws on a missing IAM user or an unreachable instance
+  // (its connector.getOptions is an eager network call). Rather than let that kill the sidecar before it
+  // ever listens — the old silent exit-1 — degrade to a read-only shell so the window still opens with a
+  // "Start DB" banner (ADR-0119: /api/health NEVER 503; the advisory contract, ADR-0033, extended to
+  // pool creation). A stale-node_modules import failure still surfaces via main.ts's stderr capture.
+  const store = await acquireBackendStore(() => createPool());
+  if (!store.ok) {
+    await serveDegraded(store.reason);
+    return;
+  }
+  const { pool, connector } = store.handle;
   const library = new PgLibraryStore(pool);
   const comments = new PgCommentStore(pool);
   const presence = new PgPresenceStore(pool);
@@ -543,27 +628,11 @@ async function main(): Promise<void> {
     })();
   });
 
-  await new Promise<void>((res) => server.listen(0, "127.0.0.1", res));
-  const { port } = server.address() as AddressInfo;
-  // The ONE line main.ts parses off stdout — everything else logs to stderr so it can't be mistaken
-  // for the handshake.
-  process.stdout.write(`STORYTREE_BACKEND_PORT=${port}\n`);
+  const port = await announce(server);
   console.error(`[backend-entry] thick-local backend listening on 127.0.0.1:${port} (repo ${repoRoot})`);
 
   // Reap cleanly when the Electron main kills us on quit: drain the pool + close the socket once.
-  let closing = false;
-  const shutdown = (signal: string): void => {
-    if (closing) return;
-    closing = true;
-    console.error(`[backend-entry] ${signal} — shutting down`);
-    server.close(() => {
-      void closePool(pool, connector).finally(() => process.exit(0));
-    });
-    // Belt-and-braces: never hang the parent's quit on a stuck socket.
-    setTimeout(() => process.exit(0), 3000).unref();
-  };
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  installShutdown(server, () => closePool(pool, connector));
 }
 
 main().catch((err: unknown) => {

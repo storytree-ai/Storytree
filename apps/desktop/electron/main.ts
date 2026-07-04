@@ -7,6 +7,7 @@ import { NapiKeychain } from "../src/keychain/napi-adapter.js";
 import { capturedFromInput } from "../src/oauth/login.js";
 import type { CredentialKind } from "../src/credential/kinds.js";
 import { serveStudio } from "./static-server.js";
+import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
@@ -42,14 +43,20 @@ let backendPort: number | null = null;
  */
 function startBackend(): Promise<number> {
   return new Promise<number>((resolvePort, rejectPort) => {
+    // Pipe (not inherit) the child's stderr so we can CAPTURE it: under Electron on Windows the child's
+    // inherited stderr does not reach the launching console, so the real cause (an ERR_MODULE_NOT_FOUND
+    // from a stale node_modules, a Postgres auth error) was lost behind a generic exit-1 message. We
+    // still echo every chunk live to our own stderr, so nothing is swallowed, AND keep the tail to fold
+    // into the rejection so the `[main]` line is self-contained.
     const child = spawn(process.execPath, ["--import", "tsx", BACKEND_ENTRY], {
       cwd: appRoot,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-      stdio: ["ignore", "pipe", "inherit"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
     backendChild = child;
     let settled = false;
     let buf = "";
+    let errBuf = "";
     const onData = (chunk: Buffer): void => {
       buf += chunk.toString("utf8");
       const m = buf.match(/STORYTREE_BACKEND_PORT=(\d+)/);
@@ -61,17 +68,24 @@ function startBackend(): Promise<number> {
       }
     };
     child.stdout?.on("data", onData);
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      process.stderr.write(text); // live pass-through — the sidecar's own logs still stream
+      // Bound the retained buffer so a chatty-then-crash child can't grow it without limit; the tail is
+      // all describeSidecarExit needs.
+      errBuf = tailText(errBuf + text, 40);
+    });
     child.once("error", (err) => {
       if (!settled) {
         settled = true;
         rejectPort(err);
       }
     });
-    child.once("exit", (code) => {
+    child.once("exit", (code, signal) => {
       if (backendChild === child) backendChild = null;
       if (!settled) {
         settled = true;
-        rejectPort(new Error(`backend sidecar exited (code ${code ?? "null"}) before reporting a port`));
+        rejectPort(new Error(describeSidecarExit(code, signal, tailText(errBuf, 12))));
       }
     });
   });
