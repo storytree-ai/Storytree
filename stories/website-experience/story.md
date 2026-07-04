@@ -38,8 +38,13 @@ consumed_by: []
 # the R3F island scoped to the inflection's landing moment, replay-only final (145); the SECOND
 # 2026-07-03 re-decision at that same gate — Act 2 is the vibe coder's request handled the storytree
 # way: a website-first walk (increment G) that grows into an orchestrator-guided upstream forest
-# (increment H), ship-G-now/extend-H-next (148).
-decisions: [93, 123, 134, 145, 148, 150]
+# (increment H), ship-G-now/extend-H-next (148); the 2026-07-04 re-decision at the G gate — Act 2 is
+# ONE continuous walk that grows UPSTREAM, the dependency layer is the advantage (150); the 2026-07-04
+# re-decision at the H gate, where H was REFUSED — Act 2 uses the REAL app's UI with progressive
+# disclosure, no escape hatches, step 1 an outcome brief with an example via the orchestrator chat at
+# the bottom, step 2 routing to the drive machinery (temporary overlays), and the dependency DIRECTION
+# corrected to the library rule (website→backend→database, dependent→prerequisite) (153).
+decisions: [93, 123, 134, 145, 148, 150, 153]
 ---
 
 # The two-act vibe-coding experience — the public site's front door enacts chaos → calm
@@ -85,14 +90,21 @@ original five rows rather than reproducing them verbatim.
     inverse of Act 1) then grows THAT one website story green: plant a story → watch a wisp → it
     branches (green only on signed proof) → stories connect (roads) → pull back (the whole legible
     forest) → a CTA that hands off to "what's next."
-  - **H — the ONE continuous walk grows upstream (ADR-0150, 2026-07-04).** The visitor
-    KEEPS WALKING the same arc (not a separate CTA-gated phase — "it shouldnt be separate"): the
-    orchestrator guides them UPSTREAM to a backend and a database as PROPOSED trees above the website
-    on real `dependsOn` edges (`website → backend → database`; stories at every DAG level, not just
-    leaves). The DEPENDENCY LAYERS shown on the real map ARE the advantage storytree teaches — you SEE
-    the layers, build them in order, nothing hidden (this POSITIVE teach replaces increment G's beat-4
-    wrong-way-flag antipattern). Each upstream story is inspectable (what it is + why) and walked green
-    progressively; complexity SCAFFOLDED, revealed as the walk continues, never dumped.
+  - **H — the ONE continuous walk grows upstream (ADR-0150, 2026-07-04; re-specced by ADR-0153 after
+    H was REFUSED at its gate).** The visitor KEEPS WALKING the same arc (not a separate CTA-gated
+    phase — "it shouldnt be separate"): the orchestrator guides them into the DEPENDENCY STACK the
+    website rests on — a backend and a database as PROPOSED trees on real `dependsOn` edges pointing
+    FROM the dependent TO its prerequisite (`website.dependsOn=[backend]`, `backend.dependsOn=[database]`;
+    the website NEEDS the backend, the backend needs the database — ADR-0058 / `cross-story-dependency`;
+    stories at every DAG level, not just leaves). *(The refused first build encoded this BACKWARDS;
+    ADR-0153 corrects the direction.)* Rendered with the FRONTEND HIGH and the foundation BELOW (owner
+    spatial preference, a free render choice). The DEPENDENCY LAYERS shown on the real map ARE the
+    advantage storytree teaches — you SEE the layers, build them in order, nothing hidden (this POSITIVE
+    teach replaces increment G's beat-4 wrong-way-flag antipattern). The experience uses the REAL app's
+    UI with progressive disclosure and NO escape hatches (ADR-0153), and the deeper drive-machinery
+    diagrams (CI/CD, devops, gates, wiring) live here. Each upstream story is inspectable (what it is +
+    why) and walked green progressively; complexity SCAFFOLDED, revealed as the walk continues, never
+    dumped.
   A **stylized teaching diorama over FICTIONAL data** (ADR-0056/0066/0093 boundary), never the
   operable studio.
 - **Rollout — replace home incrementally.** The storm becomes the live homepage as soon as it is
@@ -100,6 +112,15 @@ original five rows rather than reproducing them verbatim.
   main publishes). CONSEQUENCE (owner decision 6, 2026-07-02): the skip affordance and the
   no-WebGL / `prefers-reduced-motion` fallback are FIRST-CLASS from the FIRST increment, and every
   increment must leave the live site coherent.
+  *(ADR-0153 narrowing, 2026-07-04: the owner's redirection 2 removes "skip the intro" and every path
+  to a static/deprecated page as a CAPABLE-VISITOR escape — ONLY the gate-required no-JS /
+  `prefers-reduced-motion` a11y fallback stays. This narrows the "skip is first-class" consequence to
+  the a11y-fallback path. OPEN OWNER/BUILD-TIME CALL — flagged, not silently resolved here: whether
+  `experience-rollout-guardrails`'s `check:web-experience` should keep asserting a distinct "skip
+  affordance marker" or fold it into the a11y-fallback marker is a change to that LEAF cap's contract,
+  outside this Act-2 re-spec's scope; the owner tunes it. Until then the guardrail still requires both
+  markers, and the Act-2 build simply stops offering the skip as a capable-visitor escape — the marker
+  can remain present on the a11y path.)*
 
 ## Structural calls (recorded, not re-litigated)
 
@@ -158,8 +179,8 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
 | 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, the diegetic finale terminal's transform option (web `281b1e6`); one click transforms — silence, collapse into soil — resolving into the 2.5D calm land (ADR-0148: the R3F landing island retires). | (look) | `act1-terminal-storm`, `web-experience-sync` |
-| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **Increment G (ADR-0148) — the website-first walk:** the reused prompt opens it, the orchestrator proposes a MOCK website (no backend) in a scripted exchange, and the five-beat visitor-paced 2.5D walk (ADR-0145; anchored callouts) grows THAT one website story green to a CTA that hands off to "what's next." | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
-| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **Increment H (ADR-0150) — the ONE continuous walk grows UPSTREAM:** the visitor keeps walking the same arc (not a separate phase) as the orchestrator guides them to a PROPOSED backend + database above the website on real `dependsOn` edges — the dependency LAYERS shown on the real map ARE the advantage (replacing beat 4's wrong-way flag); each inspectable (what/why), walked green progressively, complexity scaffolded. | (look) | `act2-guided-walkthrough` |
+| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **Increment G (ADR-0148; reshaped by ADR-0153) — the website-first walk:** the reused prompt opens it, the orchestrator proposes a MOCK website (no backend) in a scripted exchange, and the visitor-paced 2.5D walk (ADR-0145; anchored callouts) grows THAT one website story green to a CTA that CONTINUES into "what's next." ADR-0153: REAL app UI + progressive disclosure, NO escape hatches, step 1 an outcome brief with an example via the orchestrator CHAT AT THE BOTTOM, step 2 routing to the DRIVE MACHINERY (temporary overlays). | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
+| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **Increment H (ADR-0150; re-specced by ADR-0153 after H was REFUSED) — the ONE continuous walk grows UPSTREAM:** the visitor keeps walking the same arc (not a separate phase) as the orchestrator guides them into a PROPOSED backend + database the website `dependsOn` (`website→backend→database`, dependent→prerequisite — ADR-0058; the refused build had it BACKWARDS, corrected by ADR-0153; frontend HIGH / foundation BELOW) — the dependency LAYERS shown on the real map ARE the advantage (replacing beat 4's wrong-way flag); REAL app UI, no escape hatches, the deeper drive-machinery diagrams; each inspectable (what/why), walked green progressively, complexity scaffolded. | (look) | `act2-guided-walkthrough` |
 | 9 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough`, `act2-guided-forest` |
 
 ## Dependency graph and the incremental rollout plan
@@ -200,22 +221,34 @@ whole (owner decision 6):
   OWNER-ATTESTED + LIVE (2026-07-04, web main `ff70222b`) — the walkthrough HALT is CLEARED.** The
   owner walked the cohesive tutorial live and directed it to land (storytree-web PR #22, merged, CD
   green); a late owner-priority addition made the top-left "show me a better way" skip jump straight
-  into the tutorial too (not the static page). Two follow-ups the owner named are deferred to increment
+  into the tutorial too (not the static page). Two follow-ups the owner named were deferred to increment
   H: reframe beat 4's wrong-way flag as the dependency-layer-advantage, and integrate "grow the
-  backend" into the ONE continuous tutorial (not a separate CTA). See the cap's proof status.
+  backend" into the ONE continuous tutorial (not a separate CTA). *(RE-OPENED by ADR-0153, 2026-07-04:
+  refining H at its gate, the owner reshaped G's SURFACE — REAL app UI + progressive disclosure, NO
+  escape hatches [including removing the top-left capable-visitor skip; a11y fallback only], step 1 an
+  outcome brief with an example via the orchestrator CHAT AT THE BOTTOM, step 2 routing to the DRIVE
+  MACHINERY via a temporary overlay. This reverts the cap toward `building` for the reshaped surface;
+  the "As built"/attested record is kept as true history. See the cap's proof status.)*
 - **Increment H — `act2-guided-forest`, the ONE CONTINUOUS WALK grows UPSTREAM (ADR-0150,
-  owner-directed at the G gate 2026-07-04).** The visitor KEEPS WALKING the same arc (not a separate
-  CTA-gated phase — "it shouldnt be separate") as the orchestrator guides them UPSTREAM to a PROPOSED
-  backend + database above the website on real `dependsOn` edges (`website → backend → database`;
-  stories at every DAG level, not just leaves). The DEPENDENCY LAYERS shown on the real map ARE the
-  advantage the walk teaches — you SEE the layers, build them in order, nothing hidden — the POSITIVE
-  teach that replaces increment G's beat-4 wrong-way-flag antipattern. Each upstream story is
-  inspectable (what/why) and walked green progressively; complexity scaffolded, revealed as the walk
-  continues, never dumped. This is the **extend-next** increment — it lands AFTER G ships, continuing
-  the same Act 2 walk. G's "what's next" CTA is the CONTINUATION SEAM; until H lands it resolves to the
-  real product / get-involved so the site stays coherent. (ADR-0150 AMENDS the earlier ADR-0148 framing
-  of H as a CTA-gated separate phase — reframing that one point, not fully superseding 148; the
-  `act2-beat-director` engine is re-specced to a multi-story-with-`dependsOn` upstream vocabulary first,
+  owner-directed at the G gate 2026-07-04; RE-SPECCED by ADR-0153 after H was REFUSED at its own gate
+  2026-07-04).** The visitor KEEPS WALKING the same arc (not a separate CTA-gated phase — "it shouldnt
+  be separate") as the orchestrator guides them into the DEPENDENCY STACK the website rests on — a
+  PROPOSED backend + database the website `dependsOn`, on real `dependsOn` edges pointing FROM the
+  dependent TO its prerequisite (`website.dependsOn=[backend]`, `backend.dependsOn=[database]`;
+  ADR-0058 / `cross-story-dependency`; stories at every DAG level, not just leaves). *(The refused first
+  build encoded this BACKWARDS — `backend dependsOn website`; ADR-0153 corrects it to the library rule.)*
+  Rendered with the FRONTEND HIGH and the foundation BELOW (owner spatial preference, a free render
+  choice). The DEPENDENCY LAYERS shown on the real map ARE the advantage the walk teaches — you SEE the
+  layers, build them in order, nothing hidden — the POSITIVE teach that replaces increment G's beat-4
+  wrong-way-flag antipattern. The experience uses the REAL app's UI + progressive disclosure + NO escape
+  hatches, and the deeper drive-machinery diagrams (CI/CD, devops, gates, wiring) live here (ADR-0153).
+  Each upstream story is inspectable (what/why) and walked green progressively; complexity scaffolded,
+  revealed as the walk continues, never dumped. This is the **extend-next** increment — it lands AFTER G
+  ships, continuing the same Act 2 walk. G's "what's next" CTA is the CONTINUATION SEAM; until H lands it
+  resolves to the real product / get-involved so the site stays coherent. (ADR-0150 AMENDS the earlier
+  ADR-0148 framing of H as a CTA-gated separate phase; ADR-0153 corrects the dependency DIRECTION and
+  adds the real-UI / no-escape / drive-machinery redirections. The `act2-beat-director` engine is
+  re-specced to a multi-story-with-`dependsOn` upstream vocabulary in the CORRECTED direction first,
   then the site build.)
 - **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
@@ -273,25 +306,35 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human
    storytree affordance appear amid the noise. Click once. **Success —** the terminals fall silent
    and collapse, their fragments drop into the ground as soil, the calm empty land fades up — a
    TRANSFORM in place, not a navigation; the R3F bundle loads only now, behind the exhale.
-5. **The same request, done right — the website-first walk (increment G).** _(witness: human)_ On the
-   calm land carrying the SAME "build me a shopping website" request, the session orchestrator
-   proposes a MOCK local website (no backend — honest, meeting the vibe coder where they are) in a
-   short scripted exchange; then advance the walk one Next-tap per beat, in plain language: plant that
-   website story (a seed grows into a tree with its outcome on a label) → watch a wisp (presence
-   without obligation) → it branches (limbs turn green ONLY on a signed passing proof) → stories
-   connect (roads — the wrong-way UI→DB road skipping the service layer is visibly flagged as the
-   antipattern) → pull back (one legible forest: green = proven, sapling = in-progress, withered =
-   broken). **Success —** Act 2 reads as Act 1's request answered; the proposal is honest and does not
-   overwhelm; the arc ends on a CTA that hands off to "what's next"; at no beat does the visitor work
-   harder than one tap — the Act 1 contrast lands.
+5. **The same request, done right — the website-first walk (increment G; reshaped by ADR-0153).**
+   _(witness: human)_ On the calm land carrying the SAME "build me a shopping website" request, the
+   session orchestrator — in the REAL app's chat surface AT THE BOTTOM — presents the story as an
+   OUTCOME BRIEF WITH AN EXAMPLE and proposes a MOCK local website (no backend — honest, meeting the
+   vibe coder where they are); then advance the walk one Next-tap per beat, in plain language, on the
+   REAL app's UI (elements not yet walked through stay hidden — progressive disclosure): the orchestrator
+   ROUTES the story to the drive machinery (a temporary top-left overlay of the agent loop) → the story
+   branches (limbs turn green ONLY on a signed passing proof) → the drive machinery deepens (CI/CD,
+   devops, gates, wiring — overlay diagrams, scaffolded, not overloading) → pull back (one legible
+   forest: green = proven, sapling = in-progress, withered = broken). **Success —** Act 2 reads as Act 1's
+   request answered, shown through the real product's own UI; the proposal is honest and does not
+   overwhelm; there is NO "skip the intro" and no escape to a static/deprecated page (a11y fallback only);
+   the arc ends on a CTA that CONTINUES into "what's next"; at no beat does the visitor work harder than
+   one tap — the Act 1 contrast lands. (There is NO wrong-way-road "antipattern flagged" teach — retired
+   per ADR-0150 §4; the dependency-layer-as-advantage is increment H's, leg 6.)
 6. **The ONE continuous walk grows upstream — the dependency layers are the advantage (increment H,
-   ADR-0150).** _(witness: human)_ From the mock website's completion, keep walking. **Success
-   —** the SAME walk continues (no jump to a new page or separate phase — "it shouldnt be separate"):
-   the orchestrator guides the visitor UPSTREAM to a PROPOSED backend + database (because the mock's
-   Cart / Payments / Receipts cannot truly work without them), shown as proposed trees ABOVE the website
-   on real `dependsOn` edges (`website → backend → database`), stories at every DAG level (not just
-   leaves). The dependency LAYERS shown on the real map read as storytree's ADVANTAGE — you SEE them, in
-   order, nothing hidden — the POSITIVE teach that replaces beat 4's wrong-way flag; there is NO
+   ADR-0150; re-specced by ADR-0153).** _(witness: human)_ From the mock website's completion, keep
+   walking. **Success —** the SAME walk continues (no jump to a new page or separate phase — "it
+   shouldnt be separate"), shown through the REAL app's UI: the orchestrator guides the visitor into the
+   DEPENDENCY STACK the website rests on — a PROPOSED backend + database (because the mock's Cart /
+   Payments / Receipts cannot truly work without them), shown as proposed trees on real `dependsOn`
+   edges pointing FROM the dependent TO its prerequisite — the website `dependsOn` the backend, the
+   backend `dependsOn` the database (`website.dependsOn=[backend]`, `backend.dependsOn=[database]`;
+   ADR-0058 / `cross-story-dependency`), rendered with the FRONTEND HIGH and the foundation BELOW (owner
+   spatial preference), stories at every DAG level (not just leaves). A non-expert reads the layout as
+   "my website DEPENDS ON these; they are the foundation it rests on," with the direction right way round
+   (NOT the website being what the backend depends on — the refused build had it backwards; ADR-0153
+   corrects it). The dependency LAYERS shown on the real map read as storytree's ADVANTAGE — you SEE
+   them, in order, nothing hidden — the POSITIVE teach that replaces beat 4's wrong-way flag; there is NO
    antipattern flag presented as the teach. Each upstream story is inspectable (what it is + why
    proposed) and walked green progressively on demand; complexity is revealed as the walk continues,
    never dumped up front and never hidden.
@@ -306,18 +349,23 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human
 
 ## Proof
 
-**Honest status — `proposed` (authored, not built).** Nothing here is proven yet; `healthy` is
-earned through the gate, never authored (ADR-0020). The four LEAF caps are armed with `--real`
-proof config so the orchestrator drives each through `node build <id> --real --store pg` in
-dependency order — with the one documented pre-step that `r3f-world-spike`'s package scaffold
-(package.json + deps + tsconfig + `repo-manifest.json` ownership) is orchestrator-supplemented GLUE
-before its leaf runs (a leaf can never touch package.json, ADR-0031 §2). The five web-side caps (the
-storm, the inflection, the two Act 2 increments G + H, and the page triage) are built in the
-`storytree-web` repo (branching off ITS `origin/main`, its own CD) by the `frontend-builder` role and
-witnessed by the owner (ADR-0070 two-stage; appearance and feel are never self-signed) — each an
-explicit HALT point for the driving session. The story goes green only
-when the machine legs' gates run green at a clean HEAD AND the human legs are attested — attestation
-is recorded, never presumed (ADR-0044).
+**Honest status — `proposed` (whole story not yet green).** The story `healthy` is earned through the
+gate, never authored (ADR-0020). SOME legs have real history: `act2-beat-director` (LEAF) was
+leaf-proven at its original single-story vocabulary (run `real-mr32b6ib`, @ `2358bc4`) — now RE-SPECCED
+(ADR-0150) and DIRECTION-CORRECTED (ADR-0153), so it reverts to `building` for the grown vocabulary;
+increment G (`act2-guided-walkthrough`) was BUILT + owner-ATTESTED + LIVE (web main `ff70222b`) — now
+RE-OPENED toward `building` by ADR-0153's surface reshape (the attested history kept intact,
+copy-on-write); increment H (`act2-guided-forest`) had a first build REFUSED at its gate and is
+re-specced by ADR-0153. The four LEAF caps are armed with `--real` proof config so the orchestrator
+drives each through `node build <id> --real --store pg` in dependency order — with the one documented
+pre-step that `r3f-world-spike`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
+ownership) is orchestrator-supplemented GLUE before its leaf runs (a leaf can never touch package.json,
+ADR-0031 §2). The five web-side caps (the storm, the inflection, the two Act 2 increments G + H, and the
+page triage) are built in the `storytree-web` repo (branching off ITS `origin/main`, its own CD) by the
+`frontend-builder` role and witnessed by the owner (ADR-0070 two-stage; appearance and feel are never
+self-signed) — each an explicit HALT point for the driving session. The story goes green only when the
+machine legs' gates run green at a clean HEAD AND the human legs are attested — attestation is recorded,
+never presumed (ADR-0044).
 
 ## Open modeling calls (for the owner)
 

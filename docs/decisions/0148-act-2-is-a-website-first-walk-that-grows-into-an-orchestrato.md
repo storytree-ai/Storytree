@@ -81,7 +81,12 @@ over fictional data (the teaching-diorama boundary, ADR-0056/0066/0093, holds).
    continuous walk continuing upstream, and G's "what's next" CTA becomes a CONTINUATION SEAM the walk
    flows through ("it shouldnt be separate"). The upstream forest (§4's database + backend) and the
    scaffolded-complexity obligation stand; only the phase boundary dissolves into one arc. Noted in
-   place per ADR-0139.)*
+   place per ADR-0139.)* *(Further amended by
+   [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md), 2026-07-04: the
+   "grow the backend" upstream stories carry `dependsOn` edges pointing dependent → prerequisite
+   (`website.dependsOn=[backend]`, `backend.dependsOn=[database]`); and the reveal is reframed toward the
+   real product — step 1 is an outcome brief carried by the orchestrator chat, step 2 shows the
+   orchestrator routing to the drive machinery via a temporary overlay. Noted in place per ADR-0139.)*
 5. **The whole flow is cohesive — all-in on the tutorial.** The finale terminal's **"show me the better
    way"** routes DIRECTLY into the Act 2 2.5D tutorial — not to a static/classic homepage, and not via a
    3D landing island that then flips to 2.5D. The **R3F 3D landing island is dropped** (the flip read as
@@ -97,7 +102,13 @@ over fictional data (the teaching-diorama boundary, ADR-0056/0066/0093, holds).
    degradation exit — for a capable visitor it is a fast-path INTO the primary experience, and the
    classic/calm page is reachable by them only as the accessibility fallback tier. This tightens, not
    changes, the decision: the tutorial is the front door; the classic page is never an opt-out offered
-   to a capable visitor. Noted in place per ADR-0139.)* The **finale
+   to a capable visitor. Noted in place per ADR-0139.)* *(Amended by
+   [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md), 2026-07-04: the
+   escape hatches are removed entirely — "skip the intro" and EVERY path to the static / deprecated
+   websites (all deprecated) are retired; a capable visitor is offered NO escape to them. The ONLY
+   surviving non-experience path is the gate-required no-JS / `prefers-reduced-motion` accessibility
+   fallback. This sharpens §5's "front door" principle to its endpoint: there is no "prefer the classic
+   page" door at all. Noted in place per ADR-0139.)* The **finale
    copy** turns to address the visitor directly — it is waiting on *them*, it names their likely
    overwhelm, and it offers a better way that "feels like playing a game" (replacing the earlier cryptic
    "the bottleneck is not the agents" monologue).

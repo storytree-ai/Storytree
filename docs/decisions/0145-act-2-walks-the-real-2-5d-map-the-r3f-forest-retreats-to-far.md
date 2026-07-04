@@ -22,6 +22,12 @@ increment H is one continuous walk growing UPSTREAM (a backend and a database ab
 `dependsOn` edges), rendered on this same synced `buildScene` map with the same anchored callouts. The
 substrate is extended, not re-decided. Noted in place per ADR-0139.)*
 
+*(Amended by [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md),
+2026-07-04: the 2.5D substrate here is EXTENDED, not re-decided — the walk still renders on the synced
+`buildScene` scene graph as the site's SVG. The real-app UI components render WITHIN that map, and the
+drive-machinery flow-diagram overlays are transient chrome ABOVE it (not a substrate change and not map
+signal — they float above the honest map and clear). Noted in place per ADR-0139.)*
+
 ## Context
 
 The Act 2 guided walkthrough

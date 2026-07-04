@@ -128,8 +128,14 @@ can read.*
    [ADR-0150](0150-act-2-is-one-continuous-walk-that-grows-upstream-the-depende.md), 2026-07-04: beat
    4's "stories connect via roads" — the wrong-way UI→DB road flagged as a NEGATIVE antipattern teach —
    is retired as the teach and replaced by the POSITIVE dependency-layer-as-advantage teach: the honest
-   upstream layers (`website → backend → database`) shown on the real 2.5D map ARE storytree's
-   advantage. Noted in place per ADR-0139.)*
+   upstream layers (`website → backend → database`, dependent → prerequisite) shown on the real 2.5D map
+   ARE storytree's advantage. Noted in place per ADR-0139.)* *(Further amended by
+   [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md), 2026-07-04: Act 2's
+   surface is no longer bespoke website chrome — it reuses the REAL app's UI components with progressive
+   disclosure (UI the visitor hasn't been walked through is hidden and revealed as the walk earns it),
+   the escape hatch to deprecated pages is removed (only the a11y fallback stays), and step 1 becomes an
+   outcome brief with an example carried by the orchestrator chat at the bottom. Noted in place per
+   ADR-0139.)*
    - **Tech:** the [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
      **R3F WebGL island**, lazy-loaded at the inflection, riding the artifacts-not-source flow over
      **fictional** demo data (boundary preserved). It is a *stylized teaching diorama*, not the real

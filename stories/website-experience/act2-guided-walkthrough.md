@@ -3,11 +3,11 @@ id: "act2-guided-walkthrough"
 tier: capability
 story: website-experience
 title: "Act 2 (increment G) — the website-first walk: the reused prompt, the orchestrator's mock-website proposal, and the 2.5D walk that grows one website story to the 'what's next' hand-off"
-outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build me a shopping website', reused across both acts) — done the storytree way (ADR-0148). Three framing moves wrap the existing walk: (1) it OPENS from that reused prompt; (2) the SESSION ORCHESTRATOR proposes a MOCK LOCAL WEBSITE first — no backend — in a short SCRIPTED exchange that is honest (explicitly a mock, meeting the vibe coder where they are: they want to SEE a website to validate) and does not lead with the backend; (3) the existing auto-guided, VISITOR-PACED five-beat walk (one Next-tap per beat, plain language — the tonal inverse of Act 1) then grows THAT ONE website story green ON THE REAL 2.5D MAP — the synced buildScene scene graph rendered as the site's SVG (ADR-0145), narrated by game-tutorial CALLOUT BOXES anchored to the exact map element each beat teaches: plant a story (outcome on a label) → watch a wisp (presence without obligation) → it branches (limbs green ONLY on signed proof) → stories connect (roads, the wrong-way UI→DB road visibly flagged) → pull back (one legible forest: green = proven, sapling = in-progress, withered = broken); the retained shopping fiction (Cart / Payments / Receipts) is exactly the features that cannot truly work without a backend, so the walk ends on a CTA that HANDS OFF to 'what's next' (the upstream forest of increment H — act2-guided-forest). A stylized teaching diorama over fictional data, never the operable studio."
+outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build me a shopping website', reused across both acts) — done the storytree way (ADR-0148), shown through the REAL app's UI (ADR-0153). The walk OPENS from that reused prompt; the SESSION ORCHESTRATOR proposes a MOCK LOCAL WEBSITE first — no backend — in a short SCRIPTED exchange (honest, explicitly a mock; does not lead with the backend; meets the vibe coder where they are). Then the auto-guided, VISITOR-PACED walk (one Next-tap per beat, plain language — the tonal inverse of Act 1) grows THAT ONE website story green ON THE REAL 2.5D MAP — the synced buildScene scene graph rendered as the site's SVG (ADR-0145), narrated by callout boxes anchored to the map element each beat teaches. RESHAPED by ADR-0153 (owner-directed at the H gate, where the first walk was refined): the walk and orchestrator use the REAL desktop/web app UI components (not bespoke chrome) with progressive disclosure (hide UI the visitor has not been walked through); there is NO escape to any static/deprecated page (a11y fallback only); STEP 1 presents a story as an OUTCOME BRIEF WITH AN EXAMPLE via the session-orchestrator CHAT AT THE BOTTOM (as the real app — dropping the 'young tree on a label' framing); STEP 2 shows the orchestrator ROUTING the story to the DRIVE MACHINERY via a temporary top-left flow-diagram overlay of the agent loop; STEPS 3–4 expand the drive-machinery diagrams (CI/CD, devops, gates, wiring — a second overlay top-right OK) without overloading; the branch beat (limbs green ONLY on signed proof) is PRESERVED, and the wrong-way UI→DB road is RETIRED as the teach (ADR-0150 §4). The retained shopping fiction (Cart / Payments / Receipts) is exactly the features that cannot truly work without a backend, so the walk ends on a CTA that is a CONTINUATION SEAM into 'what's next' (the upstream forest of increment H — act2-guided-forest), not a hand-off to a separate page. A stylized teaching diorama over fictional data, never the operable studio."
 status: proposed
 proof_mode: operator-attested
 depends_on: [storm-to-forest-inflection, act2-beat-director, web-experience-sync]
-decisions: [134, 145, 148, 150]
+decisions: [134, 145, 148, 150, 153]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The choreography ENGINE is already machine-proven
 # upstream (act2-beat-director: visitor-paced advance, proof-gated green, the flagged wrong-way
 # road, the approved default script — all parent-side contracts), and the artifact freshness is the
@@ -47,23 +47,49 @@ Three framing moves wrap the walk that was already built and witnessed:
 
 The retained shopping fiction (**Cart / Payments / Receipts**) is precisely the set of features that
 **cannot truly work without a backend** — so the walk ends not on a generic "sign up" but on a
-**CTA that hands off to "what's next"**: the upstream forest of a database and a proper backend that
-increment H ([`act2-guided-forest`](act2-guided-forest.md)) reveals. A stylized teaching diorama
-over fictional data, never the operable studio.
+**CTA that CONTINUES into "what's next"** (a continuation seam, not a hand-off to a separate page —
+ADR-0150): the upstream forest of a database and a proper backend that increment H
+([`act2-guided-forest`](act2-guided-forest.md)) reveals. A stylized teaching diorama over fictional
+data, never the operable studio.
+
+**RESHAPED by [ADR-0153](../../docs/decisions/0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md)
+(owner-directed at the H attestation gate, 2026-07-04).** The first walk above was built + attested +
+LIVE; refining H, the owner reshaped G's surface (this RE-OPENS the capability toward `building`; the
+"As built" record is kept as true history). Five changes: the walk and orchestrator use the **REAL
+app's UI components** (not bespoke chrome) with **progressive disclosure** (hide UI the visitor has not
+been walked through); **no escape hatches** to any static / deprecated page (a11y fallback only); **step
+1** presents a story as an **outcome brief WITH an example** carried by the session-orchestrator **CHAT
+AT THE BOTTOM** (as the real app), dropping the "young tree on a label" framing; **step 2** shows the
+orchestrator **routing to the DRIVE MACHINERY** via a temporary top-left flow-diagram overlay; **steps
+3–4** expand the drive-machinery diagrams (CI/CD, devops, gates, wiring — a second overlay top-right OK)
+without overloading. The branch beat (limbs green ONLY on signed proof) is PRESERVED; the wrong-way road
+is RETIRED as the teach (ADR-0150 §4). See "Re-spec" in the proof status below and the ADR-0153
+redirections in Guidance.
 
 **Depends on —** [`storm-to-forest-inflection`](storm-to-forest-inflection.md) — the land it grows
 on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 [`web-experience-sync`](web-experience-sync.md) — the artifact rail both ride to the site.
 
-> **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-04); the authored `status` stays
-> `proposed` — `healthy` is earned through the whole-story gate, never authored (ADR-0020).** The teaching claims are
-> deliberately NOT left to this attestation: "green only on signed proof" and "the wrong-way road
-> is flagged" are DATA CONTRACTS the parent spine already holds in `act2-beat-director` — the site
-> cannot walk a script that contradicts the thesis. What a human must witness is what remains: the
-> reused-prompt open reads as Act 1's request answered; the scripted orchestrator proposal lands as
-> an honest, non-overwhelming planning moment; each beat lands its concept, in plain words, at one
-> tap of effort; and the CTA hands off to "what's next" without dead-ending — the felt calm
-> ADR-0134 stakes the pitch on, now framed website-first by ADR-0148.
+> **Proof status (honest) — a first walk was BUILT + OWNER-ATTESTED + LIVE (2026-07-04, web main
+> `ff70222b`); RE-SPECCED by ADR-0153 (owner-directed at the H gate 2026-07-04), which RE-OPENS this
+> LOOK toward `building` for the reshaped surface. The authored `status` stays `proposed`; `healthy`
+> is earned through the whole-story gate, never authored (ADR-0020).** The prior attested walk is REAL
+> HISTORY (kept intact below — the "As built" and "Attested + landed" records are a true live-attested
+> account, copy-on-write); the gate simply re-opened this capability because the WHAT changed. Per
+> `defects-amend-the-owning-story`, the re-spec reverts the capability to `building` and re-earns
+> `healthy` through the gate on the new surface. The teaching claims are deliberately NOT left to
+> attestation: "green only on signed proof" is a DATA CONTRACT the parent spine holds in
+> `act2-beat-director` — the site cannot walk a script that contradicts the thesis (the "wrong-way road
+> is flagged" contract is RETIRED as the teach per ADR-0150 §4). What a human must witness on the
+> RESHAPED walk (ADR-0153): the surface uses the REAL app's UI components (not bespoke chrome) with
+> progressive disclosure (UI the visitor has not been walked through stays hidden); there is NO escape
+> to any static / deprecated page (a11y fallback only); step 1 presents a story as an OUTCOME BRIEF WITH
+> AN EXAMPLE, ideally via the session-orchestrator CHAT AT THE BOTTOM (as the real app); step 2 shows
+> the orchestrator ROUTING to the drive machinery via a temporary top-left flow-diagram overlay; steps
+> 3–4 expand the drive-machinery diagrams (CI/CD, devops, gates, wiring) without overloading; and the
+> walk still ends on a CTA that CONTINUES upstream into H without dead-ending — the felt calm ADR-0134
+> stakes the pitch on, now framed website-first (ADR-0148) and shown through the real product's own UI
+> (ADR-0153).
 >
 > **Re-scope note (ADR-0148, 2026-07-03).** At this capability's attestation gate, the owner judged
 > the first 2.5D build *"good progress"* but **re-directed the NARRATIVE**: Act 2 must teach how
@@ -113,8 +139,36 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 >   gated second experience ("it shouldnt be separate"). Until H lands, the seam still resolves to the
 >   real product / get-involved so the live site stays coherent; the change is the experienced
 >   continuity, not a requirement that H exist before G is honest.
+>
+> **Re-spec — SETTLED by ADR-0153 (owner-directed at the H attestation gate, 2026-07-04, where H was
+> REFUSED; noted in place per ADR-0139).** Attesting/refusing H, the owner directed five sharpenings
+> that reshape G's experienced surface (born accepted, ADR-0110 — NOT open questions). This RE-OPENS
+> this capability toward `building` for the reshaped surface; the "As built" and "Attested + landed"
+> records below stay a true live-attested account of the FIRST walk (copy-on-write), not rewritten:
+> - **Real app UI, progressive disclosure.** The walk AND the orchestrator surface use the REAL
+>   desktop/web app's UI components (`apps/desktop`, `apps/studio`), not bespoke website chrome. UI the
+>   visitor has not been walked through is HIDDEN, revealed as the walk earns it. (Whether that is
+>   literal component reuse across the sync boundary or faithful re-creation is an open build-time
+>   mechanism call — the site only HAS the synced `buildScene` artifact, ADR-0056/0066/0093.)
+> - **No escape hatches.** "Skip the intro" and every path to a static / deprecated page are removed —
+>   a capable visitor is offered NO escape. Only the gate-required no-JS / reduced-motion a11y fallback
+>   stays. (This retires the shipped top-left-skip-into-tutorial AND the interim static-page fallback as
+>   a capable-visitor destination.)
+> - **Step 1 is an OUTCOME BRIEF with an example, via the orchestrator chat at the bottom.** A story is
+>   presented as an outcome brief carrying an example — ideally shown through the session-orchestrator
+>   CHAT AT THE BOTTOM (as the real app), carrying that example. The earlier "young tree / lives on the
+>   map / not buried in a chat log" framing is dropped.
+> - **Step 2 shows the orchestrator ROUTING to the drive machinery** via a TEMPORARY top-left
+>   flow-diagram overlay of the agent loop (an overlay, not on the map — the background machinery is not
+>   map signal unless something breaks). Steps 3–4 expand the drive-machinery diagrams (CI/CD, devops,
+>   gates, wiring) — a second overlay top-right is fine — without overloading; the deepest of these
+>   extend into H.
+> - The reframed CTA (continuation seam), the corrected dependency direction, and the deeper upstream
+>   reveal remain H's ([`act2-guided-forest`](act2-guided-forest.md)) — G carries the reused-prompt
+>   open, the outcome-brief-with-chat step 1, the drive-machinery overlays (steps 2–4), and the walk
+>   over the real product UI, all leading into the seam.
 
-## As built (web main `ff70222b`)
+## As built (web main `ff70222b`) — the FIRST attested walk (historical record, kept intact)
 
 The verified anchors in the pinned tree (cite these, not the older sketches):
 
@@ -141,10 +195,43 @@ The verified anchors in the pinned tree (cite these, not the older sketches):
 
 ## Guidance
 
-THE SURFACE (owner decisions 2026-07-02 + the 2026-07-03 re-decisions, ADR-0145 for the substrate and
-ADR-0148 for the website-first narrative — the spec of the feel):
+THE ADR-0153 REDIRECTIONS (owner-directed at the H gate 2026-07-04 — the reshape of G's surface; these
+GOVERN where they touch the older framing-moves below):
 
-THE THREE FRAMING MOVES (ADR-0148 — what this re-scope ADDS on top of the already-built 2.5D walk):
+- **Real app UI, progressive disclosure.** The walk AND the orchestrator surface use the REAL
+  desktop/web app's UI components (`apps/desktop`, `apps/studio`), NOT bespoke website chrome — the
+  visitor sees the actual product's interface. UI elements the visitor has NOT yet been walked through
+  are HIDDEN, revealed as the walk earns them. Whether "reuse the real components" is literal (more
+  synced across the boundary) or faithful re-creation against the same design system is an open
+  build-time mechanism call (the site only HAS the synced `buildScene` artifact — ADR-0056/0066/0093);
+  the WHAT is visual parity + no bespoke chrome, flagged for the frontend-builder + owner — do not
+  over-constrain the HOW.
+- **No escape hatches.** Remove "skip the intro" and EVERY path to a static / deprecated page — a
+  capable visitor is offered no escape. This RETIRES the shipped top-left-skip-straight-into-tutorial as
+  a capable-visitor affordance AND the interim static-page fallback as a destination. The ONLY surviving
+  non-experience path is the gate-required no-JS / `prefers-reduced-motion` a11y fallback (a clean
+  minimal static page, `check:web-experience` green).
+- **Step 1 is an OUTCOME BRIEF with an example, via the orchestrator chat at the bottom.** A story is
+  presented as an OUTCOME BRIEF carrying an EXAMPLE — ideally shown through the session-orchestrator
+  CHAT AT THE BOTTOM (as the real app), carrying that example. Drop the "young tree / lives on the map /
+  not buried in a chat log" framing. (The org analogy: the manager states the outcome and an example, in
+  the chat surface a real user would use.)
+- **Step 2 shows the orchestrator ROUTING to the drive machinery.** After the brief, show what the
+  orchestrator DOES with the story: it routes it to the drive machinery. A TEMPORARY flow-diagram
+  OVERLAY, top-left, depicts the agent loop running in the background. It is an overlay, not drawn on
+  the map, because the background machinery is not map signal unless something breaks or needs attention
+  — the map stays the honest picture; the process detail floats above it and clears.
+- **Steps 3–4 expand the drive-machinery diagram(s).** Build out what the drive machinery is — CI/CD,
+  devops, the gates, how the system is wired to the code to keep it honest. MAY use multiple diagrams (a
+  second overlay, top-right) but MUST NOT overload — reveal scaffolded. The deepest of these (the
+  backend/database depth) extend into increment H. The overlays are site-side content keyed by beat id
+  (the `act2-beat-director` engine needs no change — ADR-0153's authoring call).
+
+THE SURFACE (owner decisions 2026-07-02 + the 2026-07-03 re-decisions, ADR-0145 for the substrate and
+ADR-0148 for the website-first narrative, RESHAPED by ADR-0153 above — the spec of the feel):
+
+THE THREE FRAMING MOVES (ADR-0148 — what the website-first re-scope ADDED on top of the already-built
+2.5D walk; note the ADR-0153 redirections above now govern the SURFACE these render on):
 
 - **The reused prompt opens it.** Act 1's storm terminal now leads with **"build me a shopping
   website"** (the copy change lands in `act1-terminal-storm`'s storm script; recorded here because
@@ -177,10 +264,18 @@ COHESION — ALL IN ON THE TUTORIAL (ADR-0148 §5 — the end-to-end flow the ow
   that then flipped to the 2.5D map; that flip read as awkward. The transform now resolves straight
   into the 2.5D tutorial ground (the storm→soil choreography stays; the destination is the 2.5D map,
   not an R3F island). Act 2 carries zero WebGL — the ~1.2 MB island chunk leaves the path entirely.
-- **Retire the classic front page as a destination.** No "prefer the classic front page?" opt-out for
-  capable visitors — the tutorial is the front door. The no-JS / reduced-motion accessibility fallback
-  and skip affordance STAY (ADR-0134, gate-enforced) as graceful degradation — a clean minimal static
-  page, NOT the old marketing homepage, and NOT an escape a capable visitor is offered.
+- **Retire the classic front page as a destination — and now retire the skip too (ADR-0153).** No
+  "prefer the classic front page?" opt-out for capable visitors — the tutorial is the front door.
+  ADR-0148 kept a persistent skip affordance (routing a capable visitor straight into the tutorial);
+  ADR-0153 redirection 2 REMOVES "skip the intro" and every path to a static / deprecated page as a
+  capable-visitor affordance. The ONLY surviving non-experience path is the gate-required no-JS /
+  reduced-motion accessibility fallback (a clean minimal static page, `check:web-experience` green —
+  NOT the old marketing homepage, and NOT an escape a capable visitor is offered). *(Note: the SHIPPED
+  build wires `[data-experience-skip]` to jump into the tutorial — see "As built"; the reshape removes
+  that capable-visitor skip, keeping only the a11y fallback marker the gate requires. Confirm with the
+  owner at the gate whether any minimal replay/exit affordance is wanted, since call-1/call-2 in the
+  story settled replay-only with the persistent skip as the floor — ADR-0153 narrows that floor to the
+  a11y path; flag it for the owner rather than silently dropping a previously-attested affordance.)*
 - **The finale copy addresses the visitor.** The root agent's finale turns on the user — it is waiting
   on them, it names their likely overwhelm, and it offers a better way that "feels like playing a game"
   (the exact new lines are build content in the builder's brief; the old cryptic "the bottleneck is not
@@ -221,6 +316,13 @@ THE WALK ITSELF (carried FORWARD from the 2.5D build, unchanged by this re-scope
   replaced by increment H's dependency-layer-as-advantage — the honest upstream layers shown on the
   real map. The reframe lands in H's build, not a rewrite of this record. See
   [`act2-guided-forest`](act2-guided-forest.md).)*
+  *(Steps 1–2 reshaped — ADR-0153, 2026-07-04: this bullet records the FIRST walk's beat framing.
+  ADR-0153 reshapes what steps 1–2 SHOW — step 1 becomes an OUTCOME BRIEF with an example carried by
+  the session-orchestrator CHAT AT THE BOTTOM (not "seed→tree with a label" as the sole framing), and
+  step 2 shows the orchestrator ROUTING the story to the drive machinery via a temporary top-left
+  overlay. Beats 3 (branch/signed-proof — PRESERVED) and 5 (pull-back) stand; beat 4's teach is H's
+  dependency-layer reveal. The reshape lands in the re-build over the real app UI, not a rewrite of this
+  historical record.)*
 - **The CTA is a continuation seam into "what's next".** The final state names the next step honestly:
   the mock website's Cart / Payments / Receipts cannot truly work without a backend, so the CTA poses
   the question increment H answers — the upstream database + backend the orchestrator will guide the
@@ -242,7 +344,14 @@ folds each `DirectorState.world` into a fresh `SceneInput` → the synced `build
 2.5D SVG (client-side per beat, or per-beat scenes pre-rendered at build time — `worldSvg` is pure
 string building, so either is viable; the builder's call, per ADR-0145). Map motion (viewBox
 tweens, growth transitions, callout placement from per-element `data-id` geometry) is the site's
-job; STATE is the proven engine's.
+job; STATE is the proven engine's. **ADR-0153 additions:** the walk and the orchestrator surface
+render with the REAL app's UI components (not bespoke chrome — literal reuse across the sync boundary
+or faithful re-creation is an open build-time mechanism call; the site only HAS the synced `buildScene`
+artifact); UI hides progressively (reveal as the walk earns it); the orchestrator CHAT sits AT THE
+BOTTOM (as the real app) carrying step 1's outcome brief; and the drive-machinery OVERLAYS (step 2
+top-left agent loop; steps 3–4 top-right CI/CD/gates/wiring) are TEMPORARY chrome ABOVE the map,
+site-side content keyed by beat id (NOT engine structure — ADR-0153's authoring call), validated
+against the director's exported contract by `act2-validate`.
 
 ## UAT (operator-attested)
 
@@ -257,25 +366,50 @@ job; STATE is the proven engine's.
    working product), it does NOT lead with the backend, and it does NOT overwhelm — a vibe coder
    feels met, not lectured. The exchange is short (a few lines, not a wall of chat).
 3. **The pacing inverts the storm.** _(witness: human)_ From the proposal, the walk advances ONLY on
-   Next — five taps, five beats, no auto-play; effort never exceeds one tap.
+   Next — one tap per beat, no auto-play; effort never exceeds one tap. **Success —** the visitor-paced
+   Next gesture is the only input; the beat count is the owner's to tune at the gate (the director is
+   data-driven), but each merge leaves a complete-so-far arc.
 4. **Each beat lands its concept, growing the one website story.** _(witness: human)_ Guided by a
-   callout anchored to the element being taught, a non-expert reader can say back, per beat: intent
-   lives on the map; I can see it working without watching it; green means proven, not claimed; that
-   road is wrong and I can see why; the whole thing fits on one calm screen — and the tree they
-   watch grow is the mock shopping website (Cart / Payments / Receipts), the proposal made real.
+   callout anchored to the element being taught (and the orchestrator chat at the bottom for the
+   opening brief), a non-expert reader can say back, per beat: this is the outcome I asked for, with an
+   example (step 1's brief); the orchestrator is routing it into machinery that does the work (step 2);
+   green means proven, not claimed (the branch beat); the whole thing fits on one calm screen (the
+   pull-back) — and the tree they watch grow is the mock shopping website (Cart / Payments / Receipts),
+   the proposal made real. (There is NO wrong-way-road "that road is wrong" teach — retired per ADR-0150
+   §4; the dependency-layer-as-advantage is H's.)
 5. **The thesis moments read.** _(witness: human)_ The walk happens on the real 2.5D map (the
-   product's own look); the limb visibly greens WITH the signed-proof narration (never before); the
-   wrong-way UI→DB road is instantly distinguishable from the good roads; the pull-back forest is
-   legible at a glance (green / sapling / withered).
-6. **The CTA hands off to "what's next".** _(witness: human)_ The arc ends by naming the next step:
+   product's own look) shown through the real app's UI; the limb visibly greens WITH the signed-proof
+   narration (never before); the pull-back forest is legible at a glance (green / sapling / withered).
+6. **The CTA continues into "what's next".** _(witness: human)_ The arc ends by naming the next step:
    the mock website's Cart / Payments / Receipts cannot truly work without a backend, so the CTA
-   poses "what's next" — the upstream database + backend (increment H). **Success —** the hand-off
-   is legible and honest (this was a diorama; the real thing is watched-live); until H lands it
-   resolves to the real product / get-involved; no beat dead-ends.
-7. **The path into the tutorial is cohesive — all in.** _(witness: human)_ From the finale, "show me
-   the better way" leads STRAIGHT into the 2.5D tutorial — one click, no jarring 3D-island-that-flips
-   to 2.5D, no detour to a classic homepage. **Success —** the finale's copy reads as the agent
-   addressing YOU (waiting on you, sensing your overwhelm, offering a better way that feels like
-   playing a game); the transition into the 2.5D walk is smooth and single-path; a capable visitor is
-   never offered an escape to a classic front page (the no-JS / reduced-motion fallback still exists
-   for those who need it).
+   poses "what's next" — the upstream database + backend (increment H) — as a CONTINUATION SEAM, not a
+   hand-off to a separate page. **Success —** the seam is legible and honest (this was a diorama; the
+   real thing is watched-live); until H lands it resolves to the real product / get-involved; no beat
+   dead-ends.
+7. **The path into the tutorial is cohesive — all in, no escape.** _(witness: human)_ From the finale,
+   "show me the better way" leads STRAIGHT into the 2.5D tutorial — one click, no jarring
+   3D-island-that-flips to 2.5D, no detour to a classic homepage. **Success —** the finale's copy reads
+   as the agent addressing YOU (waiting on you, sensing your overwhelm, offering a better way that feels
+   like playing a game); the transition into the walk is smooth and single-path; a capable visitor is
+   offered NO escape — no "skip the intro" and no path to a classic/static front page (ADR-0153; the
+   no-JS / reduced-motion a11y fallback still exists for those who need it).
+8. **The surface is the real app's UI, revealed progressively (ADR-0153).** _(witness: human)_ Look at
+   the walk and the orchestrator surface. **Success —** they read as the REAL storytree product's
+   interface (the same UI components the desktop/web app uses), not bespoke website chrome; UI elements
+   the walk has not yet reached are HIDDEN and appear as the walk earns them — the visitor is never
+   dumped in front of the full interface at once.
+9. **Step 1 is an outcome brief with an example, in the orchestrator chat (ADR-0153).** _(witness:
+   human)_ Watch the opening. **Success —** the story is presented as an OUTCOME BRIEF carrying an
+   EXAMPLE, ideally through the session-orchestrator CHAT AT THE BOTTOM (as the real app) — the visitor
+   reads what they asked for and a concrete example, in the real chat surface, not as abstract "here is
+   a young tree" prose.
+10. **Step 2 shows the orchestrator routing to the drive machinery (ADR-0153).** _(witness: human)_
+    After the brief, advance. **Success —** the walk shows what the orchestrator DOES with the story: it
+    routes it to the drive machinery, depicted by a TEMPORARY flow-diagram OVERLAY top-left (the agent
+    loop running in the background) — an overlay ABOVE the map, not drawn on it, that clears. The map
+    stays the honest picture of the work.
+11. **Steps 3–4 expand the drive machinery without overloading (ADR-0153).** _(witness: human)_ Advance
+    through the steps that build out the drive machinery (CI/CD, devops, gates, wiring). **Success —**
+    the deeper picture is shown via overlay diagram(s) (a second overlay, top-right, is fine), revealed
+    scaffolded in an order a first-time viewer can hold — never dumped all at once; the deepest
+    (backend/database) depth continues into increment H.
