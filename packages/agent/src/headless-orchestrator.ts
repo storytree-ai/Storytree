@@ -44,7 +44,18 @@ export interface HeadlessOrchestratorArgs {
   /** Model for the session. Default: claude-opus-4-8 (the orchestrator runs on the most capable
    *  model — the §7 scale-down removed the per-message bloat, so Opus's latency is acceptable). */
   model?: string;
-  /** Turn ceiling — the runaway brake. Default: 16. */
+  /**
+   * Turn ceiling for the orchestrator session — the runaway brake.
+   *
+   * Default: NONE — the session runs UNBOUNDED (ADR-0151, re-deciding ADR-0130 for the
+   * orchestrator-session path). The orchestrator session is the HUMAN-WATCHED loop (the desktop chat
+   * and the terminal `orchestrate` command): the owner sees it stream and can stop a genuine hang, so
+   * a fixed turn cap that false-fails a long-but-healthy orient/propose (the spawn-visibility symptom)
+   * costs more than it protects. Pass a positive value ONLY to RE-impose a cap (debugging / a
+   * bounded run); absent, no `maxTurns` is handed to the SDK. This lifts the cap for the orchestrator
+   * SESSION only — the inner-loop builder leaf (`sdk-author.ts`) and the spawned story-author keep
+   * their own runaway brakes (ADR-0130 unchanged there).
+   */
   maxTurns?: number;
   /**
    * OPTIONAL hard budget ceiling in USD (the SDK aborts past it). Default: NONE — no USD ceiling unless
@@ -246,9 +257,12 @@ export async function runHeadlessOrchestrator(
     const options: Options = {
       cwd: args.cwd ?? process.cwd(),
       model: args.model ?? "claude-opus-4-8",
-      maxTurns: args.maxTurns ?? 16,
+      // No turn ceiling by default (ADR-0151, re-deciding ADR-0130 for the orchestrator-session path):
+      // the orchestrator session is the human-watched loop, so a fixed cap that false-fails a healthy
+      // long orient/propose costs more than it protects. Pass maxTurns ONLY to RE-impose a cap.
+      ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
       // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030), so a
-      // metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.
+      // metered dollar cap is a phantom. Pass maxBudgetUsd ONLY when set.
       ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
       ...(wantsDeltas ? { includePartialMessages: true } : {}),

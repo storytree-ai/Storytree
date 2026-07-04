@@ -735,6 +735,77 @@ test(
   },
 );
 
+// MAXTURNS SEAM (ADR-0151): an injected maxTurns must be forwarded through the mount →
+// startChatStream → orchestrate → runHeadlessOrchestrator, which hands it to the SDK options as the
+// orchestrator-session turn cap. The sidecar (backend-entry.ts) resolves an operator RE-impose from
+// STORYTREE_ORCHESTRATOR_MAX_TURNS and passes it here; the mount only forwards.
+//
+// DELETION TEST: dropping the maxTurns forwarding in the mount (or in the bridged startChatStream args)
+// removes maxTurns from the captured session options — this assertion fails.
+test(
+  "csm-forwards-maxturns: an injected maxTurns is forwarded into the session options (the RE-impose override)",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery, maxTurns: 25 });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "orient with a bounded turn cap" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text(); // drain the stream so the session settles
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    const opts = capturedOptions as { maxTurns?: number };
+    assert.equal(opts.maxTurns, 25, "an injected maxTurns must reach the session options as the turn cap");
+  },
+);
+
+// MAXTURNS SEAM (baseline): with NO maxTurns injected, the orchestrator session is UNBOUNDED (ADR-0151)
+// — the mount forwards no maxTurns, so the SDK options carry no `maxTurns` key at all.
+//
+// DELETION TEST: if the mount defaulted maxTurns to a number, the `"maxTurns" in opts` assertion fails.
+test(
+  "csm-forwards-maxturns: without a maxTurns, the session runs unbounded (no maxTurns key in the options)",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "orient unbounded" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text();
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    assert.ok(
+      !("maxTurns" in (capturedOptions as object)),
+      "with no injected maxTurns, the session options must carry no maxTurns key — unbounded (ADR-0151)",
+    );
+  },
+);
+
 // STATIC BOUNDARY CHECK: the chat-sse-mount source must import startChatStream from
 // @storytree/drive (by package name), never from apps/studio/server (the forbidden
 // surface→surface coupling), and must carry no pg or Cloud SQL connector imports

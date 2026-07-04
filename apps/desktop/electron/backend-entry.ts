@@ -43,6 +43,7 @@ import { createBuildRouteMount } from "../src/backend/build-route.js";
 import { createAcceptDispatchMount } from "../src/backend/accept-dispatch.js";
 import { credentialedBuildRunner } from "../src/backend/credentialed-build-runner.js";
 import { resolveSpawnMaxTurns } from "../src/backend/spawn-turns.js";
+import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
 import { CREDENTIAL_ENV_VAR } from "../src/credential/kinds.js";
 import { NapiKeychain } from "../src/keychain/napi-adapter.js";
@@ -517,9 +518,18 @@ async function main(): Promise<void> {
       );
     }
   }
+  // The orchestrator SESSION turn cap (ADR-0151): UNBOUNDED by default — the desktop chat is the
+  // human-watched session-orchestrator loop, so a fixed cap that false-fails a healthy long
+  // orient/propose costs more than it protects. resolveOrchestratorMaxTurns returns undefined unless
+  // the operator RE-imposes a cap via STORYTREE_ORCHESTRATOR_MAX_TURNS (a bounded/debug run); undefined
+  // → no maxTurns forwarded → the SDK runs unbounded. This is the SESSION cap only — the chat-spawned
+  // story-author keeps its own STORYTREE_SPAWN_MAX_TURNS brake (resolveSpawnMaxTurns above) and the
+  // builder leaf keeps the generic 16-turn brake (ADR-0130 unchanged there).
+  const orchestratorMaxTurns = resolveOrchestratorMaxTurns(process.env.STORYTREE_ORCHESTRATOR_MAX_TURNS);
   const chatMount = createChatSseMount({
     runner: orientationRunner,
     ...(spawn !== undefined ? { spawn } : {}),
+    ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
   });
 
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });

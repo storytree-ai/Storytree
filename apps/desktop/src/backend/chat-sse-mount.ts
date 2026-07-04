@@ -219,6 +219,17 @@ export interface ChatSseMountDeps {
    * inside the spawned subagents under their own fences.
    */
   spawn?: SpawnSurfaceDeps;
+  /**
+   * OPTIONAL turn ceiling for the orchestrator SESSION (ADR-0151). Absent (the default) → the session
+   * runs UNBOUNDED: the mount forwards no `maxTurns`, so `startChatStream` → `orchestrate` →
+   * `runHeadlessOrchestrator` hand no `maxTurns` to the SDK. The orchestrator session is the
+   * human-watched loop, so a fixed cap that false-fails a healthy long orient/propose costs more than
+   * it protects. The sidecar (backend-entry.ts) resolves an operator RE-impose from
+   * STORYTREE_ORCHESTRATOR_MAX_TURNS via `resolveOrchestratorMaxTurns` and passes it here; a positive
+   * value bounds the session for a debug/bounded run. This is the session cap only — the spawned
+   * story-author / builder keep their own runaway brakes (ADR-0130 unchanged there).
+   */
+  maxTurns?: number;
 }
 
 // ---------- Bridge startChatStream ----------
@@ -234,6 +245,7 @@ type BridgedStartStream = (args: {
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
   spawn?: SpawnSurfaceDeps;
+  maxTurns?: number;
 }) => AsyncGenerator<ChatStreamEvent>;
 
 const bridgedStart = startChatStream as unknown as BridgedStartStream;
@@ -287,19 +299,21 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn/runner/spawn only when present (exactOptionalPropertyTypes).
+    // Build args — forward queryFn/runner/spawn/maxTurns only when present (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
       store: SeedStore;
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;
       spawn?: SpawnSurfaceDeps;
+      maxTurns?: number;
     } = {
       intent,
       store,
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
       ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
       ...(deps.spawn !== undefined ? { spawn: deps.spawn } : {}),
+      ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
     };
 
     // Stream each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives.

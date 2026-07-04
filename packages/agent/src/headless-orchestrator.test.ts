@@ -81,10 +81,12 @@ test("runHeadlessOrchestrator: returns proposal text + cost + turns on a success
 // 1b. No USD budget ceiling by default — the turn cap is the brake (ADR-0131)
 // ---------------------------------------------------------------------------
 
-test("runHeadlessOrchestrator: runs with NO USD budget ceiling by default — the turn cap is the brake (ADR-0131)", async () => {
+test("runHeadlessOrchestrator: runs with NO USD budget ceiling AND no turn ceiling by default (ADR-0131 / ADR-0151)", async () => {
   let opts: { maxBudgetUsd?: number; maxTurns?: number } | undefined;
+  let hasMaxTurnsKey = false;
   const queryFn: SdkQueryFn = (q) => {
     opts = (q as { options: { maxBudgetUsd?: number; maxTurns?: number } }).options;
+    hasMaxTurnsKey = "maxTurns" in (q as { options: object }).options;
     return (async function* () {
       yield okResult;
     })();
@@ -94,8 +96,23 @@ test("runHeadlessOrchestrator: runs with NO USD budget ceiling by default — th
   // The session is subscription-funded (ADR-0030); ADR-0108's deferred per-session budget is resolved
   // in the no-ceiling direction (ADR-0131) — so no phantom dollar wall by default…
   assert.equal(opts?.maxBudgetUsd, undefined, "no maxBudgetUsd unless `orchestrate --budget` is set");
-  // …but the genuine runaway brake (the turn cap) stays in force.
-  assert.equal(opts?.maxTurns, 16, "the turn cap (16) remains the default runaway brake");
+  // …and the orchestrator session runs UNBOUNDED (ADR-0151): the human-watched loop keeps no turn cap
+  // by default (the desktop chat / terminal `orchestrate`), so a healthy long orient/propose can't be
+  // false-failed by a fixed ceiling. No `maxTurns` key is even handed to the SDK.
+  assert.equal(hasMaxTurnsKey, false, "no maxTurns handed to the SDK by default — the session is unbounded");
+  assert.equal(opts?.maxTurns, undefined, "unbounded by default (ADR-0151)");
+});
+
+test("runHeadlessOrchestrator: an explicit maxTurns RE-imposes the turn cap (the debug/bounded-run override, ADR-0151)", async () => {
+  let opts: { maxTurns?: number } | undefined;
+  const queryFn: SdkQueryFn = (q) => {
+    opts = (q as { options: { maxTurns?: number } }).options;
+    return (async function* () {
+      yield okResult;
+    })();
+  };
+  await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", maxTurns: 12, queryFn });
+  assert.equal(opts?.maxTurns, 12, "an explicit maxTurns is threaded to the SDK — the cap can be re-imposed");
 });
 
 test("runHeadlessOrchestrator: passes an explicit maxBudgetUsd through (the opt-in cap survives, ADR-0131)", async () => {

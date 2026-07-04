@@ -10,6 +10,14 @@ load_bearing: true
 
 accepted (2026-06-28) — decided/directed by the owner in conversation on 2026-06-28. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+> **Amended in part by [ADR-0151](0151-lift-the-turn-cap-on-the-orchestrator-session-desktop-chat-t.md)**
+> — this ADR's core decision (no USD ceiling by default for the orchestrator + curator sessions) stands
+> unchanged. But it also restated the ORCHESTRATOR session's turn cap as `16` ("uniform runaway brake",
+> "bounded by `maxTurns ?? 16`" below) — that incidental prose is now overtaken: ADR-0151 LIFTED the
+> orchestrator session's default turn cap (it runs unbounded, the human is the backstop). Read every
+> "orchestrator 16 / uniform turn-cap brake" claim below as applying to the CURATOR session only; the
+> orchestrator's default turn cap is gone. The USD decision is untouched.
+
 ## Context
 
 ADR-0130 removed the USD budget ceiling as a default from the inner-loop BUILD harness (the SDK leaf +
