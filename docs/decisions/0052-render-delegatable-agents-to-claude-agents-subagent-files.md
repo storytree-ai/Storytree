@@ -19,6 +19,16 @@ the `.claude/agents/*.md` rendering is built and enforced by `check:agents`.
 the one renderer and listed "one population, many rendered surfaces"; this adds one more surface
 (`.claude/agents/*.md`) on top of the same renderer, for the harness-native delegation path.
 
+**Correction ([ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this ADR's
+DECISION stands in full — delegatable agents are still generated, drift-gated, harness-native
+`.claude/agents/*.md` spawnable files, a third surface of the same renderer. Overtaken is only
+Decision 1's render-function *sub-choice*: the agent-file surface (and `storytree agents <name>`) no
+longer render the FULL inline body (`renderAgentFile` wrapping `renderAgentPrompt`). ADR-0156
+re-decides it to an **essentials-only** view (the agent's own prose + a floor checklist + an escape
+hatch + per-step doors that pull ceremony/principle bodies from the CLI just-in-time), completing
+ADR-0053 over this surface. Decision 1 is corrected out in place below.
+
 ## Context
 
 ADR-0051 deliberately favours the harness-AGNOSTIC, pull-based model (ADR-0030): context is rendered
@@ -32,8 +42,14 @@ owner asked to close, complementary to (not a replacement for) ADR-0051's surfac
 ## Decision
 
 1. **`.claude/agents/<id>.md` is a third generated surface of the SAME renderer.** `renderAgentFile`
-   wraps `renderAgentPrompt` (ADR-0051's keystone) in Claude Code subagent frontmatter
-   (`name` / `description`) + a generated marker + the assembled prompt. No new render logic.
+   wraps the renderer in Claude Code subagent frontmatter (`name` / `description`) + a generated
+   marker + the assembled prompt.
+   *(The original wording said `renderAgentFile` wraps `renderAgentPrompt` — the FULL-body inline path —
+   with "no new render logic"; that render-function sub-choice is re-decided by
+   [ADR-0156](0156-subagent-prompts-are-essentials-only-the-cli-serves-ceremony.md) (per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)): the surface now
+   renders the ESSENTIALS view, not the full inline. The "third generated surface of the same renderer"
+   decision — the load-bearing point here — is untouched.)*
 
 2. **Only the DELEGATABLE agents render here.** The three with a dedicated runtime surface are
    excluded: `session-orchestrator` (→ CLAUDE.md, ADR-0051 §3) and `red-builder` / `green-builder`
