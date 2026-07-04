@@ -15,7 +15,11 @@ proof_mode: UAT
 # OFFLINE (scripted build runner, ADR-0010 §5 — never a live SDK build on a gate pass). The story-level
 # uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT
 # node stays withheld; the crown derives from the per-leg roll-up.
-capabilities: [worker-relocation, desktop-build-route, desktop-accept-dispatch, routed-node-real-dispatch]
+# desktop-accept-dispatch RETIRED by ADR-0155 (2026-07-04) — the chat /api/chat/accept route it built was
+# removed (PR #587); dropped from this list so the crown rolls over the three live caps only. The story
+# keeps worker-relocation, desktop-build-route (both green via the observe gates below) and
+# routed-node-real-dispatch (green via its own --real verdict). See desktop-accept-dispatch.md (retired).
+capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch]
 # WHY A NEW STORY, NOT AN EDIT TO chat-drive-bridge OR desktop OR studio-build:
 #   - chat-drive-bridge is ADR-0108 Phase 3+4's BRIDGE (the proposed-unit signal, the id threading, the
 #     dispatch CORE, the accept affordance). Its four machine-provable capabilities are landed + green; its
@@ -218,9 +222,16 @@ signed verdict per session, then the next is spawned. The honest status is `prop
 Status stays `proposed` for every unit — `healthy` is earned through the prove-it-gate (and, for the live
 legs that belong to chat-drive-bridge, the operator's attestation); it is never authored (ADR-0020).
 
-## Capabilities (4)
+## Capabilities (3 live; 1 retired)
 
-Listed roots-first (a capability appears after everything it depends on). All four are **proof-wired**
+> **`desktop-accept-dispatch` RETIRED by ADR-0155 (2026-07-04).** The desktop `/api/chat/accept` route it
+> built was removed in PR #587 (the session-orchestrator drives via its spawn + landing tools rather than
+> accepting a chat proposal into a build). It is dropped from the capability list, the dependency graph,
+> Story UAT leg 3, and Reliability Gate 2's `(covers:)`; its spec is kept as `status: retired` history. The
+> three remaining caps below are unaffected — the `/api/build` route and the relocated
+> `dispatchAcceptedBuild` worker call (still used by `builder-spawn-dispatch`) are UNCHANGED.
+
+Listed roots-first (a capability appears after everything it depends on). All three live caps are **proof-wired**
 (ADR-0057 — each carries a `proof:` block with a `real:` arm describing a genuine additive net-new
 red→green against the real package/app source), so they form a **dependency-closed, acyclic set in which
 every member resolves a `real:` arm** — what makes the WHOLE story story-`real`-buildable
@@ -230,8 +241,8 @@ every member resolves a `real:` arm** — what makes the WHOLE story story-`real
 |---|---|---|---|
 | 1 | [`worker-relocation`](worker-relocation.md) | The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, `dispatchAcceptedBuild`, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. | — |
 | 2 | [`desktop-build-route`](desktop-build-route.md) | The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build` runner + `@storytree/orchestrator` discovery for `isBuildable`); a scripted runner proves the route without SDK spend. | `worker-relocation` |
-| 3 | [`desktop-accept-dispatch`](desktop-accept-dispatch.md) | An accepted `proposedUnitId` POSTed to the desktop backend reaches `dispatchAcceptedBuild` over the relocated worker, mints a run, fires `runBuildJob`, and the worker's coarse progress is read back over the desktop surface — the accept click's mechanism, end-to-end on the desktop, with a scripted runner. | `desktop-build-route` |
-| 4 | [`routed-node-real-dispatch`](routed-node-real-dispatch.md) | A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line naming the real red→green, the persisted verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (story branch unchanged). Post-landing increment, ADR-0144. | `worker-relocation` |
+| ~~3~~ | ~~[`desktop-accept-dispatch`](desktop-accept-dispatch.md)~~ | **RETIRED by ADR-0155** — the desktop `/api/chat/accept` route was removed (PR #587); spec kept as history. | ~~`desktop-build-route`~~ |
+| 3 | [`routed-node-real-dispatch`](routed-node-real-dispatch.md) | A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line naming the real red→green, the persisted verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (story branch unchanged). Post-landing increment, ADR-0144. | `worker-relocation` |
 
 ## Dependency graph (will be code-derived)
 
@@ -246,11 +257,7 @@ and the ADR-0144 routing flip hangs off it directly.
     `runBuildJob` / the `BuildContext` type from `@storytree/drive/build-worker`, the NEW home capability 1
     creates. It cannot be mounted until the worker is reachable from a package (the desktop may not import
     `apps/studio/server`, ADR-0100). It couples directly to the relocated worker's exported surface.
-- `desktop-accept-dispatch` → `desktop-build-route`
-  - The accept dispatch reuses the SAME mounted `BuildContext` + registry the build route stands up
-    (one in-flight run, the shared poll), and calls `dispatchAcceptedBuild` (also relocated, capability 1)
-    over it. It is the accept-click front of the build route's worker wiring; it couples to the route's
-    mounted context and to nothing deeper in-story.
+- ~~`desktop-accept-dispatch` → `desktop-build-route`~~ (RETIRED by ADR-0155 — the accept-click front is gone)
 - `routed-node-real-dispatch` → `worker-relocation`
   - The ADR-0144 flip EDITS the node arm of `routedBuildRunner` inside the relocated
     `packages/drive/src/build-worker.ts` — the file capability 1 created. It couples to the relocated
@@ -282,9 +289,11 @@ shared package both surfaces import.
   `@storytree/drive/build-worker` and RE-POINTS the studio importers at the package — `apiRouter.ts`
   (imports `runBuildJob` / `BuildRunner` / `BuildRegistry`), `devApi.ts` (imports `BuildRegistry` /
   `routedBuildRunner` / `adoptRunnerFromAdoptStory`), `chat-build-dispatch`'s old home (the dispatch moves
-  WITH the worker), and the five server suites (`buildRegistry.test.ts`, `buildWorker.test.ts`,
-  `chat-build-dispatch.test.ts`, `buildApi.integration.test.ts`, `adoptApi.integration.test.ts`). They must
-  stay green (parity). This story OWNS the relocation; studio-build owns the original site + its
+  WITH the worker), and the server suites (`buildRegistry.test.ts`, `buildWorker.test.ts`,
+  `buildApi.integration.test.ts`, `adoptApi.integration.test.ts`). They must
+  stay green (parity). (`chat-build-dispatch.test.ts`, the studio parity test of the relocated dispatch,
+  was removed with ADR-0155's retirement of the `chat-build-dispatch` cap — the dispatch's behaviour is
+  covered by `@storytree/drive`'s `build-worker-relocation.test.ts`.) This story OWNS the relocation; studio-build owns the original site + its
   surface-resident `handleBuild` HTTP wrapper (which stays a thin wrapper over the relocated `runBuildJob`).
 - **`chat-drive-bridge`** — the **dispatch being relocated, and the live legs UNBLOCKED**. chat-drive-bridge
   authored `dispatchAcceptedBuild` (`apps/studio/server/chat-build-dispatch.ts`) + the accept-to-land Build
@@ -315,17 +324,18 @@ shared package both surfaces import.
 ## Story UAT
 
 The integrated **acceptance walkthrough** that proves the whole `desktop-build-mount` — the desktop becomes
-a build-capable propose→accept→drive surface — meets its outcome end-to-end, OFFLINE. It is minimal-first
-(one coherent journey: the worker is reachable from a package → the desktop mounts build over it → the
-accept click reaches the dispatch on the desktop), defect-driven thereafter (each real failure earns a
-permanent regression case, never speculative breadth). Mocks are forbidden in the consumed seams that CAN
-run offline: the relocated worker is the REAL `BuildRegistry` + `runBuildJob`; the desktop route/dispatch
-drive the REAL relocated worker over a REAL node:http server. Only the BUILD RUNNER is scripted offline (a
+a build-capable surface — meets its outcome end-to-end, OFFLINE. It is minimal-first
+(one coherent journey: the worker is reachable from a package → the desktop mounts build over it; the
+accept-click third step RETIRED with `desktop-accept-dispatch`, ADR-0155), defect-driven thereafter (each
+real failure earns a permanent regression case, never speculative breadth). Mocks are forbidden in the
+consumed seams that CAN run offline: the relocated worker is the REAL `BuildRegistry` + `runBuildJob`; the
+desktop route drives the REAL relocated worker over a REAL node:http server. Only the BUILD RUNNER is scripted offline (a
 live `story build --real` is subscription-billed AND lands real work, ADR-0010 §5) — and the live driven
 walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 
 > **HONEST status — `proposed`, mechanism-mounted-offline; the live walk belongs to chat-drive-bridge.**
-> The three legs below are automatable by the package + desktop suites (`@storytree/drive` + the desktop
+> The two legs below (leg 3 retired by ADR-0155) are automatable by the package + desktop suites
+> (`@storytree/drive` + the desktop
 > `node:test` suite) over a scripted build runner + the in-memory seed. There is NO live leg in this
 > story's UAT — the live driven desktop build (a real `story build --real` to a spine-signed verdict + an
 > opened PR, with progress streamed back) and its appearance are **chat-drive-bridge's** operator-attested
@@ -333,15 +343,17 @@ walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 > is mounted and reachable end-to-end offline; it deliberately does NOT re-prove or re-attest the live
 > walk that lives in chat-drive-bridge.
 >
-> **Per-leg witness (ADR-0106).** All three legs are `witness: machine` — the suites demonstrably cover
-> them, so the adopt pass observe-and-signs them. No leg is `human` here (the human-witness legs are
-> chat-drive-bridge's, not this story's). No leg rests `either`. The story-level `uat_witness` is absent →
-> human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays withheld; the
-> crown derives from the per-leg roll-up.
+> **Per-leg witness (ADR-0106).** The two remaining legs (`uat-1`, `uat-2`) are `witness: machine` — the
+> suites demonstrably cover them, so the adopt pass observe-and-signs them. **Leg 3 (the accept→dispatch
+> walk) was RETIRED by ADR-0155** with the `desktop-accept-dispatch` cap — the `/api/chat/accept` route +
+> `accept-dispatch.test.ts` were removed in PR #587, so there is nothing left to witness there. No leg is
+> `human` here (the human-witness legs are chat-drive-bridge's, not this story's). No leg rests `either`.
+> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven
+> whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
 
 **Goal —** The build worker is reachable from a shared package (importing nothing from `apps/*`, the
-studio importers still green); the desktop local backend mounts a build route over it; and an accepted
-unit id POSTed to the desktop reaches the relocated dispatch, mints a run on the relocated registry, and
+studio importers still green); the desktop local backend mounts a build route over it, mints a run on the
+relocated registry, and
 streams the worker's coarse progress back — all offline over a scripted runner, with no verdict ever
 handed in and no app importing another app's server.
 
@@ -352,7 +364,7 @@ handed in and no app importing another app's server.
    NOT resolve at HEAD — the right-kind module-not-found red); the relocated worker imports nothing from
    `apps/*` (the ADR-0100 wall the relocation exists to satisfy, asserted structurally); the studio
    importers (`apiRouter.ts`, `devApi.ts`) re-point at the package and the existing server suites
-   (`buildWorker.test.ts`, `buildRegistry.test.ts`, `chat-build-dispatch.test.ts`, the two integration
+   (`buildWorker.test.ts`, `buildRegistry.test.ts`, the two integration
    suites) stay green from the new home (parity — no behaviour changed, only the home).
 2. **The desktop mounts a build route over the relocated worker.** _(witness: machine)_ Stand up the
    desktop build-route dispatcher on a real `node:http` server with an injected scripted `BuildContext`
@@ -362,30 +374,27 @@ handed in and no app importing another app's server.
    404 (worker never spawned against nothing); a wrong method is 405; the dispatcher falls through (returns
    false) for every other path (not a catch-all) — exactly the `handleBuild` typed-answer contract, now on
    the desktop surface, importing the worker by package name (never `apps/studio/server`).
-3. **An accepted id POSTed to the desktop reaches the dispatch and streams progress back.** _(witness:
-   machine)_ POST an ACCEPTED `proposedUnitId` to the desktop backend's accept→dispatch path with a scripted
-   runner over the real relocated registry. **Success —** the post reaches `dispatchAcceptedBuild`, which
-   validates buildable, mints a run on the relocated registry (returning a runId), fires `runBuildJob`, and
-   the worker's coarse progress lines are read back over the desktop surface (the shared `GET
-   /api/build?runId` poll); an un-buildable id is a typed refusal (never dispatched); a second concurrent
-   accept is the single-build refusal; and the dispatch holds no signing key and no verdict path — a SAFE
-   build INTENT only (ADR-0091). The accept click POSTs through the api seam; no free-text "yes" path
-   triggers a build (ADR-0108 d.3, the affordance owned by chat-drive-bridge).
+> **~~Leg 3. An accepted id POSTed to the desktop reaches the dispatch and streams progress back.~~
+> RETIRED by ADR-0155 (2026-07-04).** This leg proved the `desktop-accept-dispatch` cap — the desktop
+> `/api/chat/accept` route reaching `dispatchAcceptedBuild`. That route + its `accept-dispatch.test.ts` were
+> removed in PR #587 (the session-orchestrator drives via its spawn + landing tools rather than accepting a
+> chat proposal into a build), so this leg has nothing left to witness and is dropped. The relocated
+> `dispatchAcceptedBuild` worker call itself REMAINS live under `builder-spawn-dispatch`; only the desktop
+> chat ACCEPT front retired. (Deliberately left as a non-numbered note so it no longer parses as a `#uat-n`
+> obligation.)
 
 End state — the worker lives in a shared package the desktop may legally import; the desktop mounts a build
-route + the accept→dispatch over it; an accepted proposal drives a (scripted, offline) run to a streamed
-terminal state on the desktop surface — every wall held (no app imports another app's server; the dispatch
-handed in no verdict; the spine signs, not the route; CI is the second proof before the trunk). The LIVE
-driven desktop walk — a real subscription chat proposal accepted by a real click that drives a real
-`story build --real` to a signed verdict + an opened PR — is now POSSIBLE, and is chat-drive-bridge's
-operator-attested legs 5–6 to witness.
+route (`POST /api/build`) over it and drives a (scripted, offline) run to a streamed terminal state on the
+desktop surface — every wall held (no app imports another app's server; the route handed in no verdict; the
+spine signs, not the route; CI is the second proof before the trunk).
 
 ## Reliability Gates
 
-The three unregistered capabilities — `worker-relocation`, `desktop-build-route`, `desktop-accept-dispatch`
+The two unregistered capabilities — `worker-relocation`, `desktop-build-route` (the third,
+`desktop-accept-dispatch`, was RETIRED by ADR-0155)
 — are **brownfield-by-outcome** (`status: mapped`): each LANDED with a real, passing, OFFLINE automated
-test that genuinely exercises it (the relocation's package-boundary contract; the desktop route + the
-accept→dispatch driven over the REAL relocated worker on a real `node:http` server), but storytree's own
+test that genuinely exercises it (the relocation's package-boundary contract; the desktop route
+driven over the REAL relocated worker on a real `node:http` server), but storytree's own
 prove-it-gate never DROVE those proofs to a persisted verdict — the `--real --store pg` signing was skipped
 at build time, so the code is tested-but-UNREGISTERED. On a GREEN base a fresh `--real` Build HALTS (there
 is no red→green left to earn, and *halt is never a pass*, ADR-0130), so the honest path off `mapped` is
@@ -402,7 +411,7 @@ the existing green suites and GROW a `_(gate: build-tests)_` gate (a genuine red
 moment observation proves insufficient — a real relocation / route / accept-dispatch defect slips through
 the existing suite.
 
-The capabilities span TWO package suites, so there are two observe gates, each naming the capabilities its
+The capabilities span TWO package suites, so there are two observe gates, each naming the capability(ies) its
 suite behaviourally covers (the coverage is real, not declared-only: each test is the cap's own integration
 test over its real collaborators, ADR-0097 §2):
 
@@ -419,20 +428,19 @@ test over its real collaborators, ADR-0097 §2):
    re-pointed at the package and still green) is the same suite's sibling proof. (`routed-node-real-dispatch`
    already carries its own signed `--real` verdict from a genuine edit-existing red→green — the ADR-0144
    node-branch flip — so it is not re-adopted here.)
-2. **The desktop backend suite is green** _(gate: observe)_ _(covers: desktop-build-route, desktop-accept-dispatch)_ `pnpm --filter desktop test`. The
+2. **The desktop backend suite is green** _(gate: observe)_ _(covers: desktop-build-route)_ `pnpm --filter desktop test`. The
    spine runs it at a clean committed HEAD and OBSERVES it green — the desktop build route
    (**desktop-build-route**: `build-route.test.ts` — `createBuildRouteMount` serves `POST /api/build` → 202
    + runId fire-and-forget + `GET /api/build?runId` → status + coarse transcript, the 404 / 409 / 405 typed
    answers and the chain fall-through, driven over the REAL relocated `BuildRegistry` + `runBuildJob` on a
-   real `node:http` server, importing the worker by package name never `apps/studio/server`) and the desktop
-   accept→dispatch (**desktop-accept-dispatch**: `accept-dispatch.test.ts` — an accepted `proposedUnitId`
-   POSTed to `POST /api/chat/accept` reaches the relocated `dispatchAcceptedBuild` over the SHARED registry,
-   mints a run, streams the worker's progress back over the shared `GET /api/build?runId` poll, refuses an
-   un-buildable id + a concurrent accept, and holds no signing key or verdict path) both pass offline (no DB,
-   no API key, no SDK, no Electron) — then signs an `adopted` verdict. This observes the whole desktop
-   `src/**` suite; the two caps green via this gate's `(covers:)` (ADR-0097 §5). The one production-wiring
+   real `node:http` server, importing the worker by package name never `apps/studio/server`) passes offline
+   (no DB, no API key, no SDK, no Electron) — then signs an `adopted` verdict. This observes the whole desktop
+   `src/**` suite; the cap greens via this gate's `(covers:)` (ADR-0097 §5). The one production-wiring
    edit to `apps/desktop/electron/backend-entry.ts` (chaining the dispatchers + constructing the real
    `BuildContext`) is the desktop story's operator-attested sidecar glue, not a leg of this gate.
+   (The `desktop-accept-dispatch` cap this gate ALSO covered was RETIRED by ADR-0155 — its
+   `/api/chat/accept` route + `accept-dispatch.test.ts` were removed in PR #587; it is dropped from this
+   gate's `(covers:)` and from the story's capability list.)
 
 Adopting these gates flips the story off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored `status:`

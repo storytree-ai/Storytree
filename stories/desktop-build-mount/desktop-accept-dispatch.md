@@ -4,30 +4,17 @@ tier: capability
 story: desktop-build-mount
 title: "The desktop accept→dispatch — an accepted unit id POSTed to the desktop reaches dispatchAcceptedBuild over the relocated worker, progress streamed back"
 outcome: "An accepted `proposedUnitId` POSTed to the desktop backend reaches `dispatchAcceptedBuild` over the relocated worker, mints a run, fires `runBuildJob`, and the worker's coarse progress is read back over the desktop surface — the accept click's mechanism, end-to-end on the desktop, with a scripted runner."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [desktop-build-route]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors a NEW
-# node:test (accept-dispatch.test.ts) in apps/desktop/src/backend that drives the desktop accept→dispatch
-# path with an ACCEPTED unit id over the relocated worker + a scripted runner, asserting the post reaches
-# dispatchAcceptedBuild and the run streams progress back — RED at HEAD because the accept→dispatch wiring
-# does not exist (the desktop build route, capability 2, mounts POST/GET /api/build, but nothing wires an
-# ACCEPTED id from the chat surface to dispatchAcceptedBuild; the new symbol/route is module-not-found /
-# absent at HEAD) — then writes the one new source slice (green). HOW THIS DIFFERS FROM capability 2: the
-# build route (cap 2) is the generic POST /api/build intake; THIS capability proves the ACCEPT path — the
-# chat surface's accepted proposedUnitId reaching dispatchAcceptedBuild (the relocated chat-build-dispatch
-# core) on the SAME desktop backend + the SAME registry, and the progress read back over the desktop
-# surface. The accept dispatch may be a thin route (POST /api/chat/accept {unitId} → dispatchAcceptedBuild)
-# OR the build route reused with accepted-provenance — the modeling call is in the body; either way the
-# net-new assertion is "an accepted id reaches the relocated dispatch on the desktop and streams back".
-# RUNNER: apps/desktop is node:test (node --import tsx --test "src/**/*.test.ts") — the new test is a
-# node:test file. A SINGLE LITERAL test file (no `*`), so the default node:test proof on the one test file
-# is legal — no proofCommand. `install: true` + a typecheck wall because the new slice imports the relocated
-# dispatch from @storytree/drive/build-worker across the package boundary (the proof runs in a fresh
-# worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). The scope stays within apps/desktop/src
-# (ADR-0087: one concrete write scope) — the production wiring into electron/backend-entry.ts + the renderer
-# accept-button's POST target are the desktop / chat-drive-bridge operator-attested glue, separate.
+# RETIRED by ADR-0155 (2026-07-04). The desktop /api/chat/accept route this capability built was removed
+# (PR #587: accept-dispatch.ts + its wiring in electron/backend-entry.ts deleted) — the chat surface no
+# longer accepts a proposal into a build; the orchestrator drives via its spawn (ADR-0137) + landing
+# (ADR-0152) tools. The `real:` arm is dropped (its test apps/desktop/src/backend/accept-dispatch.test.ts
+# was deleted with the feature), so this capability is no longer REAL-buildable. This retirement is
+# scoped to desktop-accept-dispatch ONLY — the desktop-build-mount story keeps its other three caps
+# (worker-relocation, desktop-build-route, routed-node-real-dispatch); the /api/build route and the
+# relocated dispatchAcceptedBuild worker call are UNCHANGED. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -35,16 +22,6 @@ proof:
   scope:
     testGlobs: ["apps/desktop/src/**/*.test.ts"]
     sourceGlobs: ["apps/desktop/src/**/*.ts"]
-  real:
-    testFile: "apps/desktop/src/backend/accept-dispatch.test.ts"
-    sourceFile: "apps/desktop/src/backend/accept-dispatch.ts"
-    scope:
-      testGlobs: ["apps/desktop/src/backend/accept-dispatch.test.ts"]
-      sourceGlobs: ["apps/desktop/src/backend/accept-dispatch.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "desktop", "typecheck"]
 ---
 
 # The desktop accept→dispatch — an accepted unit id reaches dispatchAcceptedBuild on the desktop

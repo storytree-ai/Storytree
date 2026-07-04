@@ -4,23 +4,14 @@ tier: capability
 story: chat-drive-bridge
 title: "The non-spoofable proposed-unit signal — the agent declares a machine-actionable unit id via a typed read-only tool"
 outcome: "The headless orchestrator captures a non-spoofable, machine-actionable proposed unit id — declared by the agent through a typed read-only tool, surfaced as a typed `proposedUnitId` field on the result — distinct from any human accept."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: []
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true): both target
-# files exist at HEAD (orientation-tools.ts owns buildOrientationTools; headless-orchestrator.ts owns
-# runHeadlessOrchestrator + HeadlessOrchestratorResult). The leaf authors a NEW failing test
-# (proposed-unit-signal.test.ts) that drives runHeadlessOrchestrator with a scripted queryFn whose
-# session emits a tool_use for a typed `propose_unit({ unitId })` tool and asserts the result carries
-# `proposedUnitId` — RED at HEAD because the result shape has no such field and the tool is not wired —
-# then EDITS the two files to add the read-only propose_unit tool + capture its arg onto the result
-# (GREEN). `install: true` + a typecheck wall because headless-orchestrator.ts imports the SDK
-# (@anthropic-ai/claude-agent-sdk) + orientation-tools across the package (the proof runs in a fresh
-# worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). The scope stays within
-# packages/agent (ADR-0087: one concrete package per write scope). The test uses an injected queryFn
-# scripted double, never the real SDK (no live spend on a gate pass, ADR-0010 §5). Single LITERAL test
-# file (no `*`), so the default node:test proof on the one test file is legal — no `proofCommand`.
+# RETIRED by ADR-0155 (2026-07-04). The propose_unit tool + the proposedUnitId result field this
+# capability built were removed from runHeadlessOrchestrator (PR #587): the session-orchestrator DRIVES
+# via its spawn (ADR-0137) + landing (ADR-0152) tools, it no longer proposes a unit for a human to
+# accept. The `real:` arm is dropped (its test packages/agent/src/proposed-unit-signal.test.ts was
+# deleted with the feature), so this capability is no longer REAL-buildable. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -28,25 +19,6 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/proposed-unit-signal.test.ts"
-    sourceFile: "packages/agent/src/headless-orchestrator.ts"
-    scope:
-      testGlobs: ["packages/agent/src/proposed-unit-signal.test.ts"]
-      sourceGlobs:
-        ["packages/agent/src/headless-orchestrator.ts", "packages/agent/src/orientation-tools.ts"]
-    editsExisting: true
-    install: true
-    # The edit touches TWO literal source files (orientation-tools.ts adds the propose_unit tool;
-    # headless-orchestrator.ts registers it + folds proposedUnitId onto the result). A broad (>1-file)
-    # edits-existing source scope REQUIRES a suite proofCommand — the default node:test on the single test
-    # file cannot observe a regression across both edited files. Run the @storytree/agent node:test suite.
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
 ---
 
 # The non-spoofable proposed-unit signal

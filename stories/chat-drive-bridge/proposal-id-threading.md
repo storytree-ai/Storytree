@@ -4,25 +4,14 @@ tier: capability
 story: chat-drive-bridge
 title: "Thread the proposed unit id through the composition and onto the stream's terminal done event"
 outcome: "The `proposedUnitId` is threaded through the `orchestrate()` composition and surfaced on `startChatStream`'s terminal `done` event (and thereby the SSE wire), reusing the Phase-1/2 chain verbatim."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [proposed-unit-signal]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true): both target
-# files exist at HEAD (orchestrate.ts owns orchestrate + OrchestrateResult; chat-stream.ts owns
-# startChatStream + ChatStreamDoneEvent). The leaf authors a NEW failing test (proposal-id-threading.test.ts)
-# that drives startChatStream (through orchestrate) with a scripted queryFn whose session declares a
-# proposed unit id and asserts the terminal `done` event carries `proposedUnitId` — RED at HEAD because
-# ChatStreamDoneEvent has no such field and orchestrate does not carry it through — then EDITS the two
-# files to thread the field (GREEN). DEPENDS_ON proposed-unit-signal: the threaded value is the
-# `HeadlessOrchestratorResult.proposedUnitId` that capability adds, so this proof is driven AFTER it
-# lands (the dependency order the spine builds in). `install: true` + a typecheck wall because
-# orchestrate.ts imports renderAgentPrompt + the runner/result types from @storytree/agent +
-# @storytree/library across packages (the proof runs in a fresh worktree — tsx + tsc need the
-# lockfile-only install, ADR-0031 §2). The scope stays within packages/drive (ADR-0087: one concrete
-# package per write scope) — the agent-side result field is a CONSUMED dependency, not a co-edited file.
-# Single LITERAL test file (no `*`), so the default node:test proof on the one test file is legal — no
-# `proofCommand`. The test uses an injected queryFn scripted double, never the real SDK (ADR-0010 §5).
+# RETIRED by ADR-0155 (2026-07-04). The proposedUnitId threading onto ChatStreamDoneEvent / the SSE
+# `done` frame this capability built was removed (PR #587): the stream contract no longer carries a
+# proposedUnitId because the orchestrator drives rather than proposes-and-waits. The `real:` arm is
+# dropped (its test packages/drive/src/proposal-id-threading.test.ts was deleted with the feature), so
+# this capability is no longer REAL-buildable. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -30,24 +19,6 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/proposal-id-threading.test.ts"
-    sourceFile: "packages/drive/src/chat-stream.ts"
-    scope:
-      testGlobs: ["packages/drive/src/proposal-id-threading.test.ts"]
-      sourceGlobs: ["packages/drive/src/chat-stream.ts", "packages/drive/src/orchestrate.ts"]
-    editsExisting: true
-    install: true
-    # The edit MAY touch two literal source files (chat-stream.ts is the substantive edit; orchestrate.ts
-    # an explicit carry only if the spread does not already cover proposedUnitId). A broad (>1-file)
-    # edits-existing source scope REQUIRES a suite proofCommand — the default node:test on the single test
-    # file cannot observe a regression across both edited files. Run the @storytree/drive node:test suite.
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
 # Thread the proposed unit id through the composition and onto the stream's done event
