@@ -3,7 +3,7 @@ id: "desktop-build-mount"
 tier: story
 title: "The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop, so the thick-local app drives a build (ADR-0133 / ADR-0108 Phase 3+4)"
 outcome: "The build worker machinery (BuildRegistry / runBuildJob / dispatchAcceptedBuild + the BuildContext type) moves out of apps/studio/server into the shared @storytree/drive package, where the desktop local backend may legally reuse it; the desktop sidecar then mounts POST /api/build (202 + runId, fire-and-forget) over a BuildContext wired from the relocated worker, and the chat accept click reaches dispatchAcceptedBuild on that same backend — so the desktop becomes a complete propose→accept→drive→land surface on the shared forest, with the worker's coarse progress streamed back."
-status: mapped
+status: proposed
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the worker exports from its new drive home with
 # the studio importers still green; the desktop build route over a scripted runner; the desktop accept→
