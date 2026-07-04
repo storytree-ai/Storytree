@@ -64,33 +64,52 @@ as the teach** (no longer a beat in the default script).
 **Depends on —** [`r3f-world-spike`](r3f-world-spike.md) — the director lives in the mapper's
 package and emits the World / scene inputs the mapper draws.
 
-> **Proof status (honest) — BUILT (original single-story director), leaf-proven; RE-SPECCED by
-> ADR-0150 then CORRECTED by ADR-0153 — REVERTS to `building` for the grown, direction-corrected
-> vocabulary. The authored status stays `proposed`.** The gated SDK leaf first authored the NET-NEW
+> **Proof status (honest) — BUILT + LEAF-PROVEN at the grown, direction-corrected vocabulary
+> (`--real` PASS, run `real-mr6bktin`, `--store pg`; verdict commit `deb235e` / origin `30be855`;
+> consolidation `4fa1a69` / `c474582`; `storytree coverage act2-beat-director` = 4/4; the
+> `@storytree/forest-world-r3f` suite 16/16 green). The authored status stays `proposed`
+> (the whole STORY is not yet green).** History: the gated SDK leaf first authored the NET-NEW
 > single-story director through the real prove-it-gate (run `real-mr32b6ib`, signed PASS @ `2358bc4`
 > 2026-07-02; the five-beat website walk, the `green-only-on-signed-proof` refine, the wrong-way-road
-> flag). **ADR-0150** (owner-directed at the G attestation gate 2026-07-04) grows the director:
+> flag). **ADR-0150** (owner-directed at the G attestation gate 2026-07-04) grew the director:
 > multi-story-with-`dependsOn` `WorldState`, an `add-upstream-story` delta, a tri-state story status, an
 > honest legend, and a default script that is the ONE continuous arc (website walk → upstream forest).
 > **ADR-0153** (owner-directed at the H attestation gate 2026-07-04, where increment H was REFUSED)
-> CORRECTS the dependency DIRECTION the grown vocabulary must encode: the edge points FROM the dependent
+> CORRECTED the dependency DIRECTION the grown vocabulary encodes: the edge points FROM the dependent
 > TO its prerequisite — `website.dependsOn=[backend]`, `backend.dependsOn=[database]`,
 > `database.dependsOn=[]` (ADR-0058 §1 / `cross-story-dependency`: A depends_on B iff A needs B's
 > delivered outcome to pass A's own UAT; the `boundary` def's "a frontend depends on a database"
-> archetype). The earlier spec text encoded this BACKWARDS (it said "the backend `dependsOn` the
-> website"); that was never built at the grown vocabulary, and the backwards encoding is removed here.
-> Per `defects-amend-the-owning-story`, this re-spec REVERTS the capability to `building` and re-builds
-> it red→green under its existing contract (not a new unit); `healthy` is earned through the gate, never
-> authored (ADR-0020). **PRESERVED verbatim:** the `green-only-on-signed-proof` data contract (the
-> verification-gap thesis; NOT retired, NOT weakened) and the pure/visitor-paced/renderer-agnostic
-> shape. **RETIRED as the teach:** the wrong-way UI→DB road — no longer a beat in the default script,
-> no longer contract-covered as the teach (ADR-0150 §4; the dependency-layer-as-advantage teach
-> replaces it). **SALVAGE:** the `--real`-proven grow on the unlanded `claude/laughing-galileo-fe1a0b`
-> branch (@ `8aa8d0f`) is ~70% of these mechanics, shaped for the WRONG (horizontal) framing — reuse
-> its multi-story state / tri-state status / honest legend / road-accumulation; ADAPT its `grow-forest`
-> flat-neighbor delta into `add-upstream-story` with `dependsOn` in the CORRECTED direction
-> (dependent → prerequisite); DROP its wrong-way preservation and its sibling-island arc (see "Salvage
-> & adapt" below). That branch dies unlanded; ADR-0147's number is orphaned in the store.
+> archetype). The earlier spec text encoded this BACKWARDS ("the backend `dependsOn` the website");
+> that was never built at the grown vocabulary, and the backwards encoding was removed. Per
+> `defects-amend-the-owning-story` this was a re-build red→green under the existing contract (not a new
+> unit); `healthy` was earned through the gate, never authored (ADR-0020).
+>
+> **As built (2026-07-05, verdict `deb235e`) — `packages/forest-world-r3f/src/act2-director.ts`:**
+> the corrected-direction `add-upstream-story` delta carries `dependentId` (line 132) — the id of the
+> EXISTING story whose `dependsOn` gains the new upstream story's id (`applyDelta` sets
+> `dependent.dependsOn = [...dependsOn, delta.id]`, lines 302–325), so the edge points FROM the
+> dependent TO its prerequisite. `StoryNode.dependsOn` is documented "FROM this story TO its
+> prerequisites — ADR-0058" (lines 201–214); the tri-state `status: 'proven' | 'building' | 'broken'`
+> backs the honest legend (line 209). The six-beat `defaultScript` IS the one continuous arc (lines
+> 396–501): plant-story → attach-wisp → branch-caps → `add-upstream-story` backend
+> (`dependentId: 'story-website'`, beat 4) → `add-upstream-story` database
+> (`dependentId: 'story-backend'`, beat 5) → `pull-back` with `proven: ['story-website']` (beat 6,
+> lines 495–500) — so the honest status mix at the reveal is website = proven, backend + database =
+> building (proposed/sapling, never green). Green stays gated: `LimbDelta`'s zod `refine` requires a
+> non-empty `signedProof` on every green limb (lines 56–72) and `advance()` runs `Beat.parse` before
+> applying (line 363), so a green-without-marker limb THROWS. The wrong-way `RoadDelta.violation` field
+> survives as a LATENT capability but the `add-roads` delta is a no-op in `applyDelta` and no beat in
+> `defaultScript` uses it (lines 82–92, 297–300) — retired as the teach, not the model.
+>
+> **PRESERVED verbatim:** the `green-only-on-signed-proof` data contract (the verification-gap thesis;
+> NOT retired, NOT weakened) and the pure/visitor-paced/renderer-agnostic shape. **RETIRED as the
+> teach:** the wrong-way UI→DB road — no longer a beat in the default script, no longer contract-covered
+> as the teach (ADR-0150 §4; the dependency-layer-as-advantage teach replaces it). **SALVAGE (history):**
+> the `--real`-proven grow on the unlanded `claude/laughing-galileo-fe1a0b` branch (@ `8aa8d0f`) was
+> ~70% of these mechanics, shaped for the WRONG (horizontal) framing; the landed build reused its
+> multi-story state / tri-state status / honest legend and ADAPTED its flat-neighbor delta into
+> `add-upstream-story` with `dependsOn` in the CORRECTED direction. That branch died unlanded; ADR-0147's
+> number is orphaned in the store.
 
 ## Guidance
 

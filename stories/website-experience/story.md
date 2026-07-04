@@ -244,12 +244,24 @@ whole (owner decision 6):
   hatches, and the deeper drive-machinery diagrams (CI/CD, devops, gates, wiring) live here (ADR-0153).
   Each upstream story is inspectable (what/why) and walked green progressively; complexity scaffolded,
   revealed as the walk continues, never dumped. This is the **extend-next** increment — it lands AFTER G
-  ships, continuing the same Act 2 walk. G's "what's next" CTA is the CONTINUATION SEAM; until H lands it
-  resolves to the real product / get-involved so the site stays coherent. (ADR-0150 AMENDS the earlier
-  ADR-0148 framing of H as a CTA-gated separate phase; ADR-0153 corrects the dependency DIRECTION and
-  adds the real-UI / no-escape / drive-machinery redirections. The `act2-beat-director` engine is
-  re-specced to a multi-story-with-`dependsOn` upstream vocabulary in the CORRECTED direction first,
-  then the site build.)
+  ships, continuing the same Act 2 walk. G's "what's next" CTA is the CONTINUATION SEAM. (ADR-0150 AMENDS
+  the earlier ADR-0148 framing of H as a CTA-gated separate phase; ADR-0153 corrects the dependency
+  DIRECTION and adds the real-UI / no-escape / drive-machinery redirections. The `act2-beat-director`
+  engine was re-specced to a multi-story-with-`dependsOn` upstream vocabulary in the CORRECTED direction
+  first, then the site build.) **BUILT + machine-green + OWNER-ATTESTED AS A STEP FORWARD + LIVE
+  (2026-07-05, web main `8f4e166c`, live at https://crisp-globe-bf6v.here.now/) — the increment-H HALT is
+  CLEARED.** The owner walked the guided upstream forest at the ADR-0070 stage-2 gate and directed it to
+  land as an incremental step (storytree-web PR #25 → web main `8f4e166c`, CD green; parent verdict
+  `deb235e` for the corrected-direction director grow, `web/` pin bumped `ff70222b` → `8f4e166c`
+  @ `ff70222b`). The attestation carried FORWARD FEEDBACK the owner wants in the NEXT arc link — a
+  FOLLOW-ON RE-SPEC (the story-author's job, not decided here): remove the storm analogy from all
+  surfaces; the pre-walk should read as talking to our system (the story node lands `proposed`); plainer
+  newcomer-dev language, no weird analogies/jargon; the agent-loop teach as a LOOP DIAGRAM that speaks to
+  the TDD orchestration flow; make the wisp actually MOVE (it renders as a static dot today); and let the
+  frontend read the database directly (a BaaS re-visit of ADR-0153's 3-tier authoring call). So H's LOOK
+  cap is NOT terminally closed; its attested "step forward" record stands as true history. The arc's LAST
+  increment remains `info-pages-triage` (increment I), which lands after that follow-on re-spec settles
+  the Act 2 surface it must fold pages into.
 - **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
   roadmap's "what's coming" behind the pull-back / "what's next") are only concrete once both Act 2
@@ -350,13 +362,17 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070) — the felt legs are human
 ## Proof
 
 **Honest status — `proposed` (whole story not yet green).** The story `healthy` is earned through the
-gate, never authored (ADR-0020). SOME legs have real history: `act2-beat-director` (LEAF) was
-leaf-proven at its original single-story vocabulary (run `real-mr32b6ib`, @ `2358bc4`) — now RE-SPECCED
-(ADR-0150) and DIRECTION-CORRECTED (ADR-0153), so it reverts to `building` for the grown vocabulary;
-increment G (`act2-guided-walkthrough`) was BUILT + owner-ATTESTED + LIVE (web main `ff70222b`) — now
-RE-OPENED toward `building` by ADR-0153's surface reshape (the attested history kept intact,
-copy-on-write); increment H (`act2-guided-forest`) had a first build REFUSED at its gate and is
-re-specced by ADR-0153. The four LEAF caps are armed with `--real` proof config so the orchestrator
+gate, never authored (ADR-0020). SOME legs have real history: `act2-beat-director` (LEAF) is
+leaf-proven at the grown, DIRECTION-CORRECTED vocabulary (run `real-mr6bktin`, `--store pg`, PASS;
+verdict `deb235e`; coverage 4/4; the `@storytree/forest-world-r3f` suite 16/16 green) — its earlier
+single-story build (run `real-mr32b6ib`, @ `2358bc4`) stands as history; increment G
+(`act2-guided-walkthrough`) was BUILT + owner-ATTESTED + LIVE (web main `ff70222b`) — RE-OPENED toward
+`building` by ADR-0153's surface reshape (the attested history kept intact, copy-on-write); increment H
+(`act2-guided-forest`) had a first build REFUSED, was re-specced by ADR-0153, and its re-build was BUILT
++ machine-green + OWNER-ATTESTED AS A STEP FORWARD + LIVE (2026-07-05, web main `8f4e166c`) — landed as
+an incremental step whose forward feedback drives a FOLLOW-ON re-spec (the next arc link; the LOOK is not
+terminally closed — see the cap's proof status). The story stays `proposed` because increment I
+(`info-pages-triage`) is unbuilt and the story's machine gates + human UAT legs are not all closed yet. The four LEAF caps are armed with `--real` proof config so the orchestrator
 drives each through `node build <id> --real --store pg` in dependency order — with the one documented
 pre-step that `r3f-world-spike`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`
 ownership) is orchestrator-supplemented GLUE before its leaf runs (a leaf can never touch package.json,

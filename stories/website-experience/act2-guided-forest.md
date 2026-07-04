@@ -86,8 +86,10 @@ anchored-callout narration, the visitor-paced Next affordance, the
 artifact rail — all transitive through G). There is no upstream forest to reveal until the website
 walk it grows from exists.
 
-> **Proof status (honest) — `proposed`, operator-attested (ADR-0070); AUTHORED, a first build REFUSED
-> at the gate, now RE-SPECCED, not yet re-built.** This is the **extend-next** half of the Act 2
+> **Proof status (honest) — `proposed`, operator-attested (ADR-0070); the re-spec BUILT + machine-green
+> + OWNER-ATTESTED AS A STEP FORWARD + LIVE (2026-07-05, web main `8f4e166c`) — landed as an
+> INCREMENTAL step WITH forward feedback that drives the next arc link (see "As built / attested" below);
+> the LOOK is NOT terminally closed.** History: this is the **extend-next** half of the Act 2
 > re-scope
 > ([ADR-0148](../../docs/decisions/0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md),
 > owner-directed 2026-07-03), **RE-SHAPED by ADR-0150** (owner-directed at the G attestation
@@ -118,6 +120,64 @@ walk it grows from exists.
 > by the `frontend-builder` in `storytree-web` (branch off ITS `origin/main`, its own CD) and witnessed
 > by the owner on the live/preview site — appearance and feel are never self-signed (ADR-0070). A HALT
 > point for the driving session.
+>
+> **As built / attested (2026-07-05, web main `8f4e166c`, live at https://crisp-globe-bf6v.here.now/).**
+> The re-spec was built in `storytree-web` by the `frontend-builder` and cleared its machine floor —
+> `astro build` (zero-WebGL in Act 2), the three web gates (`check:web-experience` /
+> `check:web-grounding` / `check:web-engine`, all OK), and Playwright 41/41 — then the owner WALKED it
+> at the ADR-0070 stage-2 gate and **attested it as a STEP FORWARD → directed it to LAND LIVE**
+> (storytree-web PR #25 squash-merged → web main `8f4e166c`, CD green; the parent `web/` submodule pin
+> bumped `ff70222b` → `8f4e166c`). Per ADR-0044 §4 the attestation is agent-relayed and RECORDED here
+> (a look/feel verdict only the owner can sign), verbatim:
+> > *"Land this as its a step forward, then continue the self perpetuating chips based on this feedback"*
+> — followed by five forward directions (below).
+>
+> **As-built cites (web `8f4e166c`, files under `web/`):**
+> - **Corrected dependency direction, 3-tier, no direct frontend→DB edge** —
+>   `web/src/scripts/act2-script.ts`: `add-upstream-story` beat 4 carries `dependentId: STORY_WEBSITE`
+>   (line 141) and beat 5 `dependentId: STORY_BACKEND` (line 161), so `website.dependsOn=[backend]`,
+>   `backend.dependsOn=[database]`, `database.dependsOn=[]` (the header spells this out, lines 16–25);
+>   only the website resolves `proven` at pull-back (`proven: [STORY_WEBSITE]`, line 175). The site-owned
+>   ids are `story-checkout` / `story-backend` / `story-database` (lines 48–50).
+> - **Frontend HIGH / foundation BELOW (spatial), the DAG shown honestly** —
+>   `web/src/scripts/act2-walkthrough.ts`: the fold computes each story's dependency `depth` from
+>   `dependsOn` (`depthOf`, lines 371–383), anchors on the deepest dependent (the website), stacks
+>   `y = -depth * LAYER_RISE` so the website is highest and the database at the base (lines 395–403),
+>   and draws each `dependsOn` edge with the arrowhead landing ON the prerequisite below (lines 439–454).
+> - **Real-app UI, orchestrator chat AT THE BOTTOM carrying the outcome brief** —
+>   `web/src/scripts/act2-orchestrator.ts`: `mountOrchestrator` builds a bottom-anchored re-creation of
+>   the studio chat dock (lines 125–262), streaming the reused prompt + an outcome-brief reply
+>   (`USER_PROMPT` line 35, `REPLY_LINES` lines 53–76) with the studio's chat tokens (header, lines
+>   14–23); the only affordance is the primary that begins the walk — `PROPOSAL_CTA`, NO skip (lines
+>   79–80). Wired in `web/src/scripts/inflection.ts` (`mountWalkthrough` / `mountOrchestrator`, lines
+>   35–36, 72–78).
+> - **Drive-machinery overlays (top-left agent loop; top-right CI/CD → ship), site-side keyed by beat id**
+>   — `web/src/scripts/act2-overlays.ts`: `DRIVE_OVERLAYS` keys `beat-2-attach-wisp` (top-left, "The
+>   agent loop") / `beat-3-branch-caps` (top-right, "Proof, not a promise") / `beat-4-add-upstream-backend`
+>   (top-right, "Wired to the code") (lines 76–190); `mountDriveOverlay` reveals rows scaffolded and
+>   clears on the next beat (lines 234–368). No director field — presentational chrome (header §, lines
+>   11–17).
+> - **Plain-language teach incl. the loop/TDD framing, upstream = the advantage** —
+>   `web/src/scripts/act2-narration.ts`: `NARRATION` beats 4–5 name the layers as the foundation the
+>   website RESTS ON (lines 72–87); beat 3 states green is earned by "a signed, passing test run", not
+>   "done" (lines 63–69). The `INTRO` still opens "The storm settles into soil" (lines 111–116).
+> - **No escape hatch (a11y fallback only)** — `web/src/pages/index.astro`: the no-JS / reduced-motion
+>   `data-experience-fallback` calm view survives (lines 207–212, media queries 650–711); no
+>   capable-visitor skip is offered inside the Act 2 walk (orchestrator/overlays carry none).
+>
+> **Forward feedback → the FOLLOW-ON re-spec (the next arc link — NOT decided here, NOT encoded as this
+> cap's contract).** The owner attested this as an incremental step *with* five directions for the next
+> link, which the story-author turns into a re-spec (recorded, not enacted here): (1) the pre-walk should
+> read as talking to OUR system — the story node would land as `proposed`; (2) REMOVE the storm analogy
+> from ALL surfaces (it survives in `act2-narration.ts` `INTRO` / `done` and Act 1); (3) drop weird-
+> analogy/jargon usage — keep language simple for newcomer devs; (4) the agent-loop explanation should be
+> a LOOP DIAGRAM (not the current list-style overlay) that also speaks to the TDD orchestration flow
+> ("one agent writes tests", "the other builds code to pass the tests"); (5) the WISP should actually
+> MOVE — it currently renders as a static dot (the scene emits a `wisps` presence marker on the
+> `.tw-wisps` layer, `act2-walkthrough.ts` lines 510–511, not yet animated); and (6) the taught shape
+> should let the frontend read the DATABASE DIRECTLY (a BaaS re-visit of ADR-0153's 3-tier authoring
+> call — corpus-legal, owner's call at the next gate). Because this feedback is live, the LOOK cap is NOT
+> terminally closed; the attested "step forward" record above stands as true history (copy-on-write).
 >
 > **The re-shape (owner direction at the G gate, 2026-07-04 — SETTLED, design-time-ratified).**
 > Attesting increment G, the owner sharpened H's shape (verbatim: *"get rid of this bit [beat 4's

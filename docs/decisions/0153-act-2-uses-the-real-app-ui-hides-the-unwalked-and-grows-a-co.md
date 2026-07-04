@@ -224,6 +224,38 @@ the LOOK caps (appearance and feel never self-signed). Act 1 and the storm→lan
   owner confirms at the gate. A build that renders the stack any coherent way is not wrong on the DATA;
   it is judged on the FEEL.
 
+## As built / landed (2026-07-05)
+
+Increment H's re-build against this ADR was built machine-green, taken to the owner's ADR-0070 stage-2
+attestation gate, and **attested as a STEP FORWARD → LANDED LIVE** on 2026-07-05 (owner-directed to
+land AND continue). This records the as-built; it re-decides nothing (status stays `accepted`).
+
+- **Web:** the guided-upstream-forest re-build (real-app chat dock at the bottom carrying the outcome
+  brief; the corrected `website → backend → database` dependency stack rendered frontend-high /
+  foundation-below; the drive-machinery overlays top-left/top-right; no capable-visitor escape hatch —
+  a11y fallback only) shipped storytree-web PR #25 → web main `8f4e166c`, CD green, live at
+  https://crisp-globe-bf6v.here.now/. The corrected direction is in the site-owned script
+  (`web/src/scripts/act2-script.ts` — `dependentId` FROM dependent TO prerequisite, 3-tier, no direct
+  `website → database` edge) and the fold (`web/src/scripts/act2-walkthrough.ts` — `depthOf` stacks the
+  website highest and the database at the base). The synced `act2-director` is untouched
+  (`check:web-engine` green).
+- **Parent:** the corrected-direction `act2-beat-director` grow landed `--real`-signed (run
+  `real-mr6bktin`, `--store pg`, PASS; verdict commit `deb235e`, consolidation `4fa1a69`); the `web/`
+  submodule pin bumped `ff70222b` → `8f4e166c` (`ff70222b`); all three web gates OK,
+  `packages/forest-world-r3f` 16/16 tests green.
+
+**Forward feedback drives a FOLLOW-ON re-spec (the next arc link — NOT decided here).** The owner
+attested this as an incremental step *with* directions for further change, which the story-author will
+turn into the next link's re-spec (this ADR does not encode them as decided): the storm analogy is to
+be removed from all surfaces; the pre-walk should read as talking to our system (a proposed story
+node); descriptions should drop weird-analogy/jargon usage and stay simple for newcomer devs; the
+agent-loop explanation should be a LOOP DIAGRAM (not a list) that also speaks to the TDD orchestration
+flow ("one agent writes tests", "the other builds code to pass the tests"); the wisp should actually
+MOVE (it currently renders as a static dot — the scene emits a `wisps` presence marker rendered on the
+`.tw-wisps` layer, not yet animated); and the taught shape should let the frontend read the database
+directly (a BaaS-shape re-visit of this ADR's 3-tier authoring call — corpus-legal, owner's call at the
+next gate). Because of this, neither the LOOK caps nor the arc are terminally closed.
+
 **Drive-machinery engine-support authoring call (site-side-keyed, NOT a director field).** The
 drive-machinery overlays (redirections 4/5) are specified as SITE-SIDE content keyed by beat id — the
 same precedent as the narration copy ("words stay site-side") — and the `act2-beat-director` engine
