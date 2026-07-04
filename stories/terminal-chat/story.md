@@ -3,6 +3,13 @@ id: "terminal-chat"
 tier: story
 title: "The desktop chat panel feels like a terminal"
 outcome: "The desktop chat panel reads and behaves like one continuous terminal — a persistent multi-turn scrollback of prompt-and-reply, an input that grows to its content and resets cleanly — so a member converses with the agent as they would in a shell, not through a single replace-on-send exchange."
+# status: proposed — "ADOPTION UNDERWAY" (ADR-0097 brown → proposed → green). This was HONEST brownfield
+# (`mapped`): the three thin-client caps landed with a real, passing studio VITEST suite
+# (apps/studio/src/components/ChatPanel.test.tsx) but storytree's prove-it-gate never DROVE them red→green —
+# built-but-unregistered (no signed `--real` verdict), the `mapped` state, NOT `proposed`
+# (authored-but-unbuilt). The Adopt path (`storytree adopt terminal-chat --pg`) observe-and-signed the
+# `## Reliability Gates` observe gate below (greening the 3 caps via coverage) and flipped this line
+# mapped → proposed. The crown DERIVES green from signed verdicts (ADR-0020), NOT this authored line.
 status: proposed
 proof_mode: UAT
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does the panel read
@@ -183,6 +190,57 @@ reading and behaving like one continuous terminal throughout.
 End state — the desktop chat panel reads and behaves like one continuous terminal: a persistent multi-turn
 scrollback, an input that grows and resets cleanly, the caps' behaviours signed under the studio suite and
 the terminal FEEL operator-attested — the panel never breaching the thin-client wall.
+
+## Reliability Gates
+
+The three thin-client capabilities are **brownfield**: `apps/studio/src/components/ChatPanel.tsx` +
+`apps/studio/src/api.ts` carry a real, passing studio VITEST suite that observationally verifies the
+transcript / input-grow / reset+abort behaviour, but storytree's own prove-it-gate never DROVE those
+proofs red→green — the caps landed **built-but-unregistered** (a passing real-arm test, no signed `--real`
+verdict). So the honest path off `mapped` is **not** a fail-closed `--real` Build over mature, already-green
+source (that HALTS on the green base) — it is the author-declared **reliability gate** below,
+observe-and-signed to an `adopted` verdict
+([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)):
+the `mapped → healthy` **Adopt** transition
+([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
+[ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)).
+Distinct from `## Story UAT` above (the integrated terminal-feel journey): this gate is the
+machine-observable reliability floor — the two-stage frontend-builder split
+([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
+the gate covers the caps' machine GEOMETRY; the "reads like one continuous terminal" FEEL stays the Story
+UAT's operator-attested `witness: human` legs.
+
+1. **The studio suite is green** _(gate: observe)_ _(covers: multi-turn-transcript, auto-grow-input, transcript-reset)_ `pnpm --filter studio test`. The
+   spine runs the studio VITEST suite at a clean committed HEAD and OBSERVES it green, then signs an
+   `adopted` verdict (`storytree adopt terminal-chat --pg`). The suite genuinely exercises all three
+   thin-client caps in `apps/studio/src/components/ChatPanel.test.tsx` (jsdom, `@testing-library/react`,
+   the `api` streaming seam mocked/scripted across multiple sends, fake timers, the scroll/height refs
+   spied — no real fetch / socket / SDK / DB / Electron): **multi-turn-transcript** (the append-not-replace
+   scrollback + per-turn prompt echo + per-entry terminal-kind render + tail-entry delta streaming +
+   scroll-to-newest recompute — `mtt-appends-not-replaces` / `mtt-echoes-each-prompt` /
+   `mtt-renders-each-terminal-kind-as-an-entry` / `mtt-streams-delta-into-the-tail-entry` /
+   `mtt-auto-scrolls-to-newest`), **auto-grow-input** (the onChange height-recompute-from-`scrollHeight`,
+   the max-height cap + internal overflow, and the KEEP of the Enter=send / Shift+Enter=newline
+   keybindings), and **transcript-reset** (clear-to-idle + abort the in-flight stream + the
+   `api.chatStream(intent, onEvent, signal?)` signal threading onto `fetch` — `tr-clears-transcript-to-idle`
+   / `tr-aborts-in-flight-stream` / `tr-threads-abort-signal-through-api`), all offline (no DB, no API key).
+   The three caps green via this gate's `(covers:)` (ADR-0097 §5). This is the two-stage proof (ADR-0070):
+   the gate proves the machine GEOMETRY/BEHAVIOUR only; the terminal FEEL (does the growing scrollback / the
+   clean reset read like one continuous terminal) is the Story UAT's operator-attested `witness: human` legs
+   (1-feel, 2-feel, 3-feel, 4), never machine-asserted here.
+
+The OPTIONAL / STRETCH `backend-chat-reset-route` cap is deliberately **left uncovered**: it is a desktop
+sidecar/drive `node:test` unit (not thin-client), its backend-wedge-recovery behaviour is UNBUILT (no
+`apps/desktop/src/backend/chat-reset-route.test.ts`), so an `observe` gate over it would be exactly the
+rubber-stamp ADR-0097 §2 bans. It therefore keeps the crown at `proposed` alongside its backing
+`witness: human` Story-UAT leg (leg 5, backend-wedge recovery) — the owner's optional stretch. Adopting
+this one gate flips the story off `mapped`; `healthy` stays non-authorable
+([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the world's crown
+DERIVES green from the signed verdicts and only when every capability is healthy AND every own-proof
+obligation is signed
+([ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+Fork A + ADR-0085), so the crown honestly reads `unproven` until the owner takes up the backend-wedge
+stretch (its cap + leg 5).
 
 ## Proof
 
