@@ -16,6 +16,12 @@ gate on 2026-07-03. Design-time alignment IS the ratification
 the 2.5D tutorial, so the entire post-storm experience is 2.5D SVG/DOM with zero WebGL. Noted in place
 per ADR-0139.)*
 
+*(Amended by [ADR-0150](0150-act-2-is-one-continuous-walk-that-grows-upstream-the-depende.md),
+2026-07-04: the 2.5D substrate decided here STANDS unchanged — only what grows on it changes. Act 2's
+increment H is one continuous walk growing UPSTREAM (a backend and a database above the website on real
+`dependsOn` edges), rendered on this same synced `buildScene` map with the same anchored callouts. The
+substrate is extended, not re-decided. Noted in place per ADR-0139.)*
+
 ## Context
 
 The Act 2 guided walkthrough

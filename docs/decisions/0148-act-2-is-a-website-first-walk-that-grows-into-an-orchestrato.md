@@ -76,6 +76,12 @@ over fictional data (the teaching-diorama boundary, ADR-0056/0066/0093, holds).
    a proper backend — the forest of PROPOSED trees, growing UPSTREAM of the website, stories at every
    level. The user can inspect each proposed story to understand what it is and why it is proposed, and
    walk them green progressively. Complexity is scaffolded, revealed on demand — never dumped up front.
+   *(Amended by [ADR-0150](0150-act-2-is-one-continuous-walk-that-grows-upstream-the-depende.md),
+   2026-07-04: increment H is NO LONGER a "what's next" CTA-gated separate phase — it is the SAME
+   continuous walk continuing upstream, and G's "what's next" CTA becomes a CONTINUATION SEAM the walk
+   flows through ("it shouldnt be separate"). The upstream forest (§4's database + backend) and the
+   scaffolded-complexity obligation stand; only the phase boundary dissolves into one arc. Noted in
+   place per ADR-0139.)*
 5. **The whole flow is cohesive — all-in on the tutorial.** The finale terminal's **"show me the better
    way"** routes DIRECTLY into the Act 2 2.5D tutorial — not to a static/classic homepage, and not via a
    3D landing island that then flips to 2.5D. The **R3F 3D landing island is dropped** (the flip read as

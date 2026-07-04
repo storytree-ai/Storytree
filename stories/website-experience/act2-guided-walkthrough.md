@@ -7,7 +7,7 @@ outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build
 status: proposed
 proof_mode: operator-attested
 depends_on: [storm-to-forest-inflection, act2-beat-director, web-experience-sync]
-decisions: [134, 145, 148]
+decisions: [134, 145, 148, 150]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The choreography ENGINE is already machine-proven
 # upstream (act2-beat-director: visitor-paced advance, proof-gated green, the flagged wrong-way
 # road, the approved default script — all parent-side contracts), and the artifact freshness is the
@@ -96,6 +96,23 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 > are deferred to increment H ([`act2-guided-forest`](act2-guided-forest.md)): replace beat 4's
 > wrong-way-flag framing with the dependency-layer-as-advantage reframe on the real map, and integrate
 > "grow the backend" into the ONE continuous tutorial rather than a separate CTA/destination.
+>
+> **Correction — SETTLED by ADR-0150 (owner-directed at this gate, 2026-07-04; noted in place
+> per ADR-0139).** The two deferred follow-ups above are now DECIDED and belong to increment H
+> ([`act2-guided-forest`](act2-guided-forest.md)):
+> - **Beat 4's teach is reframed.** The shipped beat 4 (LIVE at web main `ff70222b`) draws a wrong-way
+>   UI→DB road flagged as an antipattern — a NEGATIVE teach. That framing is RETIRED as the teach and
+>   replaced by H's **dependency-layer-as-advantage**: the honest upstream dependency layers, shown on
+>   the real 2.5D map, ARE storytree's advantage. The wrong-way road is retired from the teach (ADR-0150 §4;
+>   the `act2-beat-director` engine demotes it from the default script). The site edit that lands this
+>   is H's build on storytree-web (operator-attested); G's live record here is CORRECTED (this note),
+>   not rewritten — the "As built" and "Attested + landed" history below stays a true live-attested
+>   record (copy-on-write).
+> - **The CTA is a continuation seam, not a separate destination.** G's "what's next" CTA is reframed:
+>   it is where the ONE continuous walk continues upstream into H — not a hand-off to a new page or a
+>   gated second experience ("it shouldnt be separate"). Until H lands, the seam still resolves to the
+>   real product / get-involved so the live site stays coherent; the change is the experienced
+>   continuity, not a requirement that H exist before G is honest.
 
 ## As built (web main `ff70222b`)
 
@@ -199,11 +216,18 @@ THE WALK ITSELF (carried FORWARD from the 2.5D build, unchanged by this re-scope
   appears visibly flagged the moment it is drawn); the pull-back answers terminal sprawl (one calm
   screen: green = proven, sapling = in-progress, withered = broken — the anti-storm, framed as the
   answer to Act 1's HUD).
-- **The CTA hands off to "what's next".** The final state names the next step honestly: the mock
-  website's Cart / Payments / Receipts cannot truly work without a backend, so the CTA poses the
-  question increment H answers — the upstream database + backend the orchestrator will guide the user
-  to ([`act2-guided-forest`](act2-guided-forest.md)). Until H lands, that hand-off resolves to the
-  real product (get-involved / the repo / the studio pitch — per `info-pages-triage`'s outcome),
+  *(Beat-4 teach reframed — ADR-0150, 2026-07-04, noted in place per ADR-0139: this bullet
+  records G's shipped beat 4 as built and LIVE; its wrong-way-flag framing is RETIRED as the teach and
+  replaced by increment H's dependency-layer-as-advantage — the honest upstream layers shown on the
+  real map. The reframe lands in H's build, not a rewrite of this record. See
+  [`act2-guided-forest`](act2-guided-forest.md).)*
+- **The CTA is a continuation seam into "what's next".** The final state names the next step honestly:
+  the mock website's Cart / Payments / Receipts cannot truly work without a backend, so the CTA poses
+  the question increment H answers — the upstream database + backend the orchestrator will guide the
+  user to ([`act2-guided-forest`](act2-guided-forest.md)). *(Reframed — ADR-0150, 2026-07-04:
+  the CTA is a CONTINUATION SEAM where the ONE continuous walk flows on upstream into H, not a hand-off
+  to a separate page or gated phase — "it shouldnt be separate".)* Until H lands, that seam resolves to
+  the real product (get-involved / the repo / the studio pitch — per `info-pages-triage`'s outcome),
   honestly labelled: this was a diorama; the real thing is watched-live. Never a dead-end Next.
 - **Diorama, not studio.** All data fictional (site-side, the Cohoot precedent) — including the
   orchestrator's scripted proposal exchange; no live store, no real corpus, no operable affordances

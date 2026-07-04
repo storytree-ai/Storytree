@@ -124,7 +124,12 @@ can read.*
    all-at-once) grows the forest one beat at a time, narrated in **plain language** (the tonal inverse of
    Act 1's jargon): plant a story → watch a wisp → it branches into capabilities/contracts → stories
    connect via roads (the DAG) → pull back to the whole legible forest → CTA. Each beat teaches one
-   studio concept by watching it happen.
+   studio concept by watching it happen. *(Amended by
+   [ADR-0150](0150-act-2-is-one-continuous-walk-that-grows-upstream-the-depende.md), 2026-07-04: beat
+   4's "stories connect via roads" — the wrong-way UI→DB road flagged as a NEGATIVE antipattern teach —
+   is retired as the teach and replaced by the POSITIVE dependency-layer-as-advantage teach: the honest
+   upstream layers (`website → backend → database`) shown on the real 2.5D map ARE storytree's
+   advantage. Noted in place per ADR-0139.)*
    - **Tech:** the [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
      **R3F WebGL island**, lazy-loaded at the inflection, riding the artifacts-not-source flow over
      **fictional** demo data (boundary preserved). It is a *stylized teaching diorama*, not the real
