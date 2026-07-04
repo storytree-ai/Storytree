@@ -15,6 +15,7 @@ import type {
   SdkQueryFn,
   HeadlessOrchestratorResult,
   OrientationRunner,
+  LandingSurfaceDeps,
 } from "@storytree/agent";
 import { runHeadlessOrchestrator } from "@storytree/agent";
 
@@ -78,6 +79,18 @@ export interface OrchestrateArgs {
    * ClaimDoc wall — never a default.
    */
   spawn?: SpawnSurfaceDeps;
+  /**
+   * OPTIONAL landing surface deps (ADR-0152): when present, orchestrate() mounts `run_gate` and
+   * `open_landing_pr` as fail-closed MCP tools in the headless session — the merge-ceremony surface
+   * the terminal session-orchestrator already has (run the gate, then commit → push → open a
+   * NON-DRAFT PR that CI re-proves and auto-merges, ADR-0022). Absent → session byte-identical to
+   * the propose/spawn surface (additive threading only, the §7 scale-down mirror).
+   *
+   * The spine still signs (ADR-0091 / ADR-0020): `run_gate` reports the OBSERVED pass/fail, never a
+   * verdict; no landing tool carries a verdict-shaped payload. The desktop sidecar composes the real
+   * deps via `buildLandingDeps` and threads them here; offline tests inject a recording double.
+   */
+  landing?: LandingSurfaceDeps;
 }
 
 /**
@@ -134,6 +147,7 @@ export async function orchestrate({
   onDelta,
   onMessage,
   spawn,
+  landing,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -173,6 +187,7 @@ export async function orchestrate({
       ...(onDelta !== undefined ? { onDelta } : {}),
       ...(onMessage !== undefined ? { onMessage } : {}),
       ...(spawn !== undefined ? { spawn } : {}),
+      ...(landing !== undefined ? { landing } : {}),
     });
   } finally {
     compositionInFlight = false;

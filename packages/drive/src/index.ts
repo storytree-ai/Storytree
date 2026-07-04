@@ -20,6 +20,9 @@ export * from "./chat-stream.js";
 // The spawn-deps composition (ADR-0137 Phase 3): `buildSpawnDeps` + the `SpawnSurfaceDeps` shape the
 // desktop sidecar composes and threads through the chat mount → startChatStream → orchestrate.
 export * from "./spawn-deps.js";
+// The landing-deps composition (ADR-0152): `buildLandingDeps` + the exec seam the desktop sidecar
+// composes and threads through the chat mount → startChatStream → orchestrate (the merge ceremony).
+export * from "./landing-deps.js";
 export * from "./wisp-smoke.js";
 export * from "./oq-gate.js";
 export * from "./resolve-report.js";

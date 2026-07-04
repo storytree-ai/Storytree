@@ -30,7 +30,7 @@ import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
-import type { SdkQueryFn } from "@storytree/agent";
+import type { SdkQueryFn, LandingSurfaceDeps } from "@storytree/agent";
 
 // RED: chat-stream.ts does not exist yet — module-not-found is the right-kind red.
 import { startChatStream } from "./chat-stream.js";
@@ -114,6 +114,16 @@ function spawnDepsDouble(): SpawnSurfaceDeps {
     branch: "claude/sess-chat",
     spawnStoryAuthor: async () => "story-author spawn summary",
     spawnBuilder: async () => "builder dispatched",
+  };
+}
+
+/** A minimal landing-deps double — enough to mount the two landing tools. The handlers never fire
+ *  in these tests (the scripted session only orients); the point is that the deps are FORWARDED to
+ *  orchestrate so `mcp__landing__*` is advertised (ADR-0152). */
+function landingDepsDouble(): LandingSurfaceDeps {
+  return {
+    runGate: async () => ({ passed: true, summary: "gate PASSED" }),
+    openLandingPr: async () => ({ ok: true, summary: "landing PR opened" }),
   };
 }
 
@@ -419,6 +429,62 @@ test(
       tools.some((t) => t.startsWith("mcp__spawn__")),
       false,
       `no mcp__spawn__* tool may appear without spawn deps; got ${JSON.stringify(tools)}`,
+    );
+  },
+);
+
+test(
+  "startChatStream: forwards landing deps to orchestrate — the merge-ceremony tools mount on the session (ADR-0152)",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+    const q = capturingQueryFn();
+
+    const events = await drain(
+      startChatStream({
+        intent: "Orient, build to green, and land the unit.",
+        store,
+        queryFn: q.fn,
+        landing: landingDepsDouble(),
+      }),
+    );
+
+    const last = events[events.length - 1];
+    assert.equal(last?.type, "done", `capturing session must reach a terminal 'done' (got '${last?.type}')`);
+
+    const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
+    assert.ok(
+      tools.includes("mcp__landing__run_gate"),
+      `mcp__landing__run_gate must be advertised when landing deps are forwarded; got ${JSON.stringify(tools)}`,
+    );
+    assert.ok(
+      tools.includes("mcp__landing__open_landing_pr"),
+      `mcp__landing__open_landing_pr must be advertised when landing deps are forwarded; got ${JSON.stringify(tools)}`,
+    );
+    // The existing propose surface is untouched — additive threading, not a fork.
+    assert.ok(
+      tools.includes("mcp__proposal__propose_unit"),
+      "mcp__proposal__propose_unit stays mounted alongside the landing tools",
+    );
+  },
+);
+
+test(
+  "startChatStream: without landing deps the session advertises no mcp__landing__* tool (the §7 scale-down)",
+  async () => {
+    const store = new InMemoryStore();
+    await loadCorpus(store);
+    const q = capturingQueryFn();
+
+    await drain(
+      startChatStream({ intent: "Orient and propose.", store, queryFn: q.fn }),
+    );
+
+    const tools = (q.lastOptions()["allowedTools"] ?? []) as string[];
+    assert.equal(
+      tools.some((t) => t.startsWith("mcp__landing__")),
+      false,
+      `no mcp__landing__* tool may appear without landing deps; got ${JSON.stringify(tools)}`,
     );
   },
 );

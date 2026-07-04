@@ -26,7 +26,7 @@
  */
 
 import type { Store } from "@storytree/storage-protocol";
-import type { SdkQueryFn, OrientationRunner } from "@storytree/agent";
+import type { SdkQueryFn, OrientationRunner, LandingSurfaceDeps } from "@storytree/agent";
 
 import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
@@ -141,6 +141,15 @@ export interface StartChatStreamArgs {
    * chat mount; offline tests inject a scripted double.
    */
   spawn?: SpawnSurfaceDeps;
+  /**
+   * OPTIONAL landing surface deps (ADR-0152): when present, the underlying `orchestrate()` session
+   * mounts `run_gate` / `open_landing_pr` as fail-closed MCP tools so the chat can run the merge
+   * ceremony (gate → commit → push → NON-DRAFT PR). Absent → byte-identical to the propose/spawn
+   * surface. Landing tools emit no spawn-trace events, so — unlike `spawn` — they are forwarded
+   * straight through with no FIFO wrap. The desktop sidecar composes the real deps via
+   * `buildLandingDeps`; offline tests inject a recording double.
+   */
+  landing?: LandingSurfaceDeps;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +258,7 @@ export async function* startChatStream(
     ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     ...(wrappedSpawn !== undefined ? { spawn: wrappedSpawn } : {}),
+    ...(args.landing !== undefined ? { landing: args.landing } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))
     .catch((error: unknown): SessionOutcome => ({ ok: false, error }))
