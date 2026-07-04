@@ -9,6 +9,18 @@ amends: [136]
 
 accepted (2026-07-02) — decided/directed by the owner in conversation on 2026-07-02. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask. Resolves the open-question artifact `oq-fix-drive-build-shape` (Option A) that ADR-0137's consequences explicitly deferred.
 
+> **Amended by [ADR-0155](0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md)**
+> (accepted, 2026-07-04) — **the chat TRIGGER described below is retired; this ADR's decision stands.**
+> The `## Context`'s "propose→accept→build loop" (ChatPanel's Build button → `POST /api/chat/accept` →
+> `dispatchAcceptedBuild`) was removed in PR #587: the desktop session-orchestrator now DRIVES via its
+> spawn (ADR-0137) + landing (ADR-0152) tools rather than accepting a chat proposal into a build. What
+> this ADR actually DECIDED is untouched and live: the routed NODE dispatch (`routedBuildRunner`,
+> `packages/drive/src/build-worker.ts`) drives `node build --real` with persist semantics and parks the
+> proven branch for the human to land (the green `routed-node-real-dispatch` capability). Only the
+> **trigger** changed (the orchestrator's own drive, not a human accept-click on a chat proposal); the
+> node-`--real`-persist behaviour, the "landing stays the human gate" rule, and `dispatchAcceptedBuild`
+> (still called by `builder-spawn-dispatch`, ADR-0137) are unchanged.
+
 ## Context
 
 The chat propose→accept→build loop is live (ADR-0108 Phases 3–4, the `chat-drive-bridge` /
