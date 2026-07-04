@@ -3,7 +3,7 @@ id: "desktop-build-mount"
 tier: story
 title: "The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop, so the thick-local app drives a build (ADR-0133 / ADR-0108 Phase 3+4)"
 outcome: "The build worker machinery (BuildRegistry / runBuildJob / dispatchAcceptedBuild + the BuildContext type) moves out of apps/studio/server into the shared @storytree/drive package, where the desktop local backend may legally reuse it; the desktop sidecar then mounts POST /api/build (202 + runId, fire-and-forget) over a BuildContext wired from the relocated worker, and the chat accept click reaches dispatchAcceptedBuild on that same backend — so the desktop becomes a complete propose→accept→drive→land surface on the shared forest, with the worker's coarse progress streamed back."
-status: proposed
+status: mapped
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the worker exports from its new drive home with
 # the studio importers still green; the desktop build route over a scripted runner; the desktop accept→
@@ -379,6 +379,71 @@ handed in no verdict; the spine signs, not the route; CI is the second proof bef
 driven desktop walk — a real subscription chat proposal accepted by a real click that drives a real
 `story build --real` to a signed verdict + an opened PR — is now POSSIBLE, and is chat-drive-bridge's
 operator-attested legs 5–6 to witness.
+
+## Reliability Gates
+
+The three unregistered capabilities — `worker-relocation`, `desktop-build-route`, `desktop-accept-dispatch`
+— are **brownfield-by-outcome** (`status: mapped`): each LANDED with a real, passing, OFFLINE automated
+test that genuinely exercises it (the relocation's package-boundary contract; the desktop route + the
+accept→dispatch driven over the REAL relocated worker on a real `node:http` server), but storytree's own
+prove-it-gate never DROVE those proofs to a persisted verdict — the `--real --store pg` signing was skipped
+at build time, so the code is tested-but-UNREGISTERED. On a GREEN base a fresh `--real` Build HALTS (there
+is no red→green left to earn, and *halt is never a pass*, ADR-0130), so the honest path off `mapped` is
+**not** a manufactured Build over mature tested code — it is the author-declared **reliability gates** below,
+observe-and-signed to an `adopted` verdict
+([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
+resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+Fork B). This is the `mapped → healthy` = **Adopt** transition
+[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) names
+(d.3 retired the status-blind Build for `mapped` stories), greening each covered capability via the
+`(covers:)` coverage ADR-0097 §5/§2 defines. Distinct from `## Story UAT` above (the integrated, offline
+acceptance journey): the gates are the author's **expandable reliability floor** — they start by adopting
+the existing green suites and GROW a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the
+moment observation proves insufficient — a real relocation / route / accept-dispatch defect slips through
+the existing suite.
+
+The capabilities span TWO package suites, so there are two observe gates, each naming the capabilities its
+suite behaviourally covers (the coverage is real, not declared-only: each test is the cap's own integration
+test over its real collaborators, ADR-0097 §2):
+
+1. **The relocated worker's `@storytree/drive` suite is green** _(gate: observe)_ _(covers: worker-relocation)_ `pnpm --filter @storytree/drive test`. The
+   spine runs it at a clean committed HEAD and OBSERVES it green — the worker-relocation package-boundary
+   contract (**worker-relocation**: `build-worker-relocation.test.ts` — the `@storytree/drive/build-worker`
+   subpath exports the `BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild` / `routedBuildRunner` trio;
+   over the REAL relocated `BuildRegistry` a scripted runner mints + drives to a terminal `passed` with its
+   progress on the transcript; `build-worker.ts` imports nothing from `apps/*` (the ADR-0100 wall the
+   relocation exists to satisfy); and the un-buildable / single-build typed refusals moved intact) passes
+   offline (no DB, no API key, no SDK) — then signs an `adopted` verdict. This observes the whole
+   `@storytree/drive` suite, which carries the relocation behaviour this leaf owns; `worker-relocation`
+   greens via this gate's `(covers:)` (ADR-0097 §5). The cross-package PARITY (the studio importers
+   re-pointed at the package and still green) is the same suite's sibling proof. (`routed-node-real-dispatch`
+   already carries its own signed `--real` verdict from a genuine edit-existing red→green — the ADR-0144
+   node-branch flip — so it is not re-adopted here.)
+2. **The desktop backend suite is green** _(gate: observe)_ _(covers: desktop-build-route, desktop-accept-dispatch)_ `pnpm --filter desktop test`. The
+   spine runs it at a clean committed HEAD and OBSERVES it green — the desktop build route
+   (**desktop-build-route**: `build-route.test.ts` — `createBuildRouteMount` serves `POST /api/build` → 202
+   + runId fire-and-forget + `GET /api/build?runId` → status + coarse transcript, the 404 / 409 / 405 typed
+   answers and the chain fall-through, driven over the REAL relocated `BuildRegistry` + `runBuildJob` on a
+   real `node:http` server, importing the worker by package name never `apps/studio/server`) and the desktop
+   accept→dispatch (**desktop-accept-dispatch**: `accept-dispatch.test.ts` — an accepted `proposedUnitId`
+   POSTed to `POST /api/chat/accept` reaches the relocated `dispatchAcceptedBuild` over the SHARED registry,
+   mints a run, streams the worker's progress back over the shared `GET /api/build?runId` poll, refuses an
+   un-buildable id + a concurrent accept, and holds no signing key or verdict path) both pass offline (no DB,
+   no API key, no SDK, no Electron) — then signs an `adopted` verdict. This observes the whole desktop
+   `src/**` suite; the two caps green via this gate's `(covers:)` (ADR-0097 §5). The one production-wiring
+   edit to `apps/desktop/electron/backend-entry.ts` (chaining the dispatchers + constructing the real
+   `BuildContext`) is the desktop story's operator-attested sidecar glue, not a leg of this gate.
+
+Adopting these gates flips the story off `mapped`. `healthy` stays non-authorable
+([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored `status:`
+is never `healthy`; the world's crown DERIVES green from the signed verdicts
+([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only when
+every capability is `healthy` (the three above via these gates' `(covers:)`; `routed-node-real-dispatch` via
+its own `--real` verdict) AND every own-proof obligation (the three machine-witnessed Story UAT legs above)
+is signed
+([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here (uat-1..3
+are all `witness: machine`), so it greens FULLY by machine observation once the gates + legs are signed.
 
 ## Proof
 
