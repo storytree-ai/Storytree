@@ -3,7 +3,7 @@ id: "cli"
 tier: story
 title: "The CLI — one agent-facing command surface that wires every organism together"
 outcome: "Every organism is reachable through one agent-facing CLI that hydrates credentials, dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition root that wires the system into one command."
-status: mapped
+status: proposed
 proof_mode: UAT
 # Agent-exercised: the UAT is an agent running a few core commands and reading the envelope, so the
 # story is machine-witnessed (ADR-0040). Offline commands run with no DB; the live `--pg` legs are
