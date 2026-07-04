@@ -32,6 +32,16 @@ the SAME continuous walk continuing upstream). This is a NEW ADR, not an in-plac
 (copy-on-write, ADR-0086/0139): their bodies stay as history, with a dated forward pointer added at
 each amended point.
 
+*(Amended by [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md),
+2026-07-04: this ADR's core decision — Act 2 is one continuous walk that grows UPSTREAM; the dependency
+layer is the advantage — STANDS. ADR-0153 (a) CORRECTS an ERROR in how the `dependsOn` edge direction
+was expressed in this body (the direction is `website.dependsOn=[backend]` /
+`backend.dependsOn=[database]`, dependent → prerequisite — the backwards "backend `dependsOn` website"
+phrasing is corrected in place below), and (b) refines the Act 2 experience toward the real product
+(real app UI + progressive disclosure, no escape hatches, an outcome-brief-with-chat step 1,
+drive-machinery overlays, and a frontend-high / foundation-below spatial reframe). No `supersedes` —
+0153 refines. Noted in place per ADR-0139.)*
+
 ## Context
 
 [ADR-0148](0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md) split Act 2 into two
@@ -109,12 +119,20 @@ beat 4's wrong-way-flag antipattern teach.**
 
 2. **The forest grows UPSTREAM on real `dependsOn` edges (reverses the unlanded ADR-0147's horizontal
    growth).** The revealed stories are a **backend** and a **database**, positioned ABOVE the website
-   in the DAG, connected by dependency edges the website OWNS (`website → backend → database`). They
+   in the DAG, connected by dependency edges the website OWNS (`website → backend → database`, read as
+   "depends on" — the website depends on the backend, which depends on the database). They
    are NOT sibling/neighbor islands beside the website (ADR-0147's shape). Each carries an explicit
    `dependsOn` so the map renders the upstream layering, and each appears **proposed** (sapling/ghosted,
    not green) until the visitor walks it. This is the correction ADR-0148 named — the walk must SHOW
    that a backend and a database sit upstream of the website, not pretend the website is a leaf —
    realised as the map's actual dependency layers.
+   *(Amended by [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md),
+   2026-07-04: the DEPENDENCY direction here (`website → backend → database`, dependent → prerequisite)
+   is correct and STANDS. The SPATIAL framing "positioned ABOVE the website" is reframed — the owner
+   directed at the increment-H gate that the FRONTEND renders HIGH with the backend then database as the
+   FOUNDATION BELOW. "Upstream" (dependency axis) and "frontend high / foundation below" (screen axis)
+   describe the same layering from two axes and are not contradictory; screen position is a free render
+   choice with no corpus convention. Noted in place per ADR-0139.)*
 
 3. **The dependency layer is the ADVANTAGE — the teach that replaces beat 4's wrong-way flag (amends
    ADR-0134 §3; reverses the unlanded ADR-0147's beat-4 preservation).** The old beat 4 drew a
@@ -198,10 +216,18 @@ this decision needs, shaped for the wrong (horizontal) framing:
   the preserved `green-only-on-signed-proof` refine and runtime `Beat.parse`.
 - **ADAPT:** `StoryNode` gains a `dependsOn: string[]` (ADR-0147's neighbor has none — its stories are
   siblings, not upstream). The `grow-forest` delta (flat neighbor list) becomes an **`add-upstream-story`**
-  delta whose stories carry `dependsOn` edges pointing DOWN to the story they sit above (so the map
-  renders the layering). The new default-script beats are the UPSTREAM arc (reveal backend `dependsOn`
-  website → reveal database `dependsOn` backend → walk each green) NOT the horizontal `grow-forest` +
+  delta. The new default-script beats are the UPSTREAM arc (reveal the backend the website `dependsOn` →
+  reveal the database the backend `dependsOn` → walk each green) NOT the horizontal `grow-forest` +
   `connect-stories` neighbor arc.
+  *(Correction 2026-07-04, [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md):
+  the `dependsOn` EDGE DIRECTION was expressed backwards here. The `add-upstream-story` stories do NOT
+  carry a `dependsOn` "pointing DOWN to the story they sit above"; the edge points FROM the dependent TO
+  its prerequisite (`cross-story-dependency`, [ADR-0058](0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md)
+  §1 — A depends_on B iff A needs B's delivered outcome to pass A's own UAT). So
+  `website.dependsOn=[backend]`, `backend.dependsOn=[database]`, `database.dependsOn=[]` — NOT
+  "backend `dependsOn` website". This ADR's DECISION (grow upstream; the dependency layer is the
+  advantage) is unchanged and SOUND; only the mis-expressed edge direction is corrected. Noted in place
+  per ADR-0139.)*
 - **DROP:** ADR-0147's beat-4-preservation and its wrong-way road AS THE TEACH; the horizontal
   `grow-forest`/`connect-stories` beats; the sibling-island framing.
 
