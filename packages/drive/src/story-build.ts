@@ -16,9 +16,7 @@ import {
   rollupStatus,
   rollupStoryGreen,
   rollupStoryUat,
-  runRegressionSuite,
   runStoryBuild,
-  runWorktreeTypecheck,
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
 import type {
@@ -31,6 +29,7 @@ import type {
 } from "@storytree/orchestrator";
 
 import type { AmbientDeps } from "./ambient-presence.js";
+import { backstopJobs, observeBackstop } from "./chain-backstop.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
@@ -719,30 +718,14 @@ export async function storyBuild(
       } else if (run.passed && (opts.promote ?? true)) {
         // Backstop ONCE at the final stacked HEAD: re-observe each DISTINCT install-bearing node's
         // typecheck + package suite over the whole stack (tsx strips types — only tsc sees them; a
-        // green leaf must not break its package). A red of either keeps the branch LOCAL-ONLY.
-        let anyRed = false;
-        const seen = new Set<string>();
-        for (const n of driveOrder) {
-          const cfg = resolveBuildConfig(n)?.config;
-          const rc = cfg?.real;
-          if (cfg === undefined || rc?.install !== true) continue;
-          if (rc.typecheck !== undefined) {
-            const key = `tc:${rc.typecheck.file} ${rc.typecheck.args.join(" ")}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              const tc = (await runWorktreeTypecheck({ command: rc.typecheck, cwd: worktree.root })).result;
-              if (tc === "red") anyRed = true;
-              backstopLines.push(`typecheck:   ${key.slice(3)} ${tc.toUpperCase()} at the stacked HEAD`);
-            }
-          }
-          const skey = `suite:${cfg.command.file} ${cfg.command.args.join(" ")}`;
-          if (!seen.has(skey)) {
-            seen.add(skey);
-            const reg = (await runRegressionSuite({ command: cfg.command, cwd: worktree.root })).result;
-            if (reg === "red") anyRed = true;
-            backstopLines.push(`regression:  ${skey.slice(6)} ${reg.toUpperCase()} at the stacked HEAD`);
-          }
-        }
+        // green leaf must not break its package). A red of either keeps the branch LOCAL-ONLY. The
+        // observations are READ-ONLY over INDEPENDENT packages, so they run CONCURRENTLY (bounded —
+        // the dev-box OOM trap; chain-backstop.ts). Latency-only: `anyRed` is still the OR over every
+        // observation and the lines keep their order, so a red in ANY package withholds the push
+        // exactly as the serial loop did.
+        const backstop = await observeBackstop(backstopJobs(driveOrder), worktree.root);
+        backstopLines.push(...backstop.lines);
+        const anyRed = backstop.anyRed;
         promotion = await promoteRealPass({
           repoRoot: rootDir,
           unitId: story.id,
