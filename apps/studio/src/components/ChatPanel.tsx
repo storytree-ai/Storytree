@@ -14,16 +14,13 @@
 //   • a REJECTED seam  → an honest "chat is unavailable" entry (the route is absent — the
 //     studio-standalone case where /api/chat is not mounted), never a hung stream, never a crash.
 //
-// ACCEPT-TO-LAND AFFORDANCE (ADR-0108 d.3): a `done` frame that carries a `proposedUnitId` shows
-// an explicit Build button UNDER that transcript entry. The ONLY trigger for a build dispatch is the
-// operator CLICKING that button — never a free-text "yes" parsed from the conversation. The panel
-// holds NO code path that auto-dispatches on stream-end or on any prose input. The accept affordance is
-// absent when the `done` frame has no `proposedUnitId` (nothing safe to dispatch). The click POSTs
-// through the `api.acceptBuild` seam to the DISTINCT /api/chat/accept route, which records
-// accept-PROVENANCE — that the build came from a human accepting a chat proposal, not a generic build
-// POST (ADR-0133 d.3; the routing is identical, only the provenance differs). After the click, the
-// panel renders the run's coarse progress (polled via the SAME api.buildStatus) under that entry — the
-// build journey in the same conversation (ADR-0108 d.7).
+// THE ORCHESTRATOR DRIVES — NO ACCEPT-TO-BUILD BUTTON (ADR-0155, retiring ADR-0108 d.3): telling the
+// session-orchestrator to drive a unit makes it DRIVE — it spawns the inner loop and runs the merge
+// ceremony through its own spawn (ADR-0137) + landing (ADR-0152) tools, streaming spawn/trace frames
+// into THIS transcript. The panel renders those frames; it never asks the operator to click a "Build"
+// button to dispatch a proposed unit. The old propose → accept → dispatch affordance (a `proposedUnitId`
+// on the `done` frame + a Build button + the /api/chat/accept route) is gone: the orchestrator no longer
+// proposes a unit for a human to accept, so there is nothing to click.
 //
 // THIN CLIENT — NO AGENT, NO DRIVE, NO MODEL PATH (ADR-0004 / ADR-0108 d.1). The panel's ONLY path to
 // the chat route is the `api.chatStream` seam; it imports no agent/drive/model code and never imports
@@ -38,11 +35,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import type { ChatEvent } from '../api.js';
-import type { BuildStatus } from '../types.js';
-
-/** Poll cadence for the dispatched build run's coarse transcript (mirrors BuildSection's BUILD_POLL_MS).
- *  The interval must be < the test's tick(2_000) window so one tick drives exactly one poll. */
-const CHAT_BUILD_POLL_MS = 1_500;
 
 /** The auto-grow input's MAX height (px). Below it the textarea grows to fit its content; at/above it
  *  the height clamps here and the element scrolls inside itself (auto-grow-input). The base one-row
@@ -50,21 +42,15 @@ const CHAT_BUILD_POLL_MS = 1_500;
  *  actual comfortable feel is the story's operator-attested UAT leg — this cap is the recompute only. */
 const CHAT_INPUT_MAX_HEIGHT = 160;
 
-/** Local extension of the done frame shape that adds the optional `proposedUnitId` the wire carries
- *  when the agent proposes a specific capability to build (accept-to-land-affordance, ADR-0108 d.3).
- *  The base ChatDoneEvent in api.ts does not yet declare this field; we read it via a local
- *  intersection type so the panel can act on it without coupling to a future api.ts change. */
-type ChatDoneWithUnitId = Extract<ChatEvent, { type: 'done' }> & { proposedUnitId?: string };
-
 /** The reply phase of ONE transcript exchange: busy (streaming; `streamed` accumulates the assistant
  *  text deltas as they arrive so the operator sees tokens live) → a terminal render, OR the honest
- *  absent-route degrade. The terminal frames map one-to-one onto the wire shape. `done` carries the
- *  optional `proposedUnitId` the accept affordance acts on. (The old panel held ONE of these on the
- *  whole component; now each transcript entry holds its own — a one-entry transcript is the special
- *  case of the single-exchange behaviour, so no terminal-render logic is lost.) */
+ *  absent-route degrade. The terminal frames map one-to-one onto the wire shape. (The old panel held
+ *  ONE of these on the whole component; now each transcript entry holds its own — a one-entry
+ *  transcript is the special case of the single-exchange behaviour, so no terminal-render logic is
+ *  lost.) */
 type Reply =
   | { kind: 'busy'; streamed: string }
-  | { kind: 'done'; proposal: string; costUsd?: number; turns?: number; proposedUnitId?: string }
+  | { kind: 'done'; proposal: string; costUsd?: number; turns?: number }
   | { kind: 'error'; error: string }
   | { kind: 'refused'; reason: string }
   | { kind: 'unavailable'; detail: string };
@@ -91,17 +77,6 @@ type Exchange = {
   prompt: string;
   reply: Reply;
 };
-
-/** The panel's build dispatch phase — idle until the operator explicitly clicks the Build button
- *  (ADR-0108 d.3). Mirrors usePollableRun in BuildSection but scoped inline to the chat panel
- *  (the seam is the chat panel's, not the island's; the poll path is chat-scoped). The build journey
- *  attaches to the `done` exchange whose Build button was clicked (`exchangeId`). */
-type BuildPhase =
-  | { kind: 'idle' }
-  | { kind: 'starting'; exchangeId: number }
-  | { kind: 'building'; exchangeId: number; runId: string; transcript: string[] }
-  | { kind: 'terminal'; exchangeId: number; status: BuildStatus }
-  | { kind: 'error'; exchangeId: number; message: string };
 
 /** A small return-arrow (corner-down-left) glyph — the send affordance, an icon not a "Send" button
  *  (terminal look). Inline SVG: the studio carries no icon webfont; sibling components draw SVG inline.
@@ -162,7 +137,6 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
   // APPENDS; prior exchanges stay rendered (multi-turn-transcript). The empty transcript is the idle
   // resting state.
   const [transcript, setTranscript] = useState<Exchange[]>([]);
-  const [buildPhase, setBuildPhase] = useState<BuildPhase>({ kind: 'idle' });
   // The live spawn transcript (spawn-visibility, ADR-0137) for the CURRENT in-flight exchange: the
   // sub-agent spawns the session emitted this turn, in arrival order. A `started` frame appends a line;
   // the matching `finished` frame (same role + unitId) RESOLVES that line in place. Non-terminal — it
@@ -327,15 +301,11 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
         }
         switch (terminal.type) {
           case 'done': {
-            // Read the optional proposedUnitId the wire carries (accept-to-land-affordance, ADR-0108
-            // d.3) via the local extension type — the base ChatDoneEvent doesn't declare it yet.
-            const doneExt = terminal as ChatDoneWithUnitId;
             patchTailReply({
               kind: 'done',
               proposal: terminal.proposal,
               ...(terminal.costUsd !== undefined ? { costUsd: terminal.costUsd } : {}),
               ...(terminal.turns !== undefined ? { turns: terminal.turns } : {}),
-              ...(doneExt.proposedUnitId !== undefined ? { proposedUnitId: doneExt.proposedUnitId } : {}),
             });
             break;
           }
@@ -363,8 +333,8 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
   }, [intent, patchTailReply]);
 
   /** The reset control — the "fresh terminal" recovery (transcript-reset). Clears the whole transcript
-   *  back to the idle empty state (input cleared + re-enabled + one-row resting height, build phase
-   *  reset) AND aborts any in-flight SSE stream (controller.abort() → the threaded signal rejects the
+   *  back to the idle empty state (input cleared + re-enabled + one-row resting height) AND aborts any
+   *  in-flight SSE stream (controller.abort() → the threaded signal rejects the
    *  fetch, the reader tears down), so a mid-stream reset leaves no ghost reply. The reset's look/feel
    *  is the story's operator-attested UAT leg — no visual assertion here. */
   const handleReset = useCallback((): void => {
@@ -376,7 +346,6 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
     inFlight.current = false;
     setTranscript([]); // empty the scrollback back to the idle resting state
     setSpawns([]); // clear the in-flight spawn lines too — a reset starts clean
-    setBuildPhase({ kind: 'idle' }); // any in-flight build-progress/accept phase is reset too
     setIntent(''); // clear the input
     // Return the input to its one-row resting height (the auto-grow base).
     if (inputRef.current !== null) {
@@ -397,77 +366,11 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
     el.scrollTop = el.scrollHeight;
   }, [transcript]);
 
-  /** The Build button's click handler — the human's deliberate accept gate (ADR-0108 d.3), scoped to
-   *  the `done` exchange whose button was clicked. ONLY an explicit click here dispatches a build; no
-   *  prose text and no stream-end auto-dispatches. Calls api.acceptBuild(proposedUnitId) EXACTLY once —
-   *  the DISTINCT /api/chat/accept route that records accept-PROVENANCE (this build came from a human
-   *  accepting a chat proposal, not a generic build POST; ADR-0133 d.3). The routing is identical to
-   *  build(); only the provenance differs. Then transitions the build phase to polling (the SAME
-   *  api.buildStatus poll — one registry). */
-  const handleBuildClick = useCallback(
-    (exchangeId: number, unitId: string): void => {
-      if (buildPhase.kind !== 'idle') return; // guard against a second dispatch
-      setBuildPhase({ kind: 'starting', exchangeId });
-      api
-        .acceptBuild(unitId)
-        .then(({ runId }) => {
-          setBuildPhase({ kind: 'building', exchangeId, runId, transcript: [] });
-        })
-        .catch((e: unknown) => {
-          setBuildPhase({ kind: 'error', exchangeId, message: e instanceof Error ? e.message : String(e) });
-        });
-    },
-    [buildPhase.kind],
-  );
-
-  /** Poll for the dispatched run's coarse transcript. Active ONLY while a run is building; the
-   *  interval tears itself down the moment a terminal status (passed/failed) lands or the component
-   *  unmounts — no further fetches after the run ends (ADR-0090 poll posture). `activeBuildRunId`
-   *  is the stable key: it's non-null only when building, so the effect is a no-op at all other
-   *  phases (idle/starting/terminal/error). */
-  const activeBuildRunId = buildPhase.kind === 'building' ? buildPhase.runId : null;
-  const activeBuildExchangeId = buildPhase.kind === 'building' ? buildPhase.exchangeId : null;
-  useEffect(() => {
-    if (activeBuildRunId === null || activeBuildExchangeId === null) return;
-    const runId = activeBuildRunId;
-    const exchangeId = activeBuildExchangeId;
-    let cancelled = false;
-
-    const poll = async (): Promise<void> => {
-      if (cancelled) return;
-      let status: BuildStatus;
-      try {
-        status = await api.buildStatus(runId);
-      } catch (e) {
-        if (!cancelled) {
-          setBuildPhase({ kind: 'error', exchangeId, message: e instanceof Error ? e.message : String(e) });
-        }
-        return;
-      }
-      if (cancelled) return;
-      if (status.status === 'building') {
-        setBuildPhase({ kind: 'building', exchangeId, runId, transcript: status.transcript });
-      } else {
-        // passed | failed — the effect cleans up on the next render (activeBuildRunId → null).
-        setBuildPhase({ kind: 'terminal', exchangeId, status });
-      }
-    };
-
-    const id = setInterval(() => void poll(), CHAT_BUILD_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [activeBuildRunId, activeBuildExchangeId]);
-
   /** Render ONE exchange's reply body — the per-entry terminal render (done/error/refused/unavailable)
-   *  or the live busy stream. The build affordance + progress attach to a `done` entry via buildPhase
-   *  scoped to this exchange's id. `isTail` marks the newest exchange — the only one that can be
+   *  or the live busy stream. `isTail` marks the newest exchange — the only one that can be
    *  in-flight — under which the live SPAWN transcript (scoped to the current turn) renders. */
   const renderReply = (exchange: Exchange, isTail: boolean): React.JSX.Element => {
-    const { reply, id } = exchange;
-    const buildForThis =
-      buildPhase.kind !== 'idle' && buildPhase.exchangeId === id ? buildPhase : null;
+    const { reply } = exchange;
     return (
       <>
         {/* The live SPAWN transcript (spawn-visibility, ADR-0137): one line per sub-agent the session
@@ -526,24 +429,9 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
                 {reply.costUsd !== undefined && <span> · ${reply.costUsd.toFixed(2)}</span>}
               </p>
             )}
-            {/* Accept affordance — shown ONLY when the agent attached a machine-actionable
-                proposedUnitId (ADR-0108 d.3). A done frame WITHOUT proposedUnitId shows the
-                proposal text and NO Build button — nothing safe to dispatch. The ONLY trigger for
-                a build is the explicit button click; no prose text can substitute for it. Scoped to
-                THIS exchange — a later exchange's build never shows a button under this one. */}
-            {reply.proposedUnitId !== undefined && (
-              <div className="chat-accept">
-                {buildForThis === null && (
-                  <button
-                    type="button"
-                    className="btn chat-build-btn"
-                    onClick={() => handleBuildClick(id, reply.proposedUnitId as string)}
-                  >
-                    Build
-                  </button>
-                )}
-              </div>
-            )}
+            {/* No accept-to-Build button (ADR-0155, retiring ADR-0108 d.3): the orchestrator DRIVES the
+                unit itself via its spawn + landing tools — the drive's progress streams into this
+                transcript as spawn/trace frames above, not a click-to-dispatch affordance here. */}
           </div>
         )}
 
@@ -569,54 +457,6 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
             </p>
           </div>
         )}
-
-        {/* Build progress — rendered while THIS exchange's dispatched run is in-flight OR terminal.
-            The build journey shows in the SAME conversation entry: proposal → accept → progress →
-            landed (ADR-0108 d.7). The panel owns no build logic; it polls api.buildStatus and renders
-            what arrives. */}
-        {buildForThis !== null &&
-          (buildForThis.kind === 'building' || buildForThis.kind === 'terminal') && (
-            <div className="chat-build-progress">
-              {buildForThis.kind === 'building' && buildForThis.transcript.length > 0 && (
-                <ol className="chat-build-transcript">
-                  {buildForThis.transcript.map((line, i) => (
-                    <li key={i} className="chat-build-transcript-line">
-                      {line}
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {buildForThis.kind === 'terminal' && (
-                <>
-                  {buildForThis.status.transcript.length > 0 && (
-                    <ol className="chat-build-transcript">
-                      {buildForThis.status.transcript.map((line, i) => (
-                        <li key={i} className="chat-build-transcript-line">
-                          {line}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                  {buildForThis.status.status === 'passed' && (
-                    <div className="chat-build-passed">
-                      <p className="small verdict-pass">Build passed</p>
-                      {buildForThis.status.envelope !== undefined && (
-                        <p className="small chat-build-envelope">{buildForThis.status.envelope}</p>
-                      )}
-                    </div>
-                  )}
-                  {buildForThis.status.status === 'failed' && (
-                    <div className="chat-build-failed">
-                      <p className="small verdict-fail">Build failed</p>
-                      {buildForThis.status.reason !== undefined && (
-                        <p className="small chat-build-reason">{buildForThis.status.reason}</p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
       </>
     );
   };

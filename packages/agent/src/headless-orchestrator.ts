@@ -6,15 +6,17 @@
  *
  * Mirrors `runSdkCurator` with one key difference: where the curator sets `tools: []`
  * (its neighbourhood is in the prompt), this runner wires the read-only orientation tool
- * surface via `createSdkMcpServer` and `allowedTools`.
+ * surface via `createSdkMcpServer` and `allowedTools`, plus the optional spawn (ADR-0137) and
+ * landing (ADR-0152) tool surfaces when their deps are present.
  *
- * NO Write/Edit/Bash — Phase 1 is read/propose only.
+ * NO Write/Edit/Bash — the session carries no raw write verbs (ADR-0137 d.1). The orchestrator
+ * DRIVES via its spawn + landing tools; it does not propose a unit for a human to accept with a
+ * click (ADR-0155 retires the ADR-0108 d.3 propose_unit / accept-to-Build surface).
  * ONE SESSION AT A TIME — a second concurrent run is refused (ADR-0108 decision 6).
  */
 
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
 
 import type { SdkQueryFn } from "./sdk-author.js";
 import { buildOrientationTools } from "./orientation-tools.js";
@@ -119,14 +121,6 @@ export interface HeadlessOrchestratorResult {
    * Present only when `ok` is true.
    */
   proposal?: string;
-  /**
-   * The unit id the agent declared via a `propose_unit` tool_use message (ADR-0108 d.3).
-   * This is a structural declaration captured from the streamed `tool_use` block — not a
-   * regex over the proposal text — and is therefore non-spoofable. Present only when the
-   * agent actually called `propose_unit` during the session. `undefined` when no call was
-   * made; the human's ACCEPT is a separate subsequent act.
-   */
-  proposedUnitId?: string;
   /** SDK-reported cost in USD (surfaced even on failure when a result message was received). */
   costUsd?: number;
   /** Number of turns the SDK ran (present on success). */
@@ -187,37 +181,8 @@ function extractTextDelta(message: unknown): string | null {
   return typeof text === "string" ? text : null;
 }
 
-/**
- * Extract the `unitId` from an assistant message carrying a `propose_unit` tool_use block,
- * or `null` when the message is not a `propose_unit` call.
- * Structural narrowing over the complete SDK assistant message shape
- * (`{ type: "assistant", message: { content: [ { type: "tool_use", name: "mcp__proposal__propose_unit", input: { unitId } } ] } }`).
- * Distinct from {@link extractTextDelta} which handles streaming partial messages.
- */
-function extractProposedUnit(message: unknown): string | null {
-  if (typeof message !== "object" || message === null) return null;
-  if ((message as { type?: unknown }).type !== "assistant") return null;
-  const inner = (message as { message?: unknown }).message;
-  if (typeof inner !== "object" || inner === null) return null;
-  const content = (inner as { content?: unknown }).content;
-  if (!Array.isArray(content)) return null;
-  for (const item of content) {
-    if (typeof item !== "object" || item === null) continue;
-    if ((item as { type?: unknown }).type !== "tool_use") continue;
-    if ((item as { name?: unknown }).name !== `mcp__${PROPOSAL_SERVER}__propose_unit`) continue;
-    const input = (item as { input?: unknown }).input;
-    if (typeof input !== "object" || input === null) continue;
-    const unitId = (input as { unitId?: unknown }).unitId;
-    if (typeof unitId === "string") return unitId;
-  }
-  return null;
-}
-
 /** The in-process MCP server name the orientation tools live under (`mcp__orientation__<tool>`). */
 const ORIENTATION_SERVER = "orientation";
-
-/** The in-process MCP server name the proposal tool lives under (`mcp__proposal__propose_unit`). */
-const PROPOSAL_SERVER = "proposal";
 
 // ---------------------------------------------------------------------------
 // Runner
@@ -261,9 +226,10 @@ export async function runHeadlessOrchestrator(
     const landingTools = args.landing !== undefined ? buildLandingTools(args.landing) : [];
 
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
-    // The propose_unit tool is always available (it is the non-spoofable declaration surface).
+    // The orchestrator DRIVES via its spawn + landing tools (ADR-0155) — there is no `propose_unit`
+    // declaration surface: when the human asks it to drive, it spawns the inner loop and lands rather
+    // than proposing a unit for a human to accept with a click (the retired ADR-0108 d.3 accept gate).
     const allowedTools = [
-      `mcp__${PROPOSAL_SERVER}__propose_unit`,
       ...orientationTools.map((t) => `mcp__${ORIENTATION_SERVER}__${t.name}`),
       ...spawnTools.map((t) => `mcp__${SPAWN_SERVER}__${t.name}`),
       ...landingTools.map((t) => `mcp__${LANDING_SERVER}__${t.name}`),
@@ -287,32 +253,18 @@ export async function runHeadlessOrchestrator(
       ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
       // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
       ...(wantsDeltas ? { includePartialMessages: true } : {}),
-      // Read-only by construction: no Write/Edit/Bash in tools or allowedTools (Phase 1).
+      // No Write/Edit/Bash in tools or allowedTools — the chat session carries no raw write verbs
+      // (ADR-0137 d.1); writes happen only inside the spawned subagents under their own fences, and
+      // the merge ceremony is the fail-closed landing tools (ADR-0152).
       tools: [],
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
-      // The proposal MCP server is always mounted (the non-spoofable propose_unit tool).
       // The orientation MCP server is only mounted when a runner is present (§7 scale-down).
-      // The spawn MCP server is only mounted when spawn deps are present (same §7 mirror).
+      // The spawn MCP server is only mounted when spawn deps are present (same §7 mirror), and the
+      // landing MCP server only when landing deps are present. No propose server — the orchestrator
+      // drives rather than proposing (ADR-0155, retiring the ADR-0108 d.3 propose/accept surface).
       mcpServers: {
-        [PROPOSAL_SERVER]: createSdkMcpServer({
-          name: PROPOSAL_SERVER,
-          version: "1.0.0",
-          tools: [
-            tool(
-              "propose_unit",
-              "Declare the proposed next unit id. Call this once to signal which unit you are " +
-                "proposing as the next work item. Read-only: performs no build, sign, or land " +
-                "action — this is the agent's PROPOSAL; the human's ACCEPT is a separate act " +
-                "(ADR-0108 d.3).",
-              { unitId: z.string().describe("The unit id to propose as the next work item.") },
-              async ({ unitId }) => ({
-                content: [{ type: "text" as const, text: `Recorded proposed unit: ${unitId}` }],
-              }),
-            ),
-          ],
-        }),
         ...(orientationTools.length > 0
           ? {
               [ORIENTATION_SERVER]: createSdkMcpServer({
@@ -349,7 +301,6 @@ export async function runHeadlessOrchestrator(
     };
 
     let result: ResultLike | undefined;
-    let proposedUnitId: string | undefined;
     try {
       for await (const message of queryFn({ prompt: args.userPrompt, options })) {
         // The trace seam (ADR-0108 §7): surface every message so a caller can capture the agent's
@@ -361,11 +312,6 @@ export async function runHeadlessOrchestrator(
             /* a trace sink must never break the session */
           }
         }
-        // Capture the proposed unit id from a propose_unit tool_use block (ADR-0108 d.3).
-        // Loop-level inspection (not the MCP handler) so this works for both the scripted
-        // offline test and the live SDK — both stream the assistant's tool_use through here.
-        const pid = extractProposedUnit(message);
-        if (pid !== null) proposedUnitId = pid;
         if (isResult(message)) {
           result = message;
         } else if (wantsDeltas) {
@@ -408,7 +354,6 @@ export async function runHeadlessOrchestrator(
       proposal: result.result ?? "",
       costUsd,
       turns,
-      ...(proposedUnitId !== undefined ? { proposedUnitId } : {}),
     };
   } finally {
     inFlight = false;

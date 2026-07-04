@@ -228,10 +228,11 @@ test("buildLandingDeps: orchestrate() with landing deps advertises the two landi
     tools.includes("mcp__landing__open_landing_pr"),
     `mcp__landing__open_landing_pr must be advertised when landing deps are threaded; got ${JSON.stringify(tools)}`,
   );
-  // The existing surface is untouched — additive threading, not a fork.
-  assert.ok(
+  // The orchestrator DRIVES rather than proposes (ADR-0155) — there is no propose_unit surface.
+  assert.equal(
     tools.includes("mcp__proposal__propose_unit"),
-    "mcp__proposal__propose_unit stays mounted alongside the landing tools",
+    false,
+    "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via its landing tools (ADR-0155)",
   );
 });
 
