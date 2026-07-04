@@ -139,8 +139,9 @@ test("lts-landing-tools-mounted-only-with-deps: absent landing dep — no landin
   );
 });
 
-test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the two landing tools join allowedTools and the landing MCP server mounts (propose_unit preserved)", async () => {
-  // Baseline: the propose-only surface (no landing dep).
+test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the two landing tools join allowedTools and the landing MCP server mounts (no propose surface, ADR-0155)", async () => {
+  // Baseline: the bare surface (no landing dep, no runner) — the orchestrator drives, it does not
+  // propose (ADR-0155), so there is no propose_unit tool in the baseline.
   const base = capturingQuery([OK_RESULT]);
   await runHeadlessOrchestrator({ systemPrompt: "SYS", userPrompt: "orient", queryFn: base.fn });
   const baseAllowed = (base.opts() as { allowedTools?: string[] }).allowedTools ?? [];
@@ -155,16 +156,21 @@ test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the two la
   });
   const o = withDeps.opts() as { allowedTools?: string[]; mcpServers?: Record<string, unknown> };
 
-  // EXACTLY the two landing tool names join the baseline — nothing else changes, and the
-  // proposal surface (ADR-0108 d.3) is preserved, not evicted.
+  // EXACTLY the two landing tool names join the baseline — nothing else changes.
   assert.deepEqual(
     o.allowedTools,
     [...baseAllowed, "mcp__landing__run_gate", "mcp__landing__open_landing_pr"],
-    "the ONLY additions over the propose-only surface must be the two landing tool names",
+    "the ONLY additions over the bare surface must be the two landing tool names",
   );
   assert.ok(
     Object.keys(o.mcpServers ?? {}).includes("landing"),
     "the landing MCP server must be mounted when the landing dep is present",
+  );
+  // And the retired propose surface is never present (ADR-0155).
+  assert.equal(
+    (o.allowedTools ?? []).includes("mcp__proposal__propose_unit"),
+    false,
+    "propose_unit must NOT be advertised — the orchestrator drives, it does not propose",
   );
 });
 

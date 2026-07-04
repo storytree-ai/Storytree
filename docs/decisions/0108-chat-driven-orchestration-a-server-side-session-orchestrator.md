@@ -36,6 +36,16 @@ surface's APPEARANCE is operator-attested under ADR-0070 when built.
 > non-draft PR) end to end, at parity with the terminal agent. Accept-to-land (d.3) and the single-session
 > guard (d.6) are untouched; the spine still signs (ADR-0091) and CI still re-proves (ADR-0022).
 
+> **Amended by [ADR-0155](0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md)**
+> (accepted, 2026-07-04) — **the accept-to-land gate (d.3) is RETIRED.** Once ADR-0137 (spawn) + ADR-0152
+> (landing, above) gave the chat orchestrator the tools to DRIVE a unit itself, the propose_unit →
+> `proposedUnitId` → human-click-**Build** → `/api/chat/accept` handshake became vestigial friction: the
+> owner asks it to drive, and it should drive, not hand back a button. The `propose_unit` tool, the
+> `proposedUnitId` result/stream field, the ChatPanel Build affordance, and the desktop accept route are
+> removed. The single-session guard (d.6) and whole-loop authority stand; the spine still signs
+> (ADR-0091), CI still lands (ADR-0022). The story detail panel's explicit Build/Adopt affordance is a
+> separate surface and is kept.
+
 ## Context
 
 Today the session-orchestrator is a *generated prompt* (ADR-0051) that a human-run Claude Code session
