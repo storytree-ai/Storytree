@@ -243,7 +243,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       heading: "Surfaces",
       required: true,
       placeholder:
-        "_Which surfaces this touches — tree, noticeboard, library, repo/CI — and what it reads or writes on each._",
+        "_Which surfaces this touches — tree, noticeboard, library, repo/CI — and what it reads or writes on each. Name each ENACTING entrypoint as a backtick command — `storytree <area> …`, `pnpm <script> …`, or `pnpm --filter <app> <script> …` — so `check:surface-coverage` (ADR-0154) resolves it against the real CLI/pnpm surface._",
     },
     {
       field: "failureModes",

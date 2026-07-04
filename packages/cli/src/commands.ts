@@ -27,6 +27,7 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
+import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
@@ -1923,7 +1924,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area !== "library") {
     return {
       ok: false,
-      body: `unknown area "${area}". areas: library, agents, orchestrate, noticeboard, branch, tree, witness, attest, uat, gate, adopt, build, coverage, node, story, drift, adr.`,
+      body: `unknown area "${area}". areas: ${CLI_AREAS.join(", ")}.`,
       next: ["storytree library", "storytree agents <name>"],
     };
   }
