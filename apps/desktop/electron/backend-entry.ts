@@ -31,8 +31,8 @@ import { PgPresenceStore, PgClaimStore } from "@storytree/notice-board/store";
 import { classifyPresence } from "@storytree/notice-board";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
-import { createOrientationRunner, deriveIdentity, buildSpawnDeps } from "@storytree/drive";
-import type { SpawnSurfaceDeps } from "@storytree/drive";
+import { createOrientationRunner, deriveIdentity, buildSpawnDeps, buildLandingDeps } from "@storytree/drive";
+import type { SpawnSurfaceDeps, LandingSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
@@ -562,9 +562,10 @@ async function main(): Promise<void> {
   // stderr. The spawn power is additive; its absence never breaks the read/propose chat.
   const identity = deriveChatIdentity(repoRoot);
   let spawn: SpawnSurfaceDeps | undefined;
+  let landing: LandingSurfaceDeps | undefined;
   if (identity === null) {
     console.error(
-      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn surface",
+      "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn/landing surface",
     );
   } else {
     const claims = new PgClaimStore(pool);
@@ -602,6 +603,40 @@ async function main(): Promise<void> {
         `[backend-entry] spawn surface NOT composed (chat stays propose-only): ${composed.error}`,
       );
     }
+
+    // ---------- the chat LANDING surface (ADR-0152 — the desktop-orchestrator full-autonomy arc) ----------
+    //
+    // Compose the REAL landing deps and thread them into the chat mount so the desktop
+    // session-orchestrator gains the MERGE CEREMONY (run `pnpm gate`; open a NON-DRAFT PR that CI
+    // auto-merges) — parity with the terminal agent (ADR-0152 relaxes the ADR-0137 d.3 Phase-2 wall
+    // for the desktop orchestrator). buildLandingDeps composes over the SAME repo cwd + session branch
+    // the spawn deps derive; OMIT `exec` so the real `child_process` spawn runs (win32 `pnpm` wrapped
+    // via cmd.exe; git/gh pass through — @storytree/drive's defaultExec). This is PARITY, not a new
+    // trust escalation: the chat still carries `tools: []` (run_gate/open_landing_pr are the ONLY
+    // landing verbs), run_gate OBSERVES the exit code (never rewrites red→green), open_landing_pr
+    // never `gh pr merge`s — the spine stays the sole signer, CI the sole lander (ADR-0091 / ADR-0022).
+    //
+    // OPERATOR-ATTESTED GLUE (like the spawn/build paths above): a node:test over this composition
+    // would run a real gate / open a real PR on a gate pass — the CI-proven cores are buildLandingDeps
+    // (packages/drive/src/landing-deps.test.ts, over an injected exec seam) and the mount's landing
+    // forwarding (chat-sse-mount.test.ts, over a double); this file composes the real pieces.
+    //
+    // FAIL-CLOSED / DEGRADE-QUIET: a blank identity is refused by buildLandingDeps before any deps are
+    // built (typed { ok:false }); on refusal the chat mounts WITHOUT the landing surface — read/propose/
+    // spawn only, byte-identical to before ADR-0152 — logged once to stderr. The landing power is
+    // additive; its absence never breaks the read/propose/spawn chat.
+    const landingComposed = buildLandingDeps({ cwd: repoRoot, branch: identity.branch });
+    if (landingComposed.ok) {
+      landing = landingComposed.deps;
+      console.error(
+        `[backend-entry] landing surface composed — chat can run the gate + open the auto-merging PR ` +
+          `(branch ${identity.branch})`,
+      );
+    } else {
+      console.error(
+        `[backend-entry] landing surface NOT composed (chat stays read/propose/spawn only): ${landingComposed.error}`,
+      );
+    }
   }
   // The orchestrator SESSION turn cap (ADR-0151): UNBOUNDED by default — the desktop chat is the
   // human-watched session-orchestrator loop, so a fixed cap that false-fails a healthy long
@@ -614,6 +649,7 @@ async function main(): Promise<void> {
   const chatMount = createChatSseMount({
     runner: orientationRunner,
     ...(spawn !== undefined ? { spawn } : {}),
+    ...(landing !== undefined ? { landing } : {}),
     ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
   });
 

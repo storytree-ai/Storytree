@@ -49,6 +49,9 @@ type QueryFn = NonNullable<ChatSseMountDeps["queryFn"]>;
 /** The spawn deps type — derived from the mount's own deps so the double stays in sync. */
 type SpawnDeps = NonNullable<ChatSseMountDeps["spawn"]>;
 
+/** The landing deps type — derived from the mount's own deps so the double stays in sync. */
+type LandingDeps = NonNullable<ChatSseMountDeps["landing"]>;
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -104,6 +107,17 @@ function spawnDepsDouble(): SpawnDeps {
     spawnStoryAuthor: async () => "story-author spawn summary",
     spawnBuilder: async () => "builder dispatched",
   } as SpawnDeps;
+}
+
+/** A minimal landing-deps double — enough to mount the two fail-closed landing tools. Its
+ *  runGate/openLandingPr never fire (the scripted session only orients); the point is the mount
+ *  FORWARDS it to the session so the landing tools are advertised (mirrors what backend-entry
+ *  composes via buildLandingDeps). */
+function landingDepsDouble(): LandingDeps {
+  return {
+    runGate: async () => ({ passed: true, summary: "gate green" }),
+    openLandingPr: async () => ({ ok: true, summary: "landing PR opened", prUrl: "https://github.com/x/y/pull/1" }),
+  } as LandingDeps;
 }
 
 /** An SDK partial-assistant streaming message carrying one text-delta fragment — the live
@@ -731,6 +745,91 @@ test(
     assert.ok(
       !allowed.some((n) => n.startsWith("mcp__spawn__")),
       `with no spawn deps, no spawn tools may be advertised; got: ${JSON.stringify(allowed)}`,
+    );
+  },
+);
+
+// LANDING SEAM (ADR-0152, the desktop-orchestrator full-autonomy arc): injected landing deps must be
+// forwarded through the mount → startChatStream → orchestrate → runHeadlessOrchestrator, which mounts
+// the two fail-closed landing tools (mcp__landing__run_gate / open_landing_pr) into the session. This
+// is the desktop half of the sidecar wiring — the sidecar (backend-entry.ts) composes the real deps
+// via buildLandingDeps and hands them to createChatSseMount; the mount only forwards.
+//
+// DELETION TEST: dropping the landing forwarding in the mount (or in the bridged startChatStream args)
+// removes the landing MCP server from the captured session options — this allowedTools assertion fails.
+test(
+  "csm-forwards-landing-deps: injected landing deps wire the merge-ceremony tools into the session",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery, landing: landingDepsDouble() });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "land the green unit" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text(); // drain the stream so the session settles
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    const opts = capturedOptions as {
+      allowedTools?: string[];
+      mcpServers?: Record<string, unknown>;
+    };
+    const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
+    for (const name of ["run_gate", "open_landing_pr"]) {
+      assert.ok(
+        allowed.includes(`mcp__landing__${name}`),
+        `the injected landing deps must wire '${name}' into allowedTools; got: ${JSON.stringify(allowed)}`,
+      );
+    }
+    assert.ok(
+      "landing" in (opts.mcpServers ?? {}),
+      "the landing MCP server must be mounted when landing deps are injected",
+    );
+  },
+);
+
+// LANDING SEAM (baseline): with NO landing deps injected, no landing tools are advertised (the §7
+// scale-down) — the read/propose/spawn surface is byte-identical to before ADR-0152; the mount
+// invents no dead merge-ceremony surface.
+test(
+  "csm-forwards-landing-deps: without landing deps, no landing tools are advertised (unchanged)",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "plain conversational turn" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text();
+    });
+
+    const opts = capturedOptions as { allowedTools?: string[] };
+    const allowed = opts.allowedTools ?? [];
+    assert.ok(
+      !allowed.some((n) => n.startsWith("mcp__landing__")),
+      `with no landing deps, no landing tools may be advertised; got: ${JSON.stringify(allowed)}`,
     );
   },
 );

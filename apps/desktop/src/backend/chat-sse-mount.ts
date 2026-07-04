@@ -11,7 +11,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import type { ChatStreamEvent, SpawnSurfaceDeps } from "@storytree/drive";
+import type { ChatStreamEvent, SpawnSurfaceDeps, LandingSurfaceDeps } from "@storytree/drive";
 import { startChatStream } from "@storytree/drive";
 
 // ---------- HTTP helpers (local copies — not imported from studio) ----------
@@ -220,6 +220,18 @@ export interface ChatSseMountDeps {
    */
   spawn?: SpawnSurfaceDeps;
   /**
+   * OPTIONAL landing surface deps (ADR-0152, the desktop-orchestrator full-autonomy arc). Present →
+   * the chat session mounts the fail-closed `run_gate` / `open_landing_pr` tools (the merge-ceremony
+   * surface: the orchestrator can run the gate and open a NON-DRAFT PR that CI auto-merges, ADR-0022).
+   * Absent → propose-only, byte-identical to today (the same §7 scale-down as `spawn`). The mount
+   * FORWARDS this opaque token through to `startChatStream` → `orchestrate`; it never constructs it —
+   * the sidecar (backend-entry.ts) composes the real deps via `buildLandingDeps`. The chat session
+   * itself still carries NO Write/Edit/Bash (ADR-0137 d.1 / ADR-0152); `run_gate` only OBSERVES a
+   * pass/fail and `open_landing_pr` never `gh pr merge`s — the spine stays the sole signer, CI the
+   * sole lander (ADR-0091 / ADR-0022).
+   */
+  landing?: LandingSurfaceDeps;
+  /**
    * OPTIONAL turn ceiling for the orchestrator SESSION (ADR-0151). Absent (the default) → the session
    * runs UNBOUNDED: the mount forwards no `maxTurns`, so `startChatStream` → `orchestrate` →
    * `runHeadlessOrchestrator` hand no `maxTurns` to the SDK. The orchestrator session is the
@@ -245,6 +257,7 @@ type BridgedStartStream = (args: {
   queryFn?: SseMountQueryFn;
   runner?: SseOrientationRunner;
   spawn?: SpawnSurfaceDeps;
+  landing?: LandingSurfaceDeps;
   maxTurns?: number;
 }) => AsyncGenerator<ChatStreamEvent>;
 
@@ -299,13 +312,15 @@ export function createChatSseMount(
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Build args — forward queryFn/runner/spawn/maxTurns only when present (exactOptionalPropertyTypes).
+    // Build args — forward queryFn/runner/spawn/landing/maxTurns only when present
+    // (exactOptionalPropertyTypes).
     const streamArgs: {
       intent: string;
       store: SeedStore;
       queryFn?: SseMountQueryFn;
       runner?: SseOrientationRunner;
       spawn?: SpawnSurfaceDeps;
+      landing?: LandingSurfaceDeps;
       maxTurns?: number;
     } = {
       intent,
@@ -313,6 +328,7 @@ export function createChatSseMount(
       ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
       ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
       ...(deps.spawn !== undefined ? { spawn: deps.spawn } : {}),
+      ...(deps.landing !== undefined ? { landing: deps.landing } : {}),
       ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
     };
 
