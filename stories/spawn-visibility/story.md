@@ -3,7 +3,12 @@ id: "spawn-visibility"
 tier: story
 title: "A spawn is visible where it happens — the operator SEES the subagent in the chat transcript AND on the forest map (ADR-0137 Phase-3 follow-on)"
 outcome: "During a live spawn from the desktop chat, the operator can SEE that a subagent was spawned (a spawn line in the chat transcript) and WHERE it is working (the just-authored story's island appears live on the forest map, and its claim wisp lights) — the spawn is no longer invisible."
-status: proposed
+# status: mapped (ADR-0097) — the four capabilities LANDED in PR #567 with passing real-arm tests across
+# three offline suites, but that merge ran through DB-free CI, so the prove-it-gate never signed a
+# `--real --store pg` verdict; the honest current status is BROWNFIELD (built, tested, gate never drove
+# it). Adopt observe-and-signs the `## Reliability Gates` below + the four machine UAT legs, then flips
+# this mapped → proposed ("adoption underway"). NOT a `--real` build (the green base has no red to drive).
+status: mapped
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the typed spawn trace threaded onto the chat
 # stream, the SSE frame carrying it, the frontend geometry that renders the spawn line and triggers the
@@ -328,6 +333,53 @@ End state — a desktop chat spawn is VISIBLE in both places the operator looks:
 subagent start and finish, and the map shows the new island and its lit claim wisp, live — the two gaps
 the 2026-07-03 Phase-3 walk found are closed, every wall held (additive frames, heartbeat still bumps,
 thin-client wall intact, advisory null-on-failure preserved).
+
+## Reliability Gates
+
+`spawn-visibility` is a **landed-but-unregistered straggler** (`status: mapped`): its four capabilities
+LANDED in PR #567 with passing real-arm tests across three offline suites, but that merge ran through
+DB-free CI, so storytree's own prove-it-gate never signed a `--real --store pg` verdict for them — the
+caps read `build=unregistered` and hold the crown at `proposed`. A fresh `--real` build is the wrong
+instrument: the base is already green, so the gate finds no genuine red to drive and HALTS (and a
+scripted red over mature code would be the manufactured-red rubber-stamp ADR-0097 §2 forbids). The
+honest path off `mapped` is the author-declared **reliability gates** below, observe-and-signed to
+`adopted` verdicts (ADR-0097 — brownfield go-green is a proving process, brown → proposed → green;
+ADR-0085 — the reliability-gate author surface). Same move proven on the `cli` hub (PR #569).
+
+The four caps span **three** suites, so the story declares **three** `observe` gates — one per suite —
+each `(covers:)` only the capabilities its suite genuinely exercises (ADR-0097 §5). The two studio caps
+are **two-stage** (ADR-0070): the vitest gate covers their machine GEOMETRY (the wire shape, the
+transcript render, the dock→tree reload callback); their on-screen / on-map APPEARANCE is human UAT legs
+5–6, already operator-attested. So an `observe` gate over each suite honestly covers its caps' machine
+half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authored.
+
+1. **The drive spawn-trace suite is green** _(gate: observe)_ _(covers: chat-spawn-trace-events)_
+   `pnpm --filter @storytree/drive test`. The spine runs it at a clean committed HEAD and OBSERVES it
+   green — the typed `SpawnTrace` union + `startChatStream`'s interception that pushes a non-terminal
+   `ChatStreamSpawnEvent` onto the same delta FIFO (interleaved, ordered), the heartbeat-still-bumps
+   invariant (ADR-0138 §4), and the absent-spawn-deps byte-identical wall — all proven offline over the
+   injected `queryFn` + scripted spawn double. This is the machine half of `chat-spawn-trace-events`
+   (UAT leg 1); the `adopted` verdict greens the cap via `(covers:)`.
+2. **The desktop advisory suite is green** _(gate: observe)_ _(covers: claim-wisp-cold-start)_
+   `pnpm --filter desktop test`. The spine OBSERVES it green — `createAdvisoryReader`'s per-read budget
+   (a timeout override / retry-once) that lets the `inFlightClaims` read survive a DB cold-start beyond
+   4s WITHOUT slowing the other four overlay reads or letting `/api/tree` hang, and the ADR-0033
+   null-on-genuine-failure contract preserved — proven offline over an injected slow fn
+   (`advisory.test.ts`). This is the machine half of `claim-wisp-cold-start` (UAT leg 2).
+3. **The studio spawn-surface suite is green** _(gate: observe)_ _(covers: chat-panel-spawn-render, live-story-island-refresh)_
+   `pnpm --filter studio test`. The spine OBSERVES it green — the `spawn` variant on the `ChatEvent`
+   wire union + `isChatEvent` guard and the `ChatPanel` spawn-line render (`chat-panel-spawn-render`),
+   the `ChatDock` → `TreeView.reloadTree` callback firing exactly once on a story-author finish
+   (`live-story-island-refresh`), and the thin-client wall (no drive/agent import) — proven offline over
+   the scripted `api` seam (studio vitest/jsdom). This is the machine GEOMETRY of the two two-stage caps
+   (UAT legs 3–4); their live appearance is the operator-attested legs 5–6.
+
+Adopting these three gates signs one `adopted` verdict per gate (signer = the spine principal that
+witnessed the green, approvedBy = the owner adopting it) and observe-signs the four machine UAT legs
+(1–4) against the first observe gate's suite (ADR-0106), then flips the authored status `mapped →
+proposed` ("adoption underway", ADR-0097). No single gate greens the story: `healthy` stays
+non-authorable (ADR-0020) — the crown DERIVES green once every capability is covered, every machine UAT
+leg is signed, and the human legs 5–7 are attested (they already are).
 
 ## Proof
 
