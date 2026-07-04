@@ -97,6 +97,14 @@ jobs:
       - name: Corpus views in sync
         run: pnpm check:corpus-build
 
+      # Process↔entrypoint bijection (ADR-0154): every `process` names a real CLI/pnpm entrypoint in
+      # its `surfaces`, and every operator-facing entrypoint has a process behind it. ADVISORY — it
+      # WARNs (the backfill worklist) but ALWAYS exits 0, so it never blocks the gate. DB-free (reads
+      # the seed + root package.json), so unlike the local-only DB-backed sync checks it runs in CI
+      # too, honouring ADR-0154's "runs local + CI".
+      - name: Surface coverage (advisory)
+        run: pnpm check:surface-coverage
+
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
       # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
       # why the checkout above takes no submodules). ADR-0056.
