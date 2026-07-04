@@ -39,6 +39,7 @@
     "db:status": "pnpm --filter @storytree/cli run db -- status",
     "studio:up": "node scripts/studio.mjs up",
     "studio:down": "node scripts/studio.mjs down",
-    "studio:status": "node scripts/studio.mjs status"
+    "studio:status": "node scripts/studio.mjs status",
+    "desktop:start": "pnpm --filter desktop start"
   }
 }
