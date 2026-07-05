@@ -125,8 +125,11 @@ export const BeatDelta = z.discriminatedUnion('kind', [
     .strict(),
   // add-upstream-story: raise a story that an existing story DEPENDS ON.
   // Edge direction: FROM dependent TO prerequisite (ADR-0058 / cross-story-dependency;
-  // direction corrected by ADR-0153). dependentId names the existing story whose
-  // dependsOn edge set gains the new story's id.
+  // direction corrected by ADR-0153). dependentId names the existing story (or stories)
+  // whose dependsOn edge set gains the new story's id. A string | string[] allows the
+  // BaaS diamond (ADR-0157): the database is a prerequisite of BOTH the backend AND the
+  // website, so the single upstream raise fans the new id into multiple dependents'
+  // dependsOn arrays.
   z
     .object({
       kind: z.literal('add-upstream-story'),
@@ -136,8 +139,10 @@ export const BeatDelta = z.discriminatedUnion('kind', [
       label: z.string().min(1),
       /** The new upstream story's tri-state status. */
       status: z.enum(['proven', 'building', 'broken']),
-      /** The id of the existing story that depends on this new upstream story. */
-      dependentId: z.string().min(1),
+      /** The id (or ids) of the existing stories that depend on this new upstream story.
+       *  A string array allows a single upstream raise to fan into multiple dependents
+       *  (the BaaS diamond: database is prerequisite of BOTH backend AND website). */
+      dependentId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
     })
     .strict(),
   // pull-back: camera widens to the whole legible forest → done: true (CTA).
@@ -300,9 +305,12 @@ function applyDelta(world: WorldState, delta: BeatDelta): WorldState {
       return world;
 
     case 'add-upstream-story': {
-      // Raise a new upstream story AND update the dependent story's dependsOn edge.
+      // Raise a new upstream story AND update each dependent story's dependsOn edge.
       // Edge direction: dependent.dependsOn gains the new story's id (FROM dependent
       // TO prerequisite — ADR-0058 / cross-story-dependency; ADR-0153 direction).
+      // dependentId may be a string (single dependent) or string[] (multiple dependents —
+      // the BaaS diamond: database is prerequisite of BOTH backend AND website, so
+      // applyDelta fans the new upstream id into each named dependent's dependsOn).
       const newStory: StoryNode = {
         id: delta.id,
         label: delta.label,
@@ -311,11 +319,13 @@ function applyDelta(world: WorldState, delta: BeatDelta): WorldState {
         dependsOn: [],
         limbs: [],
       };
+      const dependentIds: string[] =
+        typeof delta.dependentId === 'string' ? [delta.dependentId] : delta.dependentId;
       return {
         ...world,
         stories: [
           ...world.stories.map((s) =>
-            s.id === delta.dependentId
+            dependentIds.includes(s.id)
               ? { ...s, dependsOn: [...s.dependsOn, delta.id] }
               : s,
           ),
@@ -469,11 +479,13 @@ export const defaultScript: BeatScript = [
     },
   },
 
-  // Beat 5 — Grow upstream: the database story the backend depends on.
-  // The edge is backend.dependsOn=[database]. The forest now holds the layered
-  // stack website → backend → database. The database is 'building' — PROPOSED,
-  // never green (UAT 2: the upstream layers are the work you build next). The
-  // honest mix completes at the pull-back, where the grown WEBSITE resolves proven.
+  // Beat 5 — Grow upstream: the database story (the shared foundation, BaaS diamond).
+  // ADR-0157: the frontend reads the catalog DIRECTLY from the database, so BOTH the
+  // website AND the backend depend on the database. dependentId spans both, so applyDelta
+  // fans the new database id into backend.dependsOn AND website.dependsOn, giving the
+  // diamond: website → {backend, database}, backend → database, database → [].
+  // The database is 'building' — PROPOSED, never green (UAT 2: upstream layers are the
+  // work you build next). The honest mix completes at the pull-back.
   {
     id: 'beat-5-add-upstream-database',
     narrationKey: 'act2.beat5.addUpstreamDatabase',
@@ -483,7 +495,7 @@ export const defaultScript: BeatScript = [
       id: 'story-database',
       label: 'Persistent data store',
       status: 'building',
-      dependentId: 'story-backend',
+      dependentId: ['story-backend', 'story-website'],
     },
   },
 
