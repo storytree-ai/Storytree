@@ -338,3 +338,29 @@ builder always drives the whole unit's registered proof regardless of what the m
 > its only code-change button, `spawn_builder`, ignored the scope and routed the story id into a
 > whole-story `--real`. The guidance already says "delegate the glue to a subagent"; it just had no target
 > on this surface. **Fix: add the subagent (C-1). Don't touch the guidance.**
+
+---
+
+## Adversarial-review outcome (2026-07-05) — ADR-0158 grounded & accepted
+
+A fresh skeptical session was asked to challenge this investigation for over-abstraction. Three cited
+sub-audits (code-tracing, corpus-consistency, taxonomy) returned:
+
+- **Tooling-gap diagnosis — CONFIRMED against code.** `tools: []` (`headless-orchestrator.ts`), no scoped
+  edit tool; `spawn_builder` advertises a `userPrompt` (`spawn-tool-surface.ts`) that the production
+  `spawnBuilder` dep discards (`spawn-deps.ts`); `routedBuildRunner` classifies a story into a whole-story
+  `--real` with `openPr` (`build-worker.ts`). One drift fixed: `propose_unit` was retired by ADR-0155.
+- **R1/R2/R3 taxonomy — REJECTED as inert over-abstraction.** Only the "is it hiding an extractable pure
+  function?" check changes an engineer's action; R1 and R2 both collapse to "not a unit test." Dropped from
+  the ADR in favour of the owner's grounded structural definition.
+- **"Glue within a story vs between stories" — GROUNDED.** Glue lives **within** a story: it is un-asserted
+  connective code that declares no capability (no isolatable red→green) but is proven transitively at the
+  story/UAT altitude or by operator attestation. Shared glue belongs to a foundation story; "between
+  stories" is a category error.
+- **D3 "already implied" — CORRECTED to over-claim.** The write-authority boundary is *consistent with* but
+  not *entailed by* 0137/0152/0070; it is an affirmative generalisation that **narrows** ADR-0152's
+  "CI-re-proves-before-trunk" grant. ADR-0158 now amends **0152** (not only 0137) and states this honestly.
+
+The owner ratified the grounded, trimmed version; ADR-0158 is `accepted`. Next: (1) librarian derives a
+`glue` **definition** artifact from D1; (2) the session-orchestrator tooling fix (scoped glue actuator +
+the two honesty corrections) is chipped as its own unit.
