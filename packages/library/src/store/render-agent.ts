@@ -345,6 +345,126 @@ export async function renderAgentStep(
   return { ok: true, agent: stored.id, step: match.step, refs: match.refs };
 }
 
+// ── the essentials size/structure gate (ADR-0156 §5 / ADR-0161 decision 5) ────────────────────────
+// The fence the delegation surface never had (ADR-0156 §Context: "nothing keeps it lean"). check:agents
+// (build-agents.ts) runs this over every rendered `.claude/agents/*.md` so the thinned prompts cannot
+// silently re-bloat back toward the full-inline path ADR-0052 originally pointed them at. It asserts,
+// fail-closed:
+//   1. TOKEN BUDGET — the rendered file stays under ESSENTIALS_TOKEN_BUDGET (a chars/4 proxy; no
+//      offline tokenizer). Catches gross bloat, incl. a repoint to renderAgentPrompt's fat path.
+//   2. NO FULL REF BODY INLINE — the file carries assertions + pointers only, never an injected ref
+//      body. Detected STRUCTURALLY by the `### <title>  [<kind>]` injection header renderAgentPrompt
+//      emits (see line ~145) and renderAgentEssentials never does. This sidesteps the fragile
+//      "does a ref's lead assertion overlap its body prose" content-diff — the header is unambiguous.
+//   3. STEP→REFS INTEGRITY (ADR-0161 decision 5) — every stepRefs entry names a real workflow step
+//      (its key appears in the agent's `workflow` prose, per the AgentStepRef schema contract) and
+//      every ref key resolves (no dangling edge — the dangling-ref fence extended to structured edges).
+//   4. NO UNATTACHED CONTEXT (ADR-0156 §5), SCOPED to agents that HAVE a step map — every `context`
+//      ref is attached to some workflow step (no "just-in-case" riders). A NO-OP until increment 5
+//      populates stepRefs on the well-behaved agents: today every agent's context surfaces as the
+//      "No per-step map yet" manifest, so an unscoped check would red the whole green corpus (the
+//      inc-4 sequencing trap — ADR-0161).
+
+/**
+ * The per-file essentials budget (ADR-0156 §5), in tokens. Measured essentials renders sit at
+ * ~1.5k–4.1k tokens (chars/4), librarian-curator the outlier at ~4.1k — its own prose kept verbatim
+ * (ADR-0156 §1a), not a leaked body. 6000 leaves the largest ~47% headroom for honest prose growth
+ * while still tripping on a repoint to the full-inline path (whose ref bodies restored the 3–7k-token
+ * spawns this ADR removed). The sharp regression guard is the body-injection check; this is the coarse
+ * belt-and-suspenders ceiling.
+ */
+export const ESSENTIALS_TOKEN_BUDGET = 6000;
+
+/** A cheap, offline token estimate for the budget gate — a chars/4 proxy (no tokenizer in gate/CI). */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * The `### <title>  [<kind>]` header {@link renderAgentPrompt} emits above each INJECTED ref body — the
+ * structural signal that a full body leaked into an essentials file. The kinds are derived from
+ * {@link KIND_SPECS} so a newly-added kind can never slip past the check.
+ */
+const BODY_INJECTION_HEADER = new RegExp(
+  `^###\\s.*\\[(?:${Object.keys(KIND_SPECS).join("|")})\\]\\s*$`,
+  "m",
+);
+
+/**
+ * The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5).
+ * Returns the list of VIOLATIONS for one agent's rendered file (empty ⇒ passes); `build-agents.ts
+ * --check` (`check:agents`, in `pnpm gate`) fails the build on any. `content` is the rendered
+ * `.claude/agents/<id>.md` (frontmatter + marker + essentials prompt); `store`/`id` resolve the
+ * artifact for the structured checks. Fail-closed: a non-agent / missing id is itself a violation.
+ */
+export async function essentialsGateViolations(
+  store: Store,
+  id: string,
+  content: string,
+): Promise<string[]> {
+  const violations: string[] = [];
+
+  // 1. TOKEN BUDGET.
+  const tokens = estimateTokens(content);
+  if (tokens > ESSENTIALS_TOKEN_BUDGET) {
+    violations.push(
+      `${id}.md is ~${tokens} tokens (est., chars/4), over the ${ESSENTIALS_TOKEN_BUDGET}-token ` +
+        `essentials budget — a full ref body may have been inlined, or the own prose has bloated.`,
+    );
+  }
+
+  // 2. NO FULL REF BODY INLINE.
+  if (BODY_INJECTION_HEADER.test(content)) {
+    violations.push(
+      `${id}.md inlines a full ref BODY (a "### <title>  [<kind>]" injection header is present) — the ` +
+        `essentials surface renders assertions + pointers only; was renderAgentFile repointed to the ` +
+        `full-inline path?`,
+    );
+  }
+
+  const stored = await store.getDoc(id);
+  if (!stored || stored.kind !== "agent") {
+    violations.push(`${id}: not an agent artifact — the essentials gate cannot resolve its step map.`);
+    return violations;
+  }
+  const doc = stored.doc as Record<string, unknown>;
+  const stepRefs = stepRefsOf(doc);
+
+  // 3. STEP→REFS INTEGRITY — a no-op until an agent's stepRefs are authored (increment 5).
+  const workflow = (typeof doc["workflow"] === "string" ? (doc["workflow"] as string) : "").toLowerCase();
+  for (const { step, refs } of stepRefs) {
+    if (!workflow.includes(step.toLowerCase())) {
+      violations.push(
+        `${id}: stepRefs step "${step}" is not named in the agent's \`workflow\` prose — a step→refs ` +
+          `key must map to a real workflow step.`,
+      );
+    }
+    for (const ref of refs) {
+      const refId = ref.replace(/^asset:/, "");
+      if (!(await store.getDoc(refId))) {
+        violations.push(
+          `${id}: stepRefs step "${step}" has a dangling ref ${ref} — it resolves to no artifact.`,
+        );
+      }
+    }
+  }
+
+  // 4. NO UNATTACHED CONTEXT — SCOPED to agents with a step map (the inc-4 sequencing trap).
+  if (stepRefs.length > 0) {
+    const attached = new Set(stepRefs.flatMap((s) => s.refs.map((r) => r.replace(/^asset:/, ""))));
+    for (const ctxId of refIds(doc, "context")) {
+      if (!attached.has(ctxId)) {
+        violations.push(
+          `${id}: context ref asset:${ctxId} is attached to no workflow step (no "just-in-case" ` +
+            `riders — attach it to the step that pulls it).`,
+        );
+      }
+    }
+  }
+
+  return violations;
+}
+
 /** The compact manifest labels for a digest (shorter than the full prompt's section headings). */
 const DIGEST_REFS: { field: "context" | "rules" | "antiPatterns"; label: string }[] = [
   { field: "context", label: "Ceremonies & context" },

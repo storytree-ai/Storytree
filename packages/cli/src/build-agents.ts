@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
 
-import { delegatableAgentIds, renderAgentFile } from "@storytree/library/store";
+import { delegatableAgentIds, renderAgentFile, essentialsGateViolations } from "@storytree/library/store";
 
 /** Repo root: packages/cli/src/build-agents.ts → four dirs up (the build-claude-md.ts pattern). */
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -76,7 +76,22 @@ async function main(): Promise<void> {
           "and commit:\n  " + drift.join("\n  "),
       );
     }
-    console.log(`check:agents — .claude/agents in sync (${files.size} agents).`);
+
+    // The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5):
+    // the fence that keeps the thinned prompts from silently re-bloating back toward full-inline.
+    const gateFailures: string[] = [];
+    for (const id of ids) {
+      const content = files.get(`${id}.md`);
+      if (content === undefined) continue; // a missing render is the drift check's business, above
+      gateFailures.push(...(await essentialsGateViolations(store, id, content)));
+    }
+    if (gateFailures.length > 0) {
+      fail(
+        "essentials gate FAILED (ADR-0156 §5 / ADR-0161) — a rendered agent broke a size/structure/" +
+          "integrity invariant:\n  " + gateFailures.join("\n  "),
+      );
+    }
+    console.log(`check:agents — .claude/agents in sync + essentials gate clean (${files.size} agents).`);
     return;
   }
 

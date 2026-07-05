@@ -10,6 +10,9 @@ import {
   renderAgentFile,
   renderAgentStep,
   delegatableAgentIds,
+  essentialsGateViolations,
+  estimateTokens,
+  ESSENTIALS_TOKEN_BUDGET,
   DEDICATED_SURFACE_AGENTS,
   GENERATED_AGENT_MARKER,
 } from "./render-agent.js";
@@ -363,4 +366,122 @@ test("delegatableAgentIds excludes agents that own a dedicated surface (CLAUDE.m
   assert.ok(ids.includes("clean-agent"));
   assert.ok(ids.includes("broken-agent"));
   assert.equal(DEDICATED_SURFACE_AGENTS.has("session-orchestrator"), true);
+});
+
+// ── the essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5) ──
+// The fence check:agents (build-agents.ts --check) runs over every rendered .claude/agents/*.md so the
+// thinned prompts can't silently re-bloat toward the full-inline path. Red-green over the four asserts.
+
+test("essentials gate: a clean essentials render passes — incl. a step-map-LESS agent (the inc-4 sequencing trap)", async () => {
+  const store = await seeded();
+  const file = await renderAgentFile(store, "clean-agent");
+  assert.equal(file.ok, true);
+  if (!file.ok) return;
+  // clean-agent has a `context` ref but NO stepRefs → the scoped "unattached context" check is a no-op,
+  // so its "No per-step map yet" manifest is NOT a violation. This is the whole green corpus's shape today.
+  const violations = await essentialsGateViolations(store, "clean-agent", file.content);
+  assert.deepEqual(violations, []);
+});
+
+test("essentials gate: a file over the token budget REDS, naming the budget + the file", async () => {
+  const store = await seeded();
+  const bloated = "x".repeat((ESSENTIALS_TOKEN_BUDGET + 500) * 4); // ~+500 tokens over, via the chars/4 proxy
+  assert.ok(estimateTokens(bloated) > ESSENTIALS_TOKEN_BUDGET);
+  const violations = await essentialsGateViolations(store, "clean-agent", bloated);
+  assert.equal(violations.length, 1);
+  assert.ok(violations.some((v) => /over the 6000-token essentials budget/.test(v)));
+  assert.ok(violations.some((v) => /clean-agent\.md/.test(v)));
+});
+
+test("essentials gate: a full ref BODY inline REDS — the exact ADR-0052→0156 regression (renderAgentPrompt content)", async () => {
+  const store = await seeded();
+  const full = await renderAgentPrompt(store, "clean-agent"); // the FAT path — injects `### <title>  [<kind>]`
+  assert.equal(full.ok, true);
+  if (!full.ok) return;
+  assert.match(full.agent.prompt, /### Test Principle\s+\[principle\]/); // the injection header the gate keys off
+  const violations = await essentialsGateViolations(store, "clean-agent", full.agent.prompt);
+  assert.ok(violations.some((v) => /inlines a full ref BODY/.test(v)), "the body-injection header must be flagged");
+});
+
+test("essentials gate: a stepRefs step that names no real workflow step REDS", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "bad-step-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", title: "Bad Step", description: "a step key that isn't a workflow step",
+      oneLine: "o", role: "r", outcome: "o", context: [], tools: "t",
+      workflow: "orient, then stop.", references: [],
+      stepRefs: [{ step: "deploy", refs: [] }], // "deploy" is not named in the workflow prose
+    },
+  });
+  const violations = await essentialsGateViolations(store, "bad-step-agent", "ok");
+  assert.equal(violations.length, 1);
+  assert.ok(violations.some((v) => /step "deploy" is not named in the agent's `workflow` prose/.test(v)));
+});
+
+test("essentials gate: a dangling stepRefs ref key REDS (the integrity fence over structured edges)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "dangling-step-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", title: "Dangling Step", description: "a step ref that resolves to nothing",
+      oneLine: "o", role: "r", outcome: "o", context: [], tools: "t",
+      workflow: "orient, then stop.", references: [],
+      stepRefs: [{ step: "orient", refs: ["asset:ghost-ref"] }], // step is valid; the ref resolves to nothing
+    },
+  });
+  const violations = await essentialsGateViolations(store, "dangling-step-agent", "ok");
+  assert.equal(violations.length, 1);
+  assert.ok(violations.some((v) => /dangling ref asset:ghost-ref/.test(v)));
+});
+
+test("essentials gate: with a step map, a context ref attached to NO step REDS — but a step-map-less agent does NOT (scoped)", async () => {
+  const store = await seeded();
+  // an agent WITH a step map whose context ref is pulled by no step → an unattached "just-in-case" rider
+  await store.upsertDoc({
+    id: "rider-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", title: "Rider", description: "context attached to no step",
+      oneLine: "o", role: "r", outcome: "o", context: ["asset:test-principle"], tools: "t",
+      workflow: "orient, then stop.", references: [],
+      stepRefs: [{ step: "orient", refs: [] }], // non-empty step map, but test-principle is attached nowhere
+    },
+  });
+  const riderViolations = await essentialsGateViolations(store, "rider-agent", "ok");
+  assert.equal(riderViolations.length, 1);
+  assert.ok(riderViolations.some((v) => /context ref asset:test-principle is attached to no workflow step/.test(v)));
+
+  // the SAME unattached context on a step-map-LESS agent (clean-agent) is NOT a violation — the scope guard
+  const cleanFile = await renderAgentFile(store, "clean-agent");
+  assert.equal(cleanFile.ok, true);
+  if (!cleanFile.ok) return;
+  assert.deepEqual(await essentialsGateViolations(store, "clean-agent", cleanFile.content), []);
+});
+
+test("essentials gate: a valid step map with attached context passes (the inc-5 target shape)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "good-step-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent", title: "Good Step", description: "a well-formed step map",
+      oneLine: "o", role: "r", outcome: "o", context: ["asset:test-principle"], tools: "t",
+      workflow: "session_start: orient. then stop.", references: [],
+      stepRefs: [{ step: "session_start", refs: ["asset:test-principle"] }],
+    },
+  });
+  const file = await renderAgentFile(store, "good-step-agent");
+  assert.equal(file.ok, true);
+  if (!file.ok) return;
+  assert.deepEqual(await essentialsGateViolations(store, "good-step-agent", file.content), []);
+});
+
+test("essentials gate: a non-agent / missing id fails closed", async () => {
+  const store = await seeded();
+  const violations = await essentialsGateViolations(store, "test-principle", "ok"); // a principle, not an agent
+  assert.equal(violations.length, 1);
+  assert.ok(violations.some((v) => /not an agent artifact/.test(v)));
 });

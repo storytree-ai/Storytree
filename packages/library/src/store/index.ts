@@ -52,6 +52,9 @@ export {
   renderAgentFile,
   renderAgentStep,
   delegatableAgentIds,
+  essentialsGateViolations,
+  estimateTokens,
+  ESSENTIALS_TOKEN_BUDGET,
   DEDICATED_SURFACE_AGENTS,
   GENERATED_AGENT_MARKER,
 } from "./render-agent.js";
