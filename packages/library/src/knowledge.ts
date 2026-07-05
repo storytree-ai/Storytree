@@ -493,6 +493,25 @@ export const AssetRef = z.string().regex(/^asset:[A-Za-z0-9_-]+$/, {
 });
 
 /**
+ * One workflow-step → refs edge on an agent (ADR-0156 §4; ADR-0161 the node-keyed context DAG): a
+ * named workflow step keyed to the ORDERED `asset:` refs that step pulls just-in-time. This is the
+ * agent-step NODE of the one Library context DAG — its `refs` are the node's outbound edges, served
+ * as an ADR-0023 `next:` envelope by `storytree agents <name> --step` (via the shared `node → next:`
+ * emitter). The essentials renderer (ADR-0156 §1d) derives its per-step doors from the same field.
+ * Structured metadata, deliberately NOT a KIND_SPECS body section — it does not round-trip through
+ * the markdown body (like `references`).
+ */
+export const AgentStepRef = z
+  .object({
+    /** The workflow step this keys — matches a step named in the agent's `workflow` prose. */
+    step: z.string().min(1),
+    /** The ordered `asset:<id>` refs this step hands on to (the node's outbound edges). */
+    refs: z.array(AssetRef),
+  })
+  .strict();
+export type AgentStepRef = z.infer<typeof AgentStepRef>;
+
+/**
  * Build a per-kind zod object from its field spec table. Required fields are `Markdown`;
  * optional fields are `Markdown.optional()`; `refList` fields are `asset:` ref arrays
  * (required => non-empty). The `kind` literal discriminates the union.
@@ -524,7 +543,15 @@ export const Guardrail = buildKindSchema("guardrail");
 export const TechStack = buildKindSchema("techstack");
 export const Process = buildKindSchema("process");
 export const OpenQuestion = buildKindSchema("open-question");
-export const Agent = buildKindSchema("agent");
+// The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
+// workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body
+// section — so it lives on the schema like `references` does, never in KIND_SPECS. OPTIONAL, so every
+// existing agent doc (authored before the field) still validates; increment 5 populates it across the
+// well-behaved agents. `.extend()` preserves the `.strict()` from buildKindSchema (unknown fields
+// still fail closed) and the `kind` literal (the discriminated union is unaffected).
+export const Agent = buildKindSchema("agent").extend({
+  stepRefs: z.array(AgentStepRef).optional(),
+});
 export const Proposal = buildKindSchema("proposal");
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */

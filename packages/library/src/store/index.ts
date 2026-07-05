@@ -49,6 +49,7 @@ export {
   renderAgentPrompt,
   renderAgentDigest,
   renderAgentFile,
+  renderAgentStep,
   delegatableAgentIds,
   DEDICATED_SURFACE_AGENTS,
   GENERATED_AGENT_MARKER,
@@ -59,6 +60,7 @@ export type {
   AgentDigest,
   RenderDigestResult,
   RenderAgentFileResult,
+  RenderAgentStepResult,
 } from "./render-agent.js";
 export { PgCommentStore, mergeCommentPatch, normalizeCommentAnchor } from "./pg-comment-store.js";
 export type {

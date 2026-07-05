@@ -107,6 +107,84 @@ export async function renderAgentPrompt(store: Store, name: string | undefined):
   };
 }
 
+// ── step→refs retrieval (ADR-0156 §4 / ADR-0161: the agent-step node of the context DAG) ─────────
+// The structured association `workflow step → the ordered asset: refs that step pulls` lives on the
+// agent artifact (`stepRefs`, knowledge.ts). This is the schema-aware EXTRACTOR: it resolves one
+// step's refs, or fails closed with the agent's declared step keys. Shaping those refs into the
+// ADR-0023 `next:` envelope is the CLI's job (via the shared `emitNodeEnvelope`) — the library
+// organism owns the schema, not the envelope (which lives one layer up, in @storytree/drive).
+
+/** The step→refs entries on a raw agent doc, tolerant of an absent/odd field (like {@link refIds}). */
+function stepRefsOf(doc: Record<string, unknown>): { step: string; refs: string[] }[] {
+  const v = doc["stepRefs"];
+  if (!Array.isArray(v)) return [];
+  const out: { step: string; refs: string[] }[] = [];
+  for (const entry of v) {
+    if (entry === null || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const step = typeof e["step"] === "string" ? e["step"] : "";
+    if (step === "") continue;
+    // Refs are returned VERBATIM (`asset:<id>`); the emitter is the single place that maps a ref to
+    // its `storytree library artifact <id>` pull command.
+    const refs = Array.isArray(e["refs"])
+      ? e["refs"].filter((r): r is string => typeof r === "string")
+      : [];
+    out.push({ step, refs });
+  }
+  return out;
+}
+
+export type RenderAgentStepResult =
+  | { ok: true; agent: string; step: string; refs: string[] }
+  | { ok: false; reason: string; steps: string[]; available: string[] };
+
+/**
+ * Resolve ONE workflow step's outbound refs on `name` (the ADR-0156 §4 step→refs association). This
+ * is the retrieval path `storytree agents <name> --step <step>` serves. Fail-closed: an unknown
+ * agent returns the agent list (`available`); a missing/unknown step returns the agent's declared
+ * step keys (`steps`) so the caller can suggest the valid branches. An agent with no `stepRefs`
+ * authored yet resolves every step to "unknown step" with an empty `steps` list.
+ */
+export async function renderAgentStep(
+  store: Store,
+  name: string | undefined,
+  step: string | undefined,
+): Promise<RenderAgentStepResult> {
+  const available = await agentIds(store);
+  if (name === undefined) {
+    return {
+      ok: false,
+      reason: "agents --step needs an agent: storytree agents <name> --step <step>",
+      steps: [],
+      available,
+    };
+  }
+  const stored = await store.getDoc(name);
+  if (!stored || stored.kind !== "agent") {
+    return { ok: false, reason: `no agent "${name}" in the Library.`, steps: [], available };
+  }
+  const entries = stepRefsOf(stored.doc as Record<string, unknown>);
+  const steps = entries.map((e) => e.step);
+  if (step === undefined || step === "") {
+    return {
+      ok: false,
+      reason: `agents ${stored.id} --step needs a step key.`,
+      steps,
+      available: [],
+    };
+  }
+  const match = entries.find((e) => e.step === step);
+  if (!match) {
+    return {
+      ok: false,
+      reason: `agent "${stored.id}" has no workflow step "${step}".`,
+      steps,
+      available: [],
+    };
+  }
+  return { ok: true, agent: stored.id, step: match.step, refs: match.refs };
+}
+
 /** The compact manifest labels for a digest (shorter than the full prompt's section headings). */
 const DIGEST_REFS: { field: "context" | "rules" | "antiPatterns"; label: string }[] = [
   { field: "context", label: "Ceremonies & context" },

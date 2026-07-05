@@ -121,6 +121,50 @@ test("agent kind: context/rules/antiPatterns are typed asset: ref-lists", () => 
   assert.doesNotThrow(() => validateLibraryDoc(valid));
 });
 
+test("agent kind: the step→refs association (ADR-0156 §4 / ADR-0161) validates and fails closed", () => {
+  // An agent with NO stepRefs still validates — the field is optional (pre-population world).
+  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("agent")), "stepRefs is optional");
+
+  // A well-formed step→refs map validates: each entry keys a step to ordered asset: refs.
+  const valid = {
+    ...minimalDoc("agent"),
+    stepRefs: [
+      { step: "session_start", refs: ["asset:merge-ceremony", "asset:pull-based-context-architecture"] },
+      { step: "3", refs: [] }, // a step with no attached refs is legal (empty outbound edges)
+    ],
+  };
+  assert.doesNotThrow(() => validateLibraryDoc(valid), "a well-formed step→refs map validates");
+
+  // A ref that is not an asset: pointer fails closed (same discipline as context/rules).
+  const badRef = { ...minimalDoc("agent"), stepRefs: [{ step: "1", refs: ["doc:decisions/0156.md"] }] };
+  assert.throws(() => validateLibraryDoc(badRef), "a doc:/prose ref in a step must be rejected");
+
+  // A missing / empty step key fails closed.
+  const noStep = { ...minimalDoc("agent"), stepRefs: [{ refs: ["asset:merge-ceremony"] }] };
+  assert.throws(() => validateLibraryDoc(noStep), "a step entry with no step key must be rejected");
+  const emptyStep = { ...minimalDoc("agent"), stepRefs: [{ step: "", refs: [] }] };
+  assert.throws(() => validateLibraryDoc(emptyStep), "an empty step key must be rejected");
+
+  // A stray field inside a step entry fails closed (AgentStepRef is .strict()).
+  const strayInEntry = {
+    ...minimalDoc("agent"),
+    stepRefs: [{ step: "1", refs: [], note: "drift" }],
+  };
+  assert.throws(() => validateLibraryDoc(strayInEntry), "a stray field in a step entry must be rejected");
+
+  // Regression guard for the .extend() approach: adding stepRefs must NOT relax the agent object's
+  // .strict() — an unknown TOP-LEVEL field is still rejected even when stepRefs is present.
+  const strayTopLevel = { ...valid, notInTheSpec: "drift" };
+  assert.throws(
+    () => validateLibraryDoc(strayTopLevel),
+    ".extend() must preserve .strict(): an unknown top-level agent field is still rejected",
+  );
+
+  // stepRefs is agent-only: a non-agent kind must reject it (it is not in commonShape).
+  const onAPrinciple = { ...minimalDoc("principle"), stepRefs: [{ step: "1", refs: [] }] };
+  assert.throws(() => validateLibraryDoc(onAPrinciple), "stepRefs on a non-agent kind must be rejected");
+});
+
 test("renderBody: an unknown kind throws a DIAGNOSTIC error, not `specs is not iterable`", () => {
   // The stale-server incident (2026-06-11): code older than the data met a kind it had no
   // KIND_SPECS entry for and threw a bare iteration error deep in /api/assets.

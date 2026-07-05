@@ -7,6 +7,7 @@ import {
   renderAgentPrompt,
   renderAgentDigest,
   renderAgentFile,
+  renderAgentStep,
   delegatableAgentIds,
   DEDICATED_SURFACE_AGENTS,
   GENERATED_AGENT_MARKER,
@@ -177,6 +178,99 @@ test("renderAgentFile escapes quotes in the description for valid YAML frontmatt
   assert.equal(res.ok, true);
   if (!res.ok) return;
   assert.match(res.content, /description: "has a \\"quote\\" and a: colon"/);
+});
+
+// ── step→refs retrieval (ADR-0156 §4 / ADR-0161: the agent-step node) ─────────────────────────────
+
+/** A store with one agent carrying a `stepRefs` map (a two-step workflow, one step with no refs). */
+async function stepped(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "stepper",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Stepper",
+      description: "an agent with a step→refs map",
+      oneLine: "o",
+      role: "r",
+      outcome: "o",
+      context: ["asset:test-principle"],
+      tools: "t",
+      workflow: "session_start, then 1.",
+      references: [],
+      stepRefs: [
+        { step: "session_start", refs: ["asset:merge-ceremony", "asset:pull-based-context"] },
+        { step: "1", refs: [] },
+      ],
+    },
+  });
+  return store;
+}
+
+test("renderAgentStep resolves one step's refs VERBATIM (asset: kept; the emitter strips it)", async () => {
+  const store = await stepped();
+  const res = await renderAgentStep(store, "stepper", "session_start");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.equal(res.agent, "stepper");
+  assert.equal(res.step, "session_start");
+  assert.deepEqual(res.refs, ["asset:merge-ceremony", "asset:pull-based-context"]);
+});
+
+test("renderAgentStep: a step with an empty ref-list resolves ok with no edges", async () => {
+  const store = await stepped();
+  const res = await renderAgentStep(store, "stepper", "1");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.deepEqual(res.refs, []);
+});
+
+test("renderAgentStep: an unknown step fails closed listing the agent's declared step keys", async () => {
+  const store = await stepped();
+  const res = await renderAgentStep(store, "stepper", "nope");
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.match(res.reason, /no workflow step "nope"/);
+  assert.deepEqual(res.steps, ["session_start", "1"]);
+});
+
+test("renderAgentStep: an unknown agent fails closed with the agent list; a missing step asks for one", async () => {
+  const store = await stepped();
+  const unknownAgent = await renderAgentStep(store, "ghost", "session_start");
+  assert.equal(unknownAgent.ok, false);
+  if (unknownAgent.ok) return;
+  assert.deepEqual(unknownAgent.available, ["stepper"]);
+
+  const noStep = await renderAgentStep(store, "stepper", undefined);
+  assert.equal(noStep.ok, false);
+  if (noStep.ok) return;
+  assert.match(noStep.reason, /needs a step key/);
+  assert.deepEqual(noStep.steps, ["session_start", "1"]);
+});
+
+test("renderAgentStep: an agent with NO stepRefs authored treats every step as unknown (empty steps)", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "bare",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Bare",
+      description: "no step map yet",
+      oneLine: "o",
+      role: "r",
+      outcome: "o",
+      context: ["asset:x"],
+      tools: "t",
+      workflow: "w",
+      references: [],
+    },
+  });
+  const res = await renderAgentStep(store, "bare", "session_start");
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.deepEqual(res.steps, []);
 });
 
 test("delegatableAgentIds excludes agents that own a dedicated surface (CLAUDE.md / SDK leaf)", async () => {

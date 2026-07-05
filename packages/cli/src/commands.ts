@@ -32,7 +32,7 @@ import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
-import { agentsCommand, agentsHelp } from "./agents.js";
+import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
@@ -1468,6 +1468,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     review?: boolean;
     readings?: string;
     write?: boolean;
+    step?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1512,6 +1513,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         review: { type: "boolean", default: false },
         readings: { type: "string" },
         write: { type: "boolean", default: false },
+        step: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -1794,6 +1796,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "agents") {
     if (help) return agentsHelp();
+    // `--step <step>` serves ONE workflow step's just-in-time refs as an envelope (ADR-0156 §4 /
+    // ADR-0161); bare `agents <name>` still prints the full assembled prompt.
+    if (values.step !== undefined) return agentStepCommand(deps.store, sub, values.step);
     return agentsCommand(deps.store, sub);
   }
 
