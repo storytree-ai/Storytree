@@ -162,11 +162,14 @@ file conflicts).
   do NOT infer "unreachable" from your environment; PROBE it** (see the Cloud SQL bullet's
   probe-don't-assume rule). Full remote-session detail: ADR-0063 / ADR-0034.
 - Install: `corepack enable pnpm` · `pnpm install`
-- **Fresh worktree?** A new git worktree has NO `node_modules` — run `pnpm install` in it FIRST, or
-  the gate / `pnpm storytree …` / `tsx` all fail. And invoke the CLI as **`pnpm storytree …`** (not a
+- **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
+  now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
+  on a fresh worktree and no-ops on an already-installed one (ADR-0162 inc 3), so you normally find it
+  ready. If that was skipped or the install failed, run `pnpm install` here first (the gate / `pnpm
+  storytree …` / `tsx` all fail without it). Either way, invoke the CLI as **`pnpm storytree …`** (not a
   bare `node --import tsx packages/cli/src/main.ts` — tsx resolves only through the workspace, so the
-  bare form errors `ERR_MODULE_NOT_FOUND 'tsx'` from the worktree root). Presence hooks already
-  self-heal via `scripts/presence-hook.sh`; your own CLI calls do not.
+  bare form errors `ERR_MODULE_NOT_FOUND 'tsx'` from the worktree root). Presence hooks also self-heal
+  via `scripts/presence-hook.sh`.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (SDK leaf) and
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always

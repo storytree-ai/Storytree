@@ -192,9 +192,9 @@ const ESCAPE_HATCH: readonly string[] = [
  * (the drift guard `build:agents` fails closed on) — a broken manifest never renders silently thinner.
  *
  * The floor renders each ref as its ONE-LINE assertion + a `storytree library artifact <id>` pull-hint
- * (never the full Why/How body). The doors are generated from `stepRefs`; until an agent's step map is
- * authored (increment 5) the doors are empty and the `context` refs surface as a just-in-time pointer
- * MANIFEST instead — never inlined bodies.
+ * (never the full Why/How body). The doors are generated from `stepRefs`: an agent WITH a step map (the
+ * four well-behaved agents, increment 5) renders per-step doors; an agent WITHOUT one surfaces its
+ * `context` refs as a just-in-time pointer MANIFEST instead — never inlined bodies.
  */
 export async function renderAgentEssentials(
   store: Store,
@@ -235,14 +235,18 @@ export async function renderAgentEssentials(
   }
 
   // (c) The ESCAPE HATCH — always inline (an agent cannot pull the instruction to stop once it is
-  // already past knowing it should). Increment 5 wires the `escalate-up-when-blocked-or-out-of-scope`
-  // guardrail into the floor above; until then it is this fixed structural block.
+  // already past knowing it should). Belt-and-suspenders (ADR-0156 §3, increment 5): this fixed block
+  // is the required-inline FULL treatment ("MUST be inline, never a pull"), AND the
+  // `escalate-up-when-blocked-or-out-of-scope` guardrail is now cited in every delegatable agent's
+  // floor above, so its one-line assertion also renders under rule 2. The block stays a renderer
+  // CONSTANT, never rendered from the guardrail body — injecting that body would trip the essentials
+  // gate's no-full-body-inline check.
   parts.push("", ...ESCAPE_HATCH);
 
-  // (d) Per-step DOORS from `stepRefs` (inc 2). Real agents have no step map yet (inc 5 populates it),
-  // so the doors are empty today and the `context` refs surface as a just-in-time pointer MANIFEST
-  // (never full bodies — ADR-0156 §5), mirroring the digest. Every context ref is validated into
-  // missingRefs so the drift guard stays fail-closed even when the manifest branch isn't taken.
+  // (d) Per-step DOORS from `stepRefs` (inc 2 / ADR-0161). The four well-behaved agents now carry a
+  // step map (inc 5), so their doors render; an agent WITHOUT one still surfaces its `context` refs as
+  // a just-in-time pointer MANIFEST (never full bodies — ADR-0156 §5), mirroring the digest. Every
+  // context ref is validated into missingRefs so the drift guard stays fail-closed on either branch.
   const steps = stepRefsOf(doc);
   const contextIds = refIds(doc, "context");
   for (const id of contextIds) {

@@ -2,7 +2,7 @@
  * Contract tests for the read-only orientation tool surface
  * (`packages/agent/src/orientation-tools.ts`).
  *
- * Five contracts — each one isolated automated test with a stub runner injected for the read-
+ * Seven contracts — each one isolated automated test with a stub runner injected for the read-
  * command dispatch. The surface is offline-testable by design: `buildOrientationTools` takes the
  * runner as an injectable callback, so no @storytree/cli import is needed here (cli depends on
  * agent; the reverse would cycle). The integration test driving the real run() + InMemoryStore +
@@ -39,27 +39,28 @@ function fixedRunner(envelope: LocalEnvelope) {
 // Contract 1: ots-exposes-exactly-the-read-surfaces
 // ---------------------------------------------------------------------------
 
-test("ots-exposes-exactly-the-read-surfaces: surface lists exactly tree, library, and noticeboard — no more", () => {
+test("ots-exposes-exactly-the-read-surfaces: surface lists exactly tree, library, noticeboard, and agents — no more", () => {
   const tools = buildOrientationTools(fixedRunner({ ok: true, body: "" }), { store: null });
   const names = tools.map((t) => t.name);
 
-  assert.ok(
-    names.includes("tree"),
-    `'tree' must be in tool names; got: ${names.join(", ")}`,
-  );
-  assert.ok(
-    names.includes("library"),
-    `'library' must be in tool names; got: ${names.join(", ")}`,
-  );
-  assert.ok(
-    names.includes("noticeboard"),
-    `'noticeboard' must be in tool names; got: ${names.join(", ")}`,
-  );
+  for (const expected of ["tree", "library", "noticeboard", "agents"]) {
+    assert.ok(
+      names.includes(expected),
+      `'${expected}' must be in tool names; got: ${names.join(", ")}`,
+    );
+  }
   assert.equal(
     names.length,
-    3,
-    `expected exactly 3 tools (tree, library, noticeboard), got ${names.length}: ${names.join(", ")}`,
+    4,
+    `expected exactly 4 tools (tree, library, noticeboard, agents), got ${names.length}: ${names.join(", ")}`,
   );
+  // Every tool carries a model-facing description naming its drill-down args.
+  for (const t of tools) {
+    assert.ok(
+      t.description.length > 0,
+      `tool '${t.name}' must carry a non-empty description`,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -183,4 +184,81 @@ test("ots-miss-is-guidance-not-throw: ok:false envelope is returned as tool resu
     result?.includes("storytree library"),
     `tool result must include next guidance; got: ${(result ?? "").slice(0, 300)}`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Contract 6: ots-args-flow-into-argv
+// ---------------------------------------------------------------------------
+
+test("ots-args-flow-into-argv: drill-down args are appended to the base verb, with pasted prefixes and --pg stripped", async () => {
+  const seen: string[][] = [];
+  const tools = buildOrientationTools(
+    async (argv, _deps) => {
+      seen.push([...argv]);
+      return { ok: true, body: "ok" };
+    },
+    { store: null },
+  );
+
+  const tree = tools.find((t) => t.name === "tree");
+  const library = tools.find((t) => t.name === "library");
+  const agents = tools.find((t) => t.name === "agents");
+  assert.ok(tree && library && agents, "tree/library/agents tools must exist");
+
+  // Plain drill-down args are appended to the tool's base verb.
+  await tree.call(["spec", "adoption-pocket-classifier"]);
+  assert.deepEqual(seen.at(-1), ["tree", "spec", "adoption-pocket-classifier"]);
+
+  // A pasted next: pointer ("storytree library artifact <id> --pg") normalizes to the same argv:
+  // the storytree prefix, the duplicated tool name, and the inert --pg flag are all stripped.
+  await library.call(["storytree", "library", "artifact", "prove-and-promote-ceremony", "--pg"]);
+  assert.deepEqual(seen.at(-1), ["library", "artifact", "prove-and-promote-ceremony"]);
+
+  // No args → the bare dashboard argv (the original fixed behaviour is the zero-arg case).
+  await tree.call();
+  assert.deepEqual(seen.at(-1), ["tree"]);
+
+  // The agents self-onboarding read flows through verbatim.
+  await agents.call(["session-orchestrator"]);
+  assert.deepEqual(seen.at(-1), ["agents", "session-orchestrator"]);
+});
+
+// ---------------------------------------------------------------------------
+// Contract 7: ots-write-verb-refused-at-surface
+// ---------------------------------------------------------------------------
+
+test("ots-write-verb-refused-at-surface: a write/act verb in the args is refused before the runner is ever called", async () => {
+  let runnerCalls = 0;
+  const tools = buildOrientationTools(
+    async (_argv, _deps) => {
+      runnerCalls += 1;
+      return { ok: true, body: "MUST NOT BE REACHED" };
+    },
+    { store: null },
+  );
+
+  const byName = new Map(tools.map((t) => [t.name, t] as const));
+  const attempts: readonly [string, readonly string[]][] = [
+    ["noticeboard", ["declare", "--working-on", "sneaky"]],
+    ["library", ["artifact", "edit", "some-id"]],
+    ["library", ["artifact", "new"]],
+    ["library", ["sync-agents"]],
+    ["library", ["graduate"]],
+    ["tree", ["build", "some-story"]],
+  ];
+
+  for (const [name, args] of attempts) {
+    const t = byName.get(name);
+    assert.ok(t, `tool '${name}' must exist`);
+    const result = await t.call(args);
+    assert.ok(
+      /read-only/i.test(result),
+      `[${name} ${args.join(" ")}] must return the read-only refusal; got: ${result.slice(0, 200)}`,
+    );
+    assert.ok(
+      !result.includes("MUST NOT BE REACHED"),
+      `[${name} ${args.join(" ")}] must not reach the runner`,
+    );
+  }
+  assert.equal(runnerCalls, 0, "the runner must never be called for a write-verb argv");
 });

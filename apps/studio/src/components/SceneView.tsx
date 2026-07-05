@@ -24,6 +24,11 @@ export interface SceneCtx {
   onHoverStory: (id: string | null) => void;
   onSelectStory: (id: string) => void;
   onSelectCap: (storyId: string, capId: string) => void;
+  /** Story ids whose islands play the ARRIVAL animation (a story that just appeared in
+   *  the tree payload, or the `?arrive=` demo target): their roads draw on, then their
+   *  coast/ground/flora form in stages (CSS, `arrive-*` classes). Absent/empty ⇒ no
+   *  arrival classes at all. */
+  arrivalIds?: ReadonlySet<string> | null;
 }
 
 /** Role → the studio's base class(es). Composed kinds (status / variant / focus) are
@@ -100,6 +105,12 @@ function withFilter(base: string, status: SceneStatus | undefined, ctx: SceneCtx
   return `${base} st-${s}${ctx.hidden.has(s) ? ' is-filtered' : ''}`;
 }
 
+/** ` arrive-island` on an arriving island's per-island groups (coast / ground / flora /
+ *  tiles) — the CSS keyframes stage its formation. */
+function arriveIsland(id: string, ctx: SceneCtx): string {
+  return ctx.arrivalIds?.has(id) ? ' arrive-island' : '';
+}
+
 /** The full className for a node — the studio's class for the role, plus the folded
  *  status / variant and the focus-aware island/road classes (mirroring TreeView). */
 function composeClass(node: SceneNode, ctx: SceneCtx): string {
@@ -109,15 +120,19 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
   const status = node.status ?? 'unknown';
   switch (k) {
     case 'territory':
-      return `hex-flora ${ctx.territoryClassById(id, status)}`;
+      return `hex-flora ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'coast':
-      return `coast-fill-group ${ctx.territoryClassById(id, status)}`;
+      return `coast-fill-group ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'ground':
-      return `relaxed-tile ${ctx.territoryClassById(id, status)}`;
+      return `relaxed-tile ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'tile':
-      return `hex-tile ${ctx.territoryClassById(id, status)}`;
-    case 'road':
-      return ctx.roadClassByEnds(node.from ?? '', node.to ?? '');
+      return `hex-tile ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
+    case 'road': {
+      const arriving =
+        ctx.arrivalIds != null &&
+        (ctx.arrivalIds.has(node.from ?? '') || ctx.arrivalIds.has(node.to ?? ''));
+      return `${ctx.roadClassByEnds(node.from ?? '', node.to ?? '')}${arriving ? ' arrive-road' : ''}`;
+    }
     case 'tree':
       return withFilter('story-tree', node.status, ctx);
     case 'flora':
@@ -213,6 +228,9 @@ function renderNode(
   key: React.Key,
   storyId: string | undefined,
   ctx: SceneCtx,
+  /** True while descending an arriving road group — the road stroke gets `pathLength=1`
+   *  so the CSS draw-on animation is length-agnostic. */
+  inArrivingRoad = false,
 ): React.JSX.Element | null {
   const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
   const cls = composeClass(node, ctx);
@@ -259,6 +277,9 @@ function renderNode(
       break;
     case 'path':
       props.d = node.d;
+      // Arrival draw-on: normalise the arriving road's length so the CSS dash
+      // animation (`stroke-dasharray: 1`, offset 1 → 0) draws it edge to edge.
+      if (inArrivingRoad && node.kind === 'road-line') props.pathLength = 1;
       break;
     case 'polygon':
       props.points = node.points;
@@ -292,11 +313,17 @@ function renderNode(
   }
   if (node.el === 'g') {
     const childStory = node.kind === 'territory' ? node.id : storyId;
+    // an arriving road's children inherit the draw-on flag (see pathLength above)
+    const arriving =
+      inArrivingRoad ||
+      (node.kind === 'road' &&
+        ctx.arrivalIds != null &&
+        (ctx.arrivalIds.has(node.from ?? '') || ctx.arrivalIds.has(node.to ?? '')));
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
     children.forEach((c, i) => {
-      const el = renderNode(c, i, childStory, ctx);
+      const el = renderNode(c, i, childStory, ctx, arriving);
       if (el) kids.push(el);
     });
   } else if (node.el === 'text') {

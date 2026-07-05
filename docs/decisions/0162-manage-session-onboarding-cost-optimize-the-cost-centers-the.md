@@ -123,19 +123,64 @@ baseline*, not a discovery tool — the baseline already did the discovery.
 The arc's shared state. Each perpetual-chip session lands **one** increment, ticks it here, and records
 the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
 
-- [x] **0. Charter** — this ADR (ADR-0162), accepted 2026-07-05. _(PR: this one.)_
+- [x] **0. Charter** — this ADR (ADR-0162), accepted 2026-07-05. _(PR: #603.)_
 - [x] **1. ENV skip-license** (Phase 1, XS) — guidance edit granting offline sessions explicit
   skip-license; drop the redundant `db:up` precondition; "one hydrated auth probe or none". Landed a
   leading "Offline is the DEFAULT" bullet in CLAUDE.md's `## How to run`: offline work (analysis/docs/
   pure-TS/`pnpm -r test`) needs no DB/SDK/`git fetch` probe; a build self-starts the DB (`ensureLiveDb`)
   so a pre-`db:up` is a no-op — only a bare `--pg` CLI write needs it; "one hydrated auth probe or none"
   before an unattended `--live`/`--real` build; the load-bearing `SELECT 1` and `git fetch origin/main`
-  probes preserved. _(PR: this one.)_
-- [ ] **2. CLI launcher + lazy-pg + compile-cache** (Phase 1, S) — direct-node launcher, dynamic
-  `import()` of the pg store behind `--pg`, `NODE_COMPILE_CACHE`. Target: warm `storytree` call ~1 s.
-- [ ] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — `pnpm install` at worktree creation.
-- [ ] **4. SOURCE engine-map — DECISION GATE** (validate-first) — run ADR-0024's blind test; land a
-  minimal gated package-tour extension only if the re-read pain is proven. Else close as won't-do.
+  probes preserved. _(PR: #609.)_
+- [x] **2. CLI launcher + compile-cache** (Phase 1, S) — a single-process direct launcher
+  (`packages/cli/launch.mjs`): register the tsx ESM loader in-process + Node 24 `enableCompileCache`
+  (a gitignored `node_modules/.cache/storytree-v8`, the `NODE_COMPILE_CACHE` mechanism) + import
+  `main.ts` directly, dropping the two nested pnpm layers. The root `storytree` script points here so
+  `pnpm storytree` keeps working (now one pnpm-run layer, not two); a `launch.test.ts` proves argv
+  passthrough + exit-code + no-pnpm-noise. **Measured (warm dev box):** a warm offline read fell from
+  **~3.8 s → ~1.9 s direct** (`node packages/cli/launch.mjs …`) / ~2.6 s via `pnpm storytree`.
+  **Measurement reframed the cost model:** the two pnpm layers were **~1.7 s** of the ~3.8 s; the eager
+  pg-store import (Context §2's headline target) is only **~100 ms marginal warm** — the library/zod
+  tsx-transpile graph, which every offline command needs regardless, dominates the residual ~1.9 s,
+  which is the practical floor under the no-build-step convention (ADR-0023). So the launcher, not
+  lazy-pg, was the real win; lazy-pg split to 2b. _(PR: #612.)_
+- [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
+  store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
+  Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
+  no-build-step floor). The real prize is COLD starts (`google-auth-library` is heavy on cold disk) —
+  pursue only if a cold-start measurement shows the gain. Non-trivial: both `@storytree/library/store`
+  AND the wide `@storytree/drive` barrel statically pull the connector graph, so it needs a
+  dispatcher + drive lazy-load refactor — isolate a red→green test before touching it (it flows through
+  every command and the gate).
+- [x] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — the harness owns worktree creation (no
+  reachable `git worktree add` wrapper), so the closest hook is the first `SessionStart` in the fresh
+  worktree. Added `packages/cli/provision-worktree.mjs` — bare-node ESM (zero deps: it runs BEFORE
+  node_modules exists), idempotent via pnpm's `node_modules/.modules.yaml` completion marker (a
+  provisioned worktree is a near-zero no-op, so it is safe to run at every SessionStart), pnpm→corepack
+  fallback, fail-safe in `--hook` mode (always exit 0, the `presence-hook.sh` contract, so a slow/failed
+  install never breaks the session) — and wired it into `.claude/settings.json` SessionStart. A fresh
+  worktree now `pnpm install`s once, up front and unattended, OFF the agent's onboarding tool-call path,
+  removing the +15–35 s mid-onboarding blocker for the ~1-in-5 fresh-worktree sessions. A
+  `provision-worktree.test.ts` proves the contract with an injected installer (idempotent no-op /
+  fresh→install-once / failure→non-zero exit / `--hook` swallows failure); `provision-worktree.d.mts`
+  types the surface for the TS test (per `scripts/studio.d.mts`). _(PR: #618.)_
+- [x] **4. SOURCE engine-map — DECISION GATE** (validate-first) — **closed WON'T-DO** (2026-07-06). Ran
+  ADR-0024's blind-reconstruction test (three tool-blind definers, neutral preamble, judged against the
+  real engine + the existing CLAUDE.md package tour). Result: the SOURCE re-read is **not real waste**, so
+  item 4's criterion ("pursue only if the re-read is proven waste") is unmet. The re-read is two things and
+  a new engine-map artifact is justified by neither: **(1) the STRUCTURAL map** (module roster /
+  responsibilities / seams / conceptual data-flow) is blind-reconstructible — the *raw* definer rebuilt the
+  ~10-package shape from the topic alone (generic industry knowledge), the *preamble* definer rebuilt the
+  near-exact real structure incl. real filenames/seam names from the neutral sketch (derivable from our
+  framing); by §1's earns-its-place bar a fresh prose map **fails**, and this content already lives in the
+  CLAUDE.md package tour (redundant twice over). **(2) The EDITABLE detail** (current signatures, exact
+  schemas, the real call graph, code-enforced invariants like "halted is never a pass") is *not*
+  reconstructible — but it is **code** (outside ADR-0024 §8's authored-prose scope), it rots fast under
+  refactor (strict TS makes a stale signature *actively wrong*), and reading it before an edit is *correct*
+  just-in-time behaviour, not waste. A generated doc holding it would be exactly the role/data-flow prose
+  §Phase-1.4 forbids and the ADR-0135 stale-glossary / "false-green from a stale doc" trap. No minimal
+  path-gated extension is warranted either: the package tour already supplies the "which files?"
+  search-time index (it names `prove-it-gate.ts`, `sdk-author.ts`, `phase-machine.ts`, …). Agent-decidable
+  per the criterion the owner fixed in this ADR — not an owner fork. _(PR: this one.)_
 - [ ] **5. Maintenance & monitoring system** (Phase 2) — per-agent-type onboarding-budget SLA,
   post-session breach signal → remediation (ADR-0032). The owner-process. Arc completes when this lands.
 

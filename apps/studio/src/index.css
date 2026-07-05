@@ -3693,7 +3693,6 @@ button.legend-tile:hover {
 
 /* inline comment thread — a light card in the flow (used by InlineCommentThread, retained) */
 .inline-comment-thread {
-.inline-comment-thread {
   margin: 10px 0;
   padding: 10px 12px;
   background: var(--surface);
@@ -3834,3 +3833,98 @@ button.legend-tile:hover {
 
 /* The per-block suggest-compose monospace box is retired: composing a suggestion is now
    click-to-edit-in-place on the block itself (see .block-editor above). */
+
+/* ============================================================================
+   NEW-ISLAND ARRIVAL — when a re-pulled tree payload holds a story the previous
+   payload didn't (TreeView diffs the id sets), the island ARRIVES instead of
+   popping in, staged like a landmass growing at the end of a path: its roads
+   DRAW ON first (SceneView sets pathLength=1 on the arriving road, so
+   dasharray 1 → offset 1→0 is length-agnostic), then the sandy coast surfaces,
+   the ground assembles on top of it, and finally the flora + nameplate POP in
+   with a soft overshoot. Every piece is animation-fill-mode: both, so it holds
+   its hidden from-state through its delay — the board sits quiet for a beat,
+   then the arrival plays. `?arrive=<story-id|auto>` is the demo/QA escape
+   (forces one island to arrive on load, with a ▶ replay button).
+   ============================================================================ */
+.arrive-road .dag-road {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: arrive-road-draw 0.9s ease-out 0.5s both;
+}
+@keyframes arrive-road-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* the coast surfaces as the road arrives… */
+.coast-fill-group.arrive-island {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: arrive-ground 0.55s ease-out 1.05s both;
+}
+/* …the ground assembles on it… */
+.relaxed-tile.arrive-island,
+.hex-tile.arrive-island {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: arrive-ground 0.55s ease-out 1.25s both;
+}
+/* …and the flora / tree / nameplate pop last, with a soft overshoot. */
+.hex-flora.arrive-island {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: arrive-pop 0.6s cubic-bezier(0.34, 1.45, 0.5, 1) 1.5s both;
+}
+@keyframes arrive-ground {
+  from {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes arrive-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* the demo's replay control (only rendered when ?arrive= is set) */
+.arrive-replay {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: 600 12.5px var(--font);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.arrive-replay:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrive-road .dag-road,
+  .coast-fill-group.arrive-island,
+  .relaxed-tile.arrive-island,
+  .hex-tile.arrive-island,
+  .hex-flora.arrive-island {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
