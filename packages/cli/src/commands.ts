@@ -49,7 +49,7 @@ import {
 import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestrator";
 import type { PocketReading } from "@storytree/orchestrator";
 
-import { nodeBuild, nodeHelp, nodeResolve } from "@storytree/drive";
+import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
@@ -827,6 +827,7 @@ function treeViewHelp(): Envelope {
       "",
       "  storytree tree [--pg]              every story, one line each",
       "  storytree tree <story-id> [--pg]   one story: capabilities, build surface, edges, presence",
+      "  storytree tree spec <node-id>      the full spec markdown for one story or capability",
       "",
       "with --pg the views weave in live presence and one signed-verdict glyph per node",
       "(✓ proven / ✗ last run failed / – never built, read from events.verdict); offline",
@@ -1686,6 +1687,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "tree") {
     if (help) return treeViewHelp();
+    // `tree spec <node-id>` — the full spec markdown for one story/capability (the drive-shared
+    // drill-down the orientation tools follow; same impl the desktop sidecar's runner serves).
+    if (sub === "spec") return specView(deps.storiesDir ?? path.join(repoRoot(), "stories"), third);
     return treeCommand(sub, {
       storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
       // Display-only buildable glyph, registry-based (ADR-0057 follow-up: make it spec-aware off the

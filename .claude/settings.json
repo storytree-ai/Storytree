@@ -10,6 +10,11 @@
           },
           {
             "type": "command",
+            "command": "node packages/cli/provision-worktree.mjs --hook",
+            "timeout": 300
+          },
+          {
+            "type": "command",
             "command": "bash scripts/presence-hook.sh start",
             "timeout": 20
           }

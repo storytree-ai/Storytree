@@ -142,7 +142,7 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   pg-store import (Context §2's headline target) is only **~100 ms marginal warm** — the library/zod
   tsx-transpile graph, which every offline command needs regardless, dominates the residual ~1.9 s,
   which is the practical floor under the no-build-step convention (ADR-0023). So the launcher, not
-  lazy-pg, was the real win; lazy-pg split to 2b. _(PR: this one.)_
+  lazy-pg, was the real win; lazy-pg split to 2b. _(PR: #612.)_
 - [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
   store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
   Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
@@ -151,7 +151,18 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   AND the wide `@storytree/drive` barrel statically pull the connector graph, so it needs a
   dispatcher + drive lazy-load refactor — isolate a red→green test before touching it (it flows through
   every command and the gate).
-- [ ] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — `pnpm install` at worktree creation.
+- [x] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — the harness owns worktree creation (no
+  reachable `git worktree add` wrapper), so the closest hook is the first `SessionStart` in the fresh
+  worktree. Added `packages/cli/provision-worktree.mjs` — bare-node ESM (zero deps: it runs BEFORE
+  node_modules exists), idempotent via pnpm's `node_modules/.modules.yaml` completion marker (a
+  provisioned worktree is a near-zero no-op, so it is safe to run at every SessionStart), pnpm→corepack
+  fallback, fail-safe in `--hook` mode (always exit 0, the `presence-hook.sh` contract, so a slow/failed
+  install never breaks the session) — and wired it into `.claude/settings.json` SessionStart. A fresh
+  worktree now `pnpm install`s once, up front and unattended, OFF the agent's onboarding tool-call path,
+  removing the +15–35 s mid-onboarding blocker for the ~1-in-5 fresh-worktree sessions. A
+  `provision-worktree.test.ts` proves the contract with an injected installer (idempotent no-op /
+  fresh→install-once / failure→non-zero exit / `--hook` swallows failure); `provision-worktree.d.mts`
+  types the surface for the TS test (per `scripts/studio.d.mts`). _(PR: this one.)_
 - [ ] **4. SOURCE engine-map — DECISION GATE** (validate-first) — run ADR-0024's blind test; land a
   minimal gated package-tour extension only if the re-read pain is proven. Else close as won't-do.
 - [ ] **5. Maintenance & monitoring system** (Phase 2) — per-agent-type onboarding-budget SLA,

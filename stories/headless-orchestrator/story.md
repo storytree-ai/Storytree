@@ -163,7 +163,7 @@ UAT action, not a capability).
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
-| 1 | [`orientation-tool-surface`](orientation-tool-surface.md) | A read-only in-process tool surface exposes the three storytree orientation commands to a model, each returning a real envelope body, with NO write tool and writes structurally impossible. | — |
+| 1 | [`orientation-tool-surface`](orientation-tool-surface.md) | A read-only in-process tool surface exposes the storytree read surfaces (tree, library, noticeboard, agents) to a model with parameterized drill-down args, each returning a real envelope body, with NO write tool, write verbs refused at the surface, and writes structurally impossible. | — |
 | 2 | [`headless-session-runner`](headless-session-runner.md) | A single read-only SDK session runs an injected system prompt with the orientation tools wired, surfaces the agent's final proposal text, and fails closed on a dead/empty session — one session at a time. | `orientation-tool-surface` |
 | 3 | [`orchestrator-composition`](orchestrator-composition.md) | A programmatic intent renders the session-orchestrator agent, drives a scripted headless session against the real seed corpus, and surfaces an orientation/proposal. | `headless-session-runner` |
 | 4 | [`chat-session-stream`](chat-session-stream.md) *(Phase 2, ADR-0108)* | An HTTP chat intake + SSE route streams an `orchestrate`-driven session's live output to a thin-client chat panel — reusing the Phase-1 composition, read/propose only. | `orchestrator-composition` |

@@ -195,6 +195,30 @@ describe('SceneView — the studio scene mapper', () => {
     expect(onSelectStory).not.toHaveBeenCalled(); // stopPropagation
   });
 
+  it('marks an arriving island across its per-island groups and its roads (arrival staging)', () => {
+    // 'lib' is the arriving island; the a→b road also arrives because 'b' is entering.
+    const { root } = renderScene({ arrivalIds: new Set(['lib', 'b']) });
+    // the island's flora / coast / ground groups all wear arrive-island (the CSS
+    // keyframes stage coast → ground → flora off this one class per layer) …
+    expect(root.querySelector('.hex-flora.arrive-island')).toBeTruthy();
+    expect(root.querySelector('.coast-fill-group.arrive-island')).toBeTruthy();
+    expect(root.querySelector('.relaxed-tile.arrive-island')).toBeTruthy();
+    // … and a road touching an entering story wears arrive-road, with its line
+    // normalised to pathLength=1 so the CSS draw-on is length-agnostic.
+    const road = root.querySelector('.world-trail.arrive-road');
+    expect(road).toBeTruthy();
+    expect(road?.querySelector('.dag-road')?.getAttribute('pathLength')).toBe('1');
+  });
+
+  it('renders zero arrival artifacts when no story is entering (the steady-state board)', () => {
+    const { root } = renderScene();
+    expect(root.querySelector('[class*="arrive"]')).toBeNull();
+    expect(root.querySelector('.dag-road')?.getAttribute('pathLength')).toBeNull();
+    // an arrival set that names no rendered story is equally inert.
+    const other = renderScene({ arrivalIds: new Set(['not-here']) }).root;
+    expect(other.querySelector('[class*="arrive"]')).toBeNull();
+  });
+
   it('hovers the story from any of its island groups', () => {
     const onHoverStory = vi.fn();
     const { root } = renderScene({ onHoverStory });

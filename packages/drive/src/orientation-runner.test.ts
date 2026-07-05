@@ -9,11 +9,15 @@
  *   2. ["library"]     → the library dashboard over the injected knowledge store.
  *   3. ["noticeboard"] → the notice board over the injected presence store.
  *   4. Anything else   → an ok:false refusal envelope (read-only by construction, never a throw).
+ *   5. The drill-downs (the in-app orchestrator's "answer these sorts of questions" gap):
+ *      ["tree","spec",<id>] → the full spec markdown; ["library","artifact",<id>] → one
+ *      artifact's body; ["library","artifact","list",<cat>] → a category listing;
+ *      ["agents"(,<name>)] → the agent-guidance renderer (self-onboarding).
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -26,24 +30,30 @@ import type { PresenceStoreLike } from "./noticeboard.js";
 // Fakes
 // ---------------------------------------------------------------------------
 
-/** A minimal knowledge store: queryDocs feeds the dashboard; getDoc feeds the doctrine pointer. */
+/** A minimal knowledge store: queryDocs feeds the dashboard; getDoc feeds the artifact view. */
 function fakeKnowledgeStore(): {
-  queryDocs(): Promise<unknown[]>;
+  queryDocs(filter?: { kind?: string }): Promise<unknown[]>;
   getDoc(id: string): Promise<unknown>;
 } {
   const doc = {
     id: "live-shaped-artifact",
     kind: "principle",
-    doc: { id: "live-shaped-artifact", title: "A live-shaped principle" },
+    doc: {
+      id: "live-shaped-artifact",
+      title: "A live-shaped principle",
+      body: "THE PRINCIPLE BODY TEXT",
+      references: ["asset:another-artifact"],
+    },
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",
   };
   return {
-    async queryDocs() {
-      return [doc];
+    async queryDocs(filter?: { kind?: string }) {
+      // agentIds queries {kind:"agent"} — this store holds none, so the agents view lists empty.
+      return filter?.kind !== undefined && filter.kind !== doc.kind ? [] : [doc];
     },
-    async getDoc() {
-      return null; // doctrine pointer falls back to the bare id line (fail-soft)
+    async getDoc(id: string) {
+      return id === doc.id ? doc : null;
     },
   };
 }
@@ -136,7 +146,7 @@ test("orientation runner: any non-read argv is refused with an ok:false envelope
   const runner = makeRunner();
   for (const argv of [
     ["noticeboard", "declare"],
-    ["library", "artifact"],
+    ["library", "edit"],
     ["build", "story"],
     ["adr", "new"],
     [],
@@ -145,4 +155,83 @@ test("orientation runner: any non-read argv is refused with an ok:false envelope
     assert.equal(env.ok, false, `[${argv.join(" ")}] must be refused (read-only by construction)`);
     assert.match(env.body, /unsupported command|orientation/i);
   }
+});
+
+// ---------------------------------------------------------------------------
+// 5. Drill-downs — tree spec / library artifact / artifact list / agents
+// ---------------------------------------------------------------------------
+
+/** A stories/ dir with one story + one capability spec, for the spec view. */
+function makeStoriesDir(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "orientation-spec-"));
+  const storyDir = path.join(dir, "demo-story");
+  mkdirSync(storyDir);
+  writeFileSync(
+    path.join(storyDir, "story.md"),
+    "---\nid: demo-story\ntier: story\n---\n# Demo story\n",
+    "utf8",
+  );
+  writeFileSync(
+    path.join(storyDir, "demo-cap.md"),
+    "---\nid: demo-cap\ntier: capability\n---\n# THE DEMO CAP SPEC BODY\n",
+    "utf8",
+  );
+  return dir;
+}
+
+test("orientation runner: [tree spec <id>] returns the node's full spec markdown", async () => {
+  const runner = makeRunner({ storiesDir: makeStoriesDir() });
+  const env = await runner(["tree", "spec", "demo-cap"], { store: null, writable: false });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /THE DEMO CAP SPEC BODY/, "the capability's spec markdown is the body");
+  assert.ok(
+    (env.next ?? []).some((n) => n.includes("tree demo-story")),
+    "next: points at the owning story's tree",
+  );
+});
+
+test("orientation runner: [tree spec <unknown>] misses with guidance, never a throw", async () => {
+  const runner = makeRunner({ storiesDir: makeStoriesDir() });
+  const env = await runner(["tree", "spec", "no-such-node"], { store: null, writable: false });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no spec found/);
+  assert.ok((env.next ?? []).length > 0, "a miss still ships next: guidance");
+});
+
+test("orientation runner: [library artifact <id>] renders the artifact body with references", async () => {
+  const runner = makeRunner();
+  const env = await runner(["library", "artifact", "live-shaped-artifact"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /THE PRINCIPLE BODY TEXT/, "the artifact's body renders");
+  assert.ok(
+    (env.next ?? []).some((n) => n.includes("another-artifact")),
+    "asset: references become next: pulls",
+  );
+});
+
+test("orientation runner: [library artifact list <category>] lists ids; unknown category lists categories", async () => {
+  const runner = makeRunner();
+  const hit = await runner(["library", "artifact", "list", "principle"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(hit.ok, true);
+  assert.match(hit.body, /live-shaped-artifact/);
+
+  const miss = await runner(["library", "artifact", "list", "nope"], {
+    store: null,
+    writable: false,
+  });
+  assert.equal(miss.ok, false);
+  assert.match(miss.body, /available categories/);
+});
+
+test("orientation runner: [agents] lists available agents (self-onboarding entry), fail-soft when none", async () => {
+  const runner = makeRunner();
+  const env = await runner(["agents"], { store: null, writable: false });
+  assert.equal(env.ok, false, "no name given → the needs-a-name guidance, never a throw");
+  assert.match(env.body, /agents needs a name|no agent/i);
 });
