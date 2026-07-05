@@ -112,10 +112,13 @@ test("buildLandingDeps: runGate maps a non-zero exit → failed (the OBSERVED re
 // openLandingPr — the merge ceremony, in order, NON-DRAFT, fail-closed
 // ---------------------------------------------------------------------------
 
-test("buildLandingDeps: openLandingPr runs the merge ceremony in order — git add -A → commit → push -u origin <branch> → NON-DRAFT gh pr create", async () => {
+test("buildLandingDeps: openLandingPr runs the merge ceremony in order — merged-check → git add -A → commit → push -u origin <branch> → NON-DRAFT gh pr create", async () => {
   const exec = recordingExec((call) =>
-    // The gh step returns the PR URL on stdout (as real `gh pr create` does).
-    call.cmd === "gh" ? { code: 0, stdout: "https://github.com/o/r/pull/999\n", stderr: "" } : OK,
+    // The `gh pr create` step returns the PR URL on stdout (as real `gh pr create` does); the
+    // `gh pr list` merged-check returns empty (→ NOT merged, the happy path).
+    call.cmd === "gh" && call.args.includes("create")
+      ? { code: 0, stdout: "https://github.com/o/r/pull/999\n", stderr: "" }
+      : OK,
   );
   const built = buildLandingDeps({ cwd: "/repo", branch: "claude/sess-42", exec: exec.fn });
   assert.equal(built.ok, true);
@@ -131,16 +134,18 @@ test("buildLandingDeps: openLandingPr runs the merge ceremony in order — git a
   assert.deepEqual(
     exec.calls.map((c) => `${c.cmd} ${c.args.join(" ")}`),
     [
+      // The already-merged guard runs FIRST (ADR-0163 Gap B1) — the guard's own query, empty here.
+      "gh pr list --head claude/sess-42 --state merged --json number --jq .[].number",
       "git add -A",
       "git commit -m feat(x): land unit",
       "git push -u origin claude/sess-42",
       "gh pr create --title Land unit x --body what landed and why",
     ],
-    "the exact command sequence — commit message / branch / title / body threaded through as arg-vector values",
+    "the exact command sequence — merged-check first, then commit message / branch / title / body threaded through as arg-vector values",
   );
 
-  // NON-DRAFT: the gh args must NOT carry --draft (CI re-proves and auto-merges, ADR-0022).
-  const gh = exec.calls.find((c) => c.cmd === "gh");
+  // NON-DRAFT: the `gh pr create` args must NOT carry --draft (CI re-proves and auto-merges, ADR-0022).
+  const gh = exec.calls.find((c) => c.cmd === "gh" && c.args.includes("create"));
   assert.ok(gh !== undefined && !gh.args.includes("--draft"), "the PR is opened NON-DRAFT — never --draft");
   // And never `gh pr merge` — the spine/CI merges, not the orchestrator.
   assert.ok(!gh.args.includes("merge"), "openLandingPr never runs `gh pr merge`");
@@ -149,9 +154,12 @@ test("buildLandingDeps: openLandingPr runs the merge ceremony in order — git a
 });
 
 test("buildLandingDeps: openLandingPr is FAIL-CLOSED on a non-zero step — returns a readable { ok:false } naming the step, never throws, and stops the ceremony", async () => {
-  // Fail the commit (step index 1): push + gh must NOT run.
-  const exec = recordingExec((_call, index) =>
-    index === 1 ? { code: 1, stdout: "", stderr: "nothing to commit, working tree clean" } : OK,
+  // Fail `git commit` (keyed on the command, robust to the leading merged-check): push + gh must NOT
+  // run. The `gh pr list` merged-check returns empty (→ not merged) so the ceremony reaches commit.
+  const exec = recordingExec((call) =>
+    call.cmd === "git" && call.args.includes("commit")
+      ? { code: 1, stdout: "", stderr: "nothing to commit, working tree clean" }
+      : OK,
   );
   const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
   assert.equal(built.ok, true);
@@ -169,7 +177,11 @@ test("buildLandingDeps: openLandingPr is FAIL-CLOSED on a non-zero step — retu
   assert.ok(result !== undefined && result.ok === false, "the failure is a typed { ok: false }");
   assert.match(result.summary, /git commit failed/, "the summary names the failing step");
   assert.match(result.summary, /nothing to commit/, "the summary carries the step's stderr so the cause is visible");
-  assert.equal(exec.calls.length, 2, "the ceremony STOPS at the failed step — push + gh never run");
+  assert.equal(
+    exec.calls.length,
+    3,
+    "the ceremony STOPS at the failed step — merged-check + add + commit ran; push + gh never run",
+  );
   assert.equal(result.prUrl, undefined, "no PR URL on a failed ceremony");
 });
 
@@ -182,6 +194,186 @@ test("buildLandingDeps: openLandingPr succeeds with no prUrl when gh prints no U
   const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
   assert.equal(result.ok, true, "the ceremony succeeded (every step exit 0)");
   assert.equal(result.prUrl, undefined, "no URL parsed → prUrl omitted, not a fabricated value");
+});
+
+// ---------------------------------------------------------------------------
+// Already-merged branch — cut a FRESH branch first (ADR-0163 Gap B1 / ADR-0142)
+// ---------------------------------------------------------------------------
+
+/**
+ * Script an exec where the merged-check (`gh pr list … --state merged`) reports the branch ALREADY
+ * merged (non-empty stdout) and `gh pr create` returns a PR URL — every other command exits 0.
+ */
+function mergedBranchExec() {
+  return recordingExec((call) => {
+    if (call.cmd === "gh" && call.args.includes("list")) {
+      // The guard's own query returns a merged PR number → this branch already landed.
+      return { code: 0, stdout: "601\n", stderr: "" };
+    }
+    if (call.cmd === "gh" && call.args.includes("create")) {
+      return { code: 0, stdout: "https://github.com/o/r/pull/700\n", stderr: "" };
+    }
+    return OK;
+  });
+}
+
+test("buildLandingDeps: an ALREADY-MERGED branch → a `git checkout -b claude/<slug>` runs BEFORE git commit, and the PR pushes the FRESH branch (ADR-0163 Gap B1 / ADR-0142)", async () => {
+  const exec = mergedBranchExec();
+  const built = buildLandingDeps({
+    cwd: "/repo",
+    branch: "claude/old-merged",
+    freshBranchSlug: "regen-abc",
+    exec: exec.fn,
+  });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, true, "the ceremony succeeds on the fresh branch");
+
+  const seq = exec.calls.map((c) => `${c.cmd} ${c.args.join(" ")}`);
+  assert.deepEqual(
+    seq,
+    [
+      "gh pr list --head claude/old-merged --state merged --json number --jq .[].number",
+      "git checkout -b claude/regen-abc",
+      "git add -A",
+      "git commit -m m",
+      // The push targets the FRESH branch, not the merged one.
+      "git push -u origin claude/regen-abc",
+      "gh pr create --title t --body b",
+    ],
+    "checkout -b runs after the merged-check and BEFORE git commit; push + PR use the fresh branch",
+  );
+
+  // The checkout must precede the commit (the whole point — never commit onto the dead branch).
+  const checkoutIdx = seq.findIndex((s) => s.startsWith("git checkout -b"));
+  const commitIdx = seq.findIndex((s) => s.startsWith("git commit"));
+  assert.ok(checkoutIdx >= 0 && commitIdx >= 0 && checkoutIdx < commitIdx, "checkout -b runs before commit");
+
+  assert.match(result.summary, /already merged/, "the summary explains the fresh-branch diversion");
+  assert.match(result.summary, /claude\/regen-abc/, "the summary names the fresh branch");
+  assert.equal(result.prUrl, "https://github.com/o/r/pull/700", "the PR URL is still parsed");
+});
+
+test("buildLandingDeps: a NOT-merged branch is UNCHANGED — no `git checkout -b`, the ceremony runs on the original branch", async () => {
+  // Blanket-OK stub: `gh pr list` returns empty stdout → NOT merged → the current behaviour.
+  const exec = recordingExec(() => OK);
+  const built = buildLandingDeps({
+    cwd: "/repo",
+    branch: "claude/live",
+    freshBranchSlug: "unused-slug", // present but never consumed on the not-merged path
+    exec: exec.fn,
+  });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, true);
+
+  const seq = exec.calls.map((c) => `${c.cmd} ${c.args.join(" ")}`);
+  assert.ok(
+    !seq.some((s) => s.startsWith("git checkout -b")),
+    `no fresh branch is cut when the branch is not merged; got ${JSON.stringify(seq)}`,
+  );
+  assert.deepEqual(
+    seq,
+    [
+      "gh pr list --head claude/live --state merged --json number --jq .[].number",
+      "git add -A",
+      "git commit -m m",
+      "git push -u origin claude/live",
+      "gh pr create --title t --body b",
+    ],
+    "the not-merged path is the original ceremony (only the leading merged-check is added)",
+  );
+});
+
+test("buildLandingDeps: an already-merged branch WITHOUT a freshBranchSlug is a fail-closed refusal — never opens a PR CI's guard would reject", async () => {
+  const exec = mergedBranchExec();
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/old-merged", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, false, "no slug to cut a fresh branch → refuse rather than open a doomed PR");
+  assert.match(result.summary, /already landed as a merged PR/, "the refusal states the merged condition");
+  // The ceremony must STOP at the merged-check — no commit / push / PR onto the dead branch.
+  assert.deepEqual(
+    exec.calls.map((c) => `${c.cmd} ${c.args.join(" ")}`),
+    ["gh pr list --head claude/old-merged --state merged --json number --jq .[].number"],
+    "only the merged-check ran — no commit / push / gh pr create",
+  );
+});
+
+test("buildLandingDeps: the merged-check FAILS OPEN — a `gh` error never forces a spurious fresh branch", async () => {
+  // `gh pr list` errors (network/tooling); every other step exits 0.
+  const exec = recordingExec((call) =>
+    call.cmd === "gh" && call.args.includes("list")
+      ? { code: 1, stdout: "", stderr: "gh: could not reach github" }
+      : OK,
+  );
+  const built = buildLandingDeps({
+    cwd: "/repo",
+    branch: "claude/live",
+    freshBranchSlug: "would-be-fresh",
+    exec: exec.fn,
+  });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, true, "an undetermined merged-check proceeds on the current branch (fail-open)");
+  const seq = exec.calls.map((c) => `${c.cmd} ${c.args.join(" ")}`);
+  assert.ok(!seq.some((s) => s.startsWith("git checkout -b")), "no fresh branch is cut on an undetermined check");
+  assert.ok(seq.includes("git push -u origin claude/live"), "the push stays on the original branch");
+});
+
+test("buildLandingDeps: on the fresh-branch path the injected reDeclarePresence hook re-lights the wisp (best-effort, ADR-0142)", async () => {
+  const exec = mergedBranchExec();
+  const declared: Array<{ branch: string; storyNodeId: string }> = [];
+  const built = buildLandingDeps({
+    cwd: "/repo",
+    branch: "claude/old-merged",
+    freshBranchSlug: "regen-xyz",
+    storyNodeId: "story-42",
+    reDeclarePresence: async (a) => {
+      declared.push(a);
+    },
+    exec: exec.fn,
+  });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    declared,
+    [{ branch: "claude/regen-xyz", storyNodeId: "story-42" }],
+    "the hook is re-declared with the FRESH branch + the session story node so the wisp re-lights",
+  );
+  assert.match(result.summary, /re-declared presence on 'story-42'/, "the summary notes the re-declare");
+});
+
+test("buildLandingDeps: a THROWING reDeclarePresence hook never fails the landing — best-effort, noted in the summary", async () => {
+  const exec = mergedBranchExec();
+  const built = buildLandingDeps({
+    cwd: "/repo",
+    branch: "claude/old-merged",
+    freshBranchSlug: "regen-xyz",
+    storyNodeId: "story-42",
+    reDeclarePresence: async () => {
+      throw new Error("noticeboard unreachable");
+    },
+    exec: exec.fn,
+  });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.openLandingPr({ commitMessage: "m", prTitle: "t", prBody: "b" });
+  assert.equal(result.ok, true, "a failed presence re-declare must never fail the landing");
+  assert.match(result.summary, /presence re-declare FAILED/, "the summary surfaces the best-effort failure");
+  assert.match(result.summary, /noticeboard unreachable/, "the cause is visible");
 });
 
 // ---------------------------------------------------------------------------
