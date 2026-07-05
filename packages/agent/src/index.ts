@@ -82,9 +82,11 @@ export { runHeadlessOrchestrator } from "./headless-orchestrator.js";
 export type {
   SpawnStoryAuthorArgs,
   SpawnStoryAuthorResult,
+  SpawnWriteScopedArgs,
+  SpawnWriteScopedResult,
   ScopeViolation,
 } from "./spawn-story-author.js";
-export { runSpawnStoryAuthor } from "./spawn-story-author.js";
+export { runSpawnStoryAuthor, runSpawnWriteScoped } from "./spawn-story-author.js";
 export type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 export { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
 

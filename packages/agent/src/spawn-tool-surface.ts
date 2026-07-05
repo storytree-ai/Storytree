@@ -44,11 +44,23 @@ export interface SpawnSurfaceDeps {
     onTrace: (msg: unknown) => void,
   ) => Promise<string>;
   /**
-   * Builder spawn runner: starts a write-scoped builder SDK session for the given
-   * unitId and returns a summary string.
+   * Builder spawn runner: dispatches the WHOLE unit's registered proof through the routed build
+   * worker and returns a summary string. It takes only the `unitId` — a builder drives the whole
+   * unit's proof and has NO per-run scope (ADR-0160 D5.i: the phantom `userPrompt` the schema used
+   * to advertise is dropped; scoped intent is `spawnGlueWorker`'s job).
    */
   spawnBuilder: (
-    args: { unitId: string; userPrompt: string },
+    args: { unitId: string },
+    onTrace: (msg: unknown) => void,
+  ) => Promise<string>;
+  /**
+   * Glue-worker spawn runner (ADR-0160): starts a write-scoped SDK session fenced to the
+   * caller-declared `paths` that HONOURS the `userPrompt` — the scoped-edit affordance the desktop
+   * chat lacked. Writes inside the spawned session are fenced to `paths`; landing is the existing
+   * gate→PR path. Returns a folded summary string (never a verdict).
+   */
+  spawnGlueWorker: (
+    args: { unitId: string; paths: string[]; userPrompt: string },
     onTrace: (msg: unknown) => void,
   ) => Promise<string>;
 }
@@ -131,22 +143,23 @@ export function buildSpawnTools(deps: SpawnSurfaceDeps) {
 
   const spawnBuilderTool = tool(
     "spawn_builder",
-    "Spawn a write-scoped builder session to implement a capability or fix an issue. " +
-      "The session is claim-gated: if another session already holds the story you will " +
-      "be told who holds it and the spawn will not start. Writes inside the spawned " +
-      "session are fenced to the declared source scope — NOT in this chat.",
+    "Spawn a write-scoped builder session to implement a capability or fix an issue by driving " +
+      "the WHOLE unit's registered proof red→green through the prove-it-gate. The session is " +
+      "claim-gated: if another session already holds the story you will be told who holds it and " +
+      "the spawn will not start. Writes inside the spawned session are fenced to the declared " +
+      "source scope — NOT in this chat. A builder has NO per-run scope knob — for a scoped glue " +
+      "edit (add a few routes to one wiring file, and stop) use spawn_glue_worker instead.",
     {
       unitId: z.string().describe("The story / unit id to build."),
-      userPrompt: z.string().describe("The task prompt for the builder session."),
     },
-    async ({ unitId, userPrompt }) => {
+    async ({ unitId }) => {
       const result = await claimGatedSpawn({
         unitId,
         sessionId,
         branch,
         kind: "orchestrate",
         store,
-        spawnFn: (onTrace) => deps.spawnBuilder({ unitId, userPrompt }, onTrace),
+        spawnFn: (onTrace) => deps.spawnBuilder({ unitId }, onTrace),
       });
 
       if (!result.ok) {
@@ -166,5 +179,56 @@ export function buildSpawnTools(deps: SpawnSurfaceDeps) {
     },
   );
 
-  return [spawnStoryAuthorTool, spawnBuilderTool];
+  const spawnGlueWorkerTool = tool(
+    "spawn_glue_worker",
+    "Spawn a write-scoped GLUE worker to make a MINIMAL scoped edit and stop — the right tool for " +
+      "un-asserted connective code within a story (add a few routes to a wiring file, thread a dep " +
+      "through) that has no isolatable red→green of its own (ADR-0158 / ADR-0160). Its writes are " +
+      "fenced fail-closed to the `paths` you declare (a write outside them is denied), it HONOURS " +
+      "your task prompt, and it signs nothing — land its result through run_gate + open_landing_pr " +
+      "(the gate + CI re-prove the owning story transitively; you never re-run the whole story's " +
+      "--real build). Claim-gated on the owning story: if another session holds it you are told who " +
+      "and the spawn does not start. Writes happen in the spawned worker — NOT in this chat. Do NOT " +
+      "use this to autonomously land un-proven surface: if the edit hides real logic, refactor it to " +
+      "earn a contract (spawn_builder); if only a human can judge it (look/feel/live), attest it.",
+    {
+      unitId: z.string().describe("The OWNING story the glue edit lands under (glue lives within a story)."),
+      paths: z
+        .array(z.string())
+        .describe(
+          "The caller-declared source scope the write fence permits (e.g. " +
+            "['apps/desktop/electron/backend-entry.ts']). A write outside these paths is DENIED.",
+        ),
+      userPrompt: z
+        .string()
+        .describe("The scoped task, honoured verbatim (e.g. 'add these 3 routes to backend-entry.ts and stop')."),
+    },
+    async ({ unitId, paths, userPrompt }) => {
+      const result = await claimGatedSpawn({
+        unitId,
+        sessionId,
+        branch,
+        kind: "orchestrate",
+        store,
+        spawnFn: (onTrace) => deps.spawnGlueWorker({ unitId, paths, userPrompt }, onTrace),
+      });
+
+      if (!result.ok) {
+        if (result.reason === "held") {
+          return {
+            content: [{ type: "text" as const, text: refusalText(result.heldBy) }],
+          };
+        }
+        return {
+          content: [{ type: "text" as const, text: "Cannot spawn: blank unit id." }],
+        };
+      }
+
+      return {
+        content: [{ type: "text" as const, text: String(result.result) }],
+      };
+    },
+  );
+
+  return [spawnStoryAuthorTool, spawnBuilderTool, spawnGlueWorkerTool];
 }

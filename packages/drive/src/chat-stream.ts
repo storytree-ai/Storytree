@@ -32,6 +32,7 @@ import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
 import type { SpawnSurfaceDeps } from "./spawn-deps.js";
 import { asSpawnTrace } from "./spawn-trace.js";
+import type { SpawnTraceRole } from "./spawn-trace.js";
 
 // ---------------------------------------------------------------------------
 // Event types
@@ -61,7 +62,7 @@ export interface ChatStreamDeltaEvent {
 export interface ChatStreamSpawnEvent {
   type: "spawn";
   phase: "started" | "finished";
-  role: "story-author" | "builder";
+  role: SpawnTraceRole;
   unitId: string;
   ok?: boolean;
 }
