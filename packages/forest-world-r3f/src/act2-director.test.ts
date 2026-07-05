@@ -14,9 +14,12 @@
 //     loudly (the verification-gap answer, enforced at runtime, not a type hint).
 //   • abd-upstream-stories-carry-dependsOn-and-honest-status — add-upstream-story beats raise
 //     upstream stories with correct tri-state status, and the dependency edges
-//     flow FROM dependent TO prerequisite (website.dependsOn=[backend],
-//     backend.dependsOn=[database], database.dependsOn=[]) — the authoritative
-//     ADR-0058 / cross-story-dependency direction corrected by ADR-0153.
+//     flow FROM dependent TO prerequisite in the BaaS diamond shape (ADR-0157):
+//     website.dependsOn=[backend, database], backend.dependsOn=[database],
+//     database.dependsOn=[] — the frontend reads the catalog directly from the
+//     database, so BOTH website AND backend depend on the database; the delta
+//     fans the new upstream id into each named dependent's dependsOn
+//     (ADR-0058 / cross-story-dependency; direction corrected by ADR-0153).
 //   • abd-default-script-is-the-one-continuous-arc — the exported default
 //     script validates against the exported BeatScript zod contract, is exactly
 //     the six-beat continuous arc (website walk → upstream dependency-layer
@@ -280,17 +283,31 @@ test('abd-upstream-stories-carry-dependsOn-and-honest-status: add-upstream-story
     'database.dependsOn is [] — the database is the foundation with no upstream prerequisites',
   );
 
-  // The full layered stack: website → backend → database (dependent → prerequisite).
-  const websiteFinal: StoryNode = state.world.stories.find(
+  // BaaS DIAMOND (ADR-0157 — owner-confirmed at the H#2 gate): the WEBSITE reads
+  // the catalog directly from the database, so BOTH website AND backend depend on
+  // the database. Beat 5's delta must fan the database id into website.dependsOn
+  // as well as backend.dependsOn — giving website.dependsOn=[backend, database],
+  // backend.dependsOn=[database], database.dependsOn=[] (the diamond, not the
+  // 3-tier chain). The delta's `dependentId` must support spanning multiple
+  // existing stories (string | string[]) so applyDelta fans the new upstream id
+  // into each named dependent's dependsOn array.
+  const websiteAfterBeat5: StoryNode = state.world.stories.find(
     (s: StoryNode) => s.id === websiteNode.id,
   )!;
   assert.ok(
+    websiteAfterBeat5.dependsOn.includes(dbNode.id),
+    `website.dependsOn must include database id '${dbNode.id}' directly — the BaaS diamond (ADR-0157): the frontend reads the catalog directly from the database, so website.dependsOn=[backend, database] (not just [backend]). Beat 5's delta must fan the database into BOTH backend.dependsOn AND website.dependsOn.`,
+  );
+
+  // The full diamond: website → {backend, database}, backend → database (dependent → prerequisite).
+  const websiteFinal: StoryNode = websiteAfterBeat5;
+  assert.ok(
     websiteFinal.dependsOn.includes(backendAfterBeat5.id),
-    'website still dependsOn backend after all upstream beats — the full three-layer stack is present',
+    'website still dependsOn backend — the full diamond (website → {backend, database}, backend → database) is present',
   );
   assert.ok(
     backendAfterBeat5.dependsOn.includes(dbNode.id),
-    'backend dependsOn database — website → backend → database stack is complete',
+    'backend dependsOn database — the diamond shared-foundation edge is present',
   );
 
   // Every story in the world carries a valid tri-state status (the honest legend:

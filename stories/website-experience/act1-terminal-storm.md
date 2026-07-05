@@ -52,6 +52,20 @@ owner call on "presentable" (a HALT point, story open call 5).
 > through the gate; `healthy` is earned through the gate, never authored (ADR-0020). The chatter fiction
 > stays plain/opaque and jargon-light (`plain-language-first`) — it still DRAMATIZES the evidence base,
 > never cites statistics.
+>
+> **As built (2026-07-05, web main `d761eadc`, live at https://crisp-globe-bf6v.here.now/) — the storm-
+> analogy scrub LANDED + OWNER-ATTESTED AS A STEP FORWARD.** Act 1's visitor-facing copy no longer names
+> the "storm" metaphor: the cumulative Act 2 build (storytree-web PR #26, both CD runs green; parent `web/`
+> pin bumped `8f4e166c` → `d761eadc`) de-storms the shared surfaces — `web/src/pages/index.astro`'s two
+> Act-1 aria-labels read "swarm", and `act2-narration.ts` no longer opens on "The storm settles into soil"
+> (`INTRO` reworded). Act 1's BUILT EXPERIENCE (terminal chaos → finale concession → transform to soil) is
+> UNCHANGED and live as before; only the naming retired. The owner attested this as a STEP FORWARD
+> (verbatim: *"This is also a step forward, so land it"*). Scoping LEFT to the owner's call (flagged, not
+> enacted): the cap id / `title:` / `outcome:` internal handles keep "storm" (machine handles the visitor
+> never sees), and `/how-it-works` mock-data "reconnect storm" is a NETWORKING term (`info-pages-triage`
+> territory), not the metaphor. This LOOK is NOT terminally closed (a further redesign is directed); the
+> "As built" records below keep their historical "storm" prose as true history (copy-on-write). The
+> authored `status:` stays `proposed`.
 
 > **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-02); the authored status stays
 > `proposed`.** Built by the `frontend-builder` in `storytree-web` (branch

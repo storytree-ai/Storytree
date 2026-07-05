@@ -367,6 +367,36 @@ corrects their stale prose in place and adds a dated forward pointer at each ame
   (`website.dependsOn=[backend, database]`), the direct read edge added in the same direction. ADR-0150's
   core (one continuous upstream walk; dependency layer is the advantage) stands.
 
+## As built (2026-07-05)
+
+The BUILD link of this re-spec LANDED and is LIVE. All six redirections were delivered.
+
+- **The site (LOOK) — LIVE at web main `d761eadc`** (storytree-web PR #26, both CD runs green, live at
+  https://crisp-globe-bf6v.here.now). The BaaS diamond render (the direct `website → database` read edge
+  drawn alongside the `website → backend → database` chain), the honest TDD **loop** diagram
+  (system-as-referee — `web/src/scripts/act2-overlays.ts` `buildLoopDiagram`: four nodes / four arcs, two
+  SYSTEM-check nodes, centred "the system checks — not the AI"), the **moving** wisp
+  (`web/src/pages/index.astro`: `animation: act2-wisp-drift` — the wisp travels a soft closed loop, no
+  longer a static dot), the plain-language sweep (`act2-narration.ts` de-stormed), the our-orchestrator
+  pre-walk (`act2-orchestrator.ts`), and the first story node honestly born `proposed` are all live.
+- **The parent director (§1) — BUILT + leaf-proven.** Verdict **`f9ae9b8`** (run `real-mr6ycu73`,
+  coverage 4/4). `packages/forest-world-r3f/src/act2-director.ts`: `add-upstream-story`'s `dependentId`
+  widened to `z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])` (line 145); `applyDelta`
+  normalises to `string[]` and fans the new upstream id into each named dependent's `dependsOn`
+  (lines 323, 328); beat 5 raises the database once with `dependentId: ['story-backend', 'story-website']`
+  (lines 495–498) → the diamond `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`,
+  `database.dependsOn=[]`. Contract 3 asserts the diamond + direct `website → database` + acyclic sink +
+  mixed status; `abd-green-only-on-signed-proof` (contract 2) preserved verbatim.
+
+**Owner attestation — a STEP FORWARD, not a final sign-off.** The owner (hua.mick@gmail.com, 2026-07-05)
+attested this as a step forward and directed it to land — verbatim: *"This is also a step forward, so
+land it"* — while simultaneously directing a substantial follow-on redesign (an orchestrator-led,
+diagram-first walkthrough; the wisp on an orbit; a zoom-to-studio reveal; an ADR → library-artifact flow;
+industry framing). So this ADR records a LANDED INCREMENT, not a fully-realized end state: the confirmed
+BaaS architecture, the retired storm metaphor, the honest TDD loop diagram, the moving wisp, the plain
+language, and the proposed-node / our-orchestrator pre-walk are all live and attested-as-a-step-forward;
+the directed redesign is a future arc link, tracked separately (it does not reopen this decision).
+
 ## References
 
 - [ADR-0153](0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md) — AMENDED: confirms
