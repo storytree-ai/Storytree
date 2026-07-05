@@ -56,6 +56,7 @@ The judgement line is 'did the DECISION change?'. A genuine re-decision is NOT a
 
 - Live artifact state is edited only through the CLI write boundary against the live store — never by hand-editing the seed, and never by force-reloading the seed over live edits.  — `storytree library artifact live-store-is-the-edit-surface`
 - The content invariants — contracts green, UAT signed, upstream healthy — can never be bypassed; the gate refuses invalid work rather than warning about it.  — `storytree library artifact never-bypass-the-gate`
+- A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`
 
 ## Escalate UP when blocked or out of scope
 
@@ -69,7 +70,7 @@ This is the specialist → manager rung of the escalation ladder (specialist →
 
 ## Doors — pull a step's context just-in-time
 
-No per-step map yet — pull these context ceremonies just-in-time, at the step that needs each:
-- `storytree library artifact standalone-resilient-library`
-- `storytree library artifact pull-based-context-architecture`
-- `storytree library artifact signal-and-noise`
+Each workflow step opens onto just the refs it needs — pull them when you reach the step:
+- **1** — `storytree agents librarian-curator --step 1`
+- **3** — `storytree agents librarian-curator --step 3`
+- **4** — `storytree agents librarian-curator --step 4`

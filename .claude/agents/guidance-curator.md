@@ -56,6 +56,7 @@ Promotion of guidance into a guardrail, a new agent-guardrail, or any decision w
 - Live artifact state is edited only through the CLI write boundary against the live store — never by hand-editing the seed, and never by force-reloading the seed over live edits.  — `storytree library artifact live-store-is-the-edit-surface`
 - The content invariants — contracts green, UAT signed, upstream healthy — can never be bypassed; the gate refuses invalid work rather than warning about it.  — `storytree library artifact never-bypass-the-gate`
 - An agent can never grant itself the attestation that reaches `healthy` — operator-attested promotion is operator-granted only.  — `storytree library artifact agent-never-self-exempts`
+- A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`
 
 ## Escalate UP when blocked or out of scope
 
@@ -69,7 +70,6 @@ This is the specialist → manager rung of the escalation ladder (specialist →
 
 ## Doors — pull a step's context just-in-time
 
-No per-step map yet — pull these context ceremonies just-in-time, at the step that needs each:
-- `storytree library artifact signal-and-noise`
-- `storytree library artifact guidance-quality`
-- `storytree library artifact deep-modules`
+Each workflow step opens onto just the refs it needs — pull them when you reach the step:
+- **1** — `storytree agents guidance-curator --step 1`
+- **3** — `storytree agents guidance-curator --step 3`
