@@ -1684,6 +1684,53 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     [world, relaxedCells, now, buildsByStory, claimsByStory],
   );
 
+  // ISLAND ARRIVAL: when a re-pulled tree payload contains stories absent from the
+  // previous one (a story-author spawn finished → ChatDock's onReloadTree, a UAT
+  // signature re-pull, …), those islands ARRIVE instead of popping in: their roads draw
+  // on end-to-end, then the coast surfaces, the ground assembles, and the flora pops
+  // (SceneView's `arrive-*` classes + the index.css keyframes — the animation fires
+  // when the class is first applied, so no remount is needed on a live arrival). The
+  // very FIRST payload only seeds the baseline: a full board load is not an arrival.
+  const [entering, setEntering] = useState<ReadonlySet<string>>(EMPTY_ID_SET);
+  const prevStoryIdsRef = useRef<ReadonlySet<string> | null>(null);
+  const enteringRunRef = useRef(0);
+  useEffect(() => {
+    if (!stories) return;
+    const ids = new Set(stories.map((s) => s.id));
+    const prev = prevStoryIdsRef.current;
+    prevStoryIdsRef.current = ids;
+    if (!prev) return;
+    const fresh = [...ids].filter((id) => !prev.has(id));
+    if (!fresh.length) return;
+    const run = ++enteringRunRef.current;
+    setEntering(new Set(fresh));
+    // Drop the classes once the staged animation has finished — they're inert by then,
+    // but a later unrelated remount must not replay a stale arrival. Guarded by run so
+    // a second arrival inside the window isn't clipped by the first one's timer.
+    setTimeout(() => {
+      if (enteringRunRef.current === run) setEntering(EMPTY_ID_SET);
+    }, 4500);
+  }, [stories]);
+  // `?arrive=<story-id|auto>` — the DEMO/QA escape: force one island to wear the
+  // arrival on load, with a ▶ replay button (remounts the scene subtree via arriveRun)
+  // so the motion can be attested on demand. Absent param ⇒ live-diff arrivals only.
+  const arriveParam = useMemo(() => new URLSearchParams(search).get('arrive'), [search]);
+  const [arriveRun, setArriveRun] = useState(0);
+  const demoArrivalId = useMemo(() => {
+    if (!arriveParam || !world) return null;
+    if (world.territories.some((t) => t.story.id === arriveParam)) return arriveParam;
+    const roads = world.lineRoads ?? world.solar?.roads ?? [];
+    return (
+      roads[roads.length - 1]?.to ??
+      world.territories[world.territories.length - 1]?.story.id ??
+      null
+    );
+  }, [arriveParam, world]);
+  const arrivalIds = useMemo<ReadonlySet<string> | null>(() => {
+    if (!demoArrivalId && entering.size === 0) return null;
+    return demoArrivalId ? new Set([...entering, demoArrivalId]) : entering;
+  }, [demoArrivalId, entering]);
+
   if (loadError) {
     return (
       <div className="pad">
@@ -1913,11 +1960,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               // `<svg>` and are untouched.
               <>
                 <SceneView
+                  key={`arrive-${arriveRun}`}
                   scene={scene}
                   ctx={{
                     territoryClassById,
                     roadClassByEnds,
                     hidden,
+                    arrivalIds,
                     onHoverStory: setHoverStory,
                     // mark the click handled so the viewport's hit-test fallback doesn't re-fire it
                     onSelectStory: (id) => {
@@ -2060,6 +2109,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               onFocusStory={(id) => navigate(treeFocusHref(id))}
               onClose={() => setSessionDock(null)}
             />
+          )}
+          {/* `?arrive=` demo: replay the arrival — remounts the scene subtree so the
+              CSS animations run again. Absent flag ⇒ no button (default world untouched). */}
+          {renderScene && demoArrivalId && (
+            <button
+              type="button"
+              className="arrive-replay"
+              onClick={() => setArriveRun((n) => n + 1)}
+            >
+              ▶ replay arrival · {demoArrivalId}
+            </button>
           )}
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
