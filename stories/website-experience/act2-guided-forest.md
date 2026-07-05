@@ -7,7 +7,7 @@ outcome: "The visitor who just grew the mock website green in increment G (act2-
 status: proposed
 proof_mode: operator-attested
 depends_on: [act2-guided-walkthrough]
-decisions: [134, 145, 148, 150, 153, 157]
+decisions: [134, 145, 148, 150, 153, 157, 165]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work, the extend-next half of the Act 2 re-scope (ADR-0148),
 # RE-SHAPED by ADR-0150 (owner-directed at the G attestation gate 2026-07-04): H is ONE
 # CONTINUOUS WALK growing UPSTREAM (not a CTA-gated separate phase), and the dependency-layer-as-
@@ -29,6 +29,16 @@ decisions: [134, 145, 148, 150, 153, 157]
 # as OUR actual orchestrator + the first story node lands proposed; and the wisp MOVES (not a static
 # dot). This RE-OPENS the LOOK toward building for the reshaped surface; the H#2 attested record stays
 # true history (copy-on-write). H's built experience STANDS; the changes are additive to it.
+# Then the ADR-0157 re-build LANDED + attested "a step forward" (2026-07-05, web main d761eadc) and the
+# owner approved the directed follow-on redesign AS PRESENTED -> RE-SPECCED AGAIN by ADR-0165
+# (owner-approved 2026-07-05): the walk now opens with Phase D (the whole system on ONE growing diagram
+# above the chat, advanced by reply chips IN the chat - the separate Next button retires) before any
+# island; H's share is the DEPTH + FINALE - the upstream reveal keeps TWO beats (backend, then
+# database/BaaS-diamond) and a NEW Phase Z zooms out to the real studio (crossfade into studio chrome
+# re-created from studio tokens over the real map renderer: legend -> forest -> details panel -> honest
+# done + the landed CTA). The corner drive-machinery overlays RETIRE (absorbed into the growing diagram
+# + a persistent docked mini-map); the wisp ORBITS. Director engine untouched (web-repo-only). This
+# RE-OPENS the LOOK toward building again; every attested record stays true history (copy-on-write).
 # This capability EXTENDS increment G: it reuses G's proven substrate — the real 2.5D map render
 # (ADR-0145), the anchored-callout narration, the visitor-paced Next affordance, the beat/director
 # engine (act2-beat-director, re-specced to a multi-story-with-dependsOn upstream vocabulary), and the
@@ -241,6 +251,47 @@ walk it grows from exists.
 > NOT terminally closed; the directed redesign is a future arc link, and the `d761eadc` "step forward"
 > record here stands as true history (copy-on-write). The authored `status:` stays `proposed`.
 >
+> **Re-spec — SETTLED by ADR-0165 (the owner-approved Act-2 opening redesign, 2026-07-05; born
+> accepted, ADR-0110; noted in place per ADR-0139).** Walking an interactive design proposal for the
+> redesign directed at the `d761eadc` gate, the owner approved it AS PRESENTED (verbatim: *"This looks
+> many steps forward, please chip a fresh session to land this."* — no per-question overrides, so the
+> proposal's nine defaults stand as decided). This RE-OPENS this capability toward `building` for the
+> reshaped surface; every attested record above stays a true live-attested account (copy-on-write).
+> H's share of ADR-0165 (the depth + the finale — the Phase D opening, the chat-chip advance mechanism,
+> the mini-map compaction, and the orbit of the single-story walk are increment G's share, see
+> [`act2-guided-walkthrough`](act2-guided-walkthrough.md)):
+> - **The upstream reveal keeps TWO beats (the I4 split; ADR-0165 default 6).** The backend first
+>   ("payments need server logic"), then the database with its own breath — the BaaS diamond and its
+>   reads-directly teach stand verbatim from ADR-0157 §1 ("which your site reads directly, the way a
+>   real shop loads its catalog fast… Nothing hidden, nothing invoiced later as a surprise");
+>   needs-edges drawn as taught, dependent → prerequisite unchanged. The proposal's mock merged the two
+>   beats for review speed ONLY; the build keeps two.
+> - **Phase Z — the real studio (Z1–Z4 + done), NEW decided surface.** After the island walk's finale
+>   the view CROSSFADES into the studio frame (top bar: storytree · map/library/decisions tabs · "2
+>   sessions live"), a slow reveal one chip per stage: Z1 the frame appears DIMMED with the visitor's
+>   island centred ("This is the actual studio — the tool storytree is built with, building itself");
+>   Z2 the LEGEND brightens (green: proven — a signed test passed · pale: being built · withered:
+>   broken · wisp: a live agent session); Z3 the FOREST lights up (many islands, wisps orbiting where
+>   agents are live, roads between — "You can only hold so much of a system in your head. The map holds
+>   the rest"); Z4 the DETAILS PANEL slides in (a story's promises with ✓ proof-signed marks, the
+>   decisions behind it as ADR chips, its needs — "Ask why anything is the way it is, and the answer is
+>   already there"); then done: "That was staged, on made-up data — but this is exactly how the real
+>   thing grows" + the landed CTA affordances.
+> - **Substrate (ADR-0165 default 4):** the site's REAL map renderer (`worldSvg`/`TreeWorld`, already
+>   on the site) over a hand-authored multi-island scene, plus studio chrome RE-CREATED from studio
+>   tokens (the landed chat-dock precedent) — NOT screenshots (they drift and cannot be
+>   dimmed/progressively revealed; no cross-repo studio embed is possible).
+> - **The drive-machinery corner overlays RETIRE here too (ADR-0165 §2).** H shows NO row-list
+>   overlays; the machinery teach lives in Phase D's growing diagram + one-line D5/D6 chat copy (G's
+>   share), and the persistent docked mini-map (story · loop · signal stage lighting) carries the
+>   system picture through H's beats and Phase Z.
+> - **Scope:** web-repo-only; the island beats reuse the landed director default script UNTOUCHED (no
+>   engine change, no `sync:web-engine`, no parent re-proof); advance is the chat reply chip here too
+>   (no separate Next button; Back kept); live baseline web main `d761eadc`. Copy honesty rules bind on
+>   all display copy (ADR-0165 §9). Per `defects-amend-the-owning-story` the re-spec reverts this cap
+>   to `building` and re-earns `healthy` through the gate on the new surface; the authored `status:`
+>   stays `proposed` (ADR-0020).
+>
 > **The re-shape (owner direction at the G gate, 2026-07-04 — SETTLED, design-time-ratified).**
 > Attesting increment G, the owner sharpened H's shape (verbatim: *"get rid of this bit [beat 4's
 > 'wrong way — skips the payment service' flag] … integrate the grow the backend into the one tutorial,
@@ -294,6 +345,44 @@ walk it grows from exists.
 > call, which chose 3-tier) and the spatial layout are owner-tunable at the gate.
 
 ## Guidance
+
+THE ADR-0165 REDESIGN (owner-approved 2026-07-05, born accepted ADR-0110 — H's share: the depth and the
+finale; this GOVERNS wherever the older blocks below place the machinery teach on corner overlays or
+pace the walk on a separate Next button):
+
+- **H's share is the TWO upstream beats + Phase Z.** Increment G now owns the opening (Phase D — the
+  whole system on ONE growing diagram above the chat, D0–D6), the chat-chip advance mechanism, the
+  mini-map compaction, and the orbiting wisp of the single-story walk (I1–I3). H owns what follows: the
+  upstream reveal paced as TWO beats — the backend first, then the database/BaaS-diamond with its own
+  breath (ADR-0165 default 6; ADR-0157 §1's reads-directly teach stands verbatim: "which your site
+  reads directly, the way a real shop loads its catalog fast… Nothing hidden, nothing invoiced later as
+  a surprise") — and the Phase Z zoom-out to the real studio. The approved step → stage-delta →
+  reply-chip structure is ADR-0165 §7's table (I4, Z1–Z4, done); EXACT COPY stays site-side,
+  owner-tunable at the gate.
+- **Phase Z — the slow reveal (Z1–Z4 + done).** Crossfade into the studio frame (top bar: storytree ·
+  map/library/decisions tabs · "2 sessions live"): Z1 the frame appears DIMMED with the visitor's
+  island centred ("This is the actual studio — the tool storytree is built with, building itself"); Z2
+  the LEGEND brightens (green: proven — a signed test passed · pale: being built · withered: broken ·
+  wisp: a live agent session); Z3 the FOREST lights up (many islands, wisps orbiting where agents are
+  live, roads between — "You can only hold so much of a system in your head. The map holds the rest");
+  Z4 the DETAILS PANEL slides in (a story's promises with ✓ proof-signed marks, the decisions behind it
+  as ADR chips, its needs — "Ask why anything is the way it is, and the answer is already there");
+  then done: "That was staged, on made-up data — but this is exactly how the real thing grows" + the
+  landed CTA affordances. Each stage brightens on ITS chip — the reveal is scaffolded, never dumped.
+- **Substrate (ADR-0165 default 4).** The site's REAL map renderer (`worldSvg`/`TreeWorld`, already on
+  the site via the sync rail) over a hand-authored multi-island scene, plus studio chrome RE-CREATED
+  from studio tokens (the landed chat-dock precedent, extending ADR-0153's real-UI re-creation call) —
+  NOT screenshots (they drift and cannot be dimmed/progressively revealed; a full studio embed is
+  impossible across the repo boundary). All data stays fictional — the diorama boundary
+  (ADR-0056/0066/0093) holds by construction.
+- **Advance + chrome discipline.** H's beats and Phase Z advance by the same ONE bounded reply chip in
+  the orchestrator chat (no separate Next button; Back kept — pure replay); the persistent docked
+  mini-map is the only standing chrome (it carries the lit stage through Z — all six dots earned); NO
+  corner overlay returns. Copy honesty rules bind on every display line (ADR-0165 §9 /
+  [`docs/research/industry-framing-2026.md`](../../docs/research/industry-framing-2026.md)).
+- **Build scope (ADR-0165 §10).** Web-repo-only; the island beats reuse the landed director default
+  script UNTOUCHED — no engine change, no `sync:web-engine`, no parent re-proof; live baseline web main
+  `d761eadc`.
 
 THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the feel):
 
@@ -362,6 +451,12 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
   clears. They MUST NOT overload the viewer — reveal them scaffolded, in the order a human can hold, as
   the walk deepens. The overlays are site-side content keyed by beat id (the `act2-beat-director` engine
   needs no change — ADR-0153's authoring call); the words and diagrams live with the surface.
+  *(Overlay PLACEMENT overtaken — ADR-0165 §2, 2026-07-05, noted in place per ADR-0139: the corner
+  overlays retire — the machinery teach lives in Phase D's growing diagram + one-line D5/D6 chat copy
+  [G's share, keeping "gate" and "signed" as the load-bearing words], and the persistent docked
+  mini-map replaces the corner-overlay pattern; H's depth is now the TWO upstream beats + Phase Z. This
+  bullet's rationale [background machinery is not map signal] and the site-side-keyed authoring call
+  carry forward.)*
 - **The honest TDD LOOP DIAGRAM — the agent-loop teach (ADR-0157; replaces the list-style overlay).**
   The agent-loop overlay must be a DIAGRAM that shows a LOOP, at vibe-coder altitude, and it MUST be
   HONEST about how storytree actually proves work — it must not misrepresent the system. The ground truth
@@ -384,7 +479,10 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
   same authoring call as the other overlays — NOT a new director field; ADR-0157), validated against the
   director's exported contract by `act2-validate`. The exact visuals (boxes, arrows, personification) are
   the builder's + owner's at the gate; the WHAT is: a loop, two write-scoped phases, the system as
-  referee, plain language.
+  referee, plain language. *(HOME relocated — ADR-0165 §2, 2026-07-05, noted in place per ADR-0139:
+  the SAME landed loop diagram now blooms inside the ONE growing diagram at Phase D's D5 [increment G's
+  share], every content/honesty obligation in this bullet intact; H shows no corner-overlay version —
+  the docked mini-map's `loop` dot carries the stage through H's beats.)*
 - **Plain language, no storm metaphor (ADR-0157).** All copy on H's surface (the upstream narration, the
   inspect rationales, the overlays, the orchestrator's lines) is plain and jargon-free for newcomer devs /
   vibe coders (`plain-language-first`): no insider vocabulary without immediately showing what it means, no
@@ -401,7 +499,11 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
   over the tree) rather than rendering as a static dot. This is a site-side animation change (the wisp
   presence marker is scene semantics the director already emits; the ANIMATION of its render is the site's
   job, the same site-owns-motion boundary ADR-0145 set). The exact motion (path, speed, easing) is
-  builder/owner-tunable at the gate; the requirement is that it moves.
+  builder/owner-tunable at the gate; the requirement is that it moves. *(Sharpened — ADR-0165 §5,
+  2026-07-05, noted in place per ADR-0139: the approved motion is a true ORBIT around the island — a
+  flattened-plane ellipse [scaleY ≈ 0.55] lying on the 2.5D map, one lap ≈ 9 s, glow pulse kept,
+  reduced-motion stationary with pulse; pure CSS, replacing the landed `act2-wisp-drift`. In Phase Z's
+  lit forest, wisps orbit wherever agents are live [Z3]. "The requirement is that it moves" stands.)*
 - **Stories at EVERY level of the DAG, not just leaves.** The reveal is not a flat list of tasks; it is
   the DAG itself — a story (the backend), which has its own capabilities/contracts, which depends on
   another story (the database). The visitor sees that storytree grows work at any level, which is the
@@ -460,7 +562,16 @@ upstream beats EXTEND the director's exported default script (the website walk's
 arc, one script) — not a second director segment; the director is data-driven, so the single grown
 `defaultScript` is the natural shape. The wrong-way road is no longer a beat in that script (ADR-0150
 §4). The WHAT here is the experienced continuous-upstream reveal with the dependency-layer-as-advantage
-teach, the real-app UI, and no escape hatches — not the wiring.
+teach, the real-app UI, and no escape hatches — not the wiring. **ADR-0165 additions (site-side, no
+engine change):** the upstream reveal is paced as TWO beats (backend, then database/diamond — default
+6); after the island finale, Phase Z crossfades into the studio frame — chrome RE-CREATED from studio
+tokens (the landed chat-dock precedent) over the site's REAL map renderer (`worldSvg`/`TreeWorld`)
+rendering a hand-authored multi-island scene, NOT screenshots (default 4) — revealed slowly (frame →
+legend → forest → details panel → the honest done + the landed CTA affordances); advance rides the same
+chat reply chips as Phase D/I (no separate Next button; Back kept); the persistent docked mini-map
+carries through Z (all six dots earned); NO corner overlays anywhere. Copy honesty rules bind
+(ADR-0165 §9). The 16-step structure is ADR-0165 §7's table; exact copy site-side, owner-tunable at
+the gate.
 
 ## UAT (operator-attested)
 
@@ -485,7 +596,9 @@ real defect earns a permanent one.
    foundation it rests on; it reads the catalog straight from the database like a real shopping app, and
    goes through the backend for checkout," not as siblings or downstream extras, and NOT as the website
    being something the backend depends on (the direction is right way round) — the honest
-   real-shopping-app shape lands, drawn as the map's actual dependency layering.
+   real-shopping-app shape lands, drawn as the map's actual dependency layering. (ADR-0165 default 6:
+   the reveal is paced as TWO beats — the backend first, then the database/diamond with its own breath
+   for the reads-directly teach — never merged into one.)
 3. **The dependency layer reads as the ADVANTAGE (not a wrong-way flag).** _(witness: human)_ Watch the
    upstream layers reveal and read the narration. **Success —** the teach lands POSITIVE: the visitor
    understands that SEEING the dependency layers — the website needs a backend needs a database, in the
@@ -522,20 +635,19 @@ real defect earns a permanent one.
    experience. **Success —** none is offered to a capable visitor; the continuous walk is the only front
    door. The no-JS / `prefers-reduced-motion` accessibility fallback still exists for those who need it
    (a clean minimal static page), but it is not an escape a capable visitor is handed.
-10. **The drive-machinery diagrams teach the deeper picture without overloading (ADR-0153).** _(witness:
-    human)_ Advance through the steps where the walk deepens into what the orchestrator's routing sets in
-    motion (CI/CD, devops, gates, wiring). **Success —** temporary overlay diagrams (a second overlay,
-    top-right, is fine) appear ABOVE the map — not drawn on it — depicting the drive machinery, then
-    clear; they reveal the depth scaffolded, in an order a first-time viewer can hold, and never dump the
-    whole system at once. The map stays the honest picture of the work; the machinery is transient chrome
-    that surfaces when taught and recedes.
-11. **The agent loop reads as an honest TDD loop, refereed by the system (ADR-0157).** _(witness: human)_
-    Reach the beat that explains the agent loop. **Success —** it is a DIAGRAM that shows a LOOP (not a
-    list): write a failing test → the SYSTEM checks it really fails → write code → the SYSTEM checks it
-    really passes → repeat. A newcomer reads it in plain language ("one agent writes the tests, the other
-    builds code to pass them") AND — the load-bearing point — understands the CHECK is done by the SYSTEM
-    (storytree's referee), not by an AI grading its own homework; the diagram never implies an AI certifies
-    its own work. The verification-gap thesis lands as a picture.
+10. **No corner overlays — the machinery teach stays consolidated (ADR-0165; adjusts the ADR-0153
+    overlay leg).** _(witness: human)_ Watch H's whole arc — the two upstream beats and Phase Z — for
+    chrome. **Success —** NO drive-machinery row-list overlay (top-left or top-right) appears anywhere;
+    the deeper picture is carried by Phase D's growing diagram + one-line D5/D6 chat copy (increment
+    G's share) and by the persistent docked mini-map, which keeps lighting the correct stage through
+    H's beats and Phase Z; the map stays the honest picture of the work, and the depth still reveals
+    scaffolded — in an order a first-time viewer can hold, never dumped at once.
+11. **The loop teach stays honest where it now lives (ADR-0157 / ADR-0165).** _(witness: human)_ The
+    honest TDD loop diagram is Phase D's D5 (increment G's share — the landed ring reused verbatim
+    inside the growing diagram; system-as-referee). H's share: wherever H's copy or chrome references
+    the loop — the mini-map's `loop` dot lighting while work runs, the "signed" language as greens
+    land — the referee stays the SYSTEM, never an AI grading its own homework; no alternative loop
+    depiction (list or otherwise) appears in H; the verification-gap thesis is never contradicted.
 12. **The copy is plain, with no storm metaphor (ADR-0157).** _(witness: human)_ Read H's narration,
     inspect rationales, and overlay copy. **Success —** the language is plain and understandable to a
     newcomer dev / vibe coder (no unexplained jargon, no strained analogies); the word/analogy "storm"
@@ -546,6 +658,25 @@ real defect earns a permanent one.
     node honestly enters `proposed` (not instantly green, not silently building) and greens only when a
     signed proof lands; the scripted orchestrator reads as storytree's ACTUAL session orchestrator, not a
     generic coding agent — the visitor understands they are watching storytree work.
-14. **The wisp moves (ADR-0157).** _(witness: human)_ Watch the beat where a wisp appears. **Success —**
-    the wisp MOVES — it drifts/travels rather than sitting as a static dot; it reads as living presence
-    over the tree.
+14. **Wisps orbit (ADR-0157 / ADR-0165).** _(witness: human)_ Watch the beat where a wisp appears, and
+    Phase Z's lit forest. **Success —** a wisp ORBITS its island — a flattened ellipse lying on the
+    2.5D map (glow pulse kept; under `prefers-reduced-motion`, stationary with pulse only), reading as
+    a live session circling the work, never a static dot; in Z3 wisps orbit wherever agents are live.
+15. **The crossfade lands in the actual studio (ADR-0165, Z1).** _(witness: human)_ Advance past the
+    island walk's finale. **Success —** the view CROSSFADES into the studio frame (top bar: storytree ·
+    map/library/decisions tabs · "2 sessions live"), chrome dimmed, the visitor's island centred — no
+    page jump, no fresh start; it READS AS THE ACTUAL STUDIO ("This is the actual studio — the tool
+    storytree is built with, building itself"), not a marketing mock or a screenshot (the chrome is
+    re-created from studio tokens over the real map renderer); the docked mini-map persists.
+16. **The studio reveals slowly — legend, forest, details panel (ADR-0165, Z2–Z4).** _(witness:
+    human)_ Take the three chips. **Success —** each stage brightens on ITS tap, never dumped at once:
+    the LEGEND (green: proven — a signed test passed · pale: being built · withered: broken · wisp: a
+    live agent session) → the FOREST (many islands, orbiting wisps, roads between — "You can only hold
+    so much of a system in your head. The map holds the rest" lands) → the DETAILS PANEL (a story's
+    promises with ✓ proof-signed marks, the decisions behind it as ADR chips, its needs — "Ask why
+    anything is the way it is, and the answer is already there" lands). A non-expert can say back what
+    green, pale, withered, and a wisp mean.
+17. **The done state is honest (ADR-0165).** _(witness: human)_ Reach the end. **Success —** the close
+    says plainly that the walk was staged on made-up data AND that this is exactly how the real thing
+    grows, then offers the landed CTA affordances; the visitor leaves knowing what was fiction and what
+    is real — the diorama boundary is never blurred.

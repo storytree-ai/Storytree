@@ -122,15 +122,28 @@ the dependent to its prerequisite) as ONE continuous walk the visitor drives.** 
    earlier "young tree / lives on the map / not buried in a chat log" prose is dropped as the framing.
 
 5. **Step 2 shows the orchestrator routing to the DRIVE MACHINERY, via a temporary top-left overlay
-   (amends ADR-0150's post-website arc).** After the brief, the walk shows what the orchestrator DOES
-   with the story: it routes it to the drive machinery. A TEMPORARY flow-diagram OVERLAY, top-left,
-   depicts the agent loop running in the background. It is an OVERLAY, not drawn on the map, because
+   (amends ADR-0150's post-website arc).** *(OVERTAKEN by
+   [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md) §2, 2026-07-05: the
+   corner overlays RETIRE — the agent-loop teach is ABSORBED into Phase D's one growing system diagram,
+   whose D5 stage blooms the landed loop diagram reused verbatim, and a persistent docked mini-map
+   replaces the corner-overlay pattern. This point's RATIONALE ("background machinery is not map
+   signal; transient process detail floats above the map") CARRIES FORWARD into the mini-map, and the
+   site-side-keyed authoring call stands. Noted in place per ADR-0139.)* After the brief, the walk
+   shows what the orchestrator DOES with the story: it routes it to the drive machinery. A TEMPORARY
+   flow-diagram OVERLAY, top-left, depicts the agent loop running in the background. It is an OVERLAY, not drawn on the map, because
    the background machinery is not map signal unless something breaks or needs attention — the map
    stays the honest picture of the work, transient process detail floats above it and clears.
 
 6. **Steps 3–4 expand the drive-machinery diagram(s), scaffolded, MAY use a second overlay (amends
-   ADR-0150).** The walk expands what the drive machinery is — CI/CD, devops, the gates, how the system
-   is wired to the code to keep it honest — building it out across steps 3–4. It MAY use multiple
+   ADR-0150).** *(OVERTAKEN by
+   [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md) §2, 2026-07-05: the
+   expanded-diagram / second-overlay expression retires — the CI/CD row-list overlays RETIRE FULLY;
+   their content moves into D5/D6 CHAT COPY (gates and CI/CD get one line each, keeping "gate" and
+   "signed" as the load-bearing words), no row-list overlay returns anywhere in the experience, and the
+   persistent mini-map replaces the corner-overlay pattern. The site-side-keyed authoring call stands.
+   Noted in place per ADR-0139.)* The walk expands what the drive machinery is — CI/CD, devops, the
+   gates, how the system is wired to the code to keep it honest — building it out across steps 3–4. It
+   MAY use multiple
    diagrams (a second overlay, top-right) but MUST NOT overload the viewer; complexity stays SCAFFOLDED
    (revealed in the order a human can hold it), the same obligation ADR-0150 already states for the
    upstream reveal. These drive-machinery steps are where the deeper CI/CD/gates/wiring picture lives,
@@ -142,7 +155,10 @@ dependency layer is the advantage; the wrong-way road retired as the teach). The
 `abd-green-only-on-signed-proof` DATA CONTRACT in `act2-beat-director` (the verification-gap thesis —
 NOT retired, NOT weakened). The 2.5D substrate (ADR-0145) — the walk still renders on the synced
 `buildScene` scene graph as the site's SVG; the drive-machinery overlays are chrome ABOVE that map, not
-a substrate change. Visitor-paced / Next-only pacing; anchored-callout narration; plain-language voice;
+a substrate change. Visitor-paced / Next-only pacing *(the visitor-paced PRINCIPLE stands; the separate
+Next-button affordance was later moved into the orchestrator chat as bounded reply chips —
+[ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md) §3, 2026-07-05. Noted
+in place per ADR-0139.)*; anchored-callout narration; plain-language voice;
 the fictional site-owned data and the boundary (ADR-0056/0066/0093); the ADR-0070 two-stage proof for
 the LOOK caps (appearance and feel never self-signed). Act 1 and the storm→land inflection.
 
@@ -269,7 +285,12 @@ MOVE (it currently renders as a static dot — the scene emits a `wisps` presenc
 directly (a BaaS-shape re-visit of this ADR's 3-tier authoring call — corpus-legal, owner's call at the
 next gate). Because of this, neither the LOOK caps nor the arc are terminally closed.
 
-**Drive-machinery engine-support authoring call (site-side-keyed, NOT a director field).** The
+**Drive-machinery engine-support authoring call (site-side-keyed, NOT a director field).**
+*(2026-07-05: the OVERLAYS this call specified retire per
+[ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md) §2, but the
+site-side-keyed authoring call itself CARRIES FORWARD unchanged to ADR-0165's growing diagram and
+persistent mini-map — still site-side content keyed off the walk's steps, still NOT a director field,
+no new delta kind. Noted in place per ADR-0139.)* The
 drive-machinery overlays (redirections 4/5) are specified as SITE-SIDE content keyed by beat id — the
 same precedent as the narration copy ("words stay site-side") — and the `act2-beat-director` engine
 needs NO change for them. Rationale: an overlay is transient, non-map, presentational chrome (a

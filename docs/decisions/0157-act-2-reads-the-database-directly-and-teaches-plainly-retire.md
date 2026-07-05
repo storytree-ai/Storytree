@@ -243,7 +243,13 @@ It is ONE leaf author driven through write-scoped phases, refereed by the determ
 - **Plain language** (point 4): "writes a failing test", "the system checks it really fails", "writes
   code", "the system checks it really passes", "repeat" — newcomer-legible, no jargon.
 
-**Where it lives (authoring call — site-side-keyed, NOT a director engine field).** The loop diagram is
+**Where it lives (authoring call — site-side-keyed, NOT a director engine field).** *(PLACEMENT
+overtaken by [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md) §2,
+2026-07-05: the loop diagram RELOCATES into Phase D's D5 — it blooms inside the ONE growing system
+diagram, its content reused verbatim, with a persistent docked mini-map carrying the stage through the
+island walk and the studio finale. This section's CONTENT and system-as-referee honesty obligations
+stand unchanged, and the site-side-keyed authoring call stands — still no director field. Noted in
+place per ADR-0139.)* The loop diagram is
 overlay CONTENT keyed by beat id, exactly like the narration copy and the existing drive-machinery
 overlays — the site-side-keyed authoring call ADR-0153 already made for the overlays (ADR-0153
 §"Drive-machinery engine-support authoring call"). Rationale (unchanged from ADR-0153): an overlay is
@@ -256,6 +262,13 @@ carries no diagram marker and adds no contract for this. (If a specific overlay 
 engine structure — its presence proven deterministically — that is a later, separate re-spec.)
 
 ### 6. The wisp MOVES (animated, not a static dot)
+
+*(MOTION sharpened by [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md)
+§5, 2026-07-05: the approved motion is now a true ORBIT around the island — a rotating group whose
+transform-origin is the island centre, nested in a flattened plane (scaleY ≈ 0.55) so the circle reads
+as an ellipse on the 2.5D map; one lap ≈ 9 s; the glow pulse kept; `prefers-reduced-motion`: stationary
+with pulse only — replacing the as-built `act2-wisp-drift`. This section's requirement ("the wisp
+moves") STANDS; it now has the approved specific motion. Noted in place per ADR-0139.)*
 
 Currently the scene emits a `wisps` presence marker rendered on the `.tw-wisps` layer as a static dot
 (`web/src/scripts/act2-walkthrough.ts` ~lines 510-511, per ADR-0153's As-built note). The owner wants it
@@ -274,7 +287,10 @@ dependency-layer-as-advantage teach (ADR-0150). The real-app-UI / progressive-di
 shape and the CORRECTED dependency DIRECTION (ADR-0153) — the BaaS edge is added in that same direction,
 not against it. The `abd-green-only-on-signed-proof` DATA CONTRACT in `act2-beat-director` (the
 verification-gap thesis — NOT retired, NOT weakened; the honest TDD loop diagram is its plain-language
-depiction). The 2.5D substrate (ADR-0145); visitor-paced / Next-only pacing; anchored-callout narration;
+depiction). The 2.5D substrate (ADR-0145); visitor-paced / Next-only pacing *(the visitor-paced
+PRINCIPLE stands; the separate Next-button affordance was later moved into the orchestrator chat as
+bounded reply chips — [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md)
+§3, 2026-07-05. Noted in place per ADR-0139.)*; anchored-callout narration;
 the fictional site-owned data and the boundary (ADR-0056/0066/0093); the ADR-0070 two-stage proof for the
 LOOK caps (appearance and feel never self-signed).
 
@@ -379,6 +395,10 @@ The BUILD link of this re-spec LANDED and is LIVE. All six redirections were del
   (`web/src/pages/index.astro`: `animation: act2-wisp-drift` — the wisp travels a soft closed loop, no
   longer a static dot), the plain-language sweep (`act2-narration.ts` de-stormed), the our-orchestrator
   pre-walk (`act2-orchestrator.ts`), and the first story node honestly born `proposed` are all live.
+  *(2026-07-05: [ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md)
+  relocates the loop diagram into Phase D's growing system diagram (its §2) and replaces the
+  `act2-wisp-drift` drift with a true island-centred orbit (its §5); these cites stay true history of
+  web main `d761eadc`. Noted in place per ADR-0139.)*
 - **The parent director (§1) — BUILT + leaf-proven.** Verdict **`f9ae9b8`** (run `real-mr6ycu73`,
   coverage 4/4). `packages/forest-world-r3f/src/act2-director.ts`: `add-upstream-story`'s `dependentId`
   widened to `z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])` (line 145); `applyDelta`
@@ -396,6 +416,9 @@ industry framing). So this ADR records a LANDED INCREMENT, not a fully-realized 
 BaaS architecture, the retired storm metaphor, the honest TDD loop diagram, the moving wisp, the plain
 language, and the proposed-node / our-orchestrator pre-walk are all live and attested-as-a-step-forward;
 the directed redesign is a future arc link, tracked separately (it does not reopen this decision).
+*(That directed redesign is now decided as
+[ADR-0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md), 2026-07-05. Noted in
+place per ADR-0139.)*
 
 ## References
 

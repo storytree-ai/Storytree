@@ -48,8 +48,12 @@ consumed_by: []
 # (the frontend reads the database DIRECTLY: website.dependsOn=[backend, database], a diamond; confirms
 # 153's open 3-tier-vs-BaaS call), the "storm" metaphor retired from all surfaces, plain newcomer-dev
 # language, the agent-loop teach as an HONEST TDD LOOP DIAGRAM (system-as-referee), the pre-walk reads as
-# OUR orchestrator + the first story node lands proposed, and the wisp MOVES (157).
-decisions: [93, 123, 134, 145, 148, 150, 153, 157]
+# OUR orchestrator + the first story node lands proposed, and the wisp MOVES (157); the 2026-07-05
+# owner-approved Act-2 opening redesign, approved AS PRESENTED — one growing system diagram (Phase D)
+# advanced through the orchestrator chat (the separate Next button retires), a persistent docked
+# mini-map replacing the corner drive-machinery overlays, an orbiting wisp, TWO upstream beats, and a
+# Phase-Z zoom-out to the real studio; web-repo-only, the director untouched (165).
+decisions: [93, 123, 134, 145, 148, 150, 153, 157, 165]
 ---
 
 # The two-act vibe-coding experience — the public site's front door enacts chaos → calm
@@ -283,9 +287,20 @@ whole (owner decision 6):
   (verbatim: *"This is also a step forward, so land it"*) and simultaneously directed a substantial
   FOLLOW-ON REDESIGN (an orchestrator-led, diagram-first walkthrough; the wisp on an orbit; a
   zoom-to-studio reveal; an ADR → library-artifact flow; industry framing) — so the LOOK caps stay
-  `building`/`proposed` for that reshaped surface, NOT terminally closed. That redesign is its own next
-  arc link (tracked separately). The arc's LAST increment remains `info-pages-triage` (increment I),
-  which lands after the Act 2 surface the redesign settles is fixed enough to fold pages into.
+  `building`/`proposed` for that reshaped surface, NOT terminally closed. That redesign is now SETTLED
+  as **[ADR-0165](../../docs/decisions/0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md)**
+  (born accepted — the owner walked the interactive design proposal on 2026-07-05 and approved it AS
+  PRESENTED: *"This looks many steps forward, please chip a fresh session to land this."*): after Act
+  1's transform the visitor STAYS with the orchestrator while it explains the whole system on ONE
+  left-to-right diagram GROWING above the chat (Phase D, D0–D6), every advance a bounded reply chip IN
+  the chat (the separate Next button retires); the diagram then compacts to a persistent docked
+  mini-map as the landed island walk plays (the wisp now ORBITS; the corner drive-machinery overlays
+  RETIRE — absorbed into the diagram + mini-map); the upstream reveal keeps TWO beats; and a NEW Phase
+  Z zooms out to the real studio view (legend → forest → details panel → honest done). G is re-specced
+  to own the opening + island-walk share, H the two-beat depth + the Phase-Z finale; web-repo-only, the
+  `act2-beat-director` engine and its default script UNTOUCHED (no re-proof). The arc's LAST increment
+  remains `info-pages-triage` (increment I), which lands after the Act 2 surface the redesign settles
+  is fixed enough to fold pages into.
 - **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
   roadmap's "what's coming" behind the pull-back / "what's next") are only concrete once both Act 2
@@ -401,7 +416,10 @@ an incremental step whose forward feedback is now SETTLED as ADR-0157 (BaaS dire
 retired, plain language, honest TDD loop diagram, moving wisp, proposed-node/our-orchestrator pre-walk),
 which re-opens the LEAF (`act2-beat-director` — the `add-upstream-story` delta widened for the BaaS
 diamond) and the two LOOK caps (G + H) toward `building` for the reshaped surface; the H#2 attested "step
-forward" record stays true history (copy-on-write). The story stays `proposed` because increment I
+forward" record stays true history (copy-on-write). The 2026-07-05 owner-approved redesign (ADR-0165)
+then re-opens the two LOOK caps AGAIN for the redesigned opening/finale — this time the LEAF is
+UNTOUCHED (the island beats reuse the landed default script verbatim; web-repo-only, no parent
+re-proof). The story stays `proposed` because increment I
 (`info-pages-triage`) is unbuilt and the story's machine gates + human UAT legs are not all closed yet. The four LEAF caps are armed with `--real` proof config so the orchestrator
 drives each through `node build <id> --real --store pg` in dependency order — with the one documented
 pre-step that `r3f-world-spike`'s package scaffold (package.json + deps + tsconfig + `repo-manifest.json`

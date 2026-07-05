@@ -7,7 +7,7 @@ outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build
 status: proposed
 proof_mode: operator-attested
 depends_on: [storm-to-forest-inflection, act2-beat-director, web-experience-sync]
-decisions: [134, 145, 148, 150, 153, 157]
+decisions: [134, 145, 148, 150, 153, 157, 165]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The choreography ENGINE is already machine-proven
 # upstream (act2-beat-director: visitor-paced advance, proof-gated green, the flagged wrong-way
 # road, the approved default script — all parent-side contracts), and the artifact freshness is the
@@ -209,6 +209,45 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 > attested this as a STEP FORWARD (verbatim: *"This is also a step forward, so land it"*) and directed a
 > further follow-on redesign — so this LOOK is STILL NOT terminally closed; the `d761eadc` "step forward"
 > record here stands as true history (copy-on-write). The authored `status:` stays `proposed`.
+>
+> **Re-spec — SETTLED by ADR-0165 (the owner-approved Act-2 opening redesign, 2026-07-05; born
+> accepted, ADR-0110; noted in place per ADR-0139).** Walking an interactive design proposal for the
+> redesign directed at the `d761eadc` gate, the owner approved it AS PRESENTED (verbatim: *"This looks
+> many steps forward, please chip a fresh session to land this."* — no per-question overrides, so the
+> proposal's nine defaults stand as decided). This RE-OPENS this capability toward `building` for the
+> reshaped surface; the "As built" / "Attested + landed" records here stay a true live-attested account
+> (copy-on-write). G's share of ADR-0165 (the opening + the single-story island walk):
+> - **Phase D (D0–D6) — the whole system, on ONE growing diagram, BEFORE any island.** After Act 1's
+>   transform the visitor STAYS with the session orchestrator while it explains the system on one
+>   left-to-right diagram GROWING above the chat-at-bottom: the visitor's intent (their OWN prompt as a
+>   quote chip) → the decision record → the library fan (definitions · principles · capabilities ·
+>   contracts) → the story nameplate (the island's pre-echo) → the loop (the landed 4-node honest-TDD
+>   ring BLOOMING inside the diagram, reused verbatim — "the system checks — not the AI") → the
+>   map-signal glyph ("green = a signed proof"). D0 folds the landed outcome-brief into the chat open;
+>   D6 lands the thesis ("everything in this UI is a signal of what the agents are building"). One
+>   canvas, ADDITIVE ONLY — nothing is ever replaced or swapped.
+> - **Advance moves INTO the chat; the separate Next button RETIRES.** One bounded reply chip per step
+>   in the chat's input row (the landed "plant the first story →" spot), voiced as the question a
+>   skeptical developer would ask; an occasional quiet "why does that matter?" aside streams one extra
+>   line WITHOUT advancing; Back kept (pure replay, byte-identical scenes). Map callouts stay as
+>   anchored pointers, lose their button. Visitor-paced is PRESERVED (one tap per step, nothing
+>   auto-plays) — only the affordance's home changes.
+> - **The corner overlays RETIRE; a persistent mini-map replaces the pattern.** At the island handoff
+>   (I1) the diagram COMPACTS to a docked top-left 6-dot mini-map (intent · decision · library · story ·
+>   loop · signal) that lights the current stage — story lit when the island plants (pale, "green is
+>   earned here"), loop lit while the wisp orbits, signal lit when the cart greens with its proof seal.
+>   The beat-2 loop overlay is ABSORBED into D5; the beat-3/4 CI/CD row-lists retire FULLY (one line
+>   each in D5/D6 chat copy — "gate" and "signed" stay the load-bearing words).
+> - **The wisp ORBITS (I2).** An island-centred rotating group nested in a flattened plane
+>   (scaleY ≈ 0.55) so the circle reads as an ellipse lying on the 2.5D map; one lap ≈ 9 s; glow pulse
+>   kept; reduced-motion: stationary with pulse only — pure CSS, replacing the landed `act2-wisp-drift`.
+> - **Scope:** web-repo-only; the island beats reuse the landed director default script UNTOUCHED (chat
+>   chips are site wiring around the same `advance()` calls — no engine change, no `sync:web-engine`,
+>   no parent re-proof); live baseline web main `d761eadc`. The TWO upstream beats and the Phase Z
+>   studio zoom-out are increment H's share ([`act2-guided-forest`](act2-guided-forest.md)). Copy
+>   honesty rules bind on all display copy (ADR-0165 §9 — see Guidance). Per
+>   `defects-amend-the-owning-story` the re-spec reverts this cap to `building` and re-earns `healthy`
+>   through the gate on the new surface; the authored `status:` stays `proposed` (ADR-0020).
 
 ## As built (web main `ff70222b`) — the FIRST attested walk (historical record, kept intact)
 
@@ -237,6 +276,68 @@ The verified anchors in the pinned tree (cite these, not the older sketches):
 
 ## Guidance
 
+THE ADR-0165 REDESIGN (owner-approved 2026-07-05, born accepted ADR-0110 — G's share: the opening, the
+advance affordance, the mini-map, the orbit; this GOVERNS wherever the older blocks below place the
+teach on corner overlays or pace the walk on a separate Next button):
+
+- **Phase D — the system, on one growing diagram (D0–D6), BEFORE any island.** After Act 1's transform
+  the visitor stays with the session orchestrator while it explains the whole system on ONE
+  left-to-right diagram that GROWS above the chat-at-bottom. One canvas, ADDITIVE ONLY (nothing is ever
+  replaced or swapped; the diagram only gains elements). The spine reads as a sentence (ADR-0165
+  default 1): the visitor's intent (their OWN prompt — "build me a shopping website" — as a quote chip;
+  default 3: the worked example is the visitor's own request, paid off by the island phase with zero
+  re-setup) → the decision record (what · why · what we chose — "decisions never evaporate into a chat
+  log") → the library, fanning into definitions · principles · capabilities · contracts ("the shared
+  language every agent reads") → the story, styled as a NAMEPLATE (the deliberate pre-echo of the
+  island) → the build loop (the story BLOOMS into the landed 4-node honest-TDD ring, reused verbatim,
+  centre "the system checks — not the AI" — the one visual echo of repetition) → the map signal (the
+  loop's exit arrow lands on a tile-and-tree glyph turning green: "green = a signed proof"). D0 folds
+  the landed outcome-brief into the chat open (the orchestrator self-introduces: "I don't write the
+  code myself… only call something done when the system proves it"). The thesis lands at D6:
+  "Everything you'll see in this UI is a signal of what the agents are actually building. You don't
+  read the diffs — you read the map, until a signal says look closer." The approved 16-step structure
+  (step → stage delta → reply chip) is ADR-0165 §7's table — the baseline; EXACT COPY stays site-side,
+  owner-tunable at the gate.
+- **Advance is ONE bounded reply chip IN the chat — the separate Next button retires (ADR-0165 §3).**
+  Each step the orchestrator streams one or two short lines, then offers one reply chip in the chat's
+  input row, voiced as the question a SKEPTICAL developer would ask ("who reads them?", "and then I
+  just… trust that?") — tapping through IS the persuasion arc. One quiet "why does that matter?" aside
+  may stream one extra line WITHOUT advancing. Visitor-paced is preserved (one tap per step; nothing
+  auto-plays past the visitor); Back stays (default 9: pure replay, byte-identical scenes — forward-only
+  would feel like a slideshow). Map callouts stay as anchored pointers, lose their button. Ship at ~15
+  taps WITH the quiet persistent leave affordance; if it tests long, D0+D1 and Z1+Z2 are the named
+  merges (default 7).
+- **The mini-map compaction + stage lighting (I1–I3; ADR-0165 default 2).** At the island handoff the
+  diagram COMPACTS to a persistent docked mini-map top-left — a 6-dot row (intent · decision · library ·
+  story · loop · signal) that PERSISTS through the whole island walk and the studio finale, lighting the
+  stage the visitor is watching: story lit when the island plants (pale + nameplate — "It lands as a
+  proposal: pale, not green. Green is earned here"; the first-node-`proposed` honesty carried from
+  ADR-0157 §3), loop lit while the wisp orbits, signal lit when the cart greens with its proof seal. It
+  IS the "one diagram" promise carried through and it REPLACES the retired corner-overlay pattern — keep
+  it one small stage-light; a build that grows it toward a second diagram has broken default 2's intent.
+- **The wisp ORBITS (I2; ADR-0165 §5).** An island-centred rotating group nested in a flattened plane
+  (scaleY ≈ 0.55) so the circle reads as an ELLIPSE lying on the 2.5D map; one lap ≈ 9 s; the glow pulse
+  kept; `prefers-reduced-motion`: stationary with pulse only. Pure CSS replacing the landed
+  `act2-wisp-drift` — the same site-owns-motion boundary (ADR-0145). Narrate it as the diagram made
+  live: "That light circling the island is a live session — the loop from our diagram, running right
+  now."
+- **Copy honesty rules bind (ADR-0165 §9, from
+  [`docs/research/industry-framing-2026.md`](../../docs/research/industry-framing-2026.md)).** Never
+  "the Karpathy loop" (say "the generation–verification loop Karpathy described"); never "we eliminate
+  verification" (the grounded claim is RELOCATION — machine-checkable proof moves to the system; human
+  taste/UAT/decisions become legible on a map); Sonar is "don't FULLY trust" (96% / only 48% always
+  verify — never drop "fully"); no unsourced viral stats; green = proven against DECLARED obligations
+  only (not semantic rightness, not security); talk quotes re-verified against the YC video before any
+  display pull-quote. Industry terms are EMBODIED in the walk in plain words and NAMED + cited once on
+  the how-it-works page only (default 8).
+- **Build scope (ADR-0165 §10).** Web-repo-only: Phase D is pre-beat chrome (the landed
+  orchestrator-exchange class); the island beats reuse the landed director default script UNTOUCHED
+  (chat chips are site wiring around the same `advance()` calls); the orbit is CSS. NO director change,
+  NO `sync:web-engine`, NO parent re-proof. Untouched: Act 1, the finale terminal, the transform, the
+  three `data-experience-*` gate markers, the a11y/no-JS fallback, the Escape/leave affordances. Live
+  baseline: web main `d761eadc`. Phase Z and the TWO upstream beats are increment H's share
+  ([`act2-guided-forest`](act2-guided-forest.md)).
+
 THE ADR-0153 REDIRECTIONS (owner-directed at the H gate 2026-07-04 — the reshape of G's surface; these
 GOVERN where they touch the older framing-moves below):
 
@@ -262,12 +363,22 @@ GOVERN where they touch the older framing-moves below):
   orchestrator DOES with the story: it routes it to the drive machinery. A TEMPORARY flow-diagram
   OVERLAY, top-left, depicts the agent loop running in the background. It is an overlay, not drawn on
   the map, because the background machinery is not map signal unless something breaks or needs attention
-  — the map stays the honest picture; the process detail floats above it and clears.
+  — the map stays the honest picture; the process detail floats above it and clears. *(Overlay
+  PLACEMENT overtaken — ADR-0165 §2, 2026-07-05, noted in place per ADR-0139: the corner overlays
+  retire; the loop teach now blooms INSIDE Phase D's growing diagram at D5 — the landed ring reused
+  verbatim — and the persistent docked mini-map replaces the corner-overlay pattern. This bullet's
+  rationale [background machinery is not map signal; transient chrome above the map] carries forward
+  into the mini-map.)*
 - **Steps 3–4 expand the drive-machinery diagram(s).** Build out what the drive machinery is — CI/CD,
   devops, the gates, how the system is wired to the code to keep it honest. MAY use multiple diagrams (a
   second overlay, top-right) but MUST NOT overload — reveal scaffolded. The deepest of these (the
   backend/database depth) extend into increment H. The overlays are site-side content keyed by beat id
-  (the `act2-beat-director` engine needs no change — ADR-0153's authoring call).
+  (the `act2-beat-director` engine needs no change — ADR-0153's authoring call). *(Overtaken —
+  ADR-0165 §2 / default 5, 2026-07-05, noted in place per ADR-0139: the CI/CD row-list overlays
+  ["Proof, not a promise" / "Wired to the code"] retire FULLY; gates and CI/CD get one line each in
+  D5/D6 chat copy, keeping "gate" and "signed" as the load-bearing words; the backend/database depth
+  remains H's, now paced as TWO upstream beats. The site-side-keyed authoring call carries forward to
+  the growing diagram + mini-map.)*
 
 THE ADR-0157 REDIRECTIONS (owner-directed at the H BUILD #2 gate 2026-07-05 — they GOVERN G's copy, its
 step-2 overlay, its plant-story beat, and its wisp beat):
@@ -288,7 +399,10 @@ step-2 overlay, its plant-story beat, and its wisp beat):
   homework). If the two-agent framing is used for approachability, the CHECK stays clearly the system's.
   This is the plain-language depiction of `abd-green-only-on-signed-proof` (green only on a signed proof,
   in data). Site-side content keyed by beat id (NOT a director field — ADR-0157), validated by
-  `act2-validate`. Exact visuals are the builder's + owner's at the gate.
+  `act2-validate`. Exact visuals are the builder's + owner's at the gate. *(HOME relocated — ADR-0165
+  §2, 2026-07-05, noted in place per ADR-0139: no longer a corner overlay — the SAME landed loop
+  diagram blooms inside the ONE growing diagram at Phase D's D5, every content/honesty obligation in
+  this bullet intact; the docked mini-map's `loop` dot carries the stage through the island walk.)*
 - **Plain language, no storm metaphor.** ALL of G's copy is plain and jargon-free for newcomer devs / vibe
   coders (`plain-language-first`): no insider vocabulary without immediately showing what it means, no
   strained analogies. The word/analogy **"storm" is retired from every visitor-facing surface** (it
@@ -305,7 +419,11 @@ step-2 overlay, its plant-story beat, and its wisp beat):
   tree) rather than rendering as a static dot. A site-side animation of the `wisps` presence marker the
   director already emits (the same site-owns-motion boundary ADR-0145 set for viewBox tweens and growth
   transitions); no engine change. The exact motion is builder/owner-tunable at the gate; the requirement
-  is that it moves.
+  is that it moves. *(Sharpened — ADR-0165 §5, 2026-07-05, noted in place per ADR-0139: the approved
+  motion is a true ORBIT around the island — an island-centred rotating group nested in a flattened
+  plane [scaleY ≈ 0.55] so the circle reads as an ellipse on the 2.5D map, one lap ≈ 9 s, glow pulse
+  kept, reduced-motion stationary with pulse; pure CSS, replacing the landed `act2-wisp-drift`. "The
+  requirement is that it moves" stands — it now has the approved specific motion.)*
 
 THE SURFACE (owner decisions 2026-07-02 + the 2026-07-03 re-decisions, ADR-0145 for the substrate and
 ADR-0148 for the website-first narrative, RESHAPED by ADR-0153 + ADR-0157 above — the spec of the feel):
@@ -373,7 +491,12 @@ THE WALK ITSELF (carried FORWARD from the 2.5D build, unchanged by this re-scope
 - **Visitor-paced, auto-guided.** The walkthrough proposes; the visitor disposes — one Next-tap
   advances one beat (the director's structural guarantee), nothing auto-plays past the visitor. The
   deliberate inverse of Act 1's all-at-once: same single gesture, opposite outcome. A Back
-  affordance is welcome; auto-advance is a design violation, not a tweak.
+  affordance is welcome; auto-advance is a design violation, not a tweak. *(Affordance re-homed —
+  ADR-0165 §3, 2026-07-05, noted in place per ADR-0139: the separate Next button RETIRES; each step
+  advances via ONE bounded reply chip in the orchestrator chat's input row, voiced as a skeptical
+  developer's question, with an occasional non-advancing "why does that matter?" aside. The
+  visitor-paced principle in this bullet is PRESERVED — one tap per step, nothing auto-plays — only the
+  affordance's home changes; Back stays [pure replay, byte-identical].)*
 - **Anchored callouts, plain language.** The narration appears in game-tutorial **callout boxes
   anchored next to the actual map element** each beat teaches — "the callout boxes point to exactly
   where your eyes should go and talk to the item" — never a fixed panel the visitor must read at
@@ -431,7 +554,13 @@ artifact); UI hides progressively (reveal as the walk earns it); the orchestrato
 BOTTOM (as the real app) carrying step 1's outcome brief; and the drive-machinery OVERLAYS (step 2
 top-left agent loop; steps 3–4 top-right CI/CD/gates/wiring) are TEMPORARY chrome ABOVE the map,
 site-side content keyed by beat id (NOT engine structure — ADR-0153's authoring call), validated
-against the director's exported contract by `act2-validate`.
+against the director's exported contract by `act2-validate`. **ADR-0165 additions (site-side, no
+engine change):** Phase D renders BEFORE the first beat as pre-beat chrome (the landed
+orchestrator-exchange class) — the growing diagram above the chat, advanced by reply chips wired
+around the same `advance()` calls the Next button made; at I1 the diagram compacts to the persistent
+docked mini-map (the corner overlays are GONE — the loop lives in D5, the CI/CD teach in one line each
+of D5/D6 copy); the wisp's orbit is pure CSS on the `wisps` presence marker. The 16-step
+structure is ADR-0165 §7's table; exact copy site-side, owner-tunable at the gate.
 
 ## UAT (operator-attested)
 
@@ -441,31 +570,40 @@ against the director's exported contract by `act2-validate`.
    as the fix for the storm they just saw drown that exact request, not an unrelated new topic.
 2. **The orchestrator's proposal is honest and meets the user where they are.** _(witness: human)_
    Before the beats, a short scripted orchestrator exchange proposes a **mock local website — no
-   backend** — to validate the idea. **Success —** it reads as a felt planning/pushback moment (an
-   agent scoping the work, not a passive caption); it is explicitly a MOCK (never pretends to be a
-   working product), it does NOT lead with the backend, and it does NOT overwhelm — a vibe coder
-   feels met, not lectured. The exchange is short (a few lines, not a wall of chat).
-3. **The pacing inverts the storm.** _(witness: human)_ From the proposal, the walk advances ONLY on
-   Next — one tap per beat, no auto-play; effort never exceeds one tap. **Success —** the visitor-paced
-   Next gesture is the only input; the beat count is the owner's to tune at the gate (the director is
-   data-driven), but each merge leaves a complete-so-far arc.
-4. **Each beat lands its concept, growing the one website story.** _(witness: human)_ Guided by a
-   callout anchored to the element being taught (and the orchestrator chat at the bottom for the
-   opening brief), a non-expert reader can say back, per beat: this is the outcome I asked for, with an
-   example (step 1's brief); the orchestrator is routing it into machinery that does the work (step 2);
-   green means proven, not claimed (the branch beat); the whole thing fits on one calm screen (the
-   pull-back) — and the tree they watch grow is the mock shopping website (Cart / Payments / Receipts),
-   the proposal made real. (There is NO wrong-way-road "that road is wrong" teach — retired per ADR-0150
-   §4; the dependency-layer-as-advantage is H's.)
+   backend** — to validate the idea. (ADR-0165: folded into D0's chat open — the orchestrator
+   self-introduces honestly, "I don't write the code myself… only call something done when the system
+   proves it," and carries the outcome brief; no separate brief step.) **Success —** it reads as a felt
+   planning/pushback moment (an agent scoping the work, not a passive caption); it is explicitly a MOCK
+   (never pretends to be a working product), it does NOT lead with the backend, and it does NOT
+   overwhelm — a vibe coder feels met, not lectured. The exchange is short (a few lines, not a wall of
+   chat).
+3. **The pacing inverts the storm — one bounded reply chip per step, IN the chat (ADR-0165).**
+   _(witness: human)_ From D0, the walk advances ONLY on the single reply chip offered in the
+   orchestrator chat's input row — one tap per step, no auto-play, NO separate Next button anywhere;
+   effort never exceeds one tap. **Success —** the chip is the only advance input and reads as the
+   question a skeptical developer would ask; a quiet "why does that matter?" aside (where offered)
+   streams one extra line WITHOUT advancing; Back replays the previous step byte-identically; the step
+   count is the owner's to tune at the gate (~15 taps approved; D0+D1 / Z1+Z2 are the named merges if
+   it tests long — ADR-0165 default 7), and each merge leaves a complete-so-far arc.
+4. **Each step lands its concept — the system assembles as a sentence (ADR-0165).** _(witness: human)_
+   Guided by the orchestrator's one-or-two chat lines per step (map callouts stay as anchored
+   pointers), a non-expert reader can say back, per stage: my request is the input (D1); decisions are
+   recorded, not lost in a chat log (D2); the library is the shared language every agent reads (D3);
+   the work is one story with one checkable outcome (D4); the loop is two agents refereed by the
+   SYSTEM (D5); green on the map means a signed proof (D6) — and the island they then watch grow is
+   the mock shopping website (Cart / Payments / Receipts), the D0 brief made real with zero re-setup.
+   (There is NO wrong-way-road "that road is wrong" teach — retired per ADR-0150 §4; the
+   dependency-layer-as-advantage is H's.)
 5. **The thesis moments read.** _(witness: human)_ The walk happens on the real 2.5D map (the
    product's own look) shown through the real app's UI; the limb visibly greens WITH the signed-proof
    narration (never before); the pull-back forest is legible at a glance (green / sapling / withered).
 6. **The CTA continues into "what's next".** _(witness: human)_ The arc ends by naming the next step:
    the mock website's Cart / Payments / Receipts cannot truly work without a backend, so the CTA
    poses "what's next" — the upstream database + backend (increment H) — as a CONTINUATION SEAM, not a
-   hand-off to a separate page. **Success —** the seam is legible and honest (this was a diorama; the
-   real thing is watched-live); until H lands it resolves to the real product / get-involved; no beat
-   dead-ends.
+   hand-off to a separate page. (ADR-0165: the seam is I3's reply chip — "what about the parts a mock
+   can't do?" — flowing straight into H's two upstream beats.) **Success —** the seam is legible and
+   honest (this was a diorama; the real thing is watched-live); until H lands it resolves to the real
+   product / get-involved; no beat dead-ends.
 7. **The path into the tutorial is cohesive — all in, no escape.** _(witness: human)_ From the finale,
    "show me the better way" leads STRAIGHT into the 2.5D tutorial — one click, no jarring
    3D-island-that-flips to 2.5D, no detour to a classic homepage. **Success —** the finale's copy reads
@@ -483,31 +621,53 @@ against the director's exported contract by `act2-validate`.
    EXAMPLE, ideally through the session-orchestrator CHAT AT THE BOTTOM (as the real app) — the visitor
    reads what they asked for and a concrete example, in the real chat surface, not as abstract "here is
    a young tree" prose.
-10. **Step 2 shows the orchestrator routing to the drive machinery, as an HONEST TDD LOOP DIAGRAM
-    (ADR-0153 / ADR-0157).** _(witness: human)_ After the brief, advance. **Success —** the walk shows
-    what the orchestrator DOES with the story: it routes it to the drive machinery, depicted by a
-    TEMPORARY overlay top-left — an overlay ABOVE the map, not drawn on it, that clears. The overlay is a
-    DIAGRAM that shows a LOOP (not a list): write a failing test → the SYSTEM checks it really fails →
-    write code → the SYSTEM checks it really passes → repeat. A newcomer reads it plainly ("one agent
-    writes the tests, the other builds code to pass them") AND — the load-bearing point — understands the
-    CHECK is done by the SYSTEM (storytree's referee), not an AI grading its own homework. The map stays
-    the honest picture of the work.
-11. **Steps 3–4 expand the drive machinery without overloading (ADR-0153).** _(witness: human)_ Advance
-    through the steps that build out the drive machinery (CI/CD, devops, gates, wiring). **Success —**
-    the deeper picture is shown via overlay diagram(s) (a second overlay, top-right, is fine), revealed
-    scaffolded in an order a first-time viewer can hold — never dumped all at once; the deepest
-    (backend/database) depth continues into increment H.
-12. **The copy is plain, with no storm metaphor (ADR-0157).** _(witness: human)_ Read G's copy — the
-    orchestrator's proposal lines, the beat narration, the overlays. **Success —** the language is plain
-    and understandable to a newcomer dev / vibe coder (no unexplained jargon, no strained analogies); the
-    word/analogy "storm" appears nowhere on any visitor-facing surface (Act 1 is described plainly where
-    referenced — the swarm of agents / the chaotic terminals).
+10. **The loop teach blooms INSIDE the one growing diagram, honest (ADR-0153 / ADR-0157 / ADR-0165).**
+    _(witness: human)_ Advance to D5. **Success —** the story node blooms into the honest TDD ring —
+    the landed 4-node loop diagram reused verbatim: write a test that must pass (one agent) → check it
+    really fails (THE SYSTEM) → write code to pass it (another agent) → check it really passes (THE
+    SYSTEM), centred "the system checks — not the AI". It is part of the ONE growing picture (NO corner
+    overlay appears anywhere); it reads as a LOOP, not a list; a newcomer reads it plainly ("one agent
+    writes the tests, the other builds code to pass them") AND — the load-bearing point — understands
+    the CHECK is done by the SYSTEM (storytree's referee), never an AI grading its own homework.
+11. **Gates and CI/CD are one line each — no row-list overlays (ADR-0165 default 5).** _(witness:
+    human)_ Read D5/D6's chat copy and watch the whole walk for chrome. **Success —** the
+    gate/CI/CD/wiring teach is carried in one line each of D5/D6 chat copy, keeping "gate" and
+    "signed" as the load-bearing words; NO "Proof, not a promise" / "Wired to the code" row-list
+    overlay (or any corner overlay) appears anywhere; the growing diagram and the docked mini-map are
+    the only persistent visuals, and the diagram only ever GAINS elements — nothing is replaced or
+    swapped.
+12. **The copy is plain, with no storm metaphor — and honest to the sources (ADR-0157 / ADR-0165).**
+    _(witness: human)_ Read G's copy — the orchestrator's lines, the diagram labels, the beat
+    narration. **Success —** the language is plain and understandable to a newcomer dev / vibe coder
+    (no unexplained jargon, no strained analogies); the word/analogy "storm" appears nowhere on any
+    visitor-facing surface (Act 1 is described plainly where referenced — the swarm of agents / the
+    chaotic terminals); and the display copy obeys the industry-framing honesty rules (ADR-0165 §9: no
+    "Karpathy loop" as a term; relocation-not-elimination; "don't FULLY trust"; no unsourced viral
+    stats; green = declared obligations only).
 13. **The planted node lands `proposed`, and the orchestrator reads as OUR system (ADR-0157).** _(witness:
     human)_ Watch the plant-story beat and read the orchestrator's voice. **Success —** the first (mock
     website) node honestly enters `proposed` (not instantly green, not silently building) and greens only
     when a signed proof lands (the branch beat); the scripted orchestrator reads as storytree's ACTUAL
     session orchestrator, not a generic coding agent — the visitor understands they are watching storytree
     work.
-14. **The wisp moves (ADR-0157).** _(witness: human)_ Watch the watch-a-wisp beat. **Success —** the wisp
-    MOVES — it drifts/travels rather than sitting as a static dot; it reads as living presence over the
-    tree (presence without obligation — the visitor does nothing and that is the point).
+14. **The wisp ORBITS the island (ADR-0157 / ADR-0165).** _(witness: human)_ Watch the wisp beat (I2).
+    **Success —** the wisp circles the island — a flattened ellipse lying on the 2.5D map
+    (island-centred orbit, one lap ≈ 9 s, glow pulse kept), narrated as the diagram made live ("the
+    loop from our diagram, running right now"); under `prefers-reduced-motion` it is stationary with
+    the pulse only; it reads as living presence (presence without obligation — the visitor does nothing
+    and that is the point), never a static dot.
+15. **The system assembles on ONE growing diagram before any island (ADR-0165).** _(witness: human)_
+    Walk D0–D6. **Success —** one canvas GROWS left-to-right and reads as a sentence — intent →
+    decision record → library → story → loop (blooming below) → map signal — with each chip-tap adding
+    exactly its delta and NOTHING ever replaced or swapped; the reply chips read as the questions a
+    skeptical developer would ask, so tapping through feels like interrogating the system, not
+    watching a slideshow; D6 lands the thesis ("everything in this UI is a signal of what the agents
+    are actually building") and it reads as EARNED by the picture just assembled — all BEFORE any
+    island is shown.
+16. **The mini-map persists and lights the stage (ADR-0165).** _(witness: human)_ Advance through the
+    island handoff (I1) and the walk. **Success —** the diagram COMPACTS into a docked top-left 6-dot
+    mini-map (intent · decision · library · story · loop · signal) that PERSISTS through the whole
+    island walk (and the studio finale — H's share); the correct dot lights per stage — story when the
+    island plants (pale, "green is earned here"), loop while the wisp orbits, signal when the cart
+    greens; it stays one small stage-light (never a second diagram); map callouts remain as anchored
+    pointers with no button.
