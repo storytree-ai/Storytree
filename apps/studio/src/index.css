@@ -3693,7 +3693,6 @@ button.legend-tile:hover {
 
 /* inline comment thread — a light card in the flow (used by InlineCommentThread, retained) */
 .inline-comment-thread {
-.inline-comment-thread {
   margin: 10px 0;
   padding: 10px 12px;
   background: var(--surface);
