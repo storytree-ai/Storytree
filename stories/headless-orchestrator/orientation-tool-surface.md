@@ -2,8 +2,8 @@
 id: "orientation-tool-surface"
 tier: capability
 story: headless-orchestrator
-title: "A read-only in-process orientation tool surface — the three surfaces wrapped, no write tool"
-outcome: "A read-only in-process tool surface exposes the three storytree orientation commands to a model, each returning a real envelope body, with NO write tool and writes structurally impossible."
+title: "A read-only in-process orientation tool surface — the read surfaces wrapped with drill-down args, no write tool"
+outcome: "A read-only in-process tool surface exposes the storytree read surfaces (tree, library, noticeboard, agents) to a model with parameterized drill-down args, each returning a real envelope body, with NO write tool, write verbs refused at the surface, and writes structurally impossible."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -36,8 +36,9 @@ proof:
 
 # A read-only in-process orientation tool surface
 
-**Outcome —** A read-only in-process tool surface exposes the three storytree orientation commands to
-a model, each returning a real envelope body, with NO write tool and writes structurally impossible.
+**Outcome —** A read-only in-process tool surface exposes the storytree read surfaces (tree, library,
+noticeboard, agents) to a model with parameterized drill-down args, each returning a real envelope
+body, with NO write tool, write verbs refused at the surface, and writes structurally impossible.
 
 **Depends on —** *(none — a root capability: the read-tool surface, no in-story upstream)*
 
@@ -61,16 +62,24 @@ SDK session. It is `runSdkCurator`'s missing half — the curator needs no tools
 into the prompt), but the orchestrator must ORIENT by *calling* read tools.
 
 THE TOOLS ARE READ-ONLY BY CONSTRUCTION (ADR-0108 Phase 1 / ADR-0004): the surface wraps ONLY the read
-commands — `tree` (the work hierarchy, read off the `stories/` filesystem via `deps.storiesDir`),
-`library` / `library artifact <id>` (knowledge, read off the in-memory seed `store`), and
-`noticeboard` (session presence, live store). There is NO `Write`/`Edit`/`Bash` tool in the surface
-(unlike `ClaudeAgentAuthor`'s `LEAF_TOOLS = ["Read","Write","Edit","Glob","Grep"]` — the orchestrator
-gets NONE of the write tools). Belt-and-braces: the surface constructs its `run()` deps with
+commands — `tree` (the work hierarchy, read off the `stories/` filesystem via `deps.storiesDir`, with
+the `tree <story>` / `tree spec <node-id>` drill-downs), `library` / `library artifact <id>` /
+`library artifact list <category>` (knowledge, read off the in-memory seed `store`), `noticeboard`
+(session presence, live store), and `agents [<name>]` (the ADR-0051/0156 agent-guidance renderer —
+the SELF-ONBOARDING read: `agents session-orchestrator` hands the chat agent its own charter). Each
+tool takes OPTIONAL drill-down args so the agent can follow the ADR-0023 `next:` pointers the
+envelopes hand it (the fixed zero-arg dashboards are the degenerate case). There is NO
+`Write`/`Edit`/`Bash` tool in the surface (unlike `ClaudeAgentAuthor`'s
+`LEAF_TOOLS = ["Read","Write","Edit","Glob","Grep"]` — the orchestrator gets NONE of the write
+tools), and a WRITE VERB routed as an arg (`declare`/`edit`/`new`/`build`/…) is refused AT THE
+SURFACE — the runner is never called. Belt-and-braces: the surface constructs its `run()` deps with
 `writable: false`, so even if a write verb were somehow routed, the `notWritable` guard
 (`packages/cli/src/commands.ts`, fronting `artifact new`/`edit`/`retire`, `sync-agents`/`sync-corpus`,
-`noticeboard declare`, `uat attest`, `adr new`) refuses it — the agent cannot act, write, build, sign,
-or land. Get this wrong — exposing a write tool or a `writable: true` deps — and you have handed the
-read/propose-only agent the power to act, the exact Phase-1 wall this capability enforces.
+`noticeboard declare`, `uat attest`, `adr new`) refuses it — and the drive-composed runner
+(`packages/drive/src/orientation-runner.ts`, the desktop sidecar path) dispatches no write verb at
+all. The agent cannot act, write, build, sign, or land. Get this wrong — exposing a write tool or a
+`writable: true` deps — and you have handed the read/propose-only agent the power to act, the exact
+Phase-1 wall this capability enforces.
 
 THE ENVELOPE IS THE TOOL RESULT (ADR-0023 §4): each tool runs its read command and returns the
 `Envelope` body (the result text + `doctrine`/`next` pointers) as the tool's text result, so the agent
@@ -113,18 +122,19 @@ The integration test would:
 6. A read command that legitimately MISSES (unknown artifact id, bad category) → returns an `ok: false`
    envelope with `next` (guidance, not a thrown crash) as its tool result — the agent can adapt.
 
-## Contracts (5)
+## Contracts (7)
 
 The test-proven leaf behaviours — each **one isolated automated test** (`node:test`, the
-`@storytree/agent` suite), collaborators stubbed. None exist yet; each is the assertion a contract test
-WILL prove against the real surface code once authored (the file is named provisionally — re-cite at
-real `file:line` when built).
+`@storytree/agent` suite), collaborators stubbed. All seven are green in
+`packages/agent/src/orientation-tools.test.ts` (contracts 6–7 were added when the surface grew the
+parameterized drill-downs + the `agents` self-onboarding tool).
 
-1. **`ots-exposes-exactly-the-read-surfaces`** — the surface lists the three orientation tools and no
+1. **`ots-exposes-exactly-the-read-surfaces`** — the surface lists the read-surface tools and no
    more
    - **asserts —** the built surface's tool names are exactly the orientation read surfaces (`tree`,
-     `library`, the board) — a fixed, enumerated set — and the count matches (no extra tool leaks in).
-   - **covers —** `packages/agent/src/orientation-tools.ts` (the tool list) *(provisional path)*
+     `library`, the board, `agents`) — a fixed, enumerated set — the count matches (no extra tool
+     leaks in), and every tool carries a model-facing description naming its drill-down args.
+   - **covers —** `packages/agent/src/orientation-tools.ts` (the tool list)
 2. **`ots-has-no-write-tool`** — no write/act tool is in the surface
    - **asserts —** none of `Write`, `Edit`, `Bash` (nor any write-verb tool) appears in the surface's
      tool names — the orchestrator gets NONE of `ClaudeAgentAuthor`'s write tools.
@@ -144,6 +154,18 @@ real `file:line` when built).
      returns it as a non-throwing result (the `next` guidance present), never propagating a throw into
      the SDK session — the same envelope contract `fs-tools.ts` tool results use.
    - **covers —** `packages/agent/src/orientation-tools.ts` (the fail-soft path)
+6. **`ots-args-flow-into-argv`** — drill-down args are appended to the base verb, normalized
+   - **asserts —** a tool call with args yields `[<tool-name>, ...args]` as the runner's argv; a
+     pasted `next:` pointer normalizes (the `storytree`/`pnpm` prefix, a duplicated leading tool
+     name, and the inert `--pg` flag are stripped); no args yields the bare dashboard argv (the
+     original fixed behaviour is the zero-arg case).
+   - **covers —** `packages/agent/src/orientation-tools.ts` (`normalizeArgs` + the call path)
+7. **`ots-write-verb-refused-at-surface`** — a write/act verb in the args never reaches the runner
+   - **asserts —** an argv carrying a write verb (`declare`, `edit`, `new`, `sync-agents`,
+     `graduate`, `build`, …) returns the read-only refusal text WITHOUT the runner ever being
+     called — the Phase-1 wall is the surface's own fail-closed invariant, not a downstream
+     courtesy.
+   - **covers —** `packages/agent/src/orientation-tools.ts` (`WRITE_VERBS` + the refusal arm)
 
 ## Guidance — the net-new slice that earns the signed verdict
 

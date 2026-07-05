@@ -85,9 +85,9 @@ immediately. That deferred question lands here.
    **opt-in** (a caller may still pass `maxBudgetUsd`), not a default wall — the door ADR-0108 left open
    for per-session controls stays open, it just isn't a phantom by default.
 
-5. **Live orientation is operator-attested glue — the named next unit, not an offline contract.** Today
-   the chat orchestrator cannot read the live tree / library / notice-board: the mount forwards no
-   `OrientationRunner`, so the orientation tools fall back to a no-op stub (a conversational session over
+5. **Live orientation is operator-attested glue, not an offline contract.** At decision time
+   the chat orchestrator could not read the live tree / library / notice-board: the mount forwarded no
+   `OrientationRunner`, so the orientation tools fell back to a no-op stub (a conversational session over
    the rendered prompt, blind to live state). Wiring a real runner is real work, but as the
    `chat-sse-mount` story established (story-author, 2026-06-27) it has **no offline-provable
    observable** — the runner fires only through a real SDK tool-dispatch, which the scripted `queryFn`
@@ -96,7 +96,9 @@ immediately. That deferred question lands here.
    runner **in the sidecar** (`electron/backend-entry.ts`, which already holds the live pg store) from
    `drive`/`library` read projections and injecting it down the existing `ChatSseMountDeps →
    startChatStream → orchestrate → runHeadlessOrchestrator` chain — never importing `@storytree/cli` (the
-   cycle the stub exists to avoid).
+   cycle the stub exists to avoid). *(Since built exactly this way: `@storytree/drive`'s
+   `createOrientationRunner` is composed in `electron/backend-entry.ts` and injected down the mount
+   chain; the live orientation walk remains the story's operator-attested UAT leg.)*
 
 6. **§7 reconciled: prose streaming is the conversational rendering; the message trace is the
    observability layer.** ADR-0108 §7 specified the transcript as "the coarse phase trail + tool calls —
@@ -127,7 +129,8 @@ immediately. That deferred question lands here.
   the typical flow, and the guide covers the one newcomer case where speed-of-answer matters.
 - Live orientation remains operator-attested, so a real part of the main flow's value (the orchestrator
   reading live state) is proven by the owner's eyes, not CI — a known limit of the scripted-`queryFn`
-  discipline, carried as the named next unit (decision 5).
+  discipline (decision 5; the runner is since built and wired, but its live read is still the owner's
+  leg, not a CI contract).
 - Delegation means a help question via the chat pays the orchestrator's startup before the guide answers;
   acceptable while latency is not a target, with the front-router as the escape hatch (decision 3).
 

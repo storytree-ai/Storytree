@@ -17,6 +17,7 @@
 
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 
 import type { SdkQueryFn } from "./sdk-author.js";
 import { buildOrientationTools } from "./orientation-tools.js";
@@ -270,11 +271,28 @@ export async function runHeadlessOrchestrator(
               [ORIENTATION_SERVER]: createSdkMcpServer({
                 name: ORIENTATION_SERVER,
                 version: "1.0.0",
+                // Each read surface takes OPTIONAL drill-down args so the agent can follow the
+                // envelopes' `next:` pointers (tree spec <id> / library artifact <id> / agents
+                // <name>) — the surface refuses write verbs fail-closed before the runner.
                 tools: orientationTools.map((ot) =>
-                  tool(ot.name, `Read-only ${ot.name} orientation command.`, {}, async () => {
-                    const text = await ot.call();
-                    return { content: [{ type: "text" as const, text }] };
-                  }),
+                  tool(
+                    ot.name,
+                    ot.description,
+                    {
+                      args: z
+                        .array(z.string())
+                        .optional()
+                        .describe(
+                          "Optional subcommand tokens, e.g. ['spec','<node-id>'] or " +
+                            "['artifact','<id>'] — paste a next: pointer's tokens, dropping " +
+                            "the leading 'storytree'.",
+                        ),
+                    },
+                    async ({ args }) => {
+                      const text = await ot.call(args ?? []);
+                      return { content: [{ type: "text" as const, text }] };
+                    },
+                  ),
                 ),
               }),
             }
