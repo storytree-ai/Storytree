@@ -27,6 +27,7 @@ export const CLI_AREAS = [
   "story",
   "drift",
   "adr",
+  "desktop",
 ] as const;
 
 export type CliArea = (typeof CLI_AREAS)[number];
