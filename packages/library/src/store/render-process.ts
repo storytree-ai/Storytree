@@ -75,3 +75,95 @@ export async function renderProcessNode(
       : "This process has no branch-edges yet — follow its body above.");
   return { ok: true, id: stored.id, headline, edges };
 }
+
+// ── the process-graph integrity gate (ADR-0161 decision 5) ────────────────────────────────────────
+// The counterpart of the agent step→refs fence (essentialsGateViolations, render-agent.ts): the
+// dangling-ref fence extended to the process tier's STRUCTURED edges. The CLI `check:process-graph`
+// (in `pnpm gate`) runs this over the whole corpus's `process` docs and fails closed on any violation,
+// so the Library context DAG's process half cannot silently grow a dangling branch or a cycle.
+//
+// SCOPED to two integrity properties: (a) every branch-edge RESOLVES to a real artifact, and (b) the
+// process graph has NO CYCLE. ADR-0161 dec 5 also names "unreachable nodes", but the process
+// branch-edge graph has NO declared root, and reachability is only computable relative to one. The ADR
+// settles resolve + cycles — its Consequences names cycles as the load-bearing property ("The graph
+// must not grow cycles") — but never defines a graph root, so enforcing reachability would mean
+// inventing a root semantics the corpus does not settle. That is deferred, not this unit's business
+// (it would naturally become definable once a real traversal entry-point is declared) — we do not
+// invent it here. Mirrors inc 5's scoped no-unattached-context check, which was likewise a no-op until
+// the data it guards existed.
+//
+// A NO-OP today: no seed `process` carries `branchEdges` yet, so the graph is empty and the gate stays
+// green — honest, exactly like the inc-4 agent checks were no-ops until `stepRefs` were authored.
+
+/** A branch-edge's target id — the `asset:` prefix stripped, as {@link renderProcessNode}'s emitter does. */
+function edgeTargetId(ref: string): string {
+  return ref.replace(/^asset:/, "");
+}
+
+/**
+ * Enumerate the process branch-edge GRAPH's integrity violations (ADR-0161 decision 5). Returns the
+ * list of VIOLATIONS across every `process` doc's `branchEdges` (empty ⇒ the graph is sound); the CLI
+ * `check:process-graph` (in `pnpm gate`) fails the build on any. Asserts, fail-closed:
+ *   (a) RESOLVE — every branch-edge `ref` (`asset:<id>`) points at a real artifact in the corpus; a
+ *       dangling edge reds, naming the process + the missing ref.
+ *   (b) NO CYCLE — no `process` is reachable from itself via branch-edges; a cycle reds, naming the
+ *       loop path. Only a `process` carries branch-edges, so a cycle is a loop of process nodes — a
+ *       non-process (or unknown) target is a leaf that cannot continue the path.
+ * Reachability/"unreachable" is deliberately OUT of scope (see the section header): no declared graph
+ * root, so no reachability semantics is invented here. REUSES {@link branchEdgesOf}, the tolerant edge
+ * reader — malformed edges are already dropped there, so this sees only well-formed `{ ref, label? }`.
+ */
+export async function processGraphViolations(store: Store): Promise<string[]> {
+  const violations: string[] = [];
+  const processes = await store.queryDocs({ kind: "process" });
+
+  // Index every process's edges once (via the tolerant reader), so the cycle traversal is O(V+E) and
+  // the graph is read from the store a single time.
+  const edgesById = new Map<string, { ref: string; label?: string }[]>();
+  for (const p of processes) {
+    edgesById.set(p.id, branchEdgesOf(p.doc as Record<string, unknown>));
+  }
+
+  // (a) RESOLVE — every branch-edge ref must point at a real artifact.
+  for (const [id, edges] of edgesById) {
+    for (const { ref } of edges) {
+      if (!(await store.getDoc(edgeTargetId(ref)))) {
+        violations.push(
+          `process "${id}" has a dangling branch-edge ${ref} — it resolves to no artifact.`,
+        );
+      }
+    }
+  }
+
+  // (b) NO CYCLE — DFS with a recursion stack (`path`); a back-edge to a node still on the stack is a
+  // cycle. Only process nodes have outbound edges, so a target that is not a process id is a leaf we do
+  // not descend. Each distinct loop (keyed by its node SET) is reported once.
+  const state = new Map<string, "visiting" | "done">();
+  const reported = new Set<string>();
+  const walk = (id: string, path: string[]): void => {
+    state.set(id, "visiting");
+    for (const { ref } of edgesById.get(id) ?? []) {
+      const next = edgeTargetId(ref);
+      if (!edgesById.has(next)) continue; // a non-process (or unknown) target is a leaf — no outbound edges
+      const seen = state.get(next);
+      if (seen === "visiting") {
+        const loop = [...path.slice(path.indexOf(next)), next];
+        const key = [...new Set(loop)].sort().join("|");
+        if (!reported.has(key)) {
+          reported.add(key);
+          violations.push(
+            `process branch-edge CYCLE: ${loop.join(" → ")} — the process graph must stay acyclic.`,
+          );
+        }
+      } else if (seen === undefined) {
+        walk(next, [...path, next]);
+      }
+    }
+    state.set(id, "done");
+  };
+  for (const id of edgesById.keys()) {
+    if (state.get(id) === undefined) walk(id, [id]);
+  }
+
+  return violations;
+}
