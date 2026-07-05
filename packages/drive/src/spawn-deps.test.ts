@@ -223,7 +223,7 @@ test("sdc-claim-deps-carry-session-identity-and-role: the composed deps carry se
   const tools = buildSpawnTools(result.deps);
   const storyAuthor = tools.find((t) => t.name === "spawn_story_author");
   assert.ok(storyAuthor !== undefined, "the surface carries spawn_story_author");
-  await storyAuthor.handler({ unitId: "some-story", userPrompt: "author it" }, {});
+  await storyAuthor.handler({ unitId: "some-story", userPrompt: "author it", paths: [] }, {});
 
   assert.equal(claims.length, 1, "exactly one claim precedes the spawn (no claim, no subagent)");
   const claim = claims[0];

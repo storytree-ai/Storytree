@@ -156,6 +156,7 @@ function recordingSpawnDouble(opts?: { bumps?: { count: number }; unitId?: strin
       return "story-author spawn summary";
     },
     spawnBuilder: async () => "builder dispatched",
+    spawnGlueWorker: async () => "glue worker edited 1 file",
   };
 }
 

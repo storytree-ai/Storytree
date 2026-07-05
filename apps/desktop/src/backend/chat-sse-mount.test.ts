@@ -106,6 +106,7 @@ function spawnDepsDouble(): SpawnDeps {
     branch: "claude/sess-desktop",
     spawnStoryAuthor: async () => "story-author spawn summary",
     spawnBuilder: async () => "builder dispatched",
+    spawnGlueWorker: async () => "glue worker edited 1 file",
   } as SpawnDeps;
 }
 

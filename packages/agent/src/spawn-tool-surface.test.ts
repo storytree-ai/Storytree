@@ -111,11 +111,18 @@ function makeSpawnDeps(opts?: { refuse?: boolean; order?: string[] }): SpawnSurf
       return "story-author session finished (stub)";
     },
     spawnBuilder: async (
-      _args: { unitId: string; userPrompt: string },
+      _args: { unitId: string },
       _onTrace: (msg: unknown) => void,
     ): Promise<string> => {
       order.push("handler:spawn_builder");
       return "builder run-123 dispatched; progress: AUTHOR_TEST running (stub)";
+    },
+    spawnGlueWorker: async (
+      _args: { unitId: string; paths: string[]; userPrompt: string },
+      _onTrace: (msg: unknown) => void,
+    ): Promise<string> => {
+      order.push("handler:spawn_glue_worker");
+      return "glue worker session finished; 1 file edited (stub)";
     },
   };
 }
@@ -180,11 +187,16 @@ test("sts-spawn-tools-mounted-only-with-deps: with the dep, EXACTLY the two spaw
   });
   const o = withDeps.opts() as { allowedTools?: string[]; mcpServers?: Record<string, unknown> };
 
-  // EXACTLY the two spawn tool names join the baseline — nothing else changes.
+  // EXACTLY the three spawn tool names join the baseline — nothing else changes.
   assert.deepEqual(
     o.allowedTools,
-    [...baseAllowed, "mcp__spawn__spawn_story_author", "mcp__spawn__spawn_builder"],
-    "the ONLY additions over the bare surface must be the two spawn tool names",
+    [
+      ...baseAllowed,
+      "mcp__spawn__spawn_story_author",
+      "mcp__spawn__spawn_builder",
+      "mcp__spawn__spawn_glue_worker",
+    ],
+    "the ONLY additions over the bare surface must be the three spawn tool names",
   );
   // And the retired propose surface is never present (ADR-0155).
   assert.equal(
@@ -209,7 +221,9 @@ test("sts-tool-call-runs-the-gate-then-the-handler: claim-acquire runs STRICTLY 
 
   const storyAuthor = toolNamed(tools, "spawn_story_author");
   const result = await storyAuthor.handler(
-    { unitId: "story-x", userPrompt: "author the story" },
+    // `paths` satisfies the union-intersection param type (buildSpawnTools now has three tools);
+    // the story-author handler ignores it — it destructures only { unitId, userPrompt }.
+    { unitId: "story-x", userPrompt: "author the story", paths: [] },
     {},
   );
 
@@ -232,7 +246,7 @@ test("sts-tool-call-runs-the-gate-then-the-handler: a refused claim returns the 
   // Both tools hold the wall — exercise each; neither may throw (a wait, never a crash).
   for (const name of ["spawn_story_author", "spawn_builder"]) {
     const result = await toolNamed(tools, name).handler(
-      { unitId: "story-x", userPrompt: "do work" },
+      { unitId: "story-x", userPrompt: "do work", paths: [] },
       {},
     );
     const text = resultText(result as { content: Array<{ type: string; text?: string }> });
@@ -319,7 +333,7 @@ test("sts-single-session-guard-holds: a second orchestration is refused while a 
 
   // A spawn INSIDE the running orchestration (the gate-wrapped handler, same deps) completes…
   const spawned = await toolNamed(buildSpawnTools(deps), "spawn_story_author").handler(
-    { unitId: "story-x", userPrompt: "author within the running session" },
+    { unitId: "story-x", userPrompt: "author within the running session", paths: [] },
     {},
   );
   assert.ok(spawned.content.length > 0, "the in-session spawn itself must complete");
@@ -348,7 +362,7 @@ test("sts-no-verdict-crosses-back: a spawn_builder call returns the dispatch's p
   const tools = buildSpawnTools(makeSpawnDeps());
 
   const result = await toolNamed(tools, "spawn_builder").handler(
-    { unitId: "story-x", userPrompt: "drive the fix" },
+    { unitId: "story-x", userPrompt: "drive the fix", paths: [] },
     {},
   );
 

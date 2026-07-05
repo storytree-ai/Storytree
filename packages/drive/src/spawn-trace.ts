@@ -13,7 +13,7 @@
  */
 
 /** The role of the spawned subagent the trace describes. */
-export type SpawnTraceRole = "story-author" | "builder";
+export type SpawnTraceRole = "story-author" | "builder" | "glue-worker";
 
 /**
  * The spawn-boundary trace union — the two edges of a claim-gated spawn. Matches the object
@@ -34,7 +34,7 @@ export function asSpawnTrace(msg: unknown): SpawnTrace | null {
   const role = (msg as { role?: unknown }).role;
   const unitId = (msg as { unitId?: unknown }).unitId;
   if (typeof unitId !== "string") return null;
-  if (role !== "story-author" && role !== "builder") return null;
+  if (role !== "story-author" && role !== "builder" && role !== "glue-worker") return null;
   if (type === "spawn_started") {
     return { type: "spawn_started", role, unitId };
   }

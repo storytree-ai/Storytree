@@ -549,7 +549,11 @@ async function main(): Promise<void> {
   // subscription-billed SDK sessions on a gate pass (ADR-0010 §5 forbids the live spend). The
   // CI-proven cores are buildSpawnDeps (packages/drive/src/spawn-deps.test.ts) and the mount's spawn
   // forwarding (chat-sse-mount.test.ts) over injected doubles; this file composes the real pieces:
-  //   - store       — the live pg library store (renders the story-author agent fail-closed, ADR-0051)
+  //   - store       — the live pg library store (renders the story-author AND glue-worker agents
+  //                   fail-closed, ADR-0051/0160 — so the chat gains spawn_glue_worker for a scoped
+  //                   glue edit, not just spawn_story_author/spawn_builder. The glue-worker agent must
+  //                   be synced live — `storytree library sync-agents --pg` — or the whole spawn
+  //                   surface fails closed to propose-only.)
   //   - claimStore  — the live pg claim store, adapted to the gate's narrow claim/bumpHeartbeat seam
   //   - identity    — the ADR-0033 session key (worktree name / desktop-scoped id + live HEAD branch),
   //                   stamped into every spawn claim so a refusal names a real holder (ADR-0138 §2)

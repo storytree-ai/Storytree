@@ -1,12 +1,18 @@
 /**
- * The story-author spawn runner: a write-scoped SDK session fenced to the work-hierarchy
- * surface (stories/**). The caller injects the rendered story-author system prompt; this
- * module does NOT render it (rendering is spawn-deps-composition's contract — keeping this
- * module library-free and the agent package's boundary clean).
+ * The write-scoped spawn runner: a role-neutral SDK session whose writes are fenced fail-closed
+ * to a CALLER-DECLARED scope. The caller injects the rendered agent system prompt AND the
+ * `isWriteAllowed` predicate; this module does NOT render prompts or pick a scope (rendering +
+ * scope-building are spawn-deps-composition's contract — keeping this module library-free and the
+ * agent package's boundary clean).
+ *
+ * ONE CORE, TWO ROLES (ADR-0160 D2 — generalise, never fork): `runSpawnWriteScoped` is the shared
+ * write-fence core. `runSpawnStoryAuthor` is the thin wrapper defaulting the scope to the
+ * work-hierarchy surface (stories/**); the glue-worker spawn (glue-deps-composition) calls the SAME
+ * core with a caller-declared PATH predicate. There is no second fence and no copy of the hook.
  *
  * Write fence: a fail-closed PreToolUse hook denies every Write/Edit whose workspace-relative
- * path falls outside the injectable isWriteAllowed predicate (default: stories/**) BEFORE the
- * write lands. Bash is never in the tool surface — a shell write would bypass the fence.
+ * path fails the injected `isWriteAllowed` predicate BEFORE the write lands. Bash is never in the
+ * tool surface — a shell write would bypass the fence.
  *
  * Result: { ok: true, summary, turns?, costUsd?, violations } or { ok: false, error, violations }
  * — NEVER a verdict (ADR-0091: the shape is the wall; there is nothing verdict-like to hand in).
@@ -41,23 +47,24 @@ const DEFAULT_IS_WRITE_ALLOWED = (relPath: string): boolean =>
 // Types
 // ---------------------------------------------------------------------------
 
-/** Constructor args for {@link runSpawnStoryAuthor}. */
-export interface SpawnStoryAuthorArgs {
+/** Constructor args for the role-neutral core {@link runSpawnWriteScoped}. */
+export interface SpawnWriteScopedArgs {
   /**
-   * The rendered story-author agent system prompt — injected by the caller
+   * The rendered agent system prompt — injected by the caller
    * (rendering is spawn-deps-composition's contract, not this module's).
    */
   systemPrompt: string;
-  /** The task prompt for this session. */
+  /** The task prompt for this session — threaded to the SDK session verbatim. */
   userPrompt: string;
   /** Working directory for the SDK session. */
   cwd: string;
   /**
-   * Write-ownership predicate over workspace-relative paths.
-   * Default: (relPath) => relPath.startsWith("stories/") — the work-hierarchy surface.
-   * Injectable so the test drives both arms offline.
+   * Write-ownership predicate over workspace-relative paths — REQUIRED (the core takes no
+   * default; each role injects its own scope: stories/** for the story-author wrapper, the
+   * caller-declared path fence for the glue worker). A Write/Edit whose resolved
+   * workspace-relative path fails this predicate is DENIED fail-closed before it lands.
    */
-  isWriteAllowed?: (relPath: string) => boolean;
+  isWriteAllowed: (relPath: string) => boolean;
   /** Model for the session. Default: claude-sonnet-4-6. */
   model?: string;
   /**
@@ -73,6 +80,20 @@ export interface SpawnStoryAuthorArgs {
   maxBudgetUsd?: number;
   /** Injected for offline tests; defaults to the real SDK query(). */
   queryFn?: SdkQueryFn;
+}
+
+/**
+ * Constructor args for {@link runSpawnStoryAuthor} — the story-author wrapper. Same shape as the
+ * core but with the `isWriteAllowed` predicate OPTIONAL: absent → the work-hierarchy default
+ * (stories/**). Kept as its own type so the existing story-author callers/tests are unchanged.
+ */
+export interface SpawnStoryAuthorArgs extends Omit<SpawnWriteScopedArgs, "isWriteAllowed"> {
+  /**
+   * Write-ownership predicate over workspace-relative paths.
+   * Default: (relPath) => relPath.startsWith("stories/") — the work-hierarchy surface.
+   * Injectable so the test drives both arms offline.
+   */
+  isWriteAllowed?: (relPath: string) => boolean;
 }
 
 /** A write the fence denied — recorded on the result, never landed. */
@@ -91,7 +112,7 @@ export interface ScopeViolation {
  * { ok: false } — session failed/ended early; error describes what happened.
  * Both arms carry the fence's denied writes as typed violations (empty when the scope held).
  */
-export type SpawnStoryAuthorResult =
+export type SpawnWriteScopedResult =
   | {
       ok: true;
       summary: string;
@@ -100,6 +121,9 @@ export type SpawnStoryAuthorResult =
       violations: ScopeViolation[];
     }
   | { ok: false; error: string; violations: ScopeViolation[] };
+
+/** The story-author spawn result — the core result shape (kept as a named alias for callers). */
+export type SpawnStoryAuthorResult = SpawnWriteScopedResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -137,18 +161,22 @@ function extractFilePath(input: unknown): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a write-scoped story-author SDK session. Never throws — a failed session returns
- * { ok: false, error } so the caller can decide how to handle it.
+ * Run a write-scoped SDK session against a CALLER-DECLARED write fence (the role-neutral core,
+ * ADR-0160 D2). Never throws — a failed session returns { ok: false, error } so the caller can
+ * decide how to handle it.
  *
  * The write fence is a fail-closed PreToolUse hook: every Write/Edit whose resolved
- * workspace-relative path fails `isWriteAllowed` is DENIED before the write lands.
+ * workspace-relative path fails the injected `isWriteAllowed` is DENIED before the write lands.
  * Bash is not in the tool surface (a shell write would bypass the hook).
+ *
+ * Both spawn roles call this ONE core: the story-author wrapper below (stories/** default) and the
+ * glue-worker spawn (a caller-declared path fence, built in spawn-deps-composition).
  */
-export async function runSpawnStoryAuthor(
-  args: SpawnStoryAuthorArgs,
-): Promise<SpawnStoryAuthorResult> {
+export async function runSpawnWriteScoped(
+  args: SpawnWriteScopedArgs,
+): Promise<SpawnWriteScopedResult> {
   const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
-  const isWriteAllowed = args.isWriteAllowed ?? DEFAULT_IS_WRITE_ALLOWED;
+  const isWriteAllowed = args.isWriteAllowed;
   const cwd = args.cwd;
   const violations: ScopeViolation[] = [];
 
@@ -258,4 +286,20 @@ export async function runSpawnStoryAuthor(
     costUsd: result.total_cost_usd,
     violations,
   };
+}
+
+/**
+ * Run a write-scoped STORY-AUTHOR SDK session — a thin wrapper over {@link runSpawnWriteScoped}
+ * that defaults the write fence to the work-hierarchy surface (stories/**). One of the two callers
+ * of the shared core (ADR-0160 D2): the generalisation kept this entry byte-compatible, so the
+ * existing story-author spawn (and its tests) are unchanged. The glue-worker spawn is the other
+ * caller (a caller-declared path fence, built in spawn-deps-composition).
+ */
+export async function runSpawnStoryAuthor(
+  args: SpawnStoryAuthorArgs,
+): Promise<SpawnStoryAuthorResult> {
+  return runSpawnWriteScoped({
+    ...args,
+    isWriteAllowed: args.isWriteAllowed ?? DEFAULT_IS_WRITE_ALLOWED,
+  });
 }
