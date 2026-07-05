@@ -115,6 +115,20 @@ export const defaultExec: ExecFn = (cmd, args, opts) =>
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * The presence re-declare hook (ADR-0142): after a fresh branch is cut on the already-merged path,
+ * the story wisp must re-light — the CI merge machine-clears the merged branch's presence + story
+ * claims keyed on the head branch, so the session vanishes from the map unless it re-declares. The
+ * sidecar owns noticeboard access (drive never imports @storytree/cli, ADR-0112), so the re-declare
+ * is an INJECTED hook. Best-effort: a failed re-declare is noted, never fails the landing.
+ */
+export type ReDeclarePresenceFn = (args: {
+  /** The fresh branch the session now works on (the claim/presence key). */
+  branch: string;
+  /** The story node whose wisp must re-light. */
+  storyNodeId: string;
+}) => Promise<void>;
+
 /** What {@link buildLandingDeps} composes the real landing deps from. */
 export interface BuildLandingDepsArgs {
   /** The repo checkout the gate + merge ceremony run in (the desktop sidecar's cwd). */
@@ -123,6 +137,26 @@ export interface BuildLandingDepsArgs {
   branch: string;
   /** Injected exec seam for offline tests (ADR-0010 §5); omit for a live run (the real spawn). */
   exec?: ExecFn;
+  /**
+   * The bare slug for a FRESH branch (`claude/<slug>`), cut before committing when the session branch
+   * is already merged into the trunk (ADR-0163 Gap B1 / ADR-0142: a branch dies on merge, so a PR
+   * from it is refused by CI's merged-branch guard). Threaded in — NOT generated with Date.now/random
+   * inside drive — so the fresh-branch path is deterministically testable; the sidecar supplies a
+   * per-session-unique slug. Absent → the already-merged path is a fail-closed refusal (nothing to
+   * cut), never a doomed PR.
+   */
+  freshBranchSlug?: string;
+  /**
+   * The story node whose wisp must re-light after a fresh branch is cut (ADR-0142). Paired with
+   * {@link reDeclarePresence}; either absent → the re-declare is skipped (documented in the summary).
+   */
+  storyNodeId?: string;
+  /**
+   * Injected presence re-declare hook (ADR-0142). Called best-effort AFTER the fresh branch is cut,
+   * only when a {@link storyNodeId} is also provided. Absent → skipped (the sidecar wires it as
+   * operator-attested glue; the fresh-branch cut itself already clears the CI-guard rejection).
+   */
+  reDeclarePresence?: ReDeclarePresenceFn;
 }
 
 /** Typed result — a composition failure is an error BEFORE any deps are built, never a throw. */
@@ -149,6 +183,29 @@ function parsePrUrl(stdout: string): string | undefined {
   return match !== null ? match[0] : undefined;
 }
 
+/**
+ * Detect whether `branch` already landed — the EXACT condition CI's merged-branch guard rejects on
+ * (`scripts/merged-branch-guard.sh`, ADR-0142): a MERGED PR whose head is this branch. Runs the
+ * guard's own query, `gh pr list --head <branch> --state merged`; non-empty output → already merged.
+ *
+ * FAIL-OPEN on a `gh` error (`undefined`): a flaky API must never force a spurious fresh branch — the
+ * ceremony proceeds on the current branch (the same fail-open the guard itself uses on gh errors).
+ * Only a positive, confirmed merge diverts to the fresh-branch path.
+ */
+async function branchAlreadyMerged(
+  exec: ExecFn,
+  cwd: string,
+  branch: string,
+): Promise<boolean | undefined> {
+  const result = await exec(
+    "gh",
+    ["pr", "list", "--head", branch, "--state", "merged", "--json", "number", "--jq", ".[].number"],
+    { cwd },
+  );
+  if (result.code !== 0) return undefined; // can't determine → fail-open (proceed on current branch)
+  return result.stdout.trim().length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
@@ -158,6 +215,12 @@ function parsePrUrl(stdout: string): string | undefined {
  * shells the merge ceremony (`git add -A` → `git commit` → `git push -u origin <branch>` → a
  * NON-DRAFT `gh pr create`), all behind the injected exec seam and fail-closed on any non-zero
  * exit. Never throws: a blank identity is a typed `{ ok: false, error }`.
+ *
+ * ALREADY-MERGED GUARD (ADR-0163 Gap B1 / ADR-0142): before committing, `openLandingPr` checks
+ * whether the session branch already landed as a merged PR (the guard's own `gh pr list` query). If
+ * so it cuts a FRESH branch (`claude/<freshBranchSlug>`) first and re-lights the story wisp via the
+ * injected {@link ReDeclarePresenceFn} — so the desktop orchestrator never opens a PR CI's
+ * merged-branch guard would refuse (the observed PR #599 failure). Not merged → unchanged.
  */
 export function buildLandingDeps(args: BuildLandingDepsArgs): BuildLandingDepsResult {
   // Fail-closed identity: a blank cwd would run the ceremony in an undefined directory; a blank
@@ -177,7 +240,7 @@ export function buildLandingDeps(args: BuildLandingDepsArgs): BuildLandingDepsRe
   }
 
   const exec = args.exec ?? defaultExec;
-  const { cwd, branch } = args;
+  const { cwd, branch, freshBranchSlug, storyNodeId, reDeclarePresence } = args;
 
   const deps: LandingSurfaceDeps = {
     runGate: async () => {
@@ -186,12 +249,55 @@ export function buildLandingDeps(args: BuildLandingDepsArgs): BuildLandingDepsRe
     },
 
     openLandingPr: async ({ commitMessage, prTitle, prBody }): Promise<LandingPrResult> => {
+      // ADR-0163 Gap B1 / ADR-0142: a branch dies on merge. If the session branch already landed as a
+      // merged PR, committing + opening a PR from it is REFUSED by CI's merged-branch guard
+      // (scripts/merged-branch-guard.sh; the observed PR #599 failure). Detect it FIRST and cut a
+      // FRESH branch before the ceremony — then re-light the story wisp (presence + claim are
+      // machine-cleared on merge). A `notes` line trails into the success summary so the diversion is
+      // visible. Fail-open on an undetermined check (proceed on the current branch, unchanged).
+      let activeBranch = branch;
+      let notes = "";
+      const merged = await branchAlreadyMerged(exec, cwd, branch);
+      if (merged === true) {
+        if (freshBranchSlug === undefined || freshBranchSlug.trim() === "") {
+          // Nothing to cut: refuse fail-closed rather than open a PR CI's guard will reject.
+          return {
+            ok: false,
+            summary:
+              `branch '${branch}' already landed as a merged PR (a branch dies on merge, ADR-0142), ` +
+              `but no freshBranchSlug was provided to cut a new one — refusing to open a PR CI's ` +
+              `merged-branch guard would reject (ADR-0163 Gap B1). Cut a fresh branch and retry.`,
+          };
+        }
+        const fresh = `claude/${freshBranchSlug.trim()}`;
+        const cut = await exec("git", ["checkout", "-b", fresh], { cwd });
+        if (cut.code !== 0) {
+          return { ok: false, summary: `git checkout -b ${fresh} failed:\n${summarise(cut)}` };
+        }
+        activeBranch = fresh;
+        notes = `\nbranch '${branch}' was already merged (ADR-0142) — cut fresh branch '${fresh}' first`;
+
+        // Re-light the story wisp best-effort (presence is board state, not landing correctness): a
+        // failed re-declare is noted, never a thrown ceremony failure. Skipped (with a note) when the
+        // sidecar has not wired the hook / a story node — the fresh-branch cut alone clears the guard.
+        if (reDeclarePresence !== undefined && storyNodeId !== undefined && storyNodeId.trim() !== "") {
+          try {
+            await reDeclarePresence({ branch: fresh, storyNodeId });
+            notes += `; re-declared presence on '${storyNodeId}' so the wisp re-lights`;
+          } catch (e) {
+            notes += `; presence re-declare FAILED (best-effort, landing continues): ${(e as Error).message}`;
+          }
+        } else {
+          notes += "; presence re-declare deferred (no hook / story node wired — sidecar glue)";
+        }
+      }
+
       // The merge ceremony, step by step — each step must exit 0 to proceed. A non-zero exit is a
       // fail-closed `{ ok: false }` naming the failing step; never a throw (exec never rejects).
       const steps: Array<{ label: string; cmd: string; args: string[] }> = [
         { label: "git add", cmd: "git", args: ["add", "-A"] },
         { label: "git commit", cmd: "git", args: ["commit", "-m", commitMessage] },
-        { label: "git push", cmd: "git", args: ["push", "-u", "origin", branch] },
+        { label: "git push", cmd: "git", args: ["push", "-u", "origin", activeBranch] },
         // NON-DRAFT (never `--draft`): CI re-proves and auto-merges (ADR-0022). Never `gh pr merge`.
         {
           label: "gh pr create",
@@ -213,7 +319,7 @@ export function buildLandingDeps(args: BuildLandingDepsArgs): BuildLandingDepsRe
       const prUrl = parsePrUrl(lastStdout);
       return {
         ok: true,
-        summary: `landing PR opened for ${branch} (non-draft — CI re-proves and auto-merges, ADR-0022)`,
+        summary: `landing PR opened for ${activeBranch} (non-draft — CI re-proves and auto-merges, ADR-0022)${notes}`,
         ...(prUrl !== undefined ? { prUrl } : {}),
       };
     },

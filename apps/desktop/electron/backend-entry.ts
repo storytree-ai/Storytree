@@ -757,7 +757,16 @@ async function main(): Promise<void> {
     // built (typed { ok:false }); on refusal the chat mounts WITHOUT the landing surface — read/propose/
     // spawn only, byte-identical to before ADR-0152 — logged once to stderr. The landing power is
     // additive; its absence never breaks the read/propose/spawn chat.
-    const landingComposed = buildLandingDeps({ cwd: repoRoot, branch: identity.branch });
+    // ALREADY-MERGED GUARD (ADR-0163 Gap B1 / ADR-0142): if the session branch already landed as a
+    // merged PR, openLandingPr cuts a FRESH branch (`claude/<slug>`) before committing so the PR is
+    // not refused by CI's merged-branch guard (the observed PR #599 failure). We supply the slug here
+    // (drive stays Date.now-free by taking it as a plain arg, ADR-0010) — session id + a short
+    // timestamp keeps it unique across sessions; Date.now is fine in the electron main process.
+    // The presence RE-DECLARE hook + story node are DEFERRED to sidecar glue: this composition site
+    // has no per-session story node, so re-declare is skipped (noted in the landing summary). The
+    // fresh-branch cut alone clears the guard rejection; re-lighting the wisp is a follow-on.
+    const freshBranchSlug = `${identity.sessionId}-reland-${Date.now().toString(36)}`;
+    const landingComposed = buildLandingDeps({ cwd: repoRoot, branch: identity.branch, freshBranchSlug });
     if (landingComposed.ok) {
       landing = landingComposed.deps;
       console.error(
