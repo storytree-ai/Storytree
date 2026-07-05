@@ -31,6 +31,13 @@ depends_on: [library]
 # it, declared consumer-side in stories/store/story.md depends_on; the cli edge is declared here to
 # de-noise the hub.
 consumed_by: [cli]
+# Studio render hint (ADR-0076 / ADR-0088 / ADR-0102): the notice board is shared session-presence
+# infrastructure consumed by nearly everything — 10 direct map dependents (the most of any laid-out
+# island, 2026-07-05 audit), whose roads span up to 8 ranks and clutter the map. Owner steer
+# 2026-07-05 — lift it into the Shared Islands panel like `library`/`cli`: consumers carry its icon
+# stamp (ADR-0102) instead of roads. The graph is unchanged — depends_on/consumed_by stay as-is;
+# only the render flips. Appearance owner-attested (ADR-0070); `?buildings=off` restores the island.
+render: building
 decisions: [33] # deciding ADR (ADR-0037 §2)
 ---
 

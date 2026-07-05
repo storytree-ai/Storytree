@@ -54,35 +54,39 @@ capabilities: [glue-worker-spawn, spawn-glue-tool, glue-deps-composition]
 #                     into. This story GENERALISES + EXTENDS those files additively under the declared
 #                     edge (edit-first: the fence machinery EXISTS — this role-neutralises it and adds a
 #                     third caller), never a fork of the spawn chain.
-#   - wisp-as-story-claim — the claim LAYER the glue spawn's wall stands on: the E1 acquire-or-wait seam
-#                     (resolveSpawnClaim, packages/agent/src/spawn-claim.ts) + the work-time claim store
-#                     deltas (PgClaimStore + workClaimRequest intent + bumpHeartbeat). spawn_glue_worker
-#                     is a THIRD claim-gated spawn on the same wall — no new claim primitive.
-#   - notice-board  — the claim PRIMITIVE consumed by the gate: ClaimDoc / ClaimResult / workClaimRequest
-#                     / bumpHeartbeat (packages/notice-board/src/claim.ts).
+#   (wisp-as-story-claim — the claim LAYER the glue spawn's wall stands on (the E1 acquire-or-wait seam
+#                     + the work-time claim store deltas) — is consumed THROUGH chat-subagent-spawn's
+#                     claimGatedSpawn, consumed verbatim (spawn_glue_worker is a third caller of the
+#                     same wall, no new claim primitive): a transitive seam via that declared edge, not
+#                     re-declared here — redundant-transitive edge removed, 2026-07-05 map-health cleanup.)
+#   (notice-board   — the claim PRIMITIVE (ClaimDoc / ClaimResult / workClaimRequest / bumpHeartbeat) —
+#                     is consumed BY the gate (chat-subagent-spawn's claimGatedSpawn), not by this
+#                     story's own code: transitive via that declared edge, not re-declared here.)
 #   - agent         — the SDK organism: ADR-0004's single-import-site rule FORCES the generalised runner +
 #                     the spawn tool surface into packages/agent (every @anthropic-ai/* import lives
 #                     there); the glue worker reuses the published seams — the injectable SdkQueryFn and
 #                     the fail-closed PreToolUse write-scope hook the runner already pins.
-#   - drive-machinery — the physical host of spawn-deps.ts + the orchestrate pass-through; drive imports
-#                     nothing from cli (ADR-0112). spawnGlueWorker is composed here.
+#   (drive-machinery — the physical host of spawn-deps.ts, where spawnGlueWorker is composed — hosts a
+#                     chat-subagent-spawn-owned file this story edits ADDITIVELY under THAT declared
+#                     edge; the drive hosting edge is chat-subagent-spawn's to declare (and it does),
+#                     so it is transitive here, not re-declared. Drive imports nothing from cli (ADR-0112).)
 #   - library       — the knowledge surface: renderAgentPrompt(store, "glue-worker")
 #                     (packages/library/src/store/render-agent.ts) — the spawned glue role IS a rendered
 #                     library agent (ADR-0051/0055 extended to subagents, ADR-0160 D4), never a forked
 #                     prompt. The `glue-worker` agent artifact is authored in the seed + rendered (agent
 #                     tier = seed-canonical, ADR-0055) — a KNOWLEDGE-TIER authoring dependency this story
 #                     names but does not model as a capability (see Open modeling calls 1).
-#   - desktop       — the SURFACE the glue-actuator-capable chat ships on: the sidecar
-#                     (apps/desktop/electron/backend-entry.ts) composes the REAL glue dep (the pg claim
-#                     store, the repo cwd, the session identity) into the chat mount — sidecar glue,
-#                     operator-attested like the rest of that file (and the very file the incident and the
-#                     canonical scoped-edit example target).
+#   (desktop        — the SURFACE the glue-actuator-capable chat ships on (and backend-entry.ts, the
+#                     very file the incident and the canonical scoped-edit example target) — is reached
+#                     via chat-subagent-spawn → desktop-build-mount → desktop; the sidecar wiring stays
+#                     an operator-attested Story-UAT leg with no code unit here, so the edge is not
+#                     declared directly — redundant-transitive edge removed, 2026-07-05 map-health cleanup.)
 # DIRECTION / NO CYCLE (ADR-0058): this story is a PURE SOURCE NODE — nothing depends on it. Every edge
-# flows DOWN toward the roots (scoped-glue-actuator → {chat-subagent-spawn, wisp-as-story-claim, desktop}
-# → … → {agent, notice-board, library}); none of the named stories' depends_on lists this story, so the
+# flows DOWN toward the roots (scoped-glue-actuator → {chat-subagent-spawn, agent, library} → … →
+# {notice-board, library}); none of the named stories' depends_on lists this story, so the
 # new edges introduce no cycle. (chat-subagent-spawn is itself a pure source node depending on the same
 # roots; this story sits one layer above it on the same downward-flowing DAG.)
-depends_on: [chat-subagent-spawn, wisp-as-story-claim, notice-board, agent, drive-machinery, library, desktop]
+depends_on: [chat-subagent-spawn, agent, library]
 # Deciding ADRs (ADR-0037 §2): 160 (PRIMARY — the scoped glue actuator is shape (a): a fenced,
 # write-scoped, claim-gated spawn_glue_worker MCP tool honouring a task prompt; D2 reuse the fence runner
 # generalised, no new write path; D3 land through the existing gate→PR, the D3 boundary of 0158
@@ -221,8 +225,11 @@ independent root.
 
 ## Cross-story boundary (ADR-0010 §4)
 
-Authored from the intended consumed seams (re-verify against real imports when built). All seven are
-CONSUMED, not absorbed — this story owns the SCOPED GLUE ACTUATOR (the generalisation of the fence runner,
+Authored from the intended consumed seams (re-verify against real imports when built). All seven seams
+are CONSUMED, not absorbed — three as declared `depends_on` edges (chat-subagent-spawn, agent, library);
+the other four (wisp-as-story-claim, notice-board, drive-machinery, desktop) are reached TRANSITIVELY
+through chat-subagent-spawn's declared edges and are noted below without being re-declared — and this
+story owns the SCOPED GLUE ACTUATOR (the generalisation of the fence runner,
 the `spawn_glue_worker` tool + the `spawn_builder` honesty fix, the glue deps composition), never the
 fence machinery's origin, the claim store, the loop definitions, or the chat chain.
 
@@ -240,18 +247,22 @@ fence machinery's origin, the claim store, the loop definitions, or the chat cha
     a third gated caller); no change to the gate.
   - `packages/drive/src/spawn-deps.ts` — `buildSpawnDeps` renders the new `glue-worker` agent + wires
     `spawnGlueWorker`, threaded through the existing `orchestrate()` pass-through additively.
-- **`wisp-as-story-claim`** — the claim layer. The glue spawn consumes the E1 acquire-or-wait seam
+- **`wisp-as-story-claim`** *(transitive — consumed through chat-subagent-spawn's `claimGatedSpawn`,
+  under that declared edge)* — the claim layer. The glue spawn consumes the E1 acquire-or-wait seam
   (`resolveSpawnClaim`, `packages/agent/src/spawn-claim.ts`) and the work-time claim-store deltas
   (`PgClaimStore.claim()` / `bumpHeartbeat`, injected) via `claimGatedSpawn`, claim-gated on the OWNING
   story `unitId`. No new claim primitive; the glue spawn is a third caller of the same wall.
-- **`notice-board`** — the claim primitive: `workClaimRequest` / `ClaimResult` / `bumpHeartbeat`
+- **`notice-board`** *(transitive — consumed by the gate, not by this story's own code)* — the claim
+  primitive: `workClaimRequest` / `ClaimResult` / `bumpHeartbeat`
   (`packages/notice-board/src/claim.ts`).
 - **`agent`** — the SDK organism. The generalised runner + the tool surface physically live in
   `packages/agent` (FORCED by ADR-0004's single-import-site rule), reusing the published seams: the
   injectable `SdkQueryFn` and the fail-closed PreToolUse write-scope hook (`packages/agent/src/
   spawn-story-author.ts` / `sdk-author.ts` — the same "writes denied BEFORE they land; Bash not in the
   tool surface" wall).
-- **`drive-machinery`** — the physical host of `spawn-deps.ts` and of the orchestrate pass-through.
+- **`drive-machinery`** *(transitive — `spawn-deps.ts` is a chat-subagent-spawn-owned file edited
+  additively under that declared edge; the drive hosting edge is chat-subagent-spawn's)* — the physical
+  host of `spawn-deps.ts` and of the orchestrate pass-through.
   `@storytree/drive` imports nothing from `@storytree/cli` (ADR-0112).
 - **`library`** — `renderAgentPrompt(store, "glue-worker")`
   (`packages/library/src/store/render-agent.ts`): the spawned glue role IS the rendered library agent
@@ -260,7 +271,8 @@ fence machinery's origin, the claim store, the loop definitions, or the chat cha
   artifact is authored in the seed (`apps/studio/data/knowledge.json`) + rendered offline (agent tier =
   seed-canonical, ADR-0055) — a KNOWLEDGE-TIER authoring dependency (see Open modeling calls 1). CONSUMED
   — this story owns no prompt assembly and no schema.
-- **`desktop`** — the surface the glue-actuator-capable chat ships on. The sidecar
+- **`desktop`** *(transitive — reached via chat-subagent-spawn → desktop-build-mount → desktop; not a
+  declared `depends_on` here)* — the surface the glue-actuator-capable chat ships on. The sidecar
   (`apps/desktop/electron/backend-entry.ts`) composes the REAL glue dep (the pg claim store, the repo
   cwd, the session identity) into the chat mount — sidecar glue, operator-attested like the rest of that
   file (a `node:test` over it would spawn subscription-billed sessions on a gate pass, the live spend

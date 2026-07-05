@@ -75,15 +75,16 @@ capabilities: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn, sp
 #                     (packages/library/src/store/render-agent.ts) — the spawned role IS the rendered
 #                     library agent (ADR-0051 extended to subagents), never a forked prompt — plus the
 #                     seed corpus / work-hierarchy schema the proofs render.
-#   - desktop       — the SURFACE the spawn-capable chat ships on: the sidecar (apps/desktop/electron/
-#                     backend-entry.ts) composes the REAL spawn deps (the pg claim store, the live
-#                     BuildContext, the repo cwd, the session identity) into the chat mount — sidecar
-#                     glue, operator-attested like the rest of that file.
+#   (desktop        — the SURFACE the spawn-capable chat ships on — is reached via desktop-build-mount,
+#                     whose declared edges include desktop, so it is NOT re-declared here (redundant-
+#                     transitive edge removed, 2026-07-05 map-health cleanup): the sidecar
+#                     (apps/desktop/electron/backend-entry.ts) composing the REAL spawn deps into the
+#                     chat mount is operator-attested glue with no code unit in this story.)
 # DIRECTION / NO CYCLE (ADR-0058): this story is a PURE SOURCE NODE — nothing depends on it. Every
 # edge flows DOWN toward the roots (chat-subagent-spawn → {headless-orchestrator, wisp-as-story-claim,
-# desktop-build-mount, desktop} → … → {agent, notice-board, library}); none of the named stories'
+# desktop-build-mount} → … → {agent, notice-board, library}); none of the named stories'
 # depends_on lists this story, so the new edges introduce no cycle.
-depends_on: [headless-orchestrator, wisp-as-story-claim, notice-board, agent, drive-machinery, desktop-build-mount, library, desktop]
+depends_on: [headless-orchestrator, wisp-as-story-claim, notice-board, agent, drive-machinery, desktop-build-mount, library]
 # Deciding ADRs (ADR-0037 §2): 137 (PRIMARY — chat is the full session-orchestrator; it SPAWNS the
 # inner loop; decision 4's a-bug-is-a-missing-contract consultative routing; ADR-authoring the sole
 # direct write, out of this story's shipped surface); 108 (Phase 3 drive authority — the phased build
@@ -223,8 +224,9 @@ when the units are built they MUST be re-derived from the real imports/calls bet
 
 ## Cross-story boundary (ADR-0010 §4)
 
-Authored from the intended consumed seams (re-verify against real imports when built). All eight are
-CONSUMED, not absorbed — this story owns the SPAWN AUTHORITY (the fenced story-author runner, the
+Authored from the intended consumed seams (re-verify against real imports when built). All eight seams
+are CONSUMED, not absorbed — seven as declared `depends_on` edges; the desktop surface is reached
+transitively via desktop-build-mount (see its bullet) — and this story owns the SPAWN AUTHORITY (the fenced story-author runner, the
 worker-routed builder dispatch, the claim gate, the tool surface, the deps composition), never the SDK
 seam, the claim store, the build worker, the loop definitions, or the chat chain.
 
@@ -262,7 +264,8 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
   (ADR-0051's one-loop-definition, extended to the spawned subagents — edit the artifact, regenerate,
   and the terminal story-author and the spawned story-author move together); plus the seed corpus the
   offline proofs render. CONSUMED — this story owns no prompt assembly and no schema.
-- **`desktop`** — the surface the spawn-capable chat ships on. The sidecar
+- **`desktop`** *(transitive — reached via desktop-build-mount's declared `desktop` edge, not a
+  declared `depends_on` here)* — the surface the spawn-capable chat ships on. The sidecar
   (`apps/desktop/electron/backend-entry.ts`) composes the REAL deps (the pg claim store, the live
   `BuildContext` it already builds, the repo cwd, the session identity/branch) into the chat mount —
   sidecar glue, operator-attested like the rest of that file (a `node:test` over it would spawn

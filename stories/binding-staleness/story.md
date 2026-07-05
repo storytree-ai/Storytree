@@ -11,7 +11,10 @@ capabilities: [boundhash-on-verdict, change-event-store, source-drift, gate-emit
 # and `gate-emits-change` edits drive-machinery's prove-it-gate (packages/orchestrator/src/prove-it-gate.ts).
 # The drive's own UAT does not need this story's outcome (binding is purely additive/optional on the
 # gate), so the direction is binding-staleness → drive-machinery, acyclic.
-depends_on: [drive-machinery]
+# proof-protocol: an honesty edge the ADR-0115 drift report surfaced (2026-07-05 map audit) — this
+# story's registered unit sources import the change-event/drift DATA shapes (`ChangeEvent`/`DriftFlag`/
+# the anchor) from @storytree/proof-protocol directly, not only through the drive.
+depends_on: [drive-machinery, proof-protocol]
 # Deciding ADR (ADR-0037 §2): the knowledge↔code binding & staleness model (16). gate-emits-change also
 # stands on the prove-it-gate honesty walls (20).
 decisions: [16]

@@ -53,34 +53,43 @@ capabilities: [chat-spawn-trace-events, chat-panel-spawn-render, live-story-isla
 #                     (packages/agent/src/claim-gated-spawn.ts). This story TYPES those traces and
 #                     threads them out as additive ChatStreamEvents — additive edits to files that
 #                     story's capabilities own (physically in agent/drive), never a fork of the spawn.
-#   - chat-drive-bridge — owns the chat SSE mount + the ChatPanel/api.ts chat seam this story extends:
-#                     the ChatStreamEvent union threaded through startChatStream (packages/drive/src/
-#                     chat-stream.ts), the generic SSE forwarder (apps/desktop/src/backend/
-#                     chat-sse-mount.ts:307), and the ChatEvent union + isChatEvent guard + ChatPanel
-#                     render (apps/studio/src/api.ts, ChatPanel.tsx). Additive: a new non-terminal
-#                     `spawn` variant beside the existing delta/done/error/refused frames.
+#   (chat-drive-bridge — RETIRED (ADR-0155); stale edge dropped, 2026-07-05 map-health cleanup. The
+#                     chat seam this story extends lives on with other stories: startChatStream /
+#                     the ChatStreamEvent union (packages/drive/src/chat-stream.ts) with
+#                     headless-orchestrator's chat-session-stream (reached via chat-subagent-spawn),
+#                     the generic SSE forwarder with desktop's chat-sse-mount, and the ChatEvent union
+#                     + ChatPanel render with studio's chat-panel (both reached via
+#                     desktop-build-mount → desktop). Still additive: a new non-terminal `spawn`
+#                     variant beside the existing delta/done/error/refused frames.)
+#   - agent         — the trace-threading seam's agent-side types: the chat-stream seam this story
+#                     extends imports @storytree/agent directly (SdkQueryFn / OrientationRunner /
+#                     LandingSurfaceDeps, packages/drive/src/chat-stream.ts:29), and the swallowing
+#                     gate the traces are lifted past lives in packages/agent/src/claim-gated-spawn.ts
+#                     — a real code import the ADR-0115 drift report surfaced as "backed but
+#                     undeclared: agent"; declared here to keep the edge honest.
 #   - desktop-build-mount — owns the sidecar surface the chat + the advisory overlay reads ship on
 #                     (apps/desktop) and the build worker the builder spawn traces flow from. The
 #                     advisory cold-start fix lives in apps/desktop/src/backend/advisory.ts, consumed by
 #                     backend-entry.ts's inFlightClaims overlay read.
-#   - wisp-as-story-claim — owns the CLAIM + WISP layer this story's cold-start fix serves: the
-#                     work-time claim row inFlightClaims reads and the wisp the forest map lights from
-#                     it. This story does not build the wisp; it stops the fresh claim being dropped
-#                     before the wisp can light (ADR-0138).
-#   - notice-board — the claim PRIMITIVE the inFlightClaims read resolves (ClaimDoc / the work-time
-#                     claim store the advisory read races).
-#   - desktop — the SURFACE the spawn-visible chat + the live-refreshing map ship on: the Electron
-#                     renderer hosts the studio dist (ChatPanel + TreeView + ChatDock), and the sidecar
-#                     composes the advisory reader. Operator-attested glue.
+#   (wisp-as-story-claim — the CLAIM + WISP layer this story's cold-start fix SERVES — is an outcome
+#                     served, not a seam consumed directly (no import of and no edit to that story's
+#                     files; the wisp render stays that story's): transitive via chat-subagent-spawn's
+#                     declared edge, not re-declared here — 2026-07-05 map-health cleanup.)
+#   (notice-board  — the claim PRIMITIVE the inFlightClaims read resolves — is consumed by
+#                     backend-entry.ts's overlay read (desktop-build-mount's seam), not by this story's
+#                     own code: transitive via the declared edges, not re-declared here.)
+#   (desktop       — the SURFACE the spawn-visible chat + the live-refreshing map ship on — is reached
+#                     via desktop-build-mount → desktop; operator-attested glue with no code unit here,
+#                     so the edge is not declared directly.)
 #   - library — the work-hierarchy schema the just-authored story renders from when TreeView reloads
 #                     (the reloadTree fetch reads the tree the spawned story-author wrote to stories/).
 # DIRECTION / NO CYCLE (ADR-0058): this story is a PURE SOURCE NODE — nothing depends on it. Every
-# edge flows DOWN toward the roots (spawn-visibility → {chat-subagent-spawn, chat-drive-bridge,
-# desktop-build-mount, wisp-as-story-claim, desktop} → … → {notice-board, library}); none of the named
-# stories' depends_on lists this story, so the new edges introduce no cycle. In particular
-# chat-subagent-spawn is a source node too (nothing depends on it), and this story depends on IT, not
-# the reverse — a clean downward edge.
-depends_on: [chat-subagent-spawn, chat-drive-bridge, desktop-build-mount, wisp-as-story-claim, notice-board, desktop, library]
+# edge flows DOWN toward the roots (spawn-visibility → {chat-subagent-spawn, desktop-build-mount,
+# agent, library} → … → {notice-board, library}); none of the named stories' depends_on lists this
+# story, so the edges introduce no cycle (agent's only dependency is notice-board, which never reaches
+# back here). In particular chat-subagent-spawn is a source node too (nothing depends on it), and this
+# story depends on IT, not the reverse — a clean downward edge.
+depends_on: [chat-subagent-spawn, desktop-build-mount, agent, library]
 # Deciding ADRs (ADR-0037 §2): 137 (PRIMARY — the Phase-3 spawn whose ACTIVITY this surfaces; the walk
 # that found the gaps was ADR-0137's live UAT); 70 (two-stage visual proof — the chat spawn line + the
 # live island + the lit wisp are machine-proven in geometry, operator-attested in appearance); 138 (the
@@ -223,8 +232,12 @@ map-wisp arc; FIX 1 and FIX 2b).
 
 ## Cross-story boundary (ADR-0010 §4)
 
-Authored from the intended consumed seams (re-verify against real imports when built). All seven are
-CONSUMED, not absorbed — this story owns the VISIBILITY (the typed trace + its threading onto the chat
+Authored from the intended consumed seams (re-verify against real imports when built). All the seams
+are CONSUMED, not absorbed — four as declared `depends_on` edges (chat-subagent-spawn,
+desktop-build-mount, agent — the chat-stream seam's direct `@storytree/agent` import — and library);
+the chat-drive-bridge seam's owner is RETIRED (ADR-0155) and wisp-as-story-claim / notice-board /
+desktop are reached transitively through the declared edges, noted below without being re-declared —
+and this story owns the VISIBILITY (the typed trace + its threading onto the chat
 stream, the panel's spawn-line render, the dock→tree reload callback, the advisory cold-start budget),
 never the spawn authority, the SSE mount, the build worker, the claim store, the wisp render, or the
 tree schema.
@@ -238,7 +251,9 @@ tree schema.
   `ChatStreamSpawnEvent`, additive edits to files that story's capabilities own (physically in
   agent/drive), under the "code hosted in another story's package → declare the edge" precedent
   chat-subagent-spawn itself relies on. It does NOT change what a spawn DOES.
-- **`chat-drive-bridge`** — the chat seam this story extends. The `ChatStreamEvent` union threaded
+- **`chat-drive-bridge`** *(RETIRED, ADR-0155 — the edge is dropped; the seam lives on with
+  headless-orchestrator's `chat-session-stream`, desktop's `chat-sse-mount`, and studio's `chat-panel`,
+  all reached through the declared edges)* — the chat seam this story extends. The `ChatStreamEvent` union threaded
   through `startChatStream` (`packages/drive/src/chat-stream.ts:83`, the delta FIFO at :159–208), the
   generic SSE forwarder (`apps/desktop/src/backend/chat-sse-mount.ts:307` — `res.write(data:
   ${JSON.stringify(event)})` for ANY event), and the studio wire shape + render (`apps/studio/src/
@@ -250,13 +265,16 @@ tree schema.
   overlay reader) consumed by `backend-entry.ts`'s `inFlightClaims` overlay read; the builder spawn's
   traces originate in that story's relocated worker (`spawnBuilderDispatch`). CONSUMED — this story
   softens the advisory budget, it does not own the worker or the sidecar.
-- **`wisp-as-story-claim`** — the claim + wisp layer the cold-start fix serves. The work-time claim row
+- **`wisp-as-story-claim`** *(transitive — an outcome served, not a seam this story's code consumes
+  directly; reached via chat-subagent-spawn's declared edge)* — the claim + wisp layer the cold-start fix serves. The work-time claim row
   the `inFlightClaims` read resolves and the wisp the forest map lights from it are that story's; this
   story stops the fresh claim being DROPPED before the wisp can light (the 4s-timeout-on-cold-start
   gap), never renders the wisp itself (witnessing the lit wisp's colour is that story's appearance UAT).
-- **`notice-board`** — the claim primitive the `inFlightClaims` read resolves (`ClaimDoc` / the
+- **`notice-board`** *(transitive — consumed by `backend-entry.ts`'s overlay read, not by this story's
+  own code)* — the claim primitive the `inFlightClaims` read resolves (`ClaimDoc` / the
   work-time claim store the advisory read races, `packages/notice-board/src/claim.ts`).
-- **`desktop`** — the surface the spawn-visible chat + the live-refreshing map ship on. The Electron
+- **`desktop`** *(transitive — reached via desktop-build-mount's declared `desktop` edge, not a
+  declared `depends_on` here)* — the surface the spawn-visible chat + the live-refreshing map ship on. The Electron
   renderer hosts the studio dist (`ChatPanel` / `TreeView` / `ChatDock`) and the sidecar composes the
   advisory reader (`backend-entry.ts`) — operator-attested glue, like the rest of that file.
 - **`library`** — the work-hierarchy schema the just-authored story renders from when `TreeView`

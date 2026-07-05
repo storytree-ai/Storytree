@@ -11,7 +11,11 @@ capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-o
 # real code edge already exists: guestPolicy.ts imports @storytree/studio-members, and studio-members'
 # story declares "Membership is CONSUMED BY the hosted studio"). The broker persists a builder's
 # locally-signed verdict/presence under the studio's one service-account DB identity.
-depends_on: [studio, library, studio-members]
+# notice-board + proof-protocol: honesty edges the ADR-0115 drift report surfaced (2026-07-05 map
+# audit) — this story's registered unit sources import the presence schema (@storytree/notice-board,
+# the hosted server's session reads) and the verdict/signing shapes (@storytree/proof-protocol, the
+# broker's verdict persist) directly, not only through the studio.
+depends_on: [studio, library, studio-members, notice-board, proof-protocol]
 decisions: [42, 49, 117] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope
 ---
 
