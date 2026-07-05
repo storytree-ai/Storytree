@@ -7,7 +7,7 @@ outcome: "On the live home page, one visitor gesture breeds the storm: a single 
 status: proposed
 proof_mode: operator-attested
 depends_on: [experience-rollout-guardrails]
-decisions: [134]
+decisions: [134, 157]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The storm lands in storytree-web (a separate public
 # repo, its own CD; branch off ITS origin/main), which is NOT a pnpm workspace member, so the parent
 # spine cannot observe a red→green inside it — and the storm's real risk is FEEL (pacing, overwhelm,
@@ -33,6 +33,25 @@ canvas grain pass + Web Audio, **no WebGL bytes**.
 only replace the live home once the calm exits are machine-guarded (owner decision 6: real visitors
 hit every increment). This is also THE HOME FLIP increment: `index.astro` becomes the storm, an
 owner call on "presentable" (a HALT point, story open call 5).
+
+> **RE-SPEC SCOPE — the "storm" METAPHOR retires from visitor-facing copy (ADR-0157, owner-directed at
+> the H BUILD #2 gate 2026-07-05; the LOOK re-opens toward `building` for the copy, the built experience
+> STANDS).** The owner now dislikes the "storm" analogy and directed it removed from ALL surfaces
+> (a re-decision — it was previously loved and attested). WHAT CHANGES: the storm ANALOGY/word retires
+> from Act 1's **visitor-facing copy** (the diegetic terminal chatter, any label or narration a visitor
+> reads) and from forward-looking descriptive prose; Act 1 is described plainly — the overwhelming swarm
+> of coding agents, the chaotic pile of terminals, agents spawning agents until you cannot read any of
+> them (the plain description of the FELT experience IS the teach; the metaphor was never load-bearing).
+> WHAT DOES NOT CHANGE: Act 1's BUILT EXPERIENCE (terminal chaos → finale concession → transform to soil)
+> stays exactly as built and live; the cap ID `act1-terminal-storm` stays (an internal handle the visitor
+> never sees — the owner's "all surfaces" targets visitor-facing copy, not the machine id; renaming a
+> `--real`-adjacent cap id cascades and is a known merge-conflict trap, so it is out of scope here);
+> the "As built" records below stay TRUE HISTORY intact (copy-on-write) — their historical "storm" prose
+> is preserved as the account of what was built, not scrubbed. Per `defects-amend-the-owning-story` the
+> copy edit reverts this cap toward `building` and re-earns `healthy` on the storm-metaphor-free copy
+> through the gate; `healthy` is earned through the gate, never authored (ADR-0020). The chatter fiction
+> stays plain/opaque and jargon-light (`plain-language-first`) — it still DRAMATIZES the evidence base,
+> never cites statistics.
 
 > **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-02); the authored status stays
 > `proposed`.** Built by the `frontend-builder` in `storytree-web` (branch

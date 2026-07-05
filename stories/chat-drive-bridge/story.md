@@ -3,7 +3,16 @@ id: "chat-drive-bridge"
 tier: story
 title: "The propose→drive bridge — a chat proposal becomes a human-accepted, spine-signed, landed build (ADR-0108 Phases 3–4)"
 outcome: "From a chat conversation the orchestrator proposes a machine-actionable unit id; the human accepts it with one explicit, non-spoofable click; that click dispatches the already-built drive worker against the unit; the spine observes real RED→GREEN and signs; a non-draft PR opens for CI to land — and the build's coarse progress streams back into the same conversation, all the way to the signed verdict + opened PR."
-status: proposed
+# RETIRED by ADR-0155 (2026-07-04). This whole story built the chat propose_unit → accept-to-Build
+# handshake (ADR-0108 d.3). That handshake was removed in PR #587: the desktop session-orchestrator now
+# DRIVES via its spawn (ADR-0137) + landing (ADR-0152) tools rather than proposing a unit for a human to
+# click "Build". All four capabilities (proposed-unit-signal, proposal-id-threading, chat-build-dispatch,
+# accept-to-land-affordance) are retired with ADR-0155 as their deciding record; their deleted-feature
+# tests went with PR #587. The relocated `dispatchAcceptedBuild` worker call REMAINS live under
+# desktop-build-mount / builder-spawn-dispatch — only the chat propose/accept front retired. Body kept as
+# history. The live legs 5–6 (operator-attested) are moot: the accept-to-land experience they attested no
+# longer exists.
+status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the non-spoofable proposed-unit signal, the
 # threading through the stream, the dispatch routing/validation, the progress fold) are machine-

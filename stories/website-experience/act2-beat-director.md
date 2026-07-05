@@ -3,11 +3,11 @@ id: "act2-beat-director"
 tier: capability
 story: website-experience
 title: "The Act 2 beat director — the ONE continuous teaching script (website walk → UPSTREAM forest) as pure, provable choreography"
-outcome: "A pure, deterministic, visitor-paced director in @storytree/forest-world-r3f: beats are typed data (scene delta + camera target + narration key), advance() moves exactly one beat per call and parks on the final CTA state, the world holds MULTIPLE stories each with a dependsOn edge set and a tri-state status (proven/building/broken → green/sapling/withered) so the pull-back legend is HONEST, a new add-upstream-story delta raises a backend + database UPSTREAM of the website on real dependsOn edges pointing FROM the dependent TO its prerequisite (website.dependsOn=[backend], backend.dependsOn=[database], database.dependsOn=[]; ADR-0058 / cross-story-dependency), a limb may turn green ONLY when its delta carries a signed-proof marker — and the exported default script IS the ONE continuous arc: the website walk then the upstream dependency-layer reveal, walking end-to-end. The wrong-way UI→DB road is RETIRED as the teach (no longer a beat in the default script); the layer-violation road model may remain as a latent capability but is not what the shipped script teaches."
+outcome: "A pure, deterministic, visitor-paced director in @storytree/forest-world-r3f: beats are typed data (scene delta + camera target + narration key), advance() moves exactly one beat per call and parks on the final CTA state, the world holds MULTIPLE stories each with a dependsOn edge set and a tri-state status (proven/building/broken → green/sapling/withered) so the pull-back legend is HONEST, a new add-upstream-story delta raises a backend + database UPSTREAM of the website on real dependsOn edges pointing FROM the dependent TO its prerequisite — in the BaaS shape the owner confirmed at the H#2 gate (ADR-0157): the frontend reads the database directly, so the delta must let one prerequisite be depended on by MORE THAN ONE story, giving website.dependsOn=[backend, database], backend.dependsOn=[database], database.dependsOn=[] (a diamond; ADR-0058 / cross-story-dependency), a limb may turn green ONLY when its delta carries a signed-proof marker — and the exported default script IS the ONE continuous arc: the website walk then the upstream dependency-layer reveal, walking end-to-end. The wrong-way UI→DB road is RETIRED as the teach (no longer a beat in the default script); the layer-violation road model may remain as a latent capability but is not what the shipped script teaches."
 status: proposed
 proof_mode: integration-test
 depends_on: [r3f-world-spike]
-decisions: [134, 150, 153]
+decisions: [134, 150, 153, 157]
 # Node-borne proof config (ADR-0057 keystone). NET-NEW in the spike-born package (original build) —
 # RE-SPECCED by ADR-0150 (owner-directed at the G attestation gate 2026-07-04): the
 # director GROWS to a multi-story-with-dependsOn vocabulary, adds an add-upstream-story delta and a
@@ -19,7 +19,19 @@ decisions: [134, 150, 153]
 # prerequisite (website.dependsOn=[backend], backend.dependsOn=[database], database.dependsOn=[];
 # ADR-0058 §1 / cross-story-dependency: A depends_on B iff A needs B's delivered outcome to pass A's
 # own UAT). The previously-authored-but-never-proven backwards encoding (backend dependsOn website) is
-# removed before it was ever built at the grown vocabulary. The director
+# removed before it was ever built at the grown vocabulary.
+# Then RE-SPECCED AGAIN by ADR-0157 (owner-directed at the H BUILD #2 gate 2026-07-05, where H#2 was
+# attested "as a step forward" + landed live): the owner CONFIRMED the BaaS architecture ADR-0153 left
+# open — the frontend reads the DATABASE DIRECTLY. So the graph gains a direct website->database edge (in
+# the SAME corrected direction, dependent -> prerequisite): website.dependsOn=[backend, database],
+# backend.dependsOn=[database], database.dependsOn=[] — a diamond with the database as the shared sink.
+# The as-built add-upstream-story delta carries a single dependentId; to encode the diamond the delta
+# must let one upstream story be attached as a prerequisite of MORE THAN ONE existing story
+# (dependentId: string | string[], or an equivalent direct-edge mechanism) — raise the database once
+# with dependentId spanning both the website and the backend. The edge direction stays dependent ->
+# prerequisite for each; green-only-on-signed-proof is PRESERVED verbatim; the wrong-way road stays
+# retired. This is a re-build red->green under the existing contract (defects-amend-the-owning-story);
+# healthy is earned through the gate, never authored (ADR-0020). The director
 # stays PURE .ts — beats-as-data in, scene states out; no React, no three.js, no timers (visitor-paced
 # means state changes ONLY on advance()) — so it is node:test-provable and rides the same sync artifact
 # as the mapper. install: true (it builds World fixtures via @storytree/forest-world and the r3f
@@ -54,8 +66,11 @@ beats are typed data (scene delta + camera target + narration key), `advance()` 
 beat per call and parks on the final CTA state, the world holds **MULTIPLE stories** each with a
 `dependsOn` edge set and a **tri-state status** (`proven`/`building`/`broken` → green/sapling/withered)
 so the pull-back legend is **HONEST**, a new **`add-upstream-story`** delta raises a **backend + database
-UPSTREAM of the website** on real `dependsOn` edges pointing FROM the dependent TO its prerequisite
-(`website.dependsOn=[backend]`, `backend.dependsOn=[database]`; ADR-0058 / ADR-0153), a limb may turn
+UPSTREAM of the website** on real `dependsOn` edges pointing FROM the dependent TO its prerequisite — in
+the **BaaS shape the owner confirmed at the H#2 gate (ADR-0157): the frontend reads the database
+DIRECTLY**, so the delta must let **one prerequisite be depended on by MORE THAN ONE story**, giving
+`website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`, `database.dependsOn=[]` (a
+**diamond** with the database as the shared sink; ADR-0058 / ADR-0153 / ADR-0157), a limb may turn
 green ONLY when its delta carries a signed-proof marker — and the exported default script IS the **ONE
 continuous arc**: the website walk
 then the upstream dependency-layer reveal, walking end-to-end. The wrong-way UI→DB road is **RETIRED
@@ -64,33 +79,68 @@ as the teach** (no longer a beat in the default script).
 **Depends on —** [`r3f-world-spike`](r3f-world-spike.md) — the director lives in the mapper's
 package and emits the World / scene inputs the mapper draws.
 
-> **Proof status (honest) — BUILT (original single-story director), leaf-proven; RE-SPECCED by
-> ADR-0150 then CORRECTED by ADR-0153 — REVERTS to `building` for the grown, direction-corrected
-> vocabulary. The authored status stays `proposed`.** The gated SDK leaf first authored the NET-NEW
+> **Proof status (honest) — BUILT + LEAF-PROVEN at the grown, direction-corrected vocabulary
+> (`--real` PASS, run `real-mr6bktin`, `--store pg`; verdict commit `deb235e` / origin `30be855`;
+> consolidation `4fa1a69` / `c474582`; `storytree coverage act2-beat-director` = 4/4; the
+> `@storytree/forest-world-r3f` suite 16/16 green). The authored status stays `proposed`
+> (the whole STORY is not yet green).** History: the gated SDK leaf first authored the NET-NEW
 > single-story director through the real prove-it-gate (run `real-mr32b6ib`, signed PASS @ `2358bc4`
 > 2026-07-02; the five-beat website walk, the `green-only-on-signed-proof` refine, the wrong-way-road
-> flag). **ADR-0150** (owner-directed at the G attestation gate 2026-07-04) grows the director:
+> flag). **ADR-0150** (owner-directed at the G attestation gate 2026-07-04) grew the director:
 > multi-story-with-`dependsOn` `WorldState`, an `add-upstream-story` delta, a tri-state story status, an
 > honest legend, and a default script that is the ONE continuous arc (website walk → upstream forest).
 > **ADR-0153** (owner-directed at the H attestation gate 2026-07-04, where increment H was REFUSED)
-> CORRECTS the dependency DIRECTION the grown vocabulary must encode: the edge points FROM the dependent
+> CORRECTED the dependency DIRECTION the grown vocabulary encodes: the edge points FROM the dependent
 > TO its prerequisite — `website.dependsOn=[backend]`, `backend.dependsOn=[database]`,
 > `database.dependsOn=[]` (ADR-0058 §1 / `cross-story-dependency`: A depends_on B iff A needs B's
 > delivered outcome to pass A's own UAT; the `boundary` def's "a frontend depends on a database"
-> archetype). The earlier spec text encoded this BACKWARDS (it said "the backend `dependsOn` the
-> website"); that was never built at the grown vocabulary, and the backwards encoding is removed here.
-> Per `defects-amend-the-owning-story`, this re-spec REVERTS the capability to `building` and re-builds
-> it red→green under its existing contract (not a new unit); `healthy` is earned through the gate, never
-> authored (ADR-0020). **PRESERVED verbatim:** the `green-only-on-signed-proof` data contract (the
-> verification-gap thesis; NOT retired, NOT weakened) and the pure/visitor-paced/renderer-agnostic
-> shape. **RETIRED as the teach:** the wrong-way UI→DB road — no longer a beat in the default script,
-> no longer contract-covered as the teach (ADR-0150 §4; the dependency-layer-as-advantage teach
-> replaces it). **SALVAGE:** the `--real`-proven grow on the unlanded `claude/laughing-galileo-fe1a0b`
-> branch (@ `8aa8d0f`) is ~70% of these mechanics, shaped for the WRONG (horizontal) framing — reuse
-> its multi-story state / tri-state status / honest legend / road-accumulation; ADAPT its `grow-forest`
-> flat-neighbor delta into `add-upstream-story` with `dependsOn` in the CORRECTED direction
-> (dependent → prerequisite); DROP its wrong-way preservation and its sibling-island arc (see "Salvage
-> & adapt" below). That branch dies unlanded; ADR-0147's number is orphaned in the store.
+> archetype). The earlier spec text encoded this BACKWARDS ("the backend `dependsOn` the website");
+> that was never built at the grown vocabulary, and the backwards encoding was removed. Per
+> `defects-amend-the-owning-story` this was a re-build red→green under the existing contract (not a new
+> unit); `healthy` was earned through the gate, never authored (ADR-0020).
+>
+> **As built (2026-07-05, verdict `deb235e`) — `packages/forest-world-r3f/src/act2-director.ts`:**
+> the corrected-direction `add-upstream-story` delta carries `dependentId` (line 132) — the id of the
+> EXISTING story whose `dependsOn` gains the new upstream story's id (`applyDelta` sets
+> `dependent.dependsOn = [...dependsOn, delta.id]`, lines 302–325), so the edge points FROM the
+> dependent TO its prerequisite. `StoryNode.dependsOn` is documented "FROM this story TO its
+> prerequisites — ADR-0058" (lines 201–214); the tri-state `status: 'proven' | 'building' | 'broken'`
+> backs the honest legend (line 209). The six-beat `defaultScript` IS the one continuous arc (lines
+> 396–501): plant-story → attach-wisp → branch-caps → `add-upstream-story` backend
+> (`dependentId: 'story-website'`, beat 4) → `add-upstream-story` database
+> (`dependentId: 'story-backend'`, beat 5) → `pull-back` with `proven: ['story-website']` (beat 6,
+> lines 495–500) — so the honest status mix at the reveal is website = proven, backend + database =
+> building (proposed/sapling, never green). Green stays gated: `LimbDelta`'s zod `refine` requires a
+> non-empty `signedProof` on every green limb (lines 56–72) and `advance()` runs `Beat.parse` before
+> applying (line 363), so a green-without-marker limb THROWS. The wrong-way `RoadDelta.violation` field
+> survives as a LATENT capability but the `add-roads` delta is a no-op in `applyDelta` and no beat in
+> `defaultScript` uses it (lines 82–92, 297–300) — retired as the teach, not the model.
+>
+> **PRESERVED verbatim:** the `green-only-on-signed-proof` data contract (the verification-gap thesis;
+> NOT retired, NOT weakened) and the pure/visitor-paced/renderer-agnostic shape. **RETIRED as the
+> teach:** the wrong-way UI→DB road — no longer a beat in the default script, no longer contract-covered
+> as the teach (ADR-0150 §4; the dependency-layer-as-advantage teach replaces it). **SALVAGE (history):**
+> the `--real`-proven grow on the unlanded `claude/laughing-galileo-fe1a0b` branch (@ `8aa8d0f`) was
+> ~70% of these mechanics, shaped for the WRONG (horizontal) framing; the landed build reused its
+> multi-story state / tri-state status / honest legend and ADAPTED its flat-neighbor delta into
+> `add-upstream-story` with `dependsOn` in the CORRECTED direction. That branch died unlanded; ADR-0147's
+> number is orphaned in the store.
+>
+> **RE-OPENED toward `building` by ADR-0157 (owner-directed at the H BUILD #2 gate 2026-07-05).** H#2's
+> re-build (still the 3-tier `website → backend → database` spine) was attested "as a step forward" and
+> landed live (web main `8f4e166c`); at that gate the owner CONFIRMED the **BaaS** architecture ADR-0153
+> had left open — *"the frontend would read directly from the database."* That adds a **direct
+> `website → database` edge** in the SAME corrected direction (dependent → prerequisite), so the graph
+> becomes the **diamond** `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`,
+> `database.dependsOn=[]`. The as-built delta carries a single `dependentId` (line 132) — the diamond
+> needs the delta to let one upstream story be a prerequisite of **more than one** existing story
+> (`dependentId: string | string[]`, or an equivalent direct-edge mechanism: raise the database once
+> with `dependentId` spanning both the website and the backend). This RE-OPENS the cap toward `building`
+> for the widened vocabulary; the H#2 `deb235e` verdict + the as-built above stay TRUE HISTORY
+> (copy-on-write). `green-only-on-signed-proof` is PRESERVED verbatim through the change; the wrong-way
+> road stays retired. The widen is a re-build red→green under the EXISTING contract
+> (`defects-amend-the-owning-story`) — a NEXT build link, not authored green here; `healthy` is earned
+> through the gate, never authored (ADR-0020).
 
 ## Guidance
 
@@ -115,21 +165,33 @@ backed by data, not a claim over a uniformly-amber forest. `plant-story` seeds t
 `building`; `add-upstream-story` raises each upstream story with an explicit status; a limb greening
 (contract 2) is the per-limb proof marker, distinct from the story-level status.
 
-THE UPSTREAM DELTA (NEW — ADR-0150; DIRECTION corrected by ADR-0153). `add-upstream-story`
-raises a story that an existing story DEPENDS ON, on a real dependency edge: each added story carries
-`{ id, label, status, dependsOn: string[] }`, and the edge points FROM the dependent TO its prerequisite
-— the WEBSITE `dependsOn` the backend, the BACKEND `dependsOn` the database
-(`website.dependsOn=[backend]`, `backend.dependsOn=[database]`, `database.dependsOn=[]`). This is the
-authoritative library rule (ADR-0058 §1 / `cross-story-dependency`: A depends_on B iff A needs B's
-delivered outcome to pass A's OWN UAT — the website needs the backend to serve a working checkout; the
-backend needs the database; a database is provable headless). So the world holds the layering
-`website → backend → database` (dependent → prerequisite), and the mapper can render the stack (the
-owner's spatial preference is frontend HIGH / foundation BELOW — a free render choice, ADR-0153).
-This REPLACES ADR-0147's flat `grow-forest` neighbor delta (sibling islands with no `dependsOn`) — the
-direction is vertical/upstream (toward what the website needs), not horizontal. **NOTE: an earlier draft
-of this section encoded the edge BACKWARDS ("the backend `dependsOn` the website"); that was the error
-ADR-0153 corrects — the added upstream stories do NOT carry a `dependsOn` back to the website; the
-WEBSITE carries the `dependsOn` to the backend.**
+THE UPSTREAM DELTA (NEW — ADR-0150; DIRECTION corrected by ADR-0153; the BaaS diamond confirmed by
+ADR-0157). `add-upstream-story` raises a story that an existing story DEPENDS ON, on a real dependency
+edge: each added story carries `{ id, label, status, dependsOn: string[] }`, and the edge points FROM
+the dependent TO its prerequisite. The **BaaS shape the owner confirmed at the H#2 gate (ADR-0157 —
+"the frontend would read directly from the database")** is: the WEBSITE `dependsOn` the backend AND the
+WEBSITE `dependsOn` the database directly, the BACKEND `dependsOn` the database —
+`website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`, `database.dependsOn=[]` — a
+**diamond** with the database as the shared sink. This is the authoritative library rule (ADR-0058 §1 /
+`cross-story-dependency`: A depends_on B iff A needs B's delivered outcome to pass A's OWN UAT — the
+website reads the catalog directly from the database, so it needs the database; the website needs the
+backend to serve a working checkout/payment; the backend needs the database; a database is provable
+headless). Because the database is now a prerequisite of BOTH the website and the backend, the delta
+must let **one upstream story be attached as a prerequisite of MORE THAN ONE existing story**: its
+dependent is `string | string[]` (or an equivalent direct-edge mechanism), so `applyDelta` fans the new
+id into each named dependent's `dependsOn` — raise the database once with the dependent spanning both
+the website and the backend. The edge direction stays dependent → prerequisite for each. So the world
+holds the diamond `website → {backend, database}`, `backend → database` (dependent → prerequisite), and
+the mapper can render the stack (the owner's spatial preference is frontend HIGH / foundation BELOW —
+a free render choice, ADR-0153/0157; the direct `website → database` read edge draws alongside the
+`website → backend → database` chain). This REPLACES ADR-0147's flat `grow-forest` neighbor delta
+(sibling islands with no `dependsOn`) — the direction is vertical/upstream (toward what the website
+needs), not horizontal. **NOTE: an earlier draft of this section encoded the edge BACKWARDS ("the
+backend `dependsOn` the website"); that was the error ADR-0153 corrects — the added upstream stories do
+NOT carry a `dependsOn` back to the website; the WEBSITE carries the `dependsOn` to its prerequisites.**
+**NOTE (ADR-0157): the as-built delta carries a single `dependentId` (the 3-tier spine); the diamond
+widening (`dependentId: string | string[]`) is the follow-on build link's red→green under the existing
+contract — not yet built.**
 
 THE ONE CONTINUOUS DEFAULT SCRIPT (the exported `defaultScript` — ADR-0150's arc). The script
 is ONE arc, not two phases: the website walk THEN the upstream reveal, walking end-to-end to the CTA.
@@ -146,14 +208,18 @@ The website-walk beats (carried forward from the original, with beat 4's teach r
 The upstream-forest beats (NEW — the dependency-layer-as-advantage teach that REPLACES the old beat 4):
 
 4. **Grow upstream — the backend.** `add-upstream-story` raises a **backend** story that the website
-   `dependsOn` — the edge is `website.dependsOn=[backend]` (the dependent → its prerequisite; ADR-0058 /
-   `cross-story-dependency`) — as `building` (proposed). The teach: the website NEEDS a backend to serve
-   a working checkout — you SEE the layer, up front, in order. This is the POSITIVE dependency-layer
-   teach that replaces the wrong-way-road antipattern beat.
-5. **Grow upstream — the database.** `add-upstream-story` raises a **database** story that the backend
-   `dependsOn` — the edge is `backend.dependsOn=[database]`. The forest now holds the layered stack
-   `website → backend → database` (dependent → prerequisite) with a genuinely mixed status set (proven /
-   building / broken across the stories), so the legend is honest.
+   `dependsOn` — the edge is `website.dependsOn` includes `backend` (the dependent → its prerequisite;
+   ADR-0058 / `cross-story-dependency`) — as `building` (proposed). The teach: the website NEEDS a
+   backend to serve a working checkout/payment — you SEE the layer, up front, in order. This is the
+   POSITIVE dependency-layer teach that replaces the wrong-way-road antipattern beat.
+5. **Grow upstream — the database (the shared foundation, BaaS diamond — ADR-0157).** `add-upstream-story`
+   raises a **database** story that BOTH the backend AND the website `dependsOn` directly — the dependent
+   spans both (`dependentId` = the backend AND the website), so `backend.dependsOn` includes `database`
+   AND `website.dependsOn` includes `database` (the frontend reads the catalog directly from the
+   database; the owner-confirmed BaaS shape). The forest now holds the **diamond** `website → {backend,
+   database}`, `backend → database` (dependent → prerequisite) with a genuinely mixed status set (proven /
+   building / broken across the stories), so the legend is honest. *(The as-built script uses the 3-tier
+   spine — a single `dependentId` per delta; the diamond fan-out is the follow-on build link.)*
 6. **Pull back** — the camera widens to the whole legible forest (green = proven, sapling =
    in-progress, withered = broken), then `done: true` — the CTA state.
 
@@ -212,11 +278,13 @@ and the CTA park. (No wrong-way-road assertion — retired as the teach.)
    assert the director refuses it (contract violation), so a faked "done" cannot colour the tree even in
    fiction. (PRESERVED verbatim from the original build.)
 3. After the upstream beats → assert the world holds MULTIPLE stories with `dependsOn` edges forming the
-   upstream layering in the CORRECT direction (`website.dependsOn` includes the backend;
-   `backend.dependsOn` includes the database — dependent → prerequisite, ADR-0058 / ADR-0153; the
-   upstream stories carry NO edge back to the website), and that the story statuses are a genuinely
-   mixed set (not uniform) so the pull-back legend is honest — the dependency-layer structure is in the
-   DATA, not a canvas hint.
+   upstream layering in the CORRECT direction as the **BaaS diamond** (`website.dependsOn` includes BOTH
+   the backend AND the database directly; `backend.dependsOn` includes the database — dependent →
+   prerequisite, ADR-0058 / ADR-0153 / ADR-0157; the upstream stories carry NO edge back to the website,
+   so the graph stays acyclic), that a single `add-upstream-story` delta CAN attach one upstream story
+   as a prerequisite of more than one existing story (the diamond's shared database sink), and that the
+   story statuses are a genuinely mixed set (not uniform) so the pull-back legend is honest — the
+   dependency-layer structure is in the DATA, not a canvas hint.
 4. Parse the exported default script with the exported zod contract → assert it validates (the same
    contract the site uses for its narration keys), and `advance()` past `done` is a no-op (the CTA
    state parks; no wrap-around).
@@ -237,13 +305,17 @@ reports 4/4.
      green-without-marker delta is refused loudly.
    - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
 3. **`abd-upstream-stories-carry-dependsOn-and-honest-status`** — the dependency layer is in the DATA,
-   in the CORRECT direction (NEW — replaces the retired `abd-wrong-way-road-is-flagged-from-data`; this
-   is the dependency-layer-as-advantage teach, made a data contract)
+   in the CORRECT direction, as the BaaS diamond (NEW — replaces the retired
+   `abd-wrong-way-road-is-flagged-from-data`; this is the dependency-layer-as-advantage teach, made a
+   data contract; ADR-0157 confirms the BaaS shape)
    - **asserts —** the `add-upstream-story` delta raises stories the existing story DEPENDS ON, on real
-     `dependsOn` edges pointing FROM the dependent TO its prerequisite — `website.dependsOn` includes
-     the backend and `backend.dependsOn` includes the database (the layering `website → backend →
-     database` is in the data; ADR-0058 / ADR-0153), and the added upstream stories do NOT carry a
-     `dependsOn` back to the website — and after the upstream beats the story statuses are a genuinely
+     `dependsOn` edges pointing FROM the dependent TO its prerequisite; a single delta can attach one
+     upstream story as a prerequisite of **more than one** existing story (the dependent is
+     `string | string[]`) — so `website.dependsOn` includes the backend AND the database, and
+     `backend.dependsOn` includes the database (the **diamond** `website → {backend, database}`,
+     `backend → database` is in the data; the frontend reads the database directly, ADR-0157;
+     ADR-0058 / ADR-0153), and the added upstream stories do NOT carry a `dependsOn` back to the website
+     (no reverse edge, no cycle) — and after the upstream beats the story statuses are a genuinely
      mixed tri-state set so the pull-back legend (green/sapling/withered) is backed by data, not a claim
      over uniform amber.
    - **covers —** `packages/forest-world-r3f/src/act2-director.ts`
@@ -266,10 +338,13 @@ framing. The re-build UNIFIES with it, it does not rebuild from scratch:
 - **ADAPT:** `StoryNode` gains `dependsOn: string[]` (ADR-0147's neighbor had none — its stories were
   siblings, not upstream). The `grow-forest` delta (flat neighbor list, no edges) becomes
   **`add-upstream-story`** whose edges point FROM the dependent TO its prerequisite — the WEBSITE
-  `dependsOn` the backend, the BACKEND `dependsOn` the database (ADR-0058 / ADR-0153, the corrected
-  direction; NOT the backwards "backend dependsOn website"). The new default-script beats are the
-  UPSTREAM arc (reveal the backend the website `dependsOn` → reveal the database the backend `dependsOn`
-  → pull-back) NOT the horizontal `grow-forest` + `connect-stories` neighbor arc.
+  `dependsOn` the backend AND the database directly, the BACKEND `dependsOn` the database (ADR-0058 /
+  ADR-0153 / ADR-0157, the corrected direction in the BaaS diamond; NOT the backwards "backend dependsOn
+  website"). To encode the diamond the delta's dependent is `string | string[]` (ADR-0157) so the
+  database can be attached as a prerequisite of both the website and the backend in one delta. The new
+  default-script beats are the UPSTREAM arc (reveal the backend the website `dependsOn` → reveal the
+  database BOTH the backend and the website `dependsOn` → pull-back) NOT the horizontal `grow-forest` +
+  `connect-stories` neighbor arc.
 - **DROP:** ADR-0147's beat-4-preservation and its wrong-way road AS THE TEACH (retire it from the
   default script); its horizontal `grow-forest` / `connect-stories` beats; its sibling-island framing.
 

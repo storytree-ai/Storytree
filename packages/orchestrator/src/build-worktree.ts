@@ -91,7 +91,7 @@ export async function createBuildWorktree(
     } catch {
       // Best-effort; the directory removal below still runs.
     }
-    await fs.rm(parent, { recursive: true, force: true });
+    await removeDirBestEffort(parent);
     throw new Error(`worktree ${label} failed (the worktree was torn down): ${(e as Error).message}`, {
       cause: e,
     });
@@ -130,7 +130,7 @@ export async function createBuildWorktree(
       } catch {
         // Best-effort: fall through to the directory removal + prune below.
       }
-      await fs.rm(parent, { recursive: true, force: true });
+      await removeDirBestEffort(parent);
       try {
         await runGit(["worktree", "prune"], repoRoot);
       } catch {
@@ -384,42 +384,41 @@ export function platformShellCommand(
 async function defaultPnpmAdd(root: string, groups: AddDepsGroup[]): Promise<void> {
   for (const group of groups) {
     // Canonical filter form: `pnpm --filter <pkg> add …` (the filter selects the package the `add`
-    // command runs in). `--prefer-offline` hard-links specs already in the shared store.
+    // command runs in). `--prefer-offline` hard-links specs already in the shared store. Retried on
+    // a transient Windows file-lock (win32-arm64 esbuild.exe — see {@link retryOnWindowsFileLock}).
     const cmd = platformShellCommand({
       file: "pnpm",
       args: ["--filter", group.packageName, "add", "--prefer-offline", ...group.deps],
       cwd: root,
     });
-    await new Promise<void>((resolve, reject) => {
-      execFile(
-        cmd.file,
-        cmd.args,
-        { cwd: cmd.cwd, maxBuffer: 64 * 1024 * 1024 },
-        (error, _stdout, stderr) => {
-          if (error === null) {
-            resolve();
-            return;
-          }
-          reject(
-            new Error(
-              `pnpm --filter ${group.packageName} add ${group.deps.join(" ")} failed: ${error.message}\n${stderr}`,
-              { cause: error },
-            ),
-          );
-        },
-      );
+    const label = `pnpm --filter ${group.packageName} add ${group.deps.join(" ")}`;
+    await retryOnWindowsFileLock(() => spawnPnpm(cmd, label), {
+      onRetry: (attempt, e) => warnRetry(label, attempt, e),
     });
   }
 }
 
-/** The default installer: a lockfile-only, shared-store-preferring pnpm install in the worktree. */
+/**
+ * The default installer: a lockfile-only, shared-store-preferring pnpm install in the worktree,
+ * retried on a transient Windows file-lock. On win32-arm64 the fresh worktree's install/relink
+ * intermittently fails to `unlink` a just-materialised binary (`@esbuild/win32-arm64/esbuild.exe`)
+ * whose handle a sibling process holds for a beat; a short backoff clears it (ADR-0031 worktree
+ * reliability). `pnpm install` is idempotent, so re-running after a partial failure completes it.
+ */
 async function defaultPnpmInstall(root: string): Promise<void> {
   const cmd = platformShellCommand({
     file: "pnpm",
     args: ["install", "--frozen-lockfile", "--prefer-offline"],
     cwd: root,
   });
-  await new Promise<void>((resolve, reject) => {
+  await retryOnWindowsFileLock(() => spawnPnpm(cmd, "pnpm install"), {
+    onRetry: (attempt, e) => warnRetry("pnpm install", attempt, e),
+  });
+}
+
+/** Spawn one pnpm command (no shell), rejecting with a labelled error that carries the stderr. */
+function spawnPnpm(cmd: ShellCommand, label: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     execFile(
       cmd.file,
       cmd.args,
@@ -429,10 +428,105 @@ async function defaultPnpmInstall(root: string): Promise<void> {
           resolve();
           return;
         }
-        reject(new Error(`pnpm install failed: ${error.message}\n${stderr}`, { cause: error }));
+        reject(new Error(`${label} failed: ${error.message}\n${stderr}`, { cause: error }));
       },
     );
   });
+}
+
+/** One-line notice that a worktree pnpm step hit a Windows lock and is being retried. */
+function warnRetry(label: string, attempt: number, e: unknown): void {
+  const first = ((e as Error).message ?? String(e)).split("\n")[0] ?? "";
+  console.error(`[worktree] ${label} hit a Windows file-lock (attempt ${attempt}); retrying: ${first}`);
+}
+
+// ── Windows file-lock tolerance (win32-arm64 esbuild.exe) ────────────────────
+//
+// On Windows a briefly-held file handle (a running esbuild/tsx, or pnpm's own hardlink/copy relink)
+// makes `unlink`/`rename` fail transiently with EPERM/EBUSY — the handle releases a beat later. Two
+// places in the REAL-build lifecycle hit it: the fresh worktree's `pnpm install` (can't unlink
+// `@esbuild/win32-arm64/esbuild.exe`), and the teardown `fs.rm` (can't remove node_modules holding
+// a just-run binary — the ~12 stale `storytree-real-*` temp dirs came from teardown throwing here).
+// A short capped-backoff retry clears both.
+
+/** Transient Windows file-lock errno codes — a briefly-held handle, retryable. */
+const WINDOWS_LOCK_CODES = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY", "EMFILE", "ENFILE"]);
+
+/**
+ * True when `e` looks like a transient Windows file-lock (so it is worth retrying). Matches either
+ * the errno `code` (fs operations keep it) OR the errno token in the message — pnpm surfaces the
+ * lock as a child-process failure whose `code` is the numeric exit code, with the real
+ * `EPERM: operation not permitted, unlink '…esbuild.exe'` text folded into the message.
+ */
+export function isWindowsFileLockError(e: unknown): boolean {
+  if (e === null || typeof e !== "object") return false;
+  const code = (e as { code?: unknown }).code;
+  if (typeof code === "string" && WINDOWS_LOCK_CODES.has(code)) return true;
+  const message = (e as { message?: unknown }).message;
+  return typeof message === "string" && /\b(?:EPERM|EBUSY|EACCES|ENOTEMPTY)\b/.test(message);
+}
+
+/** Options for {@link retryOnWindowsFileLock}. */
+export interface RetryOnLockOptions {
+  /** Max attempts including the first (default 6). */
+  attempts?: number;
+  /** Base backoff in ms; doubles each retry, capped at 3000ms (default 150). */
+  baseDelayMs?: number;
+  /** Injectable sleep (tests pass a no-wait stub); default real `setTimeout`. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Which errors are retryable (default {@link isWindowsFileLockError}). */
+  retryable?: (e: unknown) => boolean;
+  /** Best-effort per-retry notice (e.g. a log line). Never throws into the retry loop. */
+  onRetry?: (attempt: number, e: unknown) => void;
+}
+
+/**
+ * Run `op`, retrying on a transient Windows file-lock with capped exponential backoff. A
+ * non-retryable error, or the final attempt, rethrows unchanged — so a genuine install failure
+ * (a bad lockfile, a missing dep) still fails fast and loud, only the flaky lock is absorbed.
+ */
+export async function retryOnWindowsFileLock<T>(
+  op: () => Promise<T>,
+  options: RetryOnLockOptions = {},
+): Promise<T> {
+  const attempts = options.attempts ?? 6;
+  const baseDelayMs = options.baseDelayMs ?? 150;
+  const sleep = options.sleep ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
+  const retryable = options.retryable ?? isWindowsFileLockError;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await op();
+    } catch (e) {
+      lastErr = e;
+      if (attempt >= attempts || !retryable(e)) throw e;
+      try {
+        options.onRetry?.(attempt, e);
+      } catch {
+        // A logging hook must never break the retry.
+      }
+      await sleep(Math.min(baseDelayMs * 2 ** (attempt - 1), 3000));
+    }
+  }
+  // Unreachable — the loop returns or throws — but satisfies the type checker.
+  throw lastErr;
+}
+
+/**
+ * Remove a directory tree, tolerant of the Windows file-lock that stranded ~12 stale
+ * `storytree-real-*` temp dirs. `fs.rm`'s own `maxRetries` handles the common case; the outer
+ * {@link retryOnWindowsFileLock} covers a lock that outlives them. Best-effort by construction —
+ * `force` swallows ENOENT and a final failure is swallowed, never thrown: teardown housekeeping
+ * must never mask the build result (the next `git worktree prune` + OS temp cleanup reclaim it).
+ */
+async function removeDirBestEffort(dir: string): Promise<void> {
+  try {
+    await retryOnWindowsFileLock(() =>
+      fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+    );
+  } catch {
+    // Swallow — see the doc comment: debris, not a failure.
+  }
 }
 
 /** Run a git command in `cwd`, resolving stdout; rejects (loud) on a non-zero exit. */

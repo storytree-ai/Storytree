@@ -25,19 +25,21 @@
     "check:corpus-content": "pnpm --filter @storytree/cli exec node --import tsx src/check-corpus-content.ts",
     "check:corpus-build": "pnpm --filter studio exec node --import tsx data/build-corpus.mjs --check",
     "check:coverage": "pnpm --filter @storytree/cli exec node --import tsx src/check-coverage.ts",
+    "check:surface-coverage": "pnpm --filter @storytree/cli exec node --import tsx src/check-surface-coverage.ts",
     "check:declared": "pnpm --filter @storytree/cli exec node --import tsx src/check-declared.ts",
     "check:graduation-worklist": "pnpm --filter @storytree/cli exec node --import tsx src/check-graduation-worklist.ts",
     "check:web-grounding": "pnpm --filter @storytree/cli exec node --import tsx src/check-web-grounding.ts",
     "sync:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts --check",
     "check:web-experience": "pnpm --filter @storytree/cli exec node --import tsx src/web-experience-check.ts",
-    "gate": "pnpm check:manifest && pnpm check:boundaries && pnpm check:claude && pnpm check:agents && pnpm check:corpus-build && pnpm check:web-grounding && pnpm check:web-engine && pnpm check:web-experience && pnpm -r typecheck && pnpm -r test && pnpm check:agents-sync && pnpm check:corpus-sync && pnpm check:corpus-content && pnpm check:coverage && pnpm check:graduation-worklist && pnpm check:declared",
+    "gate": "pnpm check:manifest && pnpm check:boundaries && pnpm check:claude && pnpm check:agents && pnpm check:corpus-build && pnpm check:web-grounding && pnpm check:web-engine && pnpm check:web-experience && pnpm -r typecheck && pnpm -r test && pnpm check:agents-sync && pnpm check:corpus-sync && pnpm check:corpus-content && pnpm check:coverage && pnpm check:surface-coverage && pnpm check:graduation-worklist && pnpm check:declared",
     "sync": "git fetch origin && git rebase origin/main",
     "db:up": "pnpm --filter @storytree/cli run db -- up",
     "db:down": "pnpm --filter @storytree/cli run db -- down",
     "db:status": "pnpm --filter @storytree/cli run db -- status",
     "studio:up": "node scripts/studio.mjs up",
     "studio:down": "node scripts/studio.mjs down",
-    "studio:status": "node scripts/studio.mjs status"
+    "studio:status": "node scripts/studio.mjs status",
+    "desktop:start": "pnpm --filter desktop start"
   }
 }

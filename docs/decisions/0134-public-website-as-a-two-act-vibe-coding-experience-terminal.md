@@ -4,6 +4,8 @@ decided: 2026-07-02
 ---
 # ADR-0134: Public website as a two-act vibe-coding experience: terminal storm to a calm guided forest
 
+*(The word "storm" in this title is retired from all SURFACES by [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md), 2026-07-05 — the metaphor no longer appears in any visitor-facing copy; Act 1's built experience (terminal chaos → finale concession → transform to soil) STANDS unchanged, described plainly. The title text and filename are history — not rewritten. Noted in place per ADR-0139.)*
+
 ## Status
 
 accepted (2026-07-02) — the owner declared the two-act design settled at the act1-terminal-storm
@@ -20,7 +22,12 @@ deep-link half closed: replay-only is final; and
 [ADR-0148](0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md), 2026-07-03 — Act 2
 became the **website-first walk that grows into an orchestrator-guided forest**, and the classic front
 page retired as a capable-visitor destination (the no-JS / reduced-motion fallback stays,
-gate-enforced). Noted in place per ADR-0139.)*
+gate-enforced). And [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md),
+2026-07-05 — the "storm" NAMING is retired from all surfaces (this §Status's "the built Act 1 storm",
+"the storm is now the live front door" are the metaphor's historical use; the built experience they
+describe STANDS, now named plainly — the overwhelming swarm of agents / the chaotic terminals), AND
+Act 2's architecture is confirmed BaaS (the frontend reads the database directly). Noted in place per
+ADR-0139.)*
 
 proposed (2026-06-28) — explored with the owner in conversation on 2026-06-28.
 [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md) decided the *renderer*
@@ -88,7 +95,12 @@ works harder in either act — the difference isn't effort, it's whether the res
 contrast IS the argument: *the swarm and the forest cost you the same attention; only one of them you
 can read.*
 
-1. **Act 1 — the storm (the problem, felt).** Boot into a single retro-arcade CRT terminal, already
+1. **Act 1 — the storm (the problem, felt).** *(The "storm" NAMING is retired from all surfaces by
+   [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md), 2026-07-05 — no
+   visitor-facing surface calls it "the storm." The FELT experience described in this §1 is built, live,
+   and STANDS exactly as authored; only the metaphor/word retires. Described plainly it is: the
+   overwhelming swarm of coding agents, the chaotic pile of terminals, agents spawning agents until you
+   cannot read any of them. Noted in place per ADR-0139.)* Boot into a single retro-arcade CRT terminal, already
    logged into a coding agent. The visitor sends one prompt (a suggested chip or typed) — the gesture
    that also unlocks audio. The agent "thinks," then spawns its own sub-agents, which *become* new
    terminals: the multiplication is **diegetic** (agents spawning agents, not the visitor opening
@@ -119,7 +131,12 @@ can read.*
    [`stories/website-experience/act1-terminal-storm.md`](../../stories/website-experience/act1-terminal-storm.md)
    "As built — the finale rework".)*
 
-3. **Act 2 — the calm forest (the alternative, guided).** Silence resolves into a calm, *empty* land —
+3. **Act 2 — the calm forest (the alternative, guided).** *(Act 2's revealed dependency architecture is
+   confirmed BaaS by [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md) §1,
+   2026-07-05 — the frontend reads the database DIRECTLY, adding a direct `website → database` read edge
+   on top of the backend chain, giving the diamond `website.dependsOn=[backend, database]`,
+   `backend.dependsOn=[database]`, `database.dependsOn=[]` (in the corrected dependent → prerequisite
+   direction). Noted in place per ADR-0139.)* Silence resolves into a calm, *empty* land —
    no story nodes yet. An **auto-guided, visitor-paced** walkthrough (the deliberate inverse of Act 1's
    all-at-once) grows the forest one beat at a time, narrated in **plain language** (the tonal inverse of
    Act 1's jargon): plant a story → watch a wisp → it branches into capabilities/contracts → stories
@@ -153,7 +170,9 @@ can read.*
    [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)).** A non-WebGL /
    `prefers-reduced-motion` / assistive-tech **fallback** and a persistent **skip-to-calm** control are
    prerequisites, not polish — the storm must never become a toll booth for returning or assistive-tech
-   visitors.
+   visitors. *("the storm" here names Act 1's experience; the NAMING is retired from surfaces by
+   [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md), 2026-07-05 — the
+   a11y-fallback obligation itself STANDS. Noted in place per ADR-0139.)*
 
 5. **Altitude — what this ADR fixes vs. defers.** This ADR fixes the *experience concept and the per-act
    tech split*. It deliberately **does not** fix (handed to the concept doc + `story-author`): the Act 2

@@ -133,6 +133,13 @@ beat 4's wrong-way-flag antipattern teach.**
    FOUNDATION BELOW. "Upstream" (dependency axis) and "frontend high / foundation below" (screen axis)
    describe the same layering from two axes and are not contradictory; screen position is a free render
    choice with no corpus convention. Noted in place per ADR-0139.)*
+   *(Further amended by [ADR-0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md)
+   §1, 2026-07-05: the confirmed shape is the BaaS DIAMOND, not the 3-tier spine — the frontend reads
+   the database directly, so a direct `website → database` read edge is ADDED (in this same dependent →
+   prerequisite direction) on top of the backend chain: `website.dependsOn=[backend, database]`,
+   `backend.dependsOn=[database]`, `database.dependsOn=[]`. This ADR's core (one continuous upstream
+   walk; the dependency layer is the advantage) STANDS; the added edge points the same way, it does not
+   re-break the direction. Noted in place per ADR-0139.)*
 
 3. **The dependency layer is the ADVANTAGE — the teach that replaces beat 4's wrong-way flag (amends
    ADR-0134 §3; reverses the unlanded ADR-0147's beat-4 preservation).** The old beat 4 drew a

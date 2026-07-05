@@ -7,7 +7,7 @@ outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build
 status: proposed
 proof_mode: operator-attested
 depends_on: [storm-to-forest-inflection, act2-beat-director, web-experience-sync]
-decisions: [134, 145, 148, 150, 153]
+decisions: [134, 145, 148, 150, 153, 157]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The choreography ENGINE is already machine-proven
 # upstream (act2-beat-director: visitor-paced advance, proof-gated green, the flagged wrong-way
 # road, the approved default script — all parent-side contracts), and the artifact freshness is the
@@ -167,6 +167,34 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 >   reveal remain H's ([`act2-guided-forest`](act2-guided-forest.md)) — G carries the reused-prompt
 >   open, the outcome-brief-with-chat step 1, the drive-machinery overlays (steps 2–4), and the walk
 >   over the real product UI, all leading into the seam.
+>
+> **Re-spec — SETTLED by ADR-0157 (owner-directed at the H BUILD #2 gate, 2026-07-05; born accepted,
+> ADR-0110; noted in place per ADR-0139).** After H#2 landed live (web main `8f4e166c`), the owner gave
+> forward directions, several of which touch G's surface. This RE-OPENS this capability toward `building`
+> for the reshaped surface; the "As built" and "Attested + landed" records below stay a true live-attested
+> account of the FIRST walk (copy-on-write), not rewritten. G's share of ADR-0157:
+> - **Plain language, no storm metaphor.** All of G's copy (the orchestrator's proposal lines, the beat
+>   narration, the overlays) is plain and jargon-free for newcomer devs / vibe coders
+>   (`plain-language-first`); the word/analogy "storm" is retired from every visitor-facing surface (it
+>   currently survives in `act2-narration.ts` `INTRO`/`done` — the "The storm settles into soil" opener —
+>   and Act 1). Act 1's built experience stands; only its naming retires.
+> - **The step-2 agent-loop overlay becomes an HONEST TDD LOOP DIAGRAM** (a loop, not a list;
+>   system-as-referee, NOT the AI grading its own homework) — see "The honest TDD loop diagram" in
+>   Guidance. Site-side content keyed by beat id (NOT engine structure — ADR-0153/0157 authoring call),
+>   validated by `act2-validate`.
+> - **The pre-walk reads as OUR orchestrator; the planted website node lands `proposed`.** The scripted
+>   orchestrator voice reads as storytree's ACTUAL session orchestrator (ADR-0030), not a generic coding
+>   agent; and G's plant-story beat depicts the first (mock website) node entering `proposed` — proven only
+>   on a signed proof (ADR-0094 / ADR-0020), never instantly green or silently building.
+> - **The wisp MOVES.** G's watch-a-wisp beat renders the wisp MOVING (drifts/travels) rather than as a
+>   static dot (the scene emits a `wisps` presence marker on the `.tw-wisps` layer, `act2-walkthrough.ts`
+>   ~lines 510–511, not yet animated) — a site-side animation change, no engine change.
+> - The BaaS direct-read architecture (`website.dependsOn=[backend, database]`) is primarily H's upstream
+>   reveal; G plants the single website story, so it does not itself render the diamond — but the LEAF
+>   (`act2-beat-director`) delta widening lands before H's build, and G's default-script beats are
+>   unchanged by the diamond (the website node is planted the same way). Per `defects-amend-the-owning-story`
+>   the re-spec reverts this cap to `building` and re-earns `healthy` on the reshaped surface through the
+>   gate; `healthy` is earned through the gate, never authored (ADR-0020).
 
 ## As built (web main `ff70222b`) — the FIRST attested walk (historical record, kept intact)
 
@@ -227,8 +255,46 @@ GOVERN where they touch the older framing-moves below):
   backend/database depth) extend into increment H. The overlays are site-side content keyed by beat id
   (the `act2-beat-director` engine needs no change — ADR-0153's authoring call).
 
+THE ADR-0157 REDIRECTIONS (owner-directed at the H BUILD #2 gate 2026-07-05 — they GOVERN G's copy, its
+step-2 overlay, its plant-story beat, and its wisp beat):
+
+- **The honest TDD loop diagram (step 2's agent-loop overlay).** The step-2 overlay that shows the agent
+  loop must be a DIAGRAM that shows a LOOP (not the current list-style rows), at vibe-coder altitude, and
+  HONEST about how storytree proves work. Ground truth: the ADR-0020 red-green phase machine
+  (`packages/orchestrator/src/phase-machine.ts`) drives a leaf author through write-scoped phases
+  `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`, and **red/green is OBSERVED by the
+  deterministic spine — never claimed by the model** (`:7-8`; `AUTHOR_TEST` writes test-paths-only `:172-174`;
+  `IMPLEMENT` source-only, never a test — "the test author is not the code author" `:176-178`). So the loop
+  is: **write a failing test → a REFEREE (the SYSTEM, not the AI) checks it really fails (RED) → write code
+  → the referee checks it really passes (GREEN) → loop.** The diagram must: (a) be a LOOP (the looping
+  shape is the point — the owner's "the main thing is the diagram should show a loop"); (b) show the two
+  write-scoped phases at the owner's altitude ("one agent writes the tests" = `AUTHOR_TEST`; "the other
+  builds code to pass the tests" = `IMPLEMENT`); and (c) — CRUCIAL — make the REFEREE the SYSTEM, not the
+  AI (the system checks red then green; that is the verification-gap thesis — not an AI grading its own
+  homework). If the two-agent framing is used for approachability, the CHECK stays clearly the system's.
+  This is the plain-language depiction of `abd-green-only-on-signed-proof` (green only on a signed proof,
+  in data). Site-side content keyed by beat id (NOT a director field — ADR-0157), validated by
+  `act2-validate`. Exact visuals are the builder's + owner's at the gate.
+- **Plain language, no storm metaphor.** ALL of G's copy is plain and jargon-free for newcomer devs / vibe
+  coders (`plain-language-first`): no insider vocabulary without immediately showing what it means, no
+  strained analogies. The word/analogy **"storm" is retired from every visitor-facing surface** (it
+  currently survives in `act2-narration.ts` `INTRO`/`done` and Act 1); describe Act 1 plainly (the
+  overwhelming swarm of agents / the chaotic terminals) where G's copy references it. Act 1's built
+  experience is untouched — only its naming.
+- **The pre-walk/orchestrator reads as OUR system; the planted node lands `proposed`.** The scripted
+  orchestrator voice reads as storytree's ACTUAL session orchestrator (ADR-0030's human-facing planning
+  agent), not a generic coding agent — the visitor understands they are watching storytree work. And G's
+  plant-story beat depicts the first (mock website) node entering `proposed` — proven only on a signed
+  proof (ADR-0094 / ADR-0020), never instantly green or silently `building` without proof. This reinforces
+  the verification-gap thesis: intent is proposed, then proven.
+- **The wisp MOVES.** G's watch-a-wisp beat renders the wisp MOVING — it drifts/travels (e.g. over the
+  tree) rather than rendering as a static dot. A site-side animation of the `wisps` presence marker the
+  director already emits (the same site-owns-motion boundary ADR-0145 set for viewBox tweens and growth
+  transitions); no engine change. The exact motion is builder/owner-tunable at the gate; the requirement
+  is that it moves.
+
 THE SURFACE (owner decisions 2026-07-02 + the 2026-07-03 re-decisions, ADR-0145 for the substrate and
-ADR-0148 for the website-first narrative, RESHAPED by ADR-0153 above — the spec of the feel):
+ADR-0148 for the website-first narrative, RESHAPED by ADR-0153 + ADR-0157 above — the spec of the feel):
 
 THE THREE FRAMING MOVES (ADR-0148 — what the website-first re-scope ADDED on top of the already-built
 2.5D walk; note the ADR-0153 redirections above now govern the SURFACE these render on):
@@ -403,13 +469,31 @@ against the director's exported contract by `act2-validate`.
    EXAMPLE, ideally through the session-orchestrator CHAT AT THE BOTTOM (as the real app) — the visitor
    reads what they asked for and a concrete example, in the real chat surface, not as abstract "here is
    a young tree" prose.
-10. **Step 2 shows the orchestrator routing to the drive machinery (ADR-0153).** _(witness: human)_
-    After the brief, advance. **Success —** the walk shows what the orchestrator DOES with the story: it
-    routes it to the drive machinery, depicted by a TEMPORARY flow-diagram OVERLAY top-left (the agent
-    loop running in the background) — an overlay ABOVE the map, not drawn on it, that clears. The map
-    stays the honest picture of the work.
+10. **Step 2 shows the orchestrator routing to the drive machinery, as an HONEST TDD LOOP DIAGRAM
+    (ADR-0153 / ADR-0157).** _(witness: human)_ After the brief, advance. **Success —** the walk shows
+    what the orchestrator DOES with the story: it routes it to the drive machinery, depicted by a
+    TEMPORARY overlay top-left — an overlay ABOVE the map, not drawn on it, that clears. The overlay is a
+    DIAGRAM that shows a LOOP (not a list): write a failing test → the SYSTEM checks it really fails →
+    write code → the SYSTEM checks it really passes → repeat. A newcomer reads it plainly ("one agent
+    writes the tests, the other builds code to pass them") AND — the load-bearing point — understands the
+    CHECK is done by the SYSTEM (storytree's referee), not an AI grading its own homework. The map stays
+    the honest picture of the work.
 11. **Steps 3–4 expand the drive machinery without overloading (ADR-0153).** _(witness: human)_ Advance
     through the steps that build out the drive machinery (CI/CD, devops, gates, wiring). **Success —**
     the deeper picture is shown via overlay diagram(s) (a second overlay, top-right, is fine), revealed
     scaffolded in an order a first-time viewer can hold — never dumped all at once; the deepest
     (backend/database) depth continues into increment H.
+12. **The copy is plain, with no storm metaphor (ADR-0157).** _(witness: human)_ Read G's copy — the
+    orchestrator's proposal lines, the beat narration, the overlays. **Success —** the language is plain
+    and understandable to a newcomer dev / vibe coder (no unexplained jargon, no strained analogies); the
+    word/analogy "storm" appears nowhere on any visitor-facing surface (Act 1 is described plainly where
+    referenced — the swarm of agents / the chaotic terminals).
+13. **The planted node lands `proposed`, and the orchestrator reads as OUR system (ADR-0157).** _(witness:
+    human)_ Watch the plant-story beat and read the orchestrator's voice. **Success —** the first (mock
+    website) node honestly enters `proposed` (not instantly green, not silently building) and greens only
+    when a signed proof lands (the branch beat); the scripted orchestrator reads as storytree's ACTUAL
+    session orchestrator, not a generic coding agent — the visitor understands they are watching storytree
+    work.
+14. **The wisp moves (ADR-0157).** _(witness: human)_ Watch the watch-a-wisp beat. **Success —** the wisp
+    MOVES — it drifts/travels rather than sitting as a static dot; it reads as living presence over the
+    tree (presence without obligation — the visitor does nothing and that is the point).

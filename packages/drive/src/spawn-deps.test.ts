@@ -292,10 +292,11 @@ test("sdc-threads-spawn-deps-through-orchestrate-without-a-fork: orchestrate() p
     tools.includes("mcp__spawn__spawn_builder"),
     `mcp__spawn__spawn_builder must be advertised when spawn deps are threaded; got: ${JSON.stringify(tools)}`,
   );
-  // The Phase-1/2 chain is otherwise unchanged: the proposal surface still mounts.
-  assert.ok(
+  // The orchestrator DRIVES rather than proposes (ADR-0155): there is no propose_unit surface.
+  assert.equal(
     tools.includes("mcp__proposal__propose_unit"),
-    "mcp__proposal__propose_unit stays mounted — the existing chain, not a fork",
+    false,
+    "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via spawn tools (ADR-0155)",
   );
 });
 
@@ -318,8 +319,9 @@ test("sdc-threads-spawn-deps-through-orchestrate-without-a-fork: without spawn d
     false,
     `no mcp__spawn__* tool may appear without spawn deps (the propose-only surface, unchanged); got: ${JSON.stringify(tools)}`,
   );
-  assert.ok(
+  assert.equal(
     tools.includes("mcp__proposal__propose_unit"),
-    "mcp__proposal__propose_unit is always present regardless of spawn deps",
+    false,
+    "mcp__proposal__propose_unit is never present — the orchestrator drives, it does not propose (ADR-0155)",
   );
 });

@@ -12,6 +12,14 @@ accepted (2026-06-28) — decided/directed by the owner in conversation on 2026-
 alignment IS the ratification (ADR-0110); no second end-of-flow ask. The inner-circle onboarding walk
 and the desktop build mount's live appearance are operator-attested under ADR-0070 when built.
 
+> **Amended by [ADR-0155](0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md)**
+> (accepted, 2026-07-04) — **the desktop accept→dispatch route (d.3, `/api/chat/accept` + the
+> `accepted` provenance) is RETIRED.** With ADR-0137 (spawn) + ADR-0152 (landing) the chat orchestrator
+> drives builds itself; the propose → accept → dispatch handshake it wired is gone, so
+> `apps/desktop/src/backend/accept-dispatch.ts` and its sidecar wiring are removed. The rest of the
+> desktop build mount stands: the shared build worker (`BuildRegistry` / `runBuildJob`) and the story
+> detail panel's `/api/build` route are UNCHANGED.
+
 ## Context
 
 `chat-drive-bridge`'s four machine-provable capabilities are landed and green on `main` — the local

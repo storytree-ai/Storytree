@@ -4,29 +4,14 @@ tier: capability
 story: chat-drive-bridge
 title: "The accept-to-land affordance — an explicit, non-spoofable Build button on a proposal carrying a unit id"
 outcome: "The chat thin client renders an explicit, non-spoofable Build affordance ONLY on a proposal carrying a `proposedUnitId`; clicking it dispatches the build through the `api` seam and renders the run's progress — the human accept-to-land gate (geometry/behaviour machine-witnessed; appearance operator-attested)."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [chat-build-dispatch]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true): ChatPanel.tsx
-# already exists at HEAD (the chat-panel capability landed it — it renders the done/error/refused/
-# unavailable frames). This increment EDITS it to add the accept-to-land Build affordance: the leaf
-# authors a NEW failing vitest jsdom component test (ChatPanel.accept.test.tsx) that renders the panel
-# given a `done` frame carrying a `proposedUnitId`, asserts a Build button appears, fires a click, and
-# asserts the build-dispatch seam was called with that id — RED at HEAD because ChatPanel renders the
-# done proposal as PLAIN TEXT with no Build button and the api client has no build-dispatch method —
-# then EDITS ChatPanel.tsx (+ api.ts) to add the button + the dispatch call (green). FRONTEND-BUILDER
-# TWO-STAGE (ADR-0070): this `real:` arm proves the GEOMETRY/BEHAVIOUR ONLY (the button appears only on
-# a proposedUnitId-bearing frame, clicking it POSTs the accepted id through the api seam, the run's
-# progress renders) — the affordance's APPEARANCE inside the native shell is the story's operator-
-# attested UAT leg 6 (the look is witnessed, never a machine visual verdict; do NOT add a visual
-# assertion here). RUNNER: the studio suite is VITEST + jsdom (NOT node:test — the vitest-runner-mismatch
-# trap), so the real arm declares an explicit proofCommand running the ONE test file under vitest (the
-# DEFAULT real proof `node --test` cannot run a vitest jsdom .test.tsx). `install: true` because the
-# proof runs in a fresh worktree — tsx + tsc + vitest need the lockfile-only install (ADR-0031 §2).
-# SCOPE = apps/studio/src (the panel is a studio frontend component; the desktop renders the COMPILED
-# studio dist, ADR-0090 d.4 / ADR-0108 d.1). The chat-side build DISPATCH (capability 3, apps/studio/
-# server) is a CONSUMED dependency reached over the api/HTTP seam, not a co-edited file.
+# RETIRED by ADR-0155 (2026-07-04). The accept-to-land Build affordance this capability built was
+# removed from ChatPanel.tsx + api.acceptBuild (PR #587): the session-orchestrator drives via its
+# spawn + landing tools, so there is no Build button to click and no chat-scoped build-progress poll.
+# The `real:` arm is dropped (its test apps/studio/src/components/ChatPanel.accept.test.tsx was deleted
+# with the feature), so this capability is no longer REAL-buildable. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -34,28 +19,6 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
-  real:
-    testFile: "apps/studio/src/components/ChatPanel.accept.test.tsx"
-    sourceFile: "apps/studio/src/components/ChatPanel.tsx"
-    scope:
-      testGlobs: ["apps/studio/src/components/ChatPanel.accept.test.tsx"]
-      sourceGlobs: ["apps/studio/src/components/ChatPanel.tsx"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest (jsdom), not node:test — so the default `node --test` real proof
-    # cannot run this `.test.tsx`. Run the ONE test file under vitest (cwd = apps/studio).
-    proofCommand:
-      file: pnpm
-      args:
-        - "--filter"
-        - "studio"
-        - "exec"
-        - "vitest"
-        - "run"
-        - "src/components/ChatPanel.accept.test.tsx"
 ---
 
 # The accept-to-land affordance — an explicit, non-spoofable Build button on a proposal carrying a unit id

@@ -72,12 +72,6 @@ export interface ChatStreamDoneEvent {
   proposal: string;
   costUsd: number | undefined;
   turns: number | undefined;
-  /**
-   * The unit id the agent declared via the `propose_unit` tool during the session (ADR-0108 d.3).
-   * Threaded from `HeadlessOrchestratorResult.proposedUnitId` through `OrchestrateResult` and onto
-   * this event. `undefined` when the agent did not call `propose_unit`.
-   */
-  proposedUnitId?: string;
 }
 
 /** A terminal error event — emitted instead of throwing when the session fails. */
@@ -314,6 +308,5 @@ export async function* startChatStream(
     proposal: result.proposal ?? "",
     costUsd: result.costUsd,
     turns: result.turns,
-    ...(result.proposedUnitId !== undefined ? { proposedUnitId: result.proposedUnitId } : {}),
   };
 }

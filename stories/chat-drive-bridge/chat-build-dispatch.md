@@ -4,29 +4,17 @@ tier: capability
 story: chat-drive-bridge
 title: "The chat-surface build dispatch — a human-accepted unit id routes to the existing worker, progress streamed back"
 outcome: "Given a human-ACCEPTED unit id, a chat-surface build-dispatch validates the unit is buildable and routes it to the EXISTING drive worker (`routedBuildRunner` / `runBuildJob` / the registry), returning a runId, and the worker's coarse progress is streamed back over the chat surface — a safe build INTENT, never a verdict-in."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [proposal-id-threading]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors a
-# VITEST test (chat-build-dispatch.test.ts) that imports a NOT-YET-EXISTING symbol (dispatchAcceptedBuild)
-# from a NEW source file in apps/studio/server (red = module-not-found against the source that does not
-# exist at HEAD), then writes that one new source file (green). The new module is the chat-side build
-# DISPATCH CORE — validate a human-accepted unit id is buildable, mint a run on the EXISTING
-# BuildRegistry, fire runBuildJob over the injected BuildRunner, return a typed { ok, runId } — reusing
-# apps/studio/server/buildWorker.ts + buildRegistry.ts verbatim (the studio-build precedent: this story
-# owns the dispatch glue physically hosted in apps/studio/server). The test drives it with the REAL
-# BuildRegistry + an injected SCRIPTED BuildRunner (no SDK spend, ADR-0010 §5) + an injected isBuildable.
-# RUNNER: apps/studio is the ONE React/Vite workspace whose tests run under VITEST (vite.config + a
-# vitest.config whose include covers BOTH `src/**/*.test.{ts,tsx}` AND `server/**/*.test.ts`) — NOT
-# node:test (the vitest-runner-mismatch trap: a node:test file here is silently NOT picked up). The new
-# server test MUST be a vitest file (`import { describe, it, expect } from 'vitest'`), exactly like the
-# existing apps/studio/server/*.test.ts (buildWorker.test.ts, buildApi.integration.test.ts).
-# proofCommand is REQUIRED so the spine scopes the proof to the single new file via the vitest runner
-# (the default `pnpm --filter studio test` runs the WHOLE studio vitest suite). `install: true` + a
-# typecheck wall because the new module imports BuildRegistry/BuildRunner across the server tree (the
-# proof runs in a fresh worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). The scope
-# stays within apps/studio/server (ADR-0087: one concrete write scope).
+# RETIRED by ADR-0155 (2026-07-04). The chat accept→dispatch route this capability fronted was removed
+# (PR #587): the ChatPanel Build button + the /api/chat/accept route are gone, so nothing accepts a
+# chat proposal into a build any more. The `real:` arm is dropped; its named source
+# apps/studio/server/chat-build-dispatch.ts was already relocated into @storytree/drive/build-worker
+# (worker-relocation, ADR-0133), so this capability is no longer REAL-buildable. NOTE: the relocated
+# `dispatchAcceptedBuild` function itself REMAINS live — it is the SAME worker call the orchestrator's
+# builder-spawn-dispatch (spawn-builder.ts, ADR-0137) still uses; only the chat ACCEPT front retired.
+# Its behaviour is covered by packages/drive/src/build-worker-relocation.test.ts. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -34,19 +22,6 @@ proof:
   scope:
     testGlobs: ["apps/studio/server/**/*.test.ts"]
     sourceGlobs: ["apps/studio/server/**/*.ts"]
-  real:
-    testFile: "apps/studio/server/chat-build-dispatch.test.ts"
-    sourceFile: "apps/studio/server/chat-build-dispatch.ts"
-    scope:
-      testGlobs: ["apps/studio/server/chat-build-dispatch.test.ts"]
-      sourceGlobs: ["apps/studio/server/chat-build-dispatch.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "studio", "exec", "vitest", "run", "server/chat-build-dispatch.test.ts"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
 ---
 
 # The chat-surface build dispatch — a human-accepted unit id routes to the existing worker

@@ -13,6 +13,8 @@ import {
   platformShellCommand,
   runRegressionSuite,
   runWorktreeTypecheck,
+  isWindowsFileLockError,
+  retryOnWindowsFileLock,
 } from "./build-worktree.js";
 import { gitTreeState } from "./prove-it-gate.js";
 
@@ -327,6 +329,100 @@ test("platformShellCommand wraps pnpm via cmd.exe on win32 and passes everything
 
   const node = { file: process.execPath, args: ["-e", "0"] };
   assert.deepEqual(platformShellCommand(node, "win32"), node);
+});
+
+// ── Windows file-lock tolerance (win32-arm64 esbuild.exe) ────────────────────
+
+test("isWindowsFileLockError recognises the lock by errno code AND by the pnpm stderr message shape", () => {
+  // fs operations keep the errno code — the definitive signal.
+  assert.equal(isWindowsFileLockError(Object.assign(new Error("nope"), { code: "EPERM" })), true);
+  assert.equal(isWindowsFileLockError(Object.assign(new Error("nope"), { code: "EBUSY" })), true);
+  assert.equal(isWindowsFileLockError(Object.assign(new Error("nope"), { code: "ENOTEMPTY" })), true);
+
+  // pnpm's child-process failure loses the errno code (code = numeric exit) but folds the real
+  // errno token into the message — the exact win32-arm64 esbuild.exe unlink failure the fix targets.
+  const pnpmLock = new Error(
+    "pnpm install failed: Command failed\n" +
+      "EPERM: operation not permitted, unlink " +
+      "'C:\\Users\\mickh\\AppData\\Local\\Temp\\storytree-real-x\\wt\\node_modules\\.pnpm\\" +
+      "@esbuild+win32-arm64@0.28.0\\node_modules\\@esbuild\\win32-arm64\\esbuild.exe'",
+  );
+  assert.equal(isWindowsFileLockError(pnpmLock), true);
+
+  // Non-lock failures are NOT retryable — a genuine install error must fail fast.
+  assert.equal(isWindowsFileLockError(new Error("Cannot resolve dependency foo@^9")), false);
+  assert.equal(isWindowsFileLockError(Object.assign(new Error("x"), { code: "ENOENT" })), false);
+  assert.equal(isWindowsFileLockError(null), false);
+  assert.equal(isWindowsFileLockError("EPERM"), false); // a bare string is not an error object
+});
+
+test("retryOnWindowsFileLock retries a transient lock then succeeds; backoff is injected (no real waiting)", async () => {
+  let calls = 0;
+  const delays: number[] = [];
+  const result = await retryOnWindowsFileLock(
+    async () => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error("unlink esbuild.exe"), { code: "EPERM" });
+      return "installed";
+    },
+    { baseDelayMs: 10, sleep: async (ms) => void delays.push(ms) },
+  );
+  assert.equal(result, "installed");
+  assert.equal(calls, 3, "the op ran three times: two locked, one success");
+  // Exponential backoff between the two retries (10, 20 — capped at 3000, never reached here).
+  assert.deepEqual(delays, [10, 20]);
+});
+
+test("retryOnWindowsFileLock rethrows a non-retryable error immediately (no retry, no sleep)", async () => {
+  let calls = 0;
+  let slept = false;
+  await assert.rejects(
+    retryOnWindowsFileLock(
+      async () => {
+        calls += 1;
+        throw new Error("Cannot resolve dependency foo@^9"); // not a lock
+      },
+      { sleep: async () => void (slept = true) },
+    ),
+    /Cannot resolve dependency/,
+  );
+  assert.equal(calls, 1, "a non-lock error is not retried");
+  assert.equal(slept, false, "no backoff for a non-retryable error");
+});
+
+test("retryOnWindowsFileLock exhausts its attempts and rethrows the last lock error", async () => {
+  let calls = 0;
+  await assert.rejects(
+    retryOnWindowsFileLock(
+      async () => {
+        calls += 1;
+        throw Object.assign(new Error(`EBUSY attempt ${calls}`), { code: "EBUSY" });
+      },
+      { attempts: 4, baseDelayMs: 1, sleep: async () => {} },
+    ),
+    /EBUSY attempt 4/,
+  );
+  assert.equal(calls, 4, "all four attempts ran, then it gave up");
+});
+
+test("retryOnWindowsFileLock: a throwing onRetry hook never breaks the retry loop", async () => {
+  let calls = 0;
+  const result = await retryOnWindowsFileLock(
+    async () => {
+      calls += 1;
+      if (calls < 2) throw Object.assign(new Error("locked"), { code: "EPERM" });
+      return 42;
+    },
+    {
+      baseDelayMs: 1,
+      sleep: async () => {},
+      onRetry: () => {
+        throw new Error("logging blew up");
+      },
+    },
+  );
+  assert.equal(result, 42);
+  assert.equal(calls, 2);
 });
 
 test("platformShellCommand preserves per-command env through the win32 pnpm rewrap (ADR-0064)", () => {

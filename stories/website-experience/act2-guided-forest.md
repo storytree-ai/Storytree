@@ -3,11 +3,11 @@ id: "act2-guided-forest"
 tier: capability
 story: website-experience
 title: "Act 2 (increment H) — the ONE continuous walk grows UPSTREAM: the same walk keeps going into a proposed backend + database the website depends on, the dependency layers shown on the real map ARE the advantage, inspectable and walked green on demand"
-outcome: "The visitor who just grew the mock website green in increment G (act2-guided-walkthrough) KEEPS WALKING — the SAME continuous walk, not a separate CTA-gated phase — as the SESSION ORCHESTRATOR guides them into the DEPENDENCY STACK the website rests on: because the mock website's Cart / Payments / Receipts cannot truly work without a backend, the walk reveals a backend and a database as PROPOSED trees on real dependsOn edges pointing FROM the dependent TO its prerequisite — website.dependsOn=[backend], backend.dependsOn=[database], database.dependsOn=[] (the website NEEDS the backend to serve a working checkout; the backend needs the database; ADR-0058 / cross-story-dependency; the refused first build encoded this BACKWARDS — ADR-0153 corrects it), stories at EVERY LEVEL of the DAG (not just leaves). Rendered with the FRONTEND HIGH and the dependency foundation BELOW (owner spatial preference, a free render choice — ADR-0153). The DEPENDENCY LAYERS thus made visible on the real 2.5D map ARE the advantage storytree teaches — you SEE the layers, you build them in the right order, nothing is hidden (this POSITIVE teach replaces increment G's beat-4 wrong-way-flag antipattern). The walk uses the REAL app's UI components (not bespoke chrome) with progressive disclosure (hide what the visitor has not been walked through), offers NO escape to any deprecated page (a11y fallback only), and deepens into the drive-machinery diagrams (CI/CD, devops, gates, wiring) as temporary overlays. The visitor can INSPECT each proposed upstream story to understand WHAT it is and WHY it is proposed, and WALK them green PROGRESSIVELY on demand — complexity is SCAFFOLDED (revealed in the order a human can hold it, as the walk continues), never hidden and never dumped up front. On the real 2.5D map (ADR-0145), narrated by the same anchored callouts + scripted-orchestrator voice increment G established, over fictional data — a teaching diorama, never the operable studio."
+outcome: "The visitor who just grew the mock website green in increment G (act2-guided-walkthrough) KEEPS WALKING — the SAME continuous walk, not a separate CTA-gated phase — as the SESSION ORCHESTRATOR guides them into the DEPENDENCY STACK the website rests on: because the mock website's Cart / Payments / Receipts cannot truly work without a backend, the walk reveals a backend and a database as PROPOSED trees on real dependsOn edges pointing FROM the dependent TO its prerequisite, in the BaaS shape the owner confirmed at the H#2 gate (ADR-0157 — "the frontend would read directly from the database"): website.dependsOn=[backend, database], backend.dependsOn=[database], database.dependsOn=[] — a DIAMOND with the database as the shared foundation (the website READS the catalog directly from the database, as a real shopping app does, AND needs the backend to serve a working checkout/payment; the backend needs the database; ADR-0058 / cross-story-dependency; the refused first build encoded this BACKWARDS — ADR-0153 corrects the direction, ADR-0157 adds the direct read edge in that same direction), stories at EVERY LEVEL of the DAG (not just leaves). Rendered with the FRONTEND HIGH and the dependency foundation BELOW (owner spatial preference, a free render choice — ADR-0153). The DEPENDENCY LAYERS thus made visible on the real 2.5D map ARE the advantage storytree teaches — you SEE the layers, you build them in the right order, nothing is hidden (this POSITIVE teach replaces increment G's beat-4 wrong-way-flag antipattern). The walk uses the REAL app's UI components (not bespoke chrome) with progressive disclosure (hide what the visitor has not been walked through), offers NO escape to any deprecated page (a11y fallback only), and deepens into the drive-machinery diagrams (CI/CD, devops, gates, wiring) as temporary overlays. The visitor can INSPECT each proposed upstream story to understand WHAT it is and WHY it is proposed, and WALK them green PROGRESSIVELY on demand — complexity is SCAFFOLDED (revealed in the order a human can hold it, as the walk continues), never hidden and never dumped up front. On the real 2.5D map (ADR-0145), narrated by the same anchored callouts + scripted-orchestrator voice increment G established, over fictional data — a teaching diorama, never the operable studio. ADR-0157 sharpenings (owner-directed at the H#2 gate 2026-07-05): the deeper drive-machinery overlay that explains the AGENT LOOP is an HONEST TDD LOOP DIAGRAM (a loop, not a list — write a failing test → the SYSTEM checks it fails → write code → the SYSTEM checks it passes → repeat; the referee is storytree's deterministic spine, NOT the AI grading its own homework — the verification-gap thesis made a picture); ALL copy is plain, newcomer-legible, with NO 'storm' metaphor and no weird analogies/jargon; and the scripted-orchestrator voice reads as OUR actual session orchestrator (ADR-0030), not a generic coding agent."
 status: proposed
 proof_mode: operator-attested
 depends_on: [act2-guided-walkthrough]
-decisions: [134, 145, 148, 150, 153]
+decisions: [134, 145, 148, 150, 153, 157]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work, the extend-next half of the Act 2 re-scope (ADR-0148),
 # RE-SHAPED by ADR-0150 (owner-directed at the G attestation gate 2026-07-04): H is ONE
 # CONTINUOUS WALK growing UPSTREAM (not a CTA-gated separate phase), and the dependency-layer-as-
@@ -19,6 +19,16 @@ decisions: [134, 145, 148, 150, 153]
 # only); the deeper drive-machinery diagrams (CI/CD, devops, gates, wiring) live here as H is the depth;
 # spatial preference is frontend HIGH / foundation BELOW (a free render choice — "upstream" the
 # dependency direction renders as the foundation below).
+# Then BUILT #2 + attested "as a step forward" + LANDED LIVE (2026-07-05, web main 8f4e166c) and
+# RE-SPECCED AGAIN by ADR-0157 (owner-directed at that H#2 gate): the owner CONFIRMED the BaaS
+# architecture ADR-0153 left open — the frontend reads the DATABASE DIRECTLY (a direct website->database
+# read edge added in the SAME corrected direction, dependent -> prerequisite: website.dependsOn=[backend,
+# database], a diamond) — plus five sharpenings of the standing walk: retire the "storm" metaphor from
+# ALL surfaces; the agent-loop teach becomes an HONEST TDD LOOP DIAGRAM (system-as-referee, not the AI
+# grading its own homework); plain newcomer-dev language, no weird analogies/jargon; the pre-walk reads
+# as OUR actual orchestrator + the first story node lands proposed; and the wisp MOVES (not a static
+# dot). This RE-OPENS the LOOK toward building for the reshaped surface; the H#2 attested record stays
+# true history (copy-on-write). H's built experience STANDS; the changes are additive to it.
 # This capability EXTENDS increment G: it reuses G's proven substrate — the real 2.5D map render
 # (ADR-0145), the anchored-callout narration, the visitor-paced Next affordance, the beat/director
 # engine (act2-beat-director, re-specced to a multi-story-with-dependsOn upstream vocabulary), and the
@@ -86,8 +96,10 @@ anchored-callout narration, the visitor-paced Next affordance, the
 artifact rail — all transitive through G). There is no upstream forest to reveal until the website
 walk it grows from exists.
 
-> **Proof status (honest) — `proposed`, operator-attested (ADR-0070); AUTHORED, a first build REFUSED
-> at the gate, now RE-SPECCED, not yet re-built.** This is the **extend-next** half of the Act 2
+> **Proof status (honest) — `proposed`, operator-attested (ADR-0070); the re-spec BUILT + machine-green
+> + OWNER-ATTESTED AS A STEP FORWARD + LIVE (2026-07-05, web main `8f4e166c`) — landed as an
+> INCREMENTAL step WITH forward feedback that drives the next arc link (see "As built / attested" below);
+> the LOOK is NOT terminally closed.** History: this is the **extend-next** half of the Act 2
 > re-scope
 > ([ADR-0148](../../docs/decisions/0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md),
 > owner-directed 2026-07-03), **RE-SHAPED by ADR-0150** (owner-directed at the G attestation
@@ -118,6 +130,89 @@ walk it grows from exists.
 > by the `frontend-builder` in `storytree-web` (branch off ITS `origin/main`, its own CD) and witnessed
 > by the owner on the live/preview site — appearance and feel are never self-signed (ADR-0070). A HALT
 > point for the driving session.
+>
+> **As built / attested (2026-07-05, web main `8f4e166c`, live at https://crisp-globe-bf6v.here.now/).**
+> The re-spec was built in `storytree-web` by the `frontend-builder` and cleared its machine floor —
+> `astro build` (zero-WebGL in Act 2), the three web gates (`check:web-experience` /
+> `check:web-grounding` / `check:web-engine`, all OK), and Playwright 41/41 — then the owner WALKED it
+> at the ADR-0070 stage-2 gate and **attested it as a STEP FORWARD → directed it to LAND LIVE**
+> (storytree-web PR #25 squash-merged → web main `8f4e166c`, CD green; the parent `web/` submodule pin
+> bumped `ff70222b` → `8f4e166c`). Per ADR-0044 §4 the attestation is agent-relayed and RECORDED here
+> (a look/feel verdict only the owner can sign), verbatim:
+> > *"Land this as its a step forward, then continue the self perpetuating chips based on this feedback"*
+> — followed by five forward directions (below).
+>
+> **As-built cites (web `8f4e166c`, files under `web/`):**
+> - **Corrected dependency direction, 3-tier, no direct frontend→DB edge** —
+>   `web/src/scripts/act2-script.ts`: `add-upstream-story` beat 4 carries `dependentId: STORY_WEBSITE`
+>   (line 141) and beat 5 `dependentId: STORY_BACKEND` (line 161), so `website.dependsOn=[backend]`,
+>   `backend.dependsOn=[database]`, `database.dependsOn=[]` (the header spells this out, lines 16–25);
+>   only the website resolves `proven` at pull-back (`proven: [STORY_WEBSITE]`, line 175). The site-owned
+>   ids are `story-checkout` / `story-backend` / `story-database` (lines 48–50).
+> - **Frontend HIGH / foundation BELOW (spatial), the DAG shown honestly** —
+>   `web/src/scripts/act2-walkthrough.ts`: the fold computes each story's dependency `depth` from
+>   `dependsOn` (`depthOf`, lines 371–383), anchors on the deepest dependent (the website), stacks
+>   `y = -depth * LAYER_RISE` so the website is highest and the database at the base (lines 395–403),
+>   and draws each `dependsOn` edge with the arrowhead landing ON the prerequisite below (lines 439–454).
+> - **Real-app UI, orchestrator chat AT THE BOTTOM carrying the outcome brief** —
+>   `web/src/scripts/act2-orchestrator.ts`: `mountOrchestrator` builds a bottom-anchored re-creation of
+>   the studio chat dock (lines 125–262), streaming the reused prompt + an outcome-brief reply
+>   (`USER_PROMPT` line 35, `REPLY_LINES` lines 53–76) with the studio's chat tokens (header, lines
+>   14–23); the only affordance is the primary that begins the walk — `PROPOSAL_CTA`, NO skip (lines
+>   79–80). Wired in `web/src/scripts/inflection.ts` (`mountWalkthrough` / `mountOrchestrator`, lines
+>   35–36, 72–78).
+> - **Drive-machinery overlays (top-left agent loop; top-right CI/CD → ship), site-side keyed by beat id**
+>   — `web/src/scripts/act2-overlays.ts`: `DRIVE_OVERLAYS` keys `beat-2-attach-wisp` (top-left, "The
+>   agent loop") / `beat-3-branch-caps` (top-right, "Proof, not a promise") / `beat-4-add-upstream-backend`
+>   (top-right, "Wired to the code") (lines 76–190); `mountDriveOverlay` reveals rows scaffolded and
+>   clears on the next beat (lines 234–368). No director field — presentational chrome (header §, lines
+>   11–17).
+> - **Plain-language teach incl. the loop/TDD framing, upstream = the advantage** —
+>   `web/src/scripts/act2-narration.ts`: `NARRATION` beats 4–5 name the layers as the foundation the
+>   website RESTS ON (lines 72–87); beat 3 states green is earned by "a signed, passing test run", not
+>   "done" (lines 63–69). The `INTRO` still opens "The storm settles into soil" (lines 111–116).
+> - **No escape hatch (a11y fallback only)** — `web/src/pages/index.astro`: the no-JS / reduced-motion
+>   `data-experience-fallback` calm view survives (lines 207–212, media queries 650–711); no
+>   capable-visitor skip is offered inside the Act 2 walk (orchestrator/overlays carry none).
+>
+> **Forward feedback → the FOLLOW-ON re-spec (the next arc link — NOT decided here, NOT encoded as this
+> cap's contract).** The owner attested this as an incremental step *with* five directions for the next
+> link, which the story-author turns into a re-spec (recorded, not enacted here): (1) the pre-walk should
+> read as talking to OUR system — the story node would land as `proposed`; (2) REMOVE the storm analogy
+> from ALL surfaces (it survives in `act2-narration.ts` `INTRO` / `done` and Act 1); (3) drop weird-
+> analogy/jargon usage — keep language simple for newcomer devs; (4) the agent-loop explanation should be
+> a LOOP DIAGRAM (not the current list-style overlay) that also speaks to the TDD orchestration flow
+> ("one agent writes tests", "the other builds code to pass the tests"); (5) the WISP should actually
+> MOVE — it currently renders as a static dot (the scene emits a `wisps` presence marker on the
+> `.tw-wisps` layer, `act2-walkthrough.ts` lines 510–511, not yet animated); and (6) the taught shape
+> should let the frontend read the DATABASE DIRECTLY (a BaaS re-visit of ADR-0153's 3-tier authoring
+> call — corpus-legal, owner's call at the next gate). Because this feedback is live, the LOOK cap is NOT
+> terminally closed; the attested "step forward" record above stands as true history (copy-on-write).
+>
+> **The re-spec — SETTLED by ADR-0157 (owner-directed at the H#2 gate, 2026-07-05; born accepted,
+> ADR-0110).** The six forward directions above are now DECIDED as ADR-0157 and re-open this LOOK toward
+> `building` for the reshaped surface (the H#2 "step forward" record stays true history, copy-on-write).
+> What the re-build changes, additively over the LIVE H#2 experience:
+> 1. **BaaS — the frontend reads the database directly.** The reveal encodes the DIAMOND
+>    `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`, `database.dependsOn=[]`
+>    (the direct `website → database` read edge added in the SAME corrected direction, dependent →
+>    prerequisite — ADR-0058 §1 both-ways test: the website reads the catalog directly from the database,
+>    so it needs the database; a database is provable headless, so no reverse edge, no cycle). The
+>    `act2-beat-director` `add-upstream-story` delta is widened so the database is a prerequisite of BOTH
+>    the website and the backend (the LEAF re-spec). The database renders as the shared foundation the
+>    website AND the backend rest on.
+> 2. **The agent-loop teach is an HONEST TDD LOOP DIAGRAM** (a loop, not a list; system-as-referee) — see
+>    "The honest TDD loop diagram" in Guidance. Site-side content keyed by beat id (NOT engine structure —
+>    ADR-0153/0157 authoring call), validated by `act2-validate`.
+> 3. **Plain language, no storm metaphor.** All copy (narration, briefs, overlays, orchestrator lines) is
+>    newcomer-legible; the word/analogy "storm" is retired from every visitor-facing surface (Act 1's
+>    built experience stands; only its naming retires).
+> 4. **The pre-walk reads as OUR orchestrator; the first story node lands `proposed`** (honesty — a new
+>    node is born `proposed`, proven only on signed proof; ADR-0094 / ADR-0020).
+> 5. **The wisp MOVES** (drifts/travels rather than a static dot) — a site-side animation change, no
+>    engine change.
+> The DATA direction stays the settled non-negotiable; the BaaS-vs-3-tier SHAPE is now confirmed BaaS;
+> the spatial layout and the exact diagram/animation visuals stay owner-tunable at the gate.
 >
 > **The re-shape (owner direction at the G gate, 2026-07-04 — SETTLED, design-time-ratified).**
 > Attesting increment G, the owner sharpened H's shape (verbatim: *"get rid of this bit [beat 4's
@@ -195,22 +290,31 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
   **continuation seam** — the walk flows on; it does not branch to a new page. This is the owner's "it
   shouldnt be separate": the seam is invisible-as-a-boundary; the visitor experiences one continuous
   guided walk.
-- **Upstream, PROPOSED, on real `dependsOn` edges — the dependency STACK the website rests on.** The
-  **backend** and **database** appear as **proposed** trees (the `'proposed'` status the map already
-  renders — sapling/ghosted, not green), and the **website owns the `dependsOn` edges** pointing FROM
-  the dependent TO its prerequisite: `website.dependsOn=[backend]`, `backend.dependsOn=[database]`,
-  `database.dependsOn=[]` (ADR-0058 / `cross-story-dependency` — the website NEEDS the backend to serve
-  a working checkout; the backend needs the database; a database is provable headless). This is the
-  correction ADR-0148 named and ADR-0153 sets right: the walk must SHOW that a backend and a database
-  are what the website DEPENDS ON — not pretend the website is a leaf, and not encode the edge backwards
-  (the refused build had `backend dependsOn website` — corrected here). **Spatially** (owner preference,
-  a free render choice — ADR-0153): the FRONTEND renders HIGH (the consumer on top) and the dependencies
-  render as the FOUNDATION BELOW — the database at the base, the backend above it, the website on top,
-  the foundation delivering UP to the consumer. Note the two axes agree: "upstream" (the dependency
-  direction — toward what the website needs) renders as the foundation BELOW; they are the same layering
-  seen from the dependency axis and the screen axis, not a contradiction. These are NOT sibling/neighbor
-  islands beside the website (the shape the unlanded ADR-0147 had — overtaken, never merged to main, so
-  referenced by name only); they are the dependency layers the website rests on.
+- **Upstream, PROPOSED, on real `dependsOn` edges — the BaaS dependency STACK the website rests on
+  (ADR-0157).** The **backend** and **database** appear as **proposed** trees (the `'proposed'` status
+  the map already renders — sapling/ghosted, not green), and the **website owns the `dependsOn` edges**
+  pointing FROM the dependent TO its prerequisite in the **BaaS diamond** the owner confirmed at the H#2
+  gate: `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`, `database.dependsOn=[]`
+  (ADR-0058 / `cross-story-dependency` — the website READS the catalog directly from the database, as a
+  real shopping app does via a BaaS, so it needs the database; the website ALSO needs the backend to
+  serve a working checkout/payment; the backend needs the database; a database is provable headless). So
+  the website has TWO outbound edges (a direct read edge to the database AND the backend edge), and the
+  database is the shared foundation both the website and the backend rest on. This is the correction
+  ADR-0148 named and ADR-0153 set right (the direction), now with ADR-0157's direct read edge added in
+  that SAME direction: the walk must SHOW that a backend and a database are what the website DEPENDS ON —
+  not pretend the website is a leaf, and not encode the edge backwards (the refused build had `backend
+  dependsOn website` — corrected). The frontend reading the database directly is the honest,
+  representative shape (a real shopping app reads its catalog from the DB and calls server functions for
+  privileged writes), which is why the shape is a diamond, not a single spine. **Spatially** (owner
+  preference, a free render choice — ADR-0153/0157): the FRONTEND renders HIGH (the consumer on top) and
+  the dependencies render as the FOUNDATION BELOW — the database at the base, the backend above it, the
+  website on top; the direct `website → database` read edge draws alongside the `website → backend →
+  database` chain. Note the two axes agree: "upstream" (the dependency direction — toward what the
+  website needs) renders as the foundation BELOW; they are the same layering seen from the dependency
+  axis and the screen axis, not a contradiction. Whether to reveal the direct read edge as its own beat
+  or alongside the backend reveal is a build-time pacing call (builder/owner-tunable at the gate). These
+  are NOT sibling/neighbor islands beside the website (the shape the unlanded ADR-0147 had — overtaken,
+  never merged to main, so referenced by name only); they are the dependency layers the website rests on.
 - **The dependency layer IS the advantage — the teach (replaces the wrong-way flag).** This is where
   beat 4's reframe LANDS. The old beat 4 drew a wrong-way UI→DB road flagged as an antipattern — a
   NEGATIVE teach (here is a mistake storytree catches). H's upstream reveal is the POSITIVE inverse:
@@ -231,6 +335,46 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
   clears. They MUST NOT overload the viewer — reveal them scaffolded, in the order a human can hold, as
   the walk deepens. The overlays are site-side content keyed by beat id (the `act2-beat-director` engine
   needs no change — ADR-0153's authoring call); the words and diagrams live with the surface.
+- **The honest TDD LOOP DIAGRAM — the agent-loop teach (ADR-0157; replaces the list-style overlay).**
+  The agent-loop overlay must be a DIAGRAM that shows a LOOP, at vibe-coder altitude, and it MUST be
+  HONEST about how storytree actually proves work — it must not misrepresent the system. The ground truth
+  is the ADR-0020 red-green phase machine (`packages/orchestrator/src/phase-machine.ts`): a leaf author is
+  driven through write-scoped phases `AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`, and
+  **red/green is OBSERVED by the deterministic spine — never claimed by the model** (`phase-machine.ts:7-8`;
+  in `AUTHOR_TEST` writes are test-paths-only, `:172-174`; in `IMPLEMENT` source-only and never a test,
+  "the test author is not the code author", `:176-178`). So the honest loop is: **write a failing test →
+  a REFEREE (the system, NOT the AI) checks it really fails (RED) → write code → the referee checks it
+  really passes (GREEN) → loop to the next slice.** The diagram must: (a) be a LOOP (not a list) — the
+  looping shape is the point; (b) show the two write-scoped phases at the owner's altitude ("one agent
+  writes the tests" = `AUTHOR_TEST`; "the other builds code to pass the tests" = `IMPLEMENT`); and
+  (c) — the CRUCIAL honest element — make the REFEREE/gate the SYSTEM, not the AI. The thing that checks
+  red then green is storytree's spine, not an agent grading its own homework; THAT is storytree's whole
+  thesis (the verification gap). If the two-agent framing is used for approachability, the CHECK stays
+  clearly the system's, so the diagram reads "the system referees the loop," never "an AI checks its own
+  work." This is the plain-language depiction of the `abd-green-only-on-signed-proof` data contract
+  (`act2-beat-director`): green appears only on a signed proof, in data, so the diorama cannot even in
+  fiction show a green the system did not referee. The diagram is SITE-SIDE content keyed by beat id (the
+  same authoring call as the other overlays — NOT a new director field; ADR-0157), validated against the
+  director's exported contract by `act2-validate`. The exact visuals (boxes, arrows, personification) are
+  the builder's + owner's at the gate; the WHAT is: a loop, two write-scoped phases, the system as
+  referee, plain language.
+- **Plain language, no storm metaphor (ADR-0157).** All copy on H's surface (the upstream narration, the
+  inspect rationales, the overlays, the orchestrator's lines) is plain and jargon-free for newcomer devs /
+  vibe coders (`plain-language-first`): no insider vocabulary without immediately showing what it means, no
+  strained analogies. The word/analogy **"storm" is retired from every visitor-facing surface** — Act 1 is
+  described plainly (the overwhelming swarm of agents, the chaotic terminals) where H's copy references it;
+  Act 1's built experience is untouched, only its naming.
+- **The pre-walk/orchestrator reads as OUR system; a new node lands `proposed` (ADR-0157).** The scripted
+  orchestrator voice reads as storytree's ACTUAL session orchestrator (ADR-0030's human-facing planning
+  agent), not a generic coding agent — so a first-time visitor understands they are watching storytree
+  work. And a newly-authored story node honestly enters `proposed` (proven only on signed proof through
+  the gate — ADR-0094 / ADR-0020); the walk depicts a planted node as `proposed`, never instantly green or
+  silently `building` without proof.
+- **The wisp MOVES (ADR-0157).** Where H shows a wisp, it MOVES — drifts/travels (e.g. along the limb or
+  over the tree) rather than rendering as a static dot. This is a site-side animation change (the wisp
+  presence marker is scene semantics the director already emits; the ANIMATION of its render is the site's
+  job, the same site-owns-motion boundary ADR-0145 set). The exact motion (path, speed, easing) is
+  builder/owner-tunable at the gate; the requirement is that it moves.
 - **Stories at EVERY level of the DAG, not just leaves.** The reveal is not a flat list of tasks; it is
   the DAG itself — a story (the backend), which has its own capabilities/contracts, which depends on
   another story (the database). The visitor sees that storytree grows work at any level, which is the
@@ -261,12 +405,19 @@ THE SURFACE (ADR-0150 + ADR-0153 — the extend-next increment; the spec of the 
 BUILD SHAPE: `storytree-web` repo work on its own rail, `frontend-builder` driving. H extends G's
 Act 2 surface as the CONTINUATION of the same walk: the upstream proposed stories are additional
 `DirectorState.world` deltas — specifically the re-specced [`act2-beat-director`](act2-beat-director.md)'s
-new **`add-upstream-story`** delta, whose edges point FROM the dependent TO its prerequisite — the
-WEBSITE carries `dependsOn=[backend]`, the BACKEND carries `dependsOn=[database]` (ADR-0058 / ADR-0153,
-the corrected direction; the upstream stories do NOT carry an edge back to the website) — folded into
-fresh `SceneInput`s → the synced `buildScene` → the site's 2.5D SVG (as G, per ADR-0145). Rendered with
-the frontend HIGH and the dependency foundation BELOW (owner spatial preference, a free render choice —
-builder/owner-tunable at the gate). **Real app UI (ADR-0153):** the walk and the orchestrator surface
+**`add-upstream-story`** delta, whose edges point FROM the dependent TO its prerequisite in the **BaaS
+diamond** (ADR-0157) — the WEBSITE carries `dependsOn=[backend, database]` (it reads the catalog directly
+from the database AND needs the backend for checkout), the BACKEND carries `dependsOn=[database]`
+(ADR-0058 / ADR-0153 / ADR-0157, the corrected direction; the upstream stories do NOT carry an edge back
+to the website; the delta is widened so the database is a prerequisite of both the website and the
+backend) — folded into fresh `SceneInput`s → the synced `buildScene` → the site's 2.5D SVG (as G, per
+ADR-0145). Rendered with the frontend HIGH and the dependency foundation BELOW (owner spatial preference,
+a free render choice — builder/owner-tunable at the gate; the direct `website → database` read edge draws
+alongside the `website → backend → database` chain). **ADR-0157 additions (site-side, no engine change):**
+the agent-loop overlay is an HONEST TDD LOOP DIAGRAM (a loop, system-as-referee — keyed by beat id,
+validated by `act2-validate`); all copy is plain with no "storm" metaphor; the orchestrator voice is our
+actual session orchestrator; a planted node reads `proposed`; and the wisp MOVES (a site-side animation
+of the wisp presence marker the director already emits). **Real app UI (ADR-0153):** the walk and the orchestrator surface
 reuse the real desktop/web app's UI components (not bespoke chrome), with progressive disclosure (hide
 what the visitor has not been walked through) — whether that is literal component reuse across the sync
 boundary or faithful re-creation against the same design system is an open build-time mechanism call
@@ -296,15 +447,18 @@ real defect earns a permanent one.
    continues: the session orchestrator (same voice G established) guides upstream at the same one-tap
    pace; there is NO jump to a new page, no separate "grow the backend" destination, no fresh start —
    the visitor experiences one continuous guided walk. The G→H seam is invisible as a boundary.
-2. **The forest is the dependency STACK, PROPOSED, layered on real dependency edges in the right
-   direction.** _(witness: human)_ A backend and a database appear as proposed (sapling/ghosted, not
-   green) trees forming the dependency stack the website rests on, connected by dependency edges pointing
-   the correct way — `website.dependsOn=[backend]`, `backend.dependsOn=[database]` (`website → backend →
-   database`, dependent → prerequisite). Rendered with the frontend HIGH and the foundation BELOW (owner
-   spatial preference). **Success —** a non-expert reads the layout as "my website DEPENDS ON these; they
-   are the foundation it rests on," not as siblings or downstream extras, and NOT as the website being
-   something the backend depends on (the direction is right way round) — the backend/database-are-what-
-   the-website-needs point lands, drawn as the map's actual dependency layering.
+2. **The forest is the BaaS dependency STACK, PROPOSED, layered on real dependency edges in the right
+   direction (ADR-0157).** _(witness: human)_ A backend and a database appear as proposed (sapling/ghosted,
+   not green) trees forming the dependency stack the website rests on, connected by dependency edges
+   pointing the correct way in the BaaS diamond — `website.dependsOn=[backend, database]`,
+   `backend.dependsOn=[database]` (the website reads the catalog DIRECTLY from the database AND needs the
+   backend for checkout; the backend needs the database; dependent → prerequisite). Rendered with the
+   frontend HIGH and the foundation BELOW (owner spatial preference), the database as the shared
+   foundation. **Success —** a non-expert reads the layout as "my website DEPENDS ON these; they are the
+   foundation it rests on; it reads the catalog straight from the database like a real shopping app, and
+   goes through the backend for checkout," not as siblings or downstream extras, and NOT as the website
+   being something the backend depends on (the direction is right way round) — the honest
+   real-shopping-app shape lands, drawn as the map's actual dependency layering.
 3. **The dependency layer reads as the ADVANTAGE (not a wrong-way flag).** _(witness: human)_ Watch the
    upstream layers reveal and read the narration. **Success —** the teach lands POSITIVE: the visitor
    understands that SEEING the dependency layers — the website needs a backend needs a database, in the
@@ -348,3 +502,23 @@ real defect earns a permanent one.
     clear; they reveal the depth scaffolded, in an order a first-time viewer can hold, and never dump the
     whole system at once. The map stays the honest picture of the work; the machinery is transient chrome
     that surfaces when taught and recedes.
+11. **The agent loop reads as an honest TDD loop, refereed by the system (ADR-0157).** _(witness: human)_
+    Reach the beat that explains the agent loop. **Success —** it is a DIAGRAM that shows a LOOP (not a
+    list): write a failing test → the SYSTEM checks it really fails → write code → the SYSTEM checks it
+    really passes → repeat. A newcomer reads it in plain language ("one agent writes the tests, the other
+    builds code to pass them") AND — the load-bearing point — understands the CHECK is done by the SYSTEM
+    (storytree's referee), not by an AI grading its own homework; the diagram never implies an AI certifies
+    its own work. The verification-gap thesis lands as a picture.
+12. **The copy is plain, with no storm metaphor (ADR-0157).** _(witness: human)_ Read H's narration,
+    inspect rationales, and overlay copy. **Success —** the language is plain and understandable to a
+    newcomer dev / vibe coder (no unexplained jargon, no strained analogies); the word/analogy "storm"
+    appears nowhere on any visitor-facing surface (Act 1 is described plainly where referenced — the
+    swarm of agents / the chaotic terminals).
+13. **A newly-planted story node lands `proposed`, and the orchestrator reads as OUR system (ADR-0157).**
+    _(witness: human)_ Watch a story node get planted and read the orchestrator's voice. **Success —** the
+    node honestly enters `proposed` (not instantly green, not silently building) and greens only when a
+    signed proof lands; the scripted orchestrator reads as storytree's ACTUAL session orchestrator, not a
+    generic coding agent — the visitor understands they are watching storytree work.
+14. **The wisp moves (ADR-0157).** _(witness: human)_ Watch the beat where a wisp appears. **Success —**
+    the wisp MOVES — it drifts/travels rather than sitting as a static dot; it reads as living presence
+    over the tree.

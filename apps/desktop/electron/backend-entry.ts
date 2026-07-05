@@ -41,7 +41,6 @@ import { acquireBackendStore, degradedBackend } from "../src/backend/sidecar-sta
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 import { createBuildRouteMount } from "../src/backend/build-route.js";
-import { createAcceptDispatchMount } from "../src/backend/accept-dispatch.js";
 import { credentialedBuildRunner } from "../src/backend/credentialed-build-runner.js";
 import { resolveSpawnMaxTurns } from "../src/backend/spawn-turns.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
@@ -443,21 +442,22 @@ async function main(): Promise<void> {
     verdicts: { readEvents: readVerdictEventRows },
   });
   // The chat mount is composed AFTER the build context below — its OPTIONAL spawn surface
-  // (ADR-0137 Phase 3) needs the live BuildContext (the builder spawn's third caller of the routed
-  // worker). See the `chatMount` composition after `acceptMount`.
+  // (ADR-0137 Phase 3) needs the live BuildContext (the builder spawn's caller of the routed
+  // worker). See the `chatMount` composition below.
 
   // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
-  // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) and
-  // createAcceptDispatchMount (POST /api/chat/accept) drive a real build from the human's click. The
-  // routedBuildRunner ROUTES by tier (a story → `story build --real` that persists verdicts + opens the
-  // auto-merging PR; a node → `node build --real` that persists the signed verdict and parks a
-  // claude/real/<unit>-<run> branch the human lands — ADR-0144/0031/0136); the build ENTRIES +
-  // discovery are imported LAZILY
-  // inside the closures (the raw-TS `.js` re-export trap, exactly the devApi.ts recipe). This wiring is
+  // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) drives a
+  // real build from the human's click on the story detail panel's Build/Adopt affordance. (The chat
+  // accept-to-Build route was retired by ADR-0155 — the orchestrator DRIVES via its spawn + landing
+  // tools, so there is no /api/chat/accept dispatch anymore.) The routedBuildRunner ROUTES by tier
+  // (a story → `story build --real` that persists verdicts + opens the auto-merging PR; a node →
+  // `node build --real` that persists the signed verdict and parks a claude/real/<unit>-<run> branch
+  // the human lands — ADR-0144/0031/0136); the build ENTRIES + discovery are imported LAZILY inside
+  // the closures (the raw-TS `.js` re-export trap, exactly the devApi.ts recipe). This wiring is
   // OPERATOR-ATTESTED (verified by the live walk, ADR-0070), NOT a CI assertion — a node:test over the
   // real routedBuildRunner would spawn a subscription-billed `--real` build on a gate pass (the live
-  // spend ADR-0010 §5 forbids); the CI-proven cores are the mount factories over an INJECTED BuildContext
-  // (build-route.test.ts / accept-dispatch.test.ts). A SAFE write — the spend is the human's click, not
+  // spend ADR-0010 §5 forbids); the CI-proven core is the mount factory over an INJECTED BuildContext
+  // (build-route.test.ts). A SAFE write — the spend is the human's click, not
   // this wiring; the spine signs, CI re-proves green before trunk (ADR-0091 / ADR-0022).
   const loadBuildUnit = async (
     unitId: string,
@@ -536,7 +536,6 @@ async function main(): Promise<void> {
     },
   };
   const buildRouteMount = createBuildRouteMount(build);
-  const acceptMount = createAcceptDispatchMount(build);
 
   // ---------- the chat SPAWN surface (ADR-0137 Phase 3 — the sidecar wiring) ----------
   //
@@ -662,7 +661,6 @@ async function main(): Promise<void> {
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
         if (await buildRouteMount(req, res, pathname)) return;
-        if (await acceptMount(req, res, pathname)) return;
         await localHandler(req, res);
       } catch (err) {
         if (!res.headersSent) {
