@@ -123,7 +123,7 @@ baseline*, not a discovery tool — the baseline already did the discovery.
 The arc's shared state. Each perpetual-chip session lands **one** increment, ticks it here, and records
 the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
 
-- [x] **0. Charter** — this ADR (ADR-0162), accepted 2026-07-05. _(PR: this one.)_
+- [x] **0. Charter** — this ADR (ADR-0162), accepted 2026-07-05. _(PR: #603.)_
 - [x] **1. ENV skip-license** (Phase 1, XS) — guidance edit granting offline sessions explicit
   skip-license; drop the redundant `db:up` precondition; "one hydrated auth probe or none". Landed a
   leading "Offline is the DEFAULT" bullet in CLAUDE.md's `## How to run`: offline work (analysis/docs/
@@ -162,9 +162,25 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   removing the +15–35 s mid-onboarding blocker for the ~1-in-5 fresh-worktree sessions. A
   `provision-worktree.test.ts` proves the contract with an injected installer (idempotent no-op /
   fresh→install-once / failure→non-zero exit / `--hook` swallows failure); `provision-worktree.d.mts`
-  types the surface for the TS test (per `scripts/studio.d.mts`). _(PR: this one.)_
-- [ ] **4. SOURCE engine-map — DECISION GATE** (validate-first) — run ADR-0024's blind test; land a
-  minimal gated package-tour extension only if the re-read pain is proven. Else close as won't-do.
+  types the surface for the TS test (per `scripts/studio.d.mts`). _(PR: #618.)_
+- [x] **4. SOURCE engine-map — DECISION GATE** (validate-first) — **closed WON'T-DO** (2026-07-06). Ran
+  ADR-0024's blind-reconstruction test (three tool-blind definers, neutral preamble, judged against the
+  real engine + the existing CLAUDE.md package tour). Result: the SOURCE re-read is **not real waste**, so
+  item 4's criterion ("pursue only if the re-read is proven waste") is unmet. The re-read is two things and
+  a new engine-map artifact is justified by neither: **(1) the STRUCTURAL map** (module roster /
+  responsibilities / seams / conceptual data-flow) is blind-reconstructible — the *raw* definer rebuilt the
+  ~10-package shape from the topic alone (generic industry knowledge), the *preamble* definer rebuilt the
+  near-exact real structure incl. real filenames/seam names from the neutral sketch (derivable from our
+  framing); by §1's earns-its-place bar a fresh prose map **fails**, and this content already lives in the
+  CLAUDE.md package tour (redundant twice over). **(2) The EDITABLE detail** (current signatures, exact
+  schemas, the real call graph, code-enforced invariants like "halted is never a pass") is *not*
+  reconstructible — but it is **code** (outside ADR-0024 §8's authored-prose scope), it rots fast under
+  refactor (strict TS makes a stale signature *actively wrong*), and reading it before an edit is *correct*
+  just-in-time behaviour, not waste. A generated doc holding it would be exactly the role/data-flow prose
+  §Phase-1.4 forbids and the ADR-0135 stale-glossary / "false-green from a stale doc" trap. No minimal
+  path-gated extension is warranted either: the package tour already supplies the "which files?"
+  search-time index (it names `prove-it-gate.ts`, `sdk-author.ts`, `phase-machine.ts`, …). Agent-decidable
+  per the criterion the owner fixed in this ADR — not an owner fork. _(PR: this one.)_
 - [ ] **5. Maintenance & monitoring system** (Phase 2) — per-agent-type onboarding-budget SLA,
   post-session breach signal → remediation (ADR-0032). The owner-process. Arc completes when this lands.
 
