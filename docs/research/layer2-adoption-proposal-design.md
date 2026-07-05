@@ -1,19 +1,25 @@
 # Layer 2 — the adoption proposal / classifier (ADR-0097 follow-on design)
 
-> **Status: mechanical half BUILT; finer judgment + empirical coverage are named follow-on.** The
-> captured design for the named follow-on of
+> **Status: HISTORICAL — the design is realized; only empirical coverage measurement remains
+> follow-on.** The captured design for the named follow-on of
 > [ADR-0097](../decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the
 > middle of the three layers the brownfield proving process decomposes into. Settled with the owner in
 > a design conversation 2026-06-23. The **structural covers-diff classifier + the CLI report + the
-> studio surfaces are now built** (the "Fork 1, structural now" half — see *Build status* below); the
-> finer per-cap observe/R1/R2 **judgment** (agent analysis) and empirical coverage **measurement**
-> remain named follow-on / unbuilt.
+> studio surfaces** landed first (the "Fork 1, structural now" half — see *Build status* below); the
+> finer per-cap observe/R1/R2 **judgment** half landed 2026-06-27 (commit `2c170db`:
+> `assembleProposal` / `renderProposedGate` / `parsePocketReadings` in `@storytree/orchestrator` +
+> `storytree adopt plan <story> --readings <file>` — the injected-reading seam the *Open
+> implementation questions* below recommended). Current state lives in the capability spec
+> [`stories/drive-machinery/adoption-pocket-classifier.md`](../../stories/drive-machinery/adoption-pocket-classifier.md)
+> and ADR-0097's dated Consequences update; empirical coverage **measurement** remains the only named
+> follow-on / unbuilt piece.
 >
 > **Build status (landed since this design was captured):**
 > - the pure `classifyAdoption` covers-diff compute + its tests —
 >   [`packages/orchestrator/src/proof/adoption-proposal.ts`](../../packages/orchestrator/src/proof/adoption-proposal.ts)
 >   (`.test.ts`), exported from the orchestrator barrel. Emits a deliberately-EXTENSIBLE `PocketClass`
->   slot whose only value today is `"unclassified"` — the observe/R1/R2 taxonomy stays Layer 3's call.
+>   slot the structural compute alone only ever fills with `"unclassified"` — *(since grown,
+>   2026-06-27: `assembleProposal` stamps `observe`/`R1`/`R2` from the agent's injected reading)*.
 > - the offline `storytree story adopt-plan <id>` report —
 >   [`packages/cli/src/adopt-plan.ts`](../../packages/cli/src/adopt-plan.ts) (`.test.ts`).
 > - the studio surfaces — the covered/uncovered classification in the AdoptPanel ("what still owes real
@@ -24,14 +30,14 @@
 > **Calibration note (important):** this design was drafted assuming Layer 1 was unbuilt, but **Layer 1
 > landed on `main` while it was being written** (PR #324, "feat(adopt): ADR-0097 Layer 1"), and
 > **[ADR-0098](../decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)**
-> (proposed) landed defining **Layer 3**. This doc has been reconciled to that reality. The three
-> layers, per ADR-0098 §7:
+> (proposed at the time, since accepted) landed defining **Layer 3**. This doc has been reconciled to
+> that reality. The three layers, per ADR-0098 §7:
 >
 > | Layer | What | State |
 > |---|---|---|
 > | **1** | the `proposed`-state model, `(covers:)` crown-coverage, the Adopt entry (flip + observe-and-sign) | **BUILT** (PR #324) |
-> | **2** | the adoption proposal: the **mechanical covers-diff** (covered vs uncovered) + CLI report + studio surfaces — BUILT; the finer per-cap `observe` / `R1` / `R2` **judgment** + empirical coverage remain follow-on | **MECHANICAL HALF BUILT**; finer judgment unbuilt |
-> | **3** | the `build-tests`-capable inner loop that **consumes the classification** | **DESIGNED** (ADR-0098, proposed) |
+> | **2** | the adoption proposal: the **mechanical covers-diff** (covered vs uncovered) + CLI report + studio surfaces, and the finer per-cap `observe` / `R1` / `R2` **judgment** half (`assembleProposal` + `adopt plan --readings`); empirical coverage measurement remains follow-on | **BUILT** (mechanical half + the judgment half, 2026-06-27) |
+> | **3** | the `build-tests`-capable inner loop that **consumes the classification** | **BUILT** (ADR-0098 accepted; U1–U5 landed incl. the live pilot) |
 
 ## What this is
 
@@ -143,8 +149,9 @@ mapped story
 
 > **Now landed** (the mechanical half of components 1–3, 5; see the *Build status* block at the top):
 > the `classifyAdoption` compute (#1), the `adopt-plan` CLI report (#2), the AdoptPanel classification
-> (#3), and the "Relevant ADRs" section (#5). Component #4 (the OQs/Proposals section) and the finer
-> observe/R1/R2 judgment within #1 stay follow-on. The component notes below are kept as the design
+> (#3), and the "Relevant ADRs" section (#5). Component #4 (the OQs/Proposals section) stays follow-on;
+> the finer observe/R1/R2 judgment within #1 landed 2026-06-27 (`assembleProposal` + `adopt plan
+> --readings`). The component notes below are kept as the design
 > rationale; the *Open implementation questions* further down record how the open splits were resolved
 > in the build (the compute emits the mechanical uncovered set + an extensible slot; one `adopt-plan`
 > surface; live-derived; empirical coverage stays follow-on).
@@ -186,7 +193,7 @@ Verified on `main` 2026-06-23 (PR #324):
 - [ADR-0097](../decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the
   brown→proposed→green proving process; this is its named Layer 2.
 - [ADR-0098](../decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
-  (proposed) — Layer 3, the `build-tests` inner loop; **pins Layer 2's job** (classify observe/R1/R2)
+  (accepted) — Layer 3, the `build-tests` inner loop; **pins Layer 2's job** (classify observe/R1/R2)
   and the batch decision-sweep this design's bucket (c) converges with.
 - [ADR-0085](../decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md) —
   `observe` vs `build-tests` gate kinds; observe-and-sign → `adopted`.

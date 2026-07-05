@@ -132,7 +132,7 @@ each file pins the `proposed` pockets.
 | 15 | [`story-real-chain`](story-real-chain.md) | A whole story grows to signed verdicts: capabilities real-built in dependency order over one worktree, promoted once. | mapped | `story-topo-build`, `real-build-worktree`, `spec-borne-proof-config` |
 | 16 | [`multi-file-existing-source`](multi-file-existing-source.md) | A node declares a multi-file scope + an edit-existing-source regression red→green (bug-fixes/refactors), keeping test-author ≠ code-author. | mapped | `spec-borne-proof-config`, `proof-command-vocabulary` |
 | 17 | [`gate-as-proof-authoring`](gate-as-proof-authoring.md) | Authoring an ADR earns a signed verdict through the unchanged gate by reducing to edit-existing with a structural-completeness check — the machine witnesses hygiene, never acceptance. | mapped | `multi-file-existing-source`, `spec-borne-proof-config` |
-| 18 | [`adoption-pocket-classifier`](adoption-pocket-classifier.md) | The spine turns each uncovered brownfield pocket into a proposed reliability gate with a build-tests classification and the key forks the human must settle. | proposed | `build-drive-cli` |
+| 18 | [`adoption-pocket-classifier`](adoption-pocket-classifier.md) | The spine turns each uncovered brownfield pocket into a proposed reliability gate with a build-tests classification and the key forks the human must settle. | mapped | `build-drive-cli` |
 
 ## Dependency graph (code-derived)
 
@@ -333,11 +333,14 @@ names (d.3 retired the status-blind Build for `mapped` stories).
 The machinery's offline behaviour spans **three suites** — the spine (`@storytree/orchestrator`), the
 CLI-resident build-drive + ADR-authoring integration tests (`@storytree/cli`), and the carved-out drive
 package (`@storytree/drive`, ADR-0112) — so its reliability floor adopts all three, **one consolidated
-observe gate each**, every gate naming the capabilities it `(covers:)` (ADR-0097 — three gates over 17
-capabilities reads cleaner than 17 per-cap gates, the same multi-cover shape the `library` story uses).
-The three gates cover 17 of the 18 capabilities; the 18th — [`adoption-pocket-classifier`](adoption-pocket-classifier.md),
-the newest pocket (`proposed`) — is deliberately left UNCOVERED here, so it holds the crown at `proposed`
-until it earns its own gate (ADR-0097 d.5: a green crown MEANS every pocket got real coverage).
+observe gate each**, every gate naming the capabilities it `(covers:)` (ADR-0097 — three gates over 18
+capabilities reads cleaner than 18 per-cap gates, the same multi-cover shape the `library` story uses).
+The three gates cover all 18 capabilities. The 18th — [`adoption-pocket-classifier`](adoption-pocket-classifier.md)
+— was authored `proposed` (would-be) and deliberately left uncovered; its behaviour has since been
+BUILT outer-loop (2026-06-27, `assembleProposal` + `adopt plan --readings`, commit `2c170db`) with a
+real offline suite in the orchestrator package, so it is now honestly brownfield (`mapped`) and
+gate-1 `(covers:)` it alongside the other spine-resident caps (ADR-0097 d.5 holds: the crown's green
+still MEANS every pocket got real coverage — this one's coverage is real, not a placeholder).
 
 Distinct from `## Story UAT` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
@@ -350,17 +353,20 @@ if they ever earn standing offline tests. The bootstrap step **Honest status** n
 assertions UNDER the gate red→green to start earning `healthy` — remains a separate, later move; adopting
 the existing green is the honest brownfield floor.
 
-1. **The spine's own suite is green** _(gate: observe)_ _(covers: halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, multi-file-existing-source)_ `pnpm --filter @storytree/orchestrator test`.
+1. **The spine's own suite is green** _(gate: observe)_ _(covers: halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, multi-file-existing-source, adoption-pocket-classifier)_ `pnpm --filter @storytree/orchestrator test`.
    The spine runs it at a clean committed HEAD and OBSERVES it green — the halt-aware sequence
    (halted-is-never-a-pass), the red→green phase machine + per-phase write wall, the shell-test observer,
    the prove-it-gate's full red→green ladder, the owned-loop PhaseAuthor under the write wall (incl. its
    fail-closed step path, now pinned by `owned-loop-author.test.ts`), the REAL worktree/promotion
    mechanics, prove-spec resolution + spec-borne proof config + the declarable proof command, the topo
-   story chain, the multi-file edit-existing scope, and the work/verdict event-log projection +
+   story chain, the multi-file edit-existing scope, the work/verdict event-log projection +
    signer/rollup/verdict-line proof machinery (the offline `InMemoryStore`/`PgWorkStore` parity contracts
-   included) all pass offline (no DB, no API key) — then signs an `adopted` verdict (`storytree gate run
-   drive-machinery#gate-1 --pg`). This is the bulk of the machinery (`packages/orchestrator`), so it
-   `(covers:)` those 13 capabilities.
+   included), and the adoption-proposal classifier — both halves: the mechanical covers-diff AND the
+   judgment half (`assembleProposal`'s pocket stamping, the recommend-only `ProposedGate` round-trip
+   through the REAL `parseReliabilityGates`, the fail-closed readings boundary, the fork sweep;
+   `adoption-proposal.test.ts`) — all pass offline (no DB, no API key) — then signs an `adopted` verdict
+   (`storytree gate run drive-machinery#gate-1 --pg`). This is the bulk of the machinery
+   (`packages/orchestrator`), so it `(covers:)` those 14 capabilities.
 2. **The build-drive + ADR-authoring surface is green** _(gate: observe)_ _(covers: build-drive-cli, story-real-chain, gate-as-proof-authoring)_ `pnpm --filter @storytree/cli test`.
    The spine OBSERVES the CLI-resident integration suite green at a clean HEAD — `node build` / `story
    build` dispatch + the honest dry-run/`--real` framing and the `--store pg` + `--dry-run` refusal (a

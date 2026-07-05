@@ -144,8 +144,9 @@ backs them. A brownfield story's hard floor is its `## Reliability Gates`.
 - The CLI friction the owner objected to is removed (the studio surfaces the adoption process, not
   copy-paste `gate run` commands) without making green a one-click flip.
 
-**Bad / costs / follow-on (surfaced, not buried) — the model is DECIDED; the infrastructure is largely
-NOT BUILT (the load-bearing caveat the owner flagged).**
+**Bad / costs / follow-on (surfaced, not buried) — the model is DECIDED; the infrastructure was largely
+NOT BUILT at decision time (the load-bearing caveat the owner flagged; both headline gaps have since
+been built — see the dated updates below).**
 - **The adoption proposal / feedback mechanism does not exist.** There is no surface today for the spine
   to analyze a brownfield story's coverage and present "adopt-able vs needs-`build-tests` vs
   decisions-I-need-from-you." Building it is the substantive new work this ADR names. *(Update 2026-06-27:
