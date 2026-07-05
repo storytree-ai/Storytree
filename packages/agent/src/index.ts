@@ -90,8 +90,9 @@ export { runSpawnStoryAuthor, runSpawnWriteScoped } from "./spawn-story-author.j
 export type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 export { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
 
-// The landing seam (ADR-0152): the scoped, fail-closed merge-ceremony MCP tool surface
-// (run_gate + open_landing_pr) and its dep contract — consumed by @storytree/drive's
+// The landing seam (ADR-0152; poll_pr_checks added by ADR-0163 Gap B2): the scoped, fail-closed
+// merge-ceremony MCP tool surface (run_gate + open_landing_pr + poll_pr_checks) and its dep
+// contract — consumed by @storytree/drive's
 // landing-deps composition, which shells `pnpm gate` / `git` / `gh` behind an injected exec
 // seam and threads the deps through orchestrate() to the runtime. The chat keeps `tools: []`;
 // these are the only sanctioned side-effecting tools (never raw Bash/Write — ADR-0137 d.1).
@@ -99,5 +100,7 @@ export type {
   LandingSurfaceDeps,
   LandingGateResult,
   LandingPrResult,
+  LandingPollResult,
+  LandingPollStatus,
 } from "./landing-tool-surface.js";
 export { buildLandingTools, LANDING_SERVER } from "./landing-tool-surface.js";

@@ -8,6 +8,7 @@ import { capturedFromInput } from "../src/oauth/login.js";
 import type { CredentialKind } from "../src/credential/kinds.js";
 import { serveStudio } from "./static-server.js";
 import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
+import { runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
@@ -140,6 +141,39 @@ ipcMain.handle("auth:store", async (_e, kind: CredentialKind, rawToken: string):
 });
 ipcMain.handle("auth:sign-out", async (_e, kind: CredentialKind): Promise<boolean> => {
   return broker.clear(kind);
+});
+
+// ---------- apply-a-landed-fix: rebuild + relaunch (ADR-0164 Phase 1) ----------
+//
+// Rail 1: the SUPERVISOR is this Electron MAIN process — it spawns the sidecar and can `app.relaunch()`,
+// so it is the only process that can rebuild + relaunch without killing the thing issuing the command.
+// The renderer's banner button (surfacing the existing git-HEAD-drift signal, ADR-0164) invokes this;
+// the MAIN process executes. The orchestrator/sidecar only ever SIGNALS — it never restarts itself.
+//
+// FAIL-CLOSED (ADR-0164 Consequences): the rebuild runs `pnpm --filter studio build` then
+// `build:electron` from the desktop package dir, STOPPING on the first failure. On success we relaunch
+// onto the freshly-built code; on ANY failure we DO NOT relaunch — the app stays on the old working
+// build and the typed error is returned to the banner. A concurrency guard makes a double-click a no-op
+// rather than two overlapping builds.
+let rebuilding = false;
+ipcMain.handle("apply:rebuild-relaunch", async (): Promise<RebuildResult> => {
+  if (rebuilding) {
+    return { ok: false, step: "rebuild", code: 1, output: "a rebuild is already in progress" };
+  }
+  rebuilding = true;
+  try {
+    const result = await runRebuild(spawnStepRunner(appRoot));
+    if (result.ok) {
+      // Relaunch onto the new build, then quit THIS instance — `will-quit` reaps the sidecar. The new
+      // instance spawns a fresh sidecar that serves the just-rebuilt studio dist. Only reached on a
+      // fully-green rebuild, so the app never relaunches into a half-applied state.
+      app.relaunch();
+      app.quit();
+    }
+    return result;
+  } finally {
+    rebuilding = false;
+  }
 });
 
 void app.whenReady().then(async () => {

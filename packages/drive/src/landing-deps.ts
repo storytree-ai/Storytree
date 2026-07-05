@@ -18,7 +18,16 @@
  *   - THE SPINE STILL SIGNS (ADR-0091 / ADR-0020 / ADR-0152): `runGate` reports the OBSERVED
  *     pass/fail from a real exit code — it never authors a "healthy"; `openLandingPr` opens a
  *     NON-DRAFT PR (never `gh pr merge`, never `--draft`) so CI re-proves green on the merge with
- *     main and auto-merges (ADR-0022). No landing tool carries a verdict-shaped payload.
+ *     main and auto-merges (ADR-0022); `pollPrChecks` OBSERVES CI state (never signs). No landing
+ *     tool carries a verdict-shaped payload.
+ *
+ * WATCH TO GREEN (ADR-0163 Gap B2): `pollPrChecks` shells `gh pr view <pr> --json
+ * state,statusCheckRollup` — a SINGLE, non-blocking poll (never `gh pr checks --watch`, which would
+ * hang the SDK loop indefinitely) — and classifies the rollup into a `LandingPollStatus`
+ * (pending / passed / failed / merged / unknown). It gives the orchestrator EYES on the PR it just
+ * opened: "a PR is not done until CI is green — WATCH it" (CLAUDE.md). The orchestrator loops by
+ * calling it again; the bounded watch loop is its guidance, not this seam's. This also unblocks
+ * ADR-0164 Phase 2 (self-restart to apply a merged fix), which must know when the PR MERGED.
  *
  * WHICH GATE: `runGate` shells `pnpm gate` — the SAME canonical gate the terminal
  * session-orchestrator runs at the merge ceremony (typecheck + tests + build + manifest, plus the
@@ -37,7 +46,7 @@
 
 import { execFile } from "node:child_process";
 
-import type { LandingSurfaceDeps, LandingPrResult } from "@storytree/agent";
+import type { LandingSurfaceDeps, LandingPrResult, LandingPollResult } from "@storytree/agent";
 
 // Re-exported so drive-side consumers (orchestrate.ts, the desktop sidecar) have a named, stable
 // type off this module rather than a deep reach into @storytree/agent.
@@ -150,6 +159,116 @@ function parsePrUrl(stdout: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// PR-check classification (ADR-0163 Gap B2)
+// ---------------------------------------------------------------------------
+
+/**
+ * One entry of `gh pr view --json statusCheckRollup`. A CheckRun (GitHub Actions / Checks API)
+ * reports `status` (COMPLETED / IN_PROGRESS / QUEUED …) + `conclusion` (SUCCESS / FAILURE …); a
+ * StatusContext (the legacy commit-status API) reports `state` (SUCCESS / PENDING / FAILURE …).
+ * All fields are optional — we read whichever the entry carries and treat missing as inconclusive.
+ */
+interface RollupEntry {
+  name?: string;
+  context?: string;
+  status?: string;
+  conclusion?: string;
+  state?: string;
+}
+
+/** The shape of `gh pr view <pr> --json state,statusCheckRollup` we depend on. */
+interface PrView {
+  state?: string;
+  statusCheckRollup?: RollupEntry[];
+}
+
+/** A CheckRun conclusion or StatusContext state that means the check FAILED (not just "not green"). */
+const FAILING = new Set([
+  "FAILURE",
+  "CANCELLED",
+  "TIMED_OUT",
+  "ACTION_REQUIRED",
+  "STARTUP_FAILURE",
+  "STALE",
+  "ERROR",
+]);
+
+/** Display label for one rollup entry — its CheckRun name or StatusContext context. */
+function entryLabel(e: RollupEntry): string {
+  return e.name ?? e.context ?? "check";
+}
+
+/** The observed outcome word for one rollup entry (conclusion, else state, else its run status). */
+function entryOutcome(e: RollupEntry): string {
+  return e.conclusion ?? e.state ?? e.status ?? "PENDING";
+}
+
+/** True when the entry is still running (a CheckRun not COMPLETED, or a StatusContext PENDING/EXPECTED). */
+function entryPending(e: RollupEntry): boolean {
+  if (e.status !== undefined) return e.status !== "COMPLETED";
+  if (e.state !== undefined) return e.state === "PENDING" || e.state === "EXPECTED";
+  // No status/state and no terminal conclusion → treat as pending (inconclusive, keep watching).
+  return e.conclusion === undefined;
+}
+
+/** True when the entry reached a FAILING terminal outcome. */
+function entryFailed(e: RollupEntry): boolean {
+  const outcome = (e.conclusion ?? e.state ?? "").toUpperCase();
+  return FAILING.has(outcome);
+}
+
+/**
+ * Classify a parsed `gh pr view` into an OBSERVED {@link LandingPollResult} — the pure heart of
+ * `pollPrChecks`. Precedence: MERGED wins; a CLOSED-unmerged PR is `failed` (it will never land);
+ * otherwise any failing check → `failed`, else any pending check → `pending`, else `passed`. An
+ * empty rollup is `pending` (checks not yet reported — keep watching), never a false `passed`.
+ */
+function classifyPrView(view: PrView): LandingPollResult {
+  const prState = (view.state ?? "").toUpperCase();
+  if (prState === "MERGED") {
+    return { status: "merged", summary: "PR is MERGED — CI auto-merged it (ADR-0022); the unit is landed." };
+  }
+  if (prState === "CLOSED") {
+    return {
+      status: "failed",
+      summary: "PR is CLOSED without merging — it will not land; recover and open a fresh PR.",
+    };
+  }
+
+  const rollup = view.statusCheckRollup ?? [];
+  if (rollup.length === 0) {
+    return {
+      status: "pending",
+      summary: "No CI checks reported yet — keep watching (poll again shortly).",
+    };
+  }
+
+  const lines = rollup.map((e) => `${entryLabel(e)}: ${entryOutcome(e)}`).join("\n");
+  const failed = rollup.filter(entryFailed).map(entryLabel);
+  if (failed.length > 0) {
+    return { status: "failed", summary: `Failed check(s): ${failed.join(", ")}\n\n${lines}` };
+  }
+  if (rollup.some(entryPending)) {
+    return { status: "pending", summary: `CI still running:\n\n${lines}` };
+  }
+  return { status: "passed", summary: `All checks green (awaiting auto-merge):\n\n${lines}` };
+}
+
+/**
+ * Parse `gh pr view` stdout into a {@link PrView}. Returns `undefined` when the output is not the
+ * JSON object we asked for (so the caller maps it to an `unknown` status rather than crashing).
+ */
+function parsePrView(stdout: string): PrView | undefined {
+  try {
+    const parsed = JSON.parse(stdout) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    return parsed as PrView;
+  } catch {
+    return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
 
@@ -216,6 +335,27 @@ export function buildLandingDeps(args: BuildLandingDepsArgs): BuildLandingDepsRe
         summary: `landing PR opened for ${branch} (non-draft — CI re-proves and auto-merges, ADR-0022)`,
         ...(prUrl !== undefined ? { prUrl } : {}),
       };
+    },
+
+    pollPrChecks: async ({ pr }): Promise<LandingPollResult> => {
+      // A SINGLE, non-blocking poll — NEVER `gh pr checks --watch`, which would hang the SDK loop.
+      // `gh pr view <pr> --json state,statusCheckRollup` prints a stable JSON object we classify.
+      const result = await exec(
+        "gh",
+        ["pr", "view", pr, "--json", "state,statusCheckRollup"],
+        { cwd },
+      );
+      if (result.code !== 0) {
+        // Fail closed: `gh` errored (bad PR ref, auth, network). Report it as `unknown` with the
+        // stderr tail — a readable observation the orchestrator can act on, never a throw or a
+        // fabricated green.
+        return { status: "unknown", summary: `could not poll PR checks:\n${summarise(result)}` };
+      }
+      const view = parsePrView(result.stdout);
+      if (view === undefined) {
+        return { status: "unknown", summary: `could not parse gh output:\n${summarise(result)}` };
+      }
+      return classifyPrView(view);
     },
   };
 

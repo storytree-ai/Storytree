@@ -35,6 +35,7 @@ import { createOrientationRunner, deriveIdentity, buildSpawnDeps, buildLandingDe
 import type { SpawnSurfaceDeps, LandingSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
+import { createCodeStampProbe } from "../src/apply/code-stamp.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { LocalBackendBackend } from "../src/backend/local-backend.js";
 import { acquireBackendStore, degradedBackend } from "../src/backend/sidecar-startup.js";
@@ -62,6 +63,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
+
+// The Rail-2 trigger signal (ADR-0164 Phase 1): capture the git-HEAD the sidecar STARTED on ONCE here,
+// at module load (before any pull can land), and re-read it per /api/health. `head !== startedAt` means
+// the checkout advanced under the running app — a merged fix was fast-forwarded in — which the shared
+// StoreBanner turns into the "rebuild & relaunch" affordance. Advisory: null (no `code` field) when git
+// can't answer, exactly like the studio's own codeStamp probe (re-composed here, not imported —
+// apps/studio/server is a forbidden surface, ADR-0100).
+const codeStampProbe = createCodeStampProbe(repoRoot);
 
 // ---------- session identity (ADR-0033) for the chat spawn surface ----------
 //
@@ -174,10 +183,19 @@ async function serveDegraded(reason: string): Promise<void> {
       `until the DB is reachable: ${reason}`,
   );
   const bootRoutes = createBootReadRoutes({ docsDir, listComments: async () => [] });
+  // Even with the store down, a moved checkout must still surface the rebuild affordance (the banner
+  // outranks the DB phase, ADR-0164) — so the degraded health carries the same code stamp.
+  const degraded = degradedBackend();
   const localHandler = createLocalBackend({
     storiesDir,
     docsDir,
-    backend: degradedBackend(),
+    backend: {
+      ...degraded,
+      health: async () => {
+        const code = (await codeStampProbe()) ?? undefined;
+        return { db: "unreachable" as const, ...(code !== undefined ? { code } : {}) };
+      },
+    },
     store: "pg",
   });
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -288,11 +306,14 @@ async function main(): Promise<void> {
       return docs.map(renderStoredDoc);
     },
     health: async () => {
+      // The code stamp rides every health answer (both the ok + unreachable DB branches) — the
+      // "checkout moved" trigger is independent of DB state. Advisory: undefined when git can't answer.
+      const code = (await codeStampProbe()) ?? undefined;
       try {
         await pool.query("select 1");
-        return { db: "ok" as const };
+        return { db: "ok" as const, ...(code !== undefined ? { code } : {}) };
       } catch {
-        return { db: "unreachable" as const };
+        return { db: "unreachable" as const, ...(code !== undefined ? { code } : {}) };
       }
     },
     // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's

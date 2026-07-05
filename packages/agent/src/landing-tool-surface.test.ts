@@ -8,10 +8,13 @@
  * One test block per behaviour:
  *   lts-landing-tools-mounted-only-with-deps — landing power is opt-in per composition, absent by
  *     default (§7 scale-down mirror): a dep-less session is byte-identical to the propose+spawn
- *     surface; with deps, exactly the two landing tools join allowedTools and the landing MCP
+ *     surface; with deps, exactly the three landing tools join allowedTools and the landing MCP
  *     server mounts.
  *   lts-tool-call-dispatches-to-the-handler — invoking a landing tool dispatches to the injected
  *     handler and returns the handler's summary TEXT to the model.
+ *   lts-poll-pr-checks-observes-ci-state — poll_pr_checks reports the handler's observed status
+ *     VERBATIM across pending / passed / failed / merged / unknown (ADR-0163 Gap B2 — the surface
+ *     gives the orchestrator eyes on CI; it observes, never signs).
  *   lts-fail-closed-on-a-throwing-handler — a handler that throws folds to conversation text (a
  *     failure the orchestrator can read), NEVER a thrown crash into the SDK loop.
  *   lts-run-gate-is-observed-not-authored — run_gate reports the handler's pass/fail VERBATIM; a
@@ -32,7 +35,7 @@ import { test } from "node:test";
 
 import { runHeadlessOrchestrator } from "./headless-orchestrator.js";
 import { buildLandingTools } from "./landing-tool-surface.js";
-import type { LandingSurfaceDeps } from "./landing-tool-surface.js";
+import type { LandingSurfaceDeps, LandingPollStatus } from "./landing-tool-surface.js";
 import type { SdkQueryFn } from "./sdk-author.js";
 
 // ---------------------------------------------------------------------------
@@ -65,17 +68,19 @@ function capturingQuery(messages: unknown[]): { fn: SdkQueryFn; opts: () => unkn
 }
 
 /**
- * Build recording landing deps. `order` records "runGate" / "openLandingPr" call events so the
- * dispatch is observable; `gatePassed` controls the gate verdict; `throwOn` makes the named handler
- * throw (to exercise the fail-closed arm).
+ * Build recording landing deps. `order` records "runGate" / "openLandingPr" / "pollPrChecks" call
+ * events so the dispatch is observable; `gatePassed` controls the gate verdict; `pollStatus` controls
+ * the poll's observed CI state; `throwOn` makes the named handler throw (to exercise the fail-closed arm).
  */
 function makeLandingDeps(opts?: {
   order?: string[];
   gatePassed?: boolean;
-  throwOn?: "runGate" | "openLandingPr";
+  pollStatus?: LandingPollStatus;
+  throwOn?: "runGate" | "openLandingPr" | "pollPrChecks";
 }): LandingSurfaceDeps {
   const order = opts?.order ?? [];
   const gatePassed = opts?.gatePassed ?? true;
+  const pollStatus = opts?.pollStatus ?? "merged";
   return {
     runGate: async () => {
       order.push("runGate");
@@ -93,6 +98,11 @@ function makeLandingDeps(opts?: {
         prUrl: "https://github.com/HuaMick/storytree/pull/999",
       };
     },
+    pollPrChecks: async (args) => {
+      order.push("pollPrChecks");
+      if (opts?.throwOn === "pollPrChecks") throw new Error("gh pr view failed (stub)");
+      return { status: pollStatus, summary: `poll of ${args.pr}: ${pollStatus} (stub)` };
+    },
   };
 }
 
@@ -109,6 +119,17 @@ function toolNamed(
 /** Flatten a CallToolResult's text content for assertions. */
 function resultText(result: { content: Array<{ type: string; text?: string }> }): string {
   return result.content.map((c) => c.text ?? "").join("\n");
+}
+
+/**
+ * A superset of every landing tool's args. The heterogeneous tool array types `.handler`'s param as
+ * the INTERSECTION of all three arg shapes ({commitMessage,prTitle,prBody} & {pr}), so a call must
+ * supply every field — each handler ignores the extras at runtime. Override the fields a test cares about.
+ */
+function fullArgs(
+  over?: Partial<{ commitMessage: string; prTitle: string; prBody: string; pr: string }>,
+): { commitMessage: string; prTitle: string; prBody: string; pr: string } {
+  return { commitMessage: "", prTitle: "", prBody: "", pr: "999", ...over };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +160,7 @@ test("lts-landing-tools-mounted-only-with-deps: absent landing dep — no landin
   );
 });
 
-test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the two landing tools join allowedTools and the landing MCP server mounts (no propose surface, ADR-0155)", async () => {
+test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the three landing tools join allowedTools and the landing MCP server mounts (no propose surface, ADR-0155)", async () => {
   // Baseline: the bare surface (no landing dep, no runner) — the orchestrator drives, it does not
   // propose (ADR-0155), so there is no propose_unit tool in the baseline.
   const base = capturingQuery([OK_RESULT]);
@@ -156,11 +177,16 @@ test("lts-landing-tools-mounted-only-with-deps: with the dep, EXACTLY the two la
   });
   const o = withDeps.opts() as { allowedTools?: string[]; mcpServers?: Record<string, unknown> };
 
-  // EXACTLY the two landing tool names join the baseline — nothing else changes.
+  // EXACTLY the three landing tool names join the baseline — nothing else changes.
   assert.deepEqual(
     o.allowedTools,
-    [...baseAllowed, "mcp__landing__run_gate", "mcp__landing__open_landing_pr"],
-    "the ONLY additions over the bare surface must be the two landing tool names",
+    [
+      ...baseAllowed,
+      "mcp__landing__run_gate",
+      "mcp__landing__open_landing_pr",
+      "mcp__landing__poll_pr_checks",
+    ],
+    "the ONLY additions over the bare surface must be the three landing tool names",
   );
   assert.ok(
     Object.keys(o.mcpServers ?? {}).includes("landing"),
@@ -182,11 +208,8 @@ test("lts-tool-call-dispatches-to-the-handler: run_gate + open_landing_pr each d
   const order: string[] = [];
   const tools = buildLandingTools(makeLandingDeps({ order }));
 
-  // Full PR-shaped args satisfy the union-typed handler (run_gate ignores the extras at runtime).
-  const gate = await toolNamed(tools, "run_gate").handler(
-    { commitMessage: "", prTitle: "", prBody: "" },
-    {},
-  );
+  // Full-superset args satisfy the intersection-typed handler (run_gate ignores the extras at runtime).
+  const gate = await toolNamed(tools, "run_gate").handler(fullArgs(), {});
   assert.match(
     resultText(gate as { content: Array<{ type: string; text?: string }> }),
     /gate PASSED/,
@@ -194,7 +217,7 @@ test("lts-tool-call-dispatches-to-the-handler: run_gate + open_landing_pr each d
   );
 
   const pr = await toolNamed(tools, "open_landing_pr").handler(
-    { commitMessage: "feat: land the unit", prTitle: "Land the unit", prBody: "body" },
+    fullArgs({ commitMessage: "feat: land the unit", prTitle: "Land the unit", prBody: "body" }),
     {},
   );
   const prText = resultText(pr as { content: Array<{ type: string; text?: string }> });
@@ -209,16 +232,42 @@ test("lts-tool-call-dispatches-to-the-handler: run_gate + open_landing_pr each d
 });
 
 // ---------------------------------------------------------------------------
+// lts-poll-pr-checks-observes-ci-state — poll_pr_checks surfaces the OBSERVED
+// CI state verbatim across every status (ADR-0163 Gap B2)
+// ---------------------------------------------------------------------------
+
+test("lts-poll-pr-checks-observes-ci-state: poll_pr_checks dispatches to the handler and surfaces the observed status text for every state", async () => {
+  for (const status of ["pending", "passed", "failed", "merged", "unknown"] as const) {
+    const order: string[] = [];
+    const tools = buildLandingTools(makeLandingDeps({ order, pollStatus: status }));
+    const result = await toolNamed(tools, "poll_pr_checks").handler(fullArgs({ pr: "999" }), {});
+    const text = resultText(result as { content: Array<{ type: string; text?: string }> });
+    assert.match(
+      text,
+      new RegExp(status, "i"),
+      `poll_pr_checks must surface the observed '${status}' state to the orchestrator`,
+    );
+    assert.match(text, /999/, "the summary must reference the polled PR");
+    assert.deepEqual(order, ["pollPrChecks"], "poll_pr_checks must dispatch to its own handler once");
+  }
+});
+
+// ---------------------------------------------------------------------------
 // lts-fail-closed-on-a-throwing-handler — a throwing handler folds to text
 // ---------------------------------------------------------------------------
 
 test("lts-fail-closed-on-a-throwing-handler: a handler that throws folds to conversation text, never a thrown crash", async () => {
-  for (const throwOn of ["runGate", "openLandingPr"] as const) {
+  const toolFor = {
+    runGate: "run_gate",
+    openLandingPr: "open_landing_pr",
+    pollPrChecks: "poll_pr_checks",
+  } as const;
+  for (const throwOn of ["runGate", "openLandingPr", "pollPrChecks"] as const) {
     const tools = buildLandingTools(makeLandingDeps({ throwOn }));
-    const name = throwOn === "runGate" ? "run_gate" : "open_landing_pr";
-    // Full PR-shaped args satisfy both tools' handler signatures (run_gate ignores the extras);
-    // this sidesteps the union-handler type over the two distinct arg shapes.
-    const args = { commitMessage: "m", prTitle: "t", prBody: "b" };
+    const name = toolFor[throwOn];
+    // A superset of every tool's args satisfies all three handler signatures (each ignores the
+    // extras); this sidesteps the union-handler type over the distinct arg shapes.
+    const args = { commitMessage: "m", prTitle: "t", prBody: "b", pr: "999" };
 
     // Must NOT reject — a fail-closed handler returns a readable failure, never throws into the loop.
     const result = await toolNamed(tools, name).handler(args, {});
@@ -239,7 +288,7 @@ test("lts-fail-closed-on-a-throwing-handler: a handler that throws folds to conv
 test("lts-run-gate-is-observed-not-authored: a FAILED gate returns failure text — the surface never rewrites a red gate to green", async () => {
   const tools = buildLandingTools(makeLandingDeps({ gatePassed: false }));
   const result = await toolNamed(tools, "run_gate").handler(
-    { commitMessage: "", prTitle: "", prBody: "" },
+    fullArgs(),
     {},
   );
   const text = resultText(result as { content: Array<{ type: string; text?: string }> });
@@ -294,9 +343,9 @@ test("lts-chat-session-keeps-no-write-bash: with landing deps present, tools sta
 test("lts-no-verdict-crosses-back: landing tool results are plain progress/status text — no verdict-shaped payload", async () => {
   const tools = buildLandingTools(makeLandingDeps());
 
-  // Full PR-shaped args satisfy both tools' handler signatures (run_gate ignores the extras).
-  const callArgs = { commitMessage: "m", prTitle: "t", prBody: "b" };
-  for (const name of ["run_gate", "open_landing_pr"] as const) {
+  // Full-superset args satisfy every tool's handler signature (each ignores the extras).
+  const callArgs = fullArgs();
+  for (const name of ["run_gate", "open_landing_pr", "poll_pr_checks"] as const) {
     const result = await toolNamed(tools, name).handler(callArgs, {});
     const content = (result as { content: Array<{ type: string; text?: string }> }).content;
     assert.ok(content.length > 0, `${name} must return content`);

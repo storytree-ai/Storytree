@@ -6,6 +6,9 @@
  *   - `openLandingPr` shells the merge ceremony in order (git add -A → git commit → git push
  *     -u origin <branch> → a NON-DRAFT `gh pr create`), parses the PR URL, and is fail-closed on any
  *     non-zero exit (a readable `{ ok: false }`, never a throw);
+ *   - `pollPrChecks` shells a SINGLE non-blocking `gh pr view <pr> --json state,statusCheckRollup`
+ *     and classifies the rollup into the observed CI state — pending / passed / failed / merged /
+ *     unknown (ADR-0163 Gap B2) — mapping a `gh` error to a readable `unknown`, never a throw;
  *   - a blank identity (cwd / branch) is a typed refusal BEFORE any deps are built;
  *   - the composed deps thread through the real `orchestrate()` chain so the landing tools mount.
  *
@@ -182,6 +185,133 @@ test("buildLandingDeps: openLandingPr succeeds with no prUrl when gh prints no U
 });
 
 // ---------------------------------------------------------------------------
+// pollPrChecks — a single non-blocking `gh pr view`, classified to the observed
+// CI state (ADR-0163 Gap B2); it OBSERVES, it never signs
+// ---------------------------------------------------------------------------
+
+test("buildLandingDeps: pollPrChecks shells a SINGLE non-blocking `gh pr view <pr> --json state,statusCheckRollup` (never --watch)", async () => {
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "MERGED", statusCheckRollup: [] }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  await built.deps.pollPrChecks({ pr: "999" });
+
+  assert.equal(exec.calls.length, 1, "pollPrChecks runs exactly one command (a single poll, not a watch)");
+  assert.deepEqual(
+    exec.calls[0],
+    { cmd: "gh", args: ["pr", "view", "999", "--json", "state,statusCheckRollup"], cwd: "/repo" },
+    "it shells `gh pr view <pr> --json state,statusCheckRollup` in the cwd",
+  );
+  // Never the blocking watch form (`gh pr checks --watch`), which would hang the SDK loop.
+  assert.ok(!exec.calls[0]!.args.includes("--watch"), "pollPrChecks never uses the blocking --watch form");
+});
+
+test("buildLandingDeps: pollPrChecks → merged when the PR state is MERGED (ADR-0022 auto-merge — the unit is landed; unblocks ADR-0164 Phase 2)", async () => {
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "MERGED", statusCheckRollup: [{ name: "verify", status: "COMPLETED", conclusion: "SUCCESS" }] }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "merged", "a MERGED PR is observed as merged");
+  assert.match(result.summary, /merged/i, "the summary states the merge");
+});
+
+test("buildLandingDeps: pollPrChecks → passed when every check is green but not yet merged", async () => {
+  const rollup = [
+    { name: "verify", status: "COMPLETED", conclusion: "SUCCESS" },
+    { context: "ci/legacy", state: "SUCCESS" },
+  ];
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "OPEN", statusCheckRollup: rollup }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "passed", "all-green + OPEN is observed as passed (awaiting auto-merge)");
+  assert.match(result.summary, /verify/, "the summary lists the check names");
+});
+
+test("buildLandingDeps: pollPrChecks → pending when a check is still running (keep watching)", async () => {
+  const rollup = [
+    { name: "verify", status: "COMPLETED", conclusion: "SUCCESS" },
+    { name: "build", status: "IN_PROGRESS" },
+  ];
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "OPEN", statusCheckRollup: rollup }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "pending", "an in-progress check is observed as pending");
+});
+
+test("buildLandingDeps: pollPrChecks → pending when NO checks are reported yet (never a false passed)", async () => {
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "OPEN", statusCheckRollup: [] }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "pending", "an empty rollup is pending (checks not reported yet), never a forged green");
+});
+
+test("buildLandingDeps: pollPrChecks → failed when a check failed — the summary NAMES the failing check so the orchestrator can recover", async () => {
+  const rollup = [
+    { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
+    { name: "build", status: "COMPLETED", conclusion: "SUCCESS" },
+  ];
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "OPEN", statusCheckRollup: rollup }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "failed", "a FAILURE conclusion is observed as failed — never rewritten to green (ADR-0091)");
+  assert.match(result.summary, /verify/, "the summary names the failing check so the orchestrator can recover");
+});
+
+test("buildLandingDeps: pollPrChecks → failed when the PR was CLOSED without merging (it will never land)", async () => {
+  const exec = recordingExec(() => ({ code: 0, stdout: JSON.stringify({ state: "CLOSED", statusCheckRollup: [] }), stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "failed", "a closed-unmerged PR is observed as failed");
+  assert.match(result.summary, /closed/i, "the summary states the PR is closed");
+});
+
+test("buildLandingDeps: pollPrChecks → unknown (readable failure) when `gh` errors — never a throw, never a forged green", async () => {
+  const exec = recordingExec(() => ({ code: 1, stdout: "", stderr: "could not resolve to a PullRequest (gh auth?)" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  let threw = false;
+  let result;
+  try {
+    result = await built.deps.pollPrChecks({ pr: "bogus" });
+  } catch {
+    threw = true;
+  }
+  assert.equal(threw, false, "a gh error is a returned observation, never a throw (fail-closed)");
+  assert.ok(result !== undefined && result.status === "unknown", "a gh error maps to unknown, never a fabricated pass");
+  assert.match(result.summary, /could not resolve to a PullRequest/, "the summary carries the gh stderr so the cause is visible");
+});
+
+test("buildLandingDeps: pollPrChecks → unknown when gh prints unparseable output (never a crash)", async () => {
+  const exec = recordingExec(() => ({ code: 0, stdout: "not json at all", stderr: "" }));
+  const built = buildLandingDeps({ cwd: "/repo", branch: "claude/x", exec: exec.fn });
+  assert.equal(built.ok, true);
+  if (!built.ok) return;
+
+  const result = await built.deps.pollPrChecks({ pr: "999" });
+  assert.equal(result.status, "unknown", "unparseable gh output maps to unknown, not a crash");
+});
+
+// ---------------------------------------------------------------------------
 // Fail-closed identity — blank cwd / branch is a typed refusal before any deps
 // ---------------------------------------------------------------------------
 
@@ -227,6 +357,10 @@ test("buildLandingDeps: orchestrate() with landing deps advertises the two landi
   assert.ok(
     tools.includes("mcp__landing__open_landing_pr"),
     `mcp__landing__open_landing_pr must be advertised when landing deps are threaded; got ${JSON.stringify(tools)}`,
+  );
+  assert.ok(
+    tools.includes("mcp__landing__poll_pr_checks"),
+    `mcp__landing__poll_pr_checks must be advertised when landing deps are threaded (ADR-0163 Gap B2); got ${JSON.stringify(tools)}`,
   );
   // The orchestrator DRIVES rather than proposes (ADR-0155) — there is no propose_unit surface.
   assert.equal(
