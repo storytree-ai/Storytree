@@ -97,6 +97,10 @@ preparing the visual artifact and the human supplying the judgment it structural
      **follow-on build unit**, not part of this ADR.
    - **Gap B — vitest proof command.** Stage 1 through `node build --real` needs the spec-borne
      `proofCommand` to drive the studio vitest suite (the dogfood path has been `node:test`-centric).
+     **[Update — Gap B SHIPPED; see [ADR-0159](0159-frontend-builder-proves-stage-1-through-the-inner-loop-visua.md):**
+     ADR-0057 §3 expansion B added the spec-borne `proofCommand`; frontend-builder's Stage 1 now routes
+     through `--real --store pg` and the hand-run `pnpm --filter studio test` workaround is retired. Gap A
+     is unchanged.]
 
 This ADR records the role and the proof model; the machinery in Gap A/B is sequenced as later
 inner-loop expansion.
@@ -111,7 +115,8 @@ inner-loop expansion.
   of inventing a mechanism.
 - **Cost / bad:** this does **not** reduce taste rounds — appearance has no compiler, and the agent
   cannot own the aesthetic call (it prepares variants; the owner judges). The visual-attestation phase
-  (Gap A) and the vitest proof path (Gap B) are unbuilt — until Gap A ships, the Stage-2 attestation is
+  (Gap A) and the vitest proof path (Gap B) are unbuilt [at authoring; **Gap B has since SHIPPED —
+  ADR-0159**] — until Gap A ships, the Stage-2 attestation is
   recorded by the orchestrator/owner via the existing promotion path, not a dedicated gate phase. The
   agent tier grows by one (now eight delegatable + the dedicated-surface roles).
 - **Bootstrapping:** the agent + principle land now (seed-canonical authoring is itself outer-loop
