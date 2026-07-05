@@ -142,8 +142,10 @@ test("`agents <name> --step <step>` is wired through the dispatch", async () => 
   const env = await run(["agents", "stepper", "--step", "session_start"], { store });
   assert.equal(env.ok, true);
   assert.deepEqual(env.next, ["storytree library artifact test-principle"]);
-  // bare `agents stepper` (no --step) still prints the full assembled prompt
+  // bare `agents stepper` (no --step) prints the ESSENTIALS prompt (ADR-0156 §6ii): own prose +
+  // per-step doors generated from stepRefs — NOT the full injected ref bodies.
   const full = await run(["agents", "stepper"], { store });
   assert.equal(full.ok, true);
-  assert.match(full.body, /## Context/);
+  assert.match(full.body, /## Doors/);
+  assert.match(full.body, /storytree agents stepper --step session_start/); // a per-step door
 });

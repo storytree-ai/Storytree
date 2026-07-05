@@ -1,5 +1,5 @@
 import type { Store } from "@storytree/storage-protocol";
-import { renderAgentPrompt, renderAgentStep } from "@storytree/library/store";
+import { renderAgentEssentials, renderAgentStep } from "@storytree/library/store";
 
 import { emitNodeEnvelope, type Envelope } from "./envelope.js";
 
@@ -12,9 +12,14 @@ import { emitNodeEnvelope, type Envelope } from "./envelope.js";
  * CLI's `Envelope`.
  */
 
-/** `storytree agents <name>` — print one agent's assembled system prompt (ADR-0051). */
+/**
+ * `storytree agents <name>` — print one agent's ESSENTIALS system prompt (ADR-0051; ADR-0156 §6ii
+ * repointed this off the full-inline path). Own prose + a floor of one-line assertions + the escape
+ * hatch + per-step doors; the full ceremony/principle bodies are pulled just-in-time via the
+ * `storytree library artifact <id>` / `--step` affordances the essentials view points at.
+ */
 export async function agentsCommand(store: Store, name: string | undefined): Promise<Envelope> {
-  const result = await renderAgentPrompt(store, name);
+  const result = await renderAgentEssentials(store, name);
   if (!result.ok) {
     return {
       ok: false,
@@ -72,12 +77,13 @@ export function agentsHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree agents <name> — assemble an agent's system prompt from the Library (ADR-0051).",
+      "storytree agents <name> — render an agent's ESSENTIALS system prompt from the Library (ADR-0156).",
       "",
-      "Reads the `agent` artifact and INJECTS the content its context/rules/antiPatterns refs point",
-      "at (reference-don't-restate, ADR-0029 §7). Offline by default; --pg reads the live store.",
+      "Reads the `agent` artifact and renders its own prose + a FLOOR of one-line rule assertions (each",
+      "with a `storytree library artifact <id>` pull-hint for the rationale) + per-step doors — never the",
+      "full ref bodies. Pull those just-in-time. Offline by default; --pg reads the live store.",
       "",
-      "  storytree agents <name>               print the assembled system prompt",
+      "  storytree agents <name>               print the essentials system prompt",
       "  storytree agents <name> --step <s>    serve ONE workflow step's just-in-time refs (ADR-0156)",
     ].join("\n"),
     next: [

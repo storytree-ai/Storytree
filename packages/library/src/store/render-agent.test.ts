@@ -5,6 +5,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import {
   renderAgentPrompt,
+  renderAgentEssentials,
   renderAgentDigest,
   renderAgentFile,
   renderAgentStep,
@@ -130,6 +131,72 @@ test("renderAgentDigest flags a dangling ref (the gate's drift/integrity guard)"
   assert.equal(res.ok, true);
   if (!res.ok) return;
   assert.deepEqual(res.agent.missingRefs, ["asset:ghost-ref"]);
+});
+
+// ── essentials render (ADR-0156 §1 / ADR-0161: thin, DRY, fresh delegation surface) ────────────────
+
+test("renderAgentEssentials: own prose + each rule's ONE-LINE assertion + a pull-hint + the escape hatch — NOT the injected body", async () => {
+  const store = await seeded();
+  const res = await renderAgentEssentials(store, "clean-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  const p = res.agent.prompt;
+  // (a) the agent's OWN prose — verbatim, the same spine renderAgentPrompt emits
+  assert.match(p, /The clean agent does one thing\./);
+  assert.match(p, /It exists to test the renderer\./);
+  // (b) the FLOOR — the rule's ONE-LINE assertion (its `statement` lead), plus a pull-hint for the rationale
+  assert.match(p, /Always assemble from the library\./);
+  assert.match(p, /storytree library artifact test-principle/);
+  // (c) the ESCAPE HATCH — inline, the specialist → manager rung
+  assert.match(p, /Escalate UP when blocked or out of scope/);
+  assert.match(p, /session-orchestrator/);
+  // the EXACT INVERSE of renderAgentPrompt's "INJECTS the content" test: the full Why/How BODY is NOT inlined
+  assert.doesNotMatch(p, /one source of truth beats hand-copy drift/); // the `why` body
+  assert.doesNotMatch(p, /render, never restate/); // the `howToApply` body
+  assert.doesNotMatch(p, /### Test Principle/); // no full-body injection header
+  assert.deepEqual(res.agent.missingRefs, []);
+});
+
+test("renderAgentEssentials: a dangling floor ref is FLAGGED inline and collected (the drift guard build:agents fails closed on)", async () => {
+  const store = await seeded();
+  const res = await renderAgentEssentials(store, "broken-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.deepEqual(res.agent.missingRefs, ["asset:ghost-ref"]);
+  assert.match(res.agent.prompt, /MISSING REF: asset:ghost-ref/);
+});
+
+test("renderAgentEssentials: per-step DOORS are generated from stepRefs (one door per workflow step)", async () => {
+  const store = await stepped();
+  const res = await renderAgentEssentials(store, "stepper");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  const p = res.agent.prompt;
+  assert.match(p, /## Doors/);
+  // one door line per declared step, pointing at the just-in-time step affordance
+  assert.match(p, /storytree agents stepper --step session_start/);
+  assert.match(p, /storytree agents stepper --step 1/);
+  // with a step map present, context is served through the doors — NOT the fallback manifest
+  assert.doesNotMatch(p, /No per-step map yet/);
+});
+
+test("renderAgentEssentials: with NO stepRefs, context refs surface as a just-in-time pointer MANIFEST (never bodies)", async () => {
+  const store = await seeded();
+  const res = await renderAgentEssentials(store, "clean-agent"); // has context but no stepRefs
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  const p = res.agent.prompt;
+  assert.match(p, /## Doors/);
+  assert.match(p, /No per-step map yet/);
+  assert.match(p, /storytree library artifact test-principle/); // the context ref as a pointer, not a body
+});
+
+test("renderAgentEssentials: an unknown agent fails closed with the list of agents that DO exist", async () => {
+  const store = await seeded();
+  const res = await renderAgentEssentials(store, "nope");
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.deepEqual(res.available, ["broken-agent", "clean-agent"]);
 });
 
 // ── .claude/agents push surface (ADR-0052) ──────────────────────────────────────────────────────

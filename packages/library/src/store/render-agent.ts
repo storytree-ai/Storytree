@@ -1,19 +1,24 @@
-import type { Store } from "@storytree/storage-protocol";
-import { KIND_SPECS } from "../knowledge.js";
+import type { Store, StoredDoc } from "@storytree/storage-protocol";
+import { KIND_SPECS, type KnowledgeKind } from "../knowledge.js";
 import { renderStoredDoc } from "./render-doc.js";
 
 /**
- * The agent renderer (ADR-0051): assemble a Library `agent` artifact into a system prompt by
- * INJECTING the content its typed `asset:` refs point at — `context` / `rules` / `antiPatterns`
- * (ADR-0029 §7, reference-don't-restate). Offline by construction: it reads whatever `Store` it is
- * handed (the in-memory seed by default, the live pg store under `--pg`), so it runs in CI and in
- * the ephemeral web container with no DB.
+ * The agent renderer (ADR-0051): assemble a Library `agent` artifact into a system prompt from its
+ * own prose + its typed `asset:` refs — `context` / `rules` / `antiPatterns` (ADR-0029 §7,
+ * reference-don't-restate). Offline by construction: it reads whatever `Store` it is handed (the
+ * in-memory seed by default, the live pg store under `--pg`), so it runs in CI and in the ephemeral
+ * web container with no DB.
  *
- * This is the single mechanism every runtime surface reuses: `storytree agents <name>` prints it,
- * the CLAUDE.md generator embeds the orchestrator agent's prompt, and the SDK leaf prompt renders
- * its leaf agents through the same function. It lives in `@storytree/library` (the organism that
- * owns the artifact schema it reads) so every consumer — the CLI commands, the build drivers, the
- * generators — assembles prompts from one place (ADR: the drive extraction).
+ * ONE renderer, THREE modes over the same artifact (ADR-0051 §3/§4; ADR-0156 §6ii added essentials):
+ *   - {@link renderAgentPrompt} — FULL: injects every ref's full body inline. The SDK-leaf / spawn
+ *     drivers (`@storytree/drive`) still use this fat path.
+ *   - {@link renderAgentEssentials} — ESSENTIALS: own prose + a floor of one-line assertions +
+ *     per-step doors, NEVER the full bodies. This is what `storytree agents <name>` and the on-disk
+ *     `.claude/agents/*.md` files render (ADR-0156 repointed both here); the CLI serves the bodies
+ *     just-in-time.
+ *   - {@link renderAgentDigest} — DIGEST: the thin CLAUDE.md cheat-sheet (own prose + a pointer manifest).
+ * It lives in `@storytree/library` (the organism that owns the artifact schema it reads) so every
+ * consumer — the CLI commands, the build drivers, the generators — assembles prompts from one place.
  */
 
 /** The labelled ref-list fields, in prompt order, with the section heading each renders under. */
@@ -54,6 +59,53 @@ async function agentIds(store: Store): Promise<string[]> {
 }
 
 /**
+ * The agent's OWN prose — the header + description + every NON-refList KIND_SPECS field
+ * (oneLine / role / outcome / tools / workflow / escalation), verbatim. This is the shared spine of
+ * BOTH render modes: the full prompt ({@link renderAgentPrompt}) appends the injected ref bodies to
+ * it, the essentials view ({@link renderAgentEssentials}) appends the floor/escape-hatch/doors — so
+ * the agent's own prose is identical across surfaces (ADR-0156 §1a: "kept verbatim; this is the
+ * signal"). The ref-list fields (context / rules / antiPatterns) are skipped here — each surface
+ * renders their targets its own way.
+ */
+function agentOwnProseParts(stored: StoredDoc): string[] {
+  const doc = stored.doc as Record<string, unknown>;
+  const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
+  const title = str("title") || stored.id;
+  const parts: string[] = [`# ${title}   (agent: ${stored.id})`, ""];
+  const description = str("description");
+  if (description) parts.push(description, "");
+  for (const spec of KIND_SPECS.agent) {
+    if (spec.refList === true) continue;
+    const value = str(spec.field);
+    if (!value) continue;
+    if (spec.lead === true) parts.push(`${spec.heading} ${value}`, "");
+    else parts.push(`## ${spec.heading}`, "", value, "");
+  }
+  return parts;
+}
+
+/**
+ * The ONE-LINE ASSERTION of a ref artifact — its KIND_SPECS lead field (the `**The principle.**` /
+ * `**The boundary.**` / `**The pattern.**` imperative), folded to a single line. This is what the
+ * essentials floor renders in place of the full Why/How body (ADR-0156 §2: "the imperative itself …
+ * resident and unmissable"). Falls back to the doc's one-line `description` for a body-bearing asset
+ * with no structured lead field, so a ref always yields SOMETHING resident + a pointer.
+ */
+function leadAssertion(stored: StoredDoc): string {
+  const doc = stored.doc as Record<string, unknown>;
+  const oneLine = (s: string): string => s.trim().replace(/\s*\n+\s*/g, " ");
+  if (Object.hasOwn(KIND_SPECS, stored.kind)) {
+    const leadSpec = KIND_SPECS[stored.kind as KnowledgeKind].find((s) => s.lead === true);
+    if (leadSpec) {
+      const v = doc[leadSpec.field];
+      if (typeof v === "string" && v.trim() !== "") return oneLine(v);
+    }
+  }
+  const desc = typeof doc["description"] === "string" ? (doc["description"] as string) : "";
+  return desc.trim() !== "" ? oneLine(desc) : "(pull the id for this ref's assertion)";
+}
+
+/**
  * Assemble `name`'s system prompt, or fail-closed with the list of agents that DO exist. A dangling
  * `asset:` ref is surfaced inline (`> MISSING REF …`) AND collected in `missingRefs` — a broken
  * manifest must never render as a silently-thinner prompt.
@@ -70,20 +122,13 @@ export async function renderAgentPrompt(store: Store, name: string | undefined):
   const doc = stored.doc as Record<string, unknown>;
   const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
   const title = str("title") || stored.id;
+  const description = str("description");
   const missingRefs: string[] = [];
 
-  // The agent's own PROSE, from KIND_SPECS (skip the ref-list fields — their CONTENT is injected
-  // below, so the assembled prompt carries guidance, not a list of asset ids).
-  const parts: string[] = [`# ${title}   (agent: ${stored.id})`, ""];
-  const description = str("description");
-  if (description) parts.push(description, "");
-  for (const spec of KIND_SPECS.agent) {
-    if (spec.refList === true) continue;
-    const value = str(spec.field);
-    if (!value) continue;
-    if (spec.lead === true) parts.push(`${spec.heading} ${value}`, "");
-    else parts.push(`## ${spec.heading}`, "", value, "");
-  }
+  // The agent's own PROSE (shared spine), then INJECT each ref-list field's full body below — so the
+  // assembled prompt carries guidance, not a list of asset ids. This is the FAT path the SDK leaf /
+  // spawn drivers still use; the agent-file surface + `storytree agents <name>` render essentials.
+  const parts = agentOwnProseParts(stored);
 
   for (const { field, heading } of REF_SECTIONS) {
     const ids = refIds(doc, field);
@@ -99,6 +144,121 @@ export async function renderAgentPrompt(store: Store, name: string | undefined):
       const r = renderStoredDoc(refStored);
       parts.push("", `### ${r.title}  [${refStored.kind}]`, r.body);
     }
+  }
+
+  return {
+    ok: true,
+    agent: { name: stored.id, title, description, prompt: parts.join("\n"), missingRefs },
+  };
+}
+
+// ── essentials render (ADR-0156 §1 / ADR-0161: the thin, DRY, fresh delegation surface) ───────────
+// The THIRD render mode alongside the full prompt (SDK leaf / spawn) and the digest (CLAUDE.md). It
+// carries only (a) the agent's own prose, (b) a FLOOR CHECKLIST of one-line assertions + pull-hints
+// (never the full ref bodies), (c) the specialist→manager ESCAPE HATCH inline, and (d) per-step DOORS
+// generated from `stepRefs`. This is what the `.claude/agents/*.md` surface + `storytree agents
+// <name>` render (ADR-0156 §6ii repoints them here off the full-inline path); the CLI is the
+// just-in-time retrieval surface for everything the assertions point at.
+
+/**
+ * The floor sections of the essentials view (ADR-0156 §2): the behavioural floor + refusals as
+ * one-line ASSERTIONS, not injected bodies. `context` is NOT a floor section — it renders as per-step
+ * doors / a pointer manifest (§1d/§5), so it is handled separately below.
+ */
+const FLOOR_SECTIONS: { field: "rules" | "antiPatterns"; heading: string }[] = [
+  { field: "rules", heading: "Floor — your behavioural floor; each line is the assertion, pull the id for the rationale" },
+  { field: "antiPatterns", heading: "Refuse — failure modes you must refuse" },
+];
+
+/** The fixed inline escape-hatch block (ADR-0156 §3) — the specialist → manager escalation rung. */
+const ESCAPE_HATCH: readonly string[] = [
+  "## Escalate UP when blocked or out of scope",
+  "",
+  "You are a specialist. When you hit one of these, STOP and hand the situation UP to the " +
+    "**session-orchestrator** (your manager) in your return message, with the reason — do NOT " +
+    "force-fit the work into a hollow proof, and do NOT silently skip it:",
+  "",
+  '- **"This isn\'t my job"** — the work falls outside your role or authority.',
+  '- **"I have no process for this"** — no workflow step or ceremony covers it, and a just-in-time pull did not surface one.',
+  '- **"A capability gap blocks me"** — you are blocked until some infrastructure is built.',
+  "",
+  "This is the specialist → manager rung of the escalation ladder (specialist → orchestrator → owner).",
+];
+
+/**
+ * Assemble `name`'s ESSENTIALS prompt (ADR-0156 §1): own prose + floor checklist + escape hatch +
+ * per-step doors. Same fail-closed shape as {@link renderAgentPrompt} (unknown agent → the agent
+ * list). A dangling `rules`/`antiPatterns`/`context` ref is surfaced AND collected in `missingRefs`
+ * (the drift guard `build:agents` fails closed on) — a broken manifest never renders silently thinner.
+ *
+ * The floor renders each ref as its ONE-LINE assertion + a `storytree library artifact <id>` pull-hint
+ * (never the full Why/How body). The doors are generated from `stepRefs`; until an agent's step map is
+ * authored (increment 5) the doors are empty and the `context` refs surface as a just-in-time pointer
+ * MANIFEST instead — never inlined bodies.
+ */
+export async function renderAgentEssentials(
+  store: Store,
+  name: string | undefined,
+): Promise<RenderAgentResult> {
+  const available = await agentIds(store);
+  if (name === undefined) {
+    return { ok: false, reason: "agents needs a name: storytree agents <name>", available };
+  }
+  const stored = await store.getDoc(name);
+  if (!stored || stored.kind !== "agent") {
+    return { ok: false, reason: `no agent "${name}" in the Library.`, available };
+  }
+  const doc = stored.doc as Record<string, unknown>;
+  const str = (k: string): string => (typeof doc[k] === "string" ? (doc[k] as string).trim() : "");
+  const title = str("title") || stored.id;
+  const description = str("description");
+  const missingRefs: string[] = [];
+
+  // (a) The agent's OWN prose — role / outcome / tools / workflow / escalation, verbatim.
+  const parts = agentOwnProseParts(stored);
+
+  // (b) The FLOOR CHECKLIST — every rules + antiPatterns ref as its ONE-LINE assertion + a pull-hint.
+  // Safety rests on assertion + code fence (the gate spine, the write-scope hook), not the body.
+  for (const { field, heading } of FLOOR_SECTIONS) {
+    const ids = refIds(doc, field);
+    if (ids.length === 0) continue;
+    parts.push("", `## ${heading}`, "");
+    for (const id of ids) {
+      const refStored = await store.getDoc(id);
+      if (!refStored) {
+        missingRefs.push(`asset:${id}`);
+        parts.push(`- > MISSING REF: asset:${id} — dangling in ${stored.id}'s ${field}; fix the agent artifact.`);
+        continue;
+      }
+      parts.push(`- ${leadAssertion(refStored)}  — \`storytree library artifact ${id}\``);
+    }
+  }
+
+  // (c) The ESCAPE HATCH — always inline (an agent cannot pull the instruction to stop once it is
+  // already past knowing it should). Increment 5 wires the `escalate-up-when-blocked-or-out-of-scope`
+  // guardrail into the floor above; until then it is this fixed structural block.
+  parts.push("", ...ESCAPE_HATCH);
+
+  // (d) Per-step DOORS from `stepRefs` (inc 2). Real agents have no step map yet (inc 5 populates it),
+  // so the doors are empty today and the `context` refs surface as a just-in-time pointer MANIFEST
+  // (never full bodies — ADR-0156 §5), mirroring the digest. Every context ref is validated into
+  // missingRefs so the drift guard stays fail-closed even when the manifest branch isn't taken.
+  const steps = stepRefsOf(doc);
+  const contextIds = refIds(doc, "context");
+  for (const id of contextIds) {
+    if (!(await store.getDoc(id))) missingRefs.push(`asset:${id}`);
+  }
+  parts.push("", "## Doors — pull a step's context just-in-time", "");
+  if (steps.length > 0) {
+    parts.push("Each workflow step opens onto just the refs it needs — pull them when you reach the step:");
+    for (const s of steps) {
+      parts.push(`- **${s.step}** — \`storytree agents ${stored.id} --step ${s.step}\``);
+    }
+  } else if (contextIds.length > 0) {
+    parts.push("No per-step map yet — pull these context ceremonies just-in-time, at the step that needs each:");
+    for (const id of contextIds) parts.push(`- \`storytree library artifact ${id}\``);
+  } else {
+    parts.push("No attached context — proceed on your own prose above.");
   }
 
   return {
@@ -286,13 +446,15 @@ export type RenderAgentFileResult =
 
 /**
  * Render the committed `.claude/agents/<id>.md` view of an agent: Claude Code subagent frontmatter
- * (`name` / `description`) + the generated marker + the assembled system prompt (via the shared
- * {@link renderAgentPrompt}). One trailing newline, for deterministic on-disk content. `tools` is
- * intentionally OMITTED — the subagent inherits the full surface and the prose Tools section carries
- * the guidance; mapping the prose grant to a structured allow-list is future work (ADR-0052).
+ * (`name` / `description`) + the generated marker + the ESSENTIALS system prompt (via
+ * {@link renderAgentEssentials} — ADR-0156 §6ii re-decided this off the full-inline `renderAgentPrompt`
+ * so the machine-only subagent files stay thin, DRY, and fresh). One trailing newline, for
+ * deterministic on-disk content. `tools` is intentionally OMITTED — the subagent inherits the full
+ * surface and the prose Tools section carries the guidance; mapping the prose grant to a structured
+ * allow-list is future work (ADR-0052).
  */
 export async function renderAgentFile(store: Store, name: string): Promise<RenderAgentFileResult> {
-  const res = await renderAgentPrompt(store, name);
+  const res = await renderAgentEssentials(store, name);
   if (!res.ok) return res;
   const { agent } = res;
   const frontmatter = [

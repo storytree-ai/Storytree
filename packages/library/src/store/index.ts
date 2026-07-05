@@ -47,6 +47,7 @@ export type { RenderedAsset, AssetWriteInput } from "./render-doc.js";
 // out of `@storytree/cli`); the CLI commands, the build drivers, and the generators all consume it.
 export {
   renderAgentPrompt,
+  renderAgentEssentials,
   renderAgentDigest,
   renderAgentFile,
   renderAgentStep,
