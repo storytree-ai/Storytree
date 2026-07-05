@@ -66,6 +66,11 @@ export type {
   RenderAgentFileResult,
   RenderAgentStepResult,
 } from "./render-agent.js";
+// The process-node extractor (ADR-0154 follow-on / ADR-0161): read a `process`'s branch-edges into a
+// context-DAG node the CLI shapes into an ADR-0023 `next:` envelope via the shared emitter. Counterpart
+// to `renderAgentStep`; like it, returns node DATA only (never imports the drive-side emitter).
+export { renderProcessNode } from "./render-process.js";
+export type { RenderProcessNodeResult } from "./render-process.js";
 export { PgCommentStore, mergeCommentPatch, normalizeCommentAnchor } from "./pg-comment-store.js";
 export type {
   Comment,

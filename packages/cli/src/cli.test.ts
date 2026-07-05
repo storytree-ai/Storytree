@@ -35,6 +35,59 @@ test("artifact <id> prints the artifact with its id and body", async () => {
   assert.match(env.body, /[Ee]dit/);
 });
 
+test("artifact <id> for a process DERIVES its next: from branch-edges (ADR-0161 process graph)", async () => {
+  // Fixture-only (inc 7b): no real process carries branchEdges yet. A body-bearing process doc renders
+  // through viewArtifact's pass-through path; branchEdges ride along and drive the derived next:.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "demo-process",
+    kind: "process",
+    doc: {
+      kind: "process",
+      id: "demo-process",
+      title: "Demo Process",
+      description: "a process with a branch-edge graph",
+      body: "The ceremony.",
+      references: [],
+      branchEdges: [
+        { ref: "asset:merge-ceremony", label: "when green" },
+        { ref: "asset:pull-based-context" },
+      ],
+    },
+  });
+  const env = await run(["library", "artifact", "demo-process"], { store });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /id: demo-process/);
+  // The next: IS the derived branch-edge pulls, in order — the `asset:` prefix stripped by the shared
+  // emitter, the label shown in parens — NOT the hand-authored tree-focus/edit nav.
+  assert.deepEqual(env.next, [
+    "storytree library artifact merge-ceremony   (when green)",
+    "storytree library artifact pull-based-context",
+  ]);
+});
+
+test("artifact <id> for a process with NO branch-edges keeps the hand-authored nav (honest fallback)", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "bare-process",
+    kind: "process",
+    doc: {
+      kind: "process",
+      id: "bare-process",
+      title: "Bare",
+      description: "no graph",
+      body: "b",
+      references: [],
+    },
+  });
+  const env = await run(["library", "artifact", "bare-process"], { store });
+  assert.equal(env.ok, true);
+  assert.ok(
+    env.next?.some((n) => n.includes("tree focus")),
+    "a graph-less process falls back to the hand-authored nav",
+  );
+});
+
 test("artifact list <category> returns rows and a doctrine pointer", async () => {
   const env = await run(["library", "artifact", "list", "principle"], { store: await seeded() });
   assert.equal(env.ok, true);

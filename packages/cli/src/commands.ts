@@ -21,7 +21,7 @@ import {
   platformShellCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
-import { renderStoredDoc, syncSeedAgents, syncSeedCorpus, computeExportedSeed } from "@storytree/library/store";
+import { renderStoredDoc, renderProcessNode, syncSeedAgents, syncSeedCorpus, computeExportedSeed } from "@storytree/library/store";
 import type { SeedEntry } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
@@ -39,7 +39,7 @@ import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps }
 import { runDrift, driftHelp } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
 import { graduateCommand, defaultMemoryDir, defaultSnapshotPath } from "./graduate.js";
-import type { Envelope } from "./envelope.js";
+import { emitNodeEnvelope, type Envelope } from "./envelope.js";
 import {
   libraryHealth,
   worstLevel,
@@ -250,14 +250,29 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
     }
   }
   if (a.provenance) lines.push("", `provenance: ${a.provenance}`);
-  return {
-    ok: true,
-    body: lines.join("\n"),
-    next: [
-      `storytree library tree focus ${a.id}   (its local DAG)`,
-      `storytree library artifact edit ${a.id}   (coming soon)`,
-    ],
-  };
+  // A `process` node DERIVES its `next:` from its branch-edges (ADR-0161: the node-keyed context DAG —
+  // one shared `emitNodeEnvelope`, never a bespoke per-surface next). The hand-authored nav below is
+  // the fallback for every other kind, and for a process with no graph authored yet (ADR-0161 dec 1:
+  // migrate hand-authored `next[]` to derived opportunistically, per surface).
+  let next: string[] = [
+    `storytree library tree focus ${a.id}   (its local DAG)`,
+    `storytree library artifact edit ${a.id}   (coming soon)`,
+  ];
+  if (stored.kind === "process") {
+    const node = await renderProcessNode(store, a.id);
+    if (node.ok && node.edges.length > 0) {
+      const derived = emitNodeEnvelope({
+        id: node.id,
+        headline: node.headline,
+        edges: node.edges.map((e) => ({
+          ref: e.ref,
+          ...(e.label !== undefined ? { label: e.label } : {}),
+        })),
+      });
+      if (derived.next && derived.next.length > 0) next = [...derived.next];
+    }
+  }
+  return { ok: true, body: lines.join("\n"), next };
 }
 
 /** `storytree library artifact list <category>` — the interim search (list by kind). */
