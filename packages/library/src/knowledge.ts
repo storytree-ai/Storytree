@@ -512,6 +512,28 @@ export const AgentStepRef = z
 export type AgentStepRef = z.infer<typeof AgentStepRef>;
 
 /**
+ * One branch-edge on a `process` node (ADR-0154's process-graph follow-on, un-deferred by ADR-0161;
+ * the node-keyed context DAG): a process's outbound edge to the artifact/node it hands on to, with an
+ * optional one-line gloss. This is the process NODE of the one Library context DAG — the counterpart
+ * to an agent-step's `refs`. Its parsed shape is deliberately COMPATIBLE with the shared emitter's
+ * `NodeEdge` (`packages/drive/src/envelope.ts`: `{ ref, label? }`) so a process's edges map straight
+ * into a `ContextNode` and derive the same ADR-0023 `next:` envelope via `emitNodeEnvelope` (ADR-0161
+ * decision 2 — one emitter, never a bespoke per-surface `next:`). The library never imports drive; the
+ * shapes are kept trivially mappable, not shared by import. Structured metadata, deliberately NOT a
+ * KIND_SPECS body section — it does not round-trip through the markdown body (like `references` /
+ * `stepRefs`). Increment 7b derives the process `next:` graph from this field.
+ */
+export const ProcessBranchEdge = z
+  .object({
+    /** The target this edge hands on to — an `asset:<id>` Library pointer (maps to `NodeEdge.ref`). */
+    ref: AssetRef,
+    /** An optional one-line gloss shown beside the pull command (maps to `NodeEdge.label`). */
+    label: z.string().min(1).optional(),
+  })
+  .strict();
+export type ProcessBranchEdge = z.infer<typeof ProcessBranchEdge>;
+
+/**
  * Build a per-kind zod object from its field spec table. Required fields are `Markdown`;
  * optional fields are `Markdown.optional()`; `refList` fields are `asset:` ref arrays
  * (required => non-empty). The `kind` literal discriminates the union.
@@ -541,7 +563,17 @@ export const Principle = buildKindSchema("principle");
 export const Pattern = buildKindSchema("pattern");
 export const Guardrail = buildKindSchema("guardrail");
 export const TechStack = buildKindSchema("techstack");
-export const Process = buildKindSchema("process");
+// The `process` kind carries one structured field OUTSIDE its KIND_SPECS body table: `branchEdges`,
+// the process-graph outbound edges (ADR-0154 follow-on, un-deferred by ADR-0161). Like `stepRefs` on
+// `agent`, it is navigation metadata, not a rendered body section — so it lives on the schema like
+// `references` does, never in KIND_SPECS (so `renderBody`/`generateTemplate` ignore it; it does not
+// round-trip through markdown). OPTIONAL, so every existing process doc (authored before the field)
+// still validates — NO `CURRENT_SCHEMA_VERSION` bump / migration. `.extend()` preserves the `.strict()`
+// from buildKindSchema (unknown fields still fail closed) and the `kind` literal (the discriminated
+// union is unaffected). Increment 7b derives the process `next:` graph from this field.
+export const Process = buildKindSchema("process").extend({
+  branchEdges: z.array(ProcessBranchEdge).optional(),
+});
 export const OpenQuestion = buildKindSchema("open-question");
 // The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
 // workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body

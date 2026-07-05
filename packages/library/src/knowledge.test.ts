@@ -165,6 +165,69 @@ test("agent kind: the step→refs association (ADR-0156 §4 / ADR-0161) validate
   assert.throws(() => validateLibraryDoc(onAPrinciple), "stepRefs on a non-agent kind must be rejected");
 });
 
+test("process kind: the branch-edge graph (ADR-0154 follow-on / ADR-0161) validates and fails closed", () => {
+  // A process with NO branchEdges still validates — the field is optional (all existing process docs
+  // predate it, so this back-compat is exactly what avoids a CURRENT_SCHEMA_VERSION bump / migration).
+  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("process")), "branchEdges is optional");
+
+  // A well-formed branch-edge array validates: each edge is an asset: ref + an optional one-line gloss.
+  const valid = {
+    ...minimalDoc("process"),
+    branchEdges: [
+      { ref: "asset:merge-ceremony", label: "the landing ceremony" },
+      { ref: "asset:pull-based-context-architecture" }, // label is optional (a bare outbound edge)
+    ],
+  };
+  const parsed = validateLibraryDoc(valid) as {
+    branchEdges?: ReadonlyArray<{ ref: string; label?: string }>;
+  };
+  // The parsed edges are EXACTLY `{ ref, label? }` — the shape the shared emitter's NodeEdge
+  // (packages/drive/src/envelope.ts) consumes, so inc 7b maps branchEdges → ContextNode.edges with no
+  // translation layer (ADR-0161 decision 2). Renaming/retyping a field reds this assertion.
+  assert.deepEqual(parsed.branchEdges, [
+    { ref: "asset:merge-ceremony", label: "the landing ceremony" },
+    { ref: "asset:pull-based-context-architecture" },
+  ]);
+
+  // A ref that is not an asset: pointer fails closed (same discipline as context/rules/stepRefs).
+  const badRef = { ...minimalDoc("process"), branchEdges: [{ ref: "doc:decisions/0154.md" }] };
+  assert.throws(() => validateLibraryDoc(badRef), "a doc:/prose ref in a branch-edge must be rejected");
+
+  // A missing ref fails closed — an edge must have a target.
+  const noRef = { ...minimalDoc("process"), branchEdges: [{ label: "no target" }] };
+  assert.throws(() => validateLibraryDoc(noRef), "a branch-edge with no ref must be rejected");
+
+  // A wrong-typed ref fails closed.
+  const numberRef = { ...minimalDoc("process"), branchEdges: [{ ref: 3 }] };
+  assert.throws(() => validateLibraryDoc(numberRef), "a non-string ref must be rejected");
+
+  // A present-but-empty label fails closed — a degenerate gloss (label is `min(1).optional()`).
+  const emptyLabel = {
+    ...minimalDoc("process"),
+    branchEdges: [{ ref: "asset:merge-ceremony", label: "" }],
+  };
+  assert.throws(() => validateLibraryDoc(emptyLabel), "an empty label must be rejected");
+
+  // A stray field inside an edge fails closed (ProcessBranchEdge is .strict()).
+  const strayInEdge = {
+    ...minimalDoc("process"),
+    branchEdges: [{ ref: "asset:merge-ceremony", note: "drift" }],
+  };
+  assert.throws(() => validateLibraryDoc(strayInEdge), "a stray field in a branch-edge must be rejected");
+
+  // Regression guard for the .extend() approach: adding branchEdges must NOT relax the process object's
+  // .strict() — an unknown TOP-LEVEL field is still rejected even when branchEdges is present.
+  const strayTopLevel = { ...valid, notInTheSpec: "drift" };
+  assert.throws(
+    () => validateLibraryDoc(strayTopLevel),
+    ".extend() must preserve .strict(): an unknown top-level process field is still rejected",
+  );
+
+  // branchEdges is process-only: a non-process kind must reject it (it is not in commonShape).
+  const onAPrinciple = { ...minimalDoc("principle"), branchEdges: [{ ref: "asset:merge-ceremony" }] };
+  assert.throws(() => validateLibraryDoc(onAPrinciple), "branchEdges on a non-process kind must be rejected");
+});
+
 test("renderBody: an unknown kind throws a DIAGNOSTIC error, not `specs is not iterable`", () => {
   // The stale-server incident (2026-06-11): code older than the data met a kind it had no
   // KIND_SPECS entry for and threw a bare iteration error deep in /api/assets.
