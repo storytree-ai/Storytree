@@ -12,7 +12,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "storytree": "pnpm --filter @storytree/cli storytree --",
+    "storytree": "node packages/cli/launch.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
     "check:boundaries": "pnpm --filter @storytree/cli exec node --import tsx src/check-boundaries.ts",
     "build:claude": "pnpm --filter @storytree/cli exec node --import tsx src/build-claude-md.ts",

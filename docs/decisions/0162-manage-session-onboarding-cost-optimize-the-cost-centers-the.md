@@ -130,9 +130,27 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   pure-TS/`pnpm -r test`) needs no DB/SDK/`git fetch` probe; a build self-starts the DB (`ensureLiveDb`)
   so a pre-`db:up` is a no-op — only a bare `--pg` CLI write needs it; "one hydrated auth probe or none"
   before an unattended `--live`/`--real` build; the load-bearing `SELECT 1` and `git fetch origin/main`
-  probes preserved. _(PR: this one.)_
-- [ ] **2. CLI launcher + lazy-pg + compile-cache** (Phase 1, S) — direct-node launcher, dynamic
-  `import()` of the pg store behind `--pg`, `NODE_COMPILE_CACHE`. Target: warm `storytree` call ~1 s.
+  probes preserved. _(PR: #609.)_
+- [x] **2. CLI launcher + compile-cache** (Phase 1, S) — a single-process direct launcher
+  (`packages/cli/launch.mjs`): register the tsx ESM loader in-process + Node 24 `enableCompileCache`
+  (a gitignored `node_modules/.cache/storytree-v8`, the `NODE_COMPILE_CACHE` mechanism) + import
+  `main.ts` directly, dropping the two nested pnpm layers. The root `storytree` script points here so
+  `pnpm storytree` keeps working (now one pnpm-run layer, not two); a `launch.test.ts` proves argv
+  passthrough + exit-code + no-pnpm-noise. **Measured (warm dev box):** a warm offline read fell from
+  **~3.8 s → ~1.9 s direct** (`node packages/cli/launch.mjs …`) / ~2.6 s via `pnpm storytree`.
+  **Measurement reframed the cost model:** the two pnpm layers were **~1.7 s** of the ~3.8 s; the eager
+  pg-store import (Context §2's headline target) is only **~100 ms marginal warm** — the library/zod
+  tsx-transpile graph, which every offline command needs regardless, dominates the residual ~1.9 s,
+  which is the practical floor under the no-build-step convention (ADR-0023). So the launcher, not
+  lazy-pg, was the real win; lazy-pg split to 2b. _(PR: this one.)_
+- [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
+  store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
+  Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
+  no-build-step floor). The real prize is COLD starts (`google-auth-library` is heavy on cold disk) —
+  pursue only if a cold-start measurement shows the gain. Non-trivial: both `@storytree/library/store`
+  AND the wide `@storytree/drive` barrel statically pull the connector graph, so it needs a
+  dispatcher + drive lazy-load refactor — isolate a red→green test before touching it (it flows through
+  every command and the gate).
 - [ ] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — `pnpm install` at worktree creation.
 - [ ] **4. SOURCE engine-map — DECISION GATE** (validate-first) — run ADR-0024's blind test; land a
   minimal gated package-tour extension only if the re-read pain is proven. Else close as won't-do.

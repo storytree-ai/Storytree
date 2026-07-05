@@ -71,7 +71,13 @@ async function buildStore(usePg: boolean): Promise<{
   return { store, presence: null, claims: null, verdicts: null, uatStore: null, attestations: null, adr: null, close: async () => {} };
 }
 
-async function main(): Promise<void> {
+/**
+ * The CLI's async entry. Exported so the direct launcher (`packages/cli/launch.mjs`, ADR-0162
+ * inc 2) can register the tsx loader in-process and call this WITHOUT re-spawning a second node
+ * through pnpm — the launcher's `import.meta.url` is the launcher, not this file, so the
+ * entry-guard below never fires under it. Still self-runs under `tsx src/main.ts` (the fallback).
+ */
+export async function main(): Promise<void> {
   // The root `pnpm storytree` script forwards args after a literal `--`, which pnpm passes
   // through verbatim; drop it so parseArgs doesn't read it as the end-of-options marker
   // (which would demote every forwarded flag, e.g. --dry-run/--check, to a positional).
