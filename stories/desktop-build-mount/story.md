@@ -54,13 +54,13 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 #                       story MOVES that machinery to @storytree/drive and RE-POINTS the studio importers
 #                       (apiRouter.ts, devApi.ts, the existing server suites) at the package — they must stay
 #                       green (parity). This story OWNS the relocation; studio-build owns the original site.
-#   - chat-drive-bridge — the DISPATCH being relocated, and the accept affordance it UNBLOCKS. chat-drive-bridge
-#                       authored dispatchAcceptedBuild (apps/studio/server/chat-build-dispatch.ts) + the
-#                       accept-to-land affordance (the ChatPanel Build button). The dispatch moves into the
-#                       drive worker subpath with the rest of the worker; the accept click (already built in
-#                       the studio renderer the desktop hosts) is wired through the desktop's mounted dispatch
-#                       by capability 3. This story DELIVERS the mechanism chat-drive-bridge's live legs 5–6
-#                       need; those legs stay owned by chat-drive-bridge.
+#   - chat-drive-bridge — LINEAGE ONLY, edge dropped (2026-07-05 map audit): chat-drive-bridge authored
+#                       dispatchAcceptedBuild (apps/studio/server/chat-build-dispatch.ts) + the accept
+#                       affordance this story relocated/wired, but that story is RETIRED (ADR-0155 — the
+#                       chat accept front was removed; dispatchAcceptedBuild lives on in the drive worker
+#                       subpath, consumed by chat-subagent-spawn's builder-spawn-dispatch). A depends_on
+#                       edge to a retired story can never render and is corpus rot — the history stays
+#                       here, the edge is gone.
 #   - desktop         — the SURFACE the build route + accept→dispatch mount ON. The desktop local backend
 #                       (apps/desktop/electron/backend-entry.ts) already mounts the boot-read routes + the chat
 #                       SSE mount, re-composing drivers from PACKAGES (never importing apps/studio/server,
@@ -74,14 +74,11 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 #                       transitively via drive-machinery / desktop's existing edges; it is not a separate
 #                       story.)
 # DIRECTION / NO CYCLE (ADR-0058): this story is a PURE SOURCE NODE — nothing depends on it. Every edge flows
-# DOWN toward the roots: desktop-build-mount → chat-drive-bridge → {studio-build, desktop} → drive-machinery
-# → {library, storage-protocol, proof-protocol, agent, notice-board}. chat-drive-bridge already depends on
-# studio-build + desktop; this story depends on chat-drive-bridge; nothing flows back up. Verified against the
-# real depends_on edges this session (studio-build → [studio, drive-machinery, notice-board, library];
-# drive-machinery → [library, storage-protocol, proof-protocol, agent, notice-board]; desktop → [studio,
-# drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]) — none names
-# desktop-build-mount, so the new edges introduce no cycle.
-depends_on: [drive-machinery, studio-build, chat-drive-bridge, desktop, library]
+# DOWN toward the roots: desktop-build-mount → {studio-build, desktop} → … → drive-machinery
+# → {library, storage-protocol, proof-protocol, agent, notice-board}. None of the named stories'
+# depends_on lists desktop-build-mount, so the edges introduce no cycle. (The former chat-drive-bridge
+# edge was dropped when that story retired — see the lineage note above.)
+depends_on: [drive-machinery, studio-build, desktop, library]
 # Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority + the deferred broker;
 # decision 3 names THIS story's mechanism); 108 (the phased chat→drive→land — this completes Phase 3+4 ON THE
 # DESKTOP surface, where chat-drive-bridge built the bridge on apps/studio/server); 113 (the thick-local
@@ -262,12 +259,13 @@ and the ADR-0144 routing flip hangs off it directly.
   - The ADR-0144 flip EDITS the node arm of `routedBuildRunner` inside the relocated
     `packages/drive/src/build-worker.ts` — the file capability 1 created. It couples to the relocated
     worker's routing composition and to nothing else in-story (the accept path that CALLS the routed
-    runner is consumed through the story's existing `chat-drive-bridge` edge, unchanged).
+    runner is the relocated dispatch itself — its chat-drive-bridge lineage is history, see the
+    frontmatter note; that story is retired and the edge dropped).
 
 ## Cross-story boundary (ADR-0010 §4)
 
-Authored from the intended consumed seams (re-verify against real imports when built). All five are
-CONSUMED, not absorbed — this story owns the RELOCATION (moving the worker into the shared package + the
+Authored from the intended consumed seams (re-verify against real imports when built). All four live
+edges (plus the retired chat-drive-bridge lineage record below) are CONSUMED, not absorbed — this story owns the RELOCATION (moving the worker into the shared package + the
 re-point) and the DESKTOP MOUNT GLUE (the build route + the accept→dispatch on the desktop backend), never
 the build entries, the build path, the chat surface, the desktop sidecar infrastructure, or the library
 schema. The "code physically hosted in another story's package while declaring the `depends_on` edge" is
@@ -295,7 +293,9 @@ shared package both surfaces import.
   was removed with ADR-0155's retirement of the `chat-build-dispatch` cap — the dispatch's behaviour is
   covered by `@storytree/drive`'s `build-worker-relocation.test.ts`.) This story OWNS the relocation; studio-build owns the original site + its
   surface-resident `handleBuild` HTTP wrapper (which stays a thin wrapper over the relocated `runBuildJob`).
-- **`chat-drive-bridge`** — the **dispatch being relocated, and the live legs UNBLOCKED**. chat-drive-bridge
+- **`chat-drive-bridge`** *(RETIRED, ADR-0155 — lineage record; the `depends_on` edge was dropped in the
+  2026-07-05 map audit since an edge to a retired story can never render)* — the **dispatch that was
+  relocated, and the live legs it once unblocked**. chat-drive-bridge
   authored `dispatchAcceptedBuild` (`apps/studio/server/chat-build-dispatch.ts`) + the accept-to-land Build
   affordance (the studio `ChatPanel`). The dispatch moves into the drive worker subpath WITH the rest of the
   worker (it imported `runBuildJob` + the `BuildContext` type — both relocating). The accept click (already

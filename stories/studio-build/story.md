@@ -16,13 +16,15 @@ capabilities: [build-run-registry, build-intent-api, ui-build-trigger]
 #                       (routedBuildRunner, buildWorker.ts:144) — a node → EXISTING
 #                       `nodeBuild(... --live)`, a story → EXISTING `storyBuild(... --real, openPr)`
 #                       (the `story-real-chain` that lands via an auto-merging PR, ADR-0022/0031).
-#   - notice-board    — the in-flight `building` work-event lights the teal wisp (ADR-0048) the
-#                       world reads via /api/activity (PgPresenceStore / classifyPresence); the
-#                       Phase-1 build reuses it, no new wisp code.
+#   (notice-board     — the in-flight `building` teal wisp (ADR-0048) — is REUSED, not consumed by this
+#                       story's own code: the work-event is appended inside drive's driveNode and read
+#                       via studio's /api/activity, both behind declared edges (drive-machinery,
+#                       studio); no new wisp code here, so the edge is transitive, not re-declared —
+#                       redundant-transitive edge removed, 2026-07-05 map-health cleanup.)
 #   - library         — the verdict SHAPE (events.verdict) + the work-hierarchy spec the build
 #                       drives are library's; the worker reflects the new hue via the existing
 #                       /api/tree latestVerdicts path.
-depends_on: [studio, drive-machinery, notice-board, library]
+depends_on: [studio, drive-machinery, library]
 # Deciding ADRs (ADR-0037 §2): UI-driven orchestration shape (90), proof-bearing-worker
 # integrity (91), the orchestrator/agent boundary preserved (4), and UI-drives-agents (8).
 decisions: [8, 90, 91, 4]
@@ -124,9 +126,10 @@ acyclic; `build-run-registry` is the root (the leaf state machine, no in-story u
 
 ## Cross-story boundary (ADR-0010 §4)
 
-Authored from the intended consumed seams (re-verify against real imports when built). All four are
-CONSUMED, not absorbed — this story owns the worker + the trigger UI, never the build engine, the
-spine, the wisp pipeline, or the verdict schema.
+Authored from the intended consumed seams (re-verify against real imports when built). All four seams
+are CONSUMED, not absorbed — three as declared `depends_on` edges; the notice-board wisp surface is
+reached transitively through drive-machinery / studio (see its bullet) — and this story owns the
+worker + the trigger UI, never the build engine, the spine, the wisp pipeline, or the verdict schema.
 
 - **`studio`** — the **UI/server organism** this extends. The new endpoints are added to the SINGLE
   `/api/*` route table (`apps/studio/server/apiRouter.ts`'s `handleApiRequest` + `ApiContext`) that
@@ -146,7 +149,9 @@ spine, the wisp pipeline, or the verdict schema.
   Discovery of which kind a unit is, and whether a story is real-buildable
   (`isStoryBuildable(spec, caps, 'real')`, `packages/orchestrator/src/story-build.ts:234`), are
   drive-machinery's too — consumed, not reimplemented.
-- **`notice-board`** — the **in-flight wisp surface**. `driveNode` already appends the `building`
+- **`notice-board`** *(transitive — reused, not consumed by this story's own code: the work-event is
+  appended by drive's `driveNode` and read via studio's `/api/activity`, both behind declared edges)*
+  — the **in-flight wisp surface**. `driveNode` already appends the `building`
   work-event that lights the teal wisp (ADR-0048), read by the world via `/api/activity`
   (`inFlightBuilds()` over `PgPresenceStore` / `classifyPresence`). Phase 1 REUSES it — no new wisp
   code; the live build simply produces the marks the existing pipeline already paints.
