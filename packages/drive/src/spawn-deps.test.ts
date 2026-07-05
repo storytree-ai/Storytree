@@ -26,7 +26,7 @@ import { buildSpawnTools } from "@storytree/agent";
 
 import { BuildRegistry, type BuildContext, type BuildEnvelope } from "./build-worker.js";
 import { orchestrate } from "./orchestrate.js";
-import { buildSpawnDeps, type SpawnSurfaceDeps } from "./spawn-deps.js";
+import { buildSpawnDeps, resolveGlueMaxTurns, type SpawnSurfaceDeps } from "./spawn-deps.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,6 +112,7 @@ async function composedDeps(opts?: {
   branch?: string;
   claims?: CapturedClaimReq[];
   spawnQuery?: SdkQueryFn;
+  maxTurns?: number;
 }) {
   const store = new InMemoryStore();
   await loadCorpus(store);
@@ -124,6 +125,7 @@ async function composedDeps(opts?: {
     cwd: process.cwd(),
     build: scriptedBuild(),
     ...(opts?.spawnQuery !== undefined ? { queryFn: opts.spawnQuery } : {}),
+    ...(opts?.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
   });
   return { store, result };
 }
@@ -223,7 +225,13 @@ test("sdc-claim-deps-carry-session-identity-and-role: the composed deps carry se
   const tools = buildSpawnTools(result.deps);
   const storyAuthor = tools.find((t) => t.name === "spawn_story_author");
   assert.ok(storyAuthor !== undefined, "the surface carries spawn_story_author");
-  await storyAuthor.handler({ unitId: "some-story", userPrompt: "author it", paths: [] }, {});
+  // `paths` + `maxTurns` are union-intersection filler (the glue tool's params, which the
+  // story-author handler ignores) — the union-typed `.handler` demands the intersection of all
+  // three tools' arg schemas.
+  await storyAuthor.handler(
+    { unitId: "some-story", userPrompt: "author it", paths: [], maxTurns: undefined },
+    {},
+  );
 
   assert.equal(claims.length, 1, "exactly one claim precedes the spawn (no claim, no subagent)");
   const claim = claims[0];
@@ -297,6 +305,55 @@ test("sdc-threads-spawn-deps-through-orchestrate-without-a-fork: orchestrate() p
     tools.includes("mcp__proposal__propose_unit"),
     false,
     "mcp__proposal__propose_unit must NOT be mounted — the orchestrator drives via spawn tools (ADR-0155)",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// sdc-glue-worker-per-run-max-turns — the caller's per-run turn ceiling wins
+// over the spawn default and reaches the write-scoped runner; an absent or
+// invalid value falls back to the spawn default (ADR-0163 Gap A / ADR-0160)
+// ---------------------------------------------------------------------------
+
+test("resolveGlueMaxTurns: a positive-int per-run value wins (floored); an absent or invalid value falls back to the spawn default", () => {
+  // Per-run wins when valid.
+  assert.equal(resolveGlueMaxTurns(12, 40), 12, "a valid per-run value wins over the spawn default");
+  assert.equal(resolveGlueMaxTurns(12.9, 40), 12, "a fractional per-run value is floored to a whole turn count");
+  // Absent → the spawn default (which may itself be undefined → the runner's own 16-turn brake).
+  assert.equal(resolveGlueMaxTurns(undefined, 40), 40, "an absent per-run value falls back to the spawn default");
+  assert.equal(resolveGlueMaxTurns(undefined, undefined), undefined, "no per-run and no default → undefined (runner default applies)");
+  // Invalid (non-positive / non-finite) → the fallback, never a broken 0/NaN ceiling that aborts the session.
+  for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(resolveGlueMaxTurns(bad, 40), 40, `an invalid per-run value (${bad}) falls back to the spawn default`);
+  }
+});
+
+test("sdc-glue-worker-per-run-max-turns: a per-run maxTurns overrides the spawn default in the write-scoped runner's SDK options; omitting it keeps the spawn default", async () => {
+  const spawnQuery = capturingQuery();
+  // Spawn-level default 40 (the story-author-tuned budget the glue worker used to inherit).
+  const { result } = await composedDeps({ spawnQuery: spawnQuery.fn, maxTurns: 40 });
+  assert.equal(result.ok, true, "composition must succeed over the real seed");
+  if (!result.ok) return;
+
+  // Per-run 12 must WIN over the spawn default 40.
+  await result.deps.spawnGlueWorker(
+    { unitId: "some-story", paths: ["apps/x.ts"], userPrompt: "add a route", maxTurns: 12 },
+    noTrace,
+  );
+  assert.equal(
+    spawnQuery.lastOptions()["maxTurns"],
+    12,
+    "the caller's per-run maxTurns must override the spawn default in the runner's SDK options",
+  );
+
+  // Omitting the per-run value falls back to the spawn default 40.
+  await result.deps.spawnGlueWorker(
+    { unitId: "some-story", paths: ["apps/x.ts"], userPrompt: "add a route" },
+    noTrace,
+  );
+  assert.equal(
+    spawnQuery.lastOptions()["maxTurns"],
+    40,
+    "an omitted per-run maxTurns falls back to the spawn default (ADR-0163 Gap A)",
   );
 });
 

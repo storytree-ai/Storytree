@@ -21,6 +21,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { z } from "zod";
+
 import { buildSpawnTools } from "./spawn-tool-surface.js";
 import type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 
@@ -37,9 +39,9 @@ const HOLDER = {
   heartbeatAt: "2026-07-05T00:00:00.000Z",
 };
 
-/** What the recording glue handler captured (to assert paths/userPrompt threading). */
+/** What the recording glue handler captured (to assert paths/userPrompt/maxTurns threading). */
 interface GlueCapture {
-  args?: { unitId: string; paths: string[]; userPrompt: string };
+  args?: { unitId: string; paths: string[]; userPrompt: string; maxTurns?: number };
 }
 
 function makeSpawnDeps(opts?: {
@@ -80,13 +82,25 @@ function makeSpawnDeps(opts?: {
   };
 }
 
-function toolNamed(
-  tools: ReturnType<typeof buildSpawnTools>,
-  name: string,
-): ReturnType<typeof buildSpawnTools>[number] {
+/**
+ * A spawn tool viewed loosely for handler-driving tests. buildSpawnTools returns a UNION of the
+ * three tools, so a union-typed `.handler` demands the INTERSECTION of all three arg schemas — e.g.
+ * the glue tool's optional per-run `maxTurns` (ADR-0163 Gap A) would force every unrelated handler
+ * call to supply it. The runtime handler validates its own args, so tests drive it through this view.
+ */
+type LooseSpawnTool = {
+  name: string;
+  inputSchema: Record<string, unknown>;
+  handler: (
+    args: Record<string, unknown>,
+    extra: Record<string, unknown>,
+  ) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+};
+
+function toolNamed(tools: ReturnType<typeof buildSpawnTools>, name: string): LooseSpawnTool {
   const t = tools.find((d) => d.name === name);
   assert.ok(t !== undefined, `expected the built surface to carry '${name}'`);
-  return t;
+  return t as unknown as LooseSpawnTool;
 }
 
 function resultText(result: { content: Array<{ type: string; text?: string }> }): string {
@@ -94,9 +108,8 @@ function resultText(result: { content: Array<{ type: string; text?: string }> })
 }
 
 /** The param names a built tool advertises (inputSchema is the raw zod-shape object). */
-function schemaKeys(t: ReturnType<typeof buildSpawnTools>[number]): string[] {
-  const shape = (t as unknown as { inputSchema?: Record<string, unknown> }).inputSchema ?? {};
-  return Object.keys(shape).sort();
+function schemaKeys(t: LooseSpawnTool): string[] {
+  return Object.keys(t.inputSchema).sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +123,8 @@ test("sgt-glue-tool-mounts-claim-gated-with-paths-and-prompt: buildSpawnTools re
   const glueTool = toolNamed(tools, "spawn_glue_worker");
   assert.deepEqual(
     schemaKeys(glueTool),
-    ["paths", "unitId", "userPrompt"],
-    "spawn_glue_worker must advertise exactly { unitId, paths, userPrompt }",
+    ["maxTurns", "paths", "unitId", "userPrompt"],
+    "spawn_glue_worker must advertise { unitId, paths, userPrompt } + the optional per-run maxTurns (ADR-0163 Gap A)",
   );
 
   await glueTool.handler(
@@ -218,5 +231,55 @@ test("sgt-spawn-builder-drops-phantom-userprompt: spawn_builder's schema no long
   assert.ok(
     schemaKeys(glue).includes("userPrompt"),
     "scoped intent now lives on spawn_glue_worker, which honours userPrompt",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// sgt-glue-tool-accepts-per-run-max-turns — the OPTIONAL per-run turn ceiling
+// (ADR-0163 Gap A): a glue task can be open-ended, and inheriting the
+// story-author-tuned spawn default (~40) can cut the worker off after it has
+// written the complete edit but before it can self-confirm. The tool schema
+// accepts an optional maxTurns and the value reaches the injected handler.
+// ---------------------------------------------------------------------------
+
+test("sgt-glue-tool-accepts-per-run-max-turns: the schema accepts an optional positive-int maxTurns (omit → spawn default) and rejects a non-positive/non-integer one", () => {
+  const glue = toolNamed(buildSpawnTools(makeSpawnDeps()), "spawn_glue_worker");
+  const schema = z.object(glue.inputSchema as z.ZodRawShape);
+  const base = { unitId: "story-x", paths: ["apps/x.ts"], userPrompt: "add a route" };
+
+  assert.equal(schema.safeParse({ ...base, maxTurns: 45 }).success, true, "a positive-int maxTurns is accepted");
+  assert.equal(schema.safeParse(base).success, true, "maxTurns is optional — omit to use the spawn default");
+  assert.equal(schema.safeParse({ ...base, maxTurns: 0 }).success, false, "0 is rejected (would abort the session)");
+  assert.equal(schema.safeParse({ ...base, maxTurns: -5 }).success, false, "a negative maxTurns is rejected");
+  assert.equal(schema.safeParse({ ...base, maxTurns: 2.5 }).success, false, "a non-integer maxTurns is rejected");
+});
+
+test("sgt-glue-tool-accepts-per-run-max-turns: a per-run maxTurns reaches the injected spawnGlueWorker args; omitting it forwards no maxTurns (conditional spread — exactOptionalPropertyTypes)", async () => {
+  // With maxTurns → threaded to the handler.
+  const withCap: GlueCapture = {};
+  const withTool = toolNamed(buildSpawnTools(makeSpawnDeps({ glue: withCap })), "spawn_glue_worker");
+  await withTool.handler(
+    { unitId: "story-x", paths: ["apps/x.ts"], userPrompt: "investigate + edit", maxTurns: 45 },
+    {},
+  );
+  assert.deepEqual(
+    withCap.args,
+    { unitId: "story-x", paths: ["apps/x.ts"], userPrompt: "investigate + edit", maxTurns: 45 },
+    "the per-run maxTurns must reach the glue handler args alongside paths + userPrompt",
+  );
+
+  // Without maxTurns → the key is NOT forwarded (so the composition falls back to the spawn default).
+  const noCap: GlueCapture = {};
+  const noTool = toolNamed(buildSpawnTools(makeSpawnDeps({ glue: noCap })), "spawn_glue_worker");
+  await noTool.handler({ unitId: "story-x", paths: ["apps/x.ts"], userPrompt: "edit" }, {});
+  assert.deepEqual(
+    noCap.args,
+    { unitId: "story-x", paths: ["apps/x.ts"], userPrompt: "edit" },
+    "an omitted maxTurns must NOT be forwarded — the handler conditional-spreads it (exactOptionalPropertyTypes)",
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(noCap.args ?? {}, "maxTurns"),
+    false,
+    "no maxTurns key when the caller omits it",
   );
 });

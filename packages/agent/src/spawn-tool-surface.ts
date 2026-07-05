@@ -58,9 +58,13 @@ export interface SpawnSurfaceDeps {
    * caller-declared `paths` that HONOURS the `userPrompt` — the scoped-edit affordance the desktop
    * chat lacked. Writes inside the spawned session are fenced to `paths`; landing is the existing
    * gate→PR path. Returns a folded summary string (never a verdict).
+   *
+   * `maxTurns` is an OPTIONAL per-run turn ceiling (ADR-0163 Gap A): a glue task can be open-ended,
+   * and inheriting the story-author-tuned spawn default (~40, ADR-0130) can cut the worker off after
+   * it has written the complete edit but before it can self-confirm. Absent → the spawn default.
    */
   spawnGlueWorker: (
-    args: { unitId: string; paths: string[]; userPrompt: string },
+    args: { unitId: string; paths: string[]; userPrompt: string; maxTurns?: number },
     onTrace: (msg: unknown) => void,
   ) => Promise<string>;
 }
@@ -202,15 +206,27 @@ export function buildSpawnTools(deps: SpawnSurfaceDeps) {
       userPrompt: z
         .string()
         .describe("The scoped task, honoured verbatim (e.g. 'add these 3 routes to backend-entry.ts and stop')."),
+      maxTurns: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          "Optional per-run turn ceiling for this scoped glue edit; omit to use the spawn default.",
+        ),
     },
-    async ({ unitId, paths, userPrompt }) => {
+    async ({ unitId, paths, userPrompt, maxTurns }) => {
       const result = await claimGatedSpawn({
         unitId,
         sessionId,
         branch,
         kind: "orchestrate",
         store,
-        spawnFn: (onTrace) => deps.spawnGlueWorker({ unitId, paths, userPrompt }, onTrace),
+        spawnFn: (onTrace) =>
+          deps.spawnGlueWorker(
+            { unitId, paths, userPrompt, ...(maxTurns !== undefined ? { maxTurns } : {}) },
+            onTrace,
+          ),
       });
 
       if (!result.ok) {
