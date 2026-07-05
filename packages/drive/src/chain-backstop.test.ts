@@ -165,6 +165,7 @@ function mkSpec(id: string, buildConfig: NodeBuildConfig | undefined): NodeSpec 
     story: "s",
     dependsOn: [],
     consumedBy: [],
+    artifactEdges: [],
     capabilities: [],
     decisions: [],
     buildConfig,

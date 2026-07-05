@@ -85,6 +85,11 @@ capabilities: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn, sp
 # desktop-build-mount} → … → {agent, notice-board, library}); none of the named stories'
 # depends_on lists this story, so the new edges introduce no cycle.
 depends_on: [headless-orchestrator, wisp-as-story-claim, notice-board, agent, drive-machinery, desktop-build-mount, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [headless-orchestrator, wisp-as-story-claim, drive-machinery, desktop-build-mount]
 # Deciding ADRs (ADR-0037 §2): 137 (PRIMARY — chat is the full session-orchestrator; it SPAWNS the
 # inner loop; decision 4's a-bug-is-a-missing-contract consultative routing; ADR-authoring the sole
 # direct write, out of this story's shipped surface); 108 (Phase 3 drive authority — the phased build

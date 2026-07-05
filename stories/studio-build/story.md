@@ -25,6 +25,11 @@ capabilities: [build-run-registry, build-intent-api, ui-build-trigger]
 #                       drives are library's; the worker reflects the new hue via the existing
 #                       /api/tree latestVerdicts path.
 depends_on: [studio, drive-machinery, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio, drive-machinery, library]
 # Deciding ADRs (ADR-0037 §2): UI-driven orchestration shape (90), proof-bearing-worker
 # integrity (91), the orchestrator/agent boundary preserved (4), and UI-drives-agents (8).
 decisions: [8, 90, 91, 4]

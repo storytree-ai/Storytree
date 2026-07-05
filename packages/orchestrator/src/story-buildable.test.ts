@@ -35,6 +35,7 @@ function spec(
     story: tier === "story" ? undefined : "s",
     dependsOn: opts.dependsOn ?? [],
     consumedBy: [],
+    artifactEdges: [],
     capabilities: opts.capabilities ?? [],
     decisions: [],
     buildConfig: opts.buildConfig,

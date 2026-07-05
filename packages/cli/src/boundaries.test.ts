@@ -8,6 +8,8 @@ import {
   extractImports,
   findCycle,
   formatDriftReport,
+  formatRedundantReport,
+  redundantDeclaredEdges,
   isFoundational,
   isTestScaffolding,
   mergeDeclaredGraph,
@@ -45,7 +47,7 @@ const storyGraph: Record<string, string[]> = {
   "storage-protocol": ["proof-protocol"],
   library: ["proof-protocol"],
   "drive-machinery": ["library", "storage-protocol", "proof-protocol"],
-  "notice-board": ["library", "drive-machinery"],
+  "notice-board": ["library"],
   "studio-members": ["library"],
   cli: [],
 };
@@ -76,8 +78,10 @@ const realPackageDeps: Record<string, string[]> = {
     "@storytree/proof-protocol", // drive-machinery depends_on proof-protocol ✓
   ],
   "@storytree/agent": [],
-  "@storytree/notice-board": [],
-  "@storytree/studio-members": [],
+  // ADR-0166: the clean fixture backs every declared package-target edge (rule 4 requires it —
+  // notice-board/studio-members really do import @storytree/library).
+  "@storytree/notice-board": ["@storytree/library"],
+  "@storytree/studio-members": ["@storytree/library"],
   "@storytree/cli": [
     "@storytree/agent", // cli → drive-machinery: covered by drive-machinery.consumed_by ✓
     "@storytree/storage-protocol", // covered by storage-protocol.consumed_by ✓
@@ -189,8 +193,9 @@ test("an undeclared edge passes once it is DECLARED on an endpoint", () => {
 });
 
 test("a studio-members→organism edge needs a declaration too (no organism is exempt)", () => {
-  // studio-members importing notice-board with no declaration → caught.
-  const packageDeps = { "@storytree/studio-members": ["@storytree/notice-board"] };
+  // studio-members importing notice-board with no declaration → caught. (library included so its
+  // declared library edge stays code-backed under the ADR-0166 rule — one violation, not two.)
+  const packageDeps = { "@storytree/studio-members": ["@storytree/notice-board", "@storytree/library"] };
   const { violations } = checkBoundaries({
     ownership,
     packageDeps,
@@ -830,4 +835,166 @@ test("declaredEdgeDriftReport: VirtualStorySource passed for a PACKAGE-OWNING st
   });
   // The stray record is ignored → agent has no backed edge → no entry (not flagged as backed library).
   assert.equal(report.byStory["agent"], undefined);
+});
+
+// ===================================================================================================
+// ADR-0166: the declared-edge HONESTY gates. Rule 4 (blocking): a PACKAGE-OWNING story's declared
+// `depends_on` edge to another PACKAGE-OWNING story must be code-backed (some package of the consumer
+// runtime-depends on some package of the target) OR annotated in the consumer's `artifact_edges`
+// (a deliberate build-artifact / write-target / injected-seam edge). Virtual endpoints stay advisory
+// (the drift report). Plus the advisory redundant-transitive report (`redundantDeclaredEdges`).
+// ===================================================================================================
+
+test("ADR-0166: a package-owning story's unbacked declared package-target edge is a violation", () => {
+  // notice-board (owns a package) declares drive-machinery (owns packages) with NO code backing.
+  const graph = { ...storyGraph, "notice-board": ["library", "drive-machinery"] };
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: realPackageDeps,
+    storyGraph: graph,
+    consumedBy,
+  });
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /declared but code-unbacked/);
+  assert.match(violations[0]!, /notice-board.*drive-machinery/);
+  assert.match(violations[0]!, /artifact_edges/); // the fix-pointing escape for a genuine honesty edge
+});
+
+test("ADR-0166: an artifact_edges annotation covers a deliberate non-import edge", () => {
+  const graph = { ...storyGraph, "notice-board": ["library", "drive-machinery"] };
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: realPackageDeps,
+    storyGraph: graph,
+    consumedBy,
+    artifactEdges: { "notice-board": ["drive-machinery"] },
+  });
+  assert.deepEqual(violations, [], violations.join("\n"));
+});
+
+test("ADR-0166: virtual endpoints stay advisory — no blocking on a virtual consumer or target", () => {
+  // Virtual consumer: story v owns no package; its unbacked declared edge is drift-report territory.
+  const withVirtualConsumer = { ...storyGraph, v: ["library"] };
+  assert.deepEqual(
+    checkBoundaries({ ownership, packageDeps: realPackageDeps, storyGraph: withVirtualConsumer, consumedBy })
+      .violations,
+    [],
+  );
+  // Virtual target: notice-board declares an edge to virtual story w — unbackable by construction.
+  const withVirtualTarget = { ...storyGraph, "notice-board": ["library", "w"], w: [] };
+  assert.deepEqual(
+    checkBoundaries({ ownership, packageDeps: realPackageDeps, storyGraph: withVirtualTarget, consumedBy })
+      .violations,
+    [],
+  );
+});
+
+test("ADR-0166: an artifact_edges entry that is not a declared depends_on edge is a misconfiguration", () => {
+  // A typo'd annotation must fail LOUD — silently matching nothing would disarm the gate.
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: realPackageDeps,
+    storyGraph,
+    consumedBy,
+    artifactEdges: { "notice-board": ["drive-machinery"] }, // notice-board's depends_on is [library]
+  });
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /artifact_edges/);
+  assert.match(violations[0]!, /not a declared depends_on edge/);
+});
+
+test("ADR-0166: an artifact_edges annotation on a CODE-BACKED edge is stale and rejected", () => {
+  // notice-board really imports library — annotating that edge as a non-import artifact edge lies.
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: realPackageDeps,
+    storyGraph,
+    consumedBy,
+    artifactEdges: { "notice-board": ["library"] },
+  });
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /stale artifact_edges/);
+});
+
+test("ADR-0166: a story whose packages are absent from packageDeps is skipped (insufficient data)", () => {
+  // Narrow fixture — only cli's deps are known; notice-board's declared library edge must not red.
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: { "@storytree/cli": ["@storytree/library"] },
+    storyGraph,
+    consumedBy,
+  });
+  assert.deepEqual(violations, [], violations.join("\n"));
+});
+
+test("ADR-0166: redundantDeclaredEdges flags an unbacked redundant-transitive declared edge", () => {
+  // v declares the chain head AND the transitive tail: v → a → b plus a direct v → b, no code backing.
+  const rep = redundantDeclaredEdges({
+    ownership: realWorld,
+    storyGraph: { v: ["a", "b"], a: ["b"], b: [] },
+    packageDeps: {},
+  });
+  assert.deepEqual(rep, { v: ["b"] });
+});
+
+test("ADR-0166: a CODE-BACKED redundant edge is required by the blocking gate — never flagged", () => {
+  // The binding-staleness pattern: s declares drive-machinery AND proof-protocol; drive-machinery →
+  // proof-protocol makes the edge transitively reachable, but s's own code imports proof-protocol.
+  const rep = redundantDeclaredEdges({
+    ownership: realWorld,
+    storyGraph: {
+      s: ["drive-machinery", "proof-protocol"],
+      "drive-machinery": ["proof-protocol"],
+      "proof-protocol": [],
+    },
+    packageDeps: {},
+    virtualStorySources: [
+      { story: "s", file: "packages/drive/src/s.ts", content: `import { anchor } from "@storytree/proof-protocol";` },
+    ],
+  });
+  assert.deepEqual(rep, {});
+});
+
+test("ADR-0166: an artifact_edges-annotated redundant edge is suppressed (human-resolved)", () => {
+  const rep = redundantDeclaredEdges({
+    ownership: realWorld,
+    storyGraph: { v: ["a", "b"], a: ["b"], b: [] },
+    packageDeps: {},
+    artifactEdges: { v: ["b"] },
+  });
+  assert.deepEqual(rep, {});
+});
+
+test("ADR-0166: redundancy is judged over depends_on only, not the merged consumed_by graph", () => {
+  // v → b is reachable only through a provider-side consumed_by edge (v consumed_by → v→a? no:
+  // a.consumed_by [v] declares v → a). The roads the forest draws are depends_on; a consumed_by
+  // path must not make a depends_on edge "redundant".
+  const rep = redundantDeclaredEdges({
+    ownership: realWorld,
+    storyGraph: { v: ["b"], a: ["b"], b: [] },
+    consumedBy: { a: ["v"] }, // v → a exists only provider-side
+    packageDeps: {},
+  });
+  assert.deepEqual(rep, {});
+});
+
+test("ADR-0166: formatRedundantReport renders the advisory WARN text", () => {
+  const text = formatRedundantReport({ v: ["b"], w: ["c", "d"] });
+  assert.match(text, /NON-BLOCKING/);
+  assert.match(text, /redundant/i);
+  assert.match(text, /"v".*b/);
+  assert.match(text, /"w".*c, d/);
+  assert.match(formatRedundantReport({}), /no unbacked redundant/i);
+});
+
+test("ADR-0166: artifact-annotated edges leave the drift report's unbacked list (human-resolved)", () => {
+  const report = declaredEdgeDriftReport({
+    ownership: realWorld,
+    storyGraph: { v: ["agent"], agent: [] },
+    consumedBy: {},
+    packageDeps: {},
+    virtualStorySources: [],
+    artifactEdges: { v: ["agent"] },
+  });
+  assert.equal(report.byStory["v"], undefined);
 });

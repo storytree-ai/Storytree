@@ -16,6 +16,11 @@ proof_mode: UAT
 # genuine trunk — a root every story depends on.)
 capabilities: [green-gate, repo-surface-manifest, adr-health-gate, gate-ci-parity, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
 depends_on: [studio-cloud, notice-board]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio-cloud, notice-board]
 # Deciding ADRs (ADR-0037 §2): the green gate + auto-merge (22), repo-surface manifest (25),
 # decision binding + adr-health (37), the ADR-number allocator (50), session presence the retire
 # backstop serves (33), the display posture it heals (41), studio CD (46), keyless WIF auth (21),

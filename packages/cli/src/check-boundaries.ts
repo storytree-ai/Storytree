@@ -43,6 +43,8 @@ import {
   declaredEdgeDriftReport,
   extractImports,
   formatDriftReport,
+  formatRedundantReport,
+  redundantDeclaredEdges,
   type Ownership,
   type SourceImport,
   type VirtualStorySource,
@@ -89,11 +91,15 @@ function readPackageDeps(): Record<string, string[]> {
 function readStoryGraphs(): {
   storyGraph: Record<string, string[]>;
   consumedBy: Record<string, string[]>;
+  artifactEdges: Record<string, string[]>;
+  retired: Set<string>;
 } {
   const storiesDir = join(repoRoot, "stories");
   const storyGraph: Record<string, string[]> = {};
   const consumedBy: Record<string, string[]> = {};
-  if (!existsSync(storiesDir)) return { storyGraph, consumedBy };
+  const artifactEdges: Record<string, string[]> = {};
+  const retired = new Set<string>();
+  if (!existsSync(storiesDir)) return { storyGraph, consumedBy, artifactEdges, retired };
   for (const ent of readdirSync(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const storyFile = join(storiesDir, ent.name, "story.md");
@@ -101,8 +107,11 @@ function readStoryGraphs(): {
     const spec = loadNodeSpec(storyFile);
     storyGraph[ent.name] = spec.dependsOn;
     consumedBy[ent.name] = spec.consumedBy;
+    // ADR-0166: only carry non-empty annotations (keeps the judge input sparse).
+    if (spec.artifactEdges.length > 0) artifactEdges[ent.name] = spec.artifactEdges;
+    if (spec.status === "retired") retired.add(ent.name);
   }
-  return { storyGraph, consumedBy };
+  return { storyGraph, consumedBy, artifactEdges, retired };
 }
 
 /** Every `.ts` file under a directory, recursively (repo-relative POSIX paths). */
@@ -209,25 +218,39 @@ function reportEdgeDrift(input: {
   packageDeps: Record<string, string[]>;
   storyGraph: Record<string, string[]>;
   consumedBy: Record<string, string[]>;
+  artifactEdges: Record<string, string[]>;
+  retired: Set<string>;
 }): void {
   try {
-    const { ownership, packageDeps, storyGraph, consumedBy } = input;
+    const { ownership, packageDeps, consumedBy, artifactEdges, retired } = input;
+    // A RETIRED story is out of review scope for both advisory reports (ADR-0166): its island and
+    // roads no longer render, so "review this edge" is meaningless noise — and a live edge that is
+    // reachable only THROUGH a retired story is not redundant on the map either. The BLOCKING gate
+    // keeps the full graph (its coverage question is about code, not rendering).
+    const storyGraph: Record<string, string[]> = {};
+    for (const [s, deps] of Object.entries(input.storyGraph)) {
+      if (retired.has(s)) continue;
+      storyGraph[s] = deps.filter((d) => !retired.has(d));
+    }
     const ownedStories = new Set<string>([
       ...Object.values(ownership.organisms),
       ...Object.values(ownership.surfaces ?? {}),
     ]);
     const virtualStories = new Set(Object.keys(storyGraph).filter((s) => !ownedStories.has(s)));
-    const report = declaredEdgeDriftReport({
+    const driftInput = {
       ownership,
       packageDeps,
       storyGraph,
       consumedBy,
       virtualStorySources: readVirtualStorySources(virtualStories),
-    });
-    console.warn(formatDriftReport(report));
+      artifactEdges,
+    };
+    console.warn(formatDriftReport(declaredEdgeDriftReport(driftInput)));
+    // ADR-0166: the advisory redundant-transitive report — same non-blocking posture.
+    console.warn(formatRedundantReport(redundantDeclaredEdges(driftInput)));
   } catch (err) {
     console.warn(
-      `[check:boundaries] ADR-0115 drift report SKIPPED (${(err as Error).message}); ` +
+      `[check:boundaries] ADR-0115/0166 drift + redundancy reports SKIPPED (${(err as Error).message}); ` +
         "the blocking boundary gate is unaffected.",
     );
   }
@@ -236,11 +259,12 @@ function reportEdgeDrift(input: {
 function main(): void {
   const ownership = readOwnership();
   const packageDeps = readPackageDeps();
-  const { storyGraph, consumedBy } = readStoryGraphs();
+  const { storyGraph, consumedBy, artifactEdges, retired } = readStoryGraphs();
 
-  // ADR-0115: the non-blocking declared-edge drift report. Printed every run, BEFORE the blocking
-  // verdict (so it shows even when the gate fails), and wrapped so it can NEVER change the exit code.
-  reportEdgeDrift({ ownership, packageDeps, storyGraph, consumedBy });
+  // ADR-0115: the non-blocking declared-edge drift report (+ the ADR-0166 redundancy report).
+  // Printed every run, BEFORE the blocking verdict (so it shows even when the gate fails), and
+  // wrapped so it can NEVER change the exit code.
+  reportEdgeDrift({ ownership, packageDeps, storyGraph, consumedBy, artifactEdges, retired });
 
   const { violations } = checkBoundaries({
     ownership,
@@ -248,6 +272,7 @@ function main(): void {
     storyGraph,
     consumedBy,
     sourceImports: readSourceImports(),
+    artifactEdges,
   });
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);

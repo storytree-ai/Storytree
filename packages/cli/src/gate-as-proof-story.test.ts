@@ -118,6 +118,7 @@ function gateAsProofStorySpec(storyFile: string, testFile: string): NodeSpec {
     story: undefined,
     dependsOn: [],
     consumedBy: [],
+    artifactEdges: [],
     capabilities: ["cap-one", "cap-two"],
     decisions: [57, 59, 92],
     buildConfig: {

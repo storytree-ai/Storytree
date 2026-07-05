@@ -29,6 +29,11 @@ capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sy
 #    story-level sink above it (nothing consumes the front door's front door). website needs nothing
 #    from this story — acyclic: website-experience → website → forest-world.
 depends_on: [forest-world, website]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [website]
 consumed_by: []
 # Deciding ADRs (ADR-0037 §2): the experience concept + the per-act tech split and the owner
 # decisions of 2026-07-02 that unpacked it (134); the renderer — R3F + drei as the THIRD
