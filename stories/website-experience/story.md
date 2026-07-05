@@ -272,10 +272,20 @@ whole (owner decision 6):
   re-specs the LEAF (`act2-beat-director` — the `add-upstream-story` delta widened so the database is a
   prerequisite of both the website and the backend) and the two LOOK caps (G + H) toward `building` for
   the reshaped surface. So H's LOOK cap is NOT terminally closed; its attested "step forward" record
-  stands as true history (copy-on-write). This re-spec is a DOCS link (ADR + cap re-specs + a librarian
-  correction-in-place pass); the site edits follow as a build chip. The arc's LAST increment remains
-  `info-pages-triage` (increment I), which lands after that follow-on re-spec's build settles the Act 2
-  surface it must fold pages into.
+  stands as true history (copy-on-write). **The ADR-0157 BUILD LANDED + is LIVE + OWNER-ATTESTED AS A
+  STEP FORWARD (2026-07-05, web main `d761eadc`, live at https://crisp-globe-bf6v.here.now/) — the
+  increment-H (BaaS) HALT is CLEARED.** The BaaS diamond render, the honest TDD loop diagram
+  (system-as-referee), the moving wisp, the plain-language / storm-metaphor-free copy, and the
+  our-orchestrator / first-node-`proposed` pre-walk are all live (storytree-web PR #26, both CD runs
+  green; parent `web/` pin bumped `8f4e166c` → `d761eadc`); the `act2-beat-director` LEAF widening is
+  BUILT + leaf-proven (verdict `f9ae9b8`, run `real-mr6ycu73`, the diamond delta at
+  `packages/forest-world-r3f/src/act2-director.ts:145`). The owner attested it as a STEP FORWARD
+  (verbatim: *"This is also a step forward, so land it"*) and simultaneously directed a substantial
+  FOLLOW-ON REDESIGN (an orchestrator-led, diagram-first walkthrough; the wisp on an orbit; a
+  zoom-to-studio reveal; an ADR → library-artifact flow; industry framing) — so the LOOK caps stay
+  `building`/`proposed` for that reshaped surface, NOT terminally closed. That redesign is its own next
+  arc link (tracked separately). The arc's LAST increment remains `info-pages-triage` (increment I),
+  which lands after the Act 2 surface the redesign settles is fixed enough to fold pages into.
 - **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
   roadmap's "what's coming" behind the pull-back / "what's next") are only concrete once both Act 2

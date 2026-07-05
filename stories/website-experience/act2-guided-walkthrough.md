@@ -195,6 +195,20 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 >   unchanged by the diamond (the website node is planted the same way). Per `defects-amend-the-owning-story`
 >   the re-spec reverts this cap to `building` and re-earns `healthy` on the reshaped surface through the
 >   gate; `healthy` is earned through the gate, never authored (ADR-0020).
+>
+> **As built (2026-07-05, web main `d761eadc`, live at https://crisp-globe-bf6v.here.now/) — G's share of
+> ADR-0157 LANDED + OWNER-ATTESTED AS A STEP FORWARD.** The de-storm/plain-language sweep, the honest TDD
+> loop diagram, the our-orchestrator pre-walk, the first-node-`proposed` honesty, and the moving wisp are
+> all live in the cumulative Act 2 build (storytree-web PR #26, both CD runs green; parent `web/` pin
+> bumped `8f4e166c` → `d761eadc`; independently witnessed 34/34). Cites (files under `web/` at `d761eadc`):
+> `act2-narration.ts` de-stormed (the `INTRO` no longer opens "The storm settles into soil"; no storm
+> analogy in visitor copy); `act2-overlays.ts` `buildLoopDiagram` (the honest TDD **loop** — four nodes /
+> four arcs, two SYSTEM-check nodes, "the system checks — not the AI"); `act2-orchestrator.ts`
+> (our-orchestrator voice; the story named a proposal, node born `proposed`); `index.astro`
+> `animation: act2-wisp-drift` (the wisp travels a soft closed loop, no longer a static dot). The owner
+> attested this as a STEP FORWARD (verbatim: *"This is also a step forward, so land it"*) and directed a
+> further follow-on redesign — so this LOOK is STILL NOT terminally closed; the `d761eadc` "step forward"
+> record here stands as true history (copy-on-write). The authored `status:` stays `proposed`.
 
 ## As built (web main `ff70222b`) — the FIRST attested walk (historical record, kept intact)
 
