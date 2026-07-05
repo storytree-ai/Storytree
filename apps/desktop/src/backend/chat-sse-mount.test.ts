@@ -118,6 +118,7 @@ function landingDepsDouble(): LandingDeps {
   return {
     runGate: async () => ({ passed: true, summary: "gate green" }),
     openLandingPr: async () => ({ ok: true, summary: "landing PR opened", prUrl: "https://github.com/x/y/pull/1" }),
+    pollPrChecks: async () => ({ status: "merged", summary: "PR merged" }),
   } as LandingDeps;
 }
 
