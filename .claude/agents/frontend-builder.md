@@ -51,6 +51,7 @@ A frontend cap that lacks an adequate `proof.real` block (the vitest `proofComma
 - An agent can never grant itself the attestation that reaches `healthy` — operator-attested promotion is operator-granted only.  — `storytree library artifact agent-never-self-exempts`
 - The content invariants — contracts green, UAT signed, upstream healthy — can never be bypassed; the gate refuses invalid work rather than warning about it.  — `storytree library artifact never-bypass-the-gate`
 - The outer loop — accepting a result onto the trunk, accepting a decomposition, amending/retrying/abandoning a unit — is human judgment, never an automated path.  — `storytree library artifact human-owns-the-outer-loop`
+- A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`
 
 ## Escalate UP when blocked or out of scope
 

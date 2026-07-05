@@ -49,6 +49,7 @@ No events / unreadable stream: STOP and report. No resolvable story: flag and co
 ## Refuse — failure modes you must refuse
 
 - An agent rewarded for a gameable success signal will optimise the signal rather than the work; define success by observable end-results, require concrete evidence of them, and keep judging separate from doing.  — `storytree library artifact reward-hacking`
+- A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`
 
 ## Escalate UP when blocked or out of scope
 

@@ -30,6 +30,7 @@ import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
+import { desktopHelp, desktopLaunch, type DesktopSpawnFn } from "./desktop.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
@@ -800,6 +801,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
+      "  desktop launch   launch the Electron desktop client, detached (ADR-0109/0111)",
       "",
       "the proof primitives relocated UNDER the workflows above (ADR-0118); the old grain verbs keep",
       "working as back-compat aliases (nothing breaks, they just moved):",
@@ -993,6 +995,17 @@ export interface RunDeps {
   readonly branch?: {
     readonly runGit?: (args: readonly string[]) => string;
     readonly generateName?: () => string;
+  };
+  /**
+   * The `storytree desktop launch` seam: an injected `spawn`/`repoRoot`/`platform` make the
+   * detached-launch path offline-testable (no real Electron process spawned, no real repo touched).
+   * Absent in production — the real node:child_process spawn, this repo's root, and process.platform
+   * are used.
+   */
+  readonly desktop?: {
+    readonly spawn?: DesktopSpawnFn;
+    readonly repoRoot?: string;
+    readonly platform?: NodeJS.Platform;
   };
 }
 
@@ -1923,6 +1936,26 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const root = repoRoot();
     return coverageCommand(sub, {
       loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
+    });
+  }
+
+  if (area === "desktop") {
+    // The Electron desktop client's CLI launcher (ADR-0109/0111): a thin wrapper around the
+    // existing per-app launcher (`pnpm --filter desktop start`, surface-coverage-gate's
+    // PER_APP_ENTRYPOINTS) — spawns it DETACHED so the invoking session isn't blocked on the
+    // long-running GUI process.
+    if (help || sub === undefined) return desktopHelp();
+    if (sub !== "launch") {
+      return {
+        ok: false,
+        body: `unknown desktop command "${sub}". try: storytree desktop launch`,
+        next: ["storytree desktop launch", "storytree desktop --help"],
+      };
+    }
+    return desktopLaunch({
+      repoRoot: deps.desktop?.repoRoot ?? repoRoot(),
+      ...(deps.desktop?.spawn !== undefined ? { spawn: deps.desktop.spawn } : {}),
+      ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
     });
   }
 

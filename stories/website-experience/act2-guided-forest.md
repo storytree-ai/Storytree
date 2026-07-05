@@ -214,6 +214,33 @@ walk it grows from exists.
 > The DATA direction stays the settled non-negotiable; the BaaS-vs-3-tier SHAPE is now confirmed BaaS;
 > the spatial layout and the exact diagram/animation visuals stay owner-tunable at the gate.
 >
+> **As built (2026-07-05, web main `d761eadc`, live at https://crisp-globe-bf6v.here.now/) — the ADR-0157
+> re-build LANDED + OWNER-ATTESTED AS A STEP FORWARD.** All five re-spec points above are now live
+> (storytree-web PR #26, both CD runs green; parent `web/` pin bumped `8f4e166c` → `d761eadc`), built by
+> the `frontend-builder` and independently witnessed (astro build zero-WebGL in the walk; the three web
+> gates OK; Playwright 34/34). Cites (files under `web/` at `d761eadc`):
+> - **BaaS diamond (1)** — `web/src/scripts/act2-script.ts` beat 5 raises the database once with
+>   `dependentId: [STORY_BACKEND, STORY_WEBSITE]`, fanning it into BOTH `website.dependsOn` and
+>   `backend.dependsOn` → the diamond `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`,
+>   `database.dependsOn=[]`; the direct `website → database` read edge is drawn alongside the backend chain
+>   (`act2-walkthrough.ts`), with a "reads directly from" tooltip. The LEAF widening rode verdict
+>   `f9ae9b8` (see [`act2-beat-director`](act2-beat-director.md)).
+> - **Honest TDD loop diagram (2)** — `web/src/scripts/act2-overlays.ts` `buildLoopDiagram`: four nodes /
+>   four arcs, two SYSTEM-check nodes, centre "the system checks — not the AI" (system-as-referee),
+>   replacing the beat-2 list.
+> - **Plain language, storm retired (3)** — `web/src/scripts/act2-narration.ts` de-stormed (the `INTRO`
+>   no longer opens "The storm settles into soil"); no storm analogy in rendered visitor copy.
+> - **Our-orchestrator pre-walk, first node `proposed` (4)** — `web/src/scripts/act2-orchestrator.ts`
+>   (our-orchestrator voice; the story is named a proposal, the node born `proposed`).
+> - **Moving wisp (5)** — `web/src/pages/index.astro` `animation: act2-wisp-drift` — the wisp travels a
+>   soft closed loop over the tree, no longer a static dot.
+>
+> The owner attested this as a STEP FORWARD (verbatim: *"This is also a step forward, so land it"*) and
+> simultaneously directed a further follow-on redesign (orchestrator-led diagram-first walkthrough, wisp
+> orbit, zoom-to-studio reveal, ADR → library-artifact flow, industry framing) — so this LOOK is STILL
+> NOT terminally closed; the directed redesign is a future arc link, and the `d761eadc` "step forward"
+> record here stands as true history (copy-on-write). The authored `status:` stays `proposed`.
+>
 > **The re-shape (owner direction at the G gate, 2026-07-04 — SETTLED, design-time-ratified).**
 > Attesting increment G, the owner sharpened H's shape (verbatim: *"get rid of this bit [beat 4's
 > 'wrong way — skips the payment service' flag] … integrate the grow the backend into the one tutorial,

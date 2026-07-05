@@ -43,6 +43,7 @@ Everything, by construction. Until built, accumulated signal routes to the owner
 ## Refuse — failure modes you must refuse
 
 - The content invariants — contracts green, UAT signed, upstream healthy — can never be bypassed; the gate refuses invalid work rather than warning about it.  — `storytree library artifact never-bypass-the-gate`
+- A specialist never improvises a process, force-fits a hollow proof, or silently skips work that is outside its role, uncovered by any process, or blocked by a capability gap — it STOPS and hands the situation UP to the session-orchestrator (its manager), in its return message, with the reason.  — `storytree library artifact escalate-up-when-blocked-or-out-of-scope`
 
 ## Escalate UP when blocked or out of scope
 
