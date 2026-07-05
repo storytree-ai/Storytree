@@ -141,6 +141,19 @@ file conflicts).
 
 ## How to run
 
+- **Offline is the DEFAULT — most sessions need no environment probe.** Analysis, docs, pure-TS units,
+  and the whole gate (`pnpm -r typecheck` / `pnpm -r test`) run OFFLINE on the in-memory seed: **no DB,
+  no SDK token, no `git fetch` needed.** Don't reflexively `db:up` / `claude -p` / `git fetch` at session
+  start — every probe below is **need-gated to a specific action, not a do-first ritual** (over-reading
+  them as onboarding steps is the biggest measured time-sink, ADR-0162). Probe only when you actually
+  cross the gate: **(a)** a build that needs the DB (`--real --store pg`, or a db-backed proof)
+  **self-starts it** (`ensureLiveDb`, `packages/drive`) — a pre-`db:up` is a redundant no-op; only a
+  **bare `--pg` CLI write** (`artifact edit`, `adr new`) needs `db:up` first. **(b)** before an
+  **UNATTENDED** `--live`/`--real` build, do **one *hydrated* auth probe or none** — a bare `claude -p`
+  reads stale `~/.claude/.credentials.json` → a false 401; the CLI auto-hydrates the real token (see the
+  `Credentials auto-hydrate` bullet). Two probes STAY load-bearing: **probe `SELECT 1`, don't assume**
+  the DB is unreachable (Cloud SQL bullet), and **`git fetch origin/main`** before a PR / on a CI-red
+  (the stale-branch check).
 - **Remote (web/VM) sessions ONLY** (Claude Code on the web — ephemeral container, GitHub via MCP,
   **443-only egress**) can't open a DB *data* connection: Postgres' data socket is port **3307**,
   which the 443-only egress blocks, so live/`--pg` writes and live builds hang there (the REST

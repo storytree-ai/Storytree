@@ -124,8 +124,13 @@ The arc's shared state. Each perpetual-chip session lands **one** increment, tic
 the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
 
 - [x] **0. Charter** — this ADR (ADR-0162), accepted 2026-07-05. _(PR: this one.)_
-- [ ] **1. ENV skip-license** (Phase 1, XS) — guidance edit granting offline sessions explicit
-  skip-license; drop the redundant `db:up` precondition; "one hydrated auth probe or none".
+- [x] **1. ENV skip-license** (Phase 1, XS) — guidance edit granting offline sessions explicit
+  skip-license; drop the redundant `db:up` precondition; "one hydrated auth probe or none". Landed a
+  leading "Offline is the DEFAULT" bullet in CLAUDE.md's `## How to run`: offline work (analysis/docs/
+  pure-TS/`pnpm -r test`) needs no DB/SDK/`git fetch` probe; a build self-starts the DB (`ensureLiveDb`)
+  so a pre-`db:up` is a no-op — only a bare `--pg` CLI write needs it; "one hydrated auth probe or none"
+  before an unattended `--live`/`--real` build; the load-bearing `SELECT 1` and `git fetch origin/main`
+  probes preserved. _(PR: this one.)_
 - [ ] **2. CLI launcher + lazy-pg + compile-cache** (Phase 1, S) — direct-node launcher, dynamic
   `import()` of the pg store behind `--pg`, `NODE_COMPILE_CACHE`. Target: warm `storytree` call ~1 s.
 - [ ] **3. BOOT worktree pre-provisioning** (Phase 1, S–M) — `pnpm install` at worktree creation.
