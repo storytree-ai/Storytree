@@ -52,6 +52,7 @@ import { NapiKeychain } from "../src/keychain/napi-adapter.js";
 // import statically here (the build ENTRIES nodeBuild/storyBuild are lazily imported inside the runner).
 import { BuildRegistry, routedBuildRunner } from "@storytree/drive/build-worker";
 import type { BuildContext } from "@storytree/drive/build-worker";
+import { PgAttestationStore } from "@storytree/orchestrator/store";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
 
@@ -184,6 +185,40 @@ async function serveDegraded(reason: string): Promise<void> {
       try {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
         if (await bootRoutes(req, res, pathname)) return;
+        // Disk-only attestations: the full attestationsMount needs a live pool; in the degraded
+        // shell we serve the spec-parsed tests with resolved witnesses but no proven state (no DB
+        // = no verdict layer). Returns the same shape the full handler does — storyUat and proven
+        // are simply absent so the UI shows tests without crown colouring rather than 404-ing.
+        if (pathname === "/api/attestations") {
+          const urlObj = new URL(req.url ?? "/", "http://localhost");
+          const storyId = (urlObj.searchParams.get("storyId") ?? "").trim();
+          if (!storyId) {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json; charset=utf-8");
+            res.end(JSON.stringify({ error: "storyId query param is required" }));
+            return;
+          }
+          const { findNodeSpecFile, loadNodeSpec, resolvedWitnessOf, unresolvedUatLegs } =
+            await import("@storytree/orchestrator");
+          const storySpecFile = findNodeSpecFile(storiesDir, storyId);
+          const spec = storySpecFile !== null
+            ? (() => { try { return loadNodeSpec(storySpecFile); } catch { return null; } })()
+            : null;
+          const tests = spec?.uatTests ?? [];
+          const gates = spec?.reliabilityGates ?? [];
+          const status = spec?.status ?? "";
+          const resolved = tests.map((t) => ({ ...t, witness: resolvedWitnessOf(t, gates) }));
+          const adopted = status !== "" && status !== "mapped" && status !== "retired";
+          const unresolvedWitnesses = adopted ? unresolvedUatLegs(tests).map((t) => t.id) : [];
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({
+            storyId,
+            tests: resolved,
+            ...(unresolvedWitnesses.length > 0 ? { unresolvedWitnesses } : {}),
+          }));
+          return;
+        }
         await localHandler(req, res);
       } catch (err) {
         if (!res.headersSent) {
@@ -230,6 +265,7 @@ async function main(): Promise<void> {
   const library = new PgLibraryStore(pool);
   const comments = new PgCommentStore(pool);
   const presence = new PgPresenceStore(pool);
+  const attestations = new PgAttestationStore(pool);
 
   // The RAW signed-verdict event stream (events.verdict ORDER BY seq) shaped as `{ kind: 'signing',
   // seq, doc }` — shared by the backend's advisory overlay read below AND the orientation runner's
@@ -537,6 +573,99 @@ async function main(): Promise<void> {
   };
   const buildRouteMount = createBuildRouteMount(build);
 
+  // ---------- /api/attestations (GET — member-readable UAT test list) ----------
+  //
+  // Re-composed from @storytree/orchestrator — no apps/studio/server import (ADR-0100 boundary).
+  // Serves the same payload the studio's GET /api/attestations produces: a story's UAT tests
+  // with their per-test attestation marks and proven state (from signed verdicts). Used by the
+  // shared UatTestsSection component when a story node is clicked. Advisory (null on any DB
+  // failure) — returns `{ storyId, tests: [] }` gracefully rather than crashing.
+  // OPERATOR-ATTESTED GLUE (ADR-0070): the CI-proven cores are the orchestrator functions and
+  // PgAttestationStore this wiring threads together; this route wiring is proven transitively.
+  const attestationsMount = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    pathname: string,
+  ): Promise<boolean> => {
+    if (pathname !== "/api/attestations") return false;
+    const method = req.method ?? "GET";
+    if (method !== "GET") {
+      res.statusCode = 405;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: `method ${method} not allowed` }));
+      return true;
+    }
+    const urlObj = new URL(req.url ?? "/", "http://localhost");
+    const storyId = (urlObj.searchParams.get("storyId") ?? "").trim();
+    if (!storyId) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: "storyId query param is required" }));
+      return true;
+    }
+    // Lazily imported — the raw-TS `.js` re-export discipline (same as loadBuildUnit above
+    // and tree-verdicts.ts). All compute in @storytree/orchestrator; no apps/studio/server.
+    const {
+      findNodeSpecFile, loadNodeSpec,
+      deriveAttestations,
+      resolvedWitnessOf, unresolvedUatLegs,
+      rollupStatus, rollupStoryUat,
+    } = await import("@storytree/orchestrator");
+    // Load story UAT context from disk (same logic as uatContextForStory in apiRouter.ts).
+    // findNodeSpecFile + loadNodeSpec are synchronous FS reads; any error → null, never a crash.
+    const storySpecFile = findNodeSpecFile(storiesDir, storyId);
+    const spec = storySpecFile !== null
+      ? (() => { try { return loadNodeSpec(storySpecFile); } catch { return null; } })()
+      : null;
+    const tests = spec?.uatTests ?? [];
+    const gates = spec?.reliabilityGates ?? [];
+    const status = spec?.status ?? "";
+    // Attestation marks and verdict events in parallel (both advisory).
+    const [marksMap, events] = await Promise.all([
+      // Derive the latest-per-(testId,witness) marks and filter to this story's tests.
+      attestations.readEvents().then((evts): Record<string, Record<string, unknown>> => {
+        const derived = deriveAttestations(evts);
+        const out: Record<string, Record<string, unknown>> = {};
+        for (const [testId, entry] of derived) {
+          if (testId.startsWith(`${storyId}#`)) out[testId] = entry as Record<string, unknown>;
+        }
+        return out;
+      }).catch((): Record<string, Record<string, unknown>> => ({})),
+      // Verdict events — advisory, same contract as /api/tree (null on any failure).
+      advisory("attestations-verdicts", readVerdictEventRows),
+    ]);
+    // Resolve each leg's declared witness into the binary one the UI reads (mirrors
+    // resolveUatRowWitnesses from apiRouter.ts, re-composed from shared orchestrator functions
+    // so the binary can never fork between studio and desktop).
+    const resolved = tests.map((t) => ({ ...t, witness: resolvedWitnessOf(t, gates) }));
+    const adopted = status !== "" && status !== "mapped" && status !== "retired";
+    const unresolvedWitnesses = adopted ? unresolvedUatLegs(tests).map((t) => t.id) : [];
+    // Proven state from signed verdicts (advisory — absent on a down DB).
+    let provenOf: ((id: string) => "pass" | "fail" | undefined) | null = null;
+    let storyUat: "healthy" | "unhealthy" | null | undefined;
+    if (events !== null) {
+      provenOf = (id) => {
+        const s = rollupStatus(id, events);
+        return s === "healthy" ? "pass" : s === "unhealthy" ? "fail" : undefined;
+      };
+      const rolled = rollupStoryUat(tests, events);
+      storyUat = rolled === "healthy" || rolled === "unhealthy" ? rolled : null;
+    }
+    const rows = resolved.map((t) => {
+      const proven = provenOf?.(t.id);
+      return { ...t, ...(marksMap[t.id] ?? {}), ...(proven !== undefined ? { proven } : {}) };
+    });
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({
+      storyId,
+      tests: rows,
+      ...(storyUat !== undefined ? { storyUat } : {}),
+      ...(unresolvedWitnesses.length > 0 ? { unresolvedWitnesses } : {}),
+    }));
+    return true;
+  };
+
   // ---------- the chat SPAWN surface (ADR-0137 Phase 3 — the sidecar wiring) ----------
   //
   // Compose the REAL spawn deps and thread them into the chat mount so the desktop
@@ -665,6 +794,7 @@ async function main(): Promise<void> {
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
         if (await buildRouteMount(req, res, pathname)) return;
+        if (await attestationsMount(req, res, pathname)) return;
         await localHandler(req, res);
       } catch (err) {
         if (!res.headersSent) {
