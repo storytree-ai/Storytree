@@ -78,7 +78,16 @@ function asString(v: unknown): string {
  */
 export interface LocalBackendBackend {
   listAssets: () => Promise<unknown[]>;
-  health: () => Promise<{ db: "ok" | "unreachable" | "n/a" }>;
+  /**
+   * The store's `/api/health` envelope. `code` is the OPTIONAL git-HEAD stamp (ADR-0164 Phase 1): the
+   * HEAD the sidecar started on vs the checkout's HEAD now. `stale: true` means the checkout moved
+   * under the running app — the shared StoreBanner turns it into the "rebuild & relaunch" affordance.
+   * Absent (undefined) when git can't answer; it simply doesn't ride the health JSON then.
+   */
+  health: () => Promise<{
+    db: "ok" | "unreachable" | "n/a";
+    code?: { startedAt: string; head: string; stale: boolean };
+  }>;
   activeSessions: () => Promise<unknown[] | null>;
   inFlightBuilds: () => Promise<unknown[] | null>;
   latestVerdicts: () => Promise<unknown>;

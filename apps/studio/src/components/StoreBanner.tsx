@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { getDesktopApply } from '../lib/desktopApply';
 
 const SLOW_POLL_MS = 30_000;
 const FAST_POLL_MS = 5_000;
@@ -73,6 +74,10 @@ export function StoreBanner({
   // Deliberately NOT a phase: it is independent of the DB state machine (a server can be
   // stale while the DB is stopped, starting, or fine) and it outranks every phase render.
   const [moved, setMoved] = useState<{ startedAt: string; head: string } | null>(null);
+  // The desktop rebuild-and-relaunch state (ADR-0164 Phase 1): 'running' while the MAIN process
+  // rebuilds, or an `{ error }` when it failed fail-closed (the app stayed on the old build). Only
+  // meaningful in the desktop app (where `window.desktopApply` is injected); inert in the browser.
+  const [rebuild, setRebuild] = useState<'idle' | 'running' | { error: string }>('idle');
 
   // Refs so the interval-driven probe sees current state without re-binding,
   // and so two probes never overlap.
@@ -178,9 +183,60 @@ export function StoreBanner({
     }
   }, []);
 
-  // A moved checkout outranks every phase: until the server restarts, its other answers
-  // (including the DB phases below) come from old code and can't be trusted.
+  // Rebuild-and-relaunch (ADR-0164 Phase 1): ask the desktop MAIN process (Rail 1 — the supervisor)
+  // to rebuild the studio + electron bundles and relaunch onto them. On success the window goes away
+  // (the app relaunches), so we stay in 'running'; on failure the app stayed on the old build and we
+  // surface the typed error (fail-closed). No-op in the browser (no bridge).
+  const rebuildAndRelaunch = useCallback(async (): Promise<void> => {
+    const bridge = getDesktopApply();
+    if (bridge === undefined) return;
+    setRebuild('running');
+    try {
+      const result = await bridge.rebuildAndRelaunch();
+      if (!result.ok) {
+        setRebuild({ error: `${result.step} failed (exit ${result.code}): ${result.output}` });
+      }
+      // result.ok === true: the app is relaunching — leave 'running' until the window closes.
+    } catch (e) {
+      setRebuild({ error: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
+  // A moved checkout outranks every phase: until the code is applied, the server's other answers
+  // (including the DB phases below) come from old code and can't be trusted. In the DESKTOP app the
+  // fix is a one-click rebuild + relaunch (the supervisor executes it, ADR-0164); in the hosted/dev
+  // studio (a browser, no bridge) it stays the manual `pnpm studio:down`/`up` instruction.
   if (moved) {
+    const desktop = getDesktopApply();
+    if (desktop !== undefined) {
+      return (
+        <div className="store-banner" role="status">
+          <span>
+            This app is running commit <code>{moved.startedAt.slice(0, 7)}</code> but the checkout has
+            moved to <code>{moved.head.slice(0, 7)}</code> — a newer version has landed. Rebuild and
+            relaunch to apply it.
+          </span>
+          {rebuild === 'running' ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              <span>Rebuilding and relaunching — this takes a minute…</span>
+              <button className="btn small" disabled>
+                Rebuilding…
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn small" onClick={() => void rebuildAndRelaunch()}>
+                Rebuild &amp; relaunch
+              </button>
+              {typeof rebuild === 'object' && (
+                <span className="error-text">Rebuild failed — still on the old build. {rebuild.error}</span>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="store-banner" role="status">
         <span>

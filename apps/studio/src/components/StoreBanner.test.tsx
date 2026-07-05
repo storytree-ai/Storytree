@@ -51,6 +51,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  delete (window as unknown as { desktopApply?: unknown }).desktopApply; // never leak the desktop bridge
 });
 
 const renderBanner = () => render(<StoreBanner onRecovered={onRecovered} />);
@@ -219,6 +220,58 @@ describe('StoreBanner', () => {
     expect(screen.getByText(/only an admin can wake the database/)).toBeTruthy();
     // …and the affordance stays so they can hand off / retry.
     expect(screen.getByRole('button', { name: 'Wake the database' })).toBeTruthy();
+  });
+
+  // ── ADR-0164 Phase 1: in the desktop app the moved-checkout banner becomes a rebuild ACTION ──
+  type RebuildResult = { ok: true } | { ok: false; step: string; code: number; output: string };
+  const installDesktopBridge = (
+    fn: ReturnType<typeof vi.fn<() => Promise<RebuildResult>>>,
+  ): void => {
+    (window as unknown as { desktopApply: { rebuildAndRelaunch: unknown } }).desktopApply = {
+      rebuildAndRelaunch: fn,
+    };
+  };
+
+  it('desktop: a moved checkout shows "Rebuild & relaunch" instead of the manual pnpm instructions', async () => {
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    renderBanner();
+    await flush();
+    expect(screen.getByRole('button', { name: 'Rebuild & relaunch' })).toBeTruthy();
+    // The browser-only manual restart copy is NOT shown in the desktop app.
+    expect(screen.queryByText('pnpm studio:down')).toBeNull();
+    expect(screen.getByText(/a newer version has landed/)).toBeTruthy();
+  });
+
+  it('desktop: clicking Rebuild & relaunch calls the bridge and shows the rebuilding state', async () => {
+    const bridge = vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true });
+    installDesktopBridge(bridge);
+    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    renderBanner();
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild & relaunch' }));
+    await flush();
+    expect(bridge).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Rebuilding and relaunching/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rebuilding…' })).toBeTruthy();
+  });
+
+  it('desktop: a failed rebuild surfaces the error and stays on the old build (fail-closed)', async () => {
+    const bridge = vi
+      .fn<() => Promise<RebuildResult>>()
+      .mockResolvedValue({ ok: false, step: 'build studio bundle', code: 2, output: 'Type error in App.tsx' });
+    installDesktopBridge(bridge);
+    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    renderBanner();
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild & relaunch' }));
+    await flush();
+    expect(screen.getByText(/still on the old build/)).toBeTruthy();
+    expect(screen.getByText(/build studio bundle failed \(exit 2\): Type error in App.tsx/)).toBeTruthy();
+    // The affordance returns so the operator can retry after fixing the cause.
+    expect(screen.getByRole('button', { name: 'Rebuild & relaunch' })).toBeTruthy();
   });
 
   it('recovers from server-lost when /api/health answers again', async () => {
