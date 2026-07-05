@@ -127,14 +127,26 @@ function makeSpawnDeps(opts?: { refuse?: boolean; order?: string[] }): SpawnSurf
   };
 }
 
+/**
+ * A spawn tool viewed loosely for handler-driving tests. buildSpawnTools returns a UNION of the
+ * three tools, so a union-typed `.handler` demands the INTERSECTION of all three arg schemas — e.g.
+ * the glue tool's per-run `maxTurns` (ADR-0163 Gap A) would force every unrelated handler call to
+ * supply it. The runtime handler validates its own args, so tests drive it through this loose view.
+ */
+type LooseSpawnTool = {
+  name: string;
+  inputSchema: Record<string, unknown>;
+  handler: (
+    args: Record<string, unknown>,
+    extra: Record<string, unknown>,
+  ) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+};
+
 /** Find one tool definition by name off the built surface (fails loudly when absent). */
-function toolNamed(
-  tools: ReturnType<typeof buildSpawnTools>,
-  name: string,
-): ReturnType<typeof buildSpawnTools>[number] {
+function toolNamed(tools: ReturnType<typeof buildSpawnTools>, name: string): LooseSpawnTool {
   const t = tools.find((d) => d.name === name);
   assert.ok(t !== undefined, `expected the built surface to carry '${name}'`);
-  return t;
+  return t as unknown as LooseSpawnTool;
 }
 
 /** Flatten a CallToolResult's text content for assertions. */

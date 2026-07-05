@@ -95,6 +95,23 @@ export function pathFence(paths: string[]): (relPath: string) => boolean {
   };
 }
 
+/**
+ * Resolve the glue worker's turn ceiling (ADR-0163 Gap A): the caller-supplied PER-RUN `perRun`
+ * value wins when it is a positive, finite integer (floored to a whole turn count); an absent or
+ * invalid (non-positive / non-finite) value falls back to the spawn-level `spawnDefault`
+ * (`args.maxTurns` — the story-author-tuned budget, or `undefined` → the runner's own 16-turn
+ * runaway brake, ADR-0130). Fail-safe: a broken 0/NaN ceiling would abort the SDK session before it
+ * started, so it is never honoured — the fallback is taken instead.
+ */
+export function resolveGlueMaxTurns(
+  perRun: number | undefined,
+  spawnDefault: number | undefined,
+): number | undefined {
+  return typeof perRun === "number" && Number.isFinite(perRun) && perRun > 0
+    ? Math.floor(perRun)
+    : spawnDefault;
+}
+
 // ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
@@ -193,19 +210,26 @@ export async function buildSpawnDeps(
       );
     },
 
-    spawnGlueWorker: async ({ unitId, paths, userPrompt }, onTrace) => {
+    spawnGlueWorker: async ({ unitId, paths, userPrompt, maxTurns }, onTrace) => {
       // Build the caller-declared path fence and drive the SAME role-neutral write-scoped runner the
       // story-author spawn uses (ADR-0160 D2 — one core, two roles), with the rendered glue-worker
       // prompt. The glue worker only EDITS; landing is the existing gate→PR path. onTrace bumps the
       // claim heartbeat at the session edges (the coarse boundary, as for the story-author spawn).
+      //
+      // Turn ceiling (ADR-0163 Gap A): the caller's PER-RUN maxTurns wins over the deps-level spawn
+      // default (args.maxTurns — the story-author-tuned budget) so an open-ended glue task can be
+      // given the headroom to self-confirm after writing its edit, without weakening the brake for
+      // the other spawn paths. resolveGlueMaxTurns falls back fail-safe when the per-run value is
+      // absent or broken (reused via the SAME runSpawnWriteScoped maxTurns plumbing, no second knob).
       onTrace({ type: "spawn_started", role: "glue-worker", unitId } satisfies SpawnTrace);
+      const resolvedMaxTurns = resolveGlueMaxTurns(maxTurns, args.maxTurns);
       const result = await runSpawnWriteScoped({
         systemPrompt: glueSystemPrompt,
         userPrompt: `Unit: ${unitId}\nWrite scope (fenced): ${paths.join(", ")}\n\n${userPrompt}`,
         cwd: args.cwd,
         isWriteAllowed: pathFence(paths),
         ...(args.queryFn !== undefined ? { queryFn: args.queryFn } : {}),
-        ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
+        ...(resolvedMaxTurns !== undefined ? { maxTurns: resolvedMaxTurns } : {}),
       });
       onTrace({ type: "spawn_finished", role: "glue-worker", unitId, ok: result.ok } satisfies SpawnTrace);
       if (!result.ok) {
