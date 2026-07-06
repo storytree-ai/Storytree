@@ -58,4 +58,55 @@ describe('buildWorld — standalone single-island layout (Shared Islands panel)'
     expect(a.territories[0]!.treeSpot).toEqual(b.territories[0]!.treeSpot);
     expect(a.territories[0]!.coastPaths).toEqual(b.territories[0]!.coastPaths);
   });
+
+  it('an edgeless world carries an EMPTY trail network (the router is skipped, never fed junk)', () => {
+    const world = buildWorld([library()], { buildings: false });
+    expect(world.trails).toEqual({ segments: [], edges: [], caves: [], dropped: [] });
+  });
+});
+
+describe('buildWorld — the ADR-0169 trail network (roads route as trails, both layouts)', () => {
+  const story = (id: string, dependsOn: string[] = []): TreeStory => ({
+    id,
+    title: id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'UAT',
+    uatWitness: 'machine',
+    dependsOn,
+    consumedBy: [],
+    capabilities: [cap(`${id}-a`)],
+  });
+  const fixture = (): TreeStory[] => [
+    story('foundation'),
+    story('mid', ['foundation']),
+    story('top', ['mid']),
+  ];
+
+  it('routes every depends_on edge through ONE TrailNetwork with per-edge segment chains', () => {
+    const world = buildWorld(fixture());
+    const keys = world.trails.edges.map((e) => `${e.from}->${e.to}`);
+    expect(keys).toContain('foundation->mid');
+    expect(keys).toContain('mid->top');
+    // every routed edge carries a non-empty ordered chain of real segment refs
+    const segIds = new Set(world.trails.segments.map((s) => s.id));
+    for (const e of world.trails.edges) {
+      expect(e.segments.length).toBeGreaterThan(0);
+      for (const ref of e.segments) expect(segIds.has(ref.id)).toBe(true);
+    }
+    // the tooltip vocabulary rides the edge (folded at routing time)
+    expect(world.trails.edges[0]!.title).toMatch(/depends on/);
+  });
+
+  it('the solar layout carries the SAME one-TrailNetwork model (no per-layout road model)', () => {
+    const world = buildWorld(fixture(), { layoutMode: 'solar' });
+    const keys = world.trails.edges.map((e) => `${e.from}->${e.to}`);
+    expect(keys).toContain('foundation->mid');
+    // solar keeps only its spokes/rings — there is no solar.roads layer anymore
+    expect(world.solar && 'roads' in world.solar).toBe(false);
+  });
+
+  it('is deterministic — same stories, byte-identical network', () => {
+    expect(buildWorld(fixture()).trails).toEqual(buildWorld(fixture()).trails);
+  });
 });

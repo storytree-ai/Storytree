@@ -10,24 +10,28 @@
 // render is untouched — visual parity is operator-attested (ADR-0070), not asserted.
 
 import React from 'react';
-import type { SceneKind, SceneNode, SceneStatus } from '@storytree/forest-world';
+import { trailFillWidth, type SceneKind, type SceneNode, type SceneStatus } from '@storytree/forest-world';
+import type { TrailRevealPlan } from '../lib/trailReveal.js';
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
  *  (the scene itself is focus-agnostic; focus / hover / selection are applied here). */
 export interface SceneCtx {
   /** The focus-aware island class (mirrors TreeView's `territoryClass`), by id + folded status. */
   territoryClassById: (id: string, status: SceneStatus) => string;
-  /** The focus-aware road class (mirrors TreeView's `roadClass`), by the road's ends. */
-  roadClassByEnds: (from: string, to: string) => string;
+  /** The ADR-0169 §3 reveal plan for the focused island (lib/trailReveal), or null when
+   *  nothing is focused. Trails are hidden by default; a planned segment wears
+   *  `is-revealed dir-<dir>` + its per-segment growth mask, and its stroke width steps
+   *  from the REVEALED edge count (multi-reveal width step-up). */
+  reveal: TrailRevealPlan | null;
   /** Statuses the legend has filtered out (a matching tree / plant wears `is-filtered`). */
   hidden: ReadonlySet<string>;
   onHoverStory: (id: string | null) => void;
   onSelectStory: (id: string) => void;
   onSelectCap: (storyId: string, capId: string) => void;
   /** Story ids whose islands play the ARRIVAL animation (a story that just appeared in
-   *  the tree payload, or the `?arrive=` demo target): their roads draw on, then their
-   *  coast/ground/flora form in stages (CSS, `arrive-*` classes). Absent/empty ⇒ no
-   *  arrival classes at all. */
+   *  the tree payload, or the `?arrive=` demo target): their coast/ground/flora form in
+   *  stages (CSS, `arrive-*` classes). Trails are hidden by default (ADR-0169 §3), so
+   *  arrival no longer draws roads on. Absent/empty ⇒ no arrival classes at all. */
   arrivalIds?: ReadonlySet<string> | null;
 }
 
@@ -40,7 +44,19 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'coast-layer': 'hex-coastland',
   'ground-mesh': 'relaxed-land',
   'ground-hex': 'hex-land',
-  'roads-layer': 'dag-road-net',
+  // the ADR-0169 trail network: cased passes (shadow/casing/fill + under-island ghosts)
+  // + the non-visual per-edge reveal metadata. Per-segment classes compose in
+  // composeClass (spur dash, reveal state).
+  'trails-layer': 'trail-net',
+  'trail-shadow-pass': 'trail-shadow-pass',
+  'trail-casing-pass': 'trail-casing-pass',
+  'trail-fill-pass': 'trail-fill-pass',
+  'trail-ghost-pass': 'trail-ghost-pass',
+  'trail-edges': 'trail-edges',
+  'trail-edge': 'trail-edge',
+  'cave-apron': 'cave-apron',
+  'cave-arch': 'cave-arch',
+  'cave-rim': 'cave-rim',
   'flora-layer': '',
   'hits-layer': '',
   empty: 'hex-empty',
@@ -48,7 +64,6 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'cell-wheat': 'relaxed-cell is-wheat',
   'tile-side': 'hex-side',
   'tile-top-wheat': 'hex-top is-wheat',
-  'road-line': 'dag-road',
   shadow: 'flora-shadow',
   trunk: 'story-trunk',
   'crown-lo': 'crown-lo',
@@ -111,14 +126,24 @@ function arriveIsland(id: string, ctx: SceneCtx): string {
   return ctx.arrivalIds?.has(id) ? ' arrive-island' : '';
 }
 
+/** The reveal-state suffix for a trail-segment path (ADR-0169 §3): hidden by default,
+ *  `is-revealed dir-<in|out|both>` when the focus plan names it. */
+function revealClass(node: SceneNode, ctx: SceneCtx): string {
+  const seg = node.id ? ctx.reveal?.byId.get(node.id) : undefined;
+  return seg ? ` is-revealed dir-${seg.dir}` : '';
+}
+
 /** The full className for a node — the studio's class for the role, plus the folded
- *  status / variant and the focus-aware island/road classes (mirroring TreeView). */
+ *  status / variant and the focus-aware island/trail classes (mirroring TreeView). */
 function composeClass(node: SceneNode, ctx: SceneCtx): string {
   const k = node.kind;
   if (!k) return '';
   const id = node.id ?? '';
   const status = node.status ?? 'unknown';
   switch (k) {
+    case 'world':
+      // the world-root focus hook: the reveal CSS dims the rest of the world off it.
+      return ctx.reveal ? 'world-has-focus' : '';
     case 'territory':
       return `hex-flora ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'coast':
@@ -127,12 +152,18 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       return `relaxed-tile ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'tile':
       return `hex-tile ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
-    case 'road': {
-      const arriving =
-        ctx.arrivalIds != null &&
-        (ctx.arrivalIds.has(node.from ?? '') || ctx.arrivalIds.has(node.to ?? ''));
-      return `${ctx.roadClassByEnds(node.from ?? '', node.to ?? '')}${arriving ? ' arrive-road' : ''}`;
-    }
+    case 'trail-shadow':
+    case 'trail-casing':
+    case 'trail-ghost':
+      return `${k}${revealClass(node, ctx)}`;
+    case 'trail-fill':
+      // a spur (usage 1) draws a dashed footpath fill; the reveal mask grows it safely
+      // (a mask stroke, never a dash-offset on the dashed stroke itself).
+      return `trail-fill${node.spur ? ' is-spur' : ''}${revealClass(node, ctx)}`;
+    case 'cave':
+      // the cave arch wears the island's shadow/side-wall hue family, keyed by the
+      // folded island status the core stamped on the group (ADR-0169 §2).
+      return `world-cave st-${status}`;
     case 'tree':
       return withFilter('story-tree', node.status, ctx);
     case 'flora':
@@ -228,9 +259,6 @@ function renderNode(
   key: React.Key,
   storyId: string | undefined,
   ctx: SceneCtx,
-  /** True while descending an arriving road group — the road stroke gets `pathLength=1`
-   *  so the CSS draw-on animation is length-agnostic. */
-  inArrivingRoad = false,
 ): React.JSX.Element | null {
   const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
   const cls = composeClass(node, ctx);
@@ -238,6 +266,37 @@ function renderNode(
   if (node.transform) props.transform = node.transform;
   if (node.opacity != null) props.opacity = node.opacity;
   if (node.strokeWidth != null) props.strokeWidth = node.strokeWidth;
+  // Trail-segment paths (ADR-0169): stamp the reveal hooks into the DOM
+  // (data-id/usage/edges/spur) and, when the focus plan names the segment, attach its
+  // per-segment growth mask + step the stroke width from the REVEALED edge count (§3
+  // multi-reveal width step-up — only the revealed edges are visible, so the width
+  // reflects what the reveal shows, not the global usage).
+  if (
+    node.kind === 'trail-shadow' ||
+    node.kind === 'trail-casing' ||
+    node.kind === 'trail-fill' ||
+    node.kind === 'trail-ghost'
+  ) {
+    if (node.id) props['data-id'] = node.id;
+    if (node.usage != null) props['data-usage'] = node.usage;
+    if (node.edges) props['data-edges'] = node.edges;
+    if (node.spur) props['data-spur'] = 'true';
+    const seg = node.id ? ctx.reveal?.byId.get(node.id) : undefined;
+    if (seg) {
+      props.mask = `url(#trail-m-${node.id})`;
+      const widen =
+        node.kind === 'trail-shadow' ? 5 : node.kind === 'trail-casing' ? 2.5 : 0;
+      props.strokeWidth = trailFillWidth(seg.revealedUsage) + widen;
+    }
+  } else if (node.kind === 'trail-edge') {
+    // the non-visual per-edge reveal metadata (from/to/ordered segment chain).
+    if (node.from) props['data-from'] = node.from;
+    if (node.to) props['data-to'] = node.to;
+    if (node.segments) props['data-segments'] = node.segments;
+  } else if (node.kind === 'cave') {
+    if (node.island) props['data-island'] = node.island;
+    if (node.edges) props['data-edges'] = node.edges;
+  }
   if (
     node.kind === 'flora-hit' ||
     node.kind === 'wisp-hit' ||
@@ -277,9 +336,6 @@ function renderNode(
       break;
     case 'path':
       props.d = node.d;
-      // Arrival draw-on: normalise the arriving road's length so the CSS dash
-      // animation (`stroke-dasharray: 1`, offset 1 → 0) draws it edge to edge.
-      if (inArrivingRoad && node.kind === 'road-line') props.pathLength = 1;
       break;
     case 'polygon':
       props.points = node.points;
@@ -313,17 +369,11 @@ function renderNode(
   }
   if (node.el === 'g') {
     const childStory = node.kind === 'territory' ? node.id : storyId;
-    // an arriving road's children inherit the draw-on flag (see pathLength above)
-    const arriving =
-      inArrivingRoad ||
-      (node.kind === 'road' &&
-        ctx.arrivalIds != null &&
-        (ctx.arrivalIds.has(node.from ?? '') || ctx.arrivalIds.has(node.to ?? '')));
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;
     children.forEach((c, i) => {
-      const el = renderNode(c, i, childStory, ctx, arriving);
+      const el = renderNode(c, i, childStory, ctx);
       if (el) kids.push(el);
     });
   } else if (node.el === 'text') {

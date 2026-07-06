@@ -109,7 +109,10 @@ stays deferred; this model makes it unnecessary for shared-island rendering.
 Only `render: building` islands promote their edges to stamps; every other edge stays a **road**. This
 keeps eye-traceable topology where it matters (the normal island-to-island graph) and de-noises only the
 hubs (where roads tangle anyway). "Stamps for every edge / retire roads" is a deliberately **separate
-future call**, not decided here.
+future call**, not decided here. *(Since
+[ADR-0169](0169-pathways-are-procedural-reveal-on-focus-trails-cost-field-ro.md) those roads render as
+procedural reveal-on-focus trails — hidden by default, traceable on island focus; the hybrid scope here
+stands. Noted per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
 
 ## Consequences
 

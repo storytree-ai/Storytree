@@ -64,6 +64,16 @@
   --trail-margin: #e2d2ab; /* soft sandy halo that fades the lane edge into the board */
   --trail-bed: #c2a677; /* the warm dirt roadbed body — earthy tan, a notch darker than the beach so the lane reads as trodden ground */
   --trail-bead: #d4bb87; /* the cobble texture down the lane — SAME warm tone, a touch lighter (never dark) */
+  /* ADR-0169 trail network: warm sand FILL a step darker than the grass tone (the
+     trodden --trail-bed family), CASING the same hue ~25% darker, SHADOW the terrain
+     hue multiplied at low opacity. The two focus tints: dependents (incoming) take a
+     cooler slate, the island's own dependencies (outgoing) a warmer earth. */
+  --trail-fill: var(--trail-bed);
+  --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker */
+  --trail-in: #8fa7b5; /* cool slate — who depends on the focused island */
+  --trail-in-deep: #69808f;
+  --trail-out: #c08a4a; /* warm earth — what the focused island stands on */
+  --trail-out-deep: #906637;
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1420,17 +1430,141 @@ a.stat:hover {
   stroke-width: 2;
 }
 
-/* ROADS (ADR-0073: roads is the one world) rendered as thin, no-arrow, PERIMETER-DOCKED
-   connection lines (ADR-0076: the river-trail routing system — buildBasin/buildBundle, the
-   three road-net passes, and the gear dials — was retired). `.world-trail` is the wrapping
-   group `roadClass` sets on each docked road/spoke; it carries the focus STATE, while the
-   per-line colour/tint lives with `.dag-road` / `.solar-road` in the connections block
-   below. The forest world (`#/tree`) draws `.dag-road`; solar adds `.solar-road`/spokes. */
-.world-trail {
-  transition: opacity 0.18s ease;
+/* TRAILS (ADR-0169, supersedes the ADR-0076 docked lines): the `depends_on` edges are a
+   routed shared-segment network drawn as full cased passes — contact SHADOW, then CASING,
+   then FILL, then the under-island GHOST runs — so merged trunks read as ONE trail (the
+   cartographic casing rule). HIDDEN BY DEFAULT (§3): no trail stroke paints until an
+   island is focused; then the focused island's incident edges grow outward
+   segment-by-segment via the per-segment reveal MASKS (TreeView renders one
+   `<mask id="trail-m-<segId>">` per revealed segment — a solid stroke, pathLength=1,
+   dash-offset 1→0 staggered ~350ms per chain position). A dashed spur fill reveals
+   correctly UNDER the mask (never dash-offset a dashed stroke directly). Clearing focus
+   removes `is-revealed`; the strokes fade back out (the retract). */
+.trail-net path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
-.world-trail.is-dim {
+.trail-shadow,
+.trail-casing,
+.trail-fill,
+.trail-ghost {
+  opacity: 0;
+  transition: opacity 0.35s ease; /* the fade-out retract on clearing focus */
+}
+.trail-shadow {
+  stroke: var(--hex-side); /* the terrain hue, multiplied — a grounded contact shadow */
+  mix-blend-mode: multiply;
+}
+.trail-casing {
+  stroke: var(--trail-casing);
+}
+.trail-fill {
+  stroke: var(--trail-fill);
+}
+.trail-fill.is-spur {
+  stroke-dasharray: 7 5; /* a usage-1 footpath; trunks (n≥2) stay solid */
+}
+.trail-ghost {
+  stroke: var(--trail-casing); /* the OSM tunnel convention: a fine dashed under-island run */
+  stroke-dasharray: 2 5;
+}
+/* revealed: visible instantly (the mask owns the growth), no fade-in fighting it */
+.trail-shadow.is-revealed {
+  opacity: 0.25;
+  transition: none;
+}
+.trail-casing.is-revealed {
+  opacity: 0.9;
+  transition: none;
+}
+.trail-fill.is-revealed {
+  opacity: 0.95;
+  transition: none;
+}
+.trail-ghost.is-revealed {
+  opacity: 0.8;
+  transition: none;
+}
+/* the two selection tints: incoming (dependents) cooler, outgoing (dependencies) warm
+   earth; a trunk carrying both directions keeps the neutral sand. */
+.trail-fill.dir-in {
+  stroke: var(--trail-in);
+}
+.trail-casing.dir-in,
+.trail-ghost.dir-in {
+  stroke: var(--trail-in-deep);
+}
+.trail-fill.dir-out {
+  stroke: var(--trail-out);
+}
+.trail-casing.dir-out,
+.trail-ghost.dir-out {
+  stroke: var(--trail-out-deep);
+}
+/* the per-segment growth mask (rendered in <defs> by TreeView): a solid white stroke
+   over the segment's own path, normalised to pathLength=1 so the dash animation is
+   length-agnostic. `.from-end` starts at -1 so growth runs from the path's geometric
+   END — a chain entry walked against the segment's drawn direction still grows away
+   from the focused island. */
+.trail-reveal-mask {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trail-reveal-grow 0.35s ease-out both;
+}
+.trail-reveal-mask.from-end {
+  stroke-dashoffset: -1;
+}
+@keyframes trail-reveal-grow {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* extra world dim while a focus reveal is active (per-island is-dim already applies;
+   this settles the unowned moat/coast too so the lit trails carry the eye). */
+.world-has-focus .hex-coast {
+  opacity: 0.55;
+  transition: opacity 0.35s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .trail-reveal-mask {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* CAVE portals (ADR-0169 §2) — where a forced route disappears under an island: a
+   trampled APRON (multiply-darkened), the near-black ARCH in the island's shadow /
+   side-wall hue family (keyed by the folded island status the scene stamps), and a lit
+   upper RIM arc. A permanent island prop (drawn above flora, occluding the trail). */
+.world-cave {
+  pointer-events: none;
+}
+.cave-apron {
+  fill: var(--trail-casing);
+  mix-blend-mode: multiply;
   opacity: 0.3;
+}
+.cave-arch {
+  fill: #2e2519; /* near-black of the warm side-wall family (mapped/unknown default) */
+}
+.world-cave.st-healthy .cave-arch {
+  fill: #21301f;
+}
+.world-cave.st-unhealthy .cave-arch {
+  fill: #33211c;
+}
+.world-cave.st-proposed .cave-arch {
+  fill: #362a1a;
+}
+.cave-rim {
+  fill: none;
+  stroke: #d8c9a5; /* the lit upper edge of the mouth */
+  opacity: 0.7;
 }
 
 /* HUB SPOKES — the radial "solar-system" layout (ADR-0074 §6, `?layout=solar`): the
@@ -1475,37 +1609,13 @@ a.stat:hover {
   opacity: 0.16;
   pointer-events: none;
 }
-/* the depends_on roads: a thin smooth curve docked rim-to-rim, no bed/cobble/arrow.
-   `.dag-road` is the SAME style brought onto the DAG/tree world (`roads=lines`, owner
-   steer 2026-06-20): the tree layout with the solar world's line look. */
-.solar-road,
-.dag-road {
-  fill: none;
-  stroke: var(--trail-bed);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.5;
-}
-/* reuse the river world's focus tint (the wrapping group is still `world-trail …`). */
-.world-trail.is-ancestor .solar-road,
-.world-trail.is-ancestor .dag-road {
-  stroke: var(--warn);
-  opacity: 0.85;
-}
-.world-trail.is-descendant .solar-road,
-.world-trail.is-descendant .dag-road {
-  stroke: var(--danger);
-  opacity: 0.85;
-}
-.solar-spoke-net,
-.solar-road-net,
-.dag-road-net {
+/* the `depends_on` roads retired their docked-line rendering (ADR-0169 — they are the
+   reveal-on-focus TRAIL network above now); only the solar spokes stay docked lines. */
+.solar-spoke-net {
   filter: blur(0.3px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .solar-spoke-net,
-  .solar-road-net,
-  .dag-road-net {
+  .solar-spoke-net {
     filter: none;
   }
 }
@@ -3837,29 +3947,16 @@ button.legend-tile:hover {
 /* ============================================================================
    NEW-ISLAND ARRIVAL — when a re-pulled tree payload holds a story the previous
    payload didn't (TreeView diffs the id sets), the island ARRIVES instead of
-   popping in, staged like a landmass growing at the end of a path: its roads
-   DRAW ON first (SceneView sets pathLength=1 on the arriving road, so
-   dasharray 1 → offset 1→0 is length-agnostic), then the sandy coast surfaces,
-   the ground assembles on top of it, and finally the flora + nameplate POP in
-   with a soft overshoot. Every piece is animation-fill-mode: both, so it holds
-   its hidden from-state through its delay — the board sits quiet for a beat,
-   then the arrival plays. `?arrive=<story-id|auto>` is the demo/QA escape
-   (forces one island to arrive on load, with a ▶ replay button).
+   popping in, staged like a landmass surfacing: the sandy coast surfaces, the
+   ground assembles on top of it, and finally the flora + nameplate POP in with
+   a soft overshoot. (The old road draw-on leg retired with ADR-0169 — trails
+   are hidden by default, so an arrival has no visible road to draw.) Every
+   piece is animation-fill-mode: both, so it holds its hidden from-state
+   through its delay — the board sits quiet for a beat, then the arrival plays.
+   `?arrive=<story-id|auto>` is the demo/QA escape (forces one island to
+   arrive on load, with a ▶ replay button).
    ============================================================================ */
-.arrive-road .dag-road {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: arrive-road-draw 0.9s ease-out 0.5s both;
-}
-@keyframes arrive-road-draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-/* the coast surfaces as the road arrives… */
+/* the coast surfaces first… */
 .coast-fill-group.arrive-island {
   transform-box: fill-box;
   transform-origin: center;
@@ -3919,12 +4016,10 @@ button.legend-tile:hover {
   color: var(--accent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .arrive-road .dag-road,
   .coast-fill-group.arrive-island,
   .relaxed-tile.arrive-island,
   .hex-tile.arrive-island,
   .hex-flora.arrive-island {
     animation: none;
-    stroke-dashoffset: 0;
   }
 }

@@ -5,16 +5,19 @@
 // and drawn by <ForestWorldCanvas> under drei MapControls.
 //
 // FICTIONAL demo data throughout (the ADR-0056/0066/0093 boundary): three
-// territories wearing three folded statuses, two depends_on roads, one in-flight
-// build wisp — enough world for the eye to confirm the whole stack draws.
+// territories wearing three folded statuses, two depends_on trail edges routed by
+// the real cost-field engine (ADR-0169), one in-flight build wisp — enough world
+// for the eye to confirm the whole stack draws.
 
 import { createRoot } from 'react-dom/client';
 import {
   buildScene,
   hexCenter,
+  routeTrails,
   type Axial,
   type SceneInput,
   type SceneTerritoryInput,
+  type TrailIsland,
 } from '@storytree/forest-world';
 
 import { worldTo3D } from '../src/world-to-3d.js';
@@ -84,10 +87,18 @@ function territoryOf(island: DemoIsland): SceneTerritoryInput {
 
 function demoInput(): SceneInput {
   const territories = ISLANDS.map(territoryOf);
-  const road = (a: number, b: number): SceneInput['roads'][number] => ({
+  // Route the depends_on edges with the real cost-field engine (ADR-0169 §1) — the
+  // harness IS the surface, so it routes the way any surface does: islands from the
+  // territory discs, a fixed seed for a byte-stable demo world.
+  const trailIslands: TrailIsland[] = territories.map((t) => ({
+    id: t.id,
+    x: t.centroid.x,
+    y: t.centroid.y,
+    r: t.radius,
+  }));
+  const edge = (a: number, b: number) => ({
     from: ISLANDS[a]!.id,
     to: ISLANDS[b]!.id,
-    d: `M ${territories[a]!.centroid.x.toFixed(1)} ${territories[a]!.centroid.y.toFixed(1)} L ${territories[b]!.centroid.x.toFixed(1)} ${territories[b]!.centroid.y.toFixed(1)}`,
     title: `${ISLANDS[b]!.id} depends on ${ISLANDS[a]!.id}`,
   });
   return {
@@ -98,7 +109,7 @@ function demoInput(): SceneInput {
     relaxedCells: null,
     drawTiles: ISLANDS.flatMap((island, owner) => island.tiles.map((h) => ({ h, owner }))),
     wheatSets: ISLANDS.map(() => new Set<string>()),
-    roads: [road(0, 1), road(0, 2)],
+    trails: routeTrails(trailIslands, [edge(0, 1), edge(0, 2)], 'r3f-harness-demo'),
     territories,
   };
 }
@@ -109,7 +120,8 @@ const descriptors = worldTo3D(buildScene(demoInput()));
 const count = (k: string): number => descriptors.filter((d) => d.kind === k).length;
 const summary =
   `hex-ground ${count('hex-ground')} · story-tree ${count('story-tree')} · ` +
-  `road-strip ${count('road-strip')} · wisp-sprite ${count('wisp-sprite')} · ` +
+  `trail-strip ${count('trail-strip')} · trail-ghost-strip ${count('trail-ghost-strip')} · ` +
+  `cave-arch ${count('cave-arch')} · wisp-sprite ${count('wisp-sprite')} · ` +
   `skipped ${count('skipped')}`;
 // The machine-checkable render signal (the harness look itself is witnessed by eyes).
 console.log(`[forest-world-r3f harness] descriptors: ${summary}`);
@@ -125,7 +137,9 @@ function App() {
         <br />
         drag = pan · wheel = zoom · right-drag = rotate
       </div>
-      <ForestWorldCanvas descriptors={descriptors} />
+      {/* the harness opts the trail network visible (default-hidden, ADR-0169 §3) —
+          the spike's eye needs to see the routed ribbons draw */}
+      <ForestWorldCanvas descriptors={descriptors} showTrails />
     </>
   );
 }

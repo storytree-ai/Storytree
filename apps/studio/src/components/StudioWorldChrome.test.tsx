@@ -24,6 +24,7 @@ function mkWorld(opts: { withSolar?: boolean } = {}): HexWorld {
     offset: { x: 0, y: 0 },
     empties: [],
     drawTiles: [],
+    trails: { segments: [], edges: [], caves: [], dropped: [] },
     territories: [
       {
         story: { id: 'studio', title: 'Studio', status: 'healthy', capabilities: [] },
@@ -69,7 +70,6 @@ function mkWorld(opts: { withSolar?: boolean } = {}): HexWorld {
               { from: 'cli', to: 'library', d: 'M 0 0 L 10 10' },
               { from: 'studio', to: 'library', d: 'M 5 5 L 15 15' },
             ],
-            roads: [],
           },
         }
       : {}),

@@ -34,6 +34,12 @@ import {
   polyPath,
 } from './hex.js';
 import { crownRadius } from './sizing.js';
+import {
+  type TrailCave,
+  type TrailNetwork,
+  type TrailSegment,
+  trailFillWidth,
+} from './routing.js';
 import type { DrawTile, RelaxedCell } from './substrate.js';
 
 // ---------------------------------------------------------------------------
@@ -62,7 +68,7 @@ export type SceneKind =
   | 'coast-layer'
   | 'ground-mesh'
   | 'ground-hex'
-  | 'roads-layer'
+  | 'trails-layer'
   | 'flora-layer'
   | 'hits-layer'
   // coast / ground
@@ -76,9 +82,23 @@ export type SceneKind =
   | 'tile-side'
   | 'tile-top'
   | 'tile-top-wheat'
-  // roads
-  | 'road'
-  | 'road-line'
+  // the trail network (ADR-0169 §2) — full cased passes over shared segments, so a
+  // merged trunk reads as ONE trail (the cartographic casing rule), plus the
+  // non-visual per-edge reveal metadata and the cave-portal prop.
+  | 'trail-shadow-pass'
+  | 'trail-casing-pass'
+  | 'trail-fill-pass'
+  | 'trail-ghost-pass'
+  | 'trail-shadow'
+  | 'trail-casing'
+  | 'trail-fill'
+  | 'trail-ghost'
+  | 'trail-edges'
+  | 'trail-edge'
+  | 'cave'
+  | 'cave-apron'
+  | 'cave-arch'
+  | 'cave-rim'
   // a whole island's flora group
   | 'territory'
   // the central story tree
@@ -152,10 +172,21 @@ export interface SceneNodeBase {
   status?: SceneStatus;
   /** `data-id` — the unit this node belongs to (focus / hover / delegation). */
   id?: string;
-  /** `data-from` — a road's source story. */
+  /** `data-from` — a trail edge's source story. */
   from?: string;
-  /** `data-to` — a road's target story. */
+  /** `data-to` — a trail edge's target story. */
   to?: string;
+  /** `data-usage` — distinct edges routed through a trail segment (drives width). */
+  usage?: number;
+  /** `data-edges` — comma-joined `from->to` keys through a trail segment / cave portal. */
+  edges?: string;
+  /** `data-spur` — a usage-1 trail fill (the mapper dashes it; a trunk stays solid). */
+  spur?: boolean;
+  /** `data-segments` — an edge's ordered segment chain, `id:F,id2:R,…` (F/R = orientation),
+   *  so a surface drives reveal-on-focus without re-walking the graph (ADR-0169 §3). */
+  segments?: string;
+  /** `data-island` — the island a cave portal sits on. */
+  island?: string;
   /** A `<title>` tooltip child (surface vocabulary, folded in by the surface). */
   title?: string;
   /** A `transform` attribute (already-formatted). */
@@ -287,14 +318,10 @@ export type SceneNode =
 // boundary clean — the core owns the LOOK (shapes + hash-derived variants/jitter +
 // layout of a drawable), the surface folds its data + chrome into this contract.
 
-/** A `depends_on` road, already routed to a `d` path by the surface's layout. */
-export interface SceneRoadInput {
-  from: string;
-  to: string;
-  d: string;
-  /** The road tooltip (surface vocabulary). */
-  title: string;
-}
+/** The routed `depends_on` trail network (ADR-0169) — `routeTrails`' output verbatim:
+ *  shared segments (a trunk renders once), per-edge ordered segment chains (titles ride
+ *  the edges), and forced cave portals. The surface routes; the core renders. */
+export type SceneTrailsInput = TrailNetwork;
 
 /** A capability rendered as garden flora — its id (the core derives the variant +
  *  jitter), folded status, position, tooltip, and an already-folded bloom. */
@@ -378,7 +405,7 @@ export interface SceneInput {
   drawTiles: DrawTile[];
   /** Per-territory wheat key-sets (used when `relaxedCells` is null). */
   wheatSets: ReadonlySet<string>[];
-  roads: SceneRoadInput[];
+  trails: SceneTrailsInput;
   territories: SceneTerritoryInput[];
 }
 
@@ -845,7 +872,7 @@ export function buildTerritoryFlora(t: SceneTerritoryInput): SceneG {
 }
 
 // ---------------------------------------------------------------------------
-// the static layers (coast / ground / roads / empties / hits)
+// the static layers (coast / ground / trails / empties / hits)
 // ---------------------------------------------------------------------------
 
 function isG(n: SceneG | null): n is SceneG {
@@ -916,13 +943,106 @@ function buildGround(input: SceneInput): SceneG {
   return g(tiles, { kind: 'ground-hex' });
 }
 
-function buildRoads(input: SceneInput): SceneG {
+/** One trail-segment path node — the segment id + `data-usage`/`data-edges` hooks, and
+ *  the per-pass stroke width derived from the ONE width rule (`trailFillWidth`). */
+function trailSegPath(
+  s: TrailSegment,
+  kind: SceneKind,
+  widen: number,
+  edgesOf: (id: string) => string,
+  markSpur = false,
+): ScenePath {
+  return path(s.d, {
+    kind,
+    id: s.id,
+    usage: s.usage,
+    edges: edgesOf(s.id),
+    strokeWidth: trailFillWidth(s.usage) + widen,
+    // a spur (one edge) is a dashed footpath; a trunk (≥2) a solid road (ADR-0169 §2)
+    ...(markSpur && s.usage === 1 ? { spur: true } : {}),
+  });
+}
+
+/** The trail network as FULL cased passes (ADR-0169 §2): every visible segment drawn
+ *  once per pass — shadow, then casing, then fill, then the under-island ghost runs —
+ *  never interleaved per path, so merged trunks read as one trail (the cartographic
+ *  casing rule). Ends with the non-visual per-edge reveal metadata (`trail-edges`).
+ *  Default-hidden is the SURFACE's concern (§3): the core emits everything. */
+export function buildTrails(input: SceneInput): SceneG {
+  const net = input.trails;
+  // Per-segment `from->to` keys, folded from the edge chains (a segment doesn't carry
+  // them); edge-input order, first appearance wins — deterministic.
+  const segEdges = new Map<string, string[]>();
+  for (const e of net.edges) {
+    const key = `${e.from}->${e.to}`;
+    for (const ref of e.segments) {
+      const list = segEdges.get(ref.id);
+      if (!list) segEdges.set(ref.id, [key]);
+      else if (!list.includes(key)) list.push(key);
+    }
+  }
+  const edgesOf = (id: string): string => (segEdges.get(id) ?? []).join(',');
+  const visible = net.segments.filter((s) => !s.hidden);
+  const hidden = net.segments.filter((s) => s.hidden);
   return g(
-    input.roads.map((e) =>
-      g([path(e.d, { kind: 'road-line' })], { kind: 'road', from: e.from, to: e.to, title: e.title }),
-    ),
-    { kind: 'roads-layer' },
+    [
+      g(visible.map((s) => trailSegPath(s, 'trail-shadow', 5, edgesOf)), { kind: 'trail-shadow-pass' }),
+      g(visible.map((s) => trailSegPath(s, 'trail-casing', 2.5, edgesOf)), { kind: 'trail-casing-pass' }),
+      g(visible.map((s) => trailSegPath(s, 'trail-fill', 0, edgesOf, true)), { kind: 'trail-fill-pass' }),
+      g(hidden.map((s) => trailSegPath(s, 'trail-ghost', 0, edgesOf)), { kind: 'trail-ghost-pass' }),
+      g(
+        net.edges.map((e) =>
+          g([], {
+            kind: 'trail-edge',
+            from: e.from,
+            to: e.to,
+            ...(e.title !== undefined ? { title: e.title } : {}),
+            segments: e.segments.map((r) => `${r.id}:${r.reversed ? 'R' : 'F'}`).join(','),
+          }),
+        ),
+        { kind: 'trail-edges' },
+      ),
+    ],
+    { kind: 'trails-layer' },
   );
+}
+
+/** A cave portal prop (ADR-0169 §2) — where a forced route disappears under an island.
+ *  Local frame after the group transform: +x is the outward rim normal (the bearing),
+ *  so the flat side of the arch lies against the island wall (the local y axis) and the
+ *  mouth bulges outward toward the arriving trail. Hue is the mapper's: `cave-arch` is
+ *  the near-black of the island's shadow/side-wall family, keyed by the folded island
+ *  `status` carried here (the same kind+status derivation every island hue uses);
+ *  `cave-rim` the lit upper edge; `cave-apron` a multiply-darkened trampled patch. */
+function buildCave(c: TrailCave, status: SceneStatus): SceneG {
+  const hw = (c.width * 1.6) / 2; // arch mouth half-width, sized from the trail width
+  const deg = (c.bearing * 180) / Math.PI;
+  return g(
+    [
+      ellipse(hw * 0.5, 0, hw * 1.3, hw * 0.64, { kind: 'cave-apron' }),
+      // flat-bottomed arch: a half-disc closed along the y-axis chord (the rim wall)
+      path(`M 0 ${f(-hw)} A ${f(hw)} ${f(hw)} 0 0 1 0 ${f(hw)} Z`, { kind: 'cave-arch' }),
+      // the lit rim arc on the upper edge of the mouth
+      path(`M 0 ${f(-hw)} A ${f(hw)} ${f(hw)} 0 0 1 ${f(hw)} 0`, {
+        kind: 'cave-rim',
+        strokeWidth: 1.5,
+      }),
+    ],
+    {
+      kind: 'cave',
+      status,
+      island: c.islandId,
+      edges: c.edgeIds.join(','),
+      transform: `translate(${f(c.x)} ${f(c.y)}) rotate(${f(deg)})`,
+    },
+  );
+}
+
+/** Every cave portal, status-folded from its island's territory (an island with no
+ *  territory — a decor-only obstacle — wears `unknown`). */
+function buildCaves(input: SceneInput): SceneG[] {
+  const statusOf = new Map(input.territories.map((t) => [t.id, t.status]));
+  return input.trails.caves.map((c) => buildCave(c, statusOf.get(c.islandId) ?? 'unknown'));
 }
 
 function buildHits(input: SceneInput): SceneG {
@@ -949,7 +1069,9 @@ function buildHits(input: SceneInput): SceneG {
  * The whole forest world as a framework-agnostic drawable tree (ADR-0093). The
  * root is the offset group; its children are the layers in canonical studio order:
  * pale coast, the smoothed coastland, the ground (mesh or hex), the `depends_on`
- * roads, the per-island flora, and the delegation hit areas. Each surface walks
+ * trail network (above ground, below flora — ADR-0169), the per-island flora with
+ * the cave-portal props appended (above flora, so an arch occludes the trail
+ * disappearing under its island), and the delegation hit areas. Each surface walks
  * this and maps roles → its own classes + behaviour; the surface owns its own
  * `<svg>` shell + `<defs>`, plus any surface-only chrome (the studio's solar
  * spokes / Shared-Islands panel / building stamps; the website's hit delegation)
@@ -961,8 +1083,10 @@ export function buildScene(input: SceneInput): SceneG {
       buildEmpties(input),
       buildCoast(input),
       buildGround(input),
-      buildRoads(input),
-      g(input.territories.map(buildTerritoryFlora), { kind: 'flora-layer' }),
+      buildTrails(input),
+      g([...input.territories.map(buildTerritoryFlora), ...buildCaves(input)], {
+        kind: 'flora-layer',
+      }),
       buildHits(input),
     ],
     { kind: 'world', transform: `translate(${f(input.offset.x)} ${f(input.offset.y)})` },

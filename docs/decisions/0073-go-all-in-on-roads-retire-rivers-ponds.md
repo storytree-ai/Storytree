@@ -68,6 +68,15 @@ selectors.
    `repelChannels`, `coastDock`). The dependency-edge signal keeps its meaning; only its art element
    is fixed to roads.
 
+   *(This "keep the substrate" clause was later overtaken, recorded per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md):
+   [ADR-0076](0076-forest-tree-docked-line-connections-river-trail-roads-retire.md) retired the
+   `riverGeometry` routing substrate together with the trail rendering (its docked lines needed no
+   routing), and [ADR-0169](0169-pathways-are-procedural-reveal-on-focus-trails-cost-field-ro.md)
+   then brought routing back as a new cost-field engine in the shared render core
+   (`packages/forest-world/src/routing.ts`) — not a revival of these helpers. Decision 1 stands:
+   roads remain the one world; the signal-is-independent-of-painting principle here stands too.)*
+
 3. **Remove the river/pond machinery entirely** (not shelved): the inland **pond network** and every
    pond-only helper (`placePond` / `placePondAt` / `placeWeldPond` / `seatCrescentPond` / `pondRing` /
    `fusedPondShape` / `weldPondShape` / `pondRadiusForDegree` / `embayCoast` / `crescentApplies` /

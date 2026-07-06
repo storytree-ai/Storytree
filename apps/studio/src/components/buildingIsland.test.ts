@@ -75,23 +75,23 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
     expect(byId['cli']!.stamps[0]!.spot).toBeDefined();
   });
 
-  it('draws NO road incident to a building (it never enters edgeList), keeping non-building edges', () => {
+  it('routes NO trail incident to a building (it never enters edgeList), keeping non-building edges', () => {
     const world = buildWorld(corpus(), { buildings: true });
-    const roads = world.lineRoads ?? [];
-    // no rendered road touches library (it is not laid out, so its edges never exist)
-    expect(roads.some((e) => e.from === 'library' || e.to === 'library')).toBe(false);
-    // the alpha→beta edge between two NORMAL islands is still drawn
-    expect(roads.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
+    const edges = world.trails.edges;
+    // no routed trail touches library (it is not laid out, so its edges never exist)
+    expect(edges.some((e) => e.from === 'library' || e.to === 'library')).toBe(false);
+    // the alpha→beta edge between two NORMAL islands is still routed
+    expect(edges.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
   });
 
-  it('draws NO building edge in solar.roads / solar.spokes either', () => {
+  it('routes NO building edge in solar mode either (spokes stay building-free too)', () => {
     const world = buildWorld(corpus(), { buildings: true, layoutMode: 'solar' });
-    const roads = world.solar?.roads ?? [];
+    const edges = world.trails.edges;
     const spokes = world.solar?.spokes ?? [];
-    expect(roads.some((e) => e.from === 'library' || e.to === 'library')).toBe(false);
+    expect(edges.some((e) => e.from === 'library' || e.to === 'library')).toBe(false);
     expect(spokes.some((e) => e.from === 'library' || e.to === 'library')).toBe(false);
-    // a non-building road survives
-    expect(roads.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
+    // a non-building trail survives
+    expect(edges.some((e) => e.from === 'alpha' && e.to === 'beta')).toBe(true);
   });
 
   it('no on-map nameplate carries the building glyph anymore (the glyph moved to the panel)', () => {
@@ -115,10 +115,10 @@ describe('buildWorld — building-class stories live OFF the map (ADR-0088)', ()
   it('with buildings OFF the building is a normal connected island (the ?buildings=off escape)', () => {
     const off = buildWorld(corpus(), { buildings: false });
     const ids = off.territories.map((t) => t.story.id).sort();
-    // library is a normal island when buildings are off — its edges are drawn
+    // library is a normal island when buildings are off — its edges are routed
     expect(ids).toEqual(['alpha', 'beta', 'cli', 'library']);
-    expect((off.lineRoads ?? []).some((e) => e.to === 'cli' && e.from === 'library')).toBe(true);
-    // no icon stamps when the buildings flag is off — every edge stays a road (ADR-0102)
+    expect(off.trails.edges.some((e) => e.to === 'cli' && e.from === 'library')).toBe(true);
+    // no icon stamps when the buildings flag is off — every edge stays a trail (ADR-0102)
     expect(off.territories.every((t) => t.stamps.length === 0)).toBe(true);
   });
 });
