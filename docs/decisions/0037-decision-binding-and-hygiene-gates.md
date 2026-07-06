@@ -36,6 +36,7 @@ Three honesty gaps share one root — claims about decisions are prose, so nothi
    superseded-in-part" precisely because nothing structural tracks it; ADR-0011 §5's overtaken
    DBOS line is the recorded incident.
 2. **Stories don't link their deciding ADRs.** The work-hierarchy schema (`packages/core/schema.ts`)
+   *(now `packages/library/src/schema.ts` — `packages/core` dissolved by ADR-0068)*
    has `status`, `depends_on`, `covers` — but no decisions edge. Story prose cites ADRs constantly;
    none of it is traversable. So "this story went green, which decisions did it realise?" has no
    answer a machine can compute.
@@ -69,6 +70,9 @@ becomes machine-checked.
    0001–0036 with statuses transcribed verbatim from their Status sections (no editorialising —
    ADR-0017 stays `proposed` even though it is load-bearing; the drift checks below are what will
    force that conversation).
+   **Correction (2026-07-06 — ADR-0139 pass):** `supersedes_in_part` is retired as an edge type by
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); edges are now
+   binary (`amends` / `supersedes`), and the ADR-health gate forbids the retired field.
 
 2. **Stories declare their deciding ADRs.** The `Story` schema gains
    `decisions: number[]` (default `[]`) — the ADRs this story realises, in its frontmatter. Seeded:

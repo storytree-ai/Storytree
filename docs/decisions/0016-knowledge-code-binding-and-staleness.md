@@ -162,14 +162,17 @@ discipline applied to re-location.
 ## Consequences
 
 - **`packages/core` schema change (landed):** `Covers = {file, lines}` is retired; `Anchor`
-  (`packages/core/src/anchor.ts`) replaces it; `Contract` and `ContractUnit` carry it as `anchor`.
+  (`packages/core/src/anchor.ts` *(now `packages/proof-protocol/src/anchor.ts` for the shape,
+  `packages/orchestrator/src/proof/anchor-compute.ts` for the `hashSpan`/`normalizeSpan` compute —
+  `packages/core` dissolved by ADR-0068)*) replaces it; `Contract` and `ContractUnit` carry it as `anchor`.
   No live data or runtime code consumed the old `covers` (work units are frontmatter-markdown loaded
   by the light node-spec loader; contracts' covers were prose), so the rename rippled to the schema
   only.
 - **Event vocabulary gains a `change` event** carrying `{unitId, hashBefore, hashAfter, description,
   author, at, commitSha}` — the described-change unit. This partially answers ADR-0006's §8 open
   event-vocabulary question for change events specifically.
-- **First slice landed (this PR):** the binding/staleness *engine* in `packages/core` — the
+- **First slice landed (this PR):** the binding/staleness *engine* in `packages/core`
+  *(now split across `packages/proof-protocol` and `packages/orchestrator/src/proof/` — ADR-0068)* — the
   `Anchor`/`TextQuote` schema, the `hashSpan`/`normalizeSpan` content-hash seam (normalized-text
   first per Fork C), the `ChangeEvent`/`isDescribed` vocabulary, and the pure, lazy `classifyDrift`
   returning the three-state `DriftFlag` with its explanatory description (Fork B + the §3 model).

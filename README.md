@@ -30,7 +30,7 @@ to fall away as the tree becomes self-building.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  studio (web IDE)   React shell + PixiJS 2D-isometric tree    │  apps/studio
+│  studio (web IDE)   React shell + SVG hex-forest world        │  apps/studio
 │  watch + DRIVE: diffs, approvals, steering, per-node chat     │
 └───────────────▲───────────────────────────┬─────────────────┘
                 │ events out                 │ commands in
@@ -67,15 +67,16 @@ store and render in our own UI. No external trace SaaS.
 |---|---|---|
 | Language / runtime | TypeScript, Node 24, pnpm workspaces | model-agnostic, owns the loop |
 | Per-node coding agent | **the owned loop** (`packages/agent`, on the Anthropic Messages API) | we own the agent loop + context engineering; emits a clean event stream + diffs |
-| Runtime store | **Cloud SQL Postgres** via typed `node-pg` (`packages/store`) | concurrency-safe shared state; JSONB + zod-validated. DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection — durable workflows stay a reserved future target |
+| Runtime store | **Cloud SQL Postgres** via typed `node-pg` (`packages/library/src/store` — the old `packages/store` dissolved, ADR-0077) | concurrency-safe shared state; JSONB + zod-validated. DBOS is deferred (ADR-0019), so this is a plain typed Postgres connection — durable workflows stay a reserved future target |
 | Orchestration | thin custom layer | the story-DAG + event store; small, ours |
 | Observability | own event store | owned-loop events + orchestrator events → typed event log → UI. No per-trace SaaS |
-| Tree UI | **PixiJS v8** + `@pixi/react`, 2D isometric | fastest 2D, embeds as an IDE panel, batches 1000s of live sprites @60fps |
+| Tree UI | **SVG** hex-forest world (ADR-0036/0069; PixiJS was rejected) | procedural SVG scenes, no engine dependency; R3F/WebGL stays a far-future website target (ADR-0145) |
 | Models | via the owned loop | pay-as-you-go API keys; not tied to a subscription |
 
 See [docs/decisions/0001-foundational-stack.md](docs/decisions/0001-foundational-stack.md)
 for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
-Claude Agent SDK, Google ADK).
+Google ADK; the Claude Agent SDK, initially passed over, later became the **live**
+runtime per ADR-0030, with the owned loop demoted to the offline executor).
 
 ## Principles
 
@@ -94,9 +95,9 @@ Claude Agent SDK, Google ADK).
 packages/core          shared types: story / capability / contract + event + Library schema
 packages/orchestrator  DAG scheduler, event store, the prove-it (red-green) gate
 packages/agent         owned-loop session wrapper → normalized events
-packages/store         typed node-pg client over Cloud SQL Postgres (keyless IAM auth)
+packages/library       library schema + node-pg store subpath over Cloud SQL Postgres (keyless IAM)
 packages/cli           the choose-your-own-adventure Library CLI (ADR-0023)
-apps/studio            web IDE: React + PixiJS isometric tree, and the Library browser
+apps/studio            web IDE: React + SVG forest world, and the Library browser
 apps/studio/data       knowledge.json — the structured source of the Library corpus
 docs/decisions         ADRs (0001–0023) — also the source-of-record for the Library `adr` category
 ```

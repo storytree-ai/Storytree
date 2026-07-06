@@ -26,7 +26,8 @@ guidance make it unnecessary? It is real: the studio already holds **88 such uni
 
 Two facts shaped this decision:
 
-- **It is distinct from `packages/core`'s `Guidance`.** That `Guidance` is the *per-capability,
+- **It is distinct from `packages/core`'s `Guidance`** *(now `packages/library`'s — ADR-0068)*. That
+  `Guidance` is the *per-capability,
   embedded* note the context engine pulls per step (ADR-0011) — not a cross-cutting library. The
   88 units are the shared, reusable doctrine. Two different concepts have been colliding on the
   word "guidance."
@@ -60,7 +61,8 @@ Two facts shaped this decision:
    binds to code gets **code-drift**; ADR-derived doctrine with no code anchor gets **source-drift
    + freshness**. Either way it is an explicit signal agents read, never silent.
 
-5. **Stories can depend on stories.** The current `packages/core` schema has only *within-story*
+5. **Stories can depend on stories.** The current `packages/core` *(now `packages/library` —
+   ADR-0068)* schema has only *within-story*
    edges; cross-story `depends_on` (the **boundary** ADR-0010 §4 deferred) is a real gap to add —
    a story-level dependency edge.
 
@@ -76,7 +78,8 @@ Two facts shaped this decision:
   is a typed link, graduation is a future synthesis agent.)*
 - Whether per-capability `Guidance` becomes a **`consumes`-reference into the knowledge tier** (the
   DRY unification) or stays separate — folded into the deferred citing decision.
-- **Templates → schema.** The 6 `template` units describe shapes `packages/core` zod already
+- **Templates → schema.** The 6 `template` units describe shapes `packages/core` *(now
+  `packages/library` — ADR-0068)* zod already
   validates; per ADR-0013 the template should be a *generated view* of the schema, one source.
 
 ## Consequences
@@ -86,7 +89,8 @@ Two facts shaped this decision:
 - **Unifies the migration:** the 88 Library units *and* the (empty) comments both move from
   git-file stopgaps into the shared store — making the **DB foundation** (connection + DBOS +
   artifact/event/projection schema) the genuine next build, not a data migration.
-- **`packages/core` grows** a `Knowledge` discriminated union (by `kind`) alongside `Unit`, sharing
+- **`packages/core` grows** *(now `packages/library` — ADR-0068)* a `Knowledge` discriminated union
+  (by `kind`) alongside `Unit`, sharing
   ADR-0016's anchor and the reference vocabulary; plus the story→story edge.
 
 ## What this does NOT decide

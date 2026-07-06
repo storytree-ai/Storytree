@@ -88,9 +88,14 @@ model-events), never by importing another organism's source.
   `anchor-compute.ts`/`hashSpan`, `rollup.ts`, `verdict-line.ts`, `attestations.ts`, `proof-status.ts`,
   `source-drift.ts`) — the COMPUTE moved out of the dissolved core; the DATA shapes it reads/returns
   are proof-protocol's.
+- **`packages/drive`** — the shared build/orchestrate driver core (ADR-0112, extracted from `cli`):
+  `node-build.ts` / `story-build.ts` / `adopt.ts` / `orchestrate.ts`, the DB preflight
+  (`db-control.ts` / `ensureLiveDb`), the secrets hydrator (`secrets.ts`), and the ADR frontmatter
+  parser (`adr-frontmatter.ts`). Consumed by `cli`, the studio worker, and the desktop backend; hard
+  invariant: `drive` never imports `cli`.
 - **`packages/cli`** — the choose-your-own-adventure Library/CLI surface (ADR-0023); also home to the
-  ADR frontmatter parser (`adr-frontmatter.ts`) and the `stories/` corpus guard
-  (`scripts/validate-corpus.ts`, run in its `test`).
+  `stories/` corpus guard (`scripts/validate-corpus.ts`, run in its `test`). (The ADR frontmatter
+  parser and the build drivers moved to `packages/drive`, ADR-0112.)
 
 ## Library / knowledge tier — where the source of truth is
 
@@ -173,7 +178,8 @@ file conflicts).
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (SDK leaf) and
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
-  wins (`packages/cli/src/secrets.ts`). One rotation point, survives sessions and worktrees; no
+  wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,
+  ADR-0112). One rotation point, survives sessions and worktrees; no
   env-var prefixes needed on `pnpm storytree …` commands.
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you

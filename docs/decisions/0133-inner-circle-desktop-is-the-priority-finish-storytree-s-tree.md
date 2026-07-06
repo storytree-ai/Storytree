@@ -132,5 +132,3 @@ Two groundings shape the decision:
   for the deferred-broker risk.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — owner-directed in
   conversation → born accepted.
-</content>
-</invoke>

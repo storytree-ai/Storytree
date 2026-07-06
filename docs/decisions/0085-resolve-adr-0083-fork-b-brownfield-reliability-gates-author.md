@@ -165,5 +165,3 @@ observe-and-signs each, and the port flips off `mapped` to a signed-`adopted` gr
   `packages/orchestrator/src/proof/observe-and-sign.ts`, `packages/cli/src/gate.ts`,
   `stories/proof-protocol/story.md`, `stories/storage-protocol/story.md` — the compute + surfaces this
   ADR builds.
-</content>
-</invoke>

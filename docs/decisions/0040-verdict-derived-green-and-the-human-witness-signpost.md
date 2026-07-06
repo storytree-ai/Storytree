@@ -70,7 +70,8 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
 
 3. **Story writers declare who witnesses the UAT.** New optional story-frontmatter field
    `uat_witness: human | machine` (`UatWitness` on the `Story` tier in
-   `packages/core/src/schema.ts`; plumbed through the orchestrator's `loadNodeSpec` and the
+   `packages/core/src/schema.ts` *(now `packages/library/src/schema.ts` — `packages/core` dissolved
+   by ADR-0068)*; plumbed through the orchestrator's `loadNodeSpec` and the
    studio tree payload). **Absent = human** — fail-closed toward requiring the operator. The
    defaulting lives in ONE place, core's `effectiveUatWitness` (re-exported through
    `@storytree/orchestrator` so the studio dev server's lazy import reaches the same helper the

@@ -25,7 +25,10 @@ later — no caller changes." The deferred slice (this follow-on) attempted that
 hard findings:
 
 1. **Browser-safety blocker.** `hashSpan` lives in
-   [`packages/core/src/anchor.ts`](../../packages/core/src/anchor.ts); `@storytree/core`'s barrel
+   [`packages/core/src/anchor.ts`](../../packages/core/src/anchor.ts)
+   *(now `packages/orchestrator/src/proof/anchor-compute.ts` for the `hashSpan`/`normalizeSpan` compute,
+   and `packages/proof-protocol/src/anchor.ts` for the `Anchor` shape — `packages/core` dissolved by
+   ADR-0068)*; `@storytree/core`'s barrel
    ([`index.ts`](../../packages/core/src/index.ts)) does `export * from "./anchor.js"`; the studio
    (`apps/studio`) imports the barrel and is bundled by **vite into the browser**. `tree-sitter`
    (node-tree-sitter) is a **native Node addon** (node-gyp / a `.node` binary). A static import of it
@@ -53,7 +56,8 @@ a cost optimisation, not a safety one.
 **Defer the build. Record the architecture so it is ready when there is real pain** (a *measured*
 false-positive rate on live anchors). When it IS built:
 
-1. **`hashSpan` stays FNV in `@storytree/core`** — the browser-safe, sync, zero-dependency fallback AND
+1. **`hashSpan` stays FNV in `@storytree/core`** *(now `packages/orchestrator/src/proof/anchor-compute.ts`,
+   ADR-0068)* — the browser-safe, sync, zero-dependency fallback AND
    the path for unparsed languages. Core never imports a parser. (This is already how it ships.)
 2. **The AST fingerprinter is a NODE-ONLY seam** — a separate module/package (e.g.
    `@storytree/anchor-ast`, or under the CLI/orchestrator) the browser never imports, using
@@ -96,7 +100,9 @@ false-positive rate on live anchors). When it IS built:
 - [ADR-0064](0064-widen-the-inner-loop-proof-envelope-db-backed-proofs-spine-d.md) §2 (guarded
   dependency-adds — how the build would add `tree-sitter` through the inner loop).
 - [`packages/core/src/anchor.ts`](../../packages/core/src/anchor.ts) (`hashSpan` / `normalizeSpan` /
-  `classifyDrift` — the FNV seam + the comment explaining why core must stay browser-safe),
+  `classifyDrift` — the FNV seam + the comment explaining why core must stay browser-safe)
+  *(now `packages/orchestrator/src/proof/anchor-compute.ts` for the `hashSpan`/`normalizeSpan`/
+  `classifyDrift` compute, `packages/proof-protocol/src/anchor.ts` for the `Anchor` shape — ADR-0068)*,
   [`packages/core/src/index.ts`](../../packages/core/src/index.ts) (the barrel that pulls `anchor.ts`
   into the studio bundle), `apps/studio` (the browser consumer).
 - [`stories/binding-staleness/story.md`](../../stories/binding-staleness/story.md) — "no live unit

@@ -46,7 +46,8 @@ units and decided by the owner in the studio.
 
 - **Phase 2's first build** = connection + library / event / projection schema (JSONB, zod-validated at
   the write boundary per ADR-0017) + load `knowledge.json`, with **no DBOS yet**.
-- A **Phase-2 rename sweep**: `Knowledge` → `Library` in `packages/core`, `knowledge.json` →
+- A **Phase-2 rename sweep**: `Knowledge` → `Library` in `packages/core` *(now `packages/library` —
+  ADR-0068)*, `knowledge.json` →
   `library.json`, and generator / variable names. Tracked, not done here.
 - Coordination `claim`s (ADR-0009) that presume the shared store wait for DBOS; the library migration
   does not need them.

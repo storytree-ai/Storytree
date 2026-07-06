@@ -126,7 +126,8 @@ proof-mode table above.
 ## References
 
 - ADR-0001 (deferred this schema to "next").
-- `docs/glossary.md` — the canonical one-line definitions these terms resolve to.
+- `docs/glossary.md` — the canonical one-line definitions these terms resolve to
+  *(retired by ADR-0135 — the Library's `definition` artifacts are now the authority)*.
 - v1 corpus (`C:\code\Agentic`), `docs/decisions/0027-*` — drafted the
   epic/story/contract precursor this reshapes (story promoted up, **capability**
   inserted as the provable middle grain).

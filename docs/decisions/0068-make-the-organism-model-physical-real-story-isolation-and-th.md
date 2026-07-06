@@ -173,5 +173,9 @@ other exemplar. Nothing here adds a schema flag, a new tier, or a journey-princi
 - `docs/glossary.md` — `story`, `boundary`/`port`, `dependency`, `deep-modules`.
 - `stories/drive-machinery/story.md` (the farmer; open calls #2, #5), `stories/binding-staleness/story.md`,
   `packages/core/src/{proof,signer,knowledge}.ts`, `packages/core/src/anchor.ts` (`hashSpan`).
+  **Correction (2026-07-06 — ADR-0139 pass):** the dissolution this ADR decided is complete —
+  the proof compute now lives in `packages/orchestrator/src/proof/` (`signer.ts`, `anchor-compute.ts`,
+  etc.), the verdict/anchor shapes in `packages/proof-protocol` (`anchor.ts`), and the knowledge schema
+  in `packages/library` (`knowledge.ts`).
 - Library proposal artifact `organism-physical-rebuild` (the deferred execution plan).
 - Design conversation, 2026-06-17 (the farmer reframe; the sun/database/farmer analogies).

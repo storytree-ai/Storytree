@@ -310,5 +310,3 @@ and the director's vocabulary (single-story → multi-story-with-dependsOn, upst
 - [`stories/website-experience/act2-guided-walkthrough.md`](../../stories/website-experience/act2-guided-walkthrough.md)
   — the LOOK cap (increment G) lightly corrected: beat 4's teach reframed, the CTA becomes a
   continuation seam; the "As built" live-attested history kept intact.
-</content>
-</invoke>

@@ -152,7 +152,8 @@ signal, it *prunes/reshapes* the OQs a settled decision has overtaken. Five part
   the home for all work).
 - `asset:human-owns-the-outer-loop`, `asset:never-bypass-the-gate`, `asset:library-edit-ceremony`,
   `asset:live-store-is-the-edit-surface` (the doctrine this honours).
-- `packages/core/src/store.ts` (`deleteDoc` retire-with-rationale + `retiredEventDoc`),
+- `packages/core/src/store.ts` (`deleteDoc` retire-with-rationale + `retiredEventDoc`)
+  *(now `packages/storage-protocol/src/store.ts` — `packages/core` dissolved by ADR-0068)*,
   `packages/cli/src/curate.ts` (the action types + kind-fenced `enactCuration` + `ScriptedCuratorRunner`),
   `packages/cli/src/oq-gate.ts` (the §5 gate this complements).
 - The live `librarian-curator` / `graduation-synthesist` Library agent artifacts.

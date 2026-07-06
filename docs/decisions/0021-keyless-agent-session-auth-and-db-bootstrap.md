@@ -89,6 +89,9 @@ bootstrap problem that only a privileged role (the `postgres` builtin user) can 
   [ADR-0017](0017-cross-cutting-knowledge-tier.md) / [ADR-0019](0019-library-tier-name-and-defer-dbos.md)
   (the Phase-2 store this migration fills).
 - `infra/bootstrap-grants.sql`, `packages/store/scripts/apply-grants.mjs`,
-  `packages/store/scripts/verify-migration.ts`, `packages/store/src/load-corpus.ts`.
+  `packages/store/scripts/verify-migration.ts`, `packages/store/src/load-corpus.ts`
+  *(now `packages/library/src/store/load-corpus.ts` — `packages/store` dissolved by ADR-0077;
+  `apply-grants.mjs` / `verify-migration.ts` were deleted outright in that dissolution, not moved —
+  current home not located)*.
 - Library artifact `stack-cloud-sql-keyless-iam` (derived from this ADR).
 - Owner exchange + first live migration, 2026-06-08.

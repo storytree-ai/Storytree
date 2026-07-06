@@ -147,7 +147,8 @@ artifact, and this report covers its TS↔native seam as a declared honesty edge
 - [ADR-0010](0010-organism-model-story-bounded-context.md) §3/§4 — the two-altitude dependency model
   (within-story code-derived; cross-story declared) the virtual-story derivation extends.
 - [ADR-0086](0086-librarian-curated-adr-lifecycle-supersede-authority-copy-on.md) — the curation discipline
-  the report feeds (keeping declared edges / the current-state set honest).
+  the report feeds (keeping declared edges / the current-state set honest)
+  *(superseded — the discipline is now carried by [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md))*.
 - Code: `packages/cli/src/boundaries.ts` (the pure judge — already computes both graphs; the set
   difference lives here), `packages/cli/src/check-boundaries.ts` (the disk gatherer + report wiring),
   `repo-manifest.json` `packageOwnership` (the package→story map, and which stories own no package).

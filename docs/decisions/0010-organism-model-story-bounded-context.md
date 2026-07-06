@@ -87,7 +87,7 @@ that are dependent to deliver an outcome but each function in isolation against 
 **Provisional naming (open detail, not a model fork).** The schema term is TBD. Bare
 `interface` collides with TS `interface` — the same collision ADR-0002 rejected
 `component` for — so the leading candidates are **`boundary`** or **`port`**. Ratify the
-name when `packages/core` formalises the schema.
+name when `packages/core` *(now `packages/library` — ADR-0068)* formalises the schema.
 
 ### 5. The mock seam, restated
 
@@ -117,7 +117,8 @@ the definition of `healthy`. `healthy` is earned through the proof modes (§2) a
 prove-it-gate; cold-rebuild is never re-derived as a gate (v1 carried it as authoring
 guidance and never enforced it). It is the reason a story should declare its upstream
 *interfaces* well — but **what an interface document must contain, and the exact
-interface/internals line, are deliberately left open** until `packages/core` (or a second
+interface/internals line, are deliberately left open** until `packages/core` *(now
+`packages/library` — ADR-0068)* (or a second
 story) forces them. With one story today nothing depends on anything, so this does not yet
 bite.
 
@@ -133,7 +134,8 @@ bite.
 - **The first seed** (`stories/studio-foundation/`) folds its seven per-capability UATs
   into one **story-level UAT**, reinterprets `depends_on` as code-derived in-story edges,
   and reframes each capability's contracts as the integration + unit layers.
-- **Schema (`packages/core`)** — `proof_mode` carrying the UAT moves to the story tier;
+- **Schema (`packages/core`)** *(now `packages/library/src/schema.ts` — ADR-0068)* — `proof_mode`
+  carrying the UAT moves to the story tier;
   capabilities carry integration-test proof; the cross-story interface becomes a new
   schema entity.
 - **Status enum is unchanged** — `proposed` stays for the retro-authored seed (owner call,

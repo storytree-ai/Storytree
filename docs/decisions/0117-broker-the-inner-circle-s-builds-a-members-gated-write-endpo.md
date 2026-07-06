@@ -74,6 +74,12 @@ src/users.ts`, gated in `apps/studio/server/guestPolicy.ts`), IAP having authent
    write path POSTs to the broker. The direct-connector code path for the friend is retired (the owner's own
    first-party tooling may still connect directly; this decision scopes the friend).
 
+**Correction (2026-07-06 — ADR-0139 pass):** [ADR-0133](0133-inner-circle-desktop-is-the-priority-finish-storytree-s-tree.md)
+deferred this broker for the inner-circle MVP ("secure later") — the friend's direct Cloud SQL grant
+(ADR-0113 §6) remains the operative write path today, consciously accepting the risk this ADR named.
+Decisions 1 and 5's "retired" / "no longer opens a Cloud SQL connection" describe the eventual target
+design, not the current state.
+
 ## Consequences
 
 **Good**

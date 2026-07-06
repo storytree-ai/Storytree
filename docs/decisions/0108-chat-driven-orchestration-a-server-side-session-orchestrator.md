@@ -88,6 +88,8 @@ amends ADR-0030 in degree (decision 4).
    **Accept-to-land remains a human action** — an explicit, non-spoofable approval affordance in the UI
    (a button / confirm, never a free-text "yes" parsed by the agent). The agent proposes and drives up
    to the trunk; the human lands. This is a permanent control, not a phase the build graduates out of.
+   *(Retired by [ADR-0155](0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md) — see
+   the amendment banner above.)*
 
 4. **Amends ADR-0030 in degree, not in principle.** ADR-0030's "the human owns the outer loop" assumed
    a human-driven terminal session *is* the loop. Here a server-side agent runs the loop's mechanics and

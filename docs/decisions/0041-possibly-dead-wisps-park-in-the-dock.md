@@ -13,7 +13,8 @@ accepted (2026-06-14) — a display-level recalibration of the story world's pre
 visual vocabulary** (what a wisp means on screen). It *applies* — does not change —
 [ADR-0033](0033-session-presence-notice-board.md)'s presence semantics: staleness stays derived
 (d.1 "staleness replaces release discipline"), automation stays advisory and never blocks (d.3),
-and the owner-set thresholds (fresh < 1 h, possibly-dead ≥ 4 h, `packages/core/src/presence.ts`)
+and the owner-set thresholds (fresh < 1 h, possibly-dead ≥ 4 h, `packages/core/src/presence.ts`
+*(now `packages/notice-board/src/presence.ts` — `packages/core` dissolved by ADR-0068)*)
 are untouched.
 
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0041*` on

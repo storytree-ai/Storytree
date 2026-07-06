@@ -132,4 +132,3 @@ regenerate, ADR-0051), owned by the librarian/guidance pass, not enforced by thi
   `userPrompt` dropped, D5.i), `packages/drive/src/spawn-deps.ts` (renders `glue-worker` + wires
   `spawnGlueWorker`, D4), `apps/desktop/electron/backend-entry.ts` (the sidecar wires the new dep; the
   glue file the incident targeted).
-</content>

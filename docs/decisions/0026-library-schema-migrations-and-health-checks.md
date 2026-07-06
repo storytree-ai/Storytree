@@ -22,7 +22,8 @@ the deferral of DBOS ([ADR-0019](0019-library-tier-name-and-defer-dbos.md)), the
 ## Context
 
 - The Library schema is **TypeScript/zod, not SQL** ([ADR-0018](0018-knowledge-tier-phase1-structured-source.md)):
-  `packages/core/src/knowledge.ts` `KIND_SPECS` drives a `.strict()` discriminated union; `validateLibraryDoc`
+  `packages/core/src/knowledge.ts` *(now `packages/library/src/knowledge.ts` — ADR-0068)* `KIND_SPECS`
+  drives a `.strict()` discriminated union; `validateLibraryDoc`
   rejects unknown fields. **Adding or removing one field forces every stored doc to change in lockstep.**
 - The store is **event-sourced JSONB** ([ADR-0017](0017-cross-cutting-knowledge-tier.md)):
   `events.library_event` is append-only history, `events.library_artifact` is the current-state projection
@@ -57,7 +58,8 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
    single pin) and advisory unless something enforces it — which the write-boundary upcaster + the
    version-floor check do.
 
-2. **An ordered, forward-only migration registry** (`packages/core/src/migrations.ts`): `MIGRATIONS` is an
+2. **An ordered, forward-only migration registry** (`packages/core/src/migrations.ts`
+   *(now `packages/library/src/migrations.ts` — ADR-0068)*): `MIGRATIONS` is an
    ordered list of `{ version, name, up(doc) }` transforms operating on JSONB docs (numbered like
    Flyway/Alembic, but the transform is a JS function on a `Record`, not DDL — because the schema that
    changes lives in zod and the data lives inside JSONB). `CURRENT_SCHEMA_VERSION = 1`. Migration #1
@@ -72,7 +74,8 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
    *read*; ours runs at *write* so the stored projection converges to current (version-floor can be green)
    and validation runs on the *final* shape (the write gate stays strict). Non-structured `LibraryAsset` /
    non-knowledge docs pass through `upcast` unchanged. Paired with an **eager batch migrate**
-   (`packages/store/src/batch-migrate.ts`) that drains the tail of rows nobody touches.
+   (`packages/store/src/batch-migrate.ts` *(now `packages/library/src/store/batch-migrate.ts` —
+   `packages/store` dissolved by ADR-0077)*) that drains the tail of rows nobody touches.
 
 4. **No down-migrations; the event log is the backup.** History is append-only (`events.library_event`), so a
    "rollback" is re-projecting a pre-migration doc from its event. The `seeAlso`→`provenance` transform is
@@ -134,6 +137,9 @@ slice of expand/contract (C) only when a removal can't land atomically, plus the
   [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) (the prove-it-gate spirit the GATE checks share);
   [ADR-0022](0022-ci-green-gate-and-auto-merge.md) (the green gate the SEED test plugs into);
   [ADR-0023](0023-library-cli-choose-your-own-adventure.md) (the CLI surface the banner + `--check` extend).
-- `packages/core/src/migrations.ts`, `packages/core/src/store.ts` (`upcastAndValidate`),
-  `packages/cli/src/health.ts`, `packages/store/src/batch-migrate.ts`, `packages/store/src/schema.sql`
+- `packages/core/src/migrations.ts` (now `packages/library/src/migrations.ts`, ADR-0068),
+  `packages/core/src/store.ts` (`upcastAndValidate`) (now `packages/library/src/library-doc.ts`, ADR-0068),
+  `packages/cli/src/health.ts`, `packages/store/src/batch-migrate.ts` (now
+  `packages/library/src/store/batch-migrate.ts`, ADR-0077), `packages/store/src/schema.sql`
+  (now `packages/library/src/store/schema.sql`, ADR-0077)
   (`events.schema_migration`), `apps/studio/data/stamp-schema-version.mjs`.

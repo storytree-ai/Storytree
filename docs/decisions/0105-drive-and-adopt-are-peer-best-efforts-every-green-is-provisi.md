@@ -130,11 +130,13 @@ value hierarchy and are superseded by this ADR's peer framing. What those ADRs D
   green, no basis label) is the named heavier alternative — a verdict-shape + stored-data change that
   also loses the "never witnessed failing" audit record.
 - **Reword, not rewrite.** ADR-0085 / 0097 / 0098 keep their bodies (copy-on-write,
-  [ADR-0086](0086-librarian-curated-adr-lifecycle-supersede-authority-copy-on.md)); this ADR carries the
+  [ADR-0086](0086-librarian-curated-adr-lifecycle-supersede-authority-copy-on.md) *(superseded by*
+  *[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md))*); this ADR carries the
   reframing and they gain light dated cross-reference notes pointing here, so a reader of the old
   "weaker / cheap / real" lines is sent to the peer framing. The `librarian-curator` applies those notes
   + the `amends` edges + any glossary reconciliation (`mapped` = "observational, never healthy" predates
-  the `adopted` exit and should read as a basis, not a rank).
+  the `adopted` exit and should read as a basis, not a rank) *(the glossary itself is retired by*
+  *[ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md))*.
 - **No new enforcement.** This is a framing decision; it adds no gate. The vacuity-of-a-driven-test
   concern it names is already an open strengthening
   ([ADR-0098](0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md) §2's optional
@@ -165,6 +167,7 @@ value hierarchy and are superseded by this ADR's peer framing. What those ADRs D
   ADR-0085's "weaker" wording; reframe that cross-reference to "records a different basis, never
   silently equated with a driven pass."
 - [ADR-0086](0086-librarian-curated-adr-lifecycle-supersede-authority-copy-on.md) — the copy-on-write
-  rule under which this reframing is a NEW ADR, not an in-place body edit of 0085 / 0097 / 0098.
+  rule under which this reframing is a NEW ADR, not an in-place body edit of 0085 / 0097 / 0098
+  *(superseded — the discipline is now carried by [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md))*.
 - [ADR-0084](0084-agents-may-flip-an-adr-green.md) — the policy under which this ADR's `status:` flip was
   applied.

@@ -35,7 +35,11 @@ Two real constraints shaped the mechanism:
    in ~26s) — and the test suites are **offline** (`CLAUDE.md`: no DB or API key needed), so
    CI needs **no secrets**.
 
-The pnpm workspace is `packages/{core,agent,orchestrator,store}` + `apps/studio`. The
+The pnpm workspace is `packages/{core,agent,orchestrator,store}` + `apps/studio`.
+**Correction (2026-07-06 — ADR-0139 pass):** `packages/core` and `packages/store` were later
+dissolved (ADR-0068 / ADR-0077); today's workspace is `packages/{agent,cli,drive,forest-world,
+forest-world-r3f,library,notice-board,orchestrator,proof-protocol,storage-protocol,studio-members}`
++ `apps/{studio,desktop}`. The
 canonical gate is `pnpm -r typecheck` + `pnpm -r test`; only `apps/studio` has a `build`
 (packages export raw TS). `legacy/Agentic` is a private submodule, **not** in the workspace.
 

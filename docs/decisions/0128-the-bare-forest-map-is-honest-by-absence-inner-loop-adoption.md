@@ -111,7 +111,7 @@ exception, not the default path.** That is the real lever — tracked separately
   standing calibration is: raise driving, AND the claim-wisp shows who holds each story.)*
 - **Cost / open.** The actionable question (inner-loop adoption) is deferred to a separate
   investigation, so the world stays a low-signal surface until more work is driven — honest, but quiet.
-- **Numbering.** `0128` was reserved from the store allocator ([ADR-0050](0050-adr-numbers-allocated-from-the-store.md));
+- **Numbering.** `0128` was reserved from the store allocator ([ADR-0050](0050-adr-number-allocation.md));
   `0125–0127` were taken by parallel sessions.
 
 ## References
