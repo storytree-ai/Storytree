@@ -41,7 +41,8 @@ first. Reality went the other way on both fronts:
   the orchestrator's `node-spec.ts` loads the frontmatter. ADR-0013's "required migration" produced
   exactly **one** converted unit — `stories/studio/browse-library.yaml`, a pure-YAML duplicate of
   the live `browse-library.md`, opening with "THIS yaml is the source of truth" — and stalled.
-  `packages/core`'s `validate-corpus.ts` walked `stories/` for `.yaml`/`.yml` files and found only
+  `packages/core`'s `validate-corpus.ts` *(now `packages/cli/scripts/validate-corpus.ts` —
+  `packages/core` dissolved by ADR-0068)* walked `stories/` for `.yaml`/`.yml` files and found only
   that straggler.
 
 The open-question `oq-corpus-source-format` named the drift. An earlier session leaned toward
@@ -65,7 +66,8 @@ answer is **A**: commit to ONE structured source format and make the claims lite
 
 3. **The straggler is removed and the gate flips polarity.** `stories/studio/browse-library.yaml`
    (the one ADR-0013-era conversion; its `.md` sibling is the live representation) is deleted.
-   `packages/core/scripts/validate-corpus.ts` inverts from "validate every YAML unit" into a
+   `packages/core/scripts/validate-corpus.ts` *(now `packages/cli/scripts/validate-corpus.ts`,
+   ADR-0068)* inverts from "validate every YAML unit" into a
    fail-closed guard: any standalone `.yaml`/`.yml` under `stories/` fails CI, citing this ADR.
    `loadUnit` (the YAML-file unit loader, whose only consumer was that walker) is removed; the
    `Unit` zod schema and `parseUnit` stay — the schema validates structured data, not a file

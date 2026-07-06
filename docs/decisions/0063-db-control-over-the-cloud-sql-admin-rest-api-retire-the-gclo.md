@@ -57,7 +57,8 @@ ADR-0021 (no key files, ambient ADC locally / metadata SA on Cloud Run).
 Adopt a **typed Cloud SQL Admin REST client as the primary db-control path**, retiring the gcloud
 subprocess on the hot path:
 
-1. **The client (landed, unit 1).** `packages/store/src/cloud-sql-admin.ts` —
+1. **The client (landed, unit 1).** `packages/store/src/cloud-sql-admin.ts`
+   *(now `packages/library/src/store/cloud-sql-admin.ts` — `packages/store` dissolved by ADR-0077)* —
    `createCloudSqlAdmin(deps)` over injected token-fetch + HTTP (mirroring `dbWake.ts`'s pure core),
    with `describe()` (state + activation policy) and `setActivationPolicy(ALWAYS|NEVER)`. Pure,
    offline-tested; built through the prove-it-gate (ADR-0057 spec-borne node).
@@ -80,7 +81,8 @@ subprocess on the hot path:
 mitigating it; ~10× faster `status`/`up`/`down`; unifies local + hosted db-control on one typed
 client, deduplicating `dbWake.ts`'s ad-hoc PATCH; stays keyless (ADR-0021), no new secrets or IAM.
 
-**Bad / costs.** Adds a direct `google-auth-library` dependency to `@storytree/store` (it is already
+**Bad / costs.** Adds a direct `google-auth-library` dependency to `@storytree/store`
+*(now `@storytree/library`'s `store` subpath — `packages/store` dissolved by ADR-0077)* (it is already
 a transitive dep of the Cloud SQL connector; this makes it explicit). The **thin I/O shell** (real
 `fetch` + ADC token mint) is not offline-unit-testable — exactly as `dbWake.ts`'s
 `createMetadataDbWaker`/`httpPatch` carry no `node:test`; coverage is the pure core + integration, not
@@ -100,6 +102,7 @@ fallback adds complexity until it is removed.
   (the `activationPolicy` this client toggles).
 - [ADR-0057](0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md) — spec-borne
   inner-loop nodes; how unit 1 was built and how the provable wiring units will be.
-- Code: `packages/store/src/cloud-sql-admin.ts` (unit 1, PR #164), `apps/studio/server/dbWake.ts` (the
+- Code: `packages/store/src/cloud-sql-admin.ts` (now `packages/library/src/store/cloud-sql-admin.ts`,
+  ADR-0077) (unit 1, PR #164), `apps/studio/server/dbWake.ts` (the
   precedent), `packages/cli/src/db-control.ts`, `apps/studio/server/dbControl.ts`, root `package.json`
   `db:*` scripts.

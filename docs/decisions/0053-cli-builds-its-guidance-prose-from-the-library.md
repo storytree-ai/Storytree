@@ -122,6 +122,7 @@ Inventory of hard-coded prose in `packages/cli/src/` against the Library:
 - [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md) — pull-based, just-in-time context.
 - [ADR-0017](0017-cross-cutting-knowledge-tier.md) — the Library tier as the durable DRY layer.
 - Code: `packages/cli/src/doctrine.ts` (`renderDoctrine`), `packages/cli/src/commands.ts`,
-  `packages/store/src/render-doc.ts` (`renderStoredDoc`), `packages/cli/src/agents.ts` (the precedent).
+  `packages/store/src/render-doc.ts` *(now `packages/library/src/store/render-doc.ts` —
+  `packages/store` dissolved by ADR-0077)* (`renderStoredDoc`), `packages/cli/src/agents.ts` (the precedent).
 - Library: `edit-first-curation`, `pull-based-context-architecture`, `reference-dont-restate`,
   `live-store-is-the-edit-surface`.

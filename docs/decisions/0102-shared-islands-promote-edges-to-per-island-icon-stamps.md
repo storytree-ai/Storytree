@@ -30,7 +30,8 @@ replaced by this simpler, neutral model during the owner conversation. This is t
 ## Context
 
 **The shared-island treatment lifts a hub off the map to de-noise it.** A story tagged `render: building`
-(today only `library`) leaves the laid-out map and renders its full island in the permanent left "Shared
+(today only `library`) *(since built out to more stories, e.g. `cli` — see the Consequences note below)*
+leaves the laid-out map and renders its full island in the permanent left "Shared
 Islands" panel (ADR-0088). To remove its road clutter, ADR-0088 / ADR-0076 §2 replaced every road to it
 with a generic **bookshelf stamp** on each consumer ("this island uses the shared X").
 
@@ -135,6 +136,8 @@ future call**, not decided here.
   promote-on-`render:building` edge transform (both directions), the depender-carries-depended placement,
   the source-hub city, and the `cli` `render: building` flip — sequenced with the two-stage visual proof
   (geometry red-green + owner-attested appearance, ADR-0070).
+  **Correction (2026-07-06 — ADR-0139 pass):** since built — `apps/studio/src/lib/buildingLayout.ts`
+  implements the icon-stamp model, and `stories/cli/story.md` now also carries `render: building`.
 
 ## References
 

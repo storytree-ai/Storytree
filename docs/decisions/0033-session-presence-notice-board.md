@@ -64,7 +64,8 @@ Two things changed since V1:
 1. **The notice board is a presence list, not an enforcement mechanism.** One declaration doc per
    session, **upserted** (current state) over an **append-only event history** (the house
    event+projection pattern): `events.session_event` + `events.session`, siblings to
-   `events.comment*`. Shape (zod-validated in `@storytree/core`):
+   `events.comment*`. Shape (zod-validated in `@storytree/core`) *(now `packages/notice-board` —
+   `packages/core` dissolved by ADR-0068)*:
    `{ sessionId, branch, workingOn, nodes, status, startedAt, lastSeenAt }`.
    - `sessionId` **is the worktree name** (e.g. `flamboyant-mccarthy-b02671`) — derived, never
      typed. No new identity machinery and **no signer chain**: presence is not proof (nothing is
@@ -179,7 +180,8 @@ The four open modeling calls in `stories/notice-board/story.md`, resolved by the
   (the SDK runtime whose in-process hooks/spine-code make leaf-side automation hook-free),
   [ADR-0031](0031-real-pass-promotion-and-worktree-deps.md) (REAL-build mechanics shaping the
   capability split), [ADR-0032](0032-cite-graduation-mechanism.md) (the sibling feedback story).
-- `packages/store/src/pg-comment-store.ts` (the event+projection pattern `presence-store` mirrors).
+- `packages/store/src/pg-comment-store.ts` *(now `packages/library/src/store/pg-comment-store.ts` —
+  `packages/store` dissolved by ADR-0077)* (the event+projection pattern `presence-store` mirrors).
 - Claude Code hook semantics (blocking exit-2 events; SessionStart/SessionEnd; statusline):
   code.claude.com/docs — verified 2026-06-11.
 - Design conversation, 2026-06-10/11 (owner: presence over enforcement; "I exist and I'm working

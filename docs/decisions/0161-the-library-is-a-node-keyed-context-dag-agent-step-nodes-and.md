@@ -128,5 +128,3 @@ serves.* The readiness review (2026-07-05) established the precise seam:
 - Code: `packages/cli/src/envelope.ts` (the shared `next:` envelope), `packages/library/src/store/render-agent.ts`,
   `packages/cli/src/agents.ts`, `packages/cli/src/surface-coverage-gate.ts`.
 - Readiness review + owner conversation, 2026-07-05.
-</content>
-</invoke>

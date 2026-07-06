@@ -34,8 +34,8 @@ hierarchy) and **"Corpus integrity"** (the library tier):
    a hand-done recipe (memory `live-to-seed-corpus-export`), run by eye.
 3. **The guards count, they do not compare (Corpus integrity).** `count-reconciliation` compares the
    *number* of structured units to generated assets; `check:corpus-sync` compares *id presence*. Neither
-   looks at BODIES, and `build-corpus.mjs` had no `--check` wired into CI — so a stale glossary /
-   assets.json, or a live body that has drifted from its seed copy, passes clean.
+   looks at BODIES, and `build-corpus.mjs` had no `--check` wired into CI — so a stale glossary *(retired
+   by ADR-0135)* / assets.json, or a live body that has drifted from its seed copy, passes clean.
 
 The probe also surfaced a fact the naive "live is canonical, overwrite the seed from it" model misses:
 live and seed both hold 137 non-agent docs (equal counts *hid* the drift), but **12 differ by body**.
@@ -55,6 +55,8 @@ owner-directed calls. Four parts:
    `--check` mode that regenerates `assets.json` + `docs/glossary.md` in memory and exits non-zero on
    drift, writing nothing — the mirror of `check:claude` / `check:agents`. Wired into `pnpm gate` and
    the CI `verify` job (`check:corpus-build`). A stale generated view can no longer merge clean.
+   **Correction (2026-07-06 — ADR-0139 pass):** per [ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md)
+   the glossary is retired; `--check` now covers `assets.json` only.
 2. **Content-diff reconciliation** (finding 3 / bodies). A reconciliation that compares seed↔live by
    BODY, not just count/id — WARN-only and SKIP-offline (mirroring `check:corpus-sync`, since CI's
    verify job is DB-free), classifying each drift as *degraded-live* (restore seed→live) vs

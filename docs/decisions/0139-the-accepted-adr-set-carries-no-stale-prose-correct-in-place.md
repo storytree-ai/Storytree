@@ -169,5 +169,6 @@ projection of the prose, never inventing a flip; `accepted → proposed` un-deci
   through it).
 - [ADR-0084](0084-agents-may-flip-an-adr-green.md) — agents may transcribe an evidence-backed flip.
 - `packages/cli/src/adr-health.ts` (the gate suite to change), `packages/cli/src/adr-frontmatter.ts`
+  *(now `packages/drive/src/adr-frontmatter.ts` — moved by the ADR-0112 drive extraction)*
   (the edge parse), `packages/library` seed `librarian-curator` artifact (the mandate to update) — the
   encodings the enforcement unit touches next.

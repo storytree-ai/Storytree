@@ -99,5 +99,3 @@ hang is caught sooner.
   `packages/orchestrator/src/resolve-prove-spec.ts` (`realProofCommand` stamps it on the one command),
   `packages/orchestrator/src/shell-test-executor.ts` (`DEFAULT_PROOF_TIMEOUT_MS`, the fallback) — the
   mechanism this ADR records.
-</content>
-</invoke>

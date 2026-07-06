@@ -11,7 +11,8 @@ decided: 2026-06-08
 accepted (2026-06-08; flipped from proposed 2026-06-21 under [ADR-0084](0084-agents-may-flip-an-adr-green.md)) — realises [ADR-0011](0011-own-the-agent-loop-and-context-engineering.md)'s
 pull-based, just-in-time context as a concrete **agent interface**; operationalises the Library tier
 ([ADR-0017](0017-cross-cutting-knowledge-tier.md) / [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) /
-[ADR-0019](0019-library-tier-name-and-defer-dbos.md)) over the built `packages/store`; informed by
+[ADR-0019](0019-library-tier-name-and-defer-dbos.md)) over the built `packages/store`
+*(now `packages/library/src/store` — `packages/store` dissolved by ADR-0077)*; informed by
 [`agent-library-interaction`](../research/agent-library-interaction.md) (the options study). This is
 the "full agent↔Library interaction protocol" that ADR-0018/0019 named as *under design separately*.
 
@@ -125,7 +126,8 @@ just-in-time principle a *navigational affordance*, not just a context-assembly 
 
 - **A new top-level `storytree` CLI** (provisionally `packages/cli`), run via `tsx`, no build step
   (project convention), dependency-free using node's `util.parseArgs`. It wraps the built narrow
-  `Store` (`packages/store`) and `packages/core`'s `validateLibraryDoc` — **no store schema change is
+  `Store` (`packages/store` *(now `packages/storage-protocol` — ADR-0068)*) and `packages/core`'s
+  `validateLibraryDoc` *(now `packages/library`'s — ADR-0068)* — **no store schema change is
   required to begin** (`upsertDoc` / `queryDocs` / `getDoc` / `deleteDoc` / `appendEvent` /
   `readEvents` already suffice for read, list, comment, retire).
 - **Edges stay as typed ID-ref arrays inside the doc** (the store's "relationships are ID refs inside
@@ -160,6 +162,7 @@ just-in-time principle a *navigational affordance*, not just a context-assembly 
   [ADR-0019](0019-library-tier-name-and-defer-dbos.md) (the Library tier / source / name + store),
   [ADR-0016](0016-knowledge-code-binding-and-staleness.md) (staleness, surfaced via `tree focus`).
 - [`agent-library-interaction`](../research/agent-library-interaction.md) (the options study this
-  decides), `packages/store` (the store it wraps), `packages/agent/src/fs-tools.ts` (the
+  decides), `packages/store` *(now `packages/library/src/store` — ADR-0077)* (the store it wraps),
+  `packages/agent/src/fs-tools.ts` (the
   guidance-emitting tool contract it mirrors).
 - Design conversation, 2026-06-08 (owner counter-proposal: the choose-your-own-adventure CLI).

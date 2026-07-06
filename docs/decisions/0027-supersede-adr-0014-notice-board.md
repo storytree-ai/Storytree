@@ -38,7 +38,8 @@ Two things overtook the draft:
 
 2. **The migration it depended on shipped.** Comments now persist as typed events
    (`events.comment` projection + the append-only `events.comment_event` history; `PgCommentStore` in
-   `packages/store`), and the studio reads/writes the shared Cloud SQL Postgres store via
+   `packages/store` *(now `packages/library/src/store` — ADR-0077)*), and the studio reads/writes the
+   shared Cloud SQL Postgres store via
    `STORYTREE_STUDIO_STORE=pg`. ADR-0014's own status line — *"the comments→events / studio↔store
    migration … is still pending; `devApi.ts` + `comments.json` remain the live path"* — was therefore
    **stale**: the pg path is built; the JSON dev API is now the offline fallback only.
@@ -117,5 +118,7 @@ the genuinely still-open items.
   and §1 (identity/attestation, which the carried-forward C4 cite-identity facet ties to).
 - The carried-forward unit `oq-feedback-graduation-mechanism`; the retired unit `oq-adr-0014-draft`;
   the owner comment `6526c9ab-5e3e-47ab-8c05-3d09e8100b0e` on the live store.
-- `packages/store/src/pg-comment-store.ts` (`events.comment` / `events.comment_event`),
-  `packages/core/src/store.ts` (`deleteDoc` — the retire mechanism), design conversation 2026-06-10.
+- `packages/store/src/pg-comment-store.ts` *(now `packages/library/src/store/pg-comment-store.ts` —
+  ADR-0077)* (`events.comment` / `events.comment_event`),
+  `packages/core/src/store.ts` (`deleteDoc` — the retire mechanism)
+  *(now `packages/storage-protocol/src/store.ts` — ADR-0068)*, design conversation 2026-06-10.

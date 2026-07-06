@@ -38,7 +38,8 @@ ADR-0017/0019/0023) — but the *ways of working* across them live nowhere a ses
 
 ## Decision
 
-1. **A new structured kind `process` in `KIND_SPECS`** (`packages/core/src/knowledge.ts`), with
+1. **A new structured kind `process` in `KIND_SPECS`** (`packages/core/src/knowledge.ts`
+   *(now `packages/library/src/knowledge.ts` — `packages/core` dissolved by ADR-0068)*), with
    fields: `statement` (lead, "**The ceremony.**"), `trigger`, `steps`, `surfaces`,
    `failureModes` (all required), `verification` (optional — what deterministically checks the
    ceremony was followed; if nothing does, the artifact must say so). Schema, renderer, template,

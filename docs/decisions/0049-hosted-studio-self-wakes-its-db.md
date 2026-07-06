@@ -41,7 +41,9 @@ live-DB ref to collide; the on-disk-number collision is what the rename to 0049 
 The hosted studio (Cloud Run `storytree-studio`, behind direct IAP) authorizes members from a users
 projection in Cloud SQL `storytree-pg` (`resolveMembersAccess`, ADR-0043). That instance **auto-stops
 when idle** for cost (idle-aware 8 h window + a daily 04:30 floor — `infra/idle-stop.tf` /
-`infra/cost-backstop.tf`, ADR-0015). When it is STOPPED:
+`infra/cost-backstop.tf`, ADR-0015). **Correction (2026-07-06 — ADR-0139 pass):** this idle-aware
+window was replaced by a fixed 01:00–07:00 Australia/Sydney sleep window
+([ADR-0114](0114-hosted-db-sleeps-on-a-fixed-1am-7am-sydney-window-replacing.md)). When it is STOPPED:
 
 - `resolveMembersAccess` throws, the server falls back to `createDegradedPolicy`, and every `/api/*`
   except `/api/health` + `/api/me` answers 503;

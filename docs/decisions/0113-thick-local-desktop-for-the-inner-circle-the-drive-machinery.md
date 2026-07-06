@@ -97,6 +97,10 @@ worker, and the headless-orchestrator runtime) instead of a hosted one.
    access (ADR-0021 keyless), an **attended privileged action performed at delivery**, not a local-store fork. A
    per-member local store is explicitly NOT chosen (it would fragment the shared forest); it remains a future option
    if disconnected operation is ever needed.
+   *(This per-friend IAM-grant write path is amended by [ADR-0117](0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)'s
+   members-gated write-broker design; ADR-0117 itself is deferred for the inner-circle MVP by
+   [ADR-0133](0133-inner-circle-desktop-is-the-priority-finish-storytree-s-tree.md), so this direct grant is the
+   operative path today.)*
 
 7. **Minimal packaging for v1 (lean, ADR-0109's "minimal first").** The trusted member runs a dev-mode desktop build
    with the toolchain present (Node / pnpm / git) — acceptable for a co-builder. Code-signing, notarization, and
@@ -166,5 +170,3 @@ worker, and the headless-orchestrator runtime) instead of a hosted one.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — the desktop appearance is
   operator-attested.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — owner-directed → born accepted.
-</content>
-</invoke>

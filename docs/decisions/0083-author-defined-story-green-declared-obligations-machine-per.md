@@ -11,7 +11,9 @@ accepted (2026-06-21) — drafted from a direct owner realignment in conversatio
 day: the owner adopted **Fork A** and authorised agents to perform the green flip (recorded by
 [ADR-0084](0084-agents-may-flip-an-adr-green.md)). It carried two explicit owner-ratification **forks**
 (A and B below); **Fork A is RESOLVED (adopt)** and built (see below), **Fork B remains open** (a
-separate session). It **amends [ADR-0007](0007-proof-model.md)** (the `mapped` framing),
+separate session) *(Correction, 2026-07-06 — ADR-0139 pass: resolved by*
+*[ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md))*. It
+**amends [ADR-0007](0007-proof-model.md)** (the `mapped` framing),
 **[ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) §2** and
 **[ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)** (story-green
 composition); it overturns no honesty wall (`green = a signed verdict` stands).

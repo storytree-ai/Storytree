@@ -125,6 +125,7 @@ count, an operator who approves — with much of the design weight spent on maki
 - `open-questions.md` §1 (identity/attestation, which the cite `actor` semantics tie to).
 - The retired OQ `oq-feedback-graduation-mechanism`; the resolved owner comment
   `a50e0372-99b5-461c-9d3c-1b5e9d6bd25e` on the live store.
-- `packages/store/src/pg-comment-store.ts` (the substrate `events.cite` mirrors);
+- `packages/store/src/pg-comment-store.ts` *(now `packages/library/src/store/pg-comment-store.ts` —
+  `packages/store` dissolved by ADR-0077)* (the substrate `events.cite` mirrors);
   `stories/feedback-graduation/` (the build vehicle, re-authored here).
 - Design conversation, 2026-06-10.

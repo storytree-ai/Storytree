@@ -32,8 +32,9 @@ recorded here as it resolves.
 ## Decision
 
 1. **Structured source of truth.** `apps/studio/data/knowledge.json` is the single source — typed units
-   validated by a `packages/core` zod `Knowledge` union discriminated by `kind`. `assets.json` (the
-   studio view) and `docs/glossary.md` (the glossary view) are **generated** from it by
+   validated by a `packages/core` *(now `packages/library` — ADR-0068)* zod `Knowledge` union
+   discriminated by `kind`. `assets.json` (the
+   studio view) and `docs/glossary.md` (the glossary view, retired by ADR-0135) are **generated** from it by
    `build-corpus.mjs`. The old `seed.assets.mjs` and glossary-as-source are **retired**. *(Resolves the
    durability question, ex-`oq-library-body-durability`: the store is the source; there is no competing
    generator left to revert it.)*
@@ -95,4 +96,5 @@ recorded here as it resolves.
   [ADR-0017](0017-cross-cutting-knowledge-tier.md),
   [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) (Phase 2 target).
 - `apps/studio/data/knowledge.json` (source), `apps/studio/data/build-corpus.mjs` (generator),
-  `packages/core/src/knowledge.ts` (schema / `KIND_SPECS`), `docs/research/library-template-alignment.md`.
+  `packages/core/src/knowledge.ts` *(now `packages/library/src/knowledge.ts` — ADR-0068)*
+  (schema / `KIND_SPECS`), `docs/research/library-template-alignment.md`.

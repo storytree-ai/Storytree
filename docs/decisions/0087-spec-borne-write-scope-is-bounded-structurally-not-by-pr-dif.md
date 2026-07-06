@@ -114,4 +114,3 @@ spec-borne-only node with a custom proof command actually exists.
   ADR builds.
 - `stories/drive-machinery/spec-borne-proof-config.md` — the capability whose "Open owner call" this
   resolves.
-</content>

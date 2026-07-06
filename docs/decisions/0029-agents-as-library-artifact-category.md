@@ -76,7 +76,8 @@ roster the architecture has dissolved. But two things are nonetheless true and c
    can drift. The Library's `kind`-discriminated, `KIND_SPECS`-driven schema is the right substrate.
 
 The Library schema is *exactly* the place: a `kind` is an ordered field table in `KIND_SPECS`
-(`packages/core/src/knowledge.ts`) that drives three derived artifacts that can never drift — the zod
+(`packages/core/src/knowledge.ts` — now `packages/library/src/knowledge.ts`, ADR-0068) that drives
+three derived artifacts that can never drift — the zod
 discriminated union, `renderBody`, and `generateTemplate` (ADR-0018 §2). Adding a roster category is
 therefore "add one `KIND_SPECS` entry + its studio taxonomy row + a drift-guard test," not a bespoke
 data model.
@@ -363,7 +364,8 @@ the task brief, not re-typed here.
    "n/a — obsolete; superseded by <surface>". The dissolution itself is queryable knowledge.
 
 4. **Drift-guard scope.** **DECIDED: the `KIND_SPECS`↔zod parity test lands now**
-   (`packages/core/src/knowledge.test.ts` — kind-enumeration parity, exactly-one-lead, required/optional
+   (`packages/core/src/knowledge.test.ts` — now `packages/library/src/knowledge.test.ts`, ADR-0068 —
+   kind-enumeration parity, exactly-one-lead, required/optional
    fail-closed, renderer↔template byte-parity, and the Q5 split pinned for `agent`). The
    referential-integrity check on `references` **starts as WARN** (the ADR-0026 §6 posture: a
    non-gating check), **graduating to GATE later** — once the candidate guidance units the eleven seeds
@@ -457,7 +459,8 @@ The decisions, in order:
 5. **Migration posture (supersedes §"Migration posture" above for this change).** The reshape is
    exactly the case that section's "Forward-only still holds" clause foresaw: drops + a rename +
    retypes = a **data migration**. `CURRENT_SCHEMA_VERSION` bumped 1→2 with the registry entry
-   `agent-context-assembly-reshape` (`packages/core/src/migrations.ts` #2): agent rows drop the
+   `agent-context-assembly-reshape` (`packages/core/src/migrations.ts` #2
+   — now `packages/library/src/migrations.ts`, ADR-0068): agent rows drop the
    walls, extract the `asset:` refs out of the old prose into `context`/`rules`/`antiPatterns`
    (`context` falls back to the row's `references` asset refs so the required floor stays
    non-empty), and lagging rows forward-migrate on write via the existing `upcastAndValidate`
@@ -487,7 +490,8 @@ The decisions, in order:
   [ADR-0014](0014-notice-board-feedback-graduates-into-durable-guidance.md) (the graduation loop
   trace-explorer/memory-curator feed).
 - `legacy/Agentic/agents/` (the V1 roster — the source these units are imported from, read-only),
-  `packages/core/src/knowledge.ts` (`KIND_SPECS` + the `Knowledge` union the `agent` kind extends),
+  `packages/core/src/knowledge.ts` (now `packages/library/src/knowledge.ts`, ADR-0068)
+  (`KIND_SPECS` + the `Knowledge` union the `agent` kind extends),
   `apps/studio/src/types.ts` (the studio taxonomy the `agent` category extends).
 - The roster-mapping JSON supplied in the task brief (2026-06-10) — the per-entry disposition/rationale
   seeding the eleven units.

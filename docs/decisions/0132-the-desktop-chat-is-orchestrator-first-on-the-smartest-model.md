@@ -171,5 +171,3 @@ immediately. That deferred question lands here.
   default + `onMessage`/`onDelta`), `packages/drive/src/{orchestrate,chat-stream}.ts`,
   `apps/desktop/src/backend/chat-sse-mount.ts`, `apps/desktop/electron/backend-entry.ts` (the sidecar
   runner-injection point, decision 5), `apps/studio/src/components/ChatPanel.tsx` (the thin client).
-</content>
-</invoke>
