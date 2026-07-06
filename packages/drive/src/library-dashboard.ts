@@ -24,6 +24,7 @@ const KIND_ORDER = [
   "agent",
   "proposal",
   "open-question",
+  "friction",
   "template",
 ] as const;
 
