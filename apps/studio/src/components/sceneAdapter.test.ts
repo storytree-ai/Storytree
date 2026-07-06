@@ -1,7 +1,7 @@
 // The studio scene-graph adapter (ADR-0093 Unit 2b): the real buildWorld → worldToScene →
 // buildScene path. Stage-1 red-green of the studio render (ADR-0070): the studio's actual
 // world model folds into the core's SceneInput and yields a correct drawable tree (the right
-// island per status, caps as flora, the human-witness signpost, roads). The studio's VISUAL
+// island per status, caps as flora, the human-witness signpost, trails). The studio's VISUAL
 // PARITY (the inline render vs `?render=scene`) is operator-attested, not asserted here.
 
 import { describe, it, expect } from 'vitest';
@@ -104,12 +104,28 @@ describe('worldToScene → buildScene (the real studio world model)', () => {
     expect(all(territory(scene(), 'foundation'), 'sign-blank')).toHaveLength(0);
   });
 
-  it('routes the depends_on edges as roads (foundation←mid←top)', () => {
-    const roads = all(scene(), 'road');
-    expect(roads.length).toBeGreaterThanOrEqual(2);
-    const ends = roads.map((r) => `${r.from}->${r.to}`);
+  it('routes the depends_on edges as the trail network (foundation←mid←top, ADR-0169)', () => {
+    const s = scene();
+    // the per-edge reveal metadata carries every depends_on edge…
+    const edges = all(s, 'trail-edge');
+    expect(edges.length).toBeGreaterThanOrEqual(2);
+    const ends = edges.map((e) => `${e.from}->${e.to}`);
     expect(ends).toContain('foundation->mid');
     expect(ends).toContain('mid->top');
+    // …each with an ordered segment chain naming real drawn segments
+    const drawn = new Set(
+      [...all(s, 'trail-fill'), ...all(s, 'trail-ghost')].map((n) => n.id),
+    );
+    for (const e of edges) {
+      expect(e.segments && e.segments.length > 0).toBe(true);
+      for (const part of (e.segments ?? '').split(',')) {
+        expect(drawn.has(part.split(':')[0]!)).toBe(true);
+      }
+    }
+    // the cased passes exist and never interleave (shadow, casing, fill, ghost groups)
+    expect(all(s, 'trail-shadow-pass')).toHaveLength(1);
+    expect(all(s, 'trail-casing-pass')).toHaveLength(1);
+    expect(all(s, 'trail-fill-pass')).toHaveLength(1);
   });
 
   it('is deterministic — same world → byte-identical scene', () => {

@@ -10,10 +10,8 @@ import {
   spokePath,
   spokeEdges,
   dockedEdgePath,
-  dockedRoads,
   orbitRings,
   SOLAR_OPTS,
-  type DockNode,
   type SolarNode,
   type Pt,
 } from './solarLayout';
@@ -186,72 +184,9 @@ describe('dockedEdgePath — perimeter docking (the website road model)', () => 
   });
 });
 
-describe('dockedRoads — the DAG/tree world docked-line layer (owner steer 2026-06-20)', () => {
-  const dock = (x: number, y: number, r: number): DockNode => ({ x, y, r });
-
-  it('emits one docked path per edge, both ends on the island rims (not the centres)', () => {
-    const docks = new Map<string, DockNode>([
-      ['a', dock(0, 0, 10)],
-      ['b', dock(100, 0, 10)],
-    ]);
-    const roads = dockedRoads([{ from: 'a', to: 'b', via: [] }], docks);
-    expect(roads).toHaveLength(1);
-    expect(roads[0]!.from).toBe('a');
-    expect(roads[0]!.to).toBe('b');
-    // dock on the a-rim toward b (x=+10) and the b-rim toward a (x=90), never centre-to-centre
-    expect(roads[0]!.d.startsWith('M 10 0')).toBe(true);
-    expect(roads[0]!.d.trimEnd().endsWith('90 0')).toBe(true);
-  });
-
-  it('DROPS an edge whose endpoint has no dock (how a de-connected building sheds its roads)', () => {
-    const docks = new Map<string, DockNode>([['a', dock(0, 0, 10)]]);
-    // library de-connection (the 2026-06-20 follow-on) is exactly this: omit it from
-    // dockById and every edge touching it vanishes — in or out.
-    expect(dockedRoads([{ from: 'a', to: 'ghost', via: [] }], docks)).toEqual([]);
-    expect(dockedRoads([{ from: 'ghost', to: 'a', via: [] }], docks)).toEqual([]);
-  });
-
-  it('carries `via` through for the road tooltip', () => {
-    const docks = new Map<string, DockNode>([['a', dock(0, 0, 5)], ['b', dock(50, 0, 5)]]);
-    const roads = dockedRoads([{ from: 'a', to: 'b', via: ['cap → dep'] }], docks);
-    expect(roads[0]!.via).toEqual(['cap → dep']);
-  });
-
-  it('passes bowFrac through (a bowed line differs from a straight one)', () => {
-    const docks = new Map<string, DockNode>([['a', dock(0, 0, 5)], ['b', dock(100, 0, 5)]]);
-    const straight = dockedRoads([{ from: 'a', to: 'b', via: [] }], docks, 0);
-    const bowed = dockedRoads([{ from: 'a', to: 'b', via: [] }], docks, 0.2);
-    expect(bowed[0]!.d).not.toBe(straight[0]!.d);
-  });
-
-  it('is deterministic', () => {
-    const docks = new Map<string, DockNode>([['a', dock(3, 4, 7)], ['b', dock(-8, 30, 9)]]);
-    const edges = [{ from: 'a', to: 'b', via: [] }];
-    expect(dockedRoads(edges, docks, 0.08)).toEqual(dockedRoads(edges, docks, 0.08));
-  });
-
-  it('a BUILDING excluded from the dock map sheds ALL its edges, in and out (ADR-0076)', () => {
-    // The library-as-a-building de-connection: buildWorld omits a building territory from
-    // dockById, so every edge touching it vanishes while the rest of the map keeps its roads.
-    const all = new Map<string, DockNode>([
-      ['library', dock(0, 0, 10)],
-      ['a', dock(100, 0, 10)],
-      ['b', dock(0, 100, 10)],
-      ['c', dock(100, 100, 10)],
-    ]);
-    const edges = [
-      { from: 'library', to: 'a', via: [] }, // out of the building
-      { from: 'b', to: 'library', via: [] }, // into the building
-      { from: 'a', to: 'c', via: [] }, // unrelated road — survives
-    ];
-    // exclude the building from the dock map — the drop-on-missing-dock seam (ADR-0076 §2 now
-    // also keeps a building out of the laid-out territories entirely, so its edges never enter)
-    const without = new Map([...all].filter(([id]) => id !== 'library'));
-    const roads = dockedRoads(edges, without);
-    expect(roads.map((r) => `${r.from}->${r.to}`)).toEqual(['a->c']);
-    expect(roads.some((r) => r.from === 'library' || r.to === 'library')).toBe(false);
-  });
-});
+// `dockedRoads` retired with ADR-0169 (the `depends_on` edges route as the shared-core
+// trail network now — see lib/trailReveal.test.ts + the core's routing tests);
+// `dockedEdgePath` stays for the solar spokes and is pinned above.
 
 describe('orbitRings — the concentric circle grid', () => {
   it('one ring per distinct rank, at that rank`s MEAN island distance, inner→outer', () => {

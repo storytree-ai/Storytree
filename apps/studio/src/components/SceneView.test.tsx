@@ -13,10 +13,59 @@ import {
   type BuildPhase,
   type ClaimColourState,
   type SceneInput,
+  type SceneTrailsInput,
 } from '@storytree/forest-world';
+import { trailRevealPlan } from '../lib/trailReveal';
 import { SceneView, type SceneCtx } from './SceneView';
 
 afterEach(cleanup);
+
+/** A tiny hand-built ADR-0169 trail network: the a→lib edge rides two shared-able
+ *  segments (tseg1 a spur, tseg2 the trunk-side approach), the lib→b edge bores a
+ *  hidden under-island run (tseg3) through a cave portal on lib's rim. */
+function mkTrails(): SceneTrailsInput {
+  return {
+    segments: [
+      {
+        id: 'tseg1',
+        d: 'M 0 0 C 10 0 20 0 30 0',
+        points: [{ x: 0, y: 0 }, { x: 30, y: 0 }],
+        usage: 1,
+        hidden: false,
+      },
+      {
+        id: 'tseg2',
+        d: 'M 30 0 C 40 0 50 0 60 0',
+        points: [{ x: 30, y: 0 }, { x: 60, y: 0 }],
+        usage: 2,
+        hidden: false,
+      },
+      {
+        id: 'tseg3',
+        d: 'M 60 0 C 70 0 80 0 90 0',
+        points: [{ x: 60, y: 0 }, { x: 90, y: 0 }],
+        usage: 1,
+        hidden: true,
+      },
+    ],
+    edges: [
+      {
+        from: 'a',
+        to: 'lib',
+        title: 'lib depends on a',
+        segments: [
+          { id: 'tseg1', reversed: false },
+          { id: 'tseg2', reversed: false },
+        ],
+      },
+      { from: 'lib', to: 'b', segments: [{ id: 'tseg3', reversed: false }] },
+    ],
+    caves: [
+      { islandId: 'lib', x: 55, y: 5, bearing: Math.PI / 2, width: 4.5, edgeIds: ['lib->b'] },
+    ],
+    dropped: [],
+  };
+}
 
 function mkInput(wispPhase?: BuildPhase, claimState: ClaimColourState = 'authoring'): SceneInput {
   return {
@@ -30,7 +79,7 @@ function mkInput(wispPhase?: BuildPhase, claimState: ClaimColourState = 'authori
     ],
     drawTiles: [],
     wheatSets: [new Set()],
-    roads: [{ from: 'a', to: 'b', d: 'M 0 0 L 1 1', title: 'b depends on a' }],
+    trails: mkTrails(),
     territories: [
       {
         id: 'lib',
@@ -63,7 +112,7 @@ function renderScene(
 } {
   const ctx: SceneCtx = {
     territoryClassById: (id, status) => `hex-territory st-${status}${id === 'lib' ? ' is-focus' : ''}`,
-    roadClassByEnds: () => 'world-trail is-ancestor',
+    reveal: null,
     hidden: new Set(['unhealthy']),
     onHoverStory: vi.fn(),
     onSelectStory: vi.fn(),
@@ -195,25 +244,20 @@ describe('SceneView — the studio scene mapper', () => {
     expect(onSelectStory).not.toHaveBeenCalled(); // stopPropagation
   });
 
-  it('marks an arriving island across its per-island groups and its roads (arrival staging)', () => {
-    // 'lib' is the arriving island; the a→b road also arrives because 'b' is entering.
+  it('marks an arriving island across its per-island groups (arrival staging)', () => {
+    // 'lib' is the arriving island. (Trails are hidden by default per ADR-0169 §3, so
+    // arrival no longer draws a road on — the island layers alone stage the entrance.)
     const { root } = renderScene({ arrivalIds: new Set(['lib', 'b']) });
     // the island's flora / coast / ground groups all wear arrive-island (the CSS
-    // keyframes stage coast → ground → flora off this one class per layer) …
+    // keyframes stage coast → ground → flora off this one class per layer).
     expect(root.querySelector('.hex-flora.arrive-island')).toBeTruthy();
     expect(root.querySelector('.coast-fill-group.arrive-island')).toBeTruthy();
     expect(root.querySelector('.relaxed-tile.arrive-island')).toBeTruthy();
-    // … and a road touching an entering story wears arrive-road, with its line
-    // normalised to pathLength=1 so the CSS draw-on is length-agnostic.
-    const road = root.querySelector('.world-trail.arrive-road');
-    expect(road).toBeTruthy();
-    expect(road?.querySelector('.dag-road')?.getAttribute('pathLength')).toBe('1');
   });
 
   it('renders zero arrival artifacts when no story is entering (the steady-state board)', () => {
     const { root } = renderScene();
     expect(root.querySelector('[class*="arrive"]')).toBeNull();
-    expect(root.querySelector('.dag-road')?.getAttribute('pathLength')).toBeNull();
     // an arrival set that names no rendered story is equally inert.
     const other = renderScene({ arrivalIds: new Set(['not-here']) }).root;
     expect(other.querySelector('[class*="arrive"]')).toBeNull();
@@ -226,5 +270,79 @@ describe('SceneView — the studio scene mapper', () => {
     expect(onHoverStory).toHaveBeenCalledWith('lib');
     fireEvent.mouseLeave(root.querySelector('.hex-flora')!);
     expect(onHoverStory).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('SceneView — the ADR-0169 trail network mapping', () => {
+  it('maps the cased passes, stamping the reveal hooks (data-id/usage/edges) on every segment', () => {
+    const { root } = renderScene();
+    // visible segments draw once per pass — shadow, casing, fill (2 visible here) …
+    expect(root.querySelectorAll('.trail-shadow-pass .trail-shadow')).toHaveLength(2);
+    expect(root.querySelectorAll('.trail-casing-pass .trail-casing')).toHaveLength(2);
+    expect(root.querySelectorAll('.trail-fill-pass .trail-fill')).toHaveLength(2);
+    // … and the hidden under-island run lands ONLY in the ghost pass.
+    expect(root.querySelectorAll('.trail-ghost-pass .trail-ghost')).toHaveLength(1);
+    expect(root.querySelector('.trail-fill[data-id="tseg3"]')).toBeNull();
+    const fill = root.querySelector('.trail-fill[data-id="tseg1"]')!;
+    expect(fill.getAttribute('data-usage')).toBe('1');
+    expect(fill.getAttribute('data-edges')).toBe('a->lib');
+  });
+
+  it('dashes a spur fill (usage 1) and keeps a trunk fill solid — computed, never authored', () => {
+    const { root } = renderScene();
+    expect(root.querySelector('.trail-fill[data-id="tseg1"]')!.classList.contains('is-spur')).toBe(true);
+    expect(root.querySelector('.trail-fill[data-id="tseg2"]')!.classList.contains('is-spur')).toBe(false);
+    // shadow/casing never carry the spur dash (the casing rule keeps the base solid).
+    expect(root.querySelector('.trail-casing.is-spur')).toBeNull();
+  });
+
+  it('emits the per-edge reveal metadata (from/to/ordered chain) for every edge', () => {
+    const { root } = renderScene();
+    const edge = root.querySelector('.trail-edge[data-from="a"][data-to="lib"]')!;
+    expect(edge).toBeTruthy();
+    expect(edge.getAttribute('data-segments')).toBe('tseg1:F,tseg2:F');
+  });
+
+  it('hides every trail by default: no is-revealed, no mask, no world focus class', () => {
+    const { root } = renderScene(); // reveal: null
+    expect(root.querySelector('.is-revealed')).toBeNull();
+    expect(root.querySelector('[mask]')).toBeNull();
+    expect(root.querySelector('.world-has-focus')).toBeNull();
+  });
+
+  it('reveals the focused island`s segments: mask + direction tint + revealed-width step', () => {
+    const plan = trailRevealPlan(mkTrails(), 'lib');
+    const { root } = renderScene({ reveal: plan });
+    // the world root wears the focus hook (CSS dims the rest of the world off it).
+    expect(root.querySelector('.world-has-focus')).toBeTruthy();
+    // a→lib is lib's DEPENDENCY (to === lib) → warm `dir-out`, both its segments masked.
+    const fill1 = root.querySelector('.trail-fill[data-id="tseg1"]')!;
+    const fill2 = root.querySelector('.trail-fill[data-id="tseg2"]')!;
+    expect(fill1.classList.contains('is-revealed')).toBe(true);
+    expect(fill1.classList.contains('dir-out')).toBe(true);
+    expect(fill2.getAttribute('mask')).toBe('url(#trail-m-tseg2)');
+    // lib→b is a DEPENDENT edge (from === lib) → cooler `dir-in` on its ghost run.
+    const ghost = root.querySelector('.trail-ghost[data-id="tseg3"]')!;
+    expect(ghost.classList.contains('is-revealed')).toBe(true);
+    expect(ghost.classList.contains('dir-in')).toBe(true);
+    // width steps from the REVEALED edge count (1 through tseg2 here), not the global
+    // usage (2): fill = 2 + 2.5·√1 = 4.5, its casing +2.5 = 7.
+    expect(fill2.getAttribute('stroke-width')).toBe('4.5');
+    expect(
+      root.querySelector('.trail-casing[data-id="tseg2"]')!.getAttribute('stroke-width'),
+    ).toBe('7');
+  });
+
+  it('renders the cave portal as an island prop wearing the folded island status', () => {
+    const { root } = renderScene();
+    const cave = root.querySelector('.world-cave.st-healthy')!;
+    expect(cave).toBeTruthy();
+    expect(cave.getAttribute('data-island')).toBe('lib');
+    expect(cave.getAttribute('data-edges')).toBe('lib->b');
+    expect(cave.getAttribute('transform')).toMatch(/translate\(55\.0 5\.0\) rotate\(90\.0\)/);
+    // the three parts: trampled apron, dark arch, lit rim.
+    expect(cave.querySelector('.cave-apron')).toBeTruthy();
+    expect(cave.querySelector('.cave-arch')).toBeTruthy();
+    expect(cave.querySelector('.cave-rim')).toBeTruthy();
   });
 });

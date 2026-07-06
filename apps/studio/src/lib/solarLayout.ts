@@ -237,38 +237,10 @@ export function dockedEdgePath(from: DockNode, to: DockNode, bowFrac = 0): strin
   return `M ${r2(sx)} ${r2(sy)} Q ${r2(mx)} ${r2(my)} ${r2(ex)} ${r2(ey)}`;
 }
 
-/** One DAG-world dependency edge to render as a thin docked line. */
-export interface RoadEdge {
-  from: string;
-  to: string;
-  via: string[];
-}
-
-/**
- * The DAG/tree world's `depends_on` roads rendered as the website's thin, no-arrow,
- * PERIMETER-DOCKED curves — the SAME `dockedEdgePath` model the solar world uses,
- * brought onto the default tree layout (owner steer 2026-06-20: "go back to the tree
- * structure, however I like the updated lines"). One line per edge, docked on each
- * island's rim in the bearing of the other; `bowFrac` bows it as in `dockedEdgePath`.
- *
- * An edge whose endpoint id is absent from `dockById` is DROPPED — which is also how a
- * de-connected "building" (e.g. library, the 2026-06-20 follow-on) sheds its roads:
- * simply omit it from `dockById` and every edge touching it disappears. Pure +
- * deterministic (the geometry is `dockedEdgePath`'s; nothing hashed/random here).
- */
-export function dockedRoads(
-  edges: readonly RoadEdge[],
-  dockById: ReadonlyMap<string, DockNode>,
-  bowFrac = 0,
-): { from: string; to: string; via: string[]; d: string }[] {
-  const out: { from: string; to: string; via: string[]; d: string }[] = [];
-  for (const e of edges) {
-    const a = dockById.get(e.from);
-    const b = dockById.get(e.to);
-    if (a && b) out.push({ from: e.from, to: e.to, via: e.via, d: dockedEdgePath(a, b, bowFrac) });
-  }
-  return out;
-}
+// `dockedRoads` (the DAG-world `depends_on` edges as thin docked lines) retired with
+// ADR-0169: the dependency edges route as the shared-core TRAIL network now
+// (`routeTrails`, reveal-on-focus). `dockedEdgePath` above STAYS — the solar
+// `consumed_by` spokes still dock rim-to-rim (§6, out of scope for the trails).
 
 /** One orbit of the circle grid: a dependency rank and the radius the ring is drawn at. */
 export interface OrbitRing {

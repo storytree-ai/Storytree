@@ -8,8 +8,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { crownRadius } from './sizing.js';
+import { routeTrails, trailFillWidth, type TrailIsland } from './routing.js';
 import {
   buildScene,
+  buildTrails,
   buildTree,
   buildPlant,
   buildConifer,
@@ -53,6 +55,37 @@ function mustByKind(n: SceneNode, kind: string): SceneNode {
 
 // ---------- fixtures ----------
 
+// Trail fixtures are ROUTED, not hand-forged: real `routeTrails` output on tiny island
+// sets (its own invariants are pinned in routing.test.ts). Computed once at module
+// load — routeTrails is a pure function, so sharing the instance is safe.
+const isle = (id: string, x: number, y: number, r: number): TrailIsland => ({ id, x, y, r });
+
+// one unobstructed edge, matching the default territories (library → cli)
+const BASE_ISLANDS = [isle('library', 100, 200, 60), isle('cli', 300, 60, 50)];
+const BASE_TRAILS = routeTrails(
+  BASE_ISLANDS,
+  [{ from: 'library', to: 'cli', title: 'cli depends on library' }],
+  'scene-fixture',
+);
+
+// two near-parallel edges into one destination — the reuse discount merges a trunk
+const MERGE_TRAILS = routeTrails(
+  [isle('a', -800, -60, 35), isle('b', -800, 60, 35), isle('c', 0, 0, 45)],
+  [
+    { from: 'a', to: 'c' },
+    { from: 'b', to: 'c' },
+  ],
+  'scene-merge',
+);
+
+// a walled-in edge — forced under the ring, so hidden ghost runs + cave portals exist
+const CAVE_ISLANDS: TrailIsland[] = [isle('A', 0, 0, 30), isle('B', 600, 0, 30)];
+for (let k = 0; k < 8; k++) {
+  const a = (Math.PI / 4) * k;
+  CAVE_ISLANDS.push(isle(`ring${k}`, 150 * Math.cos(a), 150 * Math.sin(a), 60));
+}
+const CAVE_TRAILS = routeTrails(CAVE_ISLANDS, [{ from: 'A', to: 'B' }], 'scene-cave');
+
 function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInput {
   return {
     id: 'library',
@@ -92,7 +125,7 @@ function mkInput(over: Partial<SceneInput> = {}): SceneInput {
       { h: { q: 1, r: 0 }, owner: 1 },
     ],
     wheatSets: [new Set(['0,0']), new Set()],
-    roads: [{ from: 'library', to: 'cli', d: 'M 0 0 L 1 1', title: 'cli depends on library' }],
+    trails: BASE_TRAILS,
     territories: [
       mkTerritory(),
       mkTerritory({ id: 'cli', caps: 2, centroid: { x: 300, y: 60 }, treeSpot: { x: 300, y: 50 }, plants: [], decor: [] }),
@@ -129,7 +162,7 @@ test('buildScene roots an offset world group with the layers in canonical order'
   assert.match(scene.transform ?? '', /^translate\(300\.0 400\.0\)$/);
   assert.deepEqual(
     scene.children.map((c) => c.kind),
-    ['empties-layer', 'coast-layer', 'ground-mesh', 'roads-layer', 'flora-layer', 'hits-layer'],
+    ['empties-layer', 'coast-layer', 'ground-mesh', 'trails-layer', 'flora-layer', 'hits-layer'],
   );
 });
 
@@ -150,15 +183,152 @@ test('mesh ground groups cells by owner; hex ground emits a group per tile', () 
   assert.equal(allByKind(hexGround, 'tile-top').length, 1);
 });
 
-test('roads carry data-from / data-to + a title; empties + hits are one per input', () => {
+test('empties + hits are one per input', () => {
   const scene = buildScene(mkInput());
-  const road = mustByKind(scene, 'road');
-  assert.equal(road.from, 'library');
-  assert.equal(road.to, 'cli');
-  assert.equal(road.title, 'cli depends on library');
-  assert.ok(firstByKind(road, 'road-line'));
   assert.equal(allByKind(mustByKind(scene, 'empties-layer'), 'empty').length, 2);
   assert.equal(allByKind(mustByKind(scene, 'hits-layer'), 'hit').length, 2);
+});
+
+// ---------- the trail network (ADR-0169 §2) ----------
+
+test('the trails layer is FULL passes in order — shadow < casing < fill < ghost — then the edge metadata', () => {
+  const layer = buildTrails(mkInput());
+  assert.equal(layer.kind, 'trails-layer');
+  assert.deepEqual(
+    layer.children.map((c) => c.kind),
+    ['trail-shadow-pass', 'trail-casing-pass', 'trail-fill-pass', 'trail-ghost-pass', 'trail-edges'],
+  );
+  // every visible segment appears exactly once per pass, one path each — passes are
+  // never interleaved per path (the casing rule: a merge must read as one trail).
+  const visible = BASE_TRAILS.segments.filter((s) => !s.hidden);
+  assert.ok(visible.length > 0);
+  for (const [pass, kind] of [
+    ['trail-shadow-pass', 'trail-shadow'],
+    ['trail-casing-pass', 'trail-casing'],
+    ['trail-fill-pass', 'trail-fill'],
+  ] as const) {
+    const paths = children(mustByKind(layer, pass));
+    assert.equal(paths.length, visible.length, `${pass} draws every visible segment once`);
+    assert.ok(paths.every((p) => p.el === 'path' && p.kind === kind));
+    assert.deepEqual(paths.map((p) => p.id).sort(), visible.map((s) => s.id).sort());
+  }
+  // the unobstructed fixture forces nothing under-island → an empty ghost pass.
+  assert.equal(children(mustByKind(layer, 'trail-ghost-pass')).length, 0);
+  // it renders inside the world above ground, below flora.
+  assert.equal(firstByKind(buildScene(mkInput()), 'trails-layer')?.kind, 'trails-layer');
+});
+
+test('each segment path carries id / data-usage / data-edges + its pass width from the ONE rule', () => {
+  const layer = buildTrails(mkInput());
+  const byId = (pass: string, id: string): SceneNode => {
+    const hit = children(mustByKind(layer, pass)).find((p) => p.id === id);
+    assert.ok(hit, `${pass} carries segment ${id}`);
+    return hit;
+  };
+  for (const seg of BASE_TRAILS.segments.filter((s) => !s.hidden)) {
+    const w = trailFillWidth(seg.usage);
+    const fill = byId('trail-fill-pass', seg.id);
+    assert.ok(fill.el === 'path' && fill.d === seg.d, 'the fill draws the segment d verbatim');
+    assert.equal(fill.usage, seg.usage);
+    assert.equal(fill.edges, 'library->cli');
+    assert.equal(fill.strokeWidth, w);
+    assert.equal(byId('trail-casing-pass', seg.id).strokeWidth, w + 2.5);
+    assert.equal(byId('trail-shadow-pass', seg.id).strokeWidth, w + 5);
+  }
+});
+
+test('a spur (usage 1) fill is dash-marked; a trunk (usage ≥ 2) is solid — from usage, never authored', () => {
+  const layer = buildTrails(mkInput({ trails: MERGE_TRAILS }));
+  const fills = children(mustByKind(layer, 'trail-fill-pass'));
+  const spurs = fills.filter((p) => p.spur === true);
+  const trunks = fills.filter((p) => p.spur === undefined);
+  assert.ok(spurs.length > 0 && trunks.length > 0, 'the merge fixture emerges both spurs and a trunk');
+  for (const p of spurs) assert.equal(p.usage, 1);
+  for (const p of trunks) assert.ok((p.usage ?? 0) >= 2, 'an unmarked fill is a trunk');
+  // the merged trunk carries BOTH edge keys through data-edges.
+  assert.ok(trunks.some((p) => (p.edges ?? '').split(',').sort().join(',') === 'a->c,b->c'));
+  // the mark is a FILL concern only — shadow + casing stay solid under a dashed spur.
+  for (const pass of ['trail-shadow-pass', 'trail-casing-pass'] as const) {
+    for (const p of children(mustByKind(layer, pass))) assert.equal(p.spur, undefined);
+  }
+});
+
+test('trail-edges is non-visual per-edge reveal metadata: data-from/to, title, the ordered F/R chain', () => {
+  const meta = mustByKind(buildTrails(mkInput()), 'trail-edges');
+  const edges = children(meta);
+  assert.equal(edges.length, BASE_TRAILS.edges.length);
+  const edge = edges[0]!;
+  const src = BASE_TRAILS.edges[0]!;
+  assert.ok(edge.el === 'g' && children(edge).length === 0, 'metadata only — no drawables');
+  assert.equal(edge.kind, 'trail-edge');
+  assert.equal(edge.from, src.from);
+  assert.equal(edge.to, src.to);
+  assert.equal(edge.title, 'cli depends on library');
+  assert.equal(
+    edge.segments,
+    src.segments.map((r) => `${r.id}:${r.reversed ? 'R' : 'F'}`).join(','),
+  );
+  assert.ok((edge.segments ?? '').length > 0, 'the chain names at least one segment');
+});
+
+test('hidden under-island runs land ONLY in the ghost pass', () => {
+  const layer = buildTrails(mkInput({ trails: CAVE_TRAILS }));
+  const hidden = CAVE_TRAILS.segments.filter((s) => s.hidden);
+  assert.ok(hidden.length > 0, 'the walled-in fixture forces hidden runs');
+  const ghosts = children(mustByKind(layer, 'trail-ghost-pass'));
+  assert.deepEqual(ghosts.map((p) => p.id).sort(), hidden.map((s) => s.id).sort());
+  assert.ok(ghosts.every((p) => p.el === 'path' && p.kind === 'trail-ghost'));
+  const hiddenIds = new Set(hidden.map((s) => s.id));
+  for (const pass of ['trail-shadow-pass', 'trail-casing-pass', 'trail-fill-pass'] as const) {
+    for (const p of children(mustByKind(layer, pass))) {
+      assert.ok(!hiddenIds.has(p.id ?? ''), `${pass} never draws a hidden segment`);
+    }
+  }
+});
+
+test('cave portals are PROPS above the flora: arch + rim + apron at the rim bearing, status-folded', () => {
+  const cave0 = CAVE_TRAILS.caves[0]!;
+  const scene = buildScene(
+    mkInput({
+      trails: CAVE_TRAILS,
+      territories: [mkTerritory({ id: cave0.islandId, status: 'unhealthy' })],
+    }),
+  );
+  const flora = mustByKind(scene, 'flora-layer');
+  const caves = children(flora).filter((c) => c.kind === 'cave');
+  assert.equal(caves.length, CAVE_TRAILS.caves.length, 'one prop per portal');
+  // appended AFTER the territories, so the arch occludes the trail disappearing under.
+  const kinds = children(flora).map((c) => c.kind);
+  assert.ok(kinds.lastIndexOf('territory') < kinds.indexOf('cave'));
+  const cave = caves[0]!;
+  assert.ok(cave.el === 'g');
+  assert.equal(cave.island, cave0.islandId);
+  assert.equal(cave.edges, cave0.edgeIds.join(','));
+  // placed at the portal point, rotated to the outward bearing.
+  const deg = (cave0.bearing * 180) / Math.PI;
+  assert.equal(
+    cave.transform,
+    `translate(${cave0.x.toFixed(1)} ${cave0.y.toFixed(1)}) rotate(${deg.toFixed(1)})`,
+  );
+  // the folded island status keys the mapper's shadow/side-wall hue family; a wall
+  // island with no territory wears the neutral fallback.
+  for (const c of caves) {
+    assert.equal(c.status, c.island === cave0.islandId ? 'unhealthy' : 'unknown');
+  }
+  // the dark flat-bottomed arch, its lit rim arc, and the trampled apron — sized 1.6×
+  // from the portal's trail width.
+  assert.ok(firstByKind(cave, 'cave-arch'));
+  assert.equal(mustByKind(cave, 'cave-rim').strokeWidth, 1.5);
+  const apron = mustByKind(cave, 'cave-apron');
+  const hw = (cave0.width * 1.6) / 2;
+  assert.ok(apron.el === 'ellipse' && Math.abs(apron.rx - hw * 1.3) < 1e-9);
+});
+
+test('buildScene stays deterministic with trails + caves present (same input → byte-identical)', () => {
+  assert.deepEqual(
+    buildScene(mkInput({ trails: CAVE_TRAILS })),
+    buildScene(mkInput({ trails: CAVE_TRAILS })),
+  );
 });
 
 // ---------- the central tree ----------

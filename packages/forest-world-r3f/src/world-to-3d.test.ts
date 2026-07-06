@@ -7,7 +7,8 @@
 //
 // When the implementation lands, these tests pin:
 //   • core kind-family mapping: tile hex ground → hex-ground, story tree →
-//     story-tree, road → road-strip, in-flight wisp → wisp-sprite
+//     story-tree, trail fill/ghost → trail-strip / trail-ghost-strip, cave →
+//     cave-arch, in-flight wisp → wisp-sprite
 //   • total coverage: non-core / structural SceneKinds yield an explicit
 //     { kind: 'skipped', sceneKind: string } — never a throw, never a silent drop
 //   • material variant flows from the territory's folded SceneStatus
@@ -16,8 +17,9 @@
 //   • determinism: same scene → byte-identical descriptor array
 //
 // The fixtures use a real buildScene over @storytree/forest-world's SceneInput
-// contract — not hand-rolled scene shapes — exercising the mapper end-to-end
-// against the real core (ADR-0123 provability firewall).
+// contract — trails are real `routeTrails` output on tiny island sets, not
+// hand-forged shapes — exercising the mapper end-to-end against the real core
+// (ADR-0123 provability firewall).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,10 +27,13 @@ import assert from 'node:assert/strict';
 import {
   buildScene,
   hexCenter,
+  routeTrails,
+  trailFillWidth,
   type SceneG,
   type SceneInput,
   type SceneKind,
   type SceneTerritoryInput,
+  type TrailIsland,
 } from '@storytree/forest-world';
 
 import {
@@ -41,6 +46,25 @@ import {
 // ---------------------------------------------------------------------------
 // fixtures — real SceneInput, not a hand-rolled scene shape
 // ---------------------------------------------------------------------------
+
+// Trail fixtures are ROUTED, not hand-forged (the scene.test.ts pattern): real
+// `routeTrails` output on tiny island sets, computed once — pure function, safe to share.
+const isle = (id: string, x: number, y: number, r: number): TrailIsland => ({ id, x, y, r });
+
+// one unobstructed edge, matching the default territory (library → cli)
+const BASE_TRAILS = routeTrails(
+  [isle('library', 100, 200, 60), isle('cli', 300, 60, 50)],
+  [{ from: 'library', to: 'cli', title: 'cli depends on library' }],
+  'r3f-fixture',
+);
+
+// a walled-in edge — forced under the ring, so hidden ghost runs + cave portals exist
+const CAVE_ISLANDS: TrailIsland[] = [isle('A', 0, 0, 30), isle('B', 600, 0, 30)];
+for (let k = 0; k < 8; k++) {
+  const a = (Math.PI / 4) * k;
+  CAVE_ISLANDS.push(isle(`ring${k}`, 150 * Math.cos(a), 150 * Math.sin(a), 60));
+}
+const CAVE_TRAILS = routeTrails(CAVE_ISLANDS, [{ from: 'A', to: 'B' }], 'r3f-cave');
 
 function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInput {
   return {
@@ -84,9 +108,7 @@ function mkInput(over: Partial<SceneInput> = {}): SceneInput {
       { h: { q: 1, r: 0 }, owner: 0 },
     ],
     wheatSets: [new Set()],
-    roads: [
-      { from: 'library', to: 'cli', d: 'M 0 0 L 100 100', title: 'cli depends on library' },
-    ],
+    trails: BASE_TRAILS,
     territories: [mkTerritory()],
     ...over,
   };
@@ -143,17 +165,30 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
   closeTo(trees[0]!.transform.x, 100, 'tree x = treeSpot.x');
   closeTo(trees[0]!.transform.z, 190, 'tree z = treeSpot.y');
 
-  // the road carries its routed polyline on the ground plane, anchored at its centroid.
-  const roads = descs.filter((d): d is InstanceDescriptor => d.kind === 'road-strip');
-  assert.equal(roads.length, 1, 'one road-strip per road');
-  const rd = roads[0]!;
-  assert.ok(rd.points && rd.points.length >= 2, 'road-strip carries its polyline');
-  closeTo(rd.points![0]!.x, 0, 'road start x');
-  closeTo(rd.points![0]!.z, 0, 'road start z');
-  closeTo(rd.points![rd.points!.length - 1]!.x, 100, 'road end x');
-  closeTo(rd.points![rd.points!.length - 1]!.z, 100, 'road end z');
-  closeTo(rd.transform.x, 50, 'road anchor at the polyline centroid');
-  closeTo(rd.transform.z, 50, 'road anchor at the polyline centroid');
+  // each visible trail segment carries its routed polyline on the ground plane
+  // (y = 0 throughout), width from the ONE shared rule, and its reveal metadata.
+  const visible = BASE_TRAILS.segments.filter((s) => !s.hidden);
+  const strips = descs.filter((d): d is InstanceDescriptor => d.kind === 'trail-strip');
+  assert.equal(strips.length, visible.length, 'one trail-strip per visible segment');
+  const byId = new Map(strips.map((s) => [s.segment, s]));
+  for (const seg of visible) {
+    const strip = byId.get(seg.id);
+    assert.ok(strip, `a strip exists for segment ${seg.id}`);
+    assert.ok(strip.points && strip.points.length >= 2, 'trail-strip carries its polyline');
+    // the strip's endpoints are the segment's smoothed endpoints (the d's M / final C
+    // anchor, r2-rounded by the core)
+    const first = seg.points[0]!;
+    const last = seg.points[seg.points.length - 1]!;
+    closeTo(strip.points[0]!.x, first.x, 'strip start x from the routed segment');
+    closeTo(strip.points[0]!.z, first.y, 'strip start z from the routed segment');
+    closeTo(strip.points[strip.points.length - 1]!.x, last.x, 'strip end x');
+    closeTo(strip.points[strip.points.length - 1]!.z, last.y, 'strip end z');
+    for (const p of strip.points) assert.equal(p.y, 0, 'strips lie on the ground plane');
+    assert.equal(strip.width, trailFillWidth(seg.usage), 'width = trailFillWidth(usage)');
+    assert.equal(strip.usage, seg.usage, 'usage rides the descriptor');
+    assert.equal(strip.hidden, false, 'a fill-pass strip is not hidden');
+    assert.deepEqual(strip.edges, ['library->cli'], 'the edge keys ride the descriptor');
+  }
 
   // the wisp orbits its territory's centroid.
   const sprites = descs.filter((d): d is InstanceDescriptor => d.kind === 'wisp-sprite');
@@ -190,11 +225,68 @@ test('worldTo3D maps the story tree to a story-tree descriptor — one per terri
   assert.equal(trees.length, 1, 'one story-tree descriptor per territory');
 });
 
-test('worldTo3D maps a road to a road-strip descriptor — one per road in the scene', () => {
-  // mkInput has 1 road
+test('worldTo3D maps visible trail segments to trail-strip descriptors — one per fill-pass segment', () => {
   const descs = worldTo3D(buildScene(mkInput()));
-  const roads = descs.filter((d): d is InstanceDescriptor => d.kind === 'road-strip');
-  assert.equal(roads.length, 1, 'one road-strip descriptor per road');
+  const strips = descs.filter((d): d is InstanceDescriptor => d.kind === 'trail-strip');
+  assert.equal(
+    strips.length,
+    BASE_TRAILS.segments.filter((s) => !s.hidden).length,
+    'one trail-strip descriptor per visible segment',
+  );
+  // the shadow/casing passes contribute NO geometry — the ribbon supplies its own
+  // look — but their paths still surface as explicit skips (total coverage).
+  const skippedKinds = descs.filter(asSkipped).map((s) => s.sceneKind);
+  assert.ok(skippedKinds.includes('trail-shadow'), 'shadow-pass paths skip explicitly');
+  assert.ok(skippedKinds.includes('trail-casing'), 'casing-pass paths skip explicitly');
+});
+
+test('worldTo3D filters under-island runs into trail-ghost-strip — never a trail-strip (ADR-0169 §2)', () => {
+  // the walled-in fixture forces the route under the ring: hidden ghost runs + caves
+  const hidden = CAVE_TRAILS.segments.filter((s) => s.hidden);
+  assert.ok(hidden.length > 0, 'the walled-in fixture forces hidden runs');
+  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })));
+  const ghosts = descs.filter((d): d is InstanceDescriptor => d.kind === 'trail-ghost-strip');
+  assert.equal(ghosts.length, hidden.length, 'one ghost strip per hidden segment');
+  for (const g of ghosts) {
+    assert.equal(g.hidden, true, 'ghost strips are marked hidden');
+    assert.ok(g.points && g.points.length >= 2, 'ghost strips still carry geometry');
+  }
+  // a hidden segment NEVER leaks into the visible strip family
+  const stripIds = new Set(
+    descs
+      .filter((d): d is InstanceDescriptor => d.kind === 'trail-strip')
+      .map((d) => d.segment),
+  );
+  for (const seg of hidden) {
+    assert.ok(!stripIds.has(seg.id), `hidden segment ${seg.id} is not a visible strip`);
+  }
+});
+
+test('worldTo3D maps cave portals to cave-arch descriptors — rim placement, bearing, mouth width', () => {
+  assert.ok(CAVE_TRAILS.caves.length > 0, 'the walled-in fixture forces cave portals');
+  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })));
+  const arches = descs.filter((d): d is InstanceDescriptor => d.kind === 'cave-arch');
+  assert.equal(arches.length, CAVE_TRAILS.caves.length, 'one cave-arch per portal');
+  // match by island + edge set (portal order is preserved by buildScene)
+  for (const [i, cave] of CAVE_TRAILS.caves.entries()) {
+    const arch = arches[i]!;
+    assert.equal(arch.island, cave.islandId, 'the portal knows its island');
+    closeTo(arch.transform.x, cave.x, 'portal x from the rim translate');
+    closeTo(arch.transform.z, cave.y, 'portal z from the rim translate');
+    assert.equal(arch.transform.y, 0, 'portals sit on the ground plane');
+    // bearing round-trips the core's 0.1°-rounded rotate (≤ ~0.001 rad error)
+    assert.ok(
+      Math.abs((arch.bearing ?? Infinity) - cave.bearing) < 0.01,
+      `portal bearing (got ${arch.bearing}, want ~${cave.bearing})`,
+    );
+    // mouth width round-trips the baked half-disc (hw is 0.1-rounded → ≤ ~0.07 error)
+    assert.ok(
+      Math.abs((arch.width ?? Infinity) - cave.width) < 0.15,
+      `portal width (got ${arch.width}, want ~${cave.width})`,
+    );
+    assert.deepEqual(arch.edges, cave.edgeIds, 'the portal carries its edge ids');
+    assert.equal(arch.material, 'unknown', 'no territory for the island → unknown status');
+  }
 });
 
 test('worldTo3D maps in-flight build wisps to wisp-sprite descriptors — one per wisp', () => {
@@ -220,10 +312,10 @@ test('worldTo3D maps in-flight build wisps to wisp-sprite descriptors — one pe
 
 test('r3f-unknown-kind-skips-visibly: an unhandled SceneKind yields a named skip, never a throw', () => {
   // The real buildScene output contains many non-core structural kinds:
-  // world, ground-hex, tile-side, tile-top, roads-layer, road-line, flora-layer,
-  // territory, shadow, trunk, crown-lo, crown-hi, plate, plate-bg, plate-id,
-  // plate-sub, hits-layer, hit, …  Each must produce { kind: 'skipped', sceneKind }
-  // rather than throwing or silently disappearing.
+  // world, ground-hex, tile-side, tile-top, trails-layer, trail-shadow, trail-casing,
+  // trail-edges, flora-layer, territory, shadow, trunk, crown-lo, crown-hi, plate,
+  // plate-bg, plate-id, plate-sub, hits-layer, hit, …  Each must produce
+  // { kind: 'skipped', sceneKind } rather than throwing or silently disappearing.
   const descs = worldTo3D(buildScene(mkInput()));
   const skipped = descs.filter(asSkipped);
   assert.ok(skipped.length > 0, 'structural / non-core nodes must produce skipped descriptors');
@@ -279,7 +371,7 @@ test('worldTo3D folds the territory status into the material on the story-tree d
 // ---------------------------------------------------------------------------
 
 test('all instance descriptors carry a 3D transform with numeric x, y, z coordinates', () => {
-  // Use a scene that exercises all four core families (ground, tree, road, wisp)
+  // Use a scene that exercises the core families (ground, tree, trail, wisp)
   const scene = buildScene(
     mkInput({
       territories: [mkTerritory({ wisps: [{ runId: 'r1', title: 'building' }] })],

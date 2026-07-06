@@ -63,11 +63,11 @@ import {
   solarSeeds,
   spokeEdges,
   dockedEdgePath,
-  dockedRoads,
   orbitRings,
   type SolarNode,
   type DockNode,
 } from '../lib/solarLayout.js';
+import { trailRevealPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
   fitWorld,
@@ -122,10 +122,13 @@ import {
   MESH_TUNING,
   buildRelaxedCells as buildRelaxedCellsFromTiles,
   buildScene,
+  routeTrails,
+  trailFillWidth,
   wispBand,
   type SceneInput,
   type SceneStatus,
   type ScenePlantInput,
+  type TrailNetwork,
 } from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView.js';
 
@@ -209,34 +212,26 @@ export interface Territory {
   buildingGlyph: boolean;
 }
 
-interface WorldEdge {
-  from: string;
-  to: string;
-  via: string[];
-  d: string;
-}
-
 export interface HexWorld {
   territories: Territory[];
   /** Pale coast tiles (1–2 rings beyond claimed land). */
   empties: Axial[];
   /** Claimed tiles in global back-to-front draw order, with territory index. */
   drawTiles: { h: Axial; owner: number }[];
-  /** DAG/tree world: the `depends_on` roads as thin, no-arrow, PERIMETER-DOCKED lines
-   *  (`dockedEdgePath` / `dockedRoads`) — the ONE road rendering since the river-trail
-   *  system was retired (ADR-0076; owner steer 2026-06-20). Absent in solar mode, which
-   *  draws its own `solar.roads`. */
-  lineRoads?: WorldEdge[];
+  /** The `depends_on` edges routed as the ADR-0169 trail network (BOTH layouts — the
+   *  one road model since the docked lines retired): shared segments (a trunk renders
+   *  once), per-edge ordered segment chains, forced cave portals. Hidden by default;
+   *  revealed on island focus (§3). Empty (no segments) when there are no edges. */
+  trails: TrailNetwork;
   /** Solar mode only (ADR-0074 §6 + the 2026-06-20 path refresh): the concentric orbit
-   *  GRID + perimeter-docked thin connections that REPLACE the river-trail roads and
-   *  centre-to-centre spokes in solar mode. Absent in the DAG world (byte-identical). */
+   *  GRID + the perimeter-docked hub spokes. `depends_on` edges live in `trails` now
+   *  (ADR-0169); the spokes stay docked lines (§6 — out of scope). Absent in the DAG
+   *  world (byte-identical). */
   solar?: {
     /** The hub-cluster centre the orbit rings are concentric about. */
     center: Pt;
     /** Faint orbit-ring radii, inner → outer — the circle grid the islands sit on. */
     rings: number[];
-    /** `depends_on` edges as perimeter-docked, gently-bowed thin curves. */
-    roads: WorldEdge[];
     /** Provider-side `consumed_by` wiring (hub → organism), perimeter-docked + straight. */
     spokes: { from: string; to: string; d: string }[];
   };
@@ -697,19 +692,38 @@ export function buildWorld(
     })
     .sort((a, b) => a.h.r - b.h.r || a.h.q - b.h.q);
 
-  // Connections are thin, no-arrow curves docked on each island's PERIMETER in the
-  // bearing of its neighbour, NOT centre-to-centre (the website road model,
-  // web/src/lib/world.ts), so a hub's many edges fan around its rim instead of converging
-  // on one point. This is the ONE connection style for BOTH layouts since the river-trail
-  // road system was retired (ADR-0076): the DAG/tree world draws `lineRoads`; solar adds a
-  // faint orbit GRID + provider-side `consumed_by` hub spokes (disjoint — a spoke is never
-  // also a road, ADR-0074 §4).
+  // The `depends_on` edges route as the ADR-0169 TRAIL NETWORK for BOTH layouts — one
+  // deterministic cost-grid pass over the whole world (`routeTrails`, the shared core):
+  // island discs avoided, trunks merged by reuse, caves only when forced. The islands
+  // are obstacle discs at each territory's centroid; the disc radius keeps the old
+  // dock inset (`radius * 0.82`) so trail endpoints land on the coast, not offshore
+  // (the routing docks each end at `centre + bearing * r`). The seed folds the layout
+  // mode + the story ids, so the network is stable across renders and re-routes only
+  // when the world actually changes. Building-tagged stories (ADR-0076 §2 / ADR-0088)
+  // never enter `edgeList`, so no trail to a building can exist — no filter needed.
+  // A world with no edges (the Shared-Islands panel's one-island worlds) skips the
+  // router entirely.
+  const trails: TrailNetwork =
+    edgeList.length && territories.length
+      ? routeTrails(
+          territories.map((t) => ({
+            id: t.story.id,
+            x: t.centroid.x,
+            y: t.centroid.y,
+            r: t.radius * 0.82,
+          })),
+          edgeList.map((e) => ({
+            from: e.from,
+            to: e.to,
+            title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
+          })),
+          `trails:${layoutMode}:${stories.map((s) => s.id).sort().join('|')}`,
+        )
+      : { segments: [], edges: [], caves: [], dropped: [] };
+
   // Perimeter-dock node for every island, keyed by story id — the rim point + dock radius
-  // an edge meets (a touch INSIDE the bounding radius so the line lands on the coast).
-  // Building-tagged stories (ADR-0076 §2 / ADR-0088) aren't in `territories` at all (excluded
-  // from the layout above — they live in the Shared Islands panel), so they have no dock and
-  // never appear as a road endpoint: the building's inbound edges never even enter `edgeList`,
-  // so no road/spoke to it can be built and no edge filter is needed.
+  // a solar SPOKE meets (a touch INSIDE the bounding radius so the line lands on the
+  // coast). Spokes stay thin docked lines (ADR-0169 §6 — out of scope for the trails).
   const dockById = new Map<string, DockNode>(
     territories.map((t) => [t.story.id, { x: t.centroid.x, y: t.centroid.y, r: t.radius * 0.82 }]),
   );
@@ -730,10 +744,6 @@ export function buildWorld(
         dist: Math.hypot(t.centroid.x - center.x, t.centroid.y - center.y),
       })),
     ).map((r) => r.radius);
-    // `depends_on` roads: thin, gently-bowed, perimeter-docked lines (the shared helper).
-    // Building-class stories were excluded from `stories`/`edgeList` above (ADR-0088), so no
-    // road to a building can exist here — no filter needed.
-    const roads = dockedRoads(edgeList, dockById, 0.08);
     // provider-side `consumed_by` wiring as straight, low-salience hub spokes.
     const spokeLines: { from: string; to: string; d: string }[] = [];
     for (const e of spokeEdges(stories.map((s) => ({ id: s.id, consumedBy: s.consumedBy })))) {
@@ -741,18 +751,8 @@ export function buildWorld(
       const b = dockById.get(e.to);
       if (a && b) spokeLines.push({ from: e.from, to: e.to, d: dockedEdgePath(a, b, 0) });
     }
-    solar = { center, rings, roads, spokes: spokeLines };
+    solar = { center, rings, spokes: spokeLines };
   }
-
-  // DAG/tree world: the `depends_on` roads as thin, gently-bowed, perimeter-docked lines
-  // (ADR-0076 — the one road rendering since the river-trail system was retired). Solar
-  // draws its own `solar.roads` (above), so this is DAG-only.
-  const lineRoads: WorldEdge[] | undefined =
-    layoutMode !== 'solar'
-      ? // Building-class stories were excluded from `stories`/`edgeList` (ADR-0088), so no road
-        // to a building can exist — no edge filter needed.
-        dockedRoads(edgeList, dockById, 0.08)
-      : undefined;
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
@@ -773,7 +773,7 @@ export function buildWorld(
     territories,
     empties,
     drawTiles,
-    ...(lineRoads ? { lineRoads } : {}),
+    trails,
     ...(solar ? { solar } : {}),
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
@@ -893,10 +893,10 @@ function territoryToScene(
   };
 }
 
-/** Fold a studio `HexWorld` into the core's `SceneInput`. The dag world's `lineRoads`
- *  (or solar's `roads`) become the scene roads; solar SPOKES stay studio chrome (not
- *  in the scene path yet). `territories` is in owner order, the index `relaxedCells` /
- *  `drawTiles` / `wheatSets` key on. */
+/** Fold a studio `HexWorld` into the core's `SceneInput`. The routed trail network
+ *  passes through VERBATIM (edge tooltips were folded in at routing time); solar
+ *  SPOKES stay studio chrome (not in the scene path). `territories` is in owner
+ *  order, the index `relaxedCells` / `drawTiles` / `wheatSets` key on. */
 export function worldToScene(
   world: HexWorld,
   relaxedCells: RelaxedCell[] | null,
@@ -904,7 +904,6 @@ export function worldToScene(
   buildsByStory: Map<string, BuildActivity[]>,
   claimsByStory: Map<string, ClaimActivity[]> = new Map(),
 ): SceneInput {
-  const roads = world.lineRoads ?? world.solar?.roads ?? [];
   return {
     offset: world.offset,
     width: world.width,
@@ -913,12 +912,7 @@ export function worldToScene(
     relaxedCells,
     drawTiles: world.drawTiles,
     wheatSets: world.territories.map((t) => t.wheatTiles),
-    roads: roads.map((e) => ({
-      from: e.from,
-      to: e.to,
-      d: e.d,
-      title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
-    })),
+    trails: world.trails,
     territories: world.territories.map((t) =>
       territoryToScene(t, now, buildsByStory.get(t.story.id) ?? [], claimsByStory.get(t.story.id) ?? []),
     ),
@@ -1684,6 +1678,20 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     [world, relaxedCells, now, buildsByStory, claimsByStory],
   );
 
+  // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
+  // pure selector (lib/trailReveal): which segments, in what stagger order, from which
+  // end, in which direction tint. Focus is the EXISTING island focus state (hover ??
+  // selected — hovering previews the reveal, clicking pins it). The scene stays
+  // focus-agnostic; the plan rides the mapper ctx + the mask defs below.
+  const revealPlan = useMemo(
+    () => trailRevealPlan(world?.trails ?? null, focusStoryId),
+    [world, focusStoryId],
+  );
+  const trailSegById = useMemo(
+    () => new Map((world?.trails.segments ?? []).map((s) => [s.id, s])),
+    [world],
+  );
+
   // ISLAND ARRIVAL: when a re-pulled tree payload contains stories absent from the
   // previous one (a story-author spawn finished → ChatDock's onReloadTree, a UAT
   // signature re-pull, …), those islands ARRIVE instead of popping in: their roads draw
@@ -1719,9 +1727,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const demoArrivalId = useMemo(() => {
     if (!arriveParam || !world) return null;
     if (world.territories.some((t) => t.story.id === arriveParam)) return arriveParam;
-    const roads = world.lineRoads ?? world.solar?.roads ?? [];
+    const edges = world.trails.edges;
     return (
-      roads[roads.length - 1]?.to ??
+      edges[edges.length - 1]?.to ??
       world.territories[world.territories.length - 1]?.story.id ??
       null
     );
@@ -1777,22 +1785,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   };
   const territoryClass = (story: TreeStory): string =>
     territoryClassById(story.id, story.status ?? 'unknown');
-
-  // The wrapping class for a docked road/spoke: `world-trail` (the focus-dimming CSS keys
-  // on it) plus the upstream-gold / downstream-red / dimmed tint when a story is focused.
-  const roadClassByEnds = (from: string, to: string): string => {
-    const cls = ['world-trail'];
-    if (focusStoryId && storyRelations) {
-      const anc = (id: string): boolean => id === focusStoryId || storyRelations.ancestors.has(id);
-      const desc = (id: string): boolean =>
-        id === focusStoryId || storyRelations.descendants.has(id);
-      if (storyRelations.ancestors.has(from) && anc(to)) cls.push('is-ancestor');
-      else if (storyRelations.descendants.has(to) && desc(from)) cls.push('is-descendant');
-      else cls.push('is-dim');
-    }
-    return cls.join(' ');
-  };
-  const roadClass = (e: WorldEdge): string => roadClassByEnds(e.from, e.to);
 
   const clearSelection = (): void => {
     // A drag that released over the map fires a synthetic click — swallow it so
@@ -1917,7 +1909,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           >
           <svg
             ref={svgRef}
-            className="world-scene world-roads"
+            className="world-scene"
             onClick={(e) => {
               // scene selection is handled on the viewport (coordinate hit-test); here only the legacy
               // render clears on a true background click.
@@ -1936,6 +1928,41 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               >
                 <path d="M 0 1.2 L 8 5 L 0 8.8 z" fill="context-stroke" />
               </marker>
+              {/* ADR-0169 §3 reveal masks — one per REVEALED segment: a solid white
+                  stroke over the segment's own path, pathLength-normalised so the CSS
+                  dash animation (offset 1→0, or -1→0 for a chain walked against the
+                  path's drawn direction) grows it length-agnostically; the visible
+                  cased/dashed strokes are masked by it, so a dashed spur reveals
+                  correctly (never dash-offset a dashed stroke directly). userSpaceOnUse
+                  + oversized bounds keep a thin diagonal's mask region from clipping
+                  the wide stroke. Stagger rides an inline animation-delay per chain
+                  position. Cleared focus removes the masks; the strokes fade out. */}
+              {renderScene &&
+                revealPlan?.segments.map((seg) => {
+                  const s = trailSegById.get(seg.id);
+                  if (!s) return null;
+                  return (
+                    <mask
+                      key={seg.id}
+                      id={`trail-m-${seg.id}`}
+                      maskUnits="userSpaceOnUse"
+                      x={-100000}
+                      y={-100000}
+                      width={200000}
+                      height={200000}
+                    >
+                      <path
+                        d={s.d}
+                        pathLength={1}
+                        className={`trail-reveal-mask${seg.fromEnd ? ' from-end' : ''}`}
+                        style={{
+                          animationDelay: `${seg.delayMs}ms`,
+                          strokeWidth: trailFillWidth(seg.revealedUsage) + 8,
+                        }}
+                      />
+                    </mask>
+                  );
+                })}
             </defs>
 
             {/* Pan/zoom camera (lib/worldCamera): translate+scale the world-unit
@@ -1964,7 +1991,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   scene={scene}
                   ctx={{
                     territoryClassById,
-                    roadClassByEnds,
+                    reveal: revealPlan,
                     hidden,
                     arrivalIds,
                     onHoverStory: setHoverStory,
@@ -2026,47 +2053,19 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 }}
               />
 
-              {/* SOLAR connections (solar mode) — thin, no-arrow, PERIMETER-DOCKED curves
-                  the website-way (web/src/lib/world.ts): spokes first (the de-noised
-                  hub→organism `consumed_by` wiring, low salience), then the `depends_on`
-                  roads above them. Both dock on each island's rim by bearing, so a hub's
-                  edges fan around it instead of piling on one point (the owner's steer). */}
+              {/* SOLAR spokes (solar mode) — thin, no-arrow, PERIMETER-DOCKED curves
+                  (the de-noised hub→organism `consumed_by` wiring, low salience). The
+                  `depends_on` edges are the ADR-0169 trail network now, which only the
+                  scene render draws (reveal-on-focus) — this legacy `?render=legacy`
+                  escape shows the world WITHOUT trails. */}
               {world.solar && (
-                <>
-                  <g className="solar-spoke-net">
-                    {world.solar.spokes.map((s) => (
-                      <path
-                        key={`${s.from}->${s.to}`}
-                        className="solar-spoke"
-                        d={s.d}
-                      />
-                    ))}
-                  </g>
-                  <g className="solar-road-net">
-                    {world.solar.roads.map((e) => (
-                      <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                        <title>
-                          {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
-                        </title>
-                        <path className="solar-road" d={e.d} />
-                      </g>
-                    ))}
-                  </g>
-                </>
-              )}
-
-              {/* DAG/tree docked-line roads — thin, no-arrow, PERIMETER-DOCKED curves
-                  (the ONE road rendering since the river-trail system was retired, ADR-0076;
-                  the same style the solar world uses). Drawn ABOVE the land. */}
-              {world.lineRoads && (
-                <g className="dag-road-net">
-                  {world.lineRoads.map((e) => (
-                    <g key={`${e.from}->${e.to}`} className={roadClass(e)}>
-                      <title>
-                        {`${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`}
-                      </title>
-                      <path className="dag-road" d={e.d} />
-                    </g>
+                <g className="solar-spoke-net">
+                  {world.solar.spokes.map((s) => (
+                    <path
+                      key={`${s.from}->${s.to}`}
+                      className="solar-spoke"
+                      d={s.d}
+                    />
                   ))}
                 </g>
               )}
@@ -2797,7 +2796,7 @@ function SharedIslandCard({
   const vbH = Math.max(world.height, world.offset.y + anchor.y + 6);
   return (
     <button type="button" className={cls} onClick={onSelect} aria-label={ariaLabel}>
-      <svg className="shared-island-svg world-roads" viewBox={`0 0 ${vbW} ${vbH}`} aria-hidden="true">
+      <svg className="shared-island-svg" viewBox={`0 0 ${vbW} ${vbH}`} aria-hidden="true">
         <g transform={`translate(${world.offset.x} ${world.offset.y})`}>
           {/* the island's sand silhouette (the same smoothed coast the map fills) */}
           <g className="hex-coastland">

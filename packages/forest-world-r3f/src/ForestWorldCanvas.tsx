@@ -7,8 +7,14 @@
 // Spike scale, no art direction (ADR-0070: the look is witnessed, not
 // machine-judged; the painterly pass arrives with the experience caps): each
 // descriptor family gets a placeholder mesh — instanced hex prisms for the
-// ground, a cone-on-trunk for the story tree, a ground polyline for a road, an
-// emissive sprite-ball for a wisp — coloured by the folded status variant.
+// ground, a cone-on-trunk for the story tree, a ground ribbon-line for a trail
+// segment, a dark rim disc for a cave portal, an emissive sprite-ball for a
+// wisp — coloured by the folded status variant.
+//
+// Trails are HIDDEN BY DEFAULT (ADR-0169 §3/§4): this canvas has no island
+// focus/selection concept yet, so the minimal reveal is the `showTrails` prop —
+// nothing focused, nothing shown; opting in draws the whole network. Ghost
+// (under-island) strips are never drawn here — the cave props carry that story.
 
 import { Canvas } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
@@ -70,15 +76,31 @@ function StoryTree({ tree }: { tree: InstanceDescriptor }) {
   );
 }
 
-function RoadStrip({ road }: { road: InstanceDescriptor }) {
-  const pts = road.points ?? [];
+function TrailStrip({ strip }: { strip: InstanceDescriptor }) {
+  const pts = strip.points ?? [];
   if (pts.length < 2) return null;
   return (
     <Line
       points={pts.map((p) => [p.x, p.y + 0.2, p.z] as [number, number, number])}
       color="#b0a48e"
-      lineWidth={3}
+      // width from the ONE shared rule (trailFillWidth, baked into the descriptor)
+      lineWidth={strip.width ?? 3}
     />
+  );
+}
+
+function CaveArch({ cave }: { cave: InstanceDescriptor }) {
+  const { x, y, z } = cave.transform;
+  const hw = ((cave.width ?? 4) * 1.6) / 2; // arch mouth half-width (matches the 2D prop)
+  return (
+    // -bearing about +Y points local +x along the outward rim normal (SVG y → 3D z
+    // flips handedness); the unlit dark disc faces outward — ADR-0169 §4.
+    <group position={[x, y, z]} rotation={[0, -(cave.bearing ?? 0), 0]}>
+      <mesh position={[0, hw * 0.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <circleGeometry args={[hw, 24]} />
+        <meshBasicMaterial color="#171310" />
+      </mesh>
+    </group>
   );
 }
 
@@ -96,6 +118,10 @@ export interface ForestWorldCanvasProps {
   /** The pure mapping's output (`worldTo3D(buildScene(input))`). Skips are ignored
    *  here — they are audit records, not drawables. */
   descriptors: readonly Descriptor3D[];
+  /** Opt the trail network visible. Trails are HIDDEN BY DEFAULT (ADR-0169 §3): with
+   *  no focus concept on this canvas yet, the honest minimal reveal is all-or-nothing —
+   *  a future focus feature filters strips by their `edges` metadata instead. */
+  showTrails?: boolean;
 }
 
 /** Frame the whole world on load: the instance centroid is the MapControls target
@@ -126,10 +152,14 @@ function frameWorld(instances: InstanceDescriptor[]): {
  * `MapControls` (pan / zoom / rotate a top-down-ish world map). Client-only
  * (`ssr:false` posture — the site lazy-loads this island after the inflection).
  */
-export function ForestWorldCanvas({ descriptors }: ForestWorldCanvasProps) {
+export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
   const grounds = byKind(descriptors, 'hex-ground');
   const trees = byKind(descriptors, 'story-tree');
-  const roads = byKind(descriptors, 'road-strip');
+  // trail-ghost-strip descriptors are deliberately not drawn (the surface's call —
+  // the under-island run is told by the cave props, which render unconditionally
+  // like the 2D scene's flora-layer props).
+  const trails = showTrails ? byKind(descriptors, 'trail-strip') : [];
+  const caves = byKind(descriptors, 'cave-arch');
   const wisps = byKind(descriptors, 'wisp-sprite');
   const frame = frameWorld(descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped'));
   return (
@@ -141,8 +171,11 @@ export function ForestWorldCanvas({ descriptors }: ForestWorldCanvasProps) {
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}
-      {roads.map((r, i) => (
-        <RoadStrip key={i} road={r} />
+      {trails.map((t, i) => (
+        <TrailStrip key={i} strip={t} />
+      ))}
+      {caves.map((c, i) => (
+        <CaveArch key={i} cave={c} />
       ))}
       {wisps.map((w, i) => (
         <WispSprite key={i} wisp={w} />

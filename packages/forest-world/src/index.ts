@@ -56,6 +56,18 @@ export {
 } from './substrate.js';
 
 export {
+  type TrailIsland,
+  type TrailEdgeIn,
+  type TrailTuning,
+  type TrailSegment,
+  type TrailCave,
+  type TrailEdgeOut,
+  type TrailNetwork,
+  routeTrails,
+  trailFillWidth,
+} from './routing.js';
+
+export {
   type SceneStatus,
   type SceneKind,
   type BuildPhase,
@@ -71,11 +83,12 @@ export {
   type SceneRect,
   type SceneText,
   type SceneNode,
-  type SceneRoadInput,
+  type SceneTrailsInput,
   type ScenePlantInput,
   type SceneTerritoryInput,
   type SceneInput,
   buildScene,
+  buildTrails,
   buildTree,
   buildPlant,
   buildConifer,
