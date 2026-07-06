@@ -39,6 +39,9 @@ export interface TrailTuning {
   turnPenalty: number; // per-direction-change cost
   reuseDiscount: number; // multiplier applied to routed cells
   discountFloor: number; // min cell cost after discounts
+  reuseHaloRadius: number; // Chebyshev ring count of the reuse-halo around a laid trail
+  reuseHaloInner: number; // cost FRAC at ring 1 (0 = full trunk discount, 1 = base cost, >1 = MOAT/penalty)
+  reuseHaloOuter: number; // cost FRAC at the outermost ring (linear-interpolated from Inner)
   interiorCost: number; // island-interior cost for the cave fallback pass
   meanderAmp: number; // perpendicular displacement amplitude (MUST stay < clearance)
   meanderWavelength: number; // arc-length period of the meander noise
@@ -98,9 +101,21 @@ function resolveTuning(o?: Partial<TrailTuning>): TrailTuning {
     noiseAmp: o?.noiseAmp ?? 0.15,
     turnPenalty: o?.turnPenalty ?? 0.5,
     // a much cheaper trunk (0.22 vs the old 0.4) is a stronger attractor, so a later
-    // route prefers merging onto an existing trail over laying a parallel lane.
+    // route prefers merging onto an existing trail over laying a parallel lane; the
+    // deep floor (0.05) lets a HIGH-usage trunk compound into a very strong magnet.
     reuseDiscount: o?.reuseDiscount ?? 0.22,
-    discountFloor: o?.discountFloor ?? 0.25,
+    discountFloor: o?.discountFloor ?? 0.05,
+    // reuse halo as a MOAT (owner feedback item 4, 2026-07-07, re-tuned against the
+    // stress placement default): the owner still saw side-by-side lanes a cell apart.
+    // A cheaper adjacent ring only made those lanes MORE comfortable, so instead the
+    // ring immediately beside a laid trail is now a slight MOAT (frac > 1 ⇒ cost ABOVE
+    // base) — there is no free parallel lane, so a nearby route must either join the
+    // trunk's exact (cheap) cells or stay well clear. A moat only RAISES cost, never
+    // blocks, so it can never force a cave. Cut side-by-side trail length ~48% on the
+    // real graph (0.19 → 0.10) with the trunk-merge behaviour intact.
+    reuseHaloRadius: o?.reuseHaloRadius ?? 2,
+    reuseHaloInner: o?.reuseHaloInner ?? 1.2,
+    reuseHaloOuter: o?.reuseHaloOuter ?? 1.0,
     interiorCost: o?.interiorCost ?? 40,
     // derived from the RESOLVED clearance so the amp<clearance invariant holds
     // under a clearance override too; an EXPLICIT amp is clamped below clearance
@@ -727,21 +742,25 @@ export function routeTrails(
     }
 
     // reuse discount FUNNEL: traversed cells earn the strongest discount so later
-    // routes snap ONTO the trunk; a TWO-cell halo earns a graduated weaker discount
-    // (nearest ring wins) so a route drifting nearby is funnelled in instead of
-    // settling into a parallel lane one cell over — the owner's side-by-side-trails
-    // complaint (2026-07-06). The exact trail cells stay strictly cheapest (an equal
-    // halo discount would let later routes ride a parallel lane and never share).
-    // Each cell is discounted at most ONCE per route (the cost mutates in place).
-    const ring1 = t.reuseDiscount + (1 - t.reuseDiscount) * 0.4; // ~0.53 at 0.22
-    const ring2 = t.reuseDiscount + (1 - t.reuseDiscount) * 0.7; // ~0.77 at 0.22
+    // routes snap ONTO the trunk; a graduated halo of `reuseHaloRadius` Chebyshev
+    // rings earns a weaker discount (nearest ring wins) so a route drifting nearby is
+    // funnelled in instead of settling into a parallel lane one cell over — the owner's
+    // side-by-side-trails complaint (2026-07-06 / re-pushed 2026-07-07). The exact trail
+    // cells stay strictly cheapest (an equal halo discount would let later routes ride a
+    // parallel lane and never share). Each cell is discounted at most ONCE per route
+    // (the cost mutates in place). Ring c's frac interpolates Inner→Outer over the radius.
+    const R = Math.max(1, Math.round(t.reuseHaloRadius));
+    const ringDisc = (c: number): number => {
+      const frac = R <= 1 ? t.reuseHaloInner : t.reuseHaloInner + (t.reuseHaloOuter - t.reuseHaloInner) * ((c - 1) / (R - 1));
+      return t.reuseDiscount + (1 - t.reuseDiscount) * frac;
+    };
     const onPath = new Set<number>(path);
     const ringOf = new Map<number, number>();
     for (const ci of path) {
       const ix = ci % grid.cols;
       const iy = (ci / grid.cols) | 0;
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -R; dy <= R; dy++) {
+        for (let dx = -R; dx <= R; dx++) {
           const cheb = Math.max(Math.abs(dx), Math.abs(dy));
           if (cheb === 0) continue;
           const nx = ix + dx;
@@ -749,7 +768,7 @@ export function routeTrails(
           if (nx < 0 || ny < 0 || nx >= grid.cols || ny >= grid.rows) continue;
           const ni = ny * grid.cols + nx;
           if (onPath.has(ni)) continue;
-          const disc = cheb === 1 ? ring1 : ring2;
+          const disc = ringDisc(cheb);
           const prev = ringOf.get(ni);
           if (prev === undefined || disc < prev) ringOf.set(ni, disc);
         }

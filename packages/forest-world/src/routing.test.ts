@@ -207,6 +207,46 @@ test('near-parallel edges MERGE onto one trunk for most of their length (no side
   }
 });
 
+test('the reuse-halo MOAT knob threads through — routes join the trunk or clear it, no 1-cell lane (item 4)', () => {
+  // Owner feedback re-pushed 2026-07-07: still too many side-by-side parallel trails a
+  // cell apart. The default halo is now a MOAT (reuseHaloInner > 1): the ring beside a
+  // laid trail costs MORE than base, so a nearby route can't settle into a comfortable
+  // parallel lane — it either shares the trunk's exact cells or stays well clear. Three
+  // near-adjacent sources fanning to one destination exercise it.
+  const islands = [
+    isle('A', -800, -70, 32),
+    isle('B', -800, 0, 32),
+    isle('C', -800, 70, 32),
+    isle('D', 0, 0, 45),
+  ];
+  const edges: TrailEdgeIn[] = [
+    { from: 'A', to: 'D' },
+    { from: 'B', to: 'D' },
+    { from: 'C', to: 'D' },
+  ];
+  const moat = routeTrails(islands, edges, 'seed-moat'); // default = moat
+  // the pre-item-4 cheap-halo shaping, as an explicit override: proves the knob is wired
+  const cheap = routeTrails(islands, edges, 'seed-moat', {
+    reuseHaloInner: 0.4,
+    reuseHaloOuter: 0.7,
+    discountFloor: 0.25,
+  });
+  // the knob changes routing (not a silently-ignored param)
+  assert.notDeepEqual(
+    moat.segments.map((s) => s.d),
+    cheap.segments.map((s) => s.d),
+    'the halo shaping actually changes the routed network',
+  );
+  // both stay deterministic, continuous, and still MERGE (a shared trunk exists)
+  for (const net of [moat, cheap]) {
+    assert.deepEqual(net, routeTrails(islands, edges, 'seed-moat', net === cheap ? { reuseHaloInner: 0.4, reuseHaloOuter: 0.7, discountFloor: 0.25 } : undefined));
+    assert.equal(net.dropped.length, 0);
+    assert.equal(net.caves.length, 0, 'a moat only raises cost — it never forces a cave');
+    for (const edge of net.edges) assertChainContinuous(net, islands, edge);
+    assert.ok(net.segments.some((s) => s.usage >= 2), 'the fan still merges onto a shared trunk');
+  }
+});
+
 // ---------- caves only when forced ----------
 
 test('a walled-in edge routes under the wall: hidden segments + cave portal pair', () => {
