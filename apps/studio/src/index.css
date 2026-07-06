@@ -1374,9 +1374,6 @@ a.stat:hover {
 .hex-top.v-1 { fill: var(--hex-top-1); }
 .hex-top.v-2 { fill: var(--hex-top-2); }
 .hex-top.is-wheat { fill: var(--hex-wheat); }
-.hex-tile.is-dim {
-  opacity: 0.35;
-}
 
 /* VISUAL SPIKE (?substrate=…): the irregular relaxed substrate — flat polygon
    cells reusing the grass/wheat palette, with a soft cell seam so the island
@@ -1394,9 +1391,6 @@ a.stat:hover {
 .relaxed-cell.v-1 { fill: var(--hex-top-1); }
 .relaxed-cell.v-2 { fill: var(--hex-top-2); }
 .relaxed-cell.is-wheat { fill: var(--hex-wheat); }
-.relaxed-tile.is-dim {
-  opacity: 0.35;
-}
 
 /* organic island land: the smoothed coastline filled as a sandy beach, drawn
    UNDER the hex tiles so each island reads as one solid blob with a shore rim
@@ -1409,23 +1403,13 @@ a.stat:hover {
 .coast-fill-group {
   transition: opacity 0.18s ease;
 }
-.coast-fill-group.is-dim {
-  opacity: 0.4;
-}
-/* The selection/focus accent rides the island's own shore line so a focused
-   territory reads at a glance (the roads world has no water ring; ADR-0073). */
-.coast-fill-group.is-focus .coast-fill,
+/* The ONLY focus affordance on the map (owner 2026-07-06): a cheap accent border on
+   the SELECTED island's own shore line — no ancestor/descendant/dim recolour of the
+   rest of the map (that per-hex repaint on hover was the reported lag). The dependency
+   relationship reads through the click-revealed trail chain instead. */
 .coast-fill-group.is-selected .coast-fill {
   stroke: var(--accent);
-  stroke-width: 2.4;
-}
-.coast-fill-group.is-ancestor .coast-fill {
-  stroke: var(--warn);
-  stroke-width: 2;
-}
-.coast-fill-group.is-descendant .coast-fill {
-  stroke: var(--danger);
-  stroke-width: 2;
+  stroke-width: 2.6;
 }
 
 /* TRAILS (ADR-0169, supersedes the ADR-0076 docked lines): the `depends_on` edges are a
@@ -1496,8 +1480,10 @@ a.stat:hover {
     stroke-dashoffset: 0;
   }
 }
-/* extra world dim while a focus reveal is active (per-island is-dim already applies;
-   this settles the unowned moat/coast too so the lit trails carry the eye). */
+/* A gentle whole-world settle while a click reveal is active: the unowned moat/coast
+   recedes so the lit trail chain carries the eye. Cheap — ONE class toggled on click
+   (not per hover), no per-island recolour (the hover dim/tint was removed, owner
+   2026-07-06). */
 .world-has-focus .hex-coast {
   opacity: 0.55;
   transition: opacity 0.35s ease;
@@ -1601,9 +1587,6 @@ a.stat:hover {
 .hex-flora {
   cursor: pointer;
   transition: opacity 0.18s ease;
-}
-.hex-flora.is-dim {
-  opacity: 0.32;
 }
 .flora-shadow {
   fill: #243d2a;

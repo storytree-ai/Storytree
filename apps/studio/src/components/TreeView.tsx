@@ -1206,7 +1206,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () => (focus && stories?.some((s) => s.id === focus) ? focus : null),
     [focus, stories],
   );
-  const [hoverStory, setHoverStory] = useState<string | null>(null);
   const [selectedCap, setSelectedCap] = useState<string | null>(null);
   const [hoverCap, setHoverCap] = useState<string | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -1372,20 +1371,18 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world]);
 
-  // Select / deep-link change: centre + zoom on the territory (smoothly).
+  // NO camera move on select (owner feedback 2026-07-06): clicking an island used to
+  // re-centre + zoom on its territory, which fought the user's own pan/zoom and felt
+  // annoying. Selection now only reveals the dependency chain + borders the island; the
+  // camera stays exactly where the user left it. The mount-time deep-link framing
+  // (keyed on [world] above) is kept — arriving at a ?story= URL still frames it once.
+  //
+  // We DO still mark the camera "not at fit" on select: opening the detail panel resizes
+  // the map frame, and the ResizeObserver below would otherwise re-fit the whole world
+  // (moving the camera on select — the very thing we're removing). Marking not-at-fit
+  // makes that refit a no-op, so the user's view is preserved. No setCam here.
   useEffect(() => {
-    if (!selectedStory || !world || !cam || !frameRef.current) return;
-    const territory = world.territories.find((t) => t.story.id === selectedStory);
-    if (!territory) return;
-    const wc = { x: territory.centroid.x + world.offset.x, y: territory.centroid.y + world.offset.y };
-    // ≈1.6× the fit scale, but never zoom OUT below the current view.
-    const focus = clampScale(
-      Math.max(cam.scale, (limitsRef.current.min / 0.4) * 1.6),
-      limitsRef.current,
-    );
-    atFitRef.current = false; // focused on a territory — a later resize preserves this view, not a re-fit
-    setAnimate(true);
-    setCam(centerOn(wc.x, wc.y, frameRef.current.clientWidth, frameRef.current.clientHeight, focus, limitsRef.current));
+    if (selectedStory) atFitRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStory]);
 
@@ -1566,19 +1563,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     setCam((c) => (c ? panBy(c, dx, dy) : c));
   }, []);
 
-  const focusStoryId = hoverStory ?? selectedStory;
-  // Focus walks the SAME declared ∪ derived edge set the roads and ranking
-  // use, so a derived-only road lights up like any declared one.
-  const unionNodes = useMemo(() => {
-    if (!stories) return null;
-    const deps = new Map<string, string[]>(stories.map((s) => [s.id, []]));
-    for (const e of storyEdges(stories)) deps.get(e.to)?.push(e.from);
-    return stories.map((s) => ({ id: s.id, dependsOn: deps.get(s.id) ?? [] }));
-  }, [stories]);
-  const storyRelations = useMemo(
-    () => (unionNodes && focusStoryId ? relationsFor(unionNodes, focusStoryId) : null),
-    [unionNodes, focusStoryId],
-  );
+  // NO hover-driven territory highlight (owner feedback 2026-07-06): the old
+  // `focusStoryId = hoverStory ?? selectedStory` recoloured EVERY hex (ancestor /
+  // descendant / dim tints) on each mousemove — the reported lag. The dependency
+  // relationship now reads through the click-revealed trail CHAIN + a cheap shore
+  // border on the selected island only (`.is-selected`, index.css), so no per-hex
+  // recolour and no hover state churn. `relationsFor` still drives the capability
+  // sub-DAG inside the detail panel (a different, click-scoped surface).
   const storyIds = useMemo(() => new Set((stories ?? []).map((s) => s.id)), [stories]);
 
   /** capability id → owning story id (resolves session node anchors). */
@@ -1777,12 +1768,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   const territoryClassById = (id: string, status: string): string => {
     const cls = ['hex-territory', `st-${status}`];
     if (HUB_IDS.has(id)) cls.push('is-hub'); // solar-mode central wiring hub
-    if (focusStoryId && storyRelations) {
-      if (id === focusStoryId) cls.push('is-focus');
-      else if (storyRelations.ancestors.has(id)) cls.push('is-ancestor');
-      else if (storyRelations.descendants.has(id)) cls.push('is-descendant');
-      else cls.push('is-dim');
-    }
+    // The only focus affordance on the map is a cheap shore border on the SELECTED
+    // island (`.is-selected`) — no ancestor/descendant/dim recolour (owner 2026-07-06).
     if (id === selectedStory) cls.push('is-selected');
     return cls.join(' ');
   };
@@ -1997,7 +1984,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                     reveal: revealPlan,
                     hidden,
                     arrivalIds,
-                    onHoverStory: setHoverStory,
                     // mark the click handled so the viewport's hit-test fallback doesn't re-fire it
                     onSelectStory: (id) => {
                       handledRef.current = true;
@@ -2051,7 +2037,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 relaxedCells={relaxedCells}
                 classOf={territoryClass}
                 interactive={{
-                  onHover: (id) => setHoverStory(id),
                   onSelect: (id) => selectStory(id, null),
                 }}
               />
@@ -2086,7 +2071,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   // ADR-0138 §5: the story-claim wisps (flag-gated, default empty).
                   claims={claimsByStory.get(t.story.id) ?? []}
                   now={now}
-                  onHover={(on) => setHoverStory(on ? t.story.id : null)}
+                  onHover={() => {}}
                   onSelect={(capId) => selectStory(t.story.id, capId)}
                   // ADR-0102: clicking an island's icon stamp highlights the SPECIFIC shared island
                   // it names (the carried building's id) in the left panel — so studio's cli-stamp
@@ -2590,7 +2575,7 @@ function IslandGround({
   /** The per-territory ground class. The map passes its focus/hover-aware `territoryClass`; the
    *  panel card passes a static `hex-territory st-<status>` (no map focus context). */
   classOf: (story: TreeStory) => string;
-  interactive?: { onHover: (id: string | null) => void; onSelect: (id: string) => void };
+  interactive?: { onHover?: (id: string | null) => void; onSelect: (id: string) => void };
 }): React.JSX.Element {
   const hov = interactive?.onHover;
   const sel = interactive?.onSelect;

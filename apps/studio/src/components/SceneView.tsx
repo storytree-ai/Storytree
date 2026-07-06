@@ -25,7 +25,9 @@ export interface SceneCtx {
   reveal: TrailRevealPlan | null;
   /** Statuses the legend has filtered out (a matching tree / plant wears `is-filtered`). */
   hidden: ReadonlySet<string>;
-  onHoverStory: (id: string | null) => void;
+  // NB: no island HOVER handler — hover-driven highlight was removed (owner 2026-07-06,
+  // the mousemove recolour was the reported lag). The only focus affordance is the
+  // click-revealed trail chain + the `.is-selected` shore border.
   onSelectStory: (id: string) => void;
   onSelectCap: (storyId: string, capId: string) => void;
   /** Story ids whose islands play the ARRIVAL animation (a story that just appeared in
@@ -216,8 +218,6 @@ function handlersFor(
       const id = node.id ?? storyId;
       if (!id) return {};
       return {
-        onMouseEnter: () => ctx.onHoverStory(id),
-        onMouseLeave: () => ctx.onHoverStory(null),
         onClick: () => ctx.onSelectStory(id),
       };
     }

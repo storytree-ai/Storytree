@@ -91,10 +91,14 @@ dependency edge keeps its ordered chain of segment refs. `buildScene` grows acco
   reveal by selection without re-walking the graph.
 
 **3. Pathways are hidden by default and grow on island focus.**
-The default map draws NO visible road strokes. Focusing an island reveals the union of segments
-its incident edges route through, growing outward from the island segment-by-segment in
-topological order (spur first, the trunk continues from the junction — tributaries joining a
-river). SVG mechanism: per-segment solid mask stroke animated via `pathLength="1"` + CSS
+The default map draws NO visible road strokes. Focusing an island reveals the whole dependency
+chain it participates in — the union of segments routed by its full transitive closure both
+directions (every island it transitively depends on, unioned with everything that transitively
+depends on it), growing outward from the island hop-by-hop, segment-by-segment in topological
+order (spur first, the trunk continues from the junction — tributaries joining a river).
+(Owner-directed 2026-07-06, broadening the original incident-edges-only reveal; §5's honesty
+invariant is unchanged and still holds by construction — the plan is the union of REAL edges
+reachable along the graph, never a curated subset and never an invented edge.) SVG mechanism: per-segment solid mask stroke animated via `pathLength="1"` + CSS
 `stroke-dashoffset` 1→0 (~350ms/segment, ease-out) masking the real cased/dashed strokes; the
 unselected world dims. Incoming vs outgoing edges take two selection tints. A segment shared by
 k≥2 revealed edges steps its width up, so merging stays legible under multi-reveal. Clearing
@@ -110,7 +114,9 @@ reveal may land as show/hide-by-focus first (shader-cutoff growth is polish, not
 **5. The honesty invariant.**
 Everything above is procedural and seeded from ids, with no per-map hand-tuning surface: a messy
 dependency graph routes messy (more forced caves, thicker tangles, more crossings) and a clean one
-routes clean. The reveal shows ALL of a focused island's edges — never a curated subset. Reveal-
+routes clean. The reveal shows the focused island's WHOLE reachable dependency chain (the full
+transitive closure both directions, §3) — the union of REAL edges reachable along the graph,
+never a curated subset and never an invented edge. Reveal-
 on-focus organizes complexity; it must never hide an edge that exists or draw one that doesn't.
 Our own system is the baseline and is expected to render clean — if it doesn't, the finding is
 about the system, not the renderer.

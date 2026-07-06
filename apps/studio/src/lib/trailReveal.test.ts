@@ -116,3 +116,96 @@ describe('trailRevealPlan — the pure reveal selector', () => {
     expect(trailRevealPlan(network(), 'mid')).toEqual(trailRevealPlan(network(), 'mid'));
   });
 });
+
+/** A 4-island dependency chain a →(e1) b →(e2) c →(e3) d, plus an unrelated x→y (e4)
+ *  in a SEPARATE component. `from → to` means "`to` depends on `from`", so the
+ *  dependency order runs a ⟵ b ⟵ c ⟵ d and the whole chain is one connected run. */
+function chainNetwork(): TrailNetwork {
+  return {
+    segments: [seg('e1'), seg('e2'), seg('e3'), seg('e4')],
+    edges: [
+      { from: 'a', to: 'b', segments: [{ id: 'e1', reversed: false }] },
+      { from: 'b', to: 'c', segments: [{ id: 'e2', reversed: false }] },
+      { from: 'c', to: 'd', segments: [{ id: 'e3', reversed: false }] },
+      { from: 'x', to: 'y', segments: [{ id: 'e4', reversed: false }] },
+    ],
+    caves: [],
+    dropped: [],
+  };
+}
+
+describe('trailRevealPlan — full transitive dependency-chain reveal (owner 2026-07-06)', () => {
+  it('reveals the WHOLE chain both directions from a mid-chain island, not just neighbours', () => {
+    const plan = trailRevealPlan(chainNetwork(), 'b')!;
+    // b's dependency (upstream): a via e1. b's dependents (downstream, transitively):
+    // c via e2, then d via e3. e4 is a different component — never revealed.
+    expect([...plan.byId.keys()].sort()).toEqual(['e1', 'e2', 'e3']);
+    expect(plan.byId.has('e4')).toBe(false);
+  });
+
+  it('tints the upstream run `out` and the downstream run `in`', () => {
+    const plan = trailRevealPlan(chainNetwork(), 'b')!;
+    expect(plan.byId.get('e1')!.dir).toBe('out'); // a is b's dependency
+    expect(plan.byId.get('e2')!.dir).toBe('in'); // c depends on b
+    expect(plan.byId.get('e3')!.dir).toBe('in'); // d depends on c (transitive)
+  });
+
+  it('accumulates delay outward: a farther hop reveals later than a nearer one', () => {
+    const plan = trailRevealPlan(chainNetwork(), 'b')!;
+    // direct hops (e1 upstream, e2 downstream) reveal at 0; the second downstream hop
+    // (e3) waits one full chain (e2 is one segment) → REVEAL_STAGGER_MS.
+    expect(plan.byId.get('e1')!.delayMs).toBe(0);
+    expect(plan.byId.get('e2')!.delayMs).toBe(0);
+    expect(plan.byId.get('e3')!.delayMs).toBe(REVEAL_STAGGER_MS);
+  });
+
+  it('from a foundation island reveals the entire downstream chain', () => {
+    const plan = trailRevealPlan(chainNetwork(), 'a')!;
+    expect([...plan.byId.keys()].sort()).toEqual(['e1', 'e2', 'e3']);
+    // all downstream (dependents), staggered by hop distance.
+    expect(plan.byId.get('e1')!.dir).toBe('in');
+    expect(plan.byId.get('e1')!.delayMs).toBe(0);
+    expect(plan.byId.get('e2')!.delayMs).toBe(REVEAL_STAGGER_MS);
+    expect(plan.byId.get('e3')!.delayMs).toBe(2 * REVEAL_STAGGER_MS);
+  });
+
+  it('a diamond folds the shared tail to `both` (reached upstream AND downstream)', () => {
+    // f depends on g and h; both g and h depend on base. Focus f: base is reached both
+    // via g (up then up) — but base is also a common ancestor; the base→g and base→h
+    // edges are upstream-only here, so verify the two upstream branches both reveal.
+    const diamond: TrailNetwork = {
+      segments: [seg('fg'), seg('fh'), seg('gb'), seg('hb')],
+      edges: [
+        { from: 'g', to: 'f', segments: [{ id: 'fg', reversed: false }] },
+        { from: 'h', to: 'f', segments: [{ id: 'fh', reversed: false }] },
+        { from: 'base', to: 'g', segments: [{ id: 'gb', reversed: false }] },
+        { from: 'base', to: 'h', segments: [{ id: 'hb', reversed: false }] },
+      ],
+      caves: [],
+      dropped: [],
+    };
+    const plan = trailRevealPlan(diamond, 'f')!;
+    // the whole upstream diamond reveals: both branches to base.
+    expect([...plan.byId.keys()].sort()).toEqual(['fg', 'fh', 'gb', 'hb']);
+    for (const id of ['fg', 'fh', 'gb', 'hb']) expect(plan.byId.get(id)!.dir).toBe('out');
+  });
+
+  it('terminates on a dependency cycle (defensive — no infinite walk)', () => {
+    const cyclic: TrailNetwork = {
+      segments: [seg('p'), seg('q'), seg('rr')],
+      edges: [
+        { from: 'a', to: 'b', segments: [{ id: 'p', reversed: false }] },
+        { from: 'b', to: 'c', segments: [{ id: 'q', reversed: false }] },
+        { from: 'c', to: 'a', segments: [{ id: 'rr', reversed: false }] }, // closes the loop
+      ],
+      caves: [],
+      dropped: [],
+    };
+    const plan = trailRevealPlan(cyclic, 'a')!;
+    expect([...plan.byId.keys()].sort()).toEqual(['p', 'q', 'rr']);
+  });
+
+  it('is deterministic on the chain fixture too', () => {
+    expect(trailRevealPlan(chainNetwork(), 'b')).toEqual(trailRevealPlan(chainNetwork(), 'b'));
+  });
+});
