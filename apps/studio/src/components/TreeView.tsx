@@ -4037,6 +4037,12 @@ function StoryPanel({
   );
   const [panelW, setPanelW] = useState(savedPanelWidth);
   const [resizing, setResizing] = useState(false);
+  // Minimise to a single header bar (owner UX 2026-07-06): the full detail overlay can
+  // hide the part of the map you want to see, so it collapses like the Legend /
+  // Shared-Islands drawers — a one-row header you can restore. Resets per story so a
+  // fresh selection always opens expanded.
+  const [minimized, setMinimized] = useState(false);
+  useEffect(() => setMinimized(false), [story.id]);
   const dragFrom = useRef<{ x: number; w: number } | null>(null);
   // The latest dragged width, read at pointerup — state can lag a render behind.
   const liveW = useRef(panelW);
@@ -4083,8 +4089,8 @@ function StoryPanel({
 
   return (
     <aside
-      className={`tree-detail${resizing ? ' is-resizing' : ''}`}
-      style={{ width: panelW }}
+      className={`tree-detail${resizing ? ' is-resizing' : ''}${minimized ? ' is-minimized' : ''}`}
+      style={minimized ? undefined : { width: panelW }}
     >
       <div
         className="tree-detail-grip"
@@ -4120,9 +4126,27 @@ function StoryPanel({
         <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
           {story.status ?? 'unknown'}
         </span>
-        <button type="button" className="btn" onClick={onClose} aria-label="close detail">
-          ✕
-        </button>
+        {/* the story id rides in the header only while minimised, so the collapsed
+            one-row bar still names what it is (mirrors the Legend drawer's summary). */}
+        {minimized && (
+          <code className="tree-detail-mini-id" title={story.title}>
+            {story.id}
+          </code>
+        )}
+        <span className="tree-detail-controls">
+          <button
+            type="button"
+            className="btn tree-detail-min"
+            onClick={() => setMinimized((m) => !m)}
+            aria-label={minimized ? 'expand detail' : 'minimize detail'}
+            title={minimized ? 'Expand' : 'Minimize'}
+          >
+            {minimized ? '▢' : '–'}
+          </button>
+          <button type="button" className="btn" onClick={onClose} aria-label="close detail">
+            ✕
+          </button>
+        </span>
       </header>
       <h3>{story.id}</h3>
       <p className="tree-detail-title">{story.title}</p>
