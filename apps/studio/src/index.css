@@ -24,6 +24,7 @@
   --cat-template: #b45309;
   --cat-adr: #334155;
   --cat-open-question: #ea580c;
+  --cat-friction: #e11d48;
   --cat-context: #b45309;
   --cat-glossary: #475569;
 
@@ -1188,6 +1189,9 @@ a.stat:hover {
 .chip.cat-open-question {
   background: var(--cat-open-question);
 }
+.chip.cat-friction {
+  background: var(--cat-friction);
+}
 
 /* The left cluster of a card header: the category chip + (for ADR docs) the lifecycle status chip. */
 .card-chips {
@@ -1227,6 +1231,9 @@ a.stat:hover {
 .cat-dot.cat-open-question {
   background: var(--cat-open-question);
 }
+.cat-dot.cat-friction {
+  background: var(--cat-friction);
+}
 .chip-btn.cat-guardrail.active {
   background: var(--cat-guardrail);
   border-color: var(--cat-guardrail);
@@ -1250,6 +1257,10 @@ a.stat:hover {
 .chip-btn.cat-open-question.active {
   background: var(--cat-open-question);
   border-color: var(--cat-open-question);
+}
+.chip-btn.cat-friction.active {
+  background: var(--cat-friction);
+  border-color: var(--cat-friction);
 }
 
 /* editor: body label row (template button) + required-section hint */

@@ -21,6 +21,7 @@ const TYPE_LABEL: Record<AssetCategory, string> = {
   template: 'Templates',
   adr: 'Decision records',
   'open-question': 'Open questions',
+  friction: 'Friction',
 };
 
 export function Library({ category }: { category: AssetCategory | null }): React.JSX.Element {

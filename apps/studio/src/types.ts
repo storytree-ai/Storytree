@@ -106,7 +106,8 @@ export type AssetCategory =
   | 'proposal' // "a planned change to roll out when ready"
   | 'template' // "the shape an artifact conforms to"
   | 'adr' // "a decision record"
-  | 'open-question'; // "an unresolved decision to settle"
+  | 'open-question' // "an unresolved decision to settle"
+  | 'friction'; // "what fought a session, with evidence"
 
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
@@ -300,6 +301,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'template',
   'adr',
   'open-question',
+  'friction',
 ];
 
 /** One-line gloss per category (shown in the Library UI). */
@@ -315,6 +317,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   template: 'the shape an artifact conforms to',
   adr: 'a decision record',
   'open-question': 'an unresolved decision to settle',
+  friction: 'what fought a session, with evidence',
 };
 
 /**

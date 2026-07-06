@@ -89,6 +89,7 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'template',
   'adr',
   'open-question',
+  'friction',
 ];
 
 export interface Paths {

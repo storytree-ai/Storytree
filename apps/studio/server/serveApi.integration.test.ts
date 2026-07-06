@@ -286,6 +286,32 @@ describe('roles: member vs admin reach', () => {
       member: true,
     });
   });
+
+  // ADR-0168 inc 4: `friction` is the 10th structured Library kind, so the server-side write
+  // allowlist (readAssetInput → ASSET_CATEGORIES.includes) must accept it. Before the allowlist
+  // wiring this POST was rejected 400 'invalid category'; a structured friction unit carries its
+  // per-kind fields (statement/evidence/impact are required) and is now accepted (201).
+  it('an admin writes a friction artifact (the 10th kind is on the write allowlist)', async () => {
+    const res = await fetch(`${base}/api/assets`, {
+      method: 'POST',
+      headers: iap(ADMIN),
+      body: JSON.stringify({
+        id: 'friction-example',
+        category: 'friction',
+        title: 'Something fought a session',
+        description: 'what fought a session, with evidence',
+        body: '',
+        fields: {
+          statement: 'The DB cold-start exceeded the preflight poll.',
+          evidence: 'db:up reported "unreachable within 420s" at status RUNNABLE.',
+          impact: 'The build stalled for ~21 min waiting on a warm connection.',
+        },
+        references: [],
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect(seen.assetCreated).toBe(true);
+  });
 });
 
 describe('activation (invited → active on first request)', () => {
