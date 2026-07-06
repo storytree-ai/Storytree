@@ -64,16 +64,14 @@
   --trail-margin: #e2d2ab; /* soft sandy halo that fades the lane edge into the board */
   --trail-bed: #c2a677; /* the warm dirt roadbed body — earthy tan, a notch darker than the beach so the lane reads as trodden ground */
   --trail-bead: #d4bb87; /* the cobble texture down the lane — SAME warm tone, a touch lighter (never dark) */
-  /* ADR-0169 trail network: warm sand FILL a step darker than the grass tone (the
-     trodden --trail-bed family), CASING the same hue ~25% darker, SHADOW the terrain
-     hue multiplied at low opacity. The two focus tints: dependents (incoming) take a
-     cooler slate, the island's own dependencies (outgoing) a warmer earth. */
+  /* ADR-0169 trail network. Owner feedback 2026-07-06: the three-pass cased ribbon +
+     dashed spur read as STRIPED visual noise; collapse to ONE plain, faded-brown line
+     that stays out of the map's way. --trail-line is the single quiet stroke; the
+     shadow/casing passes and the in/out direction tints are suppressed in CSS (the core
+     still emits them — a rendering-layer minimalism choice, tunable per ADR-0169). */
+  --trail-line: #a98b63; /* soft faded brown — the one quiet pathway stroke */
   --trail-fill: var(--trail-bed);
-  --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker */
-  --trail-in: #8fa7b5; /* cool slate — who depends on the focused island */
-  --trail-in-deep: #69808f;
-  --trail-out: #c08a4a; /* warm earth — what the focused island stands on */
-  --trail-out-deep: #906637;
+  --trail-casing: #917c59; /* --trail-bed × 0.75 — same hue, ~25% darker (unused: casing suppressed) */
   --tree-trunk: #7d5f44;
   --conifer-0: #3d7a4d;
   --conifer-1: #4d8a59;
@@ -1446,62 +1444,36 @@ a.stat:hover {
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* MINIMALIST paint (owner feedback 2026-07-06): the cased ribbon collapses to a single
+   line. The shadow + casing passes are suppressed entirely — only the FILL draws (plus
+   the under-island GHOST when a cave is forced), so a pathway reads as one quiet
+   faded-brown stroke, not a layered striped ribbon. The core still emits every pass and
+   the reveal masks still hook them; hiding them here is a surface styling choice. */
 .trail-shadow,
-.trail-casing,
+.trail-casing {
+  display: none;
+}
 .trail-fill,
 .trail-ghost {
   opacity: 0;
   transition: opacity 0.35s ease; /* the fade-out retract on clearing focus */
 }
-.trail-shadow {
-  stroke: var(--hex-side); /* the terrain hue, multiplied — a grounded contact shadow */
-  mix-blend-mode: multiply;
-}
-.trail-casing {
-  stroke: var(--trail-casing);
-}
 .trail-fill {
-  stroke: var(--trail-fill);
-}
-.trail-fill.is-spur {
-  stroke-dasharray: 7 5; /* a usage-1 footpath; trunks (n≥2) stay solid */
+  stroke: var(--trail-line); /* the ONE plain faded-brown pathway line */
 }
 .trail-ghost {
-  stroke: var(--trail-casing); /* the OSM tunnel convention: a fine dashed under-island run */
-  stroke-dasharray: 2 5;
+  stroke: var(--trail-line); /* the OSM tunnel convention: a fine dashed under-island run */
+  stroke-dasharray: 2 6;
 }
-/* revealed: visible instantly (the mask owns the growth), no fade-in fighting it */
-.trail-shadow.is-revealed {
-  opacity: 0.25;
-  transition: none;
-}
-.trail-casing.is-revealed {
-  opacity: 0.9;
-  transition: none;
-}
+/* revealed: the mask owns the growth. A single quiet faded-brown line — no direction
+   tints, no spur dash (both collapsed for minimalism per the owner's steer). */
 .trail-fill.is-revealed {
-  opacity: 0.95;
+  opacity: 0.62;
   transition: none;
 }
 .trail-ghost.is-revealed {
-  opacity: 0.8;
+  opacity: 0.45;
   transition: none;
-}
-/* the two selection tints: incoming (dependents) cooler, outgoing (dependencies) warm
-   earth; a trunk carrying both directions keeps the neutral sand. */
-.trail-fill.dir-in {
-  stroke: var(--trail-in);
-}
-.trail-casing.dir-in,
-.trail-ghost.dir-in {
-  stroke: var(--trail-in-deep);
-}
-.trail-fill.dir-out {
-  stroke: var(--trail-out);
-}
-.trail-casing.dir-out,
-.trail-ghost.dir-out {
-  stroke: var(--trail-out-deep);
 }
 /* the per-segment growth mask (rendered in <defs> by TreeView): a solid white stroke
    over the segment's own path, normalised to pathLength=1 so the dash animation is
@@ -3454,6 +3426,41 @@ button.legend-tile:hover {
 .tree-detail.is-resizing {
   user-select: none;
   cursor: ew-resize;
+}
+/* Minimised: collapse to a single header bar so it stops hiding the map (owner UX
+   2026-07-06) — everything but the header row is dropped, the width shrinks to fit,
+   and the resize grip goes with it. Restore via the header toggle. */
+.tree-detail.is-minimized {
+  width: auto;
+  min-width: 150px;
+  max-width: min(340px, 66%);
+  overflow: hidden;
+  padding: 10px 12px;
+}
+.tree-detail.is-minimized > :not(header) {
+  display: none;
+}
+.tree-detail.is-minimized header {
+  margin-bottom: 0;
+  gap: 10px;
+}
+.tree-detail-mini-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-detail-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tree-detail-min {
+  line-height: 1;
+  font-size: 14px;
 }
 .tree-detail-grip {
   position: absolute;

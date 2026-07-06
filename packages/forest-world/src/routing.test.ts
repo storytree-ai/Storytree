@@ -167,6 +167,46 @@ test('near-parallel edges to one destination share a trunk segment (usage >= 2)'
   assert.ok(net.segments.some((s) => s.usage === 1), 'each edge keeps its own spur');
 });
 
+/** Total length of a segment-chain's polylines. */
+function chainLength(net: TrailNetwork, edge: TrailEdgeOut): number {
+  let L = 0;
+  for (const ref of edge.segments) {
+    const pts = segById(net, ref.id).points;
+    for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+  }
+  return L;
+}
+function sharedLength(net: TrailNetwork, edge: TrailEdgeOut): number {
+  let L = 0;
+  for (const ref of edge.segments) {
+    const seg = segById(net, ref.id);
+    if (seg.usage < 2) continue;
+    for (let i = 1; i < seg.points.length; i++)
+      L += Math.hypot(seg.points[i]!.x - seg.points[i - 1]!.x, seg.points[i]!.y - seg.points[i - 1]!.y);
+  }
+  return L;
+}
+
+test('near-parallel edges MERGE onto one trunk for most of their length (no side-by-side lanes)', () => {
+  // Owner feedback 2026-07-06: the map showed unnecessary side-by-side parallel trails.
+  // Two edges from near-adjacent sources to a common destination must SHARE one trunk
+  // for the dominant part of the run — only a short spur peels off at each source, they
+  // do not run a cell apart the whole way. The reuse-discount funnel is what merges them.
+  const islands = [isle('A', -800, -40, 35), isle('B', -800, 40, 35), isle('C', 0, 0, 45)];
+  const net = routeTrails(
+    islands,
+    [
+      { from: 'A', to: 'C' },
+      { from: 'B', to: 'C' },
+    ],
+    'seed-merge',
+  );
+  for (const edge of net.edges) {
+    const frac = sharedLength(net, edge) / chainLength(net, edge);
+    assert.ok(frac > 0.6, `${edge.from}->${edge.to} shares the trunk for most of its length (${frac.toFixed(2)})`);
+  }
+});
+
 // ---------- caves only when forced ----------
 
 test('a walled-in edge routes under the wall: hidden segments + cave portal pair', () => {

@@ -1680,12 +1680,15 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which
-  // end, in which direction tint. Focus is the EXISTING island focus state (hover ??
-  // selected — hovering previews the reveal, clicking pins it). The scene stays
-  // focus-agnostic; the plan rides the mapper ctx + the mask defs below.
+  // end, in which direction tint. Reveal is CLICK/SELECT ONLY — keyed on `selectedStory`,
+  // NOT `focusStoryId` (owner feedback 2026-07-06): hover keeps the cheap territory
+  // upstream/downstream highlight (`storyRelations`), but must never BUILD trails — every
+  // mousemove re-ran the reveal plan + re-rendered the growth masks, the reported lag.
+  // Clicking an island reveals the UNION of its incident edges (§5 honesty — never a
+  // subset); the scene stays focus-agnostic; the plan rides the mapper ctx + mask defs.
   const revealPlan = useMemo(
-    () => trailRevealPlan(world?.trails ?? null, focusStoryId),
-    [world, focusStoryId],
+    () => trailRevealPlan(world?.trails ?? null, selectedStory),
+    [world, selectedStory],
   );
   const trailSegById = useMemo(
     () => new Map((world?.trails.segments ?? []).map((s) => [s.id, s])),
@@ -4034,6 +4037,12 @@ function StoryPanel({
   );
   const [panelW, setPanelW] = useState(savedPanelWidth);
   const [resizing, setResizing] = useState(false);
+  // Minimise to a single header bar (owner UX 2026-07-06): the full detail overlay can
+  // hide the part of the map you want to see, so it collapses like the Legend /
+  // Shared-Islands drawers — a one-row header you can restore. Resets per story so a
+  // fresh selection always opens expanded.
+  const [minimized, setMinimized] = useState(false);
+  useEffect(() => setMinimized(false), [story.id]);
   const dragFrom = useRef<{ x: number; w: number } | null>(null);
   // The latest dragged width, read at pointerup — state can lag a render behind.
   const liveW = useRef(panelW);
@@ -4080,8 +4089,8 @@ function StoryPanel({
 
   return (
     <aside
-      className={`tree-detail${resizing ? ' is-resizing' : ''}`}
-      style={{ width: panelW }}
+      className={`tree-detail${resizing ? ' is-resizing' : ''}${minimized ? ' is-minimized' : ''}`}
+      style={minimized ? undefined : { width: panelW }}
     >
       <div
         className="tree-detail-grip"
@@ -4117,9 +4126,27 @@ function StoryPanel({
         <span className={`tree-badge st-${story.status ?? 'unknown'}`}>
           {story.status ?? 'unknown'}
         </span>
-        <button type="button" className="btn" onClick={onClose} aria-label="close detail">
-          ✕
-        </button>
+        {/* the story id rides in the header only while minimised, so the collapsed
+            one-row bar still names what it is (mirrors the Legend drawer's summary). */}
+        {minimized && (
+          <code className="tree-detail-mini-id" title={story.title}>
+            {story.id}
+          </code>
+        )}
+        <span className="tree-detail-controls">
+          <button
+            type="button"
+            className="btn tree-detail-min"
+            onClick={() => setMinimized((m) => !m)}
+            aria-label={minimized ? 'expand detail' : 'minimize detail'}
+            title={minimized ? 'Expand' : 'Minimize'}
+          >
+            {minimized ? '▢' : '–'}
+          </button>
+          <button type="button" className="btn" onClick={onClose} aria-label="close detail">
+            ✕
+          </button>
+        </span>
       </header>
       <h3>{story.id}</h3>
       <p className="tree-detail-title">{story.title}</p>
