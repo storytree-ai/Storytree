@@ -32,6 +32,14 @@ import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import { desktopHelp, desktopLaunch, type DesktopSpawnFn } from "./desktop.js";
 import { onboardingCommand, onboardingHelp } from "./onboarding.js";
+import {
+  newFriction,
+  reinforceFriction,
+  routeFriction,
+  listFriction,
+  frictionHelp,
+  type FrictionContext,
+} from "./friction.js";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, type CoverageUnit } from "./coverage.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
@@ -99,6 +107,7 @@ const KIND_ORDER = [
   "agent",
   "proposal",
   "open-question",
+  "friction",
   "template",
 ] as const;
 
@@ -810,6 +819,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "",
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
+      "  friction         file what fought you → the Library (ADR-0168) — new | reinforce | route | list",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
@@ -1023,6 +1033,29 @@ export interface RunDeps {
     readonly spawn?: DesktopSpawnFn;
     readonly repoRoot?: string;
     readonly platform?: NodeJS.Platform;
+  };
+  /**
+   * The `storytree friction` seam (ADR-0168 inc 2): the capture context — branch (the provenance +
+   * cap-3 key), clock, and the inbox/docs dirs — is injected so the whole surface is offline-testable
+   * without git, a real clock, or the real repo tree. Absent in production: `branch` derives from git,
+   * `now` from the clock, and the dirs from the repo root.
+   */
+  readonly friction?: {
+    readonly branch?: string;
+    readonly now?: string;
+    readonly inboxDir?: string;
+    readonly docsDir?: string;
+  };
+}
+
+/** Assemble the friction capture context, deriving the git/clock/path defaults the tests inject. */
+function makeFrictionContext(deps: RunDeps): FrictionContext {
+  const root = repoRoot();
+  return {
+    branch: deps.friction?.branch ?? currentBranch(),
+    now: deps.friction?.now ?? new Date().toISOString(),
+    inboxDir: deps.friction?.inboxDir ?? path.join(root, "docs", "friction-inbox"),
+    docsDir: deps.friction?.docsDir ?? path.join(root, "docs"),
   };
 }
 
@@ -1500,6 +1533,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     write?: boolean;
     step?: string;
     "agent-type"?: string;
+    evidence?: string;
+    route?: string;
+    source?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1546,6 +1582,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         write: { type: "boolean", default: false },
         step: { type: "string" },
         "agent-type": { type: "string" },
+        evidence: { type: "string" },
+        route: { type: "string" },
+        source: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -1979,6 +2018,40 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(deps.desktop?.spawn !== undefined ? { spawn: deps.desktop.spawn } : {}),
       ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
     });
+  }
+
+  if (area === "friction") {
+    // The friction capture surface (ADR-0168 inc 2). `new` falls back to a docs/friction-inbox/
+    // staging file offline (D2); `reinforce`/`route` are live-store writes; `list` is a read (offline
+    // OK, seed-backed). The capture context (branch/clock/dirs) is injected via `deps.friction`.
+    if (sub === undefined || help) return frictionHelp();
+    const ctx = makeFrictionContext(deps);
+    if (sub === "new") {
+      return newFriction(deps, {
+        ...(values.json !== undefined ? { json: values.json } : {}),
+        ...(values.file !== undefined ? { file: values.file } : {}),
+        ...(values.source !== undefined ? { source: values.source } : {}),
+      }, ctx);
+    }
+    if (sub === "reinforce") {
+      return reinforceFriction(deps, third, {
+        ...(values.evidence !== undefined ? { evidence: values.evidence } : {}),
+      }, ctx);
+    }
+    if (sub === "route") {
+      return routeFriction(deps, third, {
+        ...(values.route !== undefined ? { route: values.route } : {}),
+        ...(values.reason !== undefined ? { reason: values.reason } : {}),
+      }, ctx);
+    }
+    if (sub === "list") {
+      return listFriction(deps.store, { now: ctx.now, inboxDir: ctx.inboxDir });
+    }
+    return {
+      ok: false,
+      body: `unknown friction command "${sub}". try: new | reinforce | route | list`,
+      next: ["storytree friction --help", "storytree friction list"],
+    };
   }
 
   if (area === "onboarding") {

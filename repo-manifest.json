@@ -33,7 +33,8 @@
   "docs": {
     "allowedDirs": {
       "decisions": "ADRs — immutable dated decision records; also the source-of-record the studio folds in as the Library's read-only `adr` category. New ADRs do not need a manifest entry.",
-      "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model."
+      "research": "Long-form decision-provenance behind specific ADRs (option surveys / how a decision was reached). Does not fit the Library's atomic-unit model.",
+      "friction-inbox": "Offline/remote capture staging for `friction` Library items (ADR-0168 D2): a remote 443-only session that cannot reach the live store files `storytree friction new` here as validated doc JSON for its PR, and the adjudicator/librarian files it live and deletes the staging file (migrate-only, like sync-corpus). Schema-validated fail-closed by friction-inbox.test.ts in `pnpm -r test`. NOT durable knowledge — a transient staging surface, so it sits in docs/ rather than the Library."
     },
     "files": {
       "open-questions.md": "The deferred-decisions backlog, cited by stable section number (§n) from the ADRs and Library units' references. A threaded cross-reference ledger, not atomic Library units."
