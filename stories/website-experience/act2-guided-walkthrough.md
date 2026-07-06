@@ -248,6 +248,31 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 >   honesty rules bind on all display copy (ADR-0165 §9 — see Guidance). Per
 >   `defects-amend-the-owning-story` the re-spec reverts this cap to `building` and re-earns `healthy`
 >   through the gate on the new surface; the authored `status:` stays `proposed` (ADR-0020).
+>
+> **As built (2026-07-06, web main `a87e8ed2`, live at https://crisp-globe-bf6v.here.now/) — G's
+> share of ADR-0165 LANDED + OWNER-ATTESTED AS MANY STEPS FORWARD.** Built in `storytree-web`
+> (branch `claude/act2-opening-redesign` off `d761eadc`; commit `e1b0357`, run 1 of the redesign
+> build): the Phase D growing diagram (D0–D6, additive-only, the landed loop ring blooming at D5),
+> advance moved INTO the chat as bounded reply chips (the separate Next button GONE), the island
+> handoff compacting to the docked 6-dot mini-map with stage lighting (I1–I3), the wisp on a true
+> island-centred ORBIT, and the corner overlays retired. Landed via storytree-web PR #27
+> squash-merged → web main `a87e8ed2` (merge = CD publish, deploy green; the parent `web/` pin bump
+> `d761eadc` → `a87e8ed2` rides the close-out PR). Machine floor: `npm run build` green (8 pages);
+> the three parent web gates (`check:web-experience` / `check:web-grounding` / `check:web-engine`)
+> green; 3/3 headless Playwright witness — the full 16-tap flow, the additive-only diagram (nothing
+> replaced or swapped), the director-beat mapping, the orbit measured, the mini-map stage lighting,
+> Back's byte-identical replay, NO Next button / NO corner overlays, the three `data-experience-*`
+> markers, no-JS + reduced-motion never fetching the walk, zero console errors. Act 1, the
+> transform, the synced engine (`src/lib`), and the director beats stayed byte-untouched (ADR-0165
+> §10 held — no engine change, no parent re-proof). The owner walked the staged build
+> (http://127.0.0.1:4340/) and attested it — verbatim, relayed per ADR-0044 §4 at
+> https://github.com/HuaMick/storytree-web/pull/27#issuecomment-4888197362: *"this is many steps
+> forward, please land this, i want to show some of my inner circle this to get early feedback"* —
+> and it is live-verified at https://crisp-globe-bf6v.here.now/ (markers + asset hashes
+> byte-identical to the attested branch build). A step-forward verdict directed to land for
+> inner-circle feedback, not a terminal close; every prior record above stays true history
+> (copy-on-write); the authored `status:` stays `proposed` (`healthy` is earned through the
+> whole-story gate, never authored — ADR-0020).
 
 ## As built (web main `ff70222b`) — the FIRST attested walk (historical record, kept intact)
 

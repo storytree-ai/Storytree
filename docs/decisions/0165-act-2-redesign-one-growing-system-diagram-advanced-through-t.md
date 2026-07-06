@@ -343,7 +343,9 @@ site-owned data and the boundary (ADR-0056/0066/0093); the ADR-0070 two-stage pr
   an owner re-decision recorded here (like the storm metaphor in ADR-0157 §2), not a correction of an
   error; the prior attested records stand as true history (copy-on-write). Both LOOK caps revert
   toward `building` for the reshaped surface (`defects-amend-the-owning-story`); the live site stays
-  on `d761eadc` until the re-build lands through its own gate.
+  on `d761eadc` until the re-build lands through its own gate. *(That gate has since been passed —
+  the re-build landed owner-attested on 2026-07-06 and the live site is web main `a87e8ed2`; see
+  "As built" below. Noted in place per ADR-0139.)*
 - **The chat-advance wiring must keep the walk resumable and replayable** (Back = byte-identical
   replay, default 9); if chip-in-chat state and scene state ever disagree, the walk breaks in a way
   the old dumb button could not — the build keeps advance a thin wrapper around the same `advance()`
@@ -353,6 +355,8 @@ site-owned data and the boundary (ADR-0056/0066/0093); the ADR-0070 two-stage pr
 
 This ADR amends the DECIDED content of the ADRs below but does not edit their bodies. The librarian
 pass corrects their stale prose in place and adds a dated forward pointer at each amended point:
+*(EXECUTED — every item below landed as a dated in-place note in ADR-0153 / ADR-0157 on 2026-07-05;
+re-verified by the as-built librarian pass 2026-07-06. Kept as the record of what was corrected.)*
 
 - **ADR-0153** — the overlay decisions and their engine-support note:
   - **§Decision points 5–6** (step 2's temporary top-left agent-loop overlay; steps 3–4's expanded
@@ -377,6 +381,40 @@ pass corrects their stale prose in place and adds a dated forward pointer at eac
     `buildLoopDiagram`) and the wisp (`index.astro` `animation: act2-wisp-drift`): add a dated note
     that ADR-0165 relocates the loop diagram into the growing diagram and replaces the drift with the
     orbit; the cites stay true history of `d761eadc`.
+
+## As built (2026-07-06)
+
+**Built AS APPROVED and LANDED LIVE.** The redesign was built in `storytree-web` (branch
+`claude/act2-opening-redesign`, off web main `d761eadc` — the §10 baseline) in two runs:
+**`e1b0357`** (run 1 — the Phase D growing diagram D0–D6, the chat-chip advance replacing the
+separate Next button, the docked 6-dot mini-map with stage lighting, the orbiting wisp, and the
+corner-overlay retirement) and **`ca7c007`** (run 2 — the Phase Z studio zoom-out). Machine floor:
+`npm run build` green (8 pages); the three parent web gates (`check:web-experience` /
+`check:web-grounding` / `check:web-engine`) green; a 3/3 headless Playwright witness covering the
+full 16-tap flow — the additive-only diagram (nothing replaced or swapped), the director-beat
+mapping, the orbit measured, the mini-map stage lighting, Back's byte-identical replay, NO Next
+button and NO corner overlays anywhere, the three `data-experience-*` markers, no-JS +
+reduced-motion never fetching the walk, and zero console errors. Act 1, the transform, the synced
+engine (`src/lib`), and the director beats stayed **byte-untouched** — §10 held (no engine change,
+no `sync:web-engine`, no parent re-proof).
+
+**Owner attestation (2026-07-06, at the staged walk on http://127.0.0.1:4340/).** Recorded verbatim
+(a look/feel verdict only the owner can sign, agent-relayed per ADR-0044 §4 at
+https://github.com/HuaMick/storytree-web/pull/27#issuecomment-4888197362):
+
+> *"this is many steps forward, please land this, i want to show some of my inner circle this to
+> get early feedback"*
+
+Landed: storytree-web PR #27 squash-merged → web main **`a87e8ed2`**
+(`a87e8ed2999f45493cc553afdc9ba27b492813c4`; merge = CD publish, the "Deploy to here.now" run
+green). Live-verified at https://crisp-globe-bf6v.here.now/ — the three `data-experience-*` markers
+served and the asset hashes byte-identical to the attested branch build. The parent repo's
+close-out PR bumps the `web/` submodule pin `d761eadc` → `a87e8ed2`. The per-increment as-built
+records live on the two LOOK caps
+([`act2-guided-walkthrough`](../../stories/website-experience/act2-guided-walkthrough.md) — G's
+share, run 1; [`act2-guided-forest`](../../stories/website-experience/act2-guided-forest.md) — H's
+share, run 2). Per ADR-0070 this is a step-forward attestation at this gate ("many steps forward",
+directed to land for inner-circle feedback), not a terminal close of the LOOK.
 
 ## References
 

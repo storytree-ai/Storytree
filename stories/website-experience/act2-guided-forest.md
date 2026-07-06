@@ -292,6 +292,31 @@ walk it grows from exists.
 >   to `building` and re-earns `healthy` through the gate on the new surface; the authored `status:`
 >   stays `proposed` (ADR-0020).
 >
+> **As built (2026-07-06, web main `a87e8ed2`, live at https://crisp-globe-bf6v.here.now/) — H's
+> share of ADR-0165 LANDED + OWNER-ATTESTED AS MANY STEPS FORWARD.** Built in `storytree-web`
+> (branch `claude/act2-opening-redesign` off `d761eadc`; commit `ca7c007`, run 2 of the redesign
+> build — the Phase Z studio zoom-out: the crossfade into the studio frame and the slow chip-paced
+> reveal to the honest done state, on the real map renderer with studio chrome re-created from
+> tokens; run 1's `e1b0357` carried the shared chat-chip advance, the persistent mini-map, and the
+> orbit H's beats ride — see [`act2-guided-walkthrough`](act2-guided-walkthrough.md)). Landed via
+> storytree-web PR #27 squash-merged → web main `a87e8ed2` (merge = CD publish, deploy green; the
+> parent `web/` pin bump `d761eadc` → `a87e8ed2` rides the close-out PR). Machine floor: `npm run
+> build` green (8 pages); the three parent web gates (`check:web-experience` / `check:web-grounding`
+> / `check:web-engine`) green; 3/3 headless Playwright witness — the full 16-tap flow end-to-end,
+> the director-beat mapping, the mini-map stage lighting carried through the walk, Back's
+> byte-identical replay, NO Next button / NO corner overlays anywhere, the three
+> `data-experience-*` markers, no-JS + reduced-motion never fetching the walk, zero console errors.
+> The director beats and the synced engine (`src/lib`) stayed byte-untouched (ADR-0165 §10 held —
+> no engine change, no `sync:web-engine`, no parent re-proof). The owner walked the staged build
+> (http://127.0.0.1:4340/) and attested it — verbatim, relayed per ADR-0044 §4 at
+> https://github.com/HuaMick/storytree-web/pull/27#issuecomment-4888197362: *"this is many steps
+> forward, please land this, i want to show some of my inner circle this to get early feedback"* —
+> and it is live-verified at https://crisp-globe-bf6v.here.now/ (markers + asset hashes
+> byte-identical to the attested branch build). A step-forward verdict directed to land for
+> inner-circle feedback, not a terminal close; every prior record above stays true history
+> (copy-on-write); the authored `status:` stays `proposed` (`healthy` is earned through the
+> whole-story gate, never authored — ADR-0020).
+>
 > **The re-shape (owner direction at the G gate, 2026-07-04 — SETTLED, design-time-ratified).**
 > Attesting increment G, the owner sharpened H's shape (verbatim: *"get rid of this bit [beat 4's
 > 'wrong way — skips the payment service' flag] … integrate the grow the backend into the one tutorial,
