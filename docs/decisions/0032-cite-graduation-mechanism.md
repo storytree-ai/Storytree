@@ -62,11 +62,24 @@ count, an operator who approves — with much of the design weight spent on maki
    the cite set is a traversable **signal-graph** spanning the whole system. It is stored exactly like
    the comment substrate already proven — a history event stream plus a current-state projection
    (`events.cite` + append-only `events.cite_event`, mirroring `PgCommentStore`). Keep it minimal.
+   *(2026-07-06: the cite STORE was never built — no `events.cite` exists. For the graduation path,
+   [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) realizes
+   cite-as-reinforcement without it: a recurring signal appends evidence to `reinforcedBy` on the
+   existing `friction` artifact, and the shared `references` field carries the cross-artifact links —
+   the signal-graph as artifact fields, not a separate cite-event stream. The cite SHAPE decided here
+   stands; the dedicated store stays unbuilt for this path.)*
 
 3. **Graduation is a future synthesis agent** (named, unbuilt). It reads the accumulated signal-graph
    and synthesises **open-questions / proposals** into the ADR-0018 OQ→ADR flow — it does **not** run
    a cite-density threshold that auto-proposes a Library promotion. This is the vision; the loop is not
    built, and nothing here claims it is.
+   *(2026-07-06: the deferral has ended —
+   [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) un-parks the
+   `graduation-synthesist` into exactly this seat and authorises its build. Its inputs grew as designed:
+   agent-memory joined via [ADR-0095](0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md),
+   and `friction` artifacts via ADR-0168, whose D5 extends the chair to friction adjudication through a
+   justification gate. The librarian-curator holds the chair until the build lands. The no-threshold
+   posture here is unchanged — ADR-0168 reaffirms it.)*
 
 4. **archive-with-reason stays.** A wrong or handled signal is closed by a reasoned, attributable
    event that preserves history (a record, not a delete) — the one piece of ADR-0014's design that
@@ -109,6 +122,11 @@ count, an operator who approves — with much of the design weight spent on maki
 - **Near-term buildable** in `feedback-graduation`: `cite-event` (as a typed link) and `archive-with-reason`.
   **Deferred**: `signal-synthesis` (the future agent; its trust in agent-authored signal waits on
   identity §1).
+  *(2026-07-06: overtaken by [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) —
+  `cite-event` was never built and the graduation path now routes around it (see Decision 2's note),
+  and `signal-synthesis` is no longer deferred: the owner exercised the fork, un-parking the
+  `graduation-synthesist` and authorising its build as the friction adjudicator. The identity-§1
+  question stays open but no longer parks the agent.)*
 - **No anti-gaming scaffolding is built.** This is a deliberate non-goal, revisited only on evidence.
 - **ADR numbering:** `0032` is the next free number on `main` (which carries 0001–0031). Parallel
   branches may also reach for `0032`; reconcile at merge time as prior merges did (e.g. the 0024→0025

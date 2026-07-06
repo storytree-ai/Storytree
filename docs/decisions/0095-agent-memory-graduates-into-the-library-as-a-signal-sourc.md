@@ -126,6 +126,11 @@ pipeline; it is one more source feeding the conceived one.**
      Library** — the future *per-user* memory tier (Open call 1); its eventual home is `studio-members`,
      not the institutional commons. Privacy/scope, not just sequencing.
 
+   *(Amended by [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md):
+   `friction` artifacts — the session-retro kind — are a further signal source alongside memory, routed
+   by the adjudicator through the extended table `adr | tool | principle | guardrail | process |
+   definition | edit-existing | nothing` (ADR-0168 D5). The memory-type rows above are unchanged.)*
+
 5. **The Library, ADRs excepted, holds only durable, reusable ("able") artifacts — never event-specific
    cruft.** (Owner's scoping rule.) **ADRs are the one exception**, because they *are* the
    decision-event history — point-in-time, append-only. Every other kind — definition, principle,
@@ -135,6 +140,11 @@ pipeline; it is one more source feeding the conceived one.**
    PR, this date, this fix") stays in **git history / the relevant ADR** and never becomes a non-ADR
    artifact. A memory with **no** durable reusable essence mints **no** non-ADR artifact — it either
    informs an ADR or is simply pruned.
+   *(Amended by [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D2:
+   the transient-by-design kinds this enumeration already omitted — open-question, proposal, and the
+   new `friction` — are now named the Library's **lifecycle tier**, each with a mandatory drain. The
+   able-things-only rule stands verbatim for every durable tier: raw friction never graduates as
+   itself; only its extracted durable essence does.)*
 
 6. **A graduated memory is deleted, not cached — to dogfood the Library.** (Owner's call, overriding the
    proposal's backlink suggestion.) Once a memory's durable essence is in the Library (or its
@@ -152,6 +162,11 @@ pipeline; it is one more source feeding the conceived one.**
    **graduates durable agent-memory** and **derives definitions / principles for agent guidance**, and
    it runs **before each merge ceremony** as a standard orchestration step — *green unit → librarian
    pass (curate + graduate) → merge*. Bounded to that punctuation, not eager or continuous.
+   *(Amended by [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md)
+   D1/D4: the punctuation gains a capped, evidence-fenced session RETRO before this pass — *green unit
+   → retro → librarian pass → merge* — and the pass gains a bounded friction-drain duty: hygiene-check
+   newly filed friction and drain the K oldest routable items, with a fail-closed worklist ceiling as
+   the backstop.)*
 
 8. **The bar is genuine durability — no Library bloat.** (Owner's primary guardrail.) The librarian
    graduates **only** material that is genuinely durable, general, and **not** already reconstructible
@@ -160,6 +175,11 @@ pipeline; it is one more source feeding the conceived one.**
    event-specific candidates are **rejected**, not graduated. This discriminating judgment is the whole
    reason graduation is curation (intelligence) and not a threshold scan (arithmetic), per ADR-0032
    §2/§5 — and it is the explicit defence against the Library bloat the owner called out.
+   *(Operationalised for the friction source by
+   [ADR-0168](0168-session-retro-friction-every-session-feeds-friction-to-the-l.md) D5: the
+   seven-question justification gate — evidence-supports-claim, reconstructibility, edit-first,
+   statelessness, discriminating power, recurrence, cheapest-fix — answered into `routeReason`, is
+   this bar made procedural. Worth stays judgment; no threshold decides.)*
 
 9. **Direction is memory → Library (deposit), primary.** Seeding agent-memory *from* the Library is
    unnecessary: the pull-based-context architecture already has a session read the Library just-in-time,
