@@ -1,17 +1,33 @@
 // trailReveal — the pure reveal-on-focus selector for the ADR-0169 trail network.
 //
 // The default map draws NO visible trail strokes (§3); focusing an island reveals the
-// union of segments its incident `depends_on` edges route through, growing outward
-// from the island segment-by-segment in chain order. This module is the PURE half of
-// that experience: (focused id, TrailNetwork) → the ordered segment reveal plan —
-// which segments, in what stagger order, growing from which geometric end, in which
-// direction tint. The DOM half (SceneView's mask hookup + the index.css animation)
-// consumes the plan verbatim, so the animation LOGIC is red-green testable here
-// (ADR-0070 Stage-1; the look is owner-attested).
+// segments of the WHOLE dependency chain it participates in — the full transitive
+// closure both directions: every edge reachable by walking to its dependencies
+// (recursively) UNION every edge reachable by walking to its dependents (recursively).
+// The trails grow OUTWARD from the focused island hop-by-hop. This module is the PURE
+// half of that experience: (focused id, TrailNetwork) → the ordered segment reveal
+// plan — which segments, in what stagger order, growing from which geometric end, in
+// which direction tint. The DOM half (SceneView's mask hookup + the index.css
+// animation) consumes the plan verbatim, so the animation LOGIC is red-green testable
+// here (ADR-0070 Stage-1; the look is owner-attested).
 //
-// Why a plan and not classes: a segment is SHARED (a trunk carries many edges), so
-// two incident edges can reach the same segment at different chain positions or from
+// Owner feedback 2026-07-06: "downstream islands and upstream islands that share a
+// node should also grow pathways" — the connected dependency CHAIN, not just the
+// clicked island's direct neighbours. Confirmed scope: full transitive closure BOTH
+// directions (dependencies + dependents, recursively), NOT siblings that merely share
+// a common dependency. The §5 honesty invariant holds by construction: the plan is the
+// union of REAL edges reachable along the graph, never a curated subset or an invented
+// edge.
+//
+// Why a plan and not classes: a segment is SHARED (a trunk carries many edges), so two
+// revealed edges can reach the same segment at different chain positions or from
 // different ends — the plan folds those deterministically (earliest reveal wins).
+//
+// Growth timing is a segment-weighted Dijkstra from the focus: each edge is revealed
+// when the near node it hangs off is REACHED, so delays accumulate along the graph and
+// segments closer to the island light first. Positive segment weights ⇒ it terminates
+// even if the graph has a cycle (no negative edges); a shared node reached by two paths
+// keeps the EARLIER arrival.
 
 import type { TrailNetwork } from '@storytree/forest-world';
 
@@ -52,7 +68,8 @@ export interface TrailRevealPlan {
  * focused (or there is no network) — a focused island with NO incident edges still
  * yields a plan (empty segments), so the world still dims around it. Pure and
  * deterministic; the honesty invariant (ADR-0169 §5) holds by construction: the plan
- * is the UNION of the focused island's incident edges, never a curated subset.
+ * is the UNION of the REAL edges on the focused island's full dependency chain (both
+ * directions, transitively), never a curated subset or an invented edge.
  */
 export function trailRevealPlan(
   network: TrailNetwork | null | undefined,
@@ -62,36 +79,68 @@ export function trailRevealPlan(
   const byId = new Map<string, RevealSegment>();
   const edgesOf = new Map<string, Set<string>>(); // segment id → distinct edge keys revealed through it
 
+  // Adjacency keyed by the NEAR end of each edge, per walk direction:
+  //   `out` (dependencies): a node's own dependencies hang off its `to` end — so we
+  //         expand edges where `edge.to === node`, arriving at `edge.from` farther out.
+  //   `in`  (dependents):   a node's dependents hang off its `from` end — expand edges
+  //         where `edge.from === node`, arriving at `edge.to` farther out.
+  const byTo = new Map<string, TrailNetwork['edges']>(); // near end for the `out` walk
+  const byFrom = new Map<string, TrailNetwork['edges']>(); // near end for the `in` walk
   for (const edge of network.edges) {
-    const isOut = edge.to === focusId; // F depends on `from` — F's own dependency
-    const isIn = edge.from === focusId; // someone depends on F
-    if (!isOut && !isIn) continue;
-    const dir: TrailDir = isOut ? 'out' : 'in';
-    const edgeKey = `${edge.from}->${edge.to}`;
-    // Walk the chain OUTWARD from F: an edge's chain is ordered from → to, so when F
-    // is `to` we walk it backwards and each segment grows from its opposite end.
-    const chain = isIn ? edge.segments : [...edge.segments].reverse();
-    chain.forEach((ref, i) => {
-      const fromEnd = isIn ? ref.reversed : !ref.reversed;
-      const delayMs = i * REVEAL_STAGGER_MS;
-      const users = edgesOf.get(ref.id) ?? new Set<string>();
-      users.add(edgeKey);
-      edgesOf.set(ref.id, users);
-      const prev = byId.get(ref.id);
-      if (!prev) {
-        byId.set(ref.id, { id: ref.id, delayMs, fromEnd, dir, revealedUsage: users.size });
-        return;
-      }
-      // fold: earliest reveal wins the timing + growth end; directions merge to `both`.
-      byId.set(ref.id, {
-        id: ref.id,
-        delayMs: Math.min(prev.delayMs, delayMs),
-        fromEnd: delayMs < prev.delayMs ? fromEnd : prev.fromEnd,
-        dir: prev.dir === dir ? prev.dir : 'both',
-        revealedUsage: users.size,
-      });
-    });
+    (byTo.get(edge.to) ?? byTo.set(edge.to, []).get(edge.to)!).push(edge);
+    (byFrom.get(edge.from) ?? byFrom.set(edge.from, []).get(edge.from)!).push(edge);
   }
+
+  // One outward Dijkstra pass. `near` maps a node to the edges we expand when it is
+  // reached; a `far` edge's chain is walked from the near node outward, its per-segment
+  // delay accumulating from the near node's arrival delay. Both passes fold into the
+  // SAME `byId` (earliest reveal wins timing + growth end; a segment on both an `out`
+  // and an `in` edge merges to `both`).
+  const walk = (near: Map<string, TrailNetwork['edges']>, dir: TrailDir): void => {
+    const dist = new Map<string, number>([[focusId, 0]]); // node → earliest arrival delay
+    const settled = new Set<string>();
+    for (;;) {
+      // pick the unsettled reached node with the smallest delay (small graphs: O(n²))
+      let cur: string | null = null;
+      let best = Infinity;
+      for (const [n, d] of dist) if (!settled.has(n) && d < best) ((best = d), (cur = n));
+      if (cur === null) break;
+      settled.add(cur);
+      for (const edge of near.get(cur) ?? []) {
+        const far = dir === 'out' ? edge.from : edge.to;
+        // walk the chain from the near node OUTWARD: `to`-anchored (`out`) means the
+        // stored from→to chain is walked backwards; `from`-anchored (`in`) forwards.
+        const chain = dir === 'out' ? [...edge.segments].reverse() : edge.segments;
+        const edgeKey = `${edge.from}->${edge.to}`;
+        chain.forEach((ref, i) => {
+          const fromEnd = dir === 'out' ? !ref.reversed : ref.reversed;
+          const delayMs = best + i * REVEAL_STAGGER_MS;
+          const users = edgesOf.get(ref.id) ?? new Set<string>();
+          users.add(edgeKey);
+          edgesOf.set(ref.id, users);
+          const prev = byId.get(ref.id);
+          if (!prev) {
+            byId.set(ref.id, { id: ref.id, delayMs, fromEnd, dir, revealedUsage: users.size });
+            return;
+          }
+          byId.set(ref.id, {
+            id: ref.id,
+            delayMs: Math.min(prev.delayMs, delayMs),
+            fromEnd: delayMs < prev.delayMs ? fromEnd : prev.fromEnd,
+            dir: prev.dir === dir ? prev.dir : 'both',
+            revealedUsage: users.size,
+          });
+        });
+        // the far node is reached one full chain later; relax if that is earlier.
+        const arrive = best + chain.length * REVEAL_STAGGER_MS;
+        const prevD = dist.get(far);
+        if (prevD === undefined || arrive < prevD) dist.set(far, arrive);
+      }
+    }
+  };
+
+  walk(byTo, 'out'); // dependencies, recursively — what the island stands on
+  walk(byFrom, 'in'); // dependents, recursively — who stands on the island
 
   const segments = [...byId.values()].sort(
     (a, b) => a.delayMs - b.delayMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),

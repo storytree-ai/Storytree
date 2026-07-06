@@ -114,7 +114,6 @@ function renderScene(
     territoryClassById: (id, status) => `hex-territory st-${status}${id === 'lib' ? ' is-focus' : ''}`,
     reveal: null,
     hidden: new Set(['unhealthy']),
-    onHoverStory: vi.fn(),
     onSelectStory: vi.fn(),
     onSelectCap: vi.fn(),
     ...over,
@@ -263,13 +262,16 @@ describe('SceneView — the studio scene mapper', () => {
     expect(other.querySelector('[class*="arrive"]')).toBeNull();
   });
 
-  it('hovers the story from any of its island groups', () => {
-    const onHoverStory = vi.fn();
-    const { root } = renderScene({ onHoverStory });
-    fireEvent.mouseEnter(root.querySelector('.hex-flora')!);
-    expect(onHoverStory).toHaveBeenCalledWith('lib');
-    fireEvent.mouseLeave(root.querySelector('.hex-flora')!);
-    expect(onHoverStory).toHaveBeenCalledWith(null);
+  it('selects the story from its island hit group, and does NOT wire hover (owner 2026-07-06)', () => {
+    const onSelectStory = vi.fn();
+    const { root } = renderScene({ onSelectStory });
+    // hover-driven highlight was removed (the mousemove recolour was the lag): mousing
+    // over an island fires no handler, but a CLICK still selects it.
+    const hit = root.querySelector('.world-story-hit') ?? root.querySelector('.hex-flora')!;
+    fireEvent.mouseEnter(hit);
+    fireEvent.mouseLeave(hit);
+    fireEvent.click(root.querySelector('.world-story-hit')!);
+    expect(onSelectStory).toHaveBeenCalledWith('lib');
   });
 });
 
