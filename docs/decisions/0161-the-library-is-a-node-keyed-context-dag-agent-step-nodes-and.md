@@ -82,8 +82,14 @@ serves.* The readiness review (2026-07-05) established the precise seam:
 
 5. **The new edges are born enforced.** ADR-0156's size/structure gate additionally asserts STEP→REFS
    INTEGRITY (every entry names a real workflow step; no dangling ref key), and the process-graph unit
-   adds GRAPH INTEGRITY (branch-edges resolve; no cycles / unreachable nodes) — the dangling-ref fence
-   extended to structured edges. The enforcement stays layered exactly as today: code fences (block —
+   adds GRAPH INTEGRITY (branch-edges resolve; no cycles) — the dangling-ref fence extended to
+   structured edges. (*Delivered* by `check:process-graph`, ADR-0161 inc 7c: resolve + acyclic. The
+   third property this originally named, "unreachable nodes", is DEFERRED — the process branch-edge
+   graph declares no traversal ROOT, and reachability is only computable relative to one; enforcing it
+   would mean inventing a root semantics the corpus does not settle, so it becomes definable once a real
+   graph entry-point is declared. A standing, not-yet-met obligation, not a shipped check — recorded
+   here so the accepted set stays true in full, ADR-0139.) The enforcement stays layered exactly as
+   today: code fences (block —
    they make thinning safe) + structural gates (drift / size / bijection / integrity) + the
    librarian-curator standing charter (WHICH nodes should exist — the judgement no gate makes).
 

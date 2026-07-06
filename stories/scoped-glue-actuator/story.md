@@ -87,6 +87,11 @@ capabilities: [glue-worker-spawn, spawn-glue-tool, glue-deps-composition]
 # new edges introduce no cycle. (chat-subagent-spawn is itself a pure source node depending on the same
 # roots; this story sits one layer above it on the same downward-flowing DAG.)
 depends_on: [chat-subagent-spawn, agent, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [chat-subagent-spawn]
 # Deciding ADRs (ADR-0037 §2): 160 (PRIMARY — the scoped glue actuator is shape (a): a fenced,
 # write-scoped, claim-gated spawn_glue_worker MCP tool honouring a task prompt; D2 reuse the fence runner
 # generalised, no new write path; D3 land through the existing gate→PR, the D3 boundary of 0158

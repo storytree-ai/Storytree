@@ -7,6 +7,11 @@ status: proposed
 proof_mode: UAT
 capabilities: [uat-test-units, attestation-signals, attestation-surface]
 depends_on: [studio, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio, library]
 decisions: [44, 82]
 ---
 

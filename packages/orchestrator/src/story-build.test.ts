@@ -23,6 +23,7 @@ function spec(
     story: tier === "story" ? undefined : "s",
     dependsOn,
     consumedBy: [],
+    artifactEdges: [],
     capabilities,
     decisions: [],
     buildConfig: undefined,

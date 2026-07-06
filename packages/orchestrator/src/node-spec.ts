@@ -54,6 +54,12 @@ const Frontmatter = z
     // in package.json. The boundary gate (`check:boundaries`) covers a cross-story code edge A→B
     // when A declares B in `depends_on` OR B declares A in `consumed_by` (either endpoint).
     consumed_by: z.array(z.string()).default([]),
+    // ADR-0166: the SUBSET of this story's `depends_on` the author marks as deliberate NON-IMPORT
+    // edges — a build-artifact consumption, an outbound write-target, or an injected/hosted seam.
+    // The boundary gate's honesty rule accepts an annotated edge without code backing; the drift +
+    // redundancy reports treat an annotated edge as human-resolved. Validated by the gate (a stray
+    // or stale entry is a violation), not here.
+    artifact_edges: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
     decisions: z.array(z.number().int().positive()).default([]),
     // Studio render hint (ADR-0076): a MANUAL, agent-authored tag (set during story writing /
@@ -94,6 +100,12 @@ export interface NodeSpec {
    * read `consumedBy` to lay the hubs out centrally.
    */
   consumedBy: string[];
+  /**
+   * The `artifact_edges` frontmatter (ADR-0166): the subset of `dependsOn` marked as deliberate
+   * non-import edges (build-artifact / write-target / injected-seam). `[]` when unset (the common
+   * case). Consumed by the boundary gate's honesty rule and the drift/redundancy reports.
+   */
+  artifactEdges: string[];
   /** A story spec's `capabilities` frontmatter list (empty for capability/contract tiers). */
   capabilities: string[];
   /** A story spec's deciding ADR numbers (ADR-0037 §2; empty for capability/contract tiers). */
@@ -176,6 +188,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     story: fm.story,
     dependsOn: fm.depends_on,
     consumedBy: fm.consumed_by,
+    artifactEdges: fm.artifact_edges,
     capabilities: fm.capabilities,
     decisions: fm.decisions,
     render: fm.render,

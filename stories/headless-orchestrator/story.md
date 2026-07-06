@@ -49,6 +49,11 @@ capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-c
 #                    (packages/drive/src/noticeboard.ts). Phase 1's PROOF is orientation+proposal, not
 #                    presence — the declaration is the session courtesy, not the deliverable.
 depends_on: [agent, drive-machinery, library, notice-board]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [drive-machinery, notice-board]
 # Deciding ADRs (ADR-0037 §2): chat-driven orchestration / the phased server-side runtime — Phase 1
 # (108, this); human owns the outer loop, amended in degree by a server-side runtime (30); the agent
 # renderer / one loop definition the runtime runs (51); the orchestrator/agent boundary the runtime

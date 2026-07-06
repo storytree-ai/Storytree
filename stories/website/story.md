@@ -23,6 +23,11 @@ capabilities: []
 # live (ADR-0100 §3). `forest-world` is a foundational root that depends on nothing, so this edge is
 # trivially acyclic.
 depends_on: [forest-world]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [forest-world]
 # A package-level SINK (ADR-0100): no code imports a surface, so the website draws no inbound
 # PACKAGE edge and can never close a cycle. At the STORY grain it now has one consumer (ADR-0134):
 # `website-experience` — the two-act front-door experience — consumes this node's delivered

@@ -112,6 +112,7 @@ function gateAsProofSpec(adrFile: string, testFile: string): NodeSpec {
     story: "drive-machinery",
     dependsOn: [],
     consumedBy: [],
+    artifactEdges: [],
     capabilities: [],
     decisions: [57, 59],
     buildConfig: {

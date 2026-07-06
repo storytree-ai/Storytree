@@ -79,6 +79,11 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 # depends_on lists desktop-build-mount, so the edges introduce no cycle. (The former chat-drive-bridge
 # edge was dropped when that story retired — see the lineage note above.)
 depends_on: [drive-machinery, studio-build, desktop, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio-build, desktop]
 # Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority + the deferred broker;
 # decision 3 names THIS story's mechanism); 108 (the phased chat→drive→land — this completes Phase 3+4 ON THE
 # DESKTOP surface, where chat-drive-bridge built the bridge on apps/studio/server); 113 (the thick-local

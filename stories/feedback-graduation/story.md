@@ -9,6 +9,11 @@ capabilities: [cite-event, archive-with-reason, signal-synthesis]
 # Story-level edges: the "Cross-story boundary" section below, encoded (declared
 # interfaces, ADR-0010 §4; owner call #3 resolved 2026-06-11). ADR-0036.
 depends_on: [studio, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio, library]
 decisions: [32] # deciding ADR (ADR-0037 §2)
 ---
 

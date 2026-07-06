@@ -98,6 +98,15 @@ export interface BoundaryInput {
    * is unit-testable here. Optional (default `[]`) so the dep-graph rules run standalone.
    */
   sourceImports?: SourceImport[];
+  /**
+   * story id → its `artifact_edges` frontmatter (ADR-0166): the SUBSET of that story's `depends_on`
+   * the author marks as deliberate NON-IMPORT edges — a build-artifact consumption (desktop serves
+   * the studio's compiled dist), an outbound write-target (ci-cd's merge machinery writes to the
+   * presence store), or an injected/hosted seam. Rule 4 accepts an annotated edge without code
+   * backing; a stray entry (not in `depends_on`) or a stale one (the edge IS code-backed) is a
+   * violation, so the annotation can never silently disarm or outlive the gate. Optional (default `{}`).
+   */
+  artifactEdges?: Record<string, string[]>;
 }
 
 /** One import/export specifier found in a package's source file (the input to the v2 scan). */
@@ -235,7 +244,86 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
   //    devDep/undeclared runtime @storytree imports (b). The dep-graph rules above can't see either.
   checkSourceImports(input.sourceImports ?? [], packageDeps, violations);
 
+  // 4. The declared-edge HONESTY rule (ADR-0166, amending ADR-0115's never-blocking posture for the
+  //    one segment where the evidence is strong): a PACKAGE-OWNING story's declared `depends_on` edge
+  //    to another PACKAGE-OWNING story must be CODE-BACKED (some package of the consumer runtime-
+  //    depends on some package of the target) or annotated in `artifact_edges` (a deliberate
+  //    build-artifact / write-target / injected-seam edge). Virtual endpoints stay advisory — the
+  //    sourceFile-derived evidence is too weak to block on (ADR-0115), so they live in the drift
+  //    report. Consumer-side only: a `consumed_by` declaration is the provider's, judged from the
+  //    provider's own spec. Skipped when the consumer's packages are absent from `packageDeps`
+  //    (insufficient data — a narrow fixture, never the real gatherer, which scans every package).
+  checkDeclaredEdgeHonesty(input, violations);
+
   return { violations };
+}
+
+/** Rule 4 (ADR-0166) — see the call site. Pure; appends fix-pointing violations. */
+function checkDeclaredEdgeHonesty(input: BoundaryInput, violations: string[]): void {
+  const { ownership, packageDeps } = input;
+  const artifactEdges = input.artifactEdges ?? {};
+  const pkgsByStory = packagesByStory(ownership);
+
+  // Validate every annotation first — a typo'd entry silently matching nothing would disarm the
+  // gate, so a stray annotation fails LOUD regardless of who owns packages.
+  for (const [story, annotated] of Object.entries(artifactEdges)) {
+    const declared = input.storyGraph[story] ?? [];
+    for (const t of annotated) {
+      if (!declared.includes(t)) {
+        violations.push(
+          `artifact_edges misconfiguration: stories/${story}/story.md annotates "${t}", which is ` +
+            `not a declared depends_on edge of "${story}" — the annotation marks a SUBSET of ` +
+            `depends_on as deliberate non-import edges (ADR-0166); fix the entry or declare the edge.`,
+        );
+      }
+    }
+  }
+
+  for (const [story, declaredDeps] of Object.entries(input.storyGraph)) {
+    const ownPkgs = (pkgsByStory.get(story) ?? []).filter((p) =>
+      Object.prototype.hasOwnProperty.call(packageDeps, p),
+    );
+    if (ownPkgs.length === 0) continue; // virtual story, or no dep data for its packages — advisory
+    // The stories this story's packages really import (cross-story only).
+    const backed = new Set<string>();
+    for (const pkg of ownPkgs) {
+      for (const dep of packageDeps[pkg] ?? []) {
+        const to = storyOf(dep, ownership);
+        if (to !== undefined && to !== story) backed.add(to);
+      }
+    }
+    const annotated = artifactEdges[story] ?? [];
+    for (const target of declaredDeps) {
+      if ((pkgsByStory.get(target) ?? []).length === 0) continue; // virtual target — unbackable, advisory
+      const isBacked = backed.has(target);
+      const isAnnotated = annotated.includes(target);
+      if (isBacked && isAnnotated) {
+        violations.push(
+          `stale artifact_edges annotation: stories/${story}/story.md marks "${target}" as a ` +
+            `non-import artifact edge, but the edge IS code-backed (a package of "${story}" ` +
+            `runtime-depends on a package of "${target}") — remove the annotation (ADR-0166).`,
+        );
+      } else if (!isBacked && !isAnnotated) {
+        violations.push(
+          `declared but code-unbacked edge: stories/${story}/story.md depends_on "${target}", but no ` +
+            `package of "${story}" runtime-depends on a package of "${target}" (ADR-0166). Either the ` +
+            `edge is drift — remove it — or it is a deliberate build-artifact / write-target / ` +
+            `injected-seam edge: annotate it in the spec's artifact_edges frontmatter list.`,
+        );
+      }
+    }
+  }
+}
+
+/** Inverse of the ownership map: story id → the packages it owns (organisms + surfaces). */
+function packagesByStory(o: Ownership): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  const add = (pkg: string, story: string): void => {
+    (m.get(story) ?? m.set(story, []).get(story)!).push(pkg);
+  };
+  for (const [pkg, story] of Object.entries(o.organisms)) add(pkg, story);
+  for (const [pkg, story] of Object.entries(o.surfaces ?? {})) add(pkg, story);
+  return m;
 }
 
 /**
@@ -475,6 +563,12 @@ export interface DriftReportInput {
    * (defensive). Optional (default `[]`).
    */
   virtualStorySources?: VirtualStorySource[];
+  /**
+   * story id → its `artifact_edges` frontmatter (ADR-0166): edges a human has already classified as
+   * deliberate non-import edges. Suppressed from `declaredButUnbacked` (resolved, no longer a
+   * candidate) and from the redundant-transitive report. Optional (default `{}`).
+   */
+  artifactEdges?: Record<string, string[]>;
 }
 
 /** Per-story asymmetry between the declared graph and the real code-edge graph (ADR-0115). */
@@ -501,16 +595,46 @@ export interface DeclaredEdgeDriftReport {
  * `@storytree/*` RUNTIME imports of its units' `sourceFile` text for a VIRTUAL one.
  */
 export function declaredEdgeDriftReport(input: DriftReportInput): DeclaredEdgeDriftReport {
-  const { ownership, packageDeps } = input;
+  const { ownership } = input;
   const declared = mergeDeclaredGraph(input.storyGraph, input.consumedBy ?? {});
+  const ownedStories = ownedStorySet(ownership);
+  const real = realEdges(input, ownedStories);
+  const artifactEdges = input.artifactEdges ?? {};
 
-  // Stories that OWN a package (an organism or a consuming surface, ADR-0100) take their real edges
-  // from packageDeps; every other story is VIRTUAL and derives them from unit sourceFile imports.
-  const ownedStories = new Set<string>([
+  // Per-story set difference. Every story is a declared node (storyGraph carries all of them); also
+  // include any story that only appears as a real-edge source. Artifact-annotated edges are
+  // human-resolved (ADR-0166) — no longer drift CANDIDATES — so they leave the unbacked list.
+  const stories = new Set<string>([...Object.keys(declared), ...Object.keys(real)]);
+  const byStory: Record<string, StoryEdgeDrift> = {};
+  for (const story of [...stories].sort()) {
+    const declaredSet = declared[story] ?? [];
+    const realSet = real[story] ?? new Set<string>();
+    const annotated = artifactEdges[story] ?? [];
+    const declaredButUnbacked = declaredSet
+      .filter((t) => !realSet.has(t) && !annotated.includes(t))
+      .sort();
+    const backedButUndeclared = [...realSet].filter((t) => !declaredSet.includes(t)).sort();
+    if (declaredButUnbacked.length === 0 && backedButUndeclared.length === 0) continue;
+    byStory[story] = { virtual: !ownedStories.has(story), declaredButUnbacked, backedButUndeclared };
+  }
+  return { byStory };
+}
+
+/** Stories that OWN a package — an organism or a consuming surface (ADR-0100). */
+function ownedStorySet(ownership: Ownership): Set<string> {
+  return new Set<string>([
     ...Object.values(ownership.organisms),
     ...Object.values(ownership.surfaces ?? {}),
   ]);
+}
 
+/**
+ * The REAL cross-story code-edge graph (shared by the drift and redundancy reports): `packageDeps`
+ * projected through ownership for a package-owning story; the `@storytree/*` RUNTIME imports of its
+ * units' `sourceFile` text for a VIRTUAL one (skipping type-only imports and test scaffolding).
+ */
+function realEdges(input: DriftReportInput, ownedStories: Set<string>): Record<string, Set<string>> {
+  const { ownership, packageDeps } = input;
   const real: Record<string, Set<string>> = {};
   const addReal = (from: string, to: string): void => {
     if (from === to) return; // intra-organism / self edge — never a cross-story coupling
@@ -539,20 +663,72 @@ export function declaredEdgeDriftReport(input: DriftReportInput): DeclaredEdgeDr
       if (to !== undefined) addReal(story, to);
     }
   }
+  return real;
+}
 
-  // Per-story set difference. Every story is a declared node (storyGraph carries all of them); also
-  // include any story that only appears as a real-edge source.
-  const stories = new Set<string>([...Object.keys(declared), ...Object.keys(real)]);
-  const byStory: Record<string, StoryEdgeDrift> = {};
-  for (const story of [...stories].sort()) {
-    const declaredSet = declared[story] ?? [];
-    const realSet = real[story] ?? new Set<string>();
-    const declaredButUnbacked = declaredSet.filter((t) => !realSet.has(t)).sort();
-    const backedButUndeclared = [...realSet].filter((t) => !declaredSet.includes(t)).sort();
-    if (declaredButUnbacked.length === 0 && backedButUndeclared.length === 0) continue;
-    byStory[story] = { virtual: !ownedStories.has(story), declaredButUnbacked, backedButUndeclared };
+/**
+ * The redundant-transitive declared-edge report (ADR-0166, advisory): for each story, the
+ * `depends_on` entries whose target is ALSO reachable through the story's other declared edges
+ * (following `depends_on` only — the roads the forest draws; a provider-side `consumed_by` path
+ * never makes a road redundant), where the edge is NOT code-backed (a backed edge is REQUIRED by
+ * the blocking gate regardless of redundancy) and NOT artifact-annotated (human-resolved). These
+ * are the "layer-jumping" roads of the 2026-07-05 map audit — an authoring smell, never a failure:
+ * a WARN nudges the author to either drop the edge or annotate the deliberate seam.
+ */
+export function redundantDeclaredEdges(input: DriftReportInput): Record<string, string[]> {
+  const ownedStories = ownedStorySet(input.ownership);
+  const real = realEdges(input, ownedStories);
+  const artifactEdges = input.artifactEdges ?? {};
+  const graph = input.storyGraph;
+
+  const reachableWithout = (from: string, to: string): boolean => {
+    const seen = new Set<string>();
+    const stack = (graph[from] ?? []).filter((n) => n !== to);
+    for (let n = stack.pop(); n !== undefined; n = stack.pop()) {
+      if (n === to) return true;
+      if (seen.has(n)) continue;
+      seen.add(n);
+      stack.push(...(graph[n] ?? []));
+    }
+    return false;
+  };
+
+  const out: Record<string, string[]> = {};
+  for (const [story, deps] of Object.entries(graph)) {
+    const annotated = artifactEdges[story] ?? [];
+    const redundant = deps
+      .filter(
+        (t) =>
+          !(real[story]?.has(t) ?? false) &&
+          !annotated.includes(t) &&
+          reachableWithout(story, t),
+      )
+      .sort();
+    if (redundant.length > 0) out[story] = redundant;
   }
-  return { byStory };
+  return out;
+}
+
+/** Render {@link redundantDeclaredEdges} as the advisory WARN text (PURE; the gatherer prints it). */
+export function formatRedundantReport(report: Record<string, string[]>): string {
+  const header =
+    "[check:boundaries] ADR-0166 redundant-transitive declared-edge report (NON-BLOCKING — review, never fails the gate)";
+  const stories = Object.keys(report).sort();
+  if (stories.length === 0) {
+    return `${header}: no unbacked redundant-transitive declared edges.`;
+  }
+  const lines = [`${header}:`];
+  for (const story of stories) {
+    lines.push(
+      `  story "${story}" declares edges its other depends_on already imply (redundant, and no code ` +
+        `import backs them): ${report[story]!.join(", ")}`,
+    );
+  }
+  lines.push(
+    "  A redundant unbacked edge draws a long road across the forest for no information — drop it, " +
+      "or annotate a deliberate build-artifact / write-target seam in artifact_edges (ADR-0166).",
+  );
+  return lines.join("\n");
 }
 
 /**

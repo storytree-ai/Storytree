@@ -57,6 +57,7 @@ function story(decisions: number[]): NodeSpec {
     story: undefined,
     dependsOn: [],
     consumedBy: [],
+    artifactEdges: [],
     capabilities: [],
     decisions,
     buildConfig: undefined,

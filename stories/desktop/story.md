@@ -57,6 +57,11 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
 #                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
 depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [studio, headless-orchestrator, studio-cloud]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
 # client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the

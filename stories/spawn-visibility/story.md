@@ -90,6 +90,11 @@ capabilities: [chat-spawn-trace-events, chat-panel-spawn-render, live-story-isla
 # back here). In particular chat-subagent-spawn is a source node too (nothing depends on it), and this
 # story depends on IT, not the reverse — a clean downward edge.
 depends_on: [chat-subagent-spawn, desktop-build-mount, agent, library]
+# ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
+# write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
+# declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
+# becomes a real package import.
+artifact_edges: [chat-subagent-spawn, desktop-build-mount]
 # Deciding ADRs (ADR-0037 §2): 137 (PRIMARY — the Phase-3 spawn whose ACTIVITY this surfaces; the walk
 # that found the gaps was ADR-0137's live UAT); 70 (two-stage visual proof — the chat spawn line + the
 # live island + the lit wisp are machine-proven in geometry, operator-attested in appearance); 138 (the
