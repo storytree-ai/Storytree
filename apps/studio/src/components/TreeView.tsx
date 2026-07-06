@@ -67,6 +67,7 @@ import {
   type SolarNode,
   type DockNode,
 } from '../lib/solarLayout.js';
+import { stressSeeds, type StressNode, type StressEdge } from '../lib/stressLayout.js';
 import { trailRevealPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
@@ -429,6 +430,21 @@ export function buildWorld(
       radius: estRadius(quotas[i] ?? 3),
     }));
     for (const [i, p] of solarSeeds(solarNodes)) seedPx.set(i, p);
+  } else if (layoutMode === 'stress') {
+    // ADR-0171: dependency-aware placement — stress majorization + soft y-hierarchy
+    // anchor pulls dependency-adjacent islands SHORT while keeping the top-down read,
+    // so a foundation→distant-consumer trail no longer crosses the whole forest. Same
+    // downstream snap/grow/coast/edge pipeline as every mode — only WHERE islands sit.
+    const stressNodes: StressNode[] = stories.map((s, i) => ({
+      id: s.id,
+      rank: ranks.get(s.id) ?? 0,
+      radius: estRadius(quotas[i] ?? 3),
+    }));
+    const stressEdges: StressEdge[] = edgeList.map((e) => ({ from: e.from, to: e.to }));
+    // seed folds the story ids (like the trail router), so placement is stable across
+    // renders and re-derives only when the world's story set actually changes.
+    const stressSeed = `stress:${stories.map((s) => s.id).sort().join('|')}`;
+    for (const [i, p] of stressSeeds(stressNodes, stressEdges, stressSeed)) seedPx.set(i, p);
   } else for (let r = 0; r <= maxRank; r++) {
     const row = byRank[r] ?? [];
     const ordered = [...row].sort((a, b) => {
@@ -1018,13 +1034,17 @@ function readBuildings(search: string = defaultSearch()): boolean {
 
 // ---------- solar-system layout (ADR-0074 §6 / `solar-system-world`) ----------
 
-type LayoutMode = 'dag' | 'solar';
+type LayoutMode = 'dag' | 'solar' | 'stress';
 
-/** `?layout=solar` ⇒ the RADIAL hub-and-spoke world; default `dag` = the current
- *  world (byte-identical — the param is absent). Gear-panel managed (worldSettings,
- *  the single source of truth for the default), so the panel + this reader never drift. */
+/** `?layout=solar` ⇒ the RADIAL hub-and-spoke world; `?layout=stress` ⇒ the
+ *  dependency-aware stress-majorization placement (ADR-0171, shortens trails while
+ *  keeping hierarchy — owner-attested before it can become default); default `dag` =
+ *  the current layered world (byte-identical — the param is absent). Gear-panel managed
+ *  (worldSettings, the single source of truth for the default), so the panel + this
+ *  reader never drift. */
 function readLayoutMode(search: string = defaultSearch()): LayoutMode {
-  return readControlValue(search, LAYOUT_CTL) === 'solar' ? 'solar' : 'dag';
+  const v = readControlValue(search, LAYOUT_CTL);
+  return v === 'solar' ? 'solar' : v === 'stress' ? 'stress' : 'dag';
 }
 
 /**

@@ -107,6 +107,8 @@ function normalizeSubstrate(raw: string | null): string {
 /** layout aliases, mirroring readLayoutMode. Default = `dag` (the byte-identical world). */
 function normalizeLayout(raw: string | null): string {
   if (raw === 'solar' || raw === 'solar-system' || raw === 'radial') return 'solar';
+  // ADR-0171: dependency-aware stress-majorization placement (shortens trails).
+  if (raw === 'stress' || raw === 'stress-majorization' || raw === 'force') return 'stress';
   // 'dag' | 'rows' | 'tree' | unknown | null → dag (the current world).
   return 'dag';
 }
@@ -125,10 +127,11 @@ export const CONTROLS: readonly ControlSpec[] = [
     key: 'layout',
     label: 'Layout',
     group: GROUP_LAYOUT,
-    hint: 'How islands are arranged — DAG rows, or a solar-system with the cli/store hubs at the centre.',
+    hint: 'How islands are arranged — DAG rows, a dependency-aware layout that shortens trails, or a solar-system with the cli/store hubs at the centre.',
     default: 'dag',
     options: [
       { value: 'dag', label: 'DAG rows' },
+      { value: 'stress', label: 'Dependency-aware' },
       { value: 'solar', label: 'Solar system' },
     ],
     normalize: normalizeLayout,
