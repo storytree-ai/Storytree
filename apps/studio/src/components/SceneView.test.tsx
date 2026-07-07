@@ -10,6 +10,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import {
   buildScene,
+  trailFillWidth,
   type BuildPhase,
   type ClaimColourState,
   type SceneInput,
@@ -327,9 +328,9 @@ describe('SceneView — the ADR-0169 trail network mapping', () => {
     // the ghost run of lib→b draws on too
     const ghost = root.querySelector('.trail-ghost[data-id="tseg3"]')!;
     expect(ghost.classList.contains('is-growing')).toBe(true);
-    // the road draws on to its GLOBAL width (tseg2 usage 2 → 2 + 2.5·√2 ≈ 5.54), not a
+    // the road draws on to its GLOBAL width (tseg2 usage 2 → the ONE width rule), not a
     // revealed subset — the arrival grows the trail as it actually is.
-    expect(Number(fill2.getAttribute('stroke-width'))).toBeCloseTo(5.5355, 3);
+    expect(Number(fill2.getAttribute('stroke-width'))).toBeCloseTo(trailFillWidth(2), 3);
   });
 
   it('renders the cave portal as an island prop wearing the folded island status', () => {

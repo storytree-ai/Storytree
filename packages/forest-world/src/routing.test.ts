@@ -207,6 +207,97 @@ test('near-parallel edges MERGE onto one trunk for most of their length (no side
   }
 });
 
+// ---------- single-dock: converging approaches merge into ONE trunk (item 1, 2026-07-07) ----------
+
+/** The point where an edge's chain lands on the given island's rim. */
+function dockPointOn(net: TrailNetwork, edge: TrailEdgeOut, isl: TrailIsland): { x: number; y: number } {
+  // the chain is ordered from -> to; the endpoint on `isl` is whichever rim it docks
+  const firstRef = edge.segments[0]!;
+  const lastRef = edge.segments[edge.segments.length - 1]!;
+  const firstPts = orientedPoints(net, firstRef);
+  const lastPts = orientedPoints(net, lastRef);
+  const head = firstPts[0]!;
+  const tail = lastPts[lastPts.length - 1]!;
+  const onRim = (p: { x: number; y: number }): boolean =>
+    Math.abs(Math.hypot(p.x - isl.x, p.y - isl.y) - isl.r) < 1e-6;
+  if (edge.to === isl.id) {
+    assert.ok(onRim(tail), `${edge.from}->${edge.to} docks on ${isl.id} rim`);
+    return tail;
+  }
+  assert.ok(onRim(head), `${edge.from}->${edge.to} docks on ${isl.id} rim`);
+  return head;
+}
+
+test('near-coincident approaches to one island share ONE dock trunk, not separate lines', () => {
+  // Owner feedback 2026-07-07: trails fanned into 2+ separate lines right at the island
+  // rim. Three sources left of C at near-coincident bearings must merge into ONE dock on
+  // C's rim (a single thicker trunk), never three parallel approach lines.
+  const C = isle('C', 0, 0, 45);
+  const islands = [isle('A', -800, -50, 30), isle('B', -800, 0, 30), isle('D', -800, 50, 30), C];
+  const net = routeTrails(
+    islands,
+    [
+      { from: 'A', to: 'C' },
+      { from: 'B', to: 'C' },
+      { from: 'D', to: 'C' },
+    ],
+    'seed-single-dock',
+  );
+  const docks = new Set<string>();
+  for (const e of net.edges) {
+    const p = dockPointOn(net, e, C);
+    docks.add(`${p.x.toFixed(4)},${p.y.toFixed(4)}`);
+  }
+  assert.equal(docks.size, 1, 'the three edges share exactly ONE dock point into C');
+  // and the shared docking trunk carries all three edges — the width IS the merge signal
+  assert.ok(
+    net.segments.some((s) => s.usage === 3),
+    'a usage-3 trunk exists where the three approaches merge',
+  );
+  // §5 honesty: every real edge is still drawn — nothing dropped by the merge
+  assert.equal(net.edges.length, 3);
+  assert.equal(net.dropped.length, 0);
+});
+
+test('opposite-side approaches keep their own dock — merging never forces a detour', () => {
+  // The anti-chaining guard: an approach from the far side of the island is NOT pulled
+  // into the near-side cluster. Three sources left of C merge; one to the RIGHT stays put.
+  const C = isle('C', 0, 0, 45);
+  const islands = [
+    isle('A', -800, -50, 30),
+    isle('B', -800, 0, 30),
+    isle('D', -800, 50, 30),
+    isle('E', 800, 0, 30),
+    C,
+  ];
+  const net = routeTrails(
+    islands,
+    [
+      { from: 'A', to: 'C' },
+      { from: 'B', to: 'C' },
+      { from: 'D', to: 'C' },
+      { from: 'E', to: 'C' },
+    ],
+    'seed-two-dock',
+  );
+  const docks = new Set<string>();
+  for (const e of net.edges) {
+    const p = dockPointOn(net, e, C);
+    docks.add(`${p.x.toFixed(4)},${p.y.toFixed(4)}`);
+  }
+  assert.equal(docks.size, 2, 'left trio shares one dock; the right edge keeps its own');
+  // E's approach is its own spur (usage 1); the left trio still forms a usage-3 trunk
+  const ec = net.edges.find((e) => e.from === 'E')!;
+  const eDock = dockPointOn(net, ec, C);
+  const eSeg = orientedPoints(net, ec.segments[ec.segments.length - 1]!);
+  assert.ok(
+    Math.hypot(eSeg[eSeg.length - 1]!.x - eDock.x, eSeg[eSeg.length - 1]!.y - eDock.y) < 1e-9,
+    'E docks on its own bearing (right side)',
+  );
+  assert.ok(net.segments.some((s) => s.usage === 3), 'the left trio still merges into a usage-3 trunk');
+  for (const edge of net.edges) assertChainContinuous(net, islands, edge);
+});
+
 test('the reuse-halo MOAT knob threads through — routes join the trunk or clear it, no 1-cell lane (item 4)', () => {
   // Owner feedback re-pushed 2026-07-07: still too many side-by-side parallel trails a
   // cell apart. The default halo is now a MOAT (reuseHaloInner > 1): the ring beside a
@@ -224,13 +315,14 @@ test('the reuse-halo MOAT knob threads through — routes join the trunk or clea
     { from: 'B', to: 'D' },
     { from: 'C', to: 'D' },
   ];
-  const moat = routeTrails(islands, edges, 'seed-moat'); // default = moat
+  // dock-merge OFF here (dockMergeGap 0) so this test isolates the HALO knob: with the
+  // shared single-dock (item 1) on, this near-coincident fan collapses onto one dock and
+  // the halo shaping no longer changes the pinned route. Dock-merge has its own tests above.
+  const moatOpts = { dockMergeGap: 0 } as const;
+  const cheapOpts = { dockMergeGap: 0, reuseHaloInner: 0.4, reuseHaloOuter: 0.7, discountFloor: 0.25 } as const;
+  const moat = routeTrails(islands, edges, 'seed-moat', moatOpts); // default halo = moat
   // the pre-item-4 cheap-halo shaping, as an explicit override: proves the knob is wired
-  const cheap = routeTrails(islands, edges, 'seed-moat', {
-    reuseHaloInner: 0.4,
-    reuseHaloOuter: 0.7,
-    discountFloor: 0.25,
-  });
+  const cheap = routeTrails(islands, edges, 'seed-moat', cheapOpts);
   // the knob changes routing (not a silently-ignored param)
   assert.notDeepEqual(
     moat.segments.map((s) => s.d),
@@ -239,7 +331,7 @@ test('the reuse-halo MOAT knob threads through — routes join the trunk or clea
   );
   // both stay deterministic, continuous, and still MERGE (a shared trunk exists)
   for (const net of [moat, cheap]) {
-    assert.deepEqual(net, routeTrails(islands, edges, 'seed-moat', net === cheap ? { reuseHaloInner: 0.4, reuseHaloOuter: 0.7, discountFloor: 0.25 } : undefined));
+    assert.deepEqual(net, routeTrails(islands, edges, 'seed-moat', net === cheap ? cheapOpts : moatOpts));
     assert.equal(net.dropped.length, 0);
     assert.equal(net.caves.length, 0, 'a moat only raises cost — it never forces a cave');
     for (const edge of net.edges) assertChainContinuous(net, islands, edge);
@@ -404,10 +496,16 @@ test("island ids containing '->' never fold two distinct edges into one", () => 
 
 // ---------- the width rule ----------
 
-test('trailFillWidth is 2 + 2.5*sqrt(n)', () => {
-  assert.equal(trailFillWidth(1), 4.5);
-  assert.equal(trailFillWidth(4), 7);
-  assert.equal(trailFillWidth(0), 2);
+test('trailFillWidth is 1.2 + 1.8*sqrt(n): a thin spur, a legible thin→thick trunk ladder', () => {
+  // Owner feedback 2026-07-07: thinner overall so WIDTH ALONE reads the merge signal.
+  assert.equal(trailFillWidth(1), 3.0); // a usage-1 spur is a thin line
+  assert.equal(trailFillWidth(4), 4.8); // a shared trunk is clearly thicker
+  assert.equal(trailFillWidth(0), 1.2);
+  // strictly increasing with usage, and the spur is genuinely THINNER than the
+  // pre-2026-07-07 width (4.5) so the retune actually slimmed the base line
+  assert.ok(trailFillWidth(1) < 4.5, 'spur is thinner than before');
+  assert.ok(trailFillWidth(2) > trailFillWidth(1), 'a shared trunk steps up');
+  assert.ok(trailFillWidth(4) > trailFillWidth(2), 'more sharing, thicker still');
 });
 
 // ---------- perf sanity ----------

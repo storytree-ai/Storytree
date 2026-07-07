@@ -42,6 +42,8 @@ export interface TrailTuning {
   reuseHaloRadius: number; // Chebyshev ring count of the reuse-halo around a laid trail
   reuseHaloInner: number; // cost FRAC at ring 1 (0 = full trunk discount, 1 = base cost, >1 = MOAT/penalty)
   reuseHaloOuter: number; // cost FRAC at the outermost ring (linear-interpolated from Inner)
+  dockMergeGap: number; // max angular GAP (rad) between adjacent approaches kept in one shared dock
+  dockMergeSpan: number; // max total angular SPAN (rad) of a shared-dock cluster (anti-chaining cap)
   interiorCost: number; // island-interior cost for the cave fallback pass
   meanderAmp: number; // perpendicular displacement amplitude (MUST stay < clearance)
   meanderWavelength: number; // arc-length period of the meander noise
@@ -82,9 +84,16 @@ export interface TrailNetwork {
   dropped: { from: string; to: string }[];
 }
 
-/** The ONE width rule every surface shares: fill width from segment usage. */
+/**
+ * The ONE width rule every surface shares: fill width from segment usage.
+ * Owner feedback 2026-07-07: thinner overall so WIDTH ALONE reads the merge —
+ * only `.trail-fill` renders (casing/shadow are `display:none`), so this IS the
+ * visible width. A usage-1 spur is a thin 3.0 line; each extra edge sharing a
+ * trunk steps it up (usage-4 = 4.8, a clearly thicker road) — a legible
+ * thin→thick usage ladder, no other cue needed.
+ */
 export function trailFillWidth(usage: number): number {
-  return 2 + 2.5 * Math.sqrt(Math.max(0, usage));
+  return 1.2 + 1.8 * Math.sqrt(Math.max(0, usage));
 }
 
 function resolveTuning(o?: Partial<TrailTuning>): TrailTuning {
@@ -116,6 +125,13 @@ function resolveTuning(o?: Partial<TrailTuning>): TrailTuning {
     reuseHaloRadius: o?.reuseHaloRadius ?? 2,
     reuseHaloInner: o?.reuseHaloInner ?? 1.2,
     reuseHaloOuter: o?.reuseHaloOuter ?? 1.0,
+    // shared docks (owner feedback item 1, 2026-07-07): several edges converging on
+    // one island from nearly the same direction snap to ONE dock bearing so they
+    // dock as a single thicker trunk, not separate approach lines fanning at the rim.
+    // `dockMergeGap` (60°) groups adjacent approaches; `dockMergeSpan` (90°) caps a
+    // cluster so opposite-side approaches keep their own dock (no forced detour).
+    dockMergeGap: o?.dockMergeGap ?? Math.PI / 3,
+    dockMergeSpan: o?.dockMergeSpan ?? Math.PI / 2,
     interiorCost: o?.interiorCost ?? 40,
     // derived from the RESOLVED clearance so the amp<clearance invariant holds
     // under a clearance override too; an EXPLICIT amp is clamped below clearance
@@ -716,6 +732,94 @@ export function routeTrails(
     return idx0; // fully enclosed — the cave fallback takes it from here
   };
 
+  // ---------- shared docks: merge near-coincident approaches into ONE trunk ----------
+  // Owner feedback 2026-07-07: pathways fanned into separate lines right at an island's
+  // rim because each edge docked on its OWN bearing (toward its far island). Where
+  // several edges approach one island from nearly the same direction, snap them to a
+  // SHARED dock bearing so their final approach shares one dock cell + rim node —
+  // segmentation then folds them into ONE trunk (usage = the number sharing it, so it
+  // renders THICKER), instead of parallel approach lines. Pure function of the canonical
+  // edge set: each island's approach bearings are sorted, the circle cut at its widest
+  // gap (seam-stable), then greedily clustered within dockMergeGap AND dockMergeSpan.
+  interface Approach {
+    edgeKey: string;
+    bx: number;
+    by: number;
+    ang: number;
+  }
+  const incident = new Map<number, Approach[]>();
+  const pushApproach = (islIdx: number, edgeKey: string, tx: number, ty: number): void => {
+    const L = Math.hypot(tx, ty);
+    const bx = L < 1e-9 ? 1 : tx / L;
+    const by = L < 1e-9 ? 0 : ty / L;
+    const arr = incident.get(islIdx);
+    const rec: Approach = { edgeKey, bx, by, ang: Math.atan2(by, bx) };
+    if (arr) arr.push(rec);
+    else incident.set(islIdx, [rec]);
+  };
+  for (const c of canon) {
+    const A = islands[c.fi]!;
+    const B = islands[c.ti]!;
+    pushApproach(c.fi, c.key, B.x - A.x, B.y - A.y); // at A, bearing toward B
+    pushApproach(c.ti, c.key, A.x - B.x, A.y - B.y); // at B, bearing toward A
+  }
+  // (islandIndex + SEP + edgeKey) -> shared unit dock bearing
+  const dockBearing = new Map<string, { bx: number; by: number }>();
+  for (const [islIdx, appsRaw] of incident) {
+    // canonical order (angle, then edge key) — input-order independent
+    const apps = [...appsRaw].sort((p, q) =>
+      p.ang !== q.ang ? p.ang - q.ang : p.edgeKey < q.edgeKey ? -1 : p.edgeKey > q.edgeKey ? 1 : 0,
+    );
+    const n = apps.length;
+    const assign = (members: Approach[]): void => {
+      // shared bearing = circular mean of members (angularly tight, so stable)
+      let sx = 0;
+      let sy = 0;
+      for (const m of members) {
+        sx += m.bx;
+        sy += m.by;
+      }
+      const L = Math.hypot(sx, sy);
+      const bx = L < 1e-9 ? members[0]!.bx : sx / L;
+      const by = L < 1e-9 ? members[0]!.by : sy / L;
+      for (const m of members) dockBearing.set(`${islIdx}${SEP}${m.edgeKey}`, { bx, by });
+    };
+    if (n === 1) {
+      assign(apps); // lone approach: its own bearing, unchanged
+      continue;
+    }
+    // cut the circle at its widest angular gap so clustering is seam-stable
+    let cut = 0;
+    let widest = -1;
+    for (let i = 0; i < n; i++) {
+      const a0 = apps[i]!.ang;
+      const a1 = apps[(i + 1) % n]!.ang + (i + 1 === n ? 2 * Math.PI : 0);
+      const gap = a1 - a0;
+      if (gap > widest) {
+        widest = gap;
+        cut = (i + 1) % n;
+      }
+    }
+    const order: Approach[] = [];
+    for (let i = 0; i < n; i++) order.push(apps[(cut + i) % n]!);
+    const base = order[0]!.ang;
+    const un = order.map((a) => {
+      let d = a.ang - base;
+      while (d < 0) d += 2 * Math.PI;
+      return d;
+    });
+    let start = 0;
+    for (let i = 1; i < order.length; i++) {
+      const gap = un[i]! - un[i - 1]!;
+      const span = un[i]! - un[start]!;
+      if (gap > t.dockMergeGap || span > t.dockMergeSpan) {
+        assign(order.slice(start, i));
+        start = i;
+      }
+    }
+    assign(order.slice(start));
+  }
+
   const routed: RoutedEdge[] = [];
   for (const c of canon) {
     const A = islands[c.fi]!;
@@ -730,9 +834,12 @@ export function routeTrails(
       ux /= chordLen;
       uy /= chordLen;
     }
-    // dock just outside each rim, toward the other island (re-bearing if blocked)
-    const start = dockCellAt(A, ux, uy, c.fi, c.ti);
-    const goal = dockCellAt(B, -ux, -uy, c.fi, c.ti);
+    // dock just outside each rim on the SHARED approach bearing (falls back to the raw
+    // chord bearing for a lone approach), re-bearing around a blocker if the cell is covered
+    const dbA = dockBearing.get(`${c.fi}${SEP}${c.key}`) ?? { bx: ux, by: uy };
+    const dbB = dockBearing.get(`${c.ti}${SEP}${c.key}`) ?? { bx: -ux, by: -uy };
+    const start = dockCellAt(A, dbA.bx, dbA.by, c.fi, c.ti);
+    const goal = dockCellAt(B, dbB.bx, dbB.by, c.fi, c.ti);
     // cave fallback ONLY when the island-blocked route is impossible
     let path = runAstar(grid, st, t, start, goal, c.fi, c.ti, false);
     if (!path) path = runAstar(grid, st, t, start, goal, c.fi, c.ti, true);

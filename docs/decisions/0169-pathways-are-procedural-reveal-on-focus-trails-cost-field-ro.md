@@ -72,7 +72,11 @@ field on a coarse world grid:
   clamped floor); the surrounding halo is a *tunable* shaping band — originally a weaker
   discount, now (item 4, 2026-07-07) a slight MOAT (cost above base) so there is no
   comfortable parallel lane a cell over — so later routes snap onto the existing trunk and
-  peel off near their destination rather than running side-by-side. Trunk trails emerge
+  peel off near their destination rather than running side-by-side. And where several edges
+  converge on one island from nearly the same direction, their near-coincident rim approaches
+  are snapped to a SHARED dock (one dock cell + one rim node, clustered by bearing and capped
+  so opposite-side approaches keep their own), so they arrive as ONE thicker trunk instead of
+  separate approach lines fanning at the rim (owner item 1, 2026-07-07). Trunk trails emerge
   procedurally, the way footpaths form in a field. Per-cell usage counts accumulate.
 - **Cave fallback:** an edge routes first with islands hard-blocked; only if unroutable does it
   re-route with island interiors passable at very high cost. Where the resulting path crosses an
@@ -92,9 +96,11 @@ dependency edge keeps its ordered chain of segment refs. `buildScene` grows acco
 - Road layers stay above ground / below flora, drawn as full passes in order — contact-shadow
   (all), casing (all), fill (all) — never interleaved per path, so merges read as one trail (the
   cartographic casing rule).
-- Width from usage: fill ≈ `2 + 2.5·√n` (n = edges through the segment), casing +2.5; a spur
-  (n=1) draws a dashed fill over a solid casing (a footpath), a trunk (n≥2) draws solid (a road).
-  Trunk-vs-footpath is computed from usage, never authored.
+- Width from usage: fill `1.2 + 1.8·√n` (n = edges through the segment; retuned thinner
+  2026-07-07 so width ALONE reads the merge). Only the fill renders — the casing/shadow passes
+  are suppressed to `display:none` per §3's one-quiet-line default, so this IS the visible
+  width: a usage-1 spur is a thin line and each edge sharing a trunk steps it thicker (a legible
+  thin→thick ladder). Spur-vs-trunk is width, computed from usage, never authored.
 - Cave portals render in the prop layer (occluding the trail): inset + dark arch in the island's
   shadow hue + lit rim arc + trampled apron, sized from trail width, placed from the crossing
   bearing. The under-island run is a fine dashed **ghost** segment (the OSM tunnel convention) on
