@@ -44,6 +44,10 @@ export interface TrailTuning {
   reuseHaloOuter: number; // cost FRAC at the outermost ring (linear-interpolated from Inner)
   dockMergeGap: number; // max angular GAP (rad) between adjacent approaches kept in one shared dock
   dockMergeSpan: number; // max total angular SPAN (rad) of a shared-dock cluster (anti-chaining cap)
+  reclusterOnApproach: boolean; // second pass: re-cluster docks by the ACTUAL routed approach bearing
+  // (not the straight chord) so edges that FUNNEL together via the reuse trunk share one dock instead
+  // of forking into a Y at the rim, while genuinely opposite-side edges still keep their own dock
+  approachProbe: number; // how far past the rim (world px) to read the pass-1 approach bearing
   interiorCost: number; // island-interior cost for the cave fallback pass
   meanderAmp: number; // perpendicular displacement amplitude (MUST stay < clearance)
   meanderWavelength: number; // arc-length period of the meander noise
@@ -142,6 +146,12 @@ function resolveTuning(o?: Partial<TrailTuning>): TrailTuning {
     // no new rim-wraps, caves/drops unchanged.
     dockMergeGap: o?.dockMergeGap ?? Math.PI / 3,
     dockMergeSpan: o?.dockMergeSpan ?? (5 * Math.PI) / 9,
+    reclusterOnApproach: o?.reclusterOnApproach ?? true,
+    // read the approach ~4 cells past the clearance band: far enough that near-parallel edges
+    // have funnelled onto their shared trunk (so their approach bearings coincide and the dock
+    // merges), but not so far that the reading runs past a downstream bend and mis-clusters a
+    // genuinely-separate edge (measured: <50px misses the merge, >90px starts splitting docks).
+    approachProbe: o?.approachProbe ?? clearance + 4 * (o?.cellSize ?? HEX_R / 2),
     interiorCost: o?.interiorCost ?? 40,
     // derived from the RESOLVED clearance so the amp<clearance invariant holds
     // under a clearance override too; an EXPLICIT amp is clamped below clearance
@@ -701,7 +711,7 @@ export function routeTrails(
     return { segments: [], edges: [], caves: [], dropped: finishDropped() };
   }
 
-  const grid = buildGrid(islands, seed, t);
+  let grid = buildGrid(islands, seed, t);
   const nCells = grid.cols * grid.rows;
   const st: AstarState = {
     g: new Float64Array(nCells),
@@ -757,8 +767,13 @@ export function routeTrails(
     by: number;
     ang: number;
   }
-  const incident = new Map<number, Approach[]>();
-  const pushApproach = (islIdx: number, edgeKey: string, tx: number, ty: number): void => {
+  const pushApproach = (
+    incident: Map<number, Approach[]>,
+    islIdx: number,
+    edgeKey: string,
+    tx: number,
+    ty: number,
+  ): void => {
     const L = Math.hypot(tx, ty);
     const bx = L < 1e-9 ? 1 : tx / L;
     const by = L < 1e-9 ? 0 : ty / L;
@@ -767,175 +782,228 @@ export function routeTrails(
     if (arr) arr.push(rec);
     else incident.set(islIdx, [rec]);
   };
-  for (const c of canon) {
-    const A = islands[c.fi]!;
-    const B = islands[c.ti]!;
-    pushApproach(c.fi, c.key, B.x - A.x, B.y - A.y); // at A, bearing toward B
-    pushApproach(c.ti, c.key, A.x - B.x, A.y - B.y); // at B, bearing toward A
-  }
-  // (islandIndex + SEP + edgeKey) -> shared unit dock bearing
-  const dockBearing = new Map<string, { bx: number; by: number }>();
-  for (const [islIdx, appsRaw] of incident) {
-    // canonical order (angle, then edge key) — input-order independent
-    const apps = [...appsRaw].sort((p, q) =>
-      p.ang !== q.ang ? p.ang - q.ang : p.edgeKey < q.edgeKey ? -1 : p.edgeKey > q.edgeKey ? 1 : 0,
-    );
-    const n = apps.length;
-    const assign = (members: Approach[]): void => {
-      // shared bearing = circular mean of members (angularly tight, so stable)
-      let sx = 0;
-      let sy = 0;
-      for (const m of members) {
-        sx += m.bx;
-        sy += m.by;
+  // greedily cluster each island's approaches (angular gap + span cap) and map every
+  // (island, edge) to its shared unit dock bearing — the circular mean of its cluster.
+  const clusterDocks = (incident: Map<number, Approach[]>): Map<string, { bx: number; by: number }> => {
+    const dockBearing = new Map<string, { bx: number; by: number }>();
+    for (const [islIdx, appsRaw] of incident) {
+      // canonical order (angle, then edge key) — input-order independent
+      const apps = [...appsRaw].sort((p, q) =>
+        p.ang !== q.ang ? p.ang - q.ang : p.edgeKey < q.edgeKey ? -1 : p.edgeKey > q.edgeKey ? 1 : 0,
+      );
+      const n = apps.length;
+      const assign = (members: Approach[]): void => {
+        // shared bearing = circular mean of members (angularly tight, so stable)
+        let sx = 0;
+        let sy = 0;
+        for (const m of members) {
+          sx += m.bx;
+          sy += m.by;
+        }
+        const L = Math.hypot(sx, sy);
+        const bx = L < 1e-9 ? members[0]!.bx : sx / L;
+        const by = L < 1e-9 ? members[0]!.by : sy / L;
+        for (const m of members) dockBearing.set(`${islIdx}${SEP}${m.edgeKey}`, { bx, by });
+      };
+      if (n === 1) {
+        assign(apps); // lone approach: its own bearing, unchanged
+        continue;
       }
-      const L = Math.hypot(sx, sy);
-      const bx = L < 1e-9 ? members[0]!.bx : sx / L;
-      const by = L < 1e-9 ? members[0]!.by : sy / L;
-      for (const m of members) dockBearing.set(`${islIdx}${SEP}${m.edgeKey}`, { bx, by });
-    };
-    if (n === 1) {
-      assign(apps); // lone approach: its own bearing, unchanged
-      continue;
-    }
-    // cut the circle at its widest angular gap so clustering is seam-stable
-    let cut = 0;
-    let widest = -1;
-    for (let i = 0; i < n; i++) {
-      const a0 = apps[i]!.ang;
-      const a1 = apps[(i + 1) % n]!.ang + (i + 1 === n ? 2 * Math.PI : 0);
-      const gap = a1 - a0;
-      if (gap > widest) {
-        widest = gap;
-        cut = (i + 1) % n;
-      }
-    }
-    const order: Approach[] = [];
-    for (let i = 0; i < n; i++) order.push(apps[(cut + i) % n]!);
-    const base = order[0]!.ang;
-    const un = order.map((a) => {
-      let d = a.ang - base;
-      while (d < 0) d += 2 * Math.PI;
-      return d;
-    });
-    let start = 0;
-    for (let i = 1; i < order.length; i++) {
-      const gap = un[i]! - un[i - 1]!;
-      const span = un[i]! - un[start]!;
-      if (gap > t.dockMergeGap || span > t.dockMergeSpan) {
-        assign(order.slice(start, i));
-        start = i;
-      }
-    }
-    assign(order.slice(start));
-  }
-
-  const routed: RoutedEdge[] = [];
-  for (const c of canon) {
-    const A = islands[c.fi]!;
-    const B = islands[c.ti]!;
-    let ux = B.x - A.x;
-    let uy = B.y - A.y;
-    const chordLen = Math.hypot(ux, uy);
-    if (chordLen < 1e-9) {
-      ux = 1;
-      uy = 0;
-    } else {
-      ux /= chordLen;
-      uy /= chordLen;
-    }
-    // dock just outside each rim on the SHARED approach bearing (falls back to the raw
-    // chord bearing for a lone approach), re-bearing around a blocker if the cell is covered
-    const dbA = dockBearing.get(`${c.fi}${SEP}${c.key}`) ?? { bx: ux, by: uy };
-    const dbB = dockBearing.get(`${c.ti}${SEP}${c.key}`) ?? { bx: -ux, by: -uy };
-    const start = dockCellAt(A, dbA.bx, dbA.by, c.fi, c.ti);
-    const goal = dockCellAt(B, dbB.bx, dbB.by, c.fi, c.ti);
-    // cave fallback ONLY when the island-blocked route is impossible
-    let path = runAstar(grid, st, t, start, goal, c.fi, c.ti, false);
-    if (!path) path = runAstar(grid, st, t, start, goal, c.fi, c.ti, true);
-    if (!path) {
-      dropped.push({ from: c.from, to: c.to }); // degenerate grid — observable, not silent
-      continue;
-    }
-
-    // reuse discount FUNNEL: traversed cells earn the strongest discount so later
-    // routes snap ONTO the trunk; a graduated halo of `reuseHaloRadius` Chebyshev
-    // rings earns a weaker discount (nearest ring wins) so a route drifting nearby is
-    // funnelled in instead of settling into a parallel lane one cell over — the owner's
-    // side-by-side-trails complaint (2026-07-06 / re-pushed 2026-07-07). The exact trail
-    // cells stay strictly cheapest (an equal halo discount would let later routes ride a
-    // parallel lane and never share). Each cell is discounted at most ONCE per route
-    // (the cost mutates in place). Ring c's frac interpolates Inner→Outer over the radius.
-    const R = Math.max(1, Math.round(t.reuseHaloRadius));
-    const ringDisc = (c: number): number => {
-      const frac = R <= 1 ? t.reuseHaloInner : t.reuseHaloInner + (t.reuseHaloOuter - t.reuseHaloInner) * ((c - 1) / (R - 1));
-      return t.reuseDiscount + (1 - t.reuseDiscount) * frac;
-    };
-    const onPath = new Set<number>(path);
-    const ringOf = new Map<number, number>();
-    for (const ci of path) {
-      const ix = ci % grid.cols;
-      const iy = (ci / grid.cols) | 0;
-      for (let dy = -R; dy <= R; dy++) {
-        for (let dx = -R; dx <= R; dx++) {
-          const cheb = Math.max(Math.abs(dx), Math.abs(dy));
-          if (cheb === 0) continue;
-          const nx = ix + dx;
-          const ny = iy + dy;
-          if (nx < 0 || ny < 0 || nx >= grid.cols || ny >= grid.rows) continue;
-          const ni = ny * grid.cols + nx;
-          if (onPath.has(ni)) continue;
-          const disc = ringDisc(cheb);
-          const prev = ringOf.get(ni);
-          if (prev === undefined || disc < prev) ringOf.set(ni, disc);
+      // cut the circle at its widest angular gap so clustering is seam-stable
+      let cut = 0;
+      let widest = -1;
+      for (let i = 0; i < n; i++) {
+        const a0 = apps[i]!.ang;
+        const a1 = apps[(i + 1) % n]!.ang + (i + 1 === n ? 2 * Math.PI : 0);
+        const gap = a1 - a0;
+        if (gap > widest) {
+          widest = gap;
+          cut = (i + 1) % n;
         }
       }
-    }
-    for (const ci of onPath) grid.cost[ci] = Math.max(t.discountFloor, (grid.cost[ci] ?? 1) * t.reuseDiscount);
-    for (const [ni, disc] of ringOf) grid.cost[ni] = Math.max(t.discountFloor, (grid.cost[ni] ?? 1) * disc);
-
-    // node sequence: exact rim point → cells → exact rim point, so trails dock
-    // on the coast at the final approach bearing
-    const nodes: NodeRec[] = [];
-    const firstCell = path[0]!;
-    const lastCell = path[path.length - 1]!;
-    const pF = centerOf(firstCell);
-    let bfx = pF.x - A.x;
-    let bfy = pF.y - A.y;
-    const lf = Math.hypot(bfx, bfy);
-    if (lf < 1e-9) {
-      bfx = ux;
-      bfy = uy;
-    } else {
-      bfx /= lf;
-      bfy /= lf;
-    }
-    nodes.push({ key: `r:${A.id}:${firstCell}`, x: A.x + bfx * A.r, y: A.y + bfy * A.r, underOf: -1 });
-    for (const ci of path) {
-      const p = centerOf(ci);
-      nodes.push({
-        key: `c:${ci}`,
-        x: p.x,
-        y: p.y,
-        // ABSOLUTE island interior, own islands included: every edge through the
-        // cell agrees a run under an island is hidden, so a shared link can never
-        // render as one edge's surface trail across another edge's cave
-        underOf: grid.interior[ci] ?? -1,
+      const order: Approach[] = [];
+      for (let i = 0; i < n; i++) order.push(apps[(cut + i) % n]!);
+      const base = order[0]!.ang;
+      const un = order.map((a) => {
+        let d = a.ang - base;
+        while (d < 0) d += 2 * Math.PI;
+        return d;
       });
+      let start = 0;
+      for (let i = 1; i < order.length; i++) {
+        const gap = un[i]! - un[i - 1]!;
+        const span = un[i]! - un[start]!;
+        if (gap > t.dockMergeGap || span > t.dockMergeSpan) {
+          assign(order.slice(start, i));
+          start = i;
+        }
+      }
+      assign(order.slice(start));
     }
-    const pL = centerOf(lastCell);
-    let btx = pL.x - B.x;
-    let bty = pL.y - B.y;
-    const lt = Math.hypot(btx, bty);
-    if (lt < 1e-9) {
-      btx = -ux;
-      bty = -uy;
-    } else {
-      btx /= lt;
-      bty /= lt;
+    return dockBearing;
+  };
+
+  // pass 1: cluster by the straight CHORD bearing toward the far island
+  const chordIncident = new Map<number, Approach[]>();
+  for (const c of canon) {
+    const A = islands[c.fi]!;
+    const B = islands[c.ti]!;
+    pushApproach(chordIncident, c.fi, c.key, B.x - A.x, B.y - A.y); // at A, bearing toward B
+    pushApproach(chordIncident, c.ti, c.key, A.x - B.x, A.y - B.y); // at B, bearing toward A
+  }
+
+  // Route every canonical edge over the (mutable) grid with the given dock bearings,
+  // returning the routed node chains. The reuse funnel mutates grid.cost in place, so a
+  // second pass MUST be given a freshly rebuilt grid.
+  const routePass = (dockBearing: Map<string, { bx: number; by: number }>): RoutedEdge[] => {
+    const routed: RoutedEdge[] = [];
+    for (const c of canon) {
+      const A = islands[c.fi]!;
+      const B = islands[c.ti]!;
+      let ux = B.x - A.x;
+      let uy = B.y - A.y;
+      const chordLen = Math.hypot(ux, uy);
+      if (chordLen < 1e-9) {
+        ux = 1;
+        uy = 0;
+      } else {
+        ux /= chordLen;
+        uy /= chordLen;
+      }
+      // dock just outside each rim on the SHARED approach bearing (falls back to the raw
+      // chord bearing for a lone approach), re-bearing around a blocker if the cell is covered
+      const dbA = dockBearing.get(`${c.fi}${SEP}${c.key}`) ?? { bx: ux, by: uy };
+      const dbB = dockBearing.get(`${c.ti}${SEP}${c.key}`) ?? { bx: -ux, by: -uy };
+      const start = dockCellAt(A, dbA.bx, dbA.by, c.fi, c.ti);
+      const goal = dockCellAt(B, dbB.bx, dbB.by, c.fi, c.ti);
+      // cave fallback ONLY when the island-blocked route is impossible
+      let path = runAstar(grid, st, t, start, goal, c.fi, c.ti, false);
+      if (!path) path = runAstar(grid, st, t, start, goal, c.fi, c.ti, true);
+      if (!path) {
+        dropped.push({ from: c.from, to: c.to }); // degenerate grid — observable, not silent
+        continue;
+      }
+
+      // reuse discount FUNNEL: traversed cells earn the strongest discount so later
+      // routes snap ONTO the trunk; a graduated halo of `reuseHaloRadius` Chebyshev
+      // rings earns a weaker discount (nearest ring wins) so a route drifting nearby is
+      // funnelled in instead of settling into a parallel lane one cell over — the owner's
+      // side-by-side-trails complaint (2026-07-06 / re-pushed 2026-07-07). The exact trail
+      // cells stay strictly cheapest (an equal halo discount would let later routes ride a
+      // parallel lane and never share). Each cell is discounted at most ONCE per route
+      // (the cost mutates in place). Ring c's frac interpolates Inner→Outer over the radius.
+      const R = Math.max(1, Math.round(t.reuseHaloRadius));
+      const ringDisc = (c: number): number => {
+        const frac = R <= 1 ? t.reuseHaloInner : t.reuseHaloInner + (t.reuseHaloOuter - t.reuseHaloInner) * ((c - 1) / (R - 1));
+        return t.reuseDiscount + (1 - t.reuseDiscount) * frac;
+      };
+      const onPath = new Set<number>(path);
+      const ringOf = new Map<number, number>();
+      for (const ci of path) {
+        const ix = ci % grid.cols;
+        const iy = (ci / grid.cols) | 0;
+        for (let dy = -R; dy <= R; dy++) {
+          for (let dx = -R; dx <= R; dx++) {
+            const cheb = Math.max(Math.abs(dx), Math.abs(dy));
+            if (cheb === 0) continue;
+            const nx = ix + dx;
+            const ny = iy + dy;
+            if (nx < 0 || ny < 0 || nx >= grid.cols || ny >= grid.rows) continue;
+            const ni = ny * grid.cols + nx;
+            if (onPath.has(ni)) continue;
+            const disc = ringDisc(cheb);
+            const prev = ringOf.get(ni);
+            if (prev === undefined || disc < prev) ringOf.set(ni, disc);
+          }
+        }
+      }
+      for (const ci of onPath) grid.cost[ci] = Math.max(t.discountFloor, (grid.cost[ci] ?? 1) * t.reuseDiscount);
+      for (const [ni, disc] of ringOf) grid.cost[ni] = Math.max(t.discountFloor, (grid.cost[ni] ?? 1) * disc);
+
+      // node sequence: exact rim point → cells → exact rim point, so trails dock
+      // on the coast at the final approach bearing
+      const nodes: NodeRec[] = [];
+      const firstCell = path[0]!;
+      const lastCell = path[path.length - 1]!;
+      const pF = centerOf(firstCell);
+      let bfx = pF.x - A.x;
+      let bfy = pF.y - A.y;
+      const lf = Math.hypot(bfx, bfy);
+      if (lf < 1e-9) {
+        bfx = ux;
+        bfy = uy;
+      } else {
+        bfx /= lf;
+        bfy /= lf;
+      }
+      nodes.push({ key: `r:${A.id}:${firstCell}`, x: A.x + bfx * A.r, y: A.y + bfy * A.r, underOf: -1 });
+      for (const ci of path) {
+        const p = centerOf(ci);
+        nodes.push({
+          key: `c:${ci}`,
+          x: p.x,
+          y: p.y,
+          // ABSOLUTE island interior, own islands included: every edge through the
+          // cell agrees a run under an island is hidden, so a shared link can never
+          // render as one edge's surface trail across another edge's cave
+          underOf: grid.interior[ci] ?? -1,
+        });
+      }
+      const pL = centerOf(lastCell);
+      let btx = pL.x - B.x;
+      let bty = pL.y - B.y;
+      const lt = Math.hypot(btx, bty);
+      if (lt < 1e-9) {
+        btx = -ux;
+        bty = -uy;
+      } else {
+        btx /= lt;
+        bty /= lt;
+      }
+      nodes.push({ key: `r:${B.id}:${lastCell}`, x: B.x + btx * B.r, y: B.y + bty * B.r, underOf: -1 });
+      routed.push({ key: c.key, from: c.from, to: c.to, title: c.title, nodes });
     }
-    nodes.push({ key: `r:${B.id}:${lastCell}`, x: B.x + btx * B.r, y: B.y + bty * B.r, underOf: -1 });
-    routed.push({ key: c.key, from: c.from, to: c.to, title: c.title, nodes });
+    return routed;
+  };
+
+  let routed = routePass(clusterDocks(chordIncident));
+
+  // pass 2 (owner feedback 2026-07-08, "pathways split unnecessarily when joining together"):
+  // the chord bearing toward the far island is a POOR predictor of where a trail actually
+  // reaches the rim — the reuse funnel bends near-parallel edges onto a shared trunk, so two
+  // edges whose CHORDS fan wide can arrive from the SAME direction and then fork into a Y at
+  // the rim to reach two chord-split docks. Re-cluster by each edge's ACTUAL routed approach
+  // bearing (island centre → the path a few cells out from the dock) and route once more over
+  // a fresh grid. Edges that funnelled together now share ONE dock (the Y collapses to one
+  // trunk); genuinely opposite-side edges still approach from opposite bearings, so the
+  // anti-chaining span cap still keeps them apart — no forced rim-wrap. Deterministic: pass 1
+  // is a pure function of the input, so the approach bearings and the re-clustering are too.
+  if (t.reclusterOnApproach) {
+    const probe = t.approachProbe; // how far past the rim to read the approach
+    const apprIncident = new Map<number, Approach[]>();
+    for (const re of routed) {
+      const fi = byId.get(re.from);
+      const ti = byId.get(re.to);
+      if (fi === undefined || ti === undefined) continue;
+      const A = islands[fi]!;
+      const B = islands[ti]!;
+      // walk in from each docking end to the first node clear of the rim + probe band; its
+      // bearing from the island centre is the direction the trail truly arrives from
+      const approachFrom = (isl: TrailIsland, fromStart: boolean): { x: number; y: number } => {
+        const N = re.nodes.length;
+        for (let k = 0; k < N; k++) {
+          const nd = re.nodes[fromStart ? k : N - 1 - k]!;
+          if (Math.hypot(nd.x - isl.x, nd.y - isl.y) > isl.r + probe) return nd;
+        }
+        return re.nodes[fromStart ? N - 1 : 0]!; // whole path within the band — use the far end
+      };
+      const pa = approachFrom(A, true);
+      const pb = approachFrom(B, false);
+      pushApproach(apprIncident, fi, re.key, pa.x - A.x, pa.y - A.y);
+      pushApproach(apprIncident, ti, re.key, pb.x - B.x, pb.y - B.y);
+    }
+    grid = buildGrid(islands, seed, t); // fresh grid — pass 1 mutated the reuse costs
+    routed = routePass(clusterDocks(apprIncident));
   }
 
   // ---------- segmentization: split where the co-travelling edge set changes ----------

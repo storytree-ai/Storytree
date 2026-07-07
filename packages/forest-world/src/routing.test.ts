@@ -351,6 +351,45 @@ test('a genuinely wide ~110° fan keeps ≥2 docks — the span cap still bites 
   for (const edge of net.edges) assertChainContinuous(net, islands, edge);
 });
 
+test('edges that FUNNEL together dock ONCE — approach recluster collapses the rim Y-fork (owner 2026-07-08)', () => {
+  // Owner feedback 2026-07-08 ("can still see some instances of unnecessary splitting"): the
+  // straight CHORD bearing toward the far island is a poor predictor of where a trail actually
+  // reaches the rim — the reuse funnel bends near-parallel edges onto a shared trunk, so two
+  // edges whose chords fan WIDE (here 108°, past the 100° span cap) can arrive from the SAME
+  // direction and then fork into a Y at the rim. A long P→Q trunk BELOW C funnels both C→P and
+  // C→Q down onto it, so both approach C from below despite the wide chords. The second pass
+  // re-clusters on the ACTUAL approach bearing, collapsing the two chord-docks into one trunk.
+  const C = isle('C', 0, 0, 45);
+  const P = isle('P', -700, 500, 40);
+  const Q = isle('Q', 700, 500, 40);
+  const islands = [C, P, Q];
+  const edges: TrailEdgeIn[] = [
+    { from: 'P', to: 'Q' }, // the long trunk (routes first) both C-edges funnel onto
+    { from: 'P', to: 'C' },
+    { from: 'Q', to: 'C' },
+  ];
+  const docksInto = (net: TrailNetwork): number => {
+    const s = new Set<string>();
+    for (const e of net.edges) {
+      if (e.from !== 'C' && e.to !== 'C') continue;
+      const p = dockPointOn(net, e, C);
+      s.add(`${p.x.toFixed(4)},${p.y.toFixed(4)}`);
+    }
+    return s.size;
+  };
+  // chord-only clustering forks at the rim — the two C-edges take SEPARATE docks
+  const chordOnly = routeTrails(islands, edges, 'seed-funnel', { reclusterOnApproach: false });
+  assert.equal(docksInto(chordOnly), 2, 'without the recluster the wide chords split into two docks (the Y-fork)');
+  // the default two-pass reads the real approach and merges them into ONE trunk
+  const net = routeTrails(islands, edges, 'seed-funnel');
+  assert.equal(docksInto(net), 1, 'the funnelled C→P and C→Q share ONE dock after the approach recluster');
+  assert.equal(net.dropped.length, 0, '§5 honesty: nothing dropped by the merge');
+  assert.equal(net.caves.length, 0, 'a shared dock never forces a cave (cost only rises)');
+  for (const edge of net.edges) assertChainContinuous(net, islands, edge);
+  // deterministic: byte-identical on a re-route
+  assert.deepEqual(routeTrails(islands, edges, 'seed-funnel'), net);
+});
+
 test('the reuse-halo MOAT knob threads through — routes join the trunk or clear it, no 1-cell lane (item 4)', () => {
   // Owner feedback re-pushed 2026-07-07: still too many side-by-side parallel trails a
   // cell apart. The default halo is now a MOAT (reuseHaloInner > 1): the ring beside a
