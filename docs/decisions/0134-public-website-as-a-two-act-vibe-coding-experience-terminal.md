@@ -183,7 +183,13 @@ can read.*
    2026-07-06, amending this §5: the owner signed + executed the per-page disposition set (KEEP
    how-it-works / get-involved / contact / constitution / the 404; DISCARD roadmap + landscape with
    redirect stubs) and Keystatic does NOT survive — it RETIRED, the hosted editor decommissioned,
-   ADR-0101 superseded. Noted in place per ADR-0139.)*; the R3F mapper's
+   ADR-0101 superseded. Noted in place per ADR-0139.)* *(The scope is now FULLY closed —
+   [ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md), 2026-07-07,
+   also amending this §5: the owner re-decided the next day to retire the four ADR-0167 KEEP pages too,
+   so NO static brochure page survives. Every legacy page now has an executed disposition (folded /
+   discarded / retired); the public site is exactly the Act 1 + Act 2 experience, the a11y /
+   reduced-motion fallback, and the 404, with every retired URL redirecting to `/`. Noted in place per
+   ADR-0139.)*; the R3F mapper's
    **package home** (a `story-author` call per
    [ADR-0123](0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)); the **asset / perf
    / mobile budget**, LOD strategy, and shader art direction; and **replay/skip UX** and whether Act 2

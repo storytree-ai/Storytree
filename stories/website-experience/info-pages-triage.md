@@ -7,7 +7,7 @@ outcome: "Every legacy informational page (how-it-works, roadmap, landscape, con
 status: proposed
 proof_mode: operator-attested
 depends_on: [act2-guided-walkthrough, act2-guided-forest]
-decisions: [134, 148, 167]
+decisions: [134, 148, 167, 172]
 # OPERATOR-ATTESTED, human witness — owner decision 5 (2026-07-02) names the triage itself as
 # owner-attested CONTENT work: which page folds, which dies, and which stays is editorial judgement
 # about the site's voice, not a machine call. The machine floor it must leave green already exists:
@@ -33,9 +33,14 @@ only become concrete once the beats exist on the site. Also
 targets ("what's coming" behind the pull-back / "what's next") live in H's upstream-forest reveal, so
 they are only concrete once the guided forest exists.
 
-> **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE (2026-07-06); the authored status stays
-> `proposed` (healthy is earned via the proof machinery, ADR-0020 — operator-attested caps carry
-> their record in prose).** The full proof shape ran in one session (sleepy-curran-655722): the
+> **Proof status (honest) — BUILT + OWNER-ATTESTED, LIVE. Executed in TWO owner-attested phases; the
+> authored status stays `proposed` (healthy is earned via the proof machinery, ADR-0020 —
+> operator-attested caps carry their record in prose).** PHASE 2 (2026-07-07, ADR-0172, live at web
+> main `a779e7b`): the owner re-decided the keep rows at the gate — retire ALL four kept pages too —
+> walked the staged retired site and attested "feels good, land this and close off"; the public site
+> is now the experience + the a11y fallback + 404 (see "As built — full retire" below). **This
+> DELIVERS the website-experience arc.** PHASE 1 (the keep-5 triage) stands as history: the full proof
+> shape ran in one session (sleepy-curran-655722): the
 > owner SIGNED the per-page disposition table at the gate (approved as proposed, plus calls A–C),
 > the session EXECUTED it on storytree-web's rail, and the owner WITNESSED the executed result at
 > the staged preview and attested — verdict relayed verbatim on web PR #28 (ADR-0044 §4 /
@@ -139,3 +144,35 @@ Full rationale + the three owner calls: **ADR-0167** (the sign-off record).
 - **Attestation record (UAT 1 + 2 + 4):** the table signed at the gate; the executed result
   witnessed at the staged preview (`stage-the-attestation-experience`); verdict verbatim on web PR
   #28 — "Attest — land it" (HuaMick, 2026-07-06 @ `0b42c44`); the CMS answer recorded as ADR-0167.
+
+## As built — full retire (web main `a779e7b`, 2026-07-07, ADR-0172)
+
+PHASE 2 — the owner re-decided the KEEP rows (2026-07-07): retire ALL four remaining pages. The public
+site is now exactly the Act 1 + Act 2 experience, the no-JS / reduced-motion a11y fallback, and the 404.
+The PHASE-1 keep-5 record above stands as history (copy-on-write).
+
+- **Retired (deleted):** `how-it-works.astro` + `.json`, `get-involved.astro` + `.json`,
+  `contact.astro` + `.json`, `constitution.astro` + `constitution-page.json` +
+  `content/constitution.md`; the orphaned demo assets `TreeWorld.astro`, `AgentMaze.astro`,
+  `mockSystem.json`. Kept: `tree-world-map.css` (the Act 2 walk is now its sole consumer).
+- **Redirects (`web/astro.config.mjs`):** all six retired routes (the four now + the earlier
+  roadmap/landscape) meta-refresh to the experience at `/`.
+- **Survivors rewired:** brand-only `Nav.astro`; `Footer.astro` page-links dropped; the a11y fallback
+  (`index.astro`) + `404.astro` + the Act 2 walk's done card carry no onward brochure link (the done
+  card's CTA removed, focus repointed to the close card — a dangling `ctaNext` focus ref the deletion
+  left, `act2-walkthrough.ts`). Three `data-experience-*` markers intact.
+- **Content salvaged (owner's "revivable ADR"):** `docs/research/retired-web-info-pages-2026-07.md`
+  (the how-it-works explainer, the get-involved bet, the contact copy, the constitution manifesto
+  verbatim) — extends the ADR-0167 salvage docs. The contact door is retired, add-back-able later.
+- **ADR-0165 §8 (name terms on how-it-works) OVERTAKEN** — page retired; terms embodied in the
+  experience + preserved in the salvage doc (ADR-0172 §6).
+- **Machine floor (UAT 3):** `npm run build` green; the three parent web gates green (grounding 0
+  refs; engine 13 files synced to the current ADR-0169 trail engine; experience markers +
+  WebGL-free); every route 200 with stubs → `/`; no orphan links in dist; a 16-step headless walk
+  smoke (honest close, 0 CTA links, focus on the close card, 0 console errors). Web pin bumped
+  `be960873` → `a779e7b`.
+- **Attestation (UAT 1/2/4):** the owner walked the staged preview (http://localhost:4321/) and
+  attested verbatim "feels good, land this and close off" (HuaMick, 2026-07-07, ADR-0044 §4, relayed
+  on web PR #32 @ `4360da4`). PR #32 squash-merged → web main `a779e7b`, CD published, LIVE verified
+  (experience markers served; the four routes redirect to `/`; old page content gone). The CMS
+  question (call 4) was already closed by ADR-0167. **This delivers the website-experience arc.**

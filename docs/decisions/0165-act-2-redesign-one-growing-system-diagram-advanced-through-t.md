@@ -255,7 +255,13 @@ the skeptical developer's questions; the arc answers each by SHOWING.
 7. **Ship at ~15 taps** WITH the quiet persistent leave affordance; if it tests long, D0+D1 and Z1+Z2
    are the natural merges (13). The chips make taps feel like conversation, not slides.
 8. **Industry terms are EMBODIED in the walk in plain words**; they are NAMED and cited once on the
-   how-it-works page only (per the research brief's honesty flags).
+   how-it-works page only (per the research brief's honesty flags). *(The "named + cited once on
+   how-it-works" HALF is OVERTAKEN by [ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md)
+   §6, 2026-07-07 — the how-it-works page is retired, so there is no brochure page to name them on. The
+   obligation is discharged: the terms stay EMBODIED in the experience's plain-language copy (the first
+   half of this default stands) and their honest framing is preserved in
+   `docs/research/retired-web-info-pages-2026-07.md`; §9's honesty rules still bind that copy. Noted in
+   place per ADR-0139.)*
 9. **KEEP the Back affordance** (pure replay, byte-identical scenes — the machinery exists;
    forward-only feels like a slideshow).
 
@@ -423,6 +429,12 @@ kept `/how-it-works/` page — the generation–verification loop Karpathy descr
 gap (Sonar Jan-2026, "fully" kept), second brain (Forte's term) — in a section marked
 `data-grounds="ADR-0165"`, with §9's honesty rules binding on the wording (a Sonar-date error riding
 the same copy was corrected to January 2026). Noted in place per ADR-0139.
+*(Then RETIRED 2026-07-07 — [ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md)
+retires `/how-it-works/` along with the other three kept pages. The named-terms section (`data-grounds="ADR-0165"`)
+went with the page; the terms' honest framing is preserved verbatim in
+`docs/research/retired-web-info-pages-2026-07.md`, and §9's honesty rules now bind the experience copy
+that embodies them. The shipped-then-retired record above stays true history of `be960873`. Noted in
+place per ADR-0139.)*
 
 ## References
 

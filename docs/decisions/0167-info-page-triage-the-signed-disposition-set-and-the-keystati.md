@@ -52,6 +52,14 @@ Discards are honest deletion with meta-refresh redirect stubs at the old URLs (A
 works · Get involved · Front door (+ "Ask to come in"). Footer after: Home · How it works · Get
 involved · Constitution · Front door.
 
+*(The four KEEP rows — `/how-it-works/`, `/get-involved/`, `/contact/`, `/constitution/` — are RETIRED
+by [ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md), 2026-07-07: the
+owner re-decided at the same surface the next day to retire the four kept pages too, so the public site
+is now exactly the Act 1 + Act 2 experience, the a11y fallback, and the 404. Every retired URL redirects
+to the experience at `/`; the salvage pattern this triage set (below, §3) extends to
+`docs/research/retired-web-info-pages-2026-07.md`. What STANDS from this table: the two DISCARDS
+(`/roadmap/`, `/landscape/`) and the `/404` keep. Noted in place per ADR-0139.)*
+
 **2. The two how-it-works riders (already-decided corpus, executed with the keep):** (a) the
 ADR-0165 §8 industry-terms section — the generation–verification loop Karpathy described, the
 verification gap (Sonar Jan-2026, "fully" kept), second brain (Forte's term) — named + cited once,
@@ -61,6 +69,14 @@ corrected: the page said "mid-2026" for the Sonar survey; the verified source is
 "Reconnect storm handling" → "Recovering dropped connections", "Backpressure tuning" → "Keeping up
 under load", the rowan session → "fixing the Monday outage" @ `fix/monday-outage`; Cohoot fiction,
 statuses, and DAG shape intact.
+
+*(Rider (a) — the ADR-0165 §8 industry-terms section — RETIRED WITH the page by
+[ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md), 2026-07-07: there is
+no `/how-it-works/` page to name the terms on. The terms' framing is preserved in the ADR-0172 salvage
+doc `docs/research/retired-web-info-pages-2026-07.md`, and the terms live embodied in the experience's
+own plain-language copy; ADR-0165 §9's honesty rules still bind that copy. Rider (b), the
+`mockSystem.json` jargon scrub, retired with the demo assets the deleted pages used. Noted in place per
+ADR-0139.)*
 
 **3. Content salvage before deletion (owner rider at the sign-off):** the owner directed the
 discarded pages' substance be preserved in the corpus — "still useful and might come back to life

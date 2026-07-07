@@ -65,7 +65,12 @@ The forces that make the pivot cheap and coherent:
   studio's `SceneView` — it folds a `World` into the synced core's `SceneInput`, calls `buildScene`
   (the REAL product's scene graph, [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
   strategy C), and emits SVG strings. The home map (`TreeWorld.astro`) and how-it-works page render
-  it today. A 2.5D walkthrough shows the actual product's look, which is the owner's point.
+  it today. A 2.5D walkthrough shows the actual product's look, which is the owner's point. *(As of
+  [ADR-0172](0172-retire-the-remaining-brochure-pages-the-experience-is-the-en.md), 2026-07-07, those
+  two consumer examples are retired — the how-it-works page and `TreeWorld.astro` are deleted, and the
+  Act 2 walk is now the rail's sole consumer (keeping `tree-world-map.css`). The load-bearing point of
+  this bullet stands unchanged: the 2.5D rail (`worldSvg.ts`) exists on the site, which is what made
+  this pivot cheap. Noted in place per ADR-0139.)*
 - **The choreography engine is renderer-agnostic.** `act2-beat-director` (parent-proven, zod-contracted)
   speaks semantic deltas (plant-story / attach-wisp / branch-caps / add-roads / pull-back) and never
   imported a renderer. The five beats, proof-gated greening, and the flagged wrong-way road survive
