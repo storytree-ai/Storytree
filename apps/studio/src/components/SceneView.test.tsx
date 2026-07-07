@@ -15,7 +15,7 @@ import {
   type SceneInput,
   type SceneTrailsInput,
 } from '@storytree/forest-world';
-import { trailRevealPlan } from '../lib/trailReveal';
+import { arrivalGrowPlan } from '../lib/trailReveal';
 import { SceneView, type SceneCtx } from './SceneView';
 
 afterEach(cleanup);
@@ -305,34 +305,31 @@ describe('SceneView — the ADR-0169 trail network mapping', () => {
     expect(edge.getAttribute('data-segments')).toBe('tseg1:F,tseg2:F');
   });
 
-  it('hides every trail by default: no is-revealed, no mask, no world focus class', () => {
-    const { root } = renderScene(); // reveal: null
-    expect(root.querySelector('.is-revealed')).toBeNull();
+  it('draws every trail by default (always visible): no growing class, no mask, no world focus', () => {
+    const { root } = renderScene(); // reveal: null (nothing arriving)
+    expect(root.querySelector('.is-growing')).toBeNull();
     expect(root.querySelector('[mask]')).toBeNull();
     expect(root.querySelector('.world-has-focus')).toBeNull();
+    // the trails ARE in the DOM (drawn), not gated away behind a click
+    expect(root.querySelector('.trail-fill[data-id="tseg1"]')).toBeTruthy();
+    expect(root.querySelector('.trail-fill[data-id="tseg2"]')).toBeTruthy();
   });
 
-  it('reveals the focused island`s segments: mask + direction tint + revealed-width step', () => {
-    const plan = trailRevealPlan(mkTrails(), 'lib');
+  it('an arriving island`s incident trails draw on: is-growing + mask on its direct segments', () => {
+    // lib ARRIVES → its direct edges (a→lib, lib→b) draw on from lib; no world dim.
+    const plan = arrivalGrowPlan(mkTrails(), new Set(['lib']));
     const { root } = renderScene({ reveal: plan });
-    // the world root wears the focus hook (CSS dims the rest of the world off it).
-    expect(root.querySelector('.world-has-focus')).toBeTruthy();
-    // a→lib is lib's DEPENDENCY (to === lib) → warm `dir-out`, both its segments masked.
+    expect(root.querySelector('.world-has-focus')).toBeNull();
     const fill1 = root.querySelector('.trail-fill[data-id="tseg1"]')!;
     const fill2 = root.querySelector('.trail-fill[data-id="tseg2"]')!;
-    expect(fill1.classList.contains('is-revealed')).toBe(true);
-    expect(fill1.classList.contains('dir-out')).toBe(true);
+    expect(fill1.classList.contains('is-growing')).toBe(true);
     expect(fill2.getAttribute('mask')).toBe('url(#trail-m-tseg2)');
-    // lib→b is a DEPENDENT edge (from === lib) → cooler `dir-in` on its ghost run.
+    // the ghost run of lib→b draws on too
     const ghost = root.querySelector('.trail-ghost[data-id="tseg3"]')!;
-    expect(ghost.classList.contains('is-revealed')).toBe(true);
-    expect(ghost.classList.contains('dir-in')).toBe(true);
-    // width steps from the REVEALED edge count (1 through tseg2 here), not the global
-    // usage (2): fill = 2 + 2.5·√1 = 4.5, its casing +2.5 = 7.
-    expect(fill2.getAttribute('stroke-width')).toBe('4.5');
-    expect(
-      root.querySelector('.trail-casing[data-id="tseg2"]')!.getAttribute('stroke-width'),
-    ).toBe('7');
+    expect(ghost.classList.contains('is-growing')).toBe(true);
+    // the road draws on to its GLOBAL width (tseg2 usage 2 → 2 + 2.5·√2 ≈ 5.54), not a
+    // revealed subset — the arrival grows the trail as it actually is.
+    expect(Number(fill2.getAttribute('stroke-width'))).toBeCloseTo(5.5355, 3);
   });
 
   it('renders the cave portal as an island prop wearing the folded island status', () => {

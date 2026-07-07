@@ -60,6 +60,13 @@ export interface StressOpts {
    *  weight. 0 ⇒ pure stress (shortest edges, hierarchy only from the seeded init);
    *  large ⇒ y pinned to rank (≈ the layered `dag`). The one hierarchy↔locality knob. */
   alphaFrac: number;
+  /** De-overlap sweeps after majorization (owner 2026-07-07: islands too close in dense
+   *  clusters). Fixed count → deterministic. */
+  sepIters: number;
+  /** Min-separation pad: two islands are pushed apart until their centres are at least
+   *  `sepPad · (r_i + r_j)` apart. >1 leaves breathing room; sized ABOVE 1 because the
+   *  seed radius is pre-growth and territories grow to ~2× it. */
+  sepPad: number;
 }
 
 export const STRESS_OPTS: StressOpts = {
@@ -67,6 +74,8 @@ export const STRESS_OPTS: StressOpts = {
   unit: 220,
   levelGap: 200,
   alphaFrac: 0.55,
+  sepIters: 24,
+  sepPad: 2.0,
 };
 
 // ---------- deterministic pseudo-random (self-contained; no Math.random) ----------
@@ -222,6 +231,41 @@ export function stressSeeds(
         xs[i] = numX / wsum;
         // y also answers to the soft hierarchy anchor.
         ys[i] = (numY + alpha * yTarget[i]!) / (wsum + alpha);
+      }
+    }
+  }
+
+  // --- de-overlap relaxation (owner 2026-07-07: islands sat too close in dense
+  //     clusters). Stress targets graph-distance, which can pack a mutually-adjacent
+  //     cluster tighter than the islands' footprints — and the seed radius is pre-growth,
+  //     so territories then grow into each other. A few deterministic separation sweeps
+  //     push apart any pair closer than `sepPad·(r_i+r_j)`, in a FIXED id-sorted pair
+  //     order (so it stays pure/deterministic); each is a symmetric nudge, so the stress
+  //     structure (short edges, hierarchy) is preserved — only overlaps are relieved. ---
+  for (let pass = 0; pass < opts.sepIters; pass++) {
+    for (let oi = 0; oi < order.length; oi++) {
+      const i = order[oi]!;
+      for (let oj = oi + 1; oj < order.length; oj++) {
+        const j = order[oj]!;
+        const minSep = opts.sepPad * (Math.max(0, nodes[i]!.radius) + Math.max(0, nodes[j]!.radius));
+        let dx = xs[i]! - xs[j]!;
+        let dy = ys[i]! - ys[j]!;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= minSep) continue;
+        if (dist < 1e-6) {
+          // coincident: separate along a deterministic id-hashed axis so it stays pure
+          const a = (hash(`${idOf[i]}|${idOf[j]}`) % 628) / 100;
+          dx = Math.cos(a);
+          dy = Math.sin(a);
+          dist = 1;
+        }
+        const push = (minSep - dist) / 2;
+        const ux = dx / dist;
+        const uy = dy / dist;
+        xs[i] = xs[i]! + ux * push;
+        ys[i] = ys[i]! + uy * push;
+        xs[j] = xs[j]! - ux * push;
+        ys[j] = ys[j]! - uy * push;
       }
     }
   }

@@ -68,7 +68,7 @@ import {
   type DockNode,
 } from '../lib/solarLayout.js';
 import { stressSeeds, type StressNode, type StressEdge } from '../lib/stressLayout.js';
-import { trailRevealPlan } from '../lib/trailReveal.js';
+import { arrivalGrowPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
   fitWorld,
@@ -1691,15 +1691,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
   // pure selector (lib/trailReveal): which segments, in what stagger order, from which
   // end, in which direction tint. Reveal is CLICK/SELECT ONLY — keyed on `selectedStory`,
-  // NOT `focusStoryId` (owner feedback 2026-07-06): hover keeps the cheap territory
-  // upstream/downstream highlight (`storyRelations`), but must never BUILD trails — every
-  // mousemove re-ran the reveal plan + re-rendered the growth masks, the reported lag.
-  // Clicking an island reveals the UNION of its incident edges (§5 honesty — never a
-  // subset); the scene stays focus-agnostic; the plan rides the mapper ctx + mask defs.
-  const revealPlan = useMemo(
-    () => trailRevealPlan(world?.trails ?? null, selectedStory),
-    [world, selectedStory],
-  );
+  // Trails are ALWAYS drawn now (owner 2026-07-07: "see the pathways without clicking
+  // everywhere"). Reveal-on-click is retired — the noise the click reveal hid is gone
+  // now that the moat merges near-parallels and stress spaces the islands. The growth
+  // animation moves to ARRIVAL (a new island being placed); `growPlan` below drives the
+  // per-segment draw-on masks off `arrivalIds`, not off selection. Clicking an island
+  // still borders it (`.is-selected`, via territoryClassById) — that is the only focus
+  // affordance left. (selectedStory still drives the detail panel + the border.)
   const trailSegById = useMemo(
     () => new Map((world?.trails.segments ?? []).map((s) => [s.id, s])),
     [world],
@@ -1751,6 +1749,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     if (!demoArrivalId && entering.size === 0) return null;
     return demoArrivalId ? new Set([...entering, demoArrivalId]) : entering;
   }, [demoArrivalId, entering]);
+  // The trail draw-on animation, re-rooted from click to ARRIVAL: an arriving island's
+  // DIRECT incident trails grow outward from it (existing trails stay statically drawn).
+  // Null when nothing is arriving ⇒ every trail simply paints, no masks.
+  const growPlan = useMemo(
+    () => arrivalGrowPlan(world?.trails ?? null, arrivalIds),
+    [world, arrivalIds],
+  );
 
   if (loadError) {
     return (
@@ -1937,17 +1942,16 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               >
                 <path d="M 0 1.2 L 8 5 L 0 8.8 z" fill="context-stroke" />
               </marker>
-              {/* ADR-0169 §3 reveal masks — one per REVEALED segment: a solid white
-                  stroke over the segment's own path, pathLength-normalised so the CSS
-                  dash animation (offset 1→0, or -1→0 for a chain walked against the
-                  path's drawn direction) grows it length-agnostically; the visible
-                  cased/dashed strokes are masked by it, so a dashed spur reveals
-                  correctly (never dash-offset a dashed stroke directly). userSpaceOnUse
-                  + oversized bounds keep a thin diagonal's mask region from clipping
-                  the wide stroke. Stagger rides an inline animation-delay per chain
-                  position. Cleared focus removes the masks; the strokes fade out. */}
+              {/* ADR-0169 arrival draw-on masks — one per segment growing on an island
+                  ARRIVAL: a solid white stroke over the segment's own path, pathLength-
+                  normalised so the CSS dash animation (offset 1→0, or -1→0 for a chain
+                  walked against the path's drawn direction) grows it length-agnostically;
+                  the visible stroke is masked by it, so it draws on from the new island.
+                  userSpaceOnUse + oversized bounds keep a thin diagonal's mask region from
+                  clipping the wide stroke. Stagger rides an inline animation-delay per
+                  chain position. Absent arrival ⇒ no masks; every trail just paints. */}
               {renderScene &&
-                revealPlan?.segments.map((seg) => {
+                growPlan?.segments.map((seg) => {
                   const s = trailSegById.get(seg.id);
                   if (!s) return null;
                   return (
@@ -2000,7 +2004,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   scene={scene}
                   ctx={{
                     territoryClassById,
-                    reveal: revealPlan,
+                    reveal: growPlan,
                     hidden,
                     arrivalIds,
                     // mark the click handled so the viewport's hit-test fallback doesn't re-fire it

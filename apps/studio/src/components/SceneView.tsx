@@ -18,22 +18,23 @@ import type { TrailRevealPlan } from '../lib/trailReveal.js';
 export interface SceneCtx {
   /** The focus-aware island class (mirrors TreeView's `territoryClass`), by id + folded status. */
   territoryClassById: (id: string, status: SceneStatus) => string;
-  /** The ADR-0169 §3 reveal plan for the focused island (lib/trailReveal), or null when
-   *  nothing is focused. Trails are hidden by default; a planned segment wears
-   *  `is-revealed dir-<dir>` + its per-segment growth mask, and its stroke width steps
-   *  from the REVEALED edge count (multi-reveal width step-up). */
+  /** The ARRIVAL draw-on plan (lib/trailReveal `arrivalGrowPlan`), or null when nothing
+   *  is arriving. Trails are ALWAYS drawn now (owner 2026-07-07); a segment growing on an
+   *  island arrival wears `is-growing` + its per-segment draw-on mask. Reused type shape;
+   *  the plan is now rooted at arriving islands' direct edges, not a clicked focus. */
   reveal: TrailRevealPlan | null;
   /** Statuses the legend has filtered out (a matching tree / plant wears `is-filtered`). */
   hidden: ReadonlySet<string>;
   // NB: no island HOVER handler — hover-driven highlight was removed (owner 2026-07-06,
-  // the mousemove recolour was the reported lag). The only focus affordance is the
-  // click-revealed trail chain + the `.is-selected` shore border.
+  // the mousemove recolour was the reported lag). Reveal-on-click was retired too (owner
+  // 2026-07-07 — pathways are always drawn); the only focus affordance is the
+  // `.is-selected` shore border on the clicked island.
   onSelectStory: (id: string) => void;
   onSelectCap: (storyId: string, capId: string) => void;
   /** Story ids whose islands play the ARRIVAL animation (a story that just appeared in
    *  the tree payload, or the `?arrive=` demo target): their coast/ground/flora form in
-   *  stages (CSS, `arrive-*` classes). Trails are hidden by default (ADR-0169 §3), so
-   *  arrival no longer draws roads on. Absent/empty ⇒ no arrival classes at all. */
+   *  stages AND their direct incident trails draw on from the new island (the `reveal`
+   *  plan above). Absent/empty ⇒ no arrival classes/masks at all. */
   arrivalIds?: ReadonlySet<string> | null;
 }
 
@@ -128,11 +129,12 @@ function arriveIsland(id: string, ctx: SceneCtx): string {
   return ctx.arrivalIds?.has(id) ? ' arrive-island' : '';
 }
 
-/** The reveal-state suffix for a trail-segment path (ADR-0169 §3): hidden by default,
- *  `is-revealed dir-<in|out|both>` when the focus plan names it. */
+/** The draw-on suffix for a trail-segment path: trails are ALWAYS drawn now (owner
+ *  2026-07-07); a segment growing on an island ARRIVAL wears `is-growing` so its mask
+ *  owns the draw-on. Absent an arrival, every trail simply paints. */
 function revealClass(node: SceneNode, ctx: SceneCtx): string {
   const seg = node.id ? ctx.reveal?.byId.get(node.id) : undefined;
-  return seg ? ` is-revealed dir-${seg.dir}` : '';
+  return seg ? ' is-growing' : '';
 }
 
 /** The full className for a node — the studio's class for the role, plus the folded
@@ -144,8 +146,9 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
   const status = node.status ?? 'unknown';
   switch (k) {
     case 'world':
-      // the world-root focus hook: the reveal CSS dims the rest of the world off it.
-      return ctx.reveal ? 'world-has-focus' : '';
+      // no world-root focus dim any more — trails are always drawn, so there is no
+      // click-reveal to settle the rest of the world beneath (owner 2026-07-07).
+      return '';
     case 'territory':
       return `hex-flora ${ctx.territoryClassById(id, status)}${arriveIsland(id, ctx)}`;
     case 'coast':

@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { TrailNetwork } from '@storytree/forest-world';
-import { trailRevealPlan, REVEAL_STAGGER_MS } from './trailReveal';
+import { trailRevealPlan, arrivalGrowPlan, REVEAL_STAGGER_MS } from './trailReveal';
 
 const seg = (id: string, hidden = false) => ({
   id,
@@ -207,5 +207,43 @@ describe('trailRevealPlan — full transitive dependency-chain reveal (owner 202
 
   it('is deterministic on the chain fixture too', () => {
     expect(trailRevealPlan(chainNetwork(), 'b')).toEqual(trailRevealPlan(chainNetwork(), 'b'));
+  });
+});
+
+describe('arrivalGrowPlan — the arrival draw-on selector (owner 2026-07-07)', () => {
+  it('is null when nothing is arriving', () => {
+    expect(arrivalGrowPlan(network(), null)).toBeNull();
+    expect(arrivalGrowPlan(network(), new Set())).toBeNull();
+    expect(arrivalGrowPlan(null, new Set(['mid']))).toBeNull();
+  });
+
+  it('grows ONLY the arriving island`s DIRECT incident edges, not the transitive chain', () => {
+    // 'top' arrives: its one direct edge is mid→top (s3). foundation→mid (s1,s2) is a hop
+    // further — a transitive reveal would include it; an arrival draw-on must NOT.
+    const plan = arrivalGrowPlan(network(), new Set(['top']))!;
+    expect(plan.byId.has('s3')).toBe(true);
+    expect(plan.byId.has('s1')).toBe(false);
+    expect(plan.byId.has('s2')).toBe(false);
+    expect(plan.byId.has('s4')).toBe(false); // the unrelated x→y edge never draws
+  });
+
+  it('grows an arriving hub`s incident edges on both sides, and only real ones (§5)', () => {
+    // 'mid' arrives: foundation→mid (s1,s2) AND mid→top (s3) draw on; x→y (s4) does not.
+    const plan = arrivalGrowPlan(network(), new Set(['mid']))!;
+    expect([...plan.byId.keys()].sort()).toEqual(['s1', 's2', 's3']);
+  });
+
+  it('staggers a multi-segment edge by chain position, growing from the new island', () => {
+    // foundation→mid rides [s1, s2]; 'foundation' arrives ⇒ walk forward from it: s1
+    // draws first (delay 0), s2 one stagger later.
+    const plan = arrivalGrowPlan(network(), new Set(['foundation']))!;
+    expect(plan.byId.get('s1')!.delayMs).toBe(0);
+    expect(plan.byId.get('s2')!.delayMs).toBe(REVEAL_STAGGER_MS);
+  });
+
+  it('is deterministic — same input, deep-equal plan', () => {
+    expect(arrivalGrowPlan(network(), new Set(['mid']))).toEqual(
+      arrivalGrowPlan(network(), new Set(['mid'])),
+    );
   });
 });

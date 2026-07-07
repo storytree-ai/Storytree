@@ -1415,13 +1415,13 @@ a.stat:hover {
 /* TRAILS (ADR-0169, supersedes the ADR-0076 docked lines): the `depends_on` edges are a
    routed shared-segment network drawn as full cased passes — contact SHADOW, then CASING,
    then FILL, then the under-island GHOST runs — so merged trunks read as ONE trail (the
-   cartographic casing rule). HIDDEN BY DEFAULT (§3): no trail stroke paints until an
-   island is focused; then the focused island's incident edges grow outward
-   segment-by-segment via the per-segment reveal MASKS (TreeView renders one
-   `<mask id="trail-m-<segId>">` per revealed segment — a solid stroke, pathLength=1,
-   dash-offset 1→0 staggered ~350ms per chain position). A dashed spur fill reveals
-   correctly UNDER the mask (never dash-offset a dashed stroke directly). Clearing focus
-   removes `is-revealed`; the strokes fade back out (the retract). */
+   cartographic casing rule). ALWAYS DRAWN (owner 2026-07-07 — reveal-on-click retired):
+   every trail paints at rest. The draw-on GROWTH animation now plays only when an island
+   ARRIVES — its direct incident segments grow outward from the new island via the
+   per-segment masks (TreeView renders one `<mask id="trail-m-<segId>">` per arriving
+   segment — a solid stroke, pathLength=1, dash-offset 1→0 staggered ~350ms per chain
+   position). A dashed spur fill grows correctly UNDER the mask (never dash-offset a dashed
+   stroke directly). When the arrival ends the masks drop and the strokes stay drawn. */
 .trail-net path {
   fill: none;
   stroke-linecap: round;
@@ -1437,26 +1437,23 @@ a.stat:hover {
 .trail-casing {
   display: none;
 }
-.trail-fill,
-.trail-ghost {
-  opacity: 0;
-  transition: opacity 0.35s ease; /* the fade-out retract on clearing focus */
-}
+/* ALWAYS drawn now (owner 2026-07-07: "see the pathways without clicking everywhere").
+   A single quiet faded-brown line — no direction tints, no spur dash (both collapsed for
+   minimalism per the owner's earlier steer). Now viable without noise because the moat
+   merges near-parallels and stress spaces the islands. */
 .trail-fill {
   stroke: var(--trail-line); /* the ONE plain faded-brown pathway line */
+  opacity: 0.62;
 }
 .trail-ghost {
   stroke: var(--trail-line); /* the OSM tunnel convention: a fine dashed under-island run */
   stroke-dasharray: 2 6;
-}
-/* revealed: the mask owns the growth. A single quiet faded-brown line — no direction
-   tints, no spur dash (both collapsed for minimalism per the owner's steer). */
-.trail-fill.is-revealed {
-  opacity: 0.62;
-  transition: none;
-}
-.trail-ghost.is-revealed {
   opacity: 0.45;
+}
+/* a segment DRAWING ON during an island arrival: its per-segment mask owns the growth
+   (below); the base opacity above is simply what it grows into. */
+.trail-fill.is-growing,
+.trail-ghost.is-growing {
   transition: none;
 }
 /* the per-segment growth mask (rendered in <defs> by TreeView): a solid white stroke
@@ -1479,14 +1476,6 @@ a.stat:hover {
   to {
     stroke-dashoffset: 0;
   }
-}
-/* A gentle whole-world settle while a click reveal is active: the unowned moat/coast
-   recedes so the lit trail chain carries the eye. Cheap — ONE class toggled on click
-   (not per hover), no per-island recolour (the hover dim/tint was removed, owner
-   2026-07-06). */
-.world-has-focus .hex-coast {
-  opacity: 0.55;
-  transition: opacity 0.35s ease;
 }
 @media (prefers-reduced-motion: reduce) {
   .trail-reveal-mask {
@@ -3937,11 +3926,13 @@ button.legend-tile:hover {
 /* ============================================================================
    NEW-ISLAND ARRIVAL — when a re-pulled tree payload holds a story the previous
    payload didn't (TreeView diffs the id sets), the island ARRIVES instead of
-   popping in, staged like a landmass surfacing: the sandy coast surfaces, the
-   ground assembles on top of it, and finally the flora + nameplate POP in with
-   a soft overshoot. (The old road draw-on leg retired with ADR-0169 — trails
-   are hidden by default, so an arrival has no visible road to draw.) Every
-   piece is animation-fill-mode: both, so it holds its hidden from-state
+   popping in, staged like a landmass surfacing: its incident ROADS draw on from
+   the new island (the per-segment masks, driven by arrivalGrowPlan), the sandy
+   coast surfaces, the ground assembles on top of it, and finally the flora +
+   nameplate POP in with a soft overshoot. (The road draw-on is BACK, owner
+   2026-07-07: trails are always drawn now, so a new island's connections have a
+   visible road to draw — the growth animation lives here now, not on click.)
+   Every piece is animation-fill-mode: both, so it holds its hidden from-state
    through its delay — the board sits quiet for a beat, then the arrival plays.
    `?arrive=<story-id|auto>` is the demo/QA escape (forces one island to
    arrive on load, with a ▶ replay button).
