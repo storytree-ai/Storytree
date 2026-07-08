@@ -23,6 +23,10 @@ export * from "./spawn-deps.js";
 // The landing-deps composition (ADR-0152): `buildLandingDeps` + the exec seam the desktop sidecar
 // composes and threads through the chat mount → startChatStream → orchestrate (the merge ceremony).
 export * from "./landing-deps.js";
+// The inspect-deps composition (ADR-0173): `buildInspectDeps` — the desktop sidecar composes the real
+// read-only `gh`/`git` inspection deps and threads them through the chat mount → startChatStream →
+// orchestrate (the CI/git diagnosis surface). Observation only; each tool refuses a mutating arg.
+export * from "./inspect-deps.js";
 export * from "./wisp-smoke.js";
 export * from "./oq-gate.js";
 export * from "./resolve-report.js";

@@ -26,6 +26,8 @@ import { buildSpawnTools, SPAWN_SERVER } from "./spawn-tool-surface.js";
 import type { SpawnSurfaceDeps } from "./spawn-tool-surface.js";
 import { buildLandingTools, LANDING_SERVER } from "./landing-tool-surface.js";
 import type { LandingSurfaceDeps } from "./landing-tool-surface.js";
+import { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
+import type { InspectSurfaceDeps } from "./inspect-tool-surface.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -124,6 +126,20 @@ export interface HeadlessOrchestratorArgs {
    * authors a "healthy", and no landing tool carries a verdict-shaped payload.
    */
   landing?: LandingSurfaceDeps;
+  /**
+   * OPTIONAL inspect surface deps (ADR-0173): when present, the session mounts `view_ci_run`,
+   * `view_pr_checks`, and `git_inspect` as fail-closed, READ-ONLY MCP tools — the CI/git diagnosis
+   * surface the terminal session-orchestrator gets for free from its shell (read a failing-job log,
+   * an arbitrary PR's checks, the read-only git verbs), so a blind chat can root-cause a red pipeline
+   * itself instead of theorising and escalating a confident-but-wrong fix. Absent → the session is
+   * byte-identical to the propose+spawn+landing surface (the same §7 scale-down mirror as `landing`).
+   *
+   * The chat keeps `tools: []` regardless — these are scoped, named READ actions, never a raw `Bash`
+   * surface (ADR-0137 d.1 widened for OBSERVATION only, ADR-0173 invariant 1). No inspect tool
+   * mutates the tree, merges, pushes, or carries a verdict-shaped payload; each refuses a mutating
+   * argument fail-closed (the refusal lives in the injected deps).
+   */
+  inspect?: InspectSurfaceDeps;
 }
 
 export interface HeadlessOrchestratorResult {
@@ -245,6 +261,11 @@ export async function runHeadlessOrchestrator(
     // propose+spawn surface.
     const landingTools = args.landing !== undefined ? buildLandingTools(args.landing) : [];
 
+    // Inspect tools are wired ONLY when inspect deps are present (same §7 scale-down mirror as
+    // landing tools, ADR-0173). Absent deps → no inspect tools advertised → byte-identical to the
+    // propose+spawn+landing surface.
+    const inspectTools = args.inspect !== undefined ? buildInspectTools(args.inspect) : [];
+
     // MCP tool names follow the mcp__<server>__<tool> convention so the model can call them.
     // The orchestrator DRIVES via its spawn + landing tools (ADR-0155) — there is no `propose_unit`
     // declaration surface: when the human asks it to drive, it spawns the inner loop and lands rather
@@ -253,6 +274,7 @@ export async function runHeadlessOrchestrator(
       ...orientationTools.map((t) => `mcp__${ORIENTATION_SERVER}__${t.name}`),
       ...spawnTools.map((t) => `mcp__${SPAWN_SERVER}__${t.name}`),
       ...landingTools.map((t) => `mcp__${LANDING_SERVER}__${t.name}`),
+      ...inspectTools.map((t) => `mcp__${INSPECT_SERVER}__${t.name}`),
     ];
 
     const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
@@ -335,6 +357,15 @@ export async function runHeadlessOrchestrator(
                 name: LANDING_SERVER,
                 version: "1.0.0",
                 tools: landingTools,
+              }),
+            }
+          : {}),
+        ...(inspectTools.length > 0
+          ? {
+              [INSPECT_SERVER]: createSdkMcpServer({
+                name: INSPECT_SERVER,
+                version: "1.0.0",
+                tools: inspectTools,
               }),
             }
           : {}),

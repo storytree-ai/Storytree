@@ -52,6 +52,9 @@ type SpawnDeps = NonNullable<ChatSseMountDeps["spawn"]>;
 /** The landing deps type — derived from the mount's own deps so the double stays in sync. */
 type LandingDeps = NonNullable<ChatSseMountDeps["landing"]>;
 
+/** The inspect deps type — derived from the mount's own deps so the double stays in sync (ADR-0173). */
+type InspectDeps = NonNullable<ChatSseMountDeps["inspect"]>;
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -120,6 +123,18 @@ function landingDepsDouble(): LandingDeps {
     openLandingPr: async () => ({ ok: true, summary: "landing PR opened", prUrl: "https://github.com/x/y/pull/1" }),
     pollPrChecks: async () => ({ status: "merged", summary: "PR merged" }),
   } as LandingDeps;
+}
+
+/** A minimal inspect-deps double — enough to mount the three fail-closed READ-ONLY inspect tools
+ *  (ADR-0173). Its handlers never fire (the scripted session only orients); the point is the mount
+ *  FORWARDS it so the inspect tools are advertised (mirrors what backend-entry composes via
+ *  buildInspectDeps). */
+function inspectDepsDouble(): InspectDeps {
+  return {
+    viewCiRun: async () => ({ ok: true, summary: "run log" }),
+    viewPrChecks: async () => ({ ok: true, summary: "pr checks" }),
+    gitInspect: async () => ({ ok: true, summary: "git output" }),
+  } as InspectDeps;
 }
 
 /** An SDK partial-assistant streaming message carrying one text-delta fragment — the live
@@ -951,6 +966,90 @@ test(
     assert.ok(
       !allowed.some((n) => n.startsWith("mcp__landing__")),
       `with no landing deps, no landing tools may be advertised; got: ${JSON.stringify(allowed)}`,
+    );
+  },
+);
+
+// INSPECT SEAM (ADR-0173, the read-only CI/git inspection surface): injected inspect deps must be
+// forwarded through the mount → startChatStream → orchestrate → runHeadlessOrchestrator, which mounts
+// the three fail-closed READ-ONLY inspect tools (mcp__inspect__view_ci_run / view_pr_checks /
+// git_inspect) into the session. The sidecar (backend-entry.ts) composes the real deps via
+// buildInspectDeps and hands them to createChatSseMount; the mount only forwards.
+//
+// DELETION TEST: dropping the inspect forwarding in the mount (or in the bridged startChatStream args)
+// removes the inspect MCP server from the captured session options — this allowedTools assertion fails.
+test(
+  "csm-forwards-inspect-deps: injected inspect deps wire the read-only diagnosis tools into the session",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery, inspect: inspectDepsDouble() });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "diagnose the red PR" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text(); // drain the stream so the session settles
+    });
+
+    assert.ok(capturedOptions !== undefined, "the scripted queryFn must have been called");
+    const opts = capturedOptions as {
+      allowedTools?: string[];
+      mcpServers?: Record<string, unknown>;
+    };
+    const allowed = Array.isArray(opts.allowedTools) ? opts.allowedTools : [];
+    for (const name of ["view_ci_run", "view_pr_checks", "git_inspect"]) {
+      assert.ok(
+        allowed.includes(`mcp__inspect__${name}`),
+        `the injected inspect deps must wire '${name}' into allowedTools; got: ${JSON.stringify(allowed)}`,
+      );
+    }
+    assert.ok(
+      "inspect" in (opts.mcpServers ?? {}),
+      "the inspect MCP server must be mounted when inspect deps are injected",
+    );
+  },
+);
+
+// INSPECT SEAM (baseline): with NO inspect deps injected, no inspect tools are advertised (the §7
+// scale-down) — byte-identical to before ADR-0173; the mount invents no dead diagnosis surface.
+test(
+  "csm-forwards-inspect-deps: without inspect deps, no inspect tools are advertised (unchanged)",
+  async () => {
+    let capturedOptions: unknown;
+    const capturingQuery: QueryFn = ({ options }) => {
+      capturedOptions = options;
+      return (async function* () {
+        yield OK_SDK_RESULT;
+      })();
+    };
+
+    const handler = createChatSseMount({ queryFn: capturingQuery });
+
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: "plain conversational turn" }),
+      });
+      assert.equal(res.status, 200);
+      await res.text();
+    });
+
+    const opts = capturedOptions as { allowedTools?: string[] };
+    const allowed = opts.allowedTools ?? [];
+    assert.ok(
+      !allowed.some((n) => n.startsWith("mcp__inspect__")),
+      `with no inspect deps, no inspect tools may be advertised; got: ${JSON.stringify(allowed)}`,
     );
   },
 );

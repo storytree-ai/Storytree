@@ -31,8 +31,14 @@ import { PgPresenceStore, PgClaimStore } from "@storytree/notice-board/store";
 import { classifyPresence } from "@storytree/notice-board";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
-import { createOrientationRunner, deriveIdentity, buildSpawnDeps, buildLandingDeps } from "@storytree/drive";
-import type { SpawnSurfaceDeps, LandingSurfaceDeps } from "@storytree/drive";
+import {
+  createOrientationRunner,
+  deriveIdentity,
+  buildSpawnDeps,
+  buildLandingDeps,
+  buildInspectDeps,
+} from "@storytree/drive";
+import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createCodeStampProbe } from "../src/apply/code-stamp.js";
@@ -716,6 +722,7 @@ async function main(): Promise<void> {
   const identity = deriveChatIdentity(repoRoot);
   let spawn: SpawnSurfaceDeps | undefined;
   let landing: LandingSurfaceDeps | undefined;
+  let inspect: InspectSurfaceDeps | undefined;
   if (identity === null) {
     console.error(
       "[backend-entry] no session identity (git unreachable) — chat mounts propose-only, no spawn/landing surface",
@@ -799,6 +806,41 @@ async function main(): Promise<void> {
         `[backend-entry] landing surface NOT composed (chat stays read/propose/spawn only): ${landingComposed.error}`,
       );
     }
+
+    // ---------- the chat INSPECT surface (ADR-0173 — the read-only CI/git inspection surface) ----------
+    //
+    // Compose the REAL inspect deps and thread them into the chat mount so the desktop
+    // session-orchestrator gains DIAGNOSIS — read a failing-job log (`gh run view --log-failed`), an
+    // arbitrary PR's checks (`gh pr checks` / `gh pr view`), and the read-only git verbs
+    // (`git status`/`log`/`ls-tree`/`rev-parse`/`show`) — so a blind chat can root-cause a red pipeline
+    // itself instead of theorising and escalating a confident-but-wrong fix (the PR #650 stale-pin
+    // misdiagnosis ADR-0173 was decided on). buildInspectDeps composes over the SAME repo cwd the
+    // landing/spawn deps derive; OMIT `exec` so the real, TIME-BOXED `child_process` spawn runs
+    // (@storytree/drive's defaultInspectExec — git/gh pass through, a 60s wall so a slow gh can't hang
+    // the turn).
+    //
+    // OBSERVATION ONLY (ADR-0173 invariant 1 / 4): the chat still carries `tools: []`; the inspect
+    // verbs are named READS, never a raw Bash. `git_inspect` refuses any non-read verb before shelling,
+    // and the id-taking tools refuse a flag-like id — so no mutating `gh`/`git` command is reachable.
+    // No merge/push/sync/pin. It signs nothing (the spine signs, CI is the independent gate).
+    //
+    // OPERATOR-ATTESTED GLUE (like the spawn/landing blocks above): the CI-proven core is
+    // buildInspectDeps (packages/drive/src/inspect-deps.test.ts, over an injected exec seam) and the
+    // mount's inspect forwarding (chat-sse-mount.test.ts, over a double); this file composes the real
+    // pieces. FAIL-CLOSED / DEGRADE-QUIET: a blank cwd is refused by buildInspectDeps before any deps
+    // are built (typed { ok:false }); on refusal the chat mounts WITHOUT the inspect surface — the
+    // inspect power is additive, its absence never breaks the read/propose/spawn/land chat.
+    const inspectComposed = buildInspectDeps({ cwd: repoRoot });
+    if (inspectComposed.ok) {
+      inspect = inspectComposed.deps;
+      console.error(
+        `[backend-entry] inspect surface composed — chat can read CI logs + PR checks + git (repo ${repoRoot})`,
+      );
+    } else {
+      console.error(
+        `[backend-entry] inspect surface NOT composed (chat stays read/propose/spawn/land only): ${inspectComposed.error}`,
+      );
+    }
   }
   // The orchestrator SESSION turn cap (ADR-0151): UNBOUNDED by default — the desktop chat is the
   // human-watched session-orchestrator loop, so a fixed cap that false-fails a healthy long
@@ -812,6 +854,7 @@ async function main(): Promise<void> {
     runner: orientationRunner,
     ...(spawn !== undefined ? { spawn } : {}),
     ...(landing !== undefined ? { landing } : {}),
+    ...(inspect !== undefined ? { inspect } : {}),
     ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
   });
 

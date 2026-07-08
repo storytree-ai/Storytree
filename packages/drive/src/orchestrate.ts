@@ -16,6 +16,7 @@ import type {
   HeadlessOrchestratorResult,
   OrientationRunner,
   LandingSurfaceDeps,
+  InspectSurfaceDeps,
 } from "@storytree/agent";
 import { runHeadlessOrchestrator } from "@storytree/agent";
 
@@ -99,6 +100,19 @@ export interface OrchestrateArgs {
    * deps via `buildLandingDeps` and threads them here; offline tests inject a recording double.
    */
   landing?: LandingSurfaceDeps;
+  /**
+   * OPTIONAL inspect surface deps (ADR-0173): when present, orchestrate() mounts `view_ci_run`,
+   * `view_pr_checks`, and `git_inspect` as fail-closed, READ-ONLY MCP tools in the headless session —
+   * the CI/git diagnosis surface the terminal session-orchestrator gets for free (read a failing-job
+   * log, an arbitrary PR's checks, the read-only git verbs) so a blind chat can root-cause a red
+   * pipeline itself. Absent → session byte-identical to the propose/spawn/landing surface (additive
+   * threading only, the §7 scale-down mirror).
+   *
+   * Observation ONLY (ADR-0173 invariant 1): no inspect tool mutates the tree, merges, pushes, or
+   * carries a verdict-shaped payload; each refuses a mutating argument fail-closed. The desktop
+   * sidecar composes the real deps via `buildInspectDeps`; offline tests inject a recording double.
+   */
+  inspect?: InspectSurfaceDeps;
 }
 
 /**
@@ -157,6 +171,7 @@ export async function orchestrate({
   onMessage,
   spawn,
   landing,
+  inspect,
 }: OrchestrateArgs): Promise<OrchestrateResult> {
   // 0. Composition-level single-session guard (ADR-0108 decision 6) — synchronous, typed refusal.
   //    Fires BEFORE any async work so the caller gets an immediate, distinguishable signal.
@@ -198,6 +213,7 @@ export async function orchestrate({
       ...(onMessage !== undefined ? { onMessage } : {}),
       ...(spawn !== undefined ? { spawn } : {}),
       ...(landing !== undefined ? { landing } : {}),
+      ...(inspect !== undefined ? { inspect } : {}),
     });
   } finally {
     compositionInFlight = false;

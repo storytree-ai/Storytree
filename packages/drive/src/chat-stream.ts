@@ -26,7 +26,12 @@
  */
 
 import type { Store } from "@storytree/storage-protocol";
-import type { SdkQueryFn, OrientationRunner, LandingSurfaceDeps } from "@storytree/agent";
+import type {
+  SdkQueryFn,
+  OrientationRunner,
+  LandingSurfaceDeps,
+  InspectSurfaceDeps,
+} from "@storytree/agent";
 
 import type { OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
@@ -155,6 +160,15 @@ export interface StartChatStreamArgs {
    * `buildLandingDeps`; offline tests inject a recording double.
    */
   landing?: LandingSurfaceDeps;
+  /**
+   * OPTIONAL inspect surface deps (ADR-0173): when present, the underlying `orchestrate()` session
+   * mounts `view_ci_run` / `view_pr_checks` / `git_inspect` as fail-closed READ-ONLY MCP tools so the
+   * chat can diagnose a red pipeline (read a failing-job log, an arbitrary PR's checks, the read-only
+   * git verbs). Absent → byte-identical to the propose/spawn/landing surface. Inspect tools emit no
+   * spawn-trace events, so — like `landing` — they are forwarded straight through with no FIFO wrap.
+   * The desktop sidecar composes the real deps via `buildInspectDeps`; offline tests inject a double.
+   */
+  inspect?: InspectSurfaceDeps;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +279,7 @@ export async function* startChatStream(
     ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     ...(wrappedSpawn !== undefined ? { spawn: wrappedSpawn } : {}),
     ...(args.landing !== undefined ? { landing: args.landing } : {}),
+    ...(args.inspect !== undefined ? { inspect: args.inspect } : {}),
   })
     .then((result): SessionOutcome => ({ ok: true, result }))
     .catch((error: unknown): SessionOutcome => ({ ok: false, error }))

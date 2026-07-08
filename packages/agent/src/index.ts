@@ -104,3 +104,11 @@ export type {
   LandingPollStatus,
 } from "./landing-tool-surface.js";
 export { buildLandingTools, LANDING_SERVER } from "./landing-tool-surface.js";
+
+// The inspect seam (ADR-0173): the scoped, fail-closed, READ-ONLY CI/git inspection MCP tool surface
+// (view_ci_run + view_pr_checks + git_inspect) and its dep contract — consumed by @storytree/drive's
+// inspect-deps composition, which shells `gh` / `git` behind a time-boxed injected exec seam and
+// threads the deps through orchestrate() to the runtime. Observation ONLY: the chat keeps `tools: []`
+// and each tool refuses a mutating argument fail-closed (ADR-0137 d.1 widened for reads, ADR-0173).
+export type { InspectSurfaceDeps, InspectResult } from "./inspect-tool-surface.js";
+export { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
