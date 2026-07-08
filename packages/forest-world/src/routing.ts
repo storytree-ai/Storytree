@@ -51,6 +51,9 @@ export interface TrailTuning {
   interiorCost: number; // island-interior cost for the cave fallback pass
   meanderAmp: number; // perpendicular displacement amplitude (MUST stay < clearance)
   meanderWavelength: number; // arc-length period of the meander noise
+  meanderTaper: number; // arc-length band near each junction/dock end over which meander ramps 0→full
+  meanderClearInner: number; // ≤ this distance from ANOTHER trail, meander is fully suppressed
+  meanderClearOuter: number; // ≥ this distance from another trail, meander is at full amplitude
 }
 
 export interface TrailSegment {
@@ -160,6 +163,15 @@ function resolveTuning(o?: Partial<TrailTuning>): TrailTuning {
     // to quiet the gratuitous winding the owner flagged.
     meanderAmp: Math.min(o?.meanderAmp ?? 0.22 * clearance, 0.95 * clearance),
     meanderWavelength: o?.meanderWavelength ?? 4 * HEX_R,
+    // owner feedback 2026-07-08: keep the organic wander on OPEN solo stretches but turn it
+    // OFF at junctions and wherever a trail runs close to another — that is where a wander
+    // reads as an "unnecessary split". The taper straightens each segment's ends (its ends
+    // ARE junction/dock nodes), so short segments — which mostly sit at junctions — get little
+    // or no meander, while long open runs keep the full wave. The clear-band suppresses the
+    // wander near any other pathway so two trails never wobble into looking like they fork.
+    meanderTaper: o?.meanderTaper ?? 4 * HEX_R,
+    meanderClearInner: o?.meanderClearInner ?? clearance,
+    meanderClearOuter: o?.meanderClearOuter ?? clearance + 2 * (o?.cellSize ?? HEX_R / 2),
   };
 }
 
@@ -488,21 +500,22 @@ function crPathD(pts: readonly Pt[]): string {
   return d;
 }
 
-/**
- * Collinear decimation → resample → seeded perpendicular meander → CR spline.
- * First/last points are junction nodes SHARED with neighbouring segments and
- * are never moved, so edge chains stay connected. Meander skips points within
- * clearance of any island (and hidden runs entirely) — its amplitude is below
- * the clearance margin, so it can never push a trail inside an island.
- */
-function smoothSegment(
-  rawPts: readonly Pt[],
-  hidden: boolean,
-  segId: string,
-  islands: readonly TrailIsland[],
-  seed: string,
-  t: TrailTuning,
-): { points: Pt[]; d: string } {
+/** A segment's pure resampled geometry (no meander): the routed cell run
+ *  decimated + resampled, with cumulative arc-length and a bbox for the
+ *  near-another-trail proximity prune. */
+interface ResampledSeg {
+  pts: Pt[];
+  cum: number[]; // cumulative arc-length at each point
+  total: number; // full segment length
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Collinear decimation → resample long straight spans (so the meander has
+ *  vertices to bend). Pure geometry — no meander, no spline. */
+function resampleSegment(rawPts: readonly Pt[], t: TrailTuning): ResampledSeg {
   // 1. drop duplicates, then exactly-collinear interior points
   const dedup: Pt[] = [];
   for (const p of rawPts) {
@@ -521,8 +534,7 @@ function smoothSegment(
     }
     dec.push(p);
   }
-  // 2. resample long straight spans so the meander has vertices to bend
-  //    (decimation alone would leave a straight run with no interior points)
+  // 2. resample long straight spans (decimation alone would leave no interior points)
   const step = Math.max(t.meanderWavelength / 3, t.cellSize);
   const pts: Pt[] = [{ x: dec[0]!.x, y: dec[0]!.y }];
   for (let i = 0; i + 1 < dec.length; i++) {
@@ -536,37 +548,111 @@ function smoothSegment(
     }
     pts.push({ x: b.x, y: b.y }); // exact endpoint — junction continuity
   }
-  // 3. seeded value-noise meander along arc length (visible segments only)
-  if (!hidden && pts.length > 2) {
-    const s: number[] = [0];
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1]!;
-      const b = pts[i]!;
-      s.push((s[i - 1] ?? 0) + Math.hypot(b.x - a.x, b.y - a.y));
+  const cum: number[] = [0];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    if (i > 0) cum.push((cum[i - 1] ?? 0) + Math.hypot(p.x - pts[i - 1]!.x, p.y - pts[i - 1]!.y));
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { pts, cum, total: cum[cum.length - 1] ?? 0, minX, minY, maxX, maxY };
+}
+
+/** Squared distance from (px,py) to the segment a→b. */
+function distSqPtSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  let tt = l2 > 1e-12 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  tt = tt < 0 ? 0 : tt > 1 ? 1 : tt;
+  const cx = ax + tt * dx;
+  const cy = ay + tt * dy;
+  return (px - cx) * (px - cx) + (py - cy) * (py - cy);
+}
+
+/** Nearest distance from a point to any OTHER segment's polyline, pruned by
+ *  bbox so a full scan is only paid for the handful of trails actually near. */
+function distToOtherTrails(px: number, py: number, others: readonly ResampledSeg[], within: number): number {
+  const w2 = within * within;
+  let best = Infinity;
+  for (const o of others) {
+    if (px < o.minX - within || px > o.maxX + within || py < o.minY - within || py > o.maxY + within) continue;
+    for (let i = 0; i + 1 < o.pts.length; i++) {
+      const a = o.pts[i]!;
+      const b = o.pts[i + 1]!;
+      const d2 = distSqPtSeg(px, py, a.x, a.y, b.x, b.y);
+      if (d2 < best) best = d2;
+      if (best <= w2) return Math.sqrt(best); // already inside the suppression band
     }
+  }
+  return best === Infinity ? Infinity : Math.sqrt(best);
+}
+
+/**
+ * Seeded perpendicular meander → centripetal Catmull-Rom spline. First/last
+ * points are junction nodes SHARED with neighbouring segments and are never
+ * moved, so edge chains stay connected. The meander is SUPPRESSED where a
+ * wander would read as a split (owner feedback 2026-07-08): fully at island
+ * rims and hidden runs; ramped down over `meanderTaper` near each junction/dock
+ * end; and faded out within `meanderClear*` of ANY other trail. It only reaches
+ * full amplitude on open solo stretches — and its amplitude stays below the
+ * clearance margin, so it can never push a trail inside an island.
+ */
+function meanderSpline(
+  base: ResampledSeg,
+  hidden: boolean,
+  segId: string,
+  islands: readonly TrailIsland[],
+  others: readonly ResampledSeg[],
+  seed: string,
+  t: TrailTuning,
+): { points: Pt[]; d: string } {
+  const pts: Pt[] = base.pts.map((p) => ({ x: p.x, y: p.y }));
+  if (!hidden && pts.length > 2) {
+    const s = base.cum;
+    const total = base.total;
+    const clearSpan = t.meanderClearOuter - t.meanderClearInner;
     for (let i = 1; i + 1 < pts.length; i++) {
-      const p = pts[i]!;
+      const bp = base.pts[i]!; // proximity is judged on the UN-meandered geometry (order-independent)
       let nearIsland = false;
       for (const isl of islands) {
-        if (Math.hypot(p.x - isl.x, p.y - isl.y) < isl.r + t.clearance) {
+        if (Math.hypot(bp.x - isl.x, bp.y - isl.y) < isl.r + t.clearance) {
           nearIsland = true;
           break;
         }
       }
       if (nearIsland) continue;
+      // taper to 0 at the junction/dock ends; full only in the open interior
+      const distEnd = Math.min(s[i] ?? 0, total - (s[i] ?? 0));
+      const fEnd = t.meanderTaper > 0 ? Math.min(1, distEnd / t.meanderTaper) : 1;
+      // fade out near any OTHER trail so two paths never wobble into a fake fork
+      let fOther = 1;
+      if (clearSpan > 0) {
+        const dOther = distToOtherTrails(bp.x, bp.y, others, t.meanderClearOuter);
+        fOther = dOther >= t.meanderClearOuter ? 1 : Math.max(0, (dOther - t.meanderClearInner) / clearSpan);
+      }
+      const scale = Math.min(fEnd, fOther);
+      if (scale < 1e-3) continue;
       const ph = (s[i] ?? 0) / t.meanderWavelength;
       const k0 = Math.floor(ph);
       const f = ph - k0;
       const u = f * f * (3 - 2 * f);
       const n0 = rand01(hash(`${seed}:w:${segId}:${k0}`)) * 2 - 1;
       const n1 = rand01(hash(`${seed}:w:${segId}:${k0 + 1}`)) * 2 - 1;
-      const off = t.meanderAmp * (n0 + (n1 - n0) * u);
+      const off = t.meanderAmp * scale * (n0 + (n1 - n0) * u);
       const pa = pts[i - 1]!;
       const pb = pts[i + 1]!;
       const tx = pb.x - pa.x;
       const ty = pb.y - pa.y;
       const tl = Math.hypot(tx, ty);
       if (tl < 1e-9) continue;
+      const p = pts[i]!;
       p.x += (-ty / tl) * off;
       p.y += (tx / tl) * off;
     }
@@ -1132,8 +1218,17 @@ export function routeTrails(
     edgeIds: [...acc.edgeIds].sort(),
   }));
 
-  const segments: TrailSegment[] = segOrder.map((rec) => {
-    const sm = smoothSegment(rec.pts, rec.hidden, rec.id, islands, seed, t);
+  // resample every segment first (pure geometry), so the meander pass can see the
+  // OTHER trails and fade its wander out wherever two paths run close (owner 2026-07-08)
+  const bases = segOrder.map((rec) => resampleSegment(rec.pts, t));
+  const visibleBases = segOrder.map((rec, i) => (rec.hidden ? null : bases[i]!));
+  const segments: TrailSegment[] = segOrder.map((rec, i) => {
+    const others: ResampledSeg[] = [];
+    for (let j = 0; j < visibleBases.length; j++) {
+      const vb = visibleBases[j];
+      if (j !== i && vb) others.push(vb);
+    }
+    const sm = meanderSpline(bases[i]!, rec.hidden, rec.id, islands, others, seed, t);
     return { id: rec.id, d: sm.d, points: sm.points, usage: rec.usage, hidden: rec.hidden };
   });
   return { segments, edges: outEdges, caves, dropped: finishDropped() };

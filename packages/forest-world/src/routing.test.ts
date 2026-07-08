@@ -390,6 +390,40 @@ test('edges that FUNNEL together dock ONCE — approach recluster collapses the 
   assert.deepEqual(routeTrails(islands, edges, 'seed-funnel'), net);
 });
 
+test('meander stays on open runs but is suppressed at junctions and near other trails (owner 2026-07-08)', () => {
+  // Owner feedback 2026-07-08 ("turn it off when the path gets close to another pathway or at
+  // junctions"): the organic wander stays on long OPEN solo stretches but tapers to nothing at
+  // each dock/junction end and fades out beside any other trail — so a wander never reads as a
+  // fake fork. A single long straight edge routes along y=0, so |y| IS the perpendicular wander.
+  // A single long straight edge routes along y=0, so max |y| is the wander ON TOP of the small
+  // grid-routing residual. Comparisons are relative to that residual (never absolute-zero).
+  const A = isle('A', 0, 0, 30);
+  const B = isle('B', 900, 0, 30);
+  const maxDevOf = (net: TrailNetwork, from: string): number => {
+    const e = net.edges.find((x) => x.from === from)!;
+    const seg = net.segments.find((s) => e.segments.some((r) => r.id === s.id))!;
+    return Math.max(...seg.points.map((p) => Math.abs(p.y)));
+  };
+  const solo = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander');
+  // a taper wider than the whole segment never lets any point ramp up to full → the grid baseline
+  const flat = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander', { meanderTaper: 100000 });
+  const soloDev = maxDevOf(solo, 'A');
+  const flatDev = maxDevOf(flat, 'A');
+  assert.ok(soloDev > flatDev + 1, `the open solo run wanders well above the tapered baseline (${soloDev} vs ${flatDev})`);
+
+  // proximity wiring: same geometry, aggressive clear band vs none — a neighbour trail flattens A→B
+  const C = isle('C', 0, 400, 30);
+  const D = isle('D', 900, 400, 30);
+  const geo = [A, B, C, D];
+  const eds: TrailEdgeIn[] = [{ from: 'A', to: 'B' }, { from: 'C', to: 'D' }];
+  const proxOff = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 0 });
+  const proxOn = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 100000 });
+  assert.ok(
+    maxDevOf(proxOff, 'A') > maxDevOf(proxOn, 'A') + 1,
+    `a neighbour within the clear band suppresses the wander (${maxDevOf(proxOn, 'A')} vs ${maxDevOf(proxOff, 'A')})`,
+  );
+});
+
 test('the reuse-halo MOAT knob threads through — routes join the trunk or clear it, no 1-cell lane (item 4)', () => {
   // Owner feedback re-pushed 2026-07-07: still too many side-by-side parallel trails a
   // cell apart. The default halo is now a MOAT (reuseHaloInner > 1): the ring beside a
