@@ -3,7 +3,7 @@ id: "drive-machinery"
 tier: story
 title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
-status: proposed
+status: mapped
 proof_mode: UAT
 capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
@@ -273,12 +273,12 @@ drives a registered node from spec to a landed, signed, persisted proof.
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
 through the merge gate, refusing every dishonest shortcut along the way.
 
-1. **Orient:** `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes.
+1. **Orient** _(witness: machine)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes.
    **Success —** a help envelope naming both sets. *(proven: `node-build.test.ts:102`)*
-2. **Prove the glue first:** `pnpm storytree node build verdict-line --dry-run`. **Success —** the
+2. **Prove the glue first** _(witness: machine)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the
    full phase trail, a signed (in-memory) verdict, a derived rollup, and the honest dry-run
    framing. *(proven: `node-build.test.ts:17`, `:74`)*
-3. **The REAL build:** `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh
+3. **The REAL build** _(witness: human)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh
    detached worktree; the live leaf authors the REAL test under the write wall; the spine observes
    the genuine red, the leaf implements, the spine observes the genuine green, commits the
    authored files, signs on the genuinely clean tree; the verdict persists to `events.verdict`;
@@ -286,19 +286,19 @@ through the merge gate, refusing every dishonest shortcut along the way.
    green first for install-bearing nodes). *(mechanics proven offline:
    `resolve-prove-spec.test.ts:539` (scripted author), `build-worktree.test.ts:28-219`; the live
    leg attested once: run `real-mq7ky4ck`)*
-4. **Land it:** open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the
+4. **Land it** _(witness: human)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the
    verdict's `commitSha` stays an ancestor of `main` (ADR-0031/0022). **Success —** the proven
    commit is reachable from `main`. *(attested: commit `0e8f4ba` is in this branch's ancestry)*
-5. **Chain a story:** `pnpm storytree story build library --dry-run`. **Success —** capabilities
+5. **Chain a story** _(witness: machine)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities
    topo-ordered from `depends_on`, the story's UAT node last, every node signed over ONE event
    log, halt-is-never-a-pass. *(proven: `packages/cli/src/story-build.test.ts:17` — the integration test stays cli-resident;
    ADR-0112 moved only the `story build` driver it exercises into `@storytree/drive`; the live chain
    attested: library 8/8 signed passes, $0.48)*
-6. **Refuse the dishonest paths:** `--store pg` with `--dry-run` is refused (a scripted PASS
+6. **Refuse the dishonest paths** _(witness: machine)_: `--store pg` with `--dry-run` is refused (a scripted PASS
    persisted would be a forged healthy); a live story build with an unprocessed operator answer on
    a deciding ADR's OQ is refused with the three paths out. *(proven:
    `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
-7. **An agent actually USES it end to end (the dogfood acceptance):** a fresh orchestrator agent,
+7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: human)_: a fresh orchestrator agent,
    onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
    1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
    coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner
