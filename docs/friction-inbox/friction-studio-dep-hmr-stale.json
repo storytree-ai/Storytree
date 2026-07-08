@@ -1,0 +1,18 @@
+{
+  "kind": "friction",
+  "id": "friction-studio-dep-hmr-stale",
+  "title": "Studio dev server serves stale code after a forest-world edit",
+  "description": "Vite does not HMR a workspace-dependency source edit, so the studio silently serves pre-edit code.",
+  "schemaVersion": 3,
+  "references": [],
+  "provenance": {
+    "branch": "claude/trail-wide-fan-r5",
+    "date": "2026-07-08",
+    "source": "retro"
+  },
+  "createdAt": "2026-07-08T11:44:04.850Z",
+  "updatedAt": "2026-07-08T11:44:04.850Z",
+  "statement": "Vite's `pnpm --filter studio dev` does not hot-reload edits to a workspace-DEPENDENCY source file (packages/forest-world/src, imported by apps/studio), so the running server silently keeps serving the pre-edit build.",
+  "evidence": "After three edits to packages/forest-world/src/routing.ts, the studio log had ZERO HMR/reload lines after the initial 'VITE ready' — `grep -iE 'hmr|update|reload' studio.log` returned nothing. The owner attested a map still showing the pre-fix version; a browser hard-reload did not help. Only killing the PID on port 5173 (PowerShell Get-NetTCPConnection -LocalPort 5173) and re-running `pnpm --filter studio dev` served the current code.",
+  "impact": "Cost a full owner review round: the owner circled artifacts already fixed in committed code, and time went into diagnosing a stale view as a live defect. Hits any session that edits a forest-world/scene package and asks the owner to LOOK-attest the studio without restarting the dev server first."
+}

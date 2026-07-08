@@ -351,6 +351,126 @@ test('a genuinely wide ~110° fan keeps ≥2 docks — the span cap still bites 
   for (const edge of net.edges) assertChainContinuous(net, islands, edge);
 });
 
+test('edges that FUNNEL together dock ONCE — approach recluster collapses the rim Y-fork (owner 2026-07-08)', () => {
+  // Owner feedback 2026-07-08 ("can still see some instances of unnecessary splitting"): the
+  // straight CHORD bearing toward the far island is a poor predictor of where a trail actually
+  // reaches the rim — the reuse funnel bends near-parallel edges onto a shared trunk, so two
+  // edges whose chords fan WIDE (here 108°, past the 100° span cap) can arrive from the SAME
+  // direction and then fork into a Y at the rim. A long P→Q trunk BELOW C funnels both C→P and
+  // C→Q down onto it, so both approach C from below despite the wide chords. The second pass
+  // re-clusters on the ACTUAL approach bearing, collapsing the two chord-docks into one trunk.
+  const C = isle('C', 0, 0, 45);
+  const P = isle('P', -700, 500, 40);
+  const Q = isle('Q', 700, 500, 40);
+  const islands = [C, P, Q];
+  const edges: TrailEdgeIn[] = [
+    { from: 'P', to: 'Q' }, // the long trunk (routes first) both C-edges funnel onto
+    { from: 'P', to: 'C' },
+    { from: 'Q', to: 'C' },
+  ];
+  const docksInto = (net: TrailNetwork): number => {
+    const s = new Set<string>();
+    for (const e of net.edges) {
+      if (e.from !== 'C' && e.to !== 'C') continue;
+      const p = dockPointOn(net, e, C);
+      s.add(`${p.x.toFixed(4)},${p.y.toFixed(4)}`);
+    }
+    return s.size;
+  };
+  // chord-only clustering forks at the rim — the two C-edges take SEPARATE docks
+  const chordOnly = routeTrails(islands, edges, 'seed-funnel', { reclusterOnApproach: false });
+  assert.equal(docksInto(chordOnly), 2, 'without the recluster the wide chords split into two docks (the Y-fork)');
+  // the default two-pass reads the real approach and merges them into ONE trunk
+  const net = routeTrails(islands, edges, 'seed-funnel');
+  assert.equal(docksInto(net), 1, 'the funnelled C→P and C→Q share ONE dock after the approach recluster');
+  assert.equal(net.dropped.length, 0, '§5 honesty: nothing dropped by the merge');
+  assert.equal(net.caves.length, 0, 'a shared dock never forces a cave (cost only rises)');
+  for (const edge of net.edges) assertChainContinuous(net, islands, edge);
+  // deterministic: byte-identical on a re-route
+  assert.deepEqual(routeTrails(islands, edges, 'seed-funnel'), net);
+});
+
+test('meander stays on open runs but is suppressed at junctions and near other trails (owner 2026-07-08)', () => {
+  // Owner feedback 2026-07-08 ("turn it off when the path gets close to another pathway or at
+  // junctions"): the organic wander stays on long OPEN solo stretches but tapers to nothing at
+  // each dock/junction end and fades out beside any other trail — so a wander never reads as a
+  // fake fork. A single long straight edge routes along y=0, so |y| IS the perpendicular wander.
+  // A single long straight edge routes along y=0, so max |y| is the wander ON TOP of the small
+  // grid-routing residual. Comparisons are relative to that residual (never absolute-zero).
+  const A = isle('A', 0, 0, 30);
+  const B = isle('B', 900, 0, 30);
+  const maxDevOf = (net: TrailNetwork, from: string): number => {
+    const e = net.edges.find((x) => x.from === from)!;
+    const seg = net.segments.find((s) => e.segments.some((r) => r.id === s.id))!;
+    return Math.max(...seg.points.map((p) => Math.abs(p.y)));
+  };
+  const solo = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander');
+  // a taper wider than the whole segment never lets any point ramp up to full → the grid baseline
+  const flat = routeTrails([A, B], [{ from: 'A', to: 'B' }], 'seed-meander', { meanderTaper: 100000 });
+  const soloDev = maxDevOf(solo, 'A');
+  const flatDev = maxDevOf(flat, 'A');
+  assert.ok(soloDev > flatDev + 1, `the open solo run wanders well above the tapered baseline (${soloDev} vs ${flatDev})`);
+
+  // proximity wiring: same geometry, aggressive clear band vs none — a neighbour trail flattens A→B
+  const C = isle('C', 0, 400, 30);
+  const D = isle('D', 900, 400, 30);
+  const geo = [A, B, C, D];
+  const eds: TrailEdgeIn[] = [{ from: 'A', to: 'B' }, { from: 'C', to: 'D' }];
+  const proxOff = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 0 });
+  const proxOn = routeTrails(geo, eds, 'seed-meander', { meanderClearInner: 0, meanderClearOuter: 100000 });
+  assert.ok(
+    maxDevOf(proxOff, 'A') > maxDevOf(proxOn, 'A') + 1,
+    `a neighbour within the clear band suppresses the wander (${maxDevOf(proxOn, 'A')} vs ${maxDevOf(proxOff, 'A')})`,
+  );
+});
+
+test('near-coincident junctions weld into one — the ~1-cell merge stub is gone (owner 2026-07-08)', () => {
+  // Owner feedback 2026-07-08: where trunks converge, edges can join at ADJACENT grid cells
+  // rather than one shared cell, leaving a ~1-cell stub between two junctions that reads as a
+  // hook. The weld collapses junction nodes closer than `junctionWeld` into ONE shared point.
+  const islands = [
+    isle('H', 0, 0, 50),
+    isle('A', -600, -300, 30),
+    isle('B', -600, 0, 30),
+    isle('D', -600, 300, 30),
+    isle('E', 600, -200, 30),
+    isle('F', 600, 200, 30),
+  ];
+  const edges: TrailEdgeIn[] = [
+    { from: 'A', to: 'H' }, { from: 'B', to: 'H' }, { from: 'D', to: 'H' },
+    { from: 'E', to: 'H' }, { from: 'F', to: 'H' }, { from: 'A', to: 'E' }, { from: 'D', to: 'F' },
+  ];
+  const junctionsOf = (net: TrailNetwork): { x: number; y: number }[] => {
+    const count = new Map<string, number>();
+    for (const s of net.segments) {
+      if (s.hidden || s.points.length < 2) continue;
+      for (const p of [s.points[0]!, s.points[s.points.length - 1]!]) {
+        const k = `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+        count.set(k, (count.get(k) ?? 0) + 1);
+      }
+    }
+    return [...count.entries()].filter(([, n]) => n >= 3).map(([k]) => {
+      const [x, y] = k.split(',').map(Number);
+      return { x: x!, y: y! };
+    });
+  };
+  const minJunctionGap = (js: { x: number; y: number }[]): number => {
+    let m = Infinity;
+    for (let i = 0; i < js.length; i++)
+      for (let j = i + 1; j < js.length; j++) m = Math.min(m, Math.hypot(js[i]!.x - js[j]!.x, js[i]!.y - js[j]!.y));
+    return m;
+  };
+  const WELD = 200;
+  const off = routeTrails(islands, edges, 'seed-weld', { junctionWeld: 0 });
+  const on = routeTrails(islands, edges, 'seed-weld', { junctionWeld: WELD });
+  assert.ok(minJunctionGap(junctionsOf(off)) < WELD, 'without welding, junctions sit within the weld radius (the stub)');
+  assert.ok(minJunctionGap(junctionsOf(on)) > WELD, 'after welding, no two junctions sit within the weld radius');
+  assert.ok(on.segments.length < off.segments.length, 'welding removes the tiny stub segments');
+  assert.equal(on.dropped.length, 0, '§5 honesty: welding drops no edge');
+  for (const edge of on.edges) assertChainContinuous(on, islands, edge); // chains stay connected through the weld
+  assert.deepEqual(routeTrails(islands, edges, 'seed-weld', { junctionWeld: WELD }), on); // deterministic
+});
+
 test('the reuse-halo MOAT knob threads through — routes join the trunk or clear it, no 1-cell lane (item 4)', () => {
   // Owner feedback re-pushed 2026-07-07: still too many side-by-side parallel trails a
   // cell apart. The default halo is now a MOAT (reuseHaloInner > 1): the ring beside a
