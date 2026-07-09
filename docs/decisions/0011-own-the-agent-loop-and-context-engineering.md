@@ -14,7 +14,20 @@ accepted (2026-06-06) — **reverses** ADR-0001's *pi* per-node runtime and its
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)); **amends**
 ADR-0004 and ADR-0005 (the boundary now wraps an owned loop, not pi).
 
-**Correction ([ADR-0030](0030-all-in-on-claude-agent-sdk.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the owned loop this ADR builds STANDS — small, green, and now the **offline/deterministic (ScriptedModel) executor + the pivot-out fallback runtime** ([ADR-0030] Decision 4 keeps it as the pivot target, not deleted); §3's pivot-seam discipline carries, pointed the other way (the seam now guards *exit from* the rented SDK, not entry to a raw-API loop); §4's boundary discipline — a single model-runtime import site (now including the Agent SDK package, [ADR-0030]), orchestrator-only driver, spine/leaf split, run≠node, no agent-spawns-agent — carries **verbatim**; and §5's thin orchestrator + event store + TS/Node/pnpm stand. Overtaken is §§1–2's PRIMACY: the owned loop is demoted from *the* live leaf runtime to one executor implementation — the live runtime is now the **Claude Agent SDK** on subscription auth ([ADR-0030]) — and §2's "own context engineering / never delegate to a third-party harness" reframes to owning the **map and pull surfaces** (story tree, Library, CLI), not the window/loop. The demoted spots below are corrected in place to point here.
+**Correction ([ADR-0030](0030-all-in-on-claude-agent-sdk.md),
+[ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the owned loop
+this ADR builds STANDS — small, green, and now the **offline/deterministic (ScriptedModel) executor +
+the pivot-out fallback runtime** ([ADR-0030] Decision 4 keeps it as the pivot target, not deleted).
+§3's pivot-seam discipline carries and its trigger has now fired: Cursor is admitted as the first
+second live harness behind `PhaseAuthor`, while Claude remains supported and a broad provider
+registry stays deferred ([ADR-0177]). §4's boundary discipline — one agent-organism import site for
+runtime SDKs, orchestrator-only driver, spine/leaf split, run≠node, no agent-spawns-agent — carries
+**verbatim**; and §5's thin orchestrator + event store + TS/Node/pnpm stand. Overtaken is §§1–2's
+PRIMACY: the owned loop is demoted from *the* live leaf runtime to one executor implementation, and
+§2's "own context engineering / never delegate to a third-party harness" reframes to owning the
+**map and pull surfaces** (story tree, Library, CLI), not the window/loop. The demoted spots below are
+corrected in place to point here.
 
 ## Date
 
@@ -48,8 +61,9 @@ Two things changed that bet (owner, 2026-06-06):
    loop on the model's Messages API (`messages.create` with `tools` → dispatch `tool_use`
    → feed `tool_result` → loop to `end_turn`). This **replaces pi as the leaf**; pi leaves
    the runtime path. *(Built — but demoted by [ADR-0030](0030-all-in-on-claude-agent-sdk.md)
-   from *the* live leaf to the offline/deterministic executor + pivot-out fallback; the live
-   runtime is the Claude Agent SDK. See the Correction above.)*
+   from *the* live leaf to the offline/deterministic executor + pivot-out fallback. Claude
+   remains a supported live harness and [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
+   admits Cursor as the first second live harness. See the Correction above.)*
 2. **Own context engineering.** The assembly of each node's context — which slice of the
    story / capability / contract corpus and event-store state enters the window, pulled
    just-in-time — is first-class **owned code**, never delegated to a third-party harness.
@@ -65,9 +79,10 @@ Two things changed that bet (owner, 2026-06-06):
    future provider swap is a backend change, not a rewrite — but do **not** build a
    multi-provider abstraction now (YAGNI; the any-provider goal is downgraded, not
    re-committed). *(This thin-seam / pivot discipline CARRIES per
-   [ADR-0030](0030-all-in-on-claude-agent-sdk.md), pointed the other way — the seam now guards
-   *exit from* the rented Claude Agent SDK (the live runtime), not entry to a raw-API loop. See
-   the Correction above.)*
+   [ADR-0030](0030-all-in-on-claude-agent-sdk.md), and its trigger FIRED per
+   [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md): the
+   `PhaseAuthor` seam now admits Cursor alongside Claude while the broad provider registry remains
+   deferred. See the Correction above.)*
 4. **The boundary stands; the thing behind it changes.** ADR-0004's single-boundary
    discipline is kept and strengthened: the owned loop lives in **one package**
    (provisionally `packages/agent`, replacing `packages/pi-adapter`), is the **sole** place
@@ -96,10 +111,10 @@ Two things changed that bet (owner, 2026-06-06):
 - **Amends ADR-0004 / ADR-0005** — the boundary now wraps `packages/agent` (the owned
   loop), not pi; the leaf is the owned loop, not a pi session. The structural rules (single
   import site, orchestrator-only driver, spine/leaf discriminator, run≠node, sole fan-out)
-  carry **verbatim**. *(The LIVE leaf is now the Claude Agent SDK executor per
-  [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — `packages/agent` is the offline/fallback
-  executor; the structural boundary rules still carry verbatim, ADR-0030 keeping them — the
-  single import site now including the Agent SDK package. See the Correction above.)*
+  carry **verbatim**. *(`packages/agent` contains the offline/fallback executor and the supported
+  live harness adapters: Claude per [ADR-0030](0030-all-in-on-claude-agent-sdk.md), with Cursor
+  admitted by [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md).
+  The spine consumes their shared `PhaseAuthor` trust boundary. See the Correction above.)*
 - **Reversal ledger** — [ADR-0003](0003-v1-reversal-ledger.md) records this v2-internal
   reversal (pi → owned loop; model-agnostic relaxed) so the v1-0003 disposition
   (Claude-sub → pi) is not left stale.
@@ -119,8 +134,9 @@ Two things changed that bet (owner, 2026-06-06):
   its internal context-assembly API — land when the package is built.
 - **Context-window management** mechanics (compaction / context-editing / memory) — the
   loop will need them; the strategy is deferred.
-- **Whether/when to reintroduce multi-provider support** — explicitly deferred to the
-  pivot trigger above.
+- **Whether/when to introduce a broad provider registry or provider-independent raw-model
+  support** — still deferred. [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
+  admits one second live harness without making that broader commitment.
 - **Where tool execution physically runs** (the sandbox) — [ADR-0012](0012-tool-execution-pluggable-sandbox.md).
 
 ## References
