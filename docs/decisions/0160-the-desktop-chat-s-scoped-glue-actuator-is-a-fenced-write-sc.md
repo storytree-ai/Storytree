@@ -15,6 +15,19 @@ alignment IS the ratification (ADR-0110); no second end-of-flow ask. This ADR **
 it resolves 0158 D4's deliberately-open shape fork in favour of shape (a), and leaves 0158 D1/D2/D3
 (the glue definition + the write-authority boundary) intact.
 
+> **Amended by [ADR-0175](0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+> — the **`spawn_glue_worker` actuator this ADR decided (D1) is retired as redundant**: the embedded
+> terminal (ADR-0174) makes glue edits natively, so the chat's scoped-write rung has no reason to exist.
+> Concretely retired are the `spawn_glue_worker` MCP registration and its `spawnGlueWorker` composition
+> (whose sole spawn-site was the desktop chat sidecar). **What stands:** the glue *definition* +
+> write-authority boundary of **ADR-0158** (D1–D3, untouched — only this actuator retires, never the
+> concept); the **generalised `runSpawnWriteScoped` runner (D2)**, still serving `spawn_story_author`;
+> and the **D5.i honesty correction** (`spawn_builder`'s phantom `userPrompt` stays dropped). The
+> **`glue-worker` agent definition (D4) may optionally survive** as a fenced subagent for real
+> Claude Code's Agent/Task tool (ADR-0175 leaves this open). This ADR stays **`accepted`** — its
+> actuator is partly overtaken, not wholly re-decided, and it remains the `scoped-glue-actuator`
+> story's PRIMARY deciding record — so the edge is `amends`, not `supersedes`.
+
 ## Context
 
 ADR-0158 diagnosed the 2026-07-04 desktop full-autonomy over-routing incident: the desktop **chat**

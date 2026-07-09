@@ -15,6 +15,12 @@ no second end-of-flow ask. Amends ADR-0137 d.1 (the `tools: []` write-fence) by 
 chat may OBSERVE — not what it may write. Extends the CI-observation lineage of ADR-0152
 (the landing surface, which added `poll_pr_checks`) and ADR-0163 Gap B2 (the read-only CI-watch).
 
+> **Amended by [ADR-0175](0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+> — the read-only CI/git inspect surface (`view_ci_run` / `view_pr_checks` / `git_inspect`) is
+> **re-aimed as the future `app-guide` help agent's advise-from-CI/git surface** ("your PR is red
+> because …", "your checkout moved under the app"), not deleted: the in-app *interactive* orchestrator
+> it was built for retires under ADR-0174, but the inspect surface is repurposed wholesale.
+
 ## Context
 
 The desktop in-app session orchestrator is a headless SDK session with `tools: []` and a closed
