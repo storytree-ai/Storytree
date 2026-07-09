@@ -8,6 +8,7 @@ import {
   renderAgentEssentials,
   renderAgentDigest,
   renderAgentFile,
+  renderCursorAgentFile,
   renderAgentStep,
   delegatableAgentIds,
   essentialsGateViolations,
@@ -216,6 +217,27 @@ test("renderAgentFile wraps the assembled prompt in Claude Code subagent frontma
   assert.ok(res.content.endsWith("\n"));
   assert.ok(!res.content.endsWith("\n\n"));
   assert.deepEqual(res.missingRefs, []);
+});
+
+test("renderCursorAgentFile emits Cursor-native inherited-model frontmatter over the same essentials", async () => {
+  const store = await seeded();
+  const cursor = await renderCursorAgentFile(store, "clean-agent");
+  const claude = await renderAgentFile(store, "clean-agent");
+  assert.equal(cursor.ok, true);
+  assert.equal(claude.ok, true);
+  if (!cursor.ok || !claude.ok) return;
+
+  assert.match(
+    cursor.content,
+    /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\nmodel: inherit\n---\n\n/,
+  );
+  assert.ok(cursor.content.includes(GENERATED_AGENT_MARKER));
+  assert.equal(
+    cursor.content.replace("model: inherit\n", ""),
+    claude.content,
+    "the harness wrappers differ only by Cursor's explicit model policy",
+  );
+  assert.deepEqual(cursor.missingRefs, []);
 });
 
 test("renderAgentFile surfaces a dangling ref via missingRefs (the build:agents fail-closed guard)", async () => {

@@ -577,7 +577,11 @@ export type RenderAgentFileResult =
  * surface and the prose Tools section carries the guidance; mapping the prose grant to a structured
  * allow-list is future work (ADR-0052).
  */
-export async function renderAgentFile(store: Store, name: string): Promise<RenderAgentFileResult> {
+async function renderHarnessAgentFile(
+  store: Store,
+  name: string,
+  extraFrontmatter: string[] = [],
+): Promise<RenderAgentFileResult> {
   const res = await renderAgentEssentials(store, name);
   if (!res.ok) return res;
   const { agent } = res;
@@ -585,6 +589,7 @@ export async function renderAgentFile(store: Store, name: string): Promise<Rende
     "---",
     `name: ${agent.name}`,
     `description: ${yamlDoubleQuoted(agent.description)}`,
+    ...extraFrontmatter,
     "---",
   ].join("\n");
   return {
@@ -595,7 +600,23 @@ export async function renderAgentFile(store: Store, name: string): Promise<Rende
   };
 }
 
-/** The ids that render to `.claude/agents` — every `agent` artifact minus the dedicated-surface roles. */
+export async function renderAgentFile(store: Store, name: string): Promise<RenderAgentFileResult> {
+  return renderHarnessAgentFile(store, name);
+}
+
+/**
+ * Render the committed `.cursor/agents/<id>.md` view of the same Library agent. Cursor receives the
+ * identical essentials prompt plus an explicit inherited-model policy; readonly/background policy
+ * remains absent until the Library carries those grants structurally (ADR-0178).
+ */
+export async function renderCursorAgentFile(
+  store: Store,
+  name: string,
+): Promise<RenderAgentFileResult> {
+  return renderHarnessAgentFile(store, name, ["model: inherit"]);
+}
+
+/** The ids that render to harness subagent files — every agent minus the dedicated-surface roles. */
 export async function delegatableAgentIds(store: Store): Promise<string[]> {
   const docs = await store.queryDocs({ kind: "agent" });
   return docs

@@ -19,6 +19,13 @@ the only admitted live implementation. **Amends ADR-0011** — its deferred pivo
 but this decision still refuses a speculative many-provider registry: one second implementation
 must prove the seam before the abstraction grows.
 
+**Correction ([ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Cursor IDE does
+read `.claude/agents/*.md` as a compatibility source. Cursor's native project-subagent contract,
+including for SDK project settings, is `.cursor/agents/*.md`; Storytree generates both directories
+from the same Library agent population. Decision 6 is corrected in place below; the runtime-seam
+decision is unchanged.
+
 ## Context
 
 ADR-0030 deliberately rented the Claude Agent SDK as storytree's live leaf. The decision was safe
@@ -96,11 +103,12 @@ must not accidentally resurrect that retired interactive runtime or consume the 
    Storytree-owned types. This generalises ADR-0004's single-runtime-import-site discipline from
    Anthropic to every model runtime.
 
-6. **Reuse owned prompts and tools, not Claude-specific agent registration.** Cursor does not
-   automatically make `.claude/agents/*.md` native Cursor subagents. Storytree continues to render
-   role prompts from the Library and adapts Storytree-owned tool descriptors at the runtime edge.
-   The first increment needs no Cursor-native clone of the entire Claude subagent roster. Required
-   roles are introduced only when a proved journey needs them.
+6. **Reuse owned prompts and tools, not runtime-specific prompt forks.** Cursor IDE can read
+   `.claude/agents/*.md` as a compatibility source; the Cursor SDK's native committed contract is
+   `.cursor/agents/*.md`. Storytree therefore renders both from the same Library agent population
+   ([ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md)) and adapts
+   Storytree-owned tool descriptors at the runtime edge. Dedicated proof roles remain direct phase
+   prompts rather than generic subagents.
 
 7. **Keep credentials and observability explicit.** `CURSOR_API_KEY` joins the user-level
    `~/.storytree/secrets.json` allowlist only when the live adapter lands; environment still wins.
