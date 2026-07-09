@@ -13,10 +13,15 @@
 // without the `code` field (the same contract the studio helper honours).
 
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 
 /** The /api/health `code` field — what the running server serves vs what the checkout holds now. */
 export interface CodeStamp {
-  /** Git HEAD when the app's sidecar started — the code it actually loaded. */
+  /**
+   * The commit the RUNNING BUILD was produced at — the git SHA `build:electron` stamped into the
+   * desktop bundle (preferred), or, for an un-stamped older build, the git HEAD the sidecar started on.
+   * This is "the code the app is actually running", which `head` (the checkout on disk now) is measured against.
+   */
   startedAt: string;
   /** Git HEAD on disk now. */
   head: string;
@@ -55,15 +60,39 @@ export function gitHead(repoRoot: string): Promise<string | null> {
 }
 
 /**
- * Capture HEAD ONCE at sidecar start (call from `main()` before any pull can land) and return the
- * per-request probe: re-read HEAD from disk and compare. A health poll every few seconds spawns one
- * short-lived git each — fine for a local app. `read` defaults to {@link gitHead}; the test injects a
- * scripted reader so no real git or repo is needed.
+ * Read the build stamp `scripts/write-build-stamp.mjs` writes at `build:electron` time — the git SHA
+ * the desktop bundle was produced at, as `{ "sha": "<40-64 hex>" }` at `<dist>/build-stamp.json`.
+ * `null` on ANY failure (no stamp file — an un-stamped older build — a malformed file — a non-sha or
+ * null `sha`), so {@link createCodeStampProbe} falls back to HEAD-at-spawn and an un-stamped build
+ * behaves exactly as before (no regression, never a false stale).
+ */
+export async function readBuildStamp(buildStampPath: string): Promise<string | null> {
+  try {
+    const parsed = JSON.parse(await readFile(buildStampPath, "utf8")) as { sha?: unknown };
+    const sha = parsed.sha;
+    return typeof sha === "string" && /^[0-9a-f]{40,64}$/.test(sha) ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Return the per-request freshness probe. `startedAt` — "the code the app is running" — is captured
+ * ONCE at sidecar start: the BUILD STAMP the desktop bundle was produced at (preferred), falling back
+ * to git HEAD-at-spawn when there is no stamp. The build stamp is what makes a stale build OBSERVABLE
+ * even when HEAD-at-spawn is fresh: a `git pull` + relaunch WITHOUT a rebuild leaves the served
+ * dist/electron bundle behind while the tsx sidecar's own HEAD reads current — so HEAD-at-spawn alone
+ * says "fresh" (silent) while the build stamp still points at the old commit (stale, correctly). Each
+ * probe re-reads HEAD from disk and compares. `readHead`/`readBuilt` default to real git/fs; the test
+ * injects scripted readers so no real git, repo, or file is needed.
  */
 export function createCodeStampProbe(
   repoRoot: string,
-  read: (root: string) => Promise<string | null> = gitHead,
+  buildStampPath: string,
+  readHead: (root: string) => Promise<string | null> = gitHead,
+  readBuilt: (path: string) => Promise<string | null> = readBuildStamp,
 ): () => Promise<CodeStamp | null> {
-  const startedAt = read(repoRoot);
-  return async () => buildCodeStamp(await startedAt, await read(repoRoot));
+  const startedAt = (async (): Promise<string | null> =>
+    (await readBuilt(buildStampPath)) ?? (await readHead(repoRoot)))();
+  return async () => buildCodeStamp(await startedAt, await readHead(repoRoot));
 }

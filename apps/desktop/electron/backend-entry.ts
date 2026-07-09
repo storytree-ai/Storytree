@@ -70,13 +70,16 @@ const repoRoot = resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
 
-// The Rail-2 trigger signal (ADR-0164 Phase 1): capture the git-HEAD the sidecar STARTED on ONCE here,
-// at module load (before any pull can land), and re-read it per /api/health. `head !== startedAt` means
-// the checkout advanced under the running app — a merged fix was fast-forwarded in — which the shared
+// The Rail-2 trigger signal (ADR-0164 Phase 1 + the build-stamp increment): `startedAt` is the commit
+// the RUNNING BUILD was produced at — the SHA `build:electron` stamps into `dist/build-stamp.json`
+// (preferred), falling back to the git-HEAD the sidecar STARTED on for an un-stamped older build. Each
+// /api/health re-reads HEAD; `head !== startedAt` means the running build is BEHIND the checkout (a merged
+// fix landed, OR the app launched on an un-rebuilt checkout — the tsx sidecar reads fresh but the served
+// dist/electron bundle does not, the silent case the plain HEAD-at-spawn signal missed), which the shared
 // StoreBanner turns into the "rebuild & relaunch" affordance. Advisory: null (no `code` field) when git
-// can't answer, exactly like the studio's own codeStamp probe (re-composed here, not imported —
-// apps/studio/server is a forbidden surface, ADR-0100).
-const codeStampProbe = createCodeStampProbe(repoRoot);
+// can't answer. Re-composed here, not imported from apps/studio/server (a forbidden surface, ADR-0100).
+const buildStampPath = resolve(here, "..", "dist", "build-stamp.json");
+const codeStampProbe = createCodeStampProbe(repoRoot, buildStampPath);
 
 // ---------- session identity (ADR-0033) for the chat spawn surface ----------
 //
