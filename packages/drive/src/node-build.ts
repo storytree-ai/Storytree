@@ -748,7 +748,7 @@ export interface NodeBuildOpts {
   live?: boolean;
   /** `--real` — Phase F: the leaf authors the node's REAL proof in a fresh git worktree. */
   real?: boolean;
-  /** `--model` — the SDK leaf's model (live/real only). Default: claude-sonnet-4-6. */
+  /** `--model` — the SDK leaf's model (live/real only). Default: claude-sonnet-5. */
   model?: string;
   /**
    * `--budget` — OPTIONAL per-authoring-slice USD ceiling, SDK-enforced (live/real only). Default:

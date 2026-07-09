@@ -65,7 +65,7 @@ export interface SpawnWriteScopedArgs {
    * workspace-relative path fails this predicate is DENIED fail-closed before it lands.
    */
   isWriteAllowed: (relPath: string) => boolean;
-  /** Model for the session. Default: claude-sonnet-4-6. */
+  /** Model for the session. Default: claude-sonnet-5. */
   model?: string;
   /**
    * Per-session turn ceiling — the runaway brake (ADR-0130). Default: 16.
@@ -182,7 +182,7 @@ export async function runSpawnWriteScoped(
 
   const options: Options = {
     cwd,
-    model: args.model ?? "claude-sonnet-4-6",
+    model: args.model ?? "claude-sonnet-5",
     maxTurns: args.maxTurns ?? 16,
     // No USD ceiling by default (ADR-0130): subscription-funded (ADR-0030), so a metered dollar
     // cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when set.

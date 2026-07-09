@@ -26,7 +26,7 @@ export interface SdkCuratorArgs {
   userPrompt: string;
   /** Working directory for the SDK session. The curator writes nothing; defaults to process.cwd(). */
   cwd?: string;
-  /** Model for the session. Default: claude-sonnet-4-6. */
+  /** Model for the session. Default: claude-sonnet-5. */
   model?: string;
   /** Turn ceiling — the runaway brake (the curator is single-shot — a low default suffices). Default: 6. */
   maxTurns?: number;
@@ -81,7 +81,7 @@ export async function runSdkCurator(args: SdkCuratorArgs): Promise<SdkCuratorRes
   const queryFn: SdkQueryFn = args.queryFn ?? ((q): AsyncIterable<unknown> => query(q));
   const options: Options = {
     cwd: args.cwd ?? process.cwd(),
-    model: args.model ?? "claude-sonnet-4-6",
+    model: args.model ?? "claude-sonnet-5",
     maxTurns: args.maxTurns ?? 6,
     // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030/0067), so
     // a metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.

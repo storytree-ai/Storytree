@@ -101,7 +101,7 @@ export interface ClaudeAgentAuthorArgs {
    * Structurally compatible with the orchestrator's `WriteScope.isWriteAllowed`.
    */
   isWriteAllowed: (phase: AuthoringPhase, relPath: string) => boolean;
-  /** Model for the SDK session. Default: claude-sonnet-4-6. */
+  /** Model for the SDK session. Default: claude-sonnet-5. */
   model?: string;
   /** Per-slice turn ceiling — the runaway brake. Default: 16. */
   maxTurns?: number;
@@ -399,7 +399,7 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
 
     const options: Options = {
       cwd: this.#args.cwd,
-      model: this.#args.model ?? "claude-sonnet-4-6",
+      model: this.#args.model ?? "claude-sonnet-5",
       maxTurns: this.#args.maxTurns ?? 16,
       // No USD ceiling by default (ADR-0130): the leaf is subscription-funded (ADR-0030), so a metered
       // dollar cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when an

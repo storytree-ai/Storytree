@@ -164,7 +164,7 @@ export interface DryRunResolveOptions extends BaseResolveOptions {
 /** Live-smoke (ADR-0030 / plan Phase D): a real Claude Agent SDK leaf, subscription-funded. */
 export interface LiveSmokeResolveOptions extends BaseResolveOptions {
   mode: "live-smoke";
-  /** Model for the SDK leaf. Default: claude-sonnet-4-6. */
+  /** Model for the SDK leaf. Default: claude-sonnet-5. */
   model?: string;
   /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
   maxBudgetUsd?: number;
@@ -182,7 +182,7 @@ export interface LiveSmokeResolveOptions extends BaseResolveOptions {
  */
 export interface RealResolveOptions extends BaseResolveOptions {
   mode: "real";
-  /** Model for the SDK leaf. Default: claude-sonnet-4-6. */
+  /** Model for the SDK leaf. Default: claude-sonnet-5. */
   model?: string;
   /** Per-authoring-slice budget ceiling in USD (SDK-enforced). Default: 1. */
   maxBudgetUsd?: number;
