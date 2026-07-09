@@ -5,7 +5,7 @@ decided: 2026-06-10
 amends: [12]
 ---
 
-# ADR-0030: All-in on the Claude Agent SDK as the live runtime (pivot-out by architecture)
+# ADR-0030: Adopt the Claude Agent SDK as a live runtime (pivot-out by architecture)
 
 ## Status
 
@@ -16,6 +16,15 @@ deepens to all-in — ADR-0011 corrected in place per [ADR-0139](0139-the-accept
 (the live sandbox is now supplied by the rented runtime; the `ToolExecutor` seam becomes the
 pivot-out seam), and **reaffirms [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md)'s
 trust base** (spine-observed proof never enters the rented runtime).
+
+**Correction ([ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md),
+per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the core
+decision stands: rent a capable live coding harness, retain the owned loop as the
+offline/deterministic fallback, and keep every leaf untrusted behind the spine-owned
+`PhaseAuthor` proof boundary. Overtaken are the stronger **Claude-only / all-in** conclusion and the
+funding premise that made one live harness sufficient. Claude remains a supported live
+implementation; Cursor is admitted as the first second live harness, subject to its fail-closed
+admission proof. A broad provider registry remains deferred.
 
 *Numbering note:* checked `git log --all` across all 20 remote branches on 2026-06-10 — no
 ADR-0030 exists anywhere; the live-DB ref check is pending (instance stopped) per the
@@ -50,18 +59,20 @@ Four things changed (owner, 2026-06-10):
    months of work. With agent-driven development, re-coding the loop is days. The risk
    ADR-0011 guarded against has a cheap remedy — *provided the pivot seams exist* — so the
    guard no longer justifies its capability and funding costs.
-4. **Funding asymmetry.** From 2026-06-15, programmatic subscription usage (Agent SDK,
+4. **Funding asymmetry at the time of decision.** From 2026-06-15, programmatic subscription usage (Agent SDK,
    `claude -p`, Actions) draws a dedicated monthly credit ($20/$100/$200 by plan tier), with
    extra-usage credit as overflow. The raw Messages API bills metered Console spend with no
    subscription path (consumer OAuth tokens are not sanctioned against it). For a self-funded
-   project, the SDK is the surface with a recurring budget.
+   project, the SDK was the surface with a recurring budget. That programmatic credit was later
+   exhausted, firing the pivot class recorded in [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md).
 
 ## Decision
 
-1. **Adopt the Claude Agent SDK as the live agent runtime — all-in.** Live node builds
-   (drive-machinery Phase D onward) run through an SDK-backed executor, authenticated via the
-   subscription (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`), drawing the programmatic
-   credit pool. The raw-API `AnthropicModel` path is no longer the live driver.
+1. **Adopt the Claude Agent SDK as a live agent runtime.** Claude-backed live node builds
+   (drive-machinery Phase D onward) may run through an SDK-backed executor, authenticated via the
+   subscription (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`). The raw-API `AnthropicModel`
+   path is not the Claude live driver. [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
+   opens the same runtime seam to Cursor while keeping Claude supported.
 2. **Pivot-out is an architectural requirement, not an intention.** The named seams, each of
    which must hold as the SDK executor is built:
    - **Executor seam.** The spine drives phases through a runtime-agnostic executor
@@ -101,10 +112,10 @@ Four things changed (owner, 2026-06-10):
   Claude-sub subprocess → pi (0001) → owned loop (0011) → **Agent SDK on subscription auth
   (0030)**. Note v1's "subscription-auth ban" was already declared dead in the settled
   reversals — this lands near where v1 started, with the spine-side gate as the difference.
-- **Phase D runs on the SDK executor.** The ADR-0005 per-node budget question reframes:
-  the budget is an external shared monthly pool (hard stop on depletion, no rollover,
-  shared with the owner's interactive overflow) — per-node accounting reads SDK-reported
-  usage rather than metering an API key.
+- **A Claude Phase D run uses the Claude SDK executor.** Its accounting reads SDK-reported
+  usage rather than metering an API key. The once-sufficient shared monthly programmatic pool was
+  later exhausted; [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
+  admits a second harness without moving proof into either runtime.
 - **Test asymmetry, accepted with eyes open.** Loop-level e2e stays offline on the owned
   executor; the SDK executor gets live smoke coverage (Phase D) plus offline unit tests of
   its adapters (MCP tool mapping, hook policy). The gate's own guarantees remain offline-testable.
@@ -114,9 +125,10 @@ Four things changed (owner, 2026-06-10):
 
 ## What this does NOT decide
 
-- The executor interface shape and package home — lands when the SDK executor is built.
-- SDK invocation mode (`query()` in-process vs `claude -p` subprocess) and per-phase
-  model/effort selection.
+- A broad provider registry or provider-independent raw-model layer. [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
+  admits one evidence-backed second harness through the existing `PhaseAuthor` boundary and
+  explicitly keeps that broader abstraction deferred.
+- Per-phase model/effort selection across live harnesses.
 - Whether/when the owned loop is ever retired — explicitly kept until the SDK executor has
   survived real drives.
 
