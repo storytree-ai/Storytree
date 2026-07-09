@@ -14,6 +14,15 @@ second end-of-flow ask. Sets the frame + safety rails; the mechanism is built by
 (ADR-0163's dogfooding discipline). Stands on ADR-0152 (the landing surface) and ADR-0109 (the Electron
 shell).
 
+> **Amended by [ADR-0174](0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
+> — only the **interactive-chat Phase 2 signaller goes moot** (the in-app chat watching its own PR
+> merge, then signalling the supervisor): ADR-0174 retires that interactive runtime for an embedded
+> terminal. **Rail 1** (the Electron main process is the supervisor, never the sidecar), **Rail 2**
+> (the trigger is a git-HEAD advance to merged `main`, never an un-merged branch), **Phase 1**
+> (owner-triggered rebuild + relaunch), and any **headless/autonomous apply** are untouched — a
+> non-interactive signaller can still drive Phase 2. Only the *interactive* premise of the Phase 2
+> trigger retires.
+
 ## Context
 
 The storytree Electron desktop app serves a **built** studio `dist` and runs the sidecar

@@ -11,6 +11,13 @@ accepted (2026-07-06) — decided/directed by the owner in conversation on 2026-
 
 **Amends** ADR-0108 — the chat surface gains conversational continuity across sends; the one-intent-one-session shape of d.1/d.2 is extended, not overturned. The single-session guard (d.6) is unchanged: sequential resumed runs each terminate before the next starts, so the in-flight brake never sees two at once.
 
+> **Amended by [ADR-0175](0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+> — the cross-turn continuity mechanism (the `resume` / `sessionId` thread through
+> `headless-orchestrator` → `orchestrate` / `chat-stream` → `chat-sse-mount` → `ChatPanel`) is
+> **re-aimed as the future `app-guide` help agent's conversation memory** across a multi-step setup,
+> not deleted: the in-app *interactive* work-orchestrator it originally served retires under ADR-0174,
+> but the resume machinery is repurposed wholesale.
+
 ## Context
 
 ADR-0163 dogfood gap D (owner hit this live, 2026-07-06): the desktop in-app orchestrator chat RENDERS a multi-turn transcript (the multi-turn-transcript scrollback), but each send spawned a brand-new SDK session with no memory of prior exchanges. The owner asked a question (answered fine over 6 turns), then said "can you proceed to reauthor it?" — and the orchestrator honestly replied it had lost all context, because it genuinely had. The transcript was UI scrollback only; the continuity it visually promised did not exist.

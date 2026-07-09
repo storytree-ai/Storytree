@@ -12,6 +12,19 @@ the ADR-0160 scoped-glue-actuator's first live drive. Design-time alignment IS t
 (ADR-0110); no second end-of-flow ask. Stands on ADR-0108 (the human owns the outer loop) and names
 the maturation *process* for the desktop-orchestrator parity target ADR-0137 / ADR-0152 set.
 
+> **Amended by [ADR-0174](0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
+> — the dogfood arc's **endpoint is retired, not reached**: rather than maturing the in-app *interactive*
+> orchestrator to independence, ADR-0174 retires it for an embedded terminal running real Claude Code
+> (the terminal already ships the whole Gap A/B/D backlog — turn knobs, fresh-branch landing, CI-watch,
+> continuity, inspection). The **"unblock + chip, never bypass" discipline (D3)** and the **recorded
+> rejection of a standing agent-supervises-agent supervisor tier (D2)** are untouched, as is the
+> human-owns-the-outer-loop stance (ADR-0108) this ADR stands on.
+
+> **Amended by [ADR-0175](0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+> — the chat infrastructure this arc built (the SSE transport, the resizable dock, the SDK session
+> engine) is **re-aimed under a new `app-guide` help/setup role**, not deleted: repurposed rather than
+> matured toward an independent in-app work-orchestrator.
+
 ## Context
 
 The desktop **in-app** session-orchestrator — the autonomous Claude Agent SDK session running in the

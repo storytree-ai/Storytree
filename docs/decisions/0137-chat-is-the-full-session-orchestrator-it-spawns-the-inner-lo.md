@@ -26,6 +26,15 @@ story-claim before any spawn; ADR-authoring is the sole claim-free act).
 > is **UPHELD** — the landing surface is scoped, fail-closed MCP tools, not a raw shell. The forest-map
 > Adopt/Build button and per-node accept-to-land in decision 3 are untouched.
 
+> **Amended by [ADR-0174](0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
+> — the forest-map "click-a-node-to-build" map-spawn (decision 1 / the decision-3 Adopt/Build surface)
+> re-points from "spawn the in-app SDK author / dispatch a headless build from the chat" to **composing
+> the `storytree … build <id>` command and injecting it into the embedded terminal**, where real
+> Claude Code runs it. The spawn/route-never-raw-write model (d.1), the ADR-authoring carve-out (d.2),
+> and the consultative change/fix routing (d.4) stand for **whoever** orchestrates — the terminal
+> session-orchestrator is unchanged; only the in-app *interactive* chat runtime behind the click retires
+> (ADR-0174 replaces it with an embedded terminal; its chat infra is repurposed by ADR-0175).
+
 ## Context
 
 ADR-0108 already decided the shape the owner re-articulated here: a server-side session-orchestrator
