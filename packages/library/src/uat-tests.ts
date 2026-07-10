@@ -60,6 +60,16 @@ export const UatTest = z
      * `false` (a leg under a plain `## Story UAT` heading is a real obligation, back-compat).
      */
     wouldBe: z.boolean().default(false),
+    /**
+     * ADR (uat-machine-proof-binding): the reliability gate this leg is machine-observed/signed
+     * against, e.g. `demo-story#gate-2` — parsed from the prose `_(proof-gate: story-id#gate-n)_`
+     * annotation. Preserved EXACTLY as written (unlike `witness`, never case-normalized): it is a
+     * literal id lookup, not an enum. A real, non-aspirational `(witness: machine)` leg must name one
+     * before `runAdopt` can observe or sign it; human/either legs may omit it (the drive never
+     * machine-signs them). Absent → undefined — never inferred from ordering, title, package, or
+     * `(covers:)`.
+     */
+    proofGateId: z.string().min(1).optional(),
   })
   .strict();
 
@@ -100,6 +110,12 @@ const BOLD_LEAD = /^\*\*(.+?)\*\*/;
  * defaulted) — the `witness-kind-validated` contract.
  */
 const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
+/**
+ * Optional inline proof-gate binding annotation, e.g. `(proof-gate: story-id#gate-2)`. The captured
+ * id is preserved EXACTLY (never case-normalized, unlike {@link WITNESS_TAG}) — it is a literal
+ * lookup key into the story's declared reliability gates, not an enum.
+ */
+const PROOF_GATE_TAG = /\(proof-gate:\s*([^)]+)\)/i;
 
 /**
  * Extract the `## Story UAT` section (between its heading and the next `##`) AND whether the heading
@@ -157,6 +173,18 @@ function itemWitness(item: string, id: string): UatTestWitness {
 }
 
 /**
+ * Pull the declared `proof-gate` binding from an item. Absent → `undefined` (never inferred — a
+ * real machine leg with no annotation is a binding gap the resolver/adopt pass refuses, not a
+ * silent default). The captured id is trimmed but otherwise preserved verbatim.
+ */
+function itemProofGateId(item: string): string | undefined {
+  const tag = PROOF_GATE_TAG.exec(item);
+  if (tag === null) return undefined;
+  const id = tag[1]!.trim();
+  return id.length > 0 ? id : undefined;
+}
+
+/**
  * PURE: parse a story's markdown `body` into addressable UAT test units (ADR-0044
  * d.1). Each numbered item under `## Story UAT` becomes one {@link UatTest} with a
  * positional, stable id (`<story>#uat-<n>`, 1-based) — positional so the same prose
@@ -173,11 +201,13 @@ export function parseUatTests(storyId: string, body: string): UatTest[] {
   const items = splitItems(parsed.section);
   return items.map((item, index) => {
     const id = uatTestId(storyId, index + 1);
+    const proofGateId = itemProofGateId(item);
     return UatTest.parse({
       id,
       title: itemTitle(item),
       witness: itemWitness(item, id),
       wouldBe: parsed.wouldBe,
+      ...(proofGateId !== undefined ? { proofGateId } : {}),
     });
   });
 }
