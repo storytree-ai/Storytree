@@ -1869,6 +1869,7 @@
   {
     "kind": "agent",
     "id": "friction-analyst",
+    "model": "sonnet",
     "title": "friction-analyst",
     "description": "An analysis-only friction reporter over one owned-loop run: it reads the run's typed events from the event store, classifies friction with cited evidence, and emits a report whose recommendations target durable Library guidance via the signal → Library graduation loop (ADR-0032) — it never fixes.",
     "schemaVersion": 3,
@@ -2425,6 +2426,7 @@
   {
     "kind": "agent",
     "id": "story-author",
+    "model": "opus",
     "title": "story-author",
     "description": "The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, through a fail-closed spawned/native subagent file-tool fence.",
     "schemaVersion": 3,
@@ -2493,6 +2495,7 @@
   {
     "kind": "agent",
     "id": "glue-worker",
+    "model": "sonnet",
     "title": "glue-worker",
     "description": "The spawned write-scoped leaf that makes ONE minimal scoped edit — un-asserted connective code within a story (wiring, composition, a few routes) — inside a caller-declared path fence, then stops. The desktop chat's scoped-glue actuator (ADR-0160): it honours a task prompt, signs nothing, and lands through the existing gate→PR path.",
     "schemaVersion": 3,
@@ -2640,6 +2643,7 @@
   {
     "kind": "agent",
     "id": "frontend-builder",
+    "model": "sonnet",
     "title": "frontend-builder",
     "description": "The inner-loop builder for storytree's visual surfaces (the forest world, studio panels, members UI, website): it proves a frontend unit in two stages — red-green on the geometry/behaviour, operator-attested on the appearance — building the look behind a flag, surfacing a hosted deep-link, and never self-signing the visual verdict.",
     "schemaVersion": 3,
@@ -2772,6 +2776,7 @@
   {
     "kind": "agent",
     "id": "guidance-curator",
+    "model": "opus",
     "title": "guidance-curator",
     "description": "The author of the behavioural floor — principles, guardrails, and patterns — and of guardrail-promotion and agent-guardrail proposals and tool grants; it decides whether a rule is true, durable, and well-stated before it enters the corpus.",
     "schemaVersion": 3,
@@ -2845,6 +2850,7 @@
   {
     "kind": "agent",
     "id": "librarian-curator",
+    "model": "opus",
     "title": "librarian-curator",
     "description": "The keeper of the Library as a library: it dedupes new material against the existing corpus, maintains cross-references and the reference tier (definitions / techstack), prunes reconstructible guidance, keeps the ADR decision log's statuses / edges / load_bearing set honest, and keeps the `process` tier a current projection of the decision log — structure and history, not rule content.",
     "schemaVersion": 3,
@@ -2927,6 +2933,7 @@
   {
     "kind": "agent",
     "id": "corpus-investigator",
+    "model": "sonnet",
     "title": "corpus-investigator",
     "description": "A read-only, single-claim verification subagent that checks one question about current storytree corpus state against the authoritative live sources and returns a structured verdict — never a guess and never a write.",
     "schemaVersion": 3,
@@ -2987,6 +2994,7 @@
   {
     "kind": "agent",
     "id": "graduation-synthesist",
+    "model": "opus",
     "title": "graduation-synthesist",
     "description": "The dedicated adjudicator of accumulated system signal (ADR-0168 D5): reading friction artifacts + comments + agent-memory candidates + the decision log with the whole-system view, it CHAIRS friction adjudication through the `friction-adjudication` process and the `friction-justification-bar` floor, sets each item's route/routeReason, routes durable essence to the per-route authors, and decides what escalates to the owner — the owner appears only on its escalation. It absorbs ADR-0032 §3's memory-graduation synthesis seat. It ROUTES and ESCALATES; it writes no durable guidance itself.",
     "schemaVersion": 3,

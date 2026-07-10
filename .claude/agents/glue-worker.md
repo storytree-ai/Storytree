@@ -1,6 +1,7 @@
 ---
 name: glue-worker
 description: "The spawned write-scoped leaf that makes ONE minimal scoped edit — un-asserted connective code within a story (wiring, composition, a few routes) — inside a caller-declared path fence, then stops. The desktop chat's scoped-glue actuator (ADR-0160): it honours a task prompt, signs nothing, and lands through the existing gate→PR path."
+model: sonnet
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->

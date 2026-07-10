@@ -1,6 +1,7 @@
 ---
 name: corpus-investigator
 description: "A read-only, single-claim verification subagent that checks one question about current storytree corpus state against the authoritative live sources and returns a structured verdict — never a guess and never a write."
+model: sonnet
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
