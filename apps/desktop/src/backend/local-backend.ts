@@ -82,11 +82,14 @@ export interface LocalBackendBackend {
    * The store's `/api/health` envelope. `code` is the OPTIONAL git-HEAD stamp (ADR-0164 Phase 1): the
    * HEAD the sidecar started on vs the checkout's HEAD now. `stale: true` means the checkout moved
    * under the running app — the shared StoreBanner turns it into the "rebuild & relaunch" affordance.
-   * Absent (undefined) when git can't answer; it simply doesn't ride the health JSON then.
+   * `runtime` is the OPTIONAL pinned-`main` runtime worktree status (ADR-0181 Decision 3): the branch it
+   * is on (expected `main`) and how many commits it is BEHIND `origin/main` — version visibility for the
+   * desktop. Both fields are absent (undefined) when git can't answer; they simply don't ride the JSON.
    */
   health: () => Promise<{
     db: "ok" | "unreachable" | "n/a";
     code?: { startedAt: string; head: string; stale: boolean };
+    runtime?: { branch: string | null; behind: number | null };
   }>;
   activeSessions: () => Promise<unknown[] | null>;
   inFlightBuilds: () => Promise<unknown[] | null>;

@@ -7,12 +7,13 @@ outcome: "The desktop backend turns a local human's observation of a declared hu
 status: proposed
 proof_mode: integration-test
 depends_on: [shared-forest-connection, boot-read-routes]
+decisions: [180, 117, 82]
 # Node-borne proof config (ADR-0057 keystone). NET-NEW: the leaf first authors the test importing
 # the not-yet-existing local-uat-attest module (module-not-found RED), then authors that one source
-# file (GREEN). This pair proves the signing core only. The POST /api/uat/attest dispatcher wiring in
-# electron/backend-entry.ts and the frontend permission bit that reveals the shared UatTestsSection
-# action to LOCAL_ME are explicitly non-leaf glue for a later glue-worker; neither belongs in this
-# proof arm. The source consumes @storytree/orchestrator's checkUatProof and the existing injected
+# file (GREEN). This pair proves the signing core only. The POST /api/uat/attest dispatcher,
+# Electron-session IAP bridge, and frontend permission bit are landed non-leaf composition under
+# ADR-0180; they remain outside this proof arm. The source consumes @storytree/orchestrator's
+# checkUatProof and the existing injected
 # ForestWriter seam, never apps/studio/server. Single LITERAL paths make the default node:test proof
 # legal; install + desktop typecheck hold the cross-package imports honest in a fresh worktree.
 proof:
@@ -48,12 +49,11 @@ injected brokered forest writer, while refusing untrustworthy input or an unpers
   frontend, including the deliberately non-admin `LOCAL_ME`. This capability adds signing authority
   from a separately injected local operator identity; it does not falsely promote `LOCAL_ME` to admin.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** The desktop currently serves the shared
-> `UatTestsSection`'s GET context but not its `POST /api/uat/attest`; the component already posts that
-> path. The hosted server has a signing implementation, but importing `apps/studio/server` would breach
-> the surface boundary. This capability authors an Electron-free desktop core that consumes the shared
-> `@storytree/orchestrator` trust guard and the desktop's existing broker writer seam. HTTP mounting and
-> permission presentation are separate composition glue, explicitly deferred below.
+> **Proof status (honest) — BUILT, signed REAL pass `real-mrezf7px` at commit `54c936c`.** The
+> Electron-free signing core is red→green proven. ADR-0180's composition is also landed: the shared
+> UI uses `canAttestUat`, the sidecar mounts `POST /api/uat/attest`, and child IPC asks Electron main
+> to authenticate through its persistent IAP browser session and POST the signed verdict to the
+> hosted broker. That browser/login wiring is operator-attested glue, not part of the core verdict.
 
 ## Guidance
 
@@ -160,9 +160,9 @@ The test would:
   `@storytree/orchestrator`'s `checkUatProof`, proof-protocol validation/build conventions, and the
   injected `ForestWriter`. The desktop package test and typecheck pass.
 
-## Explicit non-leaf glue (later glue-worker)
+## Landed non-leaf composition
 
-The capability pair deliberately excludes:
+The capability pair deliberately excludes, while the desktop composition now supplies:
 
 - chaining a `POST /api/uat/attest` dispatcher in `apps/desktop/electron/backend-entry.ts`, resolving
   the declared test context + clean HEAD + local operator identity there, and supplying the real
@@ -170,6 +170,6 @@ The capability pair deliberately excludes:
 - the frontend permission bit that lets the shared `UatTestsSection` show its existing signing action
   for this trusted local member without changing `LOCAL_ME` to admin.
 
-Those are composition bindings across already-proven seams, not part of this net-new source/test pair.
+Those are composition bindings across already-proven seams, not part of this source/test pair.
 They must preserve the fences above: no renderer-supplied signer, no machine-leg click, no dirty-tree
 signature, and no success before broker persistence.

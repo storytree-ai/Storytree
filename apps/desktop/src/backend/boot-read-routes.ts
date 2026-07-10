@@ -4,8 +4,9 @@
 //
 // THE BOUNDARY CALL: does NOT import apps/studio/server. Re-composes the SAME algorithm the
 // studio's listDocs() implements over node:fs, exactly as local-backend.ts reproduces the studio's
-// HTTP helpers rather than importing them. The `me` route is a constant (the operator IS
-// member+admin on their own machine). The `comments` route reads through an INJECTED seam.
+// HTTP helpers rather than importing them. The `me` route is a constant (the operator is a local
+// member with a narrow UAT-attestation permission, not a hosted admin). The `comments` route reads
+// through an INJECTED seam.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
@@ -15,14 +16,14 @@ import path from "node:path";
 // ---------- local-only type definitions (do NOT import from apps/studio) ----------
 
 /**
- * The local-member identity. The operator IS member+admin on their own machine —
- * the open-dev posture the studio's DEV_ME already uses.
+ * The local-member identity. UAT signing is a narrow permission rather than an admin role.
  */
 export interface MeInfo {
   email: null;
   role: "admin" | "builder" | "member" | null;
   status: "invited" | "active" | null;
   member: boolean;
+  canAttestUat: boolean;
   canWakeDb: boolean;
 }
 
@@ -54,12 +55,10 @@ export interface CommentsFilter {
  * Constant local-member identity. Exported so the Electron main's operator-attested wiring test
  * can assert the /api/me response exactly matches this object.
  *
- * The operator is a full MEMBER on their own machine — NOT an admin. The desktop backend mounts no
- * admin-only routes (no /api/users, no /api/uat/attest, no db-control — ADR-0119 omits the
- * hosted-only members/invites/IAP/db-control concerns), so claiming admin would make the studio
- * render admin-only UI (the Members nav + panel, the UAT "sign" button) that 404s against this
- * backend and reads as broken instead of degrading honestly (chip 4, ADR-0113 arc). `member`
- * unlocks exactly what the desktop DOES serve — read, comment, chat, build — and the studio's
+ * The operator is a full MEMBER on their own machine — NOT an admin. The desktop backend mounts a
+ * brokered UAT-signing route but no hosted admin surfaces (/api/users or db-control), so
+ * `canAttestUat` reveals only the human-UAT action without making Members/admin UI appear. `member`
+ * unlocks read, comment, chat, and build, while the studio's
  * `me.role === 'admin'` gates hide the rest; a direct visit to #/members lands on MembersPanel's
  * honest "Admins only" state rather than a hung "Loading members…".
  */
@@ -68,6 +67,7 @@ export const LOCAL_ME: MeInfo = {
   role: "member",
   status: "active",
   member: true,
+  canAttestUat: true,
   canWakeDb: false,
 };
 
