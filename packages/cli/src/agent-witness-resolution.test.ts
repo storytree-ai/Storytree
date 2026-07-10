@@ -42,7 +42,12 @@ test("ADR-0106 instance: each machine leg resolves to observe via agent#gate-1; 
     if (leg.id === "agent#uat-5") {
       assert.deepEqual(resolution, { witness: "human" });
     } else {
-      assert.deepEqual(resolution, { witness: "machine", coverage: "observe", observedBy: "agent#gate-1" });
+      assert.deepEqual(resolution, {
+        witness: "machine",
+        coverage: "observe",
+        observedBy: "agent#gate-1",
+        proofCommand: "pnpm --filter @storytree/agent test",
+      });
     }
   }
 });

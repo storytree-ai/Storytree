@@ -11,8 +11,11 @@ outcome: "An agent grows and curates a schema-validated versioned event-sourced 
 # `mapped` (untouched brownfield) and `healthy` (proven in the fold). See `## Reliability Gates`.
 status: proposed
 proof_mode: UAT
-# Agent-exercised end-to-end (every Story UAT leg is _(witness: machine)_), so the story is
-# machine-witnessed — overrides the ADR-0040 fail-closed `human` default, no operator signpost.
+# Per-leg witness: six would-be offline legs are machine-witnessed and bind to the exact observe gate
+# whose suite proves them. The live Postgres leg is human-witnessed because its parity test is skipped
+# by default and no standing observe command proves the live success condition. Independently,
+# `uat_witness: machine` drives the story-level structural gate-as-proof node; it does not claim every
+# per-leg witness is machine.
 uat_witness: machine
 capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli]
 # Consumer-side outbound edge (ADR-0075): the library validates/upcasts every doc against the verdict
@@ -35,13 +38,12 @@ decisions: [17, 18, 19, 23, 26]
 # island) with NO connection lines, rather than a connected organism node. This is the manual,
 # agent-authored building-vs-island tag (set during story writing/review, never derived).
 render: building
-# ADR-0092 / ADR-0094: the gate-as-proof config for this machine-witnessed story's OWN UAT node.
-# Because `uat_witness: machine` DRIVES the story node (not withheld, ADR-0040), it carries a dry-run
-# proof config so `story build library --dry-run` walks it (a scripted GLUE proof). The gate-as-proof
-# COMPLETENESS check (ADR-0092 d.2, `storyUatCompleteness`) SURVIVES as the real checked-in test
-# `packages/cli/src/story-completeness.test.ts`, which reads THIS story.md and asserts it is a
-# structurally-complete, machine-witnessed UAT record — it signs HYGIENE, never the story-green CROWN
-# (all caps healthy AND every per-test UAT verdict signed still owns that, ADR-0082/0083).
+# ADR-0092 / ADR-0094: this story-level `uat_witness: machine` DRIVES the structural gate-as-proof
+# story node, so `story build library --dry-run` walks it. Its proof command runs
+# `storyUatCompleteness`, which requires explicit per-leg witness tags and structural completeness;
+# it does NOT require every leg to be machine-witnessed and does not machine-sign leg 6. The check
+# signs HYGIENE, never the story-green CROWN (all caps healthy AND every real per-test UAT verdict
+# signed still owns that, ADR-0082/0083).
 # The ADR-0092 `real:` arm was REMOVED here (ADR-0094 supersedes_in_part 92 d.1 & d.5): the library is
 # brownfield, so its honest path to green is NOT a fail-closed `--real` Build over a mature artifact with
 # no genuine live red. ADR-0097 (amends 94) sharpened the model: bringing a brownfield story into the fold
@@ -139,19 +141,31 @@ These are **within-story** edges, **read off the real source** (static analysis 
 
 The integrated **acceptance walkthrough** that proves the whole `library` organism meets its outcome end-to-end against its **real packages** (`@storytree/library`, `@storytree/storage-protocol`, `@storytree/cli`) — the proof that lives at the story tier (ADR-0010 §2). It is one coherent agent journey: explore the library, view an artifact, validate-and-author on write, run a migration, run the health gate.
 
-> **HONEST status — there is NO scripted UAT today; this is the would-be acceptance walkthrough.** Several legs ARE automatable offline now (and the capability tests below prove them piecewise — citations given inline), but no single scripted end-to-end UAT exists, and the live-DB legs (steps 6–7) are gated behind `STORYTREE_DB_LIVE=1` / `pnpm db:up` and are currently unrun. So the **story's own acceptance proof is would-be** even though its capabilities are mostly `mapped`.
+> **HONEST status — there is NO scripted UAT today; this is the would-be acceptance walkthrough.**
+> Several legs ARE automatable offline now (and the capability tests below prove them piecewise —
+> citations given inline), but no single scripted end-to-end UAT exists. The live-DB leg (step 6) is
+> gated behind `STORYTREE_DB_LIVE=1` / `pnpm db:up` and its cited test is skipped by default; step 7's
+> health classification is offline-proven. So the **story's own acceptance proof is would-be** even
+> though its capabilities are mostly `mapped`.
 
 **Goal —** One agent, in one session, grows and curates the library through the real packages: explores the seeded corpus, drills into an artifact, is refused an offline write then validates-and-authors on a writable store, drains the version tail with a migration, and runs the health gate green.
 
-Every leg below is an **agent (machine) exercise**, so each carries `_(witness: machine)_` (ADR-0044 `uat-test-units`, parsed into `library#uat-<n>` ids): the cited automated test *is* the witnessing run, and these legs are **not** awaiting a human's "I saw it work" — they are awaiting a machine attestation against their test id. This is the deliberate correction of the fail-closed default (absent witness ⇒ `either`, which the studio still offers a human flag for); the library journey is exercised by agents, not the operator, so it is declared `machine` end-to-end (frontmatter `uat_witness: machine` to match — the story carries no human-witness signpost).
+The six offline legs below are **agent (machine) exercises** and bind to the exact command-bearing
+observe gate whose suite proves them (ADR-0044 `uat-test-units`, parsed into `library#uat-<n>` ids).
+The live Postgres leg is different: its cited parity run is skipped by default, so no standing observe
+command proves the full success condition; it is `witness: human` until that live proof becomes real.
+The story-level `uat_witness: machine` is independent: it drives the structural
+`storyUatCompleteness` gate-as-proof node, which checks the explicit mixed witness record without
+claiming leg 6 was machine-observed. Because this is a `(would-be)` UAT, none of these per-leg records
+is a hard crown obligation yet.
 
-1. **Seed + explore offline:** _(witness: machine)_ run `pnpm storytree library` (`main.ts` seeds an `InMemoryStore` via `loadCorpus`, then `run()` dispatches to `dashboard`). **Success —** the envelope is `ok:true` with a `Library: OK — N artifacts across M categories` banner (the cheap health checks passed), a per-kind map, and a `next:` block. *(proven shape: `packages/cli/src/cli.test.ts:22-29`)*
-2. **Drill into one artifact:** _(witness: machine)_ `pnpm storytree library artifact <id>`. **Success —** `viewArtifact` renders the artifact via the real `renderStoredDoc` (body derived for a structured unit, passed through for a template), with a grouped Sources block, and `ok:true`. *(`cli.test.ts:31-36`)*
-3. **Author on write, offline-refused:** _(witness: machine)_ `pnpm storytree library artifact new --json '<doc>'` WITHOUT `--pg`. **Success —** `ok:false` with `writes go to the shared store … run with --pg`, proving the write gate. *(`cli.test.ts:98-104`)*
-4. **Validate-on-write (writable):** _(witness: machine)_ with a writable store, `artifact new` a fresh valid doc creates+persists it (`upcastAndValidate` ran at the boundary), a doc with an unknown field is REFUSED with the zod message as guidance (not persisted), and a duplicate id is refused edit-first. **Success —** created on the valid one *(`cli.test.ts:106-113`)*, `ok:false` on the invalid one *(`cli.test.ts:130-135`)*, edit-first refusal on the duplicate *(`cli.test.ts:115-128`)*.
-5. **Run a migration:** _(witness: machine)_ against a store holding a lagging v0 doc, run `batchMigrate`. **Success —** it returns `{scanned:N, upgraded:1}`, the v0 doc is stamped to `CURRENT_SCHEMA_VERSION` with the retired field dropped and all other content preserved, and a re-run reports `upgraded:0`. *(offline-automatable against `InMemoryStore` today: `packages/library/src/store/batch-migrate.test.ts:31-65`)*
-6. **Live persistence (gated):** _(witness: machine)_ `pnpm db:up` then `STORYTREE_DB_USER=<iam-email> pnpm storytree library --pg artifact edit <id> --set <field>=<value>`. **Success —** over the keyless-IAM connection, `PgLibraryStore` upcast-validates and writes the artifact transactionally (event + projection) into the shared `events` schema and `--pg` reads reflect it. *(**PROPOSED:** proven only by `packages/library/src/store/store.test.ts:101` under `STORYTREE_DB_LIVE=1`, which is **skipped by default** — currently unrun.)*
-7. **Run the health gate:** _(witness: machine)_ `pnpm storytree library --check` (and `pnpm -r test`'s SEED gate). **Success —** `libraryHealth` runs all five checks, `gateFailures()` is EMPTY on the stamped seed so the envelope is `ok:true` (exit 0), while a WARN keeps `ok=true` and a GATE-class FAIL would set exit 1. *(proven: `packages/cli/src/health.test.ts:191-203` for the seed gate, `health.test.ts:162-181` for the gate/warn classification)*
+1. **Seed + explore offline:** _(witness: machine)_ _(proof-gate: library#gate-2)_ run `pnpm storytree library` (`main.ts` seeds an `InMemoryStore` via `loadCorpus`, then `run()` dispatches to `dashboard`). **Success —** the envelope is `ok:true` with a `Library: OK — N artifacts across M categories` banner (the cheap health checks passed), a per-kind map, and a `next:` block. *(proven shape: `packages/cli/src/cli.test.ts:22-29`)*
+2. **Drill into one artifact:** _(witness: machine)_ _(proof-gate: library#gate-2)_ `pnpm storytree library artifact <id>`. **Success —** `viewArtifact` renders the artifact via the real `renderStoredDoc` (body derived for a structured unit, passed through for a template), with a grouped Sources block, and `ok:true`. *(`cli.test.ts:31-36`)*
+3. **Author on write, offline-refused:** _(witness: machine)_ _(proof-gate: library#gate-2)_ `pnpm storytree library artifact new --json '<doc>'` WITHOUT `--pg`. **Success —** `ok:false` with `writes go to the shared store … run with --pg`, proving the write gate. *(`cli.test.ts:98-104`)*
+4. **Validate-on-write (writable):** _(witness: machine)_ _(proof-gate: library#gate-2)_ with a writable store, `artifact new` a fresh valid doc creates+persists it (`upcastAndValidate` ran at the boundary), a doc with an unknown field is REFUSED with the zod message as guidance (not persisted), and a duplicate id is refused edit-first. **Success —** created on the valid one *(`cli.test.ts:106-113`)*, `ok:false` on the invalid one *(`cli.test.ts:130-135`)*, edit-first refusal on the duplicate *(`cli.test.ts:115-128`)*.
+5. **Run a migration:** _(witness: machine)_ _(proof-gate: library#gate-1)_ against a store holding a lagging v0 doc, run `batchMigrate`. **Success —** it returns `{scanned:N, upgraded:1}`, the v0 doc is stamped to `CURRENT_SCHEMA_VERSION` with the retired field dropped and all other content preserved, and a re-run reports `upgraded:0`. *(offline-automatable against `InMemoryStore` today: `packages/library/src/store/batch-migrate.test.ts:31-65`)*
+6. **Live persistence (gated):** _(witness: human)_ `pnpm db:up` then `STORYTREE_DB_USER=<iam-email> pnpm storytree library --pg artifact edit <id> --set <field>=<value>`. **Success —** over the keyless-IAM connection, `PgLibraryStore` upcast-validates and writes the artifact transactionally (event + projection) into the shared `events` schema and `--pg` reads reflect it. *(**PROPOSED:** proven only by `packages/library/src/store/store.test.ts:101` under `STORYTREE_DB_LIVE=1`, which is **skipped by default** — currently unrun; human-witnessed until a standing machine command proves it.)*
+7. **Run the health gate:** _(witness: machine)_ _(proof-gate: library#gate-2)_ `pnpm storytree library --check` (and `pnpm -r test`'s SEED gate). **Success —** `libraryHealth` runs all five checks, `gateFailures()` is EMPTY on the stamped seed so the envelope is `ok:true` (exit 0), while a WARN keeps `ok=true` and a GATE-class FAIL would set exit 1. *(proven: `packages/cli/src/health.test.ts:191-203` for the seed gate, `health.test.ts:162-181` for the gate/warn classification)*
 
 End state — the library is explored, an artifact authored and validated, the version tail drained, and the gate green, all through the real packages.
 
@@ -176,7 +190,10 @@ Distinct from `## Story UAT` above (the integrated acceptance journey): the gate
 
 - **Capability coverage:** the **seventh capability, [`seed-corpus-scripts`](seed-corpus-scripts.md) (`proposed`), is covered by NO honest observe gate** (the library suite only smoke-imports it; adopting a suite that does not exercise the code is the rubber-stamp ADR-0085 bans). It greens only when **gate 4** — the `build-tests` gate that covers it — is genuinely driven red→green. Until then it holds the crown at `proposed` — exactly what makes a green crown MEAN this untested pocket got real coverage (ADR-0097 §5).
 - **Own-proof obligations:** the two `build-tests` gates (4, 5) are unsigned own-proof obligations — `gate run` refuses them until driven, so they are earned only by real red→green work. Both now carry a `(build:)` ref and are drivable (`storytree gate run library#gate-{4,5} --real --pg`): gate 4 `(build:)`s `seed-corpus-scripts` (R2 refactor, landed PR #339), gate 5 `(build:)`s `event-sourced-store-seam` (R1 behavioural — the `createPool` fail-closed contract — with `db: true` for the live-gated Pg leg). **Gate 5** carries no `(covers:)`: it does not block any capability's green (gate 1 covers the cap honestly), yet the crown cannot reach `healthy` while it is unsigned (real production live-write code with no offline proof).
-- **Machine-witnessed UAT legs:** the seven `## Story UAT` legs are still unscripted (`would-be`); per ADR-0097 §6 a would-be leg is aspirational, not green-blocking, until a real test backs it. They do not wedge the crown today, but earning them is part of the full path to `healthy`.
+- **Story UAT legs:** the seven `## Story UAT` legs are still aspirational (`would-be`); six offline
+  machine legs now name the exact observe gate whose suite backs their cited shape, while the skipped
+  live-Postgres leg is human-witnessed. Per ADR-0097 §6 a would-be leg is not green-blocking until it
+  becomes a real acceptance obligation. They do not wedge the crown today.
 
 So no single act greens the story: the crown reaches `healthy` only after the owner adopts gates 1–3 **and** the inner loop (or a contributor) earns gates 4–5 by real test-building work — the proving process ADR-0097 names. The `proposed` status below is the honest current state: adoption is underway, the build-tests work is visible and outstanding.
 
@@ -193,7 +210,11 @@ The story now **carries the UAT** (above): under the organism model the integrat
   - (1) the whole **`seed-corpus-scripts`** capability is `status: proposed` — `loadCorpus`/`loadComments`/`applySchema` behaviour, the `recordLedger` row, and both entry-guarded `main()`s have only smoke-import / transitive-collaborator coverage, never a standalone behavioural assertion. Covered by NO honest observe gate → **owes gate 4 (`build-tests`, `covers: seed-corpus-scripts`)**; holds the crown at `proposed` until that real red→green lands (ADR-0097 §5).
   - (2) the **Postgres transactional behaviour** of `PgLibraryStore` + the IAM `createPool` connection (a `proposed` pocket inside the otherwise-`mapped` `event-sourced-store-seam`) — proven ONLY by the default-**skipped** live-gated parity run (`store.test.ts:101` under `STORYTREE_DB_LIVE=1`); the `InMemoryStore` parity suite proves the *contract* offline but never touches the Pg impl. Gate 1 honestly covers the cap's dominant behaviour, so the cap is not held at `proposed` by this pocket — but the pocket is real live-write code with no offline proof, so it is a tracked own-proof obligation: **gate 5 (`build-tests`, no `covers:`)**, earned by running the live-gated parity + asserting the keyless wiring.
   - (3) the CLI's **uncovered branches** (a minor `proposed` pocket inside the `mapped` `library-cli`) — `--file` reads, malformed-JSON, whole-doc `--json`/`--file` replace, the bad `--set` token, `main`'s `writable=usePg` wiring, and the FAIL/WARN dashboard banner variant (only the OK banner is tested; tracked as `would-be` contracts 10–13). **Assessment: these do NOT owe a `build-tests` gate today.** Gate 2's 359-test suite genuinely proves `library-cli`'s dominant behaviour; these are edge branches of a heavily-tested surface, not a genuinely-untested capability. Authoring a gate for them would be over-fitting (ADR-0085's floor grows a `build-tests` gate when observation proves *insufficient* — a defect slips through; none has). If a defect surfaces in one of these branches it earns a permanent regression case + a `build-tests` gate then.
-- **The STORY's own UAT is unscripted (would-be):** no scripted end-to-end UAT exists. Per ADR-0097 §6 the seven `_(witness: machine)_` legs are aspirational, not green-blocking, until a real test backs each — they record intent and must not wedge the crown. Each capability file's Proof blockquote and each contract's `proven by` / would-be marker pin down exactly which leaves are `mapped` vs `proposed`.
+- **The STORY's own UAT is unscripted (would-be):** no scripted end-to-end UAT exists. Per ADR-0097 §6
+  the six bound `_(witness: machine)_` legs and the human-witnessed live-Postgres leg are aspirational,
+  not green-blocking, until the section becomes a real acceptance obligation. Each capability file's
+  Proof blockquote and each contract's `proven by` / would-be marker pin down exactly which leaves are
+  `mapped` vs `proposed`.
 
 ## Open modeling calls (for the owner)
 

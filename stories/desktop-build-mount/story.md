@@ -84,11 +84,12 @@ depends_on: [drive-machinery, studio-build, desktop, library]
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
 artifact_edges: [studio-build, desktop]
-# Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority + the deferred broker;
-# decision 3 names THIS story's mechanism); 108 (the phased chat→drive→land — this completes Phase 3+4 ON THE
+# Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority and decision 3
+# names THIS story's mechanism; its temporary broker deferral was later lifted by 180); 108 (the
+# phased chat→drive→land — this completes Phase 3+4 ON THE
 # DESKTOP surface, where chat-drive-bridge built the bridge on apps/studio/server); 113 (the thick-local
-# desktop the mount hangs on); 117 (the write-broker — DEFERRED for the MVP per ADR-0133 d.2, the write is
-# direct; recorded so the deferral is visible, NOT scoped in); 91 (proof integrity — the dispatch is a SAFE
+# desktop the mount hangs on); 117 + 180 (desktop proof writes use the authenticated broker; the old
+# direct-write deferral is no longer current); 91 (proof integrity — the dispatch is a SAFE
 # build INTENT, never a verdict-in; the spine inside runBuildJob observes RED→GREEN and signs; the agent holds
 # no key); 4 (the chat thin client imports no agent/drive/model — its only route is the api seam; the desktop
 # renderer is held too); 100 (an app may not import another app's server — the WALL that FORCES the relocation,
@@ -96,13 +97,13 @@ artifact_edges: [studio-build, desktop]
 # forward 119's re-compose-from-PACKAGES boundary — the established pattern the build mount follows);
 # 90 (the build worker reused verbatim — routedBuildRunner →
 # story build --real, the single agent boundary); 22 (CI re-proves green before the trunk — the backstop for
-# the deferred-broker risk + what lands the PR the worker opens). Context: 0048 (the build wisp the dispatched
+# broker trust boundary + what lands the PR the worker opens). Context: 0048 (the build wisp the dispatched
 # run blooms) / 0070 (the live driven appearance is operator-attested, chat-drive-bridge's legs 5–6).
 # Post-landing increment (2026-07-02): 144 (owner-directed — the routed NODE dispatch drives
 # `node build --real` with persist semantics instead of the synthetic `--live` smoke; landing stays the
 # human gate over the parked branch, ADR-0136 amended in degree). Capability routed-node-real-dispatch;
 # the story's other caps and its own status are untouched.
-decisions: [133, 108, 113, 117, 91, 4, 100, 176, 90, 22, 144]
+decisions: [133, 108, 113, 117, 180, 91, 4, 100, 176, 90, 22, 144]
 ---
 
 # The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop
@@ -211,16 +212,16 @@ signed verdict per session, then the next is spawned. The honest status is `prop
 - **ADR-0091 — the dispatch is a SAFE build INTENT, never a verdict-in.** The route + the dispatch hand the
   worker a unit id; they hold no signing key and no verdict path. The spine inside `runBuildJob` observes
   real RED→GREEN exit codes and SIGNS; CI re-proves green before the trunk (ADR-0022). The damage ceiling
-  stays a briefly-wrong hue, corrected by CI — exactly ADR-0091's argument, and (ADR-0133 d.2) the same
-  argument that bounds the deferred-broker risk.
+  stays a briefly-wrong hue, corrected by CI — exactly ADR-0091's argument. ADR-0180 now routes desktop
+  proof persistence through the authenticated broker without moving signing into that broker.
 - **ADR-0004 — the chat/ChatPanel thin client never imports agent/drive/model.** Its only route is the
   `api` seam; the agent/build boundary is the backend process. The desktop renderer is held to this
   (`modelPathBoundary.test.ts` holds `apps/studio/src`); the accept click POSTs through the api seam, it
   does not call the dispatch in-process.
-- **ADR-0117 DEFERRED (ADR-0133 d.2) — the write is DIRECT for the inner-circle MVP.** The write-broker is
-  consciously deferred ("secure later"); the desktop's write path is direct (owner first-party, inner-circle
-  builders direct, trusted with the source, CI re-proves green). This story does NOT scope the broker in —
-  it is recorded so the deferral is a visible, time-bound decision, not a silent gap.
+- **ADR-0117 broker target is current (ADR-0180).** ADR-0133's temporary "secure later" deferral has
+  ended for desktop verdict, UAT-attestation, and presence writes. The desktop still signs locally;
+  authenticated broker callers persist the signed bytes, and the broker never re-signs them. This
+  build-mount story does not own that separate proof-write composition.
 
 Status stays `proposed` for every unit — `healthy` is earned through the prove-it-gate (and, for the live
 legs that belong to chat-drive-bridge, the operator's attestation); it is never authored (ADR-0020).
@@ -350,7 +351,8 @@ walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 > walk that lives in chat-drive-bridge.
 >
 > **Per-leg witness (ADR-0106).** The two remaining legs (`uat-1`, `uat-2`) are `witness: machine` — the
-> suites demonstrably cover them, so the adopt pass observe-and-signs them. **Leg 3 (the accept→dispatch
+> suites demonstrably cover them and each names its exact proof gate, so the adopt pass
+> observe-and-signs them. **Leg 3 (the accept→dispatch
 > walk) was RETIRED by ADR-0155** with the `desktop-accept-dispatch` cap — the `/api/chat/accept` route +
 > `accept-dispatch.test.ts` were removed in PR #587, so there is nothing left to witness there. No leg is
 > `human` here (the human-witness legs are chat-drive-bridge's, not this story's). No leg rests `either`.
@@ -364,7 +366,7 @@ streams the worker's coarse progress back — all offline over a scripted runner
 handed in and no app importing another app's server.
 
 1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.**
-   _(witness: machine)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `dispatchAcceptedBuild`,
+   _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-3)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `dispatchAcceptedBuild`,
    the `BuildContext` type) from `@storytree/drive/build-worker`, and run the relocated worker's own suite +
    the re-pointed studio server suite. **Success —** the subpath resolves and the trio is exported (it does
    NOT resolve at HEAD — the right-kind module-not-found red); the relocated worker imports nothing from
@@ -372,7 +374,7 @@ handed in and no app importing another app's server.
    importers (`apiRouter.ts`, `devApi.ts`) re-point at the package and the existing server suites
    (`buildWorker.test.ts`, `buildRegistry.test.ts`, the two integration
    suites) stay green from the new home (parity — no behaviour changed, only the home).
-2. **The desktop mounts a build route over the relocated worker.** _(witness: machine)_ Stand up the
+2. **The desktop mounts a build route over the relocated worker.** _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-2)_ Stand up the
    desktop build-route dispatcher on a real `node:http` server with an injected scripted `BuildContext`
    (real `BuildRegistry`, a scripted runner, an injected `isBuildable`). **Success —** `POST /api/build
    {unitId}` validates buildable, mints a run, returns 202 `{ runId }` (fire-and-forget); `GET
@@ -417,9 +419,11 @@ the existing green suites and GROW a `_(gate: build-tests)_` gate (a genuine red
 moment observation proves insufficient — a real relocation / route / accept-dispatch defect slips through
 the existing suite.
 
-The capabilities span TWO package suites, so there are two observe gates, each naming the capability(ies) its
-suite behaviourally covers (the coverage is real, not declared-only: each test is the cap's own integration
-test over its real collaborators, ADR-0097 §2):
+The capabilities span two owning package suites, so two observe gates name the capability each suite
+behaviourally covers (the coverage is real, not declared-only: each test is the cap's own integration
+test over its real collaborators, ADR-0097 §2). A third observe gate runs the drive and studio suites
+together solely for Story UAT leg 1: the leg promises both the relocated worker contract and the
+re-pointed studio importer parity, and neither owning-suite gate proves that full conjunction alone.
 
 1. **The relocated worker's `@storytree/drive` suite is green** _(gate: observe)_ _(covers: worker-relocation)_ `pnpm --filter @storytree/drive test`. The
    spine runs it at a clean committed HEAD and OBSERVES it green — the worker-relocation package-boundary
@@ -430,8 +434,9 @@ test over its real collaborators, ADR-0097 §2):
    relocation exists to satisfy); and the un-buildable / single-build typed refusals moved intact) passes
    offline (no DB, no API key, no SDK) — then signs an `adopted` verdict. This observes the whole
    `@storytree/drive` suite, which carries the relocation behaviour this leaf owns; `worker-relocation`
-   greens via this gate's `(covers:)` (ADR-0097 §5). The cross-package PARITY (the studio importers
-   re-pointed at the package and still green) is the same suite's sibling proof. (`routed-node-real-dispatch`
+   greens via this gate's `(covers:)` (ADR-0097 §5). The wider cross-package PARITY claim (the studio
+   importers re-pointed at the package and still green) is observed by gate 3's combined command, not
+   inferred from this drive-only suite. (`routed-node-real-dispatch`
    already carries its own signed `--real` verdict from a genuine edit-existing red→green — the ADR-0144
    node-branch flip — so it is not re-adopted here.)
 2. **The desktop backend suite is green** _(gate: observe)_ _(covers: desktop-build-route)_ `pnpm --filter desktop test`. The
@@ -447,21 +452,30 @@ test over its real collaborators, ADR-0097 §2):
    (The `desktop-accept-dispatch` cap this gate ALSO covered was RETIRED by ADR-0155 — its
    `/api/chat/accept` route + `accept-dispatch.test.ts` were removed in PR #587; it is dropped from this
    gate's `(covers:)` and from the story's capability list.)
+3. **The relocation and studio-importer parity are green together** _(gate: observe)_ `pnpm --filter @storytree/drive --filter studio test`.
+   The spine OBSERVES both suites through one executable pnpm command at a clean HEAD. The drive suite
+   proves the relocated worker's exports, real registry/worker behaviour, and no-`apps/*` boundary;
+   the studio suite proves the re-pointed server importers and integration surface remain green from
+   the new package home. Together they prove all of Story UAT leg 1, which binds to
+   `desktop-build-mount#gate-3`. This gate carries no `(covers:)`: gate 1 already covers
+   `worker-relocation`; this combined command exists only to bind the wider UAT leg honestly.
 
-Adopting these gates flips the story off `mapped`. `healthy` stays non-authorable
+Adopting these three gates flips the story off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored `status:`
 is never `healthy`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only when
-every capability is `healthy` (the three above via these gates' `(covers:)`; `routed-node-real-dispatch` via
-its own `--real` verdict) AND every own-proof obligation (the three machine-witnessed Story UAT legs above)
+every capability is `healthy` (`worker-relocation` and `desktop-build-route` via gates 1–2;
+`routed-node-real-dispatch` via its own `--real` verdict) AND every own-proof obligation (the two
+machine-witnessed Story UAT legs above)
 is signed
 ([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
-ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here (uat-1..3
-are all `witness: machine`), so it greens FULLY by machine observation once the gates + legs are signed.
+ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here
+(`uat-1` and `uat-2` are both `witness: machine`; the former leg 3 is retired and non-numbered), so it
+greens fully by machine observation once the gates + legs are signed.
 
 ## Proof
 
-The story carries the UAT (above); it is proven when that walkthrough passes — the three legs green under
+The story carries the UAT (above); it is proven when that walkthrough passes — the two remaining legs green under
 the package + desktop suites over a scripted build runner — with the capabilities' integration tests and
 contracts green underneath. The capability/contract obligations are minimal-to-green (slow growth): the
 relocation's net-new assertion is the package-boundary contract (the worker exports from its new home,
@@ -504,12 +518,10 @@ existing decisions, reversible, and internal — not re-litigated per the owner-
    mount was wired) is the operator-attested sidecar glue the `desktop` story already assigns to
    `backend-entry.ts` — the CI-proven core is the route factory, exercised by the desktop suite over stubs.
    Surfaced (not re-opened).
-4. **ADR-0117 write-broker DEFERRED, NOT scoped here (decided by ADR-0133 d.2).** The desktop's write path
-   is DIRECT for the inner-circle MVP ("secure later") — the owner is first-party direct-connect, inner-circle
-   builders direct (trusted with the source, CI re-proves green before the trunk). This story does NOT scope
-   the broker in; it is recorded so the deferral is a visible, time-bound decision. No new ADR is warranted
-   — ADR-0133 already decided the deferral, and every placement call lands inside the already-accepted
-   ADR-0100 / ADR-0108 / ADR-0113 / ADR-0119 frame.
+4. **ADR-0117 broker target is current; the old deferral is closed by ADR-0180.** Desktop verdict,
+   UAT-attestation, and presence writes now persist through the authenticated `builder`-gated broker;
+   local signing and local build compute remain. This story still does not own that proof-write
+   composition, but it no longer records the temporary direct path as current.
 
 This story stays a **pure source node** — nothing depends on it — so the new edges (`drive-machinery`,
 `studio-build`, `chat-drive-bridge`, `desktop`, `library`) introduce no cycle (ADR-0058):

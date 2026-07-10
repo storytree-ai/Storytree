@@ -7,7 +7,7 @@ outcome: "runAdopt observes and signs each machine UAT leg only through the comm
 status: proposed
 proof_mode: integration-test
 depends_on: [build-drive-cli, uat-machine-gate-resolution]
-decisions: [106]
+decisions: [106, 180]
 proof:
   command:
     file: pnpm
@@ -44,10 +44,13 @@ by that leg's resolved proof-gate binding.
 observation/signing boundary; [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md)
 provides the exact fail-closed bound gate that boundary must consume.
 
-> **Proof status (honest) — `proposed`.** Commit `7f19272` did not touch
-> `adopt.{ts,test.ts}`, so verdict coverage for this behaviour remains zero. This literal
-> edit-existing REAL pair must prove command routing, memoization, red refusal, and the no-partial-
-> signing boundary before any machine-witness coverage claim changes.
+> **Proof status (honest) — authored `proposed`, REAL-proven.** Runs `real-mrf1bo0f` and
+> `real-mrf3o3b4` drove the literal `adopt.{ts,test.ts}` pair through the strict command-routing,
+> memoization, red-refusal, and no-partial-signing cases; the completed proof commit is `a7389fb`.
+> The signed verdict, not authored frontmatter, derives proof health (ADR-0020). Advisory
+> `check:coverage` still reports this contract `0/1` because no test title carries
+> `adopt-signs-leg-against-bound-command`; the substantive adoption assertions pass, but that static
+> contract-name link remains unresolved.
 
 ## Proof walkthrough (written first)
 
@@ -100,7 +103,6 @@ required.
 
 ## Follow-up machine-witness authoring
 
-Only after this capability and both upstream increments are built and proven may a separate
-story-author edit add explicit bindings to existing machine legs or change a human witness to
-machine. Each changed leg must name a suite that demonstrably proves its success condition; a leg
-with no such suite remains human.
+The separate story-author migration has now added explicit bindings to existing machine legs across
+six stories. It deliberately left human legs unchanged where no standing command proves the full
+success condition; no witness decision is inferred from this capability alone.

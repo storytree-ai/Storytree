@@ -4,7 +4,7 @@ decided: 2026-06-28
 amends: [117, 42]
 load_bearing: true
 ---
-# ADR-0133: Inner-circle desktop is the priority: finish storytree's tree first, defer the write-broker and hosted studio (secure later)
+# ADR-0133: Inner-circle desktop is the priority; the temporary write-broker deferral has ended
 
 ## Status
 
@@ -19,15 +19,19 @@ and the desktop build mount's live appearance are operator-attested under ADR-00
 > `apps/desktop/src/backend/accept-dispatch.ts` and its sidecar wiring are removed. The rest of the
 > desktop build mount stands: the shared build worker (`BuildRegistry` / `runBuildJob`) and the story
 > detail panel's `/api/build` route are UNCHANGED.
+>
+> **Amended by [ADR-0180](0180-lift-the-desktop-write-broker-deferral-for-brokered-uat-sign.md)**
+> (accepted, 2026-07-10) — the temporary d.2 "secure later" deferral is LIFTED for desktop verdict,
+> UAT-attestation, and presence writes. Those proof writes now follow ADR-0117's brokered target;
+> the desktop-priority call and the remaining decisions here stand.
 
 ## Context
 
-`chat-drive-bridge`'s four machine-provable capabilities are landed and green on `main` — the local
-**propose → accept → drive → land** mechanics exist (ADR-0108 Phase 3+4). What remains is the
-owner-attested live walk (legs 5–6) and one piece of unbuilt glue: the build **worker**
-(`BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild`) lives in `apps/studio/server`, and the
-chat surface (`/api/chat`) lives only on the desktop sidecar; an app may not import another app's
-server (ADR-0100), so the desktop cannot drive a build today.
+At this decision's acceptance, `chat-drive-bridge`'s four machine-provable capabilities were green
+on `main`, but the build worker still lived in `apps/studio/server` while `/api/chat` lived on the
+desktop sidecar. Because an app may not import another app's server (ADR-0100), the desktop could not
+yet drive a build. The shared worker and desktop `/api/build` route subsequently landed; ADR-0155
+later retired the separate propose→accept→dispatch handshake.
 
 The owner's strategic call (2026-06-28): **the inner circle is the priority.** Get co-builders onto the
 **thick-local desktop** so they can help **finish storytree's own tree**, fast, for feedback —
@@ -35,14 +39,15 @@ speed-to-feedback dominates over hardening for this phase.
 
 Two groundings shape the decision:
 
-1. **The desktop build path already runs entirely locally** — a Node sidecar + the spine on the
-   builder's own machine (ADR-0113 / ADR-0119). **Cloud Run hosts only the studio web viewer**
-   (ADR-0042), which is **not** in the desktop path. The desktop's one remaining cloud tie is the
-   shared Cloud SQL **database**, not Cloud Run. "Going all-in on desktop" is therefore well-supported
-   and does not depend on hosted infra.
+1. **The desktop build compute runs locally** — a Node sidecar + the spine on the builder's own
+   machine (ADR-0113 / ADR-0119). At this decision's acceptance, Cloud Run hosted only the studio
+   web viewer and the desktop's cloud tie was a direct shared-Cloud-SQL connection. ADR-0180 later
+   placed the authenticated hosted broker in the desktop proof-write path without moving build
+   compute off the desktop.
 2. **ADR-0117** (decided 2026-06-27) chose a members-gated **write-broker** over the direct per-friend
    Cloud SQL IAM grant, so a co-builder need not hold a direct key to the production DB. It is
-   **partially built** (the desktop write-client landed; the studio broker mount + wiring are open).
+   **partially built at this decision's acceptance** (the desktop write-client had landed; the studio
+   broker mount + wiring were open). ADR-0180 later lifted the temporary deferral for proof writes.
 
 ## Decision
 
@@ -51,27 +56,24 @@ Two groundings shape the decision:
    desktop app (local compute, ADR-0113). They are working on **our** tree — not their own projects
    (that is the post-MVP direction, decision 5). Speed-to-feedback is the goal.
 
-2. **Defer the ADR-0117 write-broker for the inner-circle MVP ("secure later") — amends, does not
-   cancel.** For now, inner-circle builders contribute through the thick-local desktop with the write
-   path **direct** (owner-granted Cloud SQL access, the pre-broker path ADR-0113 §6 described),
-   **consciously accepting the temporary risk ADR-0117 named.** This is bounded by the same two facts
-   ADR-0117 itself relies on: the trust boundary is the inner circle (**trusted with the source**,
-   ADR-0113's precondition), and **CI independently re-proves green before the trunk** (ADR-0022), so a
-   wrong in-store verdict is at worst a briefly-wrong hue. The broker **remains the eventual design**
-   and is the **first "secure later" item** once the circle outgrows "trusted to be truthful." This is
-   a **time-bound deferral, not a reversal** — ADR-0117 stands.
+2. **The ADR-0117 write-broker deferral was temporary and is now ended.** This decision originally
+   permitted the inner-circle MVP to use the direct, owner-granted Cloud SQL path while consciously
+   accepting ADR-0117's risk. [ADR-0180](0180-lift-the-desktop-write-broker-deferral-for-brokered-uat-sign.md)
+   lifted that "secure later" deferral on 2026-07-10 for desktop verdict, UAT-attestation, and presence
+   writes. Those proof writes now go through the authenticated `builder`-gated broker as each caller
+   lands; the temporary direct production-DB exception is no longer the current target.
 
-3. **Build the desktop build-mount (a fresh story for the story-author).** Relocate the worker
+3. **Build the desktop build-mount.** Relocate the worker
    machinery (`BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild` + the `BuildContext` type) out
    of `apps/studio/server` into the shared **`@storytree/drive`** package — it is dependency-light
    (`buildRegistry.ts` → only `node:crypto`; `buildWorker.ts` → only the registry + locally-declared
    structural types) and the build entries it drives (`nodeBuild` / `storyBuild`) already live there —
-   then mount `POST /api/build` + the chat accept→dispatch on the desktop local backend
+   then mount `POST /api/build` on the desktop local backend
    (`electron/backend-entry.ts`), reusing the `BuildContext` wiring `devApi.ts` already uses (lazy
-   `@storytree/drive/build`; `@storytree/orchestrator` discovery for `isBuildable`). The desktop then
-   becomes a complete propose→accept→drive→land surface on the shared tree. The owner's desktop is
-   first-party direct-connect (ADR-0117 already scopes the broker to friends, leaving owner tooling
-   direct); inner-circle builders are direct too under decision 2.
+   `@storytree/drive/build`; `@storytree/orchestrator` discovery for `isBuildable`). ADR-0155 later
+   retired the separate chat accept→dispatch route while leaving the shared worker and `/api/build`
+   route intact. This build-mount mechanism remains local; its proof writes follow ADR-0180's
+   brokered path. Owner first-party CLI/store tooling remains direct under ADR-0117.
 
 4. **De-prioritize the hosted Cloud Run studio (ADR-0042) — not removed.** It remains the read/comment
    members surface, but the **desktop** is where the build-capable inner-circle work happens. The
@@ -89,8 +91,8 @@ Two groundings shape the decision:
 ## Consequences
 
 **Good**
-- **Fastest path to inner-circle feedback.** The desktop already runs the chat + the local spine; this
-  adds the one missing capability (driving a build from the desktop) by **relocating existing,
+- **Fastest path to inner-circle feedback.** The desktop already ran the chat + the local spine; this
+  added the missing build capability by **relocating existing,
   dependency-light, already-green machinery** — no new build path, no hosted infra to stand up.
 - **One shared forest everyone watches.** The inner circle co-builds storytree's own tree on the shared
   store, preserving ADR-0113's shared-forest value.
@@ -98,25 +100,23 @@ Two groundings shape the decision:
   tree" feature needs — this is product-direction work.
 
 **Bad / accepted costs**
-- **Security debt, consciously taken.** Deferring the ADR-0117 broker means inner-circle builders hold
-  a direct line to the production DB until the broker is wired — the exact risk ADR-0117 was created
-  (one day earlier) to remove. Accepted because the trust boundary is the inner circle and CI re-proves
-  green before the trunk (ADR-0022); the broker is the first "secure later" item. **Time-bound, not a
-  reversal.**
+- **The temporary direct-write security debt existed during the MVP deferral.** ADR-0180 ended that
+  deferral for desktop proof writes; completing each brokered caller and the authenticated Electron
+  session composition is now the accepted integration cost.
 - **The hosted studio's build ambitions pause.** Web-viewer-only members don't gain build-from-browser
   (they did not have it in Phase 1 anyway).
 
 **Neutral**
-- ADR-0117 stands as the eventual design; this ADR defers only its *requirement* for the MVP phase.
-  When the circle outgrows "trusted with the source," the broker — and beyond it the hosted worker
-  (ADR-0090 / ADR-0091) — returns.
+- ADR-0117 now stands as the current desktop-proof-write direction after ADR-0180 lifted this ADR's
+  temporary deferral. The fully hosted worker (ADR-0090 / ADR-0091) remains deferred.
 - The owner's own first-party direct-connect tooling is unchanged (as ADR-0117 already stated).
 
 ## References
 
 - [ADR-0117](0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md) — the members-gated
-  write-broker; **amended** (its broker-now requirement deferred for the inner-circle MVP; the broker
-  stands as the eventual design and the first "secure later" item).
+  write-broker; this ADR's temporary deferral of it was lifted by ADR-0180.
+- [ADR-0180](0180-lift-the-desktop-write-broker-deferral-for-brokered-uat-sign.md) — lifts d.2's
+  temporary deferral for desktop verdict, UAT-attestation, and presence writes.
 - [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) — the hosted studio behind IAP; **amended**
   (de-prioritized vs the desktop; remains the read/comment surface).
 - [ADR-0113](0113-thick-local-desktop-for-the-inner-circle-the-drive-machinery.md) — thick-local
@@ -129,6 +129,6 @@ Two groundings shape the decision:
   [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md) — the fully-hosted
   thin-client worker; stays deferred.
 - [ADR-0022](0022-ci-green-gate-and-auto-merge.md) — CI re-proves green before the trunk; the backstop
-  for the deferred-broker risk.
+  during the historical direct-write interval and for brokered build integrity.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — owner-directed in
   conversation → born accepted.

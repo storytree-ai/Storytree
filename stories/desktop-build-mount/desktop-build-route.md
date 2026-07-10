@@ -122,11 +122,11 @@ worker the studio's `handleBuild` mounts — one worker, two surfaces. It does N
 path or fork a second boundary. The studio dev front mounts `/api/build`; this mounts the SAME contract on
 the desktop, where chat already ships.
 
-PROOF INTEGRITY (ADR-0091 / ADR-0117 deferred): the route hands the worker a build intent; the spine inside
-the worker signs from real RED→GREEN; CI re-proves green before the trunk (ADR-0022). The route holds no
-signing key, no verdict path. The write path is DIRECT for the inner-circle MVP (the broker deferred,
-ADR-0133 d.2) — this capability scopes no broker; the direct path's risk ceiling is the briefly-wrong hue CI
-corrects, exactly the ADR-0091 / ADR-0133 d.2 argument.
+PROOF INTEGRITY (ADR-0091 / ADR-0117 / ADR-0180): the route hands the worker a build intent; the spine
+inside the worker signs from real RED→GREEN; CI re-proves green before the trunk (ADR-0022). The route
+holds no signing key and no verdict-input path. ADR-0180 ended ADR-0133 d.2's temporary direct-write
+deferral for desktop proof writes: persistence goes through the authenticated broker as each caller lands,
+while this capability continues to scope only the build-intent route.
 
 OFFLINE-TESTABLE BY INJECTION: the test injects a SCRIPTED `BuildRunner` (emits coarse lines + a terminal
 envelope, no SDK) and an injected `isBuildable`, over the REAL relocated `BuildRegistry`, on a REAL

@@ -7,7 +7,7 @@ outcome: "The Story UAT parser carries each explicit proof-gate annotation into 
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [106]
+decisions: [106, 180]
 # Commit 7f19272 authored this parser pair before the original six-file declaration was audited.
 # It is merged before this node is rerun/landed, so this is honestly an edit-existing increment.
 proof:
@@ -45,12 +45,13 @@ per-leg model without dropping or inventing a binding.
 **Depends on —** nothing within this story. This is the data boundary consumed by
 [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md).
 
-> **Proof status (honest) — `proposed`.** Inner-loop run commit `7f19272` touched only
-> `packages/library/src/uat-tests.{ts,test.ts}` and implemented the parser increment. The earlier
-> six-file capability claimed resolver and adopt contracts that run did not touch or prove
-> (verdict coverage 0/3). This node now names only the pair actually placed under the spotlight.
-> `editsExisting: true` is required because `7f19272` will be merged before this node is rerun and
-> landed. No resolver, command-observation, signing, or witness-label claim is made here.
+> **Proof status (honest) — authored `proposed`, REAL-proven.** The parser pair was driven through
+> the inner loop in runs `real-mrf0hkoh` and `real-mrf0tr8s`; the completed proof commit is
+> `c49e179`. The signed verdict, not authored frontmatter, derives proof health (ADR-0020). This node
+> still claims only `packages/library/src/uat-tests.{ts,test.ts}`; resolver, command observation,
+> signing, and witness-label migration remain separate units. Advisory `check:coverage` still reports
+> this contract `0/1` because no test title carries `parses-explicit-uat-proof-gate`; the substantive
+> parser assertions pass, but that static contract-name link remains unresolved.
 
 ## Proof walkthrough (written first)
 
@@ -93,7 +94,7 @@ and refuses malformed authoring without involving gate resolution or the drive.
 
 ## Follow-up machine-witness authoring
 
-Keep every current UAT witness label unchanged. Parsing alone is not machine proof. The separate
-follow-up may bind or re-author witnesses only after
-[`uat-machine-gate-resolution`](uat-machine-gate-resolution.md) and
-[`uat-bound-command-adoption`](uat-bound-command-adoption.md) are both built and proven.
+The downstream resolver and adoption units are now REAL-proven, and the separate story-author
+migration has added explicit bindings to existing machine legs across six stories. Human legs whose
+full live success condition still lacks a standing command remain human; parser success alone never
+justifies changing their witness.

@@ -305,35 +305,36 @@ legs.
 > machine-proven, the on-screen appearance is human-witnessed; and a live spawn is subscription-billed
 > and writes real files, so it is not run on a gate pass), NOT standing tests.
 >
-> **Per-leg witness (ADR-0106).** Legs 1–4 are `witness: machine`; legs 5–7 are `witness: human`. No
-> leg rests `either`. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
-> signpost), so the machine-driven whole-story UAT node stays withheld; the crown derives from the
-> per-leg roll-up.
+> **Per-leg witness (ADR-0106).** Legs 1–4 are `witness: machine`, each bound to the exact package
+> observe gate that proves it: leg 1 → `spawn-visibility#gate-1`, leg 2 → `#gate-2`, and legs 3–4 →
+> `#gate-3`. Legs 5–7 are `witness: human`. No leg rests `either`. The story-level `uat_witness` is
+> absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays
+> withheld; the crown derives from the per-leg roll-up.
 
 **Goal —** A desktop chat spawn is VISIBLE where it happens: the operator reads a spawn line in the
 transcript as the subagent starts and finishes, and — for a story the spawn just authored — watches
 its island appear live on the forest map with its claim wisp lit, without reloading anything.
 
 1. **The spawn trace is surfaced as an ordered chat event and still bumps the heartbeat.**
-   _(witness: machine)_ Drive `startChatStream` with a scripted `queryFn` and a scripted spawn double
+   _(witness: machine)_ _(proof-gate: spawn-visibility#gate-1)_ Drive `startChatStream` with a scripted `queryFn` and a scripted spawn double
    that fires `spawn_started` then `spawn_finished`. **Success —** the stream yields two non-terminal
    `spawn` events (`{ type: "spawn", phase: "started"|"finished", role, unitId, ok? }`) in order,
    interleaved with any `delta`s on the SAME FIFO, before the terminal `done`; each trace ALSO bumped
    the claim heartbeat (ADR-0138 §4 preserved); and a session run WITHOUT spawn deps yields NO `spawn`
    events (byte-identical to today).
-2. **The advisory claims read survives a DB cold-start.** _(witness: machine)_ Run the advisory reader
+2. **The advisory claims read survives a DB cold-start.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-2)_ Run the advisory reader
    over an injected `inFlightClaims` fn that resolves slower than 4s but under the softened budget.
    **Success —** the claims read returns the claim (not null) because it got the per-read override /
    one retry; the other four overlay reads keep their 4s budget (a slow verdicts/activity/presence read
    still nulls at 4s — `/api/tree` never hangs); and a GENUINELY failing/absent claims read still
    returns null (the ADR-0033 advisory contract intact, never a throw).
-3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ Render
+3. **The chat panel renders the spawn line off the wire frame.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render
    `<ChatPanel/>` given a scripted `api` stream that emits a `spawn` frame (`phase: "started"`, role
    `story-author`) then `phase: "finished"`. **Success —** the panel's `ChatEvent` union + `isChatEvent`
    guard accept the `spawn` frame, the panel renders a "🔧 spawning story-author for `<id>`…" line that
    resolves to "✓ story-author finished", and the thin client imports no drive/agent/model
    (`modelPathBoundary.test.ts` green). (This proves GEOMETRY/BEHAVIOUR; the on-screen look is leg 5.)
-4. **A story-author finish triggers a live tree reload.** _(witness: machine)_ Render the dock/panel
+4. **A story-author finish triggers a live tree reload.** _(witness: machine)_ _(proof-gate: spawn-visibility#gate-3)_ Render the dock/panel
    given a `spawn`-finished frame for a `story-author`. **Success —** `ChatDock` invokes the injected
    `reloadTree` callback EXACTLY once for a story-author finish (and NOT for a builder finish, nor for
    `started`), the callback is a plain prop (no drive/agent import), and the reload path is the same
@@ -399,8 +400,8 @@ half — `healthy` still DERIVES from a signed verdict (ADR-0020), never authore
 
 Adopting these three gates signs one `adopted` verdict per gate (signer = the spine principal that
 witnessed the green, approvedBy = the owner adopting it) and observe-signs the four machine UAT legs
-(1–4) against the first observe gate's suite (ADR-0106), then flips the authored status `mapped →
-proposed` ("adoption underway", ADR-0097). No single gate greens the story: `healthy` stays
+(1–4) against their explicitly bound package suites (ADR-0106), then flips the authored status
+`mapped → proposed` ("adoption underway", ADR-0097). No single gate greens the story: `healthy` stays
 non-authorable (ADR-0020) — the crown DERIVES green once every capability is covered, every machine UAT
 leg is signed, and the human legs 5–7 are attested (they already are).
 

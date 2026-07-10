@@ -33,8 +33,9 @@ consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the SDK leaf (30),
 # promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), the
 # inner-loop-expansion keystone — node-borne proof config (57) — gate-as-proof authoring (59),
-# and the drive-package extraction that gave this story its own @storytree/drive home (112).
-decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112]
+# the drive-package extraction that gave this story its own @storytree/drive home (112), and the
+# fail-closed per-UAT-leg proof binding required by ADR-0180 d.5.
+decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180]
 ---
 
 # The drive machinery
@@ -45,32 +46,31 @@ the proven commit through the merge gate.
 This is the story home for storytree's own build machinery: the prove-it-gate (ADR-0020), the
 node/story build drive (`node build` / `story build`, PRs #26–#30), REAL worktree builds and
 promotion (ADR-0031), the leaf's bounded feedback tools (ADR-0035), and the OQ-hygiene gate on
-live story builds (ADR-0037 §5). Per the V1 lesson recorded in ADR-0031 §3, **machinery is
+live story builds (ADR-0037 §5), plus ADR-0180's strict per-machine-UAT proof binding. Per the V1
+lesson recorded in ADR-0031 §3, **machinery is
 ordinary work in the ordinary tree** — it gets a normal story, not a special meta-corner. It spans
-three packages — `packages/orchestrator` (the spine), the work/verdict halves of `packages/core` +
-`packages/store`, and the build/orchestrate drivers in `packages/drive` (carved out of
-`packages/cli` per ADR-0112, re-exported through cli's `./build` subpath for back-compat) — the same
-multi-package organism shape as `library`.
+the spine in `packages/orchestrator`, proof DATA in `packages/proof-protocol`, event persistence in
+`packages/library/src/store`, and the build/orchestrate drivers in `packages/drive` (carved out of
+`packages/cli` per ADR-0112, re-exported through cli's `./build` subpath for back-compat) — a
+multi-package organism joined only through declared ports and package seams.
 
 ## Honest status
 
 **`mapped` (brownfield), NOT `healthy`, no longer thinly mapped.** The machinery's dominant
-behaviour is observationally verified by real, passing, OFFLINE suites I ran on 2026-06-13:
-`@storytree/orchestrator` **99/99**, the drive's tests (since ADR-0112 resident in
-`@storytree/drive`, moved verbatim from `@storytree/cli`) **110/110**, the rollup/work-store halves
-inside `@storytree/core` **124/124** and `@storytree/store` **40 pass + 2 live-gated skips**. Per `docs/glossary.md` that observational green is exactly brownfield
-`mapped` — storytree's own prove-it-gate did not drive these proofs red→green (the pleasing irony:
+behaviour is observationally verified by the real, passing offline orchestrator, CLI, drive, and
+store suites. Per the Library's lifecycle definitions that observational green is brownfield
+`mapped` — storytree's own prove-it-gate did not drive the original proofs red→green (the pleasing irony:
 the gate cannot easily prove itself; re-running these assertions UNDER the gate is the bootstrap
 step that would start earning `healthy`). The `proposed` pockets are pinned per capability; the
 recurring shape is *offline-proven mechanics, live-attested-but-not-standing-tested live legs*
 (the SDK leaf, the GitHub push, the live Postgres SQL, the live OQ loader).
 
-**Buildability is separate from authoredness:** of these nodes only `verdict-line` carries proof
-config today (now a spec-borne `proof:` block, ADR-0057 — no longer a registry entry), so
-`story build drive-machinery` would still refuse fail-closed at the build-config precheck for the
-other capabilities. Declaring how to prove each capability is a deliberate later act — but it is now
-done by AUTHORING a `proof:` block in the node's own spec, not by an orchestrator-registry edit
-(authoring IS the buildable-node gate; that is exactly what `spec-borne-proof-config` delivered).
+**Buildability is separate from authoredness:** `verdict-line` and the three strict UAT-binding
+nodes carry spec-borne `proof:` blocks today (ADR-0057 — no registry entry). A whole
+`story build drive-machinery` still refuses fail-closed because the remaining capabilities have no
+build config. Declaring how to prove each capability is a deliberate act, done by AUTHORING a
+`proof:` block in the node's own spec rather than by an orchestrator-registry edit (authoring IS the
+buildable-node gate; that is exactly what `spec-borne-proof-config` delivered).
 
 ## The PhaseAuthor seam is CONSUMED, not owned (the modeling call — now SETTLED)
 
@@ -230,15 +230,17 @@ coupling) and marked.
     command for both the CONFIRM observations and the `run_proof` feedback tool) and threads the
     command's display into `realPrompts`. The 7 default nodes are unchanged (the A parity guard stays
     green). No `test-command-registry.ts` change; no new ADR (ships under ADR-0057 §3 + ADR-0020).
-- `uat-machine-proof-binding` *(PROPOSED parser root — commit `7f19272` authored only this pair)*
+- `uat-machine-proof-binding` *(authored `proposed`, REAL-proven — completed proof commit `c49e179`)*
   - `uat-tests.ts` parses the explicit `proof-gate` annotation into the strict per-leg model;
     `uat-tests.test.ts` is its complete literal edit-existing REAL proof pair. It has no within-story
     prerequisite and claims no resolver or adopt behaviour.
-- `uat-machine-gate-resolution` → `uat-machine-proof-binding` *(PROPOSED — not yet built)*
+- `uat-machine-gate-resolution` → `uat-machine-proof-binding` *(authored `proposed`, REAL-proven —
+  proof commit `28be1de`)*
   - `witness-resolution.ts` consumes the parser's exact `proofGateId` and returns only its named
     command-bearing observe gate or an explicit refusal. Its literal edit-existing REAL pair is
     `witness-resolution.{ts,test.ts}`.
-- `uat-bound-command-adoption` → `build-drive-cli`, `uat-machine-gate-resolution` *(PROPOSED — not yet built)*
+- `uat-bound-command-adoption` → `build-drive-cli`, `uat-machine-gate-resolution` *(authored
+  `proposed`, REAL-proven — completed proof commit `a7389fb`)*
   - `adopt.ts` extends the existing `runAdopt` drive entry and consumes the exact resolved command
     before signing a machine UAT id. Its literal edit-existing REAL pair is `adopt.{ts,test.ts}`.
     These three increments replace the earlier six-file unit whose spotlight proved only parsing.
@@ -285,21 +287,21 @@ drives a registered node from spec to a landed, signed, persisted proof.
 > the paid blind dogfood, 2026-06-15, 3/3 probes end to end. So the story's own acceptance proof is
 > **part-scripted, part-attested**.
 >
-> **Machine re-authoring is intentionally held.** The owner wants legs 3, 4, and 7 to become
-> machine-witnessed, but their labels remain `human` until all three independently proved increments
-> land: parser [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
+> **Machine re-authoring remains blocked for the live legs.** The parser
+> [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
 > [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
-> [`uat-bound-command-adoption`](uat-bound-command-adoption.md). Only then may a separate story-author
-> edit add an explicit gate binding to every machine leg (including existing legs 1, 2, 5, and 6)
-> and flip 3, 4, and 7 only with bindings to suites that demonstrably prove them.
-> Pointing every leg at the first observe gate would forge coverage, so no witness changes occur here.
+> [`uat-bound-command-adoption`](uat-bound-command-adoption.md) have now established the strict
+> no-fallback binding rule. Existing machine legs 1, 2, 5, and 6 therefore name the exact observe gate
+> whose command proves them. The owner's requested conversion of legs 3, 4, and 7 is still blocked:
+> no standing machine suite proves their full live success conditions, so they remain `human`.
+> Pointing them at an offline mechanics suite would forge coverage.
 
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
 through the merge gate, refusing every dishonest shortcut along the way.
 
-1. **Orient** _(witness: machine)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes.
+1. **Orient** _(witness: machine)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node` lists the registered (buildable) and REAL-buildable nodes.
    **Success —** a help envelope naming both sets. *(proven: `node-build.test.ts:102`)*
-2. **Prove the glue first** _(witness: machine)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the
+2. **Prove the glue first** _(witness: machine)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree node build verdict-line --dry-run`. **Success —** the
    full phase trail, a signed (in-memory) verdict, a derived rollup, and the honest dry-run
    framing. *(proven: `node-build.test.ts:17`, `:74`)*
 3. **The REAL build** _(witness: human)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh
@@ -313,12 +315,12 @@ through the merge gate, refusing every dishonest shortcut along the way.
 4. **Land it** _(witness: human)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the
    verdict's `commitSha` stays an ancestor of `main` (ADR-0031/0022). **Success —** the proven
    commit is reachable from `main`. *(attested: commit `0e8f4ba` is in this branch's ancestry)*
-5. **Chain a story** _(witness: machine)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities
+5. **Chain a story** _(witness: machine)_ _(proof-gate: drive-machinery#gate-2)_: `pnpm storytree story build library --dry-run`. **Success —** capabilities
    topo-ordered from `depends_on`, the story's UAT node last, every node signed over ONE event
    log, halt-is-never-a-pass. *(proven: `packages/cli/src/story-build.test.ts:17` — the integration test stays cli-resident;
    ADR-0112 moved only the `story build` driver it exercises into `@storytree/drive`; the live chain
    attested: library 8/8 signed passes, $0.48)*
-6. **Refuse the dishonest paths** _(witness: machine)_: `--store pg` with `--dry-run` is refused (a scripted PASS
+6. **Refuse the dishonest paths** _(witness: machine)_ _(proof-gate: drive-machinery#gate-4)_: `--store pg` with `--dry-run` is refused (a scripted PASS
    persisted would be a forged healthy); a live story build with an unprocessed operator answer on
    a deciding ADR's OQ is refused with the three paths out. *(proven:
    `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
@@ -356,10 +358,13 @@ names (d.3 retired the status-blind Build for `mapped` stories).
 
 The machinery's offline behaviour spans **three suites** — the spine (`@storytree/orchestrator`), the
 CLI-resident build-drive + ADR-authoring integration tests (`@storytree/cli`), and the carved-out drive
-package (`@storytree/drive`, ADR-0112) — so its reliability floor adopts all three, **one consolidated
-observe gate each**, every gate naming the capabilities it `(covers:)` (ADR-0097 — three gates over 18
-capabilities reads cleaner than 18 per-cap gates, the same multi-cover shape the `library` story uses).
-The three gates cover the 18 already-built capabilities. The 18th —
+package (`@storytree/drive`, ADR-0112) — so its capability reliability floor adopts one consolidated
+observe gate per suite, every gate naming the capabilities it `(covers:)` (ADR-0097 — three
+capability-covering gates over 18 capabilities reads cleaner than 18 per-cap gates, the same multi-cover
+shape the `library` story uses). A fourth, command-bearing observe gate runs the CLI and drive suites
+together solely for Story UAT leg 6, whose two refusal assertions span those packages; it carries no
+`(covers:)` because the first three gates already cover the capabilities. The first three gates cover
+the 18 already-built capabilities. The 18th —
 [`adoption-pocket-classifier`](adoption-pocket-classifier.md)
 — was authored `proposed` (would-be) and deliberately left uncovered; its behaviour has since been
 BUILT outer-loop (2026-06-27, `assembleProposal` + `adopt plan --readings`, commit `2c170db`) with a
@@ -369,9 +374,10 @@ still MEANS every built pocket got real coverage — this one's coverage is real
 Capabilities 19–21 — parser
 [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
 [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
-[`uat-bound-command-adoption`](uat-bound-command-adoption.md) — are genuinely `proposed` and
-uncovered while awaiting their separate declared red→green builds. None may be folded into an
-observe gate over a suite until its own literal REAL pair contains and proves that behaviour.
+[`uat-bound-command-adoption`](uat-bound-command-adoption.md) — retain authored `proposed` status
+while their separate signed REAL verdicts derive proof health (ADR-0020). They are intentionally not
+folded into the three brownfield capability-covering observe gates: each was driven red→green through
+its own literal REAL pair.
 
 Distinct from `## Story UAT` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
@@ -417,8 +423,15 @@ the existing green is the honest brownfield floor.
    drive-machinery#gate-3 --pg`). Since ADR-0112 the OQ-hygiene loader + its test live in `@storytree/drive`;
    that suite runs much more (other stories' drive surfaces), but `oq-hygiene-gate` is the only
    drive-machinery capability whose offline proof is resident there.
+4. **The dishonest-path refusal pair is green** _(gate: observe)_ `pnpm --filter @storytree/cli --filter @storytree/drive test`.
+   The spine OBSERVES both suites through one executable pnpm command at a clean HEAD: the CLI-resident
+   integration test refuses `--store pg` with `--dry-run`, and the drive-resident OQ-hygiene test refuses
+   a live story build with an unprocessed operator answer on a deciding ADR. Together they prove the
+   whole of Story UAT leg 6, which binds to `drive-machinery#gate-4`. This gate carries no `(covers:)`;
+   gates 2 and 3 already cover the owning capabilities, and this combined command exists only because
+   no single existing gate command proved both halves of the UAT leg.
 
-Adopting all three flips the tier off `mapped`. `healthy` stays non-authorable
+Adopting all four flips the tier off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only

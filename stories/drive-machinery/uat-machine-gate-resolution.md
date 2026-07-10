@@ -7,7 +7,7 @@ outcome: "Each parsed machine UAT leg resolves only to its named command-bearing
 status: proposed
 proof_mode: integration-test
 depends_on: [uat-machine-proof-binding]
-decisions: [106]
+decisions: [106, 180]
 proof:
   command:
     file: pnpm
@@ -43,10 +43,12 @@ with every missing or ineligible binding refused.
 **Depends on —** [`uat-machine-proof-binding`](uat-machine-proof-binding.md) — resolution consumes
 the parser's exact optional `proofGateId`; it does not reparse prose or infer a replacement.
 
-> **Proof status (honest) — `proposed`.** Commit `7f19272` did not touch
-> `witness-resolution.{ts,test.ts}`, so it proved none of this capability. The existing resolver
-> still represents the pre-binding behaviour until this literal edit-existing REAL pair is driven
-> red→green. No adopt or verdict-signing behaviour is claimed here.
+> **Proof status (honest) — authored `proposed`, REAL-proven.** Run `real-mrf0xzoc` drove the
+> literal `witness-resolution.{ts,test.ts}` pair red→green and produced proof commit `28be1de`.
+> The signed verdict, not authored frontmatter, derives proof health (ADR-0020). No adopt or
+> verdict-signing behaviour is claimed here. Advisory `check:coverage` still reports this contract
+> `0/1` because no test title carries `resolves-only-the-declared-gate`; the substantive resolver
+> assertions pass, but that static contract-name link remains unresolved.
 
 ## Proof walkthrough (written first)
 
@@ -95,6 +97,6 @@ choosing the first observe gate cannot accidentally pass. No DB, subprocess, or 
 
 ## Follow-up machine-witness authoring
 
-Keep every current UAT witness label unchanged. Exact resolution still does not prove that
-`runAdopt` consumes the resolved command when signing. Witness binding/re-authoring waits until
-[`uat-bound-command-adoption`](uat-bound-command-adoption.md) is also built and proven.
+[`uat-bound-command-adoption`](uat-bound-command-adoption.md) is now REAL-proven, and the separate
+story-author migration has bound existing machine legs to exact command-bearing observe gates.
+Human legs whose full live success condition still lacks a standing command remain human.

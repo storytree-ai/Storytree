@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-07-10
 amends: [117, 133]
+load_bearing: true
 ---
 # ADR-0180: Lift the desktop write-broker deferral for brokered UAT signing
 
@@ -62,15 +63,19 @@ experience and Electron-session wiring in addition to the already-tested broker 
 tests prove the permission, signing, and refusal cores; the live IAP-cookie handoff remains an
 operator-attested leg.
 
-Drive-machinery's three currently-human UAT legs are not relabelled until their explicit machine
-proof bindings exist. This prevents the current first-observe-gate fallback from minting unrelated
-passes.
+The strict parser → exact resolver → bound-command adoption chain now refuses the former
+first-observe-gate fallback. Existing machine legs carry explicit bindings. Drive-machinery's three
+live, currently-human legs remain human because no standing machine command proves their full
+success conditions; an annotation alone cannot manufacture that evidence.
 
 ## References
 
 - ADR-0117 — members-gated write broker and builder role.
 - ADR-0133 — desktop priority and the broker deferral lifted here.
 - ADR-0082 — per-test UAT verdicts and the no-self-attestation guard.
+- `stories/drive-machinery/uat-machine-proof-binding.md`
+- `stories/drive-machinery/uat-machine-gate-resolution.md`
+- `stories/drive-machinery/uat-bound-command-adoption.md`
 - `apps/studio/server/writeBroker.ts`
 - `apps/desktop/src/backend/forest-readiness.ts`
 - `apps/studio/src/components/TreeView.tsx`

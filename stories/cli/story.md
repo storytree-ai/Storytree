@@ -5,10 +5,10 @@ title: "The CLI — one agent-facing command surface that wires every organism t
 outcome: "Every organism is reachable through one agent-facing CLI that hydrates credentials, dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition root that wires the system into one command."
 status: proposed
 proof_mode: UAT
-# Agent-exercised: the UAT is an agent running a few core commands and reading the envelope, so the
-# story is machine-witnessed (ADR-0040). Offline commands run with no DB; the live `--pg` legs are
-# DB-gated like library/store's.
-uat_witness: machine
+# Per-leg witness: the three offline command legs are machine-witnessed by the CLI suite and bind to
+# cli#gate-1. The live `--pg` credential-hydration + pull has no standing suite that runs it (the DB
+# path is skipped by default), so that leg is human-witnessed. With a mixed UAT the story-level
+# `uat_witness` stays absent → human (ADR-0040); the crown derives from the per-leg roll-up.
 capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
@@ -117,24 +117,25 @@ consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imp
 ## Story UAT
 
 The integrated acceptance walkthrough that proves the whole `cli` organism end-to-end — *an agent
-runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. Every leg is an **agent
-(machine) exercise** (`_(witness: machine)_`); the live `--pg` leg is DB-gated (CI is DB-free). The
-list is **expandable** — each real defect earns a permanent regression leg.
+runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. The three offline legs are
+machine exercises bound to the CLI suite's observe gate. The live `--pg` credential-hydration + pull
+has no standing test that runs rather than skips it, so it is human-witnessed until real machine proof
+exists. The list is **expandable** — each real defect earns a permanent regression leg.
 
 **Goal —** One agent reaches multiple organisms through the one binary: it explores the library
 offline, is refused an offline write, and (DB up) pulls live — each command returning a typed
 envelope.
 
-1. **Dispatch + envelope, offline:** _(witness: machine)_ run `pnpm storytree library`. **Success —**
+1. **Dispatch + envelope, offline:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library`. **Success —**
    the shim seeds an in-memory store and returns `ok:true` with the dashboard banner + a `next:`
    block — no DB needed.
-2. **Reach another organism:** _(witness: machine)_ run `pnpm storytree tree drive-machinery`.
+2. **Reach another organism:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree tree drive-machinery`.
    **Success —** the same binary dispatches to the tree surface and renders the hierarchy offline
    (no presence lines, no error) — proving the verb router reaches a second organism.
-3. **Write gate:** _(witness: machine)_ run `pnpm storytree library artifact new --file <doc.json>`
+3. **Write gate:** _(witness: machine)_ _(proof-gate: cli#gate-1)_ run `pnpm storytree library artifact new --file <doc.json>`
    WITHOUT `--pg`. **Success —** `ok:false` with "writes go to the shared store … run with --pg" and
    a non-zero exit — the offline-safe write gate.
-4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree
+4. **Credential hydration + live pull:** _(witness: human)_ with `pnpm db:up`, run `pnpm storytree
    library artifact <id> --pg` (no env prefix). **Success —** `secrets.ts` hydrated
    `STORYTREE_DB_USER`, the live read returned `ok:true` — the shim wired the live store in.
 
@@ -145,7 +146,7 @@ the write gate + credential hydration proven.
 
 The CLI hub is **brownfield** (`status: mapped`): `packages/cli` has a real, passing, OFFLINE
 automated suite that observationally verifies the dominant dispatch / envelope / write-gate / corpus-
-guard behaviour (the live `--pg` legs are DB-gated and skipped by default), but storytree's own prove-
+guard behaviour (the live `--pg` leg is DB-gated and skipped by default), but storytree's own prove-
 it-gate never DROVE those proofs red→green. So its honest path off `mapped` is **not** a fail-closed
 `--real` Build over a mature artifact with no genuine live red — it is the author-declared
 **reliability gates** below, observe-and-signed to an `adopted` verdict
@@ -179,8 +180,8 @@ Adopting this gate flips the hub off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
-when every capability is `healthy` AND every own-proof obligation (the machine-witnessed Story UAT legs
-above AND this reliability gate) is signed
+when every capability is `healthy` AND every own-proof obligation (the three machine-witnessed Story
+UAT legs bound to `cli#gate-1`, the human-witnessed live leg, and this reliability gate) is signed
 ([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
@@ -188,9 +189,9 @@ ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 **Honest status — `mapped` (brownfield), NOT `healthy`.** `packages/cli` has a real, passing,
 offline automated suite (the dominant dispatch/envelope/guard behaviour is observationally verified;
-the live `--pg` legs are gated and skipped by default). Per the glossary that is brownfield `mapped`
+the live `--pg` leg is gated and skipped by default). Per the glossary that is brownfield `mapped`
 — storytree's prove-it-gate has not driven these red→green, so nothing here is `healthy`. The
-live-DB credential-hydration + pull (step 4) is the `proposed`-flavoured pocket.
+live-DB credential-hydration + pull (step 4) is the `proposed`-flavoured, human-witnessed pocket.
 
 ## Open modeling calls (for the owner)
 
