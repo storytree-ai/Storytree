@@ -84,8 +84,18 @@ export function serveStudio(
         ? candidate
         : indexHtml;
 
+    if (!existsSync(target)) {
+      res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+      res.end(`studio bundle missing: ${target}`);
+      return;
+    }
     res.writeHead(200, { "content-type": CONTENT_TYPES[extname(target)] ?? "application/octet-stream" });
-    createReadStream(target).pipe(res);
+    const stream = createReadStream(target);
+    stream.on("error", (err) => {
+      if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(err.message);
+    });
+    stream.pipe(res);
   });
 
   return new Promise((resolve, reject) => {

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -77,6 +78,15 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Fail closed when the compiled studio bundle is absent — the shell cannot render without it. */
+function requireStudioDist(): void {
+  const indexHtml = join(STUDIO_DIST, "index.html");
+  if (existsSync(indexHtml)) return;
+  throw new Error(
+    `the studio UI bundle is missing (${STUDIO_DIST}) — run "pnpm --filter studio build" in this checkout, then Retry`,
+  );
+}
+
 /**
  * Spawn the thick-local backend sidecar as a child Node process via the Electron binary in Node mode
  * (`ELECTRON_RUN_AS_NODE=1`, `--import tsx`) so no separate `node`/`tsx` on PATH is assumed (ADR-0119
@@ -144,28 +154,37 @@ async function ensureStudioServed(): Promise<string> {
   return studioUrl;
 }
 
+async function safeLoadURL(win: BrowserWindow, url: string): Promise<void> {
+  if (win.isDestroyed()) return;
+  try {
+    await win.loadURL(url);
+  } catch (err) {
+    if (!win.isDestroyed()) throw err;
+  }
+}
+
 function launchBackendForWindow(win: BrowserWindow, showStarting = true): Promise<void> {
   if (startupInFlight !== null) return startupInFlight;
   const attempt = (async () => {
     try {
       if (showStarting) {
-        await win.loadURL(launchPage("Starting storytree", "Checking the checkout and database…", false));
+        await safeLoadURL(win, launchPage("Starting storytree", "Checking the checkout and database…", false));
       }
+      requireStudioDist();
       backendPort = await startBackend();
       const url = await ensureStudioServed();
-      if (!win.isDestroyed()) await win.loadURL(url);
+      await safeLoadURL(win, url);
     } catch (err) {
       const reason = errorMessage(err);
       console.error(`[main] thick-local backend failed to start: ${reason}`);
-      if (!win.isDestroyed()) {
-        await win.loadURL(
-          launchPage(
-            "storytree could not start",
-            `The local backend refused to launch.\n\n${reason}`,
-            true,
-          ),
-        );
-      }
+      await safeLoadURL(
+        win,
+        launchPage(
+          "storytree could not start",
+          `storytree could not finish launching.\n\n${reason}`,
+          true,
+        ),
+      );
     }
   })();
   startupInFlight = attempt.finally(() => {
@@ -190,7 +209,7 @@ async function createWindow(): Promise<void> {
     event.preventDefault();
     void launchBackendForWindow(win);
   });
-  await win.loadURL(launchPage("Starting storytree", "Checking the checkout and database…", false));
+  await safeLoadURL(win, launchPage("Starting storytree", "Checking the checkout and database…", false));
   void launchBackendForWindow(win, false);
 }
 
