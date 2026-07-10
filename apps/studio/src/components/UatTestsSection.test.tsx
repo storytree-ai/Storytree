@@ -8,8 +8,8 @@
 // witness=machine|human TEXT label are gone (owner UX call). Plus the ADR-0106 d.1 guard: when the
 // server flags an adopted story's still-undecided legs, the panel nudges the author to resolve them.
 //
-// The api client is mocked (no fetch, no dev server) and useAppData is stubbed to an admin, so the
-// panel renders deterministically from an injected attestations payload.
+// The api client is mocked (no fetch, no dev server) and useAppData is stubbed to a desktop member
+// carrying the narrow UAT permission, proving signing no longer requires a fake admin role.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, cleanup, fireEvent } from '@testing-library/react';
@@ -19,8 +19,13 @@ const apiMock = vi.hoisted(() => ({
   attestations: vi.fn<(storyId: string) => Promise<AttestationsPayload>>(),
   signUat: vi.fn(),
 }));
+const appDataMock = vi.hoisted(() => ({
+  me: { role: 'member', canAttestUat: true } as { role: 'admin' | 'member'; canAttestUat?: boolean },
+}));
 vi.mock('../api', () => ({ api: apiMock }));
-vi.mock('../lib/appData', () => ({ useAppData: () => ({ me: { role: 'admin' } }) }));
+vi.mock('../lib/appData', () => ({
+  useAppData: () => ({ me: appDataMock.me }),
+}));
 
 import { UatTestsSection } from './TreeView';
 
@@ -34,6 +39,7 @@ function payload(tests: UatTestRow[], over: Partial<AttestationsPayload> = {}): 
 beforeEach(() => {
   apiMock.attestations.mockReset();
   apiMock.signUat.mockReset();
+  appDataMock.me = { role: 'member', canAttestUat: true };
 });
 afterEach(() => cleanup());
 
@@ -58,6 +64,18 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
       name: /machine leg: machine-witnessed, not yet proven/i,
     });
     expect(machineBtn.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('keeps a plain member without the narrow UAT permission non-signable', async () => {
+    appDataMock.me = { role: 'member' };
+    apiMock.attestations.mockResolvedValue(
+      payload([{ id: 'agent#uat-2', title: 'human leg', witness: 'human' }]),
+    );
+    render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    await flush();
+    expect(
+      screen.getByRole('button', { name: /human leg: human-witnessed, not yet proven/i }).hasAttribute('disabled'),
+    ).toBe(true);
   });
 
   it('renders a person icon for a human leg and a robot icon for a machine leg', async () => {
