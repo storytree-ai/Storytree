@@ -2,31 +2,69 @@
 id: "credential-broker"
 tier: capability
 story: desktop
-title: "The credential broker safely supplies each independently namespaced runtime credential only to its authorized operation"
-outcome: "The desktop safely brokers each independently namespaced runtime credential from the OS keychain to only its authorized operation without renderer disclosure or process-lifetime residue."
+title: "The credential broker and desktop-only Credentials panel let the member store, check, and remove each runtime credential without renderer recovery"
+outcome: "The member configures each independently namespaced runtime credential through a desktop-only settings panel and the main-process broker stores it in the OS keychain for only its authorized operation without the renderer ever recovering a stored value or retaining process-lifetime residue."
 status: proposed
 proof_mode: contract-test
 depends_on: []
-decisions: [109, 111, 177]
+decisions: [109, 111, 177, 179]
+# Node-borne proof config (ADR-0057 keystone): the broker's main-process contracts (1–4) are already
+# green in apps/desktop. THIS block authors the NET-NEW renderer Credentials panel — a studio frontend
+# component feature-gated on `window.desktopAuth` (ADR-0179). FRONTEND-BUILDER TWO-STAGE (ADR-0070):
+# the `real:` arm proves GEOMETRY/BEHAVIOUR ONLY (feature gate, three rows, one-way store, boolean
+# status, per-kind sign-out, blank refusal) over an injected `desktopAuth` fake; the real Cursor-key
+# round-trip in a running desktop app is operator-attested below, not machine-asserted here.
+# CRITICAL — apps/studio is VITEST + jsdom, NOT node:test → `real.proofCommand` runs the ONE file under
+# vitest (the chat-panel precedent).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
+    sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
+  real:
+    testFile: "apps/studio/src/components/CredentialsPanel.test.tsx"
+    sourceFile: "apps/studio/src/components/CredentialsPanel.tsx"
+    scope:
+      testGlobs: ["apps/studio/src/components/CredentialsPanel.test.tsx"]
+      sourceGlobs: ["apps/studio/src/components/CredentialsPanel.tsx"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "studio", "typecheck"]
+    proofCommand:
+      file: pnpm
+      args:
+        - "--filter"
+        - "studio"
+        - "exec"
+        - "vitest"
+        - "run"
+        - "src/components/CredentialsPanel.test.tsx"
 ---
 
-# The credential broker safely supplies each independently namespaced runtime credential only to its authorized operation
+# The credential broker and desktop-only Credentials panel let the member store, check, and remove each runtime credential without renderer recovery
 
-**Outcome —** The desktop safely brokers each independently namespaced runtime credential from the OS
-keychain to only its authorized operation without renderer disclosure or process-lifetime residue.
+**Outcome —** The member configures each independently namespaced runtime credential through a
+desktop-only settings panel and the main-process broker stores it in the OS keychain for only its
+authorized operation without the renderer ever recovering a stored value or retaining process-lifetime
+residue.
 
-This remains **one capability** for the first minimum-green Cursor credential-storage increment. Its
-single walkthrough starts with one requested credential kind and proves the same boundary end to end:
-that kind is independently stored, exposed to only its authorized operation for only that operation's
-lifetime, and never disclosed to the renderer. The new Cursor kind does not create a second consumer
-journey; it extends the existing broker vocabulary and exercises the same keychain-to-operation
-boundary.
+This remains **one capability** for the first minimum-green desktop credential surface (ADR-0179). Its
+single walkthrough proves the transient-entry boundary end to end: each kind is independently
+stored through the panel, checked by boolean-only status, removable per kind, brokered to only its
+authorized operation for only that operation's lifetime, and never read back into the renderer. The
+three-kind broker core (PR #662) and the Credentials panel (ADR-0179) are the same journey — secure
+plumbing without an application affordance cannot complete credential hosting.
 
-The broker speaks to a narrow **`KeychainPort`** (`set` / `get` / `delete` verbs) rather than to any
-concrete secret store. CI uses `InMemoryKeychain` plus an injected environment, so every automated
-contract below is offline and cannot touch a real credential. The thin `@napi-rs/keyring` binding and
-a real OS-keychain round-trip remain operator-attested under
-[`electron-shell`](electron-shell.md) (ADR-0070).
+The main-process broker speaks to a narrow **`KeychainPort`** (`set` / `get` / `delete` verbs) rather
+than to any concrete secret store. CI uses `InMemoryKeychain` plus an injected environment for
+contracts 1–4, and an injected `window.desktopAuth` fake for contracts 5–9 — every automated contract
+is offline and cannot touch a real credential. The thin `@napi-rs/keyring` binding and a real
+OS-keychain round-trip through the panel remain operator-attested (ADR-0070 / ADR-0179 §5); the shell
+binding lives on [`electron-shell`](electron-shell.md), the panel's real Cursor-key leg is attested
+below.
 
 ## Proof walkthrough — contract-test
 
@@ -46,6 +84,15 @@ and stubbed operation runners:
 4. Invoke a Claude build with only `cursor-api-key` stored; observe that Claude selection considers
    only `oauth` or `api-key` and fails closed. Keep sidecar startup outside credential selection: it
    performs no keychain read, while a later Cursor operation can request per-operation injection.
+5. Render the Credentials panel with an injected `desktopAuth` fake: when `window.desktopAuth` is
+   absent the panel is not mounted (hosted/browser studio shows no non-functional keychain controls);
+   when present, three independent rows appear — Claude subscription token (`oauth`), Anthropic API
+   key (`api-key`), Cursor API key (`cursor-api-key`) — each with boolean saved/not-saved status, an
+   ephemeral password input, Store/Replace, and Sign out/Remove.
+6. Store through each row: `desktopAuth.store(kind, value)` is called once, the input and renderer
+   state clear in `finally` on both success and failure, status refreshes via `desktopAuth.status(kind)`
+   only, blank submissions are refused with value-free errors, and sign-out calls
+   `desktopAuth.signOut(kind)` per kind without cross-kind effect.
 
 ## Guidance
 
@@ -78,14 +125,31 @@ and stubbed operation runners:
   shape returns a raw value.
 - **The keychain port is the ONLY storage path — this is the safety boundary.** The broker writes the
   credential to nothing else: it holds no `localStorage` reference and writes the token to no file.
+- **Desktop-only Credentials panel (ADR-0179).** The panel lands in the shared studio bundle
+  (`apps/studio/src`) but renders only when `window.desktopAuth` is present — reachable from the
+  settings/control surface. Each row owns one kind; rows never share a value or fall back into one
+  another. The panel never reads, reveals, copies, exports, or pre-fills a stored credential; it
+  never touches `localStorage` or `~/.storytree/secrets.json`.
+- **Transient-entry boundary on the renderer side.** A raw value exists only while the operator types
+  it in the password input. Store sends it once through `desktopAuth.store(kind, value)`, then clears
+  the input and any renderer-held copy in `finally`. Status is boolean-only via `desktopAuth.status(kind)`.
+  Sign-out is `desktopAuth.signOut(kind)` with a boolean-only refresh. Error messages are value-free.
+- **The panel's seam is `window.desktopAuth` only.** The component holds no `fetch` and imports no
+  `@storytree/agent` / `@storytree/drive` / desktop main-process code. Tests inject a fake implementing
+  `store`, `status`, and `signOut` — the `BuildSection` / `chat-panel` discipline (`vi.mock` or
+  `vi.hoisted` on the seam, `@testing-library/react`, jsdom).
+- **Typecheck is part of the boundary proof.** Contract `typed-ipc-never-discloses` already pins the
+  main/preload signatures; the studio typecheck must declare a matching renderer-side
+  `DesktopAuth` / `window.desktopAuth` type with the same kind union and boolean-only read surfaces.
 - **What is NOT proven here (honest scope).** The real `@napi-rs/keyring` adapter — actually writing
   into Keychain / Credential Manager / libsecret — is thin glue proven by **operator attestation**
-  (ADR-0070), not by CI; it round-trips the real OS keychain that CI cannot drive. That attestation
-  lives on [`electron-shell`](electron-shell.md). Automated proof never reads or migrates any
+  (ADR-0070), not by CI; it round-trips the real OS keychain that CI cannot drive. The shell binding
+  attestation lives on [`electron-shell`](electron-shell.md); the panel's real Cursor-key store/remove
+  leg is operator-attested below (ADR-0179 §5). Automated proof never reads or migrates any
   user-level secrets file; `credentialedBuildRunner` tests represent the file tier with an
-  already-hydrated injected environment.
+  already-hydrated injected environment. No paid Cursor/model run is required for attestation.
 
-## Contracts (4)
+## Contracts (9)
 
 1. **`three-kind-keychain-independence`** — all three kinds round-trip, map, and clear independently
    - **asserts —** through `InMemoryKeychain`, each tagged kind maps exactly to its declared environment
@@ -121,3 +185,43 @@ and stubbed operation runners:
      Cursor-only/Claude fail-closed case and Cursor's per-operation selection. The startup half is the
      composition boundary itself: sidecar startup has no keychain read; no dedicated startup snapshot
      test is required or claimed.
+
+5. **`credentials-ui-feature-gated`** — the panel mounts only when `window.desktopAuth` is present
+   - **asserts —** with no `window.desktopAuth`, the Credentials panel is absent from the settings/
+     control surface (hosted/browser studio shows no non-functional keychain controls).
+   - **proven by —** `CredentialsPanel.test.tsx` rendering the settings surface without the global;
+     query asserts the panel/rows are not in the document.
+
+6. **`credentials-ui-three-independent-rows`** — three kinds, independent boolean status
+   - **asserts —** when `desktopAuth` is present, three rows render for `oauth`, `api-key`, and
+     `cursor-api-key`; each row's saved/not-saved status comes only from `desktopAuth.status(kind)` and
+     changing one kind's status does not affect the others.
+   - **proven by —** component test with a fake whose per-kind `status` resolves independently.
+
+7. **`credentials-ui-one-way-store`** — store once, clear input in `finally`, never read back
+   - **asserts —** Store/Replace calls `desktopAuth.store(kind, value)` exactly once with the typed
+     value; the password input clears in `finally` on both success and thrown failure; no code path
+     reads a stored value back into the input or application state.
+   - **proven by —** component test scripting `store` resolve/reject and asserting input cleared and
+     no `get`/read call exists on the fake.
+
+8. **`credentials-ui-blank-refusal`** — blank submissions refused with value-free errors
+   - **asserts —** Store/Replace with an empty/whitespace-only input does not call `store`; a
+     value-free error is shown and the prior status is unchanged.
+   - **proven by —** component test firing Store on empty input; `store` not called; error copy present
+     and contains no user-typed secret.
+
+9. **`credentials-ui-per-kind-sign-out`** — sign-out is per kind only
+   - **asserts —** Sign out/Remove on one row calls `desktopAuth.signOut(thatKind)` only, refreshes
+     that row's boolean status, and leaves the other kinds' status untouched.
+   - **proven by —** component test with two kinds saved; sign-out one; assert `signOut` arity/kind and
+     independent status refresh.
+
+## Proof — operator-attested (ADR-0070 / ADR-0179 §5)
+
+Contracts 1–4 and the shell's first OAuth round-trip are CI-honest or attested on
+[`electron-shell`](electron-shell.md). The **real desktop Credentials panel** leg is operator-attested:
+a human runs the built desktop app, opens the Credentials panel, enters a replacement Cursor API key
+without any disclosure of a prior value, observes saved status, restarts and observes status persist,
+then removes it and observes unsigned status. No paid Cursor/model run is required. That witnessed
+attestation is the signed verdict for the panel's real-keychain leg (an agent can never self-attest it).

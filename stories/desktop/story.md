@@ -73,7 +73,7 @@ artifact_edges: [studio, headless-orchestrator, studio-cloud]
 # operator-attested appearance (and the live `builder` grant); 0176 supersedes 0119 and is the complete
 # current sidecar decision: tsx-sidecar + studio boot reads + re-compose boundary, with DB/git launch
 # preconditions and no degraded shell.
-decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 21, 70]
+decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 21, 70, 179]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -85,11 +85,13 @@ the renderer never importing the agent and the credential never leaving their ma
 
 This story has **two layers, decided by two ADRs**:
 
-1. **The credential-host shell (ADR-0109 Step 1, BUILT).** An Electron shell that loads the compiled
-   studio bundle and keeps the member's Claude credential in the **OS keychain** — never in the browser,
-   never in plaintext on disk. Its provable core (the broker's keychain round-trip, dual-credential, and
-   no-leak boundary through an injected `KeychainPort`) is green in CI; the real-OS-keychain round-trip
-   + the native shell's appearance are operator-attested (ADR-0070). This is the
+1. **The credential-host shell (ADR-0109 Step 1, BUILT; ADR-0179 amends with the Credentials UI).** An
+   Electron shell that loads the compiled studio bundle and keeps each runtime credential in the **OS
+   keychain** — never persisted in, returned to, or recoverable from the renderer (a raw value may
+   exist transiently in the password input and cross the store IPC once on submission, ADR-0179). Its
+   provable core (the broker's keychain round-trip, three-kind independence, operation-bridge lifetime,
+   and the desktop-only Credentials panel's one-way store/boolean status) is green in CI; the real-OS-
+   keychain round-trip + the native shell's appearance are operator-attested (ADR-0070). This is the
    [`credential-broker`](credential-broker.md) + [`electron-shell`](electron-shell.md) pair.
 
 2. **The thick-local client (ADR-0113, this extension).** For the inner circle — today a single trusted
@@ -231,7 +233,7 @@ Listed roots-first (a capability appears after everything it depends on).
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
-| 1 | [`credential-broker`](credential-broker.md) | The member's Claude credential round-trips the OS keychain through a narrow port and is never written to localStorage or to plaintext disk. | contract-test (CI red→green) | — |
+| 1 | [`credential-broker`](credential-broker.md) | The member stores, checks presence of, and removes each of the three runtime credentials through a desktop-only Credentials panel; the main-process broker round-trips the OS keychain and never returns a stored value to the renderer. | contract-test (main-process contracts green) + contract-test (panel component tests) + operator-attested (real Cursor key via panel) | — |
 | 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind a sign-in affordance. | operator-attested (ADR-0070) | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
 | 4 | [`boot-read-routes`](boot-read-routes.md) | The local backend adds the studio's remaining BOOT read routes — `me` (a local member identity), `docs` (read from the member's checkout), `comments` (an injected store seam) — re-composed from the organism drivers (never importing the studio server), so the frontend boots and renders the forest instead of an access/error screen (ADR-0119 §2). | contract-test (CI red→green) | `local-backend-boot` |
@@ -355,12 +357,15 @@ credential never leaving the machine.
 
 1. **Launch.** _(witness: human)_ The member opens the desktop app; it loads the compiled studio UI
    inside the native shell (no Vite, no source on the renderer). **Success —** the studio renders.
-2. **Sign in, credential in the keychain.** _(witness: human)_ The member completes the Claude
-   subscription login; the `CLAUDE_CODE_OAUTH_TOKEN` is captured by the **main** process and stored
-   through the broker into the real OS keychain, never surfaced to the renderer; it survives an app
-   restart, and the raw credential appears in NEITHER `localStorage` NOR any plaintext on-disk file.
-   (The CI-honest core of this — round-trip + dual-credential + no-leak through the injected port — is
-   `credential-broker`'s contract tests.)
+2. **Configure credentials in the panel, stored in the keychain.** _(witness: machine for panel
+   contracts 5–9; human for real Cursor-key round-trip)_ The member opens the desktop-only Credentials
+   panel (settings/control surface), enters each credential kind independently (Claude subscription
+   `oauth`, Anthropic `api-key`, Cursor `cursor-api-key`), stores through Store/Replace, observes
+   boolean-only saved status, and removes through Sign out/Remove — the raw credential never pre-fills,
+   never reads back, and never appears in `localStorage` or plaintext on disk; on a real desktop app the
+   operator attests a replacement Cursor key survives restart then removes cleanly. (The CI-honest core —
+   three-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store/
+   feature gate — is `credential-broker`'s contracts 1–9.)
 3. **The local backend is live (no 503).** _(witness: machine)_ With the desktop main process running,
    a `GET /api/*` read route (library/tree/activity) returns a real envelope body — NOT the
    `static-server.ts` 503 stub. **Success —** the backend booted in-process and `/api/*` serves the

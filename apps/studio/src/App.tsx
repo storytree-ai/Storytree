@@ -16,6 +16,7 @@ import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
 import { TreeView } from './components/TreeView';
 import { MembersPanel } from './components/MembersPanel';
+import { DesktopCredentialsDock } from './components/DesktopCredentialsDock';
 
 /** A non-member's MeInfo while it's still loading — never read as a member. */
 const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false };
@@ -157,6 +158,7 @@ export function App(): React.JSX.Element {
             </nav>
           )}
           <div className="topbar-right">
+            <DesktopCredentialsDock />
             {me?.email && (
               <span className="identity-chip" title="your verified identity">
                 <span className={`badge role-${me.role}`}>{me.role}</span>

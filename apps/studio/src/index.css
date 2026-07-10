@@ -3244,6 +3244,91 @@ button.legend-tile:hover {
   border-color: var(--border-strong);
 }
 
+/* ── desktop credentials dock (topbar, ADR-0179) ───────────────────────────── */
+.credentials-dock {
+  position: relative;
+}
+.credentials-dock-btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.credentials-dock-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(420px, calc(100vw - 2rem));
+}
+.credentials-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 12px 14px 14px;
+}
+.credentials-panel-head {
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.credentials-panel-lead {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+.credentials-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.credentials-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.credentials-row:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.credentials-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.credentials-row-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.credentials-status.status-saved {
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 35%, transparent);
+}
+.credentials-status.status-unsigned {
+  color: var(--muted);
+}
+.credentials-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.credentials-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.credentials-row-msg {
+  margin: 0;
+}
+
 /* nameplates */
 .world-plate-bg {
   fill: var(--surface);
