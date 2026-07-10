@@ -423,6 +423,67 @@ real exit codes and BROKERED to the shared forest (POSTed to the studio's member
 their in-app `builder` role, no DB identity on their machine; ADR-0117), the renderer never crossing the
 agent boundary.
 
+## Reliability Gates
+
+[`credential-broker`](credential-broker.md) LANDED green — the main-process broker contracts (1–4:
+three-kind keychain independence, typed-IPC-never-discloses, operation-env-lifetime,
+runtime-credential-partition) pass their `apps/desktop` `node:test` suite, and the desktop-only
+Credentials panel contracts (5–9: feature-gated, three independent rows, one-way store, blank refusal,
+per-kind sign-out; ADR-0179) pass their `apps/studio` vitest/jsdom suite
+(`apps/studio/src/components/CredentialsPanel.test.tsx`). But storytree's own prove-it-gate never DROVE
+that green to a persisted verdict: the panel `real:` arm was **hand-landed** (commit `0d389da`), not
+driven through the spine, so the `--real --store pg` signing was skipped and the code is
+**tested-but-UNREGISTERED** (crown `–`, `build=unregistered`). On a GREEN base a fresh `--real` build
+HALTS — there is no red→green left to earn, and *halt is never a pass*
+([ADR-0130](../../docs/decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md));
+forcing a red on already-built code is proof theater
+([ADR-0159](../../docs/decisions/0159-frontend-builder-proves-stage-1-through-the-inner-loop-visua.md)).
+So the honest path off unregistered is NOT a manufactured build over mature tested code — it is the
+author-declared **reliability gate** below, observe-and-signed to an `adopted` verdict
+([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
+resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+Fork B). This is the `mapped → healthy` = **Adopt** transition
+[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
+[ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
+names — greening the covered capability via the `(covers:)` coverage ADR-0097 §5/§2 defines, WITHOUT a
+manufactured red. (The story stays `proposed`; this gate is a `proposed` story carrying an observe gate,
+exactly the desktop-build-mount precedent — the gate greens a capability, not the authored status.)
+
+`credential-broker` is a SINGLE capability whose one journey spans TWO owning package suites — the
+main-process broker in `apps/desktop` (`node:test`) and the renderer Credentials panel in `apps/studio`
+(vitest jsdom, ADR-0179) — so ONE observe gate names BOTH, running them through a single executable
+command. The coverage is real, not declared-only: each suite is the cap's OWN contract suite over its
+real collaborators (ADR-0097 §2) — the broker contracts over the real `InMemoryKeychain` + an injected
+environment, the panel contracts over an injected `desktopAuth` fake. This gate is DISTINCT from
+`## Story UAT` above (the integrated acceptance journey, part machine-witnessed and part
+operator-attested): it is the author's **expandable reliability floor** — it starts by adopting the
+existing green suites and GROWS a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the
+moment observation proves insufficient — a real broker- or panel-contract defect slips the existing
+suites.
+
+1. **The credential-broker suites are green — the broker contracts and the Credentials panel** _(gate: observe)_ _(covers: credential-broker)_ `pnpm --filter desktop --filter studio test`. The
+   spine runs it at a clean committed HEAD and OBSERVES both owning suites green — the main-process
+   broker (contracts 1–4: three-kind keychain independence, typed-IPC-never-discloses,
+   operation-env-lifetime, runtime-credential-partition; `apps/desktop`, node:test) AND the desktop-only
+   Credentials panel (contracts 5–9: feature-gated, three independent rows, one-way store, blank refusal,
+   per-kind sign-out; `apps/studio/src/components/CredentialsPanel.test.tsx`, ADR-0179, vitest jsdom) —
+   then signs an `adopted` verdict. `credential-broker` greens via this gate's `(covers:)` (ADR-0097 §5).
+   The real `@napi-rs/keyring` OS-keychain round-trip through the panel is NOT observed here — it is the
+   operator-attested leg (ADR-0070 / ADR-0179 §5, Story UAT leg 2's human half), which an agent can never
+   self-attest.
+
+Adopting this gate greens ONLY `credential-broker` — its DERIVED crown, via the `(covers:)` above. It
+does NOT green the story and does NOT touch the authored `status:` (which stays `proposed`): the desktop
+crown still awaits its OTHER capabilities and its operator-attested Story UAT legs — the built native
+shell, the real OS-keychain round-trip, the live subscription loop, the brokered forest write, the
+in-app `builder` grant, and the "feels like one app" appearance (legs 1, 2, 5, 6-grant, 7) — which an
+agent can never self-attest. `healthy` stays non-authorable
+([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
+`status:` is never `healthy`; the world's crown DERIVES green from the signed verdict
+([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
+when every capability is `healthy` AND every own-proof obligation is signed. This gate adds ONE honest
+signed verdict toward that roll-up; it is not the crown.
+
 ## Proof
 
 The story is proven when that walkthrough passes — the mechanics legs (3, 4, the probe half of 6) green
