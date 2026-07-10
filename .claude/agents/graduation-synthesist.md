@@ -1,6 +1,7 @@
 ---
 name: graduation-synthesist
 description: "The dedicated adjudicator of accumulated system signal (ADR-0168 D5): reading friction artifacts + comments + agent-memory candidates + the decision log with the whole-system view, it CHAIRS friction adjudication through the `friction-adjudication` process and the `friction-justification-bar` floor, sets each item's route/routeReason, routes durable essence to the per-route authors, and decides what escalates to the owner — the owner appears only on its escalation. It absorbs ADR-0032 §3's memory-graduation synthesis seat. It ROUTES and ESCALATES; it writes no durable guidance itself."
+model: opus
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->

@@ -210,7 +210,11 @@ test("renderAgentFile wraps the assembled prompt in Claude Code subagent frontma
   const res = await renderAgentFile(store, "clean-agent");
   assert.equal(res.ok, true);
   if (!res.ok) return;
-  assert.match(res.content, /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\n---\n\n/);
+  // model tier defaults to `inherit` when the agent doc carries none (ADR-0182, amending ADR-0178 §3).
+  assert.match(
+    res.content,
+    /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\nmodel: inherit\n---\n\n/,
+  );
   assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
   assert.match(res.content, /The clean agent does one thing\./); // the assembled prompt body
   assert.match(res.content, /Always assemble from the library\./); // injected ref content
@@ -219,7 +223,7 @@ test("renderAgentFile wraps the assembled prompt in Claude Code subagent frontma
   assert.deepEqual(res.missingRefs, []);
 });
 
-test("renderCursorAgentFile emits Cursor-native inherited-model frontmatter over the same essentials", async () => {
+test("both harness renderers emit the same model tier over the same essentials (ADR-0182)", async () => {
   const store = await seeded();
   const cursor = await renderCursorAgentFile(store, "clean-agent");
   const claude = await renderAgentFile(store, "clean-agent");
@@ -227,17 +231,43 @@ test("renderCursorAgentFile emits Cursor-native inherited-model frontmatter over
   assert.equal(claude.ok, true);
   if (!cursor.ok || !claude.ok) return;
 
+  // an untiered agent renders `model: inherit` in BOTH surfaces (the ADR-0178 default) — so the
+  // Claude and Cursor wrappers are now byte-identical (the model line is no longer Cursor-only).
   assert.match(
     cursor.content,
     /^---\nname: clean-agent\ndescription: "a role whose refs all resolve"\nmodel: inherit\n---\n\n/,
   );
   assert.ok(cursor.content.includes(GENERATED_AGENT_MARKER));
-  assert.equal(
-    cursor.content.replace("model: inherit\n", ""),
-    claude.content,
-    "the harness wrappers differ only by Cursor's explicit model policy",
-  );
+  assert.equal(cursor.content, claude.content, "both harness surfaces render the same tier line");
   assert.deepEqual(cursor.missingRefs, []);
+});
+
+test("a pinned model tier flows into both harness frontmatter surfaces (ADR-0182)", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "sonnet-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Sonnet Agent",
+      description: "a workhorse pinned to sonnet",
+      oneLine: "The sonnet agent is a mechanical workhorse.",
+      role: "It exists to test the model tier pin.",
+      outcome: "Its harness files carry model: sonnet.",
+      context: ["asset:test-principle"],
+      tools: "none",
+      workflow: "orient, then stop.",
+      model: "sonnet",
+      references: [],
+    },
+  });
+  const claude = await renderAgentFile(store, "sonnet-agent");
+  const cursor = await renderCursorAgentFile(store, "sonnet-agent");
+  assert.equal(claude.ok, true);
+  assert.equal(cursor.ok, true);
+  if (!claude.ok || !cursor.ok) return;
+  assert.match(claude.content, /\nmodel: sonnet\n---\n/);
+  assert.match(cursor.content, /\nmodel: sonnet\n---\n/);
 });
 
 test("renderAgentFile surfaces a dangling ref via missingRefs (the build:agents fail-closed guard)", async () => {

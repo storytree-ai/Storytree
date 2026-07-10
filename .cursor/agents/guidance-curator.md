@@ -1,7 +1,7 @@
 ---
 name: guidance-curator
 description: "The author of the behavioural floor — principles, guardrails, and patterns — and of guardrail-promotion and agent-guardrail proposals and tool grants; it decides whether a rule is true, durable, and well-stated before it enters the corpus."
-model: inherit
+model: opus
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->

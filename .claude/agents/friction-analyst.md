@@ -1,6 +1,7 @@
 ---
 name: friction-analyst
 description: "An analysis-only friction reporter over one owned-loop run: it reads the run's typed events from the event store, classifies friction with cited evidence, and emits a report whose recommendations target durable Library guidance via the signal → Library graduation loop (ADR-0032) — it never fixes."
+model: sonnet
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->

@@ -1,6 +1,7 @@
 ---
 name: story-author
 description: "The dedicated author of the disk-canonical work hierarchy (story › capability › contract): it bounds one provable journey per story and writes only frontmatter-markdown under `stories/**`, through a fail-closed spawned/native subagent file-tool fence."
+model: opus
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->

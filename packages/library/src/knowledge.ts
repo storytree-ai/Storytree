@@ -564,6 +564,18 @@ export const AgentStepRef = z
 export type AgentStepRef = z.infer<typeof AgentStepRef>;
 
 /**
+ * The model TIER a delegatable agent runs on when a harness spawns it (ADR-0182, amending ADR-0178 §3
+ * which fixed every subagent at `inherit`). A tier, NOT a raw model id — so it survives model-version
+ * bumps and maps cleanly onto both harness frontmatter contracts (`.claude/agents` and `.cursor/agents`
+ * both accept these `model:` values). `inherit` keeps the ADR-0178 default (the spawning session's
+ * model); `sonnet`/`opus` pin the workhorse/judgment split (leverage Sonnet as the workhorse, Opus for
+ * judgment-heavy roles). Like `stepRefs` this is structured schema metadata the renderer reads into
+ * frontmatter, never a KIND_SPECS body section — it does not round-trip through the markdown body.
+ */
+export const AgentModel = z.enum(["inherit", "sonnet", "opus"]);
+export type AgentModel = z.infer<typeof AgentModel>;
+
+/**
  * One branch-edge on a `process` node (ADR-0154's process-graph follow-on, un-deferred by ADR-0161;
  * the node-keyed context DAG): a process's outbound edge to the artifact/node it hands on to, with an
  * optional one-line gloss. This is the process NODE of the one Library context DAG — the counterpart
@@ -692,6 +704,12 @@ export const OpenQuestion = buildKindSchema("open-question");
 // still fail closed) and the `kind` literal (the discriminated union is unaffected).
 export const Agent = buildKindSchema("agent").extend({
   stepRefs: z.array(AgentStepRef).optional(),
+  // The model TIER this delegatable agent's harness subagent file pins (ADR-0182, amending ADR-0178
+  // §3's `inherit`-only minimum). OPTIONAL — an agent without it renders `model: inherit` exactly as
+  // before, so every existing agent doc still validates with NO `CURRENT_SCHEMA_VERSION` bump /
+  // migration, and the discriminated union + `.strict()` fail-closed are preserved (the `stepRefs`
+  // precedent). Frontmatter-only metadata; the renderers read it, the body never does.
+  model: AgentModel.optional(),
 });
 export const Proposal = buildKindSchema("proposal");
 // The `friction` kind (ADR-0168 D2) tightens THREE fields beyond its KIND_SPECS table via

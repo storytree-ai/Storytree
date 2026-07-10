@@ -569,27 +569,43 @@ export type RenderAgentFileResult =
   | { ok: false; reason: string; available: string[] };
 
 /**
+ * The `model:` frontmatter value a harness subagent file pins (ADR-0182, amending ADR-0178 §3). The
+ * agent's `model` TIER is authoritative; absent → `inherit` (the ADR-0178 default: the spawning
+ * session's model). `sonnet`/`opus` are the workhorse/judgment split, and both harness frontmatter
+ * contracts (`.claude/agents`, `.cursor/agents`) accept these literal `model:` values, so one resolved
+ * string serves both renderers.
+ */
+export function agentModelFrontmatter(stored: StoredDoc): string {
+  const raw = (stored.doc as Record<string, unknown>)["model"];
+  return typeof raw === "string" && (raw === "sonnet" || raw === "opus") ? raw : "inherit";
+}
+
+/**
  * Render the committed `.claude/agents/<id>.md` view of an agent: Claude Code subagent frontmatter
- * (`name` / `description`) + the generated marker + the ESSENTIALS system prompt (via
+ * (`name` / `description` / `model`) + the generated marker + the ESSENTIALS system prompt (via
  * {@link renderAgentEssentials} — ADR-0156 §6ii re-decided this off the full-inline `renderAgentPrompt`
  * so the machine-only subagent files stay thin, DRY, and fresh). One trailing newline, for
- * deterministic on-disk content. `tools` is intentionally OMITTED — the subagent inherits the full
- * surface and the prose Tools section carries the guidance; mapping the prose grant to a structured
- * allow-list is future work (ADR-0052).
+ * deterministic on-disk content. The `model:` line is the ADR-0182 tier pin (workhorse/judgment split);
+ * absent tier renders `inherit`, the prior ADR-0052/0178 behaviour. `tools` is intentionally OMITTED —
+ * the subagent inherits the full surface and the prose Tools section carries the guidance; mapping the
+ * prose grant to a structured allow-list is future work (ADR-0052).
  */
 async function renderHarnessAgentFile(
   store: Store,
   name: string,
-  extraFrontmatter: string[] = [],
+  extraFrontmatter: (stored: StoredDoc) => string[] = () => [],
 ): Promise<RenderAgentFileResult> {
   const res = await renderAgentEssentials(store, name);
   if (!res.ok) return res;
   const { agent } = res;
+  // re-fetch the stored doc for the structured `model` tier (essentials returns the assembled prompt,
+  // not the raw doc); the agent is known to exist here since renderAgentEssentials resolved it.
+  const stored = await store.getDoc(name);
   const frontmatter = [
     "---",
     `name: ${agent.name}`,
     `description: ${yamlDoubleQuoted(agent.description)}`,
-    ...extraFrontmatter,
+    ...(stored ? extraFrontmatter(stored) : []),
     "---",
   ].join("\n");
   return {
@@ -601,19 +617,20 @@ async function renderHarnessAgentFile(
 }
 
 export async function renderAgentFile(store: Store, name: string): Promise<RenderAgentFileResult> {
-  return renderHarnessAgentFile(store, name);
+  return renderHarnessAgentFile(store, name, (stored) => [`model: ${agentModelFrontmatter(stored)}`]);
 }
 
 /**
  * Render the committed `.cursor/agents/<id>.md` view of the same Library agent. Cursor receives the
- * identical essentials prompt plus an explicit inherited-model policy; readonly/background policy
- * remains absent until the Library carries those grants structurally (ADR-0178).
+ * identical essentials prompt plus the explicit `model` tier (ADR-0182, amending ADR-0178 §3's
+ * `inherit`-only minimum — the same tier the Claude view pins, both harnesses accept the value);
+ * readonly/background policy remains absent until the Library carries those grants structurally.
  */
 export async function renderCursorAgentFile(
   store: Store,
   name: string,
 ): Promise<RenderAgentFileResult> {
-  return renderHarnessAgentFile(store, name, ["model: inherit"]);
+  return renderHarnessAgentFile(store, name, (stored) => [`model: ${agentModelFrontmatter(stored)}`]);
 }
 
 /** The ids that render to harness subagent files — every agent minus the dedicated-surface roles. */

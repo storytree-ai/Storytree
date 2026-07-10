@@ -1,7 +1,7 @@
 ---
 name: frontend-builder
 description: "The inner-loop builder for storytree's visual surfaces (the forest world, studio panels, members UI, website): it proves a frontend unit in two stages — red-green on the geometry/behaviour, operator-attested on the appearance — building the look behind a flag, surfacing a hosted deep-link, and never self-signing the visual verdict."
-model: inherit
+model: sonnet
 ---
 
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
