@@ -21,6 +21,12 @@ second live harness and requires `CURSOR_API_KEY`. The credential-host boundary 
 unchanged; the stale two-Claude-kind wording is corrected below to include the independently
 namespaced Cursor key and operation-specific selection.
 
+[ADR-0179](0179-desktop-credentials-are-configurable-through-the-storytree-u.md) further amends this
+decision by requiring the desktop app to expose the broker through a desktop-only Credentials panel.
+It also makes the renderer boundary precise: a raw credential may exist transiently in a password
+input and cross the context-isolated store IPC once, but it is never persisted in, returned to, or
+recoverable from the renderer.
+
 ## Context
 
 ADR-0090 split orchestration into a thin client + a server-side build-capable worker, with three
@@ -62,8 +68,11 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
 
 4. **Electron over Tauri.** Stay all-TypeScript / Node (ADR-0001 — avoid a Rust island the rest of the
    stack would have to reach across); the team knows it. The larger renderer surface is bounded by
-   keeping the credential in the OS keychain, **never in the renderer or in `localStorage`** — the
-   credential's safety rests on keychain isolation + the renderer never holding source.
+   keeping the stored credential in the OS keychain: it is **never persisted in, returned to, or
+   recoverable from the renderer**. Under ADR-0179, a raw credential may exist transiently while the
+   operator types it into a password input and may cross the context-isolated store IPC once; it is
+   cleared after submission and never enters `localStorage`. The credential's safety rests on
+   keychain isolation + the renderer never holding source.
 
 5. **An additional surface, not a replacement.** The browser thin client stays fully valid (no keychain;
    paste-per-session or API-key); the desktop client is the safe home for the **subscription** path.
@@ -108,8 +117,9 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
 **Bad / accepted costs**
 - A per-platform native pipeline: build, code-sign (Apple notarization, Windows Authenticode), and
   auto-update — real operational surface a browser tab does not have.
-- Electron's larger RCE surface; the mitigation (keychain isolation, renderer holds no source / secret)
-  must be enforced and not eroded.
+- Electron's larger RCE surface; the mitigation (keychain isolation, no stored-credential readback,
+  no renderer persistence or post-submission retention, and no renderer-held source) must be enforced
+  and not eroded.
 
 **Neutral**
 - The toolkit is Electron; a future move to Tauri is not foreclosed, just not planned.
@@ -137,5 +147,8 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
   signs into.
 - [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md) — admits Cursor as a
   second live harness and requires the independently selected `CURSOR_API_KEY`.
+- [ADR-0179](0179-desktop-credentials-are-configurable-through-the-storytree-u.md) — requires the
+  desktop-only Credentials panel and narrows the renderer boundary to permit only transient password
+  entry and one-way store submission, never persistence or readback.
 - [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — permits this
   in-place truth-maintenance correction because the credential-host decision did not change.
