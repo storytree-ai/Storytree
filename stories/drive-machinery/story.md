@@ -5,7 +5,7 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: mapped
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption]
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
 # packages/drive/src/node-build.ts:41-44 (events.work_event/verdict are its OWN tables), and the
@@ -107,7 +107,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (19)
+## Capabilities (21)
 
 Listed roots-first (a capability appears after everything it depends on). `mapped` = a real
 passing offline suite observationally verifies the dominant behaviour; the Proof blockquote in
@@ -133,7 +133,9 @@ each file pins the `proposed` pockets.
 | 16 | [`multi-file-existing-source`](multi-file-existing-source.md) | A node declares a multi-file scope + an edit-existing-source regression red→green (bug-fixes/refactors), keeping test-author ≠ code-author. | mapped | `spec-borne-proof-config`, `proof-command-vocabulary` |
 | 17 | [`gate-as-proof-authoring`](gate-as-proof-authoring.md) | Authoring an ADR earns a signed verdict through the unchanged gate by reducing to edit-existing with a structural-completeness check — the machine witnesses hygiene, never acceptance. | mapped | `multi-file-existing-source`, `spec-borne-proof-config` |
 | 18 | [`adoption-pocket-classifier`](adoption-pocket-classifier.md) | The spine turns each uncovered brownfield pocket into a proposed reliability gate with a build-tests classification and the key forks the human must settle. | mapped | `build-drive-cli` |
-| 19 | [`uat-machine-proof-binding`](uat-machine-proof-binding.md) | Each machine-witnessed Story UAT leg is observed and signed only through its explicitly declared reliability-gate proof command, and an unbound or invalid machine leg is refused. | proposed | `build-drive-cli` |
+| 19 | [`uat-machine-proof-binding`](uat-machine-proof-binding.md) | The Story UAT parser carries each explicit proof-gate annotation into the strict per-leg model without dropping or inventing a binding. | proposed | — |
+| 20 | [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md) | Each parsed machine UAT leg resolves only to its named command-bearing observe gate, with every missing or ineligible binding refused. | proposed | `uat-machine-proof-binding` |
+| 21 | [`uat-bound-command-adoption`](uat-bound-command-adoption.md) | `runAdopt` observes and signs each machine UAT leg only through the command supplied by that leg's resolved proof-gate binding. | proposed | `build-drive-cli`, `uat-machine-gate-resolution` |
 
 ## Dependency graph (code-derived)
 
@@ -228,12 +230,18 @@ coupling) and marked.
     command for both the CONFIRM observations and the `run_proof` feedback tool) and threads the
     command's display into `realPrompts`. The 7 default nodes are unchanged (the A parity guard stays
     green). No `test-command-registry.ts` change; no new ADR (ships under ADR-0057 §3 + ADR-0020).
-- `uat-machine-proof-binding` → `build-drive-cli` *(PROPOSED — not yet built)*
-  - extends the existing `runAdopt` drive entry with one explicit per-UAT-leg binding carried by the
-    parsed Library model: the library parser/resolver owns which reliability gate a machine leg names;
-    the drive observes that gate's proof command and signs only that UAT id. The unit is inherently
-    cross-package and uses the current inner loop's explicit multi-file scope plus a combined
-    `@storytree/library` + `@storytree/drive` proof command; see the capability's `proof:` block.
+- `uat-machine-proof-binding` *(PROPOSED parser root — commit `7f19272` authored only this pair)*
+  - `uat-tests.ts` parses the explicit `proof-gate` annotation into the strict per-leg model;
+    `uat-tests.test.ts` is its complete literal edit-existing REAL proof pair. It has no within-story
+    prerequisite and claims no resolver or adopt behaviour.
+- `uat-machine-gate-resolution` → `uat-machine-proof-binding` *(PROPOSED — not yet built)*
+  - `witness-resolution.ts` consumes the parser's exact `proofGateId` and returns only its named
+    command-bearing observe gate or an explicit refusal. Its literal edit-existing REAL pair is
+    `witness-resolution.{ts,test.ts}`.
+- `uat-bound-command-adoption` → `build-drive-cli`, `uat-machine-gate-resolution` *(PROPOSED — not yet built)*
+  - `adopt.ts` extends the existing `runAdopt` drive entry and consumes the exact resolved command
+    before signing a machine UAT id. Its literal edit-existing REAL pair is `adopt.{ts,test.ts}`.
+    These three increments replace the earlier six-file unit whose spotlight proved only parsing.
 
 **Cross-story:** the `library` edge (the store-connection seam + the OQ loader's library stores),
 the `storage-protocol` + `proof-protocol` root-port edges (ADR-0075), and the **`agent`** edge — the
@@ -278,10 +286,12 @@ drives a registered node from spec to a landed, signed, persisted proof.
 > **part-scripted, part-attested**.
 >
 > **Machine re-authoring is intentionally held.** The owner wants legs 3, 4, and 7 to become
-> machine-witnessed, but their labels remain `human` until
-> [`uat-machine-proof-binding`](uat-machine-proof-binding.md) is built. After it lands, a separate
-> story-author edit adds an explicit gate binding to every machine leg (including existing legs 1,
-> 2, 5, and 6) and flips 3, 4, and 7 only with bindings to suites that demonstrably prove them.
+> machine-witnessed, but their labels remain `human` until all three independently proved increments
+> land: parser [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
+> [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
+> [`uat-bound-command-adoption`](uat-bound-command-adoption.md). Only then may a separate story-author
+> edit add an explicit gate binding to every machine leg (including existing legs 1, 2, 5, and 6)
+> and flip 3, 4, and 7 only with bindings to suites that demonstrably prove them.
 > Pointing every leg at the first observe gate would forge coverage, so no witness changes occur here.
 
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
@@ -356,9 +366,12 @@ BUILT outer-loop (2026-06-27, `assembleProposal` + `adopt plan --readings`, comm
 real offline suite in the orchestrator package, so it is now honestly brownfield (`mapped`) and
 gate-1 `(covers:)` it alongside the other spine-resident caps (ADR-0097 d.5 holds: the crown's green
 still MEANS every built pocket got real coverage — this one's coverage is real, not a placeholder).
-The 19th, [`uat-machine-proof-binding`](uat-machine-proof-binding.md), is genuinely `proposed` and
-uncovered while awaiting its declared red→green build; it must not be folded into an observe gate
-over suites that do not yet contain its tests.
+Capabilities 19–21 — parser
+[`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
+[`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
+[`uat-bound-command-adoption`](uat-bound-command-adoption.md) — are genuinely `proposed` and
+uncovered while awaiting their separate declared red→green builds. None may be folded into an
+observe gate over a suite until its own literal REAL pair contains and proves that behaviour.
 
 Distinct from `## Story UAT` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
