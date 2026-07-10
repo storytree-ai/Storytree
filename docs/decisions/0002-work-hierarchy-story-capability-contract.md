@@ -120,8 +120,12 @@ proof-mode table above.
   code-derived graph).
 - **How a story's proof composes** — *Resolved by ADR-0010* (the story carries
   the UAT; it is no longer a pure rollup).
-- **Whether a fourth grouping tier (an "epic" over stories) ever returns.** Not
-  now; not precluded.
+- **Whether a fourth grouping tier (an "epic" over stories) ever returns.** —
+  *Resolved by [ADR-0183](0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md)*:
+  it returns as the **`arc`** kind, an initiative *overlay* upstream of stories
+  and ADRs (provenance and intent, not a proof tier — nothing rolls up to it;
+  the story remains the top proof grain). "Epic" is a studio display alias
+  only, never a data name.
 
 ## References
 
