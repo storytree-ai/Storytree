@@ -291,8 +291,9 @@ export const api = {
 
   // The "I saw it work" operator-attested VERDICT (ADR-0082) — a REAL events.verdict signature that
   // greens the story crown, DISTINCT from the lower-rigor events.attestation vouch (now UI-hidden).
-  // Admin-only; the server stamps the signer from the verified identity (the client cannot forge it)
-  // and refuses a machine-witness test (a click is not a machine proof).
+  // Permission-gated: hosted admins sign server-side; desktop members with `canAttestUat` sign
+  // locally and persist through the authenticated broker. Neither path trusts a client signer, and
+  // both refuse a machine-witness test (a click is not a machine proof).
   signUat: (input: { testId: string; outcome?: 'pass' | 'fail'; note?: string }): Promise<UatVerdictResult> =>
     http('/api/uat/attest', jsonInit('POST', input)),
 

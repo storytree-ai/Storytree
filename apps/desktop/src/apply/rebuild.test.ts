@@ -1,12 +1,13 @@
-// Rebuild-core tests (ADR-0164 Phase 1). The step-runner seam is a recording double, so every branch
-// runs without a real `pnpm` spawn: all-pass → ok; a mid-sequence failure STOPS (fail-closed) and
-// names the failing step; the output tail is bounded.
+// Rebuild-core tests (ADR-0164 Phase 1 + ADR-0181 ff-to-main enforcement). The step-runner seam is a
+// recording double, so every branch runs without a real `pnpm`/`git` spawn: all-pass → ok; a
+// mid-sequence failure (a non-fast-forward, or a broken build) STOPS fail-closed and names the failing
+// step; the output tail is bounded.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  REBUILD_STEPS,
+  rebuildSteps,
   runRebuild,
   tailOutput,
   type RebuildStep,
@@ -25,12 +26,31 @@ function recordingRunner(results: StepResult[]): { run: StepRunner; seen: string
   return { run, seen };
 }
 
-test("REBUILD_STEPS is the studio-then-electron recipe (ADR-0164)", () => {
-  assert.equal(REBUILD_STEPS.length, 2);
-  assert.deepEqual([...REBUILD_STEPS[0]!.args], ["--filter", "studio", "build"]);
-  assert.deepEqual([...REBUILD_STEPS[1]!.args], ["run", "build:electron"]);
-  // Every step spawns pnpm (the win32 wrap keys off this in spawnStepRunner).
-  assert.ok(REBUILD_STEPS.every((s) => s.cmd === "pnpm"));
+test("rebuildSteps (fallback, ffToMain:false) is the studio-then-electron build, all in plan.root", () => {
+  const steps = rebuildSteps({ root: "/runtime", ffToMain: false });
+  assert.equal(steps.length, 2);
+  assert.deepEqual([...steps[0]!.args], ["--filter", "studio", "build"]);
+  assert.deepEqual([...steps[1]!.args], ["--filter", "desktop", "run", "build:electron"]);
+  // Every build step spawns pnpm (the win32 wrap keys off this) and runs in plan.root.
+  assert.ok(steps.every((s) => s.cmd === "pnpm" && s.cwd === "/runtime"));
+});
+
+test("rebuildSteps (ffToMain:true) LEADS with fetch + ff-only-to-main + frozen install (Rail 2 enforced, ADR-0181)", () => {
+  const steps = rebuildSteps({ root: "/runtime", ffToMain: true });
+  assert.deepEqual(steps.map((s) => s.label), [
+    "fetch origin",
+    "fast-forward to origin/main",
+    "install dependencies",
+    "build studio bundle",
+    "build electron main/preload",
+  ]);
+  // The advance is a git fast-forward-only merge — nothing but merged main can land.
+  assert.deepEqual([...steps[0]!.args], ["fetch", "origin"]);
+  assert.equal(steps[1]!.cmd, "git");
+  assert.deepEqual([...steps[1]!.args], ["merge", "--ff-only", "origin/main"]);
+  assert.deepEqual([...steps[2]!.args], ["install", "--frozen-lockfile"]);
+  // Every step runs in the runtime worktree.
+  assert.ok(steps.every((s) => s.cwd === "/runtime"));
 });
 
 test("runRebuild returns ok when every step exits 0, running them in order", async () => {
@@ -38,17 +58,33 @@ test("runRebuild returns ok when every step exits 0, running them in order", asy
     { code: 0, output: "studio built" },
     { code: 0, output: "electron built" },
   ]);
-  const result = await runRebuild(run);
+  const result = await runRebuild(run, rebuildSteps({ root: "/runtime", ffToMain: false }));
   assert.deepEqual(result, { ok: true });
   assert.deepEqual(seen, ["build studio bundle", "build electron main/preload"]);
 });
 
-test("runRebuild STOPS on the first failing step (fail-closed — later steps never run)", async () => {
+test("runRebuild STOPS on a non-fast-forward (ff-only merge fails → no build runs, ADR-0181)", async () => {
+  // git merge --ff-only exits non-zero when HEAD is not behind origin/main → the rebuild halts BEFORE
+  // any install/build, so un-merged code can never be compiled and relaunched onto.
+  const { run, seen } = recordingRunner([
+    { code: 0, output: "fetched" },
+    { code: 128, output: "fatal: Not possible to fast-forward, aborting." },
+    { code: 0, output: "should never run" },
+  ]);
+  const result = await runRebuild(run, rebuildSteps({ root: "/runtime", ffToMain: true }));
+  assert.equal(result.ok, false);
+  assert.equal((result as { step: string }).step, "fast-forward to origin/main");
+  assert.match((result as { output: string }).output, /fast-forward/);
+  // fetch ran, ff failed, install/builds SKIPPED.
+  assert.deepEqual(seen, ["fetch origin", "fast-forward to origin/main"]);
+});
+
+test("runRebuild STOPS on the first failing build step (fail-closed — later steps never run)", async () => {
   const { run, seen } = recordingRunner([
     { code: 2, output: "vite: build failed\nType error in App.tsx" },
     { code: 0, output: "should never run" },
   ]);
-  const result = await runRebuild(run);
+  const result = await runRebuild(run, rebuildSteps({ root: "/runtime", ffToMain: false }));
   assert.deepEqual(result, {
     ok: false,
     step: "build studio bundle",
@@ -64,7 +100,7 @@ test("runRebuild reports a failure in the SECOND step after the first passed", a
     { code: 0, output: "" },
     { code: 1, output: "esbuild: main.ts failed" },
   ]);
-  const result = await runRebuild(run);
+  const result = await runRebuild(run, rebuildSteps({ root: "/runtime", ffToMain: false }));
   assert.equal(result.ok, false);
   assert.equal((result as { step: string }).step, "build electron main/preload");
   assert.deepEqual(seen, ["build studio bundle", "build electron main/preload"]);
@@ -74,7 +110,7 @@ test("a spawn-failure shape (non-zero code carrying the error) is surfaced fail-
   // spawnStepRunner folds an ENOENT to { code: 1, output: '…spawn pnpm ENOENT' }; runRebuild must
   // treat that as a failure, never an ok.
   const { run } = recordingRunner([{ code: 1, output: "spawn pnpm ENOENT" }]);
-  const result = await runRebuild(run);
+  const result = await runRebuild(run, rebuildSteps({ root: "/runtime", ffToMain: false }));
   assert.equal(result.ok, false);
   assert.match((result as { output: string }).output, /ENOENT/);
 });
