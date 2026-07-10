@@ -3779,7 +3779,7 @@ function PersonIcon(): React.JSX.Element {
  * witness icon whose SHAPE is the witness (a robot = machine-witnessed, a person = human-witnessed)
  * and whose COLOUR is the SIGNED verdict in `events.verdict` (the REAL gate state that greens the
  * story crown via the per-test AND-roll-up, ADR-0082 d.3): green proven, red a signed fail, muted
- * not-yet-proven. For a `human` test an admin has not yet proven, the muted person icon is itself the
+ * not-yet-proven. For a `human` test a permitted operator has not yet proven, the muted person icon is itself the
  * clickable **"I saw it work"** button that signs an `operator-attested` verdict (ADR-0044 §4's in-UI
  * signature, a real green path) — the server stamps the signer from the verified identity and REFUSES
  * a machine-witness test (a click is not a machine proof), so a robot icon is never clickable.
@@ -3797,6 +3797,7 @@ export function UatTestsSection({
 }): React.JSX.Element | null {
   const { me } = useAppData();
   const isAdmin = me.role === 'admin';
+  const canAttestUat = isAdmin || me.canAttestUat === true;
   const [tests, setTests] = useState<UatTestRow[] | null>(null);
   const [storyUat, setStoryUat] = useState<'healthy' | 'unhealthy' | null | undefined>(undefined);
   // ADR-0106 d.1: ids of legs still `either` on this adopted story — the "no `either` at rest" guard.
@@ -3857,9 +3858,9 @@ export function UatTestsSection({
           {tests.map((t) => {
             // PROVEN — the SIGNED verdict (events.verdict): the real gate state that greens the crown.
             const proven = t.proven; // 'pass' | 'fail' | undefined
-            // ADR-0106 d.5: the owner surface is BINARY — an admin confirms a `human` leg not yet
+            // ADR-0106 d.5: the owner surface is BINARY — a permitted operator confirms a `human` leg not yet
             // proven ("I saw it work"); a `machine` leg shows NO affordance (adopt/build signs it).
-            const canSign = isAdmin && proven !== 'pass' && t.witness === 'human';
+            const canSign = canAttestUat && proven !== 'pass' && t.witness === 'human';
             const signBusy = busy === `sign:${t.id}`;
 
             // ONE right-edge glyph (owner redesign): the icon SHAPE is the witness (robot=machine,

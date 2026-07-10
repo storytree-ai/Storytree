@@ -247,6 +247,8 @@ export interface MeInfo {
   status: UserStatus | null;
   member: boolean;
   storeUnreachable?: boolean;
+  /** Narrow permission for signing human UAT legs. Desktop builders may have this without admin UI. */
+  canAttestUat?: boolean;
   /**
    * Whether this caller may wake the idle-stopped DB from the hosted studio (ADR-0049) — drives the
    * StoreBanner's "Wake the database" button. True for admins (seed admins even while the store is

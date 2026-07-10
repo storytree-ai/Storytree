@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -36,8 +36,124 @@ let studioUrl: string | null = null;
 let backendChild: ChildProcess | null = null;
 let backendPort: number | null = null;
 let startupInFlight: Promise<void> | null = null;
+let brokerLoginInFlight: Promise<string> | null = null;
 
 const RETRY_URL = "storytree-retry://start";
+const HOSTED_STUDIO_URL = (
+  process.env.STORYTREE_STUDIO_URL ?? "https://storytree-studio-iuknr3zuya-ts.a.run.app"
+).replace(/\/+$/, "");
+
+type SidecarBrokerRequest =
+  | { type: "broker:identity"; requestId: string }
+  | { type: "broker:post"; requestId: string; path: string; body: unknown };
+
+function isSidecarBrokerRequest(value: unknown): value is SidecarBrokerRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record["requestId"] === "string" &&
+    (record["type"] === "broker:identity" ||
+      (record["type"] === "broker:post" && typeof record["path"] === "string"))
+  );
+}
+
+async function readHostedIdentity(): Promise<string | null> {
+  try {
+    const response = await session.defaultSession.fetch(`${HOSTED_STUDIO_URL}/api/me`, {
+      credentials: "include",
+      redirect: "follow",
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as Record<string, unknown>;
+    return body["member"] === true && typeof body["email"] === "string" && body["email"].trim() !== ""
+      ? body["email"].trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureHostedIdentity(): Promise<string> {
+  const existing = await readHostedIdentity();
+  if (existing !== null) return existing;
+  if (brokerLoginInFlight !== null) return brokerLoginInFlight;
+
+  const login = new Promise<string>((resolveIdentity, rejectIdentity) => {
+    const parent = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
+    const win = new BrowserWindow({
+      width: 980,
+      height: 760,
+      title: "Sign in to storytree",
+      ...(parent !== undefined ? { parent } : {}),
+      webPreferences: { session: session.defaultSession, contextIsolation: true, nodeIntegration: false },
+    });
+    let settled = false;
+    const finish = (error: Error | null, identity?: string): void => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      clearTimeout(timeout);
+      if (!win.isDestroyed()) win.close();
+      if (error !== null) rejectIdentity(error);
+      else resolveIdentity(identity!);
+    };
+    const poll = setInterval(() => {
+      void readHostedIdentity().then((identity) => {
+        if (identity !== null) finish(null, identity);
+      });
+    }, 1000);
+    const timeout = setTimeout(
+      () => finish(new Error("hosted studio sign-in timed out; UAT verdict was not written")),
+      120_000,
+    );
+    win.once("closed", () => finish(new Error("hosted studio sign-in was cancelled; UAT verdict was not written")));
+    void win.loadURL(HOSTED_STUDIO_URL).catch((error: unknown) => finish(new Error(errorMessage(error))));
+  });
+  brokerLoginInFlight = login.finally(() => {
+    brokerLoginInFlight = null;
+  });
+  return brokerLoginInFlight;
+}
+
+async function handleSidecarBrokerRequest(child: ChildProcess, message: unknown): Promise<void> {
+  if (!isSidecarBrokerRequest(message) || !child.connected) return;
+  try {
+    if (message.type === "broker:identity") {
+      child.send?.({ type: "broker:response", requestId: message.requestId, ok: true, value: await ensureHostedIdentity() });
+      return;
+    }
+    if (message.path !== "/api/write-broker") {
+      throw new Error(`unsupported broker path "${message.path}"`);
+    }
+    await ensureHostedIdentity();
+    const response = await session.defaultSession.fetch(`${HOSTED_STUDIO_URL}${message.path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(message.body),
+    });
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text === "" ? null : JSON.parse(text);
+    } catch {
+      body = { error: text };
+    }
+    child.send?.({
+      type: "broker:response",
+      requestId: message.requestId,
+      ok: true,
+      value: { status: response.status, body },
+    });
+  } catch (error) {
+    child.send?.({
+      type: "broker:response",
+      requestId: message.requestId,
+      ok: false,
+      error: errorMessage(error),
+    });
+  }
+}
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => {
@@ -104,9 +220,12 @@ function startBackend(): Promise<number> {
     const child = spawn(process.execPath, ["--import", "tsx", BACKEND_ENTRY], {
       cwd: appRoot,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
     backendChild = child;
+    child.on("message", (message: unknown) => {
+      void handleSidecarBrokerRequest(child, message);
+    });
     let settled = false;
     let buf = "";
     let errBuf = "";
