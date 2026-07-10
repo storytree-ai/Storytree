@@ -265,3 +265,31 @@ test("ADR-0106: an aspirational (wouldBe) leg is not an obligation — never cla
   assert.deepEqual(appendedUnitIds(store), ["library#gate-1"]); // only the gate; the wouldBe leg is skipped
   assert.doesNotMatch(env.body, /UAT legs \(ADR-0106\)/); // no real legs → no UAT-legs section rendered
 });
+
+// ---------------------------------------------------------------------------
+// uat-bound-command-adoption: an invalid/unbound machine leg fails the WHOLE UAT-signing
+// pass BEFORE any leg signs — no fallback to another gate, no partial UAT verdict set.
+// ---------------------------------------------------------------------------
+
+test("uat-bound-command-adoption: an unbound machine leg fails the whole UAT-signing pass — no partial verdict, even for a sibling leg that resolves fine on its own", async () => {
+  const store = recordingStore();
+  const story: AdoptStory = {
+    status: "mapped",
+    reliabilityGates: [gate(1)], // one observe gate — leg-1 below would resolve fine against it alone
+    uatTests: [
+      leg(1, "machine", { proofGateId: "library#gate-1" }), // validly bound to the declared gate
+      leg(2, "machine"), // no proof-gate binding — refused (uat-machine-gate-resolution)
+    ],
+  };
+  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  // The whole envelope fails: an invalid/unbound machine leg is never a partial-credit situation.
+  assert.equal(env.ok, false);
+  const ids = appendedUnitIds(store);
+  // Reliability-gate signing stays a SEPARATE behaviour (unaffected by the UAT leg's refusal) — the
+  // gate itself still signs its own `adopted` verdict …
+  assert.deepEqual(ids, ["library#gate-1"]);
+  // … but leg-1's otherwise-valid binding does not save it: NEITHER leg is signed — no fallback to
+  // another gate, and no partial UAT verdict set, once any machine leg in the story is unbound.
+  assert.ok(!ids.includes("library#uat-1"));
+  assert.ok(!ids.includes("library#uat-2"));
+});
