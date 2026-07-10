@@ -373,6 +373,9 @@ async function createWindow(): Promise<void> {
     width: 1280,
     height: 860,
     title: "storytree",
+    // The committed app icon (apps/desktop/build/icon.ico) — window + taskbar. Electron silently
+    // ignores a missing path, so a checkout without the asset still opens (just with the default icon).
+    icon: join(appRoot, "build", "icon.ico"),
     webPreferences: {
       preload: join(appRoot, "dist", "preload.cjs"),
       contextIsolation: true,
@@ -436,6 +439,11 @@ ipcMain.handle("apply:rebuild-relaunch", async (): Promise<RebuildResult> => {
     rebuilding = false;
   }
 });
+
+// Give Windows a stable Application User Model ID so the shell treats storytree as its own app —
+// the taskbar shows OUR icon (not the generic electron.exe), groups our windows under one button,
+// and toast notifications are attributed to "storytree". No-op on macOS/Linux.
+app.setAppUserModelId("dev.storytree.desktop");
 
 void app.whenReady().then(async () => {
   await createWindow();

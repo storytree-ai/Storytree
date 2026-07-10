@@ -1,12 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 
-import { desktopHelp, desktopLaunch, type DesktopSpawnFn, type SpawnedProcess } from "./desktop.js";
+import {
+  desktopHelp,
+  desktopInstallShortcut,
+  desktopLaunch,
+  type CreateShortcutsFn,
+  type DesktopSpawnFn,
+  type ShortcutRequest,
+  type SpawnedProcess,
+} from "./desktop.js";
 import { run } from "./commands.js";
 
 /**
@@ -39,6 +47,14 @@ test("desktopHelp: names the launch subcommand and the underlying pnpm launcher"
   assert.equal(env.ok, true);
   assert.match(env.body, /storytree desktop launch/);
   assert.match(env.body, /pnpm --filter desktop start/);
+});
+
+test("desktopHelp: names the install-shortcut subcommand and its no-console-window promise", () => {
+  const env = desktopHelp();
+  assert.equal(env.ok, true);
+  assert.match(env.body, /storytree desktop install-shortcut/);
+  assert.match(env.body, /no background shell|NO console window/i);
+  assert.ok(env.next?.includes("storytree desktop install-shortcut"));
 });
 
 test("desktopLaunch: refuses when apps/desktop is absent (not the repo root)", () => {
@@ -103,6 +119,125 @@ test("desktopLaunch: appends a timestamped line to apps/desktop/.desktop.log nam
 });
 
 // ---------------------------------------------------------------------------
+// install-shortcut — a fake .lnk writer + Electron resolver keep it offline (no PowerShell, no Electron)
+// ---------------------------------------------------------------------------
+
+function fakeCreateShortcuts(): { createShortcuts: CreateShortcutsFn; calls: ShortcutRequest[] } {
+  const calls: ShortcutRequest[] = [];
+  const createShortcuts: CreateShortcutsFn = (requests) => {
+    calls.push(...requests);
+    return requests.map((r) => `C:\\fake\\${r.folder}\\${r.name}`);
+  };
+  return { createShortcuts, calls };
+}
+
+test("desktopInstallShortcut: refuses on non-Windows (it writes a Windows .lnk)", () => {
+  const dir = scratchRepo();
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({ repoRoot: dir, platform: "linux", createShortcuts });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /Windows-only/);
+    assert.equal(calls.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut: refuses when apps/desktop is absent (not the repo root)", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "desktop-shortcut-norepo-"));
+  try {
+    const { createShortcuts } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({ repoRoot: dir, platform: "win32", createShortcuts });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /no apps\/desktop under/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut: refuses (with a pnpm install hint) when the Electron binary can't be resolved", () => {
+  const dir = scratchRepo();
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: dir,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => null,
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /couldn't find the Electron binary/);
+    assert.match(env.body, /pnpm install/);
+    assert.equal(calls.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut: writes a Desktop + Start Menu .lnk pointing straight at electron.exe with the app icon", () => {
+  const dir = scratchRepo();
+  try {
+    const desktopDir = path.join(dir, "apps", "desktop");
+    // Give the scratch checkout the committed icon + a built main so no advisory notes fire.
+    mkdirSync(path.join(desktopDir, "build"), { recursive: true });
+    writeFileSync(path.join(desktopDir, "build", "icon.ico"), "ICO");
+    mkdirSync(path.join(desktopDir, "dist"), { recursive: true });
+    writeFileSync(path.join(desktopDir, "dist", "main.cjs"), "//");
+
+    const fakeElectron = "C:\\fake\\electron\\dist\\electron.exe";
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: dir,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => fakeElectron,
+    });
+
+    assert.equal(env.ok, true);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(
+      calls.map((c) => c.folder),
+      ["Desktop", "Programs"],
+    );
+    for (const req of calls) {
+      assert.equal(req.name, "storytree.lnk");
+      // Targets electron.exe DIRECTLY (GUI-subsystem → no console window) — the whole point.
+      assert.equal(req.targetPath, fakeElectron);
+      assert.equal(req.arguments, `"${desktopDir}"`);
+      assert.equal(req.workingDirectory, desktopDir);
+      assert.equal(req.iconLocation, path.join(desktopDir, "build", "icon.ico"));
+    }
+    assert.match(env.body, /NO background console window/);
+    assert.match(env.body, /idempotent/);
+    // No advisory notes when the icon + built main are present.
+    assert.doesNotMatch(env.body, /wasn't built yet|used the Electron icon as a fallback/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut: falls back to the Electron icon and warns when icon.ico / dist are absent", () => {
+  const dir = scratchRepo();
+  try {
+    const fakeElectron = "C:\\fake\\electron\\dist\\electron.exe";
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: dir,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => fakeElectron,
+    });
+    assert.equal(env.ok, true);
+    for (const req of calls) assert.equal(req.iconLocation, fakeElectron);
+    assert.match(env.body, /used the Electron icon as a fallback/);
+    assert.match(env.body, /isn't built yet/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Dispatch (through run(), as main wires it)
 // ---------------------------------------------------------------------------
 
@@ -116,6 +251,7 @@ test("dispatch: `desktop` help + unknown sub are guidance; `desktop launch` thre
   const unknown = await run(["desktop", "wat"], { store });
   assert.equal(unknown.ok, false);
   assert.match(unknown.body, /unknown desktop command "wat"/);
+  assert.match(unknown.body, /install-shortcut/);
 
   const dir = scratchRepo();
   try {
@@ -126,5 +262,22 @@ test("dispatch: `desktop` help + unknown sub are guidance; `desktop launch` thre
     assert.equal(calls[0]?.options.cwd, dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+
+  const shortcutDir = scratchRepo();
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = await run(["desktop", "install-shortcut"], {
+      store,
+      desktop: { repoRoot: shortcutDir, platform: "win32", createShortcuts, resolveElectron: () => "C:\\e\\electron.exe" },
+    });
+    assert.equal(env.ok, true);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(
+      calls.map((c) => c.folder),
+      ["Desktop", "Programs"],
+    );
+  } finally {
+    rmSync(shortcutDir, { recursive: true, force: true });
   }
 });
