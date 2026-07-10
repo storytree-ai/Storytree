@@ -25,6 +25,7 @@ test("fills only unset known keys from the file; env always wins", () => {
     file,
     JSON.stringify({
       CLAUDE_CODE_OAUTH_TOKEN: "tok-from-file",
+      CURSOR_API_KEY: "cursor-from-file",
       STORYTREE_DB_USER: "file@user.example",
       NOT_A_KNOWN_KEY: "must-not-leak",
     }),
@@ -32,8 +33,9 @@ test("fills only unset known keys from the file; env always wins", () => {
   const target: NodeJS.ProcessEnv = { ...env, STORYTREE_SECRETS_FILE: file };
   const filled = loadLocalSecrets(target);
   fs.rmSync(dir, { recursive: true, force: true });
-  assert.deepEqual(filled, ["CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.deepEqual(filled, ["CLAUDE_CODE_OAUTH_TOKEN", "CURSOR_API_KEY"]);
   assert.equal(target["CLAUDE_CODE_OAUTH_TOKEN"], "tok-from-file");
+  assert.equal(target["CURSOR_API_KEY"], "cursor-from-file");
   assert.equal(target["STORYTREE_DB_USER"], "already@set.example"); // env wins
   assert.equal(target["NOT_A_KNOWN_KEY"], undefined); // no arbitrary injection
 });
@@ -47,5 +49,8 @@ test("missing file, malformed JSON, and non-object payloads are silent no-ops", 
 
 test("the default location is ~/.storytree/secrets.json and the key list is exact", () => {
   assert.equal(defaultSecretsFile(), path.join(os.homedir(), ".storytree", "secrets.json"));
-  assert.deepEqual([...SECRET_KEYS], ["CLAUDE_CODE_OAUTH_TOKEN", "STORYTREE_DB_USER"]);
+  assert.deepEqual(
+    [...SECRET_KEYS],
+    ["CLAUDE_CODE_OAUTH_TOKEN", "CURSOR_API_KEY", "STORYTREE_DB_USER"],
+  );
 });

@@ -16,7 +16,11 @@ import path from "node:path";
  */
 
 /** The env keys the secrets file may fill. Nothing else is read from it. */
-export const SECRET_KEYS = ["CLAUDE_CODE_OAUTH_TOKEN", "STORYTREE_DB_USER"] as const;
+export const SECRET_KEYS = [
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CURSOR_API_KEY",
+  "STORYTREE_DB_USER",
+] as const;
 
 /** Default file location: `~/.storytree/secrets.json`. */
 export function defaultSecretsFile(): string {

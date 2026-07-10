@@ -176,10 +176,11 @@ file conflicts).
   bare form errors `ERR_MODULE_NOT_FOUND 'tsx'` from the worktree root). Presence hooks also self-heal
   via `scripts/presence-hook.sh`.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
-- **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (SDK leaf) and
-  `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
-  wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,
-  ADR-0112). One rotation point, survives sessions and worktrees; no
+- **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
+  `CURSOR_API_KEY` (Cursor SDK leaf), and `STORYTREE_DB_USER` (live `--pg` store) from
+  `~/.storytree/secrets.json` when unset — env always wins (`packages/drive/src/secrets.ts`; the old
+  `packages/cli/src/secrets.ts` is a re-export shim, ADR-0112). One rotation point, survives
+  sessions and worktrees; no
   env-var prefixes needed on `pnpm storytree …` commands.
 - **Cloud SQL** (not local Docker): `pnpm db:up` / `pnpm db:status` / `pnpm db:down`
   (gcloud against instance `storytree-498613:australia-southeast1:storytree-pg`). `db:up` it when you
