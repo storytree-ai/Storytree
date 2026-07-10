@@ -83,10 +83,12 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
 
 ## Build (small, two steps)
 
-- **Step 1 — the shell + keychain broker.** An Electron shell that loads the compiled studio bundle and
-  a credential module that stores / reads each tagged credential in the OS keychain and runs the
-  subscription OAuth flow. Provable: each kind round-trips independently and never touches
-  `localStorage` or plaintext disk.
+- **Step 1 — the shell + keychain broker + Credentials panel.** An Electron shell that loads the
+  compiled studio bundle, exposes the broker through the desktop-only Credentials panel in that UI
+  when `window.desktopAuth` is present (ADR-0179), and stores / reads each tagged credential in the
+  OS keychain (the subscription OAuth flow may still run from the shell). Provable: each kind
+  round-trips independently and never touches `localStorage` or plaintext disk; the panel's geometry/
+  behaviour is CI-tested against an injected `desktopAuth` fake (ADR-0179 §5).
 - **Step 2 — wire to the operation.** The shell injects only the selected credential for the lifetime
   of the requested operation. For the inner-circle phase this is local and in-process; the deferred
   hosted form sends it per operation over TLS to the worker.
