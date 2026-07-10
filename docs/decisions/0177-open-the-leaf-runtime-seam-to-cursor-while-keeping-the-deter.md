@@ -154,12 +154,12 @@ must not accidentally resurrect that retired interactive runtime or consume the 
   duplication is accepted until the second implementation reveals the smallest honest common shape.
 - Existing docs that equate `--live`/`--real` with Claude and subscription funding must be updated when
   the selector lands, not prematurely during the probe.
-- The `story-author` found no sanctioned live write boundary for story/capability/contract units:
-  `storytree story` builds but does not author, while `library artifact new|edit` accepts knowledge
-  documents rather than work-hierarchy units. The intended placement is the existing `agent` story,
-  with a new `cursor-sdk-leaf` capability depending on `phase-author-seam`, but that hierarchy remains
-  deliberately unpersisted. The implementation session must resolve or explicitly escalate this
-  authoring-capability gap before runtime code; it must not hand-edit around the role boundary.
+- The generated `story-author` guidance was stale: it overlooked the already-decided, sanctioned
+  work-hierarchy write boundary — a fenced story-author writes the disk-canonical `stories/**`
+  frontmatter files (ADR-0039 / ADR-0137; the existing `runSpawnStoryAuthor` fence). After correcting
+  and regenerating that guidance, the story-author persisted `cursor-sdk-leaf` under the existing
+  `agent` story, depending on `phase-author-seam`. This correction records the boundary and completed
+  hierarchy authoring; it does not change this ADR's runtime decision.
 
 ## References
 
