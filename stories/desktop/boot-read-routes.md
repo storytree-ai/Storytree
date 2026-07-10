@@ -89,16 +89,16 @@ story's "Local-backend boundary call" + the ADR-0119 update callout). It does NO
 `studio` is `private` with no server export; `check:boundaries` enforces it). The studio's `listDocs()`
 is a dependency-free read of `<repo>/docs` over `node:fs` — this module REPRODUCES that read-only walk
 (it does not import it), exactly as `local-backend.ts` reproduces the studio's HTTP helpers rather than
-importing them. `me` is a CONSTANT (no driver needed — the operator IS member+admin on their own
-machine). `comments` reads through an INJECTED seam (`@storytree/library/store`'s `PgCommentStore.list`
+importing them. `me` is a CONSTANT (no driver needed — local member plus narrow UAT permission).
+`comments` reads through an INJECTED seam (`@storytree/library/store`'s `PgCommentStore.list`
 in production; a stub in the test) — the module never names the store directly, so the CI-provable core
 touches no DB.
 
 THE THREE ROUTES + THEIR EXACT ENVELOPES (pin these — the leaf authors to them, the Electron main wires
 to them, and the studio frontend parses them):
-- **`GET /api/me`** → a BARE OBJECT, the local-member identity. The operator IS member+admin on their own
-  machine (the open-dev posture the studio's `DEV_ME` already uses, `apiRouter.ts`). Export a constant
-  `LOCAL_ME` mirroring `DEV_ME`'s shape: `{ email: null, role: "admin", status: "active", member: true,
+- **`GET /api/me`** → a BARE OBJECT, the local-member identity. The operator is a member, not a hosted
+  admin; ADR-0180 adds only the narrow brokered-signing permission. `LOCAL_ME` is
+  `{ email: null, role: "member", status: "active", member: true, canAttestUat: true,
   canWakeDb: false }`. Define the `LocalMe` / `MeInfo` interface LOCALLY (do not import the studio's).
 - **`GET /api/docs`** → a BARE ARRAY of `DocMeta` (`{ id, title, group, excerpt, status?, decided? }`),
   from a read-only walk of the member's checkout `docs/` dir. ALGORITHM (reproduce `apiRouter.ts`
@@ -158,8 +158,8 @@ The integration test would:
    Inject a stub `listComments` returning one real `Comment`-shaped object. Mount
    `createBootReadRoutes({ docsDir, listComments })` behind a wrapper that sends a 404 when the
    dispatcher returns `false`.
-2. `GET /api/me` → 200, a BARE OBJECT with `member === true` and `role === "admin"` (the local-member
-   identity, never a 401/an access wall).
+2. `GET /api/me` → 200, a BARE OBJECT with `member === true`, `role === "member"`, and
+   `canAttestUat === true` (never a 401/an access wall or a fake hosted-admin claim).
 3. `GET /api/docs` → 200, a BARE ARRAY containing the seeded `decisions/0001-foo.md` with
    `group: "Decisions"`, the H1 title (`ADR-0001: Foo`), and the parsed `status` — proving the real FS
    walk + the frontmatter parse ran, not a stub.
@@ -178,9 +178,9 @@ collaborators stubbed/seeded. None exist yet; each is the assertion a contract t
 the real boot-read code once authored (provisional path — re-cite at real `file:line` when built).
 
 1. **`br-me-is-a-local-member`** — `/api/me` answers the constant local-member identity, not an access wall
-   - **asserts —** `GET /api/me` returns a bare object with `member: true` and `role: "admin"` (the
-     `LOCAL_ME` constant — the operator IS member+admin on their own machine, the `DEV_ME`-equivalent),
-     never a 401 / a non-member envelope that would make the studio render the request-access wall.
+   - **asserts —** `GET /api/me` returns a bare object with `member: true`, `role: "member"`, and
+     `canAttestUat: true`: the operator can use the brokered human-UAT route without gaining hosted
+     Members/admin controls.
    - **covers —** `apps/desktop/src/backend/boot-read-routes.ts` (the me route + `LOCAL_ME`) *(provisional path)*
 2. **`br-docs-is-a-bare-array-from-the-fs-walk`** — `/api/docs` answers the real read-only walk as a bare array
    - **asserts —** `GET /api/docs` returns a bare ARRAY of `DocMeta` from the real read-only FS walk over

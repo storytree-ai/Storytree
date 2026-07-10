@@ -43,8 +43,13 @@ import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createCodeStampProbe, gitHead } from "../src/apply/code-stamp.js";
+import { createRuntimeStatusProbe } from "../src/apply/runtime-status.js";
+import { RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
-import type { LocalBackendBackend } from "../src/backend/local-backend.js";
+import type { ForestWriter, LocalBackendBackend } from "../src/backend/local-backend.js";
+import { writeToForestBroker } from "../src/backend/forest-readiness.js";
+import type { BrokerPostFn } from "../src/backend/forest-readiness.js";
+import { attestLocalUat } from "../src/backend/local-uat-attest.js";
 import {
   describeLaunchRefusal,
   ensureLaunchPreconditions,
@@ -67,10 +72,13 @@ import { PgAttestationStore } from "@storytree/orchestrator/store";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
 
-// electron/backend-entry.ts → up three (electron → apps/desktop → apps → repo root). The member runs
-// a dev-mode build from their checkout (ADR-0113 §7), so the repo root holds the live stories/ + docs/.
+// ADR-0181: the desktop serves a pinned-`main` runtime worktree. electron/main.ts resolves that
+// worktree (fail-closed: it must exist and be on `main`) and passes its root as STORYTREE_DESKTOP_RUNTIME,
+// so the sidecar reads the live stories/ + docs/ from THERE — the merged, CI-proven `main` — instead of
+// whatever checkout the shell launched from. Falls back to self-relative (electron → apps/desktop → apps
+// → repo root) when unset — the dev-convenience path (a developer iterating on the shell, ADR-0113 §7).
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "..", "..", "..");
+const repoRoot = (process.env[RUNTIME_ROOT_ENV] ?? "").trim() || resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
 
@@ -84,6 +92,12 @@ const docsDir = resolve(repoRoot, "docs");
 // can't answer. Re-composed here, not imported from apps/studio/server (a forbidden surface, ADR-0100).
 const buildStampPath = resolve(here, "..", "dist", "build-stamp.json");
 const codeStampProbe = createCodeStampProbe(repoRoot, buildStampPath);
+
+// The pinned-`main` runtime-worktree status (ADR-0181 Decision 3 — version visibility): which branch the
+// runtime worktree is on (expected `main`) + how many commits it is BEHIND `origin/main` as of the last
+// fetch. Rides every /api/health answer so the desktop can surface "running <sha> — N behind main".
+// Advisory: null fields when git can't answer (the code-stamp contract), never a throw.
+const runtimeStatusProbe = createRuntimeStatusProbe(repoRoot);
 
 // ---------- session identity (ADR-0033) for the chat spawn surface ----------
 //
@@ -182,6 +196,110 @@ function installShutdown(
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
+// ---------- authenticated broker IPC (sidecar → Electron main) ----------
+
+interface MainBrokerResponse {
+  type: "broker:response";
+  requestId: string;
+  ok: boolean;
+  value?: unknown;
+  error?: string;
+}
+
+let brokerRequestSeq = 0;
+const brokerRequests = new Map<
+  string,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }
+>();
+
+process.on("message", (message: unknown) => {
+  if (typeof message !== "object" || message === null) return;
+  const response = message as Partial<MainBrokerResponse>;
+  if (response.type !== "broker:response" || typeof response.requestId !== "string") return;
+  const pending = brokerRequests.get(response.requestId);
+  if (pending === undefined) return;
+  brokerRequests.delete(response.requestId);
+  clearTimeout(pending.timeout);
+  if (response.ok) pending.resolve(response.value);
+  else pending.reject(new Error(response.error ?? "Electron broker bridge refused the request"));
+});
+
+function requestElectronMain<T>(
+  request: { type: "broker:identity" } | { type: "broker:post"; path: string; body: unknown },
+): Promise<T> {
+  if (typeof process.send !== "function" || !process.connected) {
+    return Promise.reject(new Error("Electron broker IPC is unavailable; UAT verdict was not written"));
+  }
+  const requestId = `broker-${Date.now().toString(36)}-${++brokerRequestSeq}`;
+  return new Promise<T>((resolveRequest, rejectRequest) => {
+    const timeout = setTimeout(() => {
+      brokerRequests.delete(requestId);
+      rejectRequest(new Error("Electron broker IPC timed out; UAT verdict was not written"));
+    }, 130_000);
+    brokerRequests.set(requestId, {
+      resolve: (value) => resolveRequest(value as T),
+      reject: rejectRequest,
+      timeout,
+    });
+    process.send?.({ ...request, requestId }, (error) => {
+      if (error === null) return;
+      const pending = brokerRequests.get(requestId);
+      if (pending === undefined) return;
+      brokerRequests.delete(requestId);
+      clearTimeout(pending.timeout);
+      rejectRequest(error);
+    });
+  });
+}
+
+const mainBrokerPost: BrokerPostFn = (path, body) =>
+  requestElectronMain<{ status: number; body: unknown }>({ type: "broker:post", path, body });
+
+const brokeredForestWriter: ForestWriter = {
+  write: (write) => writeToForestBroker(mainBrokerPost, write, { timeoutMs: 125_000 }),
+};
+
+function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > 64 * 1024) {
+        rejectBody(new Error("request body is too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
+          rejectBody(new Error("request body must be a JSON object"));
+          return;
+        }
+        resolveBody(value as Record<string, unknown>);
+      } catch {
+        rejectBody(new Error("request body must be valid JSON"));
+      }
+    });
+    req.on("error", rejectBody);
+  });
+}
+
+function currentGitState(): { commitSha: string; clean: boolean } {
+  const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }).trim();
+  const porcelain = execFileSync("git", ["status", "--porcelain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  return { commitSha, clean: porcelain.trim() === "" };
+}
+
 // ---------- main ----------
 
 async function main(): Promise<void> {
@@ -232,14 +350,22 @@ async function main(): Promise<void> {
       return docs.map(renderStoredDoc);
     },
     health: async () => {
-      // The code stamp rides every health answer (both the ok + unreachable DB branches) — the
-      // "checkout moved" trigger is independent of DB state. Advisory: undefined when git can't answer.
+      // The code stamp + runtime status ride every health answer (both the ok + unreachable DB
+      // branches) — the "checkout moved" / "behind main" signals are independent of DB state. Advisory:
+      // the code stamp is undefined when git can't answer; the runtime status is omitted only when BOTH
+      // its fields are null (a partial answer still rides, an honest under-report).
       const code = (await codeStampProbe()) ?? undefined;
+      const rs = await runtimeStatusProbe();
+      const runtime = rs.branch !== null || rs.behind !== null ? rs : undefined;
+      const extra = {
+        ...(code !== undefined ? { code } : {}),
+        ...(runtime !== undefined ? { runtime } : {}),
+      };
       try {
         await pool.query("select 1");
-        return { db: "ok" as const, ...(code !== undefined ? { code } : {}) };
+        return { db: "ok" as const, ...extra };
       } catch {
-        return { db: "unreachable" as const, ...(code !== undefined ? { code } : {}) };
+        return { db: "unreachable" as const, ...extra };
       }
     },
     // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's
@@ -520,6 +646,68 @@ async function main(): Promise<void> {
   };
   const buildRouteMount = createBuildRouteMount(build);
 
+  // ---------- /api/uat/attest (POST — local human proof, persisted through IAP broker) ----------
+  const uatAttestMount = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    pathname: string,
+  ): Promise<boolean> => {
+    if (pathname !== "/api/uat/attest") return false;
+    if ((req.method ?? "GET") !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: `method ${req.method ?? "GET"} not allowed` }));
+      return true;
+    }
+
+    const body = await readJsonObject(req);
+    const testId = typeof body["testId"] === "string" ? body["testId"].trim() : "";
+    const match = /^(.+)#uat-\d+$/.exec(testId);
+    if (match === null) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: "testId must have the shape <story>#uat-<n>" }));
+      return true;
+    }
+
+    const { findNodeSpecFile, loadNodeSpec, resolvedWitnessOf } = await import("@storytree/orchestrator");
+    const specFile = findNodeSpecFile(storiesDir, match[1]!);
+    const spec = specFile === null ? null : loadNodeSpec(specFile);
+    if (spec === null || spec.tier !== "story") {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: `story "${match[1]}" was not found` }));
+      return true;
+    }
+
+    const signer = await requestElectronMain<string>({ type: "broker:identity" });
+    const attestingSession = deriveChatIdentity(repoRoot);
+    const result = await attestLocalUat({
+      testId,
+      outcome: body["outcome"] === "fail" ? "fail" : "pass",
+      at: new Date().toISOString(),
+      tests: spec.uatTests.map((test) => ({
+        id: test.id,
+        witness: resolvedWitnessOf(test, spec.reliabilityGates),
+      })),
+      signer,
+      ...(typeof body["note"] === "string" ? { note: body["note"] } : {}),
+      ...(attestingSession !== null ? { agentIdentity: attestingSession.sessionId } : {}),
+      git: currentGitState(),
+      forestWriter: brokeredForestWriter,
+    });
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    if (!result.ok) {
+      res.statusCode = 422;
+      res.end(JSON.stringify({ error: result.reason }));
+      return true;
+    }
+    res.statusCode = 201;
+    res.end(JSON.stringify({ verdict: result.verdict }));
+    return true;
+  };
+
   // ---------- /api/attestations (GET — member-readable UAT test list) ----------
   //
   // Re-composed from @storytree/orchestrator — no apps/studio/server import (ADR-0100 boundary).
@@ -787,6 +975,7 @@ async function main(): Promise<void> {
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
         if (await buildRouteMount(req, res, pathname)) return;
+        if (await uatAttestMount(req, res, pathname)) return;
         if (await attestationsMount(req, res, pathname)) return;
         await localHandler(req, res);
       } catch (err) {
