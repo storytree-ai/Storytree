@@ -31,12 +31,11 @@ capabilities: [model-runtime-seam, leaf-tool-surface, owned-turn-loop]
 # EITHER endpoint declares it.
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the owned loop on the raw Messages API (11), the single model-runtime
-# import site (4), all-in on the Claude Agent SDK as the live leaf + the PhaseAuthor pivot seam (30),
-# the leaf's bounded feedback tools (35), the organism rebuild that gave this package the model-event
-# vocabulary port (68), ports-as-root-organisms (75) under which this leaf was a declared root, and
-# the claim-at-spawn wall (138) whose "no claim, no subagent" gave the package its one outbound
-# @storytree edge (notice-board's claim primitive).
-decisions: [4, 11, 30, 35, 68, 75, 138]
+# import site (4), the Claude Agent SDK live leaf + the PhaseAuthor pivot seam (30), the leaf's
+# bounded feedback tools (35), the organism rebuild that gave this package the model-event vocabulary
+# port (68), ports-as-root-organisms (75) under which this leaf was a declared root, the
+# claim-at-spawn wall (138), and the Cursor second-harness admission rungs (177).
+decisions: [4, 11, 30, 35, 68, 75, 138, 177]
 ---
 
 # The agent runtime — the swappable leaf behind the PhaseAuthor seam
@@ -116,7 +115,7 @@ write-scope decision function are all offline-proven; the genuinely live legs �
 the subscription-funded inner loop — are operator-attested in the drive-machinery dogfood history
 (the SDK leaf authored real units there), never a standing test in this package.
 
-## Capabilities (5)
+## Capabilities (6)
 
 Listed roots-first (a capability appears after everything it depends on). Edges are **within-story,
 code-derived** (ADR-0010 §3) — read off the real `./`-imports between the source files, never
@@ -127,7 +126,7 @@ The **buildable** column marks the split this story now carries. Three capabilit
 (ADR-0057 — they carry a `proof:` block with a `real:` arm describing a genuine additive red→green
 against the real `packages/agent/src` source) and are listed in the story's `capabilities:`
 frontmatter; that closed, acyclic, every-cap-has-a-`real:`-arm set is exactly what makes the WHOLE
-story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Two are **authored but
+story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Three are **authored but
 intentionally unwired** — they cannot carry a genuine standalone red→green (see the note below the
 table) — so they are NOT in the buildable set, kept honestly `mapped` as documented gaps.
 
@@ -138,8 +137,9 @@ table) — so they are NOT in the buildable set, kept honestly `mapped` as docum
 | 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | mapped | **yes** (proof-wired) | `model-runtime-seam` |
 | 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | mapped | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
 | 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | mapped | no (operator-attested live leg) | `phase-author-seam` |
+| 6 | [`cursor-sdk-leaf`](cursor-sdk-leaf.md) | The agent organism probes Cursor through an account-discovered model and a local read-only plan-mode run, normalizing identity, output, tool activity, timing, usage, and failure stage. | mapped | no (landed Rung A; no new red) | `phase-author-seam` |
 
-**Why two capabilities stay unwired (honest gaps, not omissions).**
+**Why three capabilities stay unwired (honest gaps, not omissions).**
 
 - **`phase-author-seam` is a pure type module.** `phase-author.ts` declares `AuthoringPhase`,
   `AuthorResult`, and the `PhaseAuthor` interface — no runtime, no test of its own to count (its own
@@ -154,6 +154,11 @@ table) — so they are NOT in the buildable set, kept honestly `mapped` as docum
   leaf). So it has no free, offline red→green to drive under the gate. It also `depends_on:
   [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
   regardless. It stays `mapped`, unwired.
+- **`cursor-sdk-leaf` records an already-landed read-only probe.** ADR-0177 Rung A is observationally
+  covered by `cursor-handshake.test.ts` through an injected client/run seam, but this hierarchy unit
+  is authored after that brownfield implementation: it has no genuine new RED to drive. It also
+  depends on the unwired `phase-author-seam`. Rung B, `CursorPhaseAuthor`, write access, runtime
+  selection, prove-spec changes, and authenticated operator attestation remain outside this unit.
 
 ## Dependency graph (code-derived)
 
@@ -176,6 +181,10 @@ contract shape IS the coupling) and marked.
   - `sdk-author.ts` imports `AuthoringPhase`/`AuthorResult`/`PhaseAuthor` (type) from
     `./phase-author.js` — `ClaudeAgentAuthor` IS an implementation of the seam; `sdk-curator.ts`
     imports `SdkQueryFn` from `./sdk-author.js` (the curator reuses the leaf's injectable query seam).
+- `cursor-sdk-leaf` → `phase-author-seam`
+  - ADR-0177 places the read-only admission probe under the executor seam it is intended to test as a
+    second harness. Rung A deliberately stops before implementing or importing `PhaseAuthor`; this
+    dependency is the delivered architectural precondition for the later admission rung.
 
 **Cross-story:** one outbound — `notice-board` (`claim-gated-spawn.ts`, hosted here by the
 chat-subagent-spawn story, value-imports `workClaimRequest`; see the frontmatter note). Inbound: the `PhaseAuthor` seam (and the
@@ -324,8 +333,9 @@ story's own UAT node is **WITHHELD** from the real build — `isStoryBuildable` 
 machine-driven story UAT, and the integrated acceptance walkthrough above stays human/operator-attested
 (part-scripted, part live-attested, per **Honest status**). So driving the three capabilities to a
 signed verdict is exactly what makes the WHOLE story buildable; the story crown still awaits its human
-witness. The two unwired capabilities (`phase-author-seam`, `live-sdk-leaf`) remain documented gaps —
-they carry no genuine standalone red→green to drive (see **Capabilities (5)**), so they are not yet a
+witness. The three unwired capabilities (`phase-author-seam`, `live-sdk-leaf`, `cursor-sdk-leaf`)
+remain documented gaps — they carry no genuine standalone red→green to drive (see
+**Capabilities (6)**), so they are not yet a
 rung anyone can take.
 
 ## Open modeling calls (for the owner)
