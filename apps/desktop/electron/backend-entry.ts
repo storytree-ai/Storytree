@@ -43,6 +43,8 @@ import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createCodeStampProbe, gitHead } from "../src/apply/code-stamp.js";
+import { createRuntimeStatusProbe } from "../src/apply/runtime-status.js";
+import { RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { ForestWriter, LocalBackendBackend } from "../src/backend/local-backend.js";
 import { writeToForestBroker } from "../src/backend/forest-readiness.js";
@@ -70,10 +72,13 @@ import { PgAttestationStore } from "@storytree/orchestrator/store";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
 
-// electron/backend-entry.ts → up three (electron → apps/desktop → apps → repo root). The member runs
-// a dev-mode build from their checkout (ADR-0113 §7), so the repo root holds the live stories/ + docs/.
+// ADR-0181: the desktop serves a pinned-`main` runtime worktree. electron/main.ts resolves that
+// worktree (fail-closed: it must exist and be on `main`) and passes its root as STORYTREE_DESKTOP_RUNTIME,
+// so the sidecar reads the live stories/ + docs/ from THERE — the merged, CI-proven `main` — instead of
+// whatever checkout the shell launched from. Falls back to self-relative (electron → apps/desktop → apps
+// → repo root) when unset — the dev-convenience path (a developer iterating on the shell, ADR-0113 §7).
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "..", "..", "..");
+const repoRoot = (process.env[RUNTIME_ROOT_ENV] ?? "").trim() || resolve(here, "..", "..", "..");
 const storiesDir = resolve(repoRoot, "stories");
 const docsDir = resolve(repoRoot, "docs");
 
@@ -87,6 +92,12 @@ const docsDir = resolve(repoRoot, "docs");
 // can't answer. Re-composed here, not imported from apps/studio/server (a forbidden surface, ADR-0100).
 const buildStampPath = resolve(here, "..", "dist", "build-stamp.json");
 const codeStampProbe = createCodeStampProbe(repoRoot, buildStampPath);
+
+// The pinned-`main` runtime-worktree status (ADR-0181 Decision 3 — version visibility): which branch the
+// runtime worktree is on (expected `main`) + how many commits it is BEHIND `origin/main` as of the last
+// fetch. Rides every /api/health answer so the desktop can surface "running <sha> — N behind main".
+// Advisory: null fields when git can't answer (the code-stamp contract), never a throw.
+const runtimeStatusProbe = createRuntimeStatusProbe(repoRoot);
 
 // ---------- session identity (ADR-0033) for the chat spawn surface ----------
 //
@@ -339,14 +350,22 @@ async function main(): Promise<void> {
       return docs.map(renderStoredDoc);
     },
     health: async () => {
-      // The code stamp rides every health answer (both the ok + unreachable DB branches) — the
-      // "checkout moved" trigger is independent of DB state. Advisory: undefined when git can't answer.
+      // The code stamp + runtime status ride every health answer (both the ok + unreachable DB
+      // branches) — the "checkout moved" / "behind main" signals are independent of DB state. Advisory:
+      // the code stamp is undefined when git can't answer; the runtime status is omitted only when BOTH
+      // its fields are null (a partial answer still rides, an honest under-report).
       const code = (await codeStampProbe()) ?? undefined;
+      const rs = await runtimeStatusProbe();
+      const runtime = rs.branch !== null || rs.behind !== null ? rs : undefined;
+      const extra = {
+        ...(code !== undefined ? { code } : {}),
+        ...(runtime !== undefined ? { runtime } : {}),
+      };
       try {
         await pool.query("select 1");
-        return { db: "ok" as const, ...(code !== undefined ? { code } : {}) };
+        return { db: "ok" as const, ...extra };
       } catch {
-        return { db: "unreachable" as const, ...(code !== undefined ? { code } : {}) };
+        return { db: "unreachable" as const, ...extra };
       }
     },
     // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's

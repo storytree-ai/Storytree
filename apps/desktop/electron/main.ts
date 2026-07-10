@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -9,24 +9,67 @@ import { capturedFromInput } from "../src/oauth/login.js";
 import type { CredentialKind } from "../src/credential/kinds.js";
 import { serveStudio } from "./static-server.js";
 import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
-import { runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
+import { rebuildSteps, runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
+import { resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
 // `import.meta.url` that goes empty under a CJS bundle. Resolves to apps/desktop.
 const appRoot = app.getAppPath();
+// The checkout the Electron shell launched from (apps/desktop → apps → repo root) — the fallback root
+// when no pinned runtime worktree is configured.
+const launchRoot = join(appRoot, "..", "..");
 
-// The COMPILED studio bundle — built separately by `pnpm --filter studio build` (Vite →
-// apps/studio/dist). The desktop client carries NO source, NO build engine, NO stories:
-// only this compiled UI (ADR-0090 d.4 / ADR-0109 §1). It does NOT import @storytree/agent.
-// Served over http://127.0.0.1 (not file://) so its absolute /assets/ paths resolve.
-const STUDIO_DIST = join(appRoot, "..", "studio", "dist");
+// ADR-0181 — RESOLVE THE RUNTIME ROOT the desktop serves from, FAIL-CLOSED. The desktop must serve a
+// pinned, CI-proven `main`, not whatever branch the launch checkout happens to sit on (the observed
+// 2026-07-08 bug: it served a dirty feature branch). STORYTREE_DESKTOP_RUNTIME points at a dedicated
+// worktree kept on `main`; when set it is authoritative and must EXIST + be on `main`, else we refuse
+// (requireRuntime() below blocks serving, so the launch shows the misconfiguration instead of stray
+// code). When UNSET we fall back to the launch checkout (today's dev-convenience behaviour). A sync
+// `existsSync` + `git` read are the real probes over which the pure resolveRuntimeRoot decides.
+function branchOfSync(path: string): string | null {
+  try {
+    const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: path,
+      windowsHide: true,
+      encoding: "utf8",
+    }).trim();
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}
+const runtime = resolveRuntimeRoot(
+  { configured: process.env[RUNTIME_ROOT_ENV] ?? null, launchRoot },
+  { exists: (p) => existsSync(p), branchOf: branchOfSync },
+);
+if (runtime.ok) {
+  console.error(`[main] serving runtime root ${runtime.root} (source: ${runtime.source})`);
+} else {
+  console.error(`[main] FAIL-CLOSED — will not serve stray code: ${runtime.error}`);
+}
+// The root everything else serves/builds from — the runtime worktree, or the launch checkout in the
+// dev fallback. When resolution REFUSED (configured-but-invalid) this is launchRoot, but requireRuntime()
+// blocks serving before any of these paths are used, so stray code never renders.
+const serveRoot = runtime.ok ? runtime.root : launchRoot;
+// Enforce the ff-to-main advance in the rebuild only when we are actually serving a pinned runtime
+// worktree; the pure dev fallback rebuilds the launch checkout in place (ADR-0164 behaviour), no advance.
+const ffToMain = runtime.ok && runtime.source === "runtime";
 
-// The thick-local backend SIDECAR entry (ADR-0119 §1). A RAW-TS file run under `tsx` in a child Node
-// process — NOT bundled into this CJS main (esbuild empties its `import.meta` under CJS, breaking the
-// corpus paths + the build path). The main spawns it, reads its `127.0.0.1` port off stdout, and the
-// studio dist server PROXIES `/api/*` to it. It is excluded from `build:electron`'s esbuild entries.
-const BACKEND_ENTRY = join(appRoot, "electron", "backend-entry.ts");
+// The COMPILED studio bundle — built by `pnpm --filter studio build` (Vite → apps/studio/dist) IN THE
+// SERVE ROOT. The desktop client carries NO source, NO build engine, NO stories: only this compiled UI
+// (ADR-0090 d.4 / ADR-0109 §1). It does NOT import @storytree/agent. Served over http://127.0.0.1 (not
+// file://) so its absolute /assets/ paths resolve.
+const STUDIO_DIST = join(serveRoot, "apps", "studio", "dist");
+
+// The thick-local backend SIDECAR entry (ADR-0119 §1), from the SERVE ROOT. A RAW-TS file run under
+// `tsx` in a child Node process — NOT bundled into this CJS main (esbuild empties its `import.meta`
+// under CJS, breaking the corpus paths + the build path). The main spawns it, reads its `127.0.0.1`
+// port off stdout, and the studio dist server PROXIES `/api/*` to it. Excluded from `build:electron`.
+const BACKEND_ENTRY = join(serveRoot, "apps", "desktop", "electron", "backend-entry.ts");
+// The dir the sidecar + the rebuild run in — the serve root's desktop package (so `tsx` resolves the
+// serve root's node_modules, and `--filter studio`/`--filter desktop` resolve the serve-root workspace).
+const sidecarCwd = join(serveRoot, "apps", "desktop");
 
 // The credential lives in the OS keychain, reached only through the broker in THIS (main)
 // process. The renderer never holds it (ADR-0109 §Decision 4).
@@ -194,12 +237,22 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * Fail closed when the runtime worktree is MISCONFIGURED (ADR-0181): a configured
+ * STORYTREE_DESKTOP_RUNTIME that is missing or not on `main`. Rather than serve stray code we surface
+ * the actionable error (the `git worktree add` / fast-forward hint) — launchBackendForWindow catches it
+ * and renders it on the launch page.
+ */
+function requireRuntime(): void {
+  if (!runtime.ok) throw new Error(runtime.error);
+}
+
 /** Fail closed when the compiled studio bundle is absent — the shell cannot render without it. */
 function requireStudioDist(): void {
   const indexHtml = join(STUDIO_DIST, "index.html");
   if (existsSync(indexHtml)) return;
   throw new Error(
-    `the studio UI bundle is missing (${STUDIO_DIST}) — run "pnpm --filter studio build" in this checkout, then Retry`,
+    `the studio UI bundle is missing (${STUDIO_DIST}) — run "pnpm --filter studio build" in the runtime worktree, then Retry`,
   );
 }
 
@@ -217,9 +270,11 @@ function startBackend(): Promise<number> {
     // from a stale node_modules, a Postgres auth error) was lost behind a generic exit-1 message. We
     // still echo every chunk live to our own stderr, so nothing is swallowed, AND keep the tail to fold
     // into the rejection so the `[main]` line is self-contained.
+    // cwd + STORYTREE_DESKTOP_RUNTIME point the sidecar at the SERVE ROOT (ADR-0181): it reads the live
+    // stories/ + docs/ from the pinned runtime worktree, and `tsx` resolves the serve root's node_modules.
     const child = spawn(process.execPath, ["--import", "tsx", BACKEND_ENTRY], {
-      cwd: appRoot,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      cwd: sidecarCwd,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", [RUNTIME_ROOT_ENV]: serveRoot },
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
     backendChild = child;
@@ -289,6 +344,7 @@ function launchBackendForWindow(win: BrowserWindow, showStarting = true): Promis
       if (showStarting) {
         await safeLoadURL(win, launchPage("Starting storytree", "Checking the checkout and database…", false));
       }
+      requireRuntime();
       requireStudioDist();
       backendPort = await startBackend();
       const url = await ensureStudioServed();
@@ -353,11 +409,13 @@ ipcMain.handle("auth:sign-out", async (_e, kind: CredentialKind): Promise<boolea
 // The renderer's banner button (surfacing the existing git-HEAD-drift signal, ADR-0164) invokes this;
 // the MAIN process executes. The orchestrator/sidecar only ever SIGNALS — it never restarts itself.
 //
-// FAIL-CLOSED (ADR-0164 Consequences): the rebuild runs `pnpm --filter studio build` then
-// `build:electron` from the desktop package dir, STOPPING on the first failure. On success we relaunch
-// onto the freshly-built code; on ANY failure we DO NOT relaunch — the app stays on the old working
-// build and the typed error is returned to the banner. A concurrency guard makes a double-click a no-op
-// rather than two overlapping builds.
+// FAIL-CLOSED (ADR-0164 Consequences + ADR-0181): when serving a pinned runtime worktree the rebuild
+// LEADS with `git fetch` + `git merge --ff-only origin/main` (Rail 2 enforced by construction — only
+// merged `main` can ever be applied) + a frozen install, then `pnpm --filter studio build` +
+// `build:electron`, all in the serve root, STOPPING on the first failure. On success we relaunch onto
+// the freshly-built code; on ANY failure (a non-fast-forward, a broken build) we DO NOT relaunch — the
+// app stays on the old working build and the typed error is returned to the banner. A concurrency guard
+// makes a double-click a no-op rather than two overlapping builds.
 let rebuilding = false;
 ipcMain.handle("apply:rebuild-relaunch", async (): Promise<RebuildResult> => {
   if (rebuilding) {
@@ -365,7 +423,7 @@ ipcMain.handle("apply:rebuild-relaunch", async (): Promise<RebuildResult> => {
   }
   rebuilding = true;
   try {
-    const result = await runRebuild(spawnStepRunner(appRoot));
+    const result = await runRebuild(spawnStepRunner(), rebuildSteps({ root: serveRoot, ffToMain }));
     if (result.ok) {
       // Relaunch onto the new build, then quit THIS instance — `will-quit` reaps the sidecar. The new
       // instance spawns a fresh sidecar that serves the just-rebuilt studio dist. Only reached on a

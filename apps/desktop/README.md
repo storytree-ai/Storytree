@@ -36,3 +36,26 @@ pnpm --filter desktop start         # launch the shell (electron + tsx)
 
 The keychain holds nothing private from the repo's point of view: the credential is the member's own
 Claude token, entered at runtime and stored in the OS keychain by the broker.
+
+## Version management — the pinned-`main` runtime worktree (ADR-0181)
+
+By default the shell serves `apps/studio/dist` + the sidecar from **the checkout it launched from**.
+That checkout is usually a dirty feature branch, so the app can silently run un-merged code. To serve a
+**pinned, CI-proven `main`** instead, point the shell at a dedicated runtime worktree kept on `main`:
+
+```sh
+# One-time: create a worktree that only ever tracks main, separate from your dev checkout.
+git worktree add /path/to/storytree-runtime origin/main
+cd /path/to/storytree-runtime && pnpm install && pnpm --filter studio build && pnpm --filter desktop run build:electron
+
+# Point the desktop at it (env var; unset = today's launch-checkout fallback).
+export STORYTREE_DESKTOP_RUNTIME=/path/to/storytree-runtime
+pnpm --filter desktop start
+```
+
+When `STORYTREE_DESKTOP_RUNTIME` is set it is **authoritative and fail-closed**: it must exist and be on
+`main`, or the app refuses to launch and shows the fix (a `git worktree add` / fast-forward hint) rather
+than serving stray code. The in-app **Rebuild & relaunch** action (ADR-0164) then leads with
+`git fetch` + `git merge --ff-only origin/main` in that worktree — so it can only ever advance to merged
+`main`, never sideways onto a branch (Rail 2, enforced by construction). `/api/health` reports the
+runtime worktree's branch and how many commits it is **behind `origin/main`** for version visibility.
