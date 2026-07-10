@@ -179,3 +179,23 @@ test("proof-gate binding: the schema accepts and round-trips an explicit proofGa
   const parsed = UatTest.parse({ id: "s#uat-1", title: "t", proofGateId: "s#gate-1" });
   assert.equal(parsed.proofGateId, "s#gate-1", "an explicit proofGateId round-trips through the schema");
 });
+
+test("proof-gate binding: a malformed proof-gate id (not shaped story-id#gate-n) is refused, not silently accepted", () => {
+  const body =
+    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: not-a-valid-gate-id)_: a real scripted leg.\n";
+  assert.throws(
+    () => parseUatTests(STORY, body),
+    /malformed proof-gate/i,
+    "an id not shaped story-id#gate-n fails at this parsing boundary, it is not passed through verbatim",
+  );
+});
+
+test("proof-gate binding: duplicate proof-gate annotations on the same leg are refused, not silently first-wins", () => {
+  const body =
+    "## Story UAT\n\n1. **A driven leg** _(witness: machine)_ _(proof-gate: demo-story#gate-2)_ _(proof-gate: demo-story#gate-3)_: a real scripted leg.\n";
+  assert.throws(
+    () => parseUatTests(STORY, body),
+    /duplicate proof-gate/i,
+    "two proof-gate annotations on one leg fails at this parsing boundary, the second is not silently dropped",
+  );
+});

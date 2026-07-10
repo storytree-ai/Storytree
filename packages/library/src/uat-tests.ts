@@ -116,6 +116,14 @@ const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
  * lookup key into the story's declared reliability gates, not an enum.
  */
 const PROOF_GATE_TAG = /\(proof-gate:\s*([^)]+)\)/i;
+/** All proof-gate annotations on an item, used only to detect a duplicate (more than one). */
+const PROOF_GATE_TAG_ALL = /\(proof-gate:\s*[^)]+\)/gi;
+/**
+ * The required shape of a captured proof-gate id: `story-id#gate-n`. Anything else (e.g. a bare
+ * slug with no `#gate-<n>` suffix) is malformed and refused at the parsing boundary rather than
+ * passed through verbatim.
+ */
+const PROOF_GATE_ID_SHAPE = /^\S+#gate-\d+$/i;
 
 /**
  * Extract the `## Story UAT` section (between its heading and the next `##`) AND whether the heading
@@ -175,13 +183,29 @@ function itemWitness(item: string, id: string): UatTestWitness {
 /**
  * Pull the declared `proof-gate` binding from an item. Absent → `undefined` (never inferred — a
  * real machine leg with no annotation is a binding gap the resolver/adopt pass refuses, not a
- * silent default). The captured id is trimmed but otherwise preserved verbatim.
+ * silent default). The captured id is trimmed but otherwise preserved verbatim — EXACTLY as
+ * written, never case-normalized (unlike {@link itemWitness}).
+ *
+ * Two things fail HERE, at the parsing boundary, rather than being silently accepted or dropped:
+ * a second `(proof-gate: …)` annotation on the same leg (first-wins would hide the ambiguity), and
+ * an id not shaped `story-id#gate-n` (a malformed id passed through verbatim would surface as a
+ * confusing lookup miss two layers downstream instead of here).
  */
-function itemProofGateId(item: string): string | undefined {
+function itemProofGateId(item: string, id: string): string | undefined {
+  const all = item.match(PROOF_GATE_TAG_ALL) ?? [];
+  if (all.length > 1) {
+    throw new Error(`${id}: duplicate proof-gate annotations — only one is allowed per leg`);
+  }
   const tag = PROOF_GATE_TAG.exec(item);
   if (tag === null) return undefined;
-  const id = tag[1]!.trim();
-  return id.length > 0 ? id : undefined;
+  const raw = tag[1]!.trim();
+  if (raw.length === 0) return undefined;
+  if (!PROOF_GATE_ID_SHAPE.test(raw)) {
+    throw new Error(
+      `${id}: malformed proof-gate id "${raw}" — expected the shape story-id#gate-n`,
+    );
+  }
+  return raw;
 }
 
 /**
@@ -201,7 +225,7 @@ export function parseUatTests(storyId: string, body: string): UatTest[] {
   const items = splitItems(parsed.section);
   return items.map((item, index) => {
     const id = uatTestId(storyId, index + 1);
-    const proofGateId = itemProofGateId(item);
+    const proofGateId = itemProofGateId(item, id);
     return UatTest.parse({
       id,
       title: itemTitle(item),
