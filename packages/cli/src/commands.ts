@@ -30,7 +30,14 @@ import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
-import { desktopHelp, desktopLaunch, type DesktopSpawnFn } from "./desktop.js";
+import {
+  desktopHelp,
+  desktopInstallShortcut,
+  desktopLaunch,
+  type CreateShortcutsFn,
+  type DesktopSpawnFn,
+  type ResolveElectronFn,
+} from "./desktop.js";
 import { onboardingCommand, onboardingHelp } from "./onboarding.js";
 import {
   newFriction,
@@ -827,7 +834,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
-      "  desktop launch   launch the Electron desktop client, detached (ADR-0109/0111)",
+      "  desktop          launch the Electron desktop client + install its Windows shortcut (ADR-0109/0111)",
       "",
       "the proof primitives relocated UNDER the workflows above (ADR-0118); the old grain verbs keep",
       "working as back-compat aliases (nothing breaks, they just moved):",
@@ -1033,6 +1040,9 @@ export interface RunDeps {
     readonly spawn?: DesktopSpawnFn;
     readonly repoRoot?: string;
     readonly platform?: NodeJS.Platform;
+    /** `install-shortcut` seams — an injected .lnk writer + Electron resolver keep it offline-testable. */
+    readonly createShortcuts?: CreateShortcutsFn;
+    readonly resolveElectron?: ResolveElectronFn;
   };
   /**
    * The `storytree friction` seam (ADR-0168 inc 2): the capture context — branch (the provenance +
@@ -2006,11 +2016,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // PER_APP_ENTRYPOINTS) — spawns it DETACHED so the invoking session isn't blocked on the
     // long-running GUI process.
     if (help || sub === undefined) return desktopHelp();
+    if (sub === "install-shortcut") {
+      // A reproducible Windows .lnk (Desktop + Start Menu) that opens the app with no console window
+      // and the storytree icon — the durable replacement for the vanished hand-made shortcut.
+      return desktopInstallShortcut({
+        repoRoot: deps.desktop?.repoRoot ?? repoRoot(),
+        ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
+        ...(deps.desktop?.createShortcuts !== undefined ? { createShortcuts: deps.desktop.createShortcuts } : {}),
+        ...(deps.desktop?.resolveElectron !== undefined ? { resolveElectron: deps.desktop.resolveElectron } : {}),
+      });
+    }
     if (sub !== "launch") {
       return {
         ok: false,
-        body: `unknown desktop command "${sub}". try: storytree desktop launch`,
-        next: ["storytree desktop launch", "storytree desktop --help"],
+        body: `unknown desktop command "${sub}". try: storytree desktop launch | storytree desktop install-shortcut`,
+        next: ["storytree desktop launch", "storytree desktop install-shortcut", "storytree desktop --help"],
       };
     }
     return desktopLaunch({

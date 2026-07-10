@@ -6,6 +6,10 @@ node_modules/
 # Build output
 dist/
 build/
+# ...except the desktop app's own icon asset (a committed source file, not a build artifact):
+# re-include the dir (so git will traverse it) then the icon itself.
+!apps/desktop/build/
+!apps/desktop/build/icon.ico
 out/
 *.tsbuildinfo
 .turbo/
