@@ -107,7 +107,9 @@ export type AssetCategory =
   | 'template' // "the shape an artifact conforms to"
   | 'adr' // "a decision record"
   | 'open-question' // "an unresolved decision to settle"
-  | 'friction'; // "what fought a session, with evidence"
+  | 'friction' // "what fought a session, with evidence"
+  | 'arc' // "a multi-story initiative tracked to a close" (displayed "Epic", ADR-0183 D1)
+  | 'plan'; // "a disposable, git-anchored choreography for one arc increment"
 
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
@@ -304,6 +306,8 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'adr',
   'open-question',
   'friction',
+  'arc',
+  'plan',
 ];
 
 /** One-line gloss per category (shown in the Library UI). */
@@ -320,6 +324,8 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   adr: 'a decision record',
   'open-question': 'an unresolved decision to settle',
   friction: 'what fought a session, with evidence',
+  arc: 'a multi-story initiative tracked to a close',
+  plan: 'a disposable, git-anchored choreography for one arc increment',
 };
 
 /**

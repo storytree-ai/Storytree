@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAppData, openCount } from '../lib/appData';
+import { kindLabel, typeLabel, setArcDisplay, useArcDisplay } from '../lib/kindDisplay';
 import { assetHref, assetNewHref, docHref, libraryHref } from '../lib/route';
 import {
   ASSET_CATEGORIES,
@@ -8,7 +9,8 @@ import {
   type LibraryItem,
 } from '../types';
 
-/** Human label for each artifact type, shown on the landing's definition cards. */
+/** Human label for each artifact type, shown on the landing's definition cards. `arc` renders
+ *  as "Epics" by default via typeLabel/kindDisplay (ADR-0183 D1 — the key stays `arc`). */
 const TYPE_LABEL: Record<AssetCategory, string> = {
   definition: 'Definitions',
   principle: 'Principles',
@@ -22,11 +24,18 @@ const TYPE_LABEL: Record<AssetCategory, string> = {
   adr: 'Decision records',
   'open-question': 'Open questions',
   friction: 'Friction',
+  arc: 'Arcs',
+  plan: 'Plans',
 };
 
 export function Library({ category }: { category: AssetCategory | null }): React.JSX.Element {
   const { docs, assets, comments } = useAppData();
   const [query, setQuery] = useState('');
+  // ADR-0183 D1: `arc` displays as "Epic" by default, flippable to "Arc" — display text only,
+  // never the key (routes/hrefs below keep the canonical `arc`).
+  const arcDisplay = useArcDisplay();
+  const heading = (cat: AssetCategory): string => typeLabel(cat, arcDisplay, TYPE_LABEL[cat]);
+  const chip = (cat: AssetCategory): string => kindLabel(cat, arcDisplay);
 
   // The unified Library list: editable artifacts (kind 'artifact') plus the ADRs
   // as read-only, doc-backed items (group "Decisions" → kind 'doc', category 'adr').
@@ -96,10 +105,10 @@ export function Library({ category }: { category: AssetCategory | null }): React
               <li key={cat}>
                 <a className="asset-card type-card" href={libraryHref(cat)}>
                   <div className="asset-card-top">
-                    <span className={`chip cat-${cat}`}>{cat}</span>
+                    <span className={`chip cat-${cat}`}>{chip(cat)}</span>
                     <span className="badge ghost">{n}</span>
                   </div>
-                  <h3>{TYPE_LABEL[cat]}</h3>
+                  <h3>{heading(cat)}</h3>
                   <p className="asset-desc">{ASSET_CATEGORY_GLOSS[cat]}</p>
                 </a>
               </li>
@@ -118,15 +127,28 @@ export function Library({ category }: { category: AssetCategory | null }): React
             <a className="crumb-link" href={libraryHref()}>
               Library
             </a>
-            <span className="crumb-sep"> / {TYPE_LABEL[category]}</span>
+            <span className="crumb-sep"> / {heading(category)}</span>
           </h1>
           <p className="muted small cat-gloss">
-            <span className={`cat-dot cat-${category}`} /> {category} — {ASSET_CATEGORY_GLOSS[category]}
+            <span className={`cat-dot cat-${category}`} /> {chip(category)} —{' '}
+            {ASSET_CATEGORY_GLOSS[category]}
           </p>
         </div>
-        <a className="btn primary" href={assetNewHref}>
-          + New artifact
-        </a>
+        <div className="library-head-actions">
+          {category === 'arc' && (
+            <button
+              className="btn"
+              onClick={() => setArcDisplay(arcDisplay === 'epic' ? 'arc' : 'epic')}
+              title='Display preference only — the kind key stays "arc" everywhere (ADR-0183 D1)'
+            >
+              Display: {arcDisplay === 'epic' ? 'Epic' : 'Arc'} — switch to{' '}
+              {arcDisplay === 'epic' ? 'Arc' : 'Epic'}
+            </button>
+          )}
+          <a className="btn primary" href={assetNewHref}>
+            + New artifact
+          </a>
+        </div>
       </div>
 
       <div className="filters">
@@ -141,14 +163,14 @@ export function Library({ category }: { category: AssetCategory | null }): React
                 href={libraryHref(cat)}
                 title={ASSET_CATEGORY_GLOSS[cat]}
               >
-                {cat} ({n})
+                {chip(cat)} ({n})
               </a>
             );
           })}
         </div>
         <input
           className="search"
-          placeholder={`Search ${TYPE_LABEL[category].toLowerCase()}…`}
+          placeholder={`Search ${heading(category).toLowerCase()}…`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -166,7 +188,7 @@ export function Library({ category }: { category: AssetCategory | null }): React
                 <a className="asset-card" href={href}>
                   <div className="asset-card-top">
                     <span className="card-chips">
-                      <span className={`chip cat-${it.category}`}>{it.category}</span>
+                      <span className={`chip cat-${it.category}`}>{chip(it.category)}</span>
                       {/* ADR lifecycle status (ADR-0037), so a wrong/premature flip is catchable at a
                           glance (ADR-0084). proposed is amber, accepted green, superseded grey. */}
                       {it.status && (

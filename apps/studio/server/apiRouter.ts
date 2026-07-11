@@ -90,6 +90,8 @@ const ASSET_CATEGORIES: AssetCategory[] = [
   'adr',
   'open-question',
   'friction',
+  'arc',
+  'plan',
 ];
 
 export interface Paths {

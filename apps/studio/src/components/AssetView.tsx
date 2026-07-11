@@ -3,6 +3,7 @@ import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { formatDateTime } from '../lib/format';
+import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import { assetEditHref, assetHref, docHref, libraryHref, navigate } from '../lib/route';
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
@@ -11,6 +12,7 @@ import { ReviewToggle } from './ReviewToggle';
 
 export function AssetView({ id }: { id: string }): React.JSX.Element {
   const { assets, refreshAssets } = useAppData();
+  const arcDisplay = useArcDisplay(); // the `arc` kind chip shows "epic" by default (ADR-0183 D1)
   const asset = assets.find((a) => a.id === id);
   // "Sources": the unit's `references` grouped by the type of thing each points at, resolved live
   // against the loaded corpus (asset:<id> -> its category). A view, never stored.
@@ -52,7 +54,7 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
         </div>
         <div className="asset-detail-head">
           <span className={`chip cat-${asset.category}`} title={ASSET_CATEGORY_GLOSS[asset.category]}>
-            {asset.category}
+            {kindLabel(asset.category, arcDisplay)}
           </span>
           <span className="muted small">{ASSET_CATEGORY_GLOSS[asset.category]}</span>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import { slugify } from '../lib/markdown';
 import { missingSections, requiredSections, templateIdFor } from '../lib/templates';
 import {
@@ -62,6 +63,7 @@ function labelFor(spec: EditorFieldSpec): string {
 
 export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
   const { assets, refreshAssets } = useAppData();
+  const arcDisplay = useArcDisplay(); // option label only — the option VALUE stays `arc` (ADR-0183 D1)
   const existing = mode === 'edit' ? assets.find((a) => a.id === id) : undefined;
   const [form, setForm] = useState<FormState>(EMPTY);
   const [idTouched, setIdTouched] = useState(false);
@@ -242,7 +244,7 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
             >
               {ASSET_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c} — {ASSET_CATEGORY_GLOSS[c]}
+                  {kindLabel(c, arcDisplay)} — {ASSET_CATEGORY_GLOSS[c]}
                 </option>
               ))}
             </select>

@@ -25,6 +25,8 @@
   --cat-adr: #334155;
   --cat-open-question: #ea580c;
   --cat-friction: #e11d48;
+  --cat-arc: #7c2d92;
+  --cat-plan: #64748b;
   --cat-context: #b45309;
   --cat-glossary: #475569;
 
@@ -1192,6 +1194,12 @@ a.stat:hover {
 .chip.cat-friction {
   background: var(--cat-friction);
 }
+.chip.cat-arc {
+  background: var(--cat-arc);
+}
+.chip.cat-plan {
+  background: var(--cat-plan);
+}
 
 /* The left cluster of a card header: the category chip + (for ADR docs) the lifecycle status chip. */
 .card-chips {
@@ -1234,6 +1242,18 @@ a.stat:hover {
 .cat-dot.cat-friction {
   background: var(--cat-friction);
 }
+.cat-dot.cat-arc {
+  background: var(--cat-arc);
+}
+.cat-dot.cat-plan {
+  background: var(--cat-plan);
+}
+/* The header's right cluster: the arc display toggle (ADR-0183 D1) + "+ New artifact". */
+.library-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .chip-btn.cat-guardrail.active {
   background: var(--cat-guardrail);
   border-color: var(--cat-guardrail);
@@ -1261,6 +1281,14 @@ a.stat:hover {
 .chip-btn.cat-friction.active {
   background: var(--cat-friction);
   border-color: var(--cat-friction);
+}
+.chip-btn.cat-arc.active {
+  background: var(--cat-arc);
+  border-color: var(--cat-arc);
+}
+.chip-btn.cat-plan.active {
+  background: var(--cat-plan);
+  border-color: var(--cat-plan);
 }
 
 /* editor: body label row (template button) + required-section hint */

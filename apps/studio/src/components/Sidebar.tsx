@@ -1,9 +1,11 @@
 import { useAppData } from '../lib/appData';
+import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import { libraryHref, type Route } from '../lib/route';
 import { ASSET_CATEGORIES, type AssetCategory } from '../types';
 
 export function Sidebar({ route }: { route: Route }): React.JSX.Element {
   const { docs, assets } = useAppData();
+  const arcDisplay = useArcDisplay(); // 'arc' shows as "epic" by default (ADR-0183 D1)
   // ADRs are folded into the Library under the `adr` category (counted below).
   const adrDocs = docs.filter((d) => d.group === 'Decisions');
   const libCat = route.name === 'library' ? route.category : undefined;
@@ -34,7 +36,7 @@ export function Sidebar({ route }: { route: Route }): React.JSX.Element {
                   href={libraryHref(cat)}
                 >
                   <span className={`cat-dot cat-${cat}`} />
-                  <span className="side-item-label">{cat}</span>
+                  <span className="side-item-label">{kindLabel(cat, arcDisplay)}</span>
                   <span className="badge ghost">{n}</span>
                 </a>
               </li>
