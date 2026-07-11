@@ -63,13 +63,18 @@ export interface LibraryDrawerProps {
    *  the AppData context is available; the shell itself stays provider-free so it proves in
    *  isolation). Absent → the slot renders empty, as increment 1 left it. */
   peekSlot?: React.ReactNode;
+  /** What fills the reserved dive body slot (the artifact body, increment 4 — mounted by TreeView
+   *  where the AppData context is available, mirroring `peekSlot`). Absent → the slot renders
+   *  empty, as increment 1 left it (so the shell's own `lds-*` tests, which pass no `diveSlot`,
+   *  stay byte-green). */
+  diveSlot?: React.ReactNode;
 }
 
 /**
  * The Library drawer shell — reads the overlay flag, holds the peek/dive/closed mode, renders
  * the overlay chrome, and reserves the peek/dive body slots. Renders nothing when closed.
  */
-export function LibraryDrawer({ search, onCommitSearch, peekSlot }: LibraryDrawerProps) {
+export function LibraryDrawer({ search, onCommitSearch, peekSlot, diveSlot }: LibraryDrawerProps) {
   const [mode, setMode] = useState<Mode>(() => (readLibraryOverlay(search) ? 'peek' : 'closed'));
 
   const close = useCallback(() => {
@@ -117,7 +122,9 @@ export function LibraryDrawer({ search, onCommitSearch, peekSlot }: LibraryDrawe
         </div>
       )}
       {mode === 'dive' && (
-        <div className="library-drawer-dive-slot" data-testid="library-drawer-dive-slot" />
+        <div className="library-drawer-dive-slot" data-testid="library-drawer-dive-slot">
+          {diveSlot}
+        </div>
       )}
     </div>
   );
