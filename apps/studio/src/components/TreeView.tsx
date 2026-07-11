@@ -91,7 +91,7 @@ import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
-import { ChatDock } from './ChatDock.js';
+import { TerminalDock } from './TerminalDock.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
@@ -2141,10 +2141,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               state machine is machine-proven (LibraryDrawer.test.tsx); this mounting + the
               forest-cozy look are the story's operator-attested UAT leg (ADR-0070). */}
           <LibraryDrawer search={search} onCommitSearch={commitSearch} />
-          {/* chat overlays the MAP (absolute within .world-frame), not the whole app (owner UX feedback).
-              onReloadTree reuses the SAME reloadTree onCrownRefresh uses (below): a story-author spawn
-              finish authored a new story, so the map reloads live (live-story-island-refresh, ADR-0137). */}
-          <ChatDock onReloadTree={reloadTree} />
+          {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
+              the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
+              tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only
+              through the desktop `window.desktopTerminal` bridge, and degrades to an honest disabled
+              state in the hosted/dev studio (a plain browser, no bridge). */}
+          <TerminalDock />
         </div>
 
         {selected && (

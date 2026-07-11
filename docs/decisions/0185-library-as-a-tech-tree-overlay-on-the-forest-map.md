@@ -74,8 +74,9 @@ choices below.
 
 ## References
 
-- Live artifacts: `library-tech-tree-overlay-arc` (arc), `library-tech-tree-overlay-plan-1` (plan,
-  Postgres-only — `storytree library artifact library-tech-tree-overlay-plan-1 --pg`).
+- Live artifacts: `library-tech-tree-overlay-arc` (arc) — its increment log points at the current
+  build plan (plans are disposable and supersede per ADR-0183; plan-1 has been superseded by plan-2).
+  Postgres-only: `storytree arc show library-tech-tree-overlay-arc --pg`.
 - ADR-0023 (pull-based library / choose-your-own-adventure), ADR-0161 (node-keyed context DAG),
   ADR-0169 (trail reveal), ADR-0171 (stress layout), ADR-0183 (arc/plan kinds), ADR-0110 (born
   accepted), ADR-0042 (hosted studio), ADR-0174/0175 (terminal surface).
