@@ -2297,6 +2297,113 @@ a.stat:hover {
   min-height: 0;
 }
 
+/* ── Terminal dock: the embedded xterm.js terminal overlay (terminal-dock-panel capability, ADR-0174)
+   ──────────────────────────────────────────────────────────────────────────────────────────────────
+   The ADR-0174 pivot mounts a real local terminal where the chat dock used to sit — so this MIRRORS the
+   chat dock's chrome: a folded-by-default bottom overlay, a drag-to-resize top edge, a chevron toggle,
+   the same owner-approved warm-dark palette. The chrome is here; the terminal body is xterm's own surface
+   (styled by the imported @xterm/xterm/css/xterm.css). APPEARANCE IS OPERATOR-ATTESTED (the desktop
+   story's UAT leg 5, ADR-0070): these colours are re-witnessed by the owner, sign no visual verdict, and
+   no jsdom test asserts them. */
+.terminal-dock {
+  /* warm-dark terminal palette (owner-approved) — the chat dock's, one source of truth for the chrome */
+  --term-bg: #1e1a15; /* dock background */
+  --term-border-inner: #2c251a; /* inner dividers */
+  --term-border-outer: #38301f; /* outer border */
+  --term-sage: #8fb87a; /* forest sage: hover wash */
+  --term-muted: #6f6450; /* muted hint text */
+  --term-handle: #4a3f2c; /* collapsed-bar drag handle */
+  --term-chevron: #8c7f66; /* muted chevron */
+  --term-mono: var(--mono), ui-monospace, Menlo, monospace;
+
+  display: flex;
+  flex-direction: column;
+  background: var(--term-bg);
+  border-top: 1px solid var(--term-border-outer);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  font-family: var(--term-mono);
+}
+/* The toggle bar that folds/unfolds the dock — a chevron only (collapsed ▴ / expanded ▾), no title. */
+.terminal-dock-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  border-bottom: 1px solid var(--term-border-inner);
+  background: transparent;
+  color: var(--term-muted);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.terminal-dock-toggle:hover {
+  background: color-mix(in srgb, var(--term-sage) 6%, transparent);
+}
+.terminal-dock-toggle-expanded {
+  justify-content: flex-end;
+}
+.terminal-dock-toggle-chevron {
+  color: var(--term-chevron);
+  font-size: 12px;
+}
+/* The thin top-edge grabber — drag up to grow, down to shrink (mirrors .chat-dock-resize). */
+.terminal-dock-resize {
+  position: relative;
+  height: 11px;
+  flex: 0 0 auto;
+  cursor: ns-resize;
+  background: transparent;
+}
+.terminal-dock-resize::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--term-handle);
+  transform: translate(-50%, -50%);
+}
+.terminal-dock-resize:hover::after {
+  background: color-mix(in srgb, var(--term-sage) 40%, var(--term-handle));
+}
+/* The body holds the mounted xterm terminal and fills the dragged height. */
+.terminal-dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+/* xterm fills the body so the FitAddon has a definite box to size rows/cols against. */
+.terminal-dock-body .xterm,
+.terminal-dock-body .xterm-viewport,
+.terminal-dock-body .xterm-screen {
+  height: 100%;
+}
+/* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled bar — never a spawn, never a
+   hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to. */
+.terminal-dock-disabled {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+}
+.terminal-dock-unavailable {
+  padding: 7px 14px;
+  color: var(--term-muted);
+  font-size: 12.5px;
+}
+
 /* The panel is a full-height flex column: the scrollback (.chat-outcome) grows and scrolls, the input
    row (.chat-form) and hint pin to the bottom — FULL WIDTH, never a centered column. */
 .chat-panel {

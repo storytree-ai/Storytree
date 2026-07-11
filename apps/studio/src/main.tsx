@@ -4,6 +4,9 @@ import { App } from './App';
 import { BuildSection } from './components/BuildSection';
 import { api } from './api';
 import type { BuildStatus } from './types';
+// xterm.js base stylesheet — makes the embedded TerminalDock render (ADR-0174). Imported here (the app
+// entry), never inside TerminalDock.tsx, which carries a signed --real verdict anchored to its bytes.
+import '@xterm/xterm/css/xterm.css';
 import './index.css';
 
 const root = document.getElementById('root');

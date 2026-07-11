@@ -11,6 +11,9 @@ import { serveStudio } from "./static-server.js";
 import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
 import { rebuildSteps, runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
 import { resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
+import { PtySessionManager } from "../src/backend/pty-session-manager.js";
+import type { PtyPort, PtyHandle, PtySpawnOptions } from "../src/backend/pty-session-manager.js";
+import { spawn as ptySpawn } from "node-pty";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
@@ -387,6 +390,9 @@ async function createWindow(): Promise<void> {
     event.preventDefault();
     void launchBackendForWindow(win);
   });
+  // Reap every embedded-terminal pty when the window that hosts them closes (ADR-0174) — a closed
+  // renderer must never leave an orphaned child shell running.
+  win.on("closed", disposeAllTerminals);
   await safeLoadURL(win, launchPage("Starting storytree", "Checking the checkout and database…", false));
   void launchBackendForWindow(win, false);
 }
@@ -403,6 +409,93 @@ ipcMain.handle("auth:store", async (_e, kind: CredentialKind, rawToken: string):
 });
 ipcMain.handle("auth:sign-out", async (_e, kind: CredentialKind): Promise<boolean> => {
   return broker.clear(kind);
+});
+
+// ---------- embedded terminal: a real local pty in the desktop (ADR-0174) ----------
+//
+// The Electron MAIN owns the pty — node-pty is a native module the renderer never touches, so the
+// agent boundary (ADR-0004) holds by topology. PtySessionManager (the signed --real capability) drives
+// the lifecycle over this injected PtyPort; node-pty is reached ONLY here. The renderer's TerminalDock
+// reaches it through the `desktopTerminal` contextBridge (preload) → these IPC channels, and the manager
+// fails closed (typed no-op, never a throw) on an unknown/late session id, so a stray IPC can't crash main.
+function defaultShell(): string {
+  if (process.platform === "win32") return process.env["ComSpec"] ?? "powershell.exe";
+  return process.env["SHELL"] ?? "bash";
+}
+
+// The real PtyPort: fork a node-pty process and wrap it as the manager's PtyHandle. Minimal by design —
+// the manager owns session tracking, data routing, and the fail-closed no-ops.
+const ptyPort: PtyPort = {
+  spawn(opts: PtySpawnOptions): PtyHandle {
+    const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
+      cols: opts.cols,
+      rows: opts.rows,
+      cwd: opts.cwd ?? serveRoot,
+      env: opts.env ?? process.env,
+    });
+    return {
+      onData: (cb) => {
+        proc.onData((chunk) => cb(chunk));
+      },
+      onExit: (cb) => {
+        proc.onExit((e) => cb({ exitCode: e.exitCode }));
+      },
+      write: (data) => proc.write(data),
+      resize: (cols, rows) => proc.resize(cols, rows),
+      kill: () => proc.kill(),
+    };
+  },
+};
+const terminalManager = new PtySessionManager(ptyPort);
+// Live session ids, so a window close / app quit reaps every child shell (never orphan a pty).
+const terminalSessions = new Set<string>();
+
+// Normalize the renderer's untrusted spawn payload into PtySpawnOptions: cols/rows fall back to a
+// standard 80×24 (the renderer's xterm re-fits + resizes right after), and env is NOT taken from the
+// renderer — the port defaults it to the main-process env.
+function normalizeSpawnOpts(raw: unknown): PtySpawnOptions {
+  const o = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const rawCols = o["cols"];
+  const rawRows = o["rows"];
+  const cols = typeof rawCols === "number" && rawCols > 0 ? Math.floor(rawCols) : 80;
+  const rows = typeof rawRows === "number" && rawRows > 0 ? Math.floor(rawRows) : 24;
+  const opts: PtySpawnOptions = { cols, rows };
+  if (typeof o["shell"] === "string") opts.shell = o["shell"];
+  if (typeof o["cwd"] === "string") opts.cwd = o["cwd"];
+  return opts;
+}
+
+function disposeAllTerminals(): void {
+  for (const id of terminalSessions) terminalManager.dispose(id);
+  terminalSessions.clear();
+}
+
+// Renderer → main pty IPC. `spawn` streams output back to the REQUESTING webContents (the focused
+// window's terminal); write/resize/dispose forward to the manager.
+ipcMain.handle("terminal:spawn", (e, opts: unknown): { sessionId: string } => {
+  const sender = e.sender;
+  const sessionId = terminalManager.create(
+    normalizeSpawnOpts(opts),
+    (sid, chunk) => {
+      if (!sender.isDestroyed()) sender.send("terminal:data", sid, chunk);
+    },
+    (sid, exit) => {
+      terminalSessions.delete(sid);
+      if (!sender.isDestroyed()) sender.send("terminal:exit", sid, exit);
+    },
+  );
+  terminalSessions.add(sessionId);
+  return { sessionId };
+});
+ipcMain.on("terminal:write", (_e, id: string, data: string) => {
+  terminalManager.write(id, data);
+});
+ipcMain.on("terminal:resize", (_e, id: string, cols: number, rows: number) => {
+  terminalManager.resize(id, cols, rows);
+});
+ipcMain.on("terminal:dispose", (_e, id: string) => {
+  terminalManager.dispose(id);
+  terminalSessions.delete(id);
 });
 
 // ---------- apply-a-landed-fix: rebuild + relaunch (ADR-0164 Phase 1) ----------
@@ -456,8 +549,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// Reap the backend sidecar on quit so it never outlives the shell (ADR-0119 §1 lifecycle).
+// Reap the backend sidecar + every embedded-terminal pty on quit so neither outlives the shell
+// (ADR-0119 §1 lifecycle; ADR-0174 terminal lifecycle).
 app.on("will-quit", () => {
+  disposeAllTerminals();
   if (backendChild !== null) {
     backendChild.kill("SIGTERM");
     backendChild = null;

@@ -25,3 +25,28 @@ contextBridge.exposeInMainWorld("desktopApply", {
 type RebuildRelaunchResult =
   | { ok: true }
   | { ok: false; step: string; code: number; output: string };
+
+// The embedded-terminal bridge (ADR-0174). Its mere PRESENCE (`window.desktopTerminal`) is how the
+// renderer's TerminalDock feature-detects the desktop app (the hosted/dev studio — a plain browser —
+// has no such bridge, so the dock renders its honest "unavailable" state). It mirrors the
+// `DesktopTerminalBridge` the TerminalDock declares EXACTLY: `spawn` starts a pty session (main drives
+// `pty-session-manager.create`), `write`/`resize`/`dispose` forward to the manager, and `onData`/`onExit`
+// subscribe to the `webContents.send` stream the main relays. The raw pty lives in main only.
+contextBridge.exposeInMainWorld("desktopTerminal", {
+  spawn: (opts?: unknown): Promise<{ sessionId: string }> => ipcRenderer.invoke("terminal:spawn", opts),
+  write: (sessionId: string, data: string): void => {
+    ipcRenderer.send("terminal:write", sessionId, data);
+  },
+  resize: (sessionId: string, cols: number, rows: number): void => {
+    ipcRenderer.send("terminal:resize", sessionId, cols, rows);
+  },
+  dispose: (sessionId: string): void => {
+    ipcRenderer.send("terminal:dispose", sessionId);
+  },
+  onData: (cb: (sessionId: string, chunk: string) => void): void => {
+    ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => cb(sessionId, chunk));
+  },
+  onExit: (cb: (sessionId: string, e: { exitCode: number }) => void): void => {
+    ipcRenderer.on("terminal:exit", (_e, sessionId: string, exit: { exitCode: number }) => cb(sessionId, exit));
+  },
+});

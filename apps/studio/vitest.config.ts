@@ -11,6 +11,10 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
     environment: 'node',
+    // Alias `self`→globalThis before any suite loads: the node-env pure-logic suites now transitively
+    // import @xterm/addon-fit (via TreeView → TerminalDock, ADR-0174), whose UMD wrapper reads a bare
+    // `self` at load. Harmless under jsdom, which already defines `self`. See vitest.setup.ts.
+    setupFiles: ['./vitest.setup.ts'],
     // Under `pnpm -r test` this suite shares the box with three other packages' suites while
     // vitest runs a fork per core — vitest's default 5s testTimeout then kills starved (but
     // functionally sound) tests mid-fetch, and the killed test's still-in-flight request lands
