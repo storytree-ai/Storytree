@@ -2529,6 +2529,47 @@ a.stat:hover {
   color: #6f6450;
 }
 
+/* ── Terminal repo gate: the fail-closed stand-in shown when the embedded terminal has NO valid repo
+   (terminal-repo-gate capability, terminal-repo-picker story, ADR-0174 follow-on).
+   ──────────────────────────────────────────────────────────────────────────────────────────────────
+   The terminal must NOT run until a repo is selected, so where no valid repo is ready the TerminalRepoGate
+   renders THIS gate instead of the dock — the same bottom-overlay slot + warm-dark chrome + `❯_` prompt
+   affordance as the dock's honest disabled bar, in its OWN .terminal-gate namespace (never a .terminal-dock*
+   selector — the dock's surface is byte-locked / a sibling's territory). The --term-* vars are scoped to
+   .terminal-dock, so the same palette is inlined here as literals. APPEARANCE IS OPERATOR-ATTESTED (the
+   story's UAT leg, ADR-0070): these colours are re-witnessed by the owner, sign no visual verdict, and no
+   jsdom test asserts them. */
+.terminal-gate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  background: #211c16;
+  border-top: 1px solid #40361f;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.34);
+  font-family: var(--mono), ui-monospace, Menlo, monospace;
+}
+.terminal-gate-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  color: #a7967a;
+  font-size: 12.5px;
+}
+/* The prompt affordance — the same sage `❯_` cursor the dock uses, so the gate reads as the (not-yet-ready)
+   terminal, not a generic banner. */
+.terminal-gate-message::before {
+  content: '❯_';
+  color: #8fb87a;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.85;
+}
+
 /* The panel is a full-height flex column: the scrollback (.chat-outcome) grows and scrolls, the input
    row (.chat-form) and hint pin to the bottom — FULL WIDTH, never a centered column. */
 .chat-panel {

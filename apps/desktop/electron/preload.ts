@@ -55,9 +55,18 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
 // (`window.desktopRepo`) is how the renderer's RepoPicker feature-detects the desktop host (the hosted/dev
 // studio — a plain browser — has no such bridge, so the picker renders its honest "unavailable" state).
 // `pick` opens the native directory dialog (main drives `dialog.showOpenDialog` → `repo-selection.select`)
-// and resolves the chosen VALIDATED path or null; `get` reads the current persisted selection. The real
-// filesystem + dialog live in main only.
+// and resolves the chosen VALIDATED path or null; `get` reads the current persisted selection.
+//
+// `ready` / `onChanged` are the fail-closed GATE slice the renderer's TerminalRepoGate consumes
+// (terminal-repo-gate capability): `ready` reads the current VALID repo cwd (or null when none is
+// selected — main resolves it fail-closed through a sentinel, never re-driving the byte-locked
+// repo-selection), and `onChanged` fires when the user picks a new repo so the gate reopens the terminal
+// there. The real filesystem + dialog live in main only.
 contextBridge.exposeInMainWorld("desktopRepo", {
   pick: (): Promise<string | null> => ipcRenderer.invoke("dialog:pickDirectory"),
   get: (): Promise<string | null> => ipcRenderer.invoke("repo:get"),
+  ready: (): Promise<string | null> => ipcRenderer.invoke("repo:ready"),
+  onChanged: (cb: (cwd: string | null) => void): void => {
+    ipcRenderer.on("repo:changed", (_e, cwd: string | null) => cb(cwd));
+  },
 });

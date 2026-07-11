@@ -457,9 +457,21 @@ const userDataSelectionStore: SelectionStore = {
 };
 const repoSelection = new RepoSelection(fsDirProbe, userDataSelectionStore);
 
+// Fail-closed repo GATE (terminal-repo-gate capability, ADR-0174 follow-on): the embedded terminal must
+// NOT open unless a VALID repo is selected. `resolveCwd` returns its fallback when nothing valid is
+// persisted, so we pass a private SENTINEL as that fallback and read "no valid selection" as `=== NO_REPO`
+// — WITHOUT re-driving the byte-locked repo-selection (ADR-0057 signed-source byte-lock). `selectedRepoCwd`
+// is the ONE place mapping the persisted selection to "a valid repo cwd, or null".
+const NO_REPO = " no-repo"; // a leading-space path that can never be a real (validated) selection
+function selectedRepoCwd(): string | null {
+  const cwd = repoSelection.resolveCwd(NO_REPO);
+  return cwd === NO_REPO ? null : cwd;
+}
+
 // Renderer → main repo-picker IPC (the `desktopRepo` bridge). `dialog:pickDirectory` opens the native
 // directory chooser, validates + persists the pick through RepoSelection, and returns the VALIDATED path
-// (or null on cancel/invalid); `repo:get` reads the current persisted selection.
+// (or null on cancel/invalid); `repo:get` reads the current persisted selection; `repo:ready` reads the
+// current VALID repo cwd (or null) the terminal-repo-gate gates the terminal on.
 ipcMain.handle("dialog:pickDirectory", async (e): Promise<string | null> => {
   const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow();
   const result = win
@@ -468,9 +480,15 @@ ipcMain.handle("dialog:pickDirectory", async (e): Promise<string | null> => {
   const picked = result.canceled ? undefined : result.filePaths[0];
   if (picked === undefined) return null;
   const sel = repoSelection.select(picked);
-  return sel.ok ? sel.path : null;
+  if (sel.ok) {
+    // Notify the renderer's TerminalRepoGate so it reopens the terminal in the newly-picked repo.
+    e.sender.send("repo:changed", sel.path);
+    return sel.path;
+  }
+  return null;
 });
 ipcMain.handle("repo:get", (): string | null => repoSelection.current());
+ipcMain.handle("repo:ready", (): string | null => selectedRepoCwd());
 
 // ---------- embedded terminal: a real local pty in the desktop (ADR-0174) ----------
 //
@@ -534,9 +552,14 @@ function disposeAllTerminals(): void {
 // Renderer → main pty IPC. `spawn` streams output back to the REQUESTING webContents (the focused
 // window's terminal); write/resize/dispose forward to the manager.
 ipcMain.handle("terminal:spawn", (e, opts: unknown): { sessionId: string } => {
+  // Fail closed (terminal-repo-gate): no valid repo selected → no pty. The renderer gate already
+  // withholds the dock, but main enforces it too (defense in depth) — a stray spawn returns an empty
+  // session id instead of a shell in the wrong cwd. When valid, the pty opens in the selected repo.
+  const repoCwd = selectedRepoCwd();
+  if (repoCwd === null) return { sessionId: "" };
   const sender = e.sender;
   const sessionId = terminalManager.create(
-    normalizeSpawnOpts(opts),
+    { ...normalizeSpawnOpts(opts), cwd: repoCwd },
     (sid, chunk) => {
       if (!sender.isDestroyed()) sender.send("terminal:data", sid, chunk);
     },

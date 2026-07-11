@@ -9,18 +9,21 @@ proof_mode: UAT
 # in the native dialog and the real terminal opens there, surviving a relaunch" — needs the native OS
 # dialog, a real node-pty in the member's checkout, userData persistence across an app restart, and the
 # picker's appearance, all operator-attested (ADR-0070 / ADR-0174). The machine-driven story UAT node
-# stays WITHHELD; the crown derives from the two capabilities' signed verdicts plus the operator's
-# attestation of the opens-in-the-picked-repo / survives-relaunch / looks-right legs.
-# Capabilities, roots-first. TWO machine-provable caps on OPPOSITE sides of a NEW `desktopRepo` bridge,
-# each its own suite (the pty-session-manager ↔ terminal-dock-panel precedent this story mirrors):
-# repo-selection (the backend validate/persist/resolve lifecycle, apps/desktop node:test over injected
-# DirProbe + SelectionStore ports) and repo-picker-panel (the renderer picker control, apps/studio vitest
-# over a mocked desktopRepo bridge). They share the `desktopRepo` WIRE SHAPE (pick/get) as a
-# cross-boundary contract, not a code edge — so neither depends_on the other (both roots). The real
-# node:fs / userData adapters + the ipc handlers + the native dialog + the preload bridge + the TreeView
-# mount + the .repo-picker CSS + threading resolveCwd into the terminal spawn are operator-attested GLUE
-# within this story (ADR-0158), witnessed under the Story UAT, NOT capabilities.
-capabilities: [repo-selection, repo-picker-panel]
+# stays WITHHELD; the crown derives from the three capabilities' signed verdicts plus the operator's
+# attestation of the opens-in-the-picked-repo / fail-closed-gate / survives-relaunch / looks-right legs.
+# Capabilities, roots-first. THREE machine-provable caps over a NEW `desktopRepo` bridge, each its own
+# suite (the pty-session-manager ↔ terminal-dock-panel precedent this story mirrors): repo-selection (the
+# backend validate/persist/resolve lifecycle, apps/desktop node:test over injected DirProbe +
+# SelectionStore ports), repo-picker-panel (the renderer picker control, apps/studio vitest over a mocked
+# desktopRepo bridge's pick/get), and terminal-repo-gate (the fail-closed renderer WRAPPER that renders the
+# byte-locked TerminalDock only when a valid repo is ready, apps/studio vitest over the bridge's
+# ready/onChanged + a mocked TerminalDock). All three share the `desktopRepo` WIRE SHAPE (pick/get, plus
+# ready/onChanged) as a cross-boundary contract, not a code edge — so none depends_on another (three
+# roots). The real node:fs / userData adapters + the ipc handlers (including repo:ready/repo:changed) + the
+# native dialog + the preload bridge + the TreeView mount (now the gate swapping in for the bare dock) +
+# the .repo-picker / .terminal-gate CSS + threading resolveCwd into the terminal spawn are operator-
+# attested GLUE within this story (ADR-0158), witnessed under the Story UAT, NOT capabilities.
+capabilities: [repo-selection, repo-picker-panel, terminal-repo-gate]
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074). This story OWNS NO package — it is a VIRTUAL
 # story (like embedded-terminal / terminal-chat): its net-new code is CO-LOCATED inside two surface
 # packages other stories own, AND it builds atop a prior feature story's delivered outcome. All three
@@ -37,9 +40,11 @@ capabilities: [repo-selection, repo-picker-panel]
 #               threads `resolveCwd(serveRoot)` into embedded-terminal's EXISTING pty spawn in
 #               `main.ts`, and the Story UAT leg 3 opens THAT terminal in the picked repo. The picker has
 #               no meaning without the terminal, so its UAT needs embedded-terminal's outcome as a
-#               precondition (the cross-story-dependency test → yes). It imports nothing from
-#               embedded-terminal (a virtual story owns no package) → a non-import BUILD-ATOP edge,
-#               declared `depends_on` and annotated `artifact_edges` — the website-experience → website /
+#               precondition (the cross-story-dependency test → yes). The gate cap ALSO wraps embedded-
+#               terminal's co-located `TerminalDock` (a same-package `studio` co-located import — no NEW
+#               @storytree/* package import; a virtual story owns no package) → a co-located-source +
+#               BUILD-ATOP edge, declared `depends_on` and annotated `artifact_edges` — the
+#               website-experience → website /
 #               spawn-visibility → chat-subagent-spawn precedent. Acyclic: embedded-terminal does not
 #               point back. (See "Cross-story boundary" + "Open modeling calls" — this edge is a
 #               DIVERGENCE from the follow-on brief's suggested [desktop, studio]; flagged for the owner.)
@@ -51,7 +56,7 @@ artifact_edges: [desktop, studio, embedded-terminal]
 # working-dir DEFERRED there, so this story is local-only too); 0070 (the two-stage frontend-builder
 # proof — the picker's geometry/behaviour machine-proven, its appearance operator-attested); 0158 (glue
 # is un-asserted code WITHIN a story — the main adapters / ipc / dialog / preload bridge / mount / CSS /
-# the resolveCwd→spawn thread); 0010 (the organism model + the splitting-rule that tiers the two caps
+# the resolveCwd→spawn thread); 0010 (the organism model + the splitting-rule that tiers the three caps
 # across the bridge); 0057 (the spec-borne proof config making each cap inner-loop buildable); 0004 (the
 # agent boundary — the picker is the INTERACTIVE surface only; the prove-it-gate leaf sdk-author.ts is
 # UNTOUCHED, and the renderer never imports @storytree/agent).
@@ -124,16 +129,18 @@ renderer. This is the exact seam that keeps this feature and the sibling focus-f
   multiple repos, does NOT compose the build command (the ADR-0174 map-spawn re-point is a separate
   follow-on), and does NOT reach the prove-it-gate. One picked cwd, nothing more.
 
-## Capabilities (2)
+## Capabilities (3)
 
-Listed roots-first. Both are independent roots (see the within-story graph): they sit on OPPOSITE sides
-of the NEW `desktopRepo` contextBridge and prove different observables in different suites — the
-`pty-session-manager` (desktop) ↔ `terminal-dock-panel` (studio) split this story mirrors.
+Listed roots-first. All three are independent roots (see the within-story graph): they sit across the NEW
+`desktopRepo` contextBridge and prove different observables in different suites — the
+`pty-session-manager` (desktop) ↔ `terminal-dock-panel` (studio) split this story mirrors, plus a third
+renderer WRAPPER over a different slice of the same bridge.
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
 | 1 | [`repo-selection`](repo-selection.md) | The Electron-main repo selection module validates a candidate directory over an injected `DirProbe`, persists a valid selection over an injected `SelectionStore`, reads it back, and resolves the terminal's cwd to the selected dir (else a fallback) — failing closed on a bad/absent path, never throwing, all over injected ports so the whole lifecycle is proven headlessly with no `node:fs` and no Electron. | integration-test (apps/desktop node:test, red→green over injected fake ports) | — |
 | 2 | [`repo-picker-panel`](repo-picker-panel.md) | The renderer repo picker reflects the current selection on mount over the `desktopRepo` bridge, opens the native picker on click and updates the shown selection on a resolved path, leaves it unchanged on a cancelled pick, and degrades honestly to a disabled "repo picker unavailable" state where the bridge is absent (the studio-standalone case). | integration-test (apps/studio vitest jsdom, red→green over a mocked desktopRepo bridge) | — |
+| 3 | [`terminal-repo-gate`](terminal-repo-gate.md) | The renderer wrapper renders the byte-locked `<TerminalDock>` ONLY when a valid repo cwd is ready over the bridge's `ready`/`onChanged` (else a fail-closed "Select a repository to start the terminal" gate in a `.terminal-gate` namespace), keys the dock on the cwd so it remounts a fresh pty on a repo change, forwards the `seed` prop through, and degrades to rendering TerminalDock directly (never calling the bridge) where it is absent — a thin client wrapping TerminalDock without touching it. | integration-test (apps/studio vitest jsdom, red→green over the mocked bridge + a mocked TerminalDock) | — |
 
 ## Operator-attested glue (un-asserted connective code WITHIN this story — ADR-0158, NOT capabilities)
 
@@ -153,11 +160,13 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
   manager (embedded-terminal's cap) and its spawn signature are UNCHANGED — main just supplies a
   resolved `cwd` in the `PtySpawnOptions` it already passes.
 - **The `desktopRepo` contextBridge** (`apps/desktop/electron/preload.ts`): a NEW
-  `contextBridge.exposeInMainWorld("desktopRepo", { pick, get })` bridging renderer →
-  `ipcRenderer.invoke("dialog:pickDirectory" | "repo:get")` → main — the EXACT pattern of the existing
-  `desktopAuth` / `desktopApply` / `desktopTerminal` bridges. Its mere presence (`window.desktopRepo`) is
-  how the renderer feature-detects the desktop host (the `desktopApply`-presence precedent), driving cap
-  2's honest absent-bridge degradation.
+  `contextBridge.exposeInMainWorld("desktopRepo", { pick, get, ready, onChanged })` bridging renderer →
+  `ipcRenderer.invoke("dialog:pickDirectory" | "repo:get" | "repo:ready")` (+ the `repo:changed`
+  subscription `onChanged` wraps) → main — the EXACT pattern of the existing `desktopAuth` / `desktopApply`
+  / `desktopTerminal` bridges. Its mere presence (`window.desktopRepo`) is how the renderer feature-detects
+  the desktop host (the `desktopApply`-presence precedent), driving cap 2's (picker) and cap 3's (gate)
+  honest absent-bridge degradation. The `pick`/`get` half serves the picker; the `ready`/`onChanged` half
+  serves the gate (see the gate glue bullet below).
 - **The picker mount in `apps/studio/src/components/TreeView.tsx`**: mounting `<RepoPicker/>` near the
   terminal dock in the `.world-frame` (where `<TerminalDock/>` sits today, TreeView.tsx ~L2168) — a glue
   mount of an already-proven component, exactly the dock-slot-swap precedent. It mounts OUTSIDE the
@@ -166,12 +175,25 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
 - **New `.repo-picker*` CSS in `apps/studio/src/index.css`**: the picker's appearance, in a NEW namespace
   that never touches `.terminal-dock*` (the sibling chip's surface). The look is the operator-attested UAT
   leg 5 (ADR-0070), never a machine visual verdict.
+- **The `<TerminalRepoGate/>` swap in `apps/studio/src/components/TreeView.tsx` + the fail-closed
+  `ready`/`onChanged` bridge glue.** The gate ([`terminal-repo-gate`](terminal-repo-gate.md)) REPLACES the
+  bare `<TerminalDock/>` mount near the terminal dock (the map frame) with `<TerminalRepoGate/>` — a glue
+  mount swap of an already-proven wrapper around the byte-locked dock (the dock-slot-swap precedent; the
+  gate IMPORTS and RENDERS TerminalDock, never edits it, and forwards the existing `seed` prop). The real
+  `ready`/`onChanged` seam is desktop glue: the preload EXTENDS the `desktopRepo` contextBridge (alongside
+  the picker's `pick`/`get`) with `ready(): Promise<string|null>` (over `ipcRenderer.invoke("repo:ready")`
+  → the byte-locked `repo-selection`'s `resolveCwd`/`current`) and `onChanged(cb)` (a
+  `webContents.send("repo:changed", cwd)` subscription the main fires when a selection is validated +
+  persisted) — so `ready` returns a cwd ONLY for a VALID selection (the fail-closed contract) and
+  `onChanged` fires the new cwd on a change. Plus the NEW `.terminal-gate*` CSS (the gate message's
+  appearance, a namespace that never touches `.terminal-dock*` / `.repo-picker*`). The exact placement +
+  the look + the real fail-closed behaviour are operator-attested (UAT legs 5, 6), not asserted in CI.
 
 ## Within-story dependency graph
 
 Authored from the intended data-flow; re-derive from the real imports/calls when the units are built
-(ADR-0010 §3) and correct if the code disagrees. The graph is acyclic; **both capabilities are roots**
-(no in-story edge).
+(ADR-0010 §3) and correct if the code disagrees. The graph is acyclic; **all three capabilities are
+roots** (no in-story edge).
 
 - `repo-selection` — a root. A self-contained Electron-main module over injected `DirProbe` +
   `SelectionStore` ports; it imports no other in-story unit and no `electron` / `node:fs`.
@@ -180,10 +202,17 @@ Authored from the intended data-flow; re-derive from the real imports/calls when
   but it imports **nothing** from `repo-selection` (they are across the contextBridge AND across
   packages). This is the `terminal-dock-panel` ↔ `pty-session-manager` relationship exactly: they share
   the wire shape as a CONTRACT across the boundary, not a code edge, so there is **no `depends_on` edge**.
+- `terminal-repo-gate` — a root. The renderer WRAPPER consumes a DIFFERENT slice of the same `desktopRepo`
+  bridge wire shape (`ready` / `onChanged`) than the picker (`pick` / `get`) and renders the co-located
+  `<TerminalDock>` — but it imports **nothing** from `repo-selection` or `repo-picker-panel`. Its one
+  import beyond React is the same-package `./TerminalDock` (embedded-terminal's studio component, covered
+  by the story's `studio` / `embedded-terminal` `artifact_edges`), which is a same-package co-located
+  import, NOT an in-story capability edge. So it is the third root — **no `depends_on` edge** either way.
 
-The two roots are joined only by the **operator-attested glue** above (the preload `desktopRepo` bridge +
-the main-side dialog/adapters + the `resolveCwd`→spawn thread) — witnessed integrated under the Story
-UAT, exactly as `embedded-terminal`'s two independent roots are joined by its main-side glue.
+The three roots are joined only by the **operator-attested glue** above (the preload `desktopRepo` bridge —
+now carrying `ready` / `onChanged` alongside `pick` / `get` — + the main-side dialog/adapters + the
+`resolveCwd`→spawn thread + the TreeView swap of the bare dock for the gate) — witnessed integrated under
+the Story UAT, exactly as `embedded-terminal`'s independent roots are joined by its main-side glue.
 
 ## Cross-story boundary (ADR-0010 §4 / ADR-0074)
 
@@ -204,12 +233,14 @@ is co-located inside two SURFACE packages other stories own, and it builds atop 
   `repo-selection.resolveCwd(serveRoot)` into `embedded-terminal`'s EXISTING pty spawn (`main.ts`'s
   `terminal:spawn` handler), and the Story UAT leg 3 opens THAT terminal in the picked repo — so this
   story's UAT needs `embedded-terminal`'s delivered outcome (a working embedded terminal) as a
-  precondition (the cross-story-dependency test → **yes**). It imports **nothing** from
-  `embedded-terminal` (a virtual story owns no package), so this is a non-import **build-atop** edge,
-  declared `depends_on` and annotated `artifact_edges` — the `website-experience → website` /
-  `spawn-visibility → chat-subagent-spawn` precedent. **Acyclic:** `embedded-terminal` does not depend on
-  this story. *(This edge DIVERGES from the follow-on brief's suggested `[desktop, studio]` — see "Open
-  modeling calls".)*
+  precondition (the cross-story-dependency test → **yes**). The [`terminal-repo-gate`](terminal-repo-gate.md)
+  cap ALSO wraps `embedded-terminal`'s co-located `TerminalDock` — importing `{ TerminalDock,
+  TerminalDockSeed }` from the SAME `studio` package (a same-package co-located import, covered by the
+  `studio` co-located-source edge), **not** a new `@storytree/*` package import (a virtual story owns no
+  package). So this is a co-located-source + **build-atop** edge, declared `depends_on` and annotated
+  `artifact_edges` — the `website-experience → website` / `spawn-visibility → chat-subagent-spawn`
+  precedent. **Acyclic:** `embedded-terminal` does not depend on this story. *(This edge DIVERGES from the
+  follow-on brief's suggested `[desktop, studio]` — see "Open modeling calls".)*
 
 **No edge to `notice-board` / `drive-machinery` / `forest-world`.** The picker adds no observer code; the
 terminal's Claude Code is still watched through the ALREADY-EXISTING presence-hook / noticeboard-claim /
@@ -219,17 +250,20 @@ no edge to the observer organisms.
 ## Story UAT
 
 The integrated acceptance walkthrough that proves the whole feature meets its outcome end-to-end.
-Minimal-first (one coherent journey: pick a repo → the terminal opens there → it survives a relaunch →
-the picker looks right and degrades honestly standalone), defect-driven thereafter (each real failure
-earns a permanent regression case, never speculative breadth).
+Minimal-first (one coherent journey: with no repo the terminal is gated → pick a repo → the terminal opens
+there → change the repo and it reopens → it survives a relaunch → the picker looks right and degrades
+honestly standalone), defect-driven thereafter (each real failure earns a permanent regression case, never
+speculative breadth).
 
-> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by the two capabilities'
+> **Per-leg witness (ADR-0106 / ADR-0070).** The mechanics legs are covered by the three capabilities'
 > signed `--real` verdicts (the validate/persist/resolve lifecycle over fake ports; the picker
-> reflect/pick/cancel/degrade over the mocked bridge). The experiential legs — the native OS directory
-> dialog, a REAL node-pty opening in the picked repo, userData persistence across a real app relaunch,
-> and the picker's **look** — are `witness: human` (operator-attested, ADR-0070): an automated CI run
-> cannot open the native dialog, spawn a real pty in a chosen checkout, restart the app, or judge the
-> picker's appearance. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
+> reflect/pick/cancel/degrade over the mocked bridge; the gate's gate/show/reopen/degrade/forward-seed
+> LOGIC over the mocked bridge + a mocked TerminalDock). The experiential legs — the native OS directory
+> dialog, a REAL node-pty opening in the picked repo, the REAL terminal refusing to run until a repo is
+> picked and REOPENING in the new one, userData persistence across a real app relaunch, and the picker's /
+> gate's **look** — are `witness: human` (operator-attested, ADR-0070): an automated CI run cannot open the
+> native dialog, spawn a real pty in a chosen checkout, watch the real terminal fail closed, restart the
+> app, or judge the appearance. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
 > signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown derives from the
 > per-cap signed verdicts plus the operator's attestations.
 
@@ -262,23 +296,33 @@ the studio-standalone build degrading honestly.
    repo picker reads and sits well beside the terminal dock, and the hosted/dev studio (a plain browser,
    no `desktopRepo` bridge) shows the honest disabled "unavailable" state. **Success —** the owner's
    two-stage visual verdict (ADR-0070): the picker look is witnessed, never machine-asserted.
+6. **The fail-closed gate holds end-to-end.** _(witness: human)_ With NO repo selected the gate shows
+   ("Select a repository to start the terminal") and the embedded terminal WILL NOT run; the member picks a
+   repo and the terminal opens there; the member changes the repo and the terminal REOPENS (a fresh pty) in
+   the new one. **Success —** the real terminal is genuinely refused until a valid repo is selected and
+   reopens on a change — the fail-closed experience the gate's signed verdict proves only in wiring
+   (gate/show/reopen over the mocked bridge + mocked dock). *(operator-attested — a real bridge + a real
+   node-pty failing closed and reopening; an agent should not drive it unattended.)*
 
-End state — the desktop user picks a repo and the embedded terminal opens there, the selection lifecycle
-and the renderer picker signed under their suites, the native-dialog / opens-in-the-picked-repo /
-survives-relaunch / look legs operator-attested — the interactive terminal opening where the user chose,
-while the prove-it-gate leaf, the signed terminal sources, and the observability seams are untouched.
+End state — the desktop user picks a repo and the embedded terminal opens there (and refuses to run until
+they do), the selection lifecycle / the renderer picker / the fail-closed gate signed under their suites,
+the native-dialog / opens-in-the-picked-repo / fail-closed / survives-relaunch / look legs
+operator-attested — the interactive terminal opening where the user chose, while the prove-it-gate leaf,
+the signed terminal sources, and the observability seams are untouched.
 
 ## Proof
 
-The story is proven when that walkthrough passes — the mechanics legs (1, 2) green under the two
-capabilities' signed `--real` verdicts (with each cap's contracts green underneath), and the experiential
-legs (3, 4, 5) operator-attested. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts;
-nothing here is authored healthy. Both capabilities are proof-wired (each carries a `proof:` block with a
-`real:` arm — a NET-NEW red→green: a new module/component tested first against an injected fake/mock) so
-the spine can drive their offline suites red→green under its own gate; the story's machine-driven UAT node
-is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed
-verdicts is what makes this layer buildable, and the crown additionally awaits the operator's attestations
-(legs 3, 4, 5) — including, per the `embedded-terminal` build-atop edge, that the terminal itself works.
+The story is proven when that walkthrough passes — the mechanics legs (1, 2) green under two of the
+capabilities' signed `--real` verdicts, and the gate's gate/show/reopen/degrade/forward-seed LOGIC green
+under [`terminal-repo-gate`](terminal-repo-gate.md)'s signed verdict (with each cap's contracts green
+underneath), and the experiential legs (3, 4, 5, 6) operator-attested. Per ADR-0020, `healthy` is only
+ever DERIVED from signed verdicts; nothing here is authored healthy. All three capabilities are
+proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green: a new
+module/component tested first against an injected fake/mock) so the spine can drive their offline suites
+red→green under its own gate; the story's machine-driven UAT node is WITHHELD (its `uat_witness` is absent
+→ human, ADR-0040), so driving those capabilities to signed verdicts is what makes this layer buildable,
+and the crown additionally awaits the operator's attestations (legs 3, 4, 5, 6) — including, per the
+`embedded-terminal` build-atop edge, that the terminal itself works.
 
 ## Open modeling calls (for the owner / orchestrator)
 
@@ -310,11 +354,12 @@ not decided here:
    is no isolatable red→green in where an already-proven control mounts). The wall to hold: it mounts
    OUTSIDE `TerminalDock` and uses `.repo-picker*` CSS, never `.terminal-dock*`.
 4. **The `node-build.test.ts` snapshot companion edit (REQUIRED, outside `stories/**`).** Authoring these
-   two `real:`-armed caps makes `buildableNodeIds()` discover them (spec-borne, ADR-0057), which
+   three `real:`-armed caps makes `buildableNodeIds()` discover them (spec-borne, ADR-0057), which
    `packages/cli/src/node-build.test.ts`'s REAL-buildable snapshot regex + its per-story discovery comment
-   pin exactly (the known "node-build snapshot trap"). The orchestrator must add `repo-picker-panel` and
-   `repo-selection` (alphabetically) to that regex + a per-story `terminal-repo-picker` comment, or
-   `pnpm -r test` goes red. This is a `packages/cli` test edit — **outside the story-author's `stories/**`
-   fence** — flagged here so it lands with the caps. (Neither cap declares `addDeps`: `apps/*` is not a
-   `resolveAddDepsGroup` target, and this feature adds no new package dep — node:fs and the native dialog
-   are Electron-main built-ins, and the picker adds no new studio dep.)
+   pin exactly (the known "node-build snapshot trap"). The orchestrator must add `repo-picker-panel`,
+   `repo-selection`, AND `terminal-repo-gate` (alphabetically — `terminal-repo-gate` slots between
+   `terminal-dock-seed` and `transcript-reset`) to that regex + a per-story `terminal-repo-picker` comment,
+   or `pnpm -r test` goes red. This is a `packages/cli` test edit — **outside the story-author's
+   `stories/**` fence** — flagged here so it lands with the caps. (No cap declares `addDeps`: `apps/*` is
+   not a `resolveAddDepsGroup` target, and this feature adds no new package dep — node:fs and the native
+   dialog are Electron-main built-ins, and the studio components add no new studio dep.)
