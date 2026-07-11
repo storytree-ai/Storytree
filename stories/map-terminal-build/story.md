@@ -60,7 +60,7 @@ bridge is **absent** (hosted/dev studio, a plain browser) the existing dispatch 
 
 This story is the build follow-on of **[ADR-0174](../../docs/decisions/0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
 (owner-directed 2026-07-09, born accepted per ADR-0110 — design-time alignment IS the ratification), whose
-**map-spawn re-point clause** (amends [ADR-0137](../../docs/decisions/0137-desktop-spawns-a-subagent-from-the-map.md))
+**map-spawn re-point clause** (amends [ADR-0137](../../docs/decisions/0137-chat-is-the-full-session-orchestrator-it-spawns-the-inner-lo.md))
 reads:
 
 > The forest-map "click-a-node-to-build" affordance no longer calls the in-app SDK author or dispatches a
