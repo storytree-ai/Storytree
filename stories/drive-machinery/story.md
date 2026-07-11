@@ -270,6 +270,12 @@ owned" section above for the now-settled modeling call.
   red→green and signed a PASS (run `real-mqelrhoj`, commit `47c9e43`, persisted to `events.verdict`);
   the `nodeResolve` CLI dispatch was wired spine-side AFTER promotion (the leaf's walls exclude
   `commands.ts`).
+- [`witnessable-verdict`](witnessable-verdict.md) — contract grain, file-per-unit, **spec-borne**
+  (ADR-0057 — its own `proof:` block makes it inner-loop-buildable). The pure core of the ADR-0184
+  leg-3 observe gate (`drive-machinery#gate-6`): it selects the newest spine-driven **DRIVEN-tier**
+  passing verdict for a drive-machinery node that is recent and lands in `main`'s ancestry (or reports
+  why none qualifies), so a cheap gate can witness that a real `--real` build happened without
+  re-running it. Authored `proposed`; its own `--real` verdict (leg 3's live proof) is pending.
 
 File-per-unit here is the **registered-buildable grain** (the drive loads one spec file per
 buildable node); the authored capability files above follow the seed's contracts-inline convention
