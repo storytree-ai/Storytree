@@ -14,6 +14,10 @@
 //   • forward-seed: the `seed` prop is forwarded straight through to the terminal      (trg-forwards-seed-to-terminal)
 //   • degrade-when-absent: with no bridge, TerminalDock renders directly, `ready`/     (trg-degrades-when-bridge-absent)
 //     `onChanged` are never touched
+//   • offer-repo-control-in-gate: an injected `repoControl` prop renders as the        (trg-offers-repo-control-in-gate)
+//     prominent select affordance INSIDE the no-repo gated chrome
+//   • place-repo-control-in-header: once ready, that SAME `repoControl` forwards       (trg-places-repo-control-in-header-when-ready)
+//     into TerminalDock's `headerRight` slot (the repo gear in the dock's own header)
 //
 // THIN CLIENT: the gate reaches the selection ONLY through `window.desktopRepo` (mocked here — no
 // real IPC/Electron) and wraps TerminalDock (stubbed here — no real xterm). It imports no
@@ -24,6 +28,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, cleanup } from '@testing-library/react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 // ── the TerminalDock stub — records MOUNT/UNMOUNT (not re-render) via a lazy `useState` id
 //    (assigned once per instance, bumping on every fresh mount) paired with an `useEffect([id])`
@@ -36,7 +41,10 @@ const dockMock = vi.hoisted(() => ({
 }));
 
 vi.mock('./TerminalDock', () => ({
-  TerminalDock: (props: { seed?: { command: string; token: number } }) => {
+  TerminalDock: (props: {
+    seed?: { command: string; token: number };
+    headerRight?: ReactNode;
+  }) => {
     const [id] = useState(() => ++dockMock.counter);
     useEffect(() => {
       dockMock.log.push({ type: 'mount', id });
@@ -49,7 +57,9 @@ vi.mock('./TerminalDock', () => ({
         data-testid="terminal-dock-mock"
         data-dock-id={id}
         data-seed={props.seed ? JSON.stringify(props.seed) : ''}
-      />
+      >
+        {props.headerRight}
+      </div>
     );
   },
 }));
@@ -64,6 +74,7 @@ const bridgeMock = vi.hoisted(() => ({
 }));
 
 import { TerminalRepoGate } from './TerminalRepoGate';
+import type { TerminalRepoGateProps } from './TerminalRepoGate';
 
 /** Flush the microtask queue the bridge's `ready()` promise resolves on. */
 const flush = (): Promise<void> => act(async () => {});
@@ -88,8 +99,8 @@ afterEach(() => {
 });
 
 describe('TerminalRepoGate', () => {
-  // ── trg-gates-when-no-repo-selected ──────────────────────────────────────────
-  it('trg-gates-when-no-repo-selected: renders a fail-closed gate when no valid repo is selected', async () => {
+  // ── trg-gates-when-no-repo ───────────────────────────────────────────────────
+  it('trg-gates-when-no-repo: renders a fail-closed gate when no valid repo is selected', async () => {
     bridgeMock.ready.mockResolvedValue(null);
     const { container } = render(<TerminalRepoGate />);
 
@@ -101,8 +112,8 @@ describe('TerminalRepoGate', () => {
     expect(container.querySelector('.terminal-gate')).toBeTruthy();
   });
 
-  // ── trg-shows-terminal-once-repo-ready ───────────────────────────────────────
-  it('trg-shows-terminal-once-repo-ready: swaps to the terminal once a valid repo cwd resolves', async () => {
+  // ── trg-shows-terminal-when-ready ────────────────────────────────────────────
+  it('trg-shows-terminal-when-ready: swaps to the terminal once a valid repo cwd resolves', async () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
     render(<TerminalRepoGate />);
 
@@ -175,5 +186,39 @@ describe('TerminalRepoGate', () => {
     expect(screen.queryByText(GATE_MESSAGE)).toBeNull();
     expect(bridgeMock.ready).not.toHaveBeenCalled();
     expect(bridgeMock.onChanged).not.toHaveBeenCalled();
+  });
+
+  // ── trg-offers-repo-control-in-gate ──────────────────────────────────────────
+  it('trg-offers-repo-control-in-gate: renders the injected repoControl as the select affordance inside the gated chrome', async () => {
+    bridgeMock.ready.mockResolvedValue(null);
+    const repoControl = <button data-testid="repo-control-marker">Choose a repository</button>;
+    // Cast to `TerminalRepoGateProps` itself (the interface gains `repoControl` in the IMPLEMENT
+    // phase) so this compiles ahead of that — the runtime object still carries the extra key,
+    // which is what this test pins: the CURRENT implementation ignores it.
+    const props = { repoControl } as unknown as TerminalRepoGateProps;
+    const { container } = render(<TerminalRepoGate {...props} />);
+
+    await flush();
+
+    // The gate is still shown (no repo selected) — and the injected control lives INSIDE it.
+    expect(container.querySelector('.terminal-gate')).toBeTruthy();
+    const marker = screen.getByTestId('repo-control-marker');
+    expect(marker).toBeTruthy();
+    expect(container.querySelector('.terminal-gate')?.contains(marker)).toBe(true);
+    expect(screen.queryByTestId('terminal-dock-mock')).toBeNull();
+  });
+
+  // ── trg-places-repo-control-in-header-when-ready ─────────────────────────────
+  it('trg-places-repo-control-in-header-when-ready: forwards the same repoControl into TerminalDock as headerRight once ready', async () => {
+    bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
+    const repoControl = <button data-testid="repo-control-marker">Choose a repository</button>;
+    const props = { repoControl } as unknown as TerminalRepoGateProps;
+    render(<TerminalRepoGate {...props} />);
+
+    await flush();
+
+    const dock = screen.getByTestId('terminal-dock-mock');
+    const marker = screen.getByTestId('repo-control-marker');
+    expect(dock.contains(marker)).toBe(true);
   });
 });

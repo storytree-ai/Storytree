@@ -45,11 +45,16 @@ proof:
     testFile: "apps/studio/src/components/TerminalDock.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalDock.tsx"
     # RE-PROVE (ADR-0057 §3 expansion C): TerminalDock.tsx + its test ALREADY EXIST at HEAD (signed by
-    # the original story build) — this arm is now driven `editsExisting` for the focus/refocus
-    # regression (contract 6). The leaf reads the existing source + 5 tests, ADDS a 6th regression test
-    # that FAILS against the current behaviour (no re-focus after a window blur/focus cycle), then EDITS
-    # TerminalDock.tsx to re-focus the xterm — a behaviour-assertion red, NOT a net-new missing-symbol
-    # red. Preserves the existing spawn/data/resize/toggle/degrade behaviour + the 5 existing contracts.
+    # the original story build + the contract-6 refocus re-prove) — this arm is driven `editsExisting`
+    # again for the terminal-repo-picker UX refinement (owner-directed 2026-07-12): contract 7 (an
+    # optional `headerRight` header slot — so the repo-gate can place the repo control as a gear in the
+    # dock's real, moving toggle-bar header, top-right) and contract 8 (an honest message written to the
+    # xterm when `spawn()` resolves an EMPTY sessionId — the main-side fail-close, so a no-repo block is
+    # never a silent blank screen). The leaf reads the existing source + 6 tests, ADDS the 7th + 8th
+    # tests (contract 7 = a render-slot assertion; contract 8 = a behaviour-assertion red: today an empty
+    # sessionId leaves the screen blank), then EDITS TerminalDock.tsx additively — NOT a net-new
+    # missing-symbol red. Preserves the existing spawn/data/resize/toggle/degrade/refocus behaviour + the
+    # 6 existing contracts (a no-`headerRight`, non-empty-session render is byte-behaviour-identical).
     editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalDock.test.tsx"]
@@ -87,11 +92,14 @@ OPPOSITE side of the contextBridge from [`pty-session-manager`](pty-session-mana
 nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contract, not a code edge (the
 `chat-panel` ↔ `chat-sse-mount` precedent), so there is no in-story edge either way.
 
-> **Proof status (honest) — BUILT & SIGNED (contracts 1–5), re-proving contract 6.** Contracts 1–5 landed
-> under the original story build's signed `--real` verdict (the xterm.js terminal the user sees and types
-> into). Contract 6 (the operator-found refocus regression) is being added via an `editsExisting` re-prove
-> of the SAME source (`node build terminal-dock-panel --real`) — the anchored bytes re-sign, so the crown
-> is never left stale by a gate-land hand-edit. The pty LIFECYCLE it drives (over the bridge) is
+> **Proof status (honest) — BUILT & SIGNED (contracts 1–6), re-proving contracts 7–8.** Contracts 1–5
+> landed under the original story build's signed `--real` verdict (the xterm.js terminal the user sees and
+> types into); contract 6 (the operator-found refocus regression) re-signed via an earlier `editsExisting`
+> re-prove. Contracts 7 (the optional `headerRight` header slot) and 8 (the empty-session honest message)
+> are being added via a further `editsExisting` re-prove of the SAME source (`node build
+> terminal-dock-panel --real`) for the owner's 2026-07-12 terminal-repo-picker UX refinement — the
+> anchored bytes re-sign, so the crown is never left stale by a gate-land hand-edit. The pty LIFECYCLE it
+> drives (over the bridge) is
 > [`pty-session-manager`](pty-session-manager.md); the real `desktopTerminal` bridge
 > (`apps/desktop/electron/preload.ts`) and the real-pty Electron-main wiring are the story's
 > operator-attested GLUE. Its *appearance inside the native shell* ("reads and behaves like a real
@@ -174,10 +182,37 @@ re-focused after the window blur/focus cycle). The mounted terminal must be RE-F
 called — on the events that mean "the user is back on the terminal": the browser window's `focus` event,
 a `mousedown`/`click` on the dock body, and the document's `visibilitychange` back to visible. Guard it on
 the terminal being mounted (a spawned session exists) so an absent-bridge / folded dock never calls focus.
-This is the ONLY behaviour change in this re-prove; the spawn/data/resize/toggle/degrade wiring and the 5
-existing contracts stay intact. THE JSDOM-PROVABLE PART is that `term.focus()` is invoked on those events
-(the mocked xterm records `focus()` calls) — assert exactly that. Whether keystrokes then *physically*
-reach the textarea is operator-attested (the story's UAT legs 4/5), NEVER a jsdom/visual assertion here.
+The refocus is a behaviour change of the contract-6 re-prove; the spawn/data/resize/toggle/degrade wiring
+and the other existing contracts stay intact. THE JSDOM-PROVABLE PART is that `term.focus()` is invoked on
+those events (the mocked xterm records `focus()` calls) — assert exactly that. Whether keystrokes then
+*physically* reach the textarea is operator-attested (the story's UAT legs 4/5), NEVER a jsdom/visual
+assertion here.
+
+AN OPTIONAL `headerRight` HEADER SLOT (contract 7 — the terminal-repo-picker UX refinement). The terminal
+needs an affordance in its OWN header (the toggle bar) so a caller can place a control there — the
+downstream `terminal-repo-gate` puts the repo picker as a gear top-right, in the dock's REAL header (which
+moves with the bottom-anchored, drag-resized dock, so only the dock itself can host it — an outside overlay
+cannot track it). Add an OPTIONAL `headerRight?: React.ReactNode` prop; when provided (and the bridge is
+present) render it in the toggle-bar header area, top-right (a passive render slot — the dock does not
+interpret it, and nested interactive controls sit as a SIBLING of the toggle `<button>`, never inside it,
+to keep valid HTML). When the prop is ABSENT the header renders exactly as before (byte-behaviour-identical
+— the `❯_` prompt + fold chevron, nothing extra). The absent-bridge disabled state renders NO `headerRight`
+(studio-standalone has no repo control to host). THE JSDOM-PROVABLE PART: with `headerRight` provided the
+node renders within the dock; with it absent, no header-right container renders — assert exactly that. The
+slot's exact placement/look is `.terminal-dock*` CSS glue, operator-attested (UAT leg 5), NEVER asserted
+here.
+
+AN HONEST MESSAGE ON AN EMPTY SESSION (contract 8 — item 1, the main-side fail-close feedback). The
+Electron main FAILS CLOSED when no valid repo is selected: `terminal:spawn` returns `{ sessionId: "" }`
+rather than a shell in the wrong cwd. Today the dock takes that empty id and leaves a BLANK screen — a
+silent block. Instead, when `spawn()` resolves an empty `sessionId`, write an honest one-line message to
+the xterm (e.g. `No repository selected — choose one to start the terminal.`) and set up NO live session
+(no pending-seed write, input inert) — never a throw, never a hang. This is defence-in-depth: the
+downstream gate already withholds the dock until a repo is ready, so this path is rarely reached through
+the UI, but it guarantees the block is never a silent blank screen (the owner's item 1). THE
+JSDOM-PROVABLE PART: with the bridge's `spawn()` scripted to resolve `{ sessionId: "" }`, the mocked xterm
+records a `write` of the honest message and NO session is wired — assert exactly that. The non-empty path
+(a real session id) keeps the existing spawn/seed/data behaviour intact.
 
 ## No new cross-story edge (the boundary call — ADR-0010 §4 / ADR-0074)
 
@@ -232,15 +267,16 @@ The integration test would:
    disabled "terminal unavailable here" state, NEVER calls `spawn`, does NOT hang, and does NOT crash —
    the honest absent-bridge degradation.
 
-## Contracts (6)
+## Contracts (8)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
 jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted.
 Contracts 1–5 are BUILT (the original story build's signed verdict); contract 6 is the operator-found
-refocus regression added in the `editsExisting` re-prove (author its test against the existing 5, do NOT
-drop them). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test
-(the `it("<id>: …")` convention), so the coverage check reports 6/6. None is an APPEARANCE assertion —
-the look is the story's operator-attested UAT leg 5 (ADR-0070).
+refocus regression; contracts 7–8 are the terminal-repo-picker UX refinement (an optional `headerRight`
+header slot + an honest empty-session message) added in this `editsExisting` re-prove (author their tests
+against the existing 6, do NOT drop them). Per ADR-0122 (`storytree coverage`), each contract id is the
+lead of a distinctly-named test (the `it("<id>: …")` convention), so the coverage check reports 8/8. None
+is an APPEARANCE assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
    - **asserts —** expanding the dock calls `desktopTerminal.spawn` once and `open`s the (mocked) xterm
@@ -277,6 +313,21 @@ the look is the story's operator-attested UAT leg 5 (ADR-0070).
      asserts the `term.focus()` INVOCATION only — that keystrokes then physically reach the textarea is
      the story's operator-attested UAT leg (ADR-0070), never a jsdom assertion.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the window-focus/body/visibility refocus wiring) *(provisional path)*
+7. **`tdp-renders-header-right-slot`** — an optional `headerRight` node renders in the dock's toggle-bar header when provided, and nothing extra when absent
+   - **asserts —** with the bridge present, rendering `<TerminalDock headerRight={<X/>}/>` renders the
+     provided node within the dock (the toggle-bar header area) as a SIBLING of the toggle button (valid
+     HTML — never nested in the `<button>`); rendering `<TerminalDock/>` with no `headerRight` renders no
+     header-right container (byte-behaviour-identical header). The slot is passive — the dock does not
+     interpret the node. This is the affordance the downstream `terminal-repo-gate` uses to place the repo
+     control as a gear in the dock's real (moving) header.
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the optional headerRight render slot) *(provisional path)*
+8. **`tdp-shows-message-on-empty-session`** — an empty sessionId from spawn writes an honest message, never a silent blank screen
+   - **asserts —** with the bridge's `spawn()` scripted to resolve `{ sessionId: "" }` (the main-side
+     fail-close when no valid repo is selected), the (mocked) xterm records a `write` of an honest one-line
+     message (matching e.g. /repository/i) and NO live session is wired (no pending-seed write, terminal
+     input inert) — the block is never a silent blank screen (the owner's item 1). The non-empty path (a
+     real session id) keeps the existing spawn/seed/data behaviour intact.
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the empty-session honest message) *(provisional path)*
 
 ## Guidance — the net-new slice that earns the signed verdict
 

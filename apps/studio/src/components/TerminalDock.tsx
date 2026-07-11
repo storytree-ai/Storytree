@@ -75,9 +75,15 @@ export interface TerminalDockSeed {
 
 export interface TerminalDockProps {
   seed?: TerminalDockSeed;
+  /** Optional passive render slot in the dock's own header, top-right — a sibling of the toggle
+   *  button (never nested inside it, to keep valid HTML). The dock does not interpret it; the
+   *  downstream `terminal-repo-gate` places a repo-picker control here. Absent by default, in which
+   *  case the header renders byte-identical to before (no extra container). Never rendered in the
+   *  absent-bridge disabled state (nothing to host a repo control for). */
+  headerRight?: React.ReactNode;
 }
 
-export function TerminalDock({ seed }: TerminalDockProps = {}): React.JSX.Element {
+export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
 
   const [expanded, setExpanded] = useState(false);
@@ -141,6 +147,15 @@ export function TerminalDock({ seed }: TerminalDockProps = {}): React.JSX.Elemen
 
     void bridge.spawn().then((res) => {
       sessionIdRef.current = res.sessionId;
+
+      // Contract 8 — the main FAILS CLOSED (no valid repo selected) by resolving an empty
+      // sessionId rather than a shell in the wrong cwd. Never leave the screen blank: write an
+      // honest one-line message and wire NO live session (the `if (sessionId)` guards above on
+      // input/resize/data already treat an empty string as falsy, so input stays inert).
+      if (!res.sessionId) {
+        term.write('No repository selected — choose one to start the terminal.\r\n');
+        return;
+      }
 
       // A seed that arrived before this session resolved was held PENDING — write it now, exactly
       // once, as a pre-fill (no trailing newline: reviewed by the user, never auto-run).
@@ -275,6 +290,14 @@ export function TerminalDock({ seed }: TerminalDockProps = {}): React.JSX.Elemen
           {expanded ? '▾' : '▴'}
         </span>
       </button>
+
+      {/* Contract 7 — an optional passive render slot in the dock's own header, top-right. A
+          SIBLING of the toggle button (never nested inside it — no nested interactive controls
+          inside a <button>). Absent by default: no container at all when `headerRight` is not
+          provided, keeping the header byte-identical to before. */}
+      {headerRight != null && (
+        <div className="terminal-dock-header-right">{headerRight}</div>
+      )}
 
       {/* The xterm mount stays MOUNTED under `hidden` (not conditional render), preserving the session
           across a fold → unfold. */}

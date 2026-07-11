@@ -2226,11 +2226,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               client: it reaches a real local pty only through the desktop `window.desktopTerminal` bridge,
               and degrades to an honest disabled state in the hosted/dev studio (a plain browser, no
               bridge). The seed (a map Build's pre-filled command, ADR-0137) is forwarded through the gate. */}
-          {/* Choose which repo the embedded terminal opens in (terminal-repo-picker, ADR-0174 follow-on).
-              A thin client over window.desktopRepo; degrades to an honest disabled pill in the hosted/dev
-              studio (no bridge). Mounted BESIDE the byte-locked TerminalDock, in its own .repo-picker CSS. */}
-          <RepoPicker />
-          <TerminalRepoGate {...(terminalSeed ? { seed: terminalSeed } : {})} />
+          {/* The repo control (terminal-repo-picker, ADR-0174 follow-on) is INJECTED into the gate, not
+              mounted as a floating sibling over the map (owner UX refinement 2026-07-12): the gate renders
+              it as the prominent SELECT affordance inside the gated chrome while no repo is selected (a new
+              user is forced to pick before the terminal runs), and forwards it into TerminalDock's header
+              as the compact repo GEAR once a repo is ready (off the map — no longer covering the terminal).
+              A thin client over window.desktopRepo; the gate omits it entirely in the hosted/dev studio
+              (no bridge → the dock's own honest "unavailable" state stands alone). */}
+          <TerminalRepoGate
+            {...(terminalSeed ? { seed: terminalSeed } : {})}
+            repoControl={<RepoPicker />}
+          />
         </div>
 
         {selected && (

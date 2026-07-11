@@ -21,6 +21,7 @@
 // separate `.terminal-gate*` namespace, never touching `.terminal-dock*`.
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { TerminalDock, type TerminalDockSeed } from './TerminalDock';
 
 /** The `ready`/`onChanged` slice of the `desktopRepo` bridge this gate consumes (alongside the
@@ -37,9 +38,17 @@ function getDesktopRepoGateBridge(): DesktopRepoGateBridge | undefined {
 
 export interface TerminalRepoGateProps {
   seed?: TerminalDockSeed;
+  /** An injected (never imported) select affordance — the story wires `<RepoPicker/>` in here. Shown
+   *  as the prominent control inside the gated chrome while no repo is selected, and forwarded into
+   *  TerminalDock's `headerRight` slot (the repo gear) once a repo is ready. The gate places it; it
+   *  never interprets it. */
+  repoControl?: ReactNode;
 }
 
-export function TerminalRepoGate({ seed }: TerminalRepoGateProps = {}): React.JSX.Element {
+export function TerminalRepoGate({
+  seed,
+  repoControl,
+}: TerminalRepoGateProps = {}): React.JSX.Element {
   const bridge = getDesktopRepoGateBridge();
   const [cwd, setCwd] = useState<string | null>(null);
 
@@ -67,12 +76,24 @@ export function TerminalRepoGate({ seed }: TerminalRepoGateProps = {}): React.JS
   }
 
   if (!cwd) {
+    // Fail-closed gated chrome — never a silent block, and never shown without a reason. Covers
+    // both the new-user (never-selected) and stale/invalid-persisted cases honestly: `ready()`
+    // resolves null for both.
     return (
       <div className="terminal-gate">
         <div className="terminal-gate-message">Select a repository to start the terminal</div>
+        {repoControl != null && <div className="terminal-gate-control">{repoControl}</div>}
       </div>
     );
   }
 
-  return <TerminalDock key={cwd} {...(seed ? { seed } : {})} />;
+  // Keyed on the cwd: a repo change swaps the key, unmounting the old dock (disposing its pty) and
+  // mounting a fresh one in the new repo.
+  return (
+    <TerminalDock
+      key={cwd}
+      {...(repoControl != null ? { headerRight: repoControl } : {})}
+      {...(seed ? { seed } : {})}
+    />
+  );
 }
