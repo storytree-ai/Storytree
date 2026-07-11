@@ -4235,3 +4235,98 @@ button.legend-tile:hover {
     animation: none;
   }
 }
+
+/* ============================================================================
+   Library drawer (ADR-0185 inc 1) — the tech-tree lens pulled DOWN over the map.
+   Part of the WORLD: the forest-cozy board palette (--board-1/--board-2), never
+   neutral-admin white and never the terminal black (that look is reserved for
+   the session-orchestrator terminal, ADR-0174/0175). Sits at z:4 — above the
+   side panels (z:3), below the flyout (z:5), stress layer (z:6), chat (z:20).
+   In PEEK the map stays fully live beneath (no scrim, ADR-0185 dec 1); in DIVE
+   the drawer collapses to its bar and the dive slot reserves the body region
+   (rendered EMPTY here — the artifact body is increment 4).
+   ============================================================================ */
+.library-drawer {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(940px, calc(100% - 88px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  background: linear-gradient(172deg, var(--board-1) 0%, var(--board-2) 100%);
+  box-shadow: 0 16px 38px rgba(87, 60, 38, 0.25);
+  animation: library-drawer-slide 240ms ease-out;
+  overflow: hidden;
+}
+.library-drawer[data-mode='peek'] {
+  height: min(56%, 440px);
+}
+.library-drawer[data-mode='dive'] {
+  /* collapsed to the bar; the dive slot below reserves the body region */
+  height: auto;
+  max-height: calc(100% - 24px);
+}
+@keyframes library-drawer-slide {
+  from {
+    transform: translate(-50%, -101%);
+  }
+  to {
+    transform: translate(-50%, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .library-drawer {
+    animation: none;
+  }
+}
+.library-drawer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--board-1) 55%, transparent);
+}
+.library-drawer-bar-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.library-drawer-dive,
+.library-drawer-close {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--board-1) 70%, #ffffff 30%);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 3px 10px;
+}
+.library-drawer-dive:hover,
+.library-drawer-close:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.library-drawer-close {
+  padding: 3px 9px;
+  line-height: 1;
+}
+/* the reserved slots — EMPTY in the shell (the finder is inc 2, the body inc 4);
+   a faint dashed inlay so the reservation reads as deliberate, not broken */
+.library-drawer-peek-slot,
+.library-drawer-dive-slot {
+  flex: 1 1 auto;
+  margin: 12px;
+  border: 1px dashed color-mix(in srgb, var(--hex-side) 55%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--board-1) 40%, transparent);
+}
+.library-drawer-dive-slot {
+  min-height: 180px;
+}

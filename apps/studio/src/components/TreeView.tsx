@@ -90,6 +90,7 @@ import {
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
+import { LibraryDrawer } from './LibraryDrawer.js';
 import { TerminalDock } from './TerminalDock.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
@@ -2135,6 +2136,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
           <WorldSettingsPanel search={search} onCommit={commitSearch} />
+          {/* The Library drawer (ADR-0185 inc 1): the tech-tree lens pulled down OVER the map behind
+              `?overlay=library` — an overlay within .world-frame, never a route away. The shell's
+              state machine is machine-proven (LibraryDrawer.test.tsx); this mounting + the
+              forest-cozy look are the story's operator-attested UAT leg (ADR-0070). */}
+          <LibraryDrawer search={search} onCommitSearch={commitSearch} />
           {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
               the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
               tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only
