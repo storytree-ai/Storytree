@@ -13,6 +13,7 @@
 // "no stamp" and health answers without the `code` field.
 
 import { execFile } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 
 /** The /api/health `code` field: what this server process serves vs what the checkout holds. */
 export interface CodeStamp {
@@ -25,11 +26,12 @@ export interface CodeStamp {
 }
 
 /**
- * `git rev-parse HEAD` in `repoRoot`; null on ANY failure (git missing, not a repo, timeout).
+ * One `git rev-parse HEAD` attempt in `repoRoot`; null on ANY failure (git missing, not a repo,
+ * a transiently-held ref lock, timeout, a non-sha output).
  * windowsHide because the detached studio server has no console — without it every spawn pops
  * a terminal window on Windows (the dbControl.ts lesson). git is a real .exe, so no shell.
  */
-export function gitHead(repoRoot: string): Promise<string | null> {
+function gitHeadOnce(repoRoot: string): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(
       'git',
@@ -42,6 +44,48 @@ export function gitHead(repoRoot: string): Promise<string | null> {
       },
     );
   });
+}
+
+/**
+ * Call `read` until it returns non-null, retrying once per entry in `backoffsMs` (sleeping that
+ * long before each retry). Returns the first non-null result, or null if every attempt — the
+ * initial read plus all retries — yielded null. A successful first read pays no backoff.
+ *
+ * The retry knob behind {@link gitHead}, kept PURE of git so the transient-failure handling is
+ * unit-testable without spawning a real, racy `rev-parse` (the same reason {@link buildCodeStamp}
+ * is split out): a fake reader proves "retries then succeeds" and "gives up after N" deterministically.
+ */
+export async function readWithRetry<T>(
+  read: () => Promise<T | null>,
+  backoffsMs: readonly number[],
+): Promise<T | null> {
+  let value = await read();
+  for (let i = 0; value === null && i < backoffsMs.length; i++) {
+    await delay(backoffsMs[i]!);
+    value = await read();
+  }
+  return value;
+}
+
+/**
+ * Backoffs for {@link gitHead}'s retries: three tries after the first read, ~350ms total. Sized
+ * to outlast a briefly-held ref lock, not a real outage — a genuine "not a repo" fails fast on
+ * every attempt and still returns null promptly.
+ */
+const GIT_HEAD_BACKOFFS_MS = [50, 100, 200] as const;
+
+/**
+ * `git rev-parse HEAD` in `repoRoot`; null when there is genuinely no answer (git missing, not a
+ * repo). Retries a null read a few times with a short backoff first: a single `rev-parse` can
+ * transiently fail while a ref lock is briefly held by concurrent git in the SAME checkout — a
+ * merge landing, or a parallel `git worktree` op sharing the linked-worktree refs (which also
+ * flaked this module's own suite under `pnpm -r test`, where the `@storytree/cli` git tests churn
+ * worktrees next to it). The reads that matter are ONE-SHOT — the server-start `startedAt` capture
+ * in {@link createCodeStampProbe} — so a transient null there would LASTINGLY disable the staleness
+ * signal for that process; a bounded retry buys real robustness. Never throws.
+ */
+export function gitHead(repoRoot: string): Promise<string | null> {
+  return readWithRetry(() => gitHeadOnce(repoRoot), GIT_HEAD_BACKOFFS_MS);
 }
 
 /** Pure comparison half, unit-testable without moving HEAD: null unless both shas resolved. */

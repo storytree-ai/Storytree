@@ -2306,14 +2306,18 @@ a.stat:hover {
    story's UAT leg 5, ADR-0070): these colours are re-witnessed by the owner, sign no visual verdict, and
    no jsdom test asserts them. */
 .terminal-dock {
-  /* warm-dark terminal palette (owner-approved) — the chat dock's, one source of truth for the chrome */
-  --term-bg: #1e1a15; /* dock background */
-  --term-border-inner: #2c251a; /* inner dividers */
-  --term-border-outer: #38301f; /* outer border */
-  --term-sage: #8fb87a; /* forest sage: hover wash */
-  --term-muted: #6f6450; /* muted hint text */
-  --term-handle: #4a3f2c; /* collapsed-bar drag handle */
-  --term-chevron: #8c7f66; /* muted chevron */
+  /* warm-dark terminal palette (owner-approved) — the chat dock's family, one source of truth for the
+     chrome; the terminal SCREEN itself is xterm's own surface (its default near-black theme) framed by
+     this chrome, so the dock reads as a terminal window: warm bezel + dark screen. */
+  --term-bg: #211c16; /* dock chrome background (a hair warmer/lighter than the screen, so the bezel reads) */
+  --term-screen: #0c0a08; /* the terminal screen well behind xterm (a warm near-black, not flat #000) */
+  --term-border-inner: #342c1f; /* inner dividers (toggle underline) */
+  --term-border-outer: #40361f; /* outer top border */
+  --term-sage: #8fb87a; /* forest sage: prompt glyph, hover wash, live accents */
+  --term-muted: #7b6f58; /* muted hint / chevron text */
+  --term-handle: #4a3f2c; /* collapsed-bar drag handle pip */
+  --term-scroll: #4a3f2c; /* scrollbar thumb (warm, unobtrusive) */
+  --term-chevron: #a7967a; /* chevron (a touch brighter than muted so the affordance reads) */
   --term-mono: var(--mono), ui-monospace, Menlo, monospace;
 
   display: flex;
@@ -2322,15 +2326,16 @@ a.stat:hover {
   border-top: 1px solid var(--term-border-outer);
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.34);
   overflow: hidden;
   font-family: var(--term-mono);
 }
-/* The toggle bar that folds/unfolds the dock — a chevron only (collapsed ▴ / expanded ▾), no title. */
+/* The toggle bar that folds/unfolds the dock — a terminal prompt affordance (a sage `❯_` via ::before,
+   respecting the no-title design) on the left, the fold chevron on the right (collapsed ▴ / expanded ▾). */
 .terminal-dock-toggle {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   width: 100%;
   padding: 7px 14px;
@@ -2342,15 +2347,31 @@ a.stat:hover {
   cursor: pointer;
   text-align: left;
 }
-.terminal-dock-toggle:hover {
-  background: color-mix(in srgb, var(--term-sage) 6%, transparent);
+/* The prompt glyph — a terminal cursor affordance that reads "this fold is a terminal" without a title
+   (CSS-generated, so it never enters the button's accessible name, which the aria-label owns). */
+.terminal-dock-toggle::before {
+  content: '❯_';
+  color: var(--term-sage);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 1px;
+  opacity: 0.9;
 }
+.terminal-dock-toggle:hover {
+  background: color-mix(in srgb, var(--term-sage) 7%, transparent);
+}
+.terminal-dock-toggle:hover::before {
+  opacity: 1;
+}
+/* Keep the prompt left + chevron right in both states (no flex-end override — the terminal identity
+   affordance stays put whether folded or expanded). */
 .terminal-dock-toggle-expanded {
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 .terminal-dock-toggle-chevron {
   color: var(--term-chevron);
   font-size: 12px;
+  line-height: 1;
 }
 /* The thin top-edge grabber — drag up to grow, down to shrink (mirrors .chat-dock-resize). */
 .terminal-dock-resize {
@@ -2370,38 +2391,142 @@ a.stat:hover {
   border-radius: 2px;
   background: var(--term-handle);
   transform: translate(-50%, -50%);
+  transition: background 0.12s ease, width 0.12s ease;
 }
 .terminal-dock-resize:hover::after {
-  background: color-mix(in srgb, var(--term-sage) 40%, var(--term-handle));
+  background: color-mix(in srgb, var(--term-sage) 45%, var(--term-handle));
+  width: 52px;
 }
-/* The body holds the mounted xterm terminal and fills the dragged height. */
+/* The body holds the mounted xterm terminal and fills the dragged height. It frames the screen: a warm
+   near-black well with a hairline inner bezel + inset shadow so xterm's surface reads as a terminal
+   screen, and a comfortable inset so glyphs never jam against the edge (the VS Code / iTerm inset). */
 .terminal-dock-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  background: #000;
-  padding: 6px 8px;
+  background: var(--term-screen);
+  padding: 8px 10px 10px;
   box-sizing: border-box;
+  border-top: 1px solid color-mix(in srgb, var(--term-border-inner) 60%, transparent);
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.55);
 }
-/* xterm fills the body so the FitAddon has a definite box to size rows/cols against. */
+/* xterm fills the body so the FitAddon has a definite box to size rows/cols against. xterm renders its
+   own screen (its default near-black theme) inside the padded content box; the warm `--term-screen` well
+   shows only as the thin inset rim around it — a subtle bezel, no fighting the xterm renderer. */
 .terminal-dock-body .xterm,
 .terminal-dock-body .xterm-viewport,
 .terminal-dock-body .xterm-screen {
   height: 100%;
 }
+/* A thin, warm, unobtrusive scrollbar on the scrollback — a proper terminal's quiet gutter, not the
+   default chunky OS bar. Firefox honours scrollbar-width/color; WebKit (the Electron renderer) the
+   ::-webkit rules. */
+.terminal-dock-body .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--term-scroll) transparent;
+}
+.terminal-dock-body .xterm-viewport::-webkit-scrollbar {
+  width: 9px;
+}
+.terminal-dock-body .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-dock-body .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--term-scroll);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.terminal-dock-body .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--term-sage) 40%, var(--term-scroll));
+  background-clip: padding-box;
+}
 /* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled bar — never a spawn, never a
-   hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to. */
+   hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to;
+   the same warm chrome + prompt affordance so it still reads as the (unavailable) terminal. */
 .terminal-dock-disabled {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 6;
+  background: var(--term-bg);
+  border-top: 1px solid var(--term-border-outer);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.34);
+  font-family: var(--term-mono);
 }
 .terminal-dock-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 7px 14px;
   color: var(--term-muted);
   font-size: 12.5px;
+}
+.terminal-dock-unavailable::before {
+  content: '❯_';
+  color: color-mix(in srgb, var(--term-sage) 55%, var(--term-muted));
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+/* ── Repo picker: choose which repo the embedded terminal opens in (repo-picker-panel capability,
+   terminal-repo-picker story, ADR-0174 follow-on).
+   ──────────────────────────────────────────────────────────────────────────────────────────────────
+   A compact control mounted BESIDE the terminal dock (never inside the byte-locked TerminalDock), in its
+   OWN .repo-picker namespace — never a .terminal-dock* selector. It floats bottom-left over the map frame
+   at z-index 7 (above the dock's z-index 6) so it stays reachable whether the dock is folded or expanded.
+   Warm-dark forest-cozy palette to read cohesively with the terminal dock. APPEARANCE IS OPERATOR-ATTESTED
+   (the story's UAT leg 5, ADR-0070): these colours + placement are re-witnessed by the owner, sign no
+   visual verdict, and no jsdom test asserts them. */
+.repo-picker {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(60%, 520px);
+  padding: 5px 6px 5px 12px;
+  border: 1px solid #38301f;
+  border-radius: 999px;
+  background: color-mix(in srgb, #1e1a15 92%, transparent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  font-family: var(--mono), ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+/* The picked path (or a "default checkout" label) — ellipsised so a long path never blows out the pill. */
+.repo-picker-selection {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cbb892;
+}
+.repo-picker-button {
+  flex: 0 0 auto;
+  padding: 3px 12px;
+  border: 1px solid #4a3f2c;
+  border-radius: 999px;
+  background: transparent;
+  color: #8c7f66;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.repo-picker-button:hover {
+  background: color-mix(in srgb, #8fb87a 14%, transparent);
+  color: #cbe0b5;
+}
+/* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled pill — never calls the bridge. */
+.repo-picker-unavailable {
+  padding: 1px 6px;
+  color: #6f6450;
 }
 
 /* The panel is a full-height flex column: the scrollback (.chat-outcome) grows and scrolls, the input

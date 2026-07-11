@@ -50,3 +50,14 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
     ipcRenderer.on("terminal:exit", (_e, sessionId: string, exit: { exitCode: number }) => cb(sessionId, exit));
   },
 });
+
+// The repo-picker bridge (terminal-repo-picker story, ADR-0174 follow-on). Its mere PRESENCE
+// (`window.desktopRepo`) is how the renderer's RepoPicker feature-detects the desktop host (the hosted/dev
+// studio — a plain browser — has no such bridge, so the picker renders its honest "unavailable" state).
+// `pick` opens the native directory dialog (main drives `dialog.showOpenDialog` → `repo-selection.select`)
+// and resolves the chosen VALIDATED path or null; `get` reads the current persisted selection. The real
+// filesystem + dialog live in main only.
+contextBridge.exposeInMainWorld("desktopRepo", {
+  pick: (): Promise<string | null> => ipcRenderer.invoke("dialog:pickDirectory"),
+  get: (): Promise<string | null> => ipcRenderer.invoke("repo:get"),
+});

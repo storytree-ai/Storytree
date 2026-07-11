@@ -34,6 +34,9 @@ const xtermMock = vi.hoisted(() => {
     cols = 80;
     rows = 24;
     resized: Array<{ cols: number; rows: number }> = [];
+    /** test-only: counts `term.focus()` calls — pins contract 6 (re-focus after a window blur/focus
+     *  cycle) without asserting anything about real DOM focus, which jsdom's xterm mock has none of. */
+    focusCalls = 0;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
     constructor() {
@@ -41,6 +44,9 @@ const xtermMock = vi.hoisted(() => {
     }
     open(el: HTMLElement): void {
       this.opened = el;
+    }
+    focus(): void {
+      this.focusCalls += 1;
     }
     write(data: string): void {
       this.written.push(data);
@@ -261,6 +267,38 @@ describe('TerminalDock', () => {
     expect(container.querySelector('.terminal-dock-body')?.hasAttribute('hidden')).toBe(false);
   });
 
+  // ── tdp-refocuses-after-window-focus-cycle (contract 6) ─────────────────
+  it('tdp-refocuses-after-window-focus-cycle: window focus, a click on the dock body, and visibilitychange-to-visible all re-focus the mounted terminal', async () => {
+    render(<TerminalDock />);
+
+    // Not yet mounted (folded, no session): none of the refocus triggers should touch a terminal
+    // instance or throw — there is nothing mounted to focus yet.
+    expect(() => fireEvent(window, new Event('focus'))).not.toThrow();
+    expect(xtermMock.FakeTerminal.instances.length).toBe(0);
+
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(term.focusCalls).toBe(0);
+
+    // The Electron window regaining focus (another window/app had stolen it, the user clicks back)
+    // must re-focus the mounted xterm so keystrokes reach it again.
+    fireEvent(window, new Event('focus'));
+    expect(term.focusCalls).toBeGreaterThan(0);
+    const afterWindowFocus = term.focusCalls;
+
+    // A mousedown on the dock body — the user clicking directly onto the terminal — also re-focuses.
+    const body = document.querySelector('.terminal-dock-body') as HTMLElement;
+    fireEvent.mouseDown(body);
+    expect(term.focusCalls).toBeGreaterThan(afterWindowFocus);
+    const afterBodyClick = term.focusCalls;
+
+    // The document coming back to `visible` (tab/app foregrounded) also re-focuses.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    fireEvent(document, new Event('visibilitychange'));
+    expect(term.focusCalls).toBeGreaterThan(afterBodyClick);
+  });
+
   // ── tdp-degrades-when-bridge-absent ──────────────────────────────────────────
   it('tdp-degrades-when-bridge-absent: an absent desktopTerminal bridge renders an honest disabled state, never spawns/hangs', () => {
     delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
@@ -270,5 +308,84 @@ describe('TerminalDock', () => {
     expect(screen.getByText(/terminal unavailable/i)).toBeTruthy();
     expect(bridgeMock.spawn).not.toHaveBeenCalled();
     expect(xtermMock.FakeTerminal.instances.length).toBe(0);
+  });
+
+  // ── terminal-dock-seed capability: the seed lifecycle as a whole (expand + ensure-session +
+  //    async pending-write + no-newline safety + re-seed on a token bump) — one integration test
+  //    over the seed prop, not split into isolated assertions (the node's honest proof unit). ──
+  it('tds-seed-expands-and-prefills-after-spawn: a new seed expands the dock, ensures ONE session, and writes the command once spawn resolves', async () => {
+    const seed = { command: 'ls -la', token: 1 };
+    render(<TerminalDock seed={seed} />);
+
+    // The seed alone expands the dock — no user click needed.
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+    await flush();
+
+    // Ensuring a session reused the SAME spawn-on-first-expand path — spawned exactly once, one
+    // terminal instance (never a second/parallel spawn triggered by the seed).
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(xtermMock.FakeTerminal.instances.length).toBe(1);
+    // Once the session resolved, the pending seed was written as a pre-fill.
+    expect(bridgeMock.write).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'ls -la');
+  });
+
+  it('tds-prefills-without-trailing-newline: the seed is written as the BARE command — no trailing newline/carriage-return (never auto-run)', async () => {
+    const seed = { command: 'pnpm storytree story build x --real --store pg', token: 1 };
+    render(<TerminalDock seed={seed} />);
+    await flush();
+
+    // The load-bearing safety wall: a --real build is billed + PR-opening (ADR-0136); the command
+    // sits at the prompt un-executed until the user presses Enter, so NOTHING is appended.
+    const written = bridgeMock.write.mock.calls.at(-1)?.[1] as string;
+    expect(written).toBe('pnpm storytree story build x --real --store pg');
+    expect(written.endsWith('\n')).toBe(false);
+    expect(written.endsWith('\r')).toBe(false);
+  });
+
+  it('tds-seed-before-session-writes-on-resolve: a seed arriving BEFORE spawn resolves is held pending and written exactly once on resolve', async () => {
+    const seed = { command: 'ls -la', token: 1 };
+    render(<TerminalDock seed={seed} />);
+
+    // The bridge's spawn() promise has not resolved yet — the seed must be REMEMBERED, not dropped,
+    // and NOT written before a session exists.
+    expect(bridgeMock.write).not.toHaveBeenCalled();
+
+    await flush();
+
+    // Once the session resolved, the pending seed was written EXACTLY once, no second spawn.
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'ls -la');
+  });
+
+  it('tds-token-bump-reseeds-same-command: a token bump re-writes an UNCHANGED command (a nonce, not a cache key), reusing the session; the same token is a no-op', async () => {
+    const seed1 = { command: 'ls -la', token: 1 };
+    const seed2 = { command: 'ls -la', token: 2 };
+    const { rerender } = render(<TerminalDock seed={seed1} />);
+    await flush();
+    expect(bridgeMock.write).toHaveBeenCalledTimes(1);
+
+    // A new token re-seeds even for the SAME command — without a second spawn (session reused).
+    rerender(<TerminalDock seed={seed2} />);
+    await flush();
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledTimes(2);
+    expect(bridgeMock.write).toHaveBeenLastCalledWith(SESSION_ID, 'ls -la');
+
+    // Re-rendering with the SAME token is a no-op — keyed on the token, not the command string.
+    rerender(<TerminalDock seed={seed2} />);
+    await flush();
+    expect(bridgeMock.write).toHaveBeenCalledTimes(2);
+  });
+
+  it('tds-absent-seed-preserves-existing-behaviour: with NO seed prop the dock is unchanged — expand still spawns, and no pre-fill is written', async () => {
+    render(<TerminalDock />);
+    await expand();
+
+    // The existing spawn-on-open still fires; with no seed, no pre-fill write is made.
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).not.toHaveBeenCalled();
   });
 });

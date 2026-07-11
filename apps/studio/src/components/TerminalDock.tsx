@@ -65,7 +65,19 @@ function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, value));
 }
 
-export function TerminalDock(): React.JSX.Element {
+/** A seed command to pre-fill into the terminal (never auto-run — no trailing newline). `token` is a
+ *  monotonic NONCE, not a cache key: a repeat seed of the identical `command` still re-fires as long
+ *  as `token` bumps (a user may Build the same node twice, or re-seed after clearing the terminal). */
+export interface TerminalDockSeed {
+  command: string;
+  token: number;
+}
+
+export interface TerminalDockProps {
+  seed?: TerminalDockSeed;
+}
+
+export function TerminalDock({ seed }: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
 
   const [expanded, setExpanded] = useState(false);
@@ -83,6 +95,12 @@ export function TerminalDock(): React.JSX.Element {
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+
+  // Seed bookkeeping: the last-applied token (so a re-render with the SAME token is a no-op, keyed
+  // on the token — a nonce — never the command string) and a PENDING seed command, held when the
+  // seed arrives before the async `spawn()` below has resolved a session (write it once it does).
+  const seedTokenRef = useRef<number | null>(null);
+  const pendingSeedRef = useRef<string | null>(null);
 
   const toggle = useCallback((): void => {
     setExpanded((e) => !e);
@@ -123,8 +141,36 @@ export function TerminalDock(): React.JSX.Element {
 
     void bridge.spawn().then((res) => {
       sessionIdRef.current = res.sessionId;
+
+      // A seed that arrived before this session resolved was held PENDING — write it now, exactly
+      // once, as a pre-fill (no trailing newline: reviewed by the user, never auto-run).
+      const pendingCommand = pendingSeedRef.current;
+      if (pendingCommand !== null) {
+        pendingSeedRef.current = null;
+        bridge.write(res.sessionId, pendingCommand);
+      }
     });
   }, [expanded, bridge]);
+
+  // Seed lifecycle (terminal-dock-seed capability): on a NEW seed token, expand the dock and ensure a
+  // session — reusing the spawn-on-first-expand effect above via `setExpanded(true)`, never a second
+  // spawn — then write the command as a pre-fill. If a session already exists, write immediately;
+  // otherwise hold it PENDING (above) for the spawn's `.then` to write once resolved. A seed with no
+  // bridge (studio-standalone) is inert — no spawn, no write, no crash.
+  useEffect(() => {
+    if (!seed || !bridge) return;
+    if (seedTokenRef.current === seed.token) return; // same token = no-op, even for the same command
+    seedTokenRef.current = seed.token;
+
+    setExpanded(true);
+
+    const sessionId = sessionIdRef.current;
+    if (sessionId) {
+      bridge.write(sessionId, seed.command);
+    } else {
+      pendingSeedRef.current = seed.command;
+    }
+  }, [seed?.token, seed?.command, bridge]);
 
   // Dispose the session/instance only when the dock itself unmounts, never on a plain fold/unfold.
   useEffect(() => {
@@ -135,6 +181,27 @@ export function TerminalDock(): React.JSX.Element {
       if (sessionId && bridge) bridge.dispose(sessionId);
     };
   }, [bridge]);
+
+  // Contract 6 — re-focus the mounted xterm after a window blur/focus cycle (another window/app had
+  // stolen focus; the user clicks back). xterm's hidden input textarea does not regain focus on its
+  // own, so we drive it explicitly on the events that mean "the user is back on the terminal": the
+  // window regaining focus, a click/mousedown on the dock body, and the document coming back visible.
+  // Guarded by `termRef.current` — a no-op while nothing is mounted (folded dock / absent bridge).
+  useEffect(() => {
+    const refocus = (): void => {
+      termRef.current?.focus();
+    };
+    const onWindowFocus = (): void => refocus();
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') refocus();
+    };
+    window.addEventListener('focus', onWindowFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
 
   // Resize by dragging the top edge: UP (smaller clientY) GROWS the dock, DOWN shrinks it. Each move
   // re-fits the terminal (which forwards the new geometry to the bridge via `onResize` above) and
@@ -211,7 +278,12 @@ export function TerminalDock(): React.JSX.Element {
 
       {/* The xterm mount stays MOUNTED under `hidden` (not conditional render), preserving the session
           across a fold → unfold. */}
-      <div className="terminal-dock-body" hidden={!expanded} ref={bodyRef} />
+      <div
+        className="terminal-dock-body"
+        hidden={!expanded}
+        ref={bodyRef}
+        onMouseDown={() => termRef.current?.focus()}
+      />
     </aside>
   );
 }

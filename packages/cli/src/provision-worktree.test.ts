@@ -3,9 +3,11 @@
 // into a SessionStart hook). Its behavioural invariants:
 //   - idempotent / detects an already-installed worktree → a no-op fast path (installer NOT called),
 //     which is what makes it safe to run at EVERY SessionStart;
-//   - a fresh worktree runs the installer exactly once, at the worktree root;
+//   - a fresh worktree runs the installer, retrying once from the warm store before it gives up;
 //   - an install failure surfaces a non-zero exit code — UNLESS `--hook` mode swallows it so a failed
-//     install never breaks the session.
+//     install never breaks the session;
+//   - a STILL-unprovisioned worktree yields the agent-visible `SessionStart` signal (`hookStdout` /
+//     `unprovisionedContext`) so the fix is announced up front, never rediscovered mid-work.
 // The installer is injected so the contract is proven WITHOUT spawning a real pnpm (slow, networked,
 // environment-dependent); one spawn of the real entry proves the fast-path wiring end-to-end.
 import { spawnSync } from "node:child_process";
@@ -16,7 +18,13 @@ import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { needsProvision, provisionWorktree, exitCode } from "../provision-worktree.mjs";
+import {
+  needsProvision,
+  provisionWorktree,
+  exitCode,
+  unprovisionedContext,
+  hookStdout,
+} from "../provision-worktree.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../provision-worktree.mjs", import.meta.url));
 
@@ -81,16 +89,79 @@ test("provisionWorktree: a fresh worktree runs the installer once, at the worktr
   }
 });
 
-test("provisionWorktree: a failed install surfaces its non-zero exit code", () => {
+test("provisionWorktree: a persistently failed install retries then surfaces its non-zero exit code", () => {
   const root = makeTmpRoot(false);
   try {
-    const res = provisionWorktree({ root, install: () => ({ ok: false, code: 7 }) });
+    let calls = 0;
+    const res = provisionWorktree({
+      root,
+      install: () => {
+        calls += 1;
+        return { ok: false, code: 7 };
+      },
+    });
+    assert.equal(calls, 2, "default retries=1 ⇒ the installer is attempted twice before giving up");
     assert.equal(res.ok, false);
     assert.equal(res.code, 7, "the installer's failure code is propagated");
     assert.equal(res.reason, "install-failed");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("provisionWorktree: a transient failure is healed by the retry from the warm store", () => {
+  const root = makeTmpRoot(false);
+  try {
+    let calls = 0;
+    const res = provisionWorktree({
+      root,
+      install: () => {
+        calls += 1;
+        return calls === 1 ? { ok: false, code: 1 } : { ok: true, code: 0 };
+      },
+    });
+    assert.equal(calls, 2, "first attempt fails, the retry succeeds");
+    assert.deepEqual(res, { provisioned: true, ok: true, code: 0, reason: "installed" });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("provisionWorktree: retries=0 disables the retry (single attempt)", () => {
+  const root = makeTmpRoot(false);
+  try {
+    let calls = 0;
+    const res = provisionWorktree({
+      root,
+      retries: 0,
+      install: () => {
+        calls += 1;
+        return { ok: false, code: 3 };
+      },
+    });
+    assert.equal(calls, 1, "retries=0 ⇒ exactly one attempt");
+    assert.equal(res.reason, "install-failed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("unprovisionedContext: a valid SessionStart additionalContext payload naming the root + fix", () => {
+  const root = "/tmp/some-worktree-root";
+  const parsed = JSON.parse(unprovisionedContext(root));
+  assert.equal(parsed.hookSpecificOutput.hookEventName, "SessionStart");
+  const ctx: string = parsed.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /pnpm install/, "tells the agent the one-step fix");
+  assert.ok(ctx.includes(root), "names the worktree root so install runs in the right place");
+});
+
+test("hookStdout: emits the signal only on a hook-mode failure, silent otherwise", () => {
+  const root = "/tmp/wt";
+  assert.equal(hookStdout({ ok: true }, root, true), "", "healthy provision ⇒ no context noise");
+  assert.equal(hookStdout({ ok: false }, root, false), "", "non-hook failure ⇒ no stdout signal");
+  const out = hookStdout({ ok: false }, root, true);
+  assert.notEqual(out, "", "hook-mode failure ⇒ emits the agent signal");
+  assert.equal(out, unprovisionedContext(root), "the emitted payload IS the unprovisioned context");
 });
 
 test("exitCode: --hook swallows failure (never breaks the session); standalone propagates it", () => {

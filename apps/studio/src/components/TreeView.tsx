@@ -94,7 +94,8 @@ import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import type { SearchResult } from '../lib/librarySearch.js';
-import { TerminalDock } from './TerminalDock.js';
+import { TerminalDock, type TerminalDockSeed } from './TerminalDock.js';
+import { RepoPicker } from './RepoPicker.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
@@ -1236,6 +1237,14 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // uses in the left panel (and the panel scrolls it into view). One building today (library),
   // so a stamp highlights it; cleared on the next world click.
   const [highlightShared, setHighlightShared] = useState<string | null>(null);
+  // The embedded-terminal seed (map-terminal-build glue, ADR-0158): the composed
+  // `pnpm storytree … build … --real --store pg` command a forest-map Build click drops into the
+  // terminal. Held HERE — the common parent of the TerminalDock (map overlay, below) and the
+  // BuildSection (detail panel, in StoryPanel) — and passed to both: `seed` into the dock, a
+  // `seedTerminal` setter down to the Build button. `token` is a monotonic nonce so a repeat Build of
+  // the same node re-fires; undefined until the first desktop Build click, and inert where no
+  // `desktopTerminal` bridge exists (hosted/dev studio — the dock ignores a seed with no bridge).
+  const [terminalSeed, setTerminalSeed] = useState<TerminalDockSeed | undefined>(undefined);
 
   // The one-shot tree load, extracted so a per-test UAT verdict signature (UatTestsSection) can
   // RE-PULL it — the crown greens from the per-test roll-up server-side (ADR-0082), so after a
@@ -1250,6 +1259,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
         setSeedClaims(p.claims ?? []);
       })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  // A desktop forest-map Build click seeds the terminal (map-build-seeds-terminal → this glue →
+  // terminal-dock-seed): bump the nonce so an identical command on a repeat click still re-fires (the
+  // dock keys its write on `token`, never the command string).
+  const seedTerminal = useCallback((command: string): void => {
+    setTerminalSeed((prev) => ({ command, token: (prev?.token ?? 0) + 1 }));
   }, []);
 
   useEffect(() => {
@@ -2188,7 +2204,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only
               through the desktop `window.desktopTerminal` bridge, and degrades to an honest disabled
               state in the hosted/dev studio (a plain browser, no bridge). */}
-          <TerminalDock />
+          {/* Choose which repo the embedded terminal opens in (terminal-repo-picker, ADR-0174 follow-on).
+              A thin client over window.desktopRepo; degrades to an honest disabled pill in the hosted/dev
+              studio (no bridge). Mounted BESIDE the byte-locked TerminalDock, in its own .repo-picker CSS. */}
+          <RepoPicker />
+          <TerminalDock {...(terminalSeed ? { seed: terminalSeed } : {})} />
         </div>
 
         {selected && (
@@ -2206,6 +2226,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             onSelectSession={(id) => setSessionDock({ kind: 'detail', id })}
             onCrownRefresh={reloadTree}
             onClose={clearSelection}
+            onSeedTerminal={seedTerminal}
           />
         )}
       </div>
@@ -4058,6 +4079,7 @@ function StoryPanel({
   onSelectSession,
   onCrownRefresh,
   onClose,
+  onSeedTerminal,
 }: {
   story: TreeStory;
   stories: TreeStory[];
@@ -4073,6 +4095,9 @@ function StoryPanel({
   /** Re-pull the world tree after a per-test UAT verdict is signed, so the crown repaints. */
   onCrownRefresh: () => void;
   onClose: () => void;
+  /** A forest-map Build click on the desktop seeds this composed command into the embedded terminal
+   *  (map-terminal-build glue): threaded straight down to the Build button's `onSeedTerminal`. */
+  onSeedTerminal: (command: string) => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
   // The node's FULL declared connection set (ADR-0074 §4): outbound depends_on AND
@@ -4380,6 +4405,11 @@ function StoryPanel({
         // tree so the panel refreshes IN PLACE (a passed adopt → the Build button, not the stale Adopt
         // one) instead of waiting for a manual reload. Same re-pull the per-test UAT signature uses.
         onTerminal={onCrownRefresh}
+        // Desktop map-spawn re-point (map-terminal-build): a Build click on the desktop seeds the
+        // composed `pnpm storytree … build … --real --store pg` into the embedded terminal instead of
+        // dispatching in-app. Bridge-absent (hosted/dev studio) → BuildSection ignores this and keeps
+        // the existing api.build dispatch (mbt-without-bridge-dispatches-as-today).
+        onSeedTerminal={onSeedTerminal}
       />
 
       {/* The story's deciding ADRs (ADR-0037 §2), linked to the Decisions-group Library docs — the

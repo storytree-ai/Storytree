@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { gitHead, buildCodeStamp, createCodeStampProbe } from './codeStamp';
+import { gitHead, buildCodeStamp, createCodeStampProbe, readWithRetry } from './codeStamp';
 
 // apps/studio/server → up three = the repo root.
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -23,6 +23,36 @@ describe('buildCodeStamp', () => {
   it('same sha → fresh, different sha → stale', () => {
     expect(buildCodeStamp(A, A)).toEqual({ startedAt: A, head: A, stale: false });
     expect(buildCodeStamp(A, B)).toEqual({ startedAt: A, head: B, stale: true });
+  });
+});
+
+describe('readWithRetry', () => {
+  it('returns the first non-null result and stops retrying', async () => {
+    let calls = 0;
+    const read = async (): Promise<string | null> => (++calls >= 2 ? 'ok' : null);
+    expect(await readWithRetry(read, [1, 1, 1])).toBe('ok');
+    expect(calls).toBe(2); // one retry was enough — it stopped as soon as it got a value
+  });
+
+  it('gives up and returns null after exhausting every retry', async () => {
+    let calls = 0;
+    const read = async (): Promise<string | null> => {
+      calls++;
+      return null;
+    };
+    expect(await readWithRetry(read, [1, 1])).toBeNull();
+    expect(calls).toBe(3); // initial read + 2 retries — a real "always null" still fails, not masked
+  });
+
+  it('a successful first read pays no backoff and never retries', async () => {
+    let calls = 0;
+    const read = async (): Promise<number | null> => {
+      calls++;
+      return 42;
+    };
+    // Huge backoffs would stall the test if they were ever awaited; they must not be.
+    expect(await readWithRetry(read, [10_000, 10_000])).toBe(42);
+    expect(calls).toBe(1);
   });
 });
 
