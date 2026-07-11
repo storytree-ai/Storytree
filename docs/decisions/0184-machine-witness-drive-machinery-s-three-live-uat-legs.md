@@ -74,7 +74,8 @@ downgrade to human; an unbound or ineligible binding is refused as today.
 an owner value call. A success that is machine-observable but merely expensive, live, or
 un-harnessed is `machine`, witnessed by a standing or deliberate proof — it is never labeled human to
 stand in for a missing harness. This generalizes `a-live-only-guarantee-is-an-honesty-gap` to the
-witness label itself. (Candidate for graduation to a Library principle in the librarian pass.)
+witness label itself. (Graduated 2026-07-11 to the Library principle
+`human-witness-is-a-judgment-gap-not-cost` in the librarian pass, per ADR-0095.)
 
 **3. Two proof shapes carry the conversion.**
 
