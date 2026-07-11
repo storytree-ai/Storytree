@@ -66,3 +66,12 @@ test("rejects a non-ADR filename", () => {
     /not an ADR filename/,
   );
 });
+
+test("arc provenance stamp parses (ADR-0183 D3) and is absent when unstamped", () => {
+  const stamped = parseAdrFrontmatter(FILE, doc("status: accepted\narc: map-pathways-arc"));
+  assert.equal(stamped.arc, "map-pathways-arc");
+  // Unstamped (pre-0183 / arc-less work): the key is simply absent, never defaulted.
+  assert.equal(parseAdrFrontmatter(FILE, doc("status: accepted")).arc, undefined);
+  // An empty stamp is a typo, not provenance — fail loudly.
+  assert.throws(() => parseAdrFrontmatter(FILE, doc('status: accepted\narc: ""')));
+});
