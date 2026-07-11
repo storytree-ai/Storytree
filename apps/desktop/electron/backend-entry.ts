@@ -43,7 +43,7 @@ import type { SpawnSurfaceDeps, LandingSurfaceDeps, InspectSurfaceDeps } from "@
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
 import { createCodeStampProbe, gitHead } from "../src/apply/code-stamp.js";
-import { createRuntimeStatusProbe } from "../src/apply/runtime-status.js";
+import { createRuntimeStatusProbe, fetchOriginBestEffort } from "../src/apply/runtime-status.js";
 import { RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { ForestWriter, LocalBackendBackend } from "../src/backend/local-backend.js";
@@ -98,6 +98,13 @@ const codeStampProbe = createCodeStampProbe(repoRoot, buildStampPath);
 // fetch. Rides every /api/health answer so the desktop can surface "running <sha> — N behind main".
 // Advisory: null fields when git can't answer (the code-stamp contract), never a throw.
 const runtimeStatusProbe = createRuntimeStatusProbe(repoRoot);
+
+// PINNED = this sidecar serves a pinned-`main` runtime worktree (ADR-0181), set by electron/main.ts only
+// when `resolveRuntimeRoot` chose the runtime source (not the dev-convenience launch fallback). It gates
+// the launch update-check `git fetch` below and stamps health.runtime.pinned, so the "N behind main —
+// rebuild & relaunch" banner (which offers the ff-only PULL) shows for the installed app and never nags a
+// developer whose working checkout is legitimately behind `origin/main`.
+const pinnedRuntime = process.env["STORYTREE_DESKTOP_RUNTIME_PINNED"] === "1";
 
 // ---------- session identity (ADR-0033) for the chat spawn surface ----------
 //
@@ -303,6 +310,19 @@ function currentGitState(): { commitSha: string; clean: boolean } {
 // ---------- main ----------
 
 async function main(): Promise<void> {
+  // Launch update-check (ADR-0181 / ADR-0164): when serving a pinned-`main` runtime worktree, kick off a
+  // single best-effort `git fetch origin` so runtime-status reads a TRUTHFUL behind-`main` count at
+  // launch and the update banner can fire (the count is otherwise "as of the last fetch"). Fire-and-forget
+  // — never awaited (it runs concurrently with the slow DB boot below, so it costs no startup latency) and
+  // never rejects (fetchOriginBestEffort swallows offline/no-origin failures), so a network hiccup can
+  // neither block nor crash startup. A ONE-TIME launch fetch, not a per-poll hit (ADR-0181).
+  if (pinnedRuntime) {
+    console.error("[backend-entry] checking origin/main for updates (git fetch)…");
+    void fetchOriginBestEffort(repoRoot).then(() =>
+      console.error("[backend-entry] update check complete (behind-main count refreshed)"),
+    );
+  }
+
   // Record which credential env vars the operator EXPLICITLY set, BEFORE any hydration runs — the
   // precedence anchor for the build path (explicit env > keychain > secrets file, the secrets.ts
   // posture): once loadLocalSecrets fills the file tier below, "explicit" and "file-hydrated" are
@@ -356,7 +376,10 @@ async function main(): Promise<void> {
       // its fields are null (a partial answer still rides, an honest under-report).
       const code = (await codeStampProbe()) ?? undefined;
       const rs = await runtimeStatusProbe();
-      const runtime = rs.branch !== null || rs.behind !== null ? rs : undefined;
+      // Stamp `pinned` so the renderer shows the "N behind main — rebuild & relaunch" update banner only
+      // for the installed pinned-runtime app (where the rebuild PULLS), never the dev launch fallback.
+      const runtime =
+        rs.branch !== null || rs.behind !== null ? { ...rs, pinned: pinnedRuntime } : undefined;
       const extra = {
         ...(code !== undefined ? { code } : {}),
         ...(runtime !== undefined ? { runtime } : {}),

@@ -16,7 +16,11 @@
 // (server-start HEAD vs the checkout's HEAD now): a moved checkout means the
 // running server is serving stale code — new endpoints 404, the bundle is old
 // (the /api/presence incident) — and that banner outranks everything else,
-// because a stale server makes every other signal suspect.
+// because a stale server makes every other signal suspect. In the installed
+// desktop app it ALSO watches health.runtime (ADR-0181): when the pinned-main
+// runtime worktree is behind origin/main, a newer version has landed — the same
+// top-ranked "Rebuild & relaunch" affordance (whose rebuild pulls ff-only) turns
+// that into a one-click update.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
@@ -74,6 +78,11 @@ export function StoreBanner({
   // Deliberately NOT a phase: it is independent of the DB state machine (a server can be
   // stale while the DB is stopped, starting, or fine) and it outranks every phase render.
   const [moved, setMoved] = useState<{ startedAt: string; head: string } | null>(null);
+  // The installed desktop app's pinned runtime worktree is BEHIND origin/main (health.runtime, ADR-0181):
+  // a newer version has landed and a rebuild would PULL it. Desktop-only (the hosted studio sends no
+  // runtime.behind) and set only when `pinned && behind > 0`, so it never nags a dev-fallback checkout.
+  // Like `moved` it is DB-independent and outranks every phase.
+  const [behind, setBehind] = useState<{ count: number } | null>(null);
   // The desktop rebuild-and-relaunch state (ADR-0164 Phase 1): 'running' while the MAIN process
   // rebuilds, or an `{ error }` when it failed fail-closed (the app stayed on the old build). Only
   // meaningful in the desktop app (where `window.desktopApply` is injected); inert in the browser.
@@ -99,6 +108,9 @@ export function StoreBanner({
       setMoved(
         health.code?.stale ? { startedAt: health.code.startedAt, head: health.code.head } : null,
       );
+      // Update-available signal for the installed desktop app: pinned runtime worktree behind main.
+      const behindCount = health.runtime?.pinned ? (health.runtime.behind ?? 0) : 0;
+      setBehind(behindCount > 0 ? { count: behindCount } : null);
       if (health.store === 'json') {
         setPhase('json');
         return;
@@ -202,20 +214,24 @@ export function StoreBanner({
     }
   }, []);
 
-  // A moved checkout outranks every phase: until the code is applied, the server's other answers
-  // (including the DB phases below) come from old code and can't be trusted. In the DESKTOP app the
-  // fix is a one-click rebuild + relaunch (the supervisor executes it, ADR-0164); in the hosted/dev
-  // studio (a browser, no bridge) it stays the manual `pnpm studio:down`/`up` instruction.
-  if (moved) {
+  // An update has landed when EITHER the built code moved under the running app (code.stale, `moved`)
+  // OR the installed app's pinned runtime worktree is behind origin/main (`behind`, the ADR-0181 launch
+  // update-check). Both mean "rebuild to apply newer code" and outrank every phase: until it is applied,
+  // the server's other answers (including the DB phases below) come from old code and can't be trusted.
+  // In the DESKTOP app the fix is a one-click rebuild + relaunch (the supervisor executes it, ADR-0164;
+  // for a pinned runtime it PULLS origin/main ff-only, ADR-0181); in the hosted/dev studio (a browser, no
+  // bridge) the moved case stays the manual `pnpm studio:down`/`up` instruction.
+  if (moved || behind) {
     const desktop = getDesktopApply();
     if (desktop !== undefined) {
+      // Prefer the behind-main count — the primary "a newer version has landed" signal for the installed
+      // pinned app; fall back to the moved-commit copy when only the built code drifted.
+      const message = behind
+        ? `A newer version has landed — this app is ${behind.count} commit${behind.count === 1 ? '' : 's'} behind main. Rebuild and relaunch to update.`
+        : `This app is running commit ${moved!.startedAt.slice(0, 7)} but the checkout has moved to ${moved!.head.slice(0, 7)} — a newer version has landed. Rebuild and relaunch to apply it.`;
       return (
         <div className="store-banner" role="status">
-          <span>
-            This app is running commit <code>{moved.startedAt.slice(0, 7)}</code> but the checkout has
-            moved to <code>{moved.head.slice(0, 7)}</code> — a newer version has landed. Rebuild and
-            relaunch to apply it.
-          </span>
+          <span>{message}</span>
           {rebuild === 'running' ? (
             <>
               <span className="spinner" aria-hidden="true" />
@@ -237,16 +253,21 @@ export function StoreBanner({
         </div>
       );
     }
-    return (
-      <div className="store-banner" role="status">
-        <span>
-          This studio server started on commit <code>{moved.startedAt.slice(0, 7)}</code> but the
-          checkout has moved to <code>{moved.head.slice(0, 7)}</code> — it is serving stale code
-          (new endpoints 404, the UI is old). Restart it: <code>pnpm studio:down</code> ·{' '}
-          <code>pnpm studio:up</code>; this page reloads itself when the server returns.
-        </span>
-      </div>
-    );
+    // Browser (hosted/dev studio): only reachable via `moved` — the studio server sends no
+    // runtime.behind, so `behind` is always null here. Keep the manual restart guidance.
+    if (moved) {
+      return (
+        <div className="store-banner" role="status">
+          <span>
+            This studio server started on commit <code>{moved.startedAt.slice(0, 7)}</code> but the
+            checkout has moved to <code>{moved.head.slice(0, 7)}</code> — it is serving stale code
+            (new endpoints 404, the UI is old). Restart it: <code>pnpm studio:down</code> ·{' '}
+            <code>pnpm studio:up</code>; this page reloads itself when the server returns.
+          </span>
+        </div>
+      );
+    }
+    return null;
   }
 
   if (phase === 'unknown' || phase === 'healthy') return null;

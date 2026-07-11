@@ -1582,6 +1582,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     cap?: string;
     "include-detached"?: boolean;
     "threshold-hours"?: string;
+    runtime?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1639,6 +1640,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         cap: { type: "string" },
         "include-detached": { type: "boolean", default: false },
         "threshold-hours": { type: "string" },
+        // `storytree desktop install-shortcut --runtime <path>` — the pinned-main runtime worktree (ADR-0181).
+        runtime: { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -2149,6 +2152,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
         ...(deps.desktop?.createShortcuts !== undefined ? { createShortcuts: deps.desktop.createShortcuts } : {}),
         ...(deps.desktop?.resolveElectron !== undefined ? { resolveElectron: deps.desktop.resolveElectron } : {}),
+        ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
       });
     }
     if (sub !== "launch") {

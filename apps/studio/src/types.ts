@@ -231,6 +231,15 @@ export interface StoreHealth {
    * until a restart (pnpm studio:down / studio:up). Absent when git can't answer.
    */
   code?: { startedAt: string; head: string; stale: boolean };
+  /**
+   * Desktop only (ADR-0181 Decision 3): the pinned-`main` runtime worktree's status. `branch` is the
+   * branch it is on (expected `main`), `behind` is how many commits it is behind `origin/main` as of the
+   * last fetch (the desktop refreshes this with a launch update-check), and `pinned` is true for the
+   * installed pinned-runtime app / false for the dev launch fallback. When `pinned && behind > 0` the
+   * StoreBanner shows a one-click "N commits behind main — Rebuild & relaunch" update prompt (the rebuild
+   * pulls `origin/main` ff-only). The hosted/dev studio never sends this field.
+   */
+  runtime?: { branch: string | null; behind: number | null; pinned?: boolean };
 }
 
 // ---------- members (app-owned users, ADR-0043) ----------

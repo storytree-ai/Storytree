@@ -18,6 +18,35 @@
 /** The environment variable that points the desktop at its pinned-`main` runtime worktree. */
 export const RUNTIME_ROOT_ENV = "STORYTREE_DESKTOP_RUNTIME";
 
+/**
+ * Pick the configured runtime-worktree path from ADR-0181's TWO sources, env-wins-then-file:
+ *  - the {@link RUNTIME_ROOT_ENV} env value (authoritative when a non-blank string), else
+ *  - the `path` field of a `desktop.runtime.json` config file (its raw contents passed in).
+ *
+ * This is the seam that lets an INSTALLED shortcut engage pinned `main`: a Windows `.lnk` sets no env,
+ * so without a config source the app would always take the launch-checkout fallback (the observed stale
+ * bug). The config file (`~/.storytree/desktop.runtime.json`, matching the `~/.storytree/secrets.json`
+ * home) supplies the runtime path the env can't. Returns a trimmed non-empty path, or `null` when
+ * neither source yields one — then {@link resolveRuntimeRoot} serves the launch checkout as before.
+ *
+ * PURE: the caller supplies the env value + the file contents (or `null` when the file is absent /
+ * unreadable), so this decides offline with no fs. A malformed/one-off config is treated as
+ * unconfigured (`null`), never a throw — the resolver's fail-closed refusal is reserved for a
+ * configured-but-invalid *worktree*, not an unreadable config file.
+ */
+export function pickConfiguredRuntime(env: string | null, configRaw: string | null): string | null {
+  const fromEnv = env?.trim();
+  if (fromEnv) return fromEnv;
+  if (configRaw === null) return null;
+  try {
+    const parsed = JSON.parse(configRaw) as { path?: unknown };
+    const path = typeof parsed.path === "string" ? parsed.path.trim() : "";
+    return path.length > 0 ? path : null;
+  } catch {
+    return null; // malformed JSON → treat as unconfigured, never a crash
+  }
+}
+
 /** The branch the runtime worktree must be on — the desktop serves pinned, CI-proven `main` only. */
 export const RUNTIME_BRANCH = "main";
 

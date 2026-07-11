@@ -11,8 +11,8 @@
  * the spawned command correct cross-platform.
  */
 import { execFileSync, spawn as nodeSpawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 
 import { platformShellCommand, type ShellCommand } from "@storytree/orchestrator";
@@ -55,6 +55,8 @@ export function desktopHelp(): Envelope {
       "  storytree desktop launch            build + open the Electron app, detached (log: apps/desktop/.desktop.log)",
       "  storytree desktop install-shortcut  create a Desktop + Start Menu shortcut (Windows only) that opens",
       "                                      the app with NO console window and the storytree icon; re-runnable",
+      "                    [--runtime <path>] point the installed app at a pinned-main runtime worktree so it",
+      "                                      TRACKS main — the in-app banner then flags updates + pulls them (ADR-0181)",
       "",
       "`launch` is a thin wrapper around the existing per-app launcher (`pnpm --filter desktop start`) — same",
       "build+launch pipeline, just detached so it doesn't block the invoking shell/session. `install-shortcut`",
@@ -146,6 +148,19 @@ export interface DesktopInstallShortcutDeps {
   readonly createShortcuts?: CreateShortcutsFn;
   /** Injected Electron-binary resolver — defaults to probing apps/desktop/node_modules/electron. */
   readonly resolveElectron?: ResolveElectronFn;
+  /**
+   * Optional pinned-`main` runtime worktree the INSTALLED app should serve (ADR-0181). When set, the
+   * shortcut is pointed at `<runtime>/apps/desktop` (shell + dist + sidecar all from pinned `main`,
+   * decoupled from the dev checkout) and `~/.storytree/desktop.runtime.json` is written so the app's
+   * `main.ts` resolves that worktree — making the behind-`main` update banner reliable and its
+   * Rebuild & relaunch PULL (ff-only). Must EXIST + be on `main`, else the command fails closed with the
+   * one-time bootstrap recipe. Omitted → today's local-checkout behaviour (unchanged).
+   */
+  readonly runtime?: string;
+  /** Injected runtime-worktree branch reader — defaults to `git -C <path> rev-parse --abbrev-ref HEAD`. */
+  readonly branchOf?: (worktree: string) => string | null;
+  /** Injected home dir for `~/.storytree/desktop.runtime.json` — defaults to os.homedir(). */
+  readonly homeDir?: string;
 }
 
 /**
@@ -225,10 +240,40 @@ function defaultCreateShortcuts(requests: readonly ShortcutRequest[]): string[] 
   }
 }
 
+/** `git -C <worktree> rev-parse --abbrev-ref HEAD`, or null on any failure (git missing / not a repo). */
+function defaultBranchOf(worktree: string): string | null {
+  try {
+    const out = execFileSync("git", ["-C", worktree, "rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The desktop's runtime-worktree config the app's `main.ts` reads (ADR-0181), under the ~/.storytree home. */
+function runtimeConfigPath(homeDir: string): string {
+  return path.join(homeDir, ".storytree", "desktop.runtime.json");
+}
+
+/** The one-time bootstrap recipe for a pinned-`main` runtime worktree (mirrors apps/desktop/README.md). */
+function runtimeBootstrapRecipe(runtime: string): string[] {
+  return [
+    `  git worktree add "${runtime}" origin/main`,
+    `  cd "${runtime}" && pnpm install && pnpm --filter studio build && pnpm --filter desktop run build:electron`,
+  ];
+}
+
 /**
  * `storytree desktop install-shortcut` — (re)create the Desktop + Start Menu shortcut. Windows-only:
  * it writes a native .lnk pointing directly at electron.exe (so no console window ever appears) with
  * the committed app icon. Safe to re-run — it's how you recover the shortcut after it goes missing.
+ *
+ * With `--runtime <path>` (ADR-0181) it makes the installed app track pinned `main`: it validates the
+ * runtime worktree (exists + on `main`), writes `~/.storytree/desktop.runtime.json` so `main.ts` serves
+ * it, and points the shortcut at `<runtime>/apps/desktop` — so the behind-`main` update banner is
+ * reliable and Rebuild & relaunch PULLS. A missing / off-`main` worktree fails closed with the recipe.
  */
 export function desktopInstallShortcut(deps: DesktopInstallShortcutDeps): Envelope {
   const platform = deps.platform ?? process.platform;
@@ -252,22 +297,74 @@ export function desktopInstallShortcut(deps: DesktopInstallShortcutDeps): Envelo
     };
   }
 
+  // ADR-0181 — with `--runtime <path>`, point the installed app at a pinned-`main` runtime worktree and
+  // write the config `main.ts` reads. The shortcut then targets `<runtime>/apps/desktop` (shell + dist +
+  // sidecar all from pinned main); WITHOUT it, everything targets the local checkout (unchanged).
+  const runtime = deps.runtime?.trim();
+  let targetDesktopDir = desktopDir;
+  if (runtime) {
+    if (!existsSync(runtime)) {
+      return {
+        ok: false,
+        body: [
+          `runtime worktree not found at ${runtime} — create it once (ADR-0181):`,
+          ...runtimeBootstrapRecipe(runtime),
+          "then re-run: storytree desktop install-shortcut --runtime <path>",
+        ].join("\n"),
+        next: [],
+      };
+    }
+    const branch = (deps.branchOf ?? defaultBranchOf)(runtime);
+    if (branch !== "main") {
+      return {
+        ok: false,
+        body: [
+          `runtime worktree at ${runtime} is on '${branch ?? "(detached/unknown)"}', not 'main' — the`,
+          "installed app must serve pinned main (ADR-0181). Fast-forward it, then re-run:",
+          `  git -C "${runtime}" checkout main && git -C "${runtime}" pull --ff-only`,
+        ].join("\n"),
+        next: [],
+      };
+    }
+    targetDesktopDir = path.join(runtime, "apps", "desktop");
+    if (!existsSync(targetDesktopDir)) {
+      return {
+        ok: false,
+        body: `runtime worktree at ${runtime} has no apps/desktop — is it a storytree checkout?`,
+        next: [],
+      };
+    }
+    // Write the config main.ts reads (env still wins). Even if the shortcut can't be regenerated below,
+    // this alone makes the existing shortcut / dev launch serve pinned main.
+    const configPath = runtimeConfigPath(deps.homeDir ?? homedir());
+    try {
+      mkdirSync(path.dirname(configPath), { recursive: true });
+      writeFileSync(configPath, `${JSON.stringify({ path: runtime })}\n`, "utf8");
+    } catch (err) {
+      return {
+        ok: false,
+        body: `failed to write ${configPath}: ${err instanceof Error ? err.message : String(err)}`,
+        next: [],
+      };
+    }
+  }
+
   const resolveElectron = deps.resolveElectron ?? defaultResolveElectron;
-  const electronExe = resolveElectron(desktopDir);
+  const electronExe = resolveElectron(targetDesktopDir);
   if (electronExe === null) {
     return {
       ok: false,
       body: [
-        "couldn't find the Electron binary under apps/desktop/node_modules/electron.",
-        "run `pnpm install` in this checkout first, then re-run install-shortcut.",
+        `couldn't find the Electron binary under ${targetDesktopDir}/node_modules/electron.`,
+        `run \`pnpm install\` in ${runtime ? "the runtime worktree" : "this checkout"} first, then re-run install-shortcut.`,
       ].join("\n"),
       next: ["pnpm install", "storytree desktop install-shortcut"],
     };
   }
 
-  const iconPath = path.join(desktopDir, "build", "icon.ico");
+  const iconPath = path.join(targetDesktopDir, "build", "icon.ico");
   const iconMissing = !existsSync(iconPath);
-  const builtMainMissing = !existsSync(path.join(desktopDir, "dist", "main.cjs"));
+  const builtMainMissing = !existsSync(path.join(targetDesktopDir, "dist", "main.cjs"));
 
   // The shortcut launches electron.exe DIRECTLY with the app dir as its argument. electron.exe is a
   // GUI-subsystem binary, so Windows allocates no console for it (nor for the tsx sidecar it spawns
@@ -277,8 +374,8 @@ export function desktopInstallShortcut(deps: DesktopInstallShortcutDeps): Envelo
     folder,
     name: "storytree.lnk",
     targetPath: electronExe,
-    arguments: `"${desktopDir}"`,
-    workingDirectory: desktopDir,
+    arguments: `"${targetDesktopDir}"`,
+    workingDirectory: targetDesktopDir,
     iconLocation: iconMissing ? electronExe : iconPath,
     description: "storytree — grow software as a living tree of stories",
   });
@@ -301,9 +398,22 @@ export function desktopInstallShortcut(deps: DesktopInstallShortcutDeps): Envelo
     "",
     "it opens Electron directly — NO background console window — with the storytree icon.",
     "re-run this any time the shortcut goes missing (a OneDrive sync, a cleaned worktree); it's idempotent.",
-    "the shortcut runs the LAST-BUILT app; after pulling code, rebuild once (`pnpm --filter desktop start`)",
-    "or use the in-app update banner.",
   ];
+  if (runtime) {
+    body.push(
+      "",
+      `it serves the pinned-main runtime worktree (ADR-0181): ${runtime}`,
+      `wrote ${runtimeConfigPath(deps.homeDir ?? homedir())} — the app now tracks main.`,
+      "the in-app banner shows 'N commits behind main' when a newer version lands; Rebuild & relaunch",
+      "pulls origin/main (ff-only) and rebuilds — a one-click update.",
+    );
+  } else {
+    body.push(
+      "the shortcut runs the LAST-BUILT app; after pulling code, rebuild once (`pnpm --filter desktop start`)",
+      "or use the in-app update banner. To make the app track main automatically, re-run with",
+      "--runtime <pinned-main worktree> (ADR-0181).",
+    );
+  }
   if (builtMainMissing) {
     body.push(
       "",

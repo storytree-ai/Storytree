@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 
 import {
   RUNTIME_BRANCH,
+  pickConfiguredRuntime,
   resolveRuntimeRoot,
   type RuntimeRootProbes,
 } from "./runtime-root.js";
@@ -62,4 +63,36 @@ test("configured but detached/unknown branch → refuses, naming the unknown sta
   );
   assert.equal(r.ok, false);
   assert.match((r as { error: string }).error, /detached\/unknown/);
+});
+
+// ---- pickConfiguredRuntime: env-wins-then-file source selection (ADR-0181 Decision 1) ----
+
+test("pickConfiguredRuntime: env wins over the config file when set", () => {
+  assert.equal(
+    pickConfiguredRuntime("/from/env", JSON.stringify({ path: "/from/file" })),
+    "/from/env",
+  );
+});
+
+test("pickConfiguredRuntime: a blank/whitespace env falls through to the config file", () => {
+  assert.equal(pickConfiguredRuntime("   ", JSON.stringify({ path: "/from/file" })), "/from/file");
+});
+
+test("pickConfiguredRuntime: no env + no file → null (unconfigured, launch fallback)", () => {
+  assert.equal(pickConfiguredRuntime(null, null), null);
+});
+
+test("pickConfiguredRuntime: reads the `path` field from the config file when env is absent", () => {
+  assert.equal(pickConfiguredRuntime(null, JSON.stringify({ path: "/runtime" })), "/runtime");
+});
+
+test("pickConfiguredRuntime: trims the config file path and treats a blank one as unconfigured", () => {
+  assert.equal(pickConfiguredRuntime(null, JSON.stringify({ path: "  /runtime  " })), "/runtime");
+  assert.equal(pickConfiguredRuntime(null, JSON.stringify({ path: "   " })), null);
+});
+
+test("pickConfiguredRuntime: malformed JSON / missing path → null, never throws", () => {
+  assert.equal(pickConfiguredRuntime(null, "not json {"), null);
+  assert.equal(pickConfiguredRuntime(null, JSON.stringify({ other: "x" })), null);
+  assert.equal(pickConfiguredRuntime(null, JSON.stringify({ path: 42 })), null);
 });
