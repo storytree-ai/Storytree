@@ -136,15 +136,15 @@ describe('importanceOf', () => {
 });
 
 describe('sizeTiers', () => {
-  // ── lov-size-tier-monotonic-three-buckets ────────────────────────────────────────
-  it('lov-size-tier-monotonic-three-buckets: buckets importance into exactly 3 tiers, monotonic — the hub lands at least as high as a referencing leaf, which lands at least as high as an isolated leaf', () => {
+  // ── lov-size-tier-buckets-by-importance ────────────────────────────────────────
+  it('lov-size-tier-buckets-by-importance: buckets importance into exactly 3 tiers, monotonic — the hub lands at least as high as a referencing leaf, which lands at least as high as an isolated leaf', () => {
     const tiers = sizeTiers([hubAsset, leafA, leafC], []);
     for (const t of tiers.values()) expect([0, 1, 2]).toContain(t);
     expect(tiers.get('hub-asset')!).toBeGreaterThanOrEqual(tiers.get('leaf-a')!);
     expect(tiers.get('leaf-a')!).toBeGreaterThanOrEqual(tiers.get('leaf-c')!);
   });
 
-  it('lov-size-tier-monotonic-three-buckets: assigns a tier to every asset and doc id (totality)', () => {
+  it('lov-size-tier-buckets-by-importance: assigns a tier to every asset and doc id (totality)', () => {
     const assets = [hubAsset, leafA, leafC];
     const docs = [hubAdr, quietAdr];
     const tiers = sizeTiers(assets, docs);
@@ -153,8 +153,8 @@ describe('sizeTiers', () => {
 });
 
 describe('lodBand', () => {
-  // ── lov-lod-band-thresholds-monotonic ────────────────────────────────────────────
-  it('lov-lod-band-thresholds-monotonic: zoom maps to exactly one of far/mid/close, and never reverses to a farther band as zoom increases', () => {
+  // ── lov-lod-band-by-zoom ────────────────────────────────────────────
+  it('lov-lod-band-by-zoom: zoom maps to exactly one of far/mid/close, and never reverses to a farther band as zoom increases', () => {
     expect(lodBand(0.1)).toBe('far');
     expect(lodBand(1)).toBe('far');
     expect(lodBand(2)).toBe('mid');
@@ -174,8 +174,8 @@ describe('lodBand', () => {
 });
 
 describe('constellationLayout', () => {
-  // ── lov-layout-totality-and-determinism-cycle-tolerant ───────────────────────────
-  it('lov-layout-totality-and-determinism-cycle-tolerant: assigns a position to every asset+doc node (totality), and is deterministic across two calls over the same corpus', () => {
+  // ── lov-layout-total-and-deterministic ───────────────────────────
+  it('lov-layout-total-and-deterministic: assigns a position to every asset+doc node (totality), and is deterministic across two calls over the same corpus', () => {
     const assets = [hubAsset, leafA, leafB, leafC, leafD];
     const docs = [hubAdr, quietAdr];
     const layout1 = constellationLayout(assets, docs, 'overview-seed');
@@ -193,7 +193,7 @@ describe('constellationLayout', () => {
     }
   });
 
-  it('lov-layout-totality-and-determinism-cycle-tolerant: is cycle-tolerant — a reference cycle neither throws nor drops a node', () => {
+  it('lov-layout-total-and-deterministic: is cycle-tolerant — a reference cycle neither throws nor drops a node', () => {
     const cycleA = asset({
       id: 'cycle-a',
       category: 'pattern',
@@ -247,8 +247,8 @@ describe('LibraryOverview', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  // ── lov-far-band-one-element-per-node-shape-by-category ─────────────────────────
-  it('lov-far-band-one-element-per-node-shape-by-category: at the FAR band each node is exactly one element — circle for an artifact, square for an ADR — with no ambient labels', () => {
+  // ── lov-far-band-one-element-per-node ─────────────────────────
+  it('lov-far-band-one-element-per-node: at the FAR band each node is exactly one element — circle for an artifact, square for an ADR — with no ambient labels', () => {
     const assets = [hubAsset, leafC];
     const docs = [hubAdr];
 
