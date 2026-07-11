@@ -27,6 +27,8 @@ export const CLI_AREAS = [
   "story",
   "drift",
   "adr",
+  "arc",
+  "plan",
   "desktop",
   "onboarding",
   "friction",

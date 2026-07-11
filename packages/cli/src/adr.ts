@@ -51,6 +51,12 @@ export interface AdrCommandOpts {
    * second end-of-flow ask. Absent = the born-`proposed` default for a still-thinking ADR (ADR-0050).
    */
   decided?: boolean | undefined;
+  /**
+   * `--arc <id>` (ADR-0183 D3): the Library `arc` artifact this decision was produced under.
+   * Stamped into the scaffold's frontmatter at creation and immutable thereafter — provenance,
+   * never authority. The arc's ADR view is derived from these child stamps (`storytree arc show`).
+   */
+  arc?: string | undefined;
   /** `adr list` filters (ADR-0086). */
   current?: boolean | undefined;
   loadBearing?: boolean | undefined;
@@ -108,12 +114,15 @@ export function scaffold(
   title: string,
   edges: { supersedes: number[]; amends: number[] },
   decided?: string,
+  arc?: string,
 ): string {
   const ownerDirected = decided !== undefined && decided !== "";
   const fm = ["---", `status: ${ownerDirected ? "accepted" : "proposed"}`];
   if (ownerDirected) fm.push(`decided: ${decided}`);
   if (edges.supersedes.length > 0) fm.push(`supersedes: [${edges.supersedes.join(", ")}]`);
   if (edges.amends.length > 0) fm.push(`amends: [${edges.amends.join(", ")}]`);
+  // The ADR-0183 D3 provenance stamp: "arc X produced me" — set at creation, never edited.
+  if (arc !== undefined && arc !== "") fm.push(`arc: ${arc}`);
   fm.push("---", "");
   const edgeProse =
     edges.supersedes.length > 0 || edges.amends.length > 0
@@ -213,7 +222,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   }
   // --decided (ADR-0110): the owner directed this in conversation → born accepted with today's date.
   const decided = opts.decided === true ? deps.today : undefined;
-  writeFileSync(file, scaffold(n, title, edges, decided), "utf8");
+  writeFileSync(file, scaffold(n, title, edges, decided, opts.arc?.trim() || undefined), "utf8");
 
   const rel = displayPath(deps.decisionsDir, base);
   const lines = [
@@ -330,6 +339,7 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     const edges: string[] = [];
     if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
     if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
+    if (m.arc !== undefined) edges.push(`arc ${m.arc}`);
     const back = supersededBy.get(m.number);
     if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(pad).join(", ")}`);
     for (const e of edges) rows.push(`            ${e}`);
@@ -421,12 +431,15 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
-      '  storytree adr new --title "..." [--decided] [--supersedes 42] [--amends 42,43] --pg   reserve + scaffold',
+      '  storytree adr new --title "..." [--decided] [--supersedes 42] [--amends 42,43] [--arc <id>] --pg   reserve + scaffold',
       "  storytree adr next --pg                                                  reserve a number only",
       "",
       "  --decided   the owner DIRECTED this in conversation → scaffold born `accepted` + `decided: <today>`",
       "              (design-time alignment IS ratification, no second end-of-flow ask; ADR-0110). Omit it",
       "              for the born-`proposed` default of a still-thinking ADR.",
+      "  --arc <id>  the ADR-0183 D3 provenance stamp: the Library `arc` this decision was produced under.",
+      "              Immutable once scaffolded; the arc's ADR view derives from these child stamps",
+      "              (storytree arc show <id>). Omit for arc-less work.",
       "",
       "`list` is read-only + offline (it reads docs/decisions on disk):",
       "  --current        every accepted, non-superseded ADR (the derived backbone)",

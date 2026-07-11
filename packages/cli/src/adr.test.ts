@@ -325,3 +325,15 @@ test("adr help (no sub) and an unknown sub both return guidance", async () => {
     assert.match(unknown.body, /unknown adr command/);
   });
 });
+
+test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {
+  const stamped = scaffold(183, "Arc-born decision", { supersedes: [], amends: [] }, undefined, "map-pathways-arc");
+  assert.match(stamped, /^---\nstatus: proposed\narc: map-pathways-arc\n---\n/);
+
+  // Composes with --decided: the stamp rides after the edges, inside the frontmatter block.
+  const directed = scaffold(184, "Directed + arc", { supersedes: [], amends: [7] }, "2026-07-11", "map-pathways-arc");
+  assert.match(directed, /status: accepted\ndecided: 2026-07-11\namends: \[7\]\narc: map-pathways-arc\n---\n/);
+
+  // Unstamped stays exactly as before — no arc key at all.
+  assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [] }), /arc:/);
+});

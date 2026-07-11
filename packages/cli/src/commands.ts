@@ -27,6 +27,8 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
+import { arcCommand, arcHelp } from "./arc.js";
+import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
@@ -834,6 +836,8 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
+      "  arc              the initiative overlay (ADR-0183) — an arc reveals its plans/stories/ADRs by query",
+      "  plan             the ephemeral choreography tier (ADR-0183) — plan check <id>: the freshness gate",
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
       "  desktop          launch the Electron desktop client + install its Windows shortcut (ADR-0109/0111)",
@@ -1017,6 +1021,12 @@ export interface RunDeps {
   readonly adr?: AdrAllocatorLike | null;
   /** The docs/decisions dir `storytree adr` scans + scaffolds into. Injectable for tests. */
   readonly adrDecisionsDir?: string;
+  /**
+   * The `storytree plan check` git seam (ADR-0183 D2): commits touching a path since the plan's
+   * anchor sha. Injectable so the freshness check is provable offline; defaults to the real
+   * `git rev-list --count <sha>..HEAD -- <path>` against the repo root.
+   */
+  readonly planCountCommits?: CountCommitsSince;
   /**
    * The headless-orchestrator entry's test seam (ADR-0108 Phase 1): an injected scripted `queryFn`
    * lets `storytree orchestrate` be proven offline (no live SDK spend). Absent in production — the
@@ -1531,6 +1541,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     title?: string;
     supersedes?: string;
     amends?: string;
+    arc?: string;
+    threshold?: string;
     decided?: boolean;
     current?: boolean;
     "load-bearing"?: boolean;
@@ -1580,6 +1592,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         title: { type: "string" },
         supersedes: { type: "string" },
         amends: { type: "string" },
+        arc: { type: "string" },
+        threshold: { type: "string" },
         decided: { type: "boolean", default: false },
         current: { type: "boolean", default: false },
         "load-bearing": { type: "boolean", default: false },
@@ -1861,6 +1875,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       sub,
       {
         ...(values.title !== undefined ? { title: values.title } : {}),
+        ...(values.arc !== undefined ? { arc: values.arc } : {}),
         ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
         ...(values.amends !== undefined ? { amends: values.amends } : {}),
         ...(values.decided === true ? { decided: true } : {}),
@@ -1877,6 +1892,39 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
         today: new Date().toISOString().slice(0, 10),
       },
+    );
+  }
+
+  if (area === "arc") {
+    // The derived initiative view (ADR-0183 D3): plans by `arcRef` query, ADRs/stories by their
+    // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
+    if (help) return arcHelp();
+    return arcCommand(sub, third, {
+      store: deps.store,
+      decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+      storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+      pg: values.pg === true,
+    });
+  }
+
+  if (area === "plan") {
+    // The consumption-time freshness check (ADR-0183 D2): git-log the paths the plan names since
+    // its anchor; drift past threshold → re-plan, not repair. The git seam is injectable for tests.
+    if (help) return planHelp();
+    const countCommits =
+      deps.planCountCommits ??
+      ((sha: string, p: string): number =>
+        Number(
+          execFileSync("git", ["rev-list", "--count", `${sha}..HEAD`, "--", p], {
+            cwd: repoRoot(),
+            encoding: "utf8",
+          }).trim(),
+        ));
+    return planCommand(
+      sub,
+      third,
+      { ...(values.threshold !== undefined ? { threshold: values.threshold } : {}) },
+      { store: deps.store, countCommits, pg: values.pg === true },
     );
   }
 

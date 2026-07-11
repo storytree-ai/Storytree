@@ -36,6 +36,11 @@ const AdrFrontmatter = z
     supersedes: z.array(AdrNumber).default([]),
     amends: z.array(AdrNumber).default([]),
     load_bearing: z.boolean().default(false),
+    // The `arc:` provenance stamp (ADR-0183 D3): the Library `arc` artifact that produced this
+    // decision, stamped at creation (`storytree adr new --arc <id>`) and immutable thereafter —
+    // "arc X produced me" cannot rot, so it respects ADR-0139. Optional: pre-0183 and arc-less
+    // ADRs stay unstamped. The upward view (an arc's ADRs) is DERIVED from these child stamps.
+    arc: z.string().min(1).optional(),
   })
   .strict();
 
@@ -49,6 +54,8 @@ export interface AdrMeta {
   amends: number[];
   /** The ADR-0086 current-state tag: a curated load-bearing ADR a new session must calibrate to. */
   loadBearing: boolean;
+  /** The ADR-0183 D3 provenance stamp: the `arc` artifact that produced this decision, if any. */
+  arc?: string;
 }
 
 /**
@@ -78,5 +85,6 @@ export function parseAdrFrontmatter(file: string, content: string): AdrMeta {
     loadBearing: fm.load_bearing,
   };
   if (fm.decided !== undefined) meta.decided = fm.decided;
+  if (fm.arc !== undefined) meta.arc = fm.arc;
   return meta;
 }
