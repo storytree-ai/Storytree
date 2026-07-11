@@ -17,6 +17,11 @@
             "type": "command",
             "command": "bash scripts/presence-hook.sh start",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/worktree-prune-hook.sh",
+            "timeout": 15
           }
         ]
       }
