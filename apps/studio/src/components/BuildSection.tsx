@@ -29,10 +29,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { composeBuildCommand } from '../lib/buildCommand.js';
 import type { AdoptGate, AdoptionPlan, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
 
 /** The transcript poll cadence while a run is non-terminal (modest, mirrors the world's posture). */
 export const BUILD_POLL_MS = 1_500;
+
+/**
+ * The desktop `desktopTerminal` contextBridge, feature-detected exactly as TerminalDock's
+ * `getDesktopTerminal()` (the one-detect discipline, map-build-seeds-terminal): undefined in the
+ * hosted/dev studio (a browser — no Electron preload). `window.desktopTerminal`'s type comes from the
+ * global `Window` augmentation TerminalDock.tsx declares (ADR-0174) — shared across the compilation
+ * unit, so it is not re-declared here.
+ */
+function getDesktopTerminal(): Window['desktopTerminal'] {
+  return typeof window !== 'undefined' ? window.desktopTerminal : undefined;
+}
 
 /** The panel's local build phase: idle (offer the button) → building (poll) → the terminal read. */
 type Phase =
@@ -146,6 +158,7 @@ export function BuildSection({
   adoption,
   status,
   onTerminal,
+  onSeedTerminal,
 }: {
   unitId: string;
   buildable: boolean | undefined;
@@ -181,6 +194,14 @@ export function BuildSection({
    * per-test UAT signature already drives (see TreeView's `onCrownRefresh`).
    */
   onTerminal?: (() => void) | undefined;
+  /**
+   * When present AND the desktop `desktopTerminal` bridge is detected (map-build-seeds-terminal),
+   * clicking Build calls this with the composed `storytree … build … --real --store pg` command
+   * INSTEAD of POSTing `api.build` — the seed REPLACES the in-app dispatch, never both. Bridge-absent
+   * or no callback wired → the existing `api.build` → poll path, byte-identical (mbt-without-bridge-
+   * dispatches-as-today). Scoped to the Build button only — Adopt is untouched.
+   */
+  onSeedTerminal?: ((command: string) => void) | undefined;
 }): React.JSX.Element {
   // The Build trigger + poll machinery (shared with AdoptPanel — see usePollableRun). Pressing Build
   // posts api.build; the run lands in the build registry and is polled via api.buildStatus.
@@ -210,11 +231,23 @@ export function BuildSection({
   const busy = phase.kind === 'starting';
   const showButton = phase.kind === 'idle' || phase.kind === 'starting' || phase.kind === 'error';
 
+  // The desktop re-point (map-build-seeds-terminal): when the bridge is present AND a seed callback is
+  // wired, Build SEEDS the terminal with the composed command instead of dispatching in-app — the seed
+  // REPLACES api.build, it never fires alongside it. Either condition missing → the unchanged dispatch.
+  const handleBuildClick = (): void => {
+    const bridge = getDesktopTerminal();
+    if (bridge && onSeedTerminal) {
+      onSeedTerminal(composeBuildCommand({ unitId, scope }));
+      return;
+    }
+    trigger();
+  };
+
   return (
     <div className="tree-build">
       {showButton && (
         <>
-          <button type="button" className="btn build-btn" onClick={() => void trigger()} disabled={busy}>
+          <button type="button" className="btn build-btn" onClick={handleBuildClick} disabled={busy}>
             {busy ? (
               <>
                 <span className="build-spinner build-spinner-inline" aria-hidden="true" />
