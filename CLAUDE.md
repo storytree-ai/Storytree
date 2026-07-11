@@ -170,8 +170,12 @@ file conflicts).
 - **Fresh worktree?** A new git worktree has NO `node_modules` of its own — but a `SessionStart` hook
   now **auto-provisions** it: `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` once
   on a fresh worktree and no-ops on an already-installed one (ADR-0162 inc 3), so you normally find it
-  ready. If that was skipped or the install failed, run `pnpm install` here first (the gate / `pnpm
-  storytree …` / `tsx` all fail without it). Either way, invoke the CLI as **`pnpm storytree …`** (not a
+  ready. If that first attempt fails it **retries once from the warm store**, and if the worktree is
+  *still* unprovisioned it **injects an explicit "run `pnpm install` here" heads-up into your context**
+  (a `SessionStart` signal) — so an under-provisioned worktree is announced up front, not rediscovered
+  mid-work as a cryptic `ERR_MODULE_NOT_FOUND`. If you see that heads-up (or a hard SessionStart timeout
+  swallowed the whole thing), run `pnpm install` here first (the gate / `pnpm storytree …` / `tsx` all
+  fail without it). Either way, invoke the CLI as **`pnpm storytree …`** (not a
   bare `node --import tsx packages/cli/src/main.ts` — tsx resolves only through the workspace, so the
   bare form errors `ERR_MODULE_NOT_FOUND 'tsx'` from the worktree root). Presence hooks also self-heal
   via `scripts/presence-hook.sh`.
