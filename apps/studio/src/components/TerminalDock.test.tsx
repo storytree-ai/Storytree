@@ -271,4 +271,45 @@ describe('TerminalDock', () => {
     expect(bridgeMock.spawn).not.toHaveBeenCalled();
     expect(xtermMock.FakeTerminal.instances.length).toBe(0);
   });
+
+  // ── terminal-dock-seed capability: the seed lifecycle as a whole (expand + ensure-session +
+  //    async pending-write + no-newline safety + re-seed on a token bump) — one integration test
+  //    over the seed prop, not split into isolated assertions (the node's honest proof unit). ──
+  it('tds-seed-lifecycle: a seed prop expands the dock, ensures a session, pre-fills the command without a trailing newline (never auto-running it), and re-seeds on a token bump', async () => {
+    const { rerender } = render(<TerminalDock seed={{ command: 'ls -la', token: 1 }} />);
+
+    // The seed alone expands the dock — no user click needed.
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+    // The bridge's spawn() promise has not resolved yet — the seeded command must be REMEMBERED,
+    // not dropped, and NOT written before a session exists.
+    expect(bridgeMock.write).not.toHaveBeenCalled();
+
+    await flush();
+
+    // Ensuring a session reused the SAME spawn-on-first-expand path — spawned exactly once, one
+    // terminal instance (never a second/parallel spawn triggered by the seed).
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(xtermMock.FakeTerminal.instances.length).toBe(1);
+
+    // Once the session resolved, the pending seed was written as a PRE-FILL — the bare command,
+    // no trailing newline/carriage-return appended (never auto-run).
+    expect(bridgeMock.write).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'ls -la');
+
+    // A token bump re-seeds even for an UNCHANGED command — the token is a nonce, not a cache key
+    // — and does so WITHOUT a second spawn (the same session is reused).
+    rerender(<TerminalDock seed={{ command: 'ls -la', token: 2 }} />);
+    await flush();
+
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.write).toHaveBeenCalledTimes(2);
+    expect(bridgeMock.write).toHaveBeenLastCalledWith(SESSION_ID, 'ls -la');
+
+    // Re-rendering with the SAME token is a no-op — the effect is keyed on the token, not the
+    // command string, so an unchanged token never re-fires the write.
+    rerender(<TerminalDock seed={{ command: 'ls -la', token: 2 }} />);
+    await flush();
+    expect(bridgeMock.write).toHaveBeenCalledTimes(2);
+  });
 });
