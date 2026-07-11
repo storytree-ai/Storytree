@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -14,6 +14,8 @@ import { resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.
 import { PtySessionManager } from "../src/backend/pty-session-manager.js";
 import type { PtyPort, PtyHandle, PtySpawnOptions } from "../src/backend/pty-session-manager.js";
 import { spawn as ptySpawn } from "node-pty";
+import { RepoSelection } from "../src/backend/repo-selection.js";
+import type { DirProbe, SelectionStore } from "../src/backend/repo-selection.js";
 
 // The app root (the dir holding this package's package.json) via Electron's own API — robust
 // whether the entry runs from `dist/` (the bundled main.cjs) or anywhere else, and free of the
@@ -411,6 +413,65 @@ ipcMain.handle("auth:sign-out", async (_e, kind: CredentialKind): Promise<boolea
   return broker.clear(kind);
 });
 
+// ---------- repo selection: which repo the embedded terminal opens in (terminal-repo-picker) ----------
+//
+// The renderer RepoPicker asks main (via the `desktopRepo` bridge) to open the native directory dialog
+// and to read the current selection. RepoSelection (the signed --real capability) owns the
+// validate/persist/resolve lifecycle over these injected ports; the real node:fs probe + the userData
+// JSON store are the operator-attested adapters here. `resolveCwd(serveRoot)` is what the terminal spawn
+// below defaults its cwd to, so the terminal opens in the picked repo (else the serve root, unchanged
+// from before). node-pty / TerminalDock are UNTOUCHED — main just supplies a resolved cwd it already passes.
+const fsDirProbe: DirProbe = {
+  exists: (p) => existsSync(p),
+  isDirectory: (p) => {
+    try {
+      return statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  },
+  // A repo is a dir containing `.git` (a directory for a normal clone, a file for a worktree/submodule).
+  isGitRepo: (p) => existsSync(join(p, ".git")),
+};
+// Persist the picked repo across relaunches in a small JSON file under the app's userData dir. The path is
+// resolved lazily (every read/write here runs well after the app is ready).
+function repoSelectionFile(): string {
+  return join(app.getPath("userData"), "repo-selection.json");
+}
+const userDataSelectionStore: SelectionStore = {
+  read: () => {
+    try {
+      const parsed = JSON.parse(readFileSync(repoSelectionFile(), "utf8")) as { path?: unknown };
+      return typeof parsed.path === "string" ? parsed.path : null;
+    } catch {
+      return null; // no file yet / unreadable / malformed → nothing persisted
+    }
+  },
+  write: (p) => {
+    try {
+      writeFileSync(repoSelectionFile(), JSON.stringify({ path: p }), "utf8");
+    } catch (err) {
+      console.error(`[main] repo-selection persist failed: ${errorMessage(err)}`);
+    }
+  },
+};
+const repoSelection = new RepoSelection(fsDirProbe, userDataSelectionStore);
+
+// Renderer → main repo-picker IPC (the `desktopRepo` bridge). `dialog:pickDirectory` opens the native
+// directory chooser, validates + persists the pick through RepoSelection, and returns the VALIDATED path
+// (or null on cancel/invalid); `repo:get` reads the current persisted selection.
+ipcMain.handle("dialog:pickDirectory", async (e): Promise<string | null> => {
+  const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow();
+  const result = win
+    ? await dialog.showOpenDialog(win, { properties: ["openDirectory"], title: "Choose a repo for the terminal" })
+    : await dialog.showOpenDialog({ properties: ["openDirectory"], title: "Choose a repo for the terminal" });
+  const picked = result.canceled ? undefined : result.filePaths[0];
+  if (picked === undefined) return null;
+  const sel = repoSelection.select(picked);
+  return sel.ok ? sel.path : null;
+});
+ipcMain.handle("repo:get", (): string | null => repoSelection.current());
+
 // ---------- embedded terminal: a real local pty in the desktop (ADR-0174) ----------
 //
 // The Electron MAIN owns the pty — node-pty is a native module the renderer never touches, so the
@@ -430,7 +491,7 @@ const ptyPort: PtyPort = {
     const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
       cols: opts.cols,
       rows: opts.rows,
-      cwd: opts.cwd ?? serveRoot,
+      cwd: opts.cwd ?? repoSelection.resolveCwd(serveRoot),
       env: opts.env ?? process.env,
     });
     return {

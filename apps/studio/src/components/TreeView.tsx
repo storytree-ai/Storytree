@@ -94,6 +94,7 @@ import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import type { SearchResult } from '../lib/librarySearch.js';
 import { TerminalDock, type TerminalDockSeed } from './TerminalDock.js';
+import { RepoPicker } from './RepoPicker.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
@@ -2180,6 +2181,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only
               through the desktop `window.desktopTerminal` bridge, and degrades to an honest disabled
               state in the hosted/dev studio (a plain browser, no bridge). */}
+          {/* Choose which repo the embedded terminal opens in (terminal-repo-picker, ADR-0174 follow-on).
+              A thin client over window.desktopRepo; degrades to an honest disabled pill in the hosted/dev
+              studio (no bridge). Mounted BESIDE the byte-locked TerminalDock, in its own .repo-picker CSS. */}
+          <RepoPicker />
           <TerminalDock {...(terminalSeed ? { seed: terminalSeed } : {})} />
         </div>
 
