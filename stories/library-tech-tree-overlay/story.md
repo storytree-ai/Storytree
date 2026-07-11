@@ -11,12 +11,13 @@ proof_mode: UAT
 # human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
 # So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
 # UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
-capabilities: [library-drawer-shell, library-finder]
+capabilities: [library-drawer-shell, library-finder, library-focus-subgraph]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
-# `library-tech-tree-overlay-arc` with plan `library-tech-tree-overlay-plan-2` (the 7-increment
-# roadmap lives in the plan, not here). Increments 1 (library-drawer-shell) and 2 (library-finder)
-# are authored so far; increments 3–7 (focus subgraph, dive body panel, overview constellation, wire
-# extension, #/library retirement) are authored just-in-time as the orchestrator consumes each.
+# `library-tech-tree-overlay-arc` with plan `library-tech-tree-overlay-plan-4` (the 7-increment
+# roadmap lives in the plan, not here). Increments 1 (library-drawer-shell), 2 (library-finder), and
+# 3 (library-focus-subgraph) are authored so far; increments 4–7 (dive body panel, overview
+# constellation, wire extension, #/library retirement) are authored just-in-time as the orchestrator
+# consumes each.
 #
 # NO cross-story `depends_on` edge (the wire-shape-only / rides-the-existing-wire call): the
 # drawer is a NEW SURFACE inside the studio map view (apps/studio/src/components), mounted inside
@@ -68,7 +69,7 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 |---|---|---|---|---|
 | 1 | Drawer shell | [`library-drawer-shell`](library-drawer-shell.md) | A slide-down Library drawer overlays the live forest map behind `?overlay=library` and walks a peek↔dive↔closed state machine. | authored |
 | 2 | Finder panel | [`library-finder`](library-finder.md) | Client-side search over the loaded corpus (assets on id/title/description/body, ADRs on title/id only) with a `kindLabel` sub-line, ADR status, and selection lifted via `onSelect`. | authored |
-| 3 | Focus subgraph | *(focus-subgraph, unauthored)* | The selected artifact centred, `references[]` fanned upstream/downstream, depth-limited with `+N more` clusters and neighbour-click re-focus. | planned |
+| 3 | Focus subgraph | [`library-focus-subgraph`](library-focus-subgraph.md) | The selected artifact centred, `references[]` fanned upstream/downstream via dagre rankdir-LR, two-line `kindLabel` plaques with state-only colour, depth-1 with a stepper + `+N more` clusters and neighbour-click re-focus with a breadcrumb. | authored |
 | 4 | Dive body panel | *(dive-body, unauthored)* | The full artifact body + Sources rendered over the map, deep-link-synced with `#/asset/<id>`, Esc-unwound. | planned |
 | 5 | Overview constellation | *(overview, unauthored)* | The empty-state dot field of the whole corpus under the LOD ladder, search-glow highlighting, dot→plaque swap at close zoom. | planned |
 | 6 | Wire extension | *(wire-extension, unauthored)* | `stepRefs`/`branchEdges`/`arcRef` passed through `GuidanceAsset`/`toGuidanceAsset`; typed edges rendered distinctly (a parallel server lane). | planned |
@@ -80,11 +81,14 @@ Drawn as each capability lands — NOT speculatively (ADR-0010 §3). **Authored 
 `library-drawer-shell` is the root (an overlay shell with no upstream, `depends_on: []`);
 `library-finder` **`depends_on: [library-drawer-shell]`** — the finder fills the shell's reserved peek body
 slot (`library-drawer-peek-slot`, `LibraryDrawer.tsx:111`), so it needs the shell's peek mode as its
-precondition. **Anticipated (authored when their capabilities land):** the focus subgraph consumes the
-finder's selection (`focus-subgraph → library-finder`); the dive body panel fills the shell's reserved region
-off a selection (`dive-body → library-drawer-shell`, `dive-body → library-finder`); the overview constellation
-is the shell's empty state (`overview → library-drawer-shell`). Increment 6 (server wire) is file-disjoint
-(a parallel lane, plan §Lanes). These edges are authored when their capabilities are.
+precondition; `library-focus-subgraph` **`depends_on: [library-finder]`** — the subgraph CONSUMES the
+finder's lifted `SearchResult` selection as its centre (the two-pane peek: finder left, subgraph right,
+composed into the shell's existing `peekSlot` at the TreeView level — `LibraryDrawer.tsx` untouched), so it
+needs the finder's selection as its precondition. **Anticipated (authored when their capabilities land):**
+the dive body panel fills the shell's reserved region off a selection (`dive-body → library-drawer-shell`,
+`dive-body → library-finder`); the overview constellation is the shell's empty state
+(`overview → library-drawer-shell`). Increment 6 (server wire) is file-disjoint (a parallel lane, plan
+§Lanes). These edges are authored when their capabilities are.
 
 ## No new cross-story edge (recorded — the rides-the-existing-wire call)
 
@@ -130,7 +134,7 @@ deliberate dive.
 2. Type a query into the finder. **Success (machine — `finder`) —** results narrow client-side over the
    loaded corpus (id/title/description/body + ADR titles), each result showing its kind as a muted
    sub-line (via `kindLabel`, so `arc` reads "Epic"); selecting one sets the finder selection.
-3. Read the selected artifact's neighbourhood. **Success (machine — `focus-subgraph`) —** the selected
+3. Read the selected artifact's neighbourhood. **Success (machine — `library-focus-subgraph`) —** the selected
    artifact is centred, its `references[]` fan upstream (stands on) left and downstream (stood on by)
    right, depth-1 by default with a depth stepper and `+N more` cluster chips for hubs; clicking a
    neighbour re-focuses with a breadcrumb back. **Look (operator-attested) —** two-line kind-in-node
