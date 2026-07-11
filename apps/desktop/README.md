@@ -59,3 +59,20 @@ than serving stray code. The in-app **Rebuild & relaunch** action (ADR-0164) the
 `git fetch` + `git merge --ff-only origin/main` in that worktree — so it can only ever advance to merged
 `main`, never sideways onto a branch (Rail 2, enforced by construction). `/api/health` reports the
 runtime worktree's branch and how many commits it is **behind `origin/main`** for version visibility.
+
+### The installed (Start Menu) app: `install-shortcut --runtime`
+
+A `.lnk` shortcut sets no env, so a start-menu launch would otherwise take the launch-checkout fallback
+and silently run stale code (the reported bug). Point the **installed** app at the runtime worktree in
+one step — it writes `~/.storytree/desktop.runtime.json` (which `main.ts` reads, env still wins) and
+targets the shortcut at the runtime worktree, so shell + dist + sidecar all come from pinned `main`:
+
+```sh
+# after the one-time worktree bootstrap above:
+storytree desktop install-shortcut --runtime /path/to/storytree-runtime
+```
+
+Now the app **tracks `main`**: a best-effort `git fetch` at launch keeps the behind-`main` count honest,
+so when a newer version lands the store banner shows **"N commits behind main"** with a one-click
+**Rebuild & relaunch** that pulls it (ff-only). A missing / off-`main` worktree fails closed with the
+bootstrap recipe. Without `--runtime`, the shortcut points at the local checkout (unchanged).

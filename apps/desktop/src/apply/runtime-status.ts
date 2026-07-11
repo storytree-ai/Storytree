@@ -63,6 +63,38 @@ export function gitBehindMain(root: string): Promise<number | null> {
 }
 
 /**
+ * The raw `git fetch origin` in `root` — rejects on any failure (offline, no `origin`, timeout). Attested
+ * glue like {@link gitBranch}; wrapped by {@link fetchOriginBestEffort}, which is what callers use.
+ * `windowsHide` for the console-less sidecar; bounded by a short timeout so a wedged network can't hang.
+ */
+function gitFetchOrigin(root: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("git", ["fetch", "origin"], { cwd: root, windowsHide: true, timeout: 20_000 }, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+/**
+ * Best-effort `git fetch origin` so {@link gitBehindMain} reads a TRUTHFUL behind-count at launch. The
+ * count is otherwise "as of the last fetch" (the rebuild fetches — ADR-0181 — but between rebuilds a
+ * freshly-launched app under-reports and the update banner never fires). The desktop fires this ONCE at
+ * startup when serving a pinned runtime worktree — a single launch fetch, NOT a per-poll network hit
+ * (ADR-0181 keeps the health poll network-free).
+ *
+ * NEVER rejects: a failure (offline, no `origin`, a slow network) is swallowed so a network hiccup can
+ * neither block nor crash sidecar startup — the behind-count then simply stays as of the previous fetch.
+ * The `run` seam is injectable so this swallow-failures contract is unit-provable offline (no real git).
+ */
+export function fetchOriginBestEffort(
+  root: string,
+  run: (root: string) => Promise<void> = gitFetchOrigin,
+): Promise<void> {
+  return run(root).catch(() => undefined);
+}
+
+/**
  * The per-request runtime-status probe. Reads the runtime worktree's branch and its behind-`main`
  * distance each call (both advisory — a null from either just omits that field, never a throw).
  * `readBranch`/`readBehind` default to the real git reads; the test injects scripted readers so no

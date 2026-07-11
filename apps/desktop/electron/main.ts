@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -10,7 +11,7 @@ import type { CredentialKind } from "../src/credential/kinds.js";
 import { serveStudio } from "./static-server.js";
 import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
 import { rebuildSteps, runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
-import { resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
+import { pickConfiguredRuntime, resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 import { PtySessionManager } from "../src/backend/pty-session-manager.js";
 import type { PtyPort, PtyHandle, PtySpawnOptions } from "../src/backend/pty-session-manager.js";
 import { spawn as ptySpawn } from "node-pty";
@@ -27,11 +28,15 @@ const launchRoot = join(appRoot, "..", "..");
 
 // ADR-0181 — RESOLVE THE RUNTIME ROOT the desktop serves from, FAIL-CLOSED. The desktop must serve a
 // pinned, CI-proven `main`, not whatever branch the launch checkout happens to sit on (the observed
-// 2026-07-08 bug: it served a dirty feature branch). STORYTREE_DESKTOP_RUNTIME points at a dedicated
-// worktree kept on `main`; when set it is authoritative and must EXIST + be on `main`, else we refuse
-// (requireRuntime() below blocks serving, so the launch shows the misconfiguration instead of stray
-// code). When UNSET we fall back to the launch checkout (today's dev-convenience behaviour). A sync
-// `existsSync` + `git` read are the real probes over which the pure resolveRuntimeRoot decides.
+// 2026-07-08 bug: it served a dirty feature branch). The runtime worktree is configured TWO ways
+// (env-wins-then-file, ADR-0181 Decision 1): STORYTREE_DESKTOP_RUNTIME (authoritative when set), else a
+// small `~/.storytree/desktop.runtime.json` config file. The config file is what lets an INSTALLED
+// shortcut engage pinned `main` — a Windows `.lnk` sets no env, so without it every start-menu launch
+// took the launch-checkout fallback and silently ran stale code (the reported bug). When either source
+// yields a path it is authoritative and must EXIST + be on `main`, else we refuse (requireRuntime()
+// below blocks serving, so the launch shows the misconfiguration instead of stray code). When NEITHER is
+// configured we fall back to the launch checkout (the dev-convenience behaviour). A sync `existsSync` +
+// `git` read are the real probes over which the pure resolveRuntimeRoot decides.
 function branchOfSync(path: string): string | null {
   try {
     const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
@@ -44,8 +49,21 @@ function branchOfSync(path: string): string | null {
     return null;
   }
 }
+// The optional config-file runtime source (ADR-0181 Decision 1). `~/.storytree/desktop.runtime.json`
+// mirrors the `~/.storytree/secrets.json` home; a missing/unreadable file is simply "unconfigured"
+// (null), never a throw — pickConfiguredRuntime then falls back to the env, then the launch checkout.
+function readRuntimeConfigRaw(): string | null {
+  try {
+    return readFileSync(join(homedir(), ".storytree", "desktop.runtime.json"), "utf8");
+  } catch {
+    return null;
+  }
+}
 const runtime = resolveRuntimeRoot(
-  { configured: process.env[RUNTIME_ROOT_ENV] ?? null, launchRoot },
+  {
+    configured: pickConfiguredRuntime(process.env[RUNTIME_ROOT_ENV] ?? null, readRuntimeConfigRaw()),
+    launchRoot,
+  },
   { exists: (p) => existsSync(p), branchOf: branchOfSync },
 );
 if (runtime.ok) {
@@ -279,7 +297,16 @@ function startBackend(): Promise<number> {
     // stories/ + docs/ from the pinned runtime worktree, and `tsx` resolves the serve root's node_modules.
     const child = spawn(process.execPath, ["--import", "tsx", BACKEND_ENTRY], {
       cwd: sidecarCwd,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", [RUNTIME_ROOT_ENV]: serveRoot },
+      // RUNTIME_PINNED tells the sidecar it is serving a pinned-`main` runtime worktree (not the
+      // dev-convenience launch fallback), so it does the launch update-check `git fetch` and stamps
+      // health.runtime.pinned — the update banner is meaningful only for the installed pinned app,
+      // never a nag on a developer's working checkout (ADR-0181 / ADR-0164).
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        [RUNTIME_ROOT_ENV]: serveRoot,
+        STORYTREE_DESKTOP_RUNTIME_PINNED: ffToMain ? "1" : "",
+      },
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
     backendChild = child;

@@ -274,6 +274,60 @@ describe('StoreBanner', () => {
     expect(screen.getByRole('button', { name: 'Rebuild & relaunch' })).toBeTruthy();
   });
 
+  // ── ADR-0181: the installed pinned-runtime app is behind origin/main → a one-click UPDATE ──
+  const pinnedBehind: StoreHealth = {
+    ...healthy,
+    runtime: { branch: 'main', behind: 3, pinned: true },
+  };
+
+  it('desktop: pinned runtime behind main shows an "N commits behind main" update banner + Rebuild', async () => {
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue(pinnedBehind);
+    renderBanner();
+    await flush();
+    expect(screen.getByText(/3 commits behind main/)).toBeTruthy();
+    expect(screen.getByText(/a newer version has landed/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rebuild & relaunch' })).toBeTruthy();
+    // It is an update prompt, not the DB/manual-restart copy.
+    expect(screen.queryByText('pnpm studio:down')).toBeNull();
+  });
+
+  it('desktop: behind-main uses singular "commit" for a single commit', async () => {
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 1, pinned: true } });
+    renderBanner();
+    await flush();
+    expect(screen.getByText(/1 commit behind main/)).toBeTruthy();
+  });
+
+  it('desktop: an up-to-date pinned runtime (behind 0) shows NO update banner', async () => {
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 0, pinned: true } });
+    const { container } = renderBanner();
+    await flush();
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('desktop: a behind but UNPINNED runtime (dev launch fallback) is never nagged', async () => {
+    // The dev-convenience fallback is often legitimately behind origin/main; its rebuild does not pull,
+    // so an update banner there would be wrong. pinned:false ⇒ no banner.
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 5, pinned: false } });
+    const { container } = renderBanner();
+    await flush();
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('the behind-main update banner outranks a DB outage (stale code makes other signals suspect)', async () => {
+    installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
+    apiMock.health.mockResolvedValue({ ...dbDown, runtime: { branch: 'main', behind: 2, pinned: true } });
+    apiMock.dbStatus.mockResolvedValue(stopped);
+    renderBanner();
+    await flush();
+    expect(screen.getByText(/2 commits behind main/)).toBeTruthy();
+    expect(screen.queryByText('The live store (Cloud SQL) is stopped.')).toBeNull();
+  });
+
   it('recovers from server-lost when /api/health answers again', async () => {
     // Drive straight into server-lost from an initial outage. Before any phase resolves
     // the banner polls on the SLOW cadence (initial probe + ticks = SERVER_LOST_AFTER

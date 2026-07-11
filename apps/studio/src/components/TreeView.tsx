@@ -94,6 +94,7 @@ import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import { LibraryDiveBody } from './LibraryDiveBody.js';
+import { LibraryOverview } from './LibraryOverview.js';
 import type { SearchResult } from '../lib/librarySearch.js';
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
@@ -2180,25 +2181,35 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             search={search}
             onCommitSearch={commitSearch}
             peekSlot={
-              // Two-pane peek (ADR-0185 dec 2, inc 3): the finder (left) drives the focus
-              // subgraph (right). Selection lives here in TreeView — the finder LIFTS its pick
-              // via onSelect, and the subgraph RE-CENTRES via onFocus (a neighbour click is just
-              // a new selection). Composed as a single peekSlot node so the proven drawer shell
-              // stays byte-untouched.
-              <div className="library-peek-panes">
-                <LibraryFinder
-                  assets={assets}
-                  docs={docs}
-                  onSelect={setLibrarySelection}
-                  {...(librarySelection ? { selectedId: librarySelection.id } : {})}
-                />
-                <LibraryFocusGraph
-                  assets={libraryAssets}
-                  docs={docs}
-                  selection={librarySelection}
-                  onFocus={setLibrarySelection}
-                />
-              </div>
+              // Empty-state swap (ADR-0185 dec 4, inc 5): with NO selection the peek pane shows
+              // the whole-corpus OVERVIEW constellation (its own search input glows matches; a
+              // node click seeds librarySelection). Once a selection exists it hands back to the
+              // two-pane finder+subgraph peek (dec 2/3, inc 2/3). The overview reads libraryAssets
+              // (the normalised memo — the inc-3 references-normalisation fix that averts the
+              // real-data crash class), and lifts onSelect into the SAME shared librarySelection.
+              // Supplement glue after the leaf PASS — the proven shell + signed components stay
+              // byte-untouched.
+              librarySelection ? (
+                // Two-pane peek: the finder (left) drives the focus subgraph (right); the finder
+                // LIFTS via onSelect, the subgraph RE-CENTRES via onFocus (a neighbour click is
+                // just a new selection).
+                <div className="library-peek-panes">
+                  <LibraryFinder
+                    assets={assets}
+                    docs={docs}
+                    onSelect={setLibrarySelection}
+                    selectedId={librarySelection.id}
+                  />
+                  <LibraryFocusGraph
+                    assets={libraryAssets}
+                    docs={docs}
+                    selection={librarySelection}
+                    onFocus={setLibrarySelection}
+                  />
+                </div>
+              ) : (
+                <LibraryOverview assets={libraryAssets} docs={docs} onSelect={setLibrarySelection} />
+              )
             }
             // Dive (ADR-0185 dec 1, inc 4): the drawer's Dive bar button collapses peek to a bar
             // and this slot renders the centred selection's FULL body over the map — AssetView

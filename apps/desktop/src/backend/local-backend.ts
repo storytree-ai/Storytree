@@ -83,13 +83,15 @@ export interface LocalBackendBackend {
    * HEAD the sidecar started on vs the checkout's HEAD now. `stale: true` means the checkout moved
    * under the running app — the shared StoreBanner turns it into the "rebuild & relaunch" affordance.
    * `runtime` is the OPTIONAL pinned-`main` runtime worktree status (ADR-0181 Decision 3): the branch it
-   * is on (expected `main`) and how many commits it is BEHIND `origin/main` — version visibility for the
-   * desktop. Both fields are absent (undefined) when git can't answer; they simply don't ride the JSON.
+   * is on (expected `main`), how many commits it is BEHIND `origin/main`, and `pinned` — whether this is
+   * the installed pinned-runtime app (true) or the dev launch fallback (false). `branch`/`behind` are
+   * absent when git can't answer; `pinned` gates the "N behind main — rebuild" update banner so it never
+   * nags a developer's working checkout. The whole `runtime` object is omitted when git answers neither.
    */
   health: () => Promise<{
     db: "ok" | "unreachable" | "n/a";
     code?: { startedAt: string; head: string; stale: boolean };
-    runtime?: { branch: string | null; behind: number | null };
+    runtime?: { branch: string | null; behind: number | null; pinned?: boolean };
   }>;
   activeSessions: () => Promise<unknown[] | null>;
   inFlightBuilds: () => Promise<unknown[] | null>;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -234,6 +234,107 @@ test("desktopInstallShortcut: falls back to the Electron icon and warns when ico
     assert.match(env.body, /isn't built yet/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// install-shortcut --runtime — point the installed app at a pinned-main runtime worktree (ADR-0181)
+// ---------------------------------------------------------------------------
+
+/** A scratch pinned-main runtime worktree (a dir with apps/desktop under it). */
+function scratchRuntime(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "desktop-runtime-"));
+  mkdirSync(path.join(dir, "apps", "desktop"), { recursive: true });
+  return dir;
+}
+
+test("desktopInstallShortcut --runtime: on main → targets <runtime>/apps/desktop and writes the runtime config", () => {
+  const repo = scratchRepo();
+  const runtime = scratchRuntime();
+  const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
+  try {
+    const runtimeDesktop = path.join(runtime, "apps", "desktop");
+    const fakeElectron = "C:\\fake\\electron\\dist\\electron.exe";
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: repo,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => fakeElectron,
+      runtime,
+      branchOf: () => "main",
+      homeDir: home,
+    });
+
+    assert.equal(env.ok, true);
+    assert.equal(calls.length, 2);
+    for (const req of calls) {
+      // The shortcut points at the RUNTIME worktree's apps/desktop, not the dev checkout's.
+      assert.equal(req.arguments, `"${runtimeDesktop}"`);
+      assert.equal(req.workingDirectory, runtimeDesktop);
+    }
+    // The config main.ts reads is written under ~/.storytree, pointing at the runtime worktree.
+    const configPath = path.join(home, ".storytree", "desktop.runtime.json");
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), { path: runtime });
+    assert.match(env.body, /pinned-main runtime worktree/);
+    assert.match(env.body, /tracks main/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut --runtime: a MISSING worktree fails closed with the bootstrap recipe (no config, no shortcut)", () => {
+  const repo = scratchRepo();
+  const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const missing = path.join(tmpdir(), "no-such-runtime-worktree-xyz");
+    const env = desktopInstallShortcut({
+      repoRoot: repo,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => "C:\\e\\electron.exe",
+      runtime: missing,
+      branchOf: () => "main",
+      homeDir: home,
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /runtime worktree not found/);
+    assert.match(env.body, /git worktree add/);
+    assert.equal(calls.length, 0); // no shortcut written
+    assert.equal(existsSync(path.join(home, ".storytree", "desktop.runtime.json")), false); // no config written
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut --runtime: an OFF-main worktree fails closed with a fast-forward hint", () => {
+  const repo = scratchRepo();
+  const runtime = scratchRuntime();
+  const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: repo,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => "C:\\e\\electron.exe",
+      runtime,
+      branchOf: () => "claude/some-feature",
+      homeDir: home,
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /is on 'claude\/some-feature', not 'main'/);
+    assert.match(env.body, /pull --ff-only/);
+    assert.equal(calls.length, 0);
+    assert.equal(existsSync(path.join(home, ".storytree", "desktop.runtime.json")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });
 
