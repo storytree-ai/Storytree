@@ -16,6 +16,7 @@ export const CLI_AREAS = [
   "noticeboard",
   "branch",
   "tree",
+  "worktree",
   "witness",
   "attest",
   "uat",

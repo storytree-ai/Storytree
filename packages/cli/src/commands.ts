@@ -33,6 +33,13 @@ import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
+  pruneWorktrees,
+  worktreeHelp,
+  DEFAULT_THRESHOLD_MS,
+  type WorktreeIo,
+  type PruneOptions,
+} from "./worktree.js";
+import {
   desktopHelp,
   desktopInstallShortcut,
   desktopLaunch,
@@ -833,6 +840,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  friction         file what fought you → the Library (ADR-0168) — new | reinforce | route | list",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
+      "  worktree prune   reap DEAD worktrees under .claude/worktrees/ (ADR-0142/0033) — merged+clean+idle; dry-run by default",
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
@@ -1041,6 +1049,15 @@ export interface RunDeps {
   readonly branch?: {
     readonly runGit?: (args: readonly string[]) => string;
     readonly generateName?: () => string;
+  };
+  /**
+   * The `storytree worktree prune` seam (ADR-0142 / ADR-0033): an injected {@link WorktreeIo} (git +
+   * fs) and clock make the destructive reaper offline-testable — no real git worktrees removed, no
+   * real fs touched. Absent in production — real git and fs are used.
+   */
+  readonly worktree?: {
+    readonly io?: WorktreeIo;
+    readonly now?: () => number;
   };
   /**
    * The `storytree desktop launch` seam: an injected `spawn`/`repoRoot`/`platform` make the
@@ -1560,6 +1577,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     evidence?: string;
     route?: string;
     source?: string;
+    force?: boolean;
+    yes?: boolean;
+    cap?: string;
+    "include-detached"?: boolean;
+    "threshold-hours"?: string;
   };
   try {
     const parsed = parseArgs({
@@ -1611,6 +1633,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         evidence: { type: "string" },
         route: { type: "string" },
         source: { type: "string" },
+        // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
+        force: { type: "boolean", default: false },
+        yes: { type: "boolean", default: false },
+        cap: { type: "string" },
+        "include-detached": { type: "boolean", default: false },
+        "threshold-hours": { type: "string" },
       },
     });
     positionals = parsed.positionals;
@@ -1765,6 +1793,53 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
                 deps,
               )
           : null,
+    });
+  }
+
+  if (area === "worktree") {
+    // ADR-0142 / ADR-0033 — the standing worktree reaper. The merge ceremony cannot self-clean
+    // (session identity is worktree-derived, so a merged branch's worktree is REUSED for the next
+    // branch; the merge is async on CI after the session stopped; a session can't delete its own cwd),
+    // so `.claude/worktrees/` accumulates. `worktree prune` reaps a worktree only once it is provably
+    // dead — merged + clean + idle — with the primary, the current worktree, live sessions, dirty
+    // trees, and detached gates all held back. Destructive, so a dry run is the default.
+    if (help || sub === undefined) return worktreeHelp();
+    if (sub !== "prune") {
+      return {
+        ok: false,
+        body: `unknown worktree command "${sub}". try: storytree worktree prune`,
+        next: ["storytree worktree prune", "storytree worktree --help"],
+      };
+    }
+    // Optional --pg consult: the notice board is the authoritative "is a session live here" signal;
+    // a live declaration's sessionId IS the worktree basename (ADR-0033), so a match protects it.
+    let liveSessions = new Set<string>();
+    if (values.pg && deps.presence?.store) {
+      try {
+        const active = await deps.presence.store.listActive();
+        liveSessions = new Set(active.map((d) => d.sessionId));
+      } catch {
+        // Unreadable board — fall back to the offline mtime heuristic (still fully safe).
+      }
+    }
+    const thresholdHours =
+      values["threshold-hours"] !== undefined ? Number(values["threshold-hours"]) : NaN;
+    const capRaw = values.cap !== undefined ? Number(values.cap) : NaN;
+    const options: PruneOptions = {
+      force: values.force === true,
+      yes: values.yes === true,
+      hook: false,
+      cap: Number.isFinite(capRaw) ? Math.max(0, Math.trunc(capRaw)) : null,
+      includeDetached: values["include-detached"] === true,
+      thresholdMs: Number.isFinite(thresholdHours)
+        ? Math.max(0, thresholdHours) * 3_600_000
+        : DEFAULT_THRESHOLD_MS,
+      liveSessions,
+    };
+    const wtIo: WorktreeIo | undefined = deps.worktree?.io;
+    return pruneWorktrees(options, {
+      ...(wtIo !== undefined ? { io: wtIo } : {}),
+      ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
     });
   }
 
