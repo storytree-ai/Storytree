@@ -1272,6 +1272,15 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // and proves in isolation — TreeView is the composition point where AppData is available.
   const { assets, docs } = useAppData();
   const [librarySelection, setLibrarySelection] = useState<SearchResult | null>(null);
+  // The focus subgraph (inc 3) walks `GuidanceAsset.references` both ways. The wire type
+  // declares `references: string[]`, but the served corpus can violate it (e.g. the `planner`
+  // agent artifact ships no `references` field). Normalise to the declared type at this
+  // composition boundary so the proven subgraph always receives conformant input — the signed
+  // source assumes an iterable `references` and stays byte-untouched.
+  const libraryAssets = useMemo(
+    () => assets.map((a) => (Array.isArray(a.references) ? a : { ...a, references: [] })),
+    [assets],
+  );
   // ADR-0074 §6: `?layout=solar` reskins the world radially with cli/store hubs at the
   // centre. Gear-panel managed, so it's reactive on `search` (live, no reload). In solar
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
@@ -2166,7 +2175,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   {...(librarySelection ? { selectedId: librarySelection.id } : {})}
                 />
                 <LibraryFocusGraph
-                  assets={assets}
+                  assets={libraryAssets}
                   docs={docs}
                   selection={librarySelection}
                   onFocus={setLibrarySelection}
