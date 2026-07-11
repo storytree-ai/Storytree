@@ -2474,32 +2474,23 @@ a.stat:hover {
 }
 
 /* ── Repo picker: choose which repo the embedded terminal opens in (repo-picker-panel capability,
-   terminal-repo-picker story, ADR-0174 follow-on).
+   terminal-repo-picker story, ADR-0174 follow-on; owner UX refinement 2026-07-12).
    ──────────────────────────────────────────────────────────────────────────────────────────────────
-   A compact control mounted BESIDE the terminal dock (never inside the byte-locked TerminalDock), in its
-   OWN .repo-picker namespace — never a .terminal-dock* selector. It floats bottom-left over the map frame
-   at z-index 7 (above the dock's z-index 6) so it stays reachable whether the dock is folded or expanded.
-   Warm-dark forest-cozy palette to read cohesively with the terminal dock. APPEARANCE IS OPERATOR-ATTESTED
-   (the story's UAT leg 5, ADR-0070): these colours + placement are re-witnessed by the owner, sign no
-   visual verdict, and no jsdom test asserts them. */
+   The byte-locked RepoPicker is INJECTED into the gate (never a floating sibling over the map), so it
+   appears in ONE of two containers and takes that container's look: the prominent SELECT affordance in the
+   gated chrome (.terminal-gate-control) while no repo is selected, or the compact GEAR in the dock's own
+   header (.terminal-dock-header-right) once a repo is ready. The base .repo-picker* rules are neutral
+   layout; each context supplies the visual. Warm-dark palette to read cohesively with the terminal dock.
+   APPEARANCE IS OPERATOR-ATTESTED (the story's UAT leg 5, ADR-0070): these colours + placement are
+   re-witnessed by the owner, sign no visual verdict, and no jsdom test asserts them. */
 .repo-picker {
-  position: absolute;
-  bottom: 8px;
-  left: 10px;
-  z-index: 7;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: min(60%, 520px);
-  padding: 5px 6px 5px 12px;
-  border: 1px solid #38301f;
-  border-radius: 999px;
-  background: color-mix(in srgb, #1e1a15 92%, transparent);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   font-family: var(--mono), ui-monospace, Menlo, monospace;
   font-size: 12px;
 }
-/* The picked path (or a "default checkout" label) — ellipsised so a long path never blows out the pill. */
+/* The picked path (or a "default checkout" label) — ellipsised so a long path never blows out its host. */
 .repo-picker-selection {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2517,16 +2508,65 @@ a.stat:hover {
   cursor: pointer;
   transition:
     background 0.12s ease,
-    color 0.12s ease;
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 .repo-picker-button:hover {
   background: color-mix(in srgb, #8fb87a 14%, transparent);
   color: #cbe0b5;
 }
-/* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled pill — never calls the bridge. */
+/* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled label — never calls the bridge.
+   (The gate omits repoControl entirely when the bridge is absent, so this rarely renders; kept honest.) */
 .repo-picker-unavailable {
   padding: 1px 6px;
   color: #6f6450;
+}
+
+/* ── The repo GEAR in the dock's own header (repo ready): .terminal-dock-header-right hosts the injected
+   RepoPicker, top-right of the toggle bar, left of the fold chevron. Positioned within the .terminal-dock
+   aside (its offsetParent) so it TRACKS the dock's real, moving header — the whole reason the control lives
+   here and not as a map overlay. The picker collapses to a bare ⚙ glyph: the current path is hidden (the
+   header stays uncluttered) and the "Choose repository" button becomes a compact icon that re-opens the
+   native picker to CHANGE repo. The accessible name ("Choose repository") is preserved for screen readers. */
+.terminal-dock-header-right {
+  position: absolute;
+  top: 4px;
+  right: 40px; /* clear of the fold chevron (toggle padding-right 14px + the chevron glyph) */
+  z-index: 2; /* above the full-width toggle button so the gear stays clickable */
+  display: flex;
+  align-items: center;
+}
+/* When expanded, the 11px resize grabber sits above the toggle bar and pushes it down — nudge the gear to
+   stay centred on the toggle in both states (general-sibling: the grabber/toggle precede this slot). */
+.terminal-dock-toggle-expanded ~ .terminal-dock-header-right {
+  top: 15px;
+}
+.terminal-dock-header-right .repo-picker-selection {
+  display: none;
+}
+.terminal-dock-header-right .repo-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border-color: transparent;
+  font-size: 0; /* collapse the "Choose repository" text (kept for a11y); the ⚙ glyph is the affordance */
+  line-height: 0;
+}
+.terminal-dock-header-right .repo-picker-button::before {
+  content: '⚙';
+  font-size: 14px;
+  line-height: 1;
+  color: #a7967a;
+}
+.terminal-dock-header-right .repo-picker-button:hover {
+  background: color-mix(in srgb, #8fb87a 16%, transparent);
+}
+.terminal-dock-header-right .repo-picker-button:hover::before {
+  color: #cbe0b5;
 }
 
 /* ── Terminal repo gate: the fail-closed stand-in shown when the embedded terminal has NO valid repo
@@ -2545,6 +2585,10 @@ a.stat:hover {
   right: 0;
   bottom: 0;
   z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   background: #211c16;
   border-top: 1px solid #40361f;
   border-top-left-radius: 10px;
@@ -2556,7 +2600,7 @@ a.stat:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 14px;
+  padding: 8px 14px;
   color: #a7967a;
   font-size: 12.5px;
 }
@@ -2568,6 +2612,27 @@ a.stat:hover {
   font-weight: 600;
   letter-spacing: 1px;
   opacity: 0.85;
+}
+/* The injected repoControl (RepoPicker) as the PROMINENT select affordance — pinned right in the gated
+   chrome so a new user is drawn straight to it. No selection exists yet here, so its path label is hidden
+   and the "Choose repository" button leads. */
+.terminal-gate-control {
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+}
+.terminal-gate-control .repo-picker-selection {
+  display: none;
+}
+.terminal-gate-control .repo-picker-button {
+  padding: 5px 16px;
+  border-color: #8fb87a;
+  color: #cbe0b5;
+  background: color-mix(in srgb, #8fb87a 12%, transparent);
+  font-weight: 600;
+}
+.terminal-gate-control .repo-picker-button:hover {
+  background: color-mix(in srgb, #8fb87a 22%, transparent);
 }
 
 /* The panel is a full-height flex column: the scrollback (.chat-outcome) grows and scrolls, the input
