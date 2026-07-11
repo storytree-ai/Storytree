@@ -94,7 +94,8 @@ import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import type { SearchResult } from '../lib/librarySearch.js';
-import { TerminalDock, type TerminalDockSeed } from './TerminalDock.js';
+import type { TerminalDockSeed } from './TerminalDock.js';
+import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { RepoPicker } from './RepoPicker.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
@@ -2201,14 +2202,17 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           />
           {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
               the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
-              tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only
-              through the desktop `window.desktopTerminal` bridge, and degrades to an honest disabled
-              state in the hosted/dev studio (a plain browser, no bridge). */}
+              tree for a future app-guide, ADR-0175). It is FAIL-CLOSED behind TerminalRepoGate
+              (terminal-repo-gate): the byte-locked dock renders only once a valid repo is selected (else a
+              "select a repository" gate), reopening in the new repo when the selection changes. A thin
+              client: it reaches a real local pty only through the desktop `window.desktopTerminal` bridge,
+              and degrades to an honest disabled state in the hosted/dev studio (a plain browser, no
+              bridge). The seed (a map Build's pre-filled command, ADR-0137) is forwarded through the gate. */}
           {/* Choose which repo the embedded terminal opens in (terminal-repo-picker, ADR-0174 follow-on).
               A thin client over window.desktopRepo; degrades to an honest disabled pill in the hosted/dev
               studio (no bridge). Mounted BESIDE the byte-locked TerminalDock, in its own .repo-picker CSS. */}
           <RepoPicker />
-          <TerminalDock {...(terminalSeed ? { seed: terminalSeed } : {})} />
+          <TerminalRepoGate {...(terminalSeed ? { seed: terminalSeed } : {})} />
         </div>
 
         {selected && (
