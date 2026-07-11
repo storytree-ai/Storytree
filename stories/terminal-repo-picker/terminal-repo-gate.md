@@ -3,30 +3,40 @@ id: "terminal-repo-gate"
 tier: capability
 story: terminal-repo-picker
 title: "The terminal repo gate — renders the embedded terminal ONLY when a valid repo is selected, reopens it (fresh pty) on a repo change, forwards the seed, degrades honestly where the bridge is absent"
-outcome: "The studio frontend adds a thin `TerminalRepoGate` WRAPPER that renders the byte-locked `<TerminalDock>` ONLY when a valid repo cwd is selected over the `desktopRepo` bridge's `ready`/`onChanged`, otherwise renders a fail-closed gate ('Select a repository to start the terminal') in a NEW `.terminal-gate` namespace; it KEYS the inner TerminalDock on the cwd so it remounts a fresh pty when the selection CHANGES, FORWARDS TerminalDock's `seed` prop straight through, and where the bridge is ABSENT renders `<TerminalDock>` directly (its own honest disabled state) without ever calling `ready`/`onChanged` — a THIN CLIENT that imports no `@storytree/agent`/`@storytree/drive` and holds no model path, wrapping the byte-locked TerminalDock without touching it."
+outcome: "The studio frontend's `TerminalRepoGate` WRAPPER renders the byte-locked `<TerminalDock>` ONLY when a valid repo cwd is selected over the `desktopRepo` bridge's `ready`/`onChanged`, and otherwise renders a fail-closed GATED CHROME — terminal-styled, with a clear reason ('No repository selected — choose one to start the terminal', so the block is never silent) — that surfaces an INJECTED `repoControl` as a prominent select affordance so a new user is forced to pick before the terminal runs; once a repo IS ready it forwards that same `repoControl` into TerminalDock's `headerRight` slot (the repo gear in the dock's own header, off the map), KEYS the inner TerminalDock on the cwd so it remounts a fresh pty when the selection CHANGES, and FORWARDS TerminalDock's `seed` prop straight through; where the bridge is ABSENT it renders `<TerminalDock>` directly (its own honest disabled state) without ever calling `ready`/`onChanged` or rendering `repoControl` — a THIN CLIENT that imports no `@storytree/agent`/`@storytree/drive` and holds no model path, wrapping the byte-locked TerminalDock (and injecting, never importing, the repo control) without touching either signed source."
 status: proposed
 proof_mode: integration-test
 depends_on: []
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors a
-# vitest jsdom component test that imports a NOT-YET-EXISTING wrapper from a NEW source file under
-# apps/studio/src/components (red = module-not-found against the source that does not exist at HEAD), then
-# writes that one new wrapper component (green). The test `vi.mock`s `./TerminalDock` so it asserts on the
-# PROPS the gate passes (rendered? keyed to which cwd? which seed?) WITHOUT a real xterm.js Terminal — the
-# dock's own behaviour is already the terminal-dock-panel crown, not re-proven here.
+# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDITS-EXISTING RE-PROVE (owner-directed 2026-07-12
+# terminal-repo-picker UX refinement): TerminalRepoGate.tsx + its test ALREADY EXIST at HEAD (signed by
+# PR #702). The leaf reads the existing source + 5 tests and RESTRUCTURES the gate's rendering — the
+# no-repo branch grows from a bare message into a terminal-styled GATED CHROME carrying a clear reason +
+# an INJECTED `repoControl` (a new optional prop) as the select affordance, and the ready branch forwards
+# that same `repoControl` into TerminalDock's `headerRight` (the gear). The reds are BEHAVIOUR-assertion
+# reds (the new contracts fail against the current bare-message / no-headerRight gate), NOT net-new
+# missing-symbol reds. The test `vi.mock`s `./TerminalDock` (extended to RECORD its `headerRight` prop
+# alongside `seed`) and injects a STUB `repoControl` so it asserts on the PROPS/placement the gate drives
+# (dock rendered? keyed to which cwd? which seed? repoControl in the gate vs. forwarded as headerRight?)
+# WITHOUT a real xterm.js Terminal and WITHOUT a real RepoPicker — the dock is the terminal-dock-panel
+# crown and the picker is the repo-picker-panel crown, neither re-proven here.
 # FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm proves the BEHAVIOUR ONLY (gate-when-no-repo,
-# show-when-ready, reopen-on-repo-change, honest absent-bridge degradation, seed-forwarding) over a MOCKED
-# `desktopRepo` bridge + a MOCKED TerminalDock — the gate's APPEARANCE ("the gate message reads right, the
-# terminal sits well when it opens") is the story's operator-attested UAT (the look is witnessed, never a
-# machine visual verdict; do NOT add a visual/pixel assertion here). The gate message mounts in a NEW
-# `.terminal-gate` CSS namespace and MUST NOT touch `.terminal-dock*` (the byte-locked TerminalDock's
-# surface, a sibling chip's territory) or modify `TerminalDock.tsx` (its signed `--real` source). SCOPE =
-# apps/studio/src (the gate is a studio frontend wrapper; the desktop renders the COMPILED studio dist,
+# offer-repo-control-in-gate, show-when-ready, place-repo-control-in-header, reopen-on-repo-change,
+# seed-forwarding, honest absent-bridge degradation) over a MOCKED `desktopRepo` bridge + a MOCKED
+# TerminalDock + a STUB repoControl — the gate's APPEARANCE (the gated chrome reads right, the gear sits
+# well in the header, the terminal sits well when it opens) is the story's operator-attested UAT (the
+# look is witnessed, never a machine visual verdict; do NOT add a visual/pixel assertion here). The gated
+# chrome mounts in the `.terminal-gate` CSS namespace and MUST NOT touch `.terminal-dock*` (the
+# byte-locked TerminalDock's surface) or modify `TerminalDock.tsx` (its signed `--real` source, now
+# extended by the sibling terminal-dock-panel re-prove with the `headerRight` slot this gate feeds). SCOPE
+# = apps/studio/src (the gate is a studio frontend wrapper; the desktop renders the COMPILED studio dist,
 # ADR-0090 d.4). This cap adds NO new dep and declares NO `addDeps` (resolveAddDepsGroup targets
 # packages/*, never apps/*: workspacePackageForSource("apps/studio/src/x.tsx") → null). Its ONLY import
 # beyond React is the co-located `./TerminalDock` (TerminalDock + TerminalDockSeed) — a same-package
 # apps/studio co-located import, covered by the story's existing `embedded-terminal` artifact_edge, NOT a
-# new @storytree/* dependency.
+# new @storytree/* dependency. The `repoControl` is INJECTED as a prop (never imported), so the gate draws
+# NO code edge to `repo-picker-panel` — the three caps stay independent roots (the TreeView glue wires
+# `<RepoPicker/>` in).
 #
 # CRITICAL — the real arm declares an explicit `proofCommand` (the vitest-runner-mismatch correction, the
 # repo-picker-panel / terminal-dock-panel / chat-panel precedent): the studio suite is VITEST + jsdom, NOT
@@ -46,6 +56,13 @@ proof:
   real:
     testFile: "apps/studio/src/components/TerminalRepoGate.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalRepoGate.tsx"
+    # RE-PROVE (ADR-0057 §3 expansion C): TerminalRepoGate.tsx + its test ALREADY EXIST at HEAD (signed
+    # by PR #702) — this arm is driven `editsExisting` for the owner's 2026-07-12 UX refinement. The leaf
+    # reads the existing source + 5 tests, RESTRUCTURES the no-repo branch into a gated chrome carrying a
+    # clear reason + the injected `repoControl`, forwards `repoControl` into TerminalDock's `headerRight`
+    # on the ready branch, and adds the contracts below — behaviour-assertion reds, NOT missing-symbol.
+    # Preserves gate/show/reopen/degrade/seed behaviour + the existing contracts.
+    editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalRepoGate.test.tsx"]
       sourceGlobs: ["apps/studio/src/components/TerminalRepoGate.tsx"]
@@ -86,28 +103,34 @@ child is the co-located `<TerminalDock>`. It sits on the OPPOSITE side of the co
 cross-boundary contract, not a code edge (the `terminal-dock-panel` ↔ `pty-session-manager` precedent), so
 there is no in-story edge — this is the story's **third root**.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. It is the fail-closed
-> WRAPPER around the embedded terminal — the piece that makes the terminal refuse to run until the user
-> has selected a valid repo, and reopens it in the new repo when the selection changes. The selection
-> LIFECYCLE it reflects (validate/persist/resolve, whose `ready`/`onChanged` events it consumes) is
-> [`repo-selection`](repo-selection.md); the CONTROL the user clicks to choose a repo is
-> [`repo-picker-panel`](repo-picker-panel.md); the real `desktopRepo` bridge extension
-> (`apps/desktop/electron/preload.ts` + the main-side `repo:ready` / `repo:changed` IPC), the native
-> dialog, and the userData persistence are the story's operator-attested GLUE. THIS capability adds the
-> renderer gate wrapper, proven offline against a mocked bridge and a mocked TerminalDock. Its
-> *appearance* is the story's operator-attested UAT (ADR-0070 — the look is witnessed, never a machine
-> visual verdict).
+> **Proof status (honest) — BUILT & SIGNED (PR #702), re-proving the UX refinement.** The fail-closed
+> gate landed under its signed `--real` verdict (the terminal refuses to run until a valid repo is
+> selected, and reopens on a change). This `editsExisting` re-prove (owner-directed 2026-07-12) makes the
+> gate no longer a BARE MESSAGE: the block now carries a clear reason (so it is never silent — item 1) and
+> an INJECTED `repoControl` as the select affordance (so a new user is forced to pick — item 3), and once
+> ready that same control is forwarded as the repo GEAR in TerminalDock's `headerRight` (off the map —
+> item 2). The selection LIFECYCLE it reflects (validate/persist/resolve, whose `ready`/`onChanged` events
+> it consumes) is [`repo-selection`](repo-selection.md); the CONTROL injected in is
+> [`repo-picker-panel`](repo-picker-panel.md)'s `RepoPicker` (wired by the TreeView glue, never imported
+> here); the real `desktopRepo` bridge extension (`apps/desktop/electron/preload.ts` + the main-side
+> `repo:ready` / `repo:changed` IPC), the native dialog, and the userData persistence are the story's
+> operator-attested GLUE. THIS capability is the renderer gate wrapper, proven offline against a mocked
+> bridge + a mocked TerminalDock + a stub repoControl. Its *appearance* is the story's operator-attested
+> UAT (ADR-0070 — the look is witnessed, never a machine visual verdict).
 
 ## Guidance
 
 WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the WRAPPER AS A WHOLE — a behavioural React
-component that, on mount over a present bridge, reads the current selection (`ready()`), renders the gate
-message while there is no valid cwd, swaps to a keyed `<TerminalDock>` once a cwd resolves, re-keys the
-dock (a fresh pty) when `onChanged` fires with a new cwd, forwards the `seed` prop through, and — where the
-bridge is absent — renders `<TerminalDock>` directly without ever touching the bridge. It spans the
-gate-when-no-repo AND the show-when-ready AND the reopen-on-change AND the absent-bridge degradation AND
-the seed-forwarding, exercised against its mocked seams (the bridge + the mocked TerminalDock) — an
-integration test of the wrapper's behaviour, not a single isolated assertion.
+component that, on mount over a present bridge, reads the current selection (`ready()`), renders a
+terminal-styled GATED CHROME (a clear reason + the injected `repoControl` as the select affordance) while
+there is no valid cwd, swaps to a keyed `<TerminalDock>` once a cwd resolves — forwarding that same
+`repoControl` into the dock's `headerRight` (the repo gear) and the `seed` prop straight through — re-keys
+the dock (a fresh pty) when `onChanged` fires with a new cwd, and — where the bridge is absent — renders
+`<TerminalDock>` directly without ever touching the bridge or the control. It spans the gate-when-no-repo
+AND the offer-repo-control-in-gate AND the show-when-ready AND the place-repo-control-in-header AND the
+reopen-on-change AND the seed-forwarding AND the absent-bridge degradation, exercised against its mocked
+seams (the bridge + the mocked TerminalDock + a stub repoControl) — an integration test of the wrapper's
+behaviour, not a single isolated assertion.
 
 WHY THIS IS A SEPARATE CAPABILITY FROM `repo-picker-panel` AND `repo-selection` (the splitting-rule,
 ADR-0010): the three caps prove DIFFERENT observables against DIFFERENT seams. `repo-selection` (the
@@ -162,7 +185,33 @@ that IMPORTS `{ TerminalDock, TerminalDockSeed }` from `"./TerminalDock"` (a sam
 co-located import) and RENDERS it — it never edits `TerminalDock.tsx` and never writes a `.terminal-dock*`
 selector. The gate message uses its OWN `.terminal-gate*` CSS namespace (authored as story glue, ADR-0158;
 this cap only NAMES the namespace, it does not assert CSS). Wrapping (not modifying) is why the terminal-
-dock-panel crown stays intact.
+dock-panel crown stays intact. On the READY branch the gate now ALSO forwards the injected `repoControl`
+into TerminalDock's NEW `headerRight` slot (the sibling terminal-dock-panel re-prove adds it) — the repo
+gear lives in the dock's own header, so the control is no longer a pill floating over the map (the owner's
+item 2). The gate passes `headerRight` and `seed` through as props; it still never edits TerminalDock.
+
+THE GATED CHROME CARRIES A CLEAR REASON — NEVER A SILENT BLOCK (item 1, owner-directed). The no-repo branch
+is NOT a bare one-liner: it renders a terminal-styled `.terminal-gate` chrome with a CLEAR reason that
+covers BOTH the new-user (never-selected) and the stale/invalid-persisted cases honestly — `ready()`
+resolves `null` for both (the byte-locked `repo-selection.resolveCwd` fails closed to its fallback on a
+now-invalid persisted path), so ONE honest message serves both: e.g. "No repository selected — choose one
+to start the terminal." The block is thus never silent, on every path the terminal is withheld
+(`trg-gates-when-no-repo`). (The main-side fail-close — `terminal:spawn` returning an empty sessionId — is
+belt-and-suspenders the gate makes unreachable through the UI; its own honest message is the sibling
+`terminal-dock-panel` contract `tdp-shows-message-on-empty-session`, not this cap.)
+
+THE INJECTED `repoControl` — A PROP, NEVER AN IMPORT (items 2 + 3; the no-code-edge wall). The gate takes an
+OPTIONAL `repoControl?: React.ReactNode` prop and PLACES it in two spots: in the no-repo gated chrome as the
+prominent SELECT affordance (so a new user is forced to pick before the terminal runs — item 3), and once
+ready as TerminalDock's `headerRight` gear (item 2). It is INJECTED (the TreeView glue wires
+`<RepoPicker/>` in), NOT imported — so the gate draws NO code edge to `repo-picker-panel` and the two stay
+independent roots (the `depends_on: []` graph is unchanged). The gate does not interpret the control (it
+owns no `pick`/`get`; the control reaches the bridge itself); the gate's job is placement + gating. Where
+the bridge is ABSENT the gate renders NEITHER a gate NOR the control — just `<TerminalDock>` directly
+(standalone has no repo concept). Proven by `trg-offers-repo-control-in-gate` (in the gate) +
+`trg-places-repo-control-in-header-when-ready` (forwarded as headerRight). The control's APPEARANCE (a
+prominent button in the gate, a compact gear in the header) is `.repo-picker*` CSS glue, operator-attested
+(the story's UAT leg 5), NEVER asserted here.
 
 KEY THE DOCK ON THE CWD SO A REPO CHANGE REOPENS A FRESH PTY (the load-bearing remount). TerminalDock
 spawns its pty once on first expand and keeps that session across folds (see `TerminalDock.tsx`). To reopen
@@ -173,10 +222,12 @@ change reopens the terminal; it is asserted by `trg-reopens-on-repo-change`.
 
 FORWARD THE `seed` PROP STRAIGHT THROUGH (load-bearing — the map-build-seeds-terminal feature depends on
 it). PR #696 threads a build command into the terminal via TerminalDock's `seed` prop
-(`TerminalDockSeed { command; token }`). The gate is now the mount point, so it MUST forward that seed to
-the dock or the seed feature breaks. On the valid-repo render the gate passes the seed through:
-`<TerminalDock key={cwd} {...(seed ? { seed } : {})} />` (spread only when present, honouring
-`exactOptionalPropertyTypes`). Asserted by `trg-forwards-seed-to-terminal`.
+(`TerminalDockSeed { command; token }`). The gate is the mount point, so it MUST forward that seed to the
+dock or the seed feature breaks. On the valid-repo render the gate passes the seed AND the `repoControl`
+(as `headerRight`) through: `<TerminalDock key={cwd} {...(repoControl ? { headerRight: repoControl } : {})}
+{...(seed ? { seed } : {})} />` (each spread only when present, honouring `exactOptionalPropertyTypes`).
+Asserted by `trg-forwards-seed-to-terminal` (seed) + `trg-places-repo-control-in-header-when-ready`
+(headerRight).
 
 DEGRADE HONESTLY WHERE THE BRIDGE IS ABSENT (slow growth, the honest-failure discipline). The gate ships
 inside BOTH the native desktop (bridge present) and the standalone studio (`window.desktopRepo` absent — no
@@ -216,102 +267,131 @@ graph — the terminal-dock-panel precedent.
 
 ## Integration test
 
-**Goal —** Prove that the `TerminalRepoGate`, over a mocked `desktopRepo` bridge (`ready` / `onChanged`)
-and a MOCKED `./TerminalDock`, renders the fail-closed gate message when no valid repo is ready, renders
-TerminalDock keyed to the cwd once a repo is ready, re-keys TerminalDock (a fresh mount) when the selection
-changes, renders TerminalDock directly without touching the bridge where the bridge is absent, and forwards
-the `seed` prop through to the dock. Entirely in jsdom: the bridge is mocked, `./TerminalDock` is `vi.mock`
-ed to a prop-recording double (no real xterm.js), fake timers drive the async `ready()` resolution, no real
-socket / dialog / IPC / Electron.
+**Goal —** Prove that the `TerminalRepoGate`, over a mocked `desktopRepo` bridge (`ready` / `onChanged`), a
+MOCKED `./TerminalDock` (recording its `seed` AND `headerRight` props), and a STUB `repoControl`, renders
+the fail-closed gated chrome (a clear reason + the repoControl select affordance) when no valid repo is
+ready, renders TerminalDock keyed to the cwd once a repo is ready (forwarding the repoControl as
+`headerRight`), re-keys TerminalDock (a fresh mount) when the selection changes, renders TerminalDock
+directly without touching the bridge or the control where the bridge is absent, and forwards the `seed`
+prop through to the dock. Entirely in jsdom: the bridge is mocked, `./TerminalDock` is `vi.mock`ed to a
+prop-recording double (no real xterm.js), `repoControl` is a stub node with a testid (no real RepoPicker),
+fake timers drive the async `ready()` resolution, no real socket / dialog / IPC / Electron.
 
 The integration test exercises this capability against its **real collaborator shapes** — the mocked
-`desktopRepo` bridge (scripted as a double, exactly as `ChatPanel.test.tsx` scripts `../api`) and a
+`desktopRepo` bridge (scripted as a double, exactly as `ChatPanel.test.tsx` scripts `../api`), a
 `vi.mock`ed `./TerminalDock` that records the props it receives (rendered-or-not, its `key`/remount, its
-`seed`). No stubs within the gate's own composition (the mount, the `ready` read, the `onChanged`
-subscription, the keyed render, the degradation are all real).
+`seed`, its `headerRight`), and a stub `repoControl` node. No stubs within the gate's own composition (the
+mount, the `ready` read, the `onChanged` subscription, the keyed render, the control placement, the
+degradation are all real).
 
 The integration test would:
 
-1. `vi.mock("./TerminalDock")` with a double that records each mount and the props it received (so the test
-   can assert whether it rendered, under which `cwd` key, and with which `seed`). Install a scripted
-   `window.desktopRepo` whose `ready()` and `onChanged(cb)` are scripted per case. Render
-   `<TerminalRepoGate/>` in jsdom on fake timers.
-2. With `ready()` resolving `null` → assert the gate message ("Select a repository to start the terminal")
-   is shown and the mocked TerminalDock did NOT render — the fail-closed gate (`trg-gates-when-no-repo`).
+1. `vi.mock("./TerminalDock")` with a double that records each mount and the props it received — including
+   RENDERING `props.headerRight` so a stub inside it is findable (so the test can assert whether the dock
+   rendered, under which `cwd` key, with which `seed`, and whether the repoControl was forwarded as
+   `headerRight`). Install a scripted `window.desktopRepo` whose `ready()` and `onChanged(cb)` are scripted
+   per case. Render `<TerminalRepoGate repoControl={<div data-testid="repo-control"/>} />` in jsdom on fake
+   timers.
+2. With `ready()` resolving `null` → assert the gated chrome (a clear reason message) is shown, the
+   repoControl stub renders WITHIN the gate (not inside a dock), and the mocked TerminalDock did NOT render
+   — the fail-closed gate (`trg-gates-when-no-repo`) + the offered control (`trg-offers-repo-control-in-gate`).
 3. With `ready()` resolving `/home/me/storytree` → assert the mocked TerminalDock DID render (keyed to that
-   cwd) and the gate message is not shown — show-when-ready (`trg-shows-terminal-when-ready`).
+   cwd), the gate reason is not shown (`trg-shows-terminal-when-ready`), and the repoControl stub was
+   forwarded as the dock's `headerRight` (findable inside the dock mock) — the header gear
+   (`trg-places-repo-control-in-header-when-ready`).
 4. After mounting with repo A ready, fire the scripted `onChanged` callback with repo B → assert
    TerminalDock re-mounts keyed to B (the double records a NEW mount / a distinct `key`) — reopen-on-change
    (`trg-reopens-on-repo-change`).
 5. Render with `window.desktopRepo` ABSENT (delete the mock) → assert the gate renders TerminalDock
-   DIRECTLY, NEVER calls `ready` / `onChanged`, does NOT hang, and does NOT crash — the honest
-   absent-bridge degrade (`trg-degrades-when-bridge-absent`).
+   DIRECTLY, renders NO gate reason and NO repoControl, NEVER calls `ready` / `onChanged`, does NOT hang,
+   and does NOT crash — the honest absent-bridge degrade (`trg-degrades-when-bridge-absent`).
 6. With a valid repo ready AND a `seed` prop passed to `<TerminalRepoGate seed={…}/>` → assert the mocked
    TerminalDock received that EXACT seed object — seed-forwarding (`trg-forwards-seed-to-terminal`).
 
-## Contracts (5)
+## Contracts (7)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
-jsdom, `apps/studio/src/components/TerminalRepoGate.test.tsx`), the `desktopRepo` bridge mocked/scripted
-and `./TerminalDock` `vi.mock`ed to a prop-recording double. None exist yet; each is the assertion a
-contract test WILL prove against the real gate once authored (provisional path — re-cite at real
-`file:line` when built). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
-distinctly-named test, so `storytree coverage terminal-repo-gate` reports **5/5**. None is an APPEARANCE
-assertion — the look is the story's operator-attested UAT (ADR-0070).
+jsdom, `apps/studio/src/components/TerminalRepoGate.test.tsx`), the `desktopRepo` bridge mocked/scripted,
+`./TerminalDock` `vi.mock`ed to a prop-recording double (rendering its `headerRight`), and `repoControl` a
+stub node. Contracts 1, 3, 4, 5 (re-numbered 1, 4, 6, 5 below) landed under PR #702's signed verdict;
+contracts 2 (`trg-offers-repo-control-in-gate`) and 3 (`trg-places-repo-control-in-header-when-ready`) are
+the owner's UX refinement added in this `editsExisting` re-prove (author their tests against the existing
+5, do NOT drop them). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a
+distinctly-named test (`it("<id>: …")`), so `storytree coverage terminal-repo-gate` reports **7/7** — name
+each test EXACTLY its contract id (the prior build's leaf-renamed tests read 3/5; reconcile the names this
+time). None is an APPEARANCE assertion — the look is the story's operator-attested UAT (ADR-0070).
 
-1. **`trg-gates-when-no-repo`** — with no valid repo ready the gate message is shown and TerminalDock is NOT rendered
+1. **`trg-gates-when-no-repo`** — with no valid repo ready a terminal-styled gated chrome with a clear reason is shown and TerminalDock is NOT rendered
    - **asserts —** with the bridge present and `ready()` resolving `null`, `<TerminalRepoGate/>` renders the
-     fail-closed gate message ("Select a repository to start the terminal") and the mocked `TerminalDock`
-     does NOT render — the terminal is refused until a valid repo is selected.
-   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the no-repo gate branch) *(provisional path)*
-2. **`trg-shows-terminal-when-ready`** — a valid repo ready renders TerminalDock (keyed to the cwd), not the gate
+     fail-closed gated chrome carrying a CLEAR reason (a message that names why the terminal is unavailable
+     and to choose a repo — never silent, covering new-user AND stale-selection since both resolve `null`)
+     in the `.terminal-gate` namespace, and the mocked `TerminalDock` does NOT render — the terminal is
+     refused until a valid repo is selected (item 1).
+   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the no-repo gated-chrome branch) *(provisional path)*
+2. **`trg-offers-repo-control-in-gate`** — the no-repo gate surfaces the injected repoControl as the select affordance
+   - **asserts —** with `ready()` resolving `null` and a `repoControl` stub passed to
+     `<TerminalRepoGate repoControl={…}/>`, the stub renders WITHIN the gated chrome (findable, not inside a
+     dock, since no dock renders) — so a new user is forced to pick before the terminal runs (item 3).
+   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the repoControl-in-gate placement) *(provisional path)*
+3. **`trg-places-repo-control-in-header-when-ready`** — once ready the repoControl is forwarded as TerminalDock's headerRight gear
+   - **asserts —** with `ready()` resolving a path and a `repoControl` stub passed, the mocked `TerminalDock`
+     receives that stub as its `headerRight` prop (findable inside the dock mock, which renders headerRight)
+     — the repo control lives as a gear in the dock's own header, off the map (item 2).
+   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the headerRight forwarding) *(provisional path)*
+4. **`trg-shows-terminal-when-ready`** — a valid repo ready renders TerminalDock (keyed to the cwd), not the gate
    - **asserts —** with `ready()` resolving a path (e.g. `/home/me/storytree`), the mocked `TerminalDock`
-     renders (keyed to that cwd) and the gate message is NOT shown — the terminal opens once a repo is ready.
+     renders (keyed to that cwd) and the gate reason is NOT shown — the terminal opens once a repo is ready.
    - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the ready render branch) *(provisional path)*
-3. **`trg-reopens-on-repo-change`** — an `onChanged` to a new cwd re-keys TerminalDock (a fresh mount / pty)
-   - **asserts —** after mounting with repo A ready, firing the scripted `onChanged` with repo B re-renders
-     `TerminalDock` keyed to repo B — a distinct `key` / a fresh mount recorded by the double (the fresh-pty
-     remount) — the terminal reopens in the new repo when the selection changes.
-   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the onChanged→re-key path) *(provisional path)*
-4. **`trg-degrades-when-bridge-absent`** — an absent desktopRepo bridge renders TerminalDock directly, never calls the bridge
-   - **asserts —** with `window.desktopRepo` ABSENT (the studio-standalone case), the gate renders
-     `TerminalDock` DIRECTLY (which shows its own honest disabled state), NEVER calls `ready` / `onChanged`,
-     does NOT hang on a promise that never arrives, and does NOT crash the surrounding surface — the honest
-     absent-bridge degrade.
-   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the absent-bridge branch) *(provisional path)*
 5. **`trg-forwards-seed-to-terminal`** — a `seed` prop is forwarded straight through to TerminalDock
    - **asserts —** with a valid repo ready and a `seed` prop passed to `<TerminalRepoGate seed={…}/>`, the
      mocked `TerminalDock` receives that EXACT seed object — the map-build-seeds-terminal feed still reaches
      the dock through the gate.
    - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the seed pass-through) *(provisional path)*
+6. **`trg-reopens-on-repo-change`** — an `onChanged` to a new cwd re-keys TerminalDock (a fresh mount / pty)
+   - **asserts —** after mounting with repo A ready, firing the scripted `onChanged` with repo B re-renders
+     `TerminalDock` keyed to repo B — a distinct `key` / a fresh mount recorded by the double (the fresh-pty
+     remount); a change to `null` reverts to the gated chrome — the terminal reopens in the new repo (or is
+     re-gated) when the selection changes.
+   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the onChanged→re-key path) *(provisional path)*
+7. **`trg-degrades-when-bridge-absent`** — an absent desktopRepo bridge renders TerminalDock directly, never calls the bridge, renders no control
+   - **asserts —** with `window.desktopRepo` ABSENT (the studio-standalone case), the gate renders
+     `TerminalDock` DIRECTLY (which shows its own honest disabled state), renders NO gate reason and NO
+     repoControl, NEVER calls `ready` / `onChanged`, does NOT hang on a promise that never arrives, and does
+     NOT crash the surrounding surface — the honest absent-bridge degrade.
+   - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the absent-bridge branch) *(provisional path)*
 
-## Guidance — the net-new slice that earns the signed verdict
+## Guidance — the edits-existing slice that re-earns the signed verdict
 
-The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the gate as a new wrapper
-component, test-first.
+The re-prove rung (ADR-0057 §3 expansion C, EDITS-EXISTING): `TerminalRepoGate.tsx` + its test EXIST at
+HEAD (PR #702). Edit them additively, test-first — the reds are behaviour-assertion reds, NOT
+missing-symbol.
 
-- **The new test —** `apps/studio/src/components/TerminalRepoGate.test.tsx` (`@vitest-environment jsdom`,
-  vitest + `@testing-library/react`, the studio convention — `vi.hoisted` + `vi.mock("./TerminalDock")` to
-  a prop-recording double + install a scripted `window.desktopRepo` with `ready` / `onChanged`, fake
-  timers, exactly as `ChatPanel.test.tsx` / `BuildSection.test.tsx` script their seams; NO real
-  socket/dialog/IPC/Electron). Import `{ TerminalRepoGate }` from `"./TerminalRepoGate"`. Name each test
-  for its contract id (`trg-…`) so `storytree coverage terminal-repo-gate` reports 5/5 (ADR-0122).
-- **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `TerminalRepoGate.tsx`
-  does not exist at HEAD, so the test fails module-not-found (the net-new missing-symbol red, ADR-0057).
-  Assert gate-when-no-repo, show-when-ready, reopen-on-change, the absent-bridge degrade, and
-  seed-forwarding.
-- **The GREEN —** write `apps/studio/src/components/TerminalRepoGate.tsx`: a behavioural React wrapper that
-  reads `window.desktopRepo` through a LOCAL cast to a locally-declared `DesktopRepoGateBridge` (never a
-  global augmentation — the picker owns that), reads `ready()` on mount, subscribes to `onChanged`, renders
-  the `.terminal-gate` gate message while the cwd is null, renders `<TerminalDock key={cwd} {...(seed ? {
-  seed } : {})} />` once a cwd resolves (re-keying on a change → a fresh pty), and where the bridge is
-  absent renders `<TerminalDock>` directly without ever calling the bridge. Import `{ TerminalDock,
-  TerminalDockSeed }` from `"./TerminalDock"`. NO `@storytree/agent`, NO `@storytree/drive`, NO model path
-  (the `modelPathBoundary.test.ts` wall stays green). After it, the import resolves, the assertions hold,
-  and `pnpm --filter studio test` + `pnpm --filter studio typecheck` stay green. SWAPPING the bare
-  `<TerminalDock/>` mount in `TreeView` for `<TerminalRepoGate/>` + the real preload/main `ready` /
-  `onChanged` glue + the `.terminal-gate` CSS + the fail-closed-in-the-real-app experience are witnessed
-  under the Story UAT, not asserted in CI.
+- **The edited test —** `apps/studio/src/components/TerminalRepoGate.test.tsx` (`@vitest-environment jsdom`,
+  the existing suite). EXTEND the `vi.mock("./TerminalDock")` double to RENDER `props.headerRight` (so an
+  injected stub is findable inside the dock), keep the mount/unmount-recording + `data-seed`. Pass a
+  `repoControl={<div data-testid="repo-control"/>}` stub in the relevant renders. ADD the two new tests
+  (`trg-offers-repo-control-in-gate`, `trg-places-repo-control-in-header-when-ready`) and update the
+  no-repo test to assert the CLEAR reason (a message, not the old exact "Select a repository…" string is
+  fine — assert it names choosing a repo) + the repoControl-in-gate. Name each test EXACTLY its contract id
+  (`trg-…`) so `storytree coverage terminal-repo-gate` reports 7/7 (ADR-0122) — reconcile any leaf-renamed
+  titles to the contract ids (the prior build read 3/5).
+- **The RED the spine observes (before IMPLEMENT) —** the two new tests FAIL against the current gate: it
+  renders a bare message with no repoControl and forwards no `headerRight` (behaviour-assertion reds, not
+  module-not-found). The existing 5 stay green until the restructure.
+- **The GREEN —** EDIT `apps/studio/src/components/TerminalRepoGate.tsx` additively: add an optional
+  `repoControl?: React.ReactNode` prop; keep reading `window.desktopRepo` through the LOCAL
+  `DesktopRepoGateBridge` cast (`ready` / `onChanged`, never a global augmentation — the picker owns that);
+  on `cwd === null` render the `.terminal-gate` gated chrome with a CLEAR reason + `{repoControl}` as the
+  select affordance (wrap it so glue CSS can style it, e.g. a `.terminal-gate-actions` container); on a
+  valid cwd render `<TerminalDock key={cwd} {...(repoControl ? { headerRight: repoControl } : {})}
+  {...(seed ? { seed } : {})} />`; on an absent bridge render `<TerminalDock {...(seed ? { seed } : {})} />`
+  directly (no gate, no control, no bridge call). Import `{ TerminalDock, TerminalDockSeed }` from
+  `"./TerminalDock"`; do NOT import RepoPicker (it is injected). NO `@storytree/agent`, NO
+  `@storytree/drive`, NO model path (the `modelPathBoundary.test.ts` wall stays green). After it, the
+  assertions hold and `pnpm --filter studio test` + `pnpm --filter studio typecheck` stay green. WIRING the
+  TreeView glue to inject `<RepoPicker/>` as `repoControl` (dropping the floating pill) + the `.terminal-gate`
+  / `.repo-picker` CSS (the gated-chrome + gear looks) + the real preload/main `ready` / `onChanged` glue +
+  the fail-closed-in-the-real-app experience are witnessed under the Story UAT, not asserted in CI.
 
 Rules:
 
@@ -319,15 +399,22 @@ Rules:
   seam is `window.desktopRepo` (read via a local cast); it imports no agent/drive/model code. The
   `modelPathBoundary.test.ts` guard pins this repo-wide; the gate must not breach it.
 - **Wrap the byte-locked terminal, never modify it** (ADR-0057 signed-source byte-lock). IMPORT and RENDER
-  `TerminalDock`; do NOT modify `TerminalDock.tsx` and do NOT use any `.terminal-dock*` selector — the gate
-  is a SEPARATE component in a NEW `.terminal-gate` namespace. A dirtied signed source is source-drift,
-  refused. `RepoPicker.tsx` / `pty-session-manager.ts` / `repo-selection.ts` stay byte-locked too.
+  `TerminalDock`, passing its `headerRight` / `seed` props; do NOT modify `TerminalDock.tsx` and do NOT use
+  any `.terminal-dock*` selector — the gate is a SEPARATE component in a NEW `.terminal-gate` namespace. A
+  dirtied signed source is source-drift, refused. (`TerminalDock.tsx`'s `headerRight` slot is added by the
+  SIBLING `terminal-dock-panel` re-prove — its own signed edit, not this gate's.) `RepoPicker.tsx` /
+  `pty-session-manager.ts` / `repo-selection.ts` stay byte-locked too.
+- **Inject the repo control, never import it** (the no-code-edge wall). The `repoControl` is a `ReactNode`
+  prop the TreeView glue wires (`<RepoPicker/>`); the gate does NOT import `repo-picker-panel` and does NOT
+  call `pick`/`get` — so no in-story code edge (`depends_on: []` holds). Place it (gate select affordance /
+  header gear); the control reaches the bridge itself.
 - **Never a second global `Window.desktopRepo` augmentation** (the TS-conflict wall). `RepoPicker` already
   augments `Window.desktopRepo` (`pick` / `get`); the gate declares a LOCAL `DesktopRepoGateBridge` and
   reads the bridge via a local cast — a second conflicting `declare global` is a TS error.
-- **Assert wiring, never the look** (ADR-0070). Prove the gate/show/reopen/degrade/forward-seed behaviour
-  over the mocked bridge + mocked dock; the gate's appearance is the story's operator-attested UAT. Do NOT
-  author a visual/pixel assertion here; the gate author signs no visual verdict.
+- **Assert wiring, never the look** (ADR-0070). Prove the gate/offer-control/show/place-control-in-header/
+  reopen/degrade/forward-seed behaviour over the mocked bridge + mocked dock + stub repoControl; the gate's
+  appearance (the gated chrome, the prominent select button, the compact header gear) is the story's
+  operator-attested UAT. Do NOT author a visual/pixel assertion here; the gate author signs no visual verdict.
 - **Fail closed, never hang** — no valid repo renders the gate (the terminal will not run); an absent
   bridge renders TerminalDock directly (its own honest state), never a bridge call, never a hung promise,
   never a crash (`trg-gates-when-no-repo` / `trg-degrades-when-bridge-absent`).
