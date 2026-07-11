@@ -4442,8 +4442,7 @@ button.legend-tile:hover {
   padding: 3px 9px;
   line-height: 1;
 }
-/* the peek slot now holds the finder (inc 2); the dive slot stays EMPTY until the body panel
-   (inc 4) — a faint dashed inlay so that reservation still reads as deliberate, not broken */
+/* the peek slot holds the finder (inc 2); the dive slot holds the artifact body (inc 4) */
 .library-drawer-peek-slot {
   flex: 1 1 auto;
   min-height: 0;
@@ -4452,11 +4451,33 @@ button.legend-tile:hover {
 }
 .library-drawer-dive-slot {
   flex: 1 1 auto;
-  margin: 12px;
-  border: 1px dashed color-mix(in srgb, var(--hex-side) 55%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--board-1) 40%, transparent);
-  min-height: 180px;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── the dive body (ADR-0185 inc 4): the centred artifact's FULL body over the map ──
+   a scrollable reading pane in the drawer's forest-cozy surface (never neutral-white,
+   never terminal-black), reusing AssetView / DocView for the body itself */
+.library-dive-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 20px 24px;
+  background: color-mix(in srgb, var(--board-1) 70%, transparent);
+}
+/* keep the reused standalone-page renderers legible as a centred reading column */
+.library-dive-body .doc,
+.library-dive-body .asset-detail {
+  max-width: 820px;
+  margin-inline: auto;
+}
+.library-dive-body > .muted.pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
 }
 
 /* ── the finder (ADR-0185 inc 2): forest-cozy search over the loaded corpus ── */

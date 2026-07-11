@@ -93,6 +93,7 @@ import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
+import { LibraryDiveBody } from './LibraryDiveBody.js';
 import type { SearchResult } from '../lib/librarySearch.js';
 import { TerminalDock, type TerminalDockSeed } from './TerminalDock.js';
 import { RepoPicker } from './RepoPicker.js';
@@ -2198,6 +2199,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                 />
               </div>
             }
+            // Dive (ADR-0185 dec 1, inc 4): the drawer's Dive bar button collapses peek to a bar
+            // and this slot renders the centred selection's FULL body over the map — AssetView
+            // (loaded corpus, no fetch) or DocView (docContent on demand). Fed librarySelection
+            // from here, mirroring the peek composition; the proven shell stays byte-untouched
+            // (an additive diveSlot prop, the peekSlot precedent).
+            diveSlot={<LibraryDiveBody selection={librarySelection} />}
           />
           {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
               the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
