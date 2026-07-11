@@ -1,5 +1,5 @@
 /**
- * Runnable entry for reliability gate `drive-machinery#gate-5` (ADR-0182, Story UAT leg 4 "Land it").
+ * Runnable entry for reliability gate `drive-machinery#gate-5` (ADR-0184, Story UAT leg 4 "Land it").
  * The pure logic + git oracle live in `./promotion-ancestry.ts`; this is the thin wire the gate runs.
  *
  * Exit 0 = every proven drive-machinery commit is an ancestor of HEAD (reached main, non-squash).

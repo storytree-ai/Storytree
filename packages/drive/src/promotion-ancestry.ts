@@ -1,5 +1,5 @@
 /**
- * The pure core of reliability gate `drive-machinery#gate-5` — Story UAT leg 4 ("Land it"), ADR-0182.
+ * The pure core of reliability gate `drive-machinery#gate-5` — Story UAT leg 4 ("Land it"), ADR-0184.
  *
  * Leg 4's success condition — "the proven commit is reachable from `main`" — is a free, deterministic
  * git-ancestry fact, not a human judgment. A commit promoted NON-SQUASH stays an ancestor of the
