@@ -6,7 +6,7 @@ import { Markdown } from "./schema.js";
  *
  * A knowledge unit is a curated markdown body whose structure is fixed per kind
  * (definition / principle / pattern / guardrail / techstack / process / open-question / agent /
- * proposal / friction).
+ * proposal / friction / arc / plan).
  * Round-1
  * authored every body against a per-kind template; Phase 1 makes that template the
  * *derived* artifact rather than the source.
@@ -66,7 +66,9 @@ export type KnowledgeKind =
   | "open-question"
   | "agent"
   | "proposal"
-  | "friction";
+  | "friction"
+  | "arc"
+  | "plan";
 
 /**
  * The per-kind field tables. ORDER IS SIGNIFICANT: the renderer emits fields in this order
@@ -508,7 +510,92 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_The justification-gate answers behind the route — or the archive-with-reason when the route is `nothing`._",
     },
   ],
+  // An `arc` (ADR-0183 D1) is the initiative OVERLAY: a named multi-story intent tracked to a
+  // closed end-state — the fourth grouping tier ADR-0002 parked, returned as an overlay, not a
+  // tier: it references stories/ADRs/plans (every containment edge lives on the CHILD; the upward
+  // view is derived by query, D3), and nothing proof-related rolls up to it. The studio displays
+  // the kind as "Epic" (a display alias only — the kind key, CLI, and refs use `arc` exclusively).
+  // Its durable residue is the structured `increments` landing log (schema-level, see ArcIncrement
+  // below — the reinforcedBy precedent); the body stays minimal: an arc holds state and pointers
+  // only. Lessons still graduate out through ADR-0095/0168, and implementation surface is banned
+  // here (D4: surface lives only in anchored, disposable plans).
+  arc: [
+    {
+      field: "intent",
+      lead: true,
+      heading: "**The intent.**",
+      required: true,
+      placeholder: "_The owner's initiative, in one sentence — what this arc exists to deliver._",
+    },
+    {
+      field: "endState",
+      lead: false,
+      heading: "End state",
+      required: true,
+      placeholder:
+        "_What closed looks like — the observable condition under which the arc is delivered and its increment log stops. Intent and outcomes only: a file list here is a staleness bug (ADR-0183 D4 — implementation surface lives in plans)._",
+    },
+  ],
+  // A `plan` (ADR-0183 D2) is the disposable, git-anchored choreography for ONE increment of an
+  // arc — the first EPHEMERAL kind (see EPHEMERAL_KINDS below): Postgres-only, never in
+  // `knowledge.json` or any seed ceremony. Its structured lifecycle fields (`arcRef` / `anchor` /
+  // `status`) live OUTSIDE this body table, on the schema — see the Plan schema below. Consumption
+  // begins with a mechanical freshness check (git-log the paths the plan names since `anchor.sha`);
+  // drift past threshold means re-plan, never repair. Once consumption starts a plan is never
+  // edited — supersede it; the owning arc's increment log is what endures.
+  plan: [
+    {
+      field: "objective",
+      lead: true,
+      heading: "**The objective.**",
+      required: true,
+      placeholder: "_What this increment of the arc delivers, in one sentence._",
+    },
+    {
+      field: "decomposition",
+      lead: false,
+      heading: "Decomposition",
+      required: true,
+      placeholder:
+        "_The provable units in dependency order — each names its story/capability id and its proof route: `--real` red→green, glue (ADR-0158), or operator-attested._",
+    },
+    {
+      field: "lanes",
+      lead: false,
+      heading: "Lanes",
+      required: false,
+      placeholder:
+        "_The parallel lanes: which units are independent, the expected file surface per lane (fence hints for the takers), and where lanes contend. Omit for a single-lane plan._",
+    },
+    {
+      field: "budgets",
+      lead: false,
+      heading: "Budgets",
+      required: false,
+      placeholder:
+        "_Expected spend per unit in turn-cap vocabulary (ADR-0130) — e.g. the default 16 turns, or `--max-turns 45` for a fiddly module. Omit when the defaults stand._",
+    },
+    {
+      field: "traps",
+      lead: false,
+      heading: "Traps",
+      required: false,
+      placeholder:
+        "_Known traps on this surface, and the escalation points where the executor halts for the owner rather than pushing through. Omit if none are known._",
+    },
+  ],
 } as const;
+
+/**
+ * The EPHEMERAL kind class (ADR-0183 D2): kinds that live ONLY in the live Postgres store. They
+ * never appear in the seed (`knowledge.json`), and every seed ceremony ignores them —
+ * `export-corpus` never carries them up, `sync-corpus` never carries them down, and the
+ * `check:corpus-sync` gate warning skips them (else every live plan would read as seed drift
+ * forever). `plan` is the first member: disposable choreography that is consumed and retired; the
+ * owning arc's increment log is the durable residue. Typed `ReadonlySet<string>` so store/CLI
+ * consumers can probe an untyped `doc.kind` without casting.
+ */
+export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["plan"]);
 
 /**
  * Fields shared by every knowledge kind. Mirrors the runtime-store JSON shape (the `kind`
@@ -655,6 +742,56 @@ export const FrictionReinforcement = z
 export type FrictionReinforcement = z.infer<typeof FrictionReinforcement>;
 
 /**
+ * One landed increment on an `arc` (ADR-0183 D1): the durable residue the initiative keeps after
+ * its plans are pruned. Appended at LANDING (the merge ceremony) — the arc's only fast-moving
+ * authored mutation — and append-only, like the decision log. `outcome` is required (what landed,
+ * halted, or was re-planned, and what was consumed); `pr` is optional because an increment can
+ * close without its own PR (an owner attestation, an honest halt). Like `reinforcedBy` on
+ * `friction`, this is schema-level metadata, never a KIND_SPECS body section — it does not
+ * round-trip through markdown.
+ */
+export const ArcIncrement = z
+  .object({
+    /** When the increment landed / closed (ISO date). */
+    date: z.string().min(1),
+    /** The landing PR(s) or ref, when there is one (e.g. "#676"). */
+    pr: z.string().min(1).optional(),
+    /** What happened: landed / halted / re-planned — and what was consumed. */
+    outcome: z.string().min(1),
+  })
+  .strict();
+export type ArcIncrement = z.infer<typeof ArcIncrement>;
+
+/**
+ * A `plan`'s git anchor (ADR-0183 D2): the commit the choreography was planned against.
+ * Consumption begins with a mechanical freshness check — git-log the paths the plan names since
+ * `sha`; drift past threshold means re-plan, not repair. This is the proof tier's anchor /
+ * source-drift move (`packages/orchestrator/src/proof/source-drift.ts`) applied to intentions:
+ * staleness is checked mechanically at consumption, never assumed absent.
+ */
+export const PlanAnchor = z
+  .object({
+    /** The git commit SHA the plan was authored against (7–40 lowercase hex chars). */
+    sha: z.string().regex(/^[0-9a-f]{7,40}$/, {
+      message: "anchor.sha must be a lowercase hex git SHA (7-40 chars)",
+    }),
+    /** When it was authored (ISO date). */
+    date: z.string().min(1),
+  })
+  .strict();
+export type PlanAnchor = z.infer<typeof PlanAnchor>;
+
+/**
+ * The closed lifecycle of a `plan` (ADR-0183 D2): born `draft`, flipped `ready` for consumption,
+ * then `consumed` (execution started — never edited again; re-planning supersedes), `superseded`
+ * (replaced by a fresher plan), or `retired` (pruned/abandoned; consumed plans are prunable — the
+ * arc's increment log is what endures). Enum-fenced at the schema so a free-prose state can never
+ * be written (the FrictionRoute precedent).
+ */
+export const PlanStatus = z.enum(["draft", "ready", "consumed", "superseded", "retired"]);
+export type PlanStatus = z.infer<typeof PlanStatus>;
+
+/**
  * Build a per-kind zod object from its field spec table. Required fields are `Markdown`;
  * optional fields are `Markdown.optional()`; `refList` fields are `asset:` ref arrays
  * (required => non-empty). The `kind` literal discriminates the union.
@@ -726,6 +863,27 @@ export const Friction = buildKindSchema("friction").extend({
   provenance: FrictionProvenance.optional(),
   reinforcedBy: z.array(FrictionReinforcement).optional(),
 });
+// The `arc` kind (ADR-0183 D1) carries one structured field OUTSIDE its KIND_SPECS body table:
+// `increments`, the append-at-landing log that is the initiative's durable residue (the
+// `reinforcedBy` precedent — schema-level metadata, never a rendered body section; it does not
+// round-trip through markdown). OPTIONAL — a freshly-born arc has no landings yet. `.extend()`
+// preserves `.strict()` and the `kind` literal; a NEW kind touches no existing doc, so there is no
+// `CURRENT_SCHEMA_VERSION` bump and zero migration (the ADR-0168 friction precedent, re-verified:
+// every registered migration is a per-doc transform that no-ops on a fresh arc/plan doc).
+export const Arc = buildKindSchema("arc").extend({
+  increments: z.array(ArcIncrement).optional(),
+});
+// The `plan` kind (ADR-0183 D2/D3) carries three structured fields beyond its KIND_SPECS table:
+// `arcRef` is REQUIRED — a plan is born citing its arc (D3: the containment edge lives on the
+// child; the arc's plan view is derived by query, never authored on the arc); `anchor` is the
+// REQUIRED git anchor the consumption-time freshness check runs against; `status` is the
+// enum-fenced lifecycle, defaulting to `draft` at birth. Ephemeral (see EPHEMERAL_KINDS):
+// live-store-only, excluded from every seed ceremony, so there is no seed round-trip to preserve.
+export const Plan = buildKindSchema("plan").extend({
+  arcRef: AssetRef,
+  anchor: PlanAnchor,
+  status: PlanStatus.default("draft"),
+});
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
 export const Knowledge = z.discriminatedUnion("kind", [
@@ -739,6 +897,8 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Agent,
   Proposal,
   Friction,
+  Arc,
+  Plan,
 ]);
 
 export type Knowledge = z.infer<typeof Knowledge>;
@@ -752,3 +912,5 @@ export type OpenQuestion = z.infer<typeof OpenQuestion>;
 export type Agent = z.infer<typeof Agent>;
 export type Proposal = z.infer<typeof Proposal>;
 export type Friction = z.infer<typeof Friction>;
+export type Arc = z.infer<typeof Arc>;
+export type Plan = z.infer<typeof Plan>;

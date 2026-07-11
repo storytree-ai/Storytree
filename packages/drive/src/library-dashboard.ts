@@ -22,6 +22,8 @@ const KIND_ORDER = [
   "techstack",
   "process",
   "agent",
+  "arc",
+  "plan",
   "proposal",
   "open-question",
   "friction",

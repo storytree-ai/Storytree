@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { StoredDoc } from "@storytree/storage-protocol";
+import { validateLibraryDoc } from "../library-doc.js";
 import { loadCorpus } from "./load-corpus.js";
 import {
+  isExportScopeKind,
   isExportableLiveDoc,
   diffCorpusContent,
   computeExportedSeed,
@@ -49,6 +51,35 @@ test("isExportableLiveDoc: valid at-floor structured → true; degraded / agent 
   // An agent, even with a perfectly valid body, is out of scope.
   const agent = docs.find((d) => d.kind === "agent");
   if (agent) assert.equal(isExportableLiveDoc(agent), false, "agent kind is never export-scope");
+});
+
+test("EPHEMERAL kinds (ADR-0183 D2): a VALID live plan is never exported; arc IS export-scope", async () => {
+  assert.equal(isExportScopeKind("plan"), false, "plan is out of export scope — live-only by design");
+  assert.equal(isExportScopeKind("arc"), true, "arc is a normal live-canonical kind, exported like any");
+
+  const ts = "2026-07-11T00:00:00.000Z";
+  const planBody = {
+    kind: "plan",
+    id: "live-plan-fixture",
+    title: "live plan fixture",
+    description: "a disposable choreography that must never reach knowledge.json",
+    references: [],
+    createdAt: ts,
+    updatedAt: ts,
+    objective: "prove the ephemeral exclusion",
+    decomposition: "one unit: this test",
+    arcRef: "asset:adr0183-arc-fixture",
+    anchor: { sha: "6df02e1", date: "2026-07-11" },
+  };
+  // The body itself is VALID — the export refusal must be the kind CLASS, not a validation failure.
+  assert.doesNotThrow(() => validateLibraryDoc(planBody), "the fixture plan is a valid library doc");
+  const stored: StoredDoc = { id: planBody.id, kind: "plan", doc: planBody, createdAt: ts, updatedAt: ts };
+  assert.equal(isExportableLiveDoc(stored), false, "a valid live plan is still not exportable");
+
+  const { docs: seedDocs, entries } = await realSeed();
+  const r = computeExportedSeed(entries, [...seedDocs, stored]);
+  assert.ok(!r.created.includes(planBody.id), "the live plan is not appended to the seed");
+  assert.ok(!r.skippedDegraded.includes(planBody.id), "…and not misreported as a degraded body either");
 });
 
 test("diffCorpusContent: classifies value-drift vs degraded-live; ignores seed-only and agents", async () => {

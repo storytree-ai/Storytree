@@ -13,8 +13,9 @@
 //
 // It is DELIBERATELY one-directional: it does NOT flag live artifacts absent from the seed (those are
 // expected live-canonical creations) or content drift (the seed is a lagging export) — only the
-// migration gap. It ALWAYS exits 0, is read-only (no writes), and lives in `pnpm gate` rather than CI
-// because CI's verify job is deliberately DB-free.
+// migration gap. EPHEMERAL kinds (`plan`, ADR-0183 D2) are out of scope entirely (live-only by
+// design, so never a gap). It ALWAYS exits 0, is read-only (no writes), and lives in `pnpm gate`
+// rather than CI because CI's verify job is deliberately DB-free.
 
 import { createPool, closePool, PgLibraryStore, diffSeedCorpus } from "@storytree/library/store";
 

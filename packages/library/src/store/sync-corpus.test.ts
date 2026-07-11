@@ -83,6 +83,32 @@ test("reconcileCorpus: never overwrites a same-id artifact even if the seed hold
   assert.equal((live.doc as { body: string }).body, "live", "live content untouched");
 });
 
+test("reconcileCorpus + diffCorpus: EPHEMERAL kinds are out of the seed ceremony entirely (ADR-0183 D2)", async () => {
+  // A `plan` is live-only by design: never carried seed→live (even if one pathologically appears in
+  // the seed), and a LIVE plan is neither a migration gap nor drift — else every live plan would
+  // read as seed drift forever.
+  const source = new InMemoryStore();
+  await seed(source, [
+    doc("p1", "principle"),
+    doc("stray-plan", "plan"), // pathological: a plan must never be in the seed — refuse to carry it
+  ]);
+  const target = new InMemoryStore();
+  await seed(target, [
+    doc("p1", "principle"),
+    doc("live-plan", "plan"), // the normal case: a live-only plan
+  ]);
+
+  const diff = await diffCorpus(source, target);
+  assert.deepEqual(diff.seed, ["p1"], "a seed plan is out of scope");
+  assert.deepEqual(diff.live, ["p1"], "a live plan is out of scope — never counted, never drift");
+  assert.equal(diff.complete, true);
+
+  const r = await reconcileCorpus(source, target);
+  assert.deepEqual(r.created, [], "the stray seed plan is NOT migrated");
+  assert.equal(await target.getDoc("stray-plan"), null, "no plan ever crosses seed→live");
+  assert.ok(await target.getDoc("live-plan"), "the live-only plan is untouched");
+});
+
 test("diffCorpus: read-only — reports the missing seed non-agents and writes NOTHING", async () => {
   const source = new InMemoryStore();
   await seed(source, [doc("p1", "principle"), doc("d1", "definition"), doc("a1", "agent")]);

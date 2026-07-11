@@ -1,5 +1,6 @@
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
+import { EPHEMERAL_KINDS } from "../knowledge.js";
 import { loadCorpus } from "./load-corpus.js";
 import { AGENT_KIND } from "./sync-agents.js";
 
@@ -37,8 +38,17 @@ function sortedIds(docs: { id: string }[]): string[] {
   return docs.map((d) => d.id).sort();
 }
 
-function nonAgent(docs: { kind: string }[]): { id: string; kind: string; doc: unknown }[] {
-  return docs.filter((d) => d.kind !== AGENT_KIND) as { id: string; kind: string; doc: unknown }[];
+/**
+ * The seed-ceremony scope: everything except the seed-canonical `agent` tier (owned by
+ * {@link reconcileAgents}'s own sync) and the EPHEMERAL kinds (`plan`, ADR-0183 D2 — live-only by
+ * design, never in the seed, so a live plan is neither a migration gap nor drift).
+ */
+function seedScope(docs: { kind: string }[]): { id: string; kind: string; doc: unknown }[] {
+  return docs.filter((d) => d.kind !== AGENT_KIND && !EPHEMERAL_KINDS.has(d.kind)) as {
+    id: string;
+    kind: string;
+    doc: unknown;
+  }[];
 }
 
 export interface SyncCorpusResult {
@@ -74,8 +84,8 @@ export interface CorpusDiff {
  * not drift. Used by the best-effort live drift check (`check:corpus-sync`).
  */
 export async function diffCorpus(source: Store, target: Store): Promise<CorpusDiff> {
-  const seed = sortedIds(nonAgent(await source.queryDocs()));
-  const live = sortedIds(nonAgent(await target.queryDocs()));
+  const seed = sortedIds(seedScope(await source.queryDocs()));
+  const live = sortedIds(seedScope(await target.queryDocs()));
   const liveSet = new Set(live);
   const missing = seed.filter((id) => !liveSet.has(id));
   return { seed, live, missing, complete: missing.length === 0 };
@@ -90,8 +100,9 @@ export async function diffSeedCorpus(target: Store): Promise<CorpusDiff> {
 
 /**
  * Carry every NON-AGENT source artifact ABSENT from `target` into it; leave artifacts already present
- * untouched (migrate-only — see the module doc). ONLY skips `kind === "agent"` (that tier has its own
- * seed-canonical {@link reconcileAgents}); every other kind is in scope. Presence is tested against
+ * untouched (migrate-only — see the module doc). Skips only `kind === "agent"` (that tier has its own
+ * seed-canonical {@link reconcileAgents}) and the ephemeral kinds ({@link seedScope} — live-only,
+ * never carried in either direction); every other kind is in scope. Presence is tested against
  * the target's FULL id set, so an id already held under any kind is never overwritten. Idempotent: a
  * second run creates nothing. Validation happens at the target's write boundary.
  */
@@ -102,10 +113,10 @@ export async function reconcileCorpus(
 ): Promise<SyncCorpusResult> {
   const actor = opts?.actor ?? "corpus-tier-sync";
 
-  const seedDocs = nonAgent(await source.queryDocs());
+  const seedDocs = seedScope(await source.queryDocs());
   const liveDocs = await target.queryDocs();
   const liveAllIds = new Set(liveDocs.map((d) => d.id));
-  const before = sortedIds(nonAgent(liveDocs));
+  const before = sortedIds(seedScope(liveDocs));
 
   const created: string[] = [];
   const skipped: string[] = [];
@@ -119,7 +130,7 @@ export async function reconcileCorpus(
   }
 
   const afterDocs = await target.queryDocs();
-  const after = sortedIds(nonAgent(afterDocs));
+  const after = sortedIds(seedScope(afterDocs));
   const afterAllIds = new Set(afterDocs.map((d) => d.id));
   const seed = sortedIds(seedDocs);
   const complete = seed.every((id) => afterAllIds.has(id));

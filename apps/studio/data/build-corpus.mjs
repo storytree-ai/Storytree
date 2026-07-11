@@ -51,6 +51,8 @@ const GENERATED_TEMPLATE_KINDS = new Set([
   'template-agent',
   'template-proposal',
   'template-friction',
+  'template-arc',
+  'template-plan',
 ]);
 
 // One-line gloss per generated template's description ("Fillable scaffold for a new
@@ -66,6 +68,8 @@ const TEMPLATE_GLOSS = {
   agent: 'a role and its operating discipline',
   proposal: 'a planned change to roll out when ready',
   friction: 'what fought a session, with evidence',
+  arc: 'a multi-story initiative tracked to a closed end-state',
+  plan: 'disposable, git-anchored choreography for one arc increment',
 };
 
 // ---------------------------------------------------------------------------

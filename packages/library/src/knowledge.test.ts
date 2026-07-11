@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { KIND_SPECS, Knowledge, type KnowledgeKind } from "./knowledge.js";
+import { EPHEMERAL_KINDS, KIND_SPECS, Knowledge, type KnowledgeKind } from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
 import { validateLibraryDoc } from "./library-doc.js";
 
@@ -29,6 +29,12 @@ function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
     if (spec.required) {
       doc[spec.field] = spec.refList === true ? [`asset:parity-${spec.field}`] : `content for ${spec.field}`;
     }
+  }
+  // `plan` requires two STRUCTURED (non-KIND_SPECS) fields at birth (ADR-0183 D2/D3): the arc it
+  // cites and the git anchor its freshness check runs against.
+  if (kind === "plan") {
+    doc["arcRef"] = "asset:parity-arc";
+    doc["anchor"] = { sha: "0123abc", date: "2026-07-11" };
   }
   return doc;
 }
@@ -372,6 +378,129 @@ test("friction kind: a reinforcement without its own evidence is refused (ADR-01
   assert.throws(() => validateLibraryDoc(onAPrinciple), "reinforcedBy on a non-friction kind must be rejected");
   const routeOnAPrinciple = { ...minimalDoc("principle"), route: "nothing" };
   assert.throws(() => validateLibraryDoc(routeOnAPrinciple), "route on a non-friction kind must be rejected");
+});
+
+test("arc kind (ADR-0183 D1): the increment log validates and fails closed", () => {
+  // A freshly-born arc has no landings yet — `increments` is optional.
+  assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("arc")), "increments is optional");
+
+  // A well-formed landing log validates; `pr` is optional (an owner attestation or an honest halt
+  // can close an increment without its own PR).
+  const valid = {
+    ...minimalDoc("arc"),
+    increments: [
+      { date: "2026-07-11", pr: "#676", outcome: "kinds landed; plan tier next" },
+      { date: "2026-07-12", outcome: "halted at the owner-attested look leg" },
+    ],
+  };
+  const parsed = validateLibraryDoc(valid) as {
+    increments?: ReadonlyArray<{ date: string; pr?: string; outcome: string }>;
+  };
+  assert.deepEqual(parsed.increments, [
+    { date: "2026-07-11", pr: "#676", outcome: "kinds landed; plan tier next" },
+    { date: "2026-07-12", outcome: "halted at the owner-attested look leg" },
+  ]);
+
+  // An increment without an outcome fails closed — a dateline with no record is not a landing.
+  const noOutcome = { ...minimalDoc("arc"), increments: [{ date: "2026-07-11" }] };
+  assert.throws(() => validateLibraryDoc(noOutcome), "an increment without outcome must be rejected");
+
+  // An increment without a date fails closed.
+  const noDate = { ...minimalDoc("arc"), increments: [{ outcome: "landed" }] };
+  assert.throws(() => validateLibraryDoc(noDate), "an increment without date must be rejected");
+
+  // A stray field inside an increment fails closed (ArcIncrement is .strict()).
+  const stray = {
+    ...minimalDoc("arc"),
+    increments: [{ date: "2026-07-11", outcome: "landed", files: ["a.ts"] }],
+  };
+  assert.throws(() => validateLibraryDoc(stray), "a stray increment field must be rejected");
+
+  // Regression guard for the .extend() approach: the arc object stays .strict().
+  const strayTopLevel = { ...valid, notInTheSpec: "drift" };
+  assert.throws(
+    () => validateLibraryDoc(strayTopLevel),
+    ".extend() must preserve .strict(): an unknown top-level arc field is still rejected",
+  );
+
+  // increments is arc-only: a non-arc kind must reject it (it is not in commonShape).
+  const onAPrinciple = {
+    ...minimalDoc("principle"),
+    increments: [{ date: "2026-07-11", outcome: "landed" }],
+  };
+  assert.throws(() => validateLibraryDoc(onAPrinciple), "increments on a non-arc kind must be rejected");
+});
+
+test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum-fenced", () => {
+  // The minimal plan (objective + decomposition + arcRef + anchor) validates; status defaults to draft.
+  const parsed = validateLibraryDoc(minimalDoc("plan")) as { status?: string; arcRef?: string };
+  assert.equal(parsed.status, "draft", "an unstated status parses as draft — a plan is born a draft");
+  assert.equal(parsed.arcRef, "asset:parity-arc");
+
+  // A plan WITHOUT its arc is refused — a plan is born citing its arc (D3: the edge lives on the child).
+  const orphan: Record<string, unknown> = { ...minimalDoc("plan") };
+  delete orphan["arcRef"];
+  assert.throws(() => validateLibraryDoc(orphan), "an arc-less plan must be rejected");
+
+  // The arcRef is a typed asset: pointer — doc:/prose refs fail closed (the ref-list discipline).
+  const docRef = { ...minimalDoc("plan"), arcRef: "doc:decisions/0183.md" };
+  assert.throws(() => validateLibraryDoc(docRef), "a doc: arcRef must be rejected");
+
+  // A plan WITHOUT its git anchor is refused — the freshness check has nothing to run against.
+  const unanchored: Record<string, unknown> = { ...minimalDoc("plan") };
+  delete unanchored["anchor"];
+  assert.throws(() => validateLibraryDoc(unanchored), "an unanchored plan must be rejected");
+
+  // A non-SHA anchor fails closed.
+  const badSha = { ...minimalDoc("plan"), anchor: { sha: "main", date: "2026-07-11" } };
+  assert.throws(() => validateLibraryDoc(badSha), "a branch name is not an anchor — must be rejected");
+  const noDate = { ...minimalDoc("plan"), anchor: { sha: "0123abc" } };
+  assert.throws(() => validateLibraryDoc(noDate), "an anchor without a date must be rejected");
+  // A full 40-char SHA validates too.
+  assert.doesNotThrow(() =>
+    validateLibraryDoc({
+      ...minimalDoc("plan"),
+      anchor: { sha: "6df02e16e45793015d75fd59d42787987f021f70", date: "2026-07-11" },
+    }),
+  );
+
+  // Every lifecycle state D2 names validates; free prose fails closed (the FrictionRoute precedent).
+  for (const status of ["draft", "ready", "consumed", "superseded", "retired"]) {
+    assert.doesNotThrow(
+      () => validateLibraryDoc({ ...minimalDoc("plan"), status }),
+      `status ${status} must validate`,
+    );
+  }
+  const proseStatus = { ...minimalDoc("plan"), status: "half-done, mostly" };
+  assert.throws(() => validateLibraryDoc(proseStatus), "a non-enum status must be rejected");
+
+  // A stray field inside the anchor fails closed (PlanAnchor is .strict()).
+  const strayInAnchor = {
+    ...minimalDoc("plan"),
+    anchor: { sha: "0123abc", date: "2026-07-11", branch: "main" },
+  };
+  assert.throws(() => validateLibraryDoc(strayInAnchor), "a stray anchor field must be rejected");
+
+  // Regression guard for the .extend() approach: the plan object stays .strict().
+  const strayTopLevel = { ...minimalDoc("plan"), notInTheSpec: "drift" };
+  assert.throws(
+    () => validateLibraryDoc(strayTopLevel),
+    ".extend() must preserve .strict(): an unknown top-level plan field is still rejected",
+  );
+
+  // The lifecycle fields are plan-only: a non-plan kind must reject them.
+  const arcRefOnAPrinciple = { ...minimalDoc("principle"), arcRef: "asset:parity-arc" };
+  assert.throws(() => validateLibraryDoc(arcRefOnAPrinciple), "arcRef on a non-plan kind must be rejected");
+  const anchorOnAnArc = { ...minimalDoc("arc"), anchor: { sha: "0123abc", date: "2026-07-11" } };
+  assert.throws(() => validateLibraryDoc(anchorOnAnArc), "anchor on a non-plan kind must be rejected");
+});
+
+test("EPHEMERAL_KINDS (ADR-0183 D2): plan is ephemeral, every member is a real kind, arcs are durable", () => {
+  assert.ok(EPHEMERAL_KINDS.has("plan"), "plan is the first ephemeral kind");
+  assert.ok(!EPHEMERAL_KINDS.has("arc"), "arc is durable — curated in the ceremonies like any kind");
+  for (const kind of EPHEMERAL_KINDS) {
+    assert.ok(Object.hasOwn(KIND_SPECS, kind), `ephemeral kind ${kind} must be a KIND_SPECS key`);
+  }
 });
 
 test("renderBody: an unknown kind throws a DIAGNOSTIC error, not `specs is not iterable`", () => {

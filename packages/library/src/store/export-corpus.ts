@@ -1,7 +1,7 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { upcast } from "../migrations.js";
-import { KIND_SPECS, Knowledge } from "../knowledge.js";
+import { EPHEMERAL_KINDS, KIND_SPECS, Knowledge } from "../knowledge.js";
 import { loadCorpus } from "./load-corpus.js";
 import { AGENT_KIND } from "./sync-agents.js";
 
@@ -25,14 +25,16 @@ import { AGENT_KIND } from "./sync-agents.js";
  *    writing it would corrupt the canonical seed; it is reported for a seed→live restore instead.
  *
  * SCOPE = the knowledge.json-canonical tier: the structured kinds EXCEPT `agent` (seed-canonical, kept
- * by `sync-agents`) and `template` (generated into assets.json by build-corpus, not authored here).
+ * by `sync-agents`), `template` (generated into assets.json by build-corpus, not authored here), and
+ * the EPHEMERAL kinds (`plan`, ADR-0183 D2 — live-only by design; exporting one would put a
+ * disposable choreography into the durable seed).
  */
 
 const STRUCTURED_KINDS: ReadonlySet<string> = new Set(Object.keys(KIND_SPECS));
 
-/** True iff this kind is owned by the knowledge.json live→seed export (structured, not agent/template). */
+/** True iff this kind is owned by the knowledge.json live→seed export (structured, not agent/template/ephemeral). */
 export function isExportScopeKind(kind: string): boolean {
-  return STRUCTURED_KINDS.has(kind) && kind !== AGENT_KIND;
+  return STRUCTURED_KINDS.has(kind) && kind !== AGENT_KIND && !EPHEMERAL_KINDS.has(kind);
 }
 
 /** A loose knowledge.json entry — the whole object IS the doc body (it carries its own id + kind). */
