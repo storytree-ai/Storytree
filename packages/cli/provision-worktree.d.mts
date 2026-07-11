@@ -26,12 +26,25 @@ export function needsProvision(root: string): boolean;
 /** Run `pnpm install` (falling back to `corepack pnpm`) at `root`; never throws. */
 export function runPnpmInstall(root: string): InstallResult;
 
-/** Provision `root` unless already provisioned; `install` is injectable for tests. */
+/**
+ * Provision `root` unless already provisioned; a failed attempt retries `retries` more times (default
+ * 1) from the warm store before giving up. `install` is injectable for tests.
+ */
 export function provisionWorktree(opts?: {
   root?: string;
   install?: (root: string) => InstallResult;
   log?: (msg: string) => void;
+  retries?: number;
 }): ProvisionResult;
+
+/**
+ * The `SessionStart` `additionalContext` JSON payload emitted (on stdout, `--hook` mode) when a worktree
+ * is still unprovisioned after all attempts — the agent-visible signal to run `pnpm install`.
+ */
+export function unprovisionedContext(root: string): string;
+
+/** STDOUT for the `--hook` entry: the `unprovisionedContext` payload when provisioning failed, else "". */
+export function hookStdout(result: { ok: boolean }, root: string, hookMode: boolean): string;
 
 /** The process exit code: always 0 in `--hook` mode, else `result.code`. */
 export function exitCode(result: { code: number }, hookMode: boolean): number;

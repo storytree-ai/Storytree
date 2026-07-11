@@ -34,6 +34,9 @@ const xtermMock = vi.hoisted(() => {
     cols = 80;
     rows = 24;
     resized: Array<{ cols: number; rows: number }> = [];
+    /** test-only: counts `term.focus()` calls — pins contract 6 (re-focus after a window blur/focus
+     *  cycle) without asserting anything about real DOM focus, which jsdom's xterm mock has none of. */
+    focusCalls = 0;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
     constructor() {
@@ -41,6 +44,9 @@ const xtermMock = vi.hoisted(() => {
     }
     open(el: HTMLElement): void {
       this.opened = el;
+    }
+    focus(): void {
+      this.focusCalls += 1;
     }
     write(data: string): void {
       this.written.push(data);
@@ -259,6 +265,38 @@ describe('TerminalDock', () => {
     expect(xtermMock.FakeTerminal.instances[0]).toBe(term);
     expect(term.disposed).toBe(false);
     expect(container.querySelector('.terminal-dock-body')?.hasAttribute('hidden')).toBe(false);
+  });
+
+  // ── tdp-refocuses-after-window-focus-cycle (contract 6) ─────────────────
+  it('tdp-refocuses-after-window-focus-cycle: window focus, a click on the dock body, and visibilitychange-to-visible all re-focus the mounted terminal', async () => {
+    render(<TerminalDock />);
+
+    // Not yet mounted (folded, no session): none of the refocus triggers should touch a terminal
+    // instance or throw — there is nothing mounted to focus yet.
+    expect(() => fireEvent(window, new Event('focus'))).not.toThrow();
+    expect(xtermMock.FakeTerminal.instances.length).toBe(0);
+
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(term.focusCalls).toBe(0);
+
+    // The Electron window regaining focus (another window/app had stolen it, the user clicks back)
+    // must re-focus the mounted xterm so keystrokes reach it again.
+    fireEvent(window, new Event('focus'));
+    expect(term.focusCalls).toBeGreaterThan(0);
+    const afterWindowFocus = term.focusCalls;
+
+    // A mousedown on the dock body — the user clicking directly onto the terminal — also re-focuses.
+    const body = document.querySelector('.terminal-dock-body') as HTMLElement;
+    fireEvent.mouseDown(body);
+    expect(term.focusCalls).toBeGreaterThan(afterWindowFocus);
+    const afterBodyClick = term.focusCalls;
+
+    // The document coming back to `visible` (tab/app foregrounded) also re-focuses.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    fireEvent(document, new Event('visibilitychange'));
+    expect(term.focusCalls).toBeGreaterThan(afterBodyClick);
   });
 
   // ── tdp-degrades-when-bridge-absent ──────────────────────────────────────────

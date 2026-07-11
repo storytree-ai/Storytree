@@ -44,6 +44,13 @@ proof:
   real:
     testFile: "apps/studio/src/components/TerminalDock.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalDock.tsx"
+    # RE-PROVE (ADR-0057 §3 expansion C): TerminalDock.tsx + its test ALREADY EXIST at HEAD (signed by
+    # the original story build) — this arm is now driven `editsExisting` for the focus/refocus
+    # regression (contract 6). The leaf reads the existing source + 5 tests, ADDS a 6th regression test
+    # that FAILS against the current behaviour (no re-focus after a window blur/focus cycle), then EDITS
+    # TerminalDock.tsx to re-focus the xterm — a behaviour-assertion red, NOT a net-new missing-symbol
+    # red. Preserves the existing spawn/data/resize/toggle/degrade behaviour + the 5 existing contracts.
+    editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalDock.test.tsx"]
       sourceGlobs: ["apps/studio/src/components/TerminalDock.tsx"]
@@ -80,14 +87,16 @@ OPPOSITE side of the contextBridge from [`pty-session-manager`](pty-session-mana
 nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contract, not a code edge (the
 `chat-panel` ↔ `chat-sse-mount` precedent), so there is no in-story edge either way.
 
-> **Proof status (honest) — NOT BUILT, `proposed`.** This precedes the code. It is the renderer half of
-> ADR-0174's embedded terminal — the xterm.js terminal the user actually sees and types into. The pty
-> LIFECYCLE it drives (over the bridge) is [`pty-session-manager`](pty-session-manager.md); the real
-> `desktopTerminal` bridge (`apps/desktop/electron/preload.ts`) and the real-pty Electron-main wiring are
-> the story's operator-attested GLUE. THIS capability adds the renderer terminal + its dock, proven
-> offline against a mocked xterm + a mocked bridge. Its *appearance inside the native shell* ("reads and
-> behaves like a real terminal") is the story's operator-attested UAT leg 5 (ADR-0070 — the look is
-> witnessed, never a machine visual verdict).
+> **Proof status (honest) — BUILT & SIGNED (contracts 1–5), re-proving contract 6.** Contracts 1–5 landed
+> under the original story build's signed `--real` verdict (the xterm.js terminal the user sees and types
+> into). Contract 6 (the operator-found refocus regression) is being added via an `editsExisting` re-prove
+> of the SAME source (`node build terminal-dock-panel --real`) — the anchored bytes re-sign, so the crown
+> is never left stale by a gate-land hand-edit. The pty LIFECYCLE it drives (over the bridge) is
+> [`pty-session-manager`](pty-session-manager.md); the real `desktopTerminal` bridge
+> (`apps/desktop/electron/preload.ts`) and the real-pty Electron-main wiring are the story's
+> operator-attested GLUE. Its *appearance inside the native shell* ("reads and behaves like a real
+> terminal") is the story's operator-attested UAT leg 5 (ADR-0070 — the look is witnessed, never a machine
+> visual verdict), and the `.terminal-dock*` chrome is CSS glue re-attested there.
 
 ## Guidance
 
@@ -158,6 +167,18 @@ disabled "terminal unavailable here" state — never spawn, never hang waiting f
 arrives, never crash the surrounding studio (the `StoreBanner` store-unreachable / `ChatPanel` no-backend
 precedent). A load-bearing observable, not polish.
 
+RE-FOCUS THE TERMINAL AFTER A WINDOW FOCUS CYCLE (contract 6 — the operator-found refocus bug). When the
+Electron window loses focus (another window/app steals it) and the user clicks BACK onto the terminal,
+keyboard input must still reach the xterm — today it does not (xterm's hidden input textarea is not
+re-focused after the window blur/focus cycle). The mounted terminal must be RE-FOCUSED — `term.focus()`
+called — on the events that mean "the user is back on the terminal": the browser window's `focus` event,
+a `mousedown`/`click` on the dock body, and the document's `visibilitychange` back to visible. Guard it on
+the terminal being mounted (a spawned session exists) so an absent-bridge / folded dock never calls focus.
+This is the ONLY behaviour change in this re-prove; the spawn/data/resize/toggle/degrade wiring and the 5
+existing contracts stay intact. THE JSDOM-PROVABLE PART is that `term.focus()` is invoked on those events
+(the mocked xterm records `focus()` calls) — assert exactly that. Whether keystrokes then *physically*
+reach the textarea is operator-attested (the story's UAT legs 4/5), NEVER a jsdom/visual assertion here.
+
 ## No new cross-story edge (the boundary call — ADR-0010 §4 / ADR-0074)
 
 The terminal CONSUMES the `desktopTerminal` bridge shape, but consuming a bridge shape is **not** a
@@ -211,14 +232,15 @@ The integration test would:
    disabled "terminal unavailable here" state, NEVER calls `spawn`, does NOT hang, and does NOT crash —
    the honest absent-bridge degradation.
 
-## Contracts (5)
+## Contracts (6)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
-jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted. None
-exist yet; each is the assertion a contract test WILL prove against the real terminal code once authored
-(provisional path — re-cite at real `file:line` when built). Per ADR-0122 (`storytree coverage`), each
-contract id is the lead of a distinctly-named test, so the coverage check reports 5/5. None is an
-APPEARANCE assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
+jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted.
+Contracts 1–5 are BUILT (the original story build's signed verdict); contract 6 is the operator-found
+refocus regression added in the `editsExisting` re-prove (author its test against the existing 5, do NOT
+drop them). Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test
+(the `it("<id>: …")` convention), so the coverage check reports 6/6. None is an APPEARANCE assertion —
+the look is the story's operator-attested UAT leg 5 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
    - **asserts —** expanding the dock calls `desktopTerminal.spawn` once and `open`s the (mocked) xterm
@@ -246,8 +268,23 @@ APPEARANCE assertion — the look is the story's operator-attested UAT leg 5 (AD
      stream that never arrives, and does NOT crash the surrounding surface — the honest absent-bridge
      degradation.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the absent-bridge disabled state) *(provisional path)*
+6. **`tdp-refocuses-after-window-focus-cycle`** — the mounted terminal re-focuses on window-focus / dock-body interaction / visibilitychange so input survives a window blur→focus cycle
+   - **asserts —** with the dock expanded and a session spawned, the (mocked) xterm's `focus()` is called
+     when the browser window fires a `focus` event, when the dock body receives a `mousedown`/`click`, and
+     when the document `visibilitychange`s back to visible — the refocus wiring that restores keyboard
+     input after the Electron window loses+regains focus (the operator-found bug). When the terminal is
+     NOT mounted (bridge absent / never expanded) those events call no `focus()` (the mount guard). This
+     asserts the `term.focus()` INVOCATION only — that keystrokes then physically reach the textarea is
+     the story's operator-attested UAT leg (ADR-0070), never a jsdom assertion.
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the window-focus/body/visibility refocus wiring) *(provisional path)*
 
 ## Guidance — the net-new slice that earns the signed verdict
+
+> **Historical (contracts 1–5).** This section describes the ORIGINAL net-new build that signed contracts
+> 1–5. Contract 6 is NOT net-new — it re-proves the existing source via `editsExisting` (the regression
+> red is a behaviour-assertion failure, not a missing-symbol; the brief in the FIRST `## Guidance` section
+> above governs it). Kept as the net-new history of this cap; do not read the "import resolves NOTHING" red
+> below as the current build's red.
 
 The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the terminal dock as a new
 component, test-first.
