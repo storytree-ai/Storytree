@@ -91,6 +91,8 @@ import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
+import { LibraryFinder } from './LibraryFinder.js';
+import type { SearchResult } from '../lib/librarySearch.js';
 import { TerminalDock } from './TerminalDock.js';
 import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
@@ -1263,6 +1265,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // Only the gear-exposed readers (substrate / layout) are keyed on it; plants the panel
   // never touches, so it stays mount-once.
   const [search, setSearch] = useState<string>(() => defaultSearch());
+  // The Library drawer's corpus + finder selection (ADR-0185 inc 2). The corpus is the studio's
+  // already-loaded AppData context (no new fetch — the drawer rides the wire the map already has);
+  // the selection feeds the focus subgraph (increment 3). Held here so the shell stays provider-free
+  // and proves in isolation — TreeView is the composition point where AppData is available.
+  const { assets, docs } = useAppData();
+  const [librarySelection, setLibrarySelection] = useState<SearchResult | null>(null);
   // ADR-0074 §6: `?layout=solar` reskins the world radially with cli/store hubs at the
   // centre. Gear-panel managed, so it's reactive on `search` (live, no reload). In solar
   // mode the synthetic hub islands are injected ONLY into buildWorld's input — the
@@ -2140,7 +2148,18 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               `?overlay=library` — an overlay within .world-frame, never a route away. The shell's
               state machine is machine-proven (LibraryDrawer.test.tsx); this mounting + the
               forest-cozy look are the story's operator-attested UAT leg (ADR-0070). */}
-          <LibraryDrawer search={search} onCommitSearch={commitSearch} />
+          <LibraryDrawer
+            search={search}
+            onCommitSearch={commitSearch}
+            peekSlot={
+              <LibraryFinder
+                assets={assets}
+                docs={docs}
+                onSelect={setLibrarySelection}
+                {...(librarySelection ? { selectedId: librarySelection.id } : {})}
+              />
+            }
+          />
           {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
               the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
               tree for a future app-guide, ADR-0175). A thin client: it reaches a real local pty only

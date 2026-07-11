@@ -11,11 +11,11 @@ proof_mode: UAT
 # human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
 # So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
 # UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
-capabilities: [library-drawer-shell]
+capabilities: [library-drawer-shell, library-finder]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
 # `library-tech-tree-overlay-arc` with plan `library-tech-tree-overlay-plan-2` (the 7-increment
-# roadmap lives in the plan, not here). Only increment 1 (library-drawer-shell) is authored so
-# far; increments 2–7 (finder, focus subgraph, dive body panel, overview constellation, wire
+# roadmap lives in the plan, not here). Increments 1 (library-drawer-shell) and 2 (library-finder)
+# are authored so far; increments 3–7 (focus subgraph, dive body panel, overview constellation, wire
 # extension, #/library retirement) are authored just-in-time as the orchestrator consumes each.
 #
 # NO cross-story `depends_on` edge (the wire-shape-only / rides-the-existing-wire call): the
@@ -67,7 +67,7 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 | # | increment | capability | outcome | status |
 |---|---|---|---|---|
 | 1 | Drawer shell | [`library-drawer-shell`](library-drawer-shell.md) | A slide-down Library drawer overlays the live forest map behind `?overlay=library` and walks a peek↔dive↔closed state machine. | authored |
-| 2 | Finder panel | *(finder, unauthored)* | Client-side fuzzy search over the loaded corpus (id/title/description/body + ADR titles) with a kind sub-line and selection state. | planned |
+| 2 | Finder panel | [`library-finder`](library-finder.md) | Client-side search over the loaded corpus (assets on id/title/description/body, ADRs on title/id only) with a `kindLabel` sub-line, ADR status, and selection lifted via `onSelect`. | authored |
 | 3 | Focus subgraph | *(focus-subgraph, unauthored)* | The selected artifact centred, `references[]` fanned upstream/downstream, depth-limited with `+N more` clusters and neighbour-click re-focus. | planned |
 | 4 | Dive body panel | *(dive-body, unauthored)* | The full artifact body + Sources rendered over the map, deep-link-synced with `#/asset/<id>`, Esc-unwound. | planned |
 | 5 | Overview constellation | *(overview, unauthored)* | The empty-state dot field of the whole corpus under the LOD ladder, search-glow highlighting, dot→plaque swap at close zoom. | planned |
@@ -76,12 +76,15 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 
 ### Anticipated within-story dependency graph (code-derived, authored per increment)
 
-Drawn as each capability lands — NOT speculatively (ADR-0010 §3). The expected shape: `library-drawer-shell`
-is the root (an overlay shell with no upstream); the finder mounts inside the shell (`finder → library-drawer-shell`);
-the focus subgraph consumes the finder's selection (`focus-subgraph → finder`); the dive body panel fills the
-shell's reserved region off a selection (`dive-body → library-drawer-shell`, `dive-body → finder`); the overview
-constellation is the shell's empty state (`overview → library-drawer-shell`). Increment 6 (server wire) is
-file-disjoint (a parallel lane, plan §Lanes). These edges are authored when their capabilities are.
+Drawn as each capability lands — NOT speculatively (ADR-0010 §3). **Authored so far:**
+`library-drawer-shell` is the root (an overlay shell with no upstream, `depends_on: []`);
+`library-finder` **`depends_on: [library-drawer-shell]`** — the finder fills the shell's reserved peek body
+slot (`library-drawer-peek-slot`, `LibraryDrawer.tsx:111`), so it needs the shell's peek mode as its
+precondition. **Anticipated (authored when their capabilities land):** the focus subgraph consumes the
+finder's selection (`focus-subgraph → library-finder`); the dive body panel fills the shell's reserved region
+off a selection (`dive-body → library-drawer-shell`, `dive-body → library-finder`); the overview constellation
+is the shell's empty state (`overview → library-drawer-shell`). Increment 6 (server wire) is file-disjoint
+(a parallel lane, plan §Lanes). These edges are authored when their capabilities are.
 
 ## No new cross-story edge (recorded — the rides-the-existing-wire call)
 

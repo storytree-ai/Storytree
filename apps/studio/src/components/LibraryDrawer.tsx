@@ -59,13 +59,17 @@ export interface LibraryDrawerProps {
   /** Called with the next search string when the drawer clears its own `?overlay` flag on
    *  close — a `commitSearch`-style write, observed here rather than a real navigation. */
   onCommitSearch: (nextSearch: string) => void;
+  /** What fills the reserved peek body slot (the finder, increment 2 — mounted by TreeView where
+   *  the AppData context is available; the shell itself stays provider-free so it proves in
+   *  isolation). Absent → the slot renders empty, as increment 1 left it. */
+  peekSlot?: React.ReactNode;
 }
 
 /**
  * The Library drawer shell — reads the overlay flag, holds the peek/dive/closed mode, renders
  * the overlay chrome, and reserves the peek/dive body slots. Renders nothing when closed.
  */
-export function LibraryDrawer({ search, onCommitSearch }: LibraryDrawerProps) {
+export function LibraryDrawer({ search, onCommitSearch, peekSlot }: LibraryDrawerProps) {
   const [mode, setMode] = useState<Mode>(() => (readLibraryOverlay(search) ? 'peek' : 'closed'));
 
   const close = useCallback(() => {
@@ -108,7 +112,9 @@ export function LibraryDrawer({ search, onCommitSearch }: LibraryDrawerProps) {
         </button>
       </div>
       {mode === 'peek' && (
-        <div className="library-drawer-peek-slot" data-testid="library-drawer-peek-slot" />
+        <div className="library-drawer-peek-slot" data-testid="library-drawer-peek-slot">
+          {peekSlot}
+        </div>
       )}
       {mode === 'dive' && (
         <div className="library-drawer-dive-slot" data-testid="library-drawer-dive-slot" />

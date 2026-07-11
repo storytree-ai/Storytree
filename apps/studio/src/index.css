@@ -4317,16 +4317,99 @@ button.legend-tile:hover {
   padding: 3px 9px;
   line-height: 1;
 }
-/* the reserved slots — EMPTY in the shell (the finder is inc 2, the body inc 4);
-   a faint dashed inlay so the reservation reads as deliberate, not broken */
-.library-drawer-peek-slot,
+/* the peek slot now holds the finder (inc 2); the dive slot stays EMPTY until the body panel
+   (inc 4) — a faint dashed inlay so that reservation still reads as deliberate, not broken */
+.library-drawer-peek-slot {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
 .library-drawer-dive-slot {
   flex: 1 1 auto;
   margin: 12px;
   border: 1px dashed color-mix(in srgb, var(--hex-side) 55%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--board-1) 40%, transparent);
-}
-.library-drawer-dive-slot {
   min-height: 180px;
+}
+
+/* ── the finder (ADR-0185 inc 2): forest-cozy search over the loaded corpus ── */
+.library-finder {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px;
+  gap: 10px;
+}
+.library-finder-input {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--board-1) 60%, #ffffff 40%);
+  color: var(--text);
+  font: inherit;
+}
+.library-finder-input::placeholder {
+  color: color-mix(in srgb, var(--text) 45%, transparent);
+}
+.library-finder-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.library-finder-results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.library-finder-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'title status'
+    'kind  status';
+  align-items: baseline;
+  gap: 1px 10px;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.library-finder-row:hover {
+  background: color-mix(in srgb, var(--board-1) 55%, transparent);
+  border-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
+}
+.library-finder-row[data-selected='true'] {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+}
+.library-finder-result-title {
+  grid-area: title;
+  color: var(--text);
+  font-weight: 500;
+}
+.library-finder-result-kind {
+  grid-area: kind;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+  font-size: 0.82em;
+  letter-spacing: 0.02em;
+}
+.library-finder-result-status {
+  grid-area: status;
+  align-self: center;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  font-size: 0.76em;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 60%, transparent);
+  border-radius: 999px;
+  white-space: nowrap;
 }
