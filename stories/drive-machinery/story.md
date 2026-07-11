@@ -36,7 +36,9 @@ consumed_by: [cli]
 # the drive-package extraction that gave this story its own @storytree/drive home (112), the
 # fail-closed per-UAT-leg proof binding required by ADR-0180 d.5, and the machine-witness conversion
 # of Story UAT legs 3/4/7 (184 — leg 4 landed as the observe ancestry gate-5, leg 3 as the
-# live-artifact witnessable-verdict gate-6; leg 7's cold-start harness still pending).
+# live-artifact witnessable-verdict gate-6, leg 7 as the cold-start dogfood-probe witness gate-7
+# (dogfood-probe.run.ts / dogfood-witness.check.ts); all three legs now machine — no human UAT leg
+# remains).
 decisions: [5, 20, 30, 31, 35, 37, 57, 59, 60, 112, 180, 184]
 ---
 
@@ -288,16 +290,15 @@ buildable node); the authored capability files above follow the seed's contracts
 The integrated **acceptance walkthrough** proving the organism's outcome end to end: one operator
 drives a registered node from spec to a landed, signed, persisted proof.
 
-> **HONEST status — no single scripted UAT spans the whole journey.** Steps 1–2 and 5–6 are
-> offline-automated TODAY (citations inline). Steps 3–4's full live shape — a real leaf, the real
-> proof command, persistence, promotion, and the non-squash landing — happened ONCE for real
-> (verdict-line: run `real-mq7ky4ck`, commit `0e8f4ba` now in `main`'s ancestry) and has a
-> scripted offline twin for the mechanics, but the live legs are operator-attested history, not a
-> standing test. Step 7 (an agent actually USES it without coaching) is likewise operator-attested —
-> the paid blind dogfood, 2026-06-15, 3/3 probes end to end. So the story's own acceptance proof is
-> **part-scripted, part-attested**.
+> **HONEST status — the acceptance journey was originally part-scripted, part-attested (now HISTORY).**
+> Steps 1–2 and 5–6 are offline-automated TODAY (citations inline). Steps 3–4's full live shape — a
+> real leaf, the real proof command, persistence, promotion, and the non-squash landing — happened
+> ONCE for real (verdict-line: run `real-mq7ky4ck`, commit `0e8f4ba` now in `main`'s ancestry) with a
+> scripted offline twin for the mechanics; step 7 (an agent actually USES it without coaching) was the
+> paid blind dogfood, 2026-06-15, 3/3 probes end to end. Those live legs BEGAN as operator-attested
+> history — that history stands, but the current state below has moved past it.
 >
-> **Legs 3/4/7 convert to machine (ADR-0184) — legs 4 and 3 now, only leg 7 harness-pending.** The
+> **Legs 3/4/7 all convert to machine (ADR-0184) — the conversion is now COMPLETE.** The
 > parser [`uat-machine-proof-binding`](uat-machine-proof-binding.md), exact resolver
 > [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
 > [`uat-bound-command-adoption`](uat-bound-command-adoption.md) established the strict no-fallback
@@ -307,13 +308,20 @@ drives a registered node from spec to a landed, signed, persisted proof.
 > leaf (ADR-0177) the "no paid inner loop" reasoning named, so cost is never a reason to keep a leg
 > human. **Leg 4 is converted**: its free, deterministic observe gate-5
 > (`promotion-ancestry.check.ts`) machine-witnesses that the attested REAL-proof commits reached
-> `main` non-squash. **Leg 3 is now converted too**: its live-artifact observe gate-6
+> `main` non-squash. **Leg 3 is converted**: its live-artifact observe gate-6
 > (`witnessable-verdict.check.ts`) machine-witnesses that a recent spine-driven DRIVEN-tier passing
-> verdict for a drive-machinery node exists in `events.verdict` and landed in `main`'s ancestry (the
-> deliberate `--real` run that produces that verdict stays out-of-band, ADR-0010 §5). **Only leg 7
-> remains `human` AT REST** — its cold-start probe harness is still pending, so it stays human until
-> that lands. An honest in-flight state, never a forged machine label pointed at an offline mechanics
-> suite.
+> verdict for a drive-machinery node exists in `events.verdict` and landed in `main`'s ancestry.
+> **Leg 7 is now converted too**: its live-artifact observe gate-7 (`dogfood-witness.check.ts`)
+> machine-witnesses that a fresh, UNCOACHED `claude -p` agent — spawned by the executable cold-start
+> probe `dogfood-probe.run.ts` with CLAUDE.md as its only coaching — discovered the inner loop and
+> drove a `dogfood-probe-*` node it authored to a signed verdict (first live pass: run `mrfuze9m`,
+> `dogfood-probe-mrfuze9m` → a signed `contract` verdict at commit `2ea1b68`, 76 turns). The
+> deliberate live runs that PRODUCE these verdicts stay out-of-band (ADR-0010 §5); the gates only
+> witness the persisted signed passes. **So drive-machinery's Story UAT is now FULLY machine-witnessed
+> — no leg is `human`.** The consequence ADR-0184 records: because no UAT leg is human anymore, the
+> story's closure no longer waits on an operator ceremony for a machine-observable outcome (ADR-0184
+> Consequences). An honest end-state, not a forged machine label — each leg's gate witnesses a real
+> persisted signed pass, never an offline mechanics suite dressed up as acceptance.
 
 **Goal —** Drive one registered node through a genuine red→green proof and land the proven commit
 through the merge gate, refusing every dishonest shortcut along the way.
@@ -352,17 +360,12 @@ through the merge gate, refusing every dishonest shortcut along the way.
    persisted would be a forged healthy); a live story build with an unprocessed operator answer on
    a deciding ADR's OQ is refused with the three paths out. *(proven:
    `story-build.test.ts:90`/`:124`, `oq-gate.test.ts:141`)*
-7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: human)_: a fresh orchestrator agent,
+7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent,
    onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
    1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
    coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner
    loop, authors a self-registering node, and reaches a real `--real` signed verdict over real
-   behaviour (net-new OR edit-existing). *(operator-attested — the paid blind dogfood, 2026-06-15:
-   3/3 blind probes completed end to end, verified on origin — `roundTo` @14c4509, `ordinal`
-   @4c0dbf3, and the edit-existing `verdictLine` @d043863 live-proving expansion C. NOT a standing
-   scripted test: proving REAL authoring needs the paid live leaf — the free/offline path is the
-   scripted glue only. An OFFLINE run first surfaced the gap that every probe stalled at the paid
-   edge; allowing spend reversed it cleanly.)*
+   behaviour (net-new OR edit-existing). *(proven: `drive-machinery#gate-7` — an executable cold-start probe (`dogfood-probe.run.ts`, ADR-0184 d.4) spawns a fresh `claude -p` session whose ONLY coaching is CLAUDE.md and whose task names the outcome (a signed verdict for a tiny new `dogfood-probe-*` node) but never the inner-loop means; the prompt's uncoached integrity is a standing test — `auditUncoached`, `dogfood-probe.test.ts` — ADR-0184 d.4's one-time authoring audit made executable, not re-judged per run. `dogfood-witness.check.ts` then witnesses that the fresh agent's signed verdict landed: a spine-driven DRIVEN pass for a `dogfood-probe-*` node in `main`'s ancestry, recent (≤90d), reusing leg 3's `selectWitnessableVerdict` core. First live pass: run `mrfuze9m` — a fresh uncoached agent (76 turns) discovered the inner loop from CLAUDE.md alone and drove `dogfood-probe-mrfuze9m` to a signed `contract` verdict (commit `2ea1b68`); the earlier blind dogfood, 2026-06-15 (3/3 operator-run — `roundTo` @14c4509, `ordinal` @4c0dbf3, `verdictLine` @d043863), is the historical precedent. The heavy live run stays out-of-band, ADR-0010 §5; this cheap gate only witnesses it.)*
 
 End state — a genuine proof earned, signed, persisted, promoted, landed, AND shown to be usable by a
 fresh agent without coaching; every shortcut walled.
@@ -392,10 +395,13 @@ capability-covering gates over 18 capabilities reads cleaner than 18 per-cap gat
 shape the `library` story uses). A fourth, command-bearing observe gate runs the CLI and drive suites
 together solely for Story UAT leg 6, whose two refusal assertions span those packages; a fifth,
 command-bearing observe gate runs the drive-package ancestry check solely for Story UAT leg 4 (the
-proven REAL commits reached `main` non-squash, ADR-0184); and a sixth, command-bearing observe gate
+proven REAL commits reached `main` non-squash, ADR-0184); a sixth, command-bearing observe gate
 runs the live-artifact `witnessable-verdict` check solely for Story UAT leg 3 (a recent spine-driven
-DRIVEN verdict for a drive-machinery node, landed in `main`'s ancestry, ADR-0184). None of gates 4–6
-carries a `(covers:)` — the first three gates already cover the capabilities, and gates 4, 5, and 6
+DRIVEN verdict for a drive-machinery node, landed in `main`'s ancestry, ADR-0184); and a seventh,
+command-bearing observe gate runs the live-artifact `dogfood-witness` check solely for Story UAT leg 7
+(the cold-start dogfood probe — a fresh, uncoached `claude -p` agent onboarding from CLAUDE.md alone
+reached a signed verdict for a `dogfood-probe-*` node it authored, ADR-0184). None of gates 4–7
+carries a `(covers:)` — the first three gates already cover the capabilities, and gates 4, 5, 6, and 7
 each prove a UAT leg, not a capability.
 The first three gates cover the 18 already-built capabilities. The 18th —
 [`adoption-pocket-classifier`](adoption-pocket-classifier.md)
@@ -482,15 +488,33 @@ the existing green is the honest brownfield floor.
    needs the live store + a full clone); observe-and-signed during a deliberate adoption (`storytree gate
    run drive-machinery#gate-6 --pg`). Its pure teeth are covered offline by `witnessable-verdict.test.ts`.
    Carries no `(covers:)` — it proves a UAT leg, not a capability.
+7. **A fresh uncoached agent reached a signed verdict** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/dogfood-witness.check.ts`.
+   The machine witness for Story UAT leg 7 (ADR-0184): a live-artifact check that a spine-driven
+   DRIVEN-tier passing verdict for a `dogfood-probe-*` node — one authored by a fresh, uncoached
+   `claude -p` agent onboarding from CLAUDE.md alone (`dogfood-probe.run.ts`) — exists in
+   `events.verdict`, is recent (≤90 days), and pins a commit in HEAD's ancestry (it landed non-squash).
+   It reuses leg 3's pure witness core (`selectWitnessableVerdict`), scoped to the dogfood-probe
+   namespace. The "a fresh UNCOACHED agent produced it" property is guaranteed by the harness's
+   construction — its task prompt names no inner-loop mechanic (`auditUncoached`, proven by
+   `dogfood-probe.test.ts`) and is code-reviewed once (ADR-0184 d.4) — not re-judged by this gate per
+   run. The heavy live probe run is OUT-OF-BAND (ADR-0010 §5); this cheap command only witnesses the
+   persisted signed pass. Kept OUT of `pnpm -r test` (live store + full clone); observe-and-signed
+   during a deliberate adoption (`storytree gate run drive-machinery#gate-7 --pg`). Its pure teeth are
+   the leg-3 core's (`witnessable-verdict.test.ts`) plus the uncoached-prompt audit
+   (`dogfood-probe.test.ts`). Carries no `(covers:)` — it proves a UAT leg, not a capability.
 
-Adopting all six flips the tier off `mapped`. `healthy` stays non-authorable
+Adopting all seven flips the tier off `mapped`. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
 when every capability is `healthy` AND every own-proof obligation (these reliability gates) is signed
-AND the **human-witnessed** Story UAT above is attested (the story node is withheld, ADR-0040;
+AND every Story UAT leg above is green. That Story UAT is now FULLY machine-witnessed (ADR-0184): each
+leg derives green from its bound gate's signed verdict through the same adopt/observe path as these
+reliability gates, NOT from a human "I saw it work" attestation (the story node stays withheld until
+then, ADR-0040;
 [ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
-ADR-0083 Fork A + ADR-0085). No single gate greens the story.
+ADR-0083 Fork A + ADR-0085 still govern how each machine UAT leg derives green). No single gate greens
+the story.
 
 ## Proof
 
