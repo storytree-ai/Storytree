@@ -388,4 +388,40 @@ describe('TerminalDock', () => {
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
     expect(bridgeMock.write).not.toHaveBeenCalled();
   });
+
+  // ── tdp-header-right-slot (contract 7 — the terminal-repo-picker header affordance) ──────────
+  it('tdp-header-right-slot-renders-when-provided: an optional headerRight node renders in the dock header, as a sibling of the toggle button (never nested inside it)', async () => {
+    const { container } = render(
+      <TerminalDock headerRight={<button type="button">Pick repo</button>} />,
+    );
+    await expand();
+
+    const headerRightBtn = screen.getByRole('button', { name: 'Pick repo' });
+    expect(dockRoot(container).contains(headerRightBtn)).toBe(true);
+
+    // A sibling of the toggle button, never nested inside it — keeps valid HTML (no nested
+    // interactive controls inside a <button>).
+    expect(toggle().contains(headerRightBtn)).toBe(false);
+  });
+
+  it('tdp-header-right-slot-absent-by-default: with no headerRight prop the header renders exactly as before — no header-right container at all', async () => {
+    const { container } = render(<TerminalDock />);
+    await expand();
+
+    expect(container.querySelector('.terminal-dock-header-right')).toBeNull();
+  });
+
+  // ── tdp-empty-session-shows-honest-message (contract 8 — the main-side fail-close feedback) ──
+  it('tdp-empty-session-shows-honest-message: spawn() resolving an empty sessionId writes an honest one-line message and wires no live session (input inert, never a blank screen)', async () => {
+    bridgeMock.spawn.mockResolvedValueOnce({ sessionId: '' });
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(term.written.some((w) => /no repository selected/i.test(w))).toBe(true);
+
+    // No live session was wired — typing into the terminal never reaches the bridge.
+    term.typeIn('ls\n');
+    expect(bridgeMock.write).not.toHaveBeenCalled();
+  });
 });
