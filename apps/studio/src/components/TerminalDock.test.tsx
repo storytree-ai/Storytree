@@ -389,8 +389,8 @@ describe('TerminalDock', () => {
     expect(bridgeMock.write).not.toHaveBeenCalled();
   });
 
-  // ── tdp-header-right-slot (contract 7 — the terminal-repo-picker header affordance) ──────────
-  it('tdp-header-right-slot-renders-when-provided: an optional headerRight node renders in the dock header, as a sibling of the toggle button (never nested inside it)', async () => {
+  // ── tdp-renders-header-right-slot (contract 7 — the terminal-repo-picker header affordance) ──
+  it('tdp-renders-header-right-slot: an optional headerRight node renders in the dock header, as a sibling of the toggle button (never nested inside it)', async () => {
     const { container } = render(
       <TerminalDock headerRight={<button type="button">Pick repo</button>} />,
     );
@@ -404,15 +404,15 @@ describe('TerminalDock', () => {
     expect(toggle().contains(headerRightBtn)).toBe(false);
   });
 
-  it('tdp-header-right-slot-absent-by-default: with no headerRight prop the header renders exactly as before — no header-right container at all', async () => {
+  it('tdp-renders-header-right-slot: absent by default — with no headerRight prop the header renders exactly as before, no header-right container at all', async () => {
     const { container } = render(<TerminalDock />);
     await expand();
 
     expect(container.querySelector('.terminal-dock-header-right')).toBeNull();
   });
 
-  // ── tdp-empty-session-shows-honest-message (contract 8 — the main-side fail-close feedback) ──
-  it('tdp-empty-session-shows-honest-message: spawn() resolving an empty sessionId writes an honest one-line message and wires no live session (input inert, never a blank screen)', async () => {
+  // ── tdp-shows-message-on-empty-session (contract 8 — the main-side fail-close feedback) ──────
+  it('tdp-shows-message-on-empty-session: spawn() resolving an empty sessionId writes an honest one-line message and wires no live session (input inert, never a blank screen)', async () => {
     bridgeMock.spawn.mockResolvedValueOnce({ sessionId: '' });
     render(<TerminalDock />);
     await expand();
