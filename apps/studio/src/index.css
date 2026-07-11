@@ -2404,6 +2404,62 @@ a.stat:hover {
   font-size: 12.5px;
 }
 
+/* ── Repo picker: choose which repo the embedded terminal opens in (repo-picker-panel capability,
+   terminal-repo-picker story, ADR-0174 follow-on).
+   ──────────────────────────────────────────────────────────────────────────────────────────────────
+   A compact control mounted BESIDE the terminal dock (never inside the byte-locked TerminalDock), in its
+   OWN .repo-picker namespace — never a .terminal-dock* selector. It floats bottom-left over the map frame
+   at z-index 7 (above the dock's z-index 6) so it stays reachable whether the dock is folded or expanded.
+   Warm-dark forest-cozy palette to read cohesively with the terminal dock. APPEARANCE IS OPERATOR-ATTESTED
+   (the story's UAT leg 5, ADR-0070): these colours + placement are re-witnessed by the owner, sign no
+   visual verdict, and no jsdom test asserts them. */
+.repo-picker {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(60%, 520px);
+  padding: 5px 6px 5px 12px;
+  border: 1px solid #38301f;
+  border-radius: 999px;
+  background: color-mix(in srgb, #1e1a15 92%, transparent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  font-family: var(--mono), ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+/* The picked path (or a "default checkout" label) — ellipsised so a long path never blows out the pill. */
+.repo-picker-selection {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cbb892;
+}
+.repo-picker-button {
+  flex: 0 0 auto;
+  padding: 3px 12px;
+  border: 1px solid #4a3f2c;
+  border-radius: 999px;
+  background: transparent;
+  color: #8c7f66;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.repo-picker-button:hover {
+  background: color-mix(in srgb, #8fb87a 14%, transparent);
+  color: #cbe0b5;
+}
+/* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled pill — never calls the bridge. */
+.repo-picker-unavailable {
+  padding: 1px 6px;
+  color: #6f6450;
+}
+
 /* The panel is a full-height flex column: the scrollback (.chat-outcome) grows and scrolls, the input
    row (.chat-form) and hint pin to the bottom — FULL WIDTH, never a centered column. */
 .chat-panel {
