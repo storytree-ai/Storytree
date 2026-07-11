@@ -136,6 +136,27 @@ export function TerminalDock(): React.JSX.Element {
     };
   }, [bridge]);
 
+  // Contract 6 — re-focus the mounted xterm after a window blur/focus cycle (another window/app had
+  // stolen focus; the user clicks back). xterm's hidden input textarea does not regain focus on its
+  // own, so we drive it explicitly on the events that mean "the user is back on the terminal": the
+  // window regaining focus, a click/mousedown on the dock body, and the document coming back visible.
+  // Guarded by `termRef.current` — a no-op while nothing is mounted (folded dock / absent bridge).
+  useEffect(() => {
+    const refocus = (): void => {
+      termRef.current?.focus();
+    };
+    const onWindowFocus = (): void => refocus();
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') refocus();
+    };
+    window.addEventListener('focus', onWindowFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
   // Resize by dragging the top edge: UP (smaller clientY) GROWS the dock, DOWN shrinks it. Each move
   // re-fits the terminal (which forwards the new geometry to the bridge via `onResize` above) and
   // clamps the dock height to [MIN_HEIGHT, maxHeight(asideRef.current)].
@@ -211,7 +232,12 @@ export function TerminalDock(): React.JSX.Element {
 
       {/* The xterm mount stays MOUNTED under `hidden` (not conditional render), preserving the session
           across a fold → unfold. */}
-      <div className="terminal-dock-body" hidden={!expanded} ref={bodyRef} />
+      <div
+        className="terminal-dock-body"
+        hidden={!expanded}
+        ref={bodyRef}
+        onMouseDown={() => termRef.current?.focus()}
+      />
     </aside>
   );
 }
