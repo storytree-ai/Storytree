@@ -52,13 +52,23 @@ test('pty sessions survive a route change: away to Overview and back re-attaches
   const app = await electron.launch({
     args: ['.', ...ciArgs],
     cwd: appDir,
-    env: { ...process.env, STORYTREE_STUDIO_STORE: 'json' },
+    // Clear any env runtime pin (ADR-0181) so the walk serves THIS checkout's freshly-built code via
+    // the launch-checkout fallback. NOTE a dev box may also pin via ~/.storytree/desktop.runtime.json —
+    // that pin must resolve to a main worktree CONTAINING this feature (post-land it does), else stage
+    // the walk with the config set aside. (Redirecting USERPROFILE to dodge the file is NOT an option:
+    // the native keychain hard-crashes Electron without a real profile.)
+    env: { ...process.env, STORYTREE_STUDIO_STORE: 'json', STORYTREE_DESKTOP_RUNTIME: '' },
   });
   /** Restore whatever repo selection the machine really had (the spec borrows the owner's file). */
   let restoreSelection = () => {};
   try {
     const win = await app.firstWindow();
     await stubApi(win);
+
+    // The main shows a "Starting storytree" launch page, boots the sidecar, then NAVIGATES the window
+    // to the served studio URL — an evaluate racing that swap dies "execution context destroyed". Wait
+    // for the studio origin before driving the renderer (the /api stubs registered above persist).
+    await win.waitForURL(/^http:\/\/127\.0\.0\.1:/, { timeout: 120_000 });
 
     // Satisfy the repo gate BEFORE entering the forest: write the persisted selection main reads
     // (userData/repo-selection.json), backing up any real one so a dev box is left untouched.
