@@ -561,6 +561,9 @@ function toGuidanceAsset(rendered: {
   provenance?: string;
   fields?: Record<string, string>;
   degraded?: string;
+  stepRefs?: { step: string; refs: string[] }[];
+  branchEdges?: { ref: string; label?: string | undefined }[];
+  arcRef?: string;
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
@@ -574,6 +577,12 @@ function toGuidanceAsset(rendered: {
     ...(rendered.provenance ? { provenance: rendered.provenance } : {}),
     ...(rendered.fields ? { fields: rendered.fields } : {}),
     ...(rendered.degraded ? { degraded: rendered.degraded } : {}),
+    // The typed navigation edges ride the wire ONLY when the structured doc carries them
+    // (absent-by-default, never an empty array) — the inc-9 overview draws the richer
+    // agent/process/plan lineage with them (ADR-0187 dec 3).
+    ...(rendered.stepRefs ? { stepRefs: rendered.stepRefs } : {}),
+    ...(rendered.branchEdges ? { branchEdges: rendered.branchEdges } : {}),
+    ...(rendered.arcRef ? { arcRef: rendered.arcRef } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };
