@@ -608,6 +608,21 @@ ipcMain.on("terminal:dispose", (_e, id: string) => {
   terminalManager.dispose(id);
   terminalSessions.delete(id);
 });
+// The ADR-0189 re-attach slice: sessions are APP-owned (the dock's unmount no longer disposes them), so
+// a remounting dock enumerates the still-live sessions and replays their buffered scrollback. The
+// per-repo ownership POLICY lives here, not in the manager: `terminal:list` filters to the currently
+// selected repo's cwd, so a repo change shows only that repo's sessions (the others stay alive,
+// invisible until their repo is selected again — only "×"/app-quit kill). `terminal:snapshot` answers
+// "" for an unknown/disposed id, mirroring the manager's fail-closed null.
+ipcMain.handle("terminal:list", (): Array<{ sessionId: string }> => {
+  const repoCwd = selectedRepoCwd();
+  if (repoCwd === null) return [];
+  return terminalManager
+    .list()
+    .filter((s) => s.cwd === repoCwd)
+    .map((s) => ({ sessionId: s.sessionId }));
+});
+ipcMain.handle("terminal:snapshot", (_e, id: string): string => terminalManager.snapshot(id) ?? "");
 
 // ---------- apply-a-landed-fix: rebuild + relaunch (ADR-0164 Phase 1) ----------
 //
