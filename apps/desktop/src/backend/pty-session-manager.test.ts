@@ -269,3 +269,32 @@ test("concurrent sessions are isolated: routing and disposal never cross session
   assert.equal(handleB.killCount, 0);
   assert.equal(manager.size, 1);
 });
+
+// ---------------------------------------------------------------------------
+// scrollback ring + snapshot (contract 6 — ADR-0189 app-owned sessions: the
+// manager, not the renderer, holds each live session's recent output so a
+// re-attaching dock can replay it into a fresh xterm).
+// ---------------------------------------------------------------------------
+
+test("snapshot: buffers routed output in a byte-capped ring, trims the oldest chunks first, and fails closed to null for an unknown or disposed session", () => {
+  const port = new FakePtyPort();
+  // A tiny cap makes the trim deterministic and observable in a few chunks.
+  const manager = new PtySessionManager(port, { scrollbackBytes: 5 });
+  const sessionId = manager.create(BASE_OPTS, () => {}, () => {});
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("AAAAA"); // 5 bytes — exactly fills the cap.
+  handle.emitData("BB"); // total would be 7 > 5 — the oldest chunk ("AAAAA") is trimmed.
+  handle.emitData("CCC"); // total is back to exactly 5 — no trim needed.
+
+  // Only the surviving, most-recent chunks are in the buffer — the oldest chunk is gone.
+  assert.equal(manager.snapshot(sessionId), "BBCCC");
+
+  // Fail-closed: an unknown session id yields null, never a throw.
+  assert.equal(manager.snapshot("no-such-session"), null);
+
+  // The buffer is freed with the session on dispose.
+  manager.dispose(sessionId);
+  assert.equal(manager.snapshot(sessionId), null);
+});

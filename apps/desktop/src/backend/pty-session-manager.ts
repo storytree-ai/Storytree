@@ -31,7 +31,18 @@ type ExitSink = (sessionId: string, e: { exitCode: number }) => void;
 
 interface Session {
   handle: PtyHandle;
+  cwd: string | null;
+  chunks: string[];
+  bytes: number;
 }
+
+export interface PtySessionManagerOptions {
+  /** Total bytes of buffered scrollback kept per session (oldest chunks trimmed first). */
+  scrollbackBytes?: number;
+}
+
+// Generous default — sized for several thousand lines of typical terminal output.
+const DEFAULT_SCROLLBACK_BYTES = 5_000_000;
 
 let nextSessionSeq = 0;
 
@@ -43,9 +54,11 @@ function generateSessionId(): string {
 export class PtySessionManager {
   readonly #port: PtyPort;
   readonly #sessions = new Map<string, Session>();
+  readonly #scrollbackBytes: number;
 
-  constructor(port: PtyPort) {
+  constructor(port: PtyPort, opts: PtySessionManagerOptions = {}) {
     this.#port = port;
+    this.#scrollbackBytes = opts.scrollbackBytes ?? DEFAULT_SCROLLBACK_BYTES;
   }
 
   get size(): number {
@@ -59,14 +72,16 @@ export class PtySessionManager {
   create(opts: PtySpawnOptions, onData: DataSink, onExit: ExitSink): string {
     const sessionId = generateSessionId();
     const handle = this.#port.spawn(opts);
-    this.#sessions.set(sessionId, { handle });
+    this.#sessions.set(sessionId, { handle, cwd: opts.cwd ?? null, chunks: [], bytes: 0 });
 
     handle.onData((chunk) => {
-      if (!this.#sessions.has(sessionId)) {
+      const session = this.#sessions.get(sessionId);
+      if (!session) {
         // Disposed already — a late chunk from a race after kill() is dropped, not
         // routed to a freed sink.
         return;
       }
+      this.#appendChunk(session, chunk);
       onData(sessionId, chunk);
     });
 
@@ -107,5 +122,26 @@ export class PtySessionManager {
     this.#sessions.delete(sessionId);
     session.handle.kill();
     return true;
+  }
+
+  /** The session's buffered scrollback — what a re-attaching renderer replays into a
+   * fresh xterm. Fail-closed: null (never a throw) for an unknown or disposed id. */
+  snapshot(sessionId: string): string | null {
+    const session = this.#sessions.get(sessionId);
+    if (!session) {
+      return null;
+    }
+    return session.chunks.join("");
+  }
+
+  #appendChunk(session: Session, chunk: string): void {
+    session.chunks.push(chunk);
+    session.bytes += Buffer.byteLength(chunk, "utf8");
+    while (session.bytes > this.#scrollbackBytes && session.chunks.length > 0) {
+      const oldest = session.chunks.shift();
+      if (oldest !== undefined) {
+        session.bytes -= Buffer.byteLength(oldest, "utf8");
+      }
+    }
   }
 }
