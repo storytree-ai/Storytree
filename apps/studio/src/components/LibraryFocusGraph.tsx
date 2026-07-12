@@ -38,6 +38,8 @@ export interface LibraryFocusGraphProps {
   selection: SearchResult | null;
   /** Invoked with a neighbour's result when the user graph-walks onto it (or steps back). */
   onFocus: (result: SearchResult) => void;
+  /** Invoked with a double-clicked node's finder-parity result — additive to `onFocus`. */
+  onOpen?: (result: SearchResult) => void;
 }
 
 const DEFAULT_DEPTH = 1;
@@ -62,6 +64,7 @@ export function LibraryFocusGraph({
   docs,
   selection,
   onFocus,
+  onOpen,
 }: LibraryFocusGraphProps): React.JSX.Element {
   const arcDisplay = useArcDisplay();
   const [depth, setDepth] = useState(DEFAULT_DEPTH);
@@ -123,6 +126,7 @@ export function LibraryFocusGraph({
         data-chain={node.onChain ? 'true' : undefined}
         data-ephemeral={node.ephemeral ? 'true' : undefined}
         onClick={() => handleNodeClick(node)}
+        onDoubleClick={() => onOpen?.(toSearchResult(node))}
       >
         <div className="lfg-node-title">{node.title}</div>
         <div className="lfg-node-kind" data-testid={`lfg-node-kind-${node.id}`}>

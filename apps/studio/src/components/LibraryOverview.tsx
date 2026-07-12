@@ -44,6 +44,8 @@ export interface LibraryOverviewProps {
   docs: DocMeta[];
   /** Invoked with the clicked node's finder-parity result — the overview lifts, never owns. */
   onSelect: (result: SearchResult) => void;
+  /** Invoked with a double-clicked node's finder-parity result — additive to `onSelect`. */
+  onOpen?: (result: SearchResult) => void;
 }
 
 const MIN_ZOOM = 0.5;
@@ -59,7 +61,7 @@ function radiusFor(tier: SizeTier): number {
 }
 
 /** The Library overview: the whole-corpus, empty-state constellation dot field. */
-export function LibraryOverview({ assets, docs, onSelect }: LibraryOverviewProps): React.JSX.Element {
+export function LibraryOverview({ assets, docs, onSelect, onOpen }: LibraryOverviewProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const arcDisplay = useArcDisplay();
@@ -98,6 +100,7 @@ export function LibraryOverview({ assets, docs, onSelect }: LibraryOverviewProps
         data-glow={glowing ? 'true' : undefined}
         transform={`translate(${pos.x}, ${pos.y})`}
         onClick={() => onSelect(node)}
+        onDoubleClick={() => onOpen?.(node)}
       >
         {shape === 'circle' ? (
           <circle className="library-overview-node-shape" r={r} />
