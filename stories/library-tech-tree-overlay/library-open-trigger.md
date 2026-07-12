@@ -6,7 +6,7 @@ title: "Double-clicking a node on either node surface (the overview constellatio
 outcome: "Double-clicking a node OPENS it (ADR-0187 dec 2): on the overview constellation and on the focus subgraph, a `fireEvent.doubleClick` on a node invokes an optional `onOpen(result)` prop with the node's finder-parity `SearchResult` (`{source:'asset',category}` for an artifact / `{source:'doc',category:'adr'}` for an ADR). The edits are ADDITIVE to the signed components — an optional `onOpen?` prop + an `onDoubleClick` handler per node — so the existing single-click `onSelect` contracts (`lov-*` / `lfg-*`) stay byte-green. The double-click-opens behaviour on both surfaces is machine-witnessed; the surfaces' appearance stays the incs-3/5 operator-attested legs."
 status: proposed
 proof_mode: integration-test
-depends_on: [library-overview, library-focus-subgraph]
+depends_on: [library-overview, library-dag-canvas]
 decisions: [187, 185, 70, 23]
 # Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting: true): ADDITIVE edits to the two
 # SIGNED node surfaces (LibraryOverview.tsx — the overview constellation, `lov-*`; LibraryFocusGraph.tsx — the
@@ -75,11 +75,12 @@ double-click-opens behaviour on both surfaces is machine-witnessed; the surfaces
 (`lfg`) / 5 (`lov`) operator-attested legs.
 
 **Depends on —** [`library-overview`](library-overview.md) and
-[`library-focus-subgraph`](library-focus-subgraph.md). This capability ADDS the double-click Open trigger to
+[`library-dag-canvas`](library-dag-canvas.md). This capability ADDS the double-click Open trigger to
 BOTH landed node surfaces — it edits `LibraryOverview.tsx` (the overview constellation, inc 5) and
-`LibraryFocusGraph.tsx` (the focus subgraph, inc 3), so it needs both delivered surfaces (their nodes, their
-finder-parity result shape) as its precondition. Both are genuine within-story code edges — this cap edits
-both components — so `depends_on: [library-overview, library-focus-subgraph]`. It holds no backend seam — the
+`LibraryFocusGraph.tsx` (the focus DAG canvas — reworked from the inc-3 focus subgraph, the source file keeps
+its name), so it needs both delivered surfaces (their nodes, their finder-parity result shape) as its
+precondition. Both are genuine within-story code edges — this cap edits both components — so
+`depends_on: [library-overview, library-dag-canvas]`. It holds no backend seam — the
 double-click reads only the node already rendered from the loaded corpus and lifts a `SearchResult`, so it is
 deterministically drivable in jsdom.
 

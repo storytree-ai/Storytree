@@ -5028,129 +5028,127 @@ button.legend-tile:hover {
   font-size: 0.92em;
 }
 
-/* ── the focus subgraph (ADR-0185 inc 3): references[] both ways, dagre LR,
-      kind is text / colour is state (selected chain purple, ephemeral dashed) ── */
-.library-focus-graph {
+/* ── the focus DAG canvas (ADR-0188 dec 5 / dec 7 seed-packet): an SVG layered
+      reference DAG — drawn vine edges, positioned plaques, per-node ⊕ expanders,
+      a fit-to-view viewBox; kind is text / colour is state (selected chain warm,
+      ephemeral dashed). The geometry is machine-proven (library-dag-canvas); this
+      appearance is the operator-attested look leg (shared inc-9+10 sitting). ── */
+.library-focus-graph-shell {
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    'crumb  crumb  crumb'
-    'up     centre down';
-  gap: 10px 16px;
-  padding: 12px 14px;
-  overflow: auto;
-  align-content: start;
-}
-.library-focus-graph:empty::after,
-.library-focus-graph > .lfg-empty {
-  grid-area: centre;
-  color: color-mix(in srgb, var(--text) 45%, transparent);
-  font-size: 0.85em;
+  display: flex;
+  flex-direction: column;
 }
 .lfg-breadcrumb {
-  grid-area: crumb;
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  padding: 8px 12px;
   font-size: 0.78em;
-  color: color-mix(in srgb, var(--text) 55%, transparent);
+  color: var(--lp-ink-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--lp-border) 60%, transparent);
 }
-.lfg-breadcrumb-entry::after {
-  content: '›';
-  margin-left: 6px;
-  color: color-mix(in srgb, var(--text) 35%, transparent);
-}
-.lfg-breadcrumb button,
-.lfg-depth-stepper button,
-.lfg-cluster-chip {
+.lfg-breadcrumb button {
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  color: var(--text);
-  background: color-mix(in srgb, var(--board-1) 55%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-strong) 55%, transparent);
-  border-radius: 8px;
-  padding: 2px 9px;
+  color: var(--lp-ink);
+  background: var(--lp-bar);
+  border: 1px solid var(--lp-border);
+  border-radius: 999px;
+  padding: 3px 12px;
 }
-.lfg-breadcrumb button:hover,
-.lfg-depth-stepper button:hover,
-.lfg-cluster-chip:hover {
-  border-color: var(--accent);
+.lfg-breadcrumb button:hover:not(:disabled) {
+  border-color: var(--lp-sprout);
+  background: color-mix(in srgb, var(--lp-sprout) 16%, var(--lp-bar));
 }
-.lfg-depth-stepper {
-  grid-area: crumb;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82em;
-  color: color-mix(in srgb, var(--text) 60%, transparent);
+.lfg-breadcrumb button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
-.lfg-column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
+.lfg-breadcrumb-entry {
+  color: color-mix(in srgb, var(--lp-ink-soft) 85%, transparent);
 }
-.lfg-column-upstream {
-  grid-area: up;
-  align-items: flex-end;
+.lfg-breadcrumb-entry::before {
+  content: '›';
+  margin: 0 6px 0 2px;
+  color: color-mix(in srgb, var(--lp-ink-soft) 55%, transparent);
 }
-.lfg-column-centre {
-  grid-area: centre;
-  align-items: center;
-  justify-content: center;
+/* the fit-to-view SVG canvas — the viewBox (machine geometry) frames every node;
+   preserveAspectRatio meet keeps the whole DAG legible as depth grows. */
+.library-focus-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: block;
+  background: var(--lp-panel);
 }
-.lfg-column-downstream {
-  grid-area: down;
-  align-items: flex-start;
+/* drawn reference edges — soft moss vine strokes, under the plaques. */
+.ldag-edge {
+  stroke: var(--lp-moss);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.32;
+  pointer-events: none;
 }
-.lfg-node {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-width: 200px;
-  padding: 7px 11px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--board-1) 55%, #ffffff 45%);
+/* the node plaque — a seed-packet card; kind is text, colour is state. */
+.ldag-node {
   cursor: pointer;
 }
-.lfg-node:hover {
-  border-color: var(--accent);
+.ldag-node-rect {
+  fill: color-mix(in srgb, var(--lp-panel-2) 70%, #ffffff 30%);
+  stroke: var(--lp-border);
+  stroke-width: 1.5;
 }
-.lfg-column-centre .lfg-node {
-  border-width: 2px;
+.ldag-node:hover .ldag-node-rect {
+  stroke: var(--lp-sprout);
 }
-/* colour = state (ADR-0185 dec 3): the selected node + its transitive chain light
-   purple — the map's trail-reveal idiom (ADR-0169). */
-.lfg-node[data-chain='true'] {
-  border-color: #8b5cf6;
-  background: color-mix(in srgb, #8b5cf6 14%, var(--board-1) 40%);
+.ldag-node[data-side='centre'] .ldag-node-rect {
+  stroke: var(--lp-moss);
+  stroke-width: 2.5;
 }
-.lfg-node[data-chain='true'] .lfg-node-kind {
-  color: color-mix(in srgb, #8b5cf6 70%, var(--text) 30%);
+.ldag-node-title {
+  fill: var(--lp-ink);
+  font-weight: 600;
+  font-size: 12.5px;
 }
-/* ephemeral kinds (plan) render dashed — one channel per meaning. */
-.lfg-node[data-ephemeral='true'] {
-  border-style: dashed;
-}
-.lfg-node-title {
-  color: var(--text);
-  font-weight: 500;
-  font-size: 0.86em;
-  line-height: 1.2;
-}
-.lfg-node-kind {
-  color: color-mix(in srgb, var(--text) 55%, transparent);
-  font-size: 0.74em;
-  letter-spacing: 0.03em;
+.ldag-node-kind {
+  fill: var(--lp-ink-soft);
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.lfg-cluster-chip {
-  font-size: 0.78em;
-  color: color-mix(in srgb, var(--text) 65%, transparent);
+/* colour = state: the selected node + its transitive chain warm to sun/clay —
+   the map's trail-reveal idiom (ADR-0169) in the seed-packet palette (dec 7). */
+.ldag-node[data-chain='true'] .ldag-node-rect {
+  stroke: var(--lp-clay);
+  fill: color-mix(in srgb, var(--lp-sun) 16%, var(--lp-panel-2));
+}
+.ldag-node[data-chain='true'] .ldag-node-kind {
+  fill: color-mix(in srgb, var(--lp-clay) 70%, var(--lp-ink) 30%);
+}
+/* ephemeral kinds (plan) render dashed — one channel per meaning. */
+.ldag-node[data-ephemeral='true'] .ldag-node-rect {
+  stroke-dasharray: 5 3;
+}
+/* the per-branch ⊕ expander — a sprout bud that reveals a collapsed fan in place. */
+.ldag-expander {
+  cursor: pointer;
+}
+.ldag-expander-circle {
+  fill: var(--lp-sprout);
+  stroke: var(--lp-moss);
+  stroke-width: 1.5;
+}
+.ldag-expander:hover .ldag-expander-circle {
+  fill: color-mix(in srgb, var(--lp-sun) 55%, var(--lp-sprout));
+}
+.ldag-expander-label {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
 }
