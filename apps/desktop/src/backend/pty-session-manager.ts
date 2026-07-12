@@ -134,6 +134,15 @@ export class PtySessionManager {
     return session.chunks.join("");
   }
 
+  /** The live sessions — id, spawn cwd, in creation order. A disposed or self-exited
+   * session drops out. Facts only, no policy (e.g. per-repo scoping lives in the glue). */
+  list(): Array<{ sessionId: string; cwd: string | null }> {
+    return Array.from(this.#sessions.entries()).map(([sessionId, session]) => ({
+      sessionId,
+      cwd: session.cwd,
+    }));
+  }
+
   #appendChunk(session: Session, chunk: string): void {
     session.chunks.push(chunk);
     session.bytes += Buffer.byteLength(chunk, "utf8");
