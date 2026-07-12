@@ -18,6 +18,17 @@ shipped the FIRST; this ADR chooses the SECOND and makes the terminal multi-sess
 (the terminal is the interactive surface only) — this changes only the interactive terminal, never the
 proof runtime.
 
+**Amended by ADR-0189 (2026-07-12), reciprocal note.** The "never orphan a pty" wall this ADR set —
+generalising ADR-0174's dock-unmount disposal into "dispose EVERY session on tab-close AND on dock unmount"
+(the `mst-disposes-all-sessions-on-unmount` contract) — is **redefined, not deleted**, by ADR-0189: pty
+sessions are owned by the **app**, keyed to the selected repo, not by the dock's mount. Leaving the forest
+page now RE-ATTACHES later (main-held scrollback + `terminal:list`/`terminal:snapshot`) instead of killing;
+the ONLY kills become the explicit per-tab "×" and window-close / app-quit — nothing outlives the app. The
+multi-session/tab decision itself stands unchanged; only the unmount-kills clause is reversed
+(`mst-disposes-all-sessions-on-unmount` → `mst-unmount-preserves-sessions`). (ADR-0189 is the incoming
+`amends` edge; this ADR's body is left intact per copy-on-write — the reversed lifecycle is stated here and
+inline at the Consequences note below.)
+
 ## Context
 
 ADR-0174 embedded a **single-session** local terminal (`stories/embedded-terminal`, PR #690) whose whole
@@ -65,6 +76,9 @@ never touched. This chooses ADR-0174's *second* map-spawn option and **re-points
 **Bad / watch.**
 - Multi-session/tab management is real renderer surface: per-tab xterm lifecycle, switch/close, and
   reaping every session on close / app-quit (never orphan a pty). This is the build follow-on.
+  *(Amended by ADR-0189: "never orphan a pty" is redefined app-lifetime — dock unmount no longer reaps, it
+  re-attaches; "reaping every session on close" now means the explicit per-tab "×", not leaving the page.
+  Only "×" and app-quit kill.)*
 - It **re-decides** `map-terminal-build`'s `terminal-dock-seed` behaviour (write-to-active → open-a-tab),
   so that cap's verdict is re-proven under the new behaviour, and `TerminalDock.tsx` (the signed
   `terminal-dock-panel` source, embedded-terminal) is substantially edited → re-prove/adopt as the gate

@@ -36,6 +36,15 @@ terminal **multi-session with a tab strip** to support it (built by `terminal-ta
 therefore no longer single-session; see the inline note on the map-spawn clause. (ADR-0186 is the incoming
 `amends` edge; this ADR's Decision text is left intact as the original two-option decision, per copy-on-write.)
 
+**Amended by ADR-0189 (2026-07-12), reciprocal note.** ADR-0174's embedded terminal disposed its session
+when the dock unmounted — pty lifetime was bound to the dock's mount. ADR-0189 moves session ownership from
+dock-lifetime to **app-lifetime**: leaving the forest page RE-ATTACHES later instead of killing, and only
+the explicit per-tab "×" and window-close / app-quit end a session. The generic "lifecycle … must be
+handled" clause in the Consequences below is unchanged in intent (spawn / resize / dispose / app-quit are
+still handled); what moved is WHEN a session dies — never on a route change. (ADR-0189 is the incoming
+`amends` edge — via ADR-0186's multi-session terminal, which this amended; this ADR's body is left intact
+per copy-on-write.)
+
 ## Context
 
 The storytree desktop app's value is the **observability layer over Claude Code** — the forest map,

@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-07-12
 amends: [174, 186]
+load_bearing: true
 arc: terminal-orchestrator-seat-arc
 ---
 # ADR-0189: Terminal pty sessions are app-owned: route changes re-attach, only tab-close and app-quit kill
