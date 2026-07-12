@@ -10,6 +10,13 @@ accepted (2026-07-11) — decided/directed by the owner in conversation on 2026-
 mockups iterated to alignment in-session). Design-time alignment IS the ratification (ADR-0110); no
 second end-of-flow ask. The look legs remain operator-attested at build time (ADR-0070 stage 2).
 
+**Amended in part by ADR-0187 (2026-07-12):** after the owner attested the increment-5 overview, the
+drawer state machine of **dec 1** (closed → peek → dive) is retired for a **permanent lens + an "Open"
+full-detail document overlay** (renamed from "Dive"), and **dec 4**'s overview look bar is raised to the
+mockup's information design (drawn edges, size + depth-of-colour = load-bearing, sidebar/legend chrome,
+hover cards, fit-to-view framing) — in the polished forest-cozy LIGHT of dec 5, which stands. dec 2/3/6
+are unchanged. This ADR otherwise stays accepted; read dec 1 and dec 4 through ADR-0187.
+
 ## Context
 
 The studio's Library surface is a separate page (`#/library`, a searchable list/grid) — a route
