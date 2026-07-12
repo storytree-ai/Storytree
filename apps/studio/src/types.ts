@@ -201,6 +201,20 @@ export interface DocMeta {
   status?: AdrDocStatus;
   /** The ADR's frontmatter `decided` date (ISO yyyy-mm-dd) when present — shown as the chip tooltip. */
   decided?: string;
+  /**
+   * The ADR's frontmatter `load_bearing` tag (ADR-0086) — present ONLY for `group === 'Decisions'`
+   * docs, and true only when the tag is explicitly `load_bearing: true`. Feeds the overview
+   * constellation's size + depth-of-colour = how load-bearing encoding (ADR-0187 dec 3). Optional /
+   * absent-by-default so every existing `DocMeta` reader (and the offline json path) keeps validating.
+   */
+  loadBearing?: boolean;
+  /**
+   * The ADR's outbound decision-lineage edges (ADR-0037/0086 `supersedes`/`supersedes_in_part`/`amends`)
+   * resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for `group === 'Decisions'` docs
+   * that carry at least one lineage edge. Lets the overview draw the ADR reference graph (ADR-0187
+   * dec 3), closing the increment-5 out-degree-0 gap. Optional / absent-by-default (back-compat).
+   */
+  references?: string[];
 }
 
 export interface DocContent {

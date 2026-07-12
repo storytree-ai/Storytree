@@ -51,6 +51,7 @@ import {
   type StudioStore,
 } from './libraryBackend';
 import { HttpError, sendJson } from './httpUtil';
+import { parseAdrWireSignals } from './adrWireSignals';
 import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
@@ -210,6 +211,12 @@ function deriveExcerpt(markdown: string): string {
 
 export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   const out: DocMeta[] = [];
+  // ADR number → its doc id (`decisions/NNNN-slug.md`), built during the walk so the wire-signal
+  // fold below can resolve each ADR's lineage-edge NUMBERS to `doc:` pointers (ADR-0187 dec 3).
+  const adrNumToId = new Map<number, string>();
+  // Per-Decisions-doc outbound edge NUMBERS, stashed during the walk and resolved after it — the
+  // number→id map is only complete once every ADR on disk has been walked.
+  const edgeNumbersById = new Map<string, number[]>();
   async function walk(dir: string): Promise<void> {
     if (!existsSync(dir)) return;
     for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
@@ -227,17 +234,41 @@ export async function listDocs(docsDir: string): Promise<DocMeta[]> {
           group,
           excerpt: deriveExcerpt(content),
         };
-        // Only Decisions docs carry a frontmatter status (ADR-0037); surface it for the card chip.
-        const fm = group === 'Decisions' ? parseDocStatus(ent.name, raw) : null;
-        if (fm) {
-          meta.status = fm.status;
-          if (fm.decided) meta.decided = fm.decided;
+        // Only Decisions docs carry frontmatter signals.
+        if (group === 'Decisions') {
+          // The ADR status chip (ADR-0037), surfaced for the card.
+          const fm = parseDocStatus(ent.name, raw);
+          if (fm) {
+            meta.status = fm.status;
+            if (fm.decided) meta.decided = fm.decided;
+          }
+          // The overview's load-bearing + lineage-edge wire signals (ADR-0187 dec 3,
+          // library-adr-wire-signals). `loadBearing` folds in now; the edge NUMBERS are stashed and
+          // resolved to `doc:` pointers after the walk (once every ADR number is known).
+          const wire = parseAdrWireSignals(ent.name, raw);
+          if (wire.loadBearing) meta.loadBearing = true;
+          if (wire.edges.length) edgeNumbersById.set(relId, wire.edges);
+          const num = Number.parseInt(ent.name.slice(0, 4), 10);
+          if (Number.isFinite(num)) adrNumToId.set(num, relId);
         }
         out.push(meta);
       }
     }
   }
   await walk(docsDir);
+  // Resolve each ADR's outbound lineage-edge NUMBERS to `doc:decisions/NNNN-slug.md` pointers now
+  // that the full number→id map is known; drop any number that names no ADR on disk (tolerant). The
+  // overview's `resolveRef` strips the `doc:` prefix and matches the bare id, so this pointer shape
+  // resolves against the corpus node ids (ADR-0187 dec 3).
+  for (const meta of out) {
+    const nums = edgeNumbersById.get(meta.id);
+    if (!nums) continue;
+    const refs = nums
+      .map((n) => adrNumToId.get(n))
+      .filter((id): id is string => id !== undefined)
+      .map((id) => `doc:${id}`);
+    if (refs.length) meta.references = refs;
+  }
   // Decisions first (ADR order by filename), then reference docs alphabetically.
   return out.sort((a, b) => {
     if (a.group !== b.group) return a.group === 'Decisions' ? -1 : 1;

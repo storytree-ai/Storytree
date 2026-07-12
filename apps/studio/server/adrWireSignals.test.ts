@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { parseAdrWireSignals } from './adrWireSignals.js';
 
 describe('parseAdrWireSignals', () => {
-  it('laws-load-bearing-true: reads load_bearing: true from the leading frontmatter block', () => {
+  it('laws-load-bearing-tag-true-when-present: reads load_bearing: true from the leading frontmatter block', () => {
     const raw = ['---', 'status: accepted', 'load_bearing: true', '---', '# ADR-0020'].join('\n');
     expect(parseAdrWireSignals('0020-red-green-enforcement-on-the-owned-loop.md', raw)).toEqual({
       loadBearing: true,
@@ -18,7 +18,7 @@ describe('parseAdrWireSignals', () => {
     });
   });
 
-  it('laws-load-bearing-false: a missing load_bearing tag or an explicit false both read as false', () => {
+  it('laws-load-bearing-defaults-false-when-absent: a missing load_bearing tag or an explicit false both read as false', () => {
     const withFalse = ['---', 'status: accepted', 'load_bearing: false', '---', '# ADR-0031'].join('\n');
     expect(parseAdrWireSignals('0031-real-pass-promotion.md', withFalse).loadBearing).toBe(false);
 
@@ -26,7 +26,7 @@ describe('parseAdrWireSignals', () => {
     expect(parseAdrWireSignals('0030-all-in-on-claude-agent-sdk.md', withoutTag).loadBearing).toBe(false);
   });
 
-  it('laws-edges-union-dedup: unions supersedes / supersedes_in_part / amends into deduped ADR numbers', () => {
+  it('laws-outbound-edges-union-supersedes-amends: unions supersedes / supersedes_in_part / amends into deduped ADR numbers', () => {
     const raw = [
       '---',
       'status: accepted',
@@ -41,7 +41,7 @@ describe('parseAdrWireSignals', () => {
     expect(result.edges.sort((a, b) => a - b)).toEqual([6, 9, 14, 33, 40, 41]);
   });
 
-  it('laws-leaf-adr-empty-edges: an ADR with none of the three lineage fields yields an empty edge set', () => {
+  it('laws-edges-empty-when-no-lineage-fields: an ADR with none of the three lineage fields yields an empty edge set', () => {
     const raw = ['---', 'status: accepted', 'load_bearing: true', '---', '# ADR-0002'].join('\n');
     expect(parseAdrWireSignals('0002-work-hierarchy-story-capability-contract.md', raw)).toEqual({
       loadBearing: true,
@@ -49,7 +49,7 @@ describe('parseAdrWireSignals', () => {
     });
   });
 
-  it('laws-tolerant-never-throws: non-ADR filename, missing block, unterminated block, absent fields all yield the safe empty result', () => {
+  it('laws-tolerant-empty-on-non-adr-or-malformed: non-ADR filename, missing block, unterminated block, absent fields all yield the safe empty result', () => {
     const empty = { loadBearing: false, edges: [] };
     expect(parseAdrWireSignals('open-questions.md', '# Open questions\n\nNo frontmatter here.')).toEqual(empty);
     expect(parseAdrWireSignals('0001-x.md', '# ADR with no frontmatter block at all')).toEqual(empty);
