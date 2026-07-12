@@ -89,7 +89,9 @@ FEED the seed. Only the dock's HANDLING of a seed changes.
 > "writes to the active session" contracts with the `son-*` "opens a fresh tab" contracts (the orchestrator
 > re-tenses `terminal-dock-seed.md` as superseded — a cross-story edit flagged in the story's Open modeling
 > calls). The pre-fill's LOOK/feel is the story's operator-attested UAT leg (ADR-0070); this cap pins the
-> WIRING + the safety wall.
+> WIRING + the safety wall. *(The `son-*` behaviours were subsequently re-proven unchanged under the
+> ADR-0189 app-owned-session re-drive of the same source — `terminal-dock-panel`'s
+> `tdp-reattaches-live-sessions-on-mount` rewrite; the anchored-bytes re-sign, seed semantics untouched.)*
 
 ## Guidance
 

@@ -2,7 +2,7 @@
 id: "terminal-tabs"
 tier: story
 title: "The embedded terminal is multi-session with a tab strip — a forest-map Build seed opens a FRESH tab, never the user's active Claude Code session"
-outcome: "The embedded terminal becomes multi-session with a tab strip: the dock holds N pty sessions, each its own xterm pane, switchable / creatable (a \"+\") / closable (a per-tab \"×\" that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds PER TAB — while the dock chrome (collapse/resize, the toggle, the headerRight slot that hosts the repo-gate gear) stays PER-DOCK, wrapping the tab set, and every session is disposed on tab-close AND on unmount. A forest-map Build seed no longer writes into the active session: it opens a FRESH tab (a new pty session), switches to it, and pre-fills the composed command there (still pre-fill, never auto-run), so a Build click can never corrupt the user's interactive Claude Code session running in another tab."
+outcome: "The embedded terminal becomes multi-session with a tab strip: the dock holds N pty sessions, each its own xterm pane, switchable / creatable (a \"+\") / closable (a per-tab \"×\" that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds PER TAB — while the dock chrome (collapse/resize, the toggle, the headerRight slot that hosts the repo-gate gear) stays PER-DOCK, wrapping the tab set; the per-tab \"×\" disposes exactly its session, and dock unmount preserves sessions (app-owned, ADR-0189). A forest-map Build seed no longer writes into the active session: it opens a FRESH tab (a new pty session), switches to it, and pre-fills the composed command there (still pre-fill, never auto-run), so a Build click can never corrupt the user's interactive Claude Code session running in another tab."
 status: proposed
 proof_mode: UAT
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "the terminal has a
@@ -66,8 +66,9 @@ sessions**, each its own xterm pane, **switchable** / **creatable** (a "+") / **
 that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in,
 resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds **per tab** —
 while the dock **chrome** (collapse/resize, the toggle, the `headerRight` slot that hosts the repo-gate
-gear) stays **per-dock**, wrapping the tab set, and every session is **disposed on tab-close AND on
-unmount**. A forest-map **Build seed** no longer writes into the active session: it **opens a FRESH tab**
+gear) stays **per-dock**, wrapping the tab set; the per-tab "×" **disposes exactly its session**, and dock
+unmount **preserves sessions** (app-owned — they re-attach on the next mount; ADR-0189, which redefined
+this story's original dispose-on-unmount wall). A forest-map **Build seed** no longer writes into the active session: it **opens a FRESH tab**
 (a new pty session), switches to it, and **pre-fills** the composed command there (still pre-fill, **never
 auto-run**), so a Build click **can never corrupt the user's interactive Claude Code session** running in
 another tab.
@@ -137,10 +138,12 @@ never silently.
   `node build --real` spends the subscription and parks a branch. Opening a *fresh* tab changes WHERE the
   command lands, never that a human must fire it deliberately
   ([`seed-opens-new-tab`](seed-opens-new-tab.md)'s `son-prefills-without-trailing-newline`).
-- **Never orphan a pty (the honest-lifecycle wall).** Every tab's session is disposed when its tab is
-  closed AND when the dock unmounts — the single-session dispose-on-unmount, now over the whole tab set
-  ([`multi-session-tabs`](multi-session-tabs.md)'s `mst-close-tab-disposes-its-session` +
-  `mst-disposes-all-sessions-on-unmount`).
+- **Never orphan a pty — REDEFINED app-lifetime (ADR-0189).** As built by this story, every session was
+  disposed on tab-close AND on dock unmount. ADR-0189 (app-owned sessions) reversed the unmount half:
+  the per-tab "×" stays the explicit kill ([`multi-session-tabs`](multi-session-tabs.md)'s
+  `mst-close-tab-disposes-its-session`), but dock unmount now disposes renderer resources only — the
+  sessions survive and re-attach on the next mount (`mst-unmount-preserves-sessions`; the reap duty
+  lives in the Electron main's window-close/app-quit lifecycle, so nothing outlives the APP).
 - **The dock chrome stays PER-DOCK, wrapping the tab set (the placement wall).** The tab strip is a NEW
   horizontal strip **between** the dock header and the body. The header's toggle chevron and the optional
   `headerRight` slot — which the `terminal-repo-picker` follow-on (#705) uses to host the repo-gate gear —
@@ -161,7 +164,7 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
-| 1 | [`multi-session-tabs`](multi-session-tabs.md) | `TerminalDock` becomes multi-session with a tab strip — N sessions, each its own xterm pane, created ("+") / switched / closed ("×"); the `terminal-dock-panel` behaviours (spawn, input↔pty, data-in, resize, toggle, refocus, degrade, empty-session) hold PER TAB; every session is disposed on tab-close AND on unmount; the toggle + `headerRight` slot + collapse/resize stay per-dock. | integration-test (studio vitest jsdom, editsExisting red→green over the mocked xterm + bridge) | — |
+| 1 | [`multi-session-tabs`](multi-session-tabs.md) | `TerminalDock` becomes multi-session with a tab strip — N sessions, each its own xterm pane, created ("+") / switched / closed ("×"); the `terminal-dock-panel` behaviours (spawn, input↔pty, data-in, resize, toggle, refocus, degrade, empty-session) hold PER TAB; the "×" disposes exactly its session, unmount preserves sessions (app-owned, ADR-0189); the toggle + `headerRight` slot + collapse/resize stay per-dock. | integration-test (studio vitest jsdom, editsExisting red→green over the mocked xterm + bridge) | — |
 | 2 | [`seed-opens-new-tab`](seed-opens-new-tab.md) | A `seed` OPENS A FRESH TAB — spawns a new session, switches to it, and pre-fills the command there (no trailing newline, async-safe, token-re-tabbable) — and NEVER writes into an existing/active session; absent the prop the dock is byte-identical to the multi-session dock. | integration-test (studio vitest jsdom, editsExisting red→green over the mocked xterm + bridge) | `multi-session-tabs` |
 
 ## Operator-attested glue (un-asserted connective code WITHIN this story — ADR-0158, NOT capabilities)
@@ -287,8 +290,9 @@ and presses Enter to run the build as their own Claude Code in that new tab.
    intact.** _(witness: machine)_ Over the mocked xterm + `desktopTerminal` bridge, the dock spawns the
    first tab on open, opens an independent session on "+", shows the selected tab's pane on switch (others
    hidden, sessions preserved), disposes exactly the closed tab's session on "×" (others untouched), scopes
-   input/data/resize per tab, keeps the toggle + `headerRight` + degrade per-dock, and disposes EVERY
-   session on unmount — with the eight `terminal-dock-panel` behaviours re-proven on the active tab.
+   input/data/resize per tab, keeps the toggle + `headerRight` + degrade per-dock, and on unmount disposes
+   renderer resources only — sessions preserved, app-owned (ADR-0189; originally dispose-all-on-unmount)
+   — with the eight `terminal-dock-panel` behaviours re-proven on the active tab.
    **Success —** [`multi-session-tabs`](multi-session-tabs.md)'s signed verdict (geometry + per-tab wiring,
    xterm mocked).
 3. **A seed opens a FRESH tab and never touches the active session.** _(witness: machine)_ Over the mocked
@@ -312,8 +316,8 @@ and presses Enter to run the build as their own Claude Code in that new tab.
    witnessed, never machine-asserted.
 
 End state — the embedded terminal is a tabbed multi-session terminal: N pty sessions in a tab strip,
-per-tab behaviours signed under the studio suite, the chrome per-dock, every session disposed on close and
-unmount; a Build seed opens a fresh tab pre-filled (un-run) and never disturbs the user's active Claude
+per-tab behaviours signed under the studio suite, the chrome per-dock, each session killed only by its
+tab's "×" or the app closing (unmount preserves them — app-owned, ADR-0189); a Build seed opens a fresh tab pre-filled (un-run) and never disturbs the user's active Claude
 Code session — the tab-strip look, the real-pty per-tab feel, and the "fresh tab, active untouched" legs
 operator-attested, the prove-it-gate leaf and the spine untouched.
 

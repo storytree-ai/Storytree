@@ -135,12 +135,19 @@ exactly as the `desktop` story models its `backend-entry.ts` sidecar wiring and 
   `ipcMain.handle("terminal:spawn" | "terminal:write" | "terminal:resize" | "terminal:dispose")`
   handlers driving the manager, and the `webContents.send("terminal:data" | "terminal:exit", …)` stream
   back to the renderer. The manager (cap 1) is the provable core; this is the real-pty binding.
+  *(ADR-0189 adds the re-attach slice: `ipcMain.handle("terminal:list")` — the manager's live sessions
+  FILTERED to the currently-selected repo's cwd, the per-repo ownership policy — and
+  `ipcMain.handle("terminal:snapshot")` relaying the manager's buffered scrollback; window-close /
+  app-quit keep `disposeAllTerminals` — with unmount no longer a kill, the app lifecycle is the reap.)*
 - **The `desktopTerminal` contextBridge** (`apps/desktop/electron/preload.ts`): a NEW
   `contextBridge.exposeInMainWorld("desktopTerminal", { spawn, write, resize, dispose, onData, onExit })`
   bridging renderer → `ipcRenderer.invoke`/`.on` → main — the EXACT pattern of the existing `desktopAuth`
   / `desktopApply` bridges. Its mere presence (`window.desktopTerminal`) is how the renderer
   feature-detects the desktop host (the `desktopApply`-presence precedent), driving cap 2's honest
-  absent-bridge degradation.
+  absent-bridge degradation. *(ADR-0189 adds `list` / `snapshot` members, and makes the preload's
+  `onData`/`onExit` relays SINGLE-CONSUMER — one `ipcRenderer.on` registered at preload eval whose
+  callback each `onData(cb)` call REPLACES — so a dock that unmounts and remounts across route changes
+  never stacks duplicate listeners (N-times-repeated output after N route trips).)*
 - **The native-module build wiring**: `node-pty` added to `apps/desktop/package.json` `dependencies` and
   `--external:node-pty` added to the `build:electron` esbuild (the `@napi-rs/keyring` precedent — a native
   module kept external from the CJS main bundle); and `@xterm/xterm` (+ `@xterm/addon-fit`) added to

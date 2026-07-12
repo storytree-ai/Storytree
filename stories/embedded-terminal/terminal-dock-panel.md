@@ -45,16 +45,22 @@ proof:
     testFile: "apps/studio/src/components/TerminalDock.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalDock.tsx"
     # RE-PROVE (ADR-0057 §3 expansion C): TerminalDock.tsx + its test ALREADY EXIST at HEAD (signed by
-    # the original story build + the contract-6 refocus re-prove) — this arm is driven `editsExisting`
-    # again for the terminal-repo-picker UX refinement (owner-directed 2026-07-12): contract 7 (an
-    # optional `headerRight` header slot — so the repo-gate can place the repo control as a gear in the
-    # dock's real, moving toggle-bar header, top-right) and contract 8 (an honest message written to the
-    # xterm when `spawn()` resolves an EMPTY sessionId — the main-side fail-close, so a no-repo block is
-    # never a silent blank screen). The leaf reads the existing source + 6 tests, ADDS the 7th + 8th
-    # tests (contract 7 = a render-slot assertion; contract 8 = a behaviour-assertion red: today an empty
-    # sessionId leaves the screen blank), then EDITS TerminalDock.tsx additively — NOT a net-new
-    # missing-symbol red. Preserves the existing spawn/data/resize/toggle/degrade/refocus behaviour + the
-    # 6 existing contracts (a no-`headerRight`, non-empty-session render is byte-behaviour-identical).
+    # the original story build, the contract-6/7/8 re-proves, and the terminal-tabs multi-session +
+    # seed re-drives) — this arm is driven `editsExisting` again for APP-OWNED SESSION SURVIVAL
+    # (terminal-orchestrator-seat increment 1, owner-directed 2026-07-12, ADR-0189): contract 9
+    # (`tdp-reattaches-live-sessions-on-mount` — mounting the dock enumerates still-live sessions over
+    # the bridge's new OPTIONAL `list()` and re-attaches a tab per session, replaying each session's
+    # `snapshot()` scrollback into its fresh xterm BEFORE any post-mount live chunk, never spawning a
+    # duplicate) and the REDEFINED unmount lifecycle (the multi-session-tabs contract
+    # `mst-unmount-preserves-sessions`, renamed from `mst-disposes-all-sessions-on-unmount`: unmount
+    # disposes RENDERER resources — each xterm/fit — and clears the session table, but calls NO
+    # `bridge.dispose`; the ptys stay alive, app-owned — explicit tab-close "×" and app-quit are the
+    # ONLY kills). The leaf reads the existing source + 20 contract-titled tests (9 tdp-* after this, 6
+    # mst-*, 6 son-*), ADDS the tdp-9 test, REWRITES the one mst unmount test (title AND assertion — the
+    # spec in stories/terminal-tabs/multi-session-tabs.md is already re-tensed), then EDITS
+    # TerminalDock.tsx — a behaviour-assertion red (the dock at HEAD spawns fresh on every mount and
+    # disposes every session on unmount). EVERY OTHER existing contract test keeps its EXACT title and
+    # stays green (check:coverage matches titles, ADR-0122 — the recurring dropped-title trap).
     editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalDock.test.tsx"]
@@ -114,10 +120,14 @@ nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contrac
 > its eight `tdp-*` behaviours are **re-proven per-tab / per-dock** by
 > [`multi-session-tabs`](../terminal-tabs/multi-session-tabs.md)'s signed `--real` verdict over the new
 > source (the per-session contracts on the active/first tab, the `headerRight` + degrade contracts on the
-> per-dock chrome) — the anchored bytes re-sign, so the crown is never left stale. The pty LIFECYCLE it
-> drives (over the bridge) is
+> per-dock chrome) — the anchored bytes re-sign, so the crown is never left stale. **Then re-driven
+> `editsExisting` again for ADR-0189 app-owned session survival (contract 9): mount re-attaches to
+> still-live sessions with scrollback replayed; unmount preserves sessions (disposing renderer resources
+> only — the redefined never-orphan wall, pinned as `mst-unmount-preserves-sessions`).** The pty
+> LIFECYCLE it drives (over the bridge) is
 > [`pty-session-manager`](pty-session-manager.md); the real `desktopTerminal` bridge
-> (`apps/desktop/electron/preload.ts`) and the real-pty Electron-main wiring are the story's
+> (`apps/desktop/electron/preload.ts`, including the re-attach `list`/`snapshot` relay) and the real-pty
+> Electron-main wiring are the story's
 > operator-attested GLUE. Its *appearance inside the native shell* ("reads and behaves like a real
 > terminal") is the story's operator-attested UAT leg 5 (ADR-0070 — the look is witnessed, never a machine
 > visual verdict), and the `.terminal-dock*` chrome is CSS glue re-attested there; the tab-strip look is
@@ -165,6 +175,28 @@ The test `vi.mock`s this bridge (installing a scripted `window.desktopTerminal`)
 observable through it — no real IPC, no real pty, no real Electron. Its **absence**
 (`window.desktopTerminal === undefined`, the studio-standalone case) is what drives the honest disabled
 state — the same feature-detect the shared `StoreBanner` uses on `window.desktopApply`.
+
+The ADR-0189 re-attach slice adds two OPTIONAL members to the bridge shape (older preloads lack them —
+feature-guard, never assume):
+- `list?(): Promise<Array<{ sessionId }>>` — the still-live sessions the main scopes to the currently
+  selected repo (the per-repo ownership policy lives in the glue).
+- `snapshot?(sessionId): Promise<string>` — the session's main-held buffered scrollback, replayed into a
+  fresh xterm on re-attach.
+
+RE-ATTACH ON MOUNT, SPAWN ONLY WHEN THERE IS NOTHING TO RE-ATTACH (contract 9 — ADR-0189 app-owned
+sessions). On mount with the bridge present and `list` available, the dock enumerates the still-live
+sessions and creates ONE TAB PER SESSION — adopting each `sessionId` rather than calling `spawn` — and
+replays each session's `snapshot()` into that tab's fresh xterm BEFORE any post-mount live `onData`
+chunk for that session is written (hold live chunks per tab until its replay lands, so re-attached
+output never interleaves out of order). The first-expand auto-spawn is GATED on the restore having
+settled: while `list()` is in flight the dock never auto-spawns, and when the restore yields sessions it
+never spawns a duplicate; only a restore that settles EMPTY (or a bridge with no `list` — an older
+preload) leaves the existing spawn-on-first-expand behaviour byte-identical to today. Unmounting
+disposes each tab's xterm/fit (renderer resources) and clears the session table but calls NO
+`bridge.dispose` — the ptys stay alive, app-owned; the explicit per-tab "×" (and app-quit, glue-side)
+stay the only kills (the redefined never-orphan wall — `mst-unmount-preserves-sessions` in
+[`multi-session-tabs`](../terminal-tabs/multi-session-tabs.md) pins the unmount half; clearing the
+table on unmount also keeps a stale bridge callback from writing to a disposed xterm).
 
 XTERM IS MOCKED AT TEST TIME (jsdom lays out no terminal; the SAME discipline `ChatPanel.test.tsx` uses
 on `../api`). The test `vi.mock`s the xterm module with a fake `Terminal` (recording `write` / `onData` /
@@ -284,16 +316,18 @@ The integration test would:
    disabled "terminal unavailable here" state, NEVER calls `spawn`, does NOT hang, and does NOT crash —
    the honest absent-bridge degradation.
 
-## Contracts (8)
+## Contracts (9)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
 jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted.
 Contracts 1–5 are BUILT (the original story build's signed verdict); contract 6 is the operator-found
 refocus regression; contracts 7–8 are the terminal-repo-picker UX refinement (an optional `headerRight`
-header slot + an honest empty-session message) added in this `editsExisting` re-prove (author their tests
-against the existing 6, do NOT drop them). Per ADR-0122 (`storytree coverage`), each contract id is the
-lead of a distinctly-named test (the `it("<id>: …")` convention), so the coverage check reports 8/8. None
-is an APPEARANCE assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
+header slot + an honest empty-session message); contract 9 is the ADR-0189 app-owned-session re-drive
+(mount re-attaches to still-live sessions, scrollback replayed) — each later rung added by an
+`editsExisting` re-prove that keeps every earlier contract test green under its EXACT title. Per
+ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test (the
+`it("<id>: …")` convention), so the coverage check reports 9/9. None is an APPEARANCE assertion — the
+look is the story's operator-attested UAT leg 5 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
    - **asserts —** expanding the dock calls `desktopTerminal.spawn` once and `open`s the (mocked) xterm
@@ -345,6 +379,16 @@ is an APPEARANCE assertion — the look is the story's operator-attested UAT leg
      input inert) — the block is never a silent blank screen (the owner's item 1). The non-empty path (a
      real session id) keeps the existing spawn/seed/data behaviour intact.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the empty-session honest message) *(provisional path)*
+9. **`tdp-reattaches-live-sessions-on-mount`** — mounting the dock re-attaches to still-live sessions (scrollback replayed), never spawning a duplicate
+   - **asserts —** with the bridge's `list()` scripted to resolve two live session ids and `snapshot(id)`
+     scripted per id, MOUNTING the dock creates one tab per live session WITHOUT calling `spawn`; each
+     tab's (mocked) xterm receives its `snapshot` bytes — the scrollback replay — BEFORE any post-mount
+     live `onData` chunk for that session (a chunk emitted while the snapshot is in flight is held and
+     written after it); post-mount input/data route to the re-attached session ids; expanding the dock
+     during/after the restore never auto-spawns a duplicate tab. With `list()` resolving `[]` — or the
+     method ABSENT (an older preload) — the dock is byte-behaviour-identical to before: first expand
+     auto-spawns one fresh session (ADR-0189 app-owned sessions).
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the mount-time restore + replay path) *(provisional path)*
 
 ## Guidance — the net-new slice that earns the signed verdict
 
