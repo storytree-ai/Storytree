@@ -342,7 +342,7 @@ test("buildLibraryDoc without fields (template) persists a body-bearing asset", 
 
 // ---- library-typed-edges: the three already-stored typed-edge fields ride the structured wire ----
 
-test("lte-agent-stepRefs-ride-the-wire: an agent doc's stepRefs surface on the GuidanceAsset wire shape", () => {
+test("lte-agent-steprefs-surface: an agent doc's stepRefs surface on the GuidanceAsset wire shape", () => {
   const agent = {
     kind: "agent",
     id: "example-agent",
@@ -378,7 +378,7 @@ test("lte-agent-stepRefs-ride-the-wire: an agent doc's stepRefs surface on the G
   ]);
 });
 
-test("lte-process-branchEdges-ride-the-wire: a process doc's branchEdges surface on the GuidanceAsset wire shape", () => {
+test("lte-process-branchedges-surface: a process doc's branchEdges surface on the GuidanceAsset wire shape", () => {
   const process = {
     kind: "process",
     id: "example-process",
@@ -413,7 +413,7 @@ test("lte-process-branchEdges-ride-the-wire: a process doc's branchEdges surface
   ]);
 });
 
-test("lte-plan-arcRef-rides-the-wire: a plan doc's arcRef surfaces on the GuidanceAsset wire shape", () => {
+test("lte-plan-arcref-surface: a plan doc's arcRef surfaces on the GuidanceAsset wire shape", () => {
   const plan = {
     kind: "plan",
     id: "example-plan",
@@ -441,7 +441,7 @@ test("lte-plan-arcRef-rides-the-wire: a plan doc's arcRef surfaces on the Guidan
   assert.equal(rendered.arcRef, "asset:example-arc");
 });
 
-test("lte-typed-edges-absent-by-default: a structured doc with no typed-edge field omits all three, never an empty array", () => {
+test("lte-optional-edges-omitted-when-absent: a structured doc with no typed-edge field omits all three, never an empty array", () => {
   const agentNoStepRefs = {
     kind: "agent",
     id: "quiet-agent",
@@ -516,7 +516,7 @@ test("lte-typed-edges-absent-by-default: a structured doc with no typed-edge fie
   assert.equal(renderedPrinciple.arcRef, undefined);
 });
 
-test("lte-typed-edges-omitted-on-passthrough-and-degraded: the pass-through and degraded branches never carry a typed edge, even when the raw stored doc has one", () => {
+test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and degraded branches never carry a typed edge, even when the raw stored doc has one", () => {
   // Pass-through: a body-bearing doc that happens to carry a raw stepRefs-shaped property (e.g. a
   // leftover from a prior structured shape) must not leak it onto the wire — this branch only
   // reads the known AssetDocLike keys.
