@@ -76,6 +76,19 @@ runtime worktree, so they can never skew.**
    `main`, resolution **fails closed** with a clear error rather than silently falling back to the dev
    checkout.
 
+   > **Clarification (2026-07-13, bug-fix — not a re-decision).** "On `main`" here means *pinned to
+   > `main`* — HEAD **equal to or behind `origin/main`** — **not** the literal local `main` branch NAME.
+   > `git worktree add <path> origin/main` (the recipe above and in both guards' own messages) checks out
+   > a **DETACHED HEAD** (`origin/main` is a remote-tracking ref, not a local branch), which is the
+   > **canonical** runtime form: it deliberately leaves the local `main` branch name free for the
+   > developer's own checkout (only one worktree may hold a given local branch). The guards therefore
+   > accept **either** that detached-at/behind-`origin/main` form (`git merge-base --is-ancestor HEAD
+   > origin/main`) **or** the local `main` branch (back-compat), and reject only a commit **outside**
+   > `origin/main`'s history (a stray feature branch — the observed bug this guard exists for). An earlier
+   > literal `branch === "main"` guard rejected the very worktree its own recipe produces; corrected in
+   > `apps/desktop/src/apply/runtime-root.ts` + `packages/cli/src/desktop.ts` as a bug-fix (the decision —
+   > serve a pinned, ff-only `main`-tracking worktree — is unchanged).
+
 2. **The rebuild recipe gains a fail-closed fast-forward lead step (Rail 2, enforced).** Before the
    existing `studio build` + `build:electron` steps, the rebuild runs, in the runtime worktree:
    `git fetch origin` → `git merge --ff-only origin/main` (→ if it is **not** a fast-forward, STOP and

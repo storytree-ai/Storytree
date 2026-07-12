@@ -263,6 +263,7 @@ test("desktopInstallShortcut --runtime: on main → targets <runtime>/apps/deskt
       resolveElectron: () => fakeElectron,
       runtime,
       branchOf: () => "main",
+      isPinnedToMain: () => false, // the local `main` branch arm alone accepts (back-compat), no git needed
       homeDir: home,
     });
 
@@ -311,7 +312,7 @@ test("desktopInstallShortcut --runtime: a MISSING worktree fails closed with the
   }
 });
 
-test("desktopInstallShortcut --runtime: an OFF-main worktree fails closed with a fast-forward hint", () => {
+test("desktopInstallShortcut --runtime: an OFF-main worktree (stray branch, not pinned) fails closed with a re-pin hint", () => {
   const repo = scratchRepo();
   const runtime = scratchRuntime();
   const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
@@ -324,11 +325,73 @@ test("desktopInstallShortcut --runtime: an OFF-main worktree fails closed with a
       resolveElectron: () => "C:\\e\\electron.exe",
       runtime,
       branchOf: () => "claude/some-feature",
+      isPinnedToMain: () => false, // a stray feature branch, not reachable from origin/main
       homeDir: home,
     });
     assert.equal(env.ok, false);
-    assert.match(env.body, /is on 'claude\/some-feature', not 'main'/);
-    assert.match(env.body, /pull --ff-only/);
+    assert.match(env.body, /is on 'claude\/some-feature'/);
+    assert.match(env.body, /not pinned to/);
+    assert.match(env.body, /checkout --detach origin\/main/);
+    assert.equal(calls.length, 0);
+    assert.equal(existsSync(path.join(home, ".storytree", "desktop.runtime.json")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut --runtime: a DETACHED HEAD pinned to origin/main succeeds (the canonical form, ADR-0181)", () => {
+  const repo = scratchRepo();
+  const runtime = scratchRuntime();
+  const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
+  try {
+    const runtimeDesktop = path.join(runtime, "apps", "desktop");
+    const fakeElectron = "C:\\fake\\electron\\dist\\electron.exe";
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: repo,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => fakeElectron,
+      runtime,
+      branchOf: () => "HEAD", // detached HEAD, as `git worktree add <path> origin/main` produces
+      isPinnedToMain: () => true, // ...but pinned to origin/main — must succeed, not fail closed
+      homeDir: home,
+    });
+    assert.equal(env.ok, true);
+    assert.equal(calls.length, 2);
+    for (const req of calls) {
+      assert.equal(req.arguments, `"${runtimeDesktop}"`);
+      assert.equal(req.workingDirectory, runtimeDesktop);
+    }
+    const configPath = path.join(home, ".storytree", "desktop.runtime.json");
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), { path: runtime });
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(runtime, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("desktopInstallShortcut --runtime: a DETACHED HEAD NOT pinned to origin/main fails closed (stray commit rejected)", () => {
+  const repo = scratchRepo();
+  const runtime = scratchRuntime();
+  const home = mkdtempSync(path.join(tmpdir(), "desktop-home-"));
+  try {
+    const { createShortcuts, calls } = fakeCreateShortcuts();
+    const env = desktopInstallShortcut({
+      repoRoot: repo,
+      platform: "win32",
+      createShortcuts,
+      resolveElectron: () => "C:\\e\\electron.exe",
+      runtime,
+      branchOf: () => "HEAD", // detached, but on a commit outside origin/main's history
+      isPinnedToMain: () => false,
+      homeDir: home,
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /not pinned to/);
     assert.equal(calls.length, 0);
     assert.equal(existsSync(path.join(home, ".storytree", "desktop.runtime.json")), false);
   } finally {

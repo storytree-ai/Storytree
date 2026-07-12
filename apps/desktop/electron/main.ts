@@ -49,6 +49,24 @@ function branchOfSync(path: string): string | null {
     return null;
   }
 }
+// Whether the runtime worktree's HEAD is PINNED to origin/main — reachable from it (equal or behind),
+// the detached-at-origin/main canonical form (ADR-0181). `git merge-base --is-ancestor HEAD origin/main`
+// exits 0 iff HEAD is an ancestor of origin/main, non-zero otherwise; execFileSync THROWS on a non-zero
+// exit, so a non-ancestor (a stray branch) and any git error (no origin/main ref, git missing) both read
+// false — fail-closed, exactly like branchOfSync. This is the seam resolveRuntimeRoot decides "pinned"
+// over, replacing the old too-literal branch===main check that rejected the detached canonical worktree.
+function pinnedToOriginMainSync(path: string): boolean {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", "HEAD", "origin/main"], {
+      cwd: path,
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 // The optional config-file runtime source (ADR-0181 Decision 1). `~/.storytree/desktop.runtime.json`
 // mirrors the `~/.storytree/secrets.json` home; a missing/unreadable file is simply "unconfigured"
 // (null), never a throw — pickConfiguredRuntime then falls back to the env, then the launch checkout.
@@ -64,7 +82,7 @@ const runtime = resolveRuntimeRoot(
     configured: pickConfiguredRuntime(process.env[RUNTIME_ROOT_ENV] ?? null, readRuntimeConfigRaw()),
     launchRoot,
   },
-  { exists: (p) => existsSync(p), branchOf: branchOfSync },
+  { exists: (p) => existsSync(p), branchOf: branchOfSync, pinnedToOriginMain: pinnedToOriginMainSync },
 );
 if (runtime.ok) {
   console.error(`[main] serving runtime root ${runtime.root} (source: ${runtime.source})`);
