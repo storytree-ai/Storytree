@@ -17,6 +17,17 @@ mockup's information design (drawn edges, size + depth-of-colour = load-bearing,
 hover cards, fit-to-view framing) — in the polished forest-cozy LIGHT of dec 5, which stands. dec 2/3/6
 are unchanged. This ADR otherwise stays accepted; read dec 1 and dec 4 through ADR-0187.
 
+**Amended in part by ADR-0188 (2026-07-12):** after the owner attested the increment-8 permanent lens +
+Open overlay and rejected both the look AND the user flow, **dec 2**'s "no kind-filter chips" prohibition
+is **reversed** — categories return as the idle browse entry (a category shelf with corpus-derived counts)
+and a removable search **scope**; dec 2's search-first doctrine and finder-as-selection-lifter otherwise
+survive (only the no-chips clause is overturned). **dec 5**'s forest-cozy-light palette is **sharpened** to
+named **seed-packet tokens** (parchment/cream panels with visible borders and shadow, moss ink for
+structure, sprout green for scope/affordances, clay for the one primary action, sun-amber for the selected
+chain) under an explicit **contrast contract** — the lens reads as an object on the map, never wallpaper.
+Forest-cozy LIGHT (dec 5) still stands; blend-in realisations of it do not. dec 1/3/4/6 are untouched by
+this amendment. This ADR otherwise stays accepted; read dec 2 and dec 5 through ADR-0188.
+
 ## Context
 
 The studio's Library surface is a separate page (`#/library`, a searchable list/grid) — a route

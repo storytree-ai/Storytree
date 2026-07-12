@@ -14,6 +14,19 @@ its overview look, dec 4); ADR-0185 otherwise stands (the peek/finder/subgraph d
 forest-cozy palette, dec 5, and the v1-no-backend-change scope, dec 6, are unchanged — dec 6 already
 anticipated the wire extension this ADR now makes load-bearing for the look).
 
+**Amended in part by ADR-0188 (2026-07-12):** after the owner attested the increment-8 permanent lens +
+Open overlay and rejected both the look AND the user flow, **dec 3**'s overview information design (the
+whole-corpus constellation's drawn edges, load-bearing size + depth-of-colour, sidebar/legend chrome,
+hover cards, fit-to-view framing) is **retired before being built to that spec** — the zoomed-out dot
+field is not mounted; with no selection the canvas is a quiet idle (reserved for a future dashboard, not
+decided). Its **wire prerequisites stay load-bearing**: the incs 6–7 `load_bearing` + typed-edge signals
+now feed the selection card, hover cards, and focus-chain weighting instead of the retired overview.
+**dec 1**'s permanent-lens posture is **sharpened** — **minimise-to-a-drawer-handle** is the settled
+dismissal affordance dec 1 explicitly left open (the permanent-lens posture otherwise stands). **dec 2**'s
+bottom-strip selection preview is retired in favour of a pinned **selection card** in the side panel (the
+Open trigger/overlay is unchanged). This ADR otherwise stays accepted; read dec 1, dec 2, and dec 3
+through ADR-0188.
+
 ## Context
 
 Increment 5 landed the overview constellation (the empty-state whole-corpus dot field, ADR-0185 dec 4)
