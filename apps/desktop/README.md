@@ -53,8 +53,9 @@ export STORYTREE_DESKTOP_RUNTIME=/path/to/storytree-runtime
 pnpm --filter desktop start
 ```
 
-When `STORYTREE_DESKTOP_RUNTIME` is set it is **authoritative and fail-closed**: it must exist and be on
-`main`, or the app refuses to launch and shows the fix (a `git worktree add` / fast-forward hint) rather
+When `STORYTREE_DESKTOP_RUNTIME` is set it is **authoritative and fail-closed**: it must exist and be **pinned to `main`** — the detached
+`git worktree add origin/main` form above (HEAD at or behind `origin/main`), or the local `main` branch —
+or the app refuses to launch and shows the fix (a `git worktree add` / fast-forward hint) rather
 than serving stray code. The in-app **Rebuild & relaunch** action (ADR-0164) then leads with
 `git fetch` + `git merge --ff-only origin/main` in that worktree — so it can only ever advance to merged
 `main`, never sideways onto a branch (Rail 2, enforced by construction). `/api/health` reports the

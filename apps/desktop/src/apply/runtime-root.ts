@@ -6,7 +6,8 @@
 // practice is a DIRTY feature branch (the observed 2026-07-08 bug: the app served
 // `claude/win-arm-real-worktree-fix` WIP instead of merged `main`). This resolver is the seam that
 // fixes it: a CONFIGURED runtime worktree path is authoritative and FAIL-CLOSED — it must EXIST and be
-// on `main`, else resolution refuses rather than silently serving a stray branch. When no runtime is
+// PINNED to `main` (HEAD equal-to-or-behind `origin/main`, ADR-0181 — a detached HEAD at origin/main is
+// the canonical form), else resolution refuses rather than silently serving a stray branch. When no runtime is
 // configured, it falls back to the launch checkout (today's behaviour) so a developer launching the
 // shell from a worktree during development is unaffected.
 //
@@ -47,7 +48,13 @@ export function pickConfiguredRuntime(env: string | null, configRaw: string | nu
   }
 }
 
-/** The branch the runtime worktree must be on — the desktop serves pinned, CI-proven `main` only. */
+/**
+ * The branch the runtime worktree tracks — the desktop serves pinned, CI-proven `main` only. NOTE:
+ * "on `main`" means PINNED to `main` (HEAD equal-to-or-behind `origin/main`), NOT necessarily the local
+ * `main` branch NAME: the canonical runtime worktree is a DETACHED HEAD at `origin/main` (ADR-0181,
+ * `git worktree add <path> origin/main`), which deliberately leaves the local `main` name free for the
+ * developer's own checkout. See {@link RuntimeRootProbes.pinnedToOriginMain}.
+ */
 export const RUNTIME_BRANCH = "main";
 
 /** Inputs to the resolve: the configured runtime path (null when unset) and the launch checkout root. */
@@ -64,6 +71,17 @@ export interface RuntimeRootProbes {
   exists: (path: string) => boolean;
   /** The git branch checked out at `path`, or null when it is not a resolvable git worktree. */
   branchOf: (path: string) => string | null;
+  /**
+   * True iff `path`'s HEAD is reachable from `origin/main` — HEAD equal-to-or-behind `origin/main`
+   * (`git merge-base --is-ancestor HEAD origin/main`, exit 0). This is what "pinned to `main`" actually
+   * MEANS (ADR-0181): the canonical runtime worktree is a DETACHED HEAD at `origin/main`
+   * (`git worktree add <path> origin/main`), leaving the local `main` branch NAME free for the
+   * developer's own checkout. Reads TRUE for detached-at-origin/main and detached-behind-origin/main
+   * (the update flow ff's the behind case); reads FALSE for a commit OUTSIDE `origin/main`'s history (a
+   * stray feature branch — the 2026-07-08 bug this guard exists to reject). Fail-closed: any git error
+   * (no `origin/main` ref, git missing) reads FALSE.
+   */
+  pinnedToOriginMain: (path: string) => boolean;
 }
 
 /**
@@ -80,9 +98,10 @@ export type RuntimeRootResolution =
  *  - No runtime configured → serve the launch checkout (`source: "launch"`), today's behaviour.
  *  - Configured but MISSING → refuse with a `git worktree add` hint (never fall back to the launch
  *    checkout, which would re-introduce the stray-branch bug the configuration exists to prevent).
- *  - Configured but NOT on `main` → refuse: the desktop must serve pinned `main`, not whatever branch
- *    the runtime worktree drifted to.
- *  - Configured, present, on `main` → serve it (`source: "runtime"`).
+ *  - Configured but NOT pinned to `main` (a stray commit outside `origin/main`'s history) → refuse: the
+ *    desktop must serve pinned `main`, not whatever branch the runtime worktree drifted to.
+ *  - Configured, present, pinned to `main` (a detached HEAD at/behind `origin/main` — the canonical
+ *    form — OR the local `main` branch, for back-compat) → serve it (`source: "runtime"`).
  */
 export function resolveRuntimeRoot(
   config: RuntimeRootConfig,
@@ -100,14 +119,22 @@ export function resolveRuntimeRoot(
         `git worktree add ${configured} origin/${RUNTIME_BRANCH} (ADR-0181)`,
     };
   }
+  // "On `main`" means PINNED to `main`, not the literal local branch NAME (ADR-0181). Accept either the
+  // local `main` branch (back-compat) OR a HEAD reachable from `origin/main` — the canonical runtime
+  // worktree is a DETACHED HEAD at `origin/main` (`git worktree add <path> origin/main`), so a literal
+  // branch-name check rejected the exact worktree the bootstrap recipe produces. Still REJECTS a commit
+  // OUTSIDE `origin/main`'s history (a stray feature branch — the 2026-07-08 bug this guard exists for).
   const branch = probes.branchOf(configured);
-  if (branch !== RUNTIME_BRANCH) {
+  const pinned = branch === RUNTIME_BRANCH || probes.pinnedToOriginMain(configured);
+  if (!pinned) {
     return {
       ok: false,
       error:
-        `runtime worktree at ${configured} is on '${branch ?? "(detached/unknown)"}', not ` +
-        `'${RUNTIME_BRANCH}' — the desktop must serve pinned ${RUNTIME_BRANCH} (ADR-0181). ` +
-        `Fast-forward it: git -C ${configured} checkout ${RUNTIME_BRANCH} && git -C ${configured} pull --ff-only`,
+        `runtime worktree at ${configured} is on '${branch ?? "(detached/unknown)"}', which is not ` +
+        `pinned to origin/${RUNTIME_BRANCH} — the desktop must serve pinned, CI-proven ${RUNTIME_BRANCH} ` +
+        `(ADR-0181). A detached HEAD at origin/${RUNTIME_BRANCH} is the canonical form (it leaves the ` +
+        `'${RUNTIME_BRANCH}' branch free for your dev checkout). Re-pin it: ` +
+        `git -C ${configured} fetch origin && git -C ${configured} checkout --detach origin/${RUNTIME_BRANCH}`,
     };
   }
   return { ok: true, root: configured, source: "runtime" };

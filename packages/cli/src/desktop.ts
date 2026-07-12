@@ -159,6 +159,14 @@ export interface DesktopInstallShortcutDeps {
   readonly runtime?: string;
   /** Injected runtime-worktree branch reader — defaults to `git -C <path> rev-parse --abbrev-ref HEAD`. */
   readonly branchOf?: (worktree: string) => string | null;
+  /**
+   * Injected "is this worktree PINNED to origin/main?" probe (ADR-0181) — HEAD reachable from origin/main
+   * (`git merge-base --is-ancestor HEAD origin/main`, exit 0). Defaults to the real git check. This is the
+   * SAME predicate apps/desktop's runtime-root.ts `pinnedToOriginMain` probe enforces at launch — the two
+   * guards deliberately mirror each other (they can't share a module: the desktop must not depend on the
+   * CLI, ADR-0004). Keep them in sync.
+   */
+  readonly isPinnedToMain?: (worktree: string) => boolean;
   /** Injected home dir for `~/.storytree/desktop.runtime.json` — defaults to os.homedir(). */
   readonly homeDir?: string;
 }
@@ -252,6 +260,23 @@ function defaultBranchOf(worktree: string): string | null {
   }
 }
 
+/**
+ * `git -C <worktree> merge-base --is-ancestor HEAD origin/main` — true (exit 0) iff HEAD is reachable
+ * from origin/main (equal or behind), the detached-at-origin/main canonical runtime form (ADR-0181).
+ * Fail-closed: a non-ancestor (exit 1, a stray commit) or any git error (no origin/main, git missing)
+ * throws → false. Mirrors apps/desktop runtime-root.ts's `pinnedToOriginMain` launch probe.
+ */
+function defaultIsPinnedToMain(worktree: string): boolean {
+  try {
+    execFileSync("git", ["-C", worktree, "merge-base", "--is-ancestor", "HEAD", "origin/main"], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The desktop's runtime-worktree config the app's `main.ts` reads (ADR-0181), under the ~/.storytree home. */
 function runtimeConfigPath(homeDir: string): string {
   return path.join(homeDir, ".storytree", "desktop.runtime.json");
@@ -314,14 +339,21 @@ export function desktopInstallShortcut(deps: DesktopInstallShortcutDeps): Envelo
         next: [],
       };
     }
+    // "On `main`" means PINNED to `main` (ADR-0181), not the literal local branch NAME: the canonical
+    // runtime worktree is a DETACHED HEAD at origin/main (`git worktree add <path> origin/main`), which
+    // leaves the local `main` name free for the dev checkout. Accept the local `main` branch (back-compat)
+    // OR a HEAD reachable from origin/main; still REJECT a stray feature branch outside main's history.
     const branch = (deps.branchOf ?? defaultBranchOf)(runtime);
-    if (branch !== "main") {
+    const pinned = branch === "main" || (deps.isPinnedToMain ?? defaultIsPinnedToMain)(runtime);
+    if (!pinned) {
       return {
         ok: false,
         body: [
-          `runtime worktree at ${runtime} is on '${branch ?? "(detached/unknown)"}', not 'main' — the`,
-          "installed app must serve pinned main (ADR-0181). Fast-forward it, then re-run:",
-          `  git -C "${runtime}" checkout main && git -C "${runtime}" pull --ff-only`,
+          `runtime worktree at ${runtime} is on '${branch ?? "(detached/unknown)"}', not pinned to`,
+          "origin/main — the installed app must serve pinned, CI-proven main (ADR-0181). A detached HEAD",
+          "at origin/main is the canonical form (it leaves the 'main' branch free for your dev checkout).",
+          "Re-pin it, then re-run:",
+          `  git -C "${runtime}" fetch origin && git -C "${runtime}" checkout --detach origin/main`,
         ].join("\n"),
         next: [],
       };
