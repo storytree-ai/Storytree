@@ -298,3 +298,41 @@ test("psm-buffers-scrollback-and-snapshots: buffers routed output in a byte-capp
   manager.dispose(sessionId);
   assert.equal(manager.snapshot(sessionId), null);
 });
+
+// ---------------------------------------------------------------------------
+// list() — the live-session enumeration (contract 7 — re-attach discovery,
+// ADR-0189: the Electron-main glue scopes re-attach per repo via the cwd this
+// reports; the manager itself reports facts only, no policy).
+// ---------------------------------------------------------------------------
+
+test("psm-lists-live-sessions: list() reports live sessions in creation order with their spawn cwd, dropping disposed or self-exited sessions", () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port);
+
+  const sessionA = manager.create(BASE_OPTS, () => {}, () => {});
+  const sessionB = manager.create(
+    { cols: 100, rows: 30, shell: "zsh" }, // no cwd given
+    () => {},
+    () => {},
+  );
+  const sessionC = manager.create({ cols: 80, rows: 24, cwd: "/repo/two" }, () => {}, () => {});
+
+  assert.deepEqual(manager.list(), [
+    { sessionId: sessionA, cwd: "/tmp/work" },
+    { sessionId: sessionB, cwd: null },
+    { sessionId: sessionC, cwd: "/repo/two" },
+  ]);
+
+  // A disposed session drops out of the enumeration.
+  manager.dispose(sessionA);
+  assert.deepEqual(manager.list(), [
+    { sessionId: sessionB, cwd: null },
+    { sessionId: sessionC, cwd: "/repo/two" },
+  ]);
+
+  // A session that exits on its own also drops out — list() reports live sessions only.
+  const handleB = port.spawned[1]?.handle;
+  assert.ok(handleB);
+  handleB.emitExit({ exitCode: 0 });
+  assert.deepEqual(manager.list(), [{ sessionId: sessionC, cwd: "/repo/two" }]);
+});
