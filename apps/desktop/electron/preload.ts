@@ -32,6 +32,20 @@ type RebuildRelaunchResult =
 // `DesktopTerminalBridge` the TerminalDock declares EXACTLY: `spawn` starts a pty session (main drives
 // `pty-session-manager.create`), `write`/`resize`/`dispose` forward to the manager, and `onData`/`onExit`
 // subscribe to the `webContents.send` stream the main relays. The raw pty lives in main only.
+//
+// SINGLE-CONSUMER RELAYS (ADR-0189): sessions are app-owned — the dock unmounts on a route change and a
+// FRESH dock re-attaches later, so `onData`/`onExit` must not stack one `ipcRenderer.on` listener per
+// mount (N route trips would write every chunk N times). ONE ipc listener per channel is registered here
+// at preload eval, and each `onData(cb)`/`onExit(cb)` call REPLACES the callback it fans out to — the
+// remounting dock swaps itself in; the unmounted dock's stale callback is simply dropped.
+let terminalDataCb: ((sessionId: string, chunk: string) => void) | null = null;
+let terminalExitCb: ((sessionId: string, e: { exitCode: number }) => void) | null = null;
+ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => {
+  terminalDataCb?.(sessionId, chunk);
+});
+ipcRenderer.on("terminal:exit", (_e, sessionId: string, exit: { exitCode: number }) => {
+  terminalExitCb?.(sessionId, exit);
+});
 contextBridge.exposeInMainWorld("desktopTerminal", {
   spawn: (opts?: unknown): Promise<{ sessionId: string }> => ipcRenderer.invoke("terminal:spawn", opts),
   write: (sessionId: string, data: string): void => {
@@ -44,11 +58,15 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
     ipcRenderer.send("terminal:dispose", sessionId);
   },
   onData: (cb: (sessionId: string, chunk: string) => void): void => {
-    ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => cb(sessionId, chunk));
+    terminalDataCb = cb;
   },
   onExit: (cb: (sessionId: string, e: { exitCode: number }) => void): void => {
-    ipcRenderer.on("terminal:exit", (_e, sessionId: string, exit: { exitCode: number }) => cb(sessionId, exit));
+    terminalExitCb = cb;
   },
+  // The ADR-0189 re-attach slice: enumerate the still-live sessions (main scopes them to the currently
+  // selected repo) and fetch a session's main-held buffered scrollback for replay on remount.
+  list: (): Promise<Array<{ sessionId: string }>> => ipcRenderer.invoke("terminal:list"),
+  snapshot: (sessionId: string): Promise<string> => ipcRenderer.invoke("terminal:snapshot", sessionId),
 });
 
 // The repo-picker bridge (terminal-repo-picker story, ADR-0174 follow-on). Its mere PRESENCE
