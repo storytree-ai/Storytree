@@ -11,7 +11,7 @@ proof_mode: UAT
 # human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
 # So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
 # UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
-capabilities: [library-drawer-shell, library-finder, library-focus-subgraph, library-dive-body, library-overview, library-adr-wire-signals, library-permanent-lens, library-open-overlay, library-open-trigger]
+capabilities: [library-drawer-shell, library-finder, library-focus-subgraph, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-permanent-lens, library-open-overlay, library-open-trigger]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
 # `library-tech-tree-overlay-arc`, whose disposable per-increment plans carry the live roadmap (the
 # roadmap lives in the current plan, not here). Increments 1–6 have LANDED — library-drawer-shell

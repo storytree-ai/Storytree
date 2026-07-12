@@ -157,6 +157,22 @@ export interface GuidanceAsset {
    * studio server). `body` is then a raw-field fallback view and `fields` is absent.
    */
   degraded?: string;
+  /**
+   * Typed navigation edges carried from a structured Knowledge doc's `.extend()` schema metadata
+   * (OUTSIDE the KIND_SPECS body table, so they never round-trip through `body`/`fields`): an
+   * `agent`'s `stepRefs` (workflow-step → outbound refs), a `process`'s `branchEdges`
+   * (process-graph outbound edges), a `plan`'s `arcRef` (its containing arc). Surfaced by
+   * `renderStoredDoc` ONLY on the faithfully-parsed structured branch (never on a pass-through or
+   * degraded doc). Optional / absent-by-default — present only when the doc's kind carries the field,
+   * never an empty array — so every existing reader and the offline json path keep validating with no
+   * migration (the inc-6 `DocMeta.loadBearing?`/`references?` idiom). The inc-9 overview draws the
+   * richer agent/process/plan lineage with these (ADR-0187 dec 3).
+   */
+  stepRefs?: { step: string; refs: string[] }[];
+  /** A `process` doc's `branchEdges` — see {@link GuidanceAsset.stepRefs}. */
+  branchEdges?: { ref: string; label?: string | undefined }[];
+  /** A `plan` doc's `arcRef` (an `asset:<id>` pointer) — see {@link GuidanceAsset.stepRefs}. */
+  arcRef?: string;
   createdAt: string;
   updatedAt: string;
 }

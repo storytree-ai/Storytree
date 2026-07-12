@@ -4,6 +4,8 @@ import {
   KIND_SPECS,
   type Knowledge,
   type KnowledgeKind,
+  type AgentStepRef,
+  type ProcessBranchEdge,
 } from "../knowledge.js";
 import { renderBody } from "../knowledge-render.js";
 
@@ -56,6 +58,17 @@ export interface RenderedAsset {
    * and the remedy, and `fields` is omitted so the editor never re-shapes a doc it can't parse.
    */
   degraded?: string;
+  /**
+   * Typed-edge fields (`.extend()` schema metadata OUTSIDE the KIND_SPECS body table, so
+   * {@link extractFields} never sees them) that ride the wire ONLY on the structured branch —
+   * present only when the stored doc's own kind carries them (an `agent`'s `stepRefs`), absent
+   * (never an empty array) otherwise.
+   */
+  stepRefs?: AgentStepRef[];
+  /** A `process` doc's `branchEdges` — see {@link stepRefs}. */
+  branchEdges?: ProcessBranchEdge[];
+  /** A `plan` doc's `arcRef` — see {@link stepRefs}. */
+  arcRef?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -217,6 +230,11 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   // Structured Knowledge unit: derive the body from its per-kind fields; category = the kind; and
   // carry the structured fields on the wire so the studio editor can edit them directly (option C).
   const knowledge = doc as Knowledge;
+  const typedEdges = knowledge as unknown as {
+    stepRefs?: AgentStepRef[];
+    branchEdges?: ProcessBranchEdge[];
+    arcRef?: string;
+  };
   return {
     id: knowledge.id ?? stored.id,
     category: stored.kind,
@@ -228,6 +246,11 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       ? { provenance: knowledge.provenance }
       : {}),
     fields: extractFields(knowledge),
+    ...(Array.isArray(typedEdges.stepRefs) ? { stepRefs: typedEdges.stepRefs } : {}),
+    ...(Array.isArray(typedEdges.branchEdges) ? { branchEdges: typedEdges.branchEdges } : {}),
+    ...(typeof typedEdges.arcRef === "string" && typedEdges.arcRef
+      ? { arcRef: typedEdges.arcRef }
+      : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
   };
