@@ -132,10 +132,8 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
   const asideRef = useRef<HTMLElement>(null);
 
   // Seed bookkeeping: the last-applied token (so a re-render with the SAME token is a no-op, keyed
-  // on the token — a nonce — never the command string) and, when the very first tab does not exist
-  // yet, a pending command the imminent first-tab creation (below) picks up.
+  // on the token — a nonce — never the command string).
   const seedTokenRef = useRef<number | null>(null);
-  const firstTabPendingSeedRef = useRef<string | null>(null);
 
   const toggleDock = useCallback((): void => {
     setExpanded((e) => !e);
@@ -233,9 +231,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
   // spawn-on-first-expand guard, generalised: only when no tab exists yet.
   useEffect(() => {
     if (!expanded || !bridge || tabIds.length > 0) return;
-    const pending = firstTabPendingSeedRef.current;
-    firstTabPendingSeedRef.current = null;
-    openSession(pending);
+    openSession(null);
   }, [expanded, bridge, tabIds.length, openSession]);
 
   // Whenever a new tab enters the table, its body div has just committed (ref callbacks run before
@@ -267,10 +263,15 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     });
   }, [bridge]);
 
-  // Seed lifecycle (terminal-dock-seed capability): on a NEW seed token, expand the dock and ensure a
-  // (single) session — reusing the spawn-on-first-expand path above, never a second spawn — then write
-  // the command as a pre-fill. If the first tab already exists and resolved, write immediately;
-  // otherwise hold it PENDING for that tab's spawn to write once resolved. A seed with no bridge
+  // Seed lifecycle (seed-opens-new-tab capability, ADR-0186 — SUPERSEDES the old terminal-dock-seed
+  // write-to-the-active-session behaviour): on a NEW seed token, expand the dock and open A FRESH TAB
+  // via the SAME `openSession` the "+" control uses — never reuse/write into an existing (possibly
+  // ACTIVE, possibly the user's own interactive Claude Code) session. `openSession` makes the fresh
+  // tab active and carries the command as that tab's `pendingSeed`, which `initTab`'s spawn `.then`
+  // writes once (no trailing newline — pre-fill, never auto-run) the moment the fresh tab's own
+  // `bridge.spawn()` resolves — so an async spawn never drops the command, and it is written to THAT
+  // tab's session only. The token is a NONCE (not a cache key): a bump always opens ANOTHER fresh tab,
+  // even for an identical command; the same token re-rendering is a no-op. A seed with no bridge
   // (studio-standalone) is inert — no spawn, no write, no crash.
   useEffect(() => {
     if (!seed || !bridge) return;
@@ -278,22 +279,9 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     seedTokenRef.current = seed.token;
 
     setExpanded(true);
-
-    const id = tabIds[0];
-    if (id === undefined) {
-      // No tab yet — the imminent first-tab-creation effect above will pick this up.
-      firstTabPendingSeedRef.current = seed.command;
-      return;
-    }
-    const rec = recordsRef.current.get(id);
-    if (!rec) return;
-    if (rec.sessionId) {
-      bridge.write(rec.sessionId, seed.command);
-    } else {
-      rec.pendingSeed = seed.command;
-    }
+    openSession(seed.command);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed?.token, seed?.command, bridge]);
+  }, [seed?.token, seed?.command, bridge, openSession]);
 
   // Dispose EVERY still-open session/instance only when the dock itself unmounts, never on a plain
   // fold/unfold or a tab switch (the never-orphan-a-pty wall).
