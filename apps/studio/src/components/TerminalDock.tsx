@@ -22,9 +22,13 @@
 // waiting on a stream that will never arrive, and never crashes the surrounding app; it renders a plain
 // disabled "terminal unavailable here" panel instead.
 //
-// EVERY SESSION IS DISPOSED — ON TAB-CLOSE AND ON UNMOUNT (never orphan a pty, ADR-0186 Consequences):
-// closing a tab disposes ONLY that tab's bridge session + xterm/fit instances and reaps its tab; dock
-// unmount disposes EVERY still-open session, not just the active one.
+// DISPOSE ON TAB-CLOSE; PRESERVE ON UNMOUNT (ADR-0189, superseding ADR-0186's dock-lifetime wall):
+// closing a tab disposes ONLY that tab's bridge session + xterm/fit instances and reaps its tab — the
+// ONLY thing that ever disposes a bridge session. Dock unmount disposes every tab's RENDERER resources
+// (xterm + fit) and clears the session table, but calls NO `bridge.dispose` — sessions are app-owned,
+// they survive a route change and re-attach on the next mount (`tdp-reattaches-live-sessions-on-mount`).
+// The pty-reap duty moved to the Electron main's app lifecycle (`disposeAllTerminals` on
+// window-close/app-quit — glue).
 //
 // GEOMETRY HERE, APPEARANCE OWNER-ATTESTED (ADR-0070): the structural/geometry style (absolute, bottom,
 // z-index, the dragged height) is inline, same as ChatDock; the terminal's look/feel is the story's
@@ -369,17 +373,19 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed?.token, seed?.command, bridge, openSession]);
 
-  // Dispose EVERY still-open session/instance only when the dock itself unmounts, never on a plain
-  // fold/unfold or a tab switch (the never-orphan-a-pty wall).
+  // ADR-0189 — on dock UNMOUNT (never a plain fold/unfold or a tab switch), dispose every tab's
+  // RENDERER resources only (xterm + fit) and clear the session table (so a stale bridge callback
+  // never writes a disposed xterm) — but call NO `bridge.dispose`: sessions are app-owned and survive
+  // unmount, re-attaching via `bridge.list()`/`snapshot()` on the next mount.
   useEffect(() => {
     return () => {
       for (const rec of recordsRef.current.values()) {
         rec.fit?.dispose();
         rec.term?.dispose();
-        if (rec.sessionId && bridge) bridge.dispose(rec.sessionId);
       }
+      recordsRef.current.clear();
     };
-  }, [bridge]);
+  }, []);
 
   // Contract 6 — re-focus the ACTIVE tab's mounted xterm after a window blur/focus cycle (another
   // window/app had stolen focus; the user clicks back). xterm's hidden input textarea does not regain
