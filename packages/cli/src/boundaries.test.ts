@@ -1143,3 +1143,94 @@ test("packages-forward-refusal: a mapped foreign-hosting pair is refused even wi
   assert.match(violations[0]!, /studio-members/);
   assert.match(violations[0]!, /notice-board/);
 });
+
+test("packages-forward-refusal: a REGISTERED hosted story raises no refusal (grandfathered; rule 5 governs its edge independently)", () => {
+  // The notice-board/cli hub pattern with notice-board on the register: the hosting pair exists and
+  // the cli → notice-board edge (consumedBy) keeps rule 5 silent — a grandfathered story is clean.
+  const violations = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+    unitSourceFiles: { "notice-board": ["packages/cli/src/tree-view.ts"] },
+    dirOwners: { "packages/cli": "cli" },
+    hostedStories: ["notice-board"],
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.deepEqual(violations, []);
+});
+
+test("packages-forward-refusal: a STALE register entry (no hosting evidence) is itself a violation pointing at removal", () => {
+  // studio-members is registered but claims no file in any foreign building — the entry must go
+  // (the self-pruning migration worklist: a migration PR also shrinks the register).
+  const violations = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+    unitSourceFiles: { library: ["packages/library/src/foo.ts"] }, // own building — no pairs at all
+    dirOwners: { "packages/library": "library" },
+    hostedStories: ["studio-members"],
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /stale-register/);
+  assert.match(violations[0]!, /studio-members/);
+  assert.match(violations[0]!, /remove the entry/);
+});
+
+test("packages-forward-refusal: hostedStories ABSENT skips the rule entirely (narrow fixtures unaffected)", () => {
+  // Identical arrangement to the refusal case above, register simply not passed: rule 6 is skipped
+  // (and the declared edge keeps rule 5 silent), so the fixture is clean — absent ≠ empty.
+  const violations = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph: { ...storyGraph, "studio-members": ["notice-board"] },
+    consumedBy,
+    unitSourceFiles: { "studio-members": ["packages/notice-board/src/a.ts"] },
+    dirOwners: { "packages/notice-board": "notice-board" },
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.deepEqual(violations, []);
+});
+
+test("packages-forward-refusal: own-building, off-surface, and unmapped paths contribute no hosting evidence (clean under a defined register)", () => {
+  // The same evidence skips rule 5 makes, proven against rule 6 with the register DEFINED (empty):
+  // none of these files forms a mapped foreign-hosting pair, so nothing is refused — and an empty
+  // register has no entries to go stale.
+  const violations = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+    unitSourceFiles: {
+      library: ["packages/library/src/foo.ts", "scripts/foo.ts", "packages/unknown-pkg/src/bar.ts"],
+    },
+    dirOwners: { "packages/library": "library" },
+    hostedStories: [],
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.deepEqual(violations, []);
+});
+
+test("packages-forward-refusal: one refusal per (S, T) pair across multiple foreign hosts, deduped and deterministically ordered", () => {
+  // studio-members hosts files in TWO foreign buildings with BOTH edges declared (rule 5 silent for
+  // both) and is unregistered: exactly one refusal per (S, T) pair — 3 files, 2 pairs — ordered by
+  // the sorted "S T" key (library before notice-board).
+  const violations = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph: { ...storyGraph, "studio-members": ["notice-board", "library"] },
+    consumedBy,
+    unitSourceFiles: {
+      "studio-members": [
+        "packages/notice-board/src/a.ts",
+        "packages/notice-board/src/b.ts",
+        "packages/library/src/c.ts",
+      ],
+    },
+    dirOwners: { "packages/notice-board": "notice-board", "packages/library": "library" },
+    hostedStories: [],
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.equal(violations.length, 2, violations.join("\n"));
+  assert.match(violations[0]!, /packages-forward refusal/);
+  assert.match(violations[0]!, /packages\/library/);
+  assert.match(violations[1]!, /packages-forward refusal/);
+  assert.match(violations[1]!, /packages\/notice-board/);
+});

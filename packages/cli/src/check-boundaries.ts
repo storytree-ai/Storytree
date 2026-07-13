@@ -22,6 +22,11 @@
  *      ({@link readUnitSourceFiles} / {@link readDirOwners}) — so a story whose sources live inside
  *      another story's building without a declared neighbour edge (either direction) FAILS the gate
  *      instead of rendering as an orphaned island.
+ *   6. the ADR-0192 decision-2 packages-forward GRANDFATHER register (repo-manifest.json
+ *      `hostedStories.register`, {@link readHostedStories}): the FROZEN list of stories permitted to
+ *      keep hosted sources. A hosted story ABSENT from it is refused REGARDLESS of declared edges
+ *      (a NEW story's code lives in its own package), and a register entry with no hosting evidence
+ *      is a stale-register violation — the register is the self-pruning migration worklist.
  *
  * Exits non-zero listing every violation, so an undeclared cross-organism coupling (Gap A) — or a
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
@@ -228,6 +233,21 @@ function isGlobPattern(s: string): boolean {
 }
 
 /**
+ * The ADR-0192 decision-2 packages-forward GRANDFATHER register: the keys of repo-manifest.json
+ * `hostedStories.register` (story id → a note naming its hosts at freeze time). FAIL-CLOSED: a
+ * missing or malformed block reads as the EMPTY register — never `undefined` — so the pure judge's
+ * refusal rule always runs against the real corpus (an empty register refuses every hosted story,
+ * which is the loud failure that points at the register; `undefined` would silently disarm the rule).
+ */
+function readHostedStories(): string[] {
+  const manifest = readJson(join(repoRoot, "repo-manifest.json"));
+  const hs = (manifest.hostedStories ?? {}) as Record<string, unknown>;
+  const register = hs.register;
+  if (register === null || typeof register !== "object" || Array.isArray(register)) return [];
+  return Object.keys(register).sort();
+}
+
+/**
  * The raw source text of every VIRTUAL story's unit `proof.real.sourceFile`s (ADR-0115 §1). A virtual
  * story owns no package, so the pure judge cannot derive its real cross-story edges from `packageDeps`
  * — instead it scans the imports of the source files its capabilities/contracts spotlight. We gather the
@@ -338,6 +358,9 @@ function main(): void {
     // paths + the building→story map, so an undeclared hosting FAILS the gate.
     unitSourceFiles: readUnitSourceFiles(retired),
     dirOwners: readDirOwners(ownership),
+    // ADR-0192 decision 2: the frozen grandfather register — a hosted story off the register is
+    // refused regardless of declared edges (packages-forward), and a stale entry fails too.
+    hostedStories: readHostedStories(),
   });
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);
