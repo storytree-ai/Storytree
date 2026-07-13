@@ -2441,6 +2441,129 @@ a.stat:hover {
   background: color-mix(in srgb, var(--term-sage) 40%, var(--term-scroll));
   background-clip: padding-box;
 }
+/* ── Session panel (ADR-0190 §3 — the VS Code-style session tabs, multi-session-tabs capability).
+   VS Code's DESIGN (a tabs list beside the terminal pane, hover-revealed row kill, an accent-marked
+   active row) rendered in the dock's own owner-approved warm-dark palette. APPEARANCE IS
+   OPERATOR-ATTESTED (terminal-tabs story UAT leg 1, ADR-0070) — geometry/behaviour is signed by the
+   vitest contracts; these colours sign nothing. */
+.terminal-dock-body-row {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Folded dock = the toggle bar alone (VS Code collapses its tabs list with the panel). `!important`
+   because the signed markup carries a defensive inline `display:flex` on the wrapper; jsdom contract
+   tests query the DOM tree, never computed style, so behaviour contracts are untouched. :has() is
+   native in the Electron/Chromium renderer. */
+.terminal-dock:not(:has(.terminal-dock-toggle-expanded)) .terminal-dock-body-row {
+  display: none !important;
+}
+/* The panel column — RIGHT of the pane (order flips the DOM order; VS Code's terminal tabs side). */
+.terminal-dock-panel {
+  order: 2;
+  flex: 0 0 172px;
+  min-width: 0;
+  gap: 1px;
+  padding: 6px 6px 8px;
+  background: var(--term-bg);
+  border-left: 1px solid var(--term-border-inner);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--term-scroll) transparent;
+}
+.terminal-dock-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+}
+.terminal-dock-panel-row:hover {
+  background: color-mix(in srgb, var(--term-sage) 8%, transparent);
+}
+.terminal-dock-panel-row-active {
+  background: color-mix(in srgb, var(--term-sage) 13%, transparent);
+  border-left-color: var(--term-sage);
+}
+/* The row's switch — the readable session label, prompt-glyph affordance first (the dock's identity
+   mark), ellipsized so a future longer label never breaks the column. */
+.terminal-dock-panel-row-switch {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 4px 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--term-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-dock-panel-row-switch::before {
+  content: '❯_';
+  color: var(--term-sage);
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  opacity: 0.55;
+}
+.terminal-dock-panel-row-active .terminal-dock-panel-row-switch {
+  color: #d9cfba;
+}
+.terminal-dock-panel-row-active .terminal-dock-panel-row-switch::before {
+  opacity: 1;
+}
+/* The per-row kill — quiet until its row is hovered or active (VS Code's hover-revealed row action),
+   warming toward danger on its own hover. */
+.terminal-dock-panel .terminal-dock-tab-close {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--term-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 7px;
+  margin-right: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.terminal-dock-panel-row:hover .terminal-dock-tab-close,
+.terminal-dock-panel-row-active .terminal-dock-tab-close {
+  opacity: 0.75;
+}
+.terminal-dock-panel .terminal-dock-tab-close:hover {
+  color: #e8b4a8;
+  background: color-mix(in srgb, #b4543f 24%, transparent);
+  opacity: 1;
+}
+/* The "+" spawn — a quiet full-width action row at the list's tail, sage on hover (the panel's own
+   control, mirroring VS Code's new-terminal button living with the tabs list). */
+.terminal-dock-panel-new {
+  margin-top: 4px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px dashed color-mix(in srgb, var(--term-muted) 45%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--term-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.terminal-dock-panel-new:hover {
+  color: var(--term-sage);
+  border-color: color-mix(in srgb, var(--term-sage) 55%, transparent);
+  background: color-mix(in srgb, var(--term-sage) 7%, transparent);
+}
+
 /* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled bar — never a spawn, never a
    hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to;
    the same warm chrome + prompt affordance so it still reads as the (unavailable) terminal. */
