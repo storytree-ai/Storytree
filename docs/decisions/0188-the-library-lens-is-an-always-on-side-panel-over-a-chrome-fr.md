@@ -25,6 +25,13 @@ it), present renders the lens expanded. The always-on side-panel body, the two-p
 dec 7 stand unchanged. (ADR-0191 is the incoming `amends` edge; this ADR's body is left intact per
 copy-on-write — the redefinitions are stated here and inline at dec 1 and dec 6 below.)
 
+**Amended by ADR-0193 (2026-07-13), reciprocal note.** After the owner walked the staged incs
+9+10+12 sitting, **dec 5**'s full-transitive, uncapped-depth DAG walk is REVERSED: the focus DAG shows one
+level upstream + one downstream only, navigation is search-first plus click-through node-to-node, no pan/zoom
+controls (explicitly rejected), and the ← Back button is removed. **Dec 3**'s selection-card placement is also
+amended: the card lives in the DAG pane, never over the side panel's search. Decs 1–2, 4, 6–7 are untouched by
+ADR-0193.
+
 ## Context
 
 The increment-8 attestation returned eleven feedback items. Beyond bugs (a selection whose detail

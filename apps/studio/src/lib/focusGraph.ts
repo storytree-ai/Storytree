@@ -4,8 +4,9 @@
  * ADR-0185 dec 3).
  *
  * `buildFocusGraph({ centre, assets, docs, expanded })` walks `GuidanceAsset.references` BOTH ways
- * over the already-loaded corpus, centred on the finder's lifted selection, to FULL transitive
- * depth (no depth cap/param):
+ * over the already-loaded corpus, centred on the finder's lifted selection, to ONE level in each
+ * direction only (ADR-0193 dec 3, reversing ADR-0188 dec 5's full transitive walk; no `depth` param
+ * — deeper nodes are reached by click-through re-centring, not by this walk):
  *
  *   - **upstream** ("stands on") of a node = that node's OWN `references` (asset-only — `DocMeta`
  *     carries no `references`, so an ADR centre's upstream fan is always empty, trap m).
@@ -103,7 +104,7 @@ export const FAN_CAP = 6;
 export const FOCUS_NODE_WIDTH = 160;
 export const FOCUS_NODE_HEIGHT = 54;
 
-/** Builds the dagre rankdir-LR full-depth DAG over `references[]`, centred on `centre`. */
+/** Builds the dagre rankdir-LR one-level-each-way DAG over `references[]`, centred on `centre`. */
 export function buildFocusGraph({
   centre,
   assets,
@@ -185,19 +186,11 @@ export function buildFocusGraph({
     return next;
   }
 
-  let upstreamFrontier = [centre.id];
-  while (upstreamFrontier.length > 0) {
-    upstreamFrontier = expandFrontier(upstreamFrontier, referencesOf, 'upstream');
-  }
-
-  let downstreamFrontier = [centre.id];
-  while (downstreamFrontier.length > 0) {
-    downstreamFrontier = expandFrontier(
-      downstreamFrontier,
-      (id) => downstreamOf.get(id) ?? [],
-      'downstream',
-    );
-  }
+  // ONE level each way only (ADR-0193 dec 3, reversing ADR-0188 dec 5's full transitive walk):
+  // a single hop from the centre in each direction, never a further BFS iteration. Deeper nodes
+  // are reached by click-through re-centring, not by this walk.
+  expandFrontier([centre.id], referencesOf, 'upstream');
+  expandFrontier([centre.id], (id) => downstreamOf.get(id) ?? [], 'downstream');
 
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 60, marginx: 8, marginy: 8 });

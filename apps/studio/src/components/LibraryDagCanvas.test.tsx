@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
 //
 // LibraryDagCanvas — the brownfield rework of the focus subgraph into a true layered reference DAG
-// (ADR-0188 dec 5, the library-dag-canvas capability). Replaces the retired
-// `LibraryFocusGraph.test.tsx` (`lfg-*`): the still-true inc-3 behaviours (both-ways adjacency, the
-// dagre rankdir-LR ranks, the kindLabel plaque, the selected-chain/ephemeral markers, the
-// neighbour-click re-focus, no-fetch) re-home here as `ldag-*`, alongside the net-new dec-5 geometry
-// — the `depth` param's retirement in favour of full transitive depth, drawn SVG edges, a
-// fit-to-view viewBox, per-branch ⊕ expanders, and the Back-leading/no-stepper/no-header layout.
+// (ADR-0188 dec 5, polished by ADR-0193 dec 3, the library-dag-canvas capability). Replaces the
+// retired `LibraryFocusGraph.test.tsx` (`lfg-*`): the still-true inc-3 behaviours (both-ways
+// adjacency, the dagre rankdir-LR ranks, the kindLabel plaque, the selected-chain/ephemeral markers,
+// the neighbour-click re-focus, no-fetch) re-home here as `ldag-*`, alongside the net-new dec-5
+// geometry — drawn SVG edges, a fit-to-view viewBox, per-branch ⊕ expanders — as polished by
+// ADR-0193 dec 3: the `depth` param's full transitive walk retires in favour of ONE level upstream
+// + ONE level downstream only, and the ← Back button / breadcrumb trail / pan-zoom controls retire
+// entirely (search-first plus click-through re-centre is the whole navigation).
 //
 // Source files stay named `LibraryFocusGraph.tsx` / `focusGraph.ts` (a rework, not a rename) — this
 // file keeps the `lfg-node-<id>` / `onDoubleClick` compat the signed `LibraryOpenTrigger.test.tsx`
 // (`lot-*`) depends on; it is untouched here. No visual/colour/pixel assertion (ADR-0070) — only the
 // adjacency, the edge list, the ranks, the drawn edge elements, the viewBox containment, the plaque
-// text, the state markers, the expander behaviour, the Back-led breadcrumb, and the neighbour-walk.
+// text, the state markers, the expander behaviour, the absent back/breadcrumb/pan-zoom controls, and
+// the neighbour-walk.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -45,9 +48,9 @@ function selectionFor(a: GuidanceAsset): SearchResult {
 
 afterEach(cleanup);
 
-describe('buildFocusGraph — full transitive depth, both ways, over references[]', () => {
-  // ── ldag-adjacency-both-ways-full-depth ──────────────────────────────────────────
-  it('ldag-adjacency-both-ways-full-depth: walks references[] both ways to FULL transitive depth (no depth cap/param)', () => {
+describe('buildFocusGraph — one level each way, over references[]', () => {
+  // ── ldag-adjacency-one-level-each-way ────────────────────────────────────────────
+  it('ldag-adjacency-one-level-each-way: walks references[] BOTH ways to ONE level only in each direction (full transitive walk retired, ADR-0193 dec 3)', () => {
     const a = asset({ id: 'chain-a', category: 'definition', title: 'Chain A' });
     const b = asset({ id: 'chain-b', category: 'pattern', title: 'Chain B', references: ['asset:chain-a'] });
     const centre = asset({
@@ -64,16 +67,20 @@ describe('buildFocusGraph — full transitive depth, both ways, over references[
     });
     const e = asset({ id: 'chain-e', category: 'definition', title: 'Chain E', references: ['asset:chain-d'] });
 
-    // NOTE: no `depth` argument — full transitive depth is now unconditional.
+    // NOTE: no `depth` argument — the walk is fixed at one level each way, not a caller-set cap.
     const graph = buildFocusGraph({
       centre: selectionFor(centre),
       assets: [a, b, centre, d, e],
       docs: [],
     } as Parameters<typeof buildFocusGraph>[0]);
 
+    // Only the depth-1 neighbours (b upstream, d downstream) are included; a and e sit at depth 2
+    // and are reached by click-through re-centring, never by a deep walk.
     expect(graph.nodes.map((n) => n.id).sort()).toEqual(
-      ['chain-a', 'chain-b', 'chain-centre', 'chain-d', 'chain-e'].sort(),
+      ['chain-b', 'chain-centre', 'chain-d'].sort(),
     );
+    expect(graph.nodes.some((n) => n.id === 'chain-a')).toBe(false);
+    expect(graph.nodes.some((n) => n.id === 'chain-e')).toBe(false);
   });
 
   // ── ldag-edge-list-over-references ───────────────────────────────────────────────
@@ -104,20 +111,24 @@ describe('buildFocusGraph — full transitive depth, both ways, over references[
       docs: [],
     } as Parameters<typeof buildFocusGraph>[0]);
 
-    expect(graph.edges).toHaveLength(3);
+    // edgelist-a sits two hops upstream of the centre (via b) — out of the one-level scope, so
+    // neither it nor its edge to b appears; only the two depth-1 edges remain.
+    expect(graph.edges).toHaveLength(2);
     expect(graph.edges).toEqual(
       expect.arrayContaining([
-        { from: 'edgelist-a', to: 'edgelist-b' },
         { from: 'edgelist-b', to: 'edgelist-centre' },
         { from: 'edgelist-centre', to: 'edgelist-d' },
       ]),
     );
+    expect(graph.edges).not.toEqual(
+      expect.arrayContaining([{ from: 'edgelist-a', to: 'edgelist-b' }]),
+    );
+    expect(graph.nodes.some((n) => n.id === 'edgelist-a')).toBe(false);
   });
 
   // ── ldag-layered-ranks-upstream-left-downstream-right ────────────────────────────
-  it('ldag-layered-ranks-upstream-left-downstream-right: upstream nodes rank strictly left of centre, downstream strictly right', () => {
-    const a = asset({ id: 'rank-a', category: 'definition', title: 'Rank A' });
-    const b = asset({ id: 'rank-b', category: 'pattern', title: 'Rank B', references: ['asset:rank-a'] });
+  it('ldag-layered-ranks-upstream-left-downstream-right: the one-level upstream neighbour ranks strictly left of centre, the one-level downstream neighbour strictly right', () => {
+    const b = asset({ id: 'rank-b', category: 'pattern', title: 'Rank B' });
     const centre = asset({
       id: 'rank-centre',
       category: 'principle',
@@ -130,31 +141,24 @@ describe('buildFocusGraph — full transitive depth, both ways, over references[
       title: 'Rank D',
       references: ['asset:rank-centre'],
     });
-    const e = asset({ id: 'rank-e', category: 'definition', title: 'Rank E', references: ['asset:rank-d'] });
 
     const graph = buildFocusGraph({
       centre: selectionFor(centre),
-      assets: [a, b, centre, d, e],
+      assets: [b, centre, d],
       docs: [],
     } as Parameters<typeof buildFocusGraph>[0]);
 
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const nodeA = byId.get('rank-a');
     const nodeB = byId.get('rank-b');
     const nodeCentre = byId.get('rank-centre');
     const nodeD = byId.get('rank-d');
-    const nodeE = byId.get('rank-e');
 
-    expect(nodeA).toBeDefined();
     expect(nodeB).toBeDefined();
     expect(nodeCentre).toBeDefined();
     expect(nodeD).toBeDefined();
-    expect(nodeE).toBeDefined();
 
-    expect(nodeA!.x).toBeLessThan(nodeB!.x);
     expect(nodeB!.x).toBeLessThan(nodeCentre!.x);
     expect(nodeCentre!.x).toBeLessThan(nodeD!.x);
-    expect(nodeD!.x).toBeLessThan(nodeE!.x);
   });
 
   // ── ldag-per-branch-fan-cap-collapses-overflow ───────────────────────────────────
@@ -198,8 +202,7 @@ describe('buildFocusGraph — full transitive depth, both ways, over references[
 describe('LibraryFocusGraph — SVG DAG canvas', () => {
   // ── ldag-edges-drawn-between-nodes ───────────────────────────────────────────────
   it('ldag-edges-drawn-between-nodes: renders a drawn SVG edge element between every rank-adjacent referenced/referencer pair', () => {
-    const a = asset({ id: 'edge-a', category: 'definition', title: 'Edge A' });
-    const b = asset({ id: 'edge-b', category: 'pattern', title: 'Edge B', references: ['asset:edge-a'] });
+    const b = asset({ id: 'edge-b', category: 'pattern', title: 'Edge B' });
     const centre = asset({
       id: 'edge-centre',
       category: 'principle',
@@ -215,14 +218,13 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
 
     render(
       <LibraryFocusGraph
-        assets={[a, b, centre, d]}
+        assets={[b, centre, d]}
         docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
     );
 
-    expect(screen.getByTestId('ldag-edge-edge-a-edge-b')).toBeTruthy();
     expect(screen.getByTestId('ldag-edge-edge-b-edge-centre')).toBeTruthy();
     expect(screen.getByTestId('ldag-edge-edge-centre-edge-d')).toBeTruthy();
   });
@@ -355,8 +357,8 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     }
   });
 
-  // ── ldag-back-leads-breadcrumb-no-stepper-no-header ──────────────────────────────
-  it('ldag-back-leads-breadcrumb-no-stepper-no-header: Back leads the breadcrumb; the global depth stepper is retired', () => {
+  // ── ldag-no-back-no-breadcrumb-no-panzoom ─────────────────────────────────────────
+  it('ldag-no-back-no-breadcrumb-no-panzoom: renders no ← Back button, no breadcrumb trail, and no pan/zoom controls (search-first plus click-through is the whole navigation)', () => {
     const centre = asset({ id: 'nav-centre', category: 'principle', title: 'Nav Centre' });
     const neighbour = asset({
       id: 'nav-neighbour',
@@ -374,14 +376,29 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       />,
     );
 
-    expect(screen.queryByTestId('lfg-depth-value')).toBeNull();
-    expect(screen.queryByTestId('lfg-depth-increase')).toBeNull();
-    expect(screen.queryByTestId('lfg-depth-decrease')).toBeNull();
+    // No breadcrumb trail of any kind (the ← Back button led it at HEAD — retired outright).
+    expect(screen.queryAllByTestId(/breadcrumb/)).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
+    // The global depth stepper stays retired.
+    expect(screen.queryAllByTestId(/^lfg-depth-/)).toHaveLength(0);
+    // No pan/zoom affordance was ever added, and this rework must not introduce one.
+    expect(screen.queryAllByTestId(/pan|zoom/i)).toHaveLength(0);
 
+    // Click-through re-centre still works even with no breadcrumb to retrace it.
+    const onFocus = vi.fn();
+    cleanup();
+    render(
+      <LibraryFocusGraph
+        assets={[centre, neighbour]}
+        docs={[]}
+        selection={selectionFor(centre)}
+        onFocus={onFocus}
+      />,
+    );
     fireEvent.click(screen.getByTestId(`lfg-node-${neighbour.id}`));
-
-    const breadcrumb = screen.getByTestId('lfg-breadcrumb');
-    expect(breadcrumb.firstElementChild?.getAttribute('data-testid')).toBe('lfg-breadcrumb-back');
+    expect(onFocus).toHaveBeenCalledWith(
+      expect.objectContaining({ id: neighbour.id }),
+    );
   });
 
   // ── ldag-neighbour-click-refocuses ───────────────────────────────────────────────

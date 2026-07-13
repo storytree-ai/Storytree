@@ -2,33 +2,35 @@
 id: "library-dag-canvas"
 tier: capability
 story: library-tech-tree-overlay
-title: "The focus canvas is a true layered reference DAG: dagre rankdir-LR ranks over references[] BOTH ways to FULL transitive depth, DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), ← Back leading the breadcrumb with no canvas header, and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
-outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus references[] BOTH ways (upstream stands-on left, downstream stood-on-by right) walked to FULL transitive depth (no depth cap), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), ← Back leading the breadcrumb at the canvas top-left with no canvas header text, and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested."
+title: "The focus canvas is a true layered reference DAG: dagre rankdir-LR ranks over references[] BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
+outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus references[] BOTH ways (upstream stands-on left, downstream stood-on-by right) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-finder]
-decisions: [188, 187, 185, 70, 122, 23]
+decisions: [193, 188, 187, 185, 70, 122, 23]
 # Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting: true) — this REWORKS the signed
 # inc-3 focus subgraph (apps/studio/src/components/LibraryFocusGraph.tsx + apps/studio/src/lib/focusGraph.ts,
-# green at HEAD with its lfg-* contracts) into a true layered reference DAG (ADR-0188 dec 5). The SOURCE FILES
-# KEEP THEIR NAMES (LibraryFocusGraph.tsx / focusGraph.ts) — only the capability, the test file, and the
-# contract prefix (ldag-) are new. real.testFile is a NET-NEW apps/studio/src/components/LibraryDagCanvas.test.tsx
-# that drives the DAG behaviour in jsdom + unit-tests the pure heart; real.sourceFile picks ONE representative
-# (LibraryFocusGraph.tsx); real.scope.sourceGlobs names BOTH reworked files (the multi-sourceGlob precedent from
-# library-category-shelf.md / library-overview.md — ADR-0122 one-real.testFile discipline).
+# green at HEAD with its lfg-* contracts) into a true layered reference DAG (ADR-0188 dec 5, its walk-depth now
+# REVERSED to one level by ADR-0193 dec 3). The SOURCE FILES KEEP THEIR NAMES (LibraryFocusGraph.tsx /
+# focusGraph.ts) — only the capability, the test file, and the contract prefix (ldag-) are new. real.testFile is
+# a NET-NEW apps/studio/src/components/LibraryDagCanvas.test.tsx that drives the DAG behaviour in jsdom +
+# unit-tests the pure heart; real.sourceFile picks ONE representative (LibraryFocusGraph.tsx);
+# real.scope.sourceGlobs names BOTH reworked files (the multi-sourceGlob precedent from library-category-shelf.md
+# / library-overview.md — ADR-0122 one-real.testFile discipline).
 # The RED the spine observes is a FAILING-ASSERTION red (both sources exist — NOT module-not-found): at HEAD the
-# component renders three CSS columns with NO drawn edges, a global depth stepper capped at 5, and no SVG
-# viewBox, so the net-new ldag- tests (drawn edges, full depth, per-node expanders, fit-to-view viewBox, no
-# stepper/header) fail; GREEN after the rework.
+# walk is FULL-transitive (over a chain a←b←centre←d←e, depth-2 nodes a and e WOULD be included) and the ← Back-led
+# breadcrumb renders, so the amended ldag- tests (one-level-each-way adjacency, no Back / no breadcrumb / no
+# pan/zoom) fail as a FAILING-ASSERTION red; GREEN after the rework.
 # FRONTEND-BUILDER TWO-STAGE (ADR-0070): this real: arm proves the GEOMETRY/BEHAVIOUR ONLY — the both-ways
-# full-depth adjacency, the edge list, the dagre LR ranks, the per-branch fan-cap collapse, the two-line kind
-# plaques via kindLabel, the DRAWN edge elements, the fit-to-view viewBox numerically containing every node, the
-# selected-chain/ephemeral STATE markers, the per-node ⊕ expander expanding in place, ← Back leading the
-# breadcrumb with the stepper+header ABSENT, the neighbour-click re-focus, and no fetch. The canvas APPEARANCE
-# (the seed-packet palette, the drawn vine-stroke edges, the plaque legibility, the purple selected-chain, the
-# dashed ephemeral stroke, the ⊕ affordance) is the story's operator-attested UAT leg (ADR-0188 dec 5/7,
-# ADR-0070) — do NOT author a visual/colour/pixel/stroke assertion here, and do NOT edit TreeView.tsx or the
-# CSS in this real: scope (the CSS look + the mount are the orchestrator's supplement glue after PASS — plan §G).
+# ONE-LEVEL-EACH-WAY adjacency, the edge list, the dagre LR ranks, the per-branch fan-cap collapse, the two-line
+# kind plaques via kindLabel, the DRAWN edge elements, the fit-to-view viewBox numerically containing every node,
+# the selected-chain/ephemeral STATE markers, the per-node ⊕ expander expanding in place, the ABSENT ← Back /
+# breadcrumb / pan-zoom controls (click-through is the whole navigation), the neighbour-click re-focus, and no
+# fetch. The canvas APPEARANCE (the seed-packet palette, the drawn vine-stroke edges, the plaque legibility, the
+# purple selected-chain, the dashed ephemeral stroke, the ⊕ affordance) is the story's operator-attested UAT leg
+# (ADR-0188 dec 5/7, ADR-0070) — do NOT author a visual/colour/pixel/stroke assertion here, and do NOT edit
+# TreeView.tsx or the CSS in this real: scope (the CSS look + the mount are the orchestrator's supplement glue
+# after PASS — plan §G).
 #
 # HARD COMPAT CONSTRAINT (state it in the spec body too): the reworked LibraryFocusGraph.tsx MUST keep, per
 # node, data-testid="lfg-node-<id>" AND the onDoubleClick={() => onOpen?.(toSearchResult(node))} firing —
@@ -80,16 +82,18 @@ proof:
 
 **Outcome —** The finder's lifted selection centres a `@dagrejs/dagre` rankdir-LR layered DAG built from the
 corpus's `references[]` BOTH ways (upstream "stands on" fanned left, downstream "stood on by" fanned right)
-walked to FULL transitive depth (no depth cap), with DRAWN SVG edges between rank-adjacent nodes, per-branch
-breadth tamed by in-place ⊕ expanders (the global depth stepper and `+N more` cluster chip RETIRED), ← Back
-leading the breadcrumb at the canvas top-left with NO canvas header text, and a bounded fit-to-view `viewBox`
-computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded
-corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance
-operator-attested.
+walked ONE level upstream + ONE level downstream only (the full transitive walk RETIRED, ADR-0193 dec 3 reversing
+ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕
+expanders (the global depth stepper and `+N more` cluster chip RETIRED), NO ← Back button and NO breadcrumb trail
+and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS
+one-level neighbourhood — is the whole navigation), and a bounded fit-to-view `viewBox` computed from the
+laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch
+beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested.
 
 **Depends on —** [`library-finder`](library-finder.md). This capability REWORKS the landed focus subgraph
 (`LibraryFocusGraph.tsx` + `focusGraph.ts`, inc 3, green at HEAD with its `lfg-*` contracts) into a true
-layered reference DAG (ADR-0188 dec 5), reusing the finder's `assets`/`docs`/`selection`/`onFocus` props and
+layered reference DAG (ADR-0188 dec 5, its walk-depth reversed to one level each way by ADR-0193 dec 3), reusing
+the finder's `assets`/`docs`/`selection`/`onFocus` props and
 its finder-parity `SearchResult`. The canvas CONSUMES the finder's lifted selection: the finder lifts a full
 `SearchResult` via `onSelect`, which `TreeView.tsx` holds as the shared `librarySelection`; that selection is
 the canvas's CENTRE. It needs the delivered finder (its search heart, its `SearchResult` lift) as its
@@ -102,12 +106,13 @@ backend), taken as `assets`/`docs` props so the component is deterministically d
 > `focusGraph.ts` EXIST and are green at HEAD (landed inc 3, #699, with their `lfg-*` contracts): the component
 > renders CSS-column upstream/centre/downstream fans with NO drawn edges, a global depth stepper (default 1,
 > capped at 5, testids `lfg-depth-value`/`lfg-depth-increase`/`lfg-depth-decrease`), a `+N more` cluster chip,
-> and no SVG `viewBox`; `buildFocusGraph` still takes a `depth` param. This capability reworks both into the
-> layered DAG: a NET-NEW vitest jsdom test (`LibraryDagCanvas.test.tsx`) drives the both-ways full-depth
-> adjacency, the edge list, the dagre LR ranks, the per-branch fan-cap collapse, the DRAWN SVG edges, the
-> fit-to-view viewBox, the per-node ⊕ expander, the Back-led breadcrumb with the stepper+header ABSENT, and the
-> neighbour-walk — RED at HEAD as a FAILING-ASSERTION red (both sources exist — NOT module-not-found; the
-> current render has no edges, no viewBox, and still ships the stepper), GREEN once both modules are reworked.
+> and no SVG `viewBox`; `buildFocusGraph` still takes a `depth` param and walks full transitive depth. This
+> capability reworks both into the layered DAG: a NET-NEW vitest jsdom test (`LibraryDagCanvas.test.tsx`) drives
+> the both-ways ONE-LEVEL-EACH-WAY adjacency, the edge list, the dagre LR ranks, the per-branch fan-cap collapse,
+> the DRAWN SVG edges, the fit-to-view viewBox, the per-node ⊕ expander, the ABSENT ← Back / breadcrumb / pan-zoom
+> controls (click-through is the whole navigation), and the neighbour-walk — RED at HEAD as a FAILING-ASSERTION
+> red (both sources exist — NOT module-not-found; the walk is still full-transitive so depth-2 nodes WOULD appear
+> and the Back-led breadcrumb still renders), GREEN once both modules are reworked.
 > Its GEOMETRY/BEHAVIOUR is machine-witnessed; its APPEARANCE (the seed-packet palette, the drawn vine-stroke
 > edges, the purple selected-chain, the dashed ephemeral stroke, the ⊕ affordance) is the story's
 > operator-attested UAT leg (ADR-0188 dec 5/7, ADR-0070; the shared inc-9/10 look sitting). Status stays
@@ -118,34 +123,39 @@ backend), taken as `assets`/`docs` props so the component is deterministically d
 WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the FOCUS DAG CANVAS AS A WHOLE — a pure
 adjacency+edge-list+layout function over the loaded corpus PLUS a behavioural React/SVG component that renders
 the laid-out DAG as positioned nodes with DRAWN edges between them, tames per-branch breadth with in-place
-expanders, fits every node inside a bounded viewBox, marks the selected transitive chain and ephemeral kinds
-with STATE data-attributes, leads the breadcrumb with a ← Back control, and graph-walks on a neighbour click —
-spanning the both-ways full-depth adjacency heart, the edge list, the dagre layered layout, the drawn-edge
-render, the fit-to-view viewBox, the per-node expander, the state marking, and the neighbour-walk, exercised in
-jsdom. It is the brownfield rework of the inc-3 focus subgraph into the true layered reference DAG ADR-0188 dec
-5 settles; the category shelf, the selection card, and the lens minimise handle are their own inc-9 increments.
+expanders, fits every node inside a bounded viewBox, marks the selected chain and ephemeral kinds with STATE
+data-attributes, and graph-walks on a neighbour click (click-through re-centre is the whole navigation — no ←
+Back, no breadcrumb, no pan/zoom) — spanning the both-ways ONE-LEVEL-EACH-WAY adjacency heart, the edge list, the
+dagre layered layout, the drawn-edge render, the fit-to-view viewBox, the per-node expander, the state marking,
+and the neighbour-walk, exercised in jsdom. It is the brownfield rework of the inc-3 focus subgraph into the true
+layered reference DAG ADR-0188 dec 5 settles as polished by ADR-0193 dec 3 (the full walk reversed to one level
+each way); the category shelf, the selection card, and the lens minimise handle are their own inc-9 increments.
 
-THE PURE HEART — `buildFocusGraph` REWORKED (the `depth` PARAM RETIRES). The pure module
-`apps/studio/src/lib/focusGraph.ts` keeps its name but its call becomes `buildFocusGraph({ centre, assets,
-docs })` — the `depth` argument RETIRES (breadth is now tamed per-branch, not by a global depth cap). It walks
-`references[]` BOTH ways to FULL transitive depth (no cap) in BOTH directions: **upstream ("stands on")** = the
-transitive closure of each node's OWN `GuidanceAsset.references` (the `asset:`/`doc:` prefix stripped to
-resolve a target id); **downstream ("stood on by")** = the transitive closure over the reverse index — every
-asset whose `references` points at the node's id. `DocMeta` carries no `references` on the wire, so an
-ADR-centred call has an EMPTY upstream fan (consistent with ADR-0185 dec 3 — "ADRs … bodies fetched on
-demand"), though the ADR still appears as a downstream neighbour when an asset points at it; build the reverse
-index over `GuidanceAsset.references` ONLY. The function returns (a) an EDGE LIST `{ from, to }` for every
-in-scope reference, (b) the `@dagrejs/dagre` `rankdir: 'LR'` laid-out nodes (each carrying its x/y, side, and
-STATE flags), and (c) the laid-out BBOX (width/height) so the component can compute a fit-to-view viewBox.
-Per-BRANCH fan cap: a parent whose visible children exceed the cap COLLAPSES the overflow and exposes, per
-parent, WHICH neighbours are collapsed and a collapsed COUNT — so a per-node ⊕ expander can reveal them.
-Implementation note for the leaf (not a contract): an OPTIONAL `expanded?: ReadonlySet<string>` arg (default
-empty) — the set of parent node ids whose collapsed children are revealed — keeps `buildFocusGraph({ centre,
-assets, docs })` a valid call while making expand-in-place a PURE re-layout (dagre lays out only the visible
-set, so the viewBox and edges stay correct as branches expand). Keep it PURE (input → output, no `useState`,
-no DOM, NO fetch). Pin the adjacency in `ldag-adjacency-both-ways-full-depth`, the edge list in
-`ldag-edge-list-over-references`, the ranks in `ldag-layered-ranks-upstream-left-downstream-right`, and the
-fan cap in `ldag-per-branch-fan-cap-collapses-overflow`. Do NOT prescribe more than the observable behaviour.
+THE PURE HEART — `buildFocusGraph` REWORKED (the `depth` PARAM RETIRES; the walk is ONE level each way). The pure
+module `apps/studio/src/lib/focusGraph.ts` keeps its name but its call becomes `buildFocusGraph({ centre, assets,
+docs })` — the `depth` argument RETIRES (breadth is now tamed per-branch, not by a global depth cap; depth itself
+is fixed at ONE level each way). It walks `references[]` BOTH ways to ONE level only in BOTH directions (ADR-0193
+dec 3, reversing ADR-0188 dec 5's full transitive walk): **upstream ("stands on")** = the centre's OWN
+`GuidanceAsset.references` at ONE level (the `asset:`/`doc:` prefix stripped to resolve a target id);
+**downstream ("stood on by")** = ONE level over the reverse index — every asset whose `references` points at the
+centre's id. So over a chain a←b←centre←d←e (each referencing the previous), the graph contains exactly {b,
+centre, d}: b (depth-1 upstream) and d (depth-1 downstream) are present, a and e (depth-2) are ABSENT — deeper
+nodes are reached by CLICK-THROUGH (re-centring on a neighbour reveals ITS one-level neighbourhood), not by a
+deep walk. `DocMeta` carries no `references` on the wire, so an ADR-centred call has an EMPTY upstream fan
+(consistent with ADR-0185 dec 3 — "ADRs … bodies fetched on demand"), though the ADR still appears as a
+downstream neighbour when an asset points at it; build the reverse index over `GuidanceAsset.references` ONLY. The
+function returns (a) an EDGE LIST `{ from, to }` for every in-scope reference, (b) the `@dagrejs/dagre`
+`rankdir: 'LR'` laid-out nodes (each carrying its x/y, side, and STATE flags), and (c) the laid-out BBOX
+(width/height) so the component can compute a fit-to-view viewBox. Per-BRANCH fan cap: a parent whose visible
+children exceed the cap COLLAPSES the overflow and exposes, per parent, WHICH neighbours are collapsed and a
+collapsed COUNT — so a per-node ⊕ expander can reveal them. Implementation note for the leaf (not a contract): an
+OPTIONAL `expanded?: ReadonlySet<string>` arg (default empty) — the set of parent node ids whose collapsed
+children are revealed — keeps `buildFocusGraph({ centre, assets, docs })` a valid call while making expand-in-place
+a PURE re-layout (dagre lays out only the visible set, so the viewBox and edges stay correct as branches expand).
+Keep it PURE (input → output, no `useState`, no DOM, NO fetch). Pin the adjacency in
+`ldag-adjacency-one-level-each-way`, the edge list in `ldag-edge-list-over-references`, the ranks in
+`ldag-layered-ranks-upstream-left-downstream-right`, and the fan cap in
+`ldag-per-branch-fan-cap-collapses-overflow`. Do NOT prescribe more than the observable behaviour.
 
 THE COMPONENT REWORKED TO SVG — POSITIONED NODES + DRAWN EDGES + A BOUNDED VIEWBOX. `LibraryFocusGraph.tsx`
 keeps its name but is reworked from three CSS columns into an SVG canvas: ONE positioned `<g>`/element per node
@@ -157,14 +167,16 @@ ONE place a kind KEY maps to display text, ADR-0183 D1), read via `useArcDisplay
 lowercase string `"epic"`, NEVER the raw key `"arc"` — a hand-rolled `category → label` map would make the
 canvas read "arc" while every other surface reads "Epic". Where a branch overflows the fan cap it renders a
 per-node ⊕/"+N" expander (`data-testid="ldag-expander-<nodeId>"`) that expands IN PLACE on click. The selected
-node + its transitive chain carry `data-chain`; ephemeral `plan`-kind nodes carry `data-ephemeral` (assert the
-MARKER, the colour/stroke is the look). ← Back is the LEADING element of the breadcrumb at the canvas top-left;
-the global depth stepper is REMOVED (no `lfg-depth-value`/`lfg-depth-increase`/`lfg-depth-decrease`) and there
-is NO canvas header text. A neighbour click invokes `onFocus` with the finder-parity `SearchResult` and pushes
-a breadcrumb entry. No fetch beyond the loaded corpus. Pin these in `ldag-node-plaque-kind-via-kindLabel`,
-`ldag-edges-drawn-between-nodes`, `ldag-viewbox-contains-all-nodes`, `ldag-selected-chain-and-ephemeral-markers`,
-`ldag-per-node-expander-expands-in-place`, `ldag-back-leads-breadcrumb-no-stepper-no-header`,
-`ldag-neighbour-click-refocuses`, and `ldag-no-fetch-beyond-loaded`.
+node + its chain carry `data-chain`; ephemeral `plan`-kind nodes carry `data-ephemeral` (assert the MARKER, the
+colour/stroke is the look). There is NO ← Back button (`lfg-breadcrumb-back` absent), NO breadcrumb trail
+(`lfg-breadcrumb` absent), the global depth stepper is REMOVED (no `lfg-depth-value`/`lfg-depth-increase`/
+`lfg-depth-decrease`), NO canvas header text, and NO pan/zoom controls (the owner rejected them OUTRIGHT, ADR-0193
+dec 3 — never add pan/zoom to this canvas). Navigation is search-first plus CLICK-THROUGH: a neighbour click
+invokes `onFocus` with the finder-parity `SearchResult`, which re-centres the DAG on that neighbour to reveal ITS
+one-level neighbourhood (there is no breadcrumb entry to push). No fetch beyond the loaded corpus. Pin these in
+`ldag-node-plaque-kind-via-kindLabel`, `ldag-edges-drawn-between-nodes`, `ldag-viewbox-contains-all-nodes`,
+`ldag-selected-chain-and-ephemeral-markers`, `ldag-per-node-expander-expands-in-place`,
+`ldag-no-back-no-breadcrumb-no-panzoom`, `ldag-neighbour-click-refocuses`, and `ldag-no-fetch-beyond-loaded`.
 
 HARD COMPAT — KEEP `lfg-node-<id>` + THE `onDoubleClick` OPEN TRIGGER (the byte-green `lot-*` fence). The
 landed, byte-green `apps/studio/src/components/LibraryOpenTrigger.test.tsx` (the inc-8 `lot-*` contracts) does
@@ -188,9 +200,9 @@ THE RETIRED `lfg-*` BEHAVIOURS RE-HOME AS `ldag-*` (this is a rework, not a from
 inc-3 subgraph behaviours — the both-ways `references` adjacency, the dagre rankdir-LR layered ranks, the
 two-line `kindLabel` plaque, the selected-chain / ephemeral-plan STATE markers, the neighbour-click re-focus,
 and the no-fetch invariant — MOVE from the retired `library-focus-subgraph` capability (its `LibraryFocusGraph.test.tsx`
-`lfg-*` contracts) into THIS capability's `ldag-*` contracts, now walked to full depth and rendered as a true
-DAG. The NET-NEW dec-5 geometry — DRAWN edges, full transitive depth, per-node expanders, the fit-to-view
-viewBox, and the no-stepper/no-header layout — is pinned alongside them. The retired `LibraryFocusGraph.test.tsx`
+`lfg-*` contracts) into THIS capability's `ldag-*` contracts, now walked ONE level each way and rendered as a
+true DAG. The NET-NEW geometry — DRAWN edges (dec 5), per-node expanders, the fit-to-view viewBox, and the
+no-Back / no-breadcrumb / no-pan-zoom layout (ADR-0193 dec 3) — is pinned alongside them. The retired `LibraryFocusGraph.test.tsx`
 (the `lfg-*` file) is replaced by `LibraryDagCanvas.test.tsx`; its still-true behaviours are re-proven under the
 `ldag-*` titles here. (Deleting the retired `lfg-*` test file + swapping the `node-build.test.ts` snapshot is the
 orchestrator's mechanical glue, done separately — NOT this leaf's scope.)
@@ -202,13 +214,13 @@ PURPLE selected-chain, the DASHED ephemeral stroke, and the ⊕ affordance are W
 inc-9/10 look sitting against the owner-aligned mock, ADR-0188 Consequences), never a machine visual verdict —
 do NOT author a visual/colour/pixel/stroke assertion in this cap's tests (assert the adjacency, the edge list,
 the ranks/ordering, the DRAWN edge ELEMENTS, the viewBox CONTAINMENT, the plaque TEXT, the state MARKERS, the
-expander behaviour, the Back-led breadcrumb, and the neighbour-walk — never their styling). Do NOT edit
-`TreeView.tsx` or the CSS in this `real:` scope — the CSS look and the TreeView mount are the orchestrator's
-supplement glue after PASS (plan §G).
+expander behaviour, the ABSENT ← Back / breadcrumb / pan-zoom controls, and the neighbour-walk — never their
+styling). Do NOT edit `TreeView.tsx` or the CSS in this `real:` scope — the CSS look and the TreeView mount are
+the orchestrator's supplement glue after PASS (plan §G).
 
 OFFLINE-TESTABLE IN JSDOM (the `LibraryFinder.test.tsx` / `LibraryDrawer.test.tsx` discipline).
-`@vitest-environment jsdom`, `@testing-library/react` for render / `fireEvent` (click a neighbour, click a ⊕
-expander, breadcrumb back). No backend seam to mock (the canvas holds no `api` call — it takes
+`@vitest-environment jsdom`, `@testing-library/react` for render / `fireEvent` (click a neighbour to re-centre,
+click a ⊕ expander). No backend seam to mock (the canvas holds no `api` call — it takes
 `assets`/`docs`/`selection`/`onFocus`/`onOpen` as props); the pure `buildFocusGraph` tests need no jsdom at all
 but still live in the one test file (ADR-0122 coverage). No real `fetch`, no `docContent`, no socket, no DB, no
 Electron. The component imports no agent/drive/model (the `modelPathBoundary.test.ts` wall stays green).
@@ -216,26 +228,28 @@ Electron. The component imports no agent/drive/model (the `modelPathBoundary.tes
 ## Integration test
 
 **Goal —** Prove the focus DAG canvas: `buildFocusGraph({ centre, assets, docs })` builds adjacency BOTH ways
-over `GuidanceAsset.references` to FULL transitive depth (no cap), stripping the `asset:`/`doc:` prefix, with an
-ADR centre having an empty upstream fan; returns an edge list `{ from, to }` for every in-scope reference; runs
-dagre rankdir-LR with upstream ranked left / downstream right and x monotonic along a chain; collapses a
-per-branch overflow and exposes its collapsed count; and the `<LibraryFocusGraph>` component renders each node
-as a two-line `kindLabel` plaque (an `arc` reads "epic"), DRAWS SVG edges between rank-adjacent nodes, fits
-every node inside a bounded `viewBox`, marks the selected transitive chain `data-chain` and ephemeral `plan`
-nodes `data-ephemeral`, renders a per-node ⊕ expander that expands in place, leads the breadcrumb with ← Back
-with the depth stepper and header ABSENT, re-focuses via `onFocus` on a neighbour click, and never fetches
-beyond the loaded corpus — entirely in jsdom, no backend, driven by props.
+over `GuidanceAsset.references` to ONE level upstream + ONE level downstream only (the full transitive walk
+retired), stripping the `asset:`/`doc:` prefix, with an ADR centre having an empty upstream fan; returns an edge
+list `{ from, to }` for every in-scope reference; runs dagre rankdir-LR with upstream ranked left / downstream
+right and x monotonic along a chain; collapses a per-branch overflow and exposes its collapsed count; and the
+`<LibraryFocusGraph>` component renders each node as a two-line `kindLabel` plaque (an `arc` reads "epic"), DRAWS
+SVG edges between rank-adjacent nodes, fits every node inside a bounded `viewBox`, marks the selected chain
+`data-chain` and ephemeral `plan` nodes `data-ephemeral`, renders a per-node ⊕ expander that expands in place,
+renders NO ← Back / breadcrumb / depth stepper / header / pan-zoom controls, re-focuses via `onFocus` on a
+neighbour click (click-through is the whole navigation), and never fetches beyond the loaded corpus — entirely in
+jsdom, no backend, driven by props.
 
 The integration test exercises this capability against its own composition (no backend seam) — the pure
 `buildFocusGraph` adjacency+edge-list+layout, the drawn-edge render, the fit-to-view viewBox, the `kindLabel`
-routing, the state marking, the per-node expander, the Back-led breadcrumb, and the neighbour-walk are all
-real. It would:
+routing, the state marking, the per-node expander, the absent Back / breadcrumb / pan-zoom, and the neighbour-walk
+are all real. It would:
 
 1. Call `buildFocusGraph({ centre, assets, docs })` directly with a small fixed corpus (a few `GuidanceAsset`s
-   wired via `references` — a multi-rank chain centre→A→B→C, a hub, and an `arc` — plus a couple of `DocMeta`
-   ADRs). Assert upstream nodes come from the centre's OWN `references` and downstream nodes from the reverse
-   index, with the `asset:`/`doc:` prefix stripped; assert the chain is walked to FULL depth (B at depth-2 and
-   C at depth-3 are BOTH present — no cap); assert an ADR-centred call yields an EMPTY upstream fan.
+   wired via `references` — a chain a←b←centre←d←e (each referencing the previous), a hub, and an `arc` — plus a
+   couple of `DocMeta` ADRs). Assert upstream nodes come from the centre's OWN `references` and downstream nodes
+   from the reverse index, with the `asset:`/`doc:` prefix stripped; assert the walk is ONE level each way — over
+   a←b←centre←d←e the graph contains exactly {b, centre, d}, with b (depth-1 upstream) and d (depth-1 downstream)
+   present and a and e (depth-2) ABSENT; assert an ADR-centred call yields an EMPTY upstream fan.
 2. Assert `buildFocusGraph` returns an edge list — one `{ from, to }` per in-scope reference — and the fixture's
    edges (centre→A, A→B, B→C, …) are all present.
 3. Assert the dagre rankdir-LR layout ranks upstream nodes LEFT of the centre and downstream nodes RIGHT, with
@@ -256,11 +270,11 @@ real. It would:
    colour/stroke.
 9. Assert a per-node ⊕/"+N" expander (`data-testid="ldag-expander-<nodeId>"`) renders where a branch overflows;
    `fireEvent.click` it and assert a previously-collapsed neighbour now appears (expand-in-place re-layout).
-10. Assert ← Back is the LEADING element of the breadcrumb at the canvas top-left (Back precedes the trail
-    entries in DOM order); assert the depth-stepper testids (`lfg-depth-value`/`lfg-depth-increase`/
-    `lfg-depth-decrease`) are ABSENT; assert there is NO canvas header text.
-11. Click a neighbour node. Assert `onFocus` is invoked with that neighbour's finder-parity `SearchResult` and a
-    breadcrumb entry is pushed.
+10. Assert there is NO ← Back button (`lfg-breadcrumb-back` absent), NO breadcrumb trail (`lfg-breadcrumb`
+    absent), the depth-stepper testids (`lfg-depth-value`/`lfg-depth-increase`/`lfg-depth-decrease`) are ABSENT,
+    NO canvas header text, and NO pan/zoom controls — click-through is the whole navigation.
+11. Click a neighbour node. Assert `onFocus` is invoked with that neighbour's finder-parity `SearchResult` (which
+    re-centres the DAG on it) — there is no breadcrumb entry to push.
 12. Assert no `docContent`/`fetch`/socket is called across the whole exercise (the canvas reads only the loaded
     corpus).
 
@@ -274,17 +288,20 @@ reports 12/12 against the ONE `real.testFile`. None of these is an APPEARANCE as
 seed-packet palette, the drawn vine-stroke edges, the purple selected-chain, the dashed ephemeral stroke, the
 ⊕ affordance) is the story's operator-attested UAT leg (ADR-0188 dec 5/7, ADR-0070). Contracts 1–4 (the
 adjacency, edge list, ranks, neighbour-walk, kind plaque, chain/ephemeral markers, no-fetch) RE-HOME the
-still-true `lfg-*` survivors of the retired focus subgraph; contracts pinning DRAWN edges, full depth, per-node
-expanders, the fit-to-view viewBox, and no-stepper/no-header are the NET-NEW dec-5 geometry.
+still-true `lfg-*` survivors of the retired focus subgraph — the adjacency now walked one level each way (ADR-0193
+dec 3); contracts pinning DRAWN edges, per-node expanders, the fit-to-view viewBox, and the no-Back / no-breadcrumb
+/ no-pan-zoom layout are the NET-NEW geometry (dec 5 + ADR-0193 dec 3).
 
-1. **`ldag-adjacency-both-ways-full-depth`** — adjacency over `references[]` BOTH ways, prefix-stripped, walked to FULL transitive depth (no cap) in both directions
-   - **asserts —** `buildFocusGraph({ centre, assets, docs })` yields UPSTREAM nodes from the transitive closure
-     of the centre's own `GuidanceAsset.references` ("stands on") AND DOWNSTREAM nodes from the transitive
-     closure over the reverse index — every asset whose `references` points AT a node ("stood on by") — with the
-     `asset:`/`doc:` prefix stripped to resolve each ref; walked to FULL transitive depth (no cap), so a chain
-     centre→A→B→C includes B (depth-2) and C (depth-3); and an ADR-CENTRED call yields an EMPTY upstream fan
-     (DocMeta carries no `references`). The reverse index is built over `GuidanceAsset.references` only.
-   - **covers —** `apps/studio/src/lib/focusGraph.ts` (the both-ways full-depth transitive walk + prefix strip + reverse index)
+1. **`ldag-adjacency-one-level-each-way`** — adjacency over `references[]` BOTH ways, prefix-stripped, walked ONE level upstream + ONE level downstream only (the full walk retired)
+   - **asserts —** `buildFocusGraph({ centre, assets, docs })` yields UPSTREAM nodes from the centre's OWN
+     `GuidanceAsset.references` ("stands on") at ONE level AND DOWNSTREAM nodes from the reverse index — every
+     asset whose `references` points AT the centre ("stood on by") — at ONE level, with the `asset:`/`doc:` prefix
+     stripped to resolve each ref; walked ONE level each way (ADR-0193 dec 3, reversing the full transitive walk),
+     so over a chain a←b←centre←d←e (each referencing the previous) the graph contains exactly {b, centre, d}: b
+     (depth-1 upstream) and d (depth-1 downstream) are present, a and e (depth-2) are ABSENT; and an ADR-CENTRED
+     call yields an EMPTY upstream fan (DocMeta carries no `references`). The reverse index is built over
+     `GuidanceAsset.references` only.
+   - **covers —** `apps/studio/src/lib/focusGraph.ts` (the both-ways one-level walk + prefix strip + reverse index)
    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx` (net-new, vitest; imports `buildFocusGraph`).
 2. **`ldag-edge-list-over-references`** — the pure heart returns an edge list `{from,to}` for every in-scope reference
    - **asserts —** `buildFocusGraph` returns an EDGE LIST — one `{ from, to }` per in-scope reference across the
@@ -341,18 +358,21 @@ expanders, the fit-to-view viewBox, and no-stepper/no-header are the NET-NEW dec
      cluster chip AND the global depth stepper.
    - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the per-node ⊕ expander + expand-in-place render) and `apps/studio/src/lib/focusGraph.ts` (the `expanded`-arg pure re-layout)
    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
-10. **`ldag-back-leads-breadcrumb-no-stepper-no-header`** — ← Back leads the breadcrumb at the canvas top-left; the global depth stepper is absent; no canvas header text
-    - **asserts —** ← Back is the LEADING element of the breadcrumb at the canvas top-left (Back precedes the
-      trail entries in DOM order); the global depth stepper is ABSENT
-      (`queryByTestId('lfg-depth-value')`/`'lfg-depth-increase'`/`'lfg-depth-decrease'` all null); and there is
-      NO canvas header text. The inc-3 depth stepper and header retire with this rework.
-    - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the Back-led breadcrumb + the removed depth stepper + the removed header)
+10. **`ldag-no-back-no-breadcrumb-no-panzoom`** — no ← Back, no breadcrumb trail, no depth stepper, no canvas header text, and no pan/zoom controls — click-through is the whole navigation
+    - **asserts —** the canvas renders NO ← Back button (`queryByTestId('lfg-breadcrumb-back')` null), NO
+      breadcrumb trail (`queryByTestId('lfg-breadcrumb')` null), the global depth-stepper testids
+      (`'lfg-depth-value'`/`'lfg-depth-increase'`/`'lfg-depth-decrease'`) all ABSENT, NO canvas header text, and
+      NO pan/zoom controls (ADR-0193 dec 3 — the owner rejected pan/zoom outright). Click-through
+      (`ldag-neighbour-click-refocuses`) is the whole navigation; the inc-3 depth stepper, the dec-5 Back-led
+      breadcrumb, and any pan/zoom retire with this rework.
+    - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the removed Back / breadcrumb / depth stepper / header / pan-zoom)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
-11. **`ldag-neighbour-click-refocuses`** — clicking a neighbour fires `onFocus` with its finder-parity SearchResult and pushes a breadcrumb entry
+11. **`ldag-neighbour-click-refocuses`** — clicking a neighbour fires `onFocus` with its finder-parity SearchResult (re-centring the DAG on it)
     - **asserts —** clicking a NEIGHBOUR node invokes `onFocus(result)` with that neighbour's finder-parity
-      `SearchResult` (via the existing `toSearchResult` shape) and pushes a breadcrumb entry. The single-click
-      re-focus / graph-walk carries over from the inc-3 subgraph, unchanged in semantics.
-    - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the neighbour-click `onFocus` lift + breadcrumb push)
+      `SearchResult` (via the existing `toSearchResult` shape), which re-centres the DAG on that neighbour to
+      reveal ITS one-level neighbourhood. The single-click re-focus / graph-walk carries over from the inc-3
+      subgraph; there is no breadcrumb entry to push (ADR-0193 dec 3).
+    - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the neighbour-click `onFocus` re-centre lift)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 12. **`ldag-no-fetch-beyond-loaded`** — building + rendering never calls fetch/docContent/socket; reads only the loaded corpus
     - **asserts —** across building and rendering the canvas, only ids/titles/`references` already on the loaded
@@ -374,19 +394,19 @@ true layered reference DAG, test-first, keeping the `lot-*` node-open trigger by
   `storytree coverage library-dag-canvas` reports 12/12 (ADR-0122) — the pure-heart contracts live in THIS one
   file too, since coverage scans only `real.testFile`.
 - **The RED the spine observes (before IMPLEMENT) —** a FAILING-ASSERTION red (both sources exist — NOT
-  module-not-found): at HEAD the component renders three CSS columns with NO drawn edges, a global depth stepper
-  (testids `lfg-depth-*`), a `+N more` cluster chip, and no SVG `viewBox`, and `buildFocusGraph` still takes a
-  `depth` param — so the `ldag-` tests (drawn edges, full transitive depth, per-node expanders, fit-to-view
-  viewBox, no-stepper/no-header) fail. This is the brownfield red the spine observes against the shipped subgraph
-  (ADR-0057).
+  module-not-found): at HEAD `buildFocusGraph` still takes a `depth` param and walks FULL transitive depth (over
+  a←b←centre←d←e the depth-2 nodes a and e WOULD be included) and the ← Back-led breadcrumb still renders — so the
+  amended `ldag-` tests (one-level-each-way adjacency, no Back / no breadcrumb / no pan/zoom) fail as a
+  FAILING-ASSERTION red. This is the brownfield red the spine observes against the shipped subgraph (ADR-0057).
 - **The GREEN —** rework the two modules. `apps/studio/src/lib/focusGraph.ts`: `buildFocusGraph({ centre, assets,
-  docs })` (retire the `depth` param) — both-ways adjacency walked to FULL transitive depth, an edge list
-  `{ from, to }`, the dagre rankdir-LR laid-out nodes + the laid-out bbox, and a per-branch fan cap exposing the
-  collapsed set/count (an OPTIONAL `expanded?` arg driving the pure re-layout). `apps/studio/src/components/LibraryFocusGraph.tsx`:
-  an SVG canvas — one positioned element per node, DRAWN edge elements between rank-adjacent nodes, a bounded
-  fit-to-view `viewBox` from the bbox, the two-line `kindLabel` plaque, `data-chain`/`data-ephemeral` state
-  markers, a per-node ⊕ expander that expands in place, a ← Back-led breadcrumb with the depth stepper + header
-  REMOVED, and the neighbour-click `onFocus` lift — KEEPING per node `data-testid="lfg-node-<id>"` and
+  docs })` (retire the `depth` param) — both-ways adjacency walked ONE level each way (ADR-0193 dec 3), an edge
+  list `{ from, to }`, the dagre rankdir-LR laid-out nodes + the laid-out bbox, and a per-branch fan cap exposing
+  the collapsed set/count (an OPTIONAL `expanded?` arg driving the pure re-layout).
+  `apps/studio/src/components/LibraryFocusGraph.tsx`: an SVG canvas — one positioned element per node, DRAWN edge
+  elements between rank-adjacent nodes, a bounded fit-to-view `viewBox` from the bbox, the two-line `kindLabel`
+  plaque, `data-chain`/`data-ephemeral` state markers, a per-node ⊕ expander that expands in place, NO ← Back /
+  breadcrumb / depth stepper / header / pan-zoom (click-through re-centre is the whole navigation), and the
+  neighbour-click `onFocus` re-centre lift — KEEPING per node `data-testid="lfg-node-<id>"` and
   `onDoubleClick={() => onOpen?.(toSearchResult(node))}` so `LibraryOpenTrigger.test.tsx` (`lot-*`, OUTSIDE this
   `real.scope`) stays byte-green. MOUNTING it into TreeView's side-panel/canvas composition, the DAG-canvas CSS,
   and the seed-packet appearance are witnessed under the story's operator-attested UAT leg (ADR-0070), NOT
@@ -395,10 +415,11 @@ true layered reference DAG, test-first, keeping the `lot-*` node-open trigger by
 
 Rules:
 
-- **Adjacency both ways to FULL transitive depth, assets-only source** — upstream = the transitive closure of
-  the centre's own `references`; downstream = the transitive closure over the reverse index (assets pointing at
-  a node); strip the `asset:`/`doc:` prefix; no depth cap; an ADR centre has an empty upstream fan
-  (`ldag-adjacency-both-ways-full-depth`). `DocMeta` carries no `references`.
+- **Adjacency both ways to ONE level each way, assets-only source** — upstream = the centre's own `references` at
+  one level; downstream = one level over the reverse index (assets pointing at the centre); strip the
+  `asset:`/`doc:` prefix; NO deeper walk (ADR-0193 dec 3, reversing ADR-0188 dec 5 — deeper nodes are reached by
+  click-through); an ADR centre has an empty upstream fan (`ldag-adjacency-one-level-each-way`). `DocMeta` carries
+  no `references`.
 - **The pure heart returns an edge list** — one `{ from, to }` per in-scope reference; the component draws from
   it (`ldag-edge-list-over-references`). The `depth` param RETIRES.
 - **Dagre rankdir-LR layered ranks** — upstream left, downstream right, x monotonic along a chain; assert ranks/
@@ -415,14 +436,16 @@ Rules:
   viewBox).
 - **Kind is text via `kindLabel`, never a hand-rolled map** — an `arc` reads "epic" like every other surface
   (`ldag-node-plaque-kind-via-kindLabel`).
-- **Colour is STATE, asserted as a marker** — the selected transitive chain carries `data-chain`, ephemeral
+- **Colour is STATE, asserted as a marker** — the selected chain carries `data-chain`, ephemeral
   `plan` nodes carry `data-ephemeral`; assert the MARKERS, never the colour/stroke
   (`ldag-selected-chain-and-ephemeral-markers`). Purple/dashed are the look.
-- **← Back leads the breadcrumb; the stepper + header are GONE** — Back precedes the trail entries at the canvas
-  top-left, the `lfg-depth-*` stepper testids are absent, and there is no canvas header text
-  (`ldag-back-leads-breadcrumb-no-stepper-no-header`).
+- **No ← Back, no breadcrumb, no depth stepper, no header, no pan/zoom** — the canvas renders none of these
+  (`lfg-breadcrumb-back`/`lfg-breadcrumb`/`lfg-depth-*` all absent, no header text, no pan/zoom controls); the
+  owner rejected pan/zoom outright (ADR-0193 dec 3). Click-through is the whole navigation
+  (`ldag-no-back-no-breadcrumb-no-panzoom`).
 - **Neighbour-click re-focuses via `onFocus`** — the graph-walk lifts the neighbour's finder-parity
-  `SearchResult` and pushes a breadcrumb entry (`ldag-neighbour-click-refocuses`).
+  `SearchResult`, re-centring the DAG on it to reveal its one-level neighbourhood; there is no breadcrumb entry to
+  push (`ldag-neighbour-click-refocuses`).
 - **No fetch beyond the loaded corpus** — no `docContent`/fetch/socket (`ldag-no-fetch-beyond-loaded`).
 - **HARD COMPAT — keep `lfg-node-<id>` + the `onDoubleClick` Open trigger** — the reworked component keeps the
   node testid and the double-click `onOpen` handler so the signed, byte-green `lot-*` tests
@@ -430,9 +453,9 @@ Rules:
   `lfg-node-*` (compat) while the CONTRACT titles are `ldag-*` — that split is intentional.
 - **Appearance is operator-attested, not asserted here** (ADR-0188 dec 5/7, ADR-0070) — prove the adjacency,
   the edge list, the ranks/ordering, the DRAWN edge ELEMENTS, the viewBox CONTAINMENT, the plaque TEXT, the
-  state MARKERS, the expander behaviour, the Back-led breadcrumb, and the neighbour-walk; the seed-packet
-  palette, the vine-stroke edges, the purple chain, the dashed ephemeral, and the ⊕ affordance are the story's
-  shared inc-9/10 look leg. Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` or the CSS in the
+  state MARKERS, the expander behaviour, the ABSENT ← Back / breadcrumb / pan-zoom, and the neighbour-walk; the
+  seed-packet palette, the vine-stroke edges, the purple chain, the dashed ephemeral, and the ⊕ affordance are the
+  story's shared inc-9/10 look leg. Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` or the CSS in the
   `real:` scope (the CSS + mount are the orchestrator's supplement glue after PASS — plan §G).
 - **Every `ldag-` contract test TITLE leads with its unique id** or `storytree coverage` silently drops coverage
   (`sdk-leaf-drops-contract-id-test-names`, this arc's recurring class risk — the fix if it happens is

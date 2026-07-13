@@ -16,7 +16,11 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable pnpm
 
 COPY . .
-RUN pnpm install --frozen-lockfile && pnpm --filter studio build
+# Install ONLY studio's workspace closure (`--filter studio...`): a full-workspace
+# install would also build apps/desktop's node-pty, whose node-gyp compile needs
+# Python — absent in node:24-slim — and download electron. Desktop-only native
+# deps must never gate the studio image.
+RUN pnpm install --frozen-lockfile --filter studio... && pnpm --filter studio build
 
 ENV NODE_ENV=production
 EXPOSE 8080

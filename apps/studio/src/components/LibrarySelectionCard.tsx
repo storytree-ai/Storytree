@@ -75,12 +75,16 @@ export function LibrarySelectionCard({
           )}
         </>
       )}
+      {/* Compact icon button (ADR-0193 dec 5) — the accessible name stays "Open" via aria-label;
+          the word-button's real estate was owner-rejected. */}
       <button
         type="button"
         className="library-selection-open"
+        aria-label="Open"
+        title="Open"
         onClick={() => onOpen(selection)}
       >
-        Open
+        <span aria-hidden="true">↗</span>
       </button>
     </div>
   );

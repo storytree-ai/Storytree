@@ -2197,22 +2197,27 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                     onSelect={setLibrarySelection}
                     {...(librarySelection ? { selectedId: librarySelection.id } : {})}
                   />
-                  <LibrarySelectionCard
-                    selection={librarySelection}
-                    assets={libraryAssets}
-                    docs={docs}
-                    onOpen={setOpenSelection}
-                  />
                 </aside>
+                {/* The selection card lives IN the DAG pane (ADR-0193 dec 4) — it takes its space
+                    from the canvas, never from the side panel, so search stays usable while a node
+                    is selected (the covered-search bug the owner attested). */}
                 <div className="library-canvas">
                   {librarySelection ? (
-                    <LibraryFocusGraph
-                      assets={libraryAssets}
-                      docs={docs}
-                      selection={librarySelection}
-                      onFocus={setLibrarySelection}
-                      onOpen={setOpenSelection}
-                    />
+                    <>
+                      <LibraryFocusGraph
+                        assets={libraryAssets}
+                        docs={docs}
+                        selection={librarySelection}
+                        onFocus={setLibrarySelection}
+                        onOpen={setOpenSelection}
+                      />
+                      <LibrarySelectionCard
+                        selection={librarySelection}
+                        assets={libraryAssets}
+                        docs={docs}
+                        onOpen={setOpenSelection}
+                      />
+                    </>
                   ) : (
                     <div className="library-canvas-idle" data-testid="library-canvas-idle">
                       Pick a category or search — the tree grows from what you choose.

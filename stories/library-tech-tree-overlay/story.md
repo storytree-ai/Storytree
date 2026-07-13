@@ -78,7 +78,7 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 |---|---|---|---|---|
 | 1 | Drawer shell → permanent lens | [`library-drawer-shell`](library-drawer-shell.md) | The `?overlay=library` invocation gate (`readLibraryOverlay` reader + absent-renders-nothing); its closed↔peek↔dive state machine RETIRED by ADR-0187 dec 1, reworked into `library-permanent-lens`. | landed #691, reconciled inc 8 |
 | 2 | Finder panel | [`library-finder`](library-finder.md) | Client-side search over the loaded corpus (assets on id/title/description/body, ADRs on title/id only) with a `kindLabel` sub-line, ADR status, and selection lifted via `onSelect`. | landed #693 |
-| 3 | Focus subgraph → DAG canvas | [`library-dag-canvas`](library-dag-canvas.md) | The focus canvas is a true layered reference DAG (ADR-0188 dec 5): dagre rankdir-LR ranks over `references[]` BOTH ways to FULL transitive depth, DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders (the global depth stepper + `+N more` chip retired), ← Back leading the breadcrumb with no canvas header, and a machine-asserted fit-to-view viewBox containing every node — the brownfield rework of the inc-3 focus subgraph (source files keep their names; only the capability/test/`ldag-` prefix are new). | authored (inc 10) |
+| 3 | Focus subgraph → DAG canvas | [`library-dag-canvas`](library-dag-canvas.md) | The focus canvas is a true layered reference DAG (ADR-0188 dec 5, walk reversed to one level by ADR-0193 dec 3): dagre rankdir-LR ranks over `references[]` BOTH ways to ONE level upstream + ONE level downstream, DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders (the global depth stepper + `+N more` chip retired), NO ← Back / breadcrumb / pan-zoom controls (click-through re-centre is the whole navigation, ADR-0193 dec 3), and a machine-asserted fit-to-view viewBox containing every node — the brownfield rework of the inc-3 focus subgraph (source files keep their names; only the capability/test/`ldag-` prefix are new). | authored (inc 10) |
 | 4 | Dive body panel | [`library-dive-body`](library-dive-body.md) | The full artifact body + Sources rendered over the map, reusing AssetView (assets, no fetch) / DocView (ADRs, on-demand `docContent`), routed off `SearchResult.source`. | landed #701 |
 | 5 | Overview constellation | [`library-overview`](library-overview.md) | The empty-state dot field of the whole corpus under the LOD ladder (importance = degree), search-glow highlighting, node-select lifted with finder parity. | landed #704 |
 | 6 | ADR wire signals | [`library-adr-wire-signals`](library-adr-wire-signals.md) | Each ADR's `load_bearing` boolean + its decision-lineage edge numbers onto the studio wire via a tolerant flat-scan frontmatter parser (machine-only plumbing, no look leg). | landed #707 |
@@ -97,8 +97,9 @@ panel becomes a category shelf (`library-category-shelf`, dec 2), a pinned selec
 (`library-selection-card`, dec 3), and a minimise handle (`library-lens-minimise`, dec 6), and the overview
 constellation retires to a quiet idle canvas (dec 4 — the inc-5 `LibraryOverview` mount is removed by the
 inc-9 glue, its `lov-*` contracts staying green while the source remains). The DAG canvas overhaul (drawn
-edges, uncapped depth, expanders, breadcrumb/Back, palette — ADR-0188 dec 5) and the `#/library`
-retirement follow as their own increments, authored just-in-time. Increments 9 and 10 share one
+edges, one-level-each-way walk, expanders, palette — ADR-0188 dec 5, its depth reversed to one level and its
+Back/breadcrumb removed by ADR-0193 dec 3) and the `#/library` retirement follow as their own increments,
+authored just-in-time. Increments 9 and 10 share one
 operator-attested look sitting against the owner-aligned mock (ADR-0188 Consequences).
 
 ### Within-story dependency graph (code-derived, authored per increment)
@@ -144,9 +145,10 @@ settled ADR-0188 dec 3/6 — not a re-decision (see `library-permanent-lens.md`'
 
 **Increment 10 (authored here, ADR-0188 dec 5 — the DAG canvas rework):** `library-dag-canvas`
 **`depends_on: [library-finder]`** — it REWORKS the landed inc-3 focus subgraph into a true layered reference
-DAG (dagre rankdir-LR ranks over `references[]` BOTH ways to FULL transitive depth, DRAWN SVG edges, per-branch
-⊕ expanders replacing the retired global depth stepper + `+N more` chip, ← Back leading the breadcrumb with no
-canvas header, and a machine-asserted fit-to-view viewBox), keeping the SAME `depends_on: [library-finder]` edge
+DAG (dagre rankdir-LR ranks over `references[]` BOTH ways to ONE level each way — ADR-0193 dec 3 reversed
+ADR-0188 dec 5's full transitive walk — DRAWN SVG edges, per-branch ⊕ expanders replacing the retired global
+depth stepper + `+N more` chip, NO ← Back / breadcrumb / pan-zoom controls (ADR-0193 dec 3), and a
+machine-asserted fit-to-view viewBox), keeping the SAME `depends_on: [library-finder]` edge
 the focus subgraph held (it centres the finder's lifted `SearchResult` — the node's identity in the graph is
 unchanged). The SOURCE FILES KEEP THEIR NAMES (`LibraryFocusGraph.tsx` / `focusGraph.ts`) — only the
 capability, its test file (`LibraryDagCanvas.test.tsx`), and the contract prefix (`ldag-`) are new; the retired
@@ -175,8 +177,8 @@ RETIRES — ADR-0191 makes "the flag alone gates presence — absent renders not
 collapsed handle); its flag semantics re-home across `library-top-drawer`'s `ltd-collapsed-handle-by-default` +
 `ltd-flag-renders-expanded` + `ltd-flag-reader-survives` (see `library-permanent-lens.md`'s ADR-0191
 reconciliation note). The other three `lpl-*` contracts survive verbatim. The inc-12 cap carries no new cross-story
-edge (client-side, reading the existing `useAppData()` wire); the TreeView mount rewire, the full-width / top-third
-look, the URL write via `commitSearch`, and REMOVING the #715 corner toggle are the orchestrator's supplement glue
+edge (client-side, reading the existing `useAppData()` wire); the TreeView mount rewire, the full-width / half-screen
+look (ADR-0193 dec 1), the URL write via `commitSearch`, and REMOVING the #715 corner toggle are the orchestrator's supplement glue
 after the leaf's PASS (plan §G). Deleting the retired `LibraryLensMinimise.test.tsx`, swapping the
 `node-build.test.ts` REAL-buildable snapshot, and trimming the `lpl-flag-gates-permanent-lens` block from
 `LibraryPermanentLens.test.tsx` are the orchestrator's mechanical glue, done separately — not this capability's
@@ -242,9 +244,9 @@ deliberate dive.
    sub-line (via `kindLabel`, so `arc` reads "Epic"); selecting one sets the finder selection.
 3. Read the selected artifact's neighbourhood. **Success (machine — `library-dag-canvas`) —** the selected
    artifact is centred in a layered reference DAG, its `references[]` fanning upstream (stands on) left
-   and downstream (stood on by) right to FULL transitive depth, with DRAWN edges between rank-adjacent
+   and downstream (stood on by) right to ONE level each way (ADR-0193 dec 3), with DRAWN edges between rank-adjacent
    nodes and per-branch ⊕ expanders taming breadth (no global depth stepper) and a fit-to-view viewBox
-   holding every node; clicking a neighbour re-focuses with ← Back leading the breadcrumb. **Look (operator-attested) —** two-line kind-in-node
+   holding every node; clicking a neighbour re-centres the DAG on it — no ← Back / breadcrumb / pan-zoom. **Look (operator-attested) —** two-line kind-in-node
    plaques (title / kind), colour encoding STATE only (the selected chain lights purple, ephemeral
    plan nodes dashed).
 4. Open the selected artifact to read it. **Success (machine — `dive-body`) —** the drawer collapses to

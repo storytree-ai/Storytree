@@ -244,8 +244,10 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 `docs/decisions/` is the append-only decision HISTORY. Every ADR carries **structured YAML
 frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
-`supersedes`/`supersedes_in_part`/`amends` edges · the `load_bearing` current-state tag; ADR-0037 /
-0086) — CI validates it (`adr-health` in `@storytree/cli`).
+`supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037 / 0086;
+`supersedes_in_part` was RETIRED by ADR-0139 — a partial redefinition/reversal is an `amends`
+edge, the schema rejects the old key on new ADRs) — CI validates it (`adr-health` in
+`@storytree/cli`).
 
 **The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0086):**
 `storytree adr list --load-bearing` (★ the curated calibrate-to-these set) · `--current` (every

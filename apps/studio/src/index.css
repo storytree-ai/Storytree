@@ -4623,15 +4623,24 @@ button.legend-tile:hover {
   box-shadow: 0 16px 38px rgba(87, 60, 38, 0.28);
   overflow: hidden;
 }
-/* Top drawer (ADR-0191): full width of the forest frame; state is URL-derived. Expanded takes
-   ~the top third of the frame; collapsed keeps only the handle bar (the persistent drawer tab,
-   visible by default on every map load). */
+/* Top drawer (ADR-0191, layout revised by ADR-0193): full width of the forest frame; state is
+   URL-derived. Expanded takes ~HALF the frame by default and is drag-resizable (the separator's
+   inline px height overrides this); collapsed shrinks to a slim centred title-less tab that
+   never occludes the forest legend / Shared Islands panels (top-left). */
 .library-drawer[data-lens-state='expanded'] {
-  height: 33%;
+  height: 50%;
   min-height: 260px;
 }
 .library-drawer[data-lens-state='collapsed'] {
   height: auto;
+  left: 50%;
+  right: auto;
+  width: auto;
+  transform: translateX(-50%);
+  border: 1px solid var(--lp-border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 6px 16px rgba(87, 60, 38, 0.18);
 }
 /* the expanding body slides down out of the handle (the drawer-pull) */
 @keyframes library-drawer-slide {
@@ -4657,8 +4666,9 @@ button.legend-tile:hover {
     animation: none;
   }
 }
-/* the HANDLE BAR (ADR-0191): grip + wordmark + Expand/Collapse — the drawer's single open/close
-   affordance; collapsed, this bar is the whole visible drawer (the top drawer-pull tab). */
+/* the HANDLE BAR (ADR-0191, reshaped by ADR-0193): grip + arrow toggle (+ the "Library" wordmark
+   in the EXPANDED state only) — the drawer's single open/close affordance; collapsed, this bar is
+   the whole visible drawer, slimmed to the minimum tab that carries the arrow. */
 .library-drawer-handle-bar {
   flex: 0 0 auto;
   display: flex;
@@ -4670,6 +4680,12 @@ button.legend-tile:hover {
 }
 .library-drawer[data-lens-state='collapsed'] .library-drawer-handle-bar {
   border-top: none;
+  gap: 8px;
+  padding: 3px 12px;
+}
+.library-drawer[data-lens-state='collapsed'] .library-drawer-handle-grip {
+  width: 28px;
+  height: 4px;
 }
 .library-drawer-handle-grip {
   width: 42px;
@@ -4683,6 +4699,8 @@ button.legend-tile:hover {
   letter-spacing: 0.04em;
   margin-right: auto;
 }
+/* the arrow toggle (ADR-0193 dec 2 — the terminal dock's chevron idiom, replacing the
+   Expand/Collapse word buttons): one compact arrow opens and closes the drawer. */
 .library-drawer-toggle {
   flex: 0 0 auto;
   border: 1px solid var(--lp-border);
@@ -4691,9 +4709,9 @@ button.legend-tile:hover {
   color: var(--lp-ink-soft);
   cursor: pointer;
   font: inherit;
-  font-size: 0.85em;
-  font-weight: 600;
-  padding: 5px 14px;
+  font-size: 0.8em;
+  line-height: 1;
+  padding: 3px 9px;
 }
 .library-drawer-toggle:hover {
   border-color: var(--lp-moss);
@@ -4707,6 +4725,17 @@ button.legend-tile:hover {
 .library-drawer[data-lens-state='collapsed'] .library-drawer-toggle:hover {
   background: color-mix(in srgb, var(--lp-moss) 85%, #000000 15%);
   color: #fffdf4;
+}
+/* the drag-resize separator (ADR-0193 dec 1 — the terminal dock's resize idiom): a slim grab
+   strip along the expanded drawer's bottom edge; collapsed renders none. */
+.library-drawer-resize-separator {
+  flex: 0 0 auto;
+  height: 6px;
+  cursor: ns-resize;
+  background: transparent;
+}
+.library-drawer-resize-separator:hover {
+  background: color-mix(in srgb, var(--lp-sprout) 30%, transparent);
 }
 
 /* ── the Open document overlay (ADR-0187 dec 2, inc 8): a separate full-detail artifact view
@@ -5092,7 +5121,9 @@ button.legend-tile:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* compact icon button (ADR-0193 dec 5) — the "Open" word button's real estate was owner-rejected */
 .library-selection-open {
+  align-self: flex-end;
   border: none;
   border-radius: 9px;
   background: var(--lp-clay);
@@ -5100,7 +5131,8 @@ button.legend-tile:hover {
   cursor: pointer;
   font: inherit;
   font-weight: 700;
-  padding: 9px 16px;
+  line-height: 1;
+  padding: 6px 8px;
 }
 .library-selection-open:hover {
   background: color-mix(in srgb, var(--lp-clay) 88%, #000000 12%);
@@ -5137,6 +5169,15 @@ button.legend-tile:hover {
   position: relative;
   display: flex;
 }
+/* the selection card lives IN the DAG pane (ADR-0193 dec 4): a fixed-width column beside the
+   canvas, taking its space from the DAG — never from the side panel's search. */
+.library-canvas > .library-selection-card {
+  flex: 0 0 280px;
+  align-self: flex-start;
+  margin: 12px 12px 12px 0;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+}
 /* the quiet idle canvas (ADR-0188 dec 4): the overview constellation is retired; one muted
    hint line at most (the copy is a look-leg detail the owner attests). */
 .library-canvas-idle {
@@ -5162,43 +5203,7 @@ button.legend-tile:hover {
   display: flex;
   flex-direction: column;
 }
-.lfg-breadcrumb {
-  flex: 0 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 0.78em;
-  color: var(--lp-ink-soft);
-  border-bottom: 1px solid color-mix(in srgb, var(--lp-border) 60%, transparent);
-}
-.lfg-breadcrumb button {
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--lp-ink);
-  background: var(--lp-bar);
-  border: 1px solid var(--lp-border);
-  border-radius: 999px;
-  padding: 3px 12px;
-}
-.lfg-breadcrumb button:hover:not(:disabled) {
-  border-color: var(--lp-sprout);
-  background: color-mix(in srgb, var(--lp-sprout) 16%, var(--lp-bar));
-}
-.lfg-breadcrumb button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.lfg-breadcrumb-entry {
-  color: color-mix(in srgb, var(--lp-ink-soft) 85%, transparent);
-}
-.lfg-breadcrumb-entry::before {
-  content: '›';
-  margin: 0 6px 0 2px;
-  color: color-mix(in srgb, var(--lp-ink-soft) 55%, transparent);
-}
+/* (the ← Back-led breadcrumb retired with ADR-0193 dec 3 — click-through is the navigation) */
 /* the fit-to-view SVG canvas — the viewBox (machine geometry) frames every node;
    preserveAspectRatio meet keeps the whole DAG legible as depth grows. */
 .library-focus-graph {

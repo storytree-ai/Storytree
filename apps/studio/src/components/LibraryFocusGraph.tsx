@@ -4,11 +4,11 @@
  * subgraph, ADR-0185 dec 3, into a true layered reference DAG).
  *
  * Renders the dagre rankdir-LR `buildFocusGraph` (`../lib/focusGraph`) computes over the
- * already-loaded `assets`/`docs`, walked BOTH ways to FULL transitive depth: upstream ("stands
- * on") to the left of the centre, downstream ("stood on by") to the right — as an SVG canvas of
- * positioned nodes with DRAWN edges between rank-adjacent nodes, fit inside a bounded `viewBox`
- * computed from the laid-out bbox. Per-branch breadth is tamed by an in-place ⊕ expander (the
- * global depth stepper and the +N-more cluster chip retire with this rework).
+ * already-loaded `assets`/`docs`, walked BOTH ways to ONE level only (ADR-0193 dec 3): upstream
+ * ("stands on") to the left of the centre, downstream ("stood on by") to the right — as an SVG
+ * canvas of positioned nodes with DRAWN edges between rank-adjacent nodes, fit inside a bounded
+ * `viewBox` computed from the laid-out bbox. Per-branch breadth is tamed by an in-place ⊕
+ * expander (the global depth stepper and the +N-more cluster chip retire with this rework).
  *
  * Each node is a two-line plaque — the title, and a muted kind line routed through `kindLabel`
  * (never a hand-rolled category → label map, ADR-0183 D1). Colour is reserved for STATE, never
@@ -17,9 +17,9 @@
  * markers, never a colour/stroke value (the visual treatment is operator-attested, ADR-0070).
  *
  * Selection is LIFTED, not owned: `selection` (the finder's picked result) drives the centre, and
- * clicking a neighbour re-centres by invoking `onFocus` with that neighbour's result — the canvas
- * pushes its own breadcrumb (← Back leading it) so the walk can be retraced, but the actual
- * re-centring lives with whoever holds `selection`.
+ * clicking a neighbour re-centres by invoking `onFocus` with that neighbour's result — revealing
+ * ITS one-level neighbourhood. There is NO ← Back button, NO breadcrumb trail, and NO pan/zoom
+ * controls (ADR-0193 dec 3) — search-first plus click-through re-centre is the whole navigation.
  *
  * HARD COMPAT: every node keeps the `lfg-node-<id>` testid and the `onDoubleClick` → `onOpen`
  * trigger the signed `LibraryOpenTrigger.test.tsx` (`lot-*`) depends on — untouched here.
@@ -45,7 +45,7 @@ export interface LibraryFocusGraphProps {
   docs: DocMeta[];
   /** The finder's lifted selection — the canvas's centre. `null` renders nothing. */
   selection: SearchResult | null;
-  /** Invoked with a neighbour's result when the user graph-walks onto it (or steps back). */
+  /** Invoked with a neighbour's result when the user click-through re-centres onto it. */
   onFocus: (result: SearchResult) => void;
   /** Invoked with a double-clicked node's finder-parity result — additive to `onFocus`. */
   onOpen?: (result: SearchResult) => void;
@@ -57,7 +57,7 @@ function toSearchResult(node: FocusNode): SearchResult {
 
 const EMPTY_BBOX = { minX: 0, minY: 0, width: 0, height: 0 };
 
-/** The Library focus DAG canvas: a dagre-laid-out, full-depth neighbourhood over `references[]`. */
+/** The Library focus DAG canvas: a dagre-laid-out, one-level-each-way neighbourhood over `references[]`. */
 export function LibraryFocusGraph({
   assets,
   docs,
@@ -66,7 +66,6 @@ export function LibraryFocusGraph({
   onOpen,
 }: LibraryFocusGraphProps): React.JSX.Element {
   const arcDisplay = useArcDisplay();
-  const [history, setHistory] = useState<SearchResult[]>([]);
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const graph = useMemo(
@@ -85,17 +84,7 @@ export function LibraryFocusGraph({
 
   function handleNodeClick(node: FocusNode): void {
     if (node.side === 'centre') return;
-    setHistory((prev) => (selection ? [...prev, selection] : prev));
     onFocus(toSearchResult(node));
-  }
-
-  function handleBack(): void {
-    setHistory((prev) => {
-      const prior = prev.at(-1);
-      if (!prior) return prev;
-      onFocus(prior);
-      return prev.slice(0, -1);
-    });
   }
 
   function expandNode(nodeId: string): void {
@@ -157,17 +146,6 @@ export function LibraryFocusGraph({
 
   return (
     <div className="library-focus-graph-shell">
-      <div className="lfg-breadcrumb" data-testid="lfg-breadcrumb">
-        <button type="button" data-testid="lfg-breadcrumb-back" onClick={handleBack} disabled={history.length === 0}>
-          ← Back
-        </button>
-        {history.map((entry) => (
-          <span key={entry.id} className="lfg-breadcrumb-entry">
-            {entry.title}
-          </span>
-        ))}
-      </div>
-
       <svg
         className="library-focus-graph"
         data-testid="library-focus-graph"

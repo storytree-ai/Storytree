@@ -14,6 +14,12 @@ ratification (ADR-0110); no second end-of-flow ask. The direction is recorded ve
 fold's decision record. Amends ADR-0188 (dec 1's flag-as-only-presence-gate and dec 6's component-local
 minimise machine).
 
+**Amended by ADR-0193 (2026-07-13), reciprocal note.** After the owner walked the staged sitting: **dec 3**'s
+~top-1/3 expanded height becomes ~HALF the forest frame, drag-resizable (terminal-dock idiom); **dec 1**'s
+handle is reshaped — the Expand/Collapse word-buttons retire for the terminal dock's arrow toggle, the collapsed
+handle slims down, carries no "Library" title (title is expanded-only), and must not occlude the forest legend /
+Shared Islands panels. Dec 2's URL-derived state and dec 4's corner-toggle retirement stand unchanged.
+
 ## Context
 
 ADR-0188 dec 6 gave the permanent lens a component-local minimise state machine (a bottom handle bar with
