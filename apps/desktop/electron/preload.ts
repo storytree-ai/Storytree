@@ -64,9 +64,13 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
     terminalExitCb = cb;
   },
   // The ADR-0189 re-attach slice: enumerate the still-live sessions (main scopes them to the currently
-  // selected repo) and fetch a session's main-held buffered scrollback for replay on remount.
+  // selected repo) and fetch a session's main-held screen state for replay on remount — post-ADR-0190
+  // the serialized `{ data, cols, rows }` (the raw-scrollback string is the pre-serialize shape).
   list: (): Promise<Array<{ sessionId: string }>> => ipcRenderer.invoke("terminal:list"),
-  snapshot: (sessionId: string): Promise<string> => ipcRenderer.invoke("terminal:snapshot", sessionId),
+  snapshot: (
+    sessionId: string,
+  ): Promise<string | { data: string; cols: number; rows: number }> =>
+    ipcRenderer.invoke("terminal:snapshot", sessionId),
 });
 
 // The repo-picker bridge (terminal-repo-picker story, ADR-0174 follow-on). Its mere PRESENCE

@@ -631,7 +631,7 @@ ipcMain.on("terminal:dispose", (_e, id: string) => {
 // per-repo ownership POLICY lives here, not in the manager: `terminal:list` filters to the currently
 // selected repo's cwd, so a repo change shows only that repo's sessions (the others stay alive,
 // invisible until their repo is selected again — only "×"/app-quit kill). `terminal:snapshot` answers
-// "" for an unknown/disposed id, mirroring the manager's fail-closed null.
+// an empty screen for an unknown/disposed id, mirroring the manager's fail-closed null.
 ipcMain.handle("terminal:list", (): Array<{ sessionId: string }> => {
   const repoCwd = selectedRepoCwd();
   if (repoCwd === null) return [];
@@ -640,7 +640,17 @@ ipcMain.handle("terminal:list", (): Array<{ sessionId: string }> => {
     .filter((s) => s.cwd === repoCwd)
     .map((s) => ({ sessionId: s.sessionId }));
 });
-ipcMain.handle("terminal:snapshot", (_e, id: string): string => terminalManager.snapshot(id) ?? "");
+// Forward-compatible across the ADR-0190 psm re-drive: pre-serialize the manager answers
+// `string | null` (the raw ring), post-serialize `Promise<{ data, cols, rows } | null>` (the
+// serialized screen state) — `await` normalizes both shapes, and the empty-screen sentinel
+// mirrors the manager's fail-closed null.
+ipcMain.handle(
+  "terminal:snapshot",
+  async (_e, id: string): Promise<string | { data: string; cols: number; rows: number }> => {
+    const snap = await terminalManager.snapshot(id);
+    return snap ?? { data: "", cols: 0, rows: 0 };
+  },
+);
 
 // ---------- apply-a-landed-fix: rebuild + relaunch (ADR-0164 Phase 1) ----------
 //
