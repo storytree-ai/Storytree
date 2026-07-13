@@ -207,7 +207,7 @@ all real. It would:
    button and assert `onOpen` is invoked WITH the selection. Then render with `selection={null}` and assert the
    section shows the empty/prompt state with NO enabled Open button.
 
-## Contracts (5 → 4 surviving; ADR-0188 inc-9 reconciliation)
+## Contracts (5 → 4 → 3 surviving; ADR-0188 inc-9 then ADR-0191 inc-12 reconciliation)
 
 > **RECONCILED at increment 9 (ADR-0188 dec 3/6 — executing a settled decision, NOT a re-decision).** Contract
 > 5 below, `lpl-bottom-selection-preview-open-fires-onopen`, is **RETIRED**: ADR-0188 dec 3 retires the inc-8
@@ -222,13 +222,31 @@ all real. It would:
 > `lpl-permanent-lens-over-live-map`, `lpl-body-slot-renders-content` — stay verbatim and are `coverage 4/4`
 > against the trimmed `real.testFile`. Contract 5 is retained below as struck history; do not re-add it.
 
+> **RECONCILED again at increment 12 (ADR-0191 — executing a settled decision, NOT a re-decision; amends
+> ADR-0188 dec 1/6).** Contract 1 below, `lpl-flag-gates-permanent-lens`, is **RETIRED**: ADR-0191 makes the lens
+> state URL-derived and defaults it to a persistent collapsed top drawer handle — so "the flag alone gates
+> presence — absent renders nothing" is now FALSE (absent renders the collapsed handle, and only it). The inc-9
+> `library-lens-minimise` capability is REPLACED by the new `library-top-drawer` capability on the same source
+> (`LibraryDrawer.tsx`) — the inc-10 cap-replacement precedent. Contract 1's flag semantics are **re-homed** into
+> `library-top-drawer`'s `ltd-collapsed-handle-by-default` (absent → the collapsed handle) +
+> `ltd-flag-renders-expanded` (present → expanded) + `ltd-flag-reader-survives` (the pure exported
+> `readLibraryOverlay` reader survives). **The orchestrator authors the test-file trim** — it removes the
+> `lpl-flag-gates-permanent-lens` block (and any now-unused imports) from
+> `apps/studio/src/components/LibraryPermanentLens.test.tsx` as the mechanical glue of inc 12 (NOT story-author's
+> and NOT `library-top-drawer`'s `real.scope`, whose `testGlobs` is `LibraryTopDrawer.test.tsx` only). The **3
+> surviving** contracts — `lpl-no-closed-or-dive-mode-no-close-button`, `lpl-permanent-lens-over-live-map`,
+> `lpl-body-slot-renders-content` — stay TRUE and survive verbatim (the top-drawer rework is additive over them:
+> it never re-introduces a ×/Dive/mode machine, keeps the map live with no scrim, and keeps the body slot), and
+> are `coverage 3/3` against the further-trimmed `real.testFile`. Contract 1 is retained below as struck history;
+> do not re-add it.
+
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest jsdom,
 `apps/studio/src/components/LibraryPermanentLens.test.tsx`). Per ADR-0122 (`storytree coverage`) each contract
-id is the lead of a distinctly-named test; after the inc-9 reconciliation the coverage check reports **4/4**
-against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the forest-cozy permanent
-lens, the no-× chrome) is the story's operator-attested UAT leg 1 (ADR-0070).
+id is the lead of a distinctly-named test; after the inc-9 then inc-12 reconciliations the coverage check reports
+**3/3** against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the forest-cozy
+permanent lens, the no-× chrome) is the story's operator-attested UAT leg 1 (ADR-0070).
 
-1. **`lpl-flag-gates-permanent-lens`** — the `?overlay=library` flag gates the permanent lens; absent → nothing
+1. **`lpl-flag-gates-permanent-lens`** — *(RETIRED at inc 12, ADR-0191 — the flag no longer gates presence: absent renders the collapsed top drawer handle; flag semantics re-homed to `library-top-drawer`'s `ltd-collapsed-handle-by-default` + `ltd-flag-renders-expanded` + `ltd-flag-reader-survives`; struck history, not a live contract)* — the `?overlay=library` flag gates the permanent lens; absent → nothing
    - **asserts —** with `search="?overlay=library"` the permanent lens renders (a stable lens testid is
      present); with `search=""` (or `?overlay=` anything-else) nothing renders. The flag is read by the
      SURVIVING pure `readLibraryOverlay(search)` (value `=== 'library'`), NOT a new `Route` variant — the flag

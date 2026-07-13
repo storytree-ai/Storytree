@@ -4,9 +4,6 @@
 // the M1 rework of `LibraryDrawer.tsx`). This is the net-new real.testFile for this capability —
 // it pins the reworked shell's behaviour as a WHOLE, spanning:
 //
-//   • lpl-flag-gates-permanent-lens        — the `?overlay=library` flag alone gates presence; no
-//                                            mode machine, no other way in or out from inside the
-//                                            lens.
 //   • lpl-no-closed-or-dive-mode-no-close-button — the retired `×`/"Close library" button, the
 //                                            "Dive" button, and the `closed`/`dive` mode states are
 //                                            GONE.
@@ -18,13 +15,17 @@
 //
 // RETIRED (ADR-0188 dec 3/6, inc-9 reconciliation): `lpl-bottom-selection-preview-open-fires-onopen`
 // is GONE — the inc-8 bottom selection-preview strip is retired (its "what am I looking at" + Open job
-// moved to the side-panel `library-selection-card`), and the lens's minimise handle is added by
-// `library-lens-minimise`. Its behaviour is re-homed across `lsel-open-button-fires-onopen` (the pinned
-// Open button) + `lmin-selection-preview-strip-retired` (the strip's absence). The four blocks below
-// survive verbatim against the reworked source.
+// moved to the side-panel `library-selection-card`). Its behaviour is re-homed across
+// `lsel-open-button-fires-onopen` (the pinned Open button) + the reworked lens rendering no strip.
 //
-// The `readLibraryOverlay` reader and the absent-flag-renders-nothing invariant are unchanged and
-// stay pinned in the trimmed `LibraryDrawer.test.tsx` (`ldw-*`) — not re-pinned here.
+// RETIRED (ADR-0191, the top-drawer reconciliation): `lpl-flag-gates-permanent-lens` is GONE — "absent
+// renders nothing" is no longer true (absent renders the collapsed top drawer handle). The flag
+// semantics re-home into `library-top-drawer`'s `ltd-collapsed-handle-by-default` +
+// `ltd-flag-renders-expanded` + `ltd-flag-reader-survives`. The three blocks below survive verbatim
+// against the reworked source (they render WITH the flag; none asserts absence).
+//
+// The pure `readLibraryOverlay` reader stays pinned in the trimmed `LibraryDrawer.test.tsx` (`ldw-*`)
+// — not re-pinned here.
 //
 // `onCommitSearch`/`peekSlot`/`diveSlot` are the RETIRED shell's props (ADR-0185 dec 1) — the
 // permanent lens drops `onCommitSearch` entirely (in-panel dismissal is retired; the parent glue
@@ -43,15 +44,6 @@ import { LibraryDrawer } from './LibraryDrawer';
 afterEach(cleanup);
 
 describe('LibraryDrawer — permanent lens (ADR-0187 dec 1/2)', () => {
-  it('lpl-flag-gates-permanent-lens: the flag alone gates presence — true renders the lens, absent renders nothing', () => {
-    render(<LibraryDrawer search="?overlay=library" selection={null} onOpen={vi.fn()} />);
-    expect(screen.getByTestId('library-drawer')).not.toBeNull();
-    cleanup();
-
-    render(<LibraryDrawer search="" selection={null} onOpen={vi.fn()} />);
-    expect(screen.queryByTestId('library-drawer')).toBeNull();
-  });
-
   it('lpl-no-closed-or-dive-mode-no-close-button: the retired close/dive affordances and mode machine are gone', () => {
     render(<LibraryDrawer search="?overlay=library" selection={null} onOpen={vi.fn()} />);
 

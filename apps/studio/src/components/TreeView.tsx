@@ -90,7 +90,7 @@ import {
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { BuildSection } from './BuildSection.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
-import { LibraryDrawer, readLibraryOverlay } from './LibraryDrawer.js';
+import { LibraryDrawer } from './LibraryDrawer.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import { LibraryOpenOverlay } from './LibraryOpenOverlay.js';
@@ -1353,12 +1353,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     setSearch(nextSearch);
   }, []);
 
-  // The map-side Library toggle (ADR-0185/0188): the lens is gated purely on `?overlay=library`, so
-  // with no URL bar (the Electron desktop) it was unreachable — this makes it live in-app. Flipping the
-  // param through `commitSearch` opens/closes the lens LIVE (replaceState, no reload), the same reactive
-  // seam the gear dials ride. Opening is map-side; closing here IS the settled "leave via map
-  // navigation" (ADR-0188 dec 1 — the permanent lens keeps NO in-panel × close; minimise only peeks).
-  const libraryOpen = useMemo(() => readLibraryOverlay(search), [search]);
+  // The library drawer's URL-write seam (ADR-0191): lens state is URL-derived (`?overlay=library`
+  // = expanded, absent = the collapsed top handle), and the drawer's handle fires `onToggle` — this
+  // callback is the parent-owned write that actually flips the param, through `commitSearch`
+  // (replaceState, no reload — the same reactive seam the gear dials ride). The PR-#715 bottom-corner
+  // `.world-library-dock` toggle that used to own this is RETIRED (ADR-0191 dec 4).
   const toggleLibrary = useCallback(() => {
     const params = new URLSearchParams(search);
     if (params.get('overlay') === 'library') params.delete('overlay');
@@ -2191,30 +2190,20 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
           <WorldSettingsPanel search={search} onCommit={commitSearch} />
-          {/* The map-side Library toggle (bottom-left): opens/closes the `?overlay=library` lens in
-              place. The one reachable entry to the lens once there's no URL bar (the Electron
-              desktop). Sits in a corner clear of the top-anchored lens in both its states. */}
-          <div className="world-library-dock">
-            <button
-              type="button"
-              className={`world-library-btn${libraryOpen ? ' on' : ''}`}
-              aria-pressed={libraryOpen}
-              onClick={toggleLibrary}
-            >
-              {libraryOpen ? '✕ Close library' : '📚 Library'}
-            </button>
-          </div>
           {/* The Library lens (ADR-0188 inc 9): the two-pane panel remold behind `?overlay=library`
               — an overlay within .world-frame, never a route away. A constant SIDE panel (the
               finder's shelf/scope/search + the pinned selection card) over a single-job CANVAS
               (the focus subgraph when something is selected; a quiet idle otherwise — the inc-5
               overview constellation is RETIRED from the mount per ADR-0188 dec 4, its source and
-              signed contracts kept). The lens shell owns minimise/restore internally (dec 6).
+              signed contracts kept). ADR-0191: the drawer is ALWAYS mounted — collapsed it is the
+              persistent top handle (the default entry affordance), expanded (`?overlay=library`)
+              the lens; its handle fires `onToggle`, and `toggleLibrary` (above) owns the URL flip.
               Supplement glue after the leaf PASS — the proven lens + signed components stay
               byte-untouched; this mounting + the seed-packet look are the story's operator-attested
               UAT leg (ADR-0070, the shared inc-9+10 sitting). */}
           <LibraryDrawer
             search={search}
+            onToggle={toggleLibrary}
             bodySlot={
               <div className="library-lens-panes">
                 <aside className="library-side">

@@ -107,9 +107,9 @@ load-bearing flag from the loaded corpus via a pure helper, renders title/kind/(
 `onOpen` from its Open button, and survives a stale selection whose id is gone from the corpus — spanning the
 null gate, the asset branch, the ADR branch, the Open wiring, and the tolerant-lookup guard, exercised in jsdom.
 It is the pinned "what am I looking at" home ADR-0188 dec 3 introduces (the structural fix for the attested
-blank-panel bug); the category shelf (`library-category-shelf`) and the minimise handle
-(`library-lens-minimise`) are their own increments, and the Open document overlay `onOpen` feeds is
-`library-open-overlay`'s job.
+blank-panel bug); the category shelf (`library-category-shelf`) and the top drawer handle
+(`library-top-drawer`, which replaced the retired `library-lens-minimise` per ADR-0191) are their own
+increments, and the Open document overlay `onOpen` feeds is `library-open-overlay`'s job.
 
 THE PURE DETAIL-LOOKUP HEART LIVES IN `selectionDetail.ts` (NET-NEW, no React). `SearchResult` carries only
 `{ id, title, category, source, status? }` — NO description and NO load-bearing flag (verified in

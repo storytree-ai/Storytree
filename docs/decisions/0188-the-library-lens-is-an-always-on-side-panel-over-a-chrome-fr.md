@@ -15,6 +15,16 @@ Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 (its dec 2 finder doctrine, in part) and ADR-0187 (its dec 3 overview information design, in part;
 sharpens its dec 1 shell). The look legs remain operator-attested at build time (ADR-0070 stage 2).
 
+**Amended by ADR-0191 (2026-07-13), reciprocal note.** Two decisions here are redefined, not deleted, by
+ADR-0191 after the owner walked the lens live in the desktop app: **dec 6**'s component-local minimise
+state machine (the bottom handle bar with Minimise/Restore) RETIRES — the lens now defaults to a persistent
+top-edge drawer handle, visible on load, and minimise/collapse/close unify into clearing the `?overlay=library`
+flag (URL-derived lens state). And the presence model carried through **dec 1** — the flag as the ONLY
+presence gate, so "absent renders nothing" — changes: absent now renders the collapsed top handle (and only
+it), present renders the lens expanded. The always-on side-panel body, the two-pane layout, and dec 2–5 /
+dec 7 stand unchanged. (ADR-0191 is the incoming `amends` edge; this ADR's body is left intact per
+copy-on-write — the redefinitions are stated here and inline at dec 1 and dec 6 below.)
+
 ## Context
 
 The increment-8 attestation returned eleven feedback items. Beyond bugs (a selection whose detail
@@ -33,7 +43,10 @@ reference DAG).
 
 **1. The side panel is always present; search is always on top at full panel width (new).** The
 lens body is a two-pane layout: a persistent side panel (left) and the DAG canvas (right). The
-side panel exists in every state and always leads with the full-width search input.
+side panel exists in every state and always leads with the full-width search input. *(Amended by
+ADR-0191: the presence gate is redefined — `?overlay=library` absent no longer renders nothing but the
+collapsed top drawer handle; present renders this side-panel lens expanded. The two-pane body itself
+stands.)*
 
 **2. Categories are the idle browse entry and a search scope (amends ADR-0185 dec 2).** With no
 query and no scope, the side panel shows the **category shelf** — the artifact kinds (plus
@@ -74,7 +87,10 @@ lens carries a slim handle bar at its bottom edge (grip + wordmark + **Minimise*
 collapses the lens to the handle bar — the map fully visible and live — and the handle restores
 it with state kept. This is the explicit affordance dec 1 left open ("leave via map navigation"
 alone was not enough); the permanent-lens posture otherwise stands (no ×, no closed state — the
-minimised lens is still present as its handle).
+minimised lens is still present as its handle). *(Amended by ADR-0191: this component-local
+minimise/restore state machine and its bottom handle bar RETIRE — the lens defaults to a persistent
+top-edge drawer handle, and minimise/collapse/close unify into clearing the URL flag, the parent glue
+owning the write. The handle idiom survives; the component-local machine does not.)*
 
 **7. The palette is the seed-packet realisation of forest-cozy light (sharpens ADR-0185 dec 5).**
 Named tokens — parchment/cream panels with visible borders and shadow ON the green world, moss

@@ -11,7 +11,7 @@ proof_mode: UAT
 # human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
 # So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
 # UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
-capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-permanent-lens, library-open-overlay, library-open-trigger, library-category-shelf, library-selection-card, library-lens-minimise]
+capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-permanent-lens, library-open-overlay, library-open-trigger, library-category-shelf, library-selection-card, library-top-drawer]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
 # `library-tech-tree-overlay-arc`, whose disposable per-increment plans carry the live roadmap (the
 # roadmap lives in the current plan, not here). Increments 1–6 have LANDED — library-drawer-shell
@@ -82,7 +82,7 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 | 8 | Open trigger (double-click) | [`library-open-trigger`](library-open-trigger.md) | Double-clicking a node on the overview constellation or the focus subgraph fires `onOpen` with the node's finder-parity `SearchResult` (additive; the single-click path stays byte-green). | authored (inc 8) |
 | 9 | Category shelf | [`library-category-shelf`](library-category-shelf.md) | The finder's idle state is a category shelf (rows + counts derived from the corpus, never hardcoded) and each category is a removable search scope (browse-all then filter-within); the signed `lf-*` query path stays byte-green (ADR-0188 dec 2). | authored (inc 9) |
 | 9 | Selection card | [`library-selection-card`](library-selection-card.md) | A pinned side-panel card renders the selection — asset title/kind/(corpus-looked-up)description or ADR title/status/load-bearing badge — with an Open button; null renders nothing, a stale selection renders tolerantly (ADR-0188 dec 3). | authored (inc 9) |
-| 9 | Lens minimise handle | [`library-lens-minimise`](library-lens-minimise.md) | The permanent lens carries a bottom handle bar and minimises to just that handle (state kept on restore, no scrim); the inc-8 bottom selection-preview strip retires (ADR-0188 dec 6 + dec 3). | authored (inc 9) |
+| 9 | Lens minimise → top drawer handle (shell-affordance polish) | [`library-top-drawer`](library-top-drawer.md) | The lens presents by DEFAULT as a collapsed top drawer handle (visible on every map load); lens state is URL-derived (`?overlay=library` present = expanded, absent = the collapsed handle), the handle firing an `onToggle` seam the parent glue owns; the ADR-0188 dec-6 minimise machine + the #715 corner toggle retire; no scrim either state (ADR-0191). The brownfield rework of the inc-9 minimise lens — REPLACES `library-lens-minimise` on the same source (`LibraryDrawer.tsx`), the inc-10 cap-replacement precedent; only the capability/test/`ltd-` prefix are new. | authored (inc 12) |
 | 10 | Retire `#/library` | *(library-retire, unauthored)* | The standalone `#/library` page retires/redirects into the lens, members parity re-checked (owner-attested, ADR-0185 dec 6). | planned |
 
 Increment 7 (the parallel server typed-edge wire lane, `GuidanceAsset` typed edges) is file-disjoint from
@@ -153,6 +153,30 @@ TreeView mount are the orchestrator's supplement glue after the leaf's PASS (pla
 `lfg-*` test file and swapping the `node-build.test.ts` snapshot is the orchestrator's mechanical glue, done
 separately — not this capability's `real:` scope.
 
+**Increment 12 (authored here, ADR-0191 — the top drawer rework; amends ADR-0188 dec 1/6):** `library-top-drawer`
+**`depends_on: [library-permanent-lens]`** — it REWORKS the inc-9 minimise lens (`LibraryDrawer.tsx`) so the lens
+presents by DEFAULT as a collapsed top drawer handle and its state is URL-derived (`?overlay=library` present =
+expanded, absent = the collapsed handle), the handle firing a new `onToggle?` seam the parent glue owns (the
+component never writes the URL itself), and the ADR-0188 dec-6 component-local Minimise/Restore machine + the #715
+`.world-library-dock` corner toggle both retire. It keeps the SAME `depends_on: [library-permanent-lens]` edge the
+retired `library-lens-minimise` held (it needs the delivered permanent lens's flag-derived render, `bodySlot`, and
+no-scrim posture as its precondition — the node's identity in the graph is unchanged). This REPLACES
+`library-lens-minimise` (DELETED) on the same source — the inc-10 cap-replacement precedent (`library-dag-canvas`
+replaced `library-focus-subgraph`): the SOURCE FILE KEEPS ITS NAME (`LibraryDrawer.tsx`) — only the capability,
+its test file (`LibraryTopDrawer.test.tsx`), and the contract prefix (`ltd-`) are new; the retired
+`library-lens-minimise`'s still-true behaviours (the handle bar + state-kept body, the flag gate, the no-scrim
+posture) re-home as `ltd-` contracts. As part of THIS increment the inc-9 `lpl-flag-gates-permanent-lens` contract
+RETIRES — ADR-0191 makes "the flag alone gates presence — absent renders nothing" false (absent now renders the
+collapsed handle); its flag semantics re-home across `library-top-drawer`'s `ltd-collapsed-handle-by-default` +
+`ltd-flag-renders-expanded` + `ltd-flag-reader-survives` (see `library-permanent-lens.md`'s ADR-0191
+reconciliation note). The other three `lpl-*` contracts survive verbatim. The inc-12 cap carries no new cross-story
+edge (client-side, reading the existing `useAppData()` wire); the TreeView mount rewire, the full-width / top-third
+look, the URL write via `commitSearch`, and REMOVING the #715 corner toggle are the orchestrator's supplement glue
+after the leaf's PASS (plan §G). Deleting the retired `LibraryLensMinimise.test.tsx`, swapping the
+`node-build.test.ts` REAL-buildable snapshot, and trimming the `lpl-flag-gates-permanent-lens` block from
+`LibraryPermanentLens.test.tsx` are the orchestrator's mechanical glue, done separately — not this capability's
+`real:` scope (its `sourceGlobs` is `LibraryDrawer.tsx` only, its `testGlobs` is `LibraryTopDrawer.test.tsx` only).
+
 ## No new cross-story edge (recorded — the rides-the-existing-wire call)
 
 This story adds **no new cross-story `depends_on` edge** (mirroring the `studio` story's `chat-panel`
@@ -189,11 +213,14 @@ forest map, walks from a search to an artifact's neighbourhood, dives into its b
 whole-corpus constellation, and closes the drawer — the map staying live the whole time except during a
 deliberate dive.
 
-1. Open the studio map (`#/tree`) and append `?overlay=library` to the URL. **Success (machine —
-   `library-drawer-shell`) —** the Library drawer slides down over the map in **peek**; the forest map
-   stays fully live and interactive beneath it (no dimming scrim). **Look (operator-attested) —** the
-   drawer reads as part of the world (the map's forest-cozy palette), sitting above the map chrome but
-   below the flyout/chat layers, legible against the map.
+1. Open the studio map (`#/tree`). **Success (machine — `library-top-drawer`) —** the Library presents by
+   DEFAULT as a collapsed top drawer handle at the top edge of the forest (visible on load with no URL
+   knowledge); clicking the handle slides the lens down (expanded), the forest map staying fully live and
+   interactive beneath it (no dimming scrim, in either state) — and a deep link that already carries
+   `?overlay=library` opens the lens EXPANDED (state is URL-derived; the handle firing `onToggle` and the
+   parent glue writing the flag via `commitSearch`). **Look (operator-attested) —** the drawer spans the
+   full width of the forest frame, expanded takes ~the top 1/3, and reads as part of the world (the map's
+   forest-cozy palette), legible against the map.
 2. Type a query into the finder. **Success (machine — `finder`) —** results narrow client-side over the
    loaded corpus (id/title/description/body + ADR titles), each result showing its kind as a muted
    sub-line (via `kindLabel`, so `arc` reads "Epic"); selecting one sets the finder selection.
@@ -213,9 +240,10 @@ deliberate dive.
    at far zoom; a search match pulses independent of zoom; nodes swap to plaques at close zoom. **Look
    (operator-attested) —** the constellation reads as a tech-tree overview and stays smooth as the corpus
    grows toward ~2000 nodes (the LOD ladder holds).
-6. Press Esc until the drawer closes. **Success (machine — `library-drawer-shell`) —** the drawer walks
-   back peek → closed and the operator is returned to the full live map with no residue; the `?overlay=library`
-   flag is cleared so a reload stays on the bare map.
+6. Click the handle to close the lens. **Success (machine — `library-top-drawer`) —** the lens slides back
+   up to the collapsed top drawer handle (the handle firing `onToggle`, the parent glue clearing the
+   `?overlay=library` flag via `commitSearch`); the operator is returned to the full live map with the handle
+   still visible at the top edge, and a reload with the flag cleared stays collapsed to the handle.
 
 ## Proof
 

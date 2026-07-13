@@ -110,8 +110,8 @@ WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the IDLE-BROWSE + 
 category into a removable scope chip that browses all its artifacts, (c) filters within the scope as the user
 types, and (d) returns to the shelf when the chip clears — spanning the pure grouping heart, the shelf render,
 the scope-chip state machine, and the scoped search/browse path, exercised in jsdom. It is the browse-entry
-half of ADR-0188 dec 2; the pinned selection card (`library-selection-card`) and the minimise handle
-(`library-lens-minimise`) are their own increments.
+half of ADR-0188 dec 2; the pinned selection card (`library-selection-card`) and the top drawer handle
+(`library-top-drawer`, which replaced the retired `library-lens-minimise` per ADR-0191) are their own increments.
 
 THE PURE GROUPING/COUNT/LISTING HEART LIVES IN `libraryShelf.ts` (NET-NEW, no React). The shelf is DERIVED,
 never hardcoded (ADR-0188 dec 2 — "derived from the loaded corpus, never hardcoded"). Author a NET-NEW pure lib

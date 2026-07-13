@@ -166,17 +166,19 @@ reader, the mode state, the overlay chrome, and the reserved-region stubs are al
    and the dive slot is gone; fire Esc again and assert it closes — proving the peek↔dive↔closed state
    machine unwinds one level per Esc.
 
-## Contracts (5 — the surviving set after the ADR-0187 dec 1 reconciliation)
+## Contracts (5 → 4 surviving; ADR-0187 dec 1 then ADR-0191 inc-12 reconciliation)
 
-The SURVIVING test-proven leaf behaviours after the permanent-lens rework (increment 8) — each **one isolated
-automated test** in the `studio` suite (vitest jsdom, the now-TRIMMED
+The SURVIVING test-proven leaf behaviours after the permanent-lens rework (increment 8) and the top-drawer
+rework (increment 12) — each **one isolated automated test** in the `studio` suite (vitest jsdom, the now-TRIMMED
 `apps/studio/src/components/LibraryDrawer.test.tsx`). Per ADR-0122 (`storytree coverage`) each contract id is
-the lead of a distinctly-named test, so the coverage check reports 5/5. These are the pure `readLibraryOverlay`
-flag reader (still the invocation gate ADR-0187 dec 1 preserves) + the absent-flag-renders-nothing invariant —
-the ONLY behaviours of the original shell that survive the retirement of the closed→peek→dive state machine.
-The reworked geometry (the permanent lens, the body slot, the bottom `Open` section) is proven by
-[`library-permanent-lens`](library-permanent-lens.md) in `LibraryPermanentLens.test.tsx`. None of these is an
-APPEARANCE assertion — the look is the story's operator-attested UAT leg 1 (ADR-0070).
+the lead of a distinctly-named test; after the inc-12 reconciliation the coverage check reports **4/4**. These
+are the pure `readLibraryOverlay` flag reader (still the invocation gate ADR-0187 dec 1 preserves) — the ONLY
+behaviours of the original shell that survive the retirement of the closed→peek→dive state machine AND the
+ADR-0191 retirement of "absent renders nothing". The reworked geometry (the permanent lens, the body slot) is
+proven by [`library-permanent-lens`](library-permanent-lens.md); the URL-derived collapsed/expanded state and the
+default top drawer handle are proven by [`library-top-drawer`](library-top-drawer.md) in
+`LibraryTopDrawer.test.tsx`. None of these is an APPEARANCE assertion — the look is the story's operator-attested
+UAT leg 1 (ADR-0070).
 
 > **RETIRED** (now-false, deleted from `LibraryDrawer.test.tsx` — they asserted the retired ×/Dive/mode
 > machine): `lds-flag-opens-drawer-to-peek` (re-homed as `lpl-flag-gates-permanent-lens`),
@@ -184,6 +186,18 @@ APPEARANCE assertion — the look is the story's operator-attested UAT leg 1 (AD
 > `lds-esc-and-toggle-close-from-peek`, `lds-dive-collapses-to-bar-and-reserves-body`,
 > `lds-esc-unwinds-dive-to-peek`, `ldw-peek-reserves-an-empty-slot` (re-homed as
 > `lpl-body-slot-renders-content`), `ldw-esc-unwinds-peek-to-closed`, `ldw-close-toggle-clears-overlay-flag`.
+
+> **RETIRED at increment 12 (ADR-0191 — executing a settled decision, NOT a re-decision; amends ADR-0188 dec
+> 1/6).** Contract 5 below, `ldw-closed-without-flag` ("absent the flag, the shell renders nothing"), is now
+> FALSE: ADR-0191 makes the lens state URL-derived and defaults it to a persistent collapsed top drawer handle,
+> so absent the flag the drawer renders the COLLAPSED HANDLE (not nothing). Its behaviour is **re-homed** into
+> [`library-top-drawer`](library-top-drawer.md)'s `ltd-collapsed-handle-by-default` (absent → the collapsed
+> handle). The orchestrator has trimmed the `ldw-closed-without-flag` block from `LibraryDrawer.test.tsx` as the
+> mechanical glue of inc 12. The **4 surviving** contracts — `ldw-reads-overlay-flag-present`,
+> `ldw-reads-overlay-flag-present-with-other-params`, `ldw-reads-overlay-flag-absent`,
+> `ldw-reads-overlay-flag-other-value` (all the pure `readLibraryOverlay` reader, source-independent) — stay
+> verbatim and are `coverage 4/4` against the further-trimmed `real.testFile`. Contract 5 is retained below as
+> struck history; do not re-add it.
 
 1. **`ldw-reads-overlay-flag-present`** — `?overlay=library` reads true
    - **asserts —** the pure `readLibraryOverlay('?overlay=library')` returns `true` — the invocation gate
@@ -204,7 +218,7 @@ APPEARANCE assertion — the look is the story's operator-attested UAT leg 1 (AD
      opens the gate. Pure.
    - **covers —** `apps/studio/src/components/LibraryDrawer.tsx` (the `readLibraryOverlay` reader — wrong value)
    - **proven by —** `apps/studio/src/components/LibraryDrawer.test.tsx`.
-5. **`ldw-closed-without-flag`** — absent the flag, the shell renders nothing (the bare map)
+5. **`ldw-closed-without-flag`** — *(RETIRED at inc 12, ADR-0191 — "absent renders nothing" is now false: absent renders the collapsed top drawer handle; re-homed to `library-top-drawer`'s `ltd-collapsed-handle-by-default`; struck history, not a live contract)* — absent the flag, the shell renders nothing (the bare map)
    - **asserts —** rendering `<LibraryDrawer search="" … />` renders nothing (no `library-drawer` testid) —
      absent the flag, the overlay is not present (the surviving absent-flag-renders-nothing posture, which the
      permanent lens keeps).
