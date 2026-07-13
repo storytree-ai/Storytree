@@ -656,6 +656,47 @@ describe('TerminalDock', () => {
     expect(container.querySelectorAll('.terminal-dock-header-right').length).toBe(1);
   });
 
+  // ── mst-panel-sits-beside-pane (ADR-0190 §3 — the session panel replaces the numbered
+  //    horizontal tab strip: it renders BESIDE the terminal pane, down the right of the dock
+  //    body, with one row per session — a readable label carrying at least the ordinal, and the
+  //    active row marked — rather than a strip of bare-digit buttons sitting between the header
+  //    and the panes). Today's source renders `.terminal-dock-tabs` as a strip ABOVE the panes
+  //    (a sibling of the toggle, not beside the pane area) — no `.terminal-dock-panel` /
+  //    `.terminal-dock-body-row` exist yet, so this must fail against current behaviour. ───────
+  it('mst-panel-sits-beside-pane: the session panel renders beside the terminal panes (not a strip above them), with one labeled row per session and the active row marked', async () => {
+    const { container } = render(<TerminalDock />);
+    await expand(); // session 1
+    await openNewTab(); // session 2, becomes active
+
+    // Exactly one session panel, per dock.
+    const panels = container.querySelectorAll('.terminal-dock-panel');
+    expect(panels.length).toBe(1);
+    const panel = panels[0]!;
+
+    // The panel sits BESIDE the pane area — both are children of a shared body-row wrapper, not
+    // the panel alone sitting as a strip between the header and the panes.
+    const bodyRow = container.querySelector('.terminal-dock-body-row');
+    expect(bodyRow).not.toBeNull();
+    expect(bodyRow!.contains(panel)).toBe(true);
+    for (const body of Array.from(container.querySelectorAll('.terminal-dock-body'))) {
+      expect(bodyRow!.contains(body)).toBe(true);
+    }
+
+    // One row per session, each carrying a readable label with at least its ordinal.
+    const rows = panel.querySelectorAll('.terminal-dock-panel-row');
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.textContent ?? '').toContain('1');
+    expect(rows[1]!.textContent ?? '').toContain('2');
+
+    // The active row (session 2, just opened) is marked distinctly — exactly one.
+    expect(panel.querySelectorAll('.terminal-dock-panel-row-active').length).toBe(1);
+    expect(rows[1]!.classList.contains('terminal-dock-panel-row-active')).toBe(true);
+
+    // The per-row close control and the panel's own "+" spawn control live INSIDE the panel.
+    expect(panel.contains(closeTabButton(2))).toBe(true);
+    expect(panel.contains(newTabButton())).toBe(true);
+  });
+
   // ── mst-close-tab-disposes-its-session ───────────────────────────────────────
   it('mst-close-tab-disposes-its-session: closing a tab disposes ONLY that session (bridge + xterm) and reaps its tab; the sibling is untouched', async () => {
     const { container } = render(<TerminalDock />);

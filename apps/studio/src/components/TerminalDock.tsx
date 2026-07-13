@@ -506,58 +506,65 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
         <div className="terminal-dock-header-right">{headerRight}</div>
       )}
 
-      {/* The tab strip — between the dock header (above) and the tab panes (below). One tab per open
-          session; the active one highlighted. Chrome, so it renders regardless of fold state, same as
-          the toggle above it. */}
-      <div className="terminal-dock-tabs">
-        {tabIds.map((id, i) => (
+      {/* The session panel (ADR-0190 §3) — sits BESIDE the terminal panes, down the right of the dock
+          body, inside a shared `.terminal-dock-body-row` wrapper (never a strip between the header
+          and the panes). One row per session — carrying a readable label with at least its ordinal —
+          plus the panel's own "+" spawn control. The chrome (this whole row wrapper) renders
+          regardless of fold state, same as the toggle above it; only the ACTIVE pane is visible while
+          expanded. */}
+      <div className="terminal-dock-body-row" style={{ display: 'flex', flexDirection: 'row' }}>
+        <div className="terminal-dock-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+          {tabIds.map((id, i) => (
+            <div
+              key={id}
+              className={`terminal-dock-tab terminal-dock-panel-row${
+                id === activeId ? ' terminal-dock-panel-row-active' : ''
+              }`}
+            >
+              <button
+                type="button"
+                className="terminal-dock-panel-row-switch"
+                aria-label={`tab ${i + 1}`}
+                onClick={() => setActiveId(id)}
+              >
+                Session {i + 1}
+              </button>
+              <button
+                type="button"
+                className="terminal-dock-tab-close"
+                aria-label={`close tab ${i + 1}`}
+                onClick={() => closeTab(id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="terminal-dock-panel-new"
+            aria-label="new terminal tab"
+            onClick={() => openSession(null)}
+          >
+            +
+          </button>
+        </div>
+
+        {/* Each tab's xterm mount stays MOUNTED under `hidden` (not conditional render), preserving
+            the session across a fold → unfold or a switch away and back. Only the active tab's pane
+            is visible while the dock is expanded. */}
+        {tabIds.map((id) => (
           <div
             key={id}
-            className={`terminal-dock-tab${id === activeId ? ' terminal-dock-tab-active' : ''}`}
-          >
-            <button
-              type="button"
-              className="terminal-dock-tab-switch"
-              aria-label={`tab ${i + 1}`}
-              onClick={() => setActiveId(id)}
-            >
-              {i + 1}
-            </button>
-            <button
-              type="button"
-              className="terminal-dock-tab-close"
-              aria-label={`close tab ${i + 1}`}
-              onClick={() => closeTab(id)}
-            >
-              ×
-            </button>
-          </div>
+            className="terminal-dock-body"
+            hidden={!expanded || id !== activeId}
+            ref={(el) => {
+              const rec = recordsRef.current.get(id);
+              if (rec) rec.bodyEl = el;
+            }}
+            onMouseDown={() => recordsRef.current.get(id)?.term?.focus()}
+          />
         ))}
-        <button
-          type="button"
-          className="terminal-dock-tab-new"
-          aria-label="new terminal tab"
-          onClick={() => openSession(null)}
-        >
-          +
-        </button>
       </div>
-
-      {/* Each tab's xterm mount stays MOUNTED under `hidden` (not conditional render), preserving the
-          session across a fold → unfold or a switch away and back. Only the active tab's pane is
-          visible while the dock is expanded. */}
-      {tabIds.map((id) => (
-        <div
-          key={id}
-          className="terminal-dock-body"
-          hidden={!expanded || id !== activeId}
-          ref={(el) => {
-            const rec = recordsRef.current.get(id);
-            if (rec) rec.bodyEl = el;
-          }}
-          onMouseDown={() => recordsRef.current.get(id)?.term?.focus()}
-        />
-      ))}
     </aside>
   );
 }
