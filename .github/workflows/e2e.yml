@@ -10,8 +10,15 @@ name: e2e-desktop
 #     blocks a merge. Promote to a required check (or add to automerge's `needs`) once it's proven
 #     stable over a stretch of runs. (The specs themselves are offline + deterministic — they stub
 #     every /api/* call, so no DB or secrets are needed; see apps/desktop/e2e/harness.mjs.)
-#   • PATH-SCOPED — only runs when the desktop, the studio it bundles, the shared packages, or this
-#     workflow change, so doc-only / unrelated PRs don't pay the Electron build cost.
+#   • PATH-SCOPED — runs only when the desktop, the studio it bundles, the forest-world render core
+#     (the surfaces the guarded forest-map pointer-capture regression actually lives in), the
+#     lockfile, or this workflow change. Deliberately NOT the whole of packages/** — that fired on
+#     nearly every PR (most PRs touch some package), so this heavy workflow churned constantly.
+#   • FAIL-FAST / CONTAINED — a healthy run of these offline specs is ~2 min. As of ~2026-07-10 the
+#     desktop E2E step HANGS (it starts, then never returns) and was being killed only by the old
+#     20-min job ceiling — i.e. a 20-min red run on every triggering PR. Until the hang is fixed, a
+#     6-min step timeout caps the waste and the 10-min job timeout is the outer backstop. Still
+#     NON-BLOCKING, so this never gates a merge; fixing the underlying hang is tracked separately.
 
 on:
   pull_request:
@@ -19,7 +26,8 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/studio/**"
-      - "packages/**"
+      - "packages/forest-world/**"
+      - "packages/forest-world-r3f/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/e2e.yml"
   push:
@@ -27,7 +35,8 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/studio/**"
-      - "packages/**"
+      - "packages/forest-world/**"
+      - "packages/forest-world-r3f/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/e2e.yml"
 
@@ -44,7 +53,10 @@ jobs:
     # far more robust than apt-get'ing the (frequently-renamed, e.g. the 24.04 `t64`) deps by hand.
     # Pin to the playwright-core version in apps/desktop/package.json so the runtime matches.
     container: mcr.microsoft.com/playwright:v1.61.1-jammy
-    timeout-minutes: 20
+    # Outer backstop only. The real fast-fail is the step-level timeout on the E2E run below — a
+    # healthy run is ~3 min end-to-end, so 10 min leaves room for a cold Electron-binary download
+    # while still failing a wedged setup far sooner than the old 20-min ceiling.
+    timeout-minutes: 10
     permissions:
       contents: read
     env:
@@ -118,4 +130,7 @@ jobs:
       # under a virtual X server (Electron is a headed app, so it needs a display even "headless").
       # The specs are offline (stubbed /api/*) — no DB, no secrets.
       - name: Run desktop E2E (xvfb + headless Electron)
+        # Fail fast on the known hang (see header): a healthy run of these offline, stubbed specs is
+        # ~2 min, so 6 min is >2x headroom while capping a hang at 6 min instead of the job ceiling.
+        timeout-minutes: 6
         run: xvfb-run -a pnpm --filter desktop test:e2e
