@@ -1220,8 +1220,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // /api/activity wire as builds. Rendered only behind the `?claims=` flag (default off, §J).
   const [seedClaims, setSeedClaims] = useState<ClaimActivity[] | undefined>(undefined);
   const rawClaims = useClaimActivity(seedClaims);
-  // The session dock: the board-level list (toolbar count click) or one session's
-  // detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
+  // The session dock: the board-level list (a detail card's "all sessions" click) or one
+  // session's detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
   // including nodes:[] hook declarations — are reachable ONLY through the list.
   const [sessionDock, setSessionDock] = useState<SessionDockState | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -1832,9 +1832,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   }
 
   const selected = selectedStory ? stories.find((s) => s.id === selectedStory) : undefined;
-  // ADR-0041: only fresh/stale sessions count as "active" and orbit as wisps;
-  // possibly-dead sessions park in the dock (the history/debugging surface).
-  const { orbiting, parked } = splitSessions(sessions);
 
   const toggleStatus = (st: string): void => {
     const next = new Set(hidden);
@@ -1920,23 +1917,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   };
 
   return (
-    <div className="tree-wrap pad">
-      {sessions.length > 0 && (
-        <div className="tree-toolbar">
-          <button
-            type="button"
-            className="tree-link"
-            onClick={() => setSessionDock({ kind: 'list' })}
-          >
-            {orbiting.length > 0
-              ? `${orbiting.length} active session${orbiting.length === 1 ? '' : 's'}${
-                  parked.length > 0 ? ` (+${parked.length} aged)` : ''
-                }`
-              : `${parked.length} aged session${parked.length === 1 ? '' : 's'}`}
-          </button>
-        </div>
-      )}
-
+    // Full-bleed (owner feedback 2026-07-13): no `pad` ring and no session-counter toolbar — the
+    // map is the whole content area. Session presence stays reachable through a story panel's
+    // session rows → the dock's "all sessions" (the counter was owner-cited clutter).
+    <div className="tree-wrap">
       <div className="tree-layout">
         <SharedIslandsPanel
           islands={sharedIslands}

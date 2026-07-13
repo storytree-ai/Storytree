@@ -17,6 +17,18 @@ and the owner-set thresholds (fresh < 1 h, possibly-dead ≥ 4 h, `packages/core
 *(now `packages/notice-board/src/presence.ts` — `packages/core` dissolved by ADR-0068)*)
 are untouched.
 
+**Correction (owner direction 2026-07-13, per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
+map-top **toolbar count** is removed — the owner directed dropping the always-on map-top session
+counter (the `(+N aged)` suffix / `N aged sessions` element) as redundant map clutter, in favour of a
+full-bleed map (recorded in the `library-tech-tree-overlay-arc` increment log, desktop-layout-feedback
+item B). The dock is now reached via a story panel's session rows → detail → "all sessions", not a
+standing map-top count. This is an overtaken-detail correction, not a re-decision: the presence
+semantics (D1), the parked possibly-dead listing (D2, as narrowed by ADR-0079), the "active counts
+fresh + stale only" **meaning** wherever a count still shows (the dock header, `active sessions (N)`),
+and the wisps are all untouched — only the map-top toolbar *surface* and its "so the dock stays
+reachable" rationale are overtaken.
+
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0041*` on
 2026-06-14 — 0040 is the latest taken; 0041 is free.
 
@@ -55,6 +67,8 @@ here", and a permanent wisp says it falsely, training operators to ignore the pr
    orbiting set; permanently-dead rows in an "active" count read as noise. Aged sessions surface
    as a `(+N aged)` suffix — or `N aged sessions` when nothing is live — so the dock stays
    reachable.
+   *(Overtaken in part — see the Correction in Status: the map-top **toolbar** count is removed
+   (owner, 2026-07-13); the "active = fresh + stale (orbiting)" meaning stands on the dock header.)*
 4. **The legend reflects the new truth.** The sessions entry appears only when something orbits;
    its bar icons fan fresh/stale only; the possibly-dead tile in the drawer becomes a pointer
    ("parked in the session list, not orbiting").

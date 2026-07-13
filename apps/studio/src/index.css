@@ -1311,22 +1311,12 @@ a.stat:hover {
 .tree-wrap {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   min-width: 0;
-  /* Fill the content area so the map frame + chat dock reach the window bottom — no dead white
-     strip below the map on tall/maximized windows (owner UX feedback). The frame stretches to
-     fill via the flex chain below (.tree-layout → .world-frame → .world-viewport). */
+  /* FULL-BLEED (owner feedback 2026-07-13): the map is the entire content area — no `pad` ring,
+     no toolbar row above it. Fill the content area so the map reaches the window bottom — no dead
+     white strip on tall/maximized windows (owner UX feedback). The frame stretches to fill via
+     the flex chain below (.tree-layout → .world-frame → .world-viewport). */
   min-height: 100%;
-}
-.tree-toolbar {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.tree-toolbar h2 {
-  margin: 0;
-  font-size: 19px;
 }
 /* The world is full-bleed (the base layer); the Shared Islands panel + legend
    float OVER it as a translucent overlay, and the detail panel overlays from the
@@ -1354,10 +1344,9 @@ a.stat:hover {
   /* Height of the folded chat dock bar — lifts the gear/session-dock clear of it (scoped to the map).
      Tracks the slim collapsed prompt-bar (.chat-dock-toggle: 7px padding + glyph/hint line + 1px border). */
   --chat-dock-h: 32px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  /* Full-bleed: no border / radius / shadow — the map runs edge-to-edge to the window
+     (owner feedback 2026-07-13); the card chrome belonged to the old padded-page layout. */
   overflow: hidden;
-  box-shadow: var(--shadow);
   background: linear-gradient(160deg, var(--board-1), var(--board-2));
 }
 .world-viewport {
