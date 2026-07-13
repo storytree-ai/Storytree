@@ -45,22 +45,31 @@ proof:
     testFile: "apps/studio/src/components/TerminalDock.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalDock.tsx"
     # RE-PROVE (ADR-0057 §3 expansion C): TerminalDock.tsx + its test ALREADY EXIST at HEAD (signed by
-    # the original story build, the contract-6/7/8 re-proves, and the terminal-tabs multi-session +
-    # seed re-drives) — this arm is driven `editsExisting` again for APP-OWNED SESSION SURVIVAL
-    # (terminal-orchestrator-seat increment 1, owner-directed 2026-07-12, ADR-0189): contract 9
-    # (`tdp-reattaches-live-sessions-on-mount` — mounting the dock enumerates still-live sessions over
-    # the bridge's new OPTIONAL `list()` and re-attaches a tab per session, replaying each session's
-    # `snapshot()` scrollback into its fresh xterm BEFORE any post-mount live chunk, never spawning a
-    # duplicate) and the REDEFINED unmount lifecycle (the multi-session-tabs contract
-    # `mst-unmount-preserves-sessions`, renamed from `mst-disposes-all-sessions-on-unmount`: unmount
-    # disposes RENDERER resources — each xterm/fit — and clears the session table, but calls NO
-    # `bridge.dispose`; the ptys stay alive, app-owned — explicit tab-close "×" and app-quit are the
-    # ONLY kills). The leaf reads the existing source + 20 contract-titled tests (9 tdp-* after this, 6
-    # mst-*, 6 son-*), ADDS the tdp-9 test, REWRITES the one mst unmount test (title AND assertion — the
-    # spec in stories/terminal-tabs/multi-session-tabs.md is already re-tensed), then EDITS
-    # TerminalDock.tsx — a behaviour-assertion red (the dock at HEAD spawns fresh on every mount and
-    # disposes every session on unmount). EVERY OTHER existing contract test keeps its EXACT title and
-    # stays green (check:coverage matches titles, ADR-0122 — the recurring dropped-title trap).
+    # the original story build, the contract-6/7/8 re-proves, the terminal-tabs multi-session + seed
+    # re-drives, and the ADR-0189 re-attach re-drive that added contract 9) — this arm is driven
+    # `editsExisting` again for the ADR-0190 SERIALIZED-SCREEN + FIT-LIFECYCLE re-tense
+    # (terminal-orchestrator-seat increment 1 walk, owner-directed 2026-07-13: the ADR-0189 re-attached
+    # scrollback renders JUMBLED into a fresh, differently-sized xterm, and a fresh tab runs 80×24 under
+    # a wide dock because only the drag handle ever fits). TWO changes here:
+    #  (a) RE-TENSE contract 9 (`tdp-reattaches-live-sessions-on-mount`): the bridge `snapshot` now
+    #      resolves `{ data, cols, rows }` (ADR-0190, pty-session-manager's re-tensed contract 6). The
+    #      adopted tab RESIZES its fresh xterm to the snapshot's `cols`/`rows`, WRITES `data`, THEN fits
+    #      to the container and forwards the fitted dims to the pty (`bridge.resize`) — the live TUI
+    #      repaints into the real geometry; held live chunks still flush strictly AFTER the replay; the
+    #      optional-`list`/`snapshot` feature-guard for an older preload is unchanged.
+    #  (b) ADD contract 10 (`tdp-fits-terminal-to-container`): the missing fit lifecycle. The active
+    #      tab's xterm fits on first mount, on dock expand, on tab activation, and on container resize
+    #      (a ResizeObserver), each fit forwarding the new dims to the pty via the existing onResize
+    #      path; and a FRESH spawn carries the fitted initial dims (`bridge.spawn` gains optional
+    #      cols/rows) so a new pty never starts at the 80×24 default under a wide dock (the defect this
+    #      closes — today only the drag handle fits).
+    # The leaf reads the existing source + its contract-titled tests (10 tdp-* after this, plus the
+    # terminal-tabs mst-*/son-* in the same file), REWRITES the contract-9 test (restore-then-fit +
+    # `{ data, cols, rows }`) and ADDS the contract-10 test, then EDITS TerminalDock.tsx — a
+    # behaviour-assertion red (at HEAD the restore writes a raw string with no dim handling, and nothing
+    # fits on mount/expand/activation/resize). `@xterm/addon-fit`'s `FitAddon` already ships (the dock's
+    # drag-fit uses it); no new dep. EVERY OTHER existing contract test keeps its EXACT title and stays
+    # green (check:coverage matches titles, ADR-0122 — the recurring dropped-title trap).
     editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalDock.test.tsx"]
@@ -91,16 +100,18 @@ bridge **data into the terminal** and terminal **input back to the bridge**, **r
 unavailable here" state where the bridge is absent. It is a **thin client**: it imports no
 `@storytree/agent` / `@storytree/drive` and holds no model path.
 
-> **Now MULTI-SESSION (ADR-0186 / `terminal-tabs`, PR after #705).** `TerminalDock.tsx` was rewritten
-> single-session → **multi-session with a tab strip** by [`terminal-tabs`' multi-session-tabs](../terminal-tabs/multi-session-tabs.md).
-> Every behaviour below is **PRESERVED, re-proven PER TAB, not deleted**: the per-session behaviours
-> (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, empty-session message) now hold on the
-> **active/first tab** (the N=1 case of the tab model), and the per-dock ones (the `headerRight` slot, the
-> absent-bridge degrade) exercise the **dock chrome that wraps the tab set**. All eight `tdp-*` contracts
-> stay in `TerminalDock.test.tsx` and stay GREEN under the rewritten source — re-proven by
-> `multi-session-tabs`'s signed `--real` verdict (this cap's crown source-drifts on the rewrite and is
-> re-signed over the multi-session bytes, the ADR-0057 §3 anchored-bytes re-sign). Read "the terminal" /
-> "the dock" below as "each tab's terminal" / "the per-dock chrome"; the tab lifecycle itself is
+> **Now MULTI-SESSION (ADR-0186 / `terminal-tabs`, PR after #705; presentation remolded to a session panel
+> under ADR-0190 §3).** `TerminalDock.tsx` was rewritten single-session → **multi-session** by
+> [`terminal-tabs`' multi-session-tabs](../terminal-tabs/multi-session-tabs.md) (a tab strip at ADR-0186,
+> remolded to a VS Code-style **session panel** under ADR-0190). Every behaviour below is **PRESERVED,
+> re-proven PER SESSION, not deleted**: the per-session behaviours (spawn, input↔pty, data-in, resize,
+> visibility-toggle, refocus, empty-session message) now hold on the **active/first session** (the N=1 case
+> of the multi-session model), and the per-dock ones (the `headerRight` slot, the absent-bridge degrade)
+> exercise the **dock chrome that wraps the panel + pane**. All `tdp-*` contracts stay in
+> `TerminalDock.test.tsx` and stay GREEN under the rewritten source — re-proven by `multi-session-tabs`'s
+> signed `--real` verdict (this cap's crown source-drifts on the rewrite and is re-signed over the
+> multi-session bytes, the ADR-0057 §3 anchored-bytes re-sign). Read "the terminal" / "the dock" below as
+> "each session's terminal" / "the per-dock chrome"; the multi-session lifecycle itself is
 > `multi-session-tabs`'.
 
 **Depends on —** nothing (within `embedded-terminal`). The terminal is a self-contained component whose
@@ -110,8 +121,8 @@ OPPOSITE side of the contextBridge from [`pty-session-manager`](pty-session-mana
 nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contract, not a code edge (the
 `chat-panel` ↔ `chat-sse-mount` precedent), so there is no in-story edge either way.
 
-> **Proof status (honest) — BUILT & SIGNED (contracts 1–8), now RE-PROVEN PER-TAB under a multi-session
-> rewrite.** Contracts 1–5 landed under the original story build's signed `--real` verdict (the xterm.js
+> **Proof status (honest) — BUILT & SIGNED (contracts 1–9), CONTRACT 9 RE-TENSED + CONTRACT 10 ADDED for
+> serialized-screen restore + the fit lifecycle (ADR-0190).** Contracts 1–5 landed under the original story build's signed `--real` verdict (the xterm.js
 > terminal the user sees and types into); contract 6 (the operator-found refocus regression) re-signed via
 > an `editsExisting` re-prove; contracts 7 (the optional `headerRight` header slot) and 8 (the empty-session
 > honest message) re-signed via a further `editsExisting` re-prove of the SAME source for the 2026-07-12
@@ -123,7 +134,13 @@ nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contrac
 > per-dock chrome) — the anchored bytes re-sign, so the crown is never left stale. **Then re-driven
 > `editsExisting` again for ADR-0189 app-owned session survival (contract 9): mount re-attaches to
 > still-live sessions with scrollback replayed; unmount preserves sessions (disposing renderer resources
-> only — the redefined never-orphan wall, pinned as `mst-unmount-preserves-sessions`).** The pty
+> only — the redefined never-orphan wall, pinned as `mst-unmount-preserves-sessions`). Then RE-TENSED
+> under ADR-0190 (the owner walked the re-attach and it rendered jumbled): contract 9's restore now
+> consumes the serialized screen `snapshot` `{ data, cols, rows }` — resize the fresh xterm to the
+> recorded dims, write `data`, THEN fit to the container and forward the fitted dims to the pty (the live
+> TUI repaints into the real geometry) — and a NEW contract 10 (`tdp-fits-terminal-to-container`) adds
+> the missing fit lifecycle (fit on mount / expand / tab-activation / container-resize, and a fresh spawn
+> carrying fitted initial dims), closing the "a fresh tab runs 80×24 under a wide dock" defect.** The pty
 > LIFECYCLE it drives (over the bridge) is
 > [`pty-session-manager`](pty-session-manager.md); the real `desktopTerminal` bridge
 > (`apps/desktop/electron/preload.ts`, including the re-attach `list`/`snapshot` relay) and the real-pty
@@ -177,26 +194,55 @@ observable through it — no real IPC, no real pty, no real Electron. Its **abse
 state — the same feature-detect the shared `StoreBanner` uses on `window.desktopApply`.
 
 The ADR-0189 re-attach slice adds two OPTIONAL members to the bridge shape (older preloads lack them —
-feature-guard, never assume):
+feature-guard, never assume); ADR-0190 re-shapes `snapshot` and extends `spawn`:
 - `list?(): Promise<Array<{ sessionId }>>` — the still-live sessions the main scopes to the currently
   selected repo (the per-repo ownership policy lives in the glue).
-- `snapshot?(sessionId): Promise<string>` — the session's main-held buffered scrollback, replayed into a
-  fresh xterm on re-attach.
+- `snapshot?(sessionId): Promise<{ data, cols, rows }>` — the session's main-held SERIALIZED SCREEN STATE
+  (`data`) at its recorded dims (`cols`/`rows`), restored into a fresh xterm on re-attach (ADR-0190,
+  pty-session-manager's re-tensed contract 6 — replacing the ADR-0189 raw scrollback string).
+- `spawn(opts?)` gains OPTIONAL `cols`/`rows` (ADR-0190): a fresh spawn carries the dock's fitted initial
+  dims so a new pty never starts at the 80×24 default under a wide dock (contract 10). Absent (an older
+  preload / no fitted dims yet) the main spawns at its existing default — feature-additive, not required.
 
-RE-ATTACH ON MOUNT, SPAWN ONLY WHEN THERE IS NOTHING TO RE-ATTACH (contract 9 — ADR-0189 app-owned
-sessions). On mount with the bridge present and `list` available, the dock enumerates the still-live
-sessions and creates ONE TAB PER SESSION — adopting each `sessionId` rather than calling `spawn` — and
-replays each session's `snapshot()` into that tab's fresh xterm BEFORE any post-mount live `onData`
-chunk for that session is written (hold live chunks per tab until its replay lands, so re-attached
-output never interleaves out of order). The first-expand auto-spawn is GATED on the restore having
-settled: while `list()` is in flight the dock never auto-spawns, and when the restore yields sessions it
-never spawns a duplicate; only a restore that settles EMPTY (or a bridge with no `list` — an older
-preload) leaves the existing spawn-on-first-expand behaviour byte-identical to today. Unmounting
-disposes each tab's xterm/fit (renderer resources) and clears the session table but calls NO
-`bridge.dispose` — the ptys stay alive, app-owned; the explicit per-tab "×" (and app-quit, glue-side)
-stay the only kills (the redefined never-orphan wall — `mst-unmount-preserves-sessions` in
-[`multi-session-tabs`](../terminal-tabs/multi-session-tabs.md) pins the unmount half; clearing the
-table on unmount also keeps a stale bridge callback from writing to a disposed xterm).
+RE-ATTACH ON MOUNT RESTORES SERIALIZED SCREEN STATE, THEN FITS (contract 9 — ADR-0189 app-owned sessions,
+ADR-0190 serialized-screen restore). On mount with the bridge present and `list` available, the dock
+enumerates the still-live sessions and creates ONE TAB PER SESSION — adopting each `sessionId` rather than
+calling `spawn`. For each adopted tab the dock consumes the bridge `snapshot(sessionId)` — now
+`{ data, cols, rows }` (ADR-0190) — and RESTORES it in order: RESIZE the fresh xterm to the snapshot's
+`cols`/`rows` (so the serialization lands on a terminal the exact size it was recorded at, reconstructing
+the screen faithfully), WRITE `data` into it, THEN `fit()` the xterm to its real container and forward the
+fitted dims to the pty via `bridge.resize(sessionId, cols, rows)` — the resident TUI receives a real
+resize and repaints itself into the new geometry (no replayed-history artifacts, no mid-sequence cuts).
+The restore runs BEFORE any post-mount live `onData` chunk for that session is written (hold live chunks
+per tab until its replay lands, so re-attached output never interleaves out of order). The first-expand
+auto-spawn is GATED on the restore having settled: while `list()` is in flight the dock never auto-spawns,
+and when the restore yields sessions it never spawns a duplicate; only a restore that settles EMPTY (or a
+bridge with no `list`/`snapshot` — an older preload) leaves the existing spawn-on-first-expand behaviour
+byte-identical to today. Unmounting disposes each tab's xterm/fit (renderer resources) and clears the
+session table but calls NO `bridge.dispose` — the ptys stay alive, app-owned; the explicit per-tab "×"
+(and app-quit, glue-side) stay the only kills (the redefined never-orphan wall —
+`mst-unmount-preserves-sessions` in [`multi-session-tabs`](../terminal-tabs/multi-session-tabs.md) pins
+the unmount half; clearing the table on unmount also keeps a stale bridge callback from writing to a
+disposed xterm).
+
+FIT THE ACTIVE TERMINAL TO ITS CONTAINER ACROSS THE FULL LIFECYCLE (contract 10 — ADR-0190, the missing
+fit lifecycle). Today the ONLY thing that ever fits the xterm to its container is the manual drag handle
+(the resize edge, contract 3) — so a tab that mounts, expands, activates, or whose container changes size
+keeps xterm's 80×24 default, and a FRESH spawn asks the pty for 80×24 even under a wide dock (the defect
+the owner walked: the re-attached screen and fresh tabs are the wrong size). Contract 10 closes it: the
+ACTIVE tab's xterm `fit()`s its container (a) on first mount, (b) on dock EXPAND (fold → unfold), (c) on
+TAB ACTIVATION (switching to a tab fits its now-visible pane), and (d) on CONTAINER SIZE CHANGE — a
+`ResizeObserver` on the dock body, so a window/layout resize refits without a drag. EACH fit forwards the
+new dims to the pty through the EXISTING onResize path (`bridge.resize(sessionId, cols, rows)`) — the same
+wiring contract 3 already proves for the drag, generalised to the whole lifecycle. And a FRESH spawn
+carries the FITTED INITIAL DIMS: the dock computes the fit BEFORE (or at) spawn and passes `cols`/`rows`
+into `bridge.spawn({ …, cols, rows })` (the ADR-0190 optional `spawn` dims), so the new pty starts at the
+real terminal size, never 80×24 under a wide dock. THE JSDOM-PROVABLE PART: the mocked `FitAddon`/xterm
+records `fit()` (and the resulting dims) on each of those events and the scripted bridge records the
+`resize`/`spawn` dims — assert the fit fires on mount/expand/activation/observed-resize and that the dims
+flow to `spawn`/`resize`; whether the glyphs then physically reflow is the story's operator-attested UAT
+leg (ADR-0070), never a jsdom/visual assertion. (jsdom lays out no real geometry, so the test drives the
+`ResizeObserver` callback and the fit's computed dims through the mock, exactly as it drives the drag fit.)
 
 XTERM IS MOCKED AT TEST TIME (jsdom lays out no terminal; the SAME discipline `ChatPanel.test.tsx` uses
 on `../api`). The test `vi.mock`s the xterm module with a fake `Terminal` (recording `write` / `onData` /
@@ -316,18 +362,19 @@ The integration test would:
    disabled "terminal unavailable here" state, NEVER calls `spawn`, does NOT hang, and does NOT crash —
    the honest absent-bridge degradation.
 
-## Contracts (9)
+## Contracts (10)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
 jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted.
 Contracts 1–5 are BUILT (the original story build's signed verdict); contract 6 is the operator-found
 refocus regression; contracts 7–8 are the terminal-repo-picker UX refinement (an optional `headerRight`
-header slot + an honest empty-session message); contract 9 is the ADR-0189 app-owned-session re-drive
-(mount re-attaches to still-live sessions, scrollback replayed) — each later rung added by an
-`editsExisting` re-prove that keeps every earlier contract test green under its EXACT title. Per
-ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test (the
-`it("<id>: …")` convention), so the coverage check reports 9/9. None is an APPEARANCE assertion — the
-look is the story's operator-attested UAT leg 5 (ADR-0070).
+header slot + an honest empty-session message); contract 9 is the app-owned-session re-attach (ADR-0189),
+RE-TENSED under ADR-0190 to restore serialized screen state then fit; contract 10 is the ADR-0190 fit
+lifecycle (fit on mount / expand / activation / container-resize, and a fresh spawn at fitted dims) —
+each later rung added by an `editsExisting` re-prove that keeps every earlier contract test green under
+its EXACT title. Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named
+test (the `it("<id>: …")` convention), so the coverage check reports 10/10. None is an APPEARANCE
+assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
    - **asserts —** expanding the dock calls `desktopTerminal.spawn` once and `open`s the (mocked) xterm
@@ -379,16 +426,31 @@ look is the story's operator-attested UAT leg 5 (ADR-0070).
      input inert) — the block is never a silent blank screen (the owner's item 1). The non-empty path (a
      real session id) keeps the existing spawn/seed/data behaviour intact.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the empty-session honest message) *(provisional path)*
-9. **`tdp-reattaches-live-sessions-on-mount`** — mounting the dock re-attaches to still-live sessions (scrollback replayed), never spawning a duplicate
+9. **`tdp-reattaches-live-sessions-on-mount`** — mounting the dock re-attaches to still-live sessions, restoring serialized screen state at recorded dims then fitting, never spawning a duplicate
    - **asserts —** with the bridge's `list()` scripted to resolve two live session ids and `snapshot(id)`
-     scripted per id, MOUNTING the dock creates one tab per live session WITHOUT calling `spawn`; each
-     tab's (mocked) xterm receives its `snapshot` bytes — the scrollback replay — BEFORE any post-mount
-     live `onData` chunk for that session (a chunk emitted while the snapshot is in flight is held and
-     written after it); post-mount input/data route to the re-attached session ids; expanding the dock
-     during/after the restore never auto-spawns a duplicate tab. With `list()` resolving `[]` — or the
-     method ABSENT (an older preload) — the dock is byte-behaviour-identical to before: first expand
-     auto-spawns one fresh session (ADR-0189 app-owned sessions).
-   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the mount-time restore + replay path) *(provisional path)*
+     scripted per id to `{ data, cols, rows }` (ADR-0190), MOUNTING the dock creates one tab per live
+     session WITHOUT calling `spawn`; for each adopted tab the (mocked) xterm is RESIZED to the snapshot's
+     `cols`/`rows`, then `data` is written, then the tab is `fit()`ted and `bridge.resize` is called with
+     the fitted dims — the restore-then-fit order (ADR-0190), all BEFORE any post-mount live `onData`
+     chunk for that session (a chunk emitted while the snapshot is in flight is held and written after
+     it); post-mount input/data route to the re-attached session ids; expanding the dock during/after the
+     restore never auto-spawns a duplicate tab. With `list()` resolving `[]` — or `list`/`snapshot` ABSENT
+     (an older preload) — the dock is byte-behaviour-identical to before: first expand auto-spawns one
+     fresh session (ADR-0189 app-owned sessions). Asserts the restore ORDER + the fit-and-forward, never
+     the visual reflow (the story's UAT leg).
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the mount-time restore + serialized-screen replay + fit path) *(provisional path)*
+
+10. **`tdp-fits-terminal-to-container`** — the active tab's xterm fits its container on mount / expand / activation / container-resize, forwarding fitted dims to the pty; a fresh spawn carries fitted initial dims
+   - **asserts —** with the bridge present and a session active, the (mocked) xterm/`FitAddon` records a
+     `fit()` on FIRST MOUNT, on dock EXPAND (fold→unfold), on TAB ACTIVATION (switching to a tab fits its
+     now-visible pane), and on a CONTAINER SIZE CHANGE driven through a `ResizeObserver` on the dock body;
+     each fit forwards the new dims to `desktopTerminal.resize(sessionId, cols, rows)` via the existing
+     onResize path. A FRESH spawn passes the fitted initial dims into `desktopTerminal.spawn({ …, cols,
+     rows })` (the ADR-0190 optional `spawn` dims) so the new pty never starts at the 80×24 default under
+     a wide dock — the defect this closes (today only the drag handle ever fits). Asserts the `fit()`
+     INVOCATION + the dims flowing to `resize`/`spawn` only; whether glyphs physically reflow is the
+     story's operator-attested UAT leg (ADR-0070), never a jsdom assertion.
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the mount/expand/activation/ResizeObserver fit lifecycle + fitted-spawn dims) *(provisional path)*
 
 ## Guidance — the net-new slice that earns the signed verdict
 
@@ -437,6 +499,11 @@ Rules:
   do NOT fold into or behaviourally change `ChatDock`/`ChatPanel` (their suites must stay green).
 - **Fail closed, never hang** — an absent bridge renders an honest disabled state, never a spawn, never a
   hung stream, never a crash (`tdp-degrades-when-bridge-absent`).
+- **Fit the active terminal across its whole lifecycle, forward the dims** (ADR-0190) — `fit()` on mount /
+  expand / tab-activation / container-resize (a `ResizeObserver`), each fit forwarding to `bridge.resize`,
+  and spawn a fresh pty at the fitted dims (`tdp-fits-terminal-to-container`); the restore path fits AFTER
+  resizing to the snapshot dims and writing the serialized screen (`tdp-reattaches-live-sessions-on-mount`).
+  Assert the invocation + dims, never the visual reflow.
 - **Renderer terminal only (slow growth)** — render + wire the terminal over the bridge shape. Do NOT
   implement the pty lifecycle (that is `pty-session-manager`'s), do NOT compose the build command to
   inject (the ADR-0174 map-spawn re-point is a separate follow-on), do NOT reach cloud/web terminals

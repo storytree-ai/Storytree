@@ -24,22 +24,34 @@ depends_on: []
 # `proofCommand` (mirrors chat-sse-mount, the sibling apps/desktop node:test cap). SCOPE = apps/desktop
 # (the manager lives in apps/desktop/src/backend/), NOT packages/*. The module imports node-pty NOWHERE
 # — node-pty is reached only through the injected PtyPort, whose REAL adapter is glue — so this cap
-# declares NO `addDeps` (and could not: resolveAddDepsGroup targets packages/*, never apps/*).
+# declares NO `addDeps` (and could not: resolveAddDepsGroup targets packages/*, never apps/*). The
+# ADR-0190 `@xterm/headless` + `@xterm/addon-serialize` deps (contract 6) are likewise added to
+# apps/desktop/package.json as a glue prerequisite BEFORE the drive (like node-pty's adapter dep),
+# picked up by `install: true` in the fresh worktree — not an `addDeps` arm.
 #
 # RE-PROVE (ADR-0057 §3 expansion C): pty-session-manager.ts + its test ALREADY EXIST at HEAD (signed by
-# the original story build, then re-signed by the ADR-0189 scrollback re-drive) — this arm is driven
-# `editsExisting` for app-owned session survival (terminal-orchestrator-seat increment 1, owner-directed
-# 2026-07-12, ADR-0189). CONTRACT 6 IS BUILT (the scrollback ring + `snapshot`, signed in the previous
-# re-drive — real-mrhxlfy8): do NOT re-author it; keep its test + behaviour byte-intact. THIS drive adds
-# ONLY CONTRACT 7: `list()` — enumerate the LIVE sessions as `Array<{ sessionId, cwd }>` (the `cwd` the
-# session was spawned with, `null` when the opts carried none), in creation order; a disposed or
-# self-exited session drops out. It is the re-attach enumeration the Electron-main glue scopes per repo
-# (`terminal:list`). The leaf reads the existing source + 10 tests, ADDS ONE test titled with the
-# contract id — `psm-lists-live-sessions: …` (a behaviour-assertion red: the manager at HEAD has no
-# list()) — then EDITS pty-session-manager.ts additively (a `list()` method reading the existing
-# per-session `cwd` the Session record already stores). Preserves EVERY existing behaviour and EVERY
-# existing test title EXACTLY (each leads with its psm-* contract id — check:coverage matches titles at
-# word boundaries, ADR-0122; dropping or renaming one is the recurring 6×-observed defect).
+# the original story build, then re-signed by the ADR-0189 scrollback re-drive that added the ring +
+# `snapshot` and the live-session `list()`) — this arm is driven `editsExisting` again for the ADR-0190
+# serialized-screen-state re-tense (terminal-orchestrator-seat increment 1 walk, owner-directed
+# 2026-07-13: the ADR-0189 raw-byte ring replays JUMBLED into a fresh, differently-sized xterm — a TUI
+# paints by cursor-relative redraws — so the replay mechanism is retired for VS Code's headless-terminal
+# + serialize pattern). CONTRACT 7 (`list()`) and contracts 1–5 STAND byte-intact; do NOT re-author them.
+# THIS drive RE-TENSES CONTRACT 6 ONLY, reversing its retention mechanism — so its id RENAMES with the
+# behaviour (the `mst-disposes-all-sessions-on-unmount` → `mst-unmount-preserves-sessions` rename
+# precedent): `psm-buffers-scrollback-and-snapshots` → `psm-snapshots-serialized-screen-state`, and the
+# test title renames with the id. The new behaviour: the manager holds a per-session HEADLESS xterm
+# (`@xterm/headless` Terminal at the session's spawn dims, `allowProposedApi: true`, line-bounded
+# scrollback), writes every routed chunk through it, resizes it alongside the pty on `resize()`, and
+# `snapshot(sessionId)` becomes ASYNC returning `{ data, cols, rows } | null` — `data` the
+# `@xterm/addon-serialize` serialization of the parsed screen (flushed via an awaited empty-write
+# sentinel so it reflects every chunk received before the call), `cols`/`rows` the tracked dims; the raw
+# chunk ring and the `scrollbackBytes` byte-cap option RETIRE (retention bound = the headless terminal's
+# scrollback lines; a new `scrollbackLines` option defaults sensibly, e.g. 5000). The leaf REWRITES the
+# ONE contract-6 test (title AND assertion — snapshot at HEAD is sync returning a string; the rewritten
+# test awaits `{ data, cols, rows }`, the RED), then EDITS pty-session-manager.ts to swap the ring for
+# the headless screen model. Preserves EVERY OTHER existing behaviour and EVERY OTHER existing test title
+# EXACTLY (each leads with its psm-* contract id — check:coverage matches titles at word boundaries,
+# ADR-0122; dropping or renaming a still-standing one is the recurring 6×-observed defect).
 proof:
   command:
     file: pnpm
@@ -74,18 +86,21 @@ side of the `desktopTerminal` contextBridge and imports nothing from this module
 WIRE SHAPE as a cross-boundary contract, not a code edge (the `chat-sse-mount` ↔ `chat-panel`
 precedent), so there is no in-story edge either way.
 
-> **Proof status (honest) — BUILT & SIGNED (contracts 1–5), now RE-DRIVEN for app-owned session
-> survival (contracts 6–7).** Contracts 1–5 landed under the original story build's signed `--real`
+> **Proof status (honest) — BUILT & SIGNED (contracts 1–5, 7), CONTRACT 6 RE-TENSED for serialized
+> screen state (ADR-0190).** Contracts 1–5 landed under the original story build's signed `--real`
 > verdict — the pty **lifecycle** the Electron main drives (spawn, stream, resize, clean up per
-> session). Contracts 6–7 (the main-held scrollback ring + `snapshot`, and the live-session `list`) are
-> the ADR-0189 re-drive: sessions are APP-owned, not dock-owned — a re-mounting renderer re-attaches to
-> still-live sessions and replays their buffered output, so a route change never kills a terminal. The
-> REAL node-pty binding (the concrete adapter, the `ipcMain.handle("terminal:*")` handlers, the
-> `webContents.send("terminal:data"/"terminal:exit")` stream, and the repo-scoped `terminal:list` /
-> `terminal:snapshot` re-attach IPC) is the operator-attested GLUE in `apps/desktop/electron/main.ts`
-> (the story's "Operator-attested glue" — a `node:test` that spawned a real native pty or drove a real
-> Electron window would be the live-native trap); THIS capability is the lifecycle manager the glue
-> drives, proven offline against a fake pty.
+> session). Contract 7 (the live-session `list`) landed under the ADR-0189 app-owned-session re-drive:
+> sessions are APP-owned, not dock-owned, so a re-mounting renderer re-attaches to still-live sessions
+> and a route change never kills a terminal. Contract 6 was the ADR-0189 main-held raw-byte scrollback
+> ring; the owner walked the re-attach and it rendered JUMBLED, so **ADR-0190 retires the ring for a
+> per-session HEADLESS xterm whose serialized screen state (`@xterm/headless` + `@xterm/addon-serialize`)
+> `snapshot` returns** — the screen comes back exactly, at recorded dims, then the live app repaints into
+> the real geometry. The REAL node-pty binding (the concrete adapter, the `ipcMain.handle("terminal:*")`
+> handlers, the `webContents.send("terminal:data"/"terminal:exit")` stream, and the repo-scoped
+> `terminal:list` / `terminal:snapshot` re-attach IPC) is the operator-attested GLUE in
+> `apps/desktop/electron/main.ts` (the story's "Operator-attested glue" — a `node:test` that spawned a
+> real native pty or drove a real Electron window would be the live-native trap); THIS capability is the
+> lifecycle manager the glue drives, proven offline against a fake pty.
 
 ## Guidance
 
@@ -122,8 +137,10 @@ the pty as a NARROW injected port and the manager as the deep module over it (th
   - `write(sessionId, data)` · `resize(sessionId, cols, rows)` · `dispose(sessionId)` — forward to /
     tear down the addressed session; a typed no-op/`false` (never a throw) for an unknown/disposed id.
   - `has(sessionId)` / a session count — the isolation + teardown observable.
-  - `snapshot(sessionId): string | null` — the session's buffered scrollback (the ring, ADR-0189);
-    `null` (fail-closed, never a throw) for an unknown/disposed id.
+  - `snapshot(sessionId): Promise<{ data, cols, rows } | null>` — ASYNC; resolves the serialized screen
+    state (`@xterm/addon-serialize` over the per-session `@xterm/headless` Terminal) + the tracked dims,
+    flushed so it reflects every chunk received before the call (ADR-0190); `null` (fail-closed, never a
+    throw) for an unknown/disposed id.
   - `list(): Array<{ sessionId, cwd }>` — the live sessions (id + spawn cwd, creation order); a
     disposed or self-exited session drops out.
 
@@ -140,10 +157,13 @@ Electron. No native module, no child process, no window, no DB, no network.
 ELECTRON-FREE, PTY-NATIVE-FREE CORE (the standalone-resilient-library shape, mirroring `broker.ts` /
 `chat-sse-mount.ts`): the module lives under `apps/desktop/src/backend/` with NO `electron` import and NO
 `node-pty` import (node-pty is reached ONLY through the injected `PtyPort`, whose real adapter is glue in
-the Electron main). So `node:test` drives the whole lifecycle headlessly. The Electron main
-(`main.ts`) is the thin operator-attested binding that injects the real `node-pty` adapter and mounts the
-`terminal:*` ipc handlers + the `webContents.send` stream (witnessed under the Story UAT legs 4–5, not
-asserted in CI).
+the Electron main). `@xterm/headless` + `@xterm/addon-serialize` ARE permitted direct imports (contract 6,
+ADR-0190) — both are pure JS (no native module, no DOM), so the per-session headless screen model parses
+and serializes under `node:test` exactly as the real Electron main would; only the pty (`node-pty`) and
+`electron` stay banned from this module. So `node:test` drives the whole lifecycle headlessly. The
+Electron main (`main.ts`) is the thin operator-attested binding that injects the real `node-pty` adapter
+and mounts the `terminal:*` ipc handlers + the `webContents.send` stream (witnessed under the Story UAT
+legs 4–5, not asserted in CI).
 
 FAIL CLOSED, NEVER CRASH (the load-bearing safety observable): `write` / `resize` / `dispose` on an
 unknown or already-disposed session id is a typed no-op / `false` — NEVER a throw that would crash the
@@ -151,16 +171,29 @@ Electron main (which has no per-call try/catch around an ipc handler). A dispose
 `onData` (a race after `kill`) is dropped, not routed to a freed sink. This is the pty analogue of the
 broker's safety boundary — the reason the lifecycle is a manager, not raw calls at the ipc site.
 
-THE MAIN-HELD SCROLLBACK RING (contract 6 — ADR-0189 app-owned sessions). Sessions outlive the renderer
-dock (a route change unmounts it), so the MANAGER — not the renderer — must hold each session's recent
-output: every chunk routed to a live session's sink is ALSO appended to that session's ring buffer, a
-per-session chunk list capped in TOTAL BYTES (generous — the default sized for several thousand lines;
-injectable via a constructor option, e.g. `new PtySessionManager(port, { scrollbackBytes })`, so the test
-pins the trim with a tiny cap). When the cap is exceeded the OLDEST chunks are trimmed first (the newest
-chunk always survives). `snapshot(sessionId)` returns the concatenated buffered output — what a
-re-attaching renderer replays into a fresh xterm; on an unknown/disposed id it returns `null`
-(fail-closed, never a throw). `dispose` and the pty's own exit free the buffer with the session (a
-dropped post-dispose chunk is never buffered either). Plain in-memory state — no fs, no DB.
+THE MAIN-HELD HEADLESS SCREEN MODEL (contract 6 — ADR-0190 serialized screen state, retiring the ADR-0189
+raw-byte ring). Sessions outlive the renderer dock (a route change unmounts it), so the MANAGER — not the
+renderer — must hold each session's screen. The ADR-0189 replay stored the raw OUTPUT BYTES in a
+byte-capped ring and replayed the tail; the owner walked it and it renders JUMBLED — a TUI (Claude Code's
+ink UI) paints by cursor-relative redraws, and replaying that history into a fresh, differently-sized
+xterm reconstructs interleaved fragments, not the screen. ADR-0190 adopts VS Code's pattern: the manager
+holds a per-session HEADLESS xterm (an `@xterm/headless` `Terminal` created at the session's spawn dims,
+`allowProposedApi: true`, its scrollback line-bounded), WRITES every routed chunk through it (the chunk is
+still routed to the live sink too), and RESIZES it alongside the pty on `resize()` so its geometry tracks
+the real terminal. `snapshot(sessionId)` is ASYNC and returns `{ data, cols, rows } | null`: `data` is the
+`@xterm/addon-serialize` serialization of the PARSED SCREEN (content, colours, cursor, and the
+line-bounded scrollback, reconstructable exactly at known dims), `cols`/`rows` the currently-tracked dims.
+FLUSH SEMANTICS: because the headless terminal parses writes asynchronously, `snapshot` first awaits an
+empty `write("", cb)` sentinel on the headless terminal (its write callback fires after all prior writes
+drain) BEFORE serializing — so the serialization reflects every chunk received before the call, with no
+lost tail. On an unknown/disposed id it resolves `null` (fail-closed, never a throw). `dispose` and the
+pty's own exit `dispose()` the headless terminal and free it with the session (a dropped post-dispose
+chunk is never written to it either). The retention bound is now a LINE COUNT (the headless terminal's
+scrollback), exposed as a `scrollbackLines` constructor option defaulting sensibly (e.g. 5000) — the
+`scrollbackBytes` byte cap and the raw chunk ring are RETIRED. The `@xterm/addon-serialize` addon is
+loaded onto the headless terminal via `loadAddon` — its types target `@xterm/xterm` (not `@xterm/headless`),
+so a NARROW type cast at the `loadAddon` seam is acceptable (both packages expose the same runtime terminal
+shape). Plain in-memory state — no fs, no DB.
 
 LIST THE LIVE SESSIONS (contract 7 — the re-attach enumeration). `list()` returns the live sessions —
 `{ sessionId, cwd }` (the `cwd` the session was spawned with, `null` when the spawn opts carried none) —
@@ -201,9 +234,12 @@ The integration test would:
    the pty-initiated teardown path.
 7. `write` / `resize` / `dispose` on an unknown id, and again on an already-disposed id → assert each is
    a typed no-op / `false` and NEVER throws — the fail-closed safety boundary.
-8. Command the fake handle to emit chunks with a TINY byte cap injected → assert `snapshot` returns the
-   buffered output, the ring trims oldest-first past the cap, and `snapshot` on an unknown/disposed id
-   is `null` — the main-held scrollback ring.
+8. Command the fake handle to emit several chunks for a live session, then `resize(sessionId, cols, rows)`
+   → `await snapshot(sessionId)` and assert it returns `{ data, cols, rows }` where `data` is the
+   serialization of the parsed screen reflecting every emitted chunk (the awaited empty-write flush leaves
+   no tail behind) and `cols`/`rows` are the resized dims; assert `snapshot` on an unknown/disposed id
+   resolves `null` (never a throw), and that `dispose` frees the headless terminal with the session — the
+   main-held headless screen model.
 9. `list()` with two live sessions (distinct cwds) → assert both entries (id + cwd, creation order);
    dispose one / exit the other → assert each drops out — the re-attach enumeration.
 
@@ -211,11 +247,13 @@ The integration test would:
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `desktop` suite
 (`node:test`, `apps/desktop/src/backend/pty-session-manager.test.ts`), the pty injected as a fake
-`PtyPort`. Contracts 1–5 are BUILT (the original story build's signed verdict); contracts 6–7 are the
-ADR-0189 app-owned-session re-drive (the scrollback ring + the live-session enumeration), added in this
-`editsExisting` re-prove (author their tests against the existing 5, do NOT drop or retitle them). Per
-ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test, so `storytree
-coverage pty-session-manager` reports 7/7.
+`PtyPort`. Contracts 1–5 are BUILT (the original story build's signed verdict); contract 7 (the
+live-session enumeration) landed under the ADR-0189 app-owned-session re-drive; contract 6 is the ADR-0190
+serialized-screen-state re-tense of the retired ADR-0189 raw-byte ring (its id RENAMED with the reversed
+behaviour, `psm-buffers-scrollback-and-snapshots` → `psm-snapshots-serialized-screen-state`) — driven in
+this `editsExisting` re-prove that rewrites ONLY the contract-6 test and keeps every other test's EXACT
+title. Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test, so
+`storytree coverage pty-session-manager` reports 7/7.
 
 1. **`psm-spawns-and-routes-data`** — create() spawns via the injected port and routes pty output to the session sink
    - **asserts —** `create(opts, onData, onExit)` calls the injected `PtyPort.spawn` exactly once with
@@ -242,14 +280,17 @@ coverage pty-session-manager` reports 7/7.
      return a typed no-op / `false` and NEVER throw — so a stray ipc call can never crash the Electron
      main; a late `onData` after `kill` is dropped, not routed to a freed sink.
    - **covers —** `apps/desktop/src/backend/pty-session-manager.ts` (the fail-closed guards) *(provisional path)*
-6. **`psm-buffers-scrollback-and-snapshots`** — every routed chunk is buffered in a byte-capped ring; snapshot() returns it, fail-closed
-   - **asserts —** each chunk the fake handle emits for a live session is appended to that session's
-     main-held ring buffer AND still routed to the sink; `snapshot(sessionId)` returns the concatenated
-     buffered output; with a tiny `scrollbackBytes` cap injected via the constructor, the ring trims the
-     OLDEST chunks first once the cap is exceeded (the newest chunk always survives); `snapshot` on an
-     unknown or disposed id returns `null` (never a throw), and `dispose` frees the buffer with the
-     session — the scrollback a re-attaching renderer replays (ADR-0189).
-   - **covers —** `apps/desktop/src/backend/pty-session-manager.ts` (the per-session scrollback ring + snapshot) *(provisional path)*
+6. **`psm-snapshots-serialized-screen-state`** — every routed chunk is written through a per-session headless xterm; async snapshot() returns its serialized screen state + tracked dims, fail-closed
+   - **asserts —** each chunk the fake handle emits for a live session is written through that session's
+     main-held `@xterm/headless` `Terminal` (created at the spawn dims) AND still routed to the sink;
+     `resize(sessionId, cols, rows)` resizes that headless terminal alongside the pty; `await
+     snapshot(sessionId)` resolves `{ data, cols, rows }` where `data` is the `@xterm/addon-serialize`
+     serialization reflecting every chunk received before the call (an awaited empty-write flush sentinel
+     leaves no tail behind) and `cols`/`rows` are the currently-tracked dims; `snapshot` on an unknown or
+     disposed id resolves `null` (never a throw), and `dispose` frees the headless terminal with the
+     session — the serialized screen state a re-attaching renderer restores at recorded dims then fits
+     (ADR-0190, retiring the ADR-0189 raw-byte ring).
+   - **covers —** `apps/desktop/src/backend/pty-session-manager.ts` (the per-session headless screen model + async snapshot) *(provisional path)*
 7. **`psm-lists-live-sessions`** — list() enumerates live sessions (id + spawn cwd, creation order); disposed/exited drop out
    - **asserts —** with two sessions created (distinct `cwd` opts), `list()` returns both entries —
      `{ sessionId, cwd }`, in creation order, `cwd` as spawned (`null` when the opts carried none);
@@ -260,9 +301,11 @@ coverage pty-session-manager` reports 7/7.
 ## Guidance — the net-new slice that earns the signed verdict
 
 > **Historical (contracts 1–5).** This section describes the ORIGINAL net-new build that signed
-> contracts 1–5. Contracts 6–7 are NOT net-new — they re-prove the existing source via `editsExisting`
-> (the red is a behaviour-assertion failure: the manager at HEAD has no `snapshot()`/`list()`; the brief
-> in the frontmatter comment governs it). Kept as the net-new history of this cap; do not read the
+> contracts 1–5. Contracts 6–7 are NOT net-new — they re-prove the existing source via `editsExisting`:
+> contract 7 (`list()`) added under ADR-0189, and contract 6 RE-TENSED under ADR-0190 (the raw-byte ring
+> replaced by the headless serialized screen state — the red is a behaviour/signature-assertion failure:
+> `snapshot` at HEAD is sync and returns a string, the rewritten test awaits `{ data, cols, rows }`; the
+> brief in the frontmatter comment governs it). Kept as the net-new history of this cap; do not read the
 > "module-not-found" red below as the current build's red.
 
 The brownfield bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the pty session manager as
@@ -288,7 +331,9 @@ Rules:
 
 - **Injected `PtyPort` only — never import `node-pty` here** (the real adapter is glue in the Electron
   main). The module's only pty seam is the injected port, so `node:test` drives it with a fake and no
-  native module ever loads at test time.
+  native module ever loads at test time. `@xterm/headless` + `@xterm/addon-serialize` (contract 6,
+  ADR-0190) ARE permitted direct imports — pure JS, no native module, no DOM, so they load fine under
+  `node:test`; only `node-pty` and `electron` are banned here.
 - **Electron-free core** — no `electron`/`dom` import; the ipc handlers + `webContents.send` stream are
   the operator-attested binding in `main.ts`, witnessed under the Story UAT, not asserted here.
 - **Fail closed, never crash** — an op on an unknown/disposed id is a typed no-op/`false`, never a throw;
