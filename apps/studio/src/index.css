@@ -3454,6 +3454,41 @@ button.legend-tile:hover {
   gap: 8px;
   pointer-events: none;
 }
+/* The map-side Library toggle (bottom-left, mirroring the gear dock): the reachable entry to the
+   `?overlay=library` lens once there's no URL bar. Corner-anchored so the top-anchored lens never
+   covers it (expanded ~top ⅓–⅘, minimised = a thin top handle). */
+.world-library-dock {
+  position: absolute;
+  left: 12px;
+  bottom: calc(12px + var(--chat-dock-h, 0px));
+  z-index: 3;
+  pointer-events: none;
+}
+.world-library-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.world-library-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.world-library-btn.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 .world-gear-btn {
   pointer-events: auto;
   width: 38px;
