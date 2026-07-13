@@ -271,32 +271,48 @@ test("psm-isolates-multiple-sessions: concurrent sessions are isolated — routi
 });
 
 // ---------------------------------------------------------------------------
-// scrollback ring + snapshot (contract 6 — ADR-0189 app-owned sessions: the
-// manager, not the renderer, holds each live session's recent output so a
-// re-attaching dock can replay it into a fresh xterm).
+// snapshot() — the serialized headless-screen state (contract 6, ADR-0190:
+// supersedes the ADR-0189 raw-byte scrollback ring — replaying raw output
+// bytes into a fresh, differently-sized xterm reconstructs interleaved TUI
+// fragments, not the screen. The manager now holds a per-session headless
+// xterm Terminal, writes every routed chunk through it, and resizes it
+// alongside the pty. snapshot() is ASYNC and resolves the @xterm/addon-
+// serialize serialization of the parsed screen plus the tracked dims —
+// never the raw chunk join — flushed so it reflects every chunk received
+// before the call.
 // ---------------------------------------------------------------------------
 
-test("psm-buffers-scrollback-and-snapshots: buffers routed output in a byte-capped ring, trims the oldest chunks first, and fails closed to null for an unknown or disposed session", () => {
+test("psm-snapshots-serialized-screen: snapshot() resolves the serialized parsed screen and tracked dims, reflecting every routed chunk and a later resize, and fails closed to null for an unknown or disposed session", async () => {
   const port = new FakePtyPort();
-  // A tiny cap makes the trim deterministic and observable in a few chunks.
-  const manager = new PtySessionManager(port, { scrollbackBytes: 5 });
+  const manager = new PtySessionManager(port);
   const sessionId = manager.create(BASE_OPTS, () => {}, () => {});
   const handle = port.spawned[0]?.handle;
   assert.ok(handle);
 
-  handle.emitData("AAAAA"); // 5 bytes — exactly fills the cap.
-  handle.emitData("BB"); // total would be 7 > 5 — the oldest chunk ("AAAAA") is trimmed.
-  handle.emitData("CCC"); // total is back to exactly 5 — no trim needed.
+  handle.emitData("hello from the shell\r\n");
+  handle.emitData("second line\r\n");
 
-  // Only the surviving, most-recent chunks are in the buffer — the oldest chunk is gone.
-  assert.equal(manager.snapshot(sessionId), "BBCCC");
+  const snap = await manager.snapshot(sessionId);
 
-  // Fail-closed: an unknown session id yields null, never a throw.
-  assert.equal(manager.snapshot("no-such-session"), null);
+  assert.ok(snap !== null);
+  assert.equal(typeof snap?.data, "string");
+  assert.match(snap!.data, /hello from the shell/);
+  assert.match(snap!.data, /second line/);
+  assert.equal(snap?.cols, 80);
+  assert.equal(snap?.rows, 24);
 
-  // The buffer is freed with the session on dispose.
+  // resize() must be tracked, so a later snapshot reports the live dims.
+  manager.resize(sessionId, 100, 30);
+  const afterResize = await manager.snapshot(sessionId);
+  assert.equal(afterResize?.cols, 100);
+  assert.equal(afterResize?.rows, 30);
+
+  // Fail-closed: an unknown session id resolves null, never a throw.
+  assert.equal(await manager.snapshot("no-such-session"), null);
+
+  // The headless terminal is freed with the session on dispose.
   manager.dispose(sessionId);
-  assert.equal(manager.snapshot(sessionId), null);
+  assert.equal(await manager.snapshot(sessionId), null);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,33 @@
 // PtySessionManager — the Electron-main pty lifecycle manager.
 //
-// A deep module over an injected PtyPort: spawn / write / resize / dispose / route-data,
-// tracking multiple independent sessions and failing closed (typed false/no-op, never a
-// throw) on an unknown or already-disposed session id. No `electron` import, no `node-pty`
-// import — the real pty is reached only through the injected PtyPort, so the whole
-// lifecycle is provable headlessly (node:test, a fake port).
+// A deep module over an injected PtyPort: spawn / write / resize / dispose / route-data /
+// snapshot / list, tracking multiple independent sessions and failing closed (typed
+// false/null/no-op, never a throw) on an unknown or already-disposed session id. No
+// `electron` import, no `node-pty` import — the real pty is reached only through the
+// injected PtyPort, so the whole lifecycle is provable headlessly (node:test, a fake port).
+//
+// Screen state (ADR-0190): each session's routed output is also written through a
+// per-session headless xterm (@xterm/headless) so snapshot() can resolve the SERIALIZED
+// PARSED SCREEN (@xterm/addon-serialize) rather than a jumbled raw-byte replay. Both
+// packages are pure JS (no native module, no DOM) so this stays provable under node:test.
+
+import { createRequire } from "node:module";
+import type { Terminal as HeadlessTerminal, ITerminalAddon as HeadlessTerminalAddon } from "@xterm/headless";
+import type { SerializeAddon as XtermSerializeAddon } from "@xterm/addon-serialize";
+
+// Both @xterm/headless and @xterm/addon-serialize ship UMD/CJS bundles that assign their
+// named exports dynamically (a runtime `for...in` copy onto `exports`), which
+// cjs-module-lexer cannot see statically — a plain `import { Terminal } from
+// "@xterm/headless"` throws "does not provide an export named 'Terminal'" under Node's
+// native ESM loader. This module is Node-only (no browser bundling need), so reach the
+// real runtime export via `require` and keep the static types via `import type` above
+// (elided at runtime by verbatimModuleSyntax) — the type-illegal-cast-free fix for a
+// runtime interop gap, not a workaround around it.
+const require = createRequire(import.meta.url);
+const { Terminal } = require("@xterm/headless") as { Terminal: typeof HeadlessTerminal };
+const { SerializeAddon } = require("@xterm/addon-serialize") as {
+  SerializeAddon: typeof XtermSerializeAddon;
+};
 
 export interface PtySpawnOptions {
   shell?: string;
@@ -26,23 +49,29 @@ export interface PtyPort {
   spawn(opts: PtySpawnOptions): PtyHandle;
 }
 
+export interface PtySnapshot {
+  data: string;
+  cols: number;
+  rows: number;
+}
+
 type DataSink = (sessionId: string, chunk: string) => void;
 type ExitSink = (sessionId: string, e: { exitCode: number }) => void;
 
 interface Session {
   handle: PtyHandle;
   cwd: string | null;
-  chunks: string[];
-  bytes: number;
+  term: HeadlessTerminal;
+  serializeAddon: XtermSerializeAddon;
 }
 
 export interface PtySessionManagerOptions {
-  /** Total bytes of buffered scrollback kept per session (oldest chunks trimmed first). */
-  scrollbackBytes?: number;
+  /** Scrollback line bound of each session's headless screen model. */
+  scrollbackLines?: number;
 }
 
-// Generous default — sized for several thousand lines of typical terminal output.
-const DEFAULT_SCROLLBACK_BYTES = 5_000_000;
+// Generous default — several thousand lines of typical terminal output.
+const DEFAULT_SCROLLBACK_LINES = 5_000;
 
 let nextSessionSeq = 0;
 
@@ -54,11 +83,11 @@ function generateSessionId(): string {
 export class PtySessionManager {
   readonly #port: PtyPort;
   readonly #sessions = new Map<string, Session>();
-  readonly #scrollbackBytes: number;
+  readonly #scrollbackLines: number;
 
   constructor(port: PtyPort, opts: PtySessionManagerOptions = {}) {
     this.#port = port;
-    this.#scrollbackBytes = opts.scrollbackBytes ?? DEFAULT_SCROLLBACK_BYTES;
+    this.#scrollbackLines = opts.scrollbackLines ?? DEFAULT_SCROLLBACK_LINES;
   }
 
   get size(): number {
@@ -72,7 +101,19 @@ export class PtySessionManager {
   create(opts: PtySpawnOptions, onData: DataSink, onExit: ExitSink): string {
     const sessionId = generateSessionId();
     const handle = this.#port.spawn(opts);
-    this.#sessions.set(sessionId, { handle, cwd: opts.cwd ?? null, chunks: [], bytes: 0 });
+    const term = new Terminal({
+      cols: opts.cols,
+      rows: opts.rows,
+      allowProposedApi: true,
+      scrollback: this.#scrollbackLines,
+    });
+    const serializeAddon = new SerializeAddon();
+    // Both packages expose the same runtime terminal shape; the addon's public types
+    // target @xterm/xterm, not @xterm/headless — a narrow cast at this seam is the
+    // sanctioned escape (ADR-0190).
+    term.loadAddon(serializeAddon as unknown as HeadlessTerminalAddon);
+
+    this.#sessions.set(sessionId, { handle, cwd: opts.cwd ?? null, term, serializeAddon });
 
     handle.onData((chunk) => {
       const session = this.#sessions.get(sessionId);
@@ -81,15 +122,16 @@ export class PtySessionManager {
         // routed to a freed sink.
         return;
       }
-      this.#appendChunk(session, chunk);
+      session.term.write(chunk);
       onData(sessionId, chunk);
     });
 
     handle.onExit((e) => {
-      if (!this.#sessions.has(sessionId)) {
+      const session = this.#sessions.get(sessionId);
+      if (!session) {
         return;
       }
-      this.#sessions.delete(sessionId);
+      this.#teardown(sessionId, session);
       onExit(sessionId, e);
     });
 
@@ -111,6 +153,7 @@ export class PtySessionManager {
       return false;
     }
     session.handle.resize(cols, rows);
+    session.term.resize(cols, rows);
     return true;
   }
 
@@ -119,19 +162,33 @@ export class PtySessionManager {
     if (!session) {
       return false;
     }
-    this.#sessions.delete(sessionId);
+    this.#teardown(sessionId, session);
     session.handle.kill();
     return true;
   }
 
-  /** The session's buffered scrollback — what a re-attaching renderer replays into a
-   * fresh xterm. Fail-closed: null (never a throw) for an unknown or disposed id. */
-  snapshot(sessionId: string): string | null {
+  /** The serialized parsed screen (content, colours, cursor, line-bounded scrollback) plus
+   * the currently-tracked dims. ASYNC: first flushes the headless terminal's pending writes
+   * so the serialization reflects every chunk received before the call. Fail-closed: null
+   * (never a throw) for an unknown or disposed id. */
+  async snapshot(sessionId: string): Promise<PtySnapshot | null> {
     const session = this.#sessions.get(sessionId);
     if (!session) {
       return null;
     }
-    return session.chunks.join("");
+    await new Promise<void>((resolve) => {
+      session.term.write("", resolve);
+    });
+    // The session may have been disposed while the flush was in flight.
+    const stillLive = this.#sessions.get(sessionId);
+    if (!stillLive) {
+      return null;
+    }
+    return {
+      data: stillLive.serializeAddon.serialize(),
+      cols: stillLive.term.cols,
+      rows: stillLive.term.rows,
+    };
   }
 
   /** The live sessions — id, spawn cwd, in creation order. A disposed or self-exited
@@ -143,14 +200,9 @@ export class PtySessionManager {
     }));
   }
 
-  #appendChunk(session: Session, chunk: string): void {
-    session.chunks.push(chunk);
-    session.bytes += Buffer.byteLength(chunk, "utf8");
-    while (session.bytes > this.#scrollbackBytes && session.chunks.length > 0) {
-      const oldest = session.chunks.shift();
-      if (oldest !== undefined) {
-        session.bytes -= Buffer.byteLength(oldest, "utf8");
-      }
-    }
+  #teardown(sessionId: string, session: Session): void {
+    this.#sessions.delete(sessionId);
+    session.serializeAddon.dispose();
+    session.term.dispose();
   }
 }
