@@ -31,7 +31,7 @@ Read-only repo access (Read/Grep/Glob; `git log` / `git rev-parse` to anchor the
 1. **Scope one increment** — the minimum coherent next step toward the arc's end state (slow growth), sized to hand off.
 2. **Decompose into provable units** — by the routing filter ("does this piece have an isolatable red→green test?"): `--real` red→green, glue (ADR-0158), or operator-attested; name each unit's story/capability id and order by dependency.
 3. **Declare the lanes** — which units are independent, the expected file surface per lane as fence hints for the takers, and where lanes contend.
-4. **Budget and traps** — turn-cap vocabulary (the default 16; name the fiddly modules that need more, ADR-0130), known traps on this surface, and the points where the executor halts for the owner.
+4. **Budget and traps** — budget each unit in turn-cap vocabulary (ADR-0130), sizing by the ASSERT SURFACE (files the leaf authors × contracts it covers) rather than file size; known traps on this surface, and the points where the executor halts for the owner.
 5. **Anchor** — pin `anchor.sha` to the commit planned against (current `origin/main` HEAD) with today's date.
 6. **Write the plan** — `storytree library artifact new --file <plan.json> --pg`, then stop. One plan per invocation; the orchestrator consumes it (freshness check → claim lanes → execute → append the arc increment at landing).
 
@@ -68,5 +68,6 @@ This is the specialist → manager rung of the escalation ladder (specialist →
 Each workflow step opens onto just the refs it needs — pull them when you reach the step:
 - **Pull the arc** — `storytree agents planner --step Pull the arc`
 - **Decompose into provable units** — `storytree agents planner --step Decompose into provable units`
+- **Budget and traps** — `storytree agents planner --step Budget and traps`
 - **Anchor** — `storytree agents planner --step Anchor`
 - **Write the plan** — `storytree agents planner --step Write the plan`

@@ -573,7 +573,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       heading: "Budgets",
       required: false,
       placeholder:
-        "_Expected spend per unit in turn-cap vocabulary (ADR-0130) — e.g. the default 16 turns, or `--max-turns 45` for a fiddly module. Omit when the defaults stand._",
+        "_Expected spend per unit in turn-cap vocabulary (ADR-0130), sized by the ASSERT SURFACE (files authored × contracts to cover) not file size — e.g. the default 16 turns for a one-file, few-assert unit, `--max-turns 45` when it authors multiple files or covers many contracts. Omit when the defaults stand._",
     },
     {
       field: "traps",
