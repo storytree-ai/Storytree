@@ -75,7 +75,7 @@ The integration test would:
 3. Assert the report is non-blocking — it returns the drift lists as data and never raises a violation /
    fails the gate (the gate's blocking violations and the report's drift candidates are separate outputs).
 
-## Contracts (3)
+## Contracts (4)
 
 1. **`boundary-judge-subgraph`** — the blocking judge: a real cross-organism code edge with no declared
    cross-story edge is a violation; acyclicity + the source-import scan hold (ADR-0074, brownfield)
@@ -119,4 +119,26 @@ The integration test would:
    - **proven by —** `packages/cli/src/boundaries.test.ts` (authored by the leaf inside the gate's
      AUTHOR_TEST phase; the red — the new cases asserting a landlord violation `checkBoundaries` does not
      yet produce at HEAD — is observed by the spine before the rule exists in
+     `packages/cli/src/boundaries.ts`).
+4. **`packages-forward-refusal`** — the SECOND blocking rule (ADR-0192 decision 2): a story hosted in
+   another story's building (a foreign `packages/`/`apps/` dir) is REFUSED unless it is named in the frozen
+   grandfather register — regardless of any declared edge — so a NEW story cannot squat in a foreign
+   building at all (packages-forward)
+   - **asserts —** `checkBoundaries` reads one new optional input — `hostedStories` (the frozen grandfather
+     register of currently-hosted story ids, from `repo-manifest.json`) — and, reusing rule 5's evidence
+     (`unitSourceFiles`/`dirOwners`, `buildingDirOf`, the per-`(S, T)` dedup), for each story `S` with a
+     mapped foreign-hosting pair `(S, T)` where `S` is NOT registered appends one refusal per `(S, T)` pair
+     naming the story, host, building dir, and an example file — **regardless of any declared edge** (a
+     declared edge satisfies rule 5 but NOT this rule; the fix is to re-home the sources into `S`'s own
+     package, or add `S` to the register for a deliberate owner-reviewed grandfathering). It also keeps the
+     register honest: a register entry with no mapped foreign-hosting pair (migrated, retired, or a typo) is
+     itself a stale-register violation pointing at removing the entry — so the register is a self-pruning
+     migration worklist. Grandfathered (registered ∧ hosted) stories, own-building files, off-surface paths,
+     unmapped buildings, and an ABSENT `hostedStories` are all clean; an EMPTY `[]` register is
+     defined-not-absent and fail-closed (every hosted story refused). At freeze the register holds the 18
+     stories with a mapped foreign-hosting pair, all already carrying a declared host edge (ADR-0192).
+     `boundaries.ts` stays import-free so the suite proves offline.
+   - **proven by —** `packages/cli/src/boundaries.test.ts` (authored by the leaf inside the gate's
+     AUTHOR_TEST phase; the red — the new cases asserting a packages-forward refusal `checkBoundaries` does
+     not yet produce at HEAD — is observed by the spine before the rule exists in
      `packages/cli/src/boundaries.ts`).

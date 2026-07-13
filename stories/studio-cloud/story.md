@@ -5,7 +5,7 @@ title: "Studio cloud — the trusted circle interacts with a served studio"
 outcome: "A small circle of trusted devs opens a URL, signs in with their Google account, and interacts with the live studio — world, library, docs — leaving comments under their verified identity; nothing else about the system is exposed."
 status: proposed
 proof_mode: UAT
-capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake, write-broker]
+capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake, write-broker, deploy-health-signal]
 # Story-level edges: the studio UI being served, the library story's store seam (ADR-0010 §4), and —
 # ADR-0117 — studio-members, whose `builder` role + `resolveAccess` the write-broker gate consumes (the
 # real code edge already exists: guestPolicy.ts imports @storytree/studio-members, and studio-members'
@@ -15,13 +15,19 @@ capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-o
 # audit) — this story's registered unit sources import the presence schema (@storytree/notice-board,
 # the hosted server's session reads) and the verdict/signing shapes (@storytree/proof-protocol, the
 # broker's verdict persist) directly, not only through the studio.
-depends_on: [studio, library, studio-members, notice-board, proof-protocol]
+# cli (ADR-0192 rule 5 — the hosted-story landlord / packages-forward edge): the `deploy-health-signal`
+# capability's proof-bound source (packages/cli/src/deploy-health.ts) is HOSTED in cli's building
+# (packages/cli), where every gate check lives. NO code import backs it — the pure classifier imports
+# nothing and is wired into the gate by the root package.json check script (glue), not by a package
+# dependency — so the edge is declared consumer-side here and annotated in artifact_edges (ADR-0192 D1).
+# studio-cloud is on the `hostedStories` grandfather register (rule 6 admits it).
+depends_on: [studio, library, studio-members, notice-board, proof-protocol, cli]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio, library]
-decisions: [42, 49, 117] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope
+artifact_edges: [studio, library, cli]
+decisions: [42, 49, 117, 194] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 0049 lets it wake its own DB, 0117 the members-gated write-broker + builder scope, 0194 the deploy-health gate signal
 ---
 
 # Studio cloud — the trusted circle interacts with a served studio
@@ -66,9 +72,10 @@ gate with the `builder` scope required ([`builder-role`](../studio-members/build
 ONE route table + the existing policy gate (`guestPolicy.ts`) — not a second backend (ADR-0042). It is
 CONSUMED BY the desktop over HTTP ([`shared-forest-connection`](../desktop/shared-forest-connection.md)).
 
-## Capabilities (7)
+## Capabilities (8)
 
-Listed roots-first.
+Listed roots-first (1–7 serve + gate the studio; 8 watches this story's own post-merge CD from the repo
+side, so a silently-failed deploy is loud at the gate tail — ADR-0194).
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -79,6 +86,7 @@ Listed roots-first.
 | 5 | [`circle-onboarding`](circle-onboarding.md) | Adding a trusted dev is one IAM grant plus a runbook link; removing them is one revoke; the circle's access is enumerable at a glance. | proposed | `cloud-run-iap` |
 | 6 | [`hosted-db-wake`](hosted-db-wake.md) | When the shared DB idle-stops, an admin wakes it from the site — keyless, container-native, no gcloud; the page self-recovers, non-admins are refused. | proposed | `serve-mode`, `guest-scope` |
 | 7 | [`write-broker`](write-broker.md) | A members-gated POST endpoint persists a builder's locally-signed verdict / presence — validating shape + attribution, refusing a non-builder (403) / malformed (400) / mismatched signer — holding no signing key, never re-signing. | proposed | `guest-scope` |
+| 8 | [`deploy-health-signal`](deploy-health-signal.md) | A pure classifier turns the deploy-studio CD run list into an ok / red / unknown health signal, so a red post-merge deploy is loud at the gate tail (best-effort, WARN-only, ADR-0194). | proposed | — |
 
 ## Story UAT (would-be)
 

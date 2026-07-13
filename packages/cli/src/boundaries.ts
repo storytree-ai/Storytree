@@ -121,6 +121,15 @@ export interface BoundaryInput {
    * is entirely skipped.
    */
   dirOwners?: Record<string, string>;
+  /**
+   * Rule 6 (ADR-0192, packages-forward-refusal — a sibling to rule 5, sharing its evidence): the
+   * FROZEN grandfather register — the currently-hosted story ids permitted to keep unit source files
+   * in a foreign building. Gathered from `repo-manifest.json`'s `hostedStories` list. `undefined`
+   * skips the rule entirely (a narrow fixture that doesn't pass the register is unaffected; the real
+   * gatherer always passes it). An EMPTY array is NOT the same as absent — `[]` grandfathers nobody,
+   * so every mapped foreign-hosting pair is refused (fail-closed).
+   */
+  hostedStories?: string[];
 }
 
 /** One import/export specifier found in a package's source file (the input to the v2 scan). */
@@ -275,6 +284,12 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
   //    connects S and T in EITHER direction — see the call site's doc comment below.
   checkHostedStoryLandlord(input, declared, violations);
 
+  // 6. The packages-forward-refusal rule (ADR-0192, a sibling to rule 5, sharing its evidence): a
+  //    story S hosted in a foreign building T is refused REGARDLESS of any declared edge unless S is
+  //    named in the frozen grandfather register `hostedStories` — and a register entry that no longer
+  //    claims any foreign-hosted file is itself flagged (a self-pruning migration worklist).
+  checkPackagesForwardRefusal(input, violations);
+
   return { violations };
 }
 
@@ -354,25 +369,9 @@ function checkHostedStoryLandlord(
   const { unitSourceFiles, dirOwners } = input;
   if (!unitSourceFiles || !dirOwners) return;
 
-  // (S, T) pair key → one example file, first-seen. Map preserves insertion order but we sort keys
-  // before emitting for determinism.
-  const pairs = new Map<string, string>();
-  for (const story of Object.keys(unitSourceFiles).sort()) {
-    for (const file of unitSourceFiles[story] ?? []) {
-      const building = buildingDirOf(file);
-      if (building === null) continue; // not under packages/<x>/ or apps/<x>/ — out of scope
-      const host = dirOwners[building];
-      if (host === undefined || host === story) continue; // unmapped, or the story's own building
-      const connected = (declared[story]?.includes(host) ?? false) || (declared[host]?.includes(story) ?? false);
-      if (connected) continue;
-      const key = `${story} ${host}`;
-      if (!pairs.has(key)) pairs.set(key, `${file} ${building}`);
-    }
-  }
-
-  for (const key of [...pairs.keys()].sort()) {
-    const [story, host] = key.split(" ") as [string, string];
-    const [file, building] = pairs.get(key)!.split(" ") as [string, string];
+  for (const { story, host, file, building } of computeHostingPairs(unitSourceFiles, dirOwners)) {
+    const connected = (declared[story]?.includes(host) ?? false) || (declared[host]?.includes(story) ?? false);
+    if (connected) continue;
     violations.push(
       `hosted-story landlord violation: story "${story}" claims unit source files hosted inside ` +
         `"${host}"'s building (${building}), e.g. "${file}", with no declared edge between "${story}" ` +
@@ -380,6 +379,82 @@ function checkHostedStoryLandlord(
         `to stories/${story}/story.md depends_on — and, if no code import backs the edge, annotate it ` +
         `in the spec's artifact_edges frontmatter — or remove the hosted-file claim (re-home the ` +
         `unit's sourceFile, or retire the mis-homed unit).`,
+    );
+  }
+}
+
+/** One mapped foreign-hosting pair (ADR-0192): story `S`'s unit file `F` lives in story `T`'s building. */
+interface HostingPair {
+  story: string;
+  host: string;
+  file: string;
+  building: string;
+}
+
+/**
+ * The evidence shared by rules 5 and 6 (ADR-0192): for every story `S` in `unitSourceFiles`, for each
+ * of its files `F`, take `F`'s building ({@link buildingDirOf}) — skipped if `F` is not under
+ * `packages/` or `apps/`. Let `T = dirOwners[building]`; skipped if `T` is undefined (unmapped —
+ * insufficient data) or `T === S` (S's own building). Every surviving `(S, T)` is a mapped
+ * foreign-hosting pair, deduped per pair with ONE example file (first-seen), deterministically
+ * ordered by the `"S T"` key.
+ */
+function computeHostingPairs(
+  unitSourceFiles: Record<string, string[]>,
+  dirOwners: Record<string, string>,
+): HostingPair[] {
+  const pairs = new Map<string, HostingPair>();
+  for (const story of Object.keys(unitSourceFiles).sort()) {
+    for (const file of unitSourceFiles[story] ?? []) {
+      const building = buildingDirOf(file);
+      if (building === null) continue; // not under packages/<x>/ or apps/<x>/ — out of scope
+      const host = dirOwners[building];
+      if (host === undefined || host === story) continue; // unmapped, or the story's own building
+      const key = `${story} ${host}`;
+      if (!pairs.has(key)) pairs.set(key, { story, host, file, building });
+    }
+  }
+  return [...pairs.keys()].sort().map((key) => pairs.get(key)!);
+}
+
+/**
+ * Rule 6 — the packages-forward-refusal rule (ADR-0192). Sibling to rule 5, sharing its evidence
+ * ({@link computeHostingPairs}). The frozen grandfather register `hostedStories` makes rule 5's
+ * either-declared-edge escape hatch INSUFFICIENT for a story that isn't registered: for each mapped
+ * foreign-hosting pair `(S, T)` where `S` is NOT in `hostedStories`, a violation is appended
+ * REGARDLESS of any declared edge between `S` and `T` (a NEW story cannot squat in a foreign building
+ * at all). Conversely, for each entry in `hostedStories` that no longer maps to any foreign-hosting
+ * pair, a stale-register violation is appended — the register is a self-pruning migration worklist
+ * (rule 4's stray/stale `artifact_edges` precedent applied to the register). Skipped entirely when
+ * `hostedStories`, `unitSourceFiles`, or `dirOwners` is absent (insufficient data / narrow fixture).
+ */
+function checkPackagesForwardRefusal(input: BoundaryInput, violations: string[]): void {
+  const { unitSourceFiles, dirOwners, hostedStories } = input;
+  if (!unitSourceFiles || !dirOwners || hostedStories === undefined) return;
+
+  const registered = new Set(hostedStories);
+  const pairs = computeHostingPairs(unitSourceFiles, dirOwners);
+  const storiesWithPairs = new Set<string>();
+
+  for (const { story, host, file, building } of pairs) {
+    storiesWithPairs.add(story);
+    if (registered.has(story)) continue; // grandfathered — rule 5 still governs its edge independently
+    violations.push(
+      `packages-forward refusal: story "${story}" claims unit source files hosted inside "${host}"'s ` +
+        `building (${building}), e.g. "${file}", but "${story}" is NOT in the frozen grandfather ` +
+        `register — a NEW story cannot host in a foreign building at all, regardless of any declared ` +
+        `depends_on/consumed_by edge (ADR-0192 packages-forward). Re-home the unit's sourceFile into ` +
+        `"${story}"'s own workspace package — or, for a deliberate owner-reviewed grandfathering, add ` +
+        `"${story}" to the hostedStories register in repo-manifest.json.`,
+    );
+  }
+
+  for (const entry of [...registered].sort()) {
+    if (storiesWithPairs.has(entry)) continue;
+    violations.push(
+      `packages-forward stale-register: "${entry}" is listed in repo-manifest.json hostedStories, but ` +
+        `it no longer claims any unit source file in a foreign building — remove the entry (ADR-0192: ` +
+        `the register is a self-pruning migration worklist that must shrink as stories migrate).`,
     );
   }
 }

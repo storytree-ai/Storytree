@@ -149,5 +149,3 @@ unlike the ADR-0115 drift report it sits near in the file, which only WARNs.
      AUTHOR_TEST phase; the red — the new cases asserting a landlord violation `checkBoundaries` does not
      yet produce at HEAD — is observed by the spine before the rule is added to
      `packages/cli/src/boundaries.ts`).
-</content>
-</invoke>

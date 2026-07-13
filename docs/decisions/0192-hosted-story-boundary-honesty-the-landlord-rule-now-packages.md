@@ -13,7 +13,7 @@ alignment IS the ratification, ADR-0110; no second end-of-flow ask): *"i'd like 
 machinery that agents can't easily bypass … maybe we do physical packages as a rule going forward
 and then slowly migrate rather then go bigbang."* This ADR records the mechanism answering it.
 Increment 1 (the landlord rule, decision 1) lands with this ADR; decision 2's register + refusal is
-authored just-in-time as its own increment.
+authored just-in-time as its own increment (landed 2026-07-14).
 
 ## Context
 
@@ -74,7 +74,7 @@ Owner-directed 2026-07-13:
    adoption; adding a name is a loud, owner-reviewed diff — the exact opposite of the silent
    omission that let the incident through — and entries only retire as stories migrate. Enforced as
    a second blocking rule (hosted per rule 1's evidence ∧ not registered → refuse, regardless of
-   declared edges), authored just-in-time as its own increment.
+   declared edges), authored just-in-time as its own increment (landed 2026-07-14).
 
 3. **Slow migration, never big-bang.** Grandfathered stories migrate one at a time, as next touched
    or as chores: move the story's WHOLE footprint into its own package, factoring shared host
