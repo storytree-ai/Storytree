@@ -998,3 +998,117 @@ test("ADR-0166: artifact-annotated edges leave the drift report's unbacked list 
   });
   assert.equal(report.byStory["v"], undefined);
 });
+
+// ===================================================================================================
+// Rule 5: the HOSTED-STORY LANDLORD rule — a real-world drift incident turned into mechanical
+// pushback (sibling to rule 4, ADR-0166). A story S whose unit `sourceFile`s live inside another
+// story T's building (a foreign packages/<x> or apps/<x> dir) is BLOCKED unless the merged declared
+// graph (depends_on ∪ inverse(consumed_by)) connects S and T in EITHER direction — the same
+// either-endpoint philosophy ADR-0074 §4 already uses for code-edge coverage. This is what keeps the
+// legitimate code-backed HUB pattern (notice-board's tree-view sources physically living in
+// packages/cli, covered by the real cli → notice-board edge) clean while blocking a story that claims
+// a neighbour's files while declaring depends_on: [] (an orphaned island in the forest render).
+// ===================================================================================================
+
+// Isolate rule 5: packageDeps: {} sidesteps rules 0/1/3/4 (their loops all key off packageDeps), and
+// the real storyGraph/consumedBy above is already proven acyclic (rule 2 stays silent too) — so any
+// violation observed here can only be rule 5's.
+function landlordOnly(
+  unitSourceFiles: Record<string, string[]>,
+  dirOwners: Record<string, string>,
+): string[] {
+  return checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+    unitSourceFiles,
+    dirOwners,
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+}
+
+test("rule 5 (landlord): a story's unit hosted in another's building with NO declared edge either way is blocked", () => {
+  // studio-members claims files inside notice-board's building; storyGraph/consumedBy declare no edge
+  // between studio-members and notice-board in either direction.
+  const violations = landlordOnly(
+    { "studio-members": ["packages/notice-board/src/a.ts", "packages/notice-board/src/b.ts"] },
+    { "packages/notice-board": "notice-board" },
+  );
+  assert.equal(violations.length, 1, violations.join("\n")); // deduped: 2 files, 1 (S,T) pair
+  assert.match(violations[0]!, /studio-members/);
+  assert.match(violations[0]!, /notice-board/);
+  assert.match(violations[0]!, /packages\/notice-board/);
+  assert.match(violations[0]!, /packages\/notice-board\/src\/[ab]\.ts/); // ONE example file
+  assert.match(violations[0]!, /depends_on/); // fix pointer names the declaration site
+});
+
+test("rule 5 (landlord): a file in the story's OWN building is never a violation", () => {
+  assert.deepEqual(
+    landlordOnly({ library: ["packages/library/src/foo.ts"] }, { "packages/library": "library" }),
+    [],
+  );
+});
+
+test("rule 5 (landlord): an UNMAPPED building (insufficient dirOwners data) is skipped, never a violation", () => {
+  assert.deepEqual(landlordOnly({ library: ["packages/unknown-pkg/src/foo.ts"] }, {}), []);
+});
+
+test("rule 5 (landlord): a non packages/apps root (scripts, stories, a bare filename) is out of the boundary surface", () => {
+  assert.deepEqual(
+    landlordOnly(
+      { library: ["scripts/foo.ts", "stories/library/story.md", "bare-file.ts"] },
+      { "packages/library": "library" },
+    ),
+    [],
+  );
+});
+
+test("rule 5 (landlord): a REVERSE declared edge (host → hosted story) covers the hosted files — the notice-board/cli hub pattern", () => {
+  // notice-board's tree-view sources physically live in packages/cli; the real cli → notice-board
+  // edge (declared provider-side: notice-board.consumed_by: [cli]) covers them without notice-board
+  // having to declare a spurious dependency on cli.
+  assert.deepEqual(
+    landlordOnly({ "notice-board": ["packages/cli/src/tree-view.ts"] }, { "packages/cli": "cli" }),
+    [],
+  );
+});
+
+test("rule 5 (landlord): a FORWARD declared edge (hosted story → host) also covers it", () => {
+  // library declares consumed_by: [cli] (cli → library); a cli-owned unit whose sourceFile happens to
+  // sit in packages/library is covered by that same declared edge.
+  assert.deepEqual(
+    landlordOnly({ cli: ["packages/library/src/thing.ts"] }, { "packages/library": "library" }),
+    [],
+  );
+});
+
+test("rule 5 (landlord): distinct (S,T) pairs each yield their own violation, deduped per pair", () => {
+  const violations = landlordOnly(
+    {
+      "studio-members": ["packages/notice-board/src/a.ts"],
+      "drive-machinery": ["packages/studio-members/src/b.ts", "packages/studio-members/src/c.ts"],
+    },
+    { "packages/notice-board": "notice-board", "packages/studio-members": "studio-members" },
+  );
+  assert.equal(violations.length, 2, violations.join("\n"));
+  assert.equal(violations.filter((v) => /drive-machinery/.test(v)).length, 1, violations.join("\n"));
+  assert.equal(
+    violations.filter((v) => /packages\/notice-board/.test(v)).length,
+    1,
+    violations.join("\n"),
+  );
+});
+
+test("rule 5 (landlord): unitSourceFiles ABSENT skips the rule entirely, even with dirOwners present", () => {
+  // Same shape as the first violation case, but unitSourceFiles is simply not passed — a narrow
+  // fixture that populates only the dep-graph inputs must be unaffected (ADR-0166's own
+  // insufficient-data posture; the real gatherer always passes the map).
+  const { violations } = checkBoundaries({
+    ownership,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+    dirOwners: { "packages/notice-board": "notice-board" },
+  } as Parameters<typeof checkBoundaries>[0]);
+  assert.deepEqual(violations, []);
+});

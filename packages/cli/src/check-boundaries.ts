@@ -17,6 +17,11 @@
  *   4. every cross-package import in `packages/<x>/src/**.ts` (the v2 source-import scan, ADR-0074
  *      §"does NOT decide"): the raw findings, classified by the pure judge into the relative-escape
  *      (Gap A') and devDep-evasion (Gap B') rules.
+ *   5. the ADR-0192 hosted-story LANDLORD inputs: every NON-RETIRED story's unit proof-bound SOURCE
+ *      paths (`real.sourceFile` + literal `sourceGlobs`) and the building→story map
+ *      ({@link readUnitSourceFiles} / {@link readDirOwners}) — so a story whose sources live inside
+ *      another story's building without a declared neighbour edge (either direction) FAILS the gate
+ *      instead of rendering as an orphaned island.
  *
  * Exits non-zero listing every violation, so an undeclared cross-organism coupling (Gap A) — or a
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
@@ -45,6 +50,7 @@ import {
   formatDriftReport,
   formatRedundantReport,
   redundantDeclaredEdges,
+  storyOf,
   type Ownership,
   type SourceImport,
   type VirtualStorySource,
@@ -161,6 +167,61 @@ function readOwnership(): Ownership {
   };
 }
 
+/**
+ * Building dir (`"packages/<x>"` | `"apps/<x>"`) → owning story, for the ADR-0192 landlord rule:
+ * each `package.json` `name` projected through the ownership map (organisms + surfaces) — the same
+ * mapping the dep-graph rules use, keyed by BUILDING DIR instead of package name.
+ */
+function readDirOwners(ownership: Ownership): Record<string, string> {
+  const owners: Record<string, string> = {};
+  for (const baseDir of ["packages", "apps"]) {
+    const root = join(repoRoot, baseDir);
+    if (!existsSync(root)) continue;
+    for (const ent of readdirSync(root, { withFileTypes: true })) {
+      if (!ent.isDirectory()) continue;
+      const pkgFile = join(root, ent.name, "package.json");
+      if (!existsSync(pkgFile)) continue;
+      const name = readJson(pkgFile).name;
+      if (typeof name !== "string") continue;
+      const story = storyOf(name, ownership);
+      if (story !== undefined) owners[`${baseDir}/${ent.name}`] = story;
+    }
+  }
+  return owners;
+}
+
+/**
+ * Story id → its units' proof-bound SOURCE paths (`real.sourceFile` + LITERAL non-glob
+ * `sourceGlobs`), for the ADR-0192 landlord rule. NON-RETIRED stories only (a retired story's
+ * island no longer renders — the same exclusion the drift report makes). Best-effort per unit:
+ * a malformed spec is skipped, never thrown, so a bad unit spec cannot wedge the gate gather.
+ */
+function readUnitSourceFiles(retired: Set<string>): Record<string, string[]> {
+  const storiesDir = join(repoRoot, "stories");
+  const out: Record<string, string[]> = {};
+  if (!existsSync(storiesDir)) return out;
+  for (const ent of readdirSync(storiesDir, { withFileTypes: true })) {
+    if (!ent.isDirectory() || retired.has(ent.name)) continue;
+    const storyDir = join(storiesDir, ent.name);
+    const seen = new Set<string>();
+    for (const unit of readdirSync(storyDir, { withFileTypes: true })) {
+      if (!unit.isFile() || !unit.name.endsWith(".md")) continue;
+      let real: { sourceFile: string; scope: { sourceGlobs: string[] } } | undefined;
+      try {
+        real = loadNodeSpec(join(storyDir, unit.name)).buildConfig?.real;
+      } catch {
+        continue; // a malformed unit spec must not crash the gate gather
+      }
+      if (real === undefined) continue;
+      for (const rel of [real.sourceFile, ...real.scope.sourceGlobs.filter((g) => !isGlobPattern(g))]) {
+        seen.add(rel);
+      }
+    }
+    if (seen.size > 0) out[ent.name] = [...seen].sort();
+  }
+  return out;
+}
+
 /** A module specifier carrying a glob metacharacter — write-scope BREADTH, not a concrete owned file. */
 function isGlobPattern(s: string): boolean {
   return /[*?[\]{}]/.test(s);
@@ -273,6 +334,10 @@ function main(): void {
     consumedBy,
     sourceImports: readSourceImports(),
     artifactEdges,
+    // ADR-0192: the hosted-story landlord rule's inputs — non-retired stories' proof-bound source
+    // paths + the building→story map, so an undeclared hosting FAILS the gate.
+    unitSourceFiles: readUnitSourceFiles(retired),
+    dirOwners: readDirOwners(ownership),
   });
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);

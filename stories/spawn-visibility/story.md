@@ -89,12 +89,16 @@ capabilities: [chat-spawn-trace-events, chat-panel-spawn-render, live-story-isla
 # story, so the edges introduce no cycle (agent's only dependency is notice-board, which never reaches
 # back here). In particular chat-subagent-spawn is a source node too (nothing depends on it), and this
 # story depends on IT, not the reverse — a clean downward edge.
-depends_on: [chat-subagent-spawn, desktop-build-mount, agent, library]
+# HOSTED-STORY edges (ADR-0192 landlord rule): the caps' proof-bound sources live inside three other
+# stories' territories — apps/studio/src (the ChatPanel spawn render + in-flight glue), packages/drive
+# (the chat-spawn trace events), apps/desktop (the cold-start advisory) — so the hosting is declared
+# and annotated (hosted seams; still a pure source node, so still no cycle).
+depends_on: [chat-subagent-spawn, desktop-build-mount, agent, library, studio, drive-machinery, desktop]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [chat-subagent-spawn, desktop-build-mount]
+artifact_edges: [chat-subagent-spawn, desktop-build-mount, studio, drive-machinery, desktop]
 # Deciding ADRs (ADR-0037 §2): 137 (PRIMARY — the Phase-3 spawn whose ACTIVITY this surfaces; the walk
 # that found the gaps was ADR-0137's live UAT); 70 (two-stage visual proof — the chat spawn line + the
 # live island + the lit wisp are machine-proven in geometry, operator-attested in appearance); 138 (the

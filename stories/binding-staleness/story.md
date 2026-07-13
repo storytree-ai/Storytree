@@ -14,7 +14,14 @@ capabilities: [boundhash-on-verdict, change-event-store, source-drift, gate-emit
 # proof-protocol: an honesty edge the ADR-0115 drift report surfaced (2026-07-05 map audit) — this
 # story's registered unit sources import the change-event/drift DATA shapes (`ChangeEvent`/`DriftFlag`/
 # the anchor) from @storytree/proof-protocol directly, not only through the drive.
-depends_on: [drive-machinery, proof-protocol]
+# cli (ADR-0192 landlord rule): the drift-reads-store cap's proof sources live in the cli hub's
+# territory (packages/cli/src/drift.ts — the `storytree drift` surface) — a hosted-seam edge,
+# declared consumer-side so it can be annotated below (an unbacked provider-side `consumed_by: [cli]`
+# would sit as permanent cli-story drift-WARN wallpaper; consumed_by suits only code-backed hub
+# consumption, the notice-board pattern).
+depends_on: [drive-machinery, proof-protocol, cli]
+# ADR-0166 artifact edges: the cli edge is a hosted seam — no code import backs it.
+artifact_edges: [cli]
 # Deciding ADR (ADR-0037 §2): the knowledge↔code binding & staleness model (16). gate-emits-change also
 # stands on the prove-it-gate honesty walls (20).
 decisions: [16]

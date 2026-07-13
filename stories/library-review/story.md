@@ -24,12 +24,15 @@ capabilities: [block-position-comment-anchor, suggestion-edit-store, accept-reje
 # These are CONSUMED seams (this story imports them), not absorbed — the within-`studio`-organism
 # work (the inline UI, the accept/reject route, the policy evolution) all sits in apps/studio, but the
 # persistence + role compute are library / studio-members organisms, so the edges are declared.
-depends_on: [library, studio-members]
+#  - studio (ADR-0192 landlord rule): the review surfaces are HOSTED in the studio's territory — the
+#    caps bind sources under apps/studio (suggestionApi.ts, the inline review UI) riding the studio's
+#    server + context wires. A hosted-seam edge, annotated below.
+depends_on: [library, studio-members, studio]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [library]
+artifact_edges: [library, studio]
 # Relevant ADRs: ADR-0140 (Library Review mode) — the governing model; ADR-0146 (amends 0140) — the
 # editing interaction: Review-mode editing is a split-pane markdown editor with CriticMarkup tracking.
 # ADR-0140 records the model: block-position (not text-span) comment anchoring, suggestions-as-proposals

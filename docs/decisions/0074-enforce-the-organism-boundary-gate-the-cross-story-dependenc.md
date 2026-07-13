@@ -103,6 +103,12 @@ Because the world renders the declared graph, forcing every code edge to be a de
 it UI-visible (Gap A and Gap B fall to one rule). The shared **ports** — `base`, `verdict-contract` —
 remain the blessed universal seams (always an allowed target), still declared and rendered.
 
+*(This §5 rule is CROSS-package-granular, so a hosted story — one whose proof-bound source files
+live inside ANOTHER story's package, with no import boundary for it to catch — slips it.
+[ADR-0192](0192-hosted-story-boundary-honesty-the-landlord-rule-now-packages.md) adds the
+hosted-story landlord rule (rule 5), closing that intra-package gap; additive — §5 stands unchanged
+for cross-package edges.)*
+
 ### 6. The world renders the declared graph radially
 
 With the hubs as central nodes everything connects to, a tree tangles; a **radial / hub-and-spoke

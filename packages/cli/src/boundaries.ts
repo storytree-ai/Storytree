@@ -107,6 +107,20 @@ export interface BoundaryInput {
    * violation, so the annotation can never silently disarm or outlive the gate. Optional (default `{}`).
    */
   artifactEdges?: Record<string, string[]>;
+  /**
+   * Rule 5 (ADR-0166-sibling, the hosted-story landlord rule): story id → the repo-relative POSIX
+   * paths of that story's units' `proof.real.sourceFile` (plus any LITERAL, non-glob
+   * `real.scope.sourceGlobs` entries). Gathered from disk by the disk gatherer, NON-RETIRED stories
+   * only. Optional — when absent the rule is entirely skipped (insufficient data, same posture as
+   * rule 4's narrow fixtures).
+   */
+  unitSourceFiles?: Record<string, string[]>;
+  /**
+   * Rule 5: a building dir (`"packages/<x>"` or `"apps/<x>"`) → the story that owns it, derived by
+   * the gatherer from each `package.json` `name` + the ownership map. Optional — when absent the rule
+   * is entirely skipped.
+   */
+  dirOwners?: Record<string, string>;
 }
 
 /** One import/export specifier found in a package's source file (the input to the v2 scan). */
@@ -255,6 +269,12 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
   //    (insufficient data — a narrow fixture, never the real gatherer, which scans every package).
   checkDeclaredEdgeHonesty(input, violations);
 
+  // 5. The hosted-story LANDLORD rule (a real-world drift incident turned into mechanical pushback,
+  //    sibling to rule 4 above): a story S whose unit sourceFiles live inside another story T's
+  //    building (a foreign packages/<x> or apps/<x> dir) is blocked unless the merged declared graph
+  //    connects S and T in EITHER direction — see the call site's doc comment below.
+  checkHostedStoryLandlord(input, declared, violations);
+
   return { violations };
 }
 
@@ -313,6 +333,63 @@ function checkDeclaredEdgeHonesty(input: BoundaryInput, violations: string[]): v
       }
     }
   }
+}
+
+/**
+ * Rule 5 — the hosted-story landlord rule. For each story `S` in `unitSourceFiles`, for each of its
+ * files `F`: take `F`'s first two path segments as the building, but only if `F` starts with
+ * `packages/` or `apps/` (any other root is out of the boundary surface — skipped). Let `T =
+ * dirOwners[building]`; skip if `T` is undefined (unmapped — insufficient data) or `T === S` (the
+ * file is in S's own building). Otherwise `S` is hosted in `T`'s territory: the merged declared story
+ * graph must connect `S` and `T` in EITHER direction (the same either-endpoint philosophy ADR-0074 §4
+ * uses for code-edge coverage) or one violation is appended, deduped per `(S, T)` pair with ONE
+ * example file, deterministically ordered. Skipped entirely when either `unitSourceFiles` or
+ * `dirOwners` is absent (insufficient data — a narrow fixture, never the real gatherer).
+ */
+function checkHostedStoryLandlord(
+  input: BoundaryInput,
+  declared: Record<string, string[]>,
+  violations: string[],
+): void {
+  const { unitSourceFiles, dirOwners } = input;
+  if (!unitSourceFiles || !dirOwners) return;
+
+  // (S, T) pair key → one example file, first-seen. Map preserves insertion order but we sort keys
+  // before emitting for determinism.
+  const pairs = new Map<string, string>();
+  for (const story of Object.keys(unitSourceFiles).sort()) {
+    for (const file of unitSourceFiles[story] ?? []) {
+      const building = buildingDirOf(file);
+      if (building === null) continue; // not under packages/<x>/ or apps/<x>/ — out of scope
+      const host = dirOwners[building];
+      if (host === undefined || host === story) continue; // unmapped, or the story's own building
+      const connected = (declared[story]?.includes(host) ?? false) || (declared[host]?.includes(story) ?? false);
+      if (connected) continue;
+      const key = `${story} ${host}`;
+      if (!pairs.has(key)) pairs.set(key, `${file} ${building}`);
+    }
+  }
+
+  for (const key of [...pairs.keys()].sort()) {
+    const [story, host] = key.split(" ") as [string, string];
+    const [file, building] = pairs.get(key)!.split(" ") as [string, string];
+    violations.push(
+      `hosted-story landlord violation: story "${story}" claims unit source files hosted inside ` +
+        `"${host}"'s building (${building}), e.g. "${file}", with no declared edge between "${story}" ` +
+        `and "${host}" in either direction (ADR-0074 §4's either-endpoint philosophy). Add "${host}" ` +
+        `to stories/${story}/story.md depends_on — and, if no code import backs the edge, annotate it ` +
+        `in the spec's artifact_edges frontmatter — or remove the hosted-file claim (re-home the ` +
+        `unit's sourceFile, or retire the mis-homed unit).`,
+    );
+  }
+}
+
+/** The `packages/<dir>` or `apps/<dir>` building prefix of a repo-relative POSIX file path, or null. */
+function buildingDirOf(file: string): string | null {
+  const parts = file.split("/");
+  if (parts[0] !== "packages" && parts[0] !== "apps") return null;
+  if (parts.length < 2 || !parts[1]) return null;
+  return `${parts[0]}/${parts[1]}`;
 }
 
 /** Inverse of the ownership map: story id → the packages it owns (organisms + surfaces). */

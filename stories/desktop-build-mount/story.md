@@ -78,12 +78,17 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 # → {library, storage-protocol, proof-protocol, agent, notice-board}. None of the named stories'
 # depends_on lists desktop-build-mount, so the edges introduce no cycle. (The former chat-drive-bridge
 # edge was dropped when that story retired — see the lineage note above.)
-depends_on: [drive-machinery, studio-build, desktop, library]
+#   - studio (ADR-0192 landlord rule): worker-relocation's proof scope spans the RE-POINTED studio
+#     importers (apps/studio/server/apiRouter.ts / devApi.ts are literal entries in its
+#     real.scope.sourceGlobs) — the relocation edited the studio server's build-worker imports in
+#     place, so the story's proof-bound write scope reaches into the studio's territory. A
+#     hosted-seam edge, annotated below.
+depends_on: [drive-machinery, studio-build, desktop, library, studio]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio-build, desktop]
+artifact_edges: [studio-build, desktop, studio]
 # Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority and decision 3
 # names THIS story's mechanism; its temporary broker deferral was later lifted by 180); 108 (the
 # phased chat→drive→land — this completes Phase 3+4 ON THE

@@ -23,17 +23,22 @@ capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library
 # (the parallel server typed-edge wire lane) and increments 9 (overview look-overhaul, dec 3) / 10
 # (#/library retirement) are authored just-in-time as the orchestrator consumes each.
 #
-# NO cross-story `depends_on` edge (the wire-shape-only / rides-the-existing-wire call): the
-# drawer is a NEW SURFACE inside the studio map view (apps/studio/src/components), mounted inside
-# TreeView.tsx's `.world-frame`. Increments 1–5 are entirely client-side and read the corpus DAG
-# through the studio's EXISTING `useAppData().assets` React context (the `GuidanceAsset` wire the
-# `studio` story's library backend already serves) — they add NO new `@storytree/*` package import,
-# so there is no new cross-story code edge to declare (the `studio` story already owns the
-# `library` corpus seam). Only increment 6 (server wire extension) touches
-# `apps/studio/server/libraryBackend.ts` / `@storytree/library/store`, which is the `studio`
-# server's own already-declared `library` edge — not a new edge for this story. See §"No new
-# cross-story edge" below.
-depends_on: []
+# HOSTED-STORY edges (ADR-0192, the landlord rule — REVISING this spec's original "no cross-story
+# edge" call, which conflated "no new @storytree/* package import" (true) with "no dependency"
+# (false): the story rendered as an orphaned island, owner-caught 2026-07-13). The units prove
+# SOURCE files inside two other stories' territories, so the hosting is declared:
+#   - studio: every client cap's sources live under apps/studio/src (mounted in TreeView's
+#     `.world-frame`, fed by the studio's EXISTING `useAppData().assets` context) and value-import
+#     studio-owned modules (kindDisplay, AssetView/DocView, stressLayout); the inc-6/8 server units
+#     bind apps/studio/server files (libraryBackend widening, adrWireSignals.ts).
+#   - library: the inc-7 typed-edges lane binds sources inside packages/library/src/store
+#     (render-doc.ts) — the wire's shape is proven inside the library organism's own territory.
+# See §"Cross-story edges (the hosting call)" below.
+depends_on: [studio, library]
+# ADR-0166 artifact edges: both are hosted-seam edges — no @storytree/* package import backs them
+# (the overlay reads the studio's existing GuidanceAsset wire; the library-side files are edits
+# inside the library's own package) — so both are annotated deliberate non-import edges.
+artifact_edges: [studio, library]
 decisions: [185, 70, 171, 161, 23]
 ---
 
@@ -120,7 +125,7 @@ both landed node surfaces (it re-points its edge from the retired `library-focus
 overlay's `onDismiss` are wired together at the TreeView level (the orchestrator's supplement glue after each
 leaf's PASS — plan §G); that glue removes the retired inline `diveSlot={<LibraryDiveBody …/>}` composition.
 These edges are authored with their capabilities; the inc-8 caps carry no new cross-story edge (client-side,
-reading the existing `useAppData()` wire — see §"No new cross-story edge").
+reading the existing `useAppData()` wire — see §"Cross-story edges (the hosting call)").
 
 **Increment 9 (authored here, ADR-0188 — the panel remold):** `library-category-shelf`
 **`depends_on: [library-finder]`** — it reworks the landed finder (`LibraryFinder.tsx`) to add the idle
@@ -177,20 +182,31 @@ after the leaf's PASS (plan §G). Deleting the retired `LibraryLensMinimise.test
 `LibraryPermanentLens.test.tsx` are the orchestrator's mechanical glue, done separately — not this capability's
 `real:` scope (its `sourceGlobs` is `LibraryDrawer.tsx` only, its `testGlobs` is `LibraryTopDrawer.test.tsx` only).
 
-## No new cross-story edge (recorded — the rides-the-existing-wire call)
+## Cross-story edges (the hosting call — revised by ADR-0192)
 
-This story adds **no new cross-story `depends_on` edge** (mirroring the `studio` story's `chat-panel`
-wire-shape-only call). The drawer is a client-side surface inside `apps/studio/src`, mounted as a
-sibling overlay inside `TreeView.tsx`'s `.world-frame` (`apps/studio/src/components/TreeView.tsx:1899`).
-The corpus DAG it renders (increments 2–5) is read through the studio's **existing** `useAppData().assets`
-React context — the `GuidanceAsset` wire the `studio` story's library backend already serves
-(`apps/studio/server/libraryBackend.ts` `toGuidanceAsset`) — so no capability here adds a NEW
-`@storytree/*` runtime import the boundary scan (ADR-0100) would require a declared edge for. Increment 6
-(the wire extension) edits the studio SERVER (`libraryBackend.ts`, which already imports
-`@storytree/library/store` under the `studio` story's declared `library` edge) — a widening of an
-existing seam, not a new story edge. Consequently `depends_on` is `[]` and there are no `artifact_edges`.
-The overlay rides the world it sits over; it does not consume the `forest-world` render core (it is a
-sibling overlay, not a scene-graph layer).
+> **Revision (ADR-0192, 2026-07-13).** This section originally argued `depends_on: []` on the ground
+> that the drawer "adds no new `@storytree/*` runtime import the boundary scan (ADR-0100) would
+> require a declared edge for". That claim was — and remains — literally true, but it conflated "no
+> new package import" with "no dependency": the story's proof-bound SOURCE files live inside other
+> stories' territories, a real hosting relationship the forest must draw. The result was an orphaned
+> island on the map (owner-caught 2026-07-13), the incident that decided the landlord rule (ADR-0192).
+
+The story declares two **hosted-seam** edges (annotated in `artifact_edges`, ADR-0166 — no package
+import backs them):
+
+- **`studio`** — the drawer is a client-side surface inside `apps/studio/src`, mounted as a sibling
+  overlay inside `TreeView.tsx`'s `.world-frame` and fed by the studio's **existing**
+  `useAppData().assets` React context (the `GuidanceAsset` wire the `studio` story's library backend
+  already serves via `toGuidanceAsset`); its components also value-import studio-owned modules
+  (`kindDisplay`, `AssetView`/`DocView`, `stressLayout`). The inc-6/8 server units bind
+  `apps/studio/server` files (the `libraryBackend.ts` widening, `adrWireSignals.ts`).
+- **`library`** — the inc-7 typed-edges lane binds sources inside `packages/library/src/store`
+  (`render-doc.ts`): the wire's shape is proven inside the library organism's own territory.
+
+Per-capability the original observation still stands: no capability adds a NEW `@storytree/*` runtime
+import, so no increment adds an edge beyond these two story-level hosting edges. The overlay rides the
+world it sits over; it does not consume the `forest-world` render core (it is a sibling overlay, not a
+scene-graph layer).
 
 ## Story UAT
 

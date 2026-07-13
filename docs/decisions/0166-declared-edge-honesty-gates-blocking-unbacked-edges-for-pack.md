@@ -53,7 +53,12 @@ Owner-directed 2026-07-06:
    `package.json` gives ground truth, so "declared ⊆ code ∪ annotated" is now enforced there.
    Virtual endpoints (either side) stay advisory — ADR-0115's weak-evidence reasoning stands
    unchanged for them. Consumer-side `depends_on` only; a provider-side `consumed_by` declaration
-   remains the provider's to justify.
+   remains the provider's to justify. *(Scoped to THIS rule 4, the declared ⊆ code direction: a
+   virtual story that is HOSTED — its proof-bound source files inside another story's package — is
+   later BLOCKED in the code ⊆ declared direction by
+   [ADR-0192](0192-hosted-story-boundary-honesty-the-landlord-rule-now-packages.md)'s landlord rule
+   (rule 5), where `real.sourceFile` PATHS are strong evidence; rule 4 here stays package-pair-scoped.
+   Additive.)*
 
 3. **Advisory redundant-transitive report (the authoring-time smell detector).** A new
    NON-BLOCKING section beside the ADR-0115 drift report: for each story, the `depends_on`

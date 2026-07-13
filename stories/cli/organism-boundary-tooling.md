@@ -75,7 +75,7 @@ The integration test would:
 3. Assert the report is non-blocking — it returns the drift lists as data and never raises a violation /
    fails the gate (the gate's blocking violations and the report's drift candidates are separate outputs).
 
-## Contracts (2)
+## Contracts (3)
 
 1. **`boundary-judge-subgraph`** — the blocking judge: a real cross-organism code edge with no declared
    cross-story edge is a violation; acyclicity + the source-import scan hold (ADR-0074, brownfield)
@@ -100,4 +100,23 @@ The integration test would:
      non-blocking (report data, never a gate failure).
    - **proven by —** `packages/cli/src/boundaries.test.ts` (authored by the leaf inside the gate's
      AUTHOR_TEST phase; the red is observed by the spine before the new exported function exists in
+     `packages/cli/src/boundaries.ts`).
+3. **`hosted-story-landlord-rule`** — the blocking landlord rule: a story whose units'
+   `proof.real.sourceFile`s live inside ANOTHER story's building (a foreign `packages/`/`apps/` dir) must
+   declare an edge to that host in either direction, or the gate fails (ADR-0192)
+   - **asserts —** `checkBoundaries` reads two new optional inputs — `unitSourceFiles` (story → its
+     units' repo-relative source paths) and `dirOwners` (building dir → owning story) — and for each story
+     `S` hosting a file under a foreign building owned by `T` (`T ≠ S`) requires the merged declared graph
+     (`depends_on` ∪ inverse(`consumed_by`)) to contain `S → T` OR `T → S`; otherwise it appends one
+     violation per `(S, T)` pair naming the story, host, building dir, and an example file, pointing the
+     fix (declare the edge + optionally annotate `artifact_edges`, or re-home the file). Own-building
+     files, either-direction edges, off-surface paths (`.github/`, `scripts/`, `stories/`), unmapped
+     buildings, and an absent `unitSourceFiles` are all clean — the same insufficient-data skip rule 4
+     takes (ADR-0166). This closes the package-granular gate's blind spot that let the
+     library-tech-tree-overlay story render as an orphan island with `depends_on: []` (owner-caught
+     2026-07-13; 13 violations across 7 stories fixed when decided). `boundaries.ts` stays import-free so
+     the suite proves offline.
+   - **proven by —** `packages/cli/src/boundaries.test.ts` (authored by the leaf inside the gate's
+     AUTHOR_TEST phase; the red — the new cases asserting a landlord violation `checkBoundaries` does not
+     yet produce at HEAD — is observed by the spine before the rule exists in
      `packages/cli/src/boundaries.ts`).

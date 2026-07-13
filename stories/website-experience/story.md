@@ -28,12 +28,17 @@ capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sy
 #    stays a package-level sink (ADR-0100: no code imports a surface); this story is the new
 #    story-level sink above it (nothing consumes the front door's front door). website needs nothing
 #    from this story — acyclic: website-experience → website → forest-world.
-depends_on: [forest-world, website]
+# cli (ADR-0192 landlord rule): the experience-rollout-guardrails cap's proof sources live in the
+# cli hub's territory (packages/cli/src/web-experience-check.ts — the check:web-engine drift guard
+# rides the cli's test surface) — a hosted-seam edge, declared consumer-side so it can be annotated
+# below (an unbacked provider-side `consumed_by: [cli]` would sit as permanent cli-story drift-WARN
+# wallpaper; consumed_by suits only code-backed hub consumption).
+depends_on: [forest-world, website, cli]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [website]
+artifact_edges: [website, cli]
 consumed_by: []
 # Deciding ADRs (ADR-0037 §2): the experience concept + the per-act tech split and the owner
 # decisions of 2026-07-02 that unpacked it (134); the renderer — R3F + drei as the THIRD

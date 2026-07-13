@@ -32,12 +32,15 @@ capabilities: [multi-turn-transcript, auto-grow-input, transcript-reset, backend
 #               composition guard-reset it calls). The three thin-client caps do NOT touch drive (the
 #               thin-client wall, modelPathBoundary.test.ts). If the stretch cap is HELD, this edge is
 #               dormant; it is declared so the cap is buildable when picked up (ADR-0074 "declare the edge").
-depends_on: [studio, drive-machinery]
+#   - desktop (ADR-0192 landlord rule) — the backend-chat-reset-route cap's proof sources live in the
+#               desktop's territory (apps/desktop/src/backend/chat-reset-route.ts): a hosted-seam edge,
+#               annotated below.
+depends_on: [studio, drive-machinery, desktop]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio, drive-machinery]
+artifact_edges: [studio, drive-machinery, desktop]
 # Deciding ADRs (ADR-0037 §2): 0137 (the Phase-3 chat-spawn arc whose live UAT walk surfaced this
 # feedback, 2026-07-03); 0108 (the chat surface + read/propose-only wall the panel rides); 0070 (the
 # two-stage frontend-builder proof — geometry machine-proven, appearance operator-attested); 0010 (the

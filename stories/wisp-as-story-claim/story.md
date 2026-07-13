@@ -14,6 +14,15 @@ proof_mode: operator-attested
 # leg (ADR-0070): the UAT node (capability F) is operator-attested, never self-attested. uat_witness is
 # absent ⇒ `human` (ADR-0040 fail-closed) — the appearance cannot be machine-witnessed.
 capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn, claim-at-declare, appearance-uat]
+# HOSTED-STORY edges (ADR-0192 landlord rule): this cross-cutting layer landed its organs INSIDE four
+# other stories' territories — the claim store in packages/notice-board/src/store, the subagent-colour
+# + merge-sweep wiring in packages/drive, the wisp/in-flight render glue in apps/studio, the
+# spawn-seam claim in packages/agent — so the hosting is declared (consumer-side) and annotated
+# (hosted seams: the story owns no package and adds no @storytree/* import of its own). No cycle:
+# none of the four hosts depends on this story (its only consumer is chat-subagent-spawn, above them).
+depends_on: [notice-board, drive-machinery, studio, agent]
+# ADR-0166 artifact edges: all four are hosted-seam edges (see above) — no code import backs them.
+artifact_edges: [notice-board, drive-machinery, studio, agent]
 # The within-story DAG (ADR-0010 §3): A is the root (the claim-store deltas everything stands on); B, C,
 # D, E each consume A; F (the appearance UAT) depends on B, C, D, E. Mirrors the capability depends_on.
 # claim-at-declare joined AFTER delivery (ADR-0142, landed work documented post-hoc): the declare-time
