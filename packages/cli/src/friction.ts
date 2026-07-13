@@ -9,6 +9,10 @@
  *   - `new`        file a friction item, fail-closed (ADR-0168 D3): evidence present AND concrete, ≤3
  *                  per branch/date (the ReasoningBank cap-3 fence), `references` resolve, NO route at
  *                  capture (capture never classifies — route is set only at adjudication).
+ *   - `migrate`    the D2 migrate step — TRANSPORT, not capture: file the `docs/friction-inbox/`
+ *                  staged items live with their ORIGINAL provenance (attribution and worklist age
+ *                  survive), no cap-3 (the cap was paid at capture, on the item's own branch/date),
+ *                  migrate-only (never overwrites a live item); deletes each staging file it migrates.
  *   - `reinforce`  append a `reinforcedBy` entry (own evidence, required) to an EXISTING item —
  *                  recurrence reinforces, never duplicates (`edit-first-curation` applied to friction).
  *   - `route`      the adjudication write: set `route` (the closed enum) + `routeReason`.
@@ -16,15 +20,16 @@
  *
  * OFFLINE/REMOTE FALLBACK (ADR-0168 D2, the shelf's surviving role): a session that cannot reach the
  * live store (remote 443-only, offline docs session) files `new` to a `docs/friction-inbox/` staging
- * file instead — the SAME validated doc JSON, so the adjudicator/librarian files it live later
- * (migrate-only, mirroring `sync-corpus`). The staging dir is schema-validated in `pnpm gate` /
- * `pnpm -r test` (offline-checkable) by {@link validateInboxDir}, fail-closed on a malformed file.
+ * file instead — the SAME validated doc JSON, so the adjudicator/librarian files it live later via
+ * `friction migrate` (migrate-only, mirroring `sync-corpus`). The staging dir is schema-validated in
+ * `pnpm gate` / `pnpm -r test` (offline-checkable) by {@link validateInboxDir}, fail-closed on a
+ * malformed file.
  *
  * Every seam (branch, clock, the inbox + docs dirs) is injected via {@link FrictionContext} so the
  * whole surface is offline-testable without git, a real clock, or the real repo tree.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -183,6 +188,21 @@ export async function newFriction(
   opts: { json?: string | undefined; file?: string | undefined; source?: string | undefined },
   ctx: FrictionContext,
 ): Promise<Envelope> {
+  // 0) A --file under docs/friction-inbox/ is a STAGED capture, not a new one — filing it through
+  //    `new` would RE-STAMP provenance (mis-attributing it to this session, resetting its worklist
+  //    age) and charge this session's cap-3. Transport is `friction migrate` (ADR-0168 D2).
+  if (opts.file !== undefined && isInsideDir(opts.file, ctx.inboxDir)) {
+    return {
+      ok: false,
+      body: [
+        `${opts.file} is a staged inbox item — \`friction new\` is CAPTURE: it would re-stamp the item's`,
+        "provenance with THIS session's branch/date (mis-attributing it, resetting its worklist age) and",
+        "count it against this session's cap-3. Migrate it instead (provenance preserved, no cap):",
+      ].join("\n"),
+      next: ["storytree friction migrate --pg   (sweep the whole inbox)", `storytree friction migrate --file ${opts.file} --pg`],
+    };
+  }
+
   // 1) Read the doc (--json inline or --file path), mirroring newArtifact.
   let raw = opts.json;
   if (raw === undefined && opts.file !== undefined) {
@@ -315,7 +335,7 @@ export async function newFriction(
     ok: true,
     body: [
       `no live store (offline / remote 443-only) — staged friction ${id} to docs/friction-inbox/${id}.json for the PR (ADR-0168 D2).`,
-      "The adjudicator (or the next live session's librarian pass) files it live and deletes the staging file — migrate-only, like sync-corpus.",
+      "The adjudicator (or the next live session's librarian pass) files it live via `storytree friction migrate --pg` — migrate-only, like sync-corpus; provenance survives.",
     ].join("\n"),
     next: ["git add docs/friction-inbox/   (commit the staged item with your PR)", "storytree friction list"],
   };
@@ -341,6 +361,143 @@ async function unresolvedReferences(
     }
   }
   return bad;
+}
+
+// ---------------------------------------------------------------------------
+// friction migrate — the D2 migrate step: staged inbox items → the live store
+// ---------------------------------------------------------------------------
+
+/** True when `file` resolves to a path INSIDE `dir` (never `dir` itself). Pure path math. */
+function isInsideDir(file: string, dir: string): boolean {
+  const rel = path.relative(path.resolve(dir), path.resolve(file));
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+/**
+ * `storytree friction migrate [--file docs/friction-inbox/<id>.json] --pg` — the ADR-0168 D2 migrate
+ * step: file the staged inbox items into the live store. TRANSPORT, not capture — the staged doc
+ * lands VERBATIM: `provenance` (branch/date/source) and createdAt/updatedAt are preserved, so the
+ * item keeps its original attribution and its worklist age (which `friction list` derives from
+ * `provenance.date`, and which the D4 "aged ≥1 session" routability rule reads). NO cap-3 here: the
+ * cap was already paid at the original capture, on the item's OWN branch/date — charging it again
+ * against the migrating session strands a full inbox behind the migrator's own retro items. The
+ * migrate-only policy mirrors `sync-corpus`: an id already live is NEVER overwritten. The D3 floors
+ * still hold fail-closed per file (schema, kind, no smuggled route, concrete evidence, references —
+ * re-checked against the LIVE corpus at the door). Each successfully migrated staging file is
+ * DELETED (it has served its purpose — commit the deletions with the PR); a refused or already-live
+ * file is left in place and reported.
+ */
+export async function migrateFriction(
+  deps: FrictionDeps,
+  opts: { file?: string | undefined },
+  ctx: FrictionContext,
+): Promise<Envelope> {
+  if (deps.writable !== true) {
+    return {
+      ok: false,
+      body: "friction migrate files staged inbox items into the live store — run with --pg (and bring the DB up first: pnpm db:up).",
+      next: ["pnpm db:up", "storytree friction migrate --pg"],
+    };
+  }
+
+  // The staging files to process: one named --file, or the whole-inbox sweep (sorted, deterministic).
+  let names: string[];
+  if (opts.file !== undefined) {
+    if (!isInsideDir(opts.file, ctx.inboxDir)) {
+      return {
+        ok: false,
+        body: "--file must point at a staged item under docs/friction-inbox/ — migrate is transport for STAGED captures.\nFor a new item, capture it instead: storytree friction new --file <doc.json> --pg",
+        next: ["storytree friction migrate --pg   (sweep the whole inbox)"],
+      };
+    }
+    if (!existsSync(opts.file)) {
+      return { ok: false, body: `no such staged file: ${opts.file}`, next: ["storytree friction migrate --pg   (sweep the whole inbox)"] };
+    }
+    names = [path.basename(opts.file)];
+  } else {
+    names = existsSync(ctx.inboxDir)
+      ? readdirSync(ctx.inboxDir).filter((n) => n.endsWith(".json")).sort()
+      : [];
+  }
+  if (names.length === 0) {
+    return { ok: true, body: "docs/friction-inbox/ is empty — nothing to migrate.", next: ["storytree friction list"] };
+  }
+
+  const migrated: string[] = [];
+  const alreadyLive: string[] = [];
+  const refused: Array<{ file: string; reason: string }> = [];
+
+  for (const name of names) {
+    const full = path.join(ctx.inboxDir, name);
+    // Schema fail-closed — the same standard the gate's validateInboxDir holds the committed dir to.
+    let valid: Record<string, unknown>;
+    try {
+      valid = upcastAndValidate(JSON.parse(readFileSync(full, "utf8"))) as Record<string, unknown>;
+    } catch (e) {
+      refused.push({ file: name, reason: `invalid staged doc: ${(e as Error).message}` });
+      continue;
+    }
+    if (valid["kind"] !== "friction") {
+      refused.push({ file: name, reason: `not a friction item (kind: ${String(valid["kind"])})` });
+      continue;
+    }
+    const id = strField(valid, "id");
+    if (id === "") {
+      refused.push({ file: name, reason: "the staged doc has no id" });
+      continue;
+    }
+    // Migration is not adjudication: a staged route would smuggle a classification past the live
+    // adjudicator (capture never classifies, ADR-0168 D2/D5).
+    if (valid["route"] !== undefined || valid["routeReason"] !== undefined) {
+      refused.push({ file: name, reason: "carries a route — capture never classifies; strip it and let adjudication route it live (ADR-0168 D2)" });
+      continue;
+    }
+    // The provenance to preserve IS the point of migrate; a hand-crafted staged doc without one has
+    // no attribution/age to keep — re-stage it through `friction new` (offline) so it gets stamped.
+    const prov = provenanceOf(valid);
+    if (valid["provenance"] === undefined || prov.branch === undefined || prov.date === undefined) {
+      refused.push({ file: name, reason: "no capture provenance — re-stage it via `storytree friction new` (offline) so provenance is stamped" });
+      continue;
+    }
+    // The D3 floors, re-checked at the door (evidence concrete; references resolve — now against LIVE).
+    if (!hasConcreteEvidence(strField(valid, "evidence"))) {
+      refused.push({ file: name, reason: "evidence is not concrete (ADR-0168 D3) — fix the staged doc before migrating" });
+      continue;
+    }
+    const unresolved = await unresolvedReferences(valid, deps.store, ctx.docsDir);
+    if (unresolved.length > 0) {
+      refused.push({ file: name, reason: `references do not resolve live: ${unresolved.join(", ")}` });
+      continue;
+    }
+    // Migrate-only (the sync-corpus policy): an id already live is NEVER overwritten.
+    const existing = await deps.store.getDoc(id);
+    if (existing) {
+      if (existing.kind !== "friction") {
+        refused.push({ file: name, reason: `id "${id}" collides with a live ${existing.kind} — rename the staged item` });
+      } else {
+        alreadyLive.push(id);
+      }
+      continue;
+    }
+    await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
+    unlinkSync(full); // served its purpose (the README lifecycle) — the deletion rides the session's PR
+    migrated.push(id);
+  }
+
+  const lines = [
+    `friction migrate — ${names.length} staged item(s): ${migrated.length} migrated · ${alreadyLive.length} already live · ${refused.length} refused`,
+  ];
+  for (const id of migrated) lines.push(`  ✓ ${id} — filed live with its ORIGINAL provenance; staging file deleted`);
+  for (const id of alreadyLive) lines.push(`  ● ${id} — already live (migrate-only never overwrites); verify it matches, then delete the staging file`);
+  for (const r of refused) lines.push(`  ✗ ${r.file} — ${r.reason}`);
+  return {
+    ok: refused.length === 0,
+    body: lines.join("\n"),
+    next: [
+      "storytree friction list",
+      ...(migrated.length > 0 ? ["git add docs/friction-inbox/   (commit the staging-file deletions with your PR)"] : []),
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -514,11 +671,9 @@ export async function listFriction(
   }
 
   // Offline nudge: staged items in the inbox await live filing (the adjudicator's migrate-only job).
-  if (opts.inboxDir !== undefined) {
-    const staged = readInboxDocs(opts.inboxDir).length;
-    if (staged > 0) {
-      lines.push("", `note: ${staged} item(s) staged in docs/friction-inbox/ await live filing (ADR-0168 D2, migrate-only).`);
-    }
+  const staged = opts.inboxDir !== undefined ? readInboxDocs(opts.inboxDir).length : 0;
+  if (staged > 0) {
+    lines.push("", `note: ${staged} item(s) staged in docs/friction-inbox/ await live filing — storytree friction migrate --pg (ADR-0168 D2, migrate-only, provenance preserved).`);
   }
 
   return {
@@ -526,6 +681,7 @@ export async function listFriction(
     body: lines.join("\n"),
     next: [
       ...(counts.open > 0 ? ["storytree friction route <id> --route <enum> --reason ... --pg   (adjudicate an open item)"] : []),
+      ...(staged > 0 ? ["storytree friction migrate --pg   (file the staged inbox items live)"] : []),
       "storytree friction new --file <doc.json> --pg   (file one)",
     ],
   };
@@ -551,6 +707,10 @@ export function frictionHelp(): Envelope {
       "        file a friction item, fail-closed: evidence must be CONCRETE, ≤3 per branch/date,",
       "        references must resolve, NO route at capture. With --pg it writes live; offline it",
       "        stages the same JSON to docs/friction-inbox/ for the PR (remote 443-only fallback).",
+      "  storytree friction migrate [--file docs/friction-inbox/<id>.json] --pg",
+      "        the D2 migrate step (transport, not capture): file the staged inbox items live with",
+      "        their ORIGINAL provenance (attribution + worklist age survive), no cap-3 (paid at",
+      "        capture), migrate-only (never overwrites live); deletes each staging file it migrates.",
       "  storytree friction reinforce <id> --evidence \"<what happened>\" --pg",
       "        recurrence reinforces an EXISTING item (own evidence, required) — never a twin.",
       "  storytree friction route <id> --route <enum> --reason \"<why>\" --pg",

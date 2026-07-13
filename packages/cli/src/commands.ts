@@ -50,6 +50,7 @@ import {
 import { onboardingCommand, onboardingHelp } from "./onboarding.js";
 import {
   newFriction,
+  migrateFriction,
   reinforceFriction,
   routeFriction,
   listFriction,
@@ -837,7 +838,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "",
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
-      "  friction         file what fought you → the Library (ADR-0168) — new | reinforce | route | list",
+      "  friction         file what fought you → the Library (ADR-0168) — new | migrate | reinforce | route | list",
       "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree prune   reap DEAD worktrees under .claude/worktrees/ (ADR-0142/0033) — merged+clean+idle; dry-run by default",
@@ -2171,8 +2172,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "friction") {
     // The friction capture surface (ADR-0168 inc 2). `new` falls back to a docs/friction-inbox/
-    // staging file offline (D2); `reinforce`/`route` are live-store writes; `list` is a read (offline
-    // OK, seed-backed). The capture context (branch/clock/dirs) is injected via `deps.friction`.
+    // staging file offline (D2); `migrate` files the staged items live (transport — provenance
+    // preserved, no cap-3, migrate-only); `reinforce`/`route` are live-store writes; `list` is a
+    // read (offline OK, seed-backed). The capture context (branch/clock/dirs) is `deps.friction`.
     if (sub === undefined || help) return frictionHelp();
     const ctx = makeFrictionContext(deps);
     if (sub === "new") {
@@ -2180,6 +2182,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ...(values.json !== undefined ? { json: values.json } : {}),
         ...(values.file !== undefined ? { file: values.file } : {}),
         ...(values.source !== undefined ? { source: values.source } : {}),
+      }, ctx);
+    }
+    if (sub === "migrate") {
+      return migrateFriction(deps, {
+        ...(values.file !== undefined ? { file: values.file } : {}),
       }, ctx);
     }
     if (sub === "reinforce") {
@@ -2198,7 +2205,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     }
     return {
       ok: false,
-      body: `unknown friction command "${sub}". try: new | reinforce | route | list`,
+      body: `unknown friction command "${sub}". try: new | migrate | reinforce | route | list`,
       next: ["storytree friction --help", "storytree friction list"],
     };
   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -188,6 +188,138 @@ test("the offline cap-3 counts staged inbox files", async () => {
   assert.equal(fourth.ok, false);
   assert.match(fourth.body, /cap reached/);
   assert.equal(existsSync(path.join(dirs.inboxDir, "o-d.json")), false, "the 4th is not staged");
+});
+
+// ---------------------------------------------------------------------------
+// friction migrate — the D2 migrate step (transport, not capture)
+// ---------------------------------------------------------------------------
+
+/** The provenance ANOTHER session's offline capture stamped — the thing migrate must preserve. */
+const FOREIGN_PROVENANCE = { branch: "claude/other-session", date: "2026-07-01", source: "retro" } as const;
+
+/** Stage a fully-stamped doc straight into the inbox, as a foreign session's offline capture left it. */
+function stageForeign(
+  dirs: { inboxDir: string },
+  id: string,
+  over: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const doc = {
+    ...frictionDoc(id),
+    kind: "friction",
+    provenance: { ...FOREIGN_PROVENANCE },
+    createdAt: "2026-07-01T09:00:00.000Z",
+    updatedAt: "2026-07-01T09:00:00.000Z",
+    ...over,
+  };
+  mkdirSync(dirs.inboxDir, { recursive: true });
+  writeFileSync(path.join(dirs.inboxDir, `${id}.json`), JSON.stringify(doc, null, 2) + "\n", "utf8");
+  return doc;
+}
+
+/** Run `friction migrate` through the real dispatch. */
+async function migrate(s: InMemoryStore, dirs: { inboxDir: string; docsDir: string }, extra: string[] = []) {
+  return run(["friction", "migrate", ...extra], { store: s, writable: true, friction: frictionDeps(dirs) });
+}
+
+test("migrate files a staged item live with its ORIGINAL provenance (transport, not capture)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  stageForeign(dirs, "m-keep");
+  const env = await migrate(s, dirs);
+  assert.equal(env.ok, true, env.body);
+  const parsed = Friction.safeParse((await s.getDoc("m-keep"))?.doc);
+  assert.ok(parsed.success, "the migrated doc validates as Friction");
+  assert.deepEqual(
+    parsed.success ? parsed.data.provenance : null,
+    FOREIGN_PROVENANCE,
+    "provenance is the ORIGINAL capture's branch/date/source, not the migrating session's",
+  );
+  assert.equal(parsed.success ? parsed.data.createdAt : "", "2026-07-01T09:00:00.000Z", "createdAt survives");
+  assert.equal(existsSync(path.join(dirs.inboxDir, "m-keep.json")), false, "the staging file is deleted");
+});
+
+test("migrate applies no cap-3 — a session with 3 own items filed can still drain the inbox", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  for (const n of ["a", "b", "c"]) {
+    assert.equal((await fileNew(s, frictionDoc(`cap-${n}`), dirs, { writable: true })).ok, true, `cap-${n} files`);
+  }
+  stageForeign(dirs, "m-fourth");
+  const env = await migrate(s, dirs);
+  assert.equal(env.ok, true, env.body);
+  assert.ok(await s.getDoc("m-fourth"), "migrated despite the migrating session's own 3 items");
+});
+
+test("migrate never overwrites an item already live (migrate-only, like sync-corpus)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("m-dup", { title: "the LIVE truth" }), dirs, { writable: true });
+  stageForeign(dirs, "m-dup", { title: "a stale staged twin" });
+  const env = await migrate(s, dirs);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /already live/);
+  const raw = (await s.getDoc("m-dup"))?.doc as Record<string, unknown>;
+  assert.equal(raw["title"], "the LIVE truth", "the live doc is untouched");
+  assert.ok(existsSync(path.join(dirs.inboxDir, "m-dup.json")), "the staging file is left for a manual verify+delete");
+});
+
+test("migrate refuses a staged item carrying a route (capture never classifies)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  stageForeign(dirs, "m-routed", { route: "adr", routeReason: "smuggled past adjudication" });
+  const env = await migrate(s, dirs);
+  assert.equal(env.ok, false);
+  assert.match(env.body, /carries a route/);
+  assert.equal(await s.getDoc("m-routed"), null, "nothing written");
+  assert.ok(existsSync(path.join(dirs.inboxDir, "m-routed.json")), "left staged for a fix");
+});
+
+test("migrate --file migrates just that staged item; a --file outside the inbox is refused", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  stageForeign(dirs, "m-one");
+  stageForeign(dirs, "m-two");
+  const env = await migrate(s, dirs, ["--file", path.join(dirs.inboxDir, "m-one.json")]);
+  assert.equal(env.ok, true, env.body);
+  assert.ok(await s.getDoc("m-one"), "the named item migrated");
+  assert.equal(await s.getDoc("m-two"), null, "the other stays staged");
+  assert.ok(existsSync(path.join(dirs.inboxDir, "m-two.json")));
+
+  const outside = await migrate(s, dirs, ["--file", path.join(dirs.docsDir, "loose.json")]);
+  assert.equal(outside.ok, false);
+  assert.match(outside.body, /under docs\/friction-inbox/);
+});
+
+test("migrate offline is refused (it files into the live store)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  stageForeign(dirs, "m-off");
+  const env = await run(["friction", "migrate"], { store: s, friction: frictionDeps(dirs) });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /run with --pg/);
+  assert.ok(existsSync(path.join(dirs.inboxDir, "m-off.json")), "nothing consumed");
+});
+
+test("migrate on an empty inbox is a friendly no-op", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  const env = await migrate(s, dirs);
+  assert.equal(env.ok, true);
+  assert.match(env.body, /nothing to migrate/);
+});
+
+test("new --file pointing into the inbox is refused toward migrate (the re-stamp trap)", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  stageForeign(dirs, "m-trap");
+  const env = await run(
+    ["friction", "new", "--file", path.join(dirs.inboxDir, "m-trap.json")],
+    { store: s, writable: true, friction: frictionDeps(dirs) },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /staged inbox item/);
+  assert.match(env.body, /re-stamp/);
+  assert.equal(await s.getDoc("m-trap"), null, "nothing lands under re-stamped provenance");
 });
 
 // ---------------------------------------------------------------------------
