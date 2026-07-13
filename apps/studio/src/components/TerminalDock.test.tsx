@@ -514,6 +514,26 @@ describe('TerminalDock', () => {
     expect(bridgeMock.write).not.toHaveBeenCalled();
   });
 
+  // ── tdp-fits-before-spawn-and-passes-initial-dims (contract 10, ADR-0190 — the missing fit
+  //    lifecycle) ─────────────────────────────────────────────────────────────────────────────────
+  //    A fresh tab must fit() its xterm to its container BEFORE calling bridge.spawn(), and forward
+  //    the resulting cols/rows into that spawn call — so a new pty starts at the terminal's REAL
+  //    size, never the 80x24 xterm default under a wide dock. Today `initTab` calls `bridge.spawn()`
+  //    with no dims at all, so this must fail against current behaviour.
+  it('tdp-fits-before-spawn-and-passes-initial-dims: a fresh tab fits before spawning and passes the fitted cols/rows into bridge.spawn', async () => {
+    render(<TerminalDock />);
+    await expand();
+
+    const fit = fitMock.FakeFitAddon.instances[0]!;
+    // The dock must have fit the fresh terminal to its container before spawning...
+    expect(fit.fitCalls).toBeGreaterThan(0);
+    // ...and forwarded the resulting dims into the spawn call, rather than spawning with no dims
+    // (today's behaviour — the pty always starts at xterm's 80x24 default).
+    expect(bridgeMock.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ cols: fit.nextDims.cols, rows: fit.nextDims.rows }),
+    );
+  });
+
   // ── multi-session-tabs capability — the tab substrate: N independent sessions/panes, created via
   //    "+", switched by clicking a tab, closed via a per-tab "×" (the ONLY thing that disposes a
   //    session's bridge/pty side); dock unmount disposes renderer resources only and PRESERVES every

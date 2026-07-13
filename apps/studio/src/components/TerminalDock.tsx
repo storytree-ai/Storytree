@@ -243,7 +243,12 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
         return;
       }
 
-      void bridge.spawn().then((res) => {
+      // Contract 10 (ADR-0190) — fit the fresh terminal to its container BEFORE spawning, and
+      // forward the resulting dims into the spawn call, so a new pty starts at the terminal's REAL
+      // size, never xterm's 80x24 default under a wide dock. `rec.sessionId` is still null here (an
+      // adopted tab returned above), so the fit's own `onResize` firing is a no-op for the bridge.
+      fit.fit();
+      void bridge.spawn({ cols: term.cols, rows: term.rows }).then((res) => {
         rec.sessionId = res.sessionId;
 
         // Contract 8 — the main FAILS CLOSED (no valid repo selected) by resolving an empty
