@@ -15,7 +15,7 @@ alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 **Amends ADR-0022:** the auto-merge invariant — "the pull_request checkout tests the merge result,
 so main stays green" — stands, but what the PR-side gate PROVES is redefined: a PR's `verify` may
 prove the changed workspace projects plus their transitive dependents rather than the whole
-workspace, with the push-to-main run keeping the full-suite backstop.
+workspace, with every merged tree still getting one full-suite proof as the backstop (§5).
 
 ## Context
 
@@ -70,15 +70,23 @@ declared dependency edge, which pnpm's graph cannot see —
    this ADR, never a quiet edit — every FULL trigger is pinned red→green in `ci-affected.test.ts`.
 4. **Fail-open to FULL, fail-visible otherwise:** not a PR event, HEAD not a merge commit, git
    failure, or any classifier error → `-r`. A crash before the step writes its output fails the
-   step — red CI, never a silently narrowed green. Push events skip the classifier entirely
-   (`|| '-r'` in the workflow expression).
+   step — red CI, never a silently narrowed green. Push and dispatch events skip the classifier
+   entirely (`|| '-r'` in the workflow expression).
 5. **The accepted trade, stated plainly: an under-selected PR can land red on main.** The backstop
-   is the `push` → main trigger ci.yml already carries: the auto-merge's own push runs the FULL
-   suite on main minutes after the merge, so an under-selection is caught on the very merge that
-   landed it and fixed forward. Under rule 3, under-selection requires a PR that INTRODUCES a new
-   cross-boundary file read while touching none of the FULL-trigger paths — so new cross-boundary
-   reads must arrive with a dependency edge, or with an amendment here adding the path to the FULL
-   triggers.
+   invariant: **every merged tree gets one FULL-suite proof.** A PR whose verify classified `full`
+   proves it on the merge ref (ADR-0022's model); after an AFFECTED-ONLY merge, the automerge job
+   dispatches a full ci.yml run on main (`workflow_dispatch`, fail-soft, skipped when the PR-side
+   already ran full), so an under-selection is caught minutes after the merge that landed it and
+   fixed forward. Under rule 3, under-selection requires a PR that INTRODUCES a new cross-boundary
+   file read while touching none of the FULL-trigger paths — so new cross-boundary reads must
+   arrive with a dependency edge, or with an amendment here adding the path to the FULL triggers.
+   *Correction (2026-07-14, same day, before the mechanism ever gated a merge): as first worded
+   this point cited "the `push` → main trigger ci.yml already carries" as the backstop — wrong for
+   auto-merged PRs, i.e. all of them: the automerge job merges with `GITHUB_TOKEN`, and
+   GITHUB_TOKEN-caused events never trigger workflows (GitHub anti-recursion — the same rule
+   ADR-0061's deploy dispatch works around; verified against run history: push runs fired for the
+   owner's hand-merged PRs #684–#686 and for NO bot-merged PR since). The dispatched-run mechanism
+   above restores the directed backstop.*
 6. **Local `pnpm gate` is unchanged** — the local mirror stays full; only the PR-side CI scope
    narrows.
 

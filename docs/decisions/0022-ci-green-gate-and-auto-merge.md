@@ -60,9 +60,10 @@ canonical gate is `pnpm -r typecheck` + `pnpm -r test`; only `apps/studio` has a
    runs `pnpm -r typecheck` / `pnpm -r test` over the AFFECTED subgraph (the changed workspace
    projects plus their transitive dependents, `pnpm ci:affected` → `--filter "...<name>"`), fanning
    out to full `-r` whenever a changed file sits outside the selection graph (docs, stories, the
-   corpus seed, lockfile, workflows, any `package.json`). **`push` to `main` still runs the full
-   `-r` suite** as the backstop, so §2's merge-result-is-green invariant is untouched; only what a
-   PR proves narrowed. Read §1's "On PRs into `main` and pushes to `main`: … → `pnpm -r typecheck`
+   corpus seed, lockfile, workflows, any `package.json`). **The full `-r` suite still backstops every
+   merged tree** — the guarantee ADR-0195 §5 now carries (NOT, as first worded here, the `push` →
+   main trigger, which does not fire for `GITHUB_TOKEN` auto-merges — GitHub anti-recursion), so
+   §2's merge-result-is-green invariant is untouched; only what a PR proves narrowed. Read §1's "On PRs into `main` and pushes to `main`: … → `pnpm -r typecheck`
    → `pnpm -r test`" as full-on-push, affected-on-PR.
 
 2. **Auto-merge-on-green, done inside free Actions — not GitHub-native auto-merge.** A second

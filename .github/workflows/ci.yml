@@ -1,12 +1,17 @@
 name: CI
 
 # The green gate, and (for PRs) the merge that follows it — ADR-0022.
-# Runs on every PR into main and on direct pushes to main.
+# Runs on every PR into main and on direct pushes to main. workflow_dispatch exists for the
+# post-merge full-suite backstop (ADR-0195 §5): the automerge job's GITHUB_TOKEN merge cannot
+# trigger the push run (GitHub anti-recursion — same reason the deploy dispatch exists), so after
+# an affected-only merge it dispatches a full run on main here instead. A dispatched run takes the
+# full `-r` path (the affected step is PR-only).
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 # A new push to the same PR/branch supersedes an in-flight run.
 concurrency:
@@ -20,6 +25,10 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
+    # The affected-scope decision ('full' | 'affected'; empty on push/dispatch runs, where the
+    # step is skipped) — read by the automerge job's post-merge backstop dispatch (ADR-0195 §5).
+    outputs:
+      mode: ${{ steps.affected.outputs.mode }}
     # contents: read for checkout; pull-requests: read for the ADR cross-PR collision check (ADR-0050).
     permissions:
       contents: read
@@ -274,6 +283,24 @@ jobs:
         # `npx tsx` from root would download tsx fresh (no root .bin in this pnpm workspace).
         # ADR-0077: the merge-ingest writer moved into the notice-board organism's ./store subpath.
         run: pnpm --filter @storytree/notice-board exec tsx src/store/ingest-merge.ts
+
+      # -----------------------------------------------------------------------
+      # Full-suite backstop on merged main (ADR-0195 §5). The GITHUB_TOKEN merge
+      # above cannot trigger ci.yml's own push run (GitHub anti-recursion — the
+      # same rule the deploy dispatch below works around), so when this PR's
+      # verify ran AFFECTED-ONLY, dispatch a full run on main to prove the merged
+      # tree whole. Skipped when verify ran the full suite on the merge ref —
+      # that run IS the full proof (ADR-0022's model), and a second one would
+      # spend the minutes the affected scope just saved. Fail-soft: a missed
+      # dispatch degrades the backstop to the next full-scoped run on main, and
+      # must never block the LOUD deploy dispatch below (which stays LAST).
+      # -----------------------------------------------------------------------
+      - name: Dispatch full CI on main after an affected-only merge (ADR-0195)
+        if: needs.verify.outputs.mode == 'affected'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref main --repo ${{ github.repository }}
 
       # -----------------------------------------------------------------------
       # CD trigger for auto-merged studio changes (ADR-0061, amends ADR-0046).
