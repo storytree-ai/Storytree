@@ -54,6 +54,18 @@ canonical gate is `pnpm -r typecheck` + `pnpm -r test`; only `apps/studio` has a
    `@storytree/store`); gating on it would wedge every merge. That breakage is tracked
    separately, not folded into the gate.
 
+   **Correction ([ADR-0195](0195-affected-only-pr-test-scope-ci-cost-scales-with-the-change-n.md),
+   per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)): the
+   PR-side scope narrowed — on `pull_request`, `verify` no longer runs the full `-r` suite.** It
+   runs `pnpm -r typecheck` / `pnpm -r test` over the AFFECTED subgraph (the changed workspace
+   projects plus their transitive dependents, `pnpm ci:affected` → `--filter "...<name>"`), fanning
+   out to full `-r` whenever a changed file sits outside the selection graph (docs, stories, the
+   corpus seed, lockfile, workflows, any `package.json`). **The full `-r` suite still backstops every
+   merged tree** — the guarantee ADR-0195 §5 now carries (NOT, as first worded here, the `push` →
+   main trigger, which does not fire for `GITHUB_TOKEN` auto-merges — GitHub anti-recursion), so
+   §2's merge-result-is-green invariant is untouched; only what a PR proves narrowed. Read §1's "On PRs into `main` and pushes to `main`: … → `pnpm -r typecheck`
+   → `pnpm -r test`" as full-on-push, affected-on-PR.
+
 2. **Auto-merge-on-green, done inside free Actions — not GitHub-native auto-merge.** A second
    job `automerge` `needs: verify`, runs only on `pull_request` events, and merges the PR with
    the built-in `GITHUB_TOKEN`:
