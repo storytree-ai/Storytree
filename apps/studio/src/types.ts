@@ -173,6 +173,13 @@ export interface GuidanceAsset {
   branchEdges?: { ref: string; label?: string | undefined }[];
   /** A `plan` doc's `arcRef` (an `asset:<id>` pointer) — see {@link GuidanceAsset.stepRefs}. */
   arcRef?: string;
+  /**
+   * A `plan` doc's `status` wire mirror (ADR-0196 D3 — the plan-lifecycle projection input the
+   * sibling `library-lifecycle-wire` capability crosses onto the wire). Optional / absent-by-default
+   * (the `stepRefs?`/`arcRef?` idiom) so every existing `GuidanceAsset` reader keeps validating with
+   * no migration; present only for a `plan` doc once the wire crosses it.
+   */
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }
