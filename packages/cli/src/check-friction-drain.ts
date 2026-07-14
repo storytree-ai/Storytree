@@ -77,7 +77,7 @@ function currentBranch(): string {
 }
 
 function report(v: FrictionDrainVerdict): void {
-  const tally = `${v.openCount} open (${v.routableCount} routable) · ${v.routedCount} routed · ${v.archivedCount} archived · ${v.total} total`;
+  const tally = `${v.openCount} open (${v.routableCount} routable) · ${v.archivedCount} archived · ${v.total} total`;
   if (v.level === "ok") {
     console.log(`${TAG} OK — friction worklist within the drain ceiling: ${tally}.`);
     return;

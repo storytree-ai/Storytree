@@ -564,6 +564,7 @@ function toGuidanceAsset(rendered: {
   stepRefs?: { step: string; refs: string[] }[];
   branchEdges?: { ref: string; label?: string | undefined }[];
   arcRef?: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
@@ -583,6 +584,8 @@ function toGuidanceAsset(rendered: {
     ...(rendered.stepRefs ? { stepRefs: rendered.stepRefs } : {}),
     ...(rendered.branchEdges ? { branchEdges: rendered.branchEdges } : {}),
     ...(rendered.arcRef ? { arcRef: rendered.arcRef } : {}),
+    // A plan doc's lifecycle status rides the wire like arcRef (ADR-0196 D3, absent-by-default).
+    ...(rendered.status ? { status: rendered.status } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };

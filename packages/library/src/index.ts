@@ -28,6 +28,10 @@ export * from "./witness-resolution.js";
 // carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green
 // (the green-fold is the orchestrator's `gateStoryGreenOnOpenQuestions`). Pure, browser-safe.
 export * from "./oq-gating.js";
+// ADR-0196 D1/D4: the universal lifecycle projection — every stored per-kind vocabulary (friction
+// route, plan status, ADR status, stateless-kind defaults) maps onto ONE `open|active|archived`
+// triad. Pure, browser-safe — the single place this mapping lives.
+export * from "./lifecycle.js";
 
 // The cross-cutting knowledge tier (ADR-0017) — the library's namesake competence: schema-
 // validated, versioned knowledge documents. Moved out of `@storytree/core` (ADR-0068 step 4) so

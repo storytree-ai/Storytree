@@ -35,6 +35,7 @@
     "sync:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts --check",
     "check:web-experience": "pnpm --filter @storytree/cli exec node --import tsx src/web-experience-check.ts",
+    "ci:affected": "pnpm --filter @storytree/cli exec node --import tsx src/ci-affected-main.ts",
     "gate": "pnpm check:manifest && pnpm check:boundaries && pnpm check:claude && pnpm check:agents && pnpm check:process-graph && pnpm check:corpus-build && pnpm check:web-grounding && pnpm check:web-engine && pnpm check:web-experience && pnpm -r typecheck && pnpm -r test && pnpm check:agents-sync && pnpm check:corpus-sync && pnpm check:corpus-content && pnpm check:friction-drain && pnpm check:coverage && pnpm check:surface-coverage && pnpm check:graduation-worklist && pnpm check:declared && pnpm check:deploy-health",
     "sync": "git fetch origin && git rebase origin/main",
     "db:up": "pnpm --filter @storytree/cli run db -- up",

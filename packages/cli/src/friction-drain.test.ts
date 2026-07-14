@@ -23,14 +23,14 @@ function otherOpen(count: number, date = "2026-07-05"): FrictionWorklistItem[] {
   }));
 }
 
-test("lifecycleOf derives open/routed/archived from route (ADR-0168 D2)", () => {
+test("lifecycleOf derives open/archived from route (ADR-0168 D2, collapsed by ADR-0196 D2)", () => {
   assert.equal(lifecycleOf(undefined), "open");
   assert.equal(lifecycleOf(""), "open");
   assert.equal(lifecycleOf(null), "open");
   assert.equal(lifecycleOf("nothing"), "archived");
-  assert.equal(lifecycleOf("principle"), "routed");
-  assert.equal(lifecycleOf("adr"), "routed");
-  assert.equal(lifecycleOf("edit-existing"), "routed");
+  assert.equal(lifecycleOf("principle"), "archived");
+  assert.equal(lifecycleOf("adr"), "archived");
+  assert.equal(lifecycleOf("edit-existing"), "archived");
 });
 
 test("empty worklist is OK — nothing to drain", () => {
@@ -50,16 +50,15 @@ test("a small routable backlog below both floors is OK", () => {
   assert.equal(v.routableCount, 3);
 });
 
-test("routed and archived items never count toward open/routable", () => {
+test("archived (dealt-with) items never count toward open/routable", () => {
   const items: FrictionWorklistItem[] = [
-    { id: "r1", branch: "b1", date: "2026-01-01", route: "principle" }, // routed (old, but not open)
-    { id: "a1", branch: "b2", date: "2026-01-01", route: "nothing" }, // archived tombstone
+    { id: "r1", branch: "b1", date: "2026-01-01", route: "principle" }, // dealt with (fix produced)
+    { id: "a1", branch: "b2", date: "2026-01-01", route: "nothing" }, // dealt with (tombstone)
     ...otherOpen(2),
   ];
   const v = evaluateFrictionDrain(items, CTX);
   assert.equal(v.total, 4);
-  assert.equal(v.routedCount, 1);
-  assert.equal(v.archivedCount, 1);
+  assert.equal(v.archivedCount, 2);
   assert.equal(v.openCount, 2);
   assert.equal(v.routableCount, 2);
   // The old routed/archived items must NOT drag oldestRoutableAge — only the two recent opens count.

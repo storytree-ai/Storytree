@@ -74,9 +74,9 @@ test("hasConcreteEvidence accepts concrete markers, rejects vague prose", () => 
   assert.equal(hasConcreteEvidence("things felt harder than they should have"), false);
 });
 
-test("lifecycleOf projects open / routed / archived from route", () => {
+test("lifecycleOf projects open / archived from route (ADR-0196 D2 collapse)", () => {
   assert.equal(lifecycleOf(undefined), "open");
-  assert.equal(lifecycleOf("adr"), "routed");
+  assert.equal(lifecycleOf("adr"), "archived");
   assert.equal(lifecycleOf("nothing"), "archived");
 });
 
@@ -445,7 +445,7 @@ test("list groups items by derived lifecycle with counts", async () => {
 
   const env = await run(["friction", "list"], { store: s, writable: true, friction: frictionDeps(dirs) });
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /1 open · 1 routed · 1 archived/);
+  assert.match(env.body, /1 open · 2 archived/);
   assert.match(env.body, /\[open\s*\] l-open/);
   assert.match(env.body, /→ tool/);
 });

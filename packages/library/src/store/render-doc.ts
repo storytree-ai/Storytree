@@ -69,6 +69,14 @@ export interface RenderedAsset {
   branchEdges?: ProcessBranchEdge[];
   /** A `plan` doc's `arcRef` — see {@link stepRefs}. */
   arcRef?: string;
+  /**
+   * A `plan` doc's `status` (ADR-0196 D3 — the projection HALF; `lifecycleOf` in the root barrel
+   * is the read side that turns this, and every other kind's own vocabulary, into the universal
+   * triad) — see {@link stepRefs}. Rides the wire ONLY on the structured branch, and only when
+   * present on the stored doc; every non-plan structured doc, and the pass-through/degraded
+   * branches, carry none.
+   */
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +242,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     stepRefs?: AgentStepRef[];
     branchEdges?: ProcessBranchEdge[];
     arcRef?: string;
+    status?: string;
   };
   return {
     id: knowledge.id ?? stored.id,
@@ -250,6 +259,9 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     ...(Array.isArray(typedEdges.branchEdges) ? { branchEdges: typedEdges.branchEdges } : {}),
     ...(typeof typedEdges.arcRef === "string" && typedEdges.arcRef
       ? { arcRef: typedEdges.arcRef }
+      : {}),
+    ...(typeof typedEdges.status === "string" && typedEdges.status
+      ? { status: typedEdges.status }
       : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,

@@ -15,7 +15,7 @@
 // current date are INJECTED by the caller so this is deterministic and unit-testable against a
 // synthetic worklist — the live read + `new Date()` live in the thin `check-friction-drain.ts` shell.
 
-// The lifecycle projection (open/routed/archived from `route`) is SHARED with the capture CLI's
+// The lifecycle projection (open/archived from `route`, ADR-0196) is SHARED with the capture CLI's
 // `friction list` worklist (`friction.ts`) via `friction-lifecycle.ts` — one definition so the gate
 // counts a backlog the same way the worklist shows it.
 import { lifecycleOf } from "./friction-lifecycle.js";
@@ -29,7 +29,7 @@ export interface FrictionWorklistItem {
   id: string;
   /**
    * The adjudication `route` body field, if set. Derives the lifecycle: `undefined`/empty → open,
-   * `"nothing"` → archived, anything else → routed.
+   * any route (the `nothing` tombstone included) → archived (ADR-0196 D2).
    */
   route?: string | undefined;
   /**
@@ -82,9 +82,10 @@ export interface FrictionDrainVerdict {
   total: number;
   /** Un-adjudicated (no route). */
   openCount: number;
-  /** Routed to a real destination. */
-  routedCount: number;
-  /** Tombstoned (`route: nothing`). */
+  /**
+   * Dealt with — any route set (ADR-0196 D2 collapsed the old routed/archived split; WHERE an item
+   * went is the `route` field's audit detail, not a lifecycle state).
+   */
   archivedCount: number;
   /**
    * Open items filed by a session OTHER than the current one — the genuinely DRAINABLE backlog the
@@ -115,7 +116,8 @@ function ageInDays(fromIso: string | undefined, currentIso: string): number | nu
 /**
  * Evaluate the friction-drain ceiling over a worklist. Pure — inject the session/date. The ceiling is
  * on the ROUTABLE open backlog (open minus the current session's own items): count > N or oldest > M
- * days ⇒ `red`; approaching either ⇒ `warn`; otherwise `ok`. Routed/archived items never count.
+ * days ⇒ `red`; approaching either ⇒ `warn`; otherwise `ok`. Archived (dealt-with) items never
+ * count (ADR-0196 D2: any route set — fix produced or tombstoned — is archived).
  */
 export function evaluateFrictionDrain(
   items: readonly FrictionWorklistItem[],
@@ -123,16 +125,11 @@ export function evaluateFrictionDrain(
   config: FrictionDrainConfig = DEFAULT_FRICTION_DRAIN_CONFIG,
 ): FrictionDrainVerdict {
   let openCount = 0;
-  let routedCount = 0;
   let archivedCount = 0;
   const routable: { id: string; ageDays: number | null }[] = [];
 
   for (const item of items) {
     const life = lifecycleOf(item.route);
-    if (life === "routed") {
-      routedCount += 1;
-      continue;
-    }
     if (life === "archived") {
       archivedCount += 1;
       continue;
@@ -190,7 +187,6 @@ export function evaluateFrictionDrain(
     level,
     total: items.length,
     openCount,
-    routedCount,
     archivedCount,
     routableCount,
     oldestRoutableAgeDays,
