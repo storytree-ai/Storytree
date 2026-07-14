@@ -6,7 +6,8 @@
 // reliance on a separately-fetched origin/main), classifies via ci-affected.ts, and appends
 //   pnpm_args=<-r | --filter ...name …>
 //   mode=<full | affected>
-// to $GITHUB_OUTPUT (written directly — immune to pnpm's stdout banners). The verify job then runs
+// to $GITHUB_OUTPUT (written directly — immune to pnpm's stdout banners), plus a one-line scope
+// summary to $GITHUB_STEP_SUMMARY for the run page. The verify job then runs
 // `pnpm ${pnpm_args} typecheck` / `… test`; push-to-main runs skip this step entirely and stay `-r`.
 //
 // FAIL-OPEN TO FULL: any surprise (not a PR event, HEAD not a merge commit, git failure, thrown
@@ -73,6 +74,16 @@ function main(): void {
   const outFile = process.env["GITHUB_OUTPUT"];
   if (outFile !== undefined && outFile !== "") {
     appendFileSync(outFile, `pnpm_args=${pnpmArgs}\nmode=${scope.mode}\n`);
+  }
+  // The scope decision on the run page itself ($GITHUB_STEP_SUMMARY), so the ADR-0195 sanity-watch
+  // ("did this PR narrow, and to what?") reads off the job summary without opening step logs.
+  const summaryFile = process.env["GITHUB_STEP_SUMMARY"];
+  if (summaryFile !== undefined && summaryFile !== "") {
+    const projects = scope.mode === "affected" ? ` · projects: ${scope.projects.join(", ")}` : "";
+    appendFileSync(
+      summaryFile,
+      `**Affected scope (ADR-0195):** \`${scope.mode}\`${projects} — ${scope.reason} (\`pnpm ${pnpmArgs}\`)\n`,
+    );
   }
 }
 
