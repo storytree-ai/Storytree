@@ -11,7 +11,7 @@ proof_mode: UAT
 # human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
 # So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
 # UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
-capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-permanent-lens, library-open-overlay, library-open-trigger, library-category-shelf, library-selection-card, library-top-drawer]
+capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-permanent-lens, library-open-overlay, library-open-trigger, library-category-shelf, library-selection-card, library-top-drawer, library-lifecycle-wire, library-lifecycle-shelf]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
 # `library-tech-tree-overlay-arc`, whose disposable per-increment plans carry the live roadmap (the
 # roadmap lives in the current plan, not here). Increments 1–6 have LANDED — library-drawer-shell
@@ -89,6 +89,8 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 | 9 | Selection card | [`library-selection-card`](library-selection-card.md) | A pinned side-panel card renders the selection — asset title/kind/(corpus-looked-up)description or ADR title/status/load-bearing badge — with an Open button; null renders nothing, a stale selection renders tolerantly (ADR-0188 dec 3). | authored (inc 9) |
 | 9 | Lens minimise → top drawer handle (shell-affordance polish) | [`library-top-drawer`](library-top-drawer.md) | The lens presents by DEFAULT as a collapsed top drawer handle (visible on every map load); lens state is URL-derived (`?overlay=library` present = expanded, absent = the collapsed handle), the handle firing an `onToggle` seam the parent glue owns; the ADR-0188 dec-6 minimise machine + the #715 corner toggle retire; no scrim either state (ADR-0191). The brownfield rework of the inc-9 minimise lens — REPLACES `library-lens-minimise` on the same source (`LibraryDrawer.tsx`), the inc-10 cap-replacement precedent; only the capability/test/`ltd-` prefix are new. | authored (inc 12) |
 | 10 | Retire `#/library` | *(library-retire, unauthored)* | The standalone `#/library` page retires/redirects into the lens, members parity re-checked (owner-attested, ADR-0185 dec 6). | planned |
+| 13 | Unified lifecycle wire | [`library-lifecycle-wire`](library-lifecycle-wire.md) | A pure, browser-safe `lifecycleOf(kind, doc) → open \| active \| archived` in `@storytree/library` (root barrel, no `node:` imports) maps every stored per-kind vocabulary onto ADR-0196's universal triad; AND `renderStoredDoc` serializes a plan doc's `status` onto the `GuidanceAsset` wire (mirroring `arcRef`). Machine-only plumbing, no look leg. | authored (inc 13) |
+| 13 | Lifecycle shelf toggle | [`library-lifecycle-shelf`](library-lifecycle-shelf.md) | The finder gains an Active \| All lifecycle toggle (default Active): Active rows count `open`+`active` via `lifecycleOf` with the muted total ("2 of 38"); the Decisions row counts only `group === 'Decisions'` (223→191); scoped state chips use each kind's own stored vocabulary and filter the scoped browse; the signed `lf-*`/`lcs-*` paths stay byte-green. | authored (inc 13) |
 
 Increment 7 (the parallel server typed-edge wire lane, `GuidanceAsset` typed edges) is file-disjoint from
 this story's client surfaces (plan §Lanes FENCE) and authored on its own lane. **Increment 9 (ADR-0188 —
@@ -183,6 +185,27 @@ after the leaf's PASS (plan §G). Deleting the retired `LibraryLensMinimise.test
 `node-build.test.ts` REAL-buildable snapshot, and trimming the `lpl-flag-gates-permanent-lens` block from
 `LibraryPermanentLens.test.tsx` are the orchestrator's mechanical glue, done separately — not this capability's
 `real:` scope (its `sourceGlobs` is `LibraryDrawer.tsx` only, its `testGlobs` is `LibraryTopDrawer.test.tsx` only).
+
+**Increment 13 (authored here, ADR-0196 — the unified artifact lifecycle):** `library-lifecycle-wire`
+**`depends_on: [library-finder]`** — the arc's shared foundational SEQUENCING anchor (not a hard code edge, like
+`library-typed-edges` inc 7): a NET-NEW pure browser-safe projection `lifecycleOf` in `packages/library/src/lifecycle.ts`
+(re-exported from the root barrel) that maps every stored per-kind vocabulary (friction `route`, plan `status`,
+adr status, the stateless-kind defaults) onto ADR-0196's `open`/`active`/`archived` triad, PLUS the parallel
+`renderStoredDoc` read that crosses a plan's `status` onto the `GuidanceAsset` wire beside `arcRef` (its `real:`
+surface is `lifecycle.ts` + `render-doc.ts` + `lifecycle.test.ts` only — machine-only, no look leg, exactly like
+inc-7 `library-typed-edges`). `library-lifecycle-shelf`
+**`depends_on: [library-category-shelf, library-lifecycle-wire]`** — it REWORKS the landed inc-9 category-shelf
+finder (`LibraryFinder.tsx` / `libraryShelf.ts`) to add the Active|All lifecycle toggle, the live/total counts,
+the Decisions count-bug fix, and the scoped per-kind state chips (a genuine within-story code edge on the
+category-shelf finder, so `depends_on: [library-category-shelf]`), and it CONSUMES `lifecycleOf` + the plan-`status`
+wire the sibling delivered (so `depends_on: [library-lifecycle-wire]`). The inc-13 caps carry no new cross-story
+edge — `library-lifecycle-wire` binds `packages/library/src/store` files (the `render-doc.ts` wire, inside the
+library organism's own territory, the inc-7 lane) and the browser-safe root-barrel `lifecycle.ts`, and
+`library-lifecycle-shelf` is client-side reading the existing `useAppData()` wire plus consuming the already-declared
+`@storytree/library` studio dependency (the projection is a pure barrel export — no NEW `@storytree/*` runtime import).
+The CLI's `friction-lifecycle.ts` folding onto the universal `lifecycleOf` (ADR-0196 D3), the `toGuidanceAsset`
+carry-through of plan `status` (`apps/studio/server/libraryBackend.ts`), the finder mount into `TreeView.tsx`, and
+the toggle/chip look are the orchestrator's supplement glue after each leaf's PASS (plan §G).
 
 ## Cross-story edges (the hosting call — revised by ADR-0192)
 

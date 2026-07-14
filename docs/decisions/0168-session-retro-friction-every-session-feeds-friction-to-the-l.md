@@ -173,6 +173,11 @@ output cited in `references`) → **archived** (`route: nothing` + reason). An a
 **retained** (a tombstone — recurrence of an archived trap must be detectable and re-open it with the
 stronger evidence); deletion happens only at a long consolidation horizon, and **no agent ever
 rewrites the friction tier wholesale** (per Calibration).
+(**Amended 2026-07-14 — [ADR-0196](0196-unified-artifact-lifecycle-open-active-archived.md) D2:**
+the derived lifecycle collapses to **open** (no route) → **archived** (any route set — `routed` folds
+into `archived`; `route` stays the where-it-went audit detail, and `route: nothing` stays the
+re-openable tombstone flavour). The drain ceiling still gates `open` only. D5's born-`proposed` ADR
+escalation route reads born-`open` under the universal triad — preserved unchanged.)
 
 **The D5 relationship (ADR-0095, amended here):** `friction` joins `open-question` and `proposal` as
 the Library's **lifecycle tier** — transient-by-design kinds, each with a mandatory drain — now named

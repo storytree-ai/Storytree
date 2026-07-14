@@ -99,6 +99,11 @@ traps, escalation points.
   by construction, so supersede. Consumed plans are prunable; the arc's increment log is what
   endures.
 
+(**Amended 2026-07-14 — [ADR-0196](0196-unified-artifact-lifecycle-open-active-archived.md) D2:**
+the plan `status` enum — draft / ready / consumed / superseded / retired — stays STORED as the
+consumption machinery reads it, but every surface presents the three-state projection: draft→`open`,
+ready→`active`, consumed/superseded/retired→`archived`.)
+
 ### D3 — Topology: upstream by provenance, edges authored on the child
 
 Arcs sit **upstream** of stories and ADRs and can span many of each. Every containment edge is

@@ -16,7 +16,7 @@
  *   - `reinforce`  append a `reinforcedBy` entry (own evidence, required) to an EXISTING item —
  *                  recurrence reinforces, never duplicates (`edit-first-curation` applied to friction).
  *   - `route`      the adjudication write: set `route` (the closed enum) + `routeReason`.
- *   - `list`       the worklist view: derived lifecycle (open → routed → archived), age, reinforcements.
+ *   - `list`       the worklist view: derived lifecycle (open → archived, ADR-0196), age, reinforcements.
  *
  * OFFLINE/REMOTE FALLBACK (ADR-0168 D2, the shelf's surviving role): a session that cannot reach the
  * live store (remote 443-only, offline docs session) files `new` to a `docs/friction-inbox/` staging
@@ -542,12 +542,14 @@ export async function reinforceFriction(
     return { ok: false, body: `reinforcement would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree library artifact ${id}`] };
   }
   const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? "cli" });
-  const archived = lifecycleOf(routeOf(valid)) === "archived";
+  // The tombstone nudge keys on the ROUTE detail, not the (ADR-0196-collapsed) lifecycle: every
+  // routed item is lifecycle-archived now, but only `route: nothing` is the re-openable tombstone.
+  const tombstoned = routeOf(valid) === "nothing";
   return {
     ok: true,
     body: [
       `reinforced ${saved.id} — ${reinforcementCount(valid)} reinforcement(s) now (ADR-0168 D2: testimony the adjudicator weighs, never a threshold).`,
-      ...(archived ? ["this item is ARCHIVED (route: nothing) — the recurrence is recorded; re-opening the tombstone is the adjudicator's call (ADR-0168 D2)."] : []),
+      ...(tombstoned ? ["this item is ARCHIVED (route: nothing) — the recurrence is recorded; re-opening the tombstone is the adjudicator's call (ADR-0168 D2)."] : []),
     ].join("\n"),
     next: ["storytree friction list", `storytree library artifact ${saved.id} --pg`],
   };
@@ -616,8 +618,9 @@ function ageDays(date: string | undefined, now: string): number | undefined {
 }
 
 /**
- * `storytree friction list` — the worklist view (ADR-0168 D2): every friction item grouped by derived
- * lifecycle (open → routed → archived), with age and reinforcement count. Read-only; runs offline
+ * `storytree friction list` — the worklist view (ADR-0168 D2, lifecycle per ADR-0196): every
+ * friction item grouped by derived lifecycle (open → archived, with `route` as the per-row
+ * where-it-went detail), with age and reinforcement count. Read-only; runs offline
  * (against the seed) like every other read command — with --pg it reads the live worklist. When
  * staged items sit in the inbox it appends a nudge (they await live filing).
  */
@@ -630,7 +633,7 @@ export async function listFriction(
     doc: typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {},
   }));
 
-  const order: Record<FrictionLifecycle, number> = { open: 0, routed: 1, archived: 2 };
+  const order: Record<FrictionLifecycle, number> = { open: 0, archived: 1 };
   const rows = docs
     .map(({ id, doc }) => {
       const route = routeOf(doc);
@@ -647,12 +650,12 @@ export async function listFriction(
     })
     .sort((a, b) => order[a.life] - order[b.life] || a.id.localeCompare(b.id));
 
-  const counts = { open: 0, routed: 0, archived: 0 } as Record<FrictionLifecycle, number>;
+  const counts = { open: 0, archived: 0 } as Record<FrictionLifecycle, number>;
   for (const r of rows) counts[r.life] += 1;
 
   const width = Math.max(1, ...rows.map((r) => r.id.length));
   const lines: string[] = [
-    `friction worklist — ${rows.length} item(s): ${counts.open} open · ${counts.routed} routed · ${counts.archived} archived`,
+    `friction worklist — ${rows.length} item(s): ${counts.open} open · ${counts.archived} archived (route says where each went, ADR-0196 D2)`,
     "",
   ];
   if (rows.length === 0) {
@@ -717,7 +720,7 @@ export function frictionHelp(): Envelope {
       "        adjudication: set the route (adr|tool|principle|guardrail|process|definition|",
       "        edit-existing|nothing) + the justification. `nothing` archives with a reason.",
       "  storytree friction list",
-      "        the worklist: open → routed → archived, with age + reinforcement count (read-only).",
+      "        the worklist: open → archived (route says where, ADR-0196), with age + reinforcement count (read-only).",
       "",
       "capture never classifies — the adjudicator (graduation-synthesist; librarian-curator until",
       "it is built) routes items through the ADR-0168 D5 justification gate.",

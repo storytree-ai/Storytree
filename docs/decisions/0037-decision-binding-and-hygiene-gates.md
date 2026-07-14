@@ -73,6 +73,11 @@ becomes machine-checked.
    **Correction (2026-07-06 — ADR-0139 pass):** `supersedes_in_part` is retired as an edge type by
    [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md); edges are now
    binary (`amends` / `supersedes`), and the ADR-health gate forbids the retired field.
+   (**Amended in interpretation 2026-07-14 —
+   [ADR-0196](0196-unified-artifact-lifecycle-open-active-archived.md) D2:** the
+   `proposed` | `accepted` | `superseded` vocabulary is unchanged on disk but is now the ADR-local
+   spelling of the universal artifact lifecycle `open` | `active` | `archived`; surfaces may
+   present either.)
 
 2. **Stories declare their deciding ADRs.** The `Story` schema gains
    `decisions: number[]` (default `[]`) — the ADRs this story realises, in its frontmatter. Seeded:
