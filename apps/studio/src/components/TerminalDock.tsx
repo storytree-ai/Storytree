@@ -221,6 +221,41 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       rec.term = term;
       rec.fit = fit;
 
+      // Contract 12 — Ctrl+C-copy / Ctrl+V-paste (the owner-reported keyboard-wiring defect): xterm
+      // otherwise always consumes Ctrl+C and forwards '\x03'/SIGINT to the pty, so a selection could
+      // never be copied to the clipboard. With a selection, Ctrl+C copies it and returns `false`
+      // (suppressing xterm's default handling, so no interrupt reaches the bridge); with NO selection
+      // it returns `true` (xterm's normal handling — the interrupt still fires). Ctrl+V reads the
+      // clipboard and pastes it through xterm's own bracketed-paste entry point. Any other event
+      // (non-keydown, an unrelated key, or an absent `navigator.clipboard`) is left untouched — return
+      // `true`, xterm's default handling, and never throw.
+      term.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+        if (
+          event.type !== 'keydown' ||
+          !event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey ||
+          event.metaKey
+        ) {
+          return true;
+        }
+        const clipboard: Clipboard | undefined =
+          typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+        if (event.key === 'c') {
+          if (clipboard && term.hasSelection()) {
+            void clipboard.writeText(term.getSelection());
+            return false;
+          }
+          return true;
+        }
+        if (event.key === 'v') {
+          if (!clipboard) return true;
+          void clipboard.readText().then((text) => term.paste(text));
+          return false;
+        }
+        return true;
+      });
+
       // Terminal input → bridge write, scoped to THIS tab's session (only once it exists).
       term.onData((data) => {
         if (rec.sessionId) bridge.write(rec.sessionId, data);
