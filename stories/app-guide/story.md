@@ -1,21 +1,30 @@
 ---
-id: "terminal-chat"
+id: "app-guide"
 tier: story
-title: "The desktop chat panel feels like a terminal"
-outcome: "The desktop chat panel reads and behaves like one continuous terminal — a persistent multi-turn scrollback of prompt-and-reply, an input that grows to its content and resets cleanly — so a member converses with the agent as they would in a shell, not through a single replace-on-send exchange."
-# status: proposed — "ADOPTION UNDERWAY" (ADR-0097 brown → proposed → green). This was HONEST brownfield
-# (`mapped`): the three thin-client caps landed with a real, passing studio VITEST suite
-# (apps/studio/src/components/ChatPanel.test.tsx) but storytree's prove-it-gate never DROVE them red→green —
-# built-but-unregistered (no signed `--real` verdict), the `mapped` state, NOT `proposed`
-# (authored-but-unbuilt). The Adopt path (`storytree adopt terminal-chat --pg`) observe-and-signed the
-# `## Reliability Gates` observe gate below (greening the 3 caps via coverage) and flipped this line
+title: "The app-guide concierge wires a newcomer's Claude Code into the observability layer"
+outcome: "A newcomer opening the desktop app is guided by a conversational concierge from a fresh machine to a Claude Code session wired into the observability layer — install, authenticate, point at the repo, wire the presence hooks — until a wisp lights on the map confirming they are now watched."
+# RENAMED / RE-AIMED (ADR-0175, 2026-07-09). This node was formerly `terminal-chat` — a chat-panel
+# UX-polish story ("make the desktop chat panel feel like a terminal") from a live ADR-0137 Phase-3 UAT
+# walk (2026-07-03). Two companion decisions re-aimed it: ADR-0174 retired the in-app INTERACTIVE
+# orchestrator chat in favour of an EMBEDDED TERMINAL running real Claude Code — so the "terminal feel"
+# framing is RETIRED (the real terminal is now the `embedded-terminal` story) — and ADR-0175 repurposed
+# the freed-up chat infrastructure (SSE transport, dock, cross-turn continuity, the read-only CI/git
+# inspect surface, the SDK session engine) into a future `app-guide` help/setup concierge rather than
+# deleting it. This story is that re-aim. The build is DEFERRED (ADR-0175 is a standing "repurpose,
+# don't delete" marker): the four capabilities below are the dormant chat-panel UX substrate the
+# concierge will ride — the first slice — NOT the concierge's onboarding/wiring behaviour itself.
+# status: proposed. The three thin-client chat-panel caps landed built-but-unregistered (a real,
+# passing studio VITEST suite, apps/studio/src/components/ChatPanel.test.tsx, but storytree's
+# prove-it-gate never DROVE them red→green — no signed `--real` verdict), the `mapped` state, NOT
+# `proposed` (authored-but-unbuilt). The Adopt path (`storytree adopt app-guide --pg`) observe-and-signs
+# the `## Reliability Gates` observe gate below (greening the 3 caps via coverage) and flips this line
 # mapped → proposed. The crown DERIVES green from signed verdicts (ADR-0020), NOT this authored line.
 status: proposed
 proof_mode: UAT
-# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does the panel read
-# like one continuous terminal" — is APPEARANCE/FEEL, operator-attested (ADR-0070). The machine-driven
-# story UAT node stays WITHHELD; the crown derives from the capabilities' signed verdicts plus the
-# operator's attestation of the terminal-feel legs.
+# uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT — "does the concierge
+# chat surface read as one continuous conversation" — is APPEARANCE/FEEL, operator-attested (ADR-0070).
+# The machine-driven story UAT node stays WITHHELD; the crown derives from the capabilities' signed
+# verdicts plus the operator's attestation of the concierge-chat feel legs.
 # Capabilities, roots-first. The three thin-client caps edit the SAME component (apps/studio/src/
 # components/ChatPanel.tsx) + its test, so they are SEQUENCED (multi-turn-transcript → auto-grow-input →
 # transcript-reset) to build on each other's committed source in ONE shared --real worktree (ADR-0057 §3
@@ -24,10 +33,10 @@ capabilities: [multi-turn-transcript, auto-grow-input, transcript-reset, backend
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074):
 #   - studio  — the chat panel IS a studio frontend component (apps/studio/src/components/ChatPanel.tsx,
 #               the studio-story `chat-panel` capability). The three thin-client caps EDIT that studio
-#               component + apps/studio/src/api.ts. So terminal-chat is a follow-on that extends studio's
+#               component + apps/studio/src/api.ts. So app-guide is a follow-on that extends studio's
 #               chat-panel surface — a real code edge into apps/studio/src. The panel is proven under the
-#               studio VITEST suite; the terminal FEEL is witnessed inside the desktop app (the consuming
-#               surface, ADR-0070 / the desktop story's leg-7 precedent).
+#               studio VITEST suite; the concierge-chat FEEL is witnessed inside the desktop app (the
+#               consuming surface, ADR-0070 / the desktop story's leg-7 precedent).
 #   - drive-machinery — ONLY the OPTIONAL backend-chat-reset-route cap consumes drive (the exported
 #               composition guard-reset it calls). The three thin-client caps do NOT touch drive (the
 #               thin-client wall, modelPathBoundary.test.ts). If the stretch cap is HELD, this edge is
@@ -41,54 +50,70 @@ depends_on: [studio, drive-machinery, desktop]
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
 artifact_edges: [studio, drive-machinery, desktop]
-# Deciding ADRs (ADR-0037 §2): 0137 (the Phase-3 chat-spawn arc whose live UAT walk surfaced this
-# feedback, 2026-07-03); 0108 (the chat surface + read/propose-only wall the panel rides); 0070 (the
-# two-stage frontend-builder proof — geometry machine-proven, appearance operator-attested); 0010 (the
-# organism model + the splitting-rule that tiers these units); 0004 (the thin-client / agent boundary the
-# panel must not breach); 0057 (the spec-borne proof config making each cap buildable).
-decisions: [137, 108, 70, 10, 4, 57]
+# Deciding ADRs (ADR-0037 §2): 0175 (repurpose-don't-delete the chat infra into the app-guide concierge —
+# this node's re-aim); 0174 (retire the in-app interactive orchestrator chat for an embedded terminal —
+# the companion that freed this infra, and why "terminal feel" retired: the real terminal is now
+# `embedded-terminal`); 0137 (the Phase-3 chat-spawn arc whose live UAT walk surfaced the original
+# chat-panel UX feedback, 2026-07-03); 0108 (the chat surface + read/propose-only wall the panel rides);
+# 0070 (the two-stage frontend-builder proof — geometry machine-proven, appearance operator-attested);
+# 0010 (the organism model + the splitting-rule that tiers these units); 0004 (the thin-client / agent
+# boundary the panel must not breach); 0057 (the spec-borne proof config making each cap buildable).
+decisions: [175, 174, 137, 108, 70, 10, 4, 57]
 ---
 
-# The desktop chat panel feels like a terminal
+# The app-guide concierge wires a newcomer's Claude Code into the observability layer
 
-**Outcome —** The desktop chat panel reads and behaves like one continuous terminal — a persistent
-multi-turn scrollback of prompt-and-reply, an input that grows to its content and resets cleanly — so a
-member converses with the agent as they would in a shell, not through a single replace-on-send exchange.
+**Outcome —** A newcomer opening the desktop app is guided by a conversational concierge from a fresh
+machine to a Claude Code session wired into the observability layer — install, authenticate, point at
+the repo, wire the presence hooks — until a wisp lights on the map confirming they are now watched.
 
-This story captures **owner feedback from a live ADR-0137 Phase-3 UAT walk (2026-07-03)**: driving the
-desktop chat panel for real, the owner found it did not feel like a terminal. Three concrete gaps, one
-journey:
+> **Renamed from `terminal-chat` (ADR-0175, 2026-07-09).** This node was formerly `terminal-chat`, a
+> chat-panel UX-polish story ("make the desktop chat panel feel like a terminal") born of a live
+> ADR-0137 Phase-3 UAT walk (2026-07-03). Two companion decisions re-aimed it: **ADR-0174** retired the
+> in-app *interactive* orchestrator chat in favour of an **embedded terminal** running real Claude Code
+> — so the "terminal feel" framing is RETIRED, the real terminal is now the
+> [`embedded-terminal`](../embedded-terminal/story.md) story — and **ADR-0175** repurposed the freed-up
+> chat infrastructure (the SSE transport, the dock, cross-turn continuity, the read-only CI/git inspect
+> surface, the SDK session engine) into a future **`app-guide`** help/setup concierge rather than
+> deleting it. This story is that re-aim.
 
-1. **The input feels separate from the output.** Today the panel renders ONE prompt-echo (`› what you
-   typed`) + one reply that is REPLACED on the next send — no persistent scrollback (the single-exchange
-   `submitted`/`phase` model in `apps/studio/src/components/ChatPanel.tsx`). It should be **one continuous
-   terminal**: each send APPENDS `› <prompt>` then its reply, flowing top-to-bottom in one scrollable
-   surface, input pinned flush at the bottom, auto-scrolling to the newest line.
-2. **The input is one non-expandable row.** The textarea is hard-coded `rows={1}` with no grow logic. It
-   should **auto-grow** to its content up to a max height, then scroll inside itself — while KEEPING the
-   existing Enter=send / Shift+Enter=newline keybindings.
-3. **There is no reset.** A **reset** should clear the transcript back to idle AND abort the in-flight SSE
-   stream (an `AbortController` threaded into `api.chatStream`) — with an OPTIONAL backend
-   `POST /api/chat/reset` to clear the wedged single-session guard without an app restart.
+## What app-guide is (ADR-0175)
 
-**Owner-directed, no design fork (ADR-0110).** This is a straight build of directed feedback — the owner
-named all three fixes in the live UAT walk. There is no open architectural fork here; the only judgement
-calls (the tier of each fix, the sequencing, the optional-vs-required split) are the story-author's layout
-domain, decided below. No ADR is reserved for this story.
+`app-guide` is a storytree-native help/setup **concierge**: it onboards a new user to the product and
+answers help/advice questions, and — its real job — **onboards the user's OWN Claude Code into the
+observability layer**: install Claude Code → authenticate → point it at the repo/worktree → wire the
+presence hooks (`scripts/presence-hook.sh`, the `SessionStart` declare) → verify a wisp lights on the
+map. The whole premise of ADR-0174 is that the observability layer already watches any plain Claude
+Code session *through those seams*; app-guide is the thing that does the wiring and hand-holds the
+setup. Its tool scope is **read / advise / setup** — read-only orientation + inspection, plus narrow
+setup-scoped writes for config and hooks — NOT write-scoped story-code execution.
+
+**The build is DEFERRED (ADR-0175).** ADR-0175 is a standing "repurpose, don't delete" marker so the
+chat infrastructure is neither ripped out nor left as unowned dead code. The four capabilities below
+are the **dormant chat-panel UX substrate** the concierge will ride — the continuous-conversation chat
+surface (a persistent transcript, an input that grows, a clean reset). They are already authored as the
+first slice and stand on their own as chat-surface UX; they are NOT the concierge's onboarding/wiring
+behaviour itself (see *Future slice* below).
 
 ## The journey (why this is ONE story — the journey-principle)
 
-The consumer is the member chatting inside the desktop app; their goal is that **the chat panel feels like a
-terminal**. Finishing "the transcript persists across turns" leaves the member immediately wanting the input
-to grow (a terminal input is not one fixed row) and a reset (a terminal clears). These are not three
-separate value deliveries — they are one terminal-feel journey, so they are one story (the journey-principle:
-if finishing the first unit's journey leads the consumer straight to needing the next, they are the same
-journey). The outcome states in one sentence without conjunctions: *the panel reads and behaves like one
-continuous terminal.*
+The consumer is a newcomer opening the desktop app; their goal is to go from "storytree is open but my
+own Claude Code is invisible to it" to "my Claude Code session is wired in and I can see my wisp on the
+map." Finishing "I'm oriented and my questions are answered" leads the newcomer straight to needing
+"now wire me in and show me it worked" — one continuous onboarding journey, conducted through one
+conversational surface, so it is one story (the journey-principle: if finishing the first unit's
+journey leads the consumer straight to needing the next, they are the same journey).
 
-## Capabilities (4)
+## Capabilities
 
-Listed roots-first (a capability appears after everything it depends on).
+### Present slice — the continuous-conversation chat substrate (4 caps)
+
+These re-aim the former terminal-chat caps: they make the desktop chat panel read and behave as one
+continuous conversation — a persistent multi-turn transcript, an input that grows to its content and
+resets cleanly — the UX foundation a concierge conversation needs. They are honest, isolatable red→green
+units over the existing `ChatPanel.tsx` / `api.ts`, and they stand on their own as chat-surface UX
+regardless of when the concierge behaviour lands. Listed roots-first (a capability appears after
+everything it depends on).
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
@@ -97,10 +122,24 @@ Listed roots-first (a capability appears after everything it depends on).
 | 3 | [`transcript-reset`](transcript-reset.md) | A reset control clears the transcript to idle AND aborts the in-flight SSE stream (an `AbortSignal` threaded through `api.chatStream` into `fetch`). | integration-test (studio vitest, red→green) | `multi-turn-transcript`, `auto-grow-input` |
 | 4 | [`backend-chat-reset-route`](backend-chat-reset-route.md) **(OPTIONAL / STRETCH)** | A `POST /api/chat/reset` sidecar route clears the backend composition single-session guard so a wedged session recovers without an app restart. | integration-test (desktop node:test, red→green) | — (cross-story: drive-machinery) |
 
-**Capability 4 is OPTIONAL / STRETCH and MAY BE HELD.** The story's UAT is satisfiable without it (the
-thin-client reset in `transcript-reset` clears the panel and aborts the CLIENT stream; the "New chat"
-affordance works). Cap 4 recovers a genuinely WEDGED BACKEND session — a stretch that lands separately, only
-if/when the owner asks for backend-wedge recovery. Do NOT auto-build it in the same chain as caps 1–3.
+**Capability 4 is OPTIONAL / STRETCH and MAY BE HELD.** The story's present-slice proof is satisfiable
+without it (the thin-client reset in `transcript-reset` clears the panel and aborts the CLIENT stream;
+the "New chat" affordance works). Cap 4 recovers a genuinely WEDGED BACKEND session — a stretch that
+lands separately, only if/when the owner asks for backend-wedge recovery. Do NOT auto-build it in the
+same chain as caps 1–3.
+
+### Future slice — the concierge behaviour itself (NOT YET CAPABILITIES; prose only, ADR-0175 deferred)
+
+The onboarding/wiring journey — orient the newcomer, answer help/advice, walk install → auth →
+point-at-repo → presence-hook wiring, and verify a wisp lights — is the **deferred** app-guide build
+(ADR-0175). It will likely need FURTHER capabilities when it is picked up, for example: a
+setup-scoped-write fence for config/hooks (ADR-0175's "narrow writes" note; the same fail-closed
+path-fence discipline the retired glue actuator used, ADR-0160 D2), a wire-and-verify walkthrough that
+confirms a wisp actually lights on the map, and the re-aim of the `headless-orchestrator` SDK session
+engine + the read-only inspect surface (`inspect-tool-surface.ts`) as the concierge's caller. Those are
+**not authored here** — per the journey-principle and slow-growth, they are named as future work and
+left for the story-author pass that accompanies the actual build. Do NOT scaffold empty capability files
+ahead of a provable walkthrough.
 
 ## Within-story dependency graph
 
@@ -133,11 +172,12 @@ Authored from the intended consumed seams (re-verify against the real imports wh
   ([`apps/studio/src/components/ChatPanel.tsx`](../../apps/studio/src/components/ChatPanel.tsx), the
   studio-story [`chat-panel`](../studio/chat-panel.md) capability). The three thin-client caps EDIT that
   studio component + `apps/studio/src/api.ts` — a real code edge into `apps/studio/src`, proven under the
-  studio VITEST suite (jsdom, `@testing-library/react`), exactly as `chat-panel` is. So `terminal-chat` is a
-  FOLLOW-ON that extends studio's chat-panel surface; the terminal FEEL is witnessed inside the DESKTOP app
-  (the consuming surface, the desktop story's operator-attested leg-7 precedent, ADR-0070). The caps stay
-  THIN CLIENTS — no `@storytree/agent` / `@storytree/drive` / model import (the `modelPathBoundary.test.ts`
-  wall), so this edge adds no forbidden coupling and no new `@storytree/*` frontend dep.
+  studio VITEST suite (jsdom, `@testing-library/react`), exactly as `chat-panel` is. So `app-guide` is a
+  FOLLOW-ON that extends studio's chat-panel surface; the concierge-chat FEEL is witnessed inside the
+  DESKTOP app (the consuming surface, the desktop story's operator-attested leg-7 precedent, ADR-0070). The
+  caps stay THIN CLIENTS — no `@storytree/agent` / `@storytree/drive` / model import (the
+  `modelPathBoundary.test.ts` wall), so this edge adds no forbidden coupling and no new `@storytree/*`
+  frontend dep.
 - **`drive-machinery`** — ONLY the OPTIONAL `backend-chat-reset-route` cap consumes drive (the exported
   composition guard-reset `resetCompositionGuard` it calls to clear `compositionInFlight`). The three
   thin-client caps do NOT touch drive. If the stretch cap is HELD, this edge is dormant; it is DECLARED so
@@ -151,53 +191,59 @@ reasoning stands; threading an `AbortSignal` into `api.chatStream` and onto `fet
 
 ## Story UAT
 
-The integrated acceptance walkthrough that proves the whole terminal-chat surface meets its outcome
+The integrated acceptance walkthrough that proves the present chat-substrate slice meets its outcome
 end-to-end. Minimal-first (one coherent journey: converse over multiple turns → the scrollback persists →
-the input grows → reset gives a fresh terminal), defect-driven thereafter (each real failure earns a
+the input grows → reset gives a fresh conversation), defect-driven thereafter (each real failure earns a
 permanent regression case, never speculative breadth).
+
+> **Present slice only — the concierge onboarding UAT is deferred (ADR-0175).** This walkthrough proves
+> the continuous-conversation chat SUBSTRATE (the four caps). The full concierge journey — orient →
+> help/advise → wire the user's Claude Code → verify a wisp lights — is the DEFERRED app-guide build; its
+> wire-and-verify UAT is authored with that build, alongside the future-slice capabilities named above.
 
 > **Per-leg witness (ADR-0106 / ADR-0070).** The behaviour legs are covered by the capabilities' signed
 > `--real` verdicts (studio vitest red→green: append-not-replace, auto-scroll recompute, height recompute +
 > cap, clear-to-idle + abort, the signal threading). The FEEL legs — "does the panel read like one
-> continuous terminal", "does the growing input feel comfortable to edit a pasted multi-line prompt", "does
-> reset give a clean fresh terminal" — are `witness: human` (operator-attested, ADR-0070): an automated CI
-> run cannot judge the terminal feel, because jsdom lays out no pixels and the look is subjective. The
-> story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven
-> whole-story UAT node stays WITHHELD; the crown derives from the per-cap signed verdicts plus the
-> operator's attestations of the feel legs.
+> continuous conversation", "does the growing input feel comfortable to edit a pasted multi-line prompt",
+> "does reset give a clean fresh surface" — are `witness: human` (operator-attested, ADR-0070): an
+> automated CI run cannot judge the conversational feel, because jsdom lays out no pixels and the look is
+> subjective. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+> machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-cap signed verdicts
+> plus the operator's attestations of the feel legs.
 
-**Goal —** A member opens the desktop chat panel, holds a multi-turn conversation whose scrollback persists,
-edits a comfortable multi-line prompt in an input that grows, and resets to a fresh terminal — the panel
-reading and behaving like one continuous terminal throughout.
+**Goal —** A member opens the desktop chat panel, holds a multi-turn conversation whose scrollback
+persists, edits a comfortable multi-line prompt in an input that grows, and resets to a fresh surface —
+the panel reading and behaving like one continuous conversation throughout.
 
 1. **The transcript persists across turns.** _(witness: machine for the behaviour; human for the feel)_ The
    member sends several prompts in a row; each `› <prompt>` echo and its reply APPENDS below the last, prior
    exchanges stay visible, and the surface auto-scrolls to the newest line. **Success —** a persistent
    multi-turn scrollback, never a replace-on-send exchange. (The behaviour is `multi-turn-transcript`'s
-   signed verdict; the "reads like one continuous terminal" FEEL is operator-attested.)
+   signed verdict; the "reads like one continuous conversation" FEEL is operator-attested.)
 2. **The input grows and caps.** _(witness: machine for the recompute; human for the feel)_ The member types
    / pastes a multi-line prompt; the input grows to fit up to a max, then scrolls inside itself; plain Enter
    sends, Shift+Enter inserts a newline. **Success —** a comfortable multi-line input. (The recompute + cap +
    keybinding-keep is `auto-grow-input`'s signed verdict; the "comfortable to edit" FEEL is
    operator-attested.)
-3. **Reset gives a fresh terminal.** _(witness: machine for clear+abort; human for the feel)_ The member
+3. **Reset gives a fresh surface.** _(witness: machine for clear+abort; human for the feel)_ The member
    clicks reset mid-conversation; the transcript clears to idle, the in-flight stream aborts (no ghost
-   reply), and the input returns to its resting one-row height. **Success —** a clean fresh terminal without
-   an app restart. (The clear-to-idle + abort is `transcript-reset`'s signed verdict; the "feels like a
-   fresh terminal" FEEL is operator-attested.)
-4. **It reads like one continuous terminal.** _(witness: human)_ Across the whole conversation — the
+   reply), and the input returns to its resting one-row height. **Success —** a clean fresh conversation
+   without an app restart. (The clear-to-idle + abort is `transcript-reset`'s signed verdict; the "feels like
+   a fresh start" FEEL is operator-attested.)
+4. **It reads like one continuous conversation.** _(witness: human)_ Across the whole conversation — the
    growing scrollback, the pinned-flush input, the reset — the panel reads and behaves as ONE coherent
-   terminal inside the native desktop shell. **Success —** the owner's two-stage visual verdict (ADR-0070):
-   the terminal feel is witnessed, not machine-asserted.
+   conversational surface inside the native desktop shell (the concierge-chat feel). **Success —** the
+   owner's two-stage visual verdict (ADR-0070): the conversational feel is witnessed, not machine-asserted.
 5. **(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.** _(witness: human)_ If the
    backend single-session guard is stuck (a wedged composition), a `POST /api/chat/reset` clears it and chat
    resumes without restarting the app. **Success —** backend-wedge recovery. (Behaviour is
    `backend-chat-reset-route`'s signed verdict when that stretch cap is built; the leg is MOOT / not
    required while the cap is held.)
 
-End state — the desktop chat panel reads and behaves like one continuous terminal: a persistent multi-turn
-scrollback, an input that grows and resets cleanly, the caps' behaviours signed under the studio suite and
-the terminal FEEL operator-attested — the panel never breaching the thin-client wall.
+End state — the desktop chat panel reads and behaves like one continuous conversation: a persistent
+multi-turn scrollback, an input that grows and resets cleanly, the caps' behaviours signed under the studio
+suite and the conversational FEEL operator-attested — the panel never breaching the thin-client wall. The
+concierge behaviour that rides this substrate is the deferred future slice (ADR-0175).
 
 ## Reliability Gates
 
@@ -212,15 +258,15 @@ observe-and-signed to an `adopted` verdict
 the `mapped → healthy` **Adopt** transition
 ([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
 [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)).
-Distinct from `## Story UAT` above (the integrated terminal-feel journey): this gate is the
+Distinct from `## Story UAT` above (the integrated continuous-conversation journey): this gate is the
 machine-observable reliability floor — the two-stage frontend-builder split
 ([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
-the gate covers the caps' machine GEOMETRY; the "reads like one continuous terminal" FEEL stays the Story
-UAT's operator-attested `witness: human` legs.
+the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL stays the
+Story UAT's operator-attested `witness: human` legs.
 
 1. **The studio suite is green** _(gate: observe)_ _(covers: multi-turn-transcript, auto-grow-input, transcript-reset)_ `pnpm --filter studio test`. The
    spine runs the studio VITEST suite at a clean committed HEAD and OBSERVES it green, then signs an
-   `adopted` verdict (`storytree adopt terminal-chat --pg`). The suite genuinely exercises all three
+   `adopted` verdict (`storytree adopt app-guide --pg`). The suite genuinely exercises all three
    thin-client caps in `apps/studio/src/components/ChatPanel.test.tsx` (jsdom, `@testing-library/react`,
    the `api` streaming seam mocked/scripted across multiple sends, fake timers, the scroll/height refs
    spied — no real fetch / socket / SDK / DB / Electron): **multi-turn-transcript** (the append-not-replace
@@ -233,9 +279,9 @@ UAT's operator-attested `witness: human` legs.
    `api.chatStream(intent, onEvent, signal?)` signal threading onto `fetch` — `tr-clears-transcript-to-idle`
    / `tr-aborts-in-flight-stream` / `tr-threads-abort-signal-through-api`), all offline (no DB, no API key).
    The three caps green via this gate's `(covers:)` (ADR-0097 §5). This is the two-stage proof (ADR-0070):
-   the gate proves the machine GEOMETRY/BEHAVIOUR only; the terminal FEEL (does the growing scrollback / the
-   clean reset read like one continuous terminal) is the Story UAT's operator-attested `witness: human` legs
-   (1-feel, 2-feel, 3-feel, 4), never machine-asserted here.
+   the gate proves the machine GEOMETRY/BEHAVIOUR only; the conversational FEEL (does the growing scrollback
+   / the clean reset read like one continuous conversation) is the Story UAT's operator-attested
+   `witness: human` legs (1-feel, 2-feel, 3-feel, 4), never machine-asserted here.
 
 The OPTIONAL / STRETCH `backend-chat-reset-route` cap is deliberately **left uncovered**: it is a desktop
 sidecar/drive `node:test` unit (not thin-client), its backend-wedge-recovery behaviour is UNBUILT (no
@@ -252,13 +298,15 @@ stretch (its cap + leg 5).
 
 ## Proof
 
-The story is proven when that walkthrough passes — the behaviour legs (1–3, and 5 if the stretch cap is
-built) green under the capabilities' signed `--real` verdicts (studio vitest / desktop node:test red→green,
-with each cap's contracts green underneath), and the FEEL legs (1-feel, 2-feel, 3-feel, and 4) operator-
-attested. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored
-healthy. The three thin-client capabilities are proof-wired (each carries a `proof:` block with a
+The present slice is proven when that walkthrough passes — the behaviour legs (1–3, and 5 if the stretch cap
+is built) green under the capabilities' signed `--real` verdicts (studio vitest / desktop node:test
+red→green, with each cap's contracts green underneath), and the FEEL legs (1-feel, 2-feel, 3-feel, and 4)
+operator-attested. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is
+authored healthy. The three thin-client capabilities are proof-wired (each carries a `proof:` block with a
 `real:` arm — a brownfield red→green over the existing `ChatPanel.tsx` / `api.ts`) so the spine can drive
 their studio suites red→green under its own gate; the story's machine-driven UAT node is WITHHELD (its
 `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed verdicts is what makes
-the terminal-chat surface buildable, and the crown additionally awaits the operator's attestations
-(legs 1-feel, 2-feel, 3-feel, 4). Capability 4 is OPTIONAL/STRETCH — leg 5 is moot while it is held.
+the continuous-conversation chat surface buildable, and the crown additionally awaits the operator's
+attestations (legs 1-feel, 2-feel, 3-feel, 4). Capability 4 is OPTIONAL/STRETCH — leg 5 is moot while it is
+held. The concierge onboarding/wiring behaviour that rides this substrate is the DEFERRED app-guide build
+(ADR-0175); its capabilities and wire-and-verify UAT are authored when that build is picked up.

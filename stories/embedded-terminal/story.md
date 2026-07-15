@@ -19,7 +19,7 @@ proof_mode: UAT
 # operator-attested GLUE within this story (ADR-0158), witnessed under the Story UAT, NOT capabilities.
 capabilities: [pty-session-manager, terminal-dock-panel]
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074). This story OWNS NO package — it is a VIRTUAL
-# story (like terminal-chat / headless-orchestrator): its net-new code is CO-LOCATED inside two surface
+# story (like app-guide / headless-orchestrator): its net-new code is CO-LOCATED inside two surface
 # packages other stories own. So both edges are declared `depends_on` AND annotated `artifact_edges`
 # (ADR-0166 — deliberate non-import / co-located-source edges, not @storytree/* package imports):
 #   - desktop — the pty-session-manager module lives in apps/desktop/src/backend/, and the terminal's
@@ -27,10 +27,10 @@ capabilities: [pty-session-manager, terminal-dock-panel]
 #               desktop-surface glue. This story extends the `desktop` surface's package with co-located
 #               source; it adds no NEW @storytree/* runtime import, so it is an artifact edge, not a
 #               package-import edge. (Boundaries Rule 4 SKIPS a virtual story; artifact_edges keeps the
-#               non-blocking ADR-0115 drift report clean — the terminal-chat precedent.)
+#               non-blocking ADR-0115 drift report clean — the app-guide precedent.)
 #   - studio  — the xterm.js TerminalDock component lives in apps/studio/src/components/. The desktop
 #               renders the COMPILED studio dist (ADR-0090 d.4), so the renderer terminal is a `studio`
-#               frontend component, exactly as terminal-chat's caps edit apps/studio/src. Co-located
+#               frontend component, exactly as app-guide's caps edit apps/studio/src. Co-located
 #               source, no NEW @storytree/* frontend import (xterm.js is a third-party dep, not a
 #               cross-story edge) → an artifact edge.
 # NO edge to notice-board / drive-machinery / forest-world: the observability layer watches the
@@ -190,7 +190,7 @@ wiring) — witnessed integrated under the Story UAT, exactly as the `desktop` s
 ## Cross-story boundary (ADR-0010 §4 / ADR-0074)
 
 Authored from the intended consumed seams (re-verify against the real imports when built). This story
-OWNS no package (a VIRTUAL story — the terminal-chat / headless-orchestrator precedent): its net-new code
+OWNS no package (a VIRTUAL story — the app-guide / headless-orchestrator precedent): its net-new code
 is co-located inside two SURFACE packages other stories own.
 
 - **`desktop`** — the surface this terminal SHIPS ON. The [`pty-session-manager`](pty-session-manager.md)
@@ -199,10 +199,10 @@ is co-located inside two SURFACE packages other stories own.
   extends the `desktop` surface's package with co-located source; it adds **no new `@storytree/*` runtime
   import**, so the edge is an **artifact edge** (ADR-0166), declared in `depends_on` and annotated in
   `artifact_edges`. (The blocking boundary Rule 4 skips a virtual story; the annotation keeps the
-  non-blocking ADR-0115 drift report clean, the terminal-chat pattern.)
+  non-blocking ADR-0115 drift report clean, the app-guide pattern.)
 - **`studio`** — the renderer surface the xterm component lives in. The desktop renders the **compiled**
   studio dist (ADR-0090 d.4), so the [`terminal-dock-panel`](terminal-dock-panel.md) is a `studio`
-  frontend component (`apps/studio/src/components/TerminalDock.tsx`), exactly as `terminal-chat`'s caps
+  frontend component (`apps/studio/src/components/TerminalDock.tsx`), exactly as `app-guide`'s caps
   edit `apps/studio/src`. It is a **thin client** — no `@storytree/agent` / `@storytree/drive` / model
   import (the `apps/studio/src` `modelPathBoundary.test.ts` wall); `xterm.js` is a third-party dep, not a
   cross-story `@storytree/*` edge — so this edge is also an **artifact edge**, declared and annotated.

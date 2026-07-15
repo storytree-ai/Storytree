@@ -88,7 +88,7 @@ is binding):
   foreign-hosting pair, derived mechanically via rule 5's evidence over the current corpus:
   `binding-staleness`, `chat-subagent-spawn`, `desktop`, `desktop-build-mount`, `drive-machinery`,
   `embedded-terminal`, `headless-orchestrator`, `library-review`, `library-tech-tree-overlay`,
-  `map-terminal-build`, `notice-board`, `spawn-visibility`, `studio-cloud`, `terminal-chat`,
+  `map-terminal-build`, `notice-board`, `spawn-visibility`, `studio-cloud`, `app-guide`,
   `terminal-repo-picker`, `terminal-tabs`, `website-experience`, `wisp-as-story-claim`. All 18 already
   carry a declared host edge (the increment-1 remediation), so rule 5 is green over them; this rule FREEZES
   that set as the bounded, shrinking, NAMED residual — the register IS the migration worklist (ADR-0192

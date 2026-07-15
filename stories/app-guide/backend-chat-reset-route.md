@@ -1,13 +1,13 @@
 ---
 id: "backend-chat-reset-route"
 tier: capability
-story: terminal-chat
+story: app-guide
 title: "OPTIONAL / STRETCH — a POST /api/chat/reset route clears the backend single-session guard so a wedged session recovers without a restart"
 outcome: "A `POST /api/chat/reset` route on the chat sidecar clears the backend composition single-session guard (`compositionInFlight`) so a genuinely wedged chat session is recoverable without restarting the app — via an exported guard-reset the mount calls, holding no signing key and starting no session."
 status: proposed
 proof_mode: integration-test
 depends_on: []
-# OPTIONAL / STRETCH — this capability MAY be HELD without blocking the terminal-feel story (the
+# OPTIONAL / STRETCH — this capability MAY be HELD without blocking the app-guide story (the
 # thin-client reset in `transcript-reset` is honest on its own: it clears the panel and aborts the client
 # stream; the "New chat" affordance works). This unit recovers a genuinely WEDGED BACKEND session (the
 # single-session guard stuck true) without an app restart. It is SIDECAR/DRIVE work, NOT thin-client — so
@@ -55,15 +55,15 @@ single-session guard (`compositionInFlight`) so a genuinely wedged chat session 
 restarting the app — via an exported guard-reset the mount calls, holding no signing key and starting no
 session.
 
-> **OPTIONAL / STRETCH — may be HELD.** This capability is a stretch: the terminal-feel story's UAT is
+> **OPTIONAL / STRETCH — may be HELD.** This capability is a stretch: the app-guide story's UAT is
 > satisfiable WITHOUT it (the thin-client [`transcript-reset`](transcript-reset.md) clears the panel and
 > aborts the CLIENT stream, and the "New chat" affordance works). This unit recovers a genuinely WEDGED
 > BACKEND session — the composition single-session guard stuck `true` after an abnormal end — without an app
 > restart. Build it only if/when the owner asks for backend-wedge recovery. It is authored buildable so it
 > can be picked up, but it lands separately from the three thin-client capabilities.
 
-**Depends on —** nothing within `terminal-chat`. It CONSUMES a drive-machinery seam (the exported
-composition guard-reset it calls) — a CROSS-STORY edge declared on the story (`terminal-chat` →
+**Depends on —** nothing within `app-guide`. It CONSUMES a drive-machinery seam (the exported
+composition guard-reset it calls) — a CROSS-STORY edge declared on the story (`app-guide` →
 `drive-machinery`), not a within-story `depends_on`. It also mounts alongside the existing desktop
 [`chat-sse-mount`](../desktop/chat-sse-mount.md) dispatcher (a `desktop` capability) — this route is the
 SIBLING dispatcher pattern that story already established, re-used here.

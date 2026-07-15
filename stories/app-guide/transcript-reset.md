@@ -1,9 +1,9 @@
 ---
 id: "transcript-reset"
 tier: capability
-story: terminal-chat
+story: app-guide
 title: "A reset control clears the transcript to idle and aborts the in-flight SSE stream"
-outcome: "A reset control clears the whole transcript back to the idle empty state AND aborts any in-flight SSE stream — via an AbortController threaded through `api.chatStream` into the fetch — so the operator recovers a fresh terminal without reloading the app."
+outcome: "A reset control clears the whole transcript back to the idle empty state AND aborts any in-flight SSE stream — via an AbortController threaded through `api.chatStream` into the fetch — so the operator recovers a fresh conversation without reloading the app."
 status: proposed
 proof_mode: integration-test
 depends_on: [multi-turn-transcript, auto-grow-input]
@@ -20,7 +20,7 @@ depends_on: [multi-turn-transcript, auto-grow-input]
 # builds on their committed versions (ADR-0057 §3 expansion D). THIN-CLIENT WALL HOLDS: threading an
 # AbortSignal into api.chatStream and onto fetch stays inside apps/studio/src — no agent/drive/model
 # import (modelPathBoundary.test.ts stays green). FRONTEND-BUILDER TWO-STAGE (ADR-0070): clear-to-idle +
-# abort-in-flight are machine-proven; the terminal FEEL of a clean reset is the story's operator-attested
+# abort-in-flight are machine-proven; the conversational FEEL of a clean reset is the story's operator-attested
 # UAT leg. Studio VITEST suite, one-file real proofCommand (chat-panel precedent). `install: true`
 # (ADR-0031 §2).
 proof:
@@ -56,7 +56,7 @@ proof:
 
 **Outcome —** A reset control clears the whole transcript back to the idle empty state AND aborts any
 in-flight SSE stream — via an `AbortController` threaded through `api.chatStream` into the `fetch` — so the
-operator recovers a fresh terminal without reloading the app.
+operator recovers a fresh conversation without reloading the app.
 
 **Depends on —**
 - [`multi-turn-transcript`](multi-turn-transcript.md) — reset CLEARS the transcript that capability
@@ -100,7 +100,7 @@ the panel opts into passing it.
 RESET RETURNS THE WHOLE PANEL TO IDLE — TRANSCRIPT, INPUT, BUILD PHASE. Clearing to idle means: the
 transcript is emptied (back to the resting empty scrollback), the input is cleared + re-enabled + returned
 to its one-row resting height (the auto-grow base), and any in-flight build-progress/accept phase is reset
-too (ADR-0108 d.3/d.7 state). A reset mid-build should also stop cleanly — the reset is the "fresh terminal"
+too (ADR-0108 d.3/d.7 state). A reset mid-build should also stop cleanly — the reset is the "fresh conversation"
 recovery. The test pins the clear-to-idle across these; the exact affordance placement/look of the reset
 control is operator-attested (no appearance assertion here).
 
@@ -115,7 +115,7 @@ the panel and stops the client stream; the frontend "New chat" affordance works.
 to ALSO call the backend route is the stretch integration, not required here (slow growth).
 
 TWO-STAGE PROOF (frontend-builder, ADR-0070). This `real:` arm proves clear-to-idle + abort-in-flight over
-a scripted seam. The terminal FEEL of a clean reset (does the panel truly read as a fresh terminal after
+a scripted seam. The conversational FEEL of a clean reset (does the panel truly read as a fresh conversation after
 reset) is the story's operator-attested UAT leg — witnessed by the owner, NEVER a machine visual verdict.
 
 OFFLINE-TESTABLE BY MOCKING THE SEAM (the SAME discipline the existing `ChatPanel.test.tsx` uses):
