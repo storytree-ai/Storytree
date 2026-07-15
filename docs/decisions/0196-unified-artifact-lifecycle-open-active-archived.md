@@ -103,6 +103,11 @@ A kind uses the subset that applies. `active` is a lifecycle state, NOT the cura
   the live number with the total muted ("2 of 38"); scoped categories get per-kind state chips
   that keep each kind's own vocabulary (friction: open/routed/archived as `route`-detail chips;
   Decisions: proposed/accepted/superseded).
+  (**Amended 2026-07-15 —
+  [ADR-0197](0197-lifecycle-selector-open-by-default-one-three-state-toggle-go.md):** this shelf
+  surface is replaced by ONE three-state selector open | active | archived, default `open`,
+  governing shelf categories, scoped browse, and search; the "N of M" counts and the per-kind
+  chips retire. The projection, the wire crossing, and the Decisions count fix stand unchanged.)
 - **Decisions count fix:** `buildCategoryShelf` counts `docs.length` (every doc, 223); it must
   filter `group === 'Decisions'` (191) like `Library.tsx` already does.
 
