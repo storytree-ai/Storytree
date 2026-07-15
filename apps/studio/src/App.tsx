@@ -11,7 +11,6 @@ import { Sidebar } from './components/Sidebar';
 import { StoreBanner, type StorePhase } from './components/StoreBanner';
 import { Home } from './components/Home';
 import { DocView } from './components/DocView';
-import { Library } from './components/Library';
 import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
 import { TreeView } from './components/TreeView';
@@ -194,7 +193,7 @@ export function App(): React.JSX.Element {
             <div className="body">
               {/* The forest (#/tree) is its own full-bleed world — the Library asset
                   rail is noise there, so hide it and let the canvas fill the width. */}
-              {route.name !== 'tree' && <Sidebar route={route} />}
+              {route.name !== 'tree' && <Sidebar />}
               <main className="content">
                 {status === 'loading' && <p className="muted pad">Loading the corpus…</p>}
                 {status === 'error' && (
@@ -401,8 +400,6 @@ function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX
       return <Home />;
     case 'doc':
       return <DocView id={route.id} />;
-    case 'library':
-      return <Library category={route.category} />;
     case 'asset':
       return <AssetView id={route.id} />;
     case 'asset-edit':

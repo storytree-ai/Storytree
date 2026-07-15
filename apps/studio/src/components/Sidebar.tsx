@@ -1,22 +1,8 @@
-import { useAppData } from '../lib/appData';
-import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
-import { libraryHref, type Route } from '../lib/route';
-import { ASSET_CATEGORIES, type AssetCategory } from '../types';
+import { libraryHref } from '../lib/route';
 
-export function Sidebar({ route }: { route: Route }): React.JSX.Element {
-  const { docs, assets } = useAppData();
-  const arcDisplay = useArcDisplay(); // 'arc' shows as "epic" by default (ADR-0183 D1)
-  // ADRs are folded into the Library under the `adr` category (counted below).
-  const adrDocs = docs.filter((d) => d.group === 'Decisions');
-  const libCat = route.name === 'library' ? route.category : undefined;
-
-  // Library counts come from the artifacts; `adr` also includes the doc-backed
-  // ADRs folded in from docs/decisions/ (authored adr artifacts + canonical docs).
-  const countFor = (cat: AssetCategory): number => {
-    const artifacts = assets.filter((a) => a.category === cat).length;
-    return cat === 'adr' ? artifacts + adrDocs.length : artifacts;
-  };
-
+// The per-category rail retired with the standalone `#/library` page (ADR-0185 dec 6) —
+// category browse lives in the lens finder now; the head-link opens the lens over the map.
+export function Sidebar(): React.JSX.Element {
   return (
     <aside className="sidebar">
       <div className="side-section">
@@ -25,24 +11,6 @@ export function Sidebar({ route }: { route: Route }): React.JSX.Element {
             Library
           </a>
         </div>
-        <ul className="side-list">
-          {ASSET_CATEGORIES.map((cat) => {
-            const n = countFor(cat);
-            if (n === 0) return null;
-            return (
-              <li key={cat}>
-                <a
-                  className={libCat === cat ? 'side-item sub active' : 'side-item sub'}
-                  href={libraryHref(cat)}
-                >
-                  <span className={`cat-dot cat-${cat}`} />
-                  <span className="side-item-label">{kindLabel(cat, arcDisplay)}</span>
-                  <span className="badge ghost">{n}</span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
       </div>
     </aside>
   );

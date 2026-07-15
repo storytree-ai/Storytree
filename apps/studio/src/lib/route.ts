@@ -2,20 +2,13 @@
 // into a single hash segment so slashes in doc relpaths don't break parsing.
 
 import { useSyncExternalStore } from 'react';
-import type { AssetCategory } from '../types';
 
-// The standalone `#/library` page is retired (ADR-0185 dec 6): the Library now lives as a lens over
+// The standalone `#/library` page is retired (ADR-0185 dec 6): the Library lives as a lens over
 // the forest map, opened via `libraryHref()`'s `?overlay=library#/tree` href. `parseRoute` never
-// produces `{ name: 'library' }` any more — `/library` paths redirect to the tree route below. The
-// `library` variant stays in this union (rather than being deleted outright) only because
-// `apps/studio/src/{App,components/Library,components/Sidebar}.tsx` still reference it structurally
-// (a `category` prop / a `route.name === 'library'` narrow) and are out of this capability's write
-// scope (`real:` scope is `route.ts` only, plan §G) — full deletion of those references, and of this
-// type member, is the follow-up glue those files still owe.
+// produces a library route — `/library` paths redirect to the tree route below.
 export type Route =
   | { name: 'home' }
   | { name: 'doc'; id: string }
-  | { name: 'library'; category: AssetCategory | null }
   | { name: 'asset'; id: string }
   | { name: 'asset-edit'; id: string }
   | { name: 'asset-new' }
@@ -68,7 +61,7 @@ export const homeHref = '#/';
 export const membersHref = '#/members';
 export const treeHref = '#/tree';
 export const treeFocusHref = (storyId: string): string => `#/tree/${encodeURIComponent(storyId)}`;
-export const libraryHref = (_category?: AssetCategory | null): string => '?overlay=library#/tree';
+export const libraryHref = (): string => '?overlay=library#/tree';
 export const docHref = (id: string): string => `#/doc/${encodeURIComponent(id)}`;
 export const assetHref = (id: string): string => `#/asset/${encodeURIComponent(id)}`;
 export const assetEditHref = (id: string): string => `#/asset/${encodeURIComponent(id)}/edit`;
