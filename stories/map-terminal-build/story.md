@@ -21,14 +21,14 @@ proof_mode: UAT
 # multi-session) dock through the unchanged TreeView `seed` glue.
 capabilities: [compose-build-command, map-build-seeds-terminal]
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074). This story OWNS NO package — it is a VIRTUAL
-# story (like embedded-terminal / terminal-chat): its net-new code is CO-LOCATED inside the `studio`
+# story (like embedded-terminal / app-guide): its net-new code is CO-LOCATED inside the `studio`
 # surface and extends a component `embedded-terminal` authored. Both edges are declared `depends_on` AND
 # annotated `artifact_edges` (ADR-0166 — deliberate non-import / co-located-source edges, not
 # @storytree/* package imports):
 #   - studio  — the composer (apps/studio/src/lib/buildCommand.ts, NET-NEW) and the Build-button re-point
 #               (apps/studio/src/components/BuildSection.tsx) + the TreeView seed glue live in the studio
 #               surface. The desktop renders the COMPILED studio dist (ADR-0090 d.4), so the re-pointed
-#               Build affordance is a `studio` frontend change, exactly as terminal-chat's caps edit
+#               Build affordance is a `studio` frontend change, exactly as app-guide's caps edit
 #               apps/studio/src. Co-located source, NO new @storytree/* frontend import → an artifact edge.
 #   - embedded-terminal — this story consumes the `TerminalDock` component embedded-terminal authored
 #               (apps/studio/src/components/TerminalDock.tsx): the TreeView `seed` glue mounts it as
@@ -40,7 +40,7 @@ capabilities: [compose-build-command, map-build-seeds-terminal]
 #               artifact edge.
 # NO edge to `desktop`: this story adds NO apps/desktop code — it only feature-detects the ALREADY-EXISTING
 # `window.desktopTerminal` bridge (embedded-terminal's glue), which is not a package import. NO edge to
-# `terminal-chat` (the dormant chat panel is untouched) or the prove-it-gate/spine (untouched — this
+# `app-guide` (the dormant chat panel is untouched) or the prove-it-gate/spine (untouched — this
 # changes only WHERE the click sends its intent).
 depends_on: [embedded-terminal, studio]
 artifact_edges: [embedded-terminal, studio]
@@ -198,7 +198,7 @@ preload-bridge glue.
 ## Cross-story boundary (ADR-0010 §4 / ADR-0074)
 
 Authored from the intended consumed seams (re-verify against the real imports when built). This story OWNS
-no package (a VIRTUAL story — the embedded-terminal / terminal-chat precedent): its net-new code is
+no package (a VIRTUAL story — the embedded-terminal / app-guide precedent): its net-new code is
 co-located inside the `studio` surface and extends a component `embedded-terminal` authored.
 
 - **`studio`** — the surface the re-point lives on. The NET-NEW composer
@@ -206,7 +206,7 @@ co-located inside the `studio` surface and extends a component `embedded-termina
   (`apps/studio/src/components/BuildSection.tsx`), and the TreeView seed glue
   (`apps/studio/src/components/TreeView.tsx`) are all `studio` frontend code. The desktop renders the
   **compiled** studio dist (ADR-0090 d.4), so the re-pointed Build affordance is a `studio` change, exactly
-  as `terminal-chat`'s caps edit `apps/studio/src`. Thin clients — no `@storytree/agent` / `@storytree/drive`
+  as `app-guide`'s caps edit `apps/studio/src`. Thin clients — no `@storytree/agent` / `@storytree/drive`
   / model import (the `modelPathBoundary.test.ts` wall); `composeBuildCommand` is a local pure helper, not
   a cross-story `@storytree/*` edge. So this is co-located source with **no new `@storytree/*` import** → an
   **artifact edge** (ADR-0166), declared in `depends_on` and annotated in `artifact_edges`.
@@ -222,7 +222,7 @@ co-located inside the `studio` surface and extends a component `embedded-termina
 
 **No edge to `desktop`.** This story adds NO `apps/desktop` code — it only feature-detects the
 already-existing `window.desktopTerminal` bridge (embedded-terminal's glue), which is a `window` global,
-not a package import. **No edge to `terminal-chat`** (the dormant chat panel is untouched, ADR-0175) or to
+not a package import. **No edge to `app-guide`** (the dormant chat panel is untouched, ADR-0175) or to
 the prove-it-gate / spine (untouched — this changes only WHERE the click sends its intent, never how a
 signed verdict is produced).
 

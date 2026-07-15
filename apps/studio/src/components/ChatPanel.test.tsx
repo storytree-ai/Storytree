@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 //
-// Stage-1 red-green of the renderer chat panel (chat-panel + terminal-chat capabilities, ADR-0070
-// two-stage). These pin the GEOMETRY/BEHAVIOUR the owner-attested appearance (the story's terminal
-// FEEL UAT leg) sits on top of — NO appearance/visual assertion lives here (the look is witnessed,
+// Stage-1 red-green of the renderer chat panel (chat-panel + app-guide capabilities, ADR-0070
+// two-stage). These pin the GEOMETRY/BEHAVIOUR the owner-attested appearance (the story's continuous-
+// conversation UAT leg) sits on top of — NO appearance/visual assertion lives here (the look is witnessed,
 // never a machine verdict). The panel is a persistent multi-turn TRANSCRIPT (multi-turn-transcript):
 //   • each send APPENDS a `› <prompt>` echo + its reply as a new entry, prior exchanges never replaced
 //     (mtt-appends-not-replaces, mtt-echoes-each-prompt),
@@ -22,7 +22,7 @@
 // agent/drive/model code and defines the SSE wire shape LOCALLY. The api module is mocked (no fetch,
 // no socket, no SDK, no DB, no Electron) and the streaming transitions run on fake timers, so every
 // terminal outcome is driven exactly. Each test LEADS with its contract id so `storytree coverage
-// terminal-chat` / `… chat-panel` reports the contracts covered (ADR-0122).
+// app-guide` / `… chat-panel` reports the contracts covered (ADR-0122).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';

@@ -1,9 +1,9 @@
 ---
 id: "multi-turn-transcript"
 tier: capability
-story: terminal-chat
+story: app-guide
 title: "The chat panel keeps a persistent multi-turn transcript — each send appends the prompt echo then its reply, flowing top-to-bottom in one scrollable surface"
-outcome: "Each chat send APPENDS a `› <prompt>` line then its streamed reply into one persistent, scrollable transcript surface — prior exchanges stay visible instead of being replaced, and the surface auto-scrolls to the newest line as it grows — so the panel reads as one continuous terminal scrollback rather than a single replace-on-send exchange."
+outcome: "Each chat send APPENDS a `› <prompt>` line then its streamed reply into one persistent, scrollable transcript surface — prior exchanges stay visible instead of being replaced, and the surface auto-scrolls to the newest line as it grows — so the panel reads as one continuous conversation scrollback rather than a single replace-on-send exchange."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -20,7 +20,7 @@ depends_on: []
 # NOT bypassed — each still proves its terminal render, now asserted as an APPENDED entry that survives
 # the next send. FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm proves GEOMETRY/BEHAVIOUR ONLY
 # (append-not-replace, prior-exchange-persists, auto-scroll-to-newest over a mocked scroll seam) — the
-# terminal FEEL (does the scrollback read like one continuous terminal) is the story's operator-attested
+# conversational FEEL (does the scrollback read like one continuous conversation) is the story's operator-attested
 # UAT leg, NOT a machine visual verdict here. The proof command is the studio VITEST suite
 # (`pnpm --filter studio test`), NOT node:test; the `real.proofCommand` runs the ONE test file under
 # vitest (the chat-panel precedent — resolveProveSpec's node:test default cannot run a jsdom .test.tsx).
@@ -60,10 +60,10 @@ proof:
 
 **Outcome —** Each chat send APPENDS a `› <prompt>` line then its streamed reply into one persistent,
 scrollable transcript surface — prior exchanges stay visible instead of being replaced, and the surface
-auto-scrolls to the newest line as it grows — so the panel reads as one continuous terminal scrollback
+auto-scrolls to the newest line as it grows — so the panel reads as one continuous conversation scrollback
 rather than a single replace-on-send exchange.
 
-**Depends on —** nothing (within `terminal-chat`). The transcript is the load-bearing state change to the
+**Depends on —** nothing (within `app-guide`). The transcript is the load-bearing state change to the
 existing `ChatPanel` component; the auto-grow input and the reset are SIBLINGS that consume the same
 component but prove different observables (see the story's splitting-rule notes). Its only backend seam is
 the studio `api` streaming client (`api.chatStream`) — unchanged by this capability (the transcript is
@@ -95,7 +95,7 @@ content up to a cap, then scrolls internally" (the input geometry). `transcript-
 the transcript to idle AND aborts the in-flight stream" (the teardown). Distinct observable, distinct
 isolatable red→green in the same suite. They are separate capabilities, not one, because each has its own
 falsifiable red the spine can observe independently — but they share the one component and the one test
-file, so they are SIBLINGS under one story (the terminal-feel journey), sequenced by `depends_on`.
+file, so they are SIBLINGS under one story (the continuous-conversation journey), sequenced by `depends_on`.
 
 THE STATE-SHAPE CHANGE (the heart of the red→green): replace the single-exchange state
 (`submitted: string` + a `phase` that is overwritten per send) with an ORDERED LIST of exchanges. The
@@ -121,7 +121,7 @@ stays pinned below it — the existing layout already has this shape (outcome ab
 is that `.chat-outcome` now holds the GROWING ordered transcript and OWNS the scroll (an
 `overflow-y: auto` surface with the input flush at its bottom edge). The exact CSS is in
 `apps/studio/src/index.css` (`.chat-*`, ~lines 2426–2686); adjusting `.chat-outcome` to be the scroll
-container + `.chat-echo`/reply entries to stack per exchange is part of the green, and the terminal LOOK of
+container + `.chat-echo`/reply entries to stack per exchange is part of the green, and the LOOK of
 that stack is operator-attested (do NOT author a pixel/appearance assertion here).
 
 THE PANEL STAYS A THIN CLIENT — NO AGENT, NO DRIVE, NO MODEL PATH (ADR-0004 / ADR-0108 d.1). This is a
@@ -138,7 +138,7 @@ ONLY build trigger (no prose auto-dispatch), now scoped to its transcript entry.
 
 TWO-STAGE PROOF (frontend-builder, ADR-0070). This `real:` arm proves GEOMETRY/BEHAVIOUR ONLY — append not
 replace, prior exchanges persist across sends, the scroll-recompute fires on append — over a scripted `api`
-seam on fake timers. The terminal FEEL (does the growing scrollback read like one continuous terminal) is
+seam on fake timers. The conversational FEEL (does the growing scrollback read like one continuous conversation) is
 the story's operator-attested UAT leg, witnessed by the owner in the desktop app, NEVER a machine visual
 verdict here. Do NOT author a visual/appearance assertion in this capability's tests.
 
@@ -187,7 +187,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 sends. These are the FIVE existing streaming contracts UPDATED to the transcript model (not bypassed): each
 retains its terminal-render assertion and ADDS the append-and-persist guarantee. Per ADR-0122
 (`storytree coverage`), each contract id is the lead of a distinctly-named test, so `storytree coverage
-multi-turn-transcript` reports 5/5. None of these is an APPEARANCE assertion — the terminal feel is the
+multi-turn-transcript` reports 5/5. None of these is an APPEARANCE assertion — the conversational feel is the
 story's operator-attested UAT leg (ADR-0070).
 
 1. **`mtt-appends-not-replaces`** — a second send appends a new exchange without discarding the first
@@ -199,7 +199,7 @@ story's operator-attested UAT leg (ADR-0070).
    - **covers —** `apps/studio/src/components/ChatPanel.tsx` (the ordered-transcript accumulation on submit)
 2. **`mtt-echoes-each-prompt`** — each send appends its `› <prompt>` echo line above its reply
    - **asserts —** each exchange in the transcript renders a `› <the submitted intent>` prompt echo line
-     ABOVE that exchange's reply, per send (not just the current one) — the terminal prompt-echo per turn.
+     ABOVE that exchange's reply, per send (not just the current one) — the prompt-echo per turn.
      (Subsumes and generalises the old single-exchange `cp-echoes-the-submitted-intent`.)
    - **covers —** `apps/studio/src/components/ChatPanel.tsx` (the per-entry prompt-echo render)
 3. **`mtt-renders-each-terminal-kind-as-an-entry`** — done / error / refused each settle their own transcript entry
@@ -241,7 +241,7 @@ component's state shape (the green).
   append-not-replace on each send, and add a scroll-to-newest layout effect keyed on the transcript length.
   Adjust `.chat-outcome` in `apps/studio/src/index.css` to be the scroll container with the input flush at
   its bottom. Keep the accept-to-land affordance + build progress (ADR-0108 d.3/d.7), the thin-client wall
-  (`modelPathBoundary.test.ts`), and typecheck green. The terminal FEEL is the story's operator-attested UAT
+  (`modelPathBoundary.test.ts`), and typecheck green. The conversational FEEL is the story's operator-attested UAT
   leg — no visual assertion here.
 
 Rules:
@@ -256,5 +256,5 @@ Rules:
   (`mtt-auto-scrolls-to-newest`) — jsdom has no layout.
 - **Stay a thin client** — no agent/drive/model import; the wire shape is unchanged, only its accumulation
   (the `modelPathBoundary.test.ts` wall stays green).
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove behaviour only; the terminal
+- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove behaviour only; the conversational
   feel is the story's UAT leg.

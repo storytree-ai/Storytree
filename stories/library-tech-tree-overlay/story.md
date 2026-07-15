@@ -58,7 +58,7 @@ finder driving a focus subgraph); kind is text, colour is state; the empty state
 corpus as a dot constellation under a level-of-detail ladder.
 
 This is a **new bounded surface**, modelled as its own story (the peer pattern of `library-review`,
-`spawn-visibility`, `terminal-chat` — a coherent studio-surface feature-arc gets its own story, not
+`spawn-visibility`, `app-guide` — a coherent studio-surface feature-arc gets its own story, not
 a bolt-on to the giant retrospective `studio` story). The build is owned by the
 `library-tech-tree-overlay-arc` arc with the disposable, git-anchored plan
 `library-tech-tree-overlay-plan-2` (ADR-0183) — the 7-increment roadmap, recon facts, lanes, and

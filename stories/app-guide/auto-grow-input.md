@@ -1,7 +1,7 @@
 ---
 id: "auto-grow-input"
 tier: capability
-story: terminal-chat
+story: app-guide
 title: "The chat input auto-grows to its content up to a cap, then scrolls internally — Enter sends, Shift+Enter inserts a newline"
 outcome: "The chat input textarea grows in height to fit its content as the operator types or pastes — up to a maximum height, past which it scrolls inside itself — so a multi-line prompt is comfortable to edit, while plain Enter still sends and Shift+Enter still inserts a newline."
 status: proposed
@@ -75,7 +75,7 @@ edit, while plain Enter still sends and Shift+Enter still inserts a newline.
 
 WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the INPUT BEHAVIOUR AS A WHOLE — a textarea
 that, as its content changes (typed or pasted), recomputes and sets its own height to fit, caps that height
-at a maximum and toggles internal scrolling past the cap, AND preserves the terminal keybindings (plain
+at a maximum and toggles internal scrolling past the cap, AND preserves the keybindings (plain
 Enter sends, Shift+Enter inserts a newline). It spans the onChange height-recompute, the cap-and-overflow
 branch, and the keybinding preservation — a small integration of behaviours over the real textarea, not a
 single isolated assertion. (It is close to the capability/contract line; it is a capability because the
@@ -100,12 +100,12 @@ grow change — the grow logic touches height, not the key handling. This capabi
 keybindings as its own contract so the coverage check credits them under this unit and a regression is
 caught here (ADR-0122).
 
-THE `rows={1}` START + GROW-FROM-THERE. The textarea starts at one row (the terminal single-line resting
+THE `rows={1}` START + GROW-FROM-THERE. The textarea starts at one row (the single-line resting
 state) and grows from there as content is added. The recompute must reset-then-measure (set height to
 `auto`/a base before reading `scrollHeight`) so DELETING content shrinks the height back down, not just
 grows it — a one-directional grow that never shrinks is a defect the test should guard (assert a shrink
 when the scripted `scrollHeight` drops). The exact CSS (`.chat-input` in `apps/studio/src/index.css`
-~lines 2426–2686) carries the base height, the max-height cap, and the `overflow-y`; the terminal LOOK of
+~lines 2426–2686) carries the base height, the max-height cap, and the `overflow-y`; the LOOK of
 the growing input is operator-attested (no pixel/appearance assertion here).
 
 THE PANEL STAYS A THIN CLIENT — NO AGENT, NO DRIVE, NO MODEL PATH (ADR-0004 / ADR-0108 d.1). This is a
@@ -170,7 +170,7 @@ reports 3/3. None is an APPEARANCE assertion — the visual grow is the story's 
    - **covers —** `apps/studio/src/components/ChatPanel.tsx` (the max-height clamp + overflow toggle)
 3. **`agi-keeps-enter-send-shift-enter-newline`** — plain Enter sends, Shift+Enter inserts a newline (unregressed)
    - **asserts —** plain Enter submits (the seam fires once) and Shift+Enter does NOT submit (a newline is
-     inserted) — the existing terminal keybindings, KEPT through the grow change. Re-asserts the behaviour
+     inserted) — the existing keybindings, KEPT through the grow change. Re-asserts the behaviour
      the old `cp-enter-submits` covered so a regression is caught under this unit. (The empty-intent guard —
      no seam call on a blank Enter — is asserted within this contract's sibling case, sharing the component
      surface; it is part of the keybinding's fail-closed behaviour, not a separately-coverable name.)

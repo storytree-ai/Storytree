@@ -18,7 +18,7 @@ proof_mode: UAT
 # TWO caps over ONE source file, so their shared-file build ordering + re-sign is called out below.
 capabilities: [multi-session-tabs, seed-opens-new-tab]
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074). This story OWNS NO package — it is a VIRTUAL
-# story (like embedded-terminal / map-terminal-build / terminal-chat): its net-new code is CO-LOCATED
+# story (like embedded-terminal / map-terminal-build / app-guide): its net-new code is CO-LOCATED
 # inside a component two prior stories own. All three edges are declared `depends_on` AND annotated
 # `artifact_edges` (ADR-0166 — deliberate non-import / co-located-source edges, not @storytree/* package
 # imports):
@@ -35,7 +35,7 @@ capabilities: [multi-session-tabs, seed-opens-new-tab]
 #               DOCK does with it (open a fresh tab, not write the active session). Co-located component,
 #               NO @storytree/* import → an artifact edge.
 #   - studio  — the surface the component lives on. The desktop renders the COMPILED studio dist (ADR-0090
-#               d.4), so the multi-session dock is a `studio` frontend change, exactly as terminal-chat /
+#               d.4), so the multi-session dock is a `studio` frontend change, exactly as app-guide /
 #               map-terminal-build edit apps/studio/src. Thin client — no @storytree/agent / @storytree/drive
 #               / model import (modelPathBoundary.test.ts); xterm.js is a third-party dep, not a cross-story
 #               @storytree/* edge → an artifact edge.

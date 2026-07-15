@@ -398,7 +398,7 @@ package import and is **not** a new `depends_on`:
   across the process boundary, enforced by both sides authoring the same shape, not by a code edge.
 
 So `depends_on: []` (within-story) and the story's `desktop`/`studio` `artifact_edges` (co-located
-source, no import) are the correct, honest graph — the terminal-chat precedent.
+source, no import) are the correct, honest graph — the app-guide precedent.
 
 ## Integration test
 

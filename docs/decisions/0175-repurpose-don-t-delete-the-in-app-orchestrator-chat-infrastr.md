@@ -24,6 +24,13 @@ def) and remains the `scoped-glue-actuator` story's PRIMARY deciding ADR — a f
 four story `decisions:` links (the `story-decisions` gate). The actuator's retirement is carried as a
 reciprocal prose note on ADR-0160.)
 
+**Story rename (2026-07-16, owner-directed).** The story node this ADR reserves the `app-guide` role for
+was formerly `terminal-chat`; on owner direction it was renamed `terminal-chat` → `app-guide` to end the
+name collision with the `embedded-terminal` story (ADR-0174's real terminal) and to carry the concierge
+re-aim in its id. The node now lives at `stories/app-guide/` (status `proposed`); **this ADR's reserved
+role-name is now the story id.** This is a rename/re-aim, not a re-decision — the "repurpose, don't
+delete" decision below is unchanged.
+
 ## Context
 
 ADR-0174 retires the desktop's in-app **interactive** work-orchestrator (the chat widget) in favour of
@@ -47,9 +54,13 @@ it wants precisely the chat infra ADR-0174 frees up.
 `app-guide` is a storytree-native help/setup concierge: it onboards new users, answers help/advice
 questions about the product, and onboards the user's own Claude Code into the observability layer
 (install → auth → point at the repo/worktree → wire the presence hooks → verify a wisp lights). Its real
-job is wiring the user *into* the layer, not doing story-code work. **The build is DEFERRED**; this ADR
-is the standing "repurpose, don't delete" marker so the infrastructure is neither ripped out nor left as
-unowned dead code.
+job is wiring the user *into* the layer, not doing story-code work. **The journey now lives in the work
+hierarchy as the proposed story node `stories/app-guide`** (formerly `terminal-chat`, renamed on owner
+direction — see Status): the re-aimed chat-panel UX capabilities are its **first slice**, and the full
+help/setup agent wiring (install → auth → point-at-repo → presence-hook wiring → verify a wisp) remains
+ahead of the crown as the deferred build. **This ADR's role — "repurpose, don't delete" — STANDS**; what
+changed since it was written is that the standing marker has converted into a named, proposed story, so
+the infrastructure is neither ripped out nor left as unowned dead code but owned by a live node.
 
 **Name — `app-guide`, role-not-position (ADR-0078).** "Guide" is a role-noun in the same family as
 author / curator / builder — it implies orientation and hand-holding, not merely answering questions.
@@ -109,10 +120,12 @@ by this ADR.
   chat infra are preserved.
 
 **Bad / watch.**
-- **Deferred, not built — a standing marker can rot.** Until `app-guide` is built, the repurposed
-  modules sit without an active caller. This ADR keeps them *owned* (their future is named) so a later
-  cleanup pass does not delete them as orphans — but the deferral must actually convert to a build, or
-  the marker ages.
+- **Proposed, not built — a proposed story that never builds can rot.** Until `app-guide` is built, the
+  repurposed modules sit without an active caller. The ownership is now concrete — the `stories/app-guide`
+  node exists as `proposed` (its first slice, the chat-panel UX caps, authored), so the modules are named
+  work in the hierarchy, not an unnamed deferred marker — but the rot risk has re-tensed accordingly: it
+  is now "a proposed story that never builds," and the proposal must actually convert to a built,
+  crowned story or the node ages.
 - **`app-guide`'s setup-scoped writes are a new fence to design.** "Narrow writes for config/hooks" is a
   real write scope; when built it needs the same fail-closed path-fence discipline the retired glue
   actuator used (ADR-0160 D2), not an unbounded editor. Flagged here; owned by the build.
@@ -138,6 +151,8 @@ by this ADR.
   glue definition).
 - ADR-0051 / ADR-0055 — one-definition rendered agents (an `app-guide` agent would be authored + rendered
   the same way; the `glue-worker` artifact that may survive is rendered).
+- `stories/app-guide/story.md` — the proposed story node that now owns this journey (its first slice: the
+  re-aimed chat-panel UX capabilities). Formerly `terminal-chat`, renamed on owner direction (see Status).
 - Code (repurposed into `app-guide`): `packages/agent/src/headless-orchestrator.ts` (engine) ·
   `packages/agent/src/{orientation-tools,inspect-tool-surface}.ts` (read / advise) ·
   `packages/drive/src/{chat-stream,orchestrate,inspect-deps}.ts` ·

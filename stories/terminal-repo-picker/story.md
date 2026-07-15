@@ -25,7 +25,7 @@ proof_mode: UAT
 # attested GLUE within this story (ADR-0158), witnessed under the Story UAT, NOT capabilities.
 capabilities: [repo-selection, repo-picker-panel, terminal-repo-gate]
 # Story-level cross-story edges (ADR-0010 §4 / ADR-0074). This story OWNS NO package — it is a VIRTUAL
-# story (like embedded-terminal / terminal-chat): its net-new code is CO-LOCATED inside two surface
+# story (like embedded-terminal / app-guide): its net-new code is CO-LOCATED inside two surface
 # packages other stories own, AND it builds atop a prior feature story's delivered outcome. All three
 # edges are declared `depends_on` AND annotated `artifact_edges` (ADR-0166 — deliberate non-import /
 # co-located-source / build-atop edges, not @storytree/* package imports):
@@ -217,7 +217,7 @@ the Story UAT, exactly as `embedded-terminal`'s independent roots are joined by 
 ## Cross-story boundary (ADR-0010 §4 / ADR-0074)
 
 Authored from the intended consumed seams (re-verify against the real imports when built). This story
-OWNS no package (a VIRTUAL story — the `embedded-terminal` / `terminal-chat` precedent): its net-new code
+OWNS no package (a VIRTUAL story — the `embedded-terminal` / `app-guide` precedent): its net-new code
 is co-located inside two SURFACE packages other stories own, and it builds atop a prior feature story.
 
 - **`desktop`** — the surface this glue ships on. The [`repo-selection`](repo-selection.md) module lives

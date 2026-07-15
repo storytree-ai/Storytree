@@ -91,8 +91,9 @@ Owner-directed 2026-07-13:
    evidence the machinery out-reads the recon): `library-tech-tree-overlay` → `[studio, library]`
    (its §"No new cross-story edge" section revised in place — the original rationale conflated "no
    new package import" with "no dependency"; the `library` edge was real all along via the inc-7
-   typed-edges lane binding `packages/library/src/store` sources); `library-review` +`studio`;
-   `terminal-chat` +`desktop`; `spawn-visibility` +`studio`/`drive-machinery`/`desktop`;
+   typed-edges lane binding `packages/library/src/store` sources);    `library-review` +`studio`;
+   `app-guide` +`desktop` (the story then named `terminal-chat`, renamed 2026-07-16 per ADR-0175);
+   `spawn-visibility` +`studio`/`drive-machinery`/`desktop`;
    `wisp-as-story-claim` +`notice-board`/`drive-machinery`/`studio`/`agent`; `binding-staleness`
    +`cli`; `website-experience` +`cli`; `desktop-build-mount` +`studio` — all consumer-side
    `depends_on` + `artifact_edges` (hosted seams, no code import).

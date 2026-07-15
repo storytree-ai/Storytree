@@ -1,5 +1,5 @@
 // ChatPanel — the renderer-side THIN CLIENT for the desktop "an actual agent you can chat to"
-// experience (chat-panel / terminal-chat capability, ADR-0070 two-stage / ADR-0108). The operator
+// experience (chat-panel / app-guide capability, ADR-0070 two-stage / ADR-0108). The operator
 // types an intent; the panel POSTs it to /api/chat through the `api` streaming seam, consumes the SSE
 // event stream, and APPENDS the exchange to a persistent, scrollable TRANSCRIPT — each send adds a
 // `› <prompt>` echo then its reply as a new entry, flowing top-to-bottom like one continuous terminal

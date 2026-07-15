@@ -247,13 +247,14 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // desktop advisory per-read budget so a fresh claim survives a DB cold-start) and the two
   // frontend two-stage caps chat-panel-spawn-render + live-story-island-refresh (ADR-0070 — geometry
   // machine-proven `real:` arm, on-screen/on-map appearance operator-attested).
-  // And the four `terminal-chat`-story capabilities (stories/terminal-chat/*.md — ADR-0137 Phase-3 UAT
-  // feedback, ADR-0070 two-stage: the desktop chat panel feels like a terminal): the three thin-client
-  // caps multi-turn-transcript (the persistent scrollback), auto-grow-input (the growing input) and
-  // transcript-reset (clear + abort), each an editsExisting vitest `real:` arm over ChatPanel.tsx /
-  // api.ts; and the OPTIONAL/STRETCH backend-chat-reset-route (a desktop node:test arm over the
-  // sidecar reset route — buildable but HELD, so it lands separately). The terminal FEEL is the
-  // story's operator-attested UAT legs, not a capability.
+  // And the four `app-guide`-story capabilities (stories/app-guide/*.md — formerly `terminal-chat`,
+  // re-aimed under ADR-0175; ADR-0137 Phase-3 UAT feedback, ADR-0070 two-stage: the chat-panel UX
+  // substrate for the concierge): the three thin-client caps multi-turn-transcript (the persistent
+  // scrollback), auto-grow-input (the growing input) and transcript-reset (clear + abort), each an
+  // editsExisting vitest `real:` arm over ChatPanel.tsx / api.ts; and the OPTIONAL/STRETCH
+  // backend-chat-reset-route (a desktop node:test arm over the sidecar reset route — buildable but
+  // HELD, so it lands separately). The continuous-conversation feel is the story's operator-attested
+  // UAT legs, not a capability.
   // (The `scoped-glue-actuator`-story capabilities glue-worker-spawn / spawn-glue-tool /
   // glue-deps-composition are NO LONGER here: ADR-0175 retired the desktop chat's spawn_glue_worker
   // actuator as redundant — the embedded terminal (ADR-0174) makes glue edits natively — so their
@@ -261,8 +262,8 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // survives as a fenced subagent, which carries no `real:` arm.)
   // And the two `embedded-terminal`-story capabilities (stories/embedded-terminal/*.md — ADR-0174,
   // the desktop app embeds a REAL local terminal, xterm.js over node-pty, replacing the chat as the
-  // interactive build surface — distinct from `terminal-chat`, which only makes the chat PANEL feel
-  // like a terminal): pty-session-manager (NET-NEW node:test over an injected fake PtyPort — the
+  // interactive build surface — distinct from `app-guide`, the dormant chat panel re-aimed as the
+  // help/setup concierge): pty-session-manager (NET-NEW node:test over an injected fake PtyPort — the
   // Electron-main pty lifecycle, no native module at test time) and terminal-dock-panel (NET-NEW
   // vitest jsdom over a mocked xterm + a mocked desktopTerminal bridge — the renderer xterm dock,
   // ADR-0070 geometry-machine-proven; the terminal LOOK + the real-pty run are operator-attested UAT
