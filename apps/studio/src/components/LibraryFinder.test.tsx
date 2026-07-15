@@ -148,87 +148,10 @@ describe('LibraryFinder', () => {
     expect(screen.queryAllByTestId(/^library-finder-row-/)).toHaveLength(0);
   });
 
-  // ── lf-result-renders-title-and-kind-subline-via-kindLabel ─────────────────────
-  it('lf-result-renders-title-and-kind-subline-via-kindLabel: each result shows its title and a kindLabel sub-line; an arc asset reads "epic", never the raw key', () => {
-    render(
-      <LibraryFinder
-        assets={[gizmoWidget, epicInitiative]}
-        docs={[]}
-        onSelect={vi.fn()}
-      />,
-    );
-
-    const box = screen.getByRole('textbox', { name: /search library/i });
-
-    fireEvent.change(box, { target: { value: 'migration' } });
-    const arcRow = screen.getByTestId(`library-finder-row-${epicInitiative.id}`);
-    expect(within(arcRow).getByText(epicInitiative.title)).toBeTruthy();
-    const arcSubline = screen.getByTestId(`library-finder-result-kind-${epicInitiative.id}`);
-    expect(arcSubline.textContent).toBe('epic');
-    expect(arcSubline.textContent).not.toBe('arc');
-
-    fireEvent.change(box, { target: { value: 'gizmo' } });
-    const defRow = screen.getByTestId(`library-finder-row-${gizmoWidget.id}`);
-    expect(within(defRow).getByText(gizmoWidget.title)).toBeTruthy();
-    const defSubline = screen.getByTestId(`library-finder-result-kind-${gizmoWidget.id}`);
-    expect(defSubline.textContent).toBe('definition');
-  });
-
-  // ── lf-adr-result-shows-status ──────────────────────────────────────────────────
-  it('lf-adr-result-shows-status: an ADR result additionally shows its status; an asset result shows none', () => {
-    render(
-      <LibraryFinder assets={[gizmoWidget]} docs={[gizmoAdr]} onSelect={vi.fn()} />,
-    );
-    const box = screen.getByRole('textbox', { name: /search library/i });
-    fireEvent.change(box, { target: { value: 'gizmo' } });
-
-    const adrStatus = screen.getByTestId(`library-finder-result-status-${gizmoAdr.id}`);
-    expect(adrStatus.textContent).toBe('accepted');
-
-    expect(screen.queryByTestId(`library-finder-result-status-${gizmoWidget.id}`)).toBeNull();
-  });
-
-  // ── lf-click-invokes-onselect-and-marks-selection ───────────────────────────────
-  it('lf-click-invokes-onselect-and-marks-selection: clicking a result invokes onSelect with that result, and selectedId marks the picked row', () => {
-    const onSelect = vi.fn();
-    render(
-      <LibraryFinder
-        assets={[gizmoWidget, otherThing]}
-        docs={[]}
-        onSelect={onSelect}
-      />,
-    );
-    const box = screen.getByRole('textbox', { name: /search library/i });
-    fireEvent.change(box, { target: { value: 'gizmo' } });
-
-    const row = screen.getByTestId(`library-finder-row-${gizmoWidget.id}`);
-    fireEvent.click(row);
-
-    expect(onSelect).toHaveBeenCalledTimes(1);
-    expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: gizmoWidget.id,
-        title: gizmoWidget.title,
-        category: gizmoWidget.category,
-        source: 'asset',
-      }),
-    );
-    cleanup();
-
-    render(
-      <LibraryFinder
-        assets={[gizmoWidget, otherThing]}
-        docs={[]}
-        onSelect={onSelect}
-        selectedId={gizmoWidget.id}
-      />,
-    );
-    const box2 = screen.getByRole('textbox', { name: /search library/i });
-    fireEvent.change(box2, { target: { value: 'gizmo' } });
-
-    const selectedRow = screen.getByTestId(`library-finder-row-${gizmoWidget.id}`);
-    expect(selectedRow.getAttribute('aria-current')).toBe('true');
-    const otherRow = screen.getByTestId(`library-finder-row-${otherThing.id}`);
-    expect(otherRow.getAttribute('aria-current')).not.toBe('true');
-  });
+  // ── RETIRED by ADR-0197 D5 (2026-07-15) ────────────────────────────────────────
+  // lf-result-renders-title-and-kind-subline-via-kindLabel, lf-adr-result-shows-status,
+  // and lf-click-invokes-onselect-and-marks-selection drove fixtures that project `active`
+  // and are hidden under the selector's default `open` state. Their still-true behaviours
+  // re-home as lls-selector-filters-search / lls-selector-filters-scoped-browse in
+  // LibraryLifecycleShelf.test.tsx (see library-finder.md's reconciliation banner).
 });

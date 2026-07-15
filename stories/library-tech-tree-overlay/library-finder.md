@@ -192,6 +192,25 @@ distinctly-named test, so the coverage check reports 6/6 against the ONE `real.t
 an APPEARANCE assertion — the look (forest-cozy palette, the muted sub-line styling, the selected-row
 highlight) is the story's operator-attested UAT leg 2 (ADR-0070).
 
+> **ADR-0197 reconciliation (2026-07-15, D5 — executes the decision, not a re-decision).** ADR-0197 (amends
+> ADR-0196 D3) makes the Library panel's ONE three-state selector (`open | active | archived`, DEFAULT `open`)
+> govern the finder's typed search: `searchCorpus` results are filtered to the selected state BEFORE rendering
+> (assets and Decisions alike). Three of the six contracts below drive COMPONENT fixtures whose durable-kind
+> assets (`definition`/`pattern`/`arc`) — and an `accepted` ADR — project `active` under `lifecycleOf`, so under
+> the default `open` state their result rows no longer render and the fixtures become **unobservable**. Per
+> ADR-0197 D5 (the inc-10/inc-12 precedent) those three blocks are **retired**: the underlying behaviours are
+> unchanged in code and re-prove under the reworked `library-lifecycle-shelf` `lls-*` v2 contracts; the
+> ORCHESTRATOR trims them from `LibraryFinder.test.tsx` as mechanical glue committed BEFORE the
+> `library-lifecycle-shelf` `--real` build (the leaf never edits this file — it is outside that cap's `real.scope`).
+> - **SURVIVE byte-green (do NOT trim):** the whole `searchCorpus` describe block —
+>   `lf-search-ranks-asset-matches-across-fields` (both `it`s), `lf-adrs-matched-on-title-and-id-only` (both
+>   `it`s), and the pure `lf-short-or-empty-query-yields-no-results` case (`searchCorpus('', …)`) — the pure
+>   ranking function has NO state filter (state filtering is a component-render concern); PLUS the component
+>   `lf-short-or-empty-query-yields-no-results` block ("with no query, the finder renders no result rows"), still
+>   true because the idle state renders shelf rows with a DISTINCT testid, never the `library-finder-row-` prefix,
+>   so ZERO result rows under an empty query still holds.
+> - **RETIRED (orchestrator trims the three component blocks marked `[RETIRED by ADR-0197]` below).**
+
 1. **`lf-search-ranks-asset-matches-across-fields`** — `searchCorpus` matches assets on id/title/description/body, ranked strong-field first
    - **asserts —** `searchCorpus(query, assets, docs)` returns an asset whose `id`/`title` matches the query,
      and also an asset that matches only in `description`/`body`; the id/title hit is ranked ABOVE the
@@ -212,6 +231,11 @@ highlight) is the story's operator-attested UAT leg 2 (ADR-0070).
    - **covers —** `apps/studio/src/lib/librarySearch.ts` + `apps/studio/src/components/LibraryFinder.tsx` (the empty-query guard)
    - **proven by —** `apps/studio/src/components/LibraryFinder.test.tsx`.
 4. **`lf-result-renders-title-and-kind-subline-via-kindLabel`** — each result renders a title + a `kindLabel` kind sub-line; an `arc` reads "epic", never the raw key
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the `library-lifecycle-shelf` build.]**
+     Its fixtures (`gizmoWidget` = `definition`, `epicInitiative` = `arc`) project `active`, so under the default
+     `open` selector the "migration"/"gizmo" search returns no rendered result rows and the assertions cannot be
+     observed. The behaviour is UNCHANGED in code (an in-state result still renders title + `kindLabel` sub-line,
+     trap j intact) and re-proves under `library-lifecycle-shelf`'s `lls-selector-filters-search`.
    - **asserts —** rendering `<LibraryFinder>` over a corpus that includes an `arc` asset, each result row
      shows its `title` and a muted kind sub-line whose text is `kindLabel(category, arcDisplay)`; the `arc`
      asset's sub-line reads "epic" (the default preference), and the raw key `"arc"` does NOT appear as the
@@ -220,12 +244,22 @@ highlight) is the story's operator-attested UAT leg 2 (ADR-0070).
    - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the result row — title + `kindLabel` sub-line)
    - **proven by —** `apps/studio/src/components/LibraryFinder.test.tsx`.
 5. **`lf-adr-result-shows-status`** — an ADR result additionally renders its status
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the `library-lifecycle-shelf` build.]**
+     Its fixture ADR (`gizmoAdr`, `status: 'accepted'`) projects `active`, so under the default `open` selector the
+     "gizmo" search returns no rendered ADR result row and the status marker cannot be observed. The behaviour is
+     UNCHANGED in code (an in-state ADR result still shows its status) and re-proves under
+     `library-lifecycle-shelf`'s `lls-selector-filters-search`.
    - **asserts —** an ADR (doc) result renders its `status` (from `DocMeta.status`, e.g. "accepted") as a
      status marker on the row, whereas an asset result (which carries no status) renders none. ADR status is
      surfaced; asset rows are not forced to carry a status they lack.
    - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the doc-result status marker)
    - **proven by —** `apps/studio/src/components/LibraryFinder.test.tsx`.
 6. **`lf-click-invokes-onselect-and-marks-selection`** — clicking a result invokes `onSelect` and marks the picked row
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the `library-lifecycle-shelf` build.]**
+     Its fixtures (`gizmoWidget` = `definition`, `otherThing` = `pattern`) project `active`, so under the default
+     `open` selector the "gizmo" search returns no rendered result rows and there is no row to click. The
+     `onSelect` lift + selected-row marker are UNCHANGED in code and re-prove under `library-lifecycle-shelf`'s
+     `lls-selector-filters-scoped-browse` (a browse row click lifts the finder-parity `SearchResult`).
    - **asserts —** clicking a result row invokes the `onSelect` callback with that result (the selection
      lifted for increment 3's focus subgraph), and the row identified by the `selectedId` prop is marked
      selected (`aria-current` / `data-selected`). Selection STATE is lifted to the caller; the finder only

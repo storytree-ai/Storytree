@@ -2,32 +2,41 @@
 id: "library-lifecycle-shelf"
 tier: capability
 story: library-tech-tree-overlay
-title: "The finder gains an Active | All lifecycle toggle (default Active): Active mode shows each shelf row's count of open+active items (via `lifecycleOf` from @storytree/library over the row's category), the muted total beside it when it differs ('2 of 38'); All shows plain totals; the Decisions row counts only `group === 'Decisions'` docs (the 223→191 count-bug fix); scoped into a stateful category, per-kind state chips render using the kind's OWN stored vocabulary and filter the scoped browse list — the signed lf-*/lcs- paths stay byte-green"
-outcome: "The finder gains an Active | All lifecycle toggle, DEFAULT Active (ADR-0196 D3). ACTIVE mode: each category shelf row shows the count of `open`+`active` items — computed via `lifecycleOf` from `@storytree/library` (already a studio dependency) over each asset's lifecycle-bearing fields (friction `fields.route`, plan wire `status`, ADR `DocMeta.status`) — with the muted TOTAL shown alongside when it differs (the '2 of 38' presentation); ALL mode shows plain totals. The Decisions shelf row counts ONLY `group === 'Decisions'` docs (the count-bug fix, 223 → 191). When SCOPED into a stateful category, per-kind STATE CHIPS render using the kind's OWN stored vocabulary — friction: open/routed/archived (derived from `route`); Decisions: proposed/accepted/superseded; plan: projected open/active/archived — each chip FILTERING the scoped browse list; kinds without state get no chips. The Active|All toggle also filters scoped browse lists in Active mode. `GuidanceAsset` (apps/studio/src/types.ts) gains the optional `status?: string` plan-lifecycle mirror (additive only). The toggle/count/chip BEHAVIOUR is machine-witnessed; the toggle styling and chip look are operator-attested (ADR-0070)."
+title: "The Library panel carries ONE three-state lifecycle selector (open | active | archived, DEFAULT open) and the selected state governs the whole panel: the shelf renders only categories with ≥1 item in the state (plain per-state count, 'N of M' retired), scoped browse filters to the state uniformly for every kind, and a typed search's results filter to the state (assets + Decisions); the per-kind state chips retire; empty states are one quiet line — the surviving lf-*/lcs- blocks stay byte-green, the re-tensed ones are trimmed before the build (ADR-0197 D5)"
+outcome: "The Library panel carries exactly ONE lifecycle control — a three-state selector `open | active | archived`, exactly one state selected, DEFAULT `open` (the needs-attention inbox) — and the selected state governs everything the panel shows (ADR-0197). SHELF: one row per category with ≥1 item projecting (via `lifecycleOf` from `@storytree/library`) to the selected state, its count the plain per-state number (the ADR-0196 'N of M' muted-total presentation RETIRES); a category with zero items in the state does not render; the Decisions row counts only `group === 'Decisions'` docs (the 223→191 fix stands). SCOPED BROWSE: the scoped category's items filtered to the selected state — uniformly for every kind (the ADR-0196 friction/Decisions chips-only exception retires with the chips). SEARCH: `searchCorpus` results filtered to the selected state before rendering, assets and Decisions alike. The per-kind STATE CHIPS retire (ADR-0197 D3 — one control, one vocabulary); friction's routed/fixed distinction stays readable as per-row `route` detail. Empty states are quiet (ADR-0197 D4): an all-empty `open` shelf renders one line, an empty scoped/search result names the selected state in one line. No `types.ts` change this time (`GuidanceAsset.status?` already landed at #731). The selector geometry/behaviour is machine-witnessed; the selector's appearance ('nice looking') and the muted-total/typography are the story's operator-attested UAT leg (ADR-0070)."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-category-shelf, library-lifecycle-wire]
-decisions: [196, 188, 183, 168, 70, 23]
-# Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting: true) — this REWORKS the signed
-# inc-9 finder (`apps/studio/src/components/LibraryFinder.tsx`, green at HEAD with its `lf-*`/`lcs-*` contracts)
-# and the pure heart `apps/studio/src/lib/libraryShelf.ts` to add the Active|All lifecycle toggle, the
-# live/total counts, the Decisions count-bug fix, and the per-kind scoped state chips ADR-0196 D3 settles. The
-# rework is ADDITIVE around the EXISTING shelf/scope path: with a typed query and no scope the finder still
-# ranks via `searchCorpus` (the `lf-*` path), and the idle shelf still renders one row per category + a
-# Decisions row (the `lcs-*` path), so the signed `lf-*`/`lcs-*` contracts in `LibraryFinder.test.tsx` /
-# `LibraryCategoryShelf.test.tsx` stay byte-green. `lifecycleOf` is imported from `@storytree/library` (already
-# a studio dependency via the `library-lifecycle-wire` sibling); `GuidanceAsset.status?` is the additive
-# plan-lifecycle mirror. real.sourceFile picks ONE representative (LibraryFinder.tsx); real.scope.sourceGlobs
-# names the reworked component + the reworked pure heart (libraryShelf.ts) + the additive types.ts (the
-# multi-sourceGlob precedent from library-category-shelf). real.testFile is a NET-NEW
-# `LibraryLifecycleShelf.test.tsx` driving the toggle/count/chip behaviour in jsdom.
+decisions: [197, 196, 188, 183, 70, 23]
+# Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting: true) — this RE-PROVES the finder
+# surface a second time in two days (the inc-12 `library-top-drawer` re-prove precedent): ADR-0197 (owner-directed
+# at the #731 walk, amends ADR-0196 D3) replaces the landed Active|All two-state toggle + per-kind state chips +
+# "N of M" muted totals with ONE three-state selector (open|active|archived, DEFAULT open) that governs the shelf
+# categories, the scoped browse, AND the typed search uniformly. It reworks the signed inc-13 finder
+# (`apps/studio/src/components/LibraryFinder.tsx`, green at #731 with its ADR-0196 `lls-*` contracts) and the pure
+# count heart `apps/studio/src/lib/libraryShelf.ts` (add per-state counts; keep `count` as the total for the
+# surviving `lcs-*` pure test). The rework is ADDITIVE around the EXISTING shelf/scope/search path but it CHANGES
+# what the panel renders by default, so — unlike the inc-9/inc-13 additive reworks — it genuinely RE-TENSES a
+# handful of signed `lf-*`/`lcs-*` component blocks whose fixtures project `active` (durable kinds) and so become
+# unobservable under the default `open` state. Per ADR-0197 D5 (the inc-10/inc-12 reconciliation ceremony):
+# story-author records the retire/re-home notes on `library-finder.md` + `library-category-shelf.md`, the
+# ORCHESTRATOR trims those re-tensed blocks as mechanical glue committed BEFORE this `--real` build, and the
+# surviving behaviours re-prove under the reworked `lls-*` v2 contracts here. The leaf NEVER edits
+# `LibraryFinder.test.tsx` / `LibraryCategoryShelf.test.tsx` (both OUTSIDE this cap's `real.scope`).
+# real.sourceFile picks ONE representative (LibraryFinder.tsx); real.scope.sourceGlobs names the reworked
+# component + the reworked pure heart (libraryShelf.ts) — types.ts is DROPPED (no wire change this time;
+# `GuidanceAsset.status?` already landed at #731). real.testFile is the SAME NET-NEW
+# `LibraryLifecycleShelf.test.tsx`, its contract set REPLACED by the v2 `lls-*` selector contracts.
 # The RED the spine observes is a FAILING-ASSERTION red (LibraryFinder.tsx exists — NOT module-not-found): at
-# HEAD the shelf shows one flat count and no toggle / no state chips, so the lifecycle test fails.
-# FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm proves the BEHAVIOUR ONLY — the toggle default (Active),
-# the live open+active counts + muted total, the All-mode totals, the Decisions group-only count, the scoped
-# per-kind state chips using each kind's stored vocabulary, the chip-click scoped-list filter, and the
-# Active-mode scoped-browse filter. The toggle's APPEARANCE (its styling, the state-chip look) is the story's
-# operator-attested UAT leg (ADR-0196 D3, ADR-0070) — do NOT author a visual/colour/pixel/animation assertion
+# HEAD (post-#731) the finder renders the Active|All toggle + per-kind state chips + the "N of M" muted totals, so
+# the v2 selector assertions (a three-state open-default selector, hidden-empty categories, plain per-state
+# counts, no chips, quiet empty states) fail.
+# FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm proves the BEHAVIOUR ONLY — the selector's three-state
+# geometry + open default, the state governing which categories render (≥1 in state) with a plain per-state count,
+# the state governing the scoped browse uniformly for every kind, the state filtering the typed search (assets +
+# Decisions), the retirement of the per-kind state chips, and the quiet empty states. The selector's APPEARANCE
+# (its "nice looking" segmented styling, the muted-total typography, the empty-state copy's look) is the story's
+# operator-attested UAT leg (ADR-0197 D1, ADR-0070) — do NOT author a visual/colour/pixel/animation assertion
 # here, and do NOT edit `TreeView.tsx` in this `real:` scope (the finder mount is the orchestrator's supplement
 # glue after PASS — plan §G).
 #
@@ -55,7 +64,6 @@ proof:
       sourceGlobs:
         - "apps/studio/src/components/LibraryFinder.tsx"
         - "apps/studio/src/lib/libraryShelf.ts"
-        - "apps/studio/src/types.ts"
     install: true
     typecheck:
       file: pnpm
@@ -72,269 +80,323 @@ proof:
         - "src/components/LibraryLifecycleShelf.test.tsx"
 ---
 
-# The lifecycle shelf — an Active | All toggle, live counts, and per-kind state chips over the corpus
+# The lifecycle shelf — ONE three-state selector (open | active | archived, default open) governs the whole panel
 
-**Outcome —** The finder gains an **Active | All** lifecycle toggle, DEFAULT **Active** (ADR-0196 D3). In ACTIVE
-mode each category shelf row shows the count of `open`+`active` items — computed via `lifecycleOf` from
-`@storytree/library` (already a studio dependency) over each asset's lifecycle-bearing fields (friction
-`fields.route`, plan wire `status`, ADR `DocMeta.status`) — with the muted TOTAL shown alongside when it differs
-(the "2 of 38" presentation); ALL mode shows plain totals. The Decisions shelf row counts ONLY
-`group === 'Decisions'` docs (the count-bug fix, 223 → 191). When SCOPED into a stateful category, per-kind
-STATE CHIPS render using the kind's OWN stored vocabulary — friction: open/routed/archived (from `route`);
-Decisions: proposed/accepted/superseded; plan: projected open/active/archived — each chip FILTERING the scoped
-browse list; kinds without state get no chips. The toggle also filters scoped browse lists in Active mode.
-`GuidanceAsset` (`apps/studio/src/types.ts`) gains the optional `status?: string` plan-lifecycle mirror
-(additive). The toggle/count/chip BEHAVIOUR is machine-witnessed; the toggle styling and the chip look are the
-story's operator-attested UAT leg.
+**Outcome —** The Library panel carries exactly ONE lifecycle control — a three-state selector
+`open | active | archived`, exactly one state selected, DEFAULT `open` (the panel opens as the
+needs-attention inbox) — and the selected state governs everything the panel shows (ADR-0197). **Shelf:** one
+row per category with ≥1 item projecting (via `lifecycleOf` from `@storytree/library`) to the selected state,
+its count the plain per-state number — the ADR-0196 D3 "N of M" muted-total presentation RETIRES; a category
+with zero items in the state does not render; the Decisions row counts only `group === 'Decisions'` docs (the
+223→191 fix stands). **Scoped browse:** the scoped category's items filtered to the selected state — uniformly
+for every kind (the ADR-0196 friction/Decisions chips-only exception retires with the chips). **Search:**
+`searchCorpus` results filtered to the selected state before rendering, assets and Decisions alike. The per-kind
+STATE CHIPS retire (ADR-0197 D3 — one control, one vocabulary; friction's routed/fixed distinction stays
+readable as per-row `route` detail text). Empty states are quiet (ADR-0197 D4): an all-empty `open` shelf renders
+one line, an empty scoped/search result names the selected state in one line. There is NO `types.ts` change this
+time — `GuidanceAsset.status?` already landed at #731. The selector's geometry/behaviour is machine-witnessed;
+its appearance ("nice looking") and the empty-state/typography look are the story's operator-attested UAT leg.
 
 **Depends on —** [`library-category-shelf`](library-category-shelf.md), [`library-lifecycle-wire`](library-lifecycle-wire.md).
-This capability REWORKS the landed inc-9 finder + shelf heart (`LibraryFinder.tsx` / `libraryShelf.ts`) — it adds
-the Active|All toggle, the live/total counts, the Decisions count-bug fix, and the scoped per-kind state chips
-around the existing category-shelf browse/scope path, so it needs the delivered category shelf as its
-precondition (`depends_on: [library-category-shelf]`). It CONSUMES `lifecycleOf` from `@storytree/library` to
-project each item's lifecycle and it reads the plan-lifecycle `status` the wire cap crossed onto `GuidanceAsset`,
-so it needs the delivered projection + wire as its precondition (`depends_on: [library-lifecycle-wire]`). It
-holds no backend seam — the toggle, counts, and chips read only the loaded corpus already handed in as props
-(`assets`/`docs`), so it is deterministically drivable in jsdom.
+This capability RE-PROVES the finder surface a second time (the inc-12 `library-top-drawer` re-prove precedent):
+ADR-0197 replaces the landed inc-13 Active|All toggle + per-kind chips + "N of M" totals with the single
+three-state selector. It reworks the same delivered category-shelf finder (`LibraryFinder.tsx` / `libraryShelf.ts`)
+around the existing shelf/scope/search path, so it needs that surface as its precondition
+(`depends_on: [library-category-shelf]`). It CONSUMES `lifecycleOf` from `@storytree/library` to project each
+item's lifecycle and reads the plan-lifecycle `status` the wire cap crossed onto `GuidanceAsset` (already landed),
+so it needs the delivered projection + wire (`depends_on: [library-lifecycle-wire]`). It holds no backend seam —
+the selector, counts, browse, and search read only the loaded corpus already handed in as props (`assets`/`docs`),
+so it is deterministically drivable in jsdom.
 
-> **Proof status (honest) — `proposed`, BROWNFIELD re-author (editsExisting).** `LibraryFinder.tsx` /
-> `libraryShelf.ts` EXIST and are green at HEAD on their category-shelf browse/scope path (the `lf-*`/`lcs-*`
-> contracts; one flat count per row, no toggle, no state chips). This capability reworks them: a NET-NEW vitest
-> jsdom test (`LibraryLifecycleShelf.test.tsx`) drives the Active-default toggle, the live open+active counts +
-> muted total, the All-mode totals, the Decisions group-only count, the scoped per-kind state chips, and the
-> chip/toggle filtering — RED at HEAD as a FAILING-ASSERTION red (the toggle/state-chip behaviour is absent),
-> GREEN once the finder/heart are reworked and `GuidanceAsset.status?` added. Its BEHAVIOUR is machine-witnessed;
-> its APPEARANCE (the toggle styling, the state-chip look) is the story's operator-attested UAT leg (ADR-0070).
-> Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never authored.
+> **Proof status (honest) — `proposed`, BROWNFIELD re-prove (editsExisting).** `LibraryFinder.tsx` /
+> `libraryShelf.ts` EXIST and are green at HEAD (post-#731) on their ADR-0196 `lls-*` path — the Active|All
+> two-state toggle, the per-kind state chips, the "N of M" muted totals. ADR-0197 (owner-directed at the #731
+> walk, amends ADR-0196 D3) reworks them to ONE three-state selector (open|active|archived, default open) that
+> governs the shelf, the scoped browse, and the typed search. A NET-NEW-shaped but SAME-named vitest jsdom test
+> (`LibraryLifecycleShelf.test.tsx`, its contract set REPLACED by the v2 `lls-*` selector contracts) drives the
+> selector default, the state-governed shelf (hidden-empty categories, plain per-state counts), the
+> state-filtered scoped browse, the state-filtered search, the retired chips, and the quiet empty states — RED at
+> HEAD as a FAILING-ASSERTION red (the landed finder shows Active|All + chips + "N of M", so the selector
+> assertions fail), GREEN once the finder/heart are reworked. Its BEHAVIOUR is machine-witnessed; its APPEARANCE
+> (the selector styling, the empty-state look, the muted-total-gone typography) is the story's operator-attested
+> UAT leg (ADR-0070). Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020),
+> never authored.
 
 ## Guidance
 
-WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the LIFECYCLE-AWARE SHELF AS A WHOLE — a
-behavioural rework that (a) adds an Active|All toggle defaulting to Active, (b) counts live (`open`+`active`)
-items per row via `lifecycleOf` with the muted total beside it, (c) fixes the Decisions count to the
-`group === 'Decisions'` subset, (d) renders per-kind state chips from each stateful kind's OWN stored vocabulary
-when scoped, and (e) filters the scoped browse list by chip and by the Active toggle — spanning the pure count
-heart, the toggle state machine, the projection consumption, and the scoped chip render/filter, exercised in
-jsdom. It is the DRAW half of ADR-0196 D3; the pure projection + the plan-`status` wire it consumes are the
-sibling `library-lifecycle-wire`.
+WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the ONE-SELECTOR-GOVERNS-THE-PANEL model AS A
+WHOLE — a behavioural re-prove that (a) replaces the two-state toggle with a three-state open|active|archived
+selector defaulting to open, (b) renders only the categories with ≥1 item in the selected state, each with a
+plain per-state count (retiring "N of M"), (c) filters the scoped browse to the selected state uniformly for
+every kind, (d) filters the typed search to the selected state (assets + Decisions), (e) retires the per-kind
+state chips, and (f) shows quiet one-line empty states — spanning the pure per-state count heart, the selector
+state machine, the projection consumption, and the state-governed shelf/browse/search render, exercised in
+jsdom. It is the ADR-0197 execution of the DRAW half; the pure projection + the plan-`status` wire it consumes
+are the sibling `library-lifecycle-wire`, already delivered.
 
-CONSUME `lifecycleOf` FROM `@storytree/library` — DO NOT RE-DERIVE THE MAPPING (ADR-0196 D4). The projection is
-the SINGLE home of the open/active/archived mapping (D4: "any new stateful kind MUST route through it — a second
-ad-hoc status surface is the failure mode this ADR exists to end"). Import `lifecycleOf` from `@storytree/library`
-(the root barrel, already a studio dependency) and call it over each item's lifecycle-bearing fields: for an
-asset, `lifecycleOf(asset.category, { route: asset.fields?.route, status: asset.status })` (friction's `route`
-rides `fields`; a plan's `status` rides the wire mirror the sibling cap crossed); for an ADR doc,
-`lifecycleOf('adr', { status: doc.status })`. Do NOT hand-roll a category→state map in the studio — the whole
-point of D4 is one mapping. Add the additive optional `status?: string` to `GuidanceAsset` (`types.ts`) so the
-plan-lifecycle mirror the wire cap serializes has a typed home (back-compat: optional / absent-by-default, the
-`stepRefs?`/`arcRef?` idiom).
+CONSUME `lifecycleOf` FROM `@storytree/library` — DO NOT RE-DERIVE THE MAPPING (ADR-0196 D4, still binding).
+The projection is the SINGLE home of the open/active/archived mapping. Import `lifecycleOf` from
+`@storytree/library` (the root barrel, already a studio dependency via `library-lifecycle-wire`) and call it over
+each item's lifecycle-bearing fields: for an asset,
+`lifecycleOf(asset.category, { route: asset.fields?.route, status: asset.status })` (friction's `route` rides
+`fields`; a plan's `status` rides the wire mirror already landed on `GuidanceAsset`); for an ADR doc,
+`lifecycleOf('adr', { status: doc.status })`. Do NOT hand-roll a category→state map in the studio. `GuidanceAsset.status?`
+is ALREADY on the wire (#731) — there is NO `types.ts` change in this cap.
 
-THE TOGGLE DEFAULTS TO ACTIVE; ACTIVE ROWS COUNT `open`+`active`, WITH THE TOTAL MUTED WHEN IT DIFFERS. The
-finder renders an Active | All toggle (component-local state, like `query`/`scope`), DEFAULT Active. In Active
-mode each shelf row shows the count of items whose `lifecycleOf` is `open` OR `active` (the live worklist +
-load-bearing set); when that live count differs from the row's total, the total renders muted alongside (the
-"2 of 38" presentation — assert BOTH numbers present when they differ, and that only the single number shows
-when they are equal). In All mode each row shows the plain total. The pure count heart lives in `libraryShelf.ts`
-(reworked): keep the existing `count` (the TOTAL — so the `lcs-*` assertions that read `entry.count === docs.length`
-stay byte-green, see the FENCE) and ADD a live count (e.g. `liveCount`) computed via `lifecycleOf`. Pin the
-Active-default + live/total presentation in `lls-toggle-defaults-active-and-counts-live`, the All-mode totals in
-`lls-all-mode-shows-totals`.
+THE SELECTOR IS ONE THREE-STATE CONTROL, DEFAULT `open`. The finder renders a single segmented selector with
+exactly three states — `open`, `active`, `archived` — exactly one selected, DEFAULT `open` (component-local
+state, like `query`/`scope`). It REPLACES the ADR-0196 Active|All two-state toggle. Give each state a distinct
+testid (e.g. `library-lifecycle-selector-open` / `-active` / `-archived`) carrying an `aria-pressed` reflecting
+the current selection. Pin the default + the exclusive three-state geometry in
+`lls-selector-defaults-open-and-hides-empty-categories`, and the re-derivation on switch in
+`lls-state-switch-rederives-shelf`. Do NOT keep the `library-lifecycle-toggle-active` / `-toggle-all` testids
+(they retire with the two-state toggle).
 
-THE DECISIONS ROW COUNTS ONLY THE `group === 'Decisions'` DOCS (the count-bug fix). Today `buildCategoryShelf`
-counts `docs.length` (every doc under `docs/`, 223) for the Decisions row; ADR-0196 D3 fixes it to count only
-`docs` with `group === 'Decisions'` (the 191 real ADRs) — like `Library.tsx` already does. Rework the Decisions
-entry's TOTAL to `docs.filter((d) => d.group === 'Decisions').length`. This is SAFE for the signed `lcs-*`
-fixtures — they all carry `group: 'Decisions'`, so `docs.filter(...).length === docs.length` on their corpus and
-`lcs-shelf-groups-corpus-by-category` stays byte-green (see the FENCE). Pin the fix in
-`lls-decisions-row-counts-decisions-group-only`.
+THE SELECTED STATE GOVERNS THE SHELF: ONLY CATEGORIES WITH ≥1 ITEM IN THE STATE RENDER, EACH WITH A PLAIN
+PER-STATE COUNT. For the selected state, the shelf renders one row per category that has ≥1 item projecting (via
+`lifecycleOf`) to that state; the row's count is that state's plain count (a single number — the "N of M"
+muted-total presentation is GONE, ADR-0197 D2). A category with zero items in the selected state does NOT render.
+The pure count heart lives in `libraryShelf.ts` (reworked): keep the existing `count` (the TOTAL — so the
+surviving `lcs-*` pure test that reads `entry.count === docs.length` stays byte-green, see the FENCE) and ADD the
+per-state counts (e.g. an `openCount`/`activeCount`/`archivedCount`, or a `stateCounts` map, computed via
+`lifecycleOf`) so the component can pick the selected state's count and hide zero-count categories. The Decisions
+row's per-state count still counts ONLY `group === 'Decisions'` docs (the 223→191 fix stands, byte-safe on the
+all-Decisions `lcs-*` fixtures). Do NOT render a `library-shelf-row-muted-total` / `library-shelf-row-primary-count`
+split (both retire). Pin the state-governed shelf + hidden-empty categories + plain count in
+`lls-selector-defaults-open-and-hides-empty-categories`; pin the recompute across states in
+`lls-state-switch-rederives-shelf`.
 
-SCOPED INTO A STATEFUL CATEGORY, PER-KIND STATE CHIPS RENDER USING THE KIND'S OWN STORED VOCABULARY. When the
-finder is scoped into a category that HAS a stored state vocabulary, render a row of state chips ABOVE the scoped
-browse list, using that kind's OWN vocabulary (NOT the universal triad — ADR-0196 Consequences: the shelf copy
-presents kind-local detail, "where it went", not the collapsed lifecycle): friction → open / routed / archived
-(derived from each item's `route`: no route = open, `nothing` = archived, any other route = routed); Decisions →
-proposed / accepted / superseded (from `DocMeta.status`); plan → open / active / archived (the PROJECTED triad,
-since plan's stored five-state enum has no shorter kind-local spelling — the projection IS its display detail).
-A kind WITHOUT a stored state (definition, principle, arc, …) renders NO chips. Give each chip a DISTINCT testid
-(e.g. `library-state-chip-<state>`), NOT the shelf-row or result-row prefix (the FENCE that keeps `lcs-*`/`lf-*`
-byte-green). Pin the per-kind chips in `lls-scoped-state-chips-use-kind-vocabulary`.
+THE SELECTED STATE GOVERNS THE SCOPED BROWSE — UNIFORMLY FOR EVERY KIND. When scoped into a category, the browse
+list shows that category's items filtered to the selected state (via `lifecycleOf`) — the SAME rule for every
+kind (the ADR-0196 D3 friction/Decisions chips-only exception RETIRES with the chips, ADR-0197 D2/D3). Under
+`open` a plan scope browses only its open plans; under `active`, only its active plans; under `archived`, only
+its archived ones. The scope-chip transition (`library-scope-chip` / `library-scope-chip-remove`) and the browse
+rows (`library-finder-row-<id>`) keep their testids. A browse/search row click still lifts `onSelect(result)`
+with the finder-parity `SearchResult` — UNCHANGED (this re-homes the retired `lcs-scoped-row-click-lifts-searchresult`
+and `lf-click-invokes-onselect-and-marks-selection`). Pin the state-filtered scoped browse + the `onSelect` lift
+in `lls-selector-filters-scoped-browse`.
 
-A STATE CHIP CLICK FILTERS THE SCOPED BROWSE LIST; THE ACTIVE TOGGLE ALSO FILTERS IT. Clicking a state chip
-filters the scoped browse list to the items in that state (friction routed → only `route`-set-non-`nothing`
-items; Decisions accepted → only `status: 'accepted'` docs; plan active → only `status: 'ready'` plans). And in
-Active mode the toggle itself filters the scoped browse list to `open`+`active` items (All mode shows every item
-in the scope). Assert the chip-click filter and the Active-toggle scoped-browse filter separately. Pin the chip
-filter in `lls-chip-click-filters-scoped-list`, the toggle filter in `lls-active-toggle-filters-scoped-browse`.
+THE SELECTED STATE GOVERNS THE TYPED SEARCH — ASSETS AND DECISIONS ALIKE. A typed query still runs
+`searchCorpus(query, assets, docs)`, but its results are FILTERED to the selected state (via `lifecycleOf`)
+before rendering — for assets AND Decisions (ADR-0197 D2). Under default `open`, a query that matches an `open`
+item and an `active` item surfaces ONLY the `open` result; switching the selector to `active` surfaces the
+`active` one (this is the acknowledged ADR-0197 tradeoff — the durable corpus is hidden until the user flips
+state, softened by the D4 hint line). Each in-state result row still renders its title + a `kindLabel` kind
+sub-line (an `arc` reads "epic", never the raw key — trap j preserved), and an in-state ADR result still shows
+its status (this re-homes the retired `lf-result-renders-title-and-kind-subline-via-kindLabel` and
+`lf-adr-result-shows-status`). Pin the state-filtered search + the re-homed subline/status rendering in
+`lls-selector-filters-search`.
 
-FENCE — THE SIGNED `lf-*` AND `lcs-*` CONTRACTS STAY BYTE-GREEN (do NOT disturb `LibraryFinder.test.tsx` /
-`LibraryCategoryShelf.test.tsx`). Both signed test files are OUTSIDE this cap's `real.scope` (its `testGlobs` is
-`LibraryLifecycleShelf.test.tsx` only), so the leaf CANNOT and MUST NOT edit them. The rework is ADDITIVE and the
-existing observations are UNCHANGED, by construction:
-- **The `lf-*` query path** — with a typed query and no scope the finder still ranks via `searchCorpus` and
-  renders `library-finder-row-<id>` result rows exactly as before; the toggle/chips only affect the shelf +
-  scoped-browse states, never the typed-query results list.
-- **The `lcs-*` category-shelf path** — the idle shelf still renders one row per present category + a Decisions
-  row, each with its testid, and the pure heart still returns an entry per category with a `count` field equal to
-  the category's TOTAL. The reworked heart KEEPS `count` as the total (adding `liveCount` additively), so
-  `lcs-shelf-groups-corpus-by-category`'s `entry.count === docs.length` still holds. The Decisions count-bug fix
-  (`group === 'Decisions'`) is byte-safe on the `lcs-*` fixtures precisely because **every fixture doc carries
-  `group: 'Decisions'`** — so `docs.filter((d) => d.group === 'Decisions').length === docs.length` on their
-  corpus and the count is unchanged. The state chips carry a DISTINCT testid (`library-state-chip-*`), never the
-  shelf-row / result-row prefix, so the `lcs-*` row-count and `lf-short-or-empty-query-yields-no-results`
-  assertions are undisturbed. The Active default does not change what the signed tests observe: their fixtures
-  carry NO `route`/`status` fields, so every fixture item projects to `active` (assets) / `open` (docs via adr
-  status absent → the projection's `open`) — all LIVE — meaning the Active-mode live count equals the total and
-  the muted total never appears for them. Keep the existing prop surface and all shelf/result/scope testids so
-  both files stay green with ZERO edits. Do NOT rename or disturb the `lf-*` / `lcs-*` test titles.
+THE PER-KIND STATE CHIPS RETIRE (one control, one vocabulary — ADR-0197 D3). Scoping into ANY kind renders NO
+per-kind state chips — the `library-state-chip-<state>` testids no longer render (the absent-renders-nothing
+idiom). The single selector is now the only state vocabulary; friction's routed-vs-nothing distinction stays
+readable as per-row `route` detail text on the browse rows, not as a second chip axis, and Decisions'
+proposed/accepted/superseded maps 1:1 onto the triad the selector already expresses. Pin the retirement in
+`lls-state-chips-retired`.
 
-REUSE THE EXISTING `SearchResult` AND `ShelfEntry` — DEFINE NO NEW WIRE TYPE. The state-chip filtering and the
-scoped browse list lift the EXISTING `SearchResult` from `../lib/librarySearch`; the count heart returns the
-EXISTING `ShelfEntry` from `../lib/libraryShelf` (extended additively with `liveCount`). The ONLY `types.ts`
-change is the additive optional `GuidanceAsset.status?: string` (the plan-lifecycle mirror) — do NOT reshape any
-other wire type.
+QUIET, HONEST EMPTY STATES (ADR-0197 D4). When NO item projects to the selected state (an all-empty `open`
+shelf), the panel renders a single quiet line (e.g. "nothing needs attention") and NO shelf rows. An empty
+scoped/search result names the selected state in ONE line (e.g. "no open matches — switch state") so a search
+that misses because of the state filter is explicable at a glance. Give the empty line a stable testid (e.g.
+`library-empty-state`). No further chrome. Pin the quiet empties in `lls-quiet-empty-states`.
 
-APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0196 D3 + ADR-0070). The toggle follows the map's
-forest-cozy palette (the world's CSS variables, as the finder does), NOT neutral-admin white. The toggle
-styling, the state-chip look, and the muted-total typography are WITHNESSED by the owner (the shared library-lens
-attestation), never a machine visual verdict — do NOT author a visual/colour/pixel/animation assertion in this
-cap's tests (assert the toggle default + the count numbers + the state-chip presence-by-kind + the chip/toggle
-filtering, never their styling).
+FENCE — THE SURVIVING `lf-*`/`lcs-*` BLOCKS STAY BYTE-GREEN; THE RE-TENSED ONES ARE TRIMMED BY THE ORCHESTRATOR
+BEFORE THIS BUILD (ADR-0197 D5). This is the ONE place the byte-green fence changes from the additive inc-9/inc-13
+reworks: ADR-0197 changes what the panel renders BY DEFAULT, so a handful of signed `lf-*`/`lcs-*` COMPONENT
+blocks — whose fixtures carry durable-kind assets that project `active` and so become unobservable under the
+default `open` state — genuinely re-tense. The leaf does NOT touch either test file (both OUTSIDE this cap's
+`real.scope` — its `testGlobs` is `LibraryLifecycleShelf.test.tsx` only). The ORCHESTRATOR trims the re-tensed
+blocks as mechanical glue committed BEFORE this `--real` build (D5, the inc-10/inc-12 precedent). The precise
+survive/trim split is recorded in the reconciliation notes on `library-finder.md` and `library-category-shelf.md`.
+In summary:
+- **SURVIVES byte-green (leaf must keep the finder's behaviour so these still hold):** the pure `searchCorpus`
+  blocks in `LibraryFinder.test.tsx` (`searchCorpus` describe — unchanged pure ranking, no state filter applies
+  to the pure function); `lf-short-or-empty-query-yields-no-results` (component side — asserts ZERO
+  `library-finder-row-` rows under an empty query; still true because the idle state renders shelf rows with a
+  DISTINCT testid, never the result-row prefix); and the pure `lcs-shelf-groups-corpus-by-category` blocks in
+  `LibraryCategoryShelf.test.tsx` (`buildCategoryShelf` still returns one entry per present category with `count`
+  as the TOTAL, and `listCategoryResults` still lists all of a category — the pure heart does NO state filtering).
+  KEEP `count` as the total, keep `library-finder-row-<id>` / `library-shelf-row-<category>` /
+  `library-shelf-decisions-row` / `library-scope-chip` testids, and keep the pure `buildCategoryShelf` /
+  `listCategoryResults` signatures so these survive with ZERO edits.
+- **TRIMMED by the orchestrator (re-tensed; re-proven under the `lls-*` v2 contracts here):** the component-side
+  `lf-*` blocks (`lf-result-renders-title-and-kind-subline-via-kindLabel`, `lf-adr-result-shows-status`,
+  `lf-click-invokes-onselect-and-marks-selection`) and the whole `LibraryFinder — idle shelf + scoped browse/search`
+  describe block of `lcs-*` component tests (`lcs-idle-renders-category-shelf`,
+  `lcs-category-click-scopes-and-lists-all` ×2, `lcs-scoped-typing-filters-within-scope`,
+  `lcs-clear-chip-returns-to-shelf`, `lcs-scoped-row-click-lifts-searchresult`). See the neighbour specs' notes.
+
+REUSE THE EXISTING `SearchResult` AND `ShelfEntry` — DEFINE NO NEW WIRE TYPE. The state-filtered browse/search
+lift the EXISTING `SearchResult` from `../lib/librarySearch`; the count heart returns the EXISTING `ShelfEntry`
+from `../lib/libraryShelf`, extended additively with the per-state counts. There is NO `types.ts` change in this
+cap (`GuidanceAsset.status?` landed at #731) — do NOT reshape any wire type.
+
+APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0197 D1 + ADR-0070). The selector follows the map's
+forest-cozy palette (the world's CSS variables), NOT neutral-admin white. Its "nice looking" segmented styling,
+the empty-state copy's look, and the now-absent muted-total typography are WITHNESSED by the owner (the shared
+library-lens attestation), never a machine visual verdict — do NOT author a visual/colour/pixel/animation
+assertion in this cap's tests (assert the selector default + state geometry, the state-governed row presence +
+plain counts, the state-filtered browse/search, the absent chips, and the empty-state text, never their styling).
 
 OFFLINE-TESTABLE IN JSDOM (the `LibraryCategoryShelf.test.tsx` discipline). `@vitest-environment jsdom`,
-`@testing-library/react` for render / `fireEvent` (click the Active/All toggle, scope into a category, click a
-state chip). No backend seam to mock — the finder takes `assets`/`docs`/`onSelect` as props and renders from the
-loaded corpus. No real `fetch`, no socket, no DB, no Electron. The component imports `lifecycleOf` from
+`@testing-library/react` for render / `fireEvent` (click a selector state, scope into a category, type a query).
+No backend seam to mock — the finder takes `assets`/`docs`/`onSelect` as props and renders from the loaded
+corpus. No real `fetch`, no socket, no DB, no Electron. The component imports `lifecycleOf` from
 `@storytree/library` (a pure browser-safe barrel export — the `modelPathBoundary.test.ts` wall stays green, it
 imports no agent/drive/model).
 
 ## Integration test
 
-**Goal —** Prove the lifecycle-aware shelf: the Active|All toggle defaults to Active; Active rows count
-`open`+`active` via `lifecycleOf` with the muted total beside them when it differs; All rows show plain totals;
-the Decisions row counts only `group === 'Decisions'` docs; scoping into a stateful category renders per-kind
-state chips from that kind's own vocabulary and a stateless kind renders none; a chip click and the Active toggle
-each filter the scoped browse list — entirely in jsdom, driven by props — with the signed `lf-*`/`lcs-*` paths
-byte-green.
+**Goal —** Prove the one-selector-governs-the-panel model: the three-state selector defaults to `open`; the shelf
+renders only categories with ≥1 item in the selected state, each with a plain per-state count (no "N of M");
+switching the selector re-derives the shelf; the scoped browse filters to the selected state uniformly for every
+kind; a typed search filters to the selected state (assets + Decisions), each in-state result rendering its title
++ `kindLabel` sub-line and an ADR result its status; scoping into any kind renders NO per-kind state chips; and
+empty states are one quiet line — entirely in jsdom, driven by props — with the surviving `lf-*`/`lcs-*` blocks
+byte-green (the re-tensed ones trimmed before the build, ADR-0197 D5).
 
 The integration test exercises this capability against its own composition (no backend seam) — the reworked
-count heart, the toggle state, the projection consumption, and the scoped chip render/filter are all real. It
-would:
+per-state count heart, the selector state, the projection consumption, and the state-governed shelf/browse/search
+are all real. It would:
 
-1. Render `<LibraryFinder assets={…} docs={…} onSelect={vi.fn()} />` over a fixed corpus mixing live and settled
-   items (e.g. friction with and without `route`, plans with `status` draft/ready/consumed, ADR docs across
-   statuses). Assert the toggle defaults to Active and each shelf row shows its `open`+`active` count, with the
-   muted total beside a row whose live count differs from its total (and only the single number where they are
-   equal).
-2. `fireEvent.click` the All side of the toggle. Assert each row now shows its plain total (no muted split).
-3. Assert the Decisions row's total counts only `group === 'Decisions'` docs (a corpus with a non-Decisions doc
-   is excluded from the Decisions count).
-4. Scope into `friction` (`fireEvent.click` its shelf row). Assert open/routed/archived state chips render (from
-   each item's `route`); scope into `arc` (stateless) and assert NO state chips render.
-5. Click a state chip (e.g. friction `routed`). Assert the scoped browse list filters to that state's items.
-   Separately, in Active mode, assert the scoped browse list is filtered to `open`+`active` items (and All shows
-   all).
+1. Render `<LibraryFinder assets={…} docs={…} onSelect={vi.fn()} />` over a fixed corpus mixing states (e.g.
+   friction with/without `route`, plans with `status` draft/ready/consumed/retired, ADR docs across statuses, a
+   stateless durable asset, plus a non-Decisions doc). Assert the selector defaults to `open` (its
+   `aria-pressed`), that the shelf renders one row per category with ≥1 `open` item with its plain per-state
+   count, that a category with zero `open` items does NOT render, that the Decisions row counts only
+   `group === 'Decisions'` docs, and that NO muted-total split is present.
+2. `fireEvent.click` the `active` state (then `archived`). Assert the shelf re-derives — rows appear/disappear by
+   whether the category has ≥1 item in the newly-selected state, and each count is that state's plain number.
+3. Scope into a stateful category (`fireEvent.click` its shelf row). Assert the browse list shows only the
+   scoped category's items in the selected state (uniformly — no per-kind chips), switching state re-filters the
+   browse, and a browse row click lifts `onSelect` with the finder-parity `SearchResult`.
+4. Type a query. Assert `searchCorpus` results are filtered to the selected state (an `active` asset is hidden
+   under default `open`, surfaced after switching to `active`); assert an in-state result renders its title + a
+   `kindLabel` sub-line (an `arc` reads "epic") and an in-state ADR result shows its status.
+5. Assert scoping into any kind renders NO `library-state-chip-*`; and assert the quiet empty states — an
+   all-`open`-empty shelf renders one line, an empty scoped/search result names the selected state in one line.
 
 ## Contracts (6)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest jsdom,
-`apps/studio/src/components/LibraryLifecycleShelf.test.tsx`). Per ADR-0122 (`storytree coverage`) each contract
-id is the lead of a distinctly-named test, so the coverage check reports 6/6 against the ONE `real.testFile`.
-None of these is an APPEARANCE assertion — the look (the toggle styling, the state-chip look, the muted-total
-typography) is the story's operator-attested UAT leg (ADR-0070). The `lf-*`/`lcs-*` byte-green requirement is a
-FENCE (above), not a contract.
+`apps/studio/src/components/LibraryLifecycleShelf.test.tsx`). This v2 set REPLACES the ADR-0196 `lls-*` contracts
+(the two-state toggle / per-kind chips / "N of M") that #731 signed. Per ADR-0122 (`storytree coverage`) each
+contract id is the lead of a distinctly-named test, so the coverage check reports 6/6 against the ONE
+`real.testFile`. None of these is an APPEARANCE assertion — the look (the selector styling, the empty-state copy,
+the now-absent muted-total typography) is the story's operator-attested UAT leg (ADR-0070). The
+survive/trim split of the neighbour `lf-*`/`lcs-*` blocks is a FENCE (above) + the neighbour reconciliation notes,
+not a contract.
 
-1. **`lls-toggle-defaults-active-and-counts-live`** — the Active|All toggle defaults to Active; Active rows count open+active via lifecycleOf, with the muted total beside a row where it differs
-   - **asserts —** with default state, the toggle reads Active and each shelf row shows the count of `open`+`active`
-     items (via `lifecycleOf(@storytree/library)` over each item's lifecycle-bearing fields); a row whose live
-     count differs from its total shows BOTH (the "2 of 38" muted-total presentation), and a row where they are
-     equal shows the single number.
-   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the toggle state + Active-mode row render) and
-     `apps/studio/src/lib/libraryShelf.ts` (the live-count heart)
-   - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx` (net-new, vitest jsdom).
-2. **`lls-all-mode-shows-totals`** — All mode shows each row's plain total (no live/muted split)
-   - **asserts —** `fireEvent.click` on the All side of the toggle switches every shelf row to its plain total
-     count, with no muted-total split.
-   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the All-mode row render)
+1. **`lls-selector-defaults-open-and-hides-empty-categories`** — the three-state selector defaults to `open`; the shelf renders only categories with ≥1 item in the state, each with a plain per-state count (no "N of M"); the Decisions row counts only `group === 'Decisions'` docs
+   - **asserts —** on default render, the selector reads `open` (its `aria-pressed` true, `active`/`archived`
+     false); the pure `buildCategoryShelf` yields per-state counts alongside the existing total `count`; and the
+     shelf renders one row per category with ≥1 `open` item, each showing its plain per-state count (a single
+     number — NO `library-shelf-row-muted-total` split), while a category with zero `open` items does NOT render.
+     The Decisions row's count counts only `group === 'Decisions'` docs (a non-Decisions doc excluded — the
+     223→191 fix stands).
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the selector state + the state-governed shelf
+     render) and `apps/studio/src/lib/libraryShelf.ts` (the per-state count heart + the group-filtered Decisions count)
+   - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx` (net-new-shaped, vitest jsdom).
+2. **`lls-state-switch-rederives-shelf`** — switching the selector re-derives the shelf (rows and plain counts recompute for the newly-selected state)
+   - **asserts —** `fireEvent.click` on the `active` state (then `archived`) recomputes the shelf: a category
+     present in one state but empty in another appears/disappears accordingly, and each rendered row shows the
+     newly-selected state's plain count. Exactly one state is selected at a time.
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the selector → shelf re-derivation) and
+     `apps/studio/src/lib/libraryShelf.ts` (the per-state counts)
    - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx`.
-3. **`lls-decisions-row-counts-decisions-group-only`** — the Decisions row counts only `group === 'Decisions'` docs (the 223→191 count-bug fix)
-   - **asserts —** the Decisions shelf row's total counts only `docs` with `group === 'Decisions'` (a corpus
-     containing a non-Decisions doc excludes it) — the `buildCategoryShelf` count-bug fix, mirroring
-     `Library.tsx`.
-   - **covers —** `apps/studio/src/lib/libraryShelf.ts` (the Decisions count filtered to the Decisions group)
+3. **`lls-selector-filters-search`** — a typed query's results filter to the selected state (assets + Decisions); an in-state result renders its title + `kindLabel` sub-line and an ADR result its status
+   - **asserts —** with default `open`, typing a query that matches both an `open` item and an `active` item
+     surfaces ONLY the `open` result row; switching the selector to `active` surfaces the `active` one — for
+     assets AND Decisions. An in-state result row renders its `title` and a muted kind sub-line via
+     `kindLabel(category, arcDisplay)` (an `arc` reads "epic", never the raw key — trap j, re-homed from the
+     retired `lf-result-renders-title-and-kind-subline-via-kindLabel`), and an in-state ADR result additionally
+     shows its `status` (re-homed from the retired `lf-adr-result-shows-status`).
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the state-filtered search + the result-row
+     title/kindLabel/status render)
    - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx`.
-4. **`lls-scoped-state-chips-use-kind-vocabulary`** — scoped into a stateful category, per-kind state chips render using the kind's own stored vocabulary; a stateless kind renders none
-   - **asserts —** scoping into `friction` renders open/routed/archived chips (from each item's `route`); scoping
-     into Decisions renders proposed/accepted/superseded chips (from `DocMeta.status`); scoping into `plan`
-     renders the projected open/active/archived chips; scoping into a stateless kind (e.g. `arc`) renders NO
-     state chips. The chips carry a DISTINCT testid, never the shelf-row / result-row prefix (the fence).
-   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the per-kind scoped state-chip render)
+4. **`lls-selector-filters-scoped-browse`** — scoping into a category browses its items filtered to the selected state, uniformly for every kind; a browse row click lifts the finder-parity `SearchResult`
+   - **asserts —** clicking a category shelf row scopes to it (a removable `library-scope-chip`) and the browse
+     list shows only that category's items in the selected state (via `lifecycleOf`) — the SAME rule for every
+     kind (no per-kind exception); switching the selector re-filters the browse. A browse row click invokes
+     `onSelect(result)` with the finder-parity `SearchResult` (re-homed from the retired
+     `lcs-scoped-row-click-lifts-searchresult` / `lf-click-invokes-onselect-and-marks-selection`).
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the state-filtered scoped browse + the unchanged
+     `onSelect` lift)
    - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx`.
-5. **`lls-chip-click-filters-scoped-list`** — clicking a state chip filters the scoped browse list to that state
-   - **asserts —** `fireEvent.click` on a state chip (e.g. friction `routed`) filters the scoped browse list to
-     the items in that state (only `route`-set-non-`nothing` friction; only `accepted` Decisions; only the
-     matching plans).
-   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the state-chip → scoped-list filter)
+5. **`lls-state-chips-retired`** — scoping into any kind renders NO per-kind state chips (the `library-state-chip-*` testids no longer render)
+   - **asserts —** scoping into a stateful kind (e.g. `friction`, then Decisions, then `plan`) renders ZERO
+     `library-state-chip-*` elements — the per-kind chips retire (ADR-0197 D3); the single selector is the only
+     state vocabulary. The absent-renders-nothing idiom.
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the removed per-kind state-chip render)
    - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx`.
-6. **`lls-active-toggle-filters-scoped-browse`** — in Active mode the toggle filters the scoped browse list to open+active; All shows every item in the scope
-   - **asserts —** with a scope active and the toggle on Active, the scoped browse list shows only `open`+`active`
-     items (via `lifecycleOf`); switching to All shows every item in the scope. The toggle filters the scoped
-     browse, not only the shelf counts.
-   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the Active-toggle scoped-browse filter)
+6. **`lls-quiet-empty-states`** — an all-empty `open` shelf renders one quiet line; an empty scoped/search result names the selected state in one line
+   - **asserts —** rendering over a corpus with no `open` item renders a single `library-empty-state` line and NO
+     shelf rows; and an empty scoped/search result (a scope or query with no in-state match) renders a one-line
+     message that NAMES the selected state (e.g. contains "open"). No further chrome (ADR-0197 D4).
+   - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the quiet empty-state render)
    - **proven by —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx`.
 
 ## Guidance — the brownfield slice that earns the signed verdict
 
-The rung toward `healthy` (ADR-0057 §3, BROWNFIELD editsExisting): rework the signed category-shelf finder into
-the lifecycle-aware shelf, test-first, with the `lf-*`/`lcs-*` paths byte-green.
+The rung toward `healthy` (ADR-0057 §3, BROWNFIELD editsExisting): re-prove the signed inc-13 finder as the
+one-selector-governs-the-panel model, test-first, with the surviving `lf-*`/`lcs-*` blocks byte-green and the
+re-tensed ones trimmed by the orchestrator BEFORE this build (ADR-0197 D5).
 
 - **The new test —** `apps/studio/src/components/LibraryLifecycleShelf.test.tsx` (`@vitest-environment jsdom`,
   vitest + `@testing-library/react` — the `LibraryCategoryShelf.test.tsx` shape; NO real
-  `fetch`/socket/DB/Electron). Import `{ LibraryFinder }` from `"./LibraryFinder"`, the count heart from
-  `"../lib/libraryShelf"`, `import type { SearchResult } from "../lib/librarySearch"`, and the corpus fixtures —
-  define NO new wire type. Name each test for its contract id (`lls-…`) so
-  `storytree coverage library-lifecycle-shelf` reports 6/6 (ADR-0122).
+  `fetch`/socket/DB/Electron), its contract set REPLACED by the v2 `lls-*` selector contracts. Import
+  `{ LibraryFinder }` from `"./LibraryFinder"`, the count heart from `"../lib/libraryShelf"`,
+  `import type { SearchResult } from "../lib/librarySearch"`, and the corpus fixtures — define NO new wire type.
+  Name each test for its contract id (`lls-…`) so `storytree coverage library-lifecycle-shelf` reports 6/6
+  (ADR-0122).
 - **The RED the spine observes (before IMPLEMENT) —** a FAILING-ASSERTION red (LibraryFinder.tsx exists — NOT
-  module-not-found): at HEAD the shelf shows one flat `count` per row and no Active|All toggle / no state chips,
-  so the toggle-default / live-count / Decisions-fix / state-chip assertions fail. This is the brownfield red the
-  spine observes against the category-shelf finder at HEAD (ADR-0057).
-- **The GREEN —** rework `apps/studio/src/lib/libraryShelf.ts` (add a `lifecycleOf`-computed live count to each
-  `ShelfEntry`, keeping `count` as the total; fix the Decisions total to `group === 'Decisions'`), add the
-  additive `GuidanceAsset.status?: string` to `apps/studio/src/types.ts`, and rework
-  `apps/studio/src/components/LibraryFinder.tsx`: add the Active|All toggle (component-local, default Active);
-  render Active rows with the live count + muted total (when it differs) and All rows with the total; render
-  per-kind state chips (from each stateful kind's stored vocabulary) above the scoped browse list; filter the
-  scoped browse list on chip click and on the Active toggle. Keep the existing `assets`/`docs`/`onSelect`/
-  `selectedId` prop surface, the `library-finder-row-<id>` / shelf-row / scope-chip testids, and the `count`
-  total so `LibraryFinder.test.tsx` and `LibraryCategoryShelf.test.tsx` (OUTSIDE this `real.scope`) stay
-  byte-green with zero edits. WIRING the finder's mount into `TreeView.tsx` and the forest-cozy appearance are
-  witnessed under the story's operator-attested UAT leg (ADR-0070), NOT asserted in CI and NOT in this `real:`
-  scope. After it, the new test's assertions hold and `pnpm --filter studio test` + `pnpm --filter studio
-  typecheck` stay green.
+  module-not-found): at HEAD (post-#731) the finder renders the Active|All two-state toggle + the per-kind state
+  chips + the "N of M" muted totals, so the v2 selector assertions (a three-state open-default selector,
+  hidden-empty categories, plain per-state counts, no chips, quiet empty states) fail. This is the brownfield red
+  the spine observes against the ADR-0196 finder at HEAD (ADR-0057).
+- **The GREEN —** rework `apps/studio/src/lib/libraryShelf.ts` (add per-state counts computed via `lifecycleOf`,
+  keeping `count` as the total; keep the group-filtered Decisions count) and rework
+  `apps/studio/src/components/LibraryFinder.tsx`: replace the Active|All toggle with the three-state
+  open|active|archived selector (component-local, default open); render only the categories with ≥1 item in the
+  selected state, each with its plain per-state count (no muted-total split); filter the scoped browse to the
+  selected state uniformly for every kind; filter the typed search to the selected state (assets + Decisions);
+  remove the per-kind state chips; render the quiet empty states. Keep the existing
+  `assets`/`docs`/`onSelect`/`selectedId` prop surface, the `library-finder-row-<id>` / `library-shelf-row-<category>`
+  / `library-shelf-decisions-row` / `library-scope-chip` testids, and the `count` total + `buildCategoryShelf` /
+  `listCategoryResults` signatures so the SURVIVING `LibraryFinder.test.tsx` / `LibraryCategoryShelf.test.tsx`
+  blocks stay byte-green (the re-tensed blocks are the orchestrator's pre-build trim, NOT this leaf's edit).
+  WIRING the finder's mount into `TreeView.tsx` and the forest-cozy appearance are witnessed under the story's
+  operator-attested UAT leg (ADR-0070), NOT asserted in CI and NOT in this `real:` scope. After it, the new test's
+  assertions hold and `pnpm --filter studio test` + `pnpm --filter studio typecheck` stay green.
 
 Rules:
 
 - **Consume `lifecycleOf` from `@storytree/library` — do not re-derive the mapping** (ADR-0196 D4,
-  `lls-toggle-defaults-active-and-counts-live`) — call it over each item's lifecycle-bearing fields; the additive
-  `GuidanceAsset.status?` is the plan-lifecycle mirror's typed home.
-- **The toggle defaults to Active; Active rows count open+active with the muted total when it differs; All shows
-  totals** (`lls-toggle-defaults-active-and-counts-live`, `lls-all-mode-shows-totals`).
-- **The Decisions row counts only the `group === 'Decisions'` docs** (`lls-decisions-row-counts-decisions-group-only`,
-  the 223→191 count-bug fix) — byte-safe on the `lcs-*` fixtures (all carry `group: 'Decisions'`).
-- **Scoped state chips use each kind's OWN stored vocabulary; stateless kinds get none**
-  (`lls-scoped-state-chips-use-kind-vocabulary`) — friction open/routed/archived, Decisions
-  proposed/accepted/superseded, plan projected open/active/archived; distinct testid.
-- **A chip click and the Active toggle each filter the scoped browse list** (`lls-chip-click-filters-scoped-list`,
-  `lls-active-toggle-filters-scoped-browse`).
-- **The signed `lf-*`/`lcs-*` contracts stay byte-green** — additive around the existing paths; keep `count` as
-  the total, the state chips carry a distinct testid, and the Decisions fix is byte-safe on their all-Decisions
-  fixtures; do NOT edit `LibraryFinder.test.tsx` / `LibraryCategoryShelf.test.tsx` (outside this `real.scope`) or
-  disturb the `lf-*`/`lcs-*` titles.
-- **Reuse the existing `SearchResult`/`ShelfEntry`; the only `types.ts` change is the additive
-  `GuidanceAsset.status?`** — define no new wire type.
-- **Appearance is operator-attested, not asserted here** (ADR-0196 D3 / ADR-0070) — prove the toggle/count/chip
-  behaviour; the toggle styling, the state-chip look, and the muted-total typography are the shared library-lens
-  look leg. Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` in the `real:` scope (the mount is the
-  orchestrator's supplement glue after PASS — plan §G).
+  `lls-selector-defaults-open-and-hides-empty-categories`) — call it over each item's lifecycle-bearing fields;
+  `GuidanceAsset.status?` is already on the wire (#731), no `types.ts` change.
+- **One three-state selector (open | active | archived), default open** (`lls-selector-defaults-open-and-hides-empty-categories`,
+  `lls-state-switch-rederives-shelf`) — it replaces the two-state toggle; drop the `library-lifecycle-toggle-*`
+  testids.
+- **The selected state governs the shelf — only ≥1-in-state categories render, plain per-state count, "N of M"
+  retired** (`lls-selector-defaults-open-and-hides-empty-categories`, `lls-state-switch-rederives-shelf`); the
+  Decisions row counts only `group === 'Decisions'` docs.
+- **The selected state governs the scoped browse — uniformly for every kind; the `onSelect` lift is unchanged**
+  (`lls-selector-filters-scoped-browse`) — the friction/Decisions chips-only exception retires.
+- **The selected state governs the typed search (assets + Decisions); an in-state result renders title +
+  `kindLabel` sub-line + ADR status** (`lls-selector-filters-search`) — the re-home of the retired `lf-result-*`
+  / `lf-adr-result-shows-status` behaviours.
+- **The per-kind state chips retire** (`lls-state-chips-retired`) — the `library-state-chip-*` testids no longer
+  render; one control, one vocabulary.
+- **Quiet, honest empty states** (`lls-quiet-empty-states`) — an all-empty `open` shelf is one line; an empty
+  scoped/search result names the selected state in one line.
+- **The surviving `lf-*`/`lcs-*` blocks stay byte-green; the re-tensed ones are the orchestrator's pre-build trim**
+  (ADR-0197 D5) — keep `count` as the total, the distinct shelf/result testids, and the pure heart signatures; do
+  NOT edit `LibraryFinder.test.tsx` / `LibraryCategoryShelf.test.tsx` (outside this `real.scope`). The precise
+  split is in the neighbour specs' reconciliation notes.
+- **Appearance is operator-attested, not asserted here** (ADR-0197 D1 / ADR-0070) — prove the selector/shelf/
+  browse/search behaviour; the selector styling, the empty-state look, and the muted-total-gone typography are the
+  shared library-lens look leg. Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` in the `real:`
+  scope (the mount is the orchestrator's supplement glue after PASS — plan §G).
 - **Every `lls-` contract test TITLE carries its unique id** or `storytree coverage` silently drops coverage
   (`sdk-leaf-drops-contract-id-test-names`, this arc's recurring class — the fix if it happens is
   TEST-TITLE-ONLY, never an assertion/source edit).

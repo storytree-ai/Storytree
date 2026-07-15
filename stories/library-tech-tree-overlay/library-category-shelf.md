@@ -223,6 +223,28 @@ id is the lead of a distinctly-named test, so the coverage check reports 6/6 aga
 None of these is an APPEARANCE assertion — the look (the full-width input, the shelf styling, the scope-chip
 look) is the story's operator-attested UAT leg (ADR-0070).
 
+> **ADR-0197 reconciliation (2026-07-15, D5 — executes the decision, not a re-decision).** ADR-0197 (amends
+> ADR-0196 D3) makes the Library panel's ONE three-state selector (`open | active | archived`, DEFAULT `open`)
+> govern the shelf AND the scoped browse: only categories with ≥1 item in the selected state render, and a scoped
+> browse is filtered to the selected state uniformly for every kind. Every COMPONENT contract below (2–6) drives
+> fixtures whose durable-kind assets (`definition`/`pattern`/`arc`) project `active` under `lifecycleOf`, so under
+> the default `open` state their shelf rows — and the scoped browse those rows open — no longer render, and the
+> fixtures become **unobservable** (contract 3's Decisions-scope case additionally breaks because `doc1`
+> (`accepted`) is filtered out of the now-state-scoped browse). Per ADR-0197 D5 (the inc-10/inc-12 precedent)
+> those blocks are **retired**: the shelf/scope/browse behaviours are unchanged in code and re-prove under the
+> reworked `library-lifecycle-shelf` `lls-*` v2 contracts (`lls-selector-defaults-open-and-hides-empty-categories`,
+> `lls-state-switch-rederives-shelf`, `lls-selector-filters-scoped-browse`); the ORCHESTRATOR trims the whole
+> `LibraryFinder — idle shelf + scoped browse/search` describe block from `LibraryCategoryShelf.test.tsx` as
+> mechanical glue committed BEFORE the `library-lifecycle-shelf` `--real` build (the leaf never edits this file —
+> it is outside that cap's `real.scope`).
+> - **SURVIVES byte-green (do NOT trim):** the pure `libraryShelf` describe block — both `it`s of
+>   `lcs-shelf-groups-corpus-by-category` (the `buildCategoryShelf` grouping/count, and the `listCategoryResults`
+>   browse-all). The pure heart does NO state filtering — it still returns one entry per present category with
+>   `count` as the TOTAL and lists ALL of a category (the component applies the state) — so both survive with zero
+>   edits (the Decisions count stays `2` on the all-`Decisions` fixture).
+> - **RETIRED (orchestrator trims the five component blocks marked `[RETIRED by ADR-0197]` below — the entire
+>   `LibraryFinder — idle shelf + scoped browse/search` describe).**
+
 1. **`lcs-shelf-groups-corpus-by-category`** — the pure heart derives one shelf entry per corpus category (grouped from assets, never hardcoded) + a Decisions entry, each with its count
    - **asserts —** `libraryShelf.ts`'s pure heart, over a fixed corpus, yields one entry per category PRESENT
      in `assets` (grouped by `category`, NEVER a hardcoded kind list) with that category's count, plus a
@@ -231,6 +253,10 @@ look) is the story's operator-attested UAT leg (ADR-0070).
    - **covers —** `apps/studio/src/lib/libraryShelf.ts` (the grouping/count heart)
    - **proven by —** `apps/studio/src/components/LibraryCategoryShelf.test.tsx` (net-new, vitest jsdom).
 2. **`lcs-idle-renders-category-shelf`** — idle (empty query, no scope) renders the category shelf, not a result list
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the `library-lifecycle-shelf` build.]**
+     Its fixture assets are all durable (`definition`/`pattern`/`arc`) and project `active`, so under the default
+     `open` selector NONE of the asserted shelf rows render — the idle shelf now shows only ≥1-in-`open` categories.
+     Re-proves under `lls-selector-defaults-open-and-hides-empty-categories` + `lls-state-switch-rederives-shelf`.
    - **asserts —** with no query and no scope, `<LibraryFinder>` renders one shelf row per present category +
      a Decisions row, each showing its count (via the pure heart), each labelled through
      `kindLabel(category, useArcDisplay())`; and NO `library-finder-row-` result row is present (the shelf rows
@@ -238,6 +264,11 @@ look) is the story's operator-attested UAT leg (ADR-0070).
    - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the idle-state shelf render)
    - **proven by —** `apps/studio/src/components/LibraryCategoryShelf.test.tsx`.
 3. **`lcs-category-click-scopes-and-lists-all`** — clicking a category becomes a removable scope chip and lists ALL that category's artifacts (no query floor)
+   - **[RETIRED by ADR-0197 — orchestrator trims both `it`s of this component block before the build.]** The
+     `definition` case clicks `library-shelf-row-definition`, which is not rendered under the default `open`
+     selector (definition assets project `active`); the Decisions case now browses state-filtered, so the
+     `accepted` `doc1` is excluded and "lists ALL" no longer holds. The category→scope-chip→browse behaviour is
+     unchanged in code and re-proves (state-filtered, uniform for every kind) under `lls-selector-filters-scoped-browse`.
    - **asserts —** `fireEvent.click` on a category shelf row sets a component-local scope (rendered as a
      removable scope chip) and the list switches to ALL of that category's artifacts via the pure listing heart
      with NO query floor (browse); the Decisions row scopes to `docs`. Scope state is component-local (like
@@ -246,6 +277,10 @@ look) is the story's operator-attested UAT leg (ADR-0070).
      `apps/studio/src/lib/libraryShelf.ts` (the category-listing heart)
    - **proven by —** `apps/studio/src/components/LibraryCategoryShelf.test.tsx`.
 4. **`lcs-scoped-typing-filters-within-scope`** — typing while scoped filters searchCorpus to the scope; the placeholder names the scope
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the build.]** It clicks
+     `library-shelf-row-definition`, not rendered under the default `open` selector. The scope-filters-to-category
+     + scope-named-placeholder behaviour is unchanged in code; the state-aware scoped browse/search re-proves under
+     `lls-selector-filters-scoped-browse` + `lls-selector-filters-search`.
    - **asserts —** with a scope active, typing a query runs `searchCorpus(query, assets, docs)` and filters the
      results to the scope's category (artifact scope → only matching `source:'asset'` results; Decisions scope →
      only `source:'doc'` results); and the input placeholder NAMES the active scope when scoped and is generic
@@ -253,11 +288,19 @@ look) is the story's operator-attested UAT leg (ADR-0070).
    - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the scoped search filter + the scope-named placeholder)
    - **proven by —** `apps/studio/src/components/LibraryCategoryShelf.test.tsx`.
 5. **`lcs-clear-chip-returns-to-shelf`** — clearing the scope chip (with an empty query) returns to the category shelf
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the build.]** It clicks
+     `library-shelf-row-definition`, not rendered under the default `open` selector, so the round-trip cannot
+     start. The clear-chip→shelf round-trip is unchanged in code and is exercised via `library-scope-chip-remove`
+     in `library-lifecycle-shelf`'s `lls-*` scoped-browse contracts.
    - **asserts —** removing the scope chip with an empty query clears the scope and re-renders the category
      shelf (back to the idle state — the shelf rows return, the browse/results list is gone).
    - **covers —** `apps/studio/src/components/LibraryFinder.tsx` (the clear-scope → shelf round-trip)
    - **proven by —** `apps/studio/src/components/LibraryCategoryShelf.test.tsx`.
 6. **`lcs-scoped-row-click-lifts-searchresult`** — a scoped/browse row click lifts onSelect with the finder-parity SearchResult (unchanged)
+   - **[RETIRED by ADR-0197 — orchestrator trims this component block before the build.]** It clicks
+     `library-shelf-row-definition` (not rendered under the default `open` selector) to reach the browse row. The
+     `onSelect` lift is unchanged in code and re-proves under `library-lifecycle-shelf`'s
+     `lls-selector-filters-scoped-browse` (a browse row click lifts the finder-parity `SearchResult`).
    - **asserts —** clicking a row in the scoped browse/results list invokes `onSelect(result)` with the row's
      finder-parity `SearchResult` (`{ source:'asset', category }` for an artifact / `{ source:'doc',
      category:'adr', ...status }` for an ADR) — the SAME shape the inc-2 finder lifts; the shelf/scope wrap the

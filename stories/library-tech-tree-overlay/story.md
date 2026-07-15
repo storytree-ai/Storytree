@@ -90,7 +90,8 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 | 9 | Lens minimise → top drawer handle (shell-affordance polish) | [`library-top-drawer`](library-top-drawer.md) | The lens presents by DEFAULT as a collapsed top drawer handle (visible on every map load); lens state is URL-derived (`?overlay=library` present = expanded, absent = the collapsed handle), the handle firing an `onToggle` seam the parent glue owns; the ADR-0188 dec-6 minimise machine + the #715 corner toggle retire; no scrim either state (ADR-0191). The brownfield rework of the inc-9 minimise lens — REPLACES `library-lens-minimise` on the same source (`LibraryDrawer.tsx`), the inc-10 cap-replacement precedent; only the capability/test/`ltd-` prefix are new. | authored (inc 12) |
 | 10 | Retire `#/library` | *(library-retire, unauthored)* | The standalone `#/library` page retires/redirects into the lens, members parity re-checked (owner-attested, ADR-0185 dec 6). | planned |
 | 13 | Unified lifecycle wire | [`library-lifecycle-wire`](library-lifecycle-wire.md) | A pure, browser-safe `lifecycleOf(kind, doc) → open \| active \| archived` in `@storytree/library` (root barrel, no `node:` imports) maps every stored per-kind vocabulary onto ADR-0196's universal triad; AND `renderStoredDoc` serializes a plan doc's `status` onto the `GuidanceAsset` wire (mirroring `arcRef`). Machine-only plumbing, no look leg. | authored (inc 13) |
-| 13 | Lifecycle shelf toggle | [`library-lifecycle-shelf`](library-lifecycle-shelf.md) | The finder gains an Active \| All lifecycle toggle (default Active): Active rows count `open`+`active` via `lifecycleOf` with the muted total ("2 of 38"); the Decisions row counts only `group === 'Decisions'` (223→191); scoped state chips use each kind's own stored vocabulary and filter the scoped browse; the signed `lf-*`/`lcs-*` paths stay byte-green. | authored (inc 13) |
+| 13 | Lifecycle shelf toggle | [`library-lifecycle-shelf`](library-lifecycle-shelf.md) | The finder gains an Active \| All lifecycle toggle (default Active): Active rows count `open`+`active` via `lifecycleOf` with the muted total ("2 of 38"); the Decisions row counts only `group === 'Decisions'` (223→191); scoped state chips use each kind's own stored vocabulary and filter the scoped browse; the signed `lf-*`/`lcs-*` paths stay byte-green. | landed #731; re-proven inc 14 (ADR-0197) |
+| 14 | Lifecycle selector (shelf re-prove) | [`library-lifecycle-shelf`](library-lifecycle-shelf.md) | The inc-13 Active \| All toggle + per-kind state chips + "N of M" totals collapse to ONE three-state selector (open \| active \| archived, DEFAULT open) governing the shelf categories, the scoped browse, and the search uniformly (zero-in-state categories hidden, plain per-state counts); the per-kind chips retire; quiet one-line empty states. SAME node, contracts v2 (ADR-0197, amends 0196 D3). | authored (inc 14) |
 
 Increment 7 (the parallel server typed-edge wire lane, `GuidanceAsset` typed edges) is file-disjoint from
 this story's client surfaces (plan §Lanes FENCE) and authored on its own lane. **Increment 9 (ADR-0188 —
@@ -206,6 +207,24 @@ library organism's own territory, the inc-7 lane) and the browser-safe root-barr
 The CLI's `friction-lifecycle.ts` folding onto the universal `lifecycleOf` (ADR-0196 D3), the `toGuidanceAsset`
 carry-through of plan `status` (`apps/studio/server/libraryBackend.ts`), the finder mount into `TreeView.tsx`, and
 the toggle/chip look are the orchestrator's supplement glue after each leaf's PASS (plan §G).
+
+**Increment 14 (authored here, ADR-0197 — the lifecycle selector; amends ADR-0196 D3):** `library-lifecycle-shelf`
+**`depends_on: [library-category-shelf, library-lifecycle-wire]`** — UNCHANGED node identity and edges. ADR-0197
+(owner-directed at the landed #731 walk, ADR-0110) RE-PROVES the same inc-13 lifecycle-shelf node — the inc-12
+`library-top-drawer` re-prove precedent, but on the SAME cap id (the contract set is replaced v1→v2, the node is
+not): the owner reviewed the Active|All toggle + per-kind state chips + "N of M" muted totals and directed their
+collapse into ONE three-state selector (open|active|archived, DEFAULT open) that governs the shelf categories, the
+scoped browse, and the typed search uniformly. It still reworks the same category-shelf finder (`LibraryFinder.tsx`
+/ `libraryShelf.ts`) around the delivered shelf/scope/search path (so `depends_on: [library-category-shelf]`) and
+still consumes `lifecycleOf` + the already-landed plan-`status` wire (so `depends_on: [library-lifecycle-wire]`) —
+no new cross-story edge, and NO `types.ts` change (`GuidanceAsset.status?` landed at #731, so its `real.scope`
+drops `types.ts`). Per ADR-0197 D5 this increment genuinely RE-TENSES a handful of signed `lf-*`/`lcs-*` COMPONENT
+blocks whose durable-kind fixtures project `active` and so become unobservable under the default `open` state:
+story-author records the retire/re-home notes on `library-finder.md` + `library-category-shelf.md` (which `lf-*`/
+`lcs-*` blocks survive byte-green vs are trimmed), the orchestrator trims the re-tensed blocks as mechanical glue
+committed BEFORE the `--real` build (the inc-10/inc-12 precedent), and the surviving behaviours re-prove under the
+v2 `lls-*` selector contracts. The three-state selector look, the empty-state copy, and the finder mount into
+`TreeView.tsx` are the orchestrator's supplement glue after the leaf's PASS (plan §G).
 
 ## Cross-story edges (the hosting call — revised by ADR-0192)
 
