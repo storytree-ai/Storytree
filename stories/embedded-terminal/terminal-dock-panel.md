@@ -45,48 +45,61 @@ proof:
     testFile: "apps/studio/src/components/TerminalDock.test.tsx"
     sourceFile: "apps/studio/src/components/TerminalDock.tsx"
     # RE-PROVE (ADR-0057 §3 expansion C): TerminalDock.tsx + its test ALREADY EXIST at HEAD. THIS CAP IS
-    # ALL-BUILT EXCEPT CONTRACT 9. Contracts 1–8 (original build + the 6/7/8 re-proves + the terminal-tabs
-    # multi-session/seed re-drives), contract 10 `tdp-fits-before-spawn-and-passes-initial-dims` (@ a90e30b),
-    # and contract 11 `tdp-refits-on-expand-activation-and-resize` (@ 9439df5) are ALL BUILT AND SIGNED —
-    # there is NO uncovered contract to add. Contract 9 `tdp-reattaches-live-sessions-on-mount` is the ONE
-    # unbuilt behaviour: its title is GREEN over the RETIRED replay (the dock still does
-    # `snapshot(...).then(text => term.write(text))`), so `check:coverage` reads it "covered" — a TRAP. That
-    # false-covered frame has TWICE steered this drive into building whatever read uncovered instead of
-    # contract 9: a90e30b built contract 10, 9439df5 built contract 11. Neither touched the replay. This
-    # drive closes contract 9 and nothing else.
+    # ALL-BUILT EXCEPT CONTRACT 12. Contracts 1–8 (original build + the 6/7/8 re-proves + the terminal-tabs
+    # multi-session/seed re-drives), contract 9 `tdp-reattaches-live-sessions-on-mount` (the ADR-0190 replay
+    # re-tense — restore-at-dims → write → fit → forward, BUILT+SIGNED @ 60280a0c), contract 10
+    # `tdp-fits-before-spawn-and-passes-initial-dims` (@ a90e30b), and contract 11
+    # `tdp-refits-on-expand-activation-and-resize` (@ 9439df5) are ALL BUILT AND SIGNED. Contract 12
+    # `tdp-ctrl-c-copies-selection-ctrl-v-pastes` is the ONE unbuilt behaviour: the owner-reported defect
+    # that Ctrl+C in the embedded terminal never copies a selection (xterm consumes the keydown and always
+    # forwards \x03 / SIGINT to the pty) and Ctrl+V is not explicitly handled. This drive closes contract 12
+    # and nothing else.
     #
-    # WHY THIS CANNOT WAIT: pty-session-manager's `snapshot` now resolves `{ data, cols, rows }` (signed @
-    # 431c125). The shipped dock still writes the WHOLE resolved value into xterm, so a re-attached terminal
-    # now renders `[object Object]` — the machine e2e should be RED on this as you read it, and the survival
-    # walk the owner already rejected is now strictly WORSE than when he rejected it.
+    # THE DEFECT (Windows Terminal convention): Ctrl+C WITH an active selection = copy to the clipboard, NO
+    # SIGINT; Ctrl+C WITHOUT a selection = interrupt as before (the \x03 reaches the pty); Ctrl+V = paste the
+    # clipboard into the terminal. This is renderer keyboard wiring in TerminalDock.tsx (the handler attaches
+    # per-tab in `initTab`, for EVERY tab's Terminal) — squarely this cap's seam, provable over the mocked
+    # xterm.
     #
-    # THE ONLY PERMITTED TEST-FILE CHANGE — REWRITE ONE TEST BODY. The sole edit to TerminalDock.test.tsx is
-    # REWRITING THE BODY of the existing test titled `tdp-reattaches-live-sessions-on-mount`; its title stays
-    # BYTE-FOR-BYTE unchanged. Do NOT add any `test()`/`it()` block, do NOT rename any id, do NOT touch any
-    # OTHER test's body. Adding/renaming a test, or building a different contract, IS the exact defect this
-    # brief exists to prevent — 7 observed instances of id/title drift, and 2 observed instances of building a
-    # DIFFERENT contract than briefed (both prior attempts at THIS contract 9). Coverage GREEN is NOT proof
-    # here (the title is already green); the red→green lives INSIDE the one rewritten body (ADR-0122).
+    # THE ONLY PERMITTED TEST-FILE CHANGE — ADD ONE NEW TEST (+ its ADDITIVE mock extensions). The sole edit
+    # to TerminalDock.test.tsx is ADDING one new `it('tdp-ctrl-c-copies-selection-ctrl-v-pastes: …')` block,
+    # plus the ADDITIVE mock extensions it needs: the FakeTerminal gains `attachCustomKeyEventHandler`
+    # (capturing the handler), test-controlled `hasSelection()`/`getSelection()`, and a recording `paste()`;
+    # the test stubs `navigator.clipboard` with `vi.fn` `writeText`/`readText`. Every EXISTING test's title
+    # AND body stays BYTE-IDENTICAL — do NOT rename any id, do NOT touch any other test's body, do NOT build a
+    # different contract. Adding/renaming an EXISTING test, or building a different contract, IS the exact
+    # defect this brief exists to prevent — 7 observed instances of id/title drift, and 2 observed instances
+    # of building a DIFFERENT contract than briefed. The mock extensions are PURELY ADDITIVE (new members on
+    # FakeTerminal, a new navigator.clipboard stub) — they must not change what any existing test observes.
     #
-    # THE RED THE SPINE MUST OBSERVE (write this test body, watch it fail, THEN implement): change the bridge
-    # mock so `snapshot` resolves the REAL post-431c125 shape `{ data: '<ansi>', cols: N, rows: M }` (mocking
-    # a bare string is mocking a RETIRED protocol — do not). Then assert, IN ORDER:
-    #   (a) the adopted tab's xterm is RESIZED to the snapshot's `cols`/`rows` BEFORE the write;
-    #   (b) what is WRITTEN to the xterm is the `.data` STRING — assert the write argument is a string /
-    #       equals `data`, NEVER the object (this pins the `[object Object]` bug);
-    #   (c) after the replay lands, `fit()` runs and the fitted dims are forwarded via `bridge.resize`;
-    #   (d) held live `onData` chunks flush STRICTLY AFTER the replay write;
-    #   (e) a STRING-resolving `snapshot` (an older preload), or `snapshot`/`list` ABSENT, still replays
-    #       without crashing — the feature-guard.
-    # At HEAD, (a)/(b)/(c) ALL FAIL against the shipped `then(text => term.write(text))` — that IS the red.
-    # Then EDIT TerminalDock.tsx to resize → write(`data`) → fit → forward. No new dep (`@xterm/addon-fit`
-    # `FitAddon` already ships).
+    # THE RED THE SPINE MUST OBSERVE (write this new test, watch it fail, THEN implement): at HEAD
+    # TerminalDock.tsx never calls `attachCustomKeyEventHandler`, so the test's captured handler is undefined
+    # and the assertions cannot even run — that IS the red. Assert, by INVOKING the captured handler with
+    # synthetic KeyboardEvent-shaped objects:
+    #   (a) keydown Ctrl+C (ctrlKey, no shift/alt/meta) while `term.hasSelection()` is true → the handler
+    #       writes `term.getSelection()` to the clipboard via `navigator.clipboard.writeText` and RETURNS
+    #       FALSE, and `bridge.write` is NOT called with '\x03' (the interrupt is suppressed — the copy path);
+    #   (b) keydown Ctrl+C with NO selection → the handler RETURNS TRUE (xterm's normal path forwards \x03 to
+    #       the pty) and the clipboard is untouched — the interrupt behaviour is preserved;
+    #   (c) keydown Ctrl+V → the handler reads `navigator.clipboard.readText` and pastes it through the
+    #       terminal via `term.paste(text)` (so bracketed-paste is honoured and the bytes flow to the pty via
+    #       the existing onData→bridge.write wiring) and RETURNS FALSE — assert `term.paste` called with the
+    #       clipboard text;
+    #   (d) a non-keydown event (keyup/keypress) or any other key → RETURNS TRUE (untouched);
+    #   (e) `navigator.clipboard` ABSENT → the handler RETURNS TRUE and never throws (jsdom/older-runtime
+    #       feature-guard).
+    # Then EDIT TerminalDock.tsx (`initTab`, for EVERY tab's Terminal) to attach the handler via
+    # `term.attachCustomKeyEventHandler`. No new dep.
     #
-    # FREEZE EVERYTHING ELSE BY NAME: contracts 1–8, contract 10 (`tdp-fits-before-spawn-and-passes-initial-dims`
-    # @ a90e30b), and contract 11 (`tdp-refits-on-expand-activation-and-resize` @ 9439df5) STAND — their test
-    # bodies are UNTOUCHED; the terminal-tabs `mst-*` and `son-*` tests SHARE this file and stay GREEN under
-    # their EXACT titles. The container-size-change / `ResizeObserver` refit is a LATER SLICE, NOT YET
-    # CONTRACTED — do not build it here.
+    # WHETHER THE OS CLIPBOARD PHYSICALLY HOLDS THE TEXT is the story's operator-attested UAT leg (ADR-0070),
+    # never asserted here — the jsdom test asserts only the handler's return values, the clipboard `vi.fn`
+    # calls, and that no '\x03' reaches `bridge.write`.
+    #
+    # FREEZE EVERYTHING ELSE BY NAME: contracts 1–8, contract 9 (`tdp-reattaches-live-sessions-on-mount` @
+    # 60280a0c, plus its companion `tdp-restores-snapshot-at-recorded-size-then-fits`), contract 10
+    # (`tdp-fits-before-spawn-and-passes-initial-dims` @ a90e30b), and contract 11
+    # (`tdp-refits-on-expand-activation-and-resize` @ 9439df5) STAND — their test bodies are UNTOUCHED; the
+    # terminal-tabs `mst-*` and `son-*` tests SHARE this file and stay GREEN under their EXACT titles.
     editsExisting: true
     scope:
       testGlobs: ["apps/studio/src/components/TerminalDock.test.tsx"]
@@ -138,8 +151,9 @@ OPPOSITE side of the contextBridge from [`pty-session-manager`](pty-session-mana
 nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contract, not a code edge (the
 `chat-panel` ↔ `chat-sse-mount` precedent), so there is no in-story edge either way.
 
-> **Proof status (honest) — BUILT & SIGNED (contracts 1–8, 10, 11 [11 = expand + activation refit only]);
-> CONTRACT 9 REPLAY RE-TENSE PENDING (the next drive).** Contracts 1–5 landed under the original story build's signed `--real` verdict (the xterm.js
+> **Proof status (honest) — BUILT & SIGNED (contracts 1–11 [9 = the ADR-0190 replay re-tense @ 60280a0c;
+> 11 = expand + activation refit only]); CONTRACT 12 (Ctrl+C-copies-selection / Ctrl+V-pastes) PENDING (the
+> next drive).** Contracts 1–5 landed under the original story build's signed `--real` verdict (the xterm.js
 > terminal the user sees and types into); contract 6 (the operator-found refocus regression) re-signed via
 > an `editsExisting` re-prove; contracts 7 (the optional `headerRight` header slot) and 8 (the empty-session
 > honest message) re-signed via a further `editsExisting` re-prove of the SAME source for the 2026-07-12
@@ -156,9 +170,11 @@ nothing from it — they share the bridge WIRE SHAPE as a cross-boundary contrac
 > fit-before-spawn slice — now adopted as **contract 10 `tdp-fits-before-spawn-and-passes-initial-dims`**
 > (built+signed: a fresh tab fits before spawning and passes the fitted `cols`/`rows` into `bridge.spawn`)
 > — and left **contract 9's replay path BYTE-IDENTICAL** (the old `tdp-reattaches-live-sessions-on-mount`
-> test stayed green, so coverage falsely read it covered). So contract 9's re-tensed replay
-> ({data,cols,rows} restore-at-dims → write → fit → forward) is UNBUILT and is the NEXT drive (its id
-> stands, its assertions re-tense). **Contract 11 `tdp-refits-on-expand-activation-and-resize`** is
+> test stayed green, so coverage falsely read it covered). Contract 9's re-tensed replay
+> ({data,cols,rows} restore-at-dims → write → fit → forward) was THEN BUILT+SIGNED @ 60280a0c — the shipped
+> `TerminalDock.tsx` does the resize→write(`data`)→flush-held-chunks→fit replay, and the suite carries both
+> the re-tensed `tdp-reattaches-live-sessions-on-mount` and a companion
+> `tdp-restores-snapshot-at-recorded-size-then-fits` test. **Contract 11 `tdp-refits-on-expand-activation-and-resize`** is
 > built+signed @ 9439df5 — but only its EXPAND + TAB-ACTIVATION triggers (an `[expanded, activeId]` fit
 > effect); the container-size-change / `ResizeObserver` refit is a LATER SLICE, not yet contracted.** The pty
 > LIFECYCLE it drives (over the bridge) is
@@ -394,7 +410,7 @@ The integration test would:
    disabled "terminal unavailable here" state, NEVER calls `spawn`, does NOT hang, and does NOT crash —
    the honest absent-bridge degradation.
 
-## Contracts (11)
+## Contracts (12)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
 jsdom, `apps/studio/src/components/TerminalDock.test.tsx`), the xterm + bridge seams mocked/scripted.
@@ -402,15 +418,16 @@ Contracts 1–5 are BUILT (the original story build's signed verdict); contract 
 refocus regression; contracts 7–8 are the terminal-repo-picker UX refinement (an optional `headerRight`
 header slot + an honest empty-session message); contract 9 is the app-owned-session re-attach (ADR-0189)
 whose replay is RE-TENSED under ADR-0190 (restore serialized screen state at recorded dims → write → fit →
-forward) — that replay re-tense is UNBUILT and is the NEXT drive (its title stayed green over the OLD
-behaviour, so coverage reads it covered; the honest gap is behaviour, not title); contract 10
+forward) — BUILT+SIGNED @ 60280a0c; contract 10
 (`tdp-fits-before-spawn-and-passes-initial-dims`) is the fit-before-spawn slice BUILT+SIGNED @ a90e30b
 (adopted from the drive's real green test, id verbatim); contract 11
 (`tdp-refits-on-expand-activation-and-resize`) is the refit-on-expand-and-activation slice BUILT+SIGNED @
-9439df5 (its container-size-change / `ResizeObserver` piece is a later slice, not yet contracted). Per
+9439df5 (its container-size-change / `ResizeObserver` piece is a later slice, not yet contracted); contract
+12 (`tdp-ctrl-c-copies-selection-ctrl-v-pastes`) is the owner-reported Ctrl+C-copies-selection /
+Ctrl+V-pastes keyboard wiring — UNBUILT and the NEXT drive. Per
 ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named test (the
-`it("<id>: …")` convention); all eleven titles are present, so the coverage check reports 11/11 (contract
-9's title is green over the OLD replay — the honest gap there is behaviour, not title). None is an APPEARANCE
+`it("<id>: …")` convention); contracts 1–11 are present and green, so the coverage check reports 11/12
+until contract 12's new test lands (`tdp-ctrl-c-copies-selection-ctrl-v-pastes`). None is an APPEARANCE
 assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
 
 1. **`tdp-spawns-on-open-and-writes-data`** — opening the terminal spawns over the bridge and pipes bridge data into xterm
@@ -463,7 +480,7 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      input inert) — the block is never a silent blank screen (the owner's item 1). The non-empty path (a
      real session id) keeps the existing spawn/seed/data behaviour intact.
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the empty-session honest message) *(provisional path)*
-9. **`tdp-reattaches-live-sessions-on-mount`** — mounting the dock re-attaches to still-live sessions, restoring serialized screen state at recorded dims then fitting, never spawning a duplicate — **NEXT DRIVE (the re-tensed replay is UNBUILT; the id STANDS, its ASSERTIONS re-tense)**
+9. **`tdp-reattaches-live-sessions-on-mount`** — mounting the dock re-attaches to still-live sessions, restoring serialized screen state at recorded dims then fitting, never spawning a duplicate — **BUILT+SIGNED @ 60280a0c (the re-tensed replay; a companion `tdp-restores-snapshot-at-recorded-size-then-fits` test rides the same source)**
    - **asserts —** with the bridge's `list()` scripted to resolve two live session ids and `snapshot(id)`
      scripted per id to `{ data, cols, rows }` (ADR-0190), MOUNTING the dock creates one tab per live
      session WITHOUT calling `spawn`; for each adopted tab the (mocked) xterm is RESIZED to the snapshot's
@@ -476,9 +493,12 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      byte-behaviour-identical to before: first expand auto-spawns one fresh session (ADR-0189 app-owned
      sessions). Asserts the restore ORDER + the fit-and-forward, never the visual reflow (the story's UAT
      leg).
-   - **Status —** at HEAD this title is GREEN over the OLD replay (`snapshot(...).then(text => term.write(text))`
-     — a raw string, no dims/resize/fit), so `storytree coverage` reads it covered by TITLE; the re-tensed
-     behaviour above is the pending NEXT drive (rewrite the assertions under the SAME title, then the impl).
+   - **Status —** BUILT+SIGNED @ 60280a0c: the shipped `TerminalDock.tsx` does the
+     resize→write(`data`)→flush-held-chunks→fit replay, and the suite carries the re-tensed
+     `tdp-reattaches-live-sessions-on-mount` assertions above plus a companion
+     `tdp-restores-snapshot-at-recorded-size-then-fits` test. (History: this title was previously GREEN over
+     the OLD raw-string replay `snapshot(...).then(text => term.write(text))` — a false-covered frame; the
+     re-tense closed it.)
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the mount-time restore + serialized-screen replay + fit path) *(provisional path)*
 
 10. **`tdp-fits-before-spawn-and-passes-initial-dims`** — a fresh tab fits before spawning and passes the fitted cols/rows into bridge.spawn, so a new pty never starts at 80×24 under a wide dock — **BUILT+SIGNED @ a90e30b** (id adopted verbatim from the drive's real green test)
@@ -504,6 +524,23 @@ assertion — the look is the story's operator-attested UAT leg 5 (ADR-0070).
      a LATER slice, NOT covered by this contract. Asserts the `fit()` INVOCATION + the dims flowing to
      `resize` only; the visual reflow is the story's UAT leg (ADR-0070).
    - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the expand + activation refit effect) — built @ 9439df5
+
+12. **`tdp-ctrl-c-copies-selection-ctrl-v-pastes`** — Ctrl+C with a selection copies it to the clipboard instead of interrupting; Ctrl+C with no selection still reaches the pty; Ctrl+V pastes the clipboard — **the owner-reported keyboard-wiring defect, UNBUILT (the NEXT drive)**
+   - **asserts —** the dock attaches an xterm custom key handler (`term.attachCustomKeyEventHandler`) on
+     EVERY tab's Terminal (in `initTab`); INVOKING the captured handler with synthetic KeyboardEvent-shaped
+     objects: (a) keydown Ctrl+C (ctrlKey, no shift/alt/meta) while `term.hasSelection()` is true writes
+     `term.getSelection()` to the clipboard via `navigator.clipboard.writeText` and returns FALSE, and
+     `desktopTerminal.write` is NOT called with '\x03' (the interrupt is suppressed — the copy path); (b)
+     keydown Ctrl+C with NO selection returns TRUE (xterm's normal path forwards \x03 to the pty) and the
+     clipboard is untouched (the interrupt behaviour preserved); (c) keydown Ctrl+V reads
+     `navigator.clipboard.readText` and pastes it through the terminal via `term.paste(text)` (bracketed-paste
+     honoured; the bytes flow to the pty via the existing onData→`bridge.write` wiring) and returns FALSE —
+     assert `term.paste` called with the clipboard text; (d) a non-keydown event (keyup/keypress) or any
+     other key returns TRUE (untouched); (e) `navigator.clipboard` ABSENT returns TRUE and never throws
+     (jsdom/older-runtime feature-guard). Whether the OS clipboard then physically holds the text is the
+     story's operator-attested UAT leg (ADR-0070), never asserted here — the jsdom test asserts only the
+     handler return values, the clipboard `vi.fn` calls, and that no '\x03' reaches `desktopTerminal.write`.
+   - **covers —** `apps/studio/src/components/TerminalDock.tsx` (the per-tab custom-key-handler: Ctrl+C-copies-selection / Ctrl+V-pastes wiring) *(provisional path)*
 
 ## Guidance — the net-new slice that earns the signed verdict
 
@@ -557,7 +594,7 @@ Rules:
   (`tdp-fits-before-spawn-and-passes-initial-dims`, built @ a90e30b). The standing refit on expand +
   tab-activation, each forwarding to `bridge.resize`, is `tdp-refits-on-expand-activation-and-resize`
   (built @ 9439df5). The adopted-tab restore path fits AFTER resizing to the snapshot dims and writing the
-  serialized screen (`tdp-reattaches-live-sessions-on-mount`, the next drive). Mount-time fit lives with
+  serialized screen (`tdp-reattaches-live-sessions-on-mount`, built @ 60280a0c). Mount-time fit lives with
   the fresh-spawn OR the restore — never double-covered by the refit contract. A container-size-change
   (`ResizeObserver`) refit is a LATER slice, NOT YET CONTRACTED. Assert the invocation + dims, never the
   visual reflow.

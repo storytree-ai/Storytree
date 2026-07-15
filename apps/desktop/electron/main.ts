@@ -557,7 +557,10 @@ ipcMain.handle("repo:ready", (): string | null => selectedRepoCwd());
 // reaches it through the `desktopTerminal` contextBridge (preload) → these IPC channels, and the manager
 // fails closed (typed no-op, never a throw) on an unknown/late session id, so a stray IPC can't crash main.
 function defaultShell(): string {
-  if (process.platform === "win32") return process.env["ComSpec"] ?? "powershell.exe";
+  // PowerShell, not ComSpec: ComSpec is always set on Windows (cmd.exe), so a ComSpec-first
+  // fallback made cmd the de-facto default — powershell.exe ships with every Windows and is
+  // the intended interactive shell here (owner-reported, 2026-07-15).
+  if (process.platform === "win32") return "powershell.exe";
   return process.env["SHELL"] ?? "bash";
 }
 
