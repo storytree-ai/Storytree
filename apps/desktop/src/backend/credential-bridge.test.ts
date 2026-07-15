@@ -178,9 +178,9 @@ test("credential-bridge: build rejects with a typed error when no credential is 
   );
 });
 
-test("credential-bridge: cursor key is scoped to CURSOR_API_KEY for the driver call", async () => {
+test("credential-bridge: api-key is scoped to ANTHROPIC_API_KEY for the driver call", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
-  await broker.store("cursor-api-key", "cursor-test-value");
+  await broker.store("api-key", "api-test-value");
   const env: Record<string, string | undefined> = {};
   let during: Record<string, string | undefined> = {};
 
@@ -193,33 +193,33 @@ test("credential-bridge: cursor key is scoped to CURSOR_API_KEY for the driver c
     env,
   );
 
-  await bridge.build("some-unit-id", "cursor-api-key", () => undefined);
+  await bridge.build("some-unit-id", "api-key", () => undefined);
 
-  assert.equal(during.CURSOR_API_KEY, "cursor-test-value");
+  assert.equal(during.ANTHROPIC_API_KEY, "api-test-value");
   assert.equal(during.CLAUDE_CODE_OAUTH_TOKEN, undefined);
-  assert.equal(during.ANTHROPIC_API_KEY, undefined);
-  assert.equal(env.CURSOR_API_KEY, undefined);
+  assert.equal(during.CURSOR_API_KEY, undefined);
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
 });
 
 test("credential-bridge: restores the target env after a thrown driver", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
-  await broker.store("cursor-api-key", "cursor-test-value");
+  await broker.store("api-key", "api-test-value");
   const env: Record<string, string | undefined> = {
-    CURSOR_API_KEY: "previous-value",
+    ANTHROPIC_API_KEY: "previous-value",
   };
 
   const bridge = new CredentialBridge(
     broker,
     async () => {
-      assert.equal(env.CURSOR_API_KEY, "cursor-test-value");
+      assert.equal(env.ANTHROPIC_API_KEY, "api-test-value");
       throw new Error("driver failed");
     },
     env,
   );
 
   await assert.rejects(
-    () => bridge.build("some-unit-id", "cursor-api-key", () => undefined),
+    () => bridge.build("some-unit-id", "api-key", () => undefined),
     /driver failed/,
   );
-  assert.equal(env.CURSOR_API_KEY, "previous-value");
+  assert.equal(env.ANTHROPIC_API_KEY, "previous-value");
 });

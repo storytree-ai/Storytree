@@ -304,8 +304,9 @@ drives a registered node from spec to a landed, signed, persisted proof.
 > [`uat-bound-command-adoption`](uat-bound-command-adoption.md) established the strict no-fallback
 > binding rule each converted leg names its gate through. ADR-0184 overtakes the earlier "these three
 > remain `human`" call (ADR-0180): that call conflated a genuine judgment gap (no compiler for the
-> claim) with cost — but the `--real` leaf is subscription-funded (ADR-0030), not the metered Cursor
-> leaf (ADR-0177) the "no paid inner loop" reasoning named, so cost is never a reason to keep a leg
+> claim) with cost — but the `--real` leaf is subscription-funded (ADR-0030); the metered Cursor leaf
+> that the "no paid inner loop" reasoning named has since been RETIRED (ADR-0198, superseding
+> ADR-0177), so live builds are Claude-subscription only and cost is never a reason to keep a leg
 > human. **Leg 4 is converted**: its free, deterministic observe gate-5
 > (`promotion-ancestry.check.ts`) machine-witnesses that the attested REAL-proof commits reached
 > `main` non-squash. **Leg 3 is converted**: its live-artifact observe gate-6

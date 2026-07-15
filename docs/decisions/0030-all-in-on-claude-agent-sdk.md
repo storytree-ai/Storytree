@@ -18,13 +18,14 @@ pivot-out seam), and **reaffirms [ADR-0020](0020-red-green-enforcement-on-the-ow
 trust base** (spine-observed proof never enters the rented runtime).
 
 **Correction ([ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md),
+then [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md),
 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the core
 decision stands: rent a capable live coding harness, retain the owned loop as the
 offline/deterministic fallback, and keep every leaf untrusted behind the spine-owned
-`PhaseAuthor` proof boundary. Overtaken are the stronger **Claude-only / all-in** conclusion and the
-funding premise that made one live harness sufficient. Claude remains a supported live
-implementation; Cursor is admitted as the first second live harness, subject to its fail-closed
-admission proof. A broad provider registry remains deferred.
+`PhaseAuthor` proof boundary. ADR-0177 briefly overtook the stronger **Claude-only / all-in**
+conclusion by admitting Cursor as a second live harness; **ADR-0198 retires that Cursor leaf**
+(and its `CURSOR_API_KEY` billing path). Claude Agent SDK on subscription auth is again the only
+admitted live prove-it-gate leaf. A broad provider registry remains deferred.
 
 *Numbering note:* checked `git log --all` across all 20 remote branches on 2026-06-10 — no
 ADR-0030 exists anywhere; the live-DB ref check is pending (instance stopped) per the
@@ -72,7 +73,8 @@ Four things changed (owner, 2026-06-10):
    (drive-machinery Phase D onward) may run through an SDK-backed executor, authenticated via the
    subscription (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`). The raw-API `AnthropicModel`
    path is not the Claude live driver. [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
-   opens the same runtime seam to Cursor while keeping Claude supported.
+   briefly opened the same runtime seam to Cursor; that leaf was **retired** by
+   [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md).
 2. **Pivot-out is an architectural requirement, not an intention.** The named seams, each of
    which must hold as the SDK executor is built:
    - **Executor seam.** The spine drives phases through a runtime-agnostic executor
@@ -115,7 +117,8 @@ Four things changed (owner, 2026-06-10):
 - **A Claude Phase D run uses the Claude SDK executor.** Its accounting reads SDK-reported
   usage rather than metering an API key. The once-sufficient shared monthly programmatic pool was
   later exhausted; [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
-  admits a second harness without moving proof into either runtime.
+  briefly admitted a second harness; [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)
+  retired it after metered Cursor API spend — Claude subscription remains the live path.
 - **Test asymmetry, accepted with eyes open.** Loop-level e2e stays offline on the owned
   executor; the SDK executor gets live smoke coverage (Phase D) plus offline unit tests of
   its adapters (MCP tool mapping, hook policy). The gate's own guarantees remain offline-testable.
@@ -126,8 +129,10 @@ Four things changed (owner, 2026-06-10):
 ## What this does NOT decide
 
 - A broad provider registry or provider-independent raw-model layer. [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
-  admits one evidence-backed second harness through the existing `PhaseAuthor` boundary and
-  explicitly keeps that broader abstraction deferred.
+  briefly admitted one evidence-backed second harness through the existing `PhaseAuthor` boundary;
+  [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md) retired that Cursor
+  leaf. A future second harness needs a new ADR with an explicit funding model; the broader registry
+  stays deferred.
 - Per-phase model/effort selection across live harnesses.
 - Whether/when the owned loop is ever retired — explicitly kept until the SDK executor has
   survived real drives.

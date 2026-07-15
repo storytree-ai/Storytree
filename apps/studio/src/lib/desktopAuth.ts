@@ -6,16 +6,14 @@
 // the bridge only when the preload injected it, so the hosted studio shows no non-functional keychain
 // controls. The renderer imports NO Electron/agent/build code — its only path to credential storage is
 // this injected bridge (ADR-0004 / ADR-0109 §Decision 4 / ADR-0179 §3).
+//
+// Kinds: oauth + api-key only (cursor-api-key retired with the Cursor leaf — ADR-0198).
 
-/** The three independently namespaced credential kinds the desktop broker hosts. */
-export type CredentialKind = "oauth" | "api-key" | "cursor-api-key";
+/** The independently namespaced credential kinds the desktop broker hosts. */
+export type CredentialKind = "oauth" | "api-key";
 
 /** The kinds in stable display order (matches apps/desktop/src/credential/kinds.ts). */
-export const CREDENTIAL_KINDS: readonly CredentialKind[] = [
-  "oauth",
-  "api-key",
-  "cursor-api-key",
-];
+export const CREDENTIAL_KINDS: readonly CredentialKind[] = ["oauth", "api-key"];
 
 /**
  * The bridge the desktop preload exposes on `window`. Absent in the hosted/dev studio (a browser).

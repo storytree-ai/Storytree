@@ -21,40 +21,27 @@ test("keychain-round-trip: a stored token reads back, then clears to null", asyn
 });
 
 // Each supported credential is held under its own account and maps to exactly one env var.
-test("credential kinds are mapped, namespaced, read, and cleared independently", async () => {
+test("two-kind-keychain-independence: credential kinds are mapped, namespaced, read, and cleared independently", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain);
 
   await broker.store("oauth", "oauth-token");
   await broker.store("api-key", "api-key-token");
-  await broker.store("cursor-api-key", "cursor-api-key-token");
 
   assert.equal(await broker.read("oauth"), "oauth-token");
   assert.equal(await broker.read("api-key"), "api-key-token");
-  assert.equal(await broker.read("cursor-api-key"), "cursor-api-key-token");
-  assert.equal(
-    new Set([
-      broker.account("oauth"),
-      broker.account("api-key"),
-      broker.account("cursor-api-key"),
-    ]).size,
-    3,
-  );
+  assert.equal(new Set([broker.account("oauth"), broker.account("api-key")]).size, 2);
 
   assert.deepEqual(CREDENTIAL_ENV_VAR, {
     oauth: "CLAUDE_CODE_OAUTH_TOKEN",
     "api-key": "ANTHROPIC_API_KEY",
-    "cursor-api-key": "CURSOR_API_KEY",
   });
 
-  assert.equal(await broker.clear("cursor-api-key"), true);
-  assert.equal(await broker.read("cursor-api-key"), null);
-  assert.equal(await broker.read("oauth"), "oauth-token");
+  assert.equal(await broker.clear("oauth"), true);
+  assert.equal(await broker.read("oauth"), null);
   assert.equal(await broker.read("api-key"), "api-key-token");
 
-  assert.equal(await broker.clear("oauth"), true);
   assert.equal(await broker.clear("api-key"), true);
-  assert.equal(await broker.read("oauth"), null);
   assert.equal(await broker.read("api-key"), null);
 });
 

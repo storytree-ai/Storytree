@@ -16,10 +16,11 @@ under ADR-0070 when built.
 
 **Correction (2026-07-10, per
 [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):**
-[ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md) admits Cursor as a
-second live harness and requires `CURSOR_API_KEY`. The credential-host boundary decided here is
-unchanged; the stale two-Claude-kind wording is corrected below to include the independently
-namespaced Cursor key and operation-specific selection.
+[ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md) briefly admitted
+Cursor as a second live harness and required `CURSOR_API_KEY`. That leaf (and the third credential
+kind) was later **retired** by
+[ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md). Hosted kinds are
+again `oauth` and `api-key` only; Decision 2 below is corrected in place.
 
 [ADR-0179](0179-desktop-credentials-are-configurable-through-the-storytree-u.md) further amends this
 decision by requiring the desktop app to expose the broker through a desktop-only Credentials panel.
@@ -57,10 +58,9 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
 
 2. **Its added job over the browser is credential hosting.** It stores the member's credentials in the
    **OS keychain** as independently namespaced kinds: `CLAUDE_CODE_OAUTH_TOKEN` (subscription — runs
-   the login + refresh flow), `ANTHROPIC_API_KEY`, and — under ADR-0177 — `CURSOR_API_KEY`. It brokers
-   only the credential requested by an operation; a Claude build may select only the first two, while
-   a Cursor operation may select only `CURSOR_API_KEY`. The credential is never persisted server-side
-   (ADR-0090 d.3 preserved).
+   the login + refresh flow) and `ANTHROPIC_API_KEY`. (`CURSOR_API_KEY` was briefly admitted under
+   ADR-0177 and **retired** by ADR-0198 with the Cursor leaf.) A Claude build may select only these
+   two. The credential is never persisted server-side (ADR-0090 d.3 preserved).
 
 3. **The client never imports the agent and holds no model path** (ADR-0090 d.2 / ADR-0004). A build is
    still requested as an INTENT over the gated API; the worker is the single orchestrator boundary. The
@@ -147,8 +147,9 @@ rejected. Bringing it back is exercising the option ADR-0090 parked, not reopeni
   runtime the same credential broker serves when hosted.
 - [ADR-0042](0042-hosted-studio-demo-cloud-run-iap.md) — the hosted studio + IAP the desktop client
   signs into.
-- [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md) — admits Cursor as a
-  second live harness and requires the independently selected `CURSOR_API_KEY`.
+- [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md) — retires the
+  Cursor leaf and `CURSOR_API_KEY` credential kind (superseding ADR-0177); hosted kinds remain
+  `oauth` and `api-key` only.
 - [ADR-0179](0179-desktop-credentials-are-configurable-through-the-storytree-u.md) — requires the
   desktop-only Credentials panel and narrows the renderer boundary to permit only transient password
   entry and one-way store submission, never persistence or readback.

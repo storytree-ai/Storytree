@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 //
 // Stage-1 red-green of the desktop Credentials panel (credential-broker contracts 5–9, ADR-0179 /
-// ADR-0070 two-stage). These pin GEOMETRY/BEHAVIOUR over an injected `desktopAuth` fake — NO
-// appearance assertion lives here. Each test LEADS with its contract id.
+// ADR-0198 / ADR-0070 two-stage). These pin GEOMETRY/BEHAVIOUR over an injected `desktopAuth` fake —
+// NO appearance assertion lives here. Each test LEADS with its contract id.
+// Two kinds only: oauth + api-key (cursor-api-key retired with the Cursor leaf — ADR-0198).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
@@ -10,7 +11,7 @@ import type { CredentialKind, DesktopAuthBridge } from "../lib/desktopAuth.js";
 import { CredentialsPanel } from "./CredentialsPanel.js";
 import { DesktopCredentialsDock } from "./DesktopCredentialsDock.js";
 
-const KINDS: CredentialKind[] = ["oauth", "api-key", "cursor-api-key"];
+const KINDS: CredentialKind[] = ["oauth", "api-key"];
 
 function makeFake(): {
   store: ReturnType<typeof vi.fn<DesktopAuthBridge["store"]>>;
@@ -48,22 +49,24 @@ describe("CredentialsPanel — credentials-ui-feature-gated", () => {
   });
 });
 
-describe("CredentialsPanel — credentials-ui-three-independent-rows", () => {
-  it("credentials-ui-three-independent-rows: three rows render with independent boolean status", async () => {
+describe("CredentialsPanel — credentials-ui-two-independent-rows", () => {
+  it("credentials-ui-two-independent-rows: two rows render with independent boolean status", async () => {
     const fake = makeFake();
-    fake.status.mockImplementation(async (kind: CredentialKind) => kind === "cursor-api-key");
+    fake.status.mockImplementation(async (kind: CredentialKind) => kind === "api-key");
     render(<CredentialsPanel auth={fake} />);
     await flush();
 
     expect(screen.getByText("Claude subscription token")).toBeTruthy();
     expect(screen.getByText("Anthropic API key")).toBeTruthy();
-    expect(screen.getByText("Cursor API key")).toBeTruthy();
+    expect(screen.queryByText("Cursor API key")).toBeNull();
 
     const rows = screen.getAllByText(/Saved|Not saved/);
-    expect(rows).toHaveLength(3);
-    expect(screen.getByText("Cursor API key").closest(".credentials-row")!.textContent).toContain("Saved");
-    expect(screen.getAllByText("Not saved")).toHaveLength(2);
-    expect(fake.status).toHaveBeenCalledTimes(3);
+    expect(rows).toHaveLength(2);
+    expect(screen.getByText("Anthropic API key").closest(".credentials-row")!.textContent).toContain(
+      "Saved",
+    );
+    expect(screen.getAllByText("Not saved")).toHaveLength(1);
+    expect(fake.status).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -73,13 +76,13 @@ describe("CredentialsPanel — credentials-ui-one-way-store", () => {
     render(<CredentialsPanel auth={fake} />);
     await flush();
 
-    const input = screen.getAllByLabelText(/input$/i)[2]!;
-    fireEvent.change(input, { target: { value: "cursor-secret-value" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Store" })[2]!);
+    const input = screen.getAllByLabelText(/input$/i)[1]!;
+    fireEvent.change(input, { target: { value: "api-secret-value" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Store" })[1]!);
     await flush();
 
     expect(fake.store).toHaveBeenCalledTimes(1);
-    expect(fake.store).toHaveBeenCalledWith("cursor-api-key", "cursor-secret-value");
+    expect(fake.store).toHaveBeenCalledWith("api-key", "api-secret-value");
     expect((input as HTMLInputElement).value).toBe("");
     expect(fake).not.toHaveProperty("get");
   });
@@ -154,7 +157,7 @@ describe("CredentialsPanel — credentials-ui-per-kind-sign-out", () => {
     expect(fake.signOut).toHaveBeenCalledWith("oauth");
     expect(fake.status.mock.calls.filter(([k]) => k === "oauth").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Saved")).toHaveLength(1);
-    expect(screen.getAllByText("Not saved")).toHaveLength(2);
+    expect(screen.getAllByText("Not saved")).toHaveLength(1);
   });
 });
 
@@ -169,13 +172,12 @@ describe("DesktopCredentialsDock — feature detection with global", () => {
 
     expect(screen.getByRole("region", { name: "Credentials" })).toBeTruthy();
     for (const kind of KINDS) {
-      expect(screen.getByText(
-        kind === "oauth"
-          ? "Claude subscription token"
-          : kind === "api-key"
-            ? "Anthropic API key"
-            : "Cursor API key",
-      )).toBeTruthy();
+      expect(
+        screen.getByText(
+          kind === "oauth" ? "Claude subscription token" : "Anthropic API key",
+        ),
+      ).toBeTruthy();
     }
+    expect(screen.queryByText("Cursor API key")).toBeNull();
   });
 });

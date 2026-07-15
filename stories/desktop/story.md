@@ -73,7 +73,7 @@ artifact_edges: [studio, headless-orchestrator, studio-cloud]
 # operator-attested appearance (and the live `builder` grant); 0176 supersedes 0119 and is the complete
 # current sidecar decision: tsx-sidecar + studio boot reads + re-compose boundary, with DB/git launch
 # preconditions and no degraded shell.
-decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 21, 70, 179, 180]
+decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 21, 70, 179, 180, 198]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -89,7 +89,7 @@ This story has **two layers, decided by two ADRs**:
    Electron shell that loads the compiled studio bundle and keeps each runtime credential in the **OS
    keychain** — never persisted in, returned to, or recoverable from the renderer (a raw value may
    exist transiently in the password input and cross the store IPC once on submission, ADR-0179). Its
-   provable core (the broker's keychain round-trip, three-kind independence, operation-bridge lifetime,
+   provable core (the broker's keychain round-trip, two-kind independence, operation-bridge lifetime,
    and the desktop-only Credentials panel's one-way store/boolean status) is green in CI; the real-OS-
    keychain round-trip + the native shell's appearance are operator-attested (ADR-0070). This is the
    [`credential-broker`](credential-broker.md) + [`electron-shell`](electron-shell.md) pair.
@@ -233,7 +233,7 @@ Listed roots-first (a capability appears after everything it depends on).
 
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
-| 1 | [`credential-broker`](credential-broker.md) | The member stores, checks presence of, and removes each of the three runtime credentials through a desktop-only Credentials panel; the main-process broker round-trips the OS keychain and never returns a stored value to the renderer. | contract-test (main-process contracts green) + contract-test (panel component tests) + operator-attested (real Cursor key via panel) | — |
+| 1 | [`credential-broker`](credential-broker.md) | The member stores, checks presence of, and removes each of the two runtime credentials through a desktop-only Credentials panel; the main-process broker round-trips the OS keychain and never returns a stored value to the renderer. | contract-test (main-process contracts green) + contract-test (panel component tests) + operator-attested (real OS keychain via panel) | — |
 | 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind context-isolated `desktopAuth` for the Credentials panel. | operator-attested (ADR-0070) | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
 | 4 | [`boot-read-routes`](boot-read-routes.md) | The local backend adds the studio's remaining BOOT read routes — `me` (a local member identity), `docs` (read from the member's checkout), `comments` (an injected store seam) — re-composed from the organism drivers (never importing the studio server), so the frontend boots and renders the forest instead of an access/error screen (ADR-0119 §2). | contract-test (CI red→green) | `local-backend-boot` |
@@ -362,13 +362,13 @@ credential never leaving the machine.
 1. **Launch.** _(witness: human)_ The member opens the desktop app; it loads the compiled studio UI
    inside the native shell (no Vite, no source on the renderer). **Success —** the studio renders.
 2. **Configure credentials in the panel, stored in the keychain.** _(witness: machine for panel
-   contracts 5–9; human for real Cursor-key round-trip)_ The member opens the desktop-only Credentials
+   contracts 5–9; human for real OS-keychain round-trip)_ The member opens the desktop-only Credentials
    panel (settings/control surface), enters each credential kind independently (Claude subscription
-   `oauth`, Anthropic `api-key`, Cursor `cursor-api-key`), stores through Store/Replace, observes
+   `oauth`, Anthropic `api-key`), stores through Store/Replace, observes
    boolean-only saved status, and removes through Sign out/Remove — the raw credential never pre-fills,
    never reads back, and never appears in `localStorage` or plaintext on disk; on a real desktop app the
-   operator attests a replacement Cursor key survives restart then removes cleanly. (The CI-honest core —
-   three-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store/
+   operator attests a replacement token survives restart then removes cleanly. (The CI-honest core —
+   two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store/
    feature gate — is `credential-broker`'s contracts 1–9.)
 3. **The local backend is live (no 503).** _(witness: machine)_ With the desktop main process running,
    a `GET /api/*` read route (library/tree/activity) returns a real envelope body — NOT the
@@ -426,9 +426,9 @@ agent boundary.
 ## Reliability Gates
 
 [`credential-broker`](credential-broker.md) LANDED green — the main-process broker contracts (1–4:
-three-kind keychain independence, typed-IPC-never-discloses, operation-env-lifetime,
+two-kind keychain independence, typed-IPC-never-discloses, operation-env-lifetime,
 runtime-credential-partition) pass their `apps/desktop` `node:test` suite, and the desktop-only
-Credentials panel contracts (5–9: feature-gated, three independent rows, one-way store, blank refusal,
+Credentials panel contracts (5–9: feature-gated, two independent rows, one-way store, blank refusal,
 per-kind sign-out; ADR-0179) pass their `apps/studio` vitest/jsdom suite
 (`apps/studio/src/components/CredentialsPanel.test.tsx`). But storytree's own prove-it-gate never DROVE
 that green to a persisted verdict: the panel `real:` arm was **hand-landed** (commit `0d389da`), not
@@ -463,9 +463,9 @@ suites.
 
 1. **The credential-broker suites are green — the broker contracts and the Credentials panel** _(gate: observe)_ _(covers: credential-broker)_ `pnpm --filter desktop --filter studio test`. The
    spine runs it at a clean committed HEAD and OBSERVES both owning suites green — the main-process
-   broker (contracts 1–4: three-kind keychain independence, typed-IPC-never-discloses,
+   broker (contracts 1–4: two-kind keychain independence, typed-IPC-never-discloses,
    operation-env-lifetime, runtime-credential-partition; `apps/desktop`, node:test) AND the desktop-only
-   Credentials panel (contracts 5–9: feature-gated, three independent rows, one-way store, blank refusal,
+   Credentials panel (contracts 5–9: feature-gated, two independent rows, one-way store, blank refusal,
    per-kind sign-out; `apps/studio/src/components/CredentialsPanel.test.tsx`, ADR-0179, vitest jsdom) —
    then signs an `adopted` verdict. `credential-broker` greens via this gate's `(covers:)` (ADR-0097 §5).
    The real `@napi-rs/keyring` OS-keychain round-trip through the panel is NOT observed here — it is the

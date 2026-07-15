@@ -36,7 +36,7 @@ broker contracts, typed IPC shapes, and the panel's geometry/behaviour — is al
   in-memory fake the contracts use.
 - **Exposes `window.desktopAuth` for the Credentials panel (ADR-0179).** The preload bridges
   context-isolated `store` / boolean-only `status` / `signOut` IPC to the main-process broker. The
-  panel's store/check/remove journey — three independent rows, one-way store, boolean status — is
+  panel's store/check/remove journey — two independent rows, one-way store, boolean status — is
   authored and proven on [`credential-broker`](credential-broker.md); the shell only supplies the real
   adapter and the IPC surface the panel consumes.
 - **Renderer boundary is transient-entry, not zero-touch (ADR-0179).** A raw credential is never
@@ -67,6 +67,6 @@ build-behind-it / surface-it / owner-nod shape (ADR-0070):
   adapter binding; boolean saved status survives an app restart; sign-out clears it; and the stored
   credential is never persisted in, returned to, or recoverable from the renderer (transient password
   input + one-way store IPC only). That witnessed attestation is the signed verdict for this
-  capability (an agent can never self-attest it). The panel's full three-kind configure journey is
+  capability (an agent can never self-attest it). The panel's full two-kind configure journey is
   rolled up under `credential-broker`'s operator-attested leg (ADR-0179 §5); this capability attests
   the shell binding that makes that journey real on a built app.

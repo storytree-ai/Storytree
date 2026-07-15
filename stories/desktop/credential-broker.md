@@ -7,13 +7,15 @@ outcome: "The member configures each independently namespaced runtime credential
 status: proposed
 proof_mode: contract-test
 depends_on: []
-decisions: [109, 111, 177, 179]
+decisions: [109, 111, 179, 198]
 # Node-borne proof config (ADR-0057 keystone): the broker's main-process contracts (1–4) are already
 # green in apps/desktop. THIS block authors the NET-NEW renderer Credentials panel — a studio frontend
 # component feature-gated on `window.desktopAuth` (ADR-0179). FRONTEND-BUILDER TWO-STAGE (ADR-0070):
-# the `real:` arm proves GEOMETRY/BEHAVIOUR ONLY (feature gate, three rows, one-way store, boolean
-# status, per-kind sign-out, blank refusal) over an injected `desktopAuth` fake; the real Cursor-key
+# the `real:` arm proves GEOMETRY/BEHAVIOUR ONLY (feature gate, two rows, one-way store, boolean
+# status, per-kind sign-out, blank refusal) over an injected `desktopAuth` fake; the real OS-keychain
 # round-trip in a running desktop app is operator-attested below, not machine-asserted here.
+# ADR-0198 (supersedes ADR-0177, amends ADR-0179): the Cursor leaf is retired, so the credential
+# surface is TWO kinds only — `oauth` and `api-key`; `cursor-api-key` / CURSOR_API_KEY is dropped.
 # CRITICAL — apps/studio is VITEST + jsdom, NOT node:test → `real.proofCommand` runs the ONE file under
 # vitest (the chat-panel precedent).
 proof:
@@ -55,7 +57,7 @@ This remains **one capability** for the first minimum-green desktop credential s
 single walkthrough proves the transient-entry boundary end to end: each kind is independently
 stored through the panel, checked by boolean-only status, removable per kind, brokered to only its
 authorized operation for only that operation's lifetime, and never read back into the renderer. The
-three-kind broker core (PR #662) and the Credentials panel (ADR-0179) are the same journey — secure
+two-kind broker core (PR #662) and the Credentials panel (ADR-0179) are the same journey — secure
 plumbing without an application affordance cannot complete credential hosting.
 
 The main-process broker speaks to a narrow **`KeychainPort`** (`set` / `get` / `delete` verbs) rather
@@ -63,7 +65,7 @@ than to any concrete secret store. CI uses `InMemoryKeychain` plus an injected e
 contracts 1–4, and an injected `window.desktopAuth` fake for contracts 5–9 — every automated contract
 is offline and cannot touch a real credential. The thin `@napi-rs/keyring` binding and a real
 OS-keychain round-trip through the panel remain operator-attested (ADR-0070 / ADR-0179 §5); the shell
-binding lives on [`electron-shell`](electron-shell.md), the panel's real Cursor-key leg is attested
+binding lives on [`electron-shell`](electron-shell.md), the panel's real OS-keychain leg is attested
 below.
 
 ## Proof walkthrough — contract-test
@@ -71,23 +73,23 @@ below.
 Using `InMemoryKeychain`, an injected environment object, the existing typed IPC/preload API shape,
 and stubbed operation runners:
 
-1. Store all three credential kinds through the broker, then read and clear them by kind; observe that
+1. Store both credential kinds through the broker, then read and clear them by kind; observe that
    each kind maps to exactly one environment variable and that changing or clearing one kind cannot
-   affect either other kind.
+   affect the other kind.
 2. Run the package typecheck across the existing main/preload store, status, and sign-out signatures:
-   all accept `cursor-api-key`; status and sign-out return only booleans, while store returns `void`,
-   so no response shape can carry a raw value.
+   all accept the `CredentialKind` union (`oauth` | `api-key`); status and sign-out return only
+   booleans, while store returns `void`, so no response shape can carry a raw value.
 3. Invoke a generic operation bridge for each kind; observe precedence
    **explicit environment > requested-operation keychain > secrets file**, the selected mapping only
    during the operation, and exact restoration in `finally` after success or failure. An injected
    variable that did not exist before the operation is scrubbed rather than retained.
-4. Invoke a Claude build with only `cursor-api-key` stored; observe that Claude selection considers
+4. Invoke a Claude build with neither credential kind stored; observe that Claude selection considers
    only `oauth` or `api-key` and fails closed. Keep sidecar startup outside credential selection: it
-   performs no keychain read, while a later Cursor operation can request per-operation injection.
+   performs no keychain read.
 5. Render the Credentials panel with an injected `desktopAuth` fake: when `window.desktopAuth` is
    absent the panel is not mounted (hosted/browser studio shows no non-functional keychain controls);
-   when present, three independent rows appear — Claude subscription token (`oauth`), Anthropic API
-   key (`api-key`), Cursor API key (`cursor-api-key`) — each with boolean saved/not-saved status, an
+   when present, two independent rows appear — Claude subscription token (`oauth`), Anthropic API
+   key (`api-key`) — each with boolean saved/not-saved status, an
    ephemeral password input, Store/Replace, and Sign out/Remove.
 6. Store through each row: `desktopAuth.store(kind, value)` is called once, the input and renderer
    state clear in `finally` on both success and failure, status refreshes via `desktopAuth.status(kind)`
@@ -100,25 +102,23 @@ and stubbed operation runners:
   interface (`set(account, secret)`, `get(account)`, `delete(account)`), inject it into the broker,
   and pass `InMemoryKeychain` in tests. The broker has no dependency on `@napi-rs/keyring` or any OS
   API — only on the port.
-- **Exactly three independently namespaced kinds.** The tagged vocabulary is:
+- **Exactly two independently namespaced kinds.** The tagged vocabulary is:
   - `oauth` → `CLAUDE_CODE_OAUTH_TOKEN`
   - `api-key` → `ANTHROPIC_API_KEY`
-  - `cursor-api-key` → `CURSOR_API_KEY`
 
   Each kind owns a distinct keychain account key. Reads, writes, and clears are selected by kind;
   there is no shared/default account and no cross-kind fallback.
-- **Runtime authorization is narrower than storage support.** A Claude build may select only
-  `oauth` or `api-key`. `cursor-api-key` is never a Claude credential and cannot
-  authenticate a Claude build; Cursor-only storage therefore makes a Claude build fail closed. A
-  Cursor operation requests only `cursor-api-key`.
+- **A Claude build selects one of the Claude kinds.** A Claude build may select `oauth` or
+  `api-key`, and fails closed when neither is stored. There is no non-Claude runtime credential in
+  the keychain — the metered Cursor kind was retired (ADR-0198, superseding ADR-0177).
 - **The generic bridge grants a credential for one operation only.** Given the requested kind, it
   resolves the mapped variable with precedence **explicit environment > requested-operation keychain
   > secrets file**, injects only that variable into the operation environment, and restores the
   previous state in `finally` on both success and failure. If the bridge introduced the variable, it
   deletes/scrubs it afterward. It never mutates an unrelated credential variable.
-- **Do not park Cursor authentication in the sidecar process.** `CURSOR_API_KEY` is prohibited from
-  the sidecar startup environment. The sidecar receives it only through the generic per-operation
-  bridge for a Cursor operation, then the bridge scrubs/restores the injected environment.
+- **Sidecar startup performs no keychain read.** A runtime credential enters a process environment
+  only through the generic per-operation bridge for a requested operation, which then scrubs/restores
+  the injected environment; no credential is read into the sidecar startup environment.
 - **Renderer status is boolean-only; raw-value IPC is store-only.** Typed IPC and preload surfaces may
   accept a raw credential only on the renderer-to-main store call. Status returns only
   `boolean` per requested kind, sign-out returns only `boolean`, and store returns `void`; no response
@@ -144,25 +144,25 @@ and stubbed operation runners:
 - **What is NOT proven here (honest scope).** The real `@napi-rs/keyring` adapter — actually writing
   into Keychain / Credential Manager / libsecret — is thin glue proven by **operator attestation**
   (ADR-0070), not by CI; it round-trips the real OS keychain that CI cannot drive. The shell binding
-  attestation lives on [`electron-shell`](electron-shell.md); the panel's real Cursor-key store/remove
+  attestation lives on [`electron-shell`](electron-shell.md); the panel's real OS-keychain store/remove
   leg is operator-attested below (ADR-0179 §5). Automated proof never reads or migrates any
   user-level secrets file; `credentialedBuildRunner` tests represent the file tier with an
-  already-hydrated injected environment. No paid Cursor/model run is required for attestation.
+  already-hydrated injected environment.
 
 ## Contracts (9)
 
-1. **`three-kind-keychain-independence`** — all three kinds round-trip, map, and clear independently
+1. **`two-kind-keychain-independence`** — both kinds round-trip, map, and clear independently
    - **asserts —** through `InMemoryKeychain`, each tagged kind maps exactly to its declared environment
-     variable and distinct account key; reading one kind never returns another; clearing one leaves
-     both others intact.
-   - **proven by —** a parameterized broker contract test over the three kinds, including pairwise
+     variable and distinct account key; reading one kind never returns the other; clearing one leaves
+     the other intact.
+   - **proven by —** a parameterized broker contract test over the two kinds, including pairwise
      independence and exact mapping assertions.
 
 2. **`typed-ipc-never-discloses`** — renderer status is boolean-only and raw-value IPC is store-only
    - **asserts —** typed main/preload contracts admit a raw value only as store-call input; status is
      a per-kind boolean, sign-out returns only a boolean, and store returns `void`.
    - **proven by —** the package typecheck proving the existing main/preload store, status, and
-     sign-out signatures accept the extended `CredentialKind` union including `cursor-api-key`; their
+     sign-out signatures accept the `CredentialKind` union (`oauth` | `api-key`); their
      existing return types prove no raw-valued response surface. No dedicated IPC/preload test is
      required or claimed.
 
@@ -176,13 +176,12 @@ and stubbed operation runners:
      the Claude precedence chain of explicit environment over keychain over the already-hydrated
      environment representing the file tier.
 
-4. **`runtime-credential-partition`** — Cursor storage cannot authenticate Claude or persist at startup
+4. **`runtime-credential-partition`** — a Claude build selects only the Claude kinds and startup performs no keychain read
    - **asserts —** the Claude runner considers only `oauth` and `api-key`, then fails
-     closed with only `cursor-api-key` stored; a Cursor runner requests only `cursor-api-key`;
-     sidecar startup performs no keychain read, so `CURSOR_API_KEY` can enter only inside a requested
-     Cursor operation's bridge lifetime.
+     closed when neither kind is stored; sidecar startup performs no keychain read, so a runtime
+     credential can enter the environment only inside a requested operation's bridge lifetime.
    - **proven by —** runner tests with `InMemoryKeychain` and injected environments cover the
-     Cursor-only/Claude fail-closed case and Cursor's per-operation selection. The startup half is the
+     no-credential/Claude fail-closed case and per-operation selection. The startup half is the
      composition boundary itself: sidecar startup has no keychain read; no dedicated startup snapshot
      test is required or claimed.
 
@@ -192,10 +191,10 @@ and stubbed operation runners:
    - **proven by —** `CredentialsPanel.test.tsx` rendering the settings surface without the global;
      query asserts the panel/rows are not in the document.
 
-6. **`credentials-ui-three-independent-rows`** — three kinds, independent boolean status
-   - **asserts —** when `desktopAuth` is present, three rows render for `oauth`, `api-key`, and
-     `cursor-api-key`; each row's saved/not-saved status comes only from `desktopAuth.status(kind)` and
-     changing one kind's status does not affect the others.
+6. **`credentials-ui-two-independent-rows`** — two kinds, independent boolean status
+   - **asserts —** when `desktopAuth` is present, two rows render for `oauth` and
+     `api-key`; each row's saved/not-saved status comes only from `desktopAuth.status(kind)` and
+     changing one kind's status does not affect the other.
    - **proven by —** component test with a fake whose per-kind `status` resolves independently.
 
 7. **`credentials-ui-one-way-store`** — store once, clear input in `finally`, never read back
@@ -221,7 +220,7 @@ and stubbed operation runners:
 
 Contracts 1–4 and the shell's first OAuth round-trip are CI-honest or attested on
 [`electron-shell`](electron-shell.md). The **real desktop Credentials panel** leg is operator-attested:
-a human runs the built desktop app, opens the Credentials panel, enters a replacement Cursor API key
-without any disclosure of a prior value, observes saved status, restarts and observes status persist,
-then removes it and observes unsigned status. No paid Cursor/model run is required. That witnessed
+a human runs the built desktop app, opens the Credentials panel, enters a replacement Claude
+subscription token (`oauth`) without any disclosure of a prior value, observes saved status, restarts
+and observes status persist, then removes it and observes unsigned status. That witnessed
 attestation is the signed verdict for the panel's real-keychain leg (an agent can never self-attest it).

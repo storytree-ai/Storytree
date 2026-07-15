@@ -38,14 +38,15 @@ already named this shape for a mature `--real` build: "a human-witness action; t
 never pretended." The three legs wore the same `human` glyph for these two very different reasons.
 
 **Factual error: the cost premise was wrong.** The reshape was scoped "no paid inner loop." That
-constraint names the metered **Cursor** leaf ([ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md),
-billed per token via `CURSOR_API_KEY`). The `--real`/`--live` Claude Agent SDK leaf is
-**subscription-funded** ([ADR-0030](0030-all-in-on-claude-agent-sdk.md)): its SDK-reported
-`total_cost_usd` is "a phantom … the maxTurns cap is the brake"
-(`packages/drive/src/node-build.ts:76`, `packages/agent/src/headless-orchestrator.ts:81`;
+constraint named the then-planned metered **Cursor** leaf ([ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md),
+later **retired** by [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)).
+The `--real`/`--live` Claude Agent SDK leaf is **subscription-funded**
+([ADR-0030](0030-all-in-on-claude-agent-sdk.md)): its SDK-reported `total_cost_usd` is "a phantom …
+the maxTurns cap is the brake" (`packages/drive/src/node-build.ts:76`,
+`packages/agent/src/headless-orchestrator.ts:81`;
 [ADR-0130](0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md)/0131). So a live
-proof of legs 3 and 7 is affordable on the subscription, not a paid Cursor run — the blocker that made
-them "human" never applied.
+proof of legs 3 and 7 is affordable on the subscription — the blocker that made them "human"
+never applied. There is no live Cursor leaf path anymore.
 
 With cost removed and judgment examined per leg, **none of the three is a genuine human-judgment
 gate**:
@@ -137,8 +138,9 @@ the property proven is itself the behaviour of a real agent.
 - [ADR-0180](0180-lift-the-desktop-write-broker-deferral-for-brokered-uat-sign.md) — the "remain
   human" consequence this amends; its d.5 binding rule + desktop-signing machinery stand.
 - [ADR-0030](0030-all-in-on-claude-agent-sdk.md) — the `--real`/`--live` leaf is subscription-funded
-  (the phantom `total_cost_usd`); [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)
-  — the metered Cursor leaf the "no paid inner loop" constraint actually names.
+  (the phantom `total_cost_usd`); [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)
+  — retires the metered Cursor leaf that the original "no paid inner loop" constraint named
+  (superseding [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md)).
 - [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — `uat_witness`; a
   machine-witnessed story drives its own UAT node. [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)
   / [ADR-0007](0007-proof-model.md) — `operator-attested`, "no compiler for the

@@ -53,7 +53,6 @@ function makeStubRunner(
 
 const OAUTH_VAR = CREDENTIAL_ENV_VAR.oauth;
 const API_KEY_VAR = CREDENTIAL_ENV_VAR["api-key"];
-const CURSOR_API_KEY_VAR = CREDENTIAL_ENV_VAR["cursor-api-key"];
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -200,32 +199,17 @@ test("credentialed-build-runner: rejects with the bridge's typed error when no c
   assert.equal(calls.length, 0, "the base runner must never run without a credential");
 });
 
-test("credentialed-build-runner: a stored Cursor key alone cannot authorize a Claude build", async () => {
-  const broker = new CredentialBroker(new InMemoryKeychain());
-  await broker.store("cursor-api-key", "cursor-only-test-value");
-
-  const env: Record<string, string | undefined> = {};
-  const { calls, runner: base } = makeStubRunner(env);
-  const runner = credentialedBuildRunner({ broker, runner: base, env });
-
-  await assert.rejects(
-    () => runner("some-unit", () => undefined),
-    /no.*credential|not.*stored/i,
-  );
-  assert.deepEqual(calls, [], "the Claude runner must not run with only a Cursor key");
-});
-
-test("credentialed-build-runner: CURSOR_API_KEY env does not count as Claude auth", async () => {
+test("credentialed-build-runner: a stray CURSOR_API_KEY env does not count as Claude auth", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   const env: Record<string, string | undefined> = {
-    [CURSOR_API_KEY_VAR]: "cursor-env-test-value",
+    CURSOR_API_KEY: "cursor-env-test-value",
   };
   const { calls, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({
     broker,
     runner: base,
     env,
-    explicitEnvVars: new Set([CURSOR_API_KEY_VAR]),
+    explicitEnvVars: new Set(["CURSOR_API_KEY"]),
   });
 
   await assert.rejects(

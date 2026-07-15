@@ -16,12 +16,19 @@ ADR-0109's renderer boundary is narrowed from the over-broad phrase "never in th
 never persisted in, returned to, or recoverable from the renderer. A raw credential may exist
 transiently in the user's password input and cross the context-isolated store IPC once on submission.
 
+**Correction (2026-07-15, per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) /
+[ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)):** the
+`cursor-api-key` kind is retired with the Cursor leaf. Hosted kinds are `oauth` and `api-key`
+only; Decision 2 and the proof/attestation wording below are corrected in place.
+
 ## Context
 
-PR #662 completed the safe storage core for three independently namespaced credential kinds:
-`oauth`, `api-key`, and `cursor-api-key`. The Electron preload exposes a context-isolated
-`window.desktopAuth` contract with `store`, boolean-only `status`, and `signOut`; the main process
-stores values in the OS keychain and never returns them.
+PR #662 completed the safe storage core for independently namespaced credential kinds
+(historically three, including `cursor-api-key`; now **two** — `oauth` and `api-key` — after
+[ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)). The Electron
+preload exposes a context-isolated `window.desktopAuth` contract with `store`, boolean-only
+`status`, and `signOut`; the main process stores values in the OS keychain and never returns them.
 
 The compiled Studio renderer does not call that contract. Consequently there is nowhere in the
 desktop application for an operator to enter, replace, inspect the presence of, or remove a
@@ -39,10 +46,11 @@ must not be automatically migrated or deleted; removing it is a separate operato
    application's settings/control surface and is rendered only when `window.desktopAuth` is present.
    The hosted/browser Studio does not show non-functional keychain controls.
 
-2. **All three brokered kinds are configurable.** The panel presents separate rows for:
+2. **Both brokered kinds are configurable.** The panel presents separate rows for:
    - Claude subscription token (`oauth`);
-   - Anthropic API key (`api-key`);
-   - Cursor API key (`cursor-api-key`).
+   - Anthropic API key (`api-key`).
+
+   (`cursor-api-key` was retired with the Cursor leaf — ADR-0198.)
 
    Each row has an ephemeral password input, a Store/Replace action, boolean-only saved/not-saved
    status, and a Sign out/Remove action. The rows never share a value or fallback into one another.
@@ -58,10 +66,11 @@ must not be automatically migrated or deleted; removing it is a separate operato
    any plaintext fallback still requires an explicit owner approval.
 
 5. **Proof is two-stage.** CI tests the panel against an injected `desktopAuth` fake: feature
-   detection, three independent rows, one-way store, input clearing on success and failure,
+   detection, two independent rows, one-way store, input clearing on success and failure,
    boolean-only status, and per-kind sign-out. A human then attests the real desktop experience:
-   enter a replacement Cursor key without disclosure, observe saved status, restart and observe the
-   status persist, then remove it and observe unsigned status. No paid Cursor/model run is required.
+   enter a replacement Claude subscription token without disclosure, observe saved status, restart
+   and observe the status persist, then remove it and observe unsigned status. No paid model run
+   is required.
 
 ## Consequences
 
@@ -79,16 +88,15 @@ must not be automatically migrated or deleted; removing it is a separate operato
 
 **Deferred**
 - Automatic migration or deletion of plaintext fallbacks.
-- Provider OAuth flows, credential reveal/export, model discovery, Cursor runtime selection, and any
-  authenticated or paid model run.
+- Provider OAuth flows, credential reveal/export, and model discovery.
 
 ## References
 
 - [ADR-0109](0109-a-native-credential-host-desktop-client-electron-for-byo-cre.md) — Electron
   credential-host boundary, amended here with the required UI and precise
   transient-entry renderer boundary.
-- [ADR-0177](0177-open-the-leaf-runtime-seam-to-cursor-while-keeping-the-deter.md) — Cursor
-  live-harness direction and `CURSOR_API_KEY`.
+- [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md) — retires the
+  Cursor leaf and the `cursor-api-key` kind (superseding ADR-0177).
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) —
   operator-attested visual and real-OS-keychain leg.
 - `apps/desktop/electron/{main,preload}.ts`

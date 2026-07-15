@@ -1,9 +1,10 @@
-// CredentialsPanel — desktop-only credential configuration (ADR-0179).
+// CredentialsPanel — desktop-only credential configuration (ADR-0179 / ADR-0198).
 //
-// Three independent rows (oauth, api-key, cursor-api-key): boolean saved/not-saved status, an
+// Two independent rows (oauth, api-key): boolean saved/not-saved status, an
 // ephemeral password input, Store/Replace, and Sign out/Remove. The panel never reads, reveals,
 // copies, exports, or pre-fills a stored value — status is boolean-only via `desktopAuth.status`,
 // and store is one-way via `desktopAuth.store` with input cleared in `finally`.
+// cursor-api-key was retired with the Cursor leaf (ADR-0198).
 //
 // APPEARANCE is owner-attested (ADR-0070): machine tests pin geometry/behaviour over an injected
 // fake; the real OS-keychain round-trip is witnessed in the running desktop app.
@@ -19,7 +20,6 @@ import {
 const ROW_LABELS: Record<CredentialKind, string> = {
   oauth: "Claude subscription token",
   "api-key": "Anthropic API key",
-  "cursor-api-key": "Cursor API key",
 };
 
 export function CredentialsPanel({

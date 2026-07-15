@@ -99,9 +99,9 @@ export function storytreeDataApi(): Plugin {
           .filter((s): s is import('@storytree/orchestrator').NodeSpec => s !== null);
         return { kind: 'story', spec, caps };
       };
-      // Hydrate CLAUDE_CODE_OAUTH_TOKEN / CURSOR_API_KEY (SDK leaves) + STORYTREE_DB_USER
-      // (pg verdict store) from ~/.storytree/secrets.json when unset — the same one rotation point
-      // the CLI uses (env wins).
+      // Hydrate CLAUDE_CODE_OAUTH_TOKEN + STORYTREE_DB_USER (pg verdict store) from
+      // ~/.storytree/secrets.json when unset — the same one rotation point the CLI uses (env wins).
+      // CURSOR_API_KEY hydration retired with the Cursor leaf (ADR-0198).
       const build: BuildContext = {
         registry: buildRegistry,
         // The worker routes by tier (ADR-0090/0144): a story id → `story build --real` (the honest

@@ -40,25 +40,6 @@ export {
   composeLeafSystemPrompt,
 } from "./sdk-author.js";
 
-export type {
-  CursorDiscoveredModel,
-  CursorHandshakeArgs,
-  CursorHandshakeClient,
-  CursorHandshakeCreateOptions,
-  CursorHandshakeError,
-  CursorHandshakeResult,
-  CursorHandshakeRun,
-  CursorHandshakeSession,
-  CursorHandshakeTerminal,
-  CursorModelSelection,
-  CursorTokenUsage,
-  CursorToolEvent,
-} from "./cursor-handshake.js";
-export {
-  runCursorReadOnlyHandshake,
-  selectDiscoveredCursorModel,
-} from "./cursor-handshake.js";
-
 export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";
 export { runSdkCurator } from "./sdk-curator.js";
 

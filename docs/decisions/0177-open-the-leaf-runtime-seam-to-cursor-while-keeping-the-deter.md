@@ -1,15 +1,18 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-09
 amends: [11, 30]
-load_bearing: true
 ---
 # ADR-0177: Open the leaf-runtime seam to Cursor while keeping the deterministic spine
 
 ## Status
 
-accepted (2026-07-09) — decided/directed by the owner in conversation on 2026-07-09. Design-time
-alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+superseded (2026-07-15) by [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)
+— Cursor as a live prove-it-gate harness (and its `CURSOR_API_KEY` billing path) is retired;
+Claude Agent SDK is again the only live leaf. Historical decision text below is unchanged.
+
+~~accepted (2026-07-09) — decided/directed by the owner in conversation on 2026-07-09. Design-time
+alignment IS the ratification (ADR-0110); no second end-of-flow ask.~~
 
 **Amends ADR-0030** — its architectural core stands: rent a capable live harness, keep
 the owned loop as the deterministic fallback, and hold proof outside every leaf behind
