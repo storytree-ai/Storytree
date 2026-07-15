@@ -2,8 +2,8 @@
 id: "ambient-integration"
 tier: capability
 story: notice-board
-title: "Presence declares itself — spine-side, fail-silent hooks, a statusline glance"
-outcome: "Presence declares itself: spine-side around SDK builds, fail-silent session hooks, a statusline glance — never via a blocking-capable hook."
+title: "Presence declares itself — fail-silent session hooks, a statusline glance; a build never writes it"
+outcome: "Presence declares itself: fail-silent session hooks and a statusline glance — never via a blocking-capable hook, and a build run NEVER writes session presence (ADR-0199)."
 status: proposed
 proof_mode: integration-test
 depends_on: [noticeboard-cli, tree-view]
@@ -30,19 +30,20 @@ proof:
       args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
-# Presence declares itself — spine-side, fail-silent hooks, a statusline glance
+# Presence declares itself — fail-silent session hooks, a statusline glance; a build never writes it
 
-**Outcome —** Presence declares itself: spine-side around SDK builds, fail-silent session hooks, a
-statusline glance — never via a blocking-capable hook.
+**Outcome —** Presence declares itself: fail-silent session hooks and a statusline glance — never
+via a blocking-capable hook, and a build run NEVER writes session presence (ADR-0199).
 
 > **Proof status (honest) — `proposed`, registered for REAL build.** The registered proof
-> (`packages/drive/src/ambient-presence.test.ts`) covers the MODULE legs offline — the build
-> wrapper, the fail-silent hook handler, the statusline glance/heartbeat, the config audit — all
-> against fakes. The spine wiring (calling `withPresence` from `node build`, the
-> `.claude/settings.json` hook/statusline entries) lands spine-side AFTER promotion, the
+> (`packages/drive/src/ambient-presence.test.ts`) covers the MODULE legs offline — the
+> module-surface assertion that no build presence wrapper exists, the fail-silent hook handler, the
+> statusline glance/heartbeat, the config audit — all against fakes. The wiring note now reads: the
+> build path (`node build` / `story build`, every mode) carries no presence calls at all — the
+> `.claude/settings.json` hook/statusline entries land spine-side AFTER promotion, the
 > presence-store house pattern; the DB-up legs are live-gated and human-verified, never attested
-> by a worktree PASS. ADR-0033 Decision 3 fixes the design: the automation ladder is all
-> advisory, and the V1 hook-loop lesson is encoded structurally — see the ADR for the lesson.
+> by a worktree PASS. ADR-0033 Decision 3 fixes the design (the automation ladder is all advisory,
+> the V1 hook-loop lesson encoded structurally); ADR-0199 retired the build rung — see the ADRs.
 
 ## Guidance
 
@@ -61,14 +62,12 @@ store), and `classifyPresence`/`mergeDeclaration`/`PresenceDeclarationDoc` from
 - **The exported surface (exactly this — the offline test and the later spine wiring drive it):**
   - `interface AmbientDeps { store: PresenceStoreLike | null; identity: SessionIdentity | null; now: () => Date }`
     (`store` null = DB not reachable/not requested; `identity` null = not a recognisable worktree).
-  - `interface BuildPresenceInfo { nodeId: string; runId: string; mode: string }`.
-  - `async function withPresence<T>(deps: AmbientDeps, info: BuildPresenceInfo, fn: () => Promise<T>): Promise<T>`
-    — the spine-side build wrapper. Declare before `fn` (doc: `sessionId`/`branch` from
-    `deps.identity`, `workingOn` = a short prose line naming the mode and run id, `nodes:
-    [info.nodeId]`, `status: "active"`, `startedAt`/`lastSeenAt` from `deps.now()`), run `fn`,
-    mark `done` in a `finally`. EVERY presence failure — null store, null identity, a `declare`
-    or `done` that throws — is swallowed silently: `fn`'s result (or its thrown error) passes
-    through unchanged. The wrapper must never add output of its own.
+  - **No build presence wrapper.** ADR-0199 RETIRED the build rung — `withPresence` and
+    `BuildPresenceInfo` are DELETED from `ambient-presence.ts`, and the `presence:` ambient-deps
+    plumbing is stripped from the build path (`DriveNodeArgs`/`RealBuildArgs`/the story chain/the
+    gate build driver). A build's footprint on the shared store is exactly `building`/phase
+    work-events (observability) plus the per-unit write-claim (coordination) — never an
+    `events.session` row. Builds must NEVER gain a presence write again.
   - `async function sessionHook(kind: "start" | "end", deps: AmbientDeps, opts: { workingOn: string; timeoutMs: number }): Promise<string>`
     — the fire-and-forget hook handler: `start` declares (with `opts.workingOn`, empty `nodes`),
     `end` marks done. Race the store call against `opts.timeoutMs`; ALWAYS resolve `""` — never
@@ -89,11 +88,11 @@ store), and `classifyPresence`/`mergeDeclaration`/`PresenceDeclarationDoc` from
     `ambient-presence`; `[]` when clean. Hooks on those events that are NOT notice-board-shaped
     are NOT violations — other automation legitimately lives there.
 - **The test (`packages/drive/src/ambient-presence.test.ts`, the registered REAL proof — offline
-  only):** drive all four functions directly with a tiny in-memory `PresenceStoreLike` fake (one
-  that records calls, one that throws on every call), fake identities, and a fixed `now`. Cover:
-  `withPresence` declares before `fn` and marks done in a `finally` even when `fn` throws (assert
-  call order); with the throwing store or null deps the result/error of `fn` is identical and
-  nothing escapes; `sessionHook` resolves `""` on success, on a throwing store, on null deps, and
+  only):** drive the surviving functions directly with a tiny in-memory `PresenceStoreLike` fake
+  (one that records calls, one that throws on every call), fake identities, and a fixed `now`.
+  Cover: the module-surface leg — `@storytree/drive` exports NO `withPresence` and NO
+  `BuildPresenceInfo` (ADR-0199), asserted against the module's exported keys so the wrapper can
+  never silently return; `sessionHook` resolves `""` on success, on a throwing store, on null deps, and
   when the store hangs past `timeoutMs` (use a never-resolving promise + tiny timeout);
   `statuslineGlance` renders the count/node/overlap line, returns `""` with a throwing store,
   bumps once for two renders inside the debounce window and again past it (assert declare-call
@@ -106,21 +105,26 @@ store), and `classifyPresence`/`mergeDeclaration`/`PresenceDeclarationDoc` from
 
 ## Integration test (would-be)
 
-**Goal —** Presence appears around a build, hooks and statusline degrade to silence, and nothing
-notice-board-shaped sits on a blocking-capable hook.
+**Goal —** A build run leaves `events.session` untouched, hooks and statusline degrade to silence,
+and nothing notice-board-shaped sits on a blocking-capable hook.
 
-Run a scripted `node build` with a presence store that records calls: assert declare-before-leaf
-and done-in-finally; rerun with a store that throws and assert the build result is byte-identical.
-Run the hook wrappers and statusline command with the DB unreachable: exit 0, no output, bounded
-time. Audit `.claude/settings.json` for forbidden hook events.
+Assert `@storytree/drive` exports no build presence wrapper (`withPresence`/`BuildPresenceInfo`
+absent) and that `node build`/`story build` accept no presence deps: run a scripted build with a
+presence store that records calls and assert ZERO calls land on it — the launching session's
+declaration survives its own builds. Run the hook wrappers and statusline command with the DB
+unreachable: exit 0, no output, bounded time. Audit `.claude/settings.json` for forbidden hook
+events.
 
 ## Contracts (4)
 
-1. **`spine-declares-around-builds`** — builds declare presence; a presence failure never fails a build
-   - **asserts —** `node build`/`story build` (`--live`/`--real`, `--store pg`) declare (node id,
-     run id prose) before the leaf runs and mark done in a `finally`; with a presence store that
-     throws on every call, the build result is unchanged.
-   - **proven by —** would-be `packages/drive/src/ambient-presence.test.ts`
+1. **`builds-never-write-session-presence`** — a build run leaves `events.session` untouched (ADR-0199)
+   - **asserts —** the drive module exports no build presence wrapper — `withPresence` and
+     `BuildPresenceInfo` are absent from `@storytree/drive` — and `node build`/`story build` accept
+     no presence deps; a build run makes ZERO session-presence writes, so the launching session's
+     own declaration survives its own builds.
+   - **proven by —** would-be `packages/drive/src/ambient-presence.test.ts` (module-surface leg),
+     with the wiring leg in `packages/cli/src/ambient-wiring.test.ts` (outside the registered
+     proof, like the old spine-wiring note)
 2. **`session-hooks-fail-silent`** — the SessionStart/SessionEnd wrappers cannot hurt a session
    - **asserts —** (offline legs) the declare/done wrapper scripts exit 0 on DB-down and bad
      input, complete within their timeout bound, and emit nothing when the DB is down; the

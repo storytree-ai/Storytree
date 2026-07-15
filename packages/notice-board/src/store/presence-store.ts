@@ -73,7 +73,7 @@ export class PgPresenceStore {
    * (merge-retired, reaped) the call is a no-op — no event, no upsert, the
    * retired doc returned unchanged — so background automation can never flip a
    * retired session back to active. The default (`true`) is the explicit path
-   * (`noticeboard declare`, a build's `withPresence`), which deliberately can.
+   * (`noticeboard declare` — builds never write presence, ADR-0199), which deliberately can.
    * The guard reads the row inside the same transaction, so a retire landing
    * just before the heartbeat's write is still respected.
    *

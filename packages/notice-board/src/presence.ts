@@ -110,8 +110,8 @@ export function classifyPresence(lastSeenAt: string, now: Date): StalenessClass 
  * reserved is now enacted by ADR-0079, and this is its selector.
  *
  * Retiring is NON-destructive: the full record survives in the event history, and an EXPLICIT
- * re-declare (`noticeboard declare`, a `SessionStart`, a build's `withPresence`) flips the row
- * back to active/fresh. The ambient statusline heartbeat deliberately does NOT (ADR-0141,
+ * re-declare (`noticeboard declare`, a `SessionStart`) flips the row back to active/fresh —
+ * builds never write presence (ADR-0199). The ambient statusline heartbeat deliberately does NOT (ADR-0141,
  * `reactivate: false`) — a reaped or merge-retired row stays retired until the session does
  * something deliberate.
  *

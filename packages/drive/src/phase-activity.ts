@@ -9,9 +9,9 @@
 // the wisp re-colours as the spine walks red→green.
 //
 // It is NOT a new lifecycle word (ADR-0048 "No new lifecycle word"): the event stays `building`; the
-// phase rides as a field on the doc (WorkEventDoc.phase). And the write is ADVISORY (like
-// withPresence): a store hiccup is swallowed so a board/DB failure can never fail the build it
-// observes.
+// phase rides as a field on the doc (WorkEventDoc.phase). And the write is ADVISORY: a store hiccup
+// is swallowed so a board/DB failure can never fail the build it observes. It is also the build's
+// ONLY board footprint besides the write-claim — a build run never writes session presence (ADR-0199).
 
 import { workEvent } from "@storytree/orchestrator";
 import type { BuildPhase, Tier } from "@storytree/proof-protocol";

@@ -784,7 +784,7 @@ test("node build REFUSES when another live session already holds the unit's clai
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },
-    presence: { identity: CLAIM_IDENTITY }, // identity is what makes the claim fire
+    identity: CLAIM_IDENTITY, // identity is what makes the claim fire (ADR-0199: claim-only, never presence)
   });
   assert.equal(env.ok, false);
   assert.match(env.body, /already being built by another live session/);
@@ -802,7 +802,7 @@ test("node build ACQUIRES the claim, runs the gate, and RELEASES it on success (
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },
-    presence: { identity: CLAIM_IDENTITY },
+    identity: CLAIM_IDENTITY,
   });
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /verdict: {5}PASS/, "the gate ran once the claim was held");
@@ -816,7 +816,7 @@ test("node build does NOT claim when identity is absent (a non-worktree build do
     dryRun: true,
     actor: "tester@example.com",
     claim: { store },
-    presence: { identity: null }, // no worktree identity → no claim, build proceeds
+    identity: null, // no worktree identity → no claim, build proceeds
   });
   assert.equal(env.ok, true, env.body);
   assert.equal(claims.length, 0, "claim store never consulted without an identity");

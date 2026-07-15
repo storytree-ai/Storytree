@@ -10,13 +10,9 @@ import assert from "node:assert/strict";
 
 import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
-import type {
-  AmbientDeps,
-  BuildPresenceInfo,
-  HeartbeatState,
-} from "./ambient-presence.js";
+import type { AmbientDeps, HeartbeatState } from "./ambient-presence.js";
+import * as ambientPresence from "./ambient-presence.js";
 import {
-  withPresence,
   sessionHook,
   statuslineGlance,
   auditHookConfig,
@@ -137,107 +133,20 @@ const IDENTITY: SessionIdentity = {
   branch: "claude/real/ambient-integration",
 };
 
-const BUILD_INFO: BuildPresenceInfo = {
-  nodeId: "ambient-integration",
-  runId: "run-42",
-  mode: "dry-run",
-};
-
 // ---------------------------------------------------------------------------
-// withPresence — normal path
+// builds never write session presence (ADR-0199)
 // ---------------------------------------------------------------------------
 
-test("withPresence: declares before fn and marks done in finally", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-
-  const result = await withPresence(deps, BUILD_INFO, async () => "ok");
-
-  assert.equal(result, "ok");
-  assert.ok(store.declareCalls.length >= 1, "declare should have been called");
-  assert.ok(store.doneCalls.length >= 1, "done should have been called in finally");
-});
-
-test("withPresence: declare doc contains nodeId, sessionId, branch, status active", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-
-  await withPresence(deps, BUILD_INFO, async () => "x");
-
-  const declareDoc = store.declareCalls[0];
-  assert.ok(declareDoc !== undefined, "at least one declare call");
-  assert.ok(declareDoc.nodes.includes(BUILD_INFO.nodeId), "nodeId in nodes");
-  assert.equal(declareDoc.sessionId, IDENTITY.sessionId, "sessionId from identity");
-  assert.equal(declareDoc.branch, IDENTITY.branch, "branch from identity");
-  assert.equal(declareDoc.status, "active", "status is active");
-  // workingOn is a non-blank prose line mentioning mode and runId
-  assert.ok(declareDoc.workingOn.length > 0, "workingOn is non-blank");
+test("the module exports no build presence wrapper — a build run never writes session presence (ADR-0199)", () => {
+  // `withPresence` declared the BUILD under the LAUNCHING session's worktree identity and retired
+  // that session's row in its finally — a build inside an interactive session clobbered and then
+  // killed the session's declaration (two owner interrupts, 2026-07-15/16). Presence rows are
+  // written by SESSIONS only (sessionHook, the statusline heartbeat, a deliberate declare/done);
+  // a build's footprint is its work-events + the write-claim. Lock the wrapper out for good.
   assert.ok(
-    declareDoc.workingOn.includes(BUILD_INFO.mode) || declareDoc.workingOn.includes(BUILD_INFO.runId),
-    "workingOn references mode or runId",
+    !("withPresence" in ambientPresence),
+    "withPresence must stay deleted — builds never write session presence (ADR-0199)",
   );
-});
-
-test("withPresence: done called in finally even when fn throws", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const err = new Error("fn failure");
-
-  await assert.rejects(
-    () => withPresence(deps, BUILD_INFO, async () => { throw err; }),
-    (caught: unknown) => caught === err,
-  );
-
-  assert.ok(store.doneCalls.length >= 1, "done should still be called when fn throws");
-});
-
-test("withPresence: fn error object is passed through unchanged", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const originalErr = new Error("original");
-
-  let caught: unknown;
-  try {
-    await withPresence(deps, BUILD_INFO, async () => { throw originalErr; });
-  } catch (e) {
-    caught = e;
-  }
-  assert.ok(caught === originalErr, "exact same error object re-thrown");
-});
-
-// ---------------------------------------------------------------------------
-// withPresence — null / throwing deps, fail-silent
-// ---------------------------------------------------------------------------
-
-test("withPresence: null store — fn result passes through unchanged", async () => {
-  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
-  const result = await withPresence(deps, BUILD_INFO, async () => "passed");
-  assert.equal(result, "passed");
-});
-
-test("withPresence: null identity — fn result passes through unchanged", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: null, now: nowFn };
-  const result = await withPresence(deps, BUILD_INFO, async () => 42);
-  assert.equal(result, 42);
-});
-
-test("withPresence: throwing store — fn result passes through, nothing escapes", async () => {
-  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
-  const result = await withPresence(deps, BUILD_INFO, async () => "still ok");
-  assert.equal(result, "still ok");
-});
-
-test("withPresence: throwing store + fn throws — fn error propagates, store error swallowed", async () => {
-  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
-  const originalErr = new Error("fn threw");
-  let caught: unknown;
-  try {
-    await withPresence(deps, BUILD_INFO, async () => { throw originalErr; });
-  } catch (e) {
-    caught = e;
-  }
-  assert.ok(caught === originalErr, "fn error propagates even when store also throws");
 });
 
 // ---------------------------------------------------------------------------

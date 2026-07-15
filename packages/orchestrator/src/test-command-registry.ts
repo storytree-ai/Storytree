@@ -142,10 +142,10 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
     },
   },
   // The notice-board automation rung (ADR-0033 Decision 3): the ambient-presence module — the
-  // withPresence build wrapper, fail-silent session-hook handler, statusline glance/heartbeat,
-  // and the never-blocking-hooks config audit. Pure module legs only; the spine wires node-build,
-  // `.claude/settings.json` hooks, and the statusline AFTER promotion. `install: true`: imports
-  // @storytree/notice-board + ./noticeboard.js seams.
+  // fail-silent session-hook handler, statusline glance/heartbeat, and the never-blocking-hooks
+  // config audit (the build presence wrapper was retired by ADR-0199 — builds never write session
+  // presence). Pure module legs only; the spine wires `.claude/settings.json` hooks and the
+  // statusline AFTER promotion. `install: true`: imports @storytree/notice-board + ./noticeboard.js seams.
   "ambient-integration": {
     command: pnpmTest("@storytree/drive"),
     scope: pkgScope("drive"),

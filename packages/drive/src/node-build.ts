@@ -45,13 +45,11 @@ import {
   loadCorpus,
   TEST_DB_ENV,
 } from "@storytree/library/store";
-import { PgClaimStore, PgPresenceStore } from "@storytree/notice-board/store";
+import { PgClaimStore } from "@storytree/notice-board/store";
 import type { ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { renderAgentPrompt } from "@storytree/library/store";
-import { withPresence } from "./ambient-presence.js";
-import type { AmbientDeps } from "./ambient-presence.js";
 import { phaseActivityWriter } from "./phase-activity.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
@@ -60,7 +58,7 @@ import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
 import type { EmitWispDeps } from "./wisp-smoke.js";
 import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
-import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+import type { SessionIdentity } from "./noticeboard.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -253,11 +251,6 @@ export type VerdictStoreChoice =
       persisted: boolean;
       label: string;
       /**
-       * The presence board over the SAME pool (ADR-0033 Decision 3): live exactly when the
-       * verdicts persist, null in-memory — a null store makes withPresence a silent no-op.
-       */
-      presence: PresenceStoreLike | null;
-      /**
        * The per-unit write-claim over the SAME pool (ADR-0121): non-null exactly when verdicts
        * persist (`--store pg`, i.e. `--real`), null in-memory — a null claim store skips
        * enforcement (a dry-run / live smoke does not contend on the shared store).
@@ -293,7 +286,6 @@ export async function resolveVerdictStore(
       store: new InMemoryStore(),
       persisted: false,
       label: "in-memory (nothing persists past this run)",
-      presence: null,
       claim: null,
       close: async () => {},
     };
@@ -330,7 +322,6 @@ export async function resolveVerdictStore(
       store: new PgWorkStore(pool),
       persisted: true,
       label: "pg — events.work_event + events.verdict (PERSISTED to the shared store)",
-      presence: new PgPresenceStore(pool),
       claim: new PgClaimStore(pool),
       close: () => closePool(pool, connector),
     };
@@ -461,12 +452,6 @@ export interface DriveNodeArgs {
    * ignores it.
    */
   phasePrompts?: LeafPhasePrompts;
-  /**
-   * The ambient presence deps (ADR-0033 Decision 3): when present, the leaf run is wrapped in
-   * {@link withPresence} — declare before, done in a finally, every failure swallowed. Absent =
-   * no presence surface (the offline default).
-   */
-  presence?: AmbientDeps;
 }
 
 export type DriveNodeResult =
@@ -525,17 +510,9 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
       signer: args.signer,
       ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
     });
-    // Presence around the leaf (ADR-0033 Decision 3): advisory by construction — withPresence
-    // swallows every board failure, so the walk's result is identical with a dead board.
-    const prove = (): Promise<ProveResult> => proveUnit(resolved.spec);
-    const result =
-      args.presence !== undefined
-        ? await withPresence(
-            args.presence,
-            { nodeId: spec.id, runId: args.runId, mode: args.mode },
-            prove,
-          )
-        : await prove();
+    // A build run never writes session presence (ADR-0199): its footprint on the shared store is
+    // the `building`/phase work-events above + the caller's write-claim — never `events.session`.
+    const result = await proveUnit(resolved.spec);
     return {
       resolved: true,
       result,
@@ -619,7 +596,6 @@ export interface RealBuildArgs {
   runId: string;
   signer: string;
   phasePrompts: LeafPhasePrompts;
-  presence: AmbientDeps;
   repoRoot: string;
   model?: string;
   budgetUsd?: number;
@@ -696,9 +672,8 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     signer,
     ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
   });
-  const result = await withPresence(args.presence, { nodeId: spec.id, runId, mode: "real" }, () =>
-    proveUnit(resolved.spec),
-  );
+  // A build run never writes session presence (ADR-0199) — work-events + the claim only.
+  const result = await proveUnit(resolved.spec);
   const out: RealBuildResult = {
     result,
     ...(resolved.liveAuthor !== undefined ? { liveAuthor: resolved.liveAuthor } : {}),
@@ -786,14 +761,14 @@ export interface NodeBuildOpts {
   /** Injectable for tests; defaults to `<repoRoot>/stories`. */
   storiesDir?: string;
   /**
-   * Injectable for tests (ADR-0033 Decision 3). Defaults: `store` = the `--store pg` pool's
-   * presence board (null in-memory), `identity` = the enclosing session worktree (null in a
-   * plain checkout) — null on either side makes presence a silent no-op.
+   * Injectable for tests (ADR-0121): the worktree identity the write-claim is taken under.
+   * Default = `deriveIdentity()` (null in a plain checkout → no claim). A build run never writes
+   * session presence (ADR-0199), so identity here feeds ONLY the claim.
    */
-  presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
+  identity?: SessionIdentity | null;
   /**
    * Injectable for tests (ADR-0121): the per-unit write-claim store. Default = the `--store pg`
-   * pool's claim store (null in-memory). Identity is SHARED with `presence` (the worktree session).
+   * pool's claim store (null in-memory).
    */
   claim?: { store?: ClaimStoreLike | null };
 }
@@ -964,20 +939,11 @@ export async function nodeBuild(
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
-  // The presence board around the build (ADR-0033 Decision 3, spine-side — no hooks): declare
-  // before the leaf runs, done in a finally, EVERY failure swallowed by withPresence — a board
-  // write failure must never fail a build. Live exactly when the verdicts persist (--store pg).
-  const ambient: AmbientDeps = {
-    store: opts.presence?.store !== undefined ? opts.presence.store : storeChoice.presence,
-    identity:
-      opts.presence?.identity !== undefined ? opts.presence.identity : deriveIdentity(),
-    now: () => new Date(),
-  };
-
-  // The per-unit write-claim around the build (ADR-0121): the ENFORCING twin of presence. Resolve
-  // the claim store (the --store pg pool's; null in-memory) and reuse the worktree identity.
+  // The per-unit write-claim around the build (ADR-0121). A build run never writes session
+  // presence (ADR-0199) — the worktree identity here feeds ONLY the claim; the launching
+  // session's own declaration survives its builds.
   const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
-  const claimIdentity = ambient.identity;
+  const claimIdentity = opts.identity !== undefined ? opts.identity : deriveIdentity();
 
   const runId = `${mode}-${Date.now().toString(36)}`;
   let claimHeld = false;
@@ -1046,7 +1012,6 @@ export async function nodeBuild(
           runId,
           signer: signer.signer,
           phasePrompts,
-          presence: ambient,
           repoRoot: repoRoot(),
           ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
@@ -1068,7 +1033,6 @@ export async function nodeBuild(
         store,
         runId,
         signer: signer.signer,
-        presence: ambient,
         ...(phasePrompts !== undefined ? { phasePrompts } : {}),
         ...(opts.model !== undefined ? { model: opts.model } : {}),
         ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),

@@ -28,7 +28,6 @@ import type {
   ProveResult,
 } from "@storytree/orchestrator";
 
-import type { AmbientDeps } from "./ambient-presence.js";
 import { backstopJobs, observeBackstop } from "./chain-backstop.js";
 import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
@@ -57,7 +56,7 @@ import {
 } from "./curate.js";
 import type { CommentSink, CuratorRunner } from "./curate.js";
 import { deriveIdentity } from "./noticeboard.js";
-import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+import type { SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
 import type { EmitWispDeps } from "./wisp-smoke.js";
@@ -309,14 +308,14 @@ export interface StoryBuildOpts {
   curationStores?: { library: Store | null; comments?: CommentSink | null };
   decisionsDir?: string;
   /**
-   * Injectable for tests (ADR-0033 Decision 3). Defaults: `store` = the `--store pg` pool's
-   * presence board (null in-memory), `identity` = the enclosing session worktree (null in a
-   * plain checkout) — null on either side makes presence a silent no-op.
+   * Injectable for tests (ADR-0121): the worktree identity the story-level write-claim is taken
+   * under. Default = `deriveIdentity()` (null in a plain checkout → no claim). A build run never
+   * writes session presence (ADR-0199), so identity here feeds ONLY the claim.
    */
-  presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
+  identity?: SessionIdentity | null;
   /**
    * Injectable for tests (ADR-0121): the per-unit write-claim store. Default = the `--store pg`
-   * pool's claim store (null in-memory). Identity is SHARED with `presence` (the worktree session).
+   * pool's claim store (null in-memory).
    */
   claim?: { store?: ClaimStoreLike | null };
 }
@@ -545,22 +544,13 @@ export async function storyBuild(
   if (!storeChoice.ok) return storeChoice.refusal;
   const { store, persisted } = storeChoice;
 
-  // The presence board around each node (ADR-0033 Decision 3, spine-side — no hooks): one
-  // declaration doc per session, re-declared per node as the chain advances; every board failure
-  // swallowed by withPresence inside driveNode — presence can never halt a story.
-  const ambient: AmbientDeps = {
-    store: opts.presence?.store !== undefined ? opts.presence.store : storeChoice.presence,
-    identity:
-      opts.presence?.identity !== undefined ? opts.presence.identity : deriveIdentity(),
-    now: () => new Date(),
-  };
-
   // The per-unit write-claim around the WHOLE story build (ADR-0121): a second concurrent
   // `story build <same> --real` is hard-refused, keyed on the story id (the node-build claim covers a
   // lone `node build`; this covers the story chain). Live exactly when verdicts persist (--store pg)
-  // and identity is worktree-derivable.
+  // and identity is worktree-derivable. A build run never writes session presence (ADR-0199) —
+  // the identity feeds ONLY the claim; the launching session's declaration survives the chain.
   const claimStore = opts.claim?.store !== undefined ? opts.claim.store : storeChoice.claim;
-  const claimIdentity = ambient.identity;
+  const claimIdentity = opts.identity !== undefined ? opts.identity : deriveIdentity();
 
   const runId = `story-${mode}-${Date.now().toString(36)}`;
   // ADR-0130: no USD ceiling by default — `--budget` is opt-in. Unset → undefined → runStoryBuild
@@ -656,7 +646,6 @@ export async function storyBuild(
             runId,
             signer: signer.signer,
             phasePrompts,
-            presence: ambient,
             repoRoot: rootDir,
             promote: false,
             ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
@@ -681,7 +670,6 @@ export async function storyBuild(
           store,
           runId,
           signer: signer.signer,
-          presence: ambient,
           ...(phasePrompts !== undefined ? { phasePrompts } : {}),
           ...(opts.model !== undefined ? { model: opts.model } : {}),
           // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.

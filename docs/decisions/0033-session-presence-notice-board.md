@@ -26,6 +26,14 @@ the build surface once overlap became routine (the 2026-06-27 duplicate build); 
 "What this does NOT decide" bullet below are corrected accordingly. The advisory presence board
 (Decisions 1–3, 5) stands untouched.
 
+**Correction ([ADR-0199](0199-a-build-run-never-writes-session-presence.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
+ambient ladder listed a **spine-side build rung** — "`node build` / `story build` declare presence
+around the SDK leaf run in plain code". That rung is **retired**: a build run now writes no
+`events.session` presence at all (its footprint is work-events + the write-claim). The `SessionStart`/
+`SessionEnd` hook rung and the statusline heartbeat rung stand unchanged; Decision 3's marked bullet
+is corrected below.
+
 ## Date
 
 2026-06-11
@@ -95,8 +103,12 @@ Two things changed since V1:
 3. **Automation never blocks.** The encoded guardrail from the V1 experience: **the notice board
    never touches a blocking-capable hook** (`Stop`, `PreToolUse`, `UserPromptSubmit`) and a board
    write failure never fails the enclosing action. The automation ladder, all advisory:
-   - **Spine-side (no hooks):** `node build` / `story build` declare presence around the SDK leaf
-     run in plain code — deterministic, testable;
+   - ~~**Spine-side (no hooks):** `node build` / `story build` declare presence around the SDK leaf
+     run in plain code — deterministic, testable;~~ *(rung **retired** by
+     [ADR-0199](0199-a-build-run-never-writes-session-presence.md), per
+     [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): a build run
+     writes no session presence — the `withPresence` wrapper is deleted; builds touch only
+     `events.work_event` + the write-claim. The hook and statusline rungs below stand.)*
    - **Interactive sessions:** `SessionStart`/`SessionEnd` shell hooks that fire-and-forget
      (`exit 0` always, short timeout, silent when the DB is down);
    - **Statusline:** the read surface — a board glance rendered on every turn (and optionally a

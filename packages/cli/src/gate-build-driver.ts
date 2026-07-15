@@ -49,12 +49,9 @@ import type {
   PromotionResult,
 } from "@storytree/orchestrator";
 
-import type { AmbientDeps } from "@storytree/drive";
 import { effectiveVerdictStore, ensureLiveDb } from "@storytree/drive";
 import type { EnsureDbResult } from "@storytree/drive";
 import type { Envelope } from "./envelope.js";
-import { deriveIdentity } from "@storytree/drive";
-import type { PresenceStoreLike, SessionIdentity } from "@storytree/drive";
 import {
   buildNodeReal,
   realConfigRefusal,
@@ -100,8 +97,6 @@ export interface GateBuildDriverDeps {
   budgetUsd?: number;
   /** Per-authoring-slice turn ceiling (live build only). */
   maxTurns?: number;
-  /** Injectable presence (ADR-0033 Decision 3); null on either side makes presence a no-op. */
-  presence?: { store?: PresenceStoreLike | null; identity?: SessionIdentity | null };
   /**
    * ADR-0098 (U4): the candidate design forks the orchestrator session's pre-build pocket analysis
    * surfaced for this `(pocket, gate)`, each tagged with the three d.5 owner-fork-bar signals (+ the
@@ -236,13 +231,11 @@ export async function driveBuildTestsGate(
   let store: Store;
   let persisted: boolean;
   let storeLabel: string;
-  let presenceStore: PresenceStoreLike | null;
   let closeStore: () => Promise<void>;
   if (deps.store !== undefined) {
     store = deps.store;
     persisted = false;
     storeLabel = "in-memory (injected — nothing persists past this run)";
-    presenceStore = null;
     closeStore = async () => {};
   } else {
     const effectiveStore = effectiveVerdictStore(deps.verdictStore, false);
@@ -267,15 +260,8 @@ export async function driveBuildTestsGate(
     store = storeChoice.store;
     persisted = storeChoice.persisted;
     storeLabel = storeChoice.label;
-    presenceStore = storeChoice.presence;
     closeStore = storeChoice.close;
   }
-
-  const ambient: AmbientDeps = {
-    store: deps.presence?.store !== undefined ? deps.presence.store : presenceStore,
-    identity: deps.presence?.identity !== undefined ? deps.presence.identity : deriveIdentity(),
-    now: () => new Date(),
-  };
 
   const runId = `gate-real-${Date.now().toString(36)}`;
   let worktree: BuildWorktree | undefined;
@@ -296,7 +282,6 @@ export async function driveBuildTestsGate(
       runId,
       signer: signer.signer,
       phasePrompts,
-      presence: ambient,
       repoRoot: deps.repoRoot,
       promote: deps.promote ?? true,
       ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),

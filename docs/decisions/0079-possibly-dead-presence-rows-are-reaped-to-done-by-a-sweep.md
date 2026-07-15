@@ -25,7 +25,9 @@ was what kept zombies alive: an idle-but-open tab's heartbeat resurrected merge-
 indefinitely, defeating both this sweep and the merge-retire backstop (the Context's "re-declare
 after merge" failure, observed again live 2026-07-02). The ambient heartbeat now declares with
 `reactivate: false` and can never flip a `done` row back; reactivation requires an **explicit**
-signal (`noticeboard declare`, a `SessionStart`, a build's `withPresence`). The sweep itself —
+signal (`noticeboard declare`, a `SessionStart`; ~~a build's `withPresence`~~ **removed** —
+[ADR-0199](0199-a-build-run-never-writes-session-presence.md) retired build-side presence, so a
+build no longer reactivates any row). The sweep itself —
 selector, threshold, ride-along wiring — stands unchanged.
 
 ## Context
@@ -87,10 +89,12 @@ without bound.
 3. **The reap threshold is the existing `possibly-dead` band (≥ 4 h).** No new constant. This is
    safe because retiring is **non-destructive**: the full record survives in the append-only
    history, and a quiet-but-alive session comes back the moment it sends an **explicit** signal —
-   `noticeboard declare`, a `SessionStart`, a build's `withPresence` — flipping the row back to
+   `noticeboard declare` or a `SessionStart` — flipping the row back to
    `active`/`fresh` *(originally "re-declares on its next heartbeat"; corrected per the Correction
    above / [ADR-0141](0141-ambient-presence-heartbeat-never-resurrects-a-retired-sessio.md): the
-   ambient beat never reactivates a `done` row)*. Only rows that *stay* quiet remain retired.
+   ambient beat never reactivates a `done` row; and "a build's `withPresence`" removed from the
+   signal set per [ADR-0199](0199-a-build-run-never-writes-session-presence.md) — a build writes no
+   presence)*. Only rows that *stay* quiet remain retired.
 
 4. **Fail-soft, always.** Presence is advisory (ADR-0033) and the sweep runs inside the merge
    job, so every failure path — a `listActive` that never returns, one row's `done()` throwing —

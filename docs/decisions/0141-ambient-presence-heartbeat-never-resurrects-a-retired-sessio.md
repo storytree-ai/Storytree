@@ -46,9 +46,13 @@ that kept zombies alive.
    `lastSeenAt` bump *and* the self-heal declare — passes `reactivate: false`. The self-heal still
    works when no row exists at all (the bug it was built for); it just no longer counts a retired
    row as "missing".
-3. **Explicit signals still reactivate.** `storytree noticeboard declare`, the `SessionStart`
-   hook (a genuinely new session in the worktree), and a build's `withPresence` keep the default
+3. **Explicit signals still reactivate.** `storytree noticeboard declare` and the `SessionStart`
+   hook (a genuinely new session in the worktree) keep the default
    `reactivate: true` — a deliberate "I'm back" flips a retired row to active exactly as before.
+   *(~~and a build's `withPresence`~~ **removed** by
+   [ADR-0199](0199-a-build-run-never-writes-session-presence.md), per
+   [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): a build run
+   writes no session presence, so it is no longer a reactivation writer.)*
 
 ## Consequences
 

@@ -75,7 +75,7 @@ test("phaseActivityWriter omits tier when none is given (optional column)", asyn
 });
 
 test("phaseActivityWriter is a no-op-safe append — a store failure never throws into the gate", async () => {
-  // The phase write is ADVISORY (like withPresence): a board/DB hiccup must never
+  // The phase write is ADVISORY: a board/DB hiccup must never
   // fail the build it is observing. A throwing store is swallowed.
   const onPhase = phaseActivityWriter(
     {

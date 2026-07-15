@@ -4,19 +4,16 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import path from "node:path";
 
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
-
 import { auditHookConfig } from "@storytree/drive";
 import { nodeBuild, repoRoot } from "@storytree/drive";
-import type { PresenceStoreLike } from "@storytree/drive";
 
 /**
  * The SPINE wiring of ambient-integration (post-promotion, per the capability spec): the shared
  * `.claude/settings.json` honours the never-blocking-hooks contract (audited with the leaf-proven
- * `auditHookConfig` against the REAL file, not a fixture), and `node build` declares presence
- * around the gate walk through `withPresence` (ADR-0033 Decision 3 — advisory by construction).
- * The ambient-presence module's own truths live in ambient-presence.test.ts (the node's
- * registered REAL proof); these tests cover only the wiring around it.
+ * `auditHookConfig` against the REAL file, not a fixture), and the build path carries NO presence
+ * calls at all — a build run never writes session presence (ADR-0199). The ambient-presence
+ * module's own truths live in ambient-presence.test.ts (the node's registered REAL proof); these
+ * tests cover only the wiring around it.
  */
 
 const settingsFile = path.join(repoRoot(), ".claude", "settings.json");
@@ -69,89 +66,32 @@ test("the presence wrappers ARE wired through the worktree-safe launcher: Sessio
 });
 
 // ---------------------------------------------------------------------------
-// node build declares presence around the walk
+// a build run never writes session presence (ADR-0199)
 // ---------------------------------------------------------------------------
 
-interface RecordingPresence extends PresenceStoreLike {
-  calls: string[];
-  declared: PresenceDeclarationDoc[];
-}
-
-function recordingPresenceStore(): RecordingPresence {
-  const calls: string[] = [];
-  const declared: PresenceDeclarationDoc[] = [];
-  return {
-    calls,
-    declared,
-    declare: async (doc) => {
-      calls.push("declare");
-      declared.push(doc);
-      return doc;
-    },
-    done: async (sessionId, lastSeenAt) => {
-      calls.push("done");
-      const last = declared[declared.length - 1];
-      return last === undefined ? null : { ...last, status: "done", lastSeenAt, sessionId };
-    },
-    listActive: async () => [],
-    history: async () => [],
-  };
-}
-
-const identity = { sessionId: "wiring-test-worktree", branch: "claude/wiring-test" };
-
-test("node build declares presence before the walk and marks done after (ADR-0033 Decision 3)", async () => {
-  const presence = recordingPresenceStore();
-  const env = await nodeBuild("library-cli", {
-    dryRun: true,
-    actor: "tester@example.com",
-    presence: { store: presence, identity },
-  });
-  assert.equal(env.ok, true, env.body);
-  assert.deepEqual(presence.calls, ["declare", "done"]);
-  const doc = presence.declared[0];
-  assert.ok(doc !== undefined);
-  assert.equal(doc.sessionId, "wiring-test-worktree");
-  assert.equal(doc.branch, "claude/wiring-test");
-  assert.deepEqual(doc.nodes, ["library-cli"], "the declaration anchors to the node being built");
-  assert.match(doc.workingOn, /dry-run run /, "workingOn names the mode and run id");
-  assert.equal(doc.status, "active");
+test("the drive exports no build presence wrapper — a build run never writes session presence (ADR-0199)", async () => {
+  // The clobber bug (owner interrupts 2026-07-15/16): `withPresence` declared the BUILD under the
+  // LAUNCHING session's worktree identity and retired that session's row in its finally. The fix is
+  // structural: builds write work-events + the write-claim, never `events.session`. Lock the wrapper
+  // out of the drive's public surface so a presence write cannot be re-wired into the build path.
+  const drive = await import("@storytree/drive");
+  assert.ok(
+    !("withPresence" in drive),
+    "withPresence must stay deleted — a build run never writes session presence (ADR-0199)",
+  );
 });
 
-test("a presence store that throws on every call never fails the build", async () => {
-  const throwing: PresenceStoreLike = {
-    declare: async () => {
-      throw new Error("board down");
-    },
-    done: async () => {
-      throw new Error("board down");
-    },
-    listActive: async () => {
-      throw new Error("board down");
-    },
-    history: async () => {
-      throw new Error("board down");
-    },
-  };
+test("node build drives to green with a worktree identity and no presence surface (ADR-0199)", async () => {
+  // The identity opt feeds ONLY the write-claim (ADR-0121); there is deliberately no presence seam
+  // on the build path any more — the launching session's declaration survives its own builds.
   const env = await nodeBuild("library-cli", {
     dryRun: true,
     actor: "tester@example.com",
-    presence: { store: throwing, identity },
+    identity: { sessionId: "wiring-test-worktree", branch: "claude/wiring-test" },
   });
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE/);
   assert.match(env.body, /rollup: {6}healthy/);
-});
-
-test("a null presence identity (plain checkout) is a silent no-op, not an error", async () => {
-  const presence = recordingPresenceStore();
-  const env = await nodeBuild("library-cli", {
-    dryRun: true,
-    actor: "tester@example.com",
-    presence: { store: presence, identity: null },
-  });
-  assert.equal(env.ok, true, env.body);
-  assert.deepEqual(presence.calls, [], "no identity → nothing declared (never guessed)");
 });
 
 // ── ADR-0060/0081, narrowed by ADR-0099-B: the DB-preflight wiring is REAL-only now ──
@@ -178,7 +118,7 @@ test("a --dry-run build never runs the DB preflight — it stays in-memory (ADR-
       preflightRan = true;
       return { ok: true, started: false };
     },
-    presence: { store: null, identity: null },
+    identity: null,
   });
   assert.equal(env.ok, true, env.body);
   assert.equal(preflightRan, false, "a dry-run must never invoke the DB preflight");

@@ -28,66 +28,17 @@ export interface AmbientDeps {
   claims?: { bumpHeartbeatsBySession(sessionId: string): Promise<number> } | null;
 }
 
-export interface BuildPresenceInfo {
-  nodeId: string;
-  runId: string;
-  mode: string;
-}
+// NOTE (ADR-0199): there is deliberately NO build presence wrapper here any more. `withPresence`
+// declared the BUILD under the LAUNCHING session's worktree identity and retired that session's row
+// in its finally — a build run inside an interactive session clobbered and then killed the session's
+// declaration (two owner interrupts, 2026-07-15/16). A build's footprint on the shared store is
+// exactly its `building` work-events (observability) + the per-unit write-claim (coordination);
+// presence rows are written by SESSIONS only (the hooks below, the statusline heartbeat, and a
+// deliberate `noticeboard declare`/`done`). Builds must never gain a presence write again.
 
 export interface HeartbeatState {
   readLastBump: () => string | null;
   writeLastBump: (iso: string) => void;
-}
-
-// ---------------------------------------------------------------------------
-// withPresence
-// ---------------------------------------------------------------------------
-
-/**
- * Spine-side build wrapper. Declares presence before `fn`, marks done in a finally.
- * EVERY presence failure is swallowed silently; `fn`'s result (or thrown error)
- * passes through unchanged. The wrapper never adds output of its own.
- */
-export async function withPresence<T>(
-  deps: AmbientDeps,
-  info: BuildPresenceInfo,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const { store, identity } = deps;
-
-  // Null deps → just run fn directly
-  if (store === null || identity === null) {
-    return fn();
-  }
-
-  const nowIso = deps.now().toISOString();
-  const doc: PresenceDeclarationDoc = {
-    sessionId: identity.sessionId,
-    branch: identity.branch,
-    workingOn: `${info.mode} run ${info.runId}`,
-    nodes: [info.nodeId],
-    status: "active",
-    startedAt: nowIso,
-    lastSeenAt: nowIso,
-  };
-
-  // Declare before fn — fail-silent
-  try {
-    await store.declare(doc);
-  } catch {
-    // swallow
-  }
-
-  try {
-    return await fn();
-  } finally {
-    // Mark done — fail-silent
-    try {
-      await store.done(identity.sessionId, deps.now().toISOString());
-    } catch {
-      // swallow
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +113,7 @@ export async function sessionHook(
  * `status: "done"` (merge-retire, the ADR-0079 reaper) is never flipped back
  * to active by this beat — an idle-but-open tab must not resurrect a session
  * whose branch already merged. Only a deliberate signal reactivates: an
- * explicit `noticeboard declare` or a build's `withPresence`.
+ * explicit `noticeboard declare` (builds never write presence, ADR-0199).
  */
 export async function statuslineGlance(
   deps: AmbientDeps,
