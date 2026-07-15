@@ -1,41 +1,43 @@
 /**
  * LibraryFinder — the idle-browse + scoped-search surface over the loaded corpus (ADR-0185 dec
  * 2/3 increment 2, reworked by ADR-0188 dec 2 increment `library-category-shelf`, and again by
- * ADR-0196 D3's `library-lifecycle-shelf` capability into a lifecycle-aware shelf).
+ * ADR-0197's `library-lifecycle-shelf` capability into the ONE-SELECTOR-GOVERNS-THE-PANEL model).
  *
- * IDLE (no query, no scope): renders a CATEGORY SHELF — one row per category present in the
- * loaded corpus plus a Decisions row (`../lib/libraryShelf`'s `buildCategoryShelf`). An Active|All
- * lifecycle toggle (default Active) drives each row's presentation: Active shows the row's LIVE
- * (`open`+`active`, via `lifecycleOf`) count, with the muted TOTAL beside it when it differs; All
- * shows the plain total. Clicking a shelf row turns it into a removable SCOPE CHIP and browses ALL
- * of that category's artifacts with no query floor (`listScopedBrowseResults`) — browse, not
- * search. Scoped into a STATEFUL category (one `../lib/libraryShelf`'s `stateVocabularyFor`
- * returns a vocabulary for), per-kind STATE CHIPS render above the browse list using that kind's
- * OWN stored vocabulary; clicking one filters the browse list to that state. The Active|All toggle
- * also filters the scoped browse list (governed categories only — see `listScopedBrowseResults`).
- * Typing while scoped runs `searchCorpus` filtered to the scope's category, and the input
- * placeholder names the active scope. Clearing the chip (with an empty query) clears the scope and
- * the shelf renders again.
+ * The panel carries exactly ONE lifecycle control: a three-state `open | active | archived`
+ * selector, default `open` (component-local state) — it REPLACES the old Active|All toggle and
+ * the per-kind state chips outright (ADR-0197 D3: one control, one vocabulary). The selected state
+ * governs everything the panel shows:
  *
- * With a typed query and NO scope the finder behaves exactly as increment 2 left it: a flat,
- * ranked results list via `searchCorpus` — no kind-filter chips, no facet controls. Each result
- * renders its title over a muted kind sub-line routed through `kindLabel` (never a hand-rolled
- * category → label map, ADR-0183 D1), an ADR result additionally shows its status, and clicking a
- * result lifts the pick through `onSelect` — the finder holds no cross-render selection state of
- * its own; `selectedId` (a prop) drives which row reads as currently selected.
+ * - SHELF (idle: no query, no scope) — one row per category (`../lib/libraryShelf`'s
+ *   `buildCategoryShelf`) with >=1 item projecting (via `lifecycleOf`) to the selected state; a
+ *   category with zero items in the state renders no row at all. Each row shows a PLAIN per-state
+ *   count (the old "N of M" muted-total split is gone).
+ * - SCOPED BROWSE — clicking a shelf row turns it into a removable SCOPE CHIP and browses that
+ *   category's items filtered to the selected state (`listScopedBrowseResults`), uniformly for
+ *   every kind (the old friction/Decisions chips-only exception is gone).
+ * - SEARCH — a typed query with no scope runs `searchCorpus`, filtered to the selected state
+ *   (`filterResultsByState`) before rendering, for assets and Decisions alike.
  *
- * The forest-cozy palette / muted styling / toggle & chip look are the story's operator-attested
- * UAT leg (ADR-0188 dec 2/7 / ADR-0196 D3 / ADR-0070) — not asserted here.
+ * Each result still renders its title over a muted kind sub-line routed through `kindLabel`
+ * (never a hand-rolled category -> label map, ADR-0183 D1), an ADR result additionally shows its
+ * status, and clicking a result lifts the pick through `onSelect` — the finder holds no
+ * cross-render selection state of its own; `selectedId` (a prop) drives which row reads as
+ * currently selected. An all-empty shelf / an empty scoped or search result renders one quiet line
+ * naming the selected state (ADR-0197 D4) instead of an empty list.
+ *
+ * The forest-cozy palette / selector & chip styling / empty-state copy's look are the story's
+ * operator-attested UAT leg (ADR-0197 D1 / ADR-0070) — not asserted here.
  */
 
 import { useMemo, useState } from 'react';
+import type { Lifecycle } from '@storytree/library';
 import { searchCorpus, type SearchResult } from '../lib/librarySearch';
-import { buildCategoryShelf, listScopedBrowseResults, stateVocabularyFor } from '../lib/libraryShelf';
+import { buildCategoryShelf, filterResultsByState, listScopedBrowseResults } from '../lib/libraryShelf';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import type { AssetCategory, DocMeta, GuidanceAsset } from '../types';
 
-/** The Active|All lifecycle toggle's two positions (ADR-0196 D3; default Active). */
-type LifecycleMode = 'active' | 'all';
+/** The three-state lifecycle selector's positions (ADR-0197 D2/D3; default `open`). */
+const LIFECYCLE_STATES: readonly Lifecycle[] = ['open', 'active', 'archived'];
 
 export interface LibraryFinderProps {
   assets: GuidanceAsset[];
@@ -55,60 +57,54 @@ function scopeDisplayName(category: AssetCategory, arcDisplay: ReturnType<typeof
 export function LibraryFinder({ assets, docs, onSelect, selectedId }: LibraryFinderProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<AssetCategory | null>(null);
-  const [mode, setMode] = useState<LifecycleMode>('active');
-  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [lifecycleState, setLifecycleState] = useState<Lifecycle>('open');
   const arcDisplay = useArcDisplay();
 
   const trimmedQuery = query.trim();
   const shelf = useMemo(() => buildCategoryShelf(assets, docs), [assets, docs]);
+  const visibleShelf = useMemo(
+    () => shelf.filter((entry) => entry.stateCounts[lifecycleState] > 0),
+    [shelf, lifecycleState],
+  );
 
   const enterScope = (next: AssetCategory) => {
     setScope(next);
-    setSelectedState(null);
   };
   const clearScope = () => {
     setScope(null);
-    setSelectedState(null);
   };
-
-  const stateChips = scope === null ? undefined : stateVocabularyFor(scope);
 
   const results = useMemo(() => {
     if (scope !== null) {
       if (trimmedQuery === '') {
-        return listScopedBrowseResults(scope, assets, docs, mode, selectedState);
+        return listScopedBrowseResults(scope, assets, docs, lifecycleState);
       }
-      return searchCorpus(query, assets, docs).filter((result) =>
+      const scoped = searchCorpus(query, assets, docs).filter((result) =>
         scope === 'adr' ? result.source === 'doc' : result.source === 'asset' && result.category === scope,
       );
+      return filterResultsByState(scoped, assets, docs, lifecycleState);
     }
-    return searchCorpus(query, assets, docs);
-  }, [scope, query, trimmedQuery, assets, docs, mode, selectedState]);
+    return filterResultsByState(searchCorpus(query, assets, docs), assets, docs, lifecycleState);
+  }, [scope, query, trimmedQuery, assets, docs, lifecycleState]);
 
   const showShelf = scope === null && trimmedQuery === '';
   const placeholder = scope === null ? 'Search library…' : `Search ${scopeDisplayName(scope, arcDisplay)}…`;
 
   return (
     <div className="library-finder" data-testid="library-finder">
-      <div className="library-lifecycle-toggle" data-testid="library-lifecycle-toggle">
-        <button
-          type="button"
-          className="library-lifecycle-toggle-active"
-          data-testid="library-lifecycle-toggle-active"
-          aria-pressed={mode === 'active' ? 'true' : 'false'}
-          onClick={() => setMode('active')}
-        >
-          Active
-        </button>
-        <button
-          type="button"
-          className="library-lifecycle-toggle-all"
-          data-testid="library-lifecycle-toggle-all"
-          aria-pressed={mode === 'all' ? 'true' : 'false'}
-          onClick={() => setMode('all')}
-        >
-          All
-        </button>
+      <div className="library-lifecycle-selector" data-testid="library-lifecycle-selector">
+        {LIFECYCLE_STATES.map((state) => (
+          <button
+            key={state}
+            type="button"
+            className="library-lifecycle-selector-button"
+            data-testid={`library-lifecycle-selector-${state}`}
+            aria-pressed={lifecycleState === state ? 'true' : 'false'}
+            onClick={() => setLifecycleState(state)}
+          >
+            {state}
+          </button>
+        ))}
       </div>
       <input
         type="text"
@@ -132,49 +128,34 @@ export function LibraryFinder({ assets, docs, onSelect, selectedId }: LibraryFin
           </button>
         </div>
       )}
-      {scope !== null && stateChips !== undefined && (
-        <div className="library-state-chips" data-testid="library-state-chips">
-          {stateChips.map((state) => (
-            <button
-              key={state}
-              type="button"
-              className="library-state-chip"
-              data-testid={`library-state-chip-${state}`}
-              aria-pressed={selectedState === state ? 'true' : 'false'}
-              onClick={() => setSelectedState((current) => (current === state ? null : state))}
-            >
-              {state}
-            </button>
-          ))}
-        </div>
-      )}
       {showShelf ? (
-        <ul className="library-shelf" data-testid="library-shelf">
-          {shelf.map((entry) => {
-            const testId =
-              entry.category === 'adr' ? 'library-shelf-decisions-row' : `library-shelf-row-${entry.category}`;
-            const primaryCount = mode === 'active' ? entry.liveCount : entry.count;
-            const showMutedTotal = mode === 'active' && entry.liveCount !== entry.count;
-            return (
-              <li
-                key={entry.category}
-                className="library-shelf-row"
-                data-testid={testId}
-                onClick={() => enterScope(entry.category)}
-              >
-                <span className="library-shelf-row-label">{scopeDisplayName(entry.category, arcDisplay)}</span>
-                <span className="library-shelf-row-count">
-                  <span data-testid="library-shelf-row-primary-count">{primaryCount}</span>
-                  {showMutedTotal && (
-                    <span className="library-shelf-row-muted-total" data-testid="library-shelf-row-muted-total">
-                      {` of ${entry.count}`}
-                    </span>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        visibleShelf.length === 0 ? (
+          <p className="library-empty-state" data-testid="library-empty-state">
+            {`Nothing needs attention in ${lifecycleState} right now.`}
+          </p>
+        ) : (
+          <ul className="library-shelf" data-testid="library-shelf">
+            {visibleShelf.map((entry) => {
+              const testId =
+                entry.category === 'adr' ? 'library-shelf-decisions-row' : `library-shelf-row-${entry.category}`;
+              return (
+                <li
+                  key={entry.category}
+                  className="library-shelf-row"
+                  data-testid={testId}
+                  onClick={() => enterScope(entry.category)}
+                >
+                  <span className="library-shelf-row-label">{scopeDisplayName(entry.category, arcDisplay)}</span>
+                  <span className="library-shelf-row-count">{entry.stateCounts[lifecycleState]}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : results.length === 0 ? (
+        <p className="library-empty-state" data-testid="library-empty-state">
+          {`No ${lifecycleState} matches — switch state to see more.`}
+        </p>
       ) : (
         <ul className="library-finder-results" data-testid="library-finder-results">
           {results.map((result) => {
