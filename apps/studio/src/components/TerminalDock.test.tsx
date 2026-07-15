@@ -51,6 +51,17 @@ const xtermMock = vi.hoisted(() => {
     /** test-only: counts `term.focus()` calls — pins contract 6 (re-focus after a window blur/focus
      *  cycle) without asserting anything about real DOM focus, which jsdom's xterm mock has none of. */
     focusCalls = 0;
+    /** test-only: contract 12 (Ctrl+C-copy / Ctrl+V-paste) — the current "selection" text;
+     *  `hasSelection()`/`getSelection()` read this, mirroring real xterm's own API, without a real
+     *  selection model (jsdom lays out no terminal). */
+    selection = '';
+    /** test-only: contract 12 — records every `paste()` call, mirroring real xterm's bracketed-paste
+     *  entry point. */
+    pasted: string[] = [];
+    /** test-only: contract 12 — the handler `attachCustomKeyEventHandler` captures, mirroring real
+     *  xterm's own hook; null until the source wires it (the missing-behaviour red this test pins:
+     *  invoking a still-null handler is the RIGHT kind of red for the unbuilt wiring). */
+    customKeyEventHandler: ((event: KeyboardEvent) => boolean) | null = null;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
     constructor() {
@@ -86,6 +97,23 @@ const xtermMock = vi.hoisted(() => {
     /** test-only: simulate the user typing into the (fake) terminal. */
     typeIn(data: string): void {
       this.dataHandler?.(data);
+    }
+    /** test-only: contract 12 — mirrors real xterm's own `hasSelection()`/`getSelection()`. */
+    hasSelection(): boolean {
+      return this.selection.length > 0;
+    }
+    getSelection(): string {
+      return this.selection;
+    }
+    /** test-only: contract 12 — mirrors real xterm's own `paste()` (bracketed-paste); records the
+     *  pasted text rather than touching a real terminal buffer. */
+    paste(data: string): void {
+      this.pasted.push(data);
+    }
+    /** test-only: contract 12 — mirrors real xterm's own `attachCustomKeyEventHandler`, capturing the
+     *  handler so the test can invoke it directly with synthetic KeyboardEvent-shaped objects. */
+    attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
+      this.customKeyEventHandler = handler;
     }
   }
   return { FakeTerminal };
@@ -161,6 +189,34 @@ const bridgeMock = vi.hoisted(() => {
   };
 });
 
+// ── the fake ResizeObserver — jsdom has NO native ResizeObserver at all, so this fake both makes
+//    the constructor available to the component under test and records the callback + observed
+//    elements so a test can simulate a container-size-change (a window/layout resize with no drag
+//    and no tab switch) deterministically, with no real layout engine involved. ───────────────────
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = [];
+  observed: Element[] = [];
+  disconnected = false;
+  private readonly callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    FakeResizeObserver.instances.push(this);
+  }
+  observe(el: Element): void {
+    this.observed.push(el);
+  }
+  unobserve(): void {
+    /* no-op — not exercised by this suite */
+  }
+  disconnect(): void {
+    this.disconnected = true;
+  }
+  /** test-only: simulate the observer firing for its observed container. */
+  fire(): void {
+    this.callback([] as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver);
+  }
+}
+
 import { TerminalDock } from './TerminalDock';
 
 /** Flush the microtask queue the bridge's `spawn()` promise resolves on. */
@@ -212,6 +268,7 @@ function closeTabButton(n: number): HTMLElement {
 beforeEach(() => {
   xtermMock.FakeTerminal.instances.length = 0;
   fitMock.FakeFitAddon.instances.length = 0;
+  FakeResizeObserver.instances.length = 0;
   bridgeMock.resetSessionCounter();
   bridgeMock.spawn.mockClear();
   bridgeMock.write.mockClear();
@@ -222,6 +279,8 @@ beforeEach(() => {
   bridgeMock.list.mockClear();
   bridgeMock.snapshot.mockClear();
   (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
+  (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
+    FakeResizeObserver as unknown as typeof ResizeObserver;
 });
 
 afterEach(() => {
@@ -813,5 +872,115 @@ describe('TerminalDock', () => {
     // and re-attach on the next mount, `tdp-reattaches-live-sessions-on-mount`); the pty-reap duty
     // moved to the Electron main's app lifecycle (disposeAllTerminals on window-close/app-quit).
     expect(bridgeMock.dispose).not.toHaveBeenCalled();
+  });
+
+  // ── tdp-refits-on-container-resize (the remaining fit-lifecycle gap, ADR-0190 — a container-size
+  //    change with NO drag and NO tab switch, e.g. a window/layout resize, must still refit the
+  //    active terminal to its (now different) container and forward the new dims to the pty via the
+  //    SAME bridge.resize wiring contracts 3/11 use). Today's source wires the fit lifecycle only to
+  //    the drag handle (contract 3), the fresh-spawn fit (contract 10), and the expand/activation
+  //    effect (contract 11) — it observes no `ResizeObserver` on the dock body at all, so a bare
+  //    container-size change currently leaves the terminal at its stale geometry. This must fail
+  //    against current behaviour. ──────────────────────────────────────────────────────────────────
+  it('tdp-refits-on-container-resize: a ResizeObserver firing for the dock body refits the active terminal and forwards the new dims to the bridge, with no drag and no tab switch', async () => {
+    render(<TerminalDock />);
+    await expand();
+
+    const fit = fitMock.FakeFitAddon.instances[0]!;
+    fit.nextDims = { cols: 150, rows: 50 };
+    const fitCallsBefore = fit.fitCalls;
+    bridgeMock.resize.mockClear();
+
+    // The dock must have installed a ResizeObserver on its body to notice a bare container-size
+    // change (no drag, no tab switch involved).
+    expect(FakeResizeObserver.instances.length).toBeGreaterThan(0);
+    const ro = FakeResizeObserver.instances[0]!;
+
+    // Simulate the observed container changing size.
+    act(() => {
+      ro.fire();
+    });
+
+    expect(fit.fitCalls).toBeGreaterThan(fitCallsBefore);
+    expect(bridgeMock.resize).toHaveBeenCalledWith(SESSION_ID, 150, 50);
+  });
+
+  // ── tdp-ctrl-c-copies-selection-ctrl-v-pastes (contract 12 — the owner-reported Ctrl+C-copy /
+  //    Ctrl+V-paste keyboard-wiring defect: xterm consumes Ctrl+C and always forwards \x03/SIGINT to
+  //    the pty, so a selection is never copied to the clipboard; Ctrl+V is not explicitly handled).
+  //    Today's `initTab` never calls `term.attachCustomKeyEventHandler`, so the captured handler stays
+  //    null — invoking it throws, which IS the red this test pins (the missing wiring, not a
+  //    syntax/module-not-found error). ─────────────────────────────────────────────────────────────
+  it('tdp-ctrl-c-copies-selection-ctrl-v-pastes: Ctrl+C with a selection copies to the clipboard and suppresses the interrupt; Ctrl+C with no selection still interrupts; Ctrl+V pastes the clipboard', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const readText = vi.fn<() => Promise<string>>(async () => 'pasted text');
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText, readText },
+      configurable: true,
+    });
+
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    const handler = term.customKeyEventHandler;
+    expect(typeof handler).toBe('function');
+
+    const ctrlC = {
+      type: 'keydown',
+      ctrlKey: true,
+      shiftKey: false,
+      altKey: false,
+      metaKey: false,
+      key: 'c',
+    } as unknown as KeyboardEvent;
+    const ctrlV = {
+      type: 'keydown',
+      ctrlKey: true,
+      shiftKey: false,
+      altKey: false,
+      metaKey: false,
+      key: 'v',
+    } as unknown as KeyboardEvent;
+
+    // (a) Ctrl+C WITH a selection copies it to the clipboard and suppresses the interrupt — no
+    // '\x03' reaches the bridge.
+    term.selection = 'selected text';
+    expect(handler!(ctrlC)).toBe(false);
+    await flush();
+    expect(writeText).toHaveBeenCalledWith('selected text');
+    expect(bridgeMock.write).not.toHaveBeenCalledWith(SESSION_ID, '\x03');
+
+    // (b) Ctrl+C with NO selection preserves the interrupt path — xterm's normal handling forwards
+    // '\x03' to the pty itself; the clipboard is untouched.
+    writeText.mockClear();
+    term.selection = '';
+    expect(handler!(ctrlC)).toBe(true);
+    expect(writeText).not.toHaveBeenCalled();
+
+    // (c) Ctrl+V reads the clipboard and pastes it through the terminal (bracketed-paste).
+    expect(handler!(ctrlV)).toBe(false);
+    await flush();
+    expect(readText).toHaveBeenCalled();
+    expect(term.pasted).toEqual(['pasted text']);
+
+    // (d) a non-keydown event, and an unrelated key, are both left untouched.
+    const ctrlCKeyUp = { ...ctrlC, type: 'keyup' } as unknown as KeyboardEvent;
+    expect(handler!(ctrlCKeyUp)).toBe(true);
+    const plainA = {
+      type: 'keydown',
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      metaKey: false,
+      key: 'a',
+    } as unknown as KeyboardEvent;
+    expect(handler!(plainA)).toBe(true);
+
+    // (e) an absent navigator.clipboard never throws, and leaves xterm's default handling intact.
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    term.selection = 'still selected';
+    expect(() => handler!(ctrlC)).not.toThrow();
+    expect(handler!(ctrlC)).toBe(true);
   });
 });

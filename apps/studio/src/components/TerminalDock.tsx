@@ -154,6 +154,10 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
   // The dock root — its offsetParent is the positioned map frame (.world-frame), the clamp ceiling.
   const asideRef = useRef<HTMLElement>(null);
 
+  // The body-row wrapper (panel + panes) — observed by a ResizeObserver so a bare container-size
+  // change (no drag, no tab switch — e.g. a window/layout resize) still refits the active terminal.
+  const bodyRowRef = useRef<HTMLDivElement>(null);
+
   // Seed bookkeeping: the last-applied token (so a re-render with the SAME token is a no-op, keyed
   // on the token — a nonce — never the command string).
   const seedTokenRef = useRef<number | null>(null);
@@ -216,6 +220,41 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;
+
+      // Contract 12 — Ctrl+C-copy / Ctrl+V-paste (the owner-reported keyboard-wiring defect): xterm
+      // otherwise always consumes Ctrl+C and forwards '\x03'/SIGINT to the pty, so a selection could
+      // never be copied to the clipboard. With a selection, Ctrl+C copies it and returns `false`
+      // (suppressing xterm's default handling, so no interrupt reaches the bridge); with NO selection
+      // it returns `true` (xterm's normal handling — the interrupt still fires). Ctrl+V reads the
+      // clipboard and pastes it through xterm's own bracketed-paste entry point. Any other event
+      // (non-keydown, an unrelated key, or an absent `navigator.clipboard`) is left untouched — return
+      // `true`, xterm's default handling, and never throw.
+      term.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+        if (
+          event.type !== 'keydown' ||
+          !event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey ||
+          event.metaKey
+        ) {
+          return true;
+        }
+        const clipboard: Clipboard | undefined =
+          typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+        if (event.key === 'c') {
+          if (clipboard && term.hasSelection()) {
+            void clipboard.writeText(term.getSelection());
+            return false;
+          }
+          return true;
+        }
+        if (event.key === 'v') {
+          if (!clipboard) return true;
+          void clipboard.readText().then((text) => term.paste(text));
+          return false;
+        }
+        return true;
+      });
 
       // Terminal input → bridge write, scoped to THIS tab's session (only once it exists).
       term.onData((data) => {
@@ -414,6 +453,23 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     recordsRef.current.get(activeId)?.fit?.fit();
   }, [expanded, activeId]);
 
+  // The remaining fit-lifecycle gap (ADR-0190) — a ResizeObserver on the body-row wrapper notices a
+  // bare container-size change (no drag, no tab switch — e.g. a window/layout resize) and re-fits the
+  // ACTIVE tab's terminal, forwarding the new geometry to the pty through the SAME onResize ->
+  // bridge.resize wiring contracts 3/11 use. Installed once per dock (guarded on `bridge`/the element
+  // existing), never per tab.
+  useEffect(() => {
+    if (!bridge) return;
+    const el = bodyRowRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const id = activeIdRef.current;
+      if (id !== null) recordsRef.current.get(id)?.fit?.fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bridge]);
+
   // Contract 6 — re-focus the ACTIVE tab's mounted xterm after a window blur/focus cycle (another
   // window/app had stolen focus; the user clicks back). xterm's hidden input textarea does not regain
   // focus on its own, so we drive it explicitly on the events that mean "the user is back on the
@@ -525,7 +581,11 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
           plus the panel's own "+" spawn control. The chrome (this whole row wrapper) renders
           regardless of fold state, same as the toggle above it; only the ACTIVE pane is visible while
           expanded. */}
-      <div className="terminal-dock-body-row" style={{ display: 'flex', flexDirection: 'row' }}>
+      <div
+        ref={bodyRowRef}
+        className="terminal-dock-body-row"
+        style={{ display: 'flex', flexDirection: 'row' }}
+      >
         <div className="terminal-dock-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           {tabIds.map((id, i) => (
             <div
