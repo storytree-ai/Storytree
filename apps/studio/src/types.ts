@@ -795,6 +795,49 @@ export interface ActivityPayload {
   claims?: ClaimActivity[] | null;
 }
 
+// ---------- claim-ledger dock view (GET /api/claims, ADR-0200 D7) ----------
+
+/**
+ * The claim GRADES — mirrors `ClaimGradeT` from `@storytree/notice-board` locally (like
+ * {@link BuildPhase}/{@link SubagentColourState} above mirror proof-protocol/drive enums rather
+ * than importing them): `work` (the exclusive build/edit mutex), `waiting` (queued behind a work
+ * holder), `exploring` (shared, session-start "what I'm thinking").
+ */
+export type ClaimGrade = 'exploring' | 'waiting' | 'work';
+
+/** One claim inside a {@link SessionClaimGroup} — mirrors the server's `SessionClaimEntry`. */
+export interface SessionClaimEntry {
+  unitId: string;
+  grade: ClaimGrade;
+  intent: string;
+  /** Elapsed ms since `claimedAt`, stamped by the server at read time. */
+  ageMs: number;
+  claimedAt: string;
+}
+
+/**
+ * One session's live claims — the studio session dock's claims-grouped-by-session rendering unit
+ * (ADR-0200 D7). Mirrors the server's `SessionClaimGroup` (packages/notice-board's pure
+ * `groupClaimsBySession` fold), oldest-session-first, claims within a group ranked work > waiting >
+ * exploring.
+ */
+export interface SessionClaimGroup {
+  sessionId: string;
+  branch: string;
+  claims: SessionClaimEntry[];
+}
+
+/**
+ * GET /api/claims — every live claim row folded by session (ADR-0200 D7), sibling to
+ * {@link PresencePayload}/{@link ActivityPayload}: `sessions: null` means the live store didn't
+ * answer (down DB / json store) — advisory absence, not an error; the dock degrades silently to
+ * the presence-only view. Fetched only while the session dock is open (not on the world's poll
+ * cadence — no new always-on cost class).
+ */
+export interface ClaimsPayload {
+  sessions: SessionClaimGroup[] | null;
+}
+
 // ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------
 
 /** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */

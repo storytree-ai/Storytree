@@ -43,6 +43,7 @@ import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activit
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
 import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
+import { useSessionClaimGroups } from '../lib/sessionClaims';
 import { docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
 import {
@@ -99,7 +100,7 @@ import type { SearchResult } from '../lib/librarySearch.js';
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { RepoPicker } from './RepoPicker.js';
-import type { BuildActivity, ClaimActivity, DocMeta, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { BuildActivity, ClaimActivity, DocMeta, SessionClaimGroup, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
   rand01,
@@ -1202,7 +1203,7 @@ const DRAG_SLOP = 10;
 type Band = TreeSession['band'];
 
 /** What the session dock shows: the board-level list, or one session's detail. */
-type SessionDockState = { kind: 'list' } | { kind: 'detail'; id: string };
+export type SessionDockState = { kind: 'list' } | { kind: 'detail'; id: string };
 
 export function TreeView({ focus }: { focus: string | null }): React.JSX.Element {
   const [stories, setStories] = useState<TreeStory[] | null>(null);
@@ -1224,6 +1225,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // session's detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
   // including nodes:[] hook declarations — are reachable ONLY through the list.
   const [sessionDock, setSessionDock] = useState<SessionDockState | null>(null);
+  // The claim-ledger dock view (ADR-0200 D7): "who's doing what, grouped by session" — fetched
+  // only while the dock is open (not the world's always-on poll cadence). `null` (down DB / json
+  // store) degrades silently to the presence-only view.
+  const claimGroups = useSessionClaimGroups(sessionDock !== null);
   const [loadError, setLoadError] = useState('');
   // Selection lives in the URL (#/tree/<storyId>) so a focused territory is
   // deep-linkable; the route's `focus` IS the selected story — but only when
@@ -2150,6 +2155,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             <SessionDock
               dock={sessionDock}
               sessions={sessions}
+              claimGroups={claimGroups}
               anchors={sessionAnchors}
               now={now}
               storyForNode={storyForNode}
@@ -3699,9 +3705,10 @@ function TerritoryFlora({
  * done). Advisory like the wisps: a session that vanishes from the poll renders
  * an honest "no longer active" note rather than a stale card.
  */
-function SessionDock({
+export function SessionDock({
   dock,
   sessions,
+  claimGroups,
   anchors,
   now,
   storyForNode,
@@ -3712,6 +3719,9 @@ function SessionDock({
 }: {
   dock: SessionDockState;
   sessions: TreeSession[];
+  /** The claim-ledger dock view (ADR-0200 D7) — `null` before the first fetch answers or when the
+   *  live store is silent (down DB / json store); the list then degrades to the presence rows alone. */
+  claimGroups: SessionClaimGroup[] | null;
   anchors: ReadonlyMap<string, string[]>;
   now: Date;
   storyForNode: (node: string) => string | null;
@@ -3755,21 +3765,29 @@ function SessionDock({
         </button>
       </header>
       {dock.kind === 'list' ? (
-        sessions.length === 0 ? (
-          <p className="muted small">No active sessions right now.</p>
-        ) : (
-          <>
-            {orbiting.map(row)}
-            {parked.length > 0 && (
-              <>
-                <p className="session-parked-label muted small">
-                  possibly dead — quiet ≥ 4 h, no longer orbiting
-                </p>
-                {parked.map(row)}
-              </>
-            )}
-          </>
-        )
+        <>
+          {/* The claim-ledger view (ADR-0200 D7) is the dock's PRIMARY list: who is doing what,
+              grouped by session. `null` (down DB / json store, or not yet fetched) is silent
+              absence — the presence rows below still render on their own. */}
+          {claimGroups && claimGroups.length > 0 && (
+            <ClaimGroupList groups={claimGroups} now={now} />
+          )}
+          {sessions.length === 0 ? (
+            <p className="muted small">No active sessions right now.</p>
+          ) : (
+            <>
+              {orbiting.map(row)}
+              {parked.length > 0 && (
+                <>
+                  <p className="session-parked-label muted small">
+                    possibly dead — quiet ≥ 4 h, no longer orbiting
+                  </p>
+                  {parked.map(row)}
+                </>
+              )}
+            </>
+          )}
+        </>
       ) : detail ? (
         <div className="session-detail">
           <p className="session-detail-id">
@@ -3824,6 +3842,47 @@ function SessionDock({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The claim-ledger dock view (ADR-0200 D7): one group per session (sessionId + branch), each
+ * listing its live claims — unit id, grade chip (exploring|waiting|work), free-prose intent, and
+ * age (the existing `formatAge`). Data-only: the LOOK is attested later at the arc's UAT (ADR-0070
+ * stage 2) — this renders whatever `groupClaimsBySession` (packages/notice-board) hands it, no
+ * invented styling decisions beyond a plain grouped list.
+ */
+function ClaimGroupList({
+  groups,
+  now,
+}: {
+  groups: SessionClaimGroup[];
+  now: Date;
+}): React.JSX.Element {
+  return (
+    <div className="claim-groups" aria-label="claims by session">
+      {groups.map((g) => (
+        <div className="claim-session-group" key={g.sessionId}>
+          <p className="claim-session-header">
+            <code>{g.sessionId}</code>
+            <span className="muted small">
+              {' '}
+              · <code>{g.branch}</code>
+            </span>
+          </p>
+          <ul className="claim-list">
+            {g.claims.map((c) => (
+              <li key={c.unitId} className="claim-row">
+                <span className={`claim-grade-chip claim-grade-${c.grade}`}>{c.grade}</span>
+                <code>{c.unitId}</code>
+                {c.intent && <span className="muted small"> — {c.intent}</span>}
+                <span className="muted small"> · {formatAge(c.claimedAt, now)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }

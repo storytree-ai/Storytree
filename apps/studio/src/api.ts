@@ -7,6 +7,7 @@ import type {
   BuildIntentResult,
   BuildStatus,
   Member,
+  ClaimsPayload,
   Comment,
   DbStatus,
   DocContent,
@@ -253,6 +254,11 @@ export const api = {
   // contract + abort backstop as presence: a down DB answers {builds: null}.
   activity: (): Promise<ActivityPayload> =>
     http('/api/activity', { signal: AbortSignal.timeout(10_000) }),
+  // The claim-ledger dock view (see lib/sessionClaims.ts, ADR-0200 D7). Same advisory contract +
+  // abort backstop as presence/activity: a down DB answers {sessions: null}. Fetched only while
+  // the session dock is open — not on the world's poll cadence.
+  claims: (): Promise<ClaimsPayload> =>
+    http('/api/claims', { signal: AbortSignal.timeout(10_000) }),
   // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
   // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
   // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
