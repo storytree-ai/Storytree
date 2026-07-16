@@ -267,3 +267,80 @@ test("workClaimRequest: the built request round-trips through ClaimDoc.parse onc
   assert.equal(doc.intent, "orchestrate");
   assert.equal(doc.unitId, "wisp-as-story-claim");
 });
+
+// ── groupClaimsBySession (ADR-0200 D7): the pure by-session ledger fold ───────
+
+import { groupClaimsBySession } from "./claim.js";
+
+test("groupClaimsBySession: groups by session, strongest grade first within a group", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const claims: ClaimDocT[] = [
+    sample({ unitId: "story-a", sessionId: "s1", branch: "claude/s1", grade: "exploring", intent: "reading", claimedAt: "2026-07-16T11:00:00.000Z", heartbeatAt: fresh }),
+    sample({ unitId: "story-b", sessionId: "s1", branch: "claude/s1", grade: "work", intent: "building", claimedAt: "2026-07-16T11:30:00.000Z", heartbeatAt: fresh }),
+    sample({ unitId: "story-a", sessionId: "s2", branch: "claude/s2", grade: "waiting", intent: "", claimedAt: "2026-07-16T11:45:00.000Z", heartbeatAt: fresh }),
+  ];
+  const groups = groupClaimsBySession(claims, now);
+  assert.equal(groups.length, 2);
+  // s1's oldest claim (11:00) predates s2's (11:45) → s1 first.
+  assert.equal(groups[0]?.sessionId, "s1");
+  assert.equal(groups[0]?.branch, "claude/s1");
+  // Within s1: work outranks exploring despite being claimed later.
+  assert.deepEqual(groups[0]?.claims.map((c) => c.unitId), ["story-b", "story-a"]);
+  assert.deepEqual(groups[0]?.claims.map((c) => c.grade), ["work", "exploring"]);
+  assert.equal(groups[1]?.sessionId, "s2");
+  assert.equal(groups[1]?.claims[0]?.grade, "waiting");
+});
+
+test("groupClaimsBySession: stale claims are dropped; a fully-stale session has no group", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const staleBeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
+  const claims: ClaimDocT[] = [
+    sample({ unitId: "story-a", sessionId: "dead", grade: "work", heartbeatAt: staleBeat }),
+    sample({ unitId: "story-b", sessionId: "live", grade: "exploring", heartbeatAt: now.toISOString(), claimedAt: "2026-07-16T11:00:00.000Z" }),
+    sample({ unitId: "story-c", sessionId: "live", grade: "work", heartbeatAt: staleBeat, claimedAt: "2026-07-16T10:00:00.000Z" }),
+  ];
+  const groups = groupClaimsBySession(claims, now);
+  assert.equal(groups.length, 1, "the dead session never renders");
+  assert.equal(groups[0]?.sessionId, "live");
+  assert.deepEqual(groups[0]?.claims.map((c) => c.unitId), ["story-b"], "the live session's stale row is dropped too");
+});
+
+test("groupClaimsBySession: ageMs measures claimedAt→now, clamped to zero; claimedAt is carried", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const claimedAt = "2026-07-16T11:15:00.000Z"; // 45 minutes before now
+  const future = "2026-07-16T12:00:01.000Z"; // clock skew — clamps to 0
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "story-a", sessionId: "s1", grade: "exploring", claimedAt, heartbeatAt: now.toISOString() }),
+      sample({ unitId: "story-b", sessionId: "s1", grade: "exploring", claimedAt: future, heartbeatAt: now.toISOString() }),
+    ],
+    now,
+  );
+  const byUnit = new Map(groups[0]?.claims.map((c) => [c.unitId, c]));
+  assert.equal(byUnit.get("story-a")?.ageMs, 45 * 60 * 1_000);
+  assert.equal(byUnit.get("story-a")?.claimedAt, claimedAt);
+  assert.equal(byUnit.get("story-b")?.ageMs, 0, "a future claimedAt clamps to 0, never negative");
+});
+
+test("groupClaimsBySession: an absent grade folds as work (pre-grade back-compat), and intent rides through", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const { grade: _omit, ...preGrade } = sample({ unitId: "story-a", sessionId: "s1", intent: "real", claimedAt: "2026-07-16T11:00:00.000Z", heartbeatAt: now.toISOString() });
+  const groups = groupClaimsBySession([preGrade], now);
+  assert.equal(groups[0]?.claims[0]?.grade, "work");
+  assert.equal(groups[0]?.claims[0]?.intent, "real");
+});
+
+test("groupClaimsBySession: empty in, empty out; deterministic session tie-break on sessionId", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  assert.deepEqual(groupClaimsBySession([], now), []);
+  const at = "2026-07-16T11:00:00.000Z";
+  const groups = groupClaimsBySession(
+    [
+      sample({ unitId: "story-a", sessionId: "zz-later", grade: "exploring", claimedAt: at, heartbeatAt: now.toISOString() }),
+      sample({ unitId: "story-b", sessionId: "aa-first", grade: "exploring", claimedAt: at, heartbeatAt: now.toISOString() }),
+    ],
+    now,
+  );
+  assert.deepEqual(groups.map((g) => g.sessionId), ["aa-first", "zz-later"], "equal oldest ages tie-break alphabetically");
+});
