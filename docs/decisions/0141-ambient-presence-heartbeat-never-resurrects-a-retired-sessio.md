@@ -1,11 +1,19 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-07-02
 amends: [79]
 ---
 # ADR-0141: Ambient presence heartbeat never resurrects a retired session
 
 ## Status
+
+**Superseded by [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md)**
+(2026-07-16) — the presence rows whose resurrection semantics this ADR fixed are retired outright:
+the noticeboard becomes the deterministic claim ledger and the ambient beat's only remaining job is
+bumping claim heartbeats (which cannot resurrect anything — a released/cleared claim row is gone,
+not `done`). The `reactivate: false` guard remains OPERATIVE until the ADR-0200 arc's final
+retirement increment deletes the presence write path (after the owner's UAT attestation); the
+original body below is preserved unchanged as history.
 
 accepted (2026-07-02) — decided/directed by the owner in conversation on 2026-07-02. Design-time
 alignment IS the ratification (ADR-0110); no second end-of-flow ask. **Amends

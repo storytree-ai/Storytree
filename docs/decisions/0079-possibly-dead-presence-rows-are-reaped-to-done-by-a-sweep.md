@@ -1,11 +1,18 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-06-20
 amends: [41]
 ---
 # ADR-0079: Possibly-dead presence rows are reaped to done by a sweep
 
 ## Status
+
+**Superseded by [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md)**
+(2026-07-16) — the `events.session` presence rows this sweep janitors are retired outright: the
+noticeboard becomes the deterministic claim ledger, whose rows are machine-cleared and
+heartbeat-aged and need no reaper. The sweep remains OPERATIVE until the ADR-0200 arc's final
+retirement increment lands (it is deleted there, after the owner's UAT attestation); the original
+body below is preserved unchanged as history.
 
 accepted (2026-06-20, owner) — a session found 19 `status:active` presence rows that all classify
 `possibly-dead` (oldest 146 h) polluting the `events.session` roster, cleaned them up, and landed
