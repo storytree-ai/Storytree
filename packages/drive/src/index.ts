@@ -13,6 +13,9 @@ export * from "./secrets.js";
 export * from "./adr-frontmatter.js";
 export * from "./adr-metas.js";
 export * from "./node-build.js";
+// Per-slice token-usage persistence (accounting, never proof): the SdkRunInfo → UsageEventDoc
+// mapping + the advisory append the build paths run after proveUnit.
+export * from "./usage.js";
 export * from "./story-build.js";
 export * from "./adopt.js";
 export * from "./orchestrate.js";

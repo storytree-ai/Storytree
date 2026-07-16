@@ -33,6 +33,7 @@ const PASS_VERDICT: Verdict = {
 function fakeClient(rowsByTable?: {
   work?: unknown[];
   verdict?: unknown[];
+  usage?: unknown[];
 }): { client: WorkStoreClient; queries: Array<{ text: string; values: unknown[] }> } {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   let seq = 0;
@@ -46,11 +47,21 @@ function fakeClient(rowsByTable?: {
       if (text.startsWith("DELETE")) return { rows: [], rowCount: 1 };
       if (text.includes("FROM events.work_event")) return { rows: rowsByTable?.work ?? [] };
       if (text.includes("FROM events.verdict")) return { rows: rowsByTable?.verdict ?? [] };
+      if (text.includes("FROM events.usage_event")) return { rows: rowsByTable?.usage ?? [] };
       return { rows: [] };
     },
   };
   return { client, queries };
 }
+
+const USAGE_DOC = {
+  unitId: "u1",
+  runId: "run-1",
+  phase: "AUTHOR_TEST",
+  source: "sdk-leaf",
+  usage: { inputTokens: 10, cacheCreationInputTokens: 20, cacheReadInputTokens: 30, outputTokens: 40 },
+  costUsd: 0.05,
+} as const;
 
 test("a signing event routes to events.verdict with the Verdict's scalar spine", async () => {
   const { client, queries } = fakeClient();
@@ -117,6 +128,54 @@ test("a work event without a tier lands with the explicit 'unknown' tier", async
   assert.equal(queries[0]!.values[1], "unknown");
 });
 
+test("a usage event routes to events.usage_event with the token axes as the scalar spine", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  const event = await store.appendEvent({
+    id: "run-1:u1:AUTHOR_TEST",
+    kind: "usage",
+    type: "created",
+    doc: USAGE_DOC,
+    actor: "tester@example.com",
+  });
+
+  assert.equal(queries.length, 1);
+  const q = queries[0]!;
+  assert.match(q.text, /INSERT INTO events\.usage_event/);
+  // unit_id, run_id, phase, source, model, the four token axes, cost_usd, doc, actor.
+  assert.deepEqual(q.values.slice(0, 10), [
+    "u1",
+    "run-1",
+    "AUTHOR_TEST",
+    "sdk-leaf",
+    null,
+    10,
+    20,
+    30,
+    40,
+    0.05,
+  ]);
+  assert.deepEqual(JSON.parse(q.values[10] as string), USAGE_DOC);
+  assert.equal(q.values[11], "tester@example.com");
+  assert.equal(event.kind, "usage");
+  assert.equal(event.id, "run-1:u1:AUTHOR_TEST");
+});
+
+test("a usage event whose doc is malformed fails closed (no accounting garbage lands)", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  await assert.rejects(
+    store.appendEvent({
+      id: "x",
+      kind: "usage",
+      type: "created",
+      doc: { unitId: "u1", usage: { tokens: 99 } },
+      actor: "tester",
+    }),
+  );
+  assert.equal(queries.length, 0, "no INSERT may run for an unparseable usage doc");
+});
+
 test("an unknown event kind is refused — nothing lands somewhere silent", async () => {
   const { client, queries } = fakeClient();
   const store = new PgWorkStore(client);
@@ -154,6 +213,27 @@ test("readEvents merges both tables ordered by at (work before signing on a tie)
   // The StoreEvent id is reconstructed by the runId:unitId rule both writers use.
   assert.deepEqual(events.map((e) => e.id), ["run-1:u1", "run-1:u1"]);
   // The merged stream is exactly what the rollup projects healthy from.
+  assert.equal(rollupStatus("u1", events), "healthy");
+});
+
+test("readEvents surfaces usage rows after work/signing on a tie, and the rollup ignores them", async () => {
+  const { client } = fakeClient({
+    work: [
+      { seq: 1, type: "building", doc: { unitId: "u1", event: "building", runId: "run-1" }, actor: "t", at: "2026-06-10T00:00:00.000Z" },
+    ],
+    verdict: [
+      { seq: 1, unit_id: "u1", run_id: "run-1", signer: "tester@example.com", doc: PASS_VERDICT, at: "2026-06-10T00:00:00.000Z" },
+    ],
+    usage: [
+      { seq: 1, unit_id: "u1", run_id: "run-1", phase: "AUTHOR_TEST", doc: USAGE_DOC, actor: "t", at: "2026-06-10T00:00:00.000Z" },
+    ],
+  });
+  const store = new PgWorkStore(client);
+  const events = await store.readEvents();
+
+  assert.deepEqual(events.map((e) => e.kind), ["work", "signing", "usage"]);
+  assert.equal(events[2]!.id, "run-1:u1:AUTHOR_TEST");
+  // Accounting never moves a derived status: the pass still projects healthy.
   assert.equal(rollupStatus("u1", events), "healthy");
 });
 
@@ -204,7 +284,7 @@ async function makePgWorkStore(): Promise<Store> {
   const { pool, connector } = await createTestPool();
   livePools.push(() => closePool(pool, connector));
   await applySchema(pool);
-  await pool.query("TRUNCATE events.work_event, events.verdict RESTART IDENTITY");
+  await pool.query("TRUNCATE events.work_event, events.verdict, events.usage_event RESTART IDENTITY");
   return new PgWorkStore(pool);
 }
 

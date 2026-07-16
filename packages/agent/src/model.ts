@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   ContentBlock,
   StopReason,
+  TokenUsage,
 } from "./model-events.js";
 import { parseContentBlock } from "./model-events.js";
 
@@ -33,10 +34,16 @@ export interface ModelRequest {
   maxTokens?: number;
 }
 
-/** A model response: the assistant's content blocks plus why it stopped. */
+/**
+ * A model response: the assistant's content blocks plus why it stopped. `usage` is the request's
+ * token accounting when the runtime reports one ({@link AnthropicModel} always does; a
+ * {@link ScriptedModel} script may omit it) — captured so a caller can meter, never consulted by
+ * the loop itself.
+ */
 export interface ModelResponse {
   content: ContentBlock[];
   stopReason: StopReason;
+  usage?: TokenUsage;
 }
 
 /** The model seam: one swappable call. */
@@ -127,8 +134,27 @@ export class AnthropicModel implements Model {
     }
 
     const stopReason: StopReason = message.stop_reason ?? "end_turn";
-    return { content, stopReason };
+    return { content, stopReason, usage: usageFromApi(message.usage) };
   }
+}
+
+/**
+ * Map the Messages API `usage` block into the {@link TokenUsage} capture vocabulary. The cache
+ * fields are nullable API-side (absent when caching is off) — normalized to 0, which is what they
+ * mean. Pure; exported so the mapping is testable offline (the live client is never exercised).
+ */
+export function usageFromApi(u: {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+}): TokenUsage {
+  return {
+    inputTokens: u.input_tokens,
+    cacheCreationInputTokens: u.cache_creation_input_tokens ?? 0,
+    cacheReadInputTokens: u.cache_read_input_tokens ?? 0,
+    outputTokens: u.output_tokens,
+  };
 }
 
 function toSdkMessage(m: ModelMessage): Anthropic.MessageParam {

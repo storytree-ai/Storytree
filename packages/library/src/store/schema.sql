@@ -142,6 +142,32 @@ CREATE TABLE IF NOT EXISTS events.verdict (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Per-slice token-usage rows: the runtime-cost SIBLING stream to events.verdict. A signed verdict
+-- deliberately carries NO runtime cost (proof and spend are different axes), so what one authoring
+-- slice (one SDK query / one owned-loop step) consumed lands HERE, keyed by (unit_id, run_id,
+-- phase). Append-only ACCOUNTING, never proof: rollupStatus ignores the kind entirely, so a usage
+-- row can never move a unit's derived status. The token columns are the queryable spine a roll-up
+-- SUMs over (the four axes bill at different rates — cache reads ~10× cheaper than fresh input —
+-- so they are never collapsed); `cost_usd` is the SDK's metered figure (a phantom under
+-- subscription billing — advisory context, never a meter); the full doc (incl. the per-model
+-- split) rides in `doc`.
+CREATE TABLE IF NOT EXISTS events.usage_event (
+  seq                   BIGSERIAL PRIMARY KEY,
+  unit_id               TEXT NOT NULL,
+  run_id                TEXT NOT NULL,
+  phase                 TEXT NOT NULL,      -- AUTHOR_TEST|IMPLEMENT (the billing slices)
+  source                TEXT NOT NULL,      -- sdk-leaf|owned-loop
+  model                 TEXT,
+  input_tokens          BIGINT NOT NULL,
+  cache_creation_tokens BIGINT NOT NULL,
+  cache_read_tokens     BIGINT NOT NULL,
+  output_tokens         BIGINT NOT NULL,
+  cost_usd              DOUBLE PRECISION,
+  doc                   JSONB NOT NULL,     -- the full UsageEventDoc (byModel split lives inside)
+  actor                 TEXT NOT NULL,
+  at                    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Per-UAT-test attestations (ADR-0044): append-only SIGNED signals keyed by test id (`<story>#uat-<n>`).
 -- A vouch is NOT a proof — this is a DELIBERATELY SEPARATE log from events.verdict (the conflation
 -- ADR-0044 d.2 forbids): nothing here ever paints the gate-green hue, and there is NO story roll-up
@@ -291,6 +317,7 @@ CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact 
 CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
 CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
 CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
+CREATE INDEX IF NOT EXISTS usage_event_unit_idx ON events.usage_event (unit_id);
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
 CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
 CREATE INDEX IF NOT EXISTS change_event_unit_idx ON events.change_event (unit_id);

@@ -60,6 +60,21 @@ export const StopReason = z.enum([
 ]);
 export type StopReason = z.infer<typeof StopReason>;
 
+/**
+ * One request's/slice's token counts — the CAPTURE vocabulary both leaf runtimes record against
+ * (the owned loop's {@link ModelResponse} and the SDK leaf's per-slice `SdkRunInfo`). camelCase
+ * per the Agent SDK's `ModelUsage`; the four axes bill at different rates (cache reads ~10×
+ * cheaper than fresh input, cache creation ~1.25×), so they are never collapsed to one number.
+ * The wire twin (`TokenUsage` in `@storytree/proof-protocol`) mirrors this field-for-field —
+ * proof-protocol depends on nothing, so it duplicates like `Tier`/`Status` (ADR-0068 §3).
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  outputTokens: number;
+}
+
 export function isTextBlock(block: ContentBlock): block is TextBlock {
   return block.type === "text";
 }

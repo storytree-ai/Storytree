@@ -9,7 +9,7 @@ export type {
   ModelResponse,
   ModelTool,
 } from "./model.js";
-export { ScriptedModel, AnthropicModel } from "./model.js";
+export { ScriptedModel, AnthropicModel, usageFromApi } from "./model.js";
 
 export type { ToolExecutor, ToolHandler } from "./tool-executor.js";
 export { MapToolExecutor } from "./tool-executor.js";
@@ -38,6 +38,7 @@ export {
   formatFeedbackOutput,
   leafSystemPrompt,
   composeLeafSystemPrompt,
+  usageFromSdkResult,
 } from "./sdk-author.js";
 
 export type { SdkCuratorArgs, SdkCuratorResult } from "./sdk-curator.js";

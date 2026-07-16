@@ -1,6 +1,8 @@
 import type { Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
 import {
   SIGNING_EVENT_KIND,
+  USAGE_EVENT_KIND,
+  UsageEventDoc,
   Verdict,
   WORK_EVENT_KIND,
   WorkEventDoc,
@@ -9,9 +11,11 @@ import {
 /**
  * The Postgres work-hierarchy event store (drive-machinery Phase A's tables, finally written to —
  * PR #29's parked decision 4): the {@link Store} impl `proveUnit` + `rollupStatus` ride when a
- * build runs with `--store pg`. It routes the two work-hierarchy event kinds to their dedicated
- * homes — `kind:"work"` → `events.work_event`, `kind:"signing"` → `events.verdict` — so signed
- * verdicts STOP co-mingling with `events.library_event` (the plan §1 mis-landing).
+ * build runs with `--store pg`. It routes the work-hierarchy event kinds to their dedicated
+ * homes — `kind:"work"` → `events.work_event`, `kind:"signing"` → `events.verdict`,
+ * `kind:"usage"` → `events.usage_event` (per-slice token accounting — the runtime-cost sibling
+ * stream; the signed Verdict deliberately carries no cost) — so signed verdicts STOP co-mingling
+ * with `events.library_event` (the plan §1 mis-landing).
  *
  * EVENT-ONLY and fail-closed by design:
  *  - the doc surface (`upsertDoc`/`getDoc`/`queryDocs`/`deleteDoc`) throws — library artifacts
@@ -19,10 +23,11 @@ import {
  *  - a `signing` event whose doc is not a full signed {@link Verdict} throws (nothing forgeable
  *    lands in `events.verdict`); an unknown kind throws rather than landing somewhere silent.
  *
- * `readEvents` merges both tables into one stream ordered by `at` (work before signing on a tie —
- * a `building` mark precedes the pass it leads to) and REASSIGNS `seq` monotonically over the
- * merged view: the two tables have independent BIGSERIALs, so the raw values cannot order the
- * union. The Store contract only needs `seq` monotonic per store; `rollupStatus` sorts by it.
+ * `readEvents` merges the tables into one stream ordered by `at` (work before signing before
+ * usage on a tie — a `building` mark precedes the pass it leads to) and REASSIGNS `seq`
+ * monotonically over the merged view: the tables have independent BIGSERIALs, so the raw values
+ * cannot order the union. The Store contract only needs `seq` monotonic per store; `rollupStatus`
+ * sorts by it (and ignores the usage kind entirely — accounting never moves a derived status).
  */
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
@@ -44,6 +49,16 @@ interface VerdictRow {
   run_id: string;
   signer: string;
   doc: unknown;
+  at: Date | string;
+}
+
+interface UsageRow {
+  seq: string | number;
+  unit_id: string;
+  run_id: string;
+  phase: string;
+  doc: unknown;
+  actor: string;
   at: Date | string;
 }
 
@@ -126,9 +141,50 @@ export class PgWorkStore implements Store {
       };
     }
 
+    if (e.kind === USAGE_EVENT_KIND) {
+      // Fail-closed like the verdict arm: only a valid UsageEventDoc lands. The scalar columns are
+      // the queryable spine a SQL roll-up SUMs over; the doc keeps the full breakdown (byModel …).
+      const doc = UsageEventDoc.parse(e.doc);
+      const actor = e.actor ?? "system";
+      const res = await this.#client.query(
+        `INSERT INTO events.usage_event
+           (unit_id, run_id, phase, source, model,
+            input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens, cost_usd,
+            doc, actor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+         RETURNING seq, at`,
+        [
+          doc.unitId,
+          doc.runId,
+          doc.phase,
+          doc.source,
+          doc.model ?? null,
+          doc.usage.inputTokens,
+          doc.usage.cacheCreationInputTokens,
+          doc.usage.cacheReadInputTokens,
+          doc.usage.outputTokens,
+          doc.costUsd ?? null,
+          JSON.stringify(doc),
+          actor,
+        ],
+      );
+      const row = res.rows[0] as { seq: string | number; at: Date | string } | undefined;
+      if (row === undefined) throw new Error("PgWorkStore.appendEvent: no usage_event row returned");
+      return {
+        seq: Number(row.seq),
+        id: e.id,
+        kind: e.kind,
+        type: e.type,
+        doc,
+        actor,
+        at: toIso(row.at),
+      };
+    }
+
     throw new Error(
       `PgWorkStore is the work-hierarchy event store: kind "${e.kind}" has no home here ` +
-        `(only "${WORK_EVENT_KIND}" and "${SIGNING_EVENT_KIND}"); library docs belong in PgLibraryStore`,
+        `(only "${WORK_EVENT_KIND}", "${SIGNING_EVENT_KIND}" and "${USAGE_EVENT_KIND}"); ` +
+        `library docs belong in PgLibraryStore`,
     );
   }
 
@@ -138,6 +194,9 @@ export class PgWorkStore implements Store {
     );
     const verdicts = await this.#client.query(
       `SELECT seq, unit_id, run_id, signer, doc, at FROM events.verdict ORDER BY seq`,
+    );
+    const usage = await this.#client.query(
+      `SELECT seq, unit_id, run_id, phase, doc, actor, at FROM events.usage_event ORDER BY seq`,
     );
 
     // kindRank orders a same-timestamp tie: the building mark precedes the pass it led to.
@@ -172,6 +231,25 @@ export class PgWorkStore implements Store {
           type: "created",
           doc: row.doc,
           actor: row.signer,
+          at: toIso(row.at),
+        },
+      });
+    }
+
+    for (const raw of usage.rows) {
+      const row = raw as UsageRow;
+      // Usage rows are ACCOUNTING: rollupStatus ignores the kind entirely (conservative by
+      // construction), so surfacing them in the merged stream can never move a derived status.
+      merged.push({
+        at: toIso(row.at),
+        kindRank: 2,
+        tableSeq: Number(row.seq),
+        event: {
+          id: `${row.run_id}:${row.unit_id}:${row.phase}`,
+          kind: USAGE_EVENT_KIND,
+          type: "created",
+          doc: row.doc,
+          actor: row.actor,
           at: toIso(row.at),
         },
       });

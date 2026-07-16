@@ -59,6 +59,7 @@ import type { EmitWispDeps } from "./wisp-smoke.js";
 import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
+import { appendSliceUsage } from "./usage.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -513,6 +514,16 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     // A build run never writes session presence (ADR-0199): its footprint on the shared store is
     // the `building`/phase work-events above + the caller's write-claim — never `events.session`.
     const result = await proveUnit(resolved.spec);
+    // Per-slice token accounting: advisory append to the same store the run's events land in
+    // (in-memory for a dry-run/live smoke, so a synthetic walk's accounting honestly dies here).
+    if (resolved.liveAuthor !== undefined) {
+      await appendSliceUsage(
+        args.store,
+        { unitId: spec.id, runId: args.runId, ...(args.model !== undefined ? { model: args.model } : {}) },
+        resolved.liveAuthor.runs,
+        args.signer,
+      );
+    }
     return {
       resolved: true,
       result,
@@ -528,6 +539,17 @@ export function liveLeafLines(liveAuthor: ClaudeAgentAuthor): string[] {
   return [
     `leaf:        Claude Agent SDK (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
     `cost:        $${liveAuthor.totalCostUsd.toFixed(4)} SDK-reported (subscription-billed)`,
+    ...(liveAuthor.runs.some((r) => r.usage !== undefined)
+      ? [
+          `tokens:      ${liveAuthor.runs
+            .flatMap((r) => (r.usage === undefined ? [] : [{ phase: r.phase, u: r.usage }]))
+            .map(
+              ({ phase, u }) =>
+                `${phase}: ${u.outputTokens} out / ${u.inputTokens} in / ${u.cacheReadInputTokens} cache-read / ${u.cacheCreationInputTokens} cache-write`,
+            )
+            .join("; ")}`,
+        ]
+      : []),
     `scope walls: ${liveAuthor.violations.length === 0 ? "no write refusals" : liveAuthor.violations.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
     ...(liveAuthor.feedbackRuns.length > 0
       ? [
@@ -674,6 +696,17 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   });
   // A build run never writes session presence (ADR-0199) — work-events + the claim only.
   const result = await proveUnit(resolved.spec);
+  // Per-slice token accounting (advisory): what each authoring slice consumed, persisted to the
+  // run's store — events.usage_event under --store pg. Appended for PASS and FAIL alike (a red
+  // slice billed too); never proof, and a failed write never fails the build.
+  if (resolved.liveAuthor !== undefined) {
+    await appendSliceUsage(
+      store,
+      { unitId: spec.id, runId, ...(args.model !== undefined ? { model: args.model } : {}) },
+      resolved.liveAuthor.runs,
+      signer,
+    );
+  }
   const out: RealBuildResult = {
     result,
     ...(resolved.liveAuthor !== undefined ? { liveAuthor: resolved.liveAuthor } : {}),

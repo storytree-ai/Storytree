@@ -38,6 +38,7 @@ export type {
 } from "@anthropic-ai/claude-agent-sdk";
 
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
+import type { TokenUsage } from "./model-events.js";
 
 /** The injectable query seam: the real SDK `query()` or an offline scripted double. */
 export type SdkQueryFn = (args: {
@@ -59,6 +60,14 @@ export interface SdkRunInfo {
   subtype: string;
   turns: number;
   costUsd: number;
+  /**
+   * The slice's token breakdown (the SDK result's `usage`), when the runtime reported one — the
+   * four axes bill at different rates, so they stay separate (see {@link TokenUsage}). Absent on
+   * an old/scripted result that carries none: capture is additive, never fail-closed.
+   */
+  usage?: TokenUsage;
+  /** The SDK result's per-model split (`modelUsage`) incl. its metered per-model cost, when reported. */
+  byModel?: Record<string, TokenUsage & { costUsd?: number }>;
 }
 
 /** The captured outcome of one feedback run (the orchestrator's ShellRunResult, structurally). */
@@ -310,7 +319,61 @@ interface ResultLike {
   is_error: boolean;
   num_turns: number;
   total_cost_usd: number;
+  usage?: unknown;
+  modelUsage?: unknown;
   errors?: string[];
+}
+
+/** A finite number or nothing — the defensive floor every usage field is read through. */
+function finiteNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
+}
+
+/**
+ * Read the token breakdown off an SDK result message, DEFENSIVELY: `usage` is the API-shaped
+ * snake_case aggregate, `modelUsage` the SDK's camelCase per-model split (incl. its metered
+ * `costUSD`). Accounting is additive, never fail-closed — a result that carries no readable
+ * usage (an old SDK, a scripted double) simply yields nothing, and the slice still lands with
+ * its turns/cost accounting. Pure; exported for offline tests.
+ */
+export function usageFromSdkResult(result: {
+  usage?: unknown;
+  modelUsage?: unknown;
+}): Pick<SdkRunInfo, "usage" | "byModel"> {
+  const out: Pick<SdkRunInfo, "usage" | "byModel"> = {};
+  if (typeof result.usage === "object" && result.usage !== null) {
+    const u = result.usage as Record<string, unknown>;
+    const inputTokens = finiteNumber(u["input_tokens"]);
+    const outputTokens = finiteNumber(u["output_tokens"]);
+    if (inputTokens !== undefined && outputTokens !== undefined) {
+      out.usage = {
+        inputTokens,
+        cacheCreationInputTokens: finiteNumber(u["cache_creation_input_tokens"]) ?? 0,
+        cacheReadInputTokens: finiteNumber(u["cache_read_input_tokens"]) ?? 0,
+        outputTokens,
+      };
+    }
+  }
+  if (typeof result.modelUsage === "object" && result.modelUsage !== null) {
+    const byModel: Record<string, TokenUsage & { costUsd?: number }> = {};
+    for (const [model, raw] of Object.entries(result.modelUsage)) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const m = raw as Record<string, unknown>;
+      const inputTokens = finiteNumber(m["inputTokens"]);
+      const outputTokens = finiteNumber(m["outputTokens"]);
+      if (inputTokens === undefined || outputTokens === undefined) continue;
+      const costUsd = finiteNumber(m["costUSD"]);
+      byModel[model] = {
+        inputTokens,
+        cacheCreationInputTokens: finiteNumber(m["cacheCreationInputTokens"]) ?? 0,
+        cacheReadInputTokens: finiteNumber(m["cacheReadInputTokens"]) ?? 0,
+        outputTokens,
+        ...(costUsd !== undefined ? { costUsd } : {}),
+      };
+    }
+    if (Object.keys(byModel).length > 0) out.byModel = byModel;
+  }
+  return out;
 }
 
 /** Narrow an SDK stream message to the result message. */
@@ -495,6 +558,8 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       subtype: result.subtype,
       turns: result.num_turns,
       costUsd: result.total_cost_usd,
+      // The slice's token breakdown (additive accounting — absent when the result carries none).
+      ...usageFromSdkResult(result),
     });
     if (result.subtype !== "success" || result.is_error) {
       const detail = result.errors !== undefined && result.errors.length > 0
