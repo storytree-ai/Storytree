@@ -12,7 +12,13 @@ import { handleClaims } from './devApi';
 import { HttpError } from './httpUtil';
 import { groupClaimsBySession, type ClaimDocT } from '@storytree/notice-board';
 
-const now = new Date('2026-07-16T12:00:00.000Z');
+// Timestamps are RELATIVE to the real clock, never literals: the endpoint stamps its own
+// `new Date()` (not injectable) and `groupClaimsBySession` DROPS any claim whose heartbeat is
+// older than CLAIM_STALE_RECLAIM_MS against that clock — hard-coded heartbeats made this suite a
+// time bomb that went red repo-wide the moment the wall clock passed heartbeat + threshold
+// (2026-07-16T13:59Z, failing every CI run on every branch).
+const now = new Date();
+const minutesAgo = (m: number): string => new Date(now.getTime() - m * 60_000).toISOString();
 
 const workClaim: ClaimDocT = {
   unitId: 'story-a',
@@ -20,8 +26,8 @@ const workClaim: ClaimDocT = {
   branch: 'claude/sess-old',
   intent: 'real',
   grade: 'work',
-  claimedAt: '2026-07-16T10:00:00.000Z',
-  heartbeatAt: '2026-07-16T11:59:00.000Z',
+  claimedAt: minutesAgo(120),
+  heartbeatAt: minutesAgo(1),
 };
 
 const exploringClaim: ClaimDocT = {
@@ -30,8 +36,8 @@ const exploringClaim: ClaimDocT = {
   branch: 'claude/sess-new',
   intent: 'scoping the map',
   grade: 'exploring',
-  claimedAt: '2026-07-16T11:30:00.000Z',
-  heartbeatAt: '2026-07-16T11:58:00.000Z',
+  claimedAt: minutesAgo(30),
+  heartbeatAt: minutesAgo(2),
 };
 
 // The stub flips per test — handleClaims only needs sessionClaims().
