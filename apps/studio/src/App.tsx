@@ -164,7 +164,7 @@ export function App(): React.JSX.Element {
           }
           onRetry={() => void loadMe()}
           app={
-            <div className="body">
+            <div className={route.name === 'tree' ? 'body body-full' : 'body'}>
               {/* The forest (#/tree) is its own full-bleed world — the Library asset
                   rail is noise there, so hide it and let the canvas fill the width. */}
               {route.name !== 'tree' && <Sidebar />}

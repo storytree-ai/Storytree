@@ -30,7 +30,7 @@ afterEach(() => {
 // ── 1. the landing route retirement ─────────────────────────────────────────────────────────
 
 describe('landing route retirement (ADR-0204)', () => {
-  it('hud-route-empty-and-root-hash-land-on-the-forest: `#/`, empty, and bare `/` resolve to tree', () => {
+  it('hud-landing-routes-to-forest: `#/`, empty, and bare `/` resolve to tree', () => {
     expect(parseRoute('#/')).toEqual({ name: 'tree', focus: null });
     expect(parseRoute('#')).toEqual({ name: 'tree', focus: null });
     expect(parseRoute('#/tree')).toEqual({ name: 'tree', focus: null }); // unchanged sibling route
@@ -69,7 +69,7 @@ const docs: DocMeta[] = [
 ];
 
 describe('Hud — brand chip', () => {
-  it('hud-brand-targets-the-forest: the brand chip links to homeHref, which now lands on the forest', () => {
+  it('hud-brand-chip-links-forest: the brand chip links to homeHref, which now lands on the forest', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     const brand = screen.getByRole('link', { name: /storytree/i });
     expect(brand.getAttribute('href')).toBe(homeHref);
@@ -78,10 +78,11 @@ describe('Hud — brand chip', () => {
 });
 
 describe('Hud — avatar identity', () => {
-  it('hud-avatar-shows-initials-for-a-verified-identity: initials derive from the email local-part', () => {
+  it('hud-avatar-presents-verified-identity: initials derive from the email local-part, with a role tint', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     const avatar = screen.getByTestId('hud-avatar');
     expect(avatar.textContent).toContain('HM'); // hua.mick@gmail.com -> HM
+    expect(avatar.className).toContain('role-admin'); // the role rides the avatar as a class tint
   });
 
   it('hud-avatar-honest-fallback-when-identity-unresolved: no invented initials while unresolved', () => {
@@ -94,7 +95,7 @@ describe('Hud — avatar identity', () => {
 });
 
 describe('Hud — avatar menu composition', () => {
-  it('hud-menu-identity-line-is-readonly-text: the identity/role line renders as text, never an input', () => {
+  it('hud-avatar-menu-core-and-lenses: the identity/role line renders as read-only text, never an input', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
     const identity = screen.getByTestId('hud-menu-identity');
@@ -121,7 +122,7 @@ describe('Hud — avatar menu composition', () => {
     expect(parseRoute(href).name).toBe('doc');
   });
 
-  it('hud-menu-members-admin-only: Members is present for an admin', () => {
+  it('hud-avatar-menu-gated-items: Members is present for an admin', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
     const link = screen.getByRole('menuitem', { name: 'Members' });
@@ -166,9 +167,14 @@ describe('Hud — avatar menu composition', () => {
 });
 
 describe('Hud — free-text operator field retirement', () => {
-  it('hud-no-operator-input-anywhere: the chrome renders no free-text operator field', () => {
+  it('hud-topbar-and-operator-retired: the chrome renders no topbar, no banner nav, and no operator field', () => {
     const { container } = render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
+    // The HUD is the ENTIRE global chrome now (App renders <Hud/> and nothing else above the
+    // body) — so the chrome surface must carry no banner artifacts at all.
     expect(container.querySelector('[aria-label="operator identity"]')).toBeNull();
+    expect(container.querySelector('.topbar')).toBeNull();
+    expect(container.querySelector('.topnav')).toBeNull();
+    expect(container.querySelector('input')).toBeNull();
   });
 });
