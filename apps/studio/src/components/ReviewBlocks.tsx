@@ -46,7 +46,6 @@ import {
 import { api } from '../api';
 import { splitBlocks } from '../lib/blocks';
 import { useAppData } from '../lib/appData';
-import { useOperator } from '../lib/operator';
 import { Markdown } from './Markdown';
 import { ReviewModeContext } from './ReviewToggle';
 import { InlineCommentThread } from './InlineCommentThread';
@@ -68,7 +67,10 @@ const REVIEW_POLL_MS = 3_000;
 export function ReviewBlocks({ topicKind, topicId, body }: ReviewBlocksProps): React.JSX.Element {
   const mode = useContext(ReviewModeContext);
   const { me } = useAppData();
-  const [operator] = useOperator();
+  // The verified identity (ADR-0204 D4): the resolved `/api/me` email, or the conventional
+  // `operator` fallback in the open dev posture where identity doesn't resolve. Never
+  // localStorage-sourced — the retired single-operator model (ADR-0008) is gone.
+  const operator = me.email ?? 'operator';
   const inReview = mode === 'review';
 
   // ── The one feed poll (cap 5's payload: comments + suggestions) ─────────────
