@@ -1379,6 +1379,23 @@
   },
   {
     "kind": "principle",
+    "id": "delegate-exploration-to-digest-subagents",
+    "title": "Delegate exploration to digest-returning subagents",
+    "description": "When work needs multi-step exploration (≈3+ consecutive Read/Grep/Glob turns, or any broad 'find where X lives / sweep many files' question), run it in a read-only explorer subagent that returns a DIGEST (conclusions + file:line pointers) — never pull the raw file contents into the orchestrating session's own long-lived context. A single targeted lookup where the file or symbol is already known stays inline.",
+    "statement": "When a piece of work needs multi-step exploration — roughly three or more consecutive Read/Grep/Glob turns, or any broad 'find where X lives / sweep many files' question — delegate it to a read-only explorer subagent that returns a DIGEST (its conclusions plus file:line pointers), rather than pulling the raw file contents into the orchestrating session's own context. A single targeted lookup where the file or symbol is already known stays inline. The digest, not the raw files, is what belongs in the expensive context.",
+    "why": "The orchestrating session's context is the most expensive real estate in the system: every turn re-bills the entire history, so content read once is paid for on every subsequent request until the session ends. Exploration is the worst offender because it is high-volume and single-use — you need the conclusion, not the bytes, yet the bytes sit in history being re-billed. The 2026-07-16 token-efficiency investigation (trace mining over ~10.6B billed tokens, ~61.5k requests, Jun 1–Jul 16 2026) measured it: 21% of main-agent requests are pure Read/Grep/Glob exploration (8,598 requests billing 1.54B tokens at a mean ~179k context each), and exploration results left in a main session's history are re-billed ~50–65 more times before the session ends — versus ~26x inside a subagent whose context is half the size and DIES at digest-return. That is an estimated ~14% of all billed tokens, the single largest verified remediation lever found. A disposable explorer context absorbs the volume and evaporates; only the distilled digest survives into the costly seat.",
+    "howToApply": "Apply the routing test before you start reading: will answering this take roughly three or more consecutive Read/Grep/Glob turns, or is it a broad 'find where X lives / sweep these files' question? If yes, spawn a read-only explorer subagent (the `Explore` agent, or a general read-only agent) and ask it for a DIGEST — the conclusions plus concrete file:line pointers — not a file dump; the raw contents stay in its short-lived context and never enter yours. If no — the file or symbol is already known and it is one targeted Read/Grep — do it inline; delegating a single lookup adds latency for no saving. When the digest comes back and you need to act on a specific pointer, THEN read that exact span inline. This is the WHERE-exploration-runs rule: it composes with `exploration-principles` (HOW the explorer behaves once delegated — pattern-over-enumeration, context-minimal, read-only) and with `pull-based-context-architecture` (how any agent is briefed thin and pulls on demand); this rule adds that the pulling should happen in a disposable seat, not the long-lived orchestrating one.",
+    "references": [
+      "asset:exploration-principles",
+      "asset:pull-based-context-architecture"
+    ],
+    "provenance": "Authored 2026-07-16 (owner-directed) from the token-efficiency investigation of that date — trace mining over ~10.6B billed tokens / ~61.5k requests (Jun 1–Jul 16 2026), which found pure Read/Grep/Glob exploration to be 21% of main-agent requests (1.54B tokens) re-billed ~50–65x when left in a main session vs ~26x in a half-size subagent context that dies at digest-return: an estimated ~14% of billed tokens, the largest verified remediation lever. Complements `exploration-principles` (how an explorer behaves) and `pull-based-context-architecture` (how agents are briefed) — this principle governs WHERE exploration runs (a disposable subagent context vs the long-lived orchestrating session) and rests on the re-billing economics. Consumers: session-orchestrator.",
+    "createdAt": "2026-07-16T00:00:00.000Z",
+    "updatedAt": "2026-07-16T00:00:00.000Z",
+    "schemaVersion": 3
+  },
+  {
+    "kind": "principle",
     "id": "guidance-quality",
     "title": "Guidance quality",
     "description": "Fix unfollowed guidance with structure (path / signpost / fence / offload), not emphasis (caps / repetition / strong language).",
@@ -2793,6 +2810,7 @@
       "asset:owner-fork-bar",
       "asset:route-structural-forks-to-story-author",
       "asset:reference-dont-restate",
+      "asset:delegate-exploration-to-digest-subagents",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
       "asset:audit-the-signed-verdict",
@@ -2821,6 +2839,7 @@
       "asset:owner-fork-bar",
       "asset:route-structural-forks-to-story-author",
       "asset:reference-dont-restate",
+      "asset:delegate-exploration-to-digest-subagents",
       "asset:observability-first",
       "asset:verify-edit-write-persisted-or-escalate",
       "asset:audit-the-signed-verdict",
