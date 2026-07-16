@@ -48,6 +48,9 @@ const xtermMock = vi.hoisted(() => {
     cols = 80;
     rows = 24;
     resized: Array<{ cols: number; rows: number }> = [];
+    /** test-only: records every addon handed to `loadAddon` (fit, webgl, …) so a contract can
+     *  assert WHICH renderer/addons were wired onto this terminal. */
+    addons: unknown[] = [];
     /** test-only: counts `term.focus()` calls — pins contract 6 (re-focus after a window blur/focus
      *  cycle) without asserting anything about real DOM focus, which jsdom's xterm mock has none of. */
     focusCalls = 0;
@@ -88,8 +91,10 @@ const xtermMock = vi.hoisted(() => {
       this.resized.push({ cols, rows });
       this.resizeHandler?.({ cols, rows });
     }
-    loadAddon(): void {
-      /* no-op — the fake FitAddon wires itself via activate() below */
+    loadAddon(addon: unknown): void {
+      // records the addon (the fake FitAddon still wires itself via activate() below) so the
+      // renderer contract can assert the WebGL addon was loaded onto this terminal.
+      this.addons.push(addon);
     }
     dispose(): void {
       this.disposed = true;
@@ -150,6 +155,32 @@ const fitMock = vi.hoisted(() => {
   return { FakeFitAddon };
 });
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: fitMock.FakeFitAddon }));
+
+// ── the fake WebglAddon — the GPU renderer seam (tdp-renders-with-webgl-and-falls-back-honestly).
+//    Records construction / the onContextLoss handler / dispose, and can be told to THROW on
+//    construction (a box with no usable WebGL context) so the DOM-renderer fallback path is
+//    exercised deterministically — jsdom has no GPU, exactly like such a box. ────────────────────
+const webglMock = vi.hoisted(() => {
+  class FakeWebglAddon {
+    static instances: FakeWebglAddon[] = [];
+    /** test-only: when true, the next construction throws — the no-WebGL-context box. */
+    static failConstruction = false;
+    disposed = false;
+    contextLossHandler: (() => void) | null = null;
+    constructor() {
+      if (FakeWebglAddon.failConstruction) throw new Error('WebGL context unavailable');
+      FakeWebglAddon.instances.push(this);
+    }
+    onContextLoss(cb: () => void): void {
+      this.contextLossHandler = cb;
+    }
+    dispose(): void {
+      this.disposed = true;
+    }
+  }
+  return { FakeWebglAddon };
+});
+vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: webglMock.FakeWebglAddon }));
 
 // ── the desktopTerminal bridge — installed on `window` per test (deleted for the absent-bridge
 //    case). `spawn` resolves asynchronously (a real IPC round-trip would too), so tests await a
@@ -268,6 +299,8 @@ function closeTabButton(n: number): HTMLElement {
 beforeEach(() => {
   xtermMock.FakeTerminal.instances.length = 0;
   fitMock.FakeFitAddon.instances.length = 0;
+  webglMock.FakeWebglAddon.instances.length = 0;
+  webglMock.FakeWebglAddon.failConstruction = false;
   FakeResizeObserver.instances.length = 0;
   bridgeMock.resetSessionCounter();
   bridgeMock.spawn.mockClear();
@@ -982,5 +1015,53 @@ describe('TerminalDock', () => {
     term.selection = 'still selected';
     expect(() => handler!(ctrlC)).not.toThrow();
     expect(handler!(ctrlC)).toBe(true);
+  });
+
+  // ── tdp-renders-with-webgl-and-falls-back-honestly (contract 13 — the owner-reported rendering
+  //    artifacts: stale glyphs pinned at the pane edges after a resize/scroll). Without a renderer
+  //    addon, xterm runs its DOM renderer — the documented FALLBACK renderer, whose known rendering
+  //    issues are exactly this artifact class; the fix is the GPU (WebGL) renderer every serious
+  //    Electron terminal ships. Each tab's terminal must load a WebglAddon AFTER `open()` (the
+  //    addon needs the mounted element); a box with no usable WebGL context (construction/load
+  //    throws) must fall back to the DOM renderer with the session fully functional — never a
+  //    crash, never a dead pane; and a LATER context loss must dispose the addon (xterm reverts to
+  //    the DOM renderer) with the session still functional. Today's `initTab` loads no renderer
+  //    addon at all, so the first assertion must fail against current behaviour. ─────────────────
+  it('tdp-renders-with-webgl-and-falls-back-honestly: each tab loads the WebGL renderer after open; a no-WebGL box falls back to a working DOM-rendered session; a context loss disposes the addon with the session still live', async () => {
+    // (a) the GPU renderer: expanding wires a WebglAddon onto the fresh terminal, after open().
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(webglMock.FakeWebglAddon.instances.length).toBe(1);
+    const webgl = webglMock.FakeWebglAddon.instances[0]!;
+    expect(term.addons).toContain(webgl);
+    expect(term.opened).not.toBeNull(); // loaded onto an OPENED terminal (the addon needs the element)
+
+    // (b) a later context loss disposes the addon (xterm falls back to the DOM renderer) and the
+    // session stays fully live — input still routes to the bridge, bridge data still renders.
+    expect(webgl.contextLossHandler).not.toBeNull();
+    webgl.contextLossHandler!();
+    expect(webgl.disposed).toBe(true);
+    term.typeIn('still alive\n');
+    expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'still alive\n');
+    const onData = bridgeMock.onData.mock.calls[0]![0];
+    onData(SESSION_ID, 'echo');
+    expect(term.written).toContain('echo');
+
+    cleanup();
+
+    // (c) the no-WebGL-context box: construction throws → the tab must still spawn and work on the
+    // DOM renderer (fallback is silent and honest — no crash, no dead pane).
+    webglMock.FakeWebglAddon.failConstruction = true;
+    bridgeMock.resetSessionCounter();
+    bridgeMock.write.mockClear();
+    render(<TerminalDock />);
+    await expand();
+
+    const fallbackTerm = xtermMock.FakeTerminal.instances[1]!;
+    expect(fallbackTerm.opened).not.toBeNull();
+    fallbackTerm.typeIn('dom renderer\n');
+    expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'dom renderer\n');
   });
 });

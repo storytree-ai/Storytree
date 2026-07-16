@@ -40,12 +40,18 @@ async function pollFor(fn, { timeout = 15_000, step = 250 } = {}) {
 /** The live sessions the bridge reports (repo-scoped by the main) — [{ sessionId }]. */
 const listSessions = (win) => win.evaluate(() => window.desktopTerminal.list());
 
-/** The visible terminal pane's rendered text (xterm renders rows into the DOM). */
-const visiblePaneText = (win) =>
-  win.evaluate(() => {
-    const body = document.querySelector('.terminal-dock-body:not([hidden])');
-    return body ? (body.textContent ?? '') : '';
-  });
+/** The session's text as the MAIN holds it — `snapshot()`'s serialized screen state. This is the
+ *  renderer-INDEPENDENT observable: the dock renders on xterm's WebGL renderer where available
+ *  (contract 13 — glyphs paint to a canvas, so DOM `textContent` sees nothing) and falls back to
+ *  the DOM renderer where not (e.g. CI's --disable-gpu), so a DOM-text read would pass or fail by
+ *  GPU availability, not by the behaviour under test. The main-held ring is also the thing this
+ *  spec actually pins (app-owned sessions); the renderer-side replay wiring is jsdom-pinned in
+ *  TerminalDock.test.tsx. */
+const sessionText = (win, sessionId) =>
+  win.evaluate(async (id) => {
+    const result = await window.desktopTerminal.snapshot(id);
+    return typeof result === 'string' ? result : result.data;
+  }, sessionId);
 
 test('pty sessions survive a route change: away to Overview and back re-attaches with scrollback', async (t) => {
   const ciArgs = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : [];
@@ -118,10 +124,11 @@ test('pty sessions survive a route change: away to Overview and back re-attaches
     await win.locator('.terminal-dock-body:not([hidden])').click();
     await win.keyboard.type('echo survival-probe', { delay: 15 });
     await win.keyboard.press('Enter');
-    const sawProbe = await pollFor(async () => (await visiblePaneText(win)).includes('survival-probe'), {
-      timeout: 30_000,
-    });
-    assert.ok(sawProbe, 'the probe command echoed in the live terminal');
+    const sawProbe = await pollFor(
+      async () => (await sessionText(win, sessionId)).includes('survival-probe'),
+      { timeout: 30_000 },
+    );
+    assert.ok(sawProbe, 'the probe command echoed through the real pty into the session scrollback');
 
     // ROUTE AWAY (SPA click nav — no reload): TreeView and the dock unmount.
     await win.locator('nav.topnav a', { hasText: 'Overview' }).click();
@@ -157,10 +164,14 @@ test('pty sessions survive a route change: away to Overview and back re-attaches
       'the SAME single session re-attaches — no duplicate spawn on remount',
     );
 
-    const replayed = await pollFor(async () => (await visiblePaneText(win)).includes('survival-probe'), {
-      timeout: 20_000,
-    });
-    assert.ok(replayed, 'the re-attached pane replays the buffered scrollback (survival-probe present)');
+    const replayed = await pollFor(
+      async () => (await sessionText(win, sessionId)).includes('survival-probe'),
+      { timeout: 20_000 },
+    );
+    assert.ok(
+      replayed,
+      'the main still serves the buffered scrollback for the re-attached session (survival-probe present)',
+    );
   } finally {
     restoreSelection();
     await app.close(); // window close → disposeAllTerminals: app-quit stays a sanctioned kill
