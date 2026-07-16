@@ -23,7 +23,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { ClaimDocT, PresenceDeclarationDoc } from '@storytree/notice-board';
+import type { ClaimDocT, DepartedClaim, PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 import {
   type AssetCategory,
@@ -161,18 +161,32 @@ export interface LibraryBackend {
    * In-flight story CLAIMS (ADR-0138): every live `events.node_claim` row folded (via the pure
    * `claimsToActivity`) into a claimed-but-not-proven map activity (`kind: "claim"`), so a CLAIMED
    * story orbits a wisp VISIBLY DISTINCT from a proven-green bloom — the §5 honesty wall (a claim is
-   * never a proof). Same advisory contract as {@link inFlightBuilds}: NEVER throws — `null` for the
+   * never a proof). Each activity carries the claim's GRADE (ADR-0200 D7 — the renderer's geometry
+   * signal; colour still folds from intent; absent/unknown normalises to `work`, the D2 back-compat
+   * default). Same advisory contract as {@link inFlightBuilds}: NEVER throws — `null` for the
    * json backend / a down DB. OPTIONAL like {@link verdictEvents}: a narrow mock may omit it, and the
    * `/api/activity` handler falls back to `null` (advisory absence, never an over-claim).
    */
   inFlightClaims?(): Promise<ClaimActivity[] | null>;
 
   /**
+   * Recent claim DEPARTURES (ADR-0200 D7 — wisp-out legibility, unparking the
+   * friction-released-build-wisp-reads-as-lost-claim item): the `released` rows written to
+   * `events.claim_event` inside the departure window (`PgClaimStore.recentDepartures`), folded by
+   * the pure `foldDepartures` (@storytree/notice-board — the ONE rendering fold every view shares)
+   * so a wisp that just released reads as "this session left" instead of vanishing like a lost
+   * claim. Same advisory contract as {@link inFlightClaims}: NEVER throws — `null` for the json
+   * backend / a down DB. OPTIONAL: a narrow mock may omit it, and the `/api/activity` handler
+   * falls back to `null` (advisory absence, never an over-claim).
+   */
+  inFlightDepartures?(): Promise<DepartedClaim[] | null>;
+
+  /**
    * EVERY live claim row, all units, all grades (ADR-0200 D7 — the studio session dock's
    * claims-grouped-by-session view): the raw `ClaimDocT[]` from `events.node_claim` via
    * `PgClaimStore.listLiveClaims()` (the same store the CLI board reads), staleness filtered in
-   * SQL by heartbeat. Unlike {@link inFlightClaims} (which folds to a map-wisp `ClaimActivity` and
-   * discards the grade), this stays the raw claim shape so the caller (the `/api/claims` handler)
+   * SQL by heartbeat. Unlike {@link inFlightClaims} (which folds each row to a map-wisp
+   * `ClaimActivity`), this stays the raw claim shape so the caller (the `/api/claims` handler)
    * folds it through the pure `groupClaimsBySession` — the ONE grouping every ledger view shares
    * (packages/notice-board/src/claim.ts). Same advisory contract as {@link activeSessions}: NEVER
    * throws — `null` for the json backend or when the DB doesn't answer; the dock's claims view
@@ -341,6 +355,10 @@ export class JsonBackend implements LibraryBackend {
 
   async inFlightClaims(): Promise<ClaimActivity[] | null> {
     return null; // no events.node_claim behind the JSON files — claim wisps silently absent
+  }
+
+  async inFlightDepartures(): Promise<DepartedClaim[] | null> {
+    return null; // no events.claim_event behind the JSON files — departures silently absent
   }
 
   async sessionClaims(): Promise<ClaimDocT[] | null> {
@@ -965,11 +983,14 @@ export class PgBackend implements LibraryBackend {
   /**
    * In-flight story claims (ADR-0138): every live `events.node_claim` row, folded into a
    * claimed-but-not-proven map activity via `claimsToActivity` (the pure §5 honesty-wall fold —
-   * `kind: "claim"`, stale-dropped, never a proven-green discriminator). `node_claim.unit_id` is the
-   * PRIMARY KEY, so there is at most ONE row per unit — no `DISTINCT ON` needed (unlike the building
-   * query, whose append-only work-events need the newest-per-unit pick). Same advisory contract / 4s
-   * race as inFlightBuilds: null on any failure (stopped instance, missing table, pool build error),
-   * never a throw — a claim wisp is advisory and silently absent when the store can't answer.
+   * `kind: "claim"`, stale-dropped, never a proven-green discriminator; the `grade` column rides
+   * through since ADR-0200 D7 — geometry from grade, colour from intent). The PK is composite
+   * `(unit_id, session_id)` under the graded ledger (ADR-0200 D2 — shared exploring/waiting rows
+   * coexist with the one work row), so a unit may fold to several wisp activities — still no
+   * `DISTINCT ON` needed (each live row IS current state, unlike the building query's append-only
+   * work-events). Same advisory contract / 4s race as inFlightBuilds: null on any failure
+   * (stopped instance, missing table, pool build error), never a throw — a claim wisp is advisory
+   * and silently absent when the store can't answer.
    */
   async inFlightClaims(): Promise<ClaimActivity[] | null> {
     let timer: NodeJS.Timeout | undefined;
@@ -983,16 +1004,50 @@ export class PgBackend implements LibraryBackend {
           const handle = this.#handle;
           if (!handle) throw new Error('no pool');
           return handle.pool.query(
-            `SELECT unit_id, session_id, branch, intent, claimed_at, heartbeat_at
+            `SELECT unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at
                FROM events.node_claim`,
           );
         })(),
         timeout,
       ]);
-      // The stale-drop filter + the §5 honesty-wall `kind: "claim"` discriminator are the pure
-      // claimsToActivity fold (red-green in inFlightActivity.test.ts); this method owns only the
-      // live query + the 4s race.
+      // The stale-drop filter + the §5 honesty-wall `kind: "claim"` discriminator + the grade
+      // normalisation are the pure claimsToActivity fold (red-green in inFlightActivity.test.ts);
+      // this method owns only the live query + the 4s race.
       return claimsToActivity((res as { rows: ClaimRow[] }).rows, new Date());
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Recent claim departures (ADR-0200 D7 — wisp-out legibility) via
+   * `PgClaimStore.recentDepartures` (the window-bounded `released` read over `events.claim_event`
+   * — the store's already-tested SQL, no hand-rolled query here), folded by the pure
+   * `foldDepartures` from @storytree/notice-board (lazily loaded, the config-load trap). Raced
+   * against the same ~4s timeout as the other advisory reads; null on ANY failure (stopped
+   * instance, missing table, pool build error) — a departure is a courtesy read, silently absent
+   * when the store can't answer, like {@link inFlightClaims}.
+   */
+  async inFlightDepartures(): Promise<DepartedClaim[] | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('departure probe timed out')), 4000);
+      });
+      const rows = await Promise.race([
+        (async () => {
+          const { store } = await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error('no pool');
+          const { DEPARTURE_WINDOW_MS } = await loadNoticeBoardModule();
+          return new store.PgClaimStore(handle.pool).recentDepartures(DEPARTURE_WINDOW_MS);
+        })(),
+        timeout,
+      ]);
+      const { foldDepartures } = await loadNoticeBoardModule();
+      return foldDepartures(rows, new Date());
     } catch {
       return null;
     } finally {

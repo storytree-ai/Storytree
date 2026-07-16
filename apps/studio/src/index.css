@@ -3278,6 +3278,97 @@ a.stat:hover {
   .world-claim-wisp-glow { animation: none; opacity: 0.7; }
 }
 
+/* claim-GRADE families (ADR-0200 D7): which drawable family a claim's GRADE renders as — a session
+   `exploring` (hovering, at rest), `waiting` (queued in line), or `work` (world-claim-wisp above,
+   the classic orbit — unchanged). All three still reuse the `--claim-hue` colour pattern (colour
+   stays INTENT-driven for every grade — geometry ⟂ colour, the same split the orbit already made),
+   but wear DISTINCT SILHOUETTES so grade reads at a glance without relying on colour alone. Same §5
+   HONESTY WALL as world-claim-wisp (non-negotiable): none of these may reuse bloom/verdict-pass. */
+
+/* EXPLORING — a session reading/planning, at rest beside the story tree. A dashed hollow ring that
+   breathes slowly (opacity only — it never spins; the core stamps it no orbit `phase`), so "someone
+   is here, not yet committed to work" reads calm next to the queued/orbiting families. */
+.world-hover-wisp {
+  cursor: pointer;
+  animation: wisp-in 0.6s ease-out both;
+}
+.world-hover-wisp-glow {
+  fill: none;
+  stroke: var(--claim-hue, #8b5cf6);
+  stroke-width: 1.6;
+  stroke-dasharray: 2.2 2.2;
+  opacity: 0.55;
+  animation: hover-breathe 3.2s ease-in-out infinite;
+}
+.world-hover-wisp-dot {
+  fill: var(--claim-hue, #8b5cf6);
+  stroke: #ffffff;
+  stroke-width: 1;
+  opacity: 0.85;
+}
+.world-hover-wisp.state-authoring { --claim-hue: #d9920a; }
+.world-hover-wisp.state-proving { --claim-hue: #0e9aa0; }
+.world-hover-wisp.state-supplementing { --claim-hue: #8b5cf6; }
+@keyframes hover-breathe {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-hover-wisp-glow { animation: none; opacity: 0.55; }
+}
+
+/* WAITING — queued behind the work holder, a dimmer + smaller line just outside the orbit ring. No
+   pulse at all (steady, patient) and visibly smaller than the orbiting work dot, so "waiting its
+   turn" reads at a glance; index-placed left-to-right by the core (oldest waiter closest in). */
+.world-queue-wisp {
+  cursor: pointer;
+  animation: wisp-in 0.6s ease-out both;
+}
+.world-queue-wisp-glow,
+.world-queue-wisp-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0.72);
+}
+.world-queue-wisp-glow {
+  fill: none;
+  stroke: var(--claim-hue, #8b5cf6);
+  stroke-width: 1.2;
+  opacity: 0.32;
+}
+.world-queue-wisp-dot {
+  fill: var(--claim-hue, #8b5cf6);
+  stroke: #ffffff;
+  stroke-width: 0.8;
+  opacity: 0.6;
+}
+.world-queue-wisp.state-authoring { --claim-hue: #d9920a; }
+.world-queue-wisp.state-proving { --claim-hue: #0e9aa0; }
+.world-queue-wisp.state-supplementing { --claim-hue: #8b5cf6; }
+
+/* claim DEPARTURES (ADR-0200 D7 wisp-out legibility): a recently-RELEASED claim still fading out —
+   rests where the hover family rests and drifts upward with age (geometry, the core's job); the
+   MAPPER folds `ageRatio` into the group's `opacity` attribute directly (SceneView.tsx / the legacy
+   inline render), so the fade is DATA, not a CSS illusion. A departure carries no colourState (the
+   session that held it is gone), so it wears a fixed NEUTRAL slate tone — never a role hue, never the
+   bloom/verdict-pass look (the §5 wall again): "someone just left" must never be mistaken for a claim
+   still held, still less for a proof. Stationary by construction — no orbit, no pulse. */
+.world-departing-wisp {
+  cursor: default;
+}
+.world-departing-wisp-glow {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 1.4;
+  opacity: 0.5;
+}
+.world-departing-wisp-dot {
+  fill: #94a3b8;
+  stroke: #ffffff;
+  stroke-width: 0.8;
+  opacity: 0.55;
+}
+
 /* recently-landed activity blooms (ADR-0045) — a TRANSIENT announcement that a
    signed verdict just landed on this territory, kin to the hlflash/cflash
    transient flashes above (a finite, low-amplitude pulse). The bloom DECAYS:

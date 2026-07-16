@@ -454,3 +454,87 @@ export function groupClaimsBySession(
       })),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Pure departure fold (ADR-0200 D7 — wisp-out legibility): a wisp that just
+// released reads as GONE on the board, indistinguishable from a lost claim
+// (the friction-released-build-wisp-reads-as-lost-claim item). The store half
+// is PgClaimStore.recentDepartures (the window-bounded `released` read over
+// claim_event); this is the ONE rendering fold every view shares, so "this
+// session just left" reads identically everywhere. Browser-safe like
+// everything above.
+// ---------------------------------------------------------------------------
+
+/**
+ * Window inside which a released claim still renders as a DEPARTURE (ms). A Stage-1 default —
+ * 2 minutes, long enough for a board glance to catch the exit, short enough that the departed wisp
+ * never reads as still-held — the owner attests the felt duration at Stage-2.
+ */
+export const DEPARTURE_WINDOW_MS = 120_000; // 2 minutes
+
+/**
+ * One raw `released` row off the claim_event log, as `PgClaimStore.recentDepartures` returns it.
+ * `doc` is the released claim doc the store appended (ClaimDocT-shaped jsonb) — carried as
+ * `unknown` and read TOLERANTLY by the fold (a departure feed never fail-closes a courtesy read
+ * the way the claim paths do; same discipline as {@link OverlapDelta}'s lenient lift).
+ */
+export interface ClaimDeparture {
+  unitId: string;
+  sessionId: string;
+  /** The released claim doc (read via {@link foldDepartures}'s tolerant grade extract). */
+  doc: unknown;
+  /** When the release was written (ISO 8601). */
+  at: string;
+}
+
+/** One departed claim, folded for rendering — the view-facing slice of a departure. */
+export interface DepartedClaim {
+  unitId: string;
+  sessionId: string;
+  /** The grade the claim held when released — `work` when the doc doesn't say (pre-grade/odd docs). */
+  grade: ClaimGradeT;
+  /** Elapsed ms since the release at the caller-supplied `now` (clamped to >= 0). */
+  ageMs: number;
+  /** When the release was written (ISO 8601) — kept so a view can render absolute times too. */
+  at: string;
+}
+
+/** Tolerant grade extract off a released doc — malformed/absent degrades to `work`, never throws. */
+function departedGrade(doc: unknown): ClaimGradeT {
+  if (doc !== null && typeof doc === "object") {
+    const grade = ClaimGrade.safeParse((doc as Record<string, unknown>)["grade"]);
+    if (grade.success) return claimGrade({ grade: grade.data });
+  }
+  return claimGrade({});
+}
+
+/**
+ * PURE: fold raw departure rows into the departed claims a view renders (ADR-0200 D7). The
+ * window bound is the STORE's job (SQL); the fold additionally DROPS any row older than
+ * `windowMs` — defense in depth, so a stale feed can never resurrect an old exit. Deterministic
+ * order: newest first (`at` DESC), ties on `unitId`. Empty in → empty out. No clock reads — the
+ * caller supplies `now`.
+ */
+export function foldDepartures(
+  rows: readonly ClaimDeparture[],
+  now: Date,
+  windowMs: number = DEPARTURE_WINDOW_MS,
+): DepartedClaim[] {
+  const out: DepartedClaim[] = [];
+  for (const row of rows) {
+    const ageMs = Math.max(0, now.getTime() - new Date(row.at).getTime());
+    if (ageMs > windowMs) continue; // aged out — dropped, never rendered
+    out.push({
+      unitId: row.unitId,
+      sessionId: row.sessionId,
+      grade: departedGrade(row.doc),
+      ageMs,
+      at: row.at,
+    });
+  }
+  return out.sort(
+    (a, b) =>
+      new Date(b.at).getTime() - new Date(a.at).getTime() ||
+      (a.unitId < b.unitId ? -1 : a.unitId > b.unitId ? 1 : 0),
+  );
+}

@@ -14,12 +14,21 @@
  */
 const CLAIM_STALE_RECLAIM_MS = 2 * 60 * 60 * 1_000; // 2 h
 
+/**
+ * The claim grades (mirrors `ClaimGradeT` from @storytree/notice-board — this module stays
+ * dependency-light, like the CLAIM_STALE_RECLAIM_MS mirror above). GEOMETRY comes from the grade
+ * (how the wisp renders), COLOUR from the intent — and no grade is ever a proof (ADR-0138 §5).
+ */
+export type ClaimGrade = 'exploring' | 'waiting' | 'work';
+
 /** One raw row from the events.node_claim query (scalar projection). */
 export interface ClaimRow {
   unit_id: string;
   session_id: string;
   branch: string;
   intent: string;
+  /** The raw grade column (ADR-0200 D2); absent on a narrower select / pre-grade row. */
+  grade?: string;
   claimed_at: Date | string;
   heartbeat_at: Date | string;
 }
@@ -37,6 +46,13 @@ export interface ClaimActivity {
   sessionId: string;
   branch: string;
   intent: string;
+  /**
+   * The claim's grade (ADR-0200 D2/D7): the renderer's GEOMETRY signal (colour still folds from
+   * `intent`, and no grade is ever a proof — ADR-0138 §5). An absent/unknown raw grade normalises
+   * to `work` — the pre-grade doc IS the work claim (the D2 back-compat default, mirroring
+   * notice-board's `claimGrade`).
+   */
+  grade: ClaimGrade;
   /** ISO string of `claimed_at`. */
   at: string;
 }
@@ -44,9 +60,10 @@ export interface ClaimActivity {
 /**
  * Fold the claim rows into the wire shape: normalise `claimed_at` to ISO,
  * DROP a claim whose `heartbeatAt` is past the stale-reclaim window (2 h),
- * and set `kind: "claim"` so a renderer paints it distinct from the
- * proven-green bloom (ADR-0138 §5, ADR-0045).
- * Pure: rows + now in, ClaimActivity[] out.
+ * set `kind: "claim"` so a renderer paints it distinct from the
+ * proven-green bloom (ADR-0138 §5, ADR-0045), and carry the GRADE through
+ * (ADR-0200 D2/D7): absent/unknown → `work` (the pre-grade back-compat
+ * default). Pure: rows + now in, ClaimActivity[] out.
  */
 export function claimsToActivity(rows: readonly ClaimRow[], now: Date): ClaimActivity[] {
   const out: ClaimActivity[] = [];
@@ -60,12 +77,17 @@ export function claimsToActivity(rows: readonly ClaimRow[], now: Date): ClaimAct
       row.claimed_at instanceof Date
         ? row.claimed_at.toISOString()
         : new Date(row.claimed_at).toISOString();
+    // Absent or unrecognised raw grade normalises to `work` — an absent grade IS the work claim
+    // (ADR-0200 D2 back-compat; mirrors notice-board's claimGrade without importing it).
+    const grade: ClaimGrade =
+      row.grade === 'exploring' || row.grade === 'waiting' ? row.grade : 'work';
     out.push({
       unitId: row.unit_id,
       kind: 'claim',
       sessionId: row.session_id,
       branch: row.branch,
       intent: row.intent,
+      grade,
       at: claimedAt,
     });
   }

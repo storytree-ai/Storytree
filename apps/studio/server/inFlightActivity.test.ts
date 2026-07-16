@@ -34,6 +34,7 @@ describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — th
           session_id: 'sess-1',
           branch: 'claude/real/render-claim',
           intent: 'real',
+          grade: 'work',
           claimed_at: freshHb,
           heartbeat_at: freshHb,
         },
@@ -47,6 +48,7 @@ describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — th
         sessionId: 'sess-1',
         branch: 'claude/real/render-claim',
         intent: 'real',
+        grade: 'work',
         at: freshHb,
       },
     ]);
@@ -133,5 +135,35 @@ describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — th
       NOW,
     );
     expect(out[0]?.at).toBe(freshHb);
+  });
+
+  // ── grade rides the fold (ADR-0200 D2/D7): geometry comes from the grade, colour from the
+  // intent, and no grade is ever a proof (ADR-0138 §5). ──────────────────────────────────────
+  const gradeRow = (grade?: string) => ({
+    unit_id: 'graded-unit',
+    session_id: 'sess-g',
+    branch: 'b',
+    intent: '',
+    ...(grade !== undefined ? { grade } : {}),
+    claimed_at: freshHb,
+    heartbeat_at: freshHb,
+  });
+
+  it.each(['exploring', 'waiting', 'work'] as const)(
+    'ADR-0200 D7: carries grade %s through the fold',
+    (grade) => {
+      const out = claimsToActivity([gradeRow(grade)], NOW);
+      expect(out[0]?.grade).toBe(grade);
+    },
+  );
+
+  it('ADR-0200 D2: an ABSENT grade normalises to "work" (the pre-grade doc IS the work claim)', () => {
+    const out = claimsToActivity([gradeRow(undefined)], NOW);
+    expect(out[0]?.grade).toBe('work');
+  });
+
+  it('ADR-0200 D2: an UNKNOWN grade string normalises to "work" (never an invalid grade on the wire)', () => {
+    const out = claimsToActivity([gradeRow('cosmic')], NOW);
+    expect(out[0]?.grade).toBe('work');
   });
 });

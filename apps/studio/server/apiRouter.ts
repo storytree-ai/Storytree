@@ -1435,25 +1435,32 @@ export async function handlePresence(
 }
 
 /**
- * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims), polled
- * cheaply by the world (sibling to /api/presence). Both reads are contractually non-throwing: a down
- * DB / json backend answers 200 `{builds: null, claims: null}` (advisory absence, never a 503), so the
- * only error path is the 405 method guard. A claim carries `kind: "claim"` (the §5 honesty wall) so the
- * renderer paints it VISIBLY DISTINCT from a proven-green bloom — a claim is never a proof. `inFlightClaims`
- * is OPTIONAL (a narrow mock may omit it → `null`). Exported for the integration test (handlePresence pattern).
+ * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims + ADR-0200 D7
+ * claim DEPARTURES), polled cheaply by the world (sibling to /api/presence). All three reads are
+ * contractually non-throwing: a down DB / json backend answers 200 `{builds: null, claims: null,
+ * departures: null}` (advisory absence, never a 503), so the only error path is the 405 method guard.
+ * A claim carries `kind: "claim"` (the §5 honesty wall) so the renderer paints it VISIBLY DISTINCT
+ * from a proven-green bloom — a claim is never a proof — plus its GRADE (geometry from grade, colour
+ * from intent, ADR-0200 D2/D7). `departures` is the wisp-out legibility wire (ADR-0200 D7, unparking
+ * friction-released-build-wisp-reads-as-lost-claim): a claim released inside the window renders as a
+ * departure instead of vanishing indistinguishably from a lost claim. `inFlightClaims` and
+ * `inFlightDepartures` are OPTIONAL (a narrow mock may omit either → `null`). Exported for the
+ * integration test (handlePresence pattern).
  */
 export async function handleActivity(
   req: IncomingMessage,
   res: ServerResponse,
-  backend: Pick<LibraryBackend, 'inFlightBuilds' | 'inFlightClaims'>,
+  backend: Pick<LibraryBackend, 'inFlightBuilds' | 'inFlightClaims' | 'inFlightDepartures'>,
 ): Promise<void> {
   if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-  // Builds and claims ride the SAME wire; run in parallel so a down DB costs one timeout budget.
-  const [builds, claims] = await Promise.all([
+  // Builds, claims and departures ride the SAME wire; run in parallel so a down DB costs one
+  // timeout budget.
+  const [builds, claims, departures] = await Promise.all([
     backend.inFlightBuilds(),
     backend.inFlightClaims?.() ?? Promise.resolve(null),
+    backend.inFlightDepartures?.() ?? Promise.resolve(null),
   ]);
-  sendJson(res, 200, { builds, claims });
+  sendJson(res, 200, { builds, claims, departures });
 }
 
 /**

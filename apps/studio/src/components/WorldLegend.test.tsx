@@ -252,6 +252,15 @@ describe('WorldLegend (adaptive bar)', () => {
     }
   });
 
+  it('the "sessions working" drawer also fans the GRADE vocabulary (ADR-0200 D7 — geometry ⟂ colour)', () => {
+    renderLegend(offlineWorld(), { claims: [claimFor('studio', 'real')] });
+    fireEvent.click(screen.getByRole('button', { name: 'sessions working' }));
+    const labels = [...document.querySelectorAll('.legend-tile-label')].map((n) => n.textContent);
+    for (const grade of ['exploring', 'waiting', 'work', 'departed']) {
+      expect(labels).toContain(grade);
+    }
+  });
+
   it('no claims → no "sessions working" row (flag off / nothing claimed → the legend is unchanged)', () => {
     renderLegend(offlineWorld());
     expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
