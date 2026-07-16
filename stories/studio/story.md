@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -55,7 +55,7 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (9)
+## Capabilities (10)
 
 Listed roots-first (a capability appears after everything it depends on).
 
@@ -70,6 +70,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 7 | [`author-library-artifact`](author-library-artifact.md) | An operator durably changes the Library's contents through the editor form. | `dev-server-persistence-backbone`, `browse-library` |
 | 8 | [`chat-panel`](chat-panel.md) | The studio frontend renders a chat panel — a thin client that POSTs the operator's intent to `/api/chat`, streams the SSE response, and renders the `done` proposal / `error` / `refused` outcomes (and an honest disabled state where the route is absent), importing no agent/drive/model code. | — |
 | 9 | [`hud-chrome`](hud-chrome.md) | The forest map becomes the landing surface and the top banner + Overview page retire: the only global chrome is a floating HUD — a brand chip (top-left) linking to the forest, and a verified-identity avatar (top-right) whose menu carries the identity + role, the Library lens, Documents, and the role-/posture-gated Members, Credentials, and Sign out (ADR-0204). | `dev-server-persistence-backbone` |
+| 10 | [`verified-attribution`](verified-attribution.md) | Comment attribution derives from the verified `/api/me` identity everywhere: the composer presents the verified identity read-only (`operator` fallback in the open dev posture) and the post relies on the server stamp, and the localStorage operator store (`lib/operator.ts`) retires (ADR-0204 D4). | `dev-server-persistence-backbone` |
 
 ## Dependency graph (code-derived)
 
@@ -184,7 +185,7 @@ surviving in the git-tracked JSON stores.
 1. Start the studio with `pnpm --filter studio dev` and confirm it logs the `storytree data api: … store → apps/studio/data/` line (devApi.ts:353-355). **Success —** the dev server is up with the `/api/*` middleware mounted ahead of Vite's SPA fallback (the persistence backbone is live).
 2. Open the app — it now lands on the forest map (the Overview/Home page is retired, ADR-0204), with the floating HUD's brand chip (top-left) and verified-identity avatar (top-right) as the only chrome. Open the avatar menu and choose **Documents** to reach the corpus, then in the Sidebar confirm the grouped corpus index ('ADRs (history)' + 'Reference') rendered from the real docs/ tree, and click into `decisions/0002-...md` (or any ADR). **Success —** the hash becomes #/doc/decisions%2F0002-…, DocView fetches /api/docs/content and renders the markdown with slugged headings (read-corpus end-to-end).
 3. Follow the rendered doc's in-corpus cross-link to a sibling doc (e.g. glossary → ADR-0002), then return. **Success —** the link resolved through resolveDocHref to an internal #/doc/<relpath> nav and the sibling rendered from disk — the corpus is genuinely navigable, not a single page.
-4. Select an exact span of the rendered body, pick a colour in the popover, and Post a comment on it. (The free-text operator field is retired from the chrome, ADR-0204 — the comment carries the session's operator identity; deriving attribution from the verified `/api/me` identity is the follow-on capability.) **Success —** the span is wrapped in a coloured `<mark class='st-hl'>` with a gutter tick, the thread shows the comment, and a new text-anchored record (with quote/prefix/suffix, author = the session's operator identity) is appended to apps/studio/data/comments.json (annotate-topic against the real corpus + backbone).
+4. Select an exact span of the rendered body, pick a colour in the popover, and Post a comment on it. (The free-text operator field is gone, and comment attribution now derives from the verified `/api/me` identity — the `operator` fallback only in the offline dev posture, ADR-0204 D4.) **Success —** the span is wrapped in a coloured `<mark class='st-hl'>` with a gutter tick, the thread shows the comment, and a new text-anchored record (with quote/prefix/suffix, author = the verified identity — the server stamps it on the scoped path; the `operator` fallback in the open dev posture) is appended to apps/studio/data/comments.json (annotate-topic against the real corpus + backbone).
 5. Reload the page. **Success —** the comment is re-fetched and the highlight is re-found and re-wrapped at the same span (findQuoteRange) with its gutter tick — the anchor durably survived a fresh render and the GET → readStore round-trip.
 6. Click the comment's **Resolve** button. **Success —** without a manual reload every surface flips off the single `resolved` flag (header open-count decrements, the row gains the 'resolved' pill, the 'hide resolved' toggle appears, the section/gutter badge updates, the Sidebar count drops), and comments.json now shows resolved:true with a non-null resolvedAt (resolve-comment fan-out + backbone persistence).
 7. Navigate to #/library. **Success —** the grid renders the seeded corpus with the 'all (88)' chip and one live-count chip per non-empty category (definition 54, pattern 11, guardrail 8, principle 5, techstack 4, template 6) — the artifacts the seeder wrote, served from assets.json.

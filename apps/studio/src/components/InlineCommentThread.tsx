@@ -23,7 +23,11 @@ interface InlineCommentThreadProps {
   blockHandle: string;
   topicKind: TopicKind;
   topicId: string;
-  /** The local operator identity for new comments. */
+  /**
+   * The verified identity a new comment posts as (ADR-0204 D4): the resolved `/api/me` email,
+   * or the conventional `operator` fallback when unresolved. Presented read-only in the
+   * composer — never editable, never localStorage-sourced.
+   */
   operator: string;
   /** 'view' → read-only thread; 'review' → add-comment affordance shown. */
   mode: 'view' | 'review';
@@ -123,6 +127,8 @@ export function InlineCommentThread({
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
+          {/* The verified identity (ADR-0204 D4) — read-only, never an editable field. */}
+          <div className="composer-foot">{operator}</div>
           <button type="button" onClick={handlePost}>
             Post
           </button>

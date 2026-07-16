@@ -2,7 +2,7 @@
 // terminal-orchestrator-seat-arc increment 1).
 //
 // THE WALK THIS PINS: expand the terminal on the forest page, run a probe command in the REAL pty,
-// SPA-navigate away (Overview — TreeView and the dock unmount), assert the session is STILL LIVE in the
+// SPA-navigate away (#/members — TreeView and the dock unmount; the banner nav retired, ADR-0204),
 // Electron main, SPA-navigate back, and assert the SAME session re-attached with the probe output
 // replayed from the main-held scrollback ring — never a fresh spawn. Before ADR-0189 the dock's unmount
 // cleanup disposed every session, so leaving the forest page killed a live interactive Claude Code
@@ -53,7 +53,7 @@ const sessionText = (win, sessionId) =>
     return typeof result === 'string' ? result : result.data;
   }, sessionId);
 
-test('pty sessions survive a route change: away to Overview and back re-attaches with scrollback', async (t) => {
+test('pty sessions survive a route change: away to Members and back re-attaches with scrollback', async (t) => {
   const ciArgs = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : [];
   const app = await electron.launch({
     args: ['.', ...ciArgs],
@@ -130,8 +130,12 @@ test('pty sessions survive a route change: away to Overview and back re-attaches
     );
     assert.ok(sawProbe, 'the probe command echoed through the real pty into the session scrollback');
 
-    // ROUTE AWAY (SPA click nav — no reload): TreeView and the dock unmount.
-    await win.locator('nav.topnav a', { hasText: 'Overview' }).click();
+    // ROUTE AWAY (SPA hash nav — no reload): TreeView and the dock unmount. The banner nav retired
+    // with ADR-0204 (the HUD chrome has no route links), so navigate the way the app itself does —
+    // a location.hash write the hash router picks up (same mechanism as the '#/tree' seed above).
+    await win.evaluate(() => {
+      location.hash = '#/members';
+    });
     await win.waitForSelector('.terminal-dock', { state: 'detached', timeout: 10_000 });
 
     // The pty is app-owned: still listed while NO dock is attached (the pre-ADR-0189 behaviour killed
@@ -145,7 +149,9 @@ test('pty sessions survive a route change: away to Overview and back re-attaches
 
     // ROUTE BACK: the remounting dock re-attaches to the SAME session (no fresh spawn) and replays the
     // main-held scrollback into a fresh xterm.
-    await win.locator('nav.topnav a', { hasText: 'Forest' }).click();
+    await win.evaluate(() => {
+      location.hash = '#/tree';
+    });
     await waitForForestSettled(win);
     // ADR-0190 chrome: the session panel (rows beside the pane) replaced the numbered tab strip.
     await win.waitForSelector('.terminal-dock-panel .terminal-dock-panel-row', { state: 'attached', timeout: 20_000 });
