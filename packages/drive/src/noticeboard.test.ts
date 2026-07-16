@@ -1,12 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { ClaimDocT, ClaimRequest, ClaimResult, PresenceDeclarationDoc } from "@storytree/notice-board";
+import type {
+  ClaimDocT,
+  ClaimRequest,
+  ClaimResult,
+  PresenceDeclarationDoc,
+  SessionClaimGroup,
+} from "@storytree/notice-board";
 import { STALE_THRESHOLD_MS, POSSIBLY_DEAD_THRESHOLD_MS } from "@storytree/notice-board";
 
 import {
   deriveIdentity,
   noticeboardCommand,
+  renderLedgerBoard,
+  type ClaimLedgerReadLike,
   type PresenceStoreLike,
   type SessionClaimStoreLike,
   type SessionIdentity,
@@ -562,4 +570,178 @@ test("done: a THROWING claim release never un-dones the session — surfaced wit
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /Claim release FAILED/);
   assert.match(env.body, /stale-reclaim/);
+});
+
+// ---------------------------------------------------------------------------
+// The claim-ledger board (ADR-0200 D7) — renderLedgerBoard + the board branch
+// ---------------------------------------------------------------------------
+
+test("renderLedgerBoard: fixed groups render sessions in order with branch, graded claims, ages, intent", () => {
+  const groups: SessionClaimGroup[] = [
+    {
+      sessionId: "wt-old",
+      branch: "claude/old-branch",
+      claims: [
+        {
+          unitId: "story-x",
+          grade: "work",
+          intent: "building x",
+          ageMs: 5 * 60_000,
+          claimedAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
+        },
+        {
+          unitId: "story-y",
+          grade: "exploring",
+          intent: "poking around y",
+          ageMs: 90 * 60_000,
+          claimedAt: new Date(NOW.getTime() - 90 * 60_000).toISOString(),
+        },
+      ],
+    },
+    {
+      sessionId: "wt-new",
+      branch: "claude/new-branch",
+      claims: [
+        {
+          unitId: "story-z",
+          grade: "waiting",
+          intent: "",
+          ageMs: 2 * 60_000,
+          claimedAt: new Date(NOW.getTime() - 2 * 60_000).toISOString(),
+        },
+      ],
+    },
+  ];
+  const body = renderLedgerBoard(groups);
+  assert.equal(
+    body,
+    [
+      "Claim ledger (ADR-0200):",
+      "",
+      "## wt-old  branch=claude/old-branch",
+      "  - story-x  [work]  5m  building x",
+      "  - story-y  [exploring]  1h  poking around y",
+      "",
+      "## wt-new  branch=claude/new-branch",
+      "  - story-z  [waiting]  2m",
+    ].join("\n"),
+  );
+});
+
+test("renderLedgerBoard: an empty ledger renders the clear no-live-claims line", () => {
+  const body = renderLedgerBoard([]);
+  assert.match(body, /Claim ledger \(ADR-0200\):/);
+  assert.match(body, /No live claims on the ledger\./);
+});
+
+/** Build a live ClaimDocT (fresh heartbeat so the by-session fold never drops it). */
+function makeClaimDoc(overrides: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" | "sessionId">): ClaimDocT {
+  return {
+    branch: "claude/some-branch",
+    intent: "",
+    claimedAt: NOW.toISOString(),
+    heartbeatAt: NOW.toISOString(),
+    ...overrides,
+  };
+}
+
+function makeFakeLedger(claims: ClaimDocT[]): ClaimLedgerReadLike & { calls: number } {
+  const self = {
+    calls: 0,
+    async listLiveClaims(): Promise<ClaimDocT[]> {
+      self.calls += 1;
+      return claims;
+    },
+  };
+  return self;
+}
+
+test("board: with a ledger the claim ledger renders FIRST, presence below the legacy separator", async () => {
+  const store = makeFakeStore();
+  const presenceDoc = makeDoc({
+    sessionId: "wt-presence",
+    branch: "main",
+    workingOn: "legacy presence work",
+    nodes: ["some-node"],
+  });
+  store.docs.set(presenceDoc.sessionId, presenceDoc);
+
+  const ledger = makeFakeLedger([
+    makeClaimDoc({
+      unitId: "story-x",
+      sessionId: "wt-claimer",
+      branch: "claude/claimer",
+      grade: "exploring",
+      intent: "what I'm thinking",
+      claimedAt: new Date(NOW.getTime() - 3 * 60_000).toISOString(),
+    }),
+  ]);
+
+  const deps: NoticeboardDeps = { store, identity: null, now: nowFn, ledger };
+  const env = await noticeboardCommand(undefined, { nodes: [] }, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.equal(ledger.calls, 1, "the ledger was read once");
+
+  // Ledger section renders, with the graded claim line.
+  assert.match(env.body, /Claim ledger \(ADR-0200\):/);
+  assert.match(env.body, /## wt-claimer  branch=claude\/claimer/);
+  assert.match(env.body, /- story-x {2}\[exploring\] {2}3m {2}what I'm thinking/);
+
+  // Presence renders BELOW, under the retiring separator.
+  assert.match(env.body, /Presence \(legacy, retiring\):/);
+  assert.match(env.body, /wt-presence/);
+  const ledgerAt = env.body.indexOf("Claim ledger (ADR-0200):");
+  const presenceAt = env.body.indexOf("Presence (legacy, retiring):");
+  assert.ok(ledgerAt >= 0 && presenceAt > ledgerAt, "ledger section comes first");
+  assert.ok(
+    env.body.indexOf("wt-presence") > presenceAt,
+    "the presence rows sit under the separator",
+  );
+
+  // next points at the claim verbs (ADR-0200).
+  assert.ok(
+    env.next !== undefined && env.next.some((n) => n.includes("noticeboard claim") && n.includes("--grade")),
+    "next suggests the claim verb",
+  );
+});
+
+test("board: with a ledger but no live claims the no-live-claims line renders above presence", async () => {
+  const store = makeFakeStore();
+  const deps: NoticeboardDeps = { store, identity: null, now: nowFn, ledger: makeFakeLedger([]) };
+  const env = await noticeboardCommand(undefined, { nodes: [] }, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /No live claims on the ledger\./);
+  assert.match(env.body, /Presence \(legacy, retiring\):/);
+  assert.match(env.body, /No active sessions on the notice board\./);
+});
+
+test("board: ledger null/absent → EXACTLY the legacy presence-only output (byte-compatible)", async () => {
+  const store = makeFakeStore();
+  const presenceDoc = makeDoc({
+    sessionId: "wt-legacy",
+    branch: "main",
+    workingOn: "legacy-only board",
+    nodes: ["node-a"],
+  });
+  store.docs.set(presenceDoc.sessionId, presenceDoc);
+
+  const absent = await noticeboardCommand(undefined, { nodes: [] }, { store, identity: null, now: nowFn });
+  const nulled = await noticeboardCommand(
+    undefined,
+    { nodes: [] },
+    { store, identity: null, now: nowFn, ledger: null },
+  );
+  assert.deepEqual(nulled, absent, "ledger:null and absent-ledger envelopes are identical");
+
+  // The legacy body, byte-for-byte: no ledger section, no separator, the presence board alone.
+  assert.equal(
+    absent.body,
+    ["Active sessions:", "", "## node-a", "  - wt-legacy  [fresh]  0m  branch=main  legacy-only board"].join("\n"),
+  );
+  assert.doesNotMatch(absent.body, /Claim ledger/);
+  assert.doesNotMatch(absent.body, /Presence \(legacy/);
+  assert.deepEqual(absent.next, [
+    "storytree noticeboard declare --working-on <prose> --pg",
+    "storytree noticeboard done --pg",
+  ]);
 });

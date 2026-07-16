@@ -91,7 +91,7 @@ import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
-import type { ClaimLedgerStoreLike } from "@storytree/drive";
+import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
 import type { PresenceStoreLike, SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
@@ -1034,8 +1034,11 @@ export interface RunDeps {
      * The graded claim-ledger slice (ADR-0200 D2): the wider store surface the noticeboard
      * claim/upgrade/downgrade/release/claims verbs drive. The same live `PgClaimStore` instance
      * as `claims` when --pg; null/absent offline — the ledger verbs then refuse politely.
+     * The read half (`Partial<ClaimLedgerReadLike>`, ADR-0200 D7) is what the board renders as
+     * its PRIMARY section — `PgClaimStore` carries it; a fake without it (older tests) simply
+     * degrades the board to the legacy presence-only render.
      */
-    readonly ledger?: ClaimLedgerStoreLike | null;
+    readonly ledger?: (ClaimLedgerStoreLike & Partial<ClaimLedgerReadLike>) | null;
   };
   /**
    * The verdict event log (verdict-glyphs): the live work-store slice when --pg; null/absent
@@ -1812,6 +1815,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         },
       );
     }
+    // The board's ledger read (ADR-0200 D7): the SAME PgClaimStore that drives the ledger verbs
+    // rides `presence.ledger`; capture the method so the narrowing survives the closure (a fake
+    // ledger without the read half degrades the board to the legacy presence-only render).
+    const ledgerStore = deps.presence?.ledger ?? null;
+    const listLiveClaims = ledgerStore?.listLiveClaims;
     return noticeboardCommand(
       sub,
       {
@@ -1824,6 +1832,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         now: () => new Date(),
         // Claim-at-declare (ADR-0142): the anchored node's work-time claim rides the declare.
         claims: deps.presence?.claims ?? null,
+        // The claim-ledger board render (ADR-0200 D7): the ledger is PRIMARY when readable.
+        ledger:
+          listLiveClaims !== undefined
+            ? { listLiveClaims: () => listLiveClaims.call(ledgerStore) }
+            : null,
       },
     );
   }

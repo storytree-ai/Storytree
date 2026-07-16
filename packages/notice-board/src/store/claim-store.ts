@@ -537,6 +537,44 @@ export class PgClaimStore {
     return (res.rows as ClaimRow[]).map(rowToDoc);
   }
 
+  /**
+   * EVERY live claim row across ALL units, ALL grades — the unit-unbounded twin of
+   * {@link claimsFor}, and the board/dock source (ADR-0200 D7: the views render the ledger).
+   * "Live" is the same heartbeat clock as reclaim ({@link CLAIM_STALE_RECLAIM_MS}, injectable):
+   * a stale holder's row is a reclaim candidate, not a view's business — filtered in SQL so the
+   * wire never carries dead sessions. Ascending `claimed_at` (ties on session) — deterministic,
+   * and the pure `groupClaimsBySession` fold re-sorts for rendering anyway. Read-only (no
+   * transaction).
+   */
+  async listLiveClaims(opts: ClaimOptions = {}): Promise<ClaimDocT[]> {
+    const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
+    const res = await this.#pool.query(
+      `SELECT ${CLAIM_COLUMNS} FROM events.node_claim
+        WHERE heartbeat_at > now() - ($1::bigint * interval '1 millisecond')
+        ORDER BY claimed_at, session_id, unit_id`,
+      [staleMs],
+    );
+    return (res.rows as ClaimRow[]).map(rowToDoc);
+  }
+
+  /**
+   * THIS session's live claim rows, any grade — the cheap keyed "does this session hold a live
+   * claim" read `check:declared` gates the merge ceremony on (ADR-0200 D3: an unclaimed session
+   * cannot land). Same liveness filter as {@link listLiveClaims}; ascending `claimed_at` (ties on
+   * unit). Read-only (no transaction).
+   */
+  async claimsBySession(sessionId: string, opts: ClaimOptions = {}): Promise<ClaimDocT[]> {
+    const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
+    const res = await this.#pool.query(
+      `SELECT ${CLAIM_COLUMNS} FROM events.node_claim
+        WHERE session_id = $1
+          AND heartbeat_at > now() - ($2::bigint * interval '1 millisecond')
+        ORDER BY claimed_at, unit_id`,
+      [sessionId, staleMs],
+    );
+    return (res.rows as ClaimRow[]).map(rowToDoc);
+  }
+
   /** The append-only audit history for `unitId`, ascending by `seq`. */
   async history(unitId: string): Promise<ClaimAuditEvent[]> {
     const res = await this.#pool.query(

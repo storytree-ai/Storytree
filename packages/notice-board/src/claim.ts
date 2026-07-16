@@ -284,3 +284,84 @@ export function oldestLiveWaiter(
   }
   return oldest;
 }
+
+// ---------------------------------------------------------------------------
+// Pure by-session fold (ADR-0200 D7) — "views, not stores": the ONE grouping
+// every ledger view (the CLI board, the studio dock) renders through, so the
+// session-grouping semantics live once. Browser-safe like everything above.
+// ---------------------------------------------------------------------------
+
+/** One claim inside a {@link SessionClaimGroup} — the view-facing slice of a claim doc. */
+export interface SessionClaimEntry {
+  unitId: string;
+  grade: ClaimGradeT;
+  intent: string;
+  /** Elapsed ms since `claimedAt` at the caller-supplied `now` (clamped to >= 0). */
+  ageMs: number;
+  /** When the claim was taken (ISO 8601) — kept so a view can render absolute times too. */
+  claimedAt: string;
+}
+
+/** One session's live claims — the board/dock rendering unit (ADR-0200 D7). */
+export interface SessionClaimGroup {
+  sessionId: string;
+  branch: string;
+  claims: SessionClaimEntry[];
+}
+
+/** Within a session, the strongest signal renders first: work > waiting > exploring. */
+const GRADE_RANK: Record<ClaimGradeT, number> = { work: 0, waiting: 1, exploring: 2 };
+
+/**
+ * PURE: fold claim docs into session groups for a ledger view (ADR-0200 D7). Stale claims are
+ * DROPPED (the same {@link isReclaimable} heartbeat predicate — a dead session's claims are not a
+ * view's business); the rest group by `sessionId` (branch taken from the session's oldest claim).
+ * Deterministic ordering: groups by their oldest `claimedAt` ascending (longest-running session
+ * first), ties on `sessionId`; within a group by grade rank (work > waiting > exploring), then
+ * `claimedAt`, then `unitId`. No clock reads — the caller supplies `now`.
+ */
+export function groupClaimsBySession(
+  claims: readonly ClaimDocT[],
+  now: Date,
+  staleMs: number = CLAIM_STALE_RECLAIM_MS,
+): SessionClaimGroup[] {
+  const bySession = new Map<string, { branch: string; oldestMs: number; docs: ClaimDocT[] }>();
+  for (const doc of claims) {
+    if (isReclaimable(doc, now, staleMs)) continue; // stale — dropped, never rendered
+    const claimedMs = new Date(doc.claimedAt).getTime();
+    const group = bySession.get(doc.sessionId);
+    if (group === undefined) {
+      bySession.set(doc.sessionId, { branch: doc.branch, oldestMs: claimedMs, docs: [doc] });
+    } else {
+      group.docs.push(doc);
+      if (claimedMs < group.oldestMs) {
+        group.oldestMs = claimedMs;
+        group.branch = doc.branch; // branch follows the session's oldest claim
+      }
+    }
+  }
+
+  const groups = [...bySession.entries()].sort(
+    ([aId, a], [bId, b]) => a.oldestMs - b.oldestMs || (aId < bId ? -1 : aId > bId ? 1 : 0),
+  );
+
+  return groups.map(([sessionId, group]) => ({
+    sessionId,
+    branch: group.branch,
+    claims: group.docs
+      .slice()
+      .sort(
+        (a, b) =>
+          GRADE_RANK[claimGrade(a)] - GRADE_RANK[claimGrade(b)] ||
+          new Date(a.claimedAt).getTime() - new Date(b.claimedAt).getTime() ||
+          (a.unitId < b.unitId ? -1 : a.unitId > b.unitId ? 1 : 0),
+      )
+      .map((doc) => ({
+        unitId: doc.unitId,
+        grade: claimGrade(doc),
+        intent: doc.intent,
+        ageMs: Math.max(0, now.getTime() - new Date(doc.claimedAt).getTime()),
+        claimedAt: doc.claimedAt,
+      })),
+  }));
+}

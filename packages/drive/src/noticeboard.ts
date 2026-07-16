@@ -7,8 +7,14 @@
  */
 import { execFileSync } from "node:child_process";
 
-import type { ClaimRequest, ClaimResult, PresenceDeclarationDoc } from "@storytree/notice-board";
-import { classifyPresence, workClaimRequest } from "@storytree/notice-board";
+import type {
+  ClaimDocT,
+  ClaimRequest,
+  ClaimResult,
+  PresenceDeclarationDoc,
+  SessionClaimGroup,
+} from "@storytree/notice-board";
+import { classifyPresence, groupClaimsBySession, workClaimRequest } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
 
@@ -49,12 +55,28 @@ export interface SessionClaimStoreLike {
   releaseClaimsBySession(sessionId: string): Promise<number>;
 }
 
+/**
+ * The board's READ slice of the claim ledger (ADR-0200 D7 — the noticeboard IS the claim ledger):
+ * every live claim row, all units, all grades, stale-filtered store-side. Duck-typed like the
+ * `claims` seam above (never a /store import — this module stays offline-testable); satisfied by
+ * `PgClaimStore.listLiveClaims`. Null/absent = the legacy presence-only board.
+ */
+export interface ClaimLedgerReadLike {
+  listLiveClaims(): Promise<ClaimDocT[]>;
+}
+
 export interface NoticeboardDeps {
   store: PresenceStoreLike | null;
   identity: SessionIdentity | null;
   now: () => Date;
   /** The write-claim store (ADR-0142); optional/null = no claim behaviour (offline, older callers). */
   claims?: SessionClaimStoreLike | null;
+  /**
+   * The claim-ledger read (ADR-0200 D7): when present the board renders the ledger PRIMARY with
+   * presence below; optional/null = the byte-compatible legacy presence-only board (offline, older
+   * callers).
+   */
+  ledger?: ClaimLedgerReadLike | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +117,15 @@ export function deriveIdentity(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function formatAge(lastSeenAt: string, now: Date): string {
-  const elapsed = now.getTime() - new Date(lastSeenAt).getTime();
-  const minutes = Math.floor(elapsed / 60_000);
+function formatAgeMs(elapsedMs: number): string {
+  const minutes = Math.floor(elapsedMs / 60_000);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h`;
+}
+
+function formatAge(lastSeenAt: string, now: Date): string {
+  return formatAgeMs(now.getTime() - new Date(lastSeenAt).getTime());
 }
 
 function getOrCreate<K, V>(map: Map<K, V[]>, key: K): V[] {
@@ -139,6 +164,27 @@ function renderBoard(docs: PresenceDeclarationDoc[], now: Date): string {
       lines.push(
         `  - ${doc.sessionId}  [${band}]  ${age}  branch=${doc.branch}  ${doc.workingOn}`,
       );
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * PURE: render the claim ledger as the board's PRIMARY section (ADR-0200 D7) — one section per
+ * session (the {@link groupClaimsBySession} fold decides grouping/order; this only formats), one
+ * line per claim: unit id, [grade], age (same mm/hh style as the presence rows), intent prose.
+ */
+export function renderLedgerBoard(groups: SessionClaimGroup[]): string {
+  const lines: string[] = ["Claim ledger (ADR-0200):"];
+  if (groups.length === 0) {
+    lines.push("", "No live claims on the ledger.");
+    return lines.join("\n");
+  }
+  for (const group of groups) {
+    lines.push(`\n## ${group.sessionId}  branch=${group.branch}`);
+    for (const claim of group.claims) {
+      const base = `  - ${claim.unitId}  [${claim.grade}]  ${formatAgeMs(claim.ageMs)}`;
+      lines.push(claim.intent.length > 0 ? `${base}  ${claim.intent}` : base);
     }
   }
   return lines.join("\n");
@@ -189,11 +235,34 @@ export async function noticeboardCommand(
       };
     }
     const active = await deps.store.listActive();
-    const body = renderBoard(active, deps.now());
+    const presenceBody = renderBoard(active, deps.now());
+    const ledger = deps.ledger ?? null;
+    if (ledger === null) {
+      // Offline / older callers (no ledger seam): EXACTLY the legacy presence-only board —
+      // byte-compatible, so nothing downstream of the pre-ADR-0200 output breaks.
+      return {
+        ok: true,
+        body: presenceBody,
+        next: [
+          "storytree noticeboard declare --working-on <prose> --pg",
+          "storytree noticeboard done --pg",
+        ],
+      };
+    }
+    // ADR-0200 D7: the claim ledger IS the board — it renders PRIMARY; presence stays below as
+    // the secondary section until the retirement increment removes it.
+    const claims = await ledger.listLiveClaims();
+    const body = [
+      renderLedgerBoard(groupClaimsBySession(claims, deps.now())),
+      "",
+      "Presence (legacy, retiring):",
+      presenceBody,
+    ].join("\n");
     return {
       ok: true,
       body,
       next: [
+        'storytree noticeboard claim <unit-id> --grade exploring --intent "<why>" --pg',
         "storytree noticeboard declare --working-on <prose> --pg",
         "storytree noticeboard done --pg",
       ],

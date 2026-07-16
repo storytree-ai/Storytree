@@ -22,7 +22,11 @@ GRANT INSERT ON events.session_event
 -- plus one append-only `released` history row per cleared claim. Added 2026-07-02: the clear had
 -- been failing soft ("permission denied for table node_claim") on every merge since cap D landed —
 -- these two tables postdate the original tightest-grant set above.
-GRANT SELECT, DELETE ON events.node_claim
+-- UPDATE added 2026-07-16: the ADR-0200 graded ledger promotes the freed unit's oldest live
+-- waiter inside the release transaction (`SELECT ... FOR UPDATE` + `UPDATE grade='work'` in
+-- PgClaimStore.#promoteOldestWaiter) — FOR UPDATE alone requires UPDATE privilege, so without it
+-- the whole release ROLLED BACK fail-soft on every merge since inc 1 (#741) landed.
+GRANT SELECT, UPDATE, DELETE ON events.node_claim
   TO "storytree-ci-presence@storytree-498613.iam";
 GRANT INSERT ON events.claim_event
   TO "storytree-ci-presence@storytree-498613.iam";

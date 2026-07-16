@@ -175,3 +175,49 @@ test(
     }
   },
 );
+
+test(
+  "ledger-reads-live-parity: listLiveClaims reads every unit's live rows with grade, drops a stale holder; claimsBySession reads one session's rows, any grade (ADR-0200 D7/D3)",
+  { skip: !DB },
+  async () => {
+    const { pool, connector } = await createTestPool();
+    try {
+      await applySchema(pool);
+      await pool.query("TRUNCATE events.node_claim");
+      await pool.query("TRUNCATE events.claim_event");
+
+      const store = new PgClaimStore(pool);
+
+      // Three sessions across two units, all three grades.
+      await store.take({ unitId: "read-unit-1", sessionId: "sess-A", branch: "claude/a", intent: "building", grade: "work" });
+      await store.take({ unitId: "read-unit-1", sessionId: "sess-B", branch: "claude/b", intent: "queued", grade: "waiting" });
+      await store.take({ unitId: "read-unit-2", sessionId: "sess-B", branch: "claude/b", intent: "reading", grade: "exploring" });
+      await store.take({ unitId: "read-unit-2", sessionId: "sess-C", branch: "claude/c", intent: "gone", grade: "exploring" });
+
+      // Backdate sess-C past the stale window — a dead session's row never reaches a view.
+      await pool.query(
+        "UPDATE events.node_claim SET heartbeat_at = now() - interval '3 hours' WHERE session_id = $1",
+        ["sess-C"],
+      );
+
+      const live = await store.listLiveClaims();
+      assert.equal(live.length, 3, "the stale row is filtered in SQL");
+      assert.deepEqual(
+        live.map((c) => `${c.unitId}/${c.sessionId}/${claimGrade(c)}`).sort(),
+        ["read-unit-1/sess-A/work", "read-unit-1/sess-B/waiting", "read-unit-2/sess-B/exploring"],
+        "every unit, every grade, grade carried on the wire",
+      );
+
+      const mine = await store.claimsBySession("sess-B");
+      assert.deepEqual(
+        mine.map((c) => `${c.unitId}/${claimGrade(c)}`).sort(),
+        ["read-unit-1/waiting", "read-unit-2/exploring"],
+        "one session's rows at any grade — the check:declared read",
+      );
+      assert.deepEqual(await store.claimsBySession("sess-C"), [], "a fully-stale session reads empty");
+      assert.deepEqual(await store.claimsBySession("nobody"), [], "an unknown session reads empty");
+    } finally {
+      await closePool(pool, connector);
+    }
+  },
+);

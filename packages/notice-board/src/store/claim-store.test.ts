@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { claimGrade } from "../claim.js";
+import { claimGrade, CLAIM_STALE_RECLAIM_MS } from "../claim.js";
 import { PgClaimStore } from "./claim-store.js";
 
 /**
@@ -269,7 +269,7 @@ function issuedPromotionPick(client: FakeClaimClient): boolean {
 test("constructs from a pool-like object with the full graded-claim surface", () => {
   const store = storeWith(new FakeClaimClient());
   assert.ok(store instanceof PgClaimStore);
-  for (const m of ["claim", "take", "upgrade", "downgrade", "release", "current", "claimsFor", "history"] as const) {
+  for (const m of ["claim", "take", "upgrade", "downgrade", "release", "current", "claimsFor", "listLiveClaims", "claimsBySession", "history"] as const) {
     assert.equal(typeof store[m], "function", `${m} present`);
   }
 });
@@ -911,3 +911,84 @@ if (LIVE) {
     }
   });
 }
+
+// ── The unbounded ledger reads (ADR-0200 D7: listLiveClaims / claimsBySession) ──
+//
+// Both are read-only pool.query paths (no transaction), so a tiny dedicated fake
+// captures the SQL + values and feeds rows back — the FakeClaimClient's
+// fragment-routing is for the transactional verbs above.
+
+class FakeReadPool {
+  readonly calls: { text: string; values: unknown[] }[] = [];
+  rows: unknown[] = [];
+  async connect(): Promise<never> {
+    throw new Error("the read paths never open a transaction");
+  }
+  async query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> {
+    this.calls.push({ text, values: values ?? [] });
+    return { rows: this.rows };
+  }
+}
+
+const READ_ROW_WORK = {
+  unit_id: "story-a",
+  session_id: "sess-A",
+  grade: "work",
+  branch: "claude/sess-A",
+  intent: "building",
+  claimed_at: "2026-07-16T10:00:00.000Z",
+  heartbeat_at: "2026-07-16T11:59:00.000Z",
+};
+const READ_ROW_EXPLORING = { ...READ_ROW_WORK, unit_id: "story-b", session_id: "sess-B", grade: "exploring", intent: "reading" };
+
+test("listLiveClaims: unbounded (no unit/session filter), heartbeat-live in SQL, rows map WITH grade", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [READ_ROW_WORK, READ_ROW_EXPLORING];
+  const docs = await new PgClaimStore(pool as never).listLiveClaims();
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /FROM events\.node_claim/);
+  assert.doesNotMatch(call.text, /unit_id\s*=/, "no unit filter — every unit");
+  assert.doesNotMatch(call.text, /session_id\s*=/, "no session filter — every session");
+  assert.match(call.text, /heartbeat_at > now\(\)/, "liveness filtered in SQL");
+  assert.match(call.text, /ORDER BY claimed_at/);
+  assert.deepEqual(call.values, [CLAIM_STALE_RECLAIM_MS], "default stale window rides as the parameter");
+
+  assert.equal(docs.length, 2);
+  assert.equal(docs[0]?.grade, "work");
+  assert.equal(docs[1]?.grade, "exploring");
+  assert.equal(docs[1]?.intent, "reading");
+});
+
+test("listLiveClaims: staleReclaimMs override is passed through; a corrupt grade fails closed", async () => {
+  const pool = new FakeReadPool();
+  await new PgClaimStore(pool as never).listLiveClaims({ staleReclaimMs: 5_000 });
+  assert.deepEqual(pool.calls[0]?.values, [5_000]);
+
+  const bad = new FakeReadPool();
+  bad.rows = [{ ...READ_ROW_WORK, grade: "sneaky" }];
+  await assert.rejects(new PgClaimStore(bad as never).listLiveClaims(), /invalid/i);
+});
+
+test("claimsBySession: keyed on session_id + heartbeat-live, values [sessionId, staleMs], maps grade", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [READ_ROW_WORK];
+  const docs = await new PgClaimStore(pool as never).claimsBySession("sess-A");
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /WHERE session_id = \$1/);
+  assert.match(call.text, /heartbeat_at > now\(\)/, "liveness filtered in SQL");
+  assert.deepEqual(call.values, ["sess-A", CLAIM_STALE_RECLAIM_MS]);
+
+  assert.equal(docs.length, 1);
+  assert.equal(docs[0]?.unitId, "story-a");
+  assert.equal(docs[0]?.grade, "work");
+});
+
+test("claimsBySession: empty rows → empty list (a claim-less session is a plain no, not an error)", async () => {
+  const pool = new FakeReadPool();
+  const docs = await new PgClaimStore(pool as never).claimsBySession("nobody");
+  assert.deepEqual(docs, []);
+});

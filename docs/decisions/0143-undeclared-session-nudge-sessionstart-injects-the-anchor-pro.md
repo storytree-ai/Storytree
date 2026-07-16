@@ -61,7 +61,15 @@ Two never-blocking mechanisms, replacing discipline with structure without a cre
    when DB creds are absent, or when the DB is unreachable; WARN when this session has no active
    node-anchored declaration on the board. A session can start work undeclared, but it cannot reach
    the landing ceremony without being told, by machine, at every gate run. CI is unaffected (the
-   verify job is DB-free; the check lives in the local gate only).
+   verify job is DB-free; the check lives in the local gate only). **[Corrected 2026-07-16 per
+   ADR-0200 D3, which amends this ADR: `check:declared` was hardened from WARN-class to **FAIL** —
+   a session that holds NO live claim now FAILs the gate (exit 1), so an unclaimed session cannot
+   reach the merge ceremony rather than merely being warned. The check was also re-keyed off the
+   retiring presence-declaration record onto the claim ledger (`events.node_claim`): it passes when
+   the session holds ≥ 1 live claim of ANY grade (an `exploring` birth claim or a `work` declare
+   claim both count, ADR-0200 D2). The SKIP arms (not a session worktree / no DB creds / DB
+   unreachable / unexpected error → exit 0) and the CI-unaffected property stand unchanged. See
+   `packages/cli/src/check-declared.ts`.]**
 
 The enforcement ladder is unchanged above this: build-claim hard-refusal (ADR-0121), the merge
 ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands — claim-at-spawn
@@ -77,7 +85,9 @@ ceremony + merged-branch guard (ADR-0142), and — when ADR-0137 Phase 3 lands �
 - A session that ignores both signals still lands only through the merge ceremony, whose guard and
   branch-clear (ADR-0142) keep the map honest either way.
 - When claim-at-spawn lands (ADR-0137 Phase 3), the nudge and the warn become the soft edges of a
-  hard gate rather than the only pressure.
+  hard gate rather than the only pressure. **[Corrected 2026-07-16 per ADR-0200 D3: the gate rung
+  is no longer merely a warn — `check:declared` now FAILs an unclaimed session, so the hard gate at
+  the landing ceremony already exists; the nudge remains the soft edge above it.]**
 
 ## References
 
