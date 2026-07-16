@@ -6,8 +6,11 @@ import { useSyncExternalStore } from 'react';
 // The standalone `#/library` page is retired (ADR-0185 dec 6): the Library lives as a lens over
 // the forest map, opened via `libraryHref()`'s `?overlay=library#/tree` href. `parseRoute` never
 // produces a library route — `/library` paths redirect to the tree route below.
+//
+// The standalone Overview/Home page is ALSO retired (ADR-0204): the forest map is the landing
+// surface. `parseRoute` never yields `{ name: 'home' }` — an empty hash, bare `/`, and every
+// unmatched path resolve to `{ name: 'tree', focus: null }` below.
 export type Route =
-  | { name: 'home' }
   | { name: 'doc'; id: string }
   | { name: 'asset'; id: string }
   | { name: 'asset-edit'; id: string }
@@ -17,7 +20,7 @@ export type Route =
 
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '');
-  if (path === '' || path === '/') return { name: 'home' };
+  if (path === '' || path === '/') return { name: 'tree', focus: null };
   if (path === '/members') return { name: 'members' };
   if (path === '/tree') return { name: 'tree', focus: null };
   if (path.startsWith('/tree/')) {
@@ -36,7 +39,7 @@ export function parseRoute(hash: string): Route {
     if (sub === 'edit') return { name: 'asset-edit', id };
     if (id) return { name: 'asset', id };
   }
-  return { name: 'home' };
+  return { name: 'tree', focus: null };
 }
 
 function subscribe(cb: () => void): () => void {
