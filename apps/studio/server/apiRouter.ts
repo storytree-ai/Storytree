@@ -1023,6 +1023,14 @@ function loadLibrary(): Promise<LibraryModule> {
   return (libraryModulePromise ??= import('@storytree/library'));
 }
 
+// @storytree/notice-board is browser-safe (pure zod) but raw-TS too — same config-load trap, same
+// fix: loaded lazily on first use (handleClaims' groupClaimsBySession fold, ADR-0200 D7).
+type NoticeBoardModule = typeof import('@storytree/notice-board');
+let noticeBoardModulePromise: Promise<NoticeBoardModule> | null = null;
+function loadNoticeBoard(): Promise<NoticeBoardModule> {
+  return (noticeBoardModulePromise ??= import('@storytree/notice-board'));
+}
+
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
@@ -1446,6 +1454,32 @@ export async function handleActivity(
     backend.inFlightClaims?.() ?? Promise.resolve(null),
   ]);
   sendJson(res, 200, { builds, claims });
+}
+
+/**
+ * GET /api/claims — the claim-ledger DOCK view (ADR-0200 D7): every live claim row folded by
+ * session through the pure `groupClaimsBySession` (packages/notice-board/src/claim.ts — the ONE
+ * grouping every ledger view, board and dock alike, shares) so the studio session dock can render
+ * "who's doing what, grouped by session" instead of raw claim rows. `sessionClaims()` is
+ * contractually non-throwing like `activeSessions()`: a down DB / json backend answers 200
+ * `{sessions: null}` (advisory absence, never a 503) — the only error path is the 405 method
+ * guard. Sibling to /api/presence and /api/activity, but its OWN endpoint (not folded onto
+ * /api/activity's wire) since the dock fetches it only while open, not on the world's poll
+ * cadence. Exported for the integration test (the handlePresence pattern).
+ */
+export async function handleClaims(
+  req: IncomingMessage,
+  res: ServerResponse,
+  backend: Pick<LibraryBackend, 'sessionClaims'>,
+): Promise<void> {
+  if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
+  const claims = await (backend.sessionClaims?.() ?? Promise.resolve(null));
+  if (claims === null) {
+    sendJson(res, 200, { sessions: null });
+    return;
+  }
+  const { groupClaimsBySession } = await loadNoticeBoard();
+  sendJson(res, 200, { sessions: groupClaimsBySession(claims, new Date()) });
 }
 
 // ---------- UI-driven build (intent + status, ADR-0090 Phase 1 "the local loop") ----------
@@ -1966,6 +2000,8 @@ export async function handleApiRequest(
       await handlePresence(req, res, ctx.backend);
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
+    } else if (url.pathname === '/api/claims') {
+      await handleClaims(req, res, ctx.backend);
     } else if (url.pathname === '/api/build') {
       // UI-driven build (ADR-0090 Phase 1): dispatch an intent / read a run's status. The worker
       // seam is wired by the dev front only; absent (hosted, Phase 1) → 404.

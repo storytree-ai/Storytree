@@ -23,7 +23,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { PresenceDeclarationDoc } from '@storytree/notice-board';
+import type { ClaimDocT, PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 import {
   type AssetCategory,
@@ -166,6 +166,21 @@ export interface LibraryBackend {
    * `/api/activity` handler falls back to `null` (advisory absence, never an over-claim).
    */
   inFlightClaims?(): Promise<ClaimActivity[] | null>;
+
+  /**
+   * EVERY live claim row, all units, all grades (ADR-0200 D7 — the studio session dock's
+   * claims-grouped-by-session view): the raw `ClaimDocT[]` from `events.node_claim` via
+   * `PgClaimStore.listLiveClaims()` (the same store the CLI board reads), staleness filtered in
+   * SQL by heartbeat. Unlike {@link inFlightClaims} (which folds to a map-wisp `ClaimActivity` and
+   * discards the grade), this stays the raw claim shape so the caller (the `/api/claims` handler)
+   * folds it through the pure `groupClaimsBySession` — the ONE grouping every ledger view shares
+   * (packages/notice-board/src/claim.ts). Same advisory contract as {@link activeSessions}: NEVER
+   * throws — `null` for the json backend or when the DB doesn't answer; the dock's claims view
+   * degrades silently to the presence-only view (advisory absence, never an error surface).
+   * OPTIONAL like {@link inFlightClaims}: a narrow mock may omit it, and the `/api/claims` handler
+   * falls back to `null` (advisory absence, never an over-claim).
+   */
+  sessionClaims?(): Promise<ClaimDocT[] | null>;
 
   listComments(filter: CommentFilter): Promise<Comment[]>;
   createComment(comment: Comment): Promise<Comment>;
@@ -326,6 +341,10 @@ export class JsonBackend implements LibraryBackend {
 
   async inFlightClaims(): Promise<ClaimActivity[] | null> {
     return null; // no events.node_claim behind the JSON files — claim wisps silently absent
+  }
+
+  async sessionClaims(): Promise<ClaimDocT[] | null> {
+    return null; // no events.node_claim behind the JSON files — the dock's claims view is silently absent
   }
 
   async listComments(filter: CommentFilter): Promise<Comment[]> {
@@ -974,6 +993,34 @@ export class PgBackend implements LibraryBackend {
       // claimsToActivity fold (red-green in inFlightActivity.test.ts); this method owns only the
       // live query + the 4s race.
       return claimsToActivity((res as { rows: ClaimRow[] }).rows, new Date());
+    } catch {
+      return null;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Every live claim row via `PgClaimStore.listLiveClaims()` (ADR-0200 D7 dock view) — the SAME
+   * store's already-tested heartbeat stale-filter (no hand-rolled SQL here), raced against the
+   * same ~4s timeout as the other advisory reads above. Null on ANY failure (stopped instance,
+   * missing table, pool build error) — the dock's claims view is advisory, like activeSessions().
+   */
+  async sessionClaims(): Promise<ClaimDocT[] | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('session-claims probe timed out')), 4000);
+      });
+      return await Promise.race([
+        (async () => {
+          const { store } = await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error('no pool');
+          return new store.PgClaimStore(handle.pool).listLiveClaims();
+        })(),
+        timeout,
+      ]);
     } catch {
       return null;
     } finally {
