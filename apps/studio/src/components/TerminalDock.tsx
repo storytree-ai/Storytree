@@ -37,6 +37,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 
 /** Drag bounds for the expanded dock height (px) — mirrors ChatDock's MIN/DEFAULT/margin. */
 const MIN_HEIGHT = 160;
@@ -220,6 +221,21 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;
+
+      // Contract 13 — render on xterm's GPU (WebGL) renderer, not the DOM fallback renderer whose
+      // documented rendering issues are the owner-reported artifact class (stale glyphs pinned at
+      // the pane edges after a resize/scroll). Loaded AFTER open() — the addon needs the mounted
+      // element. Falls back HONESTLY: a box with no usable WebGL context throws here and the
+      // session simply stays on the DOM renderer (functional, never a crash); a LATER context loss
+      // disposes the addon, which reverts xterm to the DOM renderer rather than leaving a dead
+      // canvas. The addon is term-owned after loadAddon — term.dispose() reaps it with the tab.
+      try {
+        const webgl = new WebglAddon();
+        term.loadAddon(webgl);
+        webgl.onContextLoss(() => webgl.dispose());
+      } catch {
+        /* no WebGL context — xterm's DOM renderer stays active */
+      }
 
       // Contract 12 — Ctrl+C-copy / Ctrl+V-paste (the owner-reported keyboard-wiring defect): xterm
       // otherwise always consumes Ctrl+C and forwards '\x03'/SIGINT to the pty, so a selection could
