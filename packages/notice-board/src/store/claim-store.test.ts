@@ -1,16 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { claimGrade } from "../claim.js";
 import { PgClaimStore } from "./claim-store.js";
 
 /**
  * Offline: drive `PgClaimStore` through a FAKE pool that records every query and returns canned
- * rows, asserting the CONTROL FLOW — which branch each claim takes (fresh / re-entrant / reclaim /
- * REFUSED), the typed audit event it appends, and COMMIT-vs-ROLLBACK. The real DB-level atomicity
- * (two concurrent claims, exactly one wins) is exercised by the live-gated leg at the bottom.
+ * rows, asserting the CONTROL FLOW — which branch each transition takes (fresh / re-entrant /
+ * reclaim / REFUSED / shared take / upgrade / queue / downgrade / promote), the typed audit event
+ * it appends, and COMMIT-vs-ROLLBACK. The real DB-level atomicity (two concurrent claims, exactly
+ * one wins; partial-index exclusivity; real claimed_at queue ordering) is exercised by the
+ * live-gated leg at the bottom and by claim-store-grades.live.test.ts.
  *
  * The headline red→green: a SECOND session claiming a unit a FIRST still-live session holds is
- * REFUSED (the confirmed 2026-06-27 duplicate-build race).
+ * REFUSED (the confirmed 2026-06-27 duplicate-build race) — unchanged under the ADR-0200 grade
+ * ledger, where it becomes the WORK grade's exclusivity.
  */
 
 const LIVE = process.env["STORYTREE_DB_LIVE"] === "1";
@@ -20,6 +24,7 @@ const NOW_ISO = NOW.toISOString();
 interface ClaimRow {
   unit_id: string;
   session_id: string;
+  grade?: string;
   branch: string;
   intent: string;
   claimed_at: string;
@@ -37,14 +42,42 @@ interface AppendedEvent {
   sessionId: string;
 }
 
+/** The work-path writes carry values [unit, session, branch, intent] (grade is a SQL literal). */
 function rowFromWriteValues(values: unknown[], heartbeatAt: string = NOW_ISO): ClaimRow {
   return {
     unit_id: String(values[0]),
     session_id: String(values[1]),
+    grade: "work",
     branch: String(values[2]),
     intent: String(values[3]),
     claimed_at: NOW_ISO,
     heartbeat_at: heartbeatAt,
+  };
+}
+
+/** The shared take upsert carries values [unit, session, grade, branch, intent]. */
+function rowFromSharedTakeValues(values: unknown[]): ClaimRow {
+  return {
+    unit_id: String(values[0]),
+    session_id: String(values[1]),
+    grade: String(values[2]),
+    branch: String(values[3]),
+    intent: String(values[4]),
+    claimed_at: NOW_ISO,
+    heartbeat_at: NOW_ISO,
+  };
+}
+
+/** The waiting (queue-join) upsert carries values [unit, session, branch, intent]. */
+function rowFromWaitingValues(values: unknown[]): ClaimRow {
+  return {
+    unit_id: String(values[0]),
+    session_id: String(values[1]),
+    grade: "waiting",
+    branch: String(values[2]),
+    intent: String(values[3]),
+    claimed_at: NOW_ISO,
+    heartbeat_at: NOW_ISO,
   };
 }
 
@@ -54,12 +87,18 @@ class FakeClaimClient {
   readonly events: AppendedEvent[] = [];
   released = false;
 
-  /** The row the holder read (`... FOR UPDATE`) returns; undefined = unclaimed. */
+  /** The row the WORK-holder read (`grade = 'work' … FOR UPDATE`) returns; undefined = slot free. */
   existingForUpdate?: ClaimRow;
+  /** The row the session's OWN-row read (`session_id = $2 … FOR UPDATE`) returns (upgrade/downgrade). */
+  ownRowForUpdate?: ClaimRow;
   /** The row the post-race-loss re-SELECT returns (the winner). */
   winnerRow?: ClaimRow;
-  /** When true the fresh INSERT … RETURNING returns 0 rows (we lost the insert race). */
+  /** The unit's waiting rows the promotion pick (`grade = 'waiting'`) sees. */
+  waiterRows?: ClaimRow[];
+  /** When true the fresh work INSERT … RETURNING returns 0 rows (we lost the insert race). */
   insertRaceLost = false;
+  /** The rows the own-shared-row FOLD delete (`grade <> 'work'`) returns. */
+  foldDeleteReturns?: ClaimRow[];
   /** The row a DELETE (release) returns; undefined = nothing of ours to release. */
   deleteReturns?: ClaimRow;
   /** The rows a releaseClaimsByBranch DELETE returns; the bulk branch-clear can remove many. */
@@ -79,7 +118,18 @@ class FakeClaimClient {
       throw new Error(`Fake-induced failure matching ${JSON.stringify(this.failOnPattern)}`);
     }
     if (text.includes("INSERT INTO events.node_claim")) {
-      return { rows: this.insertRaceLost ? [] : [rowFromWriteValues(values)] };
+      // The queue-join upsert stamps its grade as the literal 'waiting'.
+      if (text.includes("'waiting'")) return { rows: [rowFromWaitingValues(values)] };
+      // The shared take upserts on the composite PK, grade as $3.
+      if (text.includes("ON CONFLICT (unit_id, session_id)")) {
+        return { rows: [rowFromSharedTakeValues(values)] };
+      }
+      // The exclusive work insert races on the PARTIAL index (ADR-0200 D2).
+      if (text.includes("ON CONFLICT (unit_id) WHERE grade = 'work'")) {
+        return { rows: this.insertRaceLost ? [] : [rowFromWriteValues(values)] };
+      }
+      // Plain INSERT = the refused-take restore of a folded shared row.
+      return { rows: [] };
     }
     if (text.includes("INSERT INTO events.claim_event")) {
       this.events.push({
@@ -91,20 +141,55 @@ class FakeClaimClient {
     }
     const head = text.trimStart().toUpperCase();
     if (head.startsWith("SELECT") && text.includes("events.node_claim")) {
+      // The promotion pick reads the unit's live waiting rows.
+      if (text.includes("grade = 'waiting'")) return { rows: this.waiterRows ?? [] };
+      // The session's own row (any grade) — upgrade/downgrade's first read.
+      if (text.includes("FOR UPDATE") && text.includes("session_id = $2")) {
+        return { rows: this.ownRowForUpdate ? [this.ownRowForUpdate] : [] };
+      }
+      // The exclusive work-holder read.
       if (text.includes("FOR UPDATE")) {
         return { rows: this.existingForUpdate ? [this.existingForUpdate] : [] };
       }
+      // The post-race-loss winner re-read.
       return { rows: this.winnerRow ? [this.winnerRow] : [] };
     }
-    // The heartbeat bumps are the only UPDATEs whose SET clause STARTS with heartbeat_at (claim()'s
-    // multi-column UPDATE never contains the literal "SET heartbeat_at = now()") — route them first.
-    // The per-unit bump filters on unit_id; the session bulk-bump (ADR-0142) keys on session_id alone.
+    // The heartbeat bumps are the only UPDATEs whose SET clause STARTS with heartbeat_at — route
+    // them first. The per-unit bump filters on unit_id; the session bulk-bump keys on session_id.
     if (head.startsWith("UPDATE") && text.includes("SET heartbeat_at = now()")) {
       if (text.includes("WHERE session_id =")) return { rows: this.sessionBumpReturns ?? [] };
       return { rows: this.bumpReturns ? [this.bumpReturns] : [] };
     }
+    // The promotion flip: the picked waiter becomes the work row.
+    if (head.startsWith("UPDATE") && text.includes("SET grade = 'work'")) {
+      const session = String(values[1]);
+      const waiter = (this.waiterRows ?? []).find((w) => w.session_id === session);
+      return { rows: waiter ? [{ ...waiter, grade: "work" }] : [] };
+    }
+    // The downgrade flip: the session's own row moves to the parameterised shared grade.
+    if (head.startsWith("UPDATE") && text.includes("SET grade = $3")) {
+      const base = this.ownRowForUpdate as ClaimRow;
+      return {
+        rows: [
+          { ...base, unit_id: String(values[0]), session_id: String(values[1]), grade: String(values[2]) },
+        ],
+      };
+    }
+    // Upgrade's re-entrant refresh of an already-ours work row.
+    if (head.startsWith("UPDATE") && text.includes("SET branch = $2")) {
+      const base = this.existingForUpdate as ClaimRow;
+      return { rows: [{ ...base, branch: String(values[1]), intent: String(values[2]) }] };
+    }
     if (head.startsWith("UPDATE") && text.includes("events.node_claim")) {
       return { rows: [rowFromWriteValues(values)] };
+    }
+    // The own-shared-row FOLD delete (a take-work path absorbing our exploring/waiting row).
+    if (head.startsWith("DELETE") && text.includes("grade <> 'work'")) {
+      return { rows: this.foldDeleteReturns ?? [] };
+    }
+    // Upgrade's eviction of a stale work holder.
+    if (head.startsWith("DELETE") && text.includes("grade = 'work'")) {
+      return { rows: [] };
     }
     // The bulk branch-clear (releaseClaimsByBranch) deletes by `branch` alone and can return MANY
     // rows; release() deletes one by (unit_id, session_id). Route the branch form first.
@@ -144,6 +229,7 @@ function heldRow(over: Partial<ClaimRow> = {}): ClaimRow {
   return {
     unit_id: "chat-session-stream",
     session_id: "session-A",
+    grade: "work",
     branch: "claude/a",
     intent: "real",
     claimed_at: NOW_ISO,
@@ -165,13 +251,25 @@ function commits(client: FakeClaimClient): boolean {
 function rollsBack(client: FakeClaimClient): boolean {
   return client.calls.some((c) => c.text.includes("ROLLBACK"));
 }
+function issuedWorkInsert(client: FakeClaimClient): boolean {
+  return client.calls.some(
+    (c) =>
+      c.text.includes("INSERT INTO events.node_claim") &&
+      c.text.includes("ON CONFLICT (unit_id) WHERE grade = 'work'"),
+  );
+}
+function issuedPromotionPick(client: FakeClaimClient): boolean {
+  return client.calls.some(
+    (c) => c.text.trimStart().toUpperCase().startsWith("SELECT") && c.text.includes("grade = 'waiting'"),
+  );
+}
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-test("constructs from a pool-like object with the claim/release/current/history surface", () => {
+test("constructs from a pool-like object with the full graded-claim surface", () => {
   const store = storeWith(new FakeClaimClient());
   assert.ok(store instanceof PgClaimStore);
-  for (const m of ["claim", "release", "current", "history"] as const) {
+  for (const m of ["claim", "take", "upgrade", "downgrade", "release", "current", "claimsFor", "history"] as const) {
     assert.equal(typeof store[m], "function", `${m} present`);
   }
 });
@@ -184,8 +282,9 @@ test("claim (fresh): unclaimed unit → acquired, INSERT + 'claimed' event, COMM
   if (res.acquired) {
     assert.equal(res.reclaimed, false);
     assert.equal(res.claim.sessionId, "session-B");
+    assert.equal(claimGrade(res.claim), "work", "a claim() take is always the work grade");
   }
-  assert.ok(client.calls.some((c) => c.text.includes("INSERT INTO events.node_claim")), "insert issued");
+  assert.ok(issuedWorkInsert(client), "insert races on the partial work index (ADR-0200 D2)");
   assert.deepEqual(client.events, [
     { unitId: "chat-session-stream", type: "claimed", sessionId: "session-B" },
   ]);
@@ -203,11 +302,15 @@ test("claim (REFUSED — the red→green): a different session's live claim → 
     assert.equal(res.heldBy.sessionId, "session-A");
     assert.equal(res.heldBy.branch, "claude/a");
   }
-  // The refusal NEVER mutates the holder row — no INSERT, no UPDATE on node_claim.
+  // The refusal NEVER mutates any node_claim row — no INSERT, no UPDATE, no fold DELETE.
   assert.ok(!client.calls.some((c) => c.text.includes("INSERT INTO events.node_claim")), "no insert");
   assert.ok(
     !client.calls.some((c) => c.text.trimStart().toUpperCase().startsWith("UPDATE")),
     "no update",
+  );
+  assert.ok(
+    !client.calls.some((c) => c.text.trimStart().toUpperCase().startsWith("DELETE")),
+    "no delete",
   );
   // But the refusal IS a typed event (ADR-0009) and IS committed (the audit must persist).
   assert.deepEqual(client.events, [
@@ -251,6 +354,26 @@ test("claim (insert race lost): unclaimed at read, but the INSERT loses → refu
   assert.ok(commits(client));
 });
 
+test("claim (insert race lost with a folded shared row): the session's exploring wisp is RESTORED before the refusal", async () => {
+  const client = new FakeClaimClient();
+  client.insertRaceLost = true;
+  client.winnerRow = heldRow({ session_id: "session-A" });
+  client.foldDeleteReturns = [
+    heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b", intent: "scoping" }),
+  ];
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, false);
+  // The folded exploring row is put back verbatim (a refused work take must not eat the wisp).
+  const restore = client.calls.find(
+    (c) => c.text.includes("INSERT INTO events.node_claim") && !c.text.includes("ON CONFLICT"),
+  );
+  assert.ok(restore !== undefined, "the plain restore INSERT was issued");
+  assert.equal(restore.values[2], "exploring", "the restored row keeps its grade");
+  assert.deepEqual(client.events.map((e) => e.type), ["conflict-refused"]);
+  assert.ok(commits(client));
+});
+
 test("claim: fail-closed on blank attribution (never opens a transaction)", async () => {
   const client = new FakeClaimClient();
   await assert.rejects(
@@ -268,11 +391,275 @@ test("claim: a DB error mid-transaction → ROLLBACK, no COMMIT, client released
   assert.ok(client.released, "client released even on failure");
 });
 
-test("release (held by us): DELETE removes the row, 'released' event, returns true", async () => {
+// ── take (ADR-0200 D2): the grade-aware acquire ───────────────────────────────
+
+test("take (exploring): SHARED upsert on the composite PK, 'claimed' event carrying the grade, no exclusive read, COMMIT", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).take(
+    { ...REQ_B, grade: "exploring", intent: "scoping the stream" },
+    { now: NOW },
+  );
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(claimGrade(res.claim), "exploring");
+    assert.equal(res.claim.intent, "scoping the stream", "intent prose rides the exploring claim");
+  }
+  const upsert = client.calls.find((c) => c.text.includes("ON CONFLICT (unit_id, session_id)"));
+  assert.ok(upsert !== undefined, "shared grades upsert re-entrantly on the composite PK");
+  // A shared take never touches the exclusive machinery: no work-row lock, no partial-index race.
+  assert.ok(!client.calls.some((c) => c.text.includes("FOR UPDATE")), "no exclusive read");
+  assert.ok(!issuedWorkInsert(client), "no work insert");
+  assert.deepEqual(client.events, [
+    { unitId: "chat-session-stream", type: "claimed", sessionId: "session-B" },
+  ]);
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("take (work / absent grade): delegates to the exclusive claim() path unchanged", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).take(REQ_B, { now: NOW }); // no grade → work
+
+  assert.equal(res.acquired, true);
+  assert.ok(issuedWorkInsert(client), "the work take is claim()'s partial-index insert");
+  assert.deepEqual(client.events.map((e) => e.type), ["claimed"]);
+});
+
+test("take (shared): fail-closed on blank attribution (never opens a transaction)", async () => {
+  const client = new FakeClaimClient();
+  await assert.rejects(
+    () => storeWith(client).take({ ...REQ_B, grade: "exploring", branch: " " }, { now: NOW }),
+    /non-blank/,
+  );
+  assert.equal(client.calls.length, 0, "validation precedes any query");
+});
+
+test("take (shared): a DB error mid-transaction → ROLLBACK, no COMMIT, client released", async () => {
+  const client = new FakeClaimClient();
+  client.failOnPattern = "INSERT INTO events.claim_event";
+  await assert.rejects(
+    () => storeWith(client).take({ ...REQ_B, grade: "waiting" }, { now: NOW }),
+    /Fake-induced failure/,
+  );
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.ok(client.released);
+});
+
+// ── upgrade (ADR-0200 D2): exploring→work, or queue behind a live holder ─────
+
+test("upgrade (slot free, prior exploring row): the session's row becomes the work row → acquired, fold + work insert, 'upgraded' event", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(res.reclaimed, false);
+    assert.equal(claimGrade(res.claim), "work");
+    assert.equal(res.claim.branch, "claude/b", "branch inherited from the prior row");
+  }
+  assert.ok(
+    client.calls.some((c) => c.text.trimStart().toUpperCase().startsWith("DELETE") && c.text.includes("grade <> 'work'")),
+    "the shared row is folded away (composite-PK slot freed)",
+  );
+  assert.ok(issuedWorkInsert(client), "the take races on the partial work index");
+  assert.deepEqual(client.events, [
+    { unitId: "chat-session-stream", type: "upgraded", sessionId: "session-B" },
+  ]);
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("upgrade (held by a LIVE other session): the session QUEUES → waiting upsert, 'queued' event, queued arm names the holder", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  client.existingForUpdate = heldRow(); // session-A, heartbeat fresh
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  assert.equal(res.acquired, false);
+  assert.ok("queued" in res && res.queued === true, "the queued arm, not a dead-end refusal");
+  if ("queued" in res) {
+    assert.equal(res.heldBy.sessionId, "session-A");
+    assert.equal(res.waiting.sessionId, "session-B");
+    assert.equal(claimGrade(res.waiting), "waiting");
+  }
+  assert.ok(!issuedWorkInsert(client), "no work insert while a live holder stands");
+  assert.ok(
+    client.calls.some((c) => c.text.includes("'waiting'") && c.text.includes("ON CONFLICT (unit_id, session_id)")),
+    "the queue join is a waiting upsert",
+  );
+  assert.deepEqual(client.events, [
+    { unitId: "chat-session-stream", type: "queued", sessionId: "session-B" },
+  ]);
+  assert.ok(commits(client) && !rollsBack(client));
+});
+
+test("upgrade (held by a STALE other session): the stale work row is evicted → acquired, reclaimed:true, 'upgraded' event", async () => {
+  const client = new FakeClaimClient();
+  const threeHoursAgo = new Date(NOW.getTime() - 3 * 60 * 60 * 1_000).toISOString();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  client.existingForUpdate = heldRow({ session_id: "session-A", heartbeat_at: threeHoursAgo });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) assert.equal(res.reclaimed, true, "a stale holder was evicted");
+  assert.ok(
+    client.calls.some((c) => c.text.trimStart().toUpperCase().startsWith("DELETE") && c.text.includes("grade = 'work'")),
+    "the stale work row is deleted",
+  );
+  assert.deepEqual(client.events.map((e) => e.type), ["upgraded"]);
+  assert.ok(commits(client));
+});
+
+test("upgrade (already ours): a re-entrant upgrade refreshes the held work row → acquired, 'upgraded' event", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", branch: "claude/b" });
+  client.existingForUpdate = heldRow({ session_id: "session-B", branch: "claude/b" });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) assert.equal(res.reclaimed, false);
+  assert.ok(!issuedWorkInsert(client), "a refresh, not a re-insert");
+  assert.deepEqual(client.events.map((e) => e.type), ["upgraded"]);
+});
+
+test("upgrade (no prior row, no branch): fail-closed — attribution is never invented → throws, ROLLBACK", async () => {
+  const client = new FakeClaimClient(); // ownRowForUpdate undefined
+  await assert.rejects(
+    () => storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW }),
+    /no prior claim row and no branch/,
+  );
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.equal(client.events.length, 0);
+  assert.ok(client.released);
+});
+
+test("upgrade (no prior row, branch supplied): treat as take-work-or-queue → acquired when the slot is free", async () => {
+  const client = new FakeClaimClient(); // no own row, no work row
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", {
+    now: NOW,
+    branch: "claude/b",
+    intent: "edit",
+  });
+  assert.equal(res.acquired, true);
+  assert.ok(issuedWorkInsert(client));
+  assert.deepEqual(client.events.map((e) => e.type), ["upgraded"]);
+});
+
+test("upgrade (insert race lost): a concurrent first-work claim wins → the session lands in the QUEUE, 'queued' event", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
+  client.insertRaceLost = true;
+  client.winnerRow = heldRow({ session_id: "session-A" });
+  const res = await storeWith(client).upgrade("chat-session-stream", "session-B", { now: NOW });
+
+  assert.equal(res.acquired, false);
+  assert.ok("queued" in res && res.queued === true, "an upgrade never dead-ends: race loss → queue");
+  if ("queued" in res) assert.equal(res.heldBy.sessionId, "session-A");
+  assert.deepEqual(client.events.map((e) => e.type), ["queued"]);
+  assert.ok(commits(client));
+});
+
+// ── downgrade (ADR-0200 D2): work→shared frees the slot and PROMOTES ─────────
+
+test("downgrade (work→exploring, live waiter queued): 'downgraded' then 'promoted' IN ONE transaction", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-A", grade: "work" });
+  client.waiterRows = [heldRow({ session_id: "session-B", grade: "waiting", branch: "claude/b" })];
+  const ok = await storeWith(client).downgrade("chat-session-stream", "session-A", "exploring");
+
+  assert.equal(ok, true);
+  assert.ok(issuedPromotionPick(client), "the freed work slot triggers the waiter pick");
+  assert.ok(
+    client.calls.some((c) => c.text.includes("SET grade = 'work'")),
+    "the oldest live waiter is flipped to the work grade",
+  );
+  assert.deepEqual(client.events, [
+    { unitId: "chat-session-stream", type: "downgraded", sessionId: "session-A" },
+    { unitId: "chat-session-stream", type: "promoted", sessionId: "session-B" },
+  ]);
+  // One BEGIN, one COMMIT — the downgrade and the promotion are one atomic step.
+  assert.equal(client.calls.filter((c) => c.text.includes("BEGIN")).length, 1);
+  assert.ok(commits(client) && !rollsBack(client));
+  assert.ok(client.released);
+});
+
+test("downgrade (work→exploring, no live waiter): 'downgraded' only — a promotion no-op, still COMMITs", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-A", grade: "work" });
+  // waiterRows undefined → no live waiter
+  const ok = await storeWith(client).downgrade("chat-session-stream", "session-A", "exploring");
+  assert.equal(ok, true);
+  assert.deepEqual(client.events.map((e) => e.type), ["downgraded"]);
+  assert.ok(commits(client));
+});
+
+test("downgrade (waiting→exploring): a SHARED row's downgrade never fires promotion", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "waiting" });
+  const ok = await storeWith(client).downgrade("chat-session-stream", "session-B", "exploring");
+
+  assert.equal(ok, true);
+  assert.ok(!issuedPromotionPick(client), "no work slot was freed — no promotion pick");
+  assert.deepEqual(client.events.map((e) => e.type), ["downgraded"]);
+  assert.ok(commits(client));
+});
+
+test("downgrade (nothing of ours): returns false, no events, still COMMITs", async () => {
+  const client = new FakeClaimClient(); // ownRowForUpdate undefined
+  const ok = await storeWith(client).downgrade("chat-session-stream", "session-B", "exploring");
+  assert.equal(ok, false);
+  assert.equal(client.events.length, 0);
+  assert.ok(commits(client));
+});
+
+test("downgrade: a DB error mid-transaction → ROLLBACK, no COMMIT, client released", async () => {
+  const client = new FakeClaimClient();
+  client.ownRowForUpdate = heldRow({ session_id: "session-A", grade: "work" });
+  client.failOnPattern = "INSERT INTO events.claim_event";
+  await assert.rejects(
+    () => storeWith(client).downgrade("chat-session-stream", "session-A", "exploring"),
+    /Fake-induced failure/,
+  );
+  assert.ok(rollsBack(client) && !commits(client));
+  assert.ok(client.released);
+});
+
+// ── release: grade-aware — a WORK release promotes, a shared release never does ─
+
+test("release (work row, live waiter queued): DELETE + 'released' + 'promoted' in one transaction, returns true", async () => {
+  const client = new FakeClaimClient();
+  client.deleteReturns = heldRow({ session_id: "session-B", grade: "work" });
+  client.waiterRows = [heldRow({ session_id: "session-C", grade: "waiting", branch: "claude/c" })];
+  const ok = await storeWith(client).release("chat-session-stream", "session-B");
+
+  assert.equal(ok, true);
+  assert.deepEqual(client.events, [
+    { unitId: "chat-session-stream", type: "released", sessionId: "session-B" },
+    { unitId: "chat-session-stream", type: "promoted", sessionId: "session-C" },
+  ]);
+  assert.equal(client.calls.filter((c) => c.text.includes("BEGIN")).length, 1, "one atomic transaction");
+  assert.ok(commits(client));
+});
+
+test("release (held by us, no waiter): DELETE removes the row, 'released' event, returns true", async () => {
   const client = new FakeClaimClient();
   client.deleteReturns = heldRow({ session_id: "session-B" });
   const ok = await storeWith(client).release("chat-session-stream", "session-B");
   assert.equal(ok, true);
+  assert.deepEqual(client.events.map((e) => e.type), ["released"]);
+  assert.ok(commits(client));
+});
+
+test("release (exploring row): the shared release NEVER fires promotion", async () => {
+  const client = new FakeClaimClient();
+  client.deleteReturns = heldRow({ session_id: "session-B", grade: "exploring" });
+  client.waiterRows = [heldRow({ session_id: "session-C", grade: "waiting" })]; // would-be bait
+  const ok = await storeWith(client).release("chat-session-stream", "session-B");
+
+  assert.equal(ok, true);
+  assert.ok(!issuedPromotionPick(client), "no work slot was freed — no promotion pick");
   assert.deepEqual(client.events.map((e) => e.type), ["released"]);
   assert.ok(commits(client));
 });
@@ -310,6 +697,31 @@ test("releaseClaimsByBranch: bulk-DELETE by branch → returns the count, one 'r
   ]);
   assert.ok(commits(client) && !rollsBack(client));
   assert.ok(client.released);
+});
+
+test("releaseClaimsByBranch (a WORK row among the cleared): the freed unit promotes its oldest live waiter in the same transaction", async () => {
+  const client = new FakeClaimClient();
+  client.branchDeleteReturns = [
+    heldRow({ unit_id: "unit-alpha", session_id: "sess-A", branch: "claude/x", grade: "work" }),
+    heldRow({ unit_id: "unit-beta", session_id: "sess-A", branch: "claude/x", grade: "exploring" }),
+  ];
+  client.waiterRows = [heldRow({ unit_id: "unit-alpha", session_id: "sess-W", grade: "waiting" })];
+  const count = await storeWith(client).releaseClaimsByBranch("claude/x");
+
+  assert.equal(count, 2);
+  // Exactly ONE promotion pick — only unit-alpha's work row was cleared, exploring frees nothing.
+  assert.equal(
+    client.calls.filter((c) => c.text.trimStart().toUpperCase().startsWith("SELECT") && c.text.includes("grade = 'waiting'")).length,
+    1,
+    "one promotion pick, for the one unit whose work row was cleared",
+  );
+  assert.deepEqual(client.events, [
+    { unitId: "unit-alpha", type: "released", sessionId: "sess-A" },
+    { unitId: "unit-beta", type: "released", sessionId: "sess-A" },
+    { unitId: "unit-alpha", type: "promoted", sessionId: "sess-W" },
+  ]);
+  assert.equal(client.calls.filter((c) => c.text.includes("BEGIN")).length, 1, "one atomic transaction");
+  assert.ok(commits(client));
 });
 
 test("releaseClaimsByBranch (no claims on the branch): returns 0, no 'released' event, still COMMITs", async () => {
@@ -380,6 +792,24 @@ test("releaseClaimsBySession: bulk-DELETE by session → returns the count, one 
   assert.ok(client.released);
 });
 
+test("releaseClaimsBySession (a WORK row among the cleared): the freed unit promotes its oldest live waiter", async () => {
+  const client = new FakeClaimClient();
+  client.sessionDeleteReturns = [
+    heldRow({ unit_id: "unit-alpha", session_id: "sess-A", grade: "work" }),
+    heldRow({ unit_id: "unit-beta", session_id: "sess-A", grade: "waiting" }),
+  ];
+  client.waiterRows = [heldRow({ unit_id: "unit-alpha", session_id: "sess-W", grade: "waiting" })];
+  const count = await storeWith(client).releaseClaimsBySession("sess-A");
+
+  assert.equal(count, 2);
+  assert.deepEqual(client.events, [
+    { unitId: "unit-alpha", type: "released", sessionId: "sess-A" },
+    { unitId: "unit-beta", type: "released", sessionId: "sess-A" },
+    { unitId: "unit-alpha", type: "promoted", sessionId: "sess-W" },
+  ]);
+  assert.ok(commits(client));
+});
+
 test("releaseClaimsBySession (held nothing): returns 0, no 'released' event, still COMMITs", async () => {
   const client = new FakeClaimClient(); // sessionDeleteReturns undefined → nothing matched
   const count = await storeWith(client).releaseClaimsBySession("sess-empty");
@@ -423,6 +853,8 @@ test("bumpHeartbeatsBySession (held nothing): returns 0, still COMMITs", async (
 });
 
 // ── Live-gated: real atomic claim/refuse/reclaim over Postgres ────────────────
+// (The grade transitions' live proof — partial-index exclusivity, real claimed_at queue ordering,
+// end-to-end promotion — is claim-store-grades.live.test.ts.)
 
 if (LIVE) {
   test("live: two concurrent claims on one unit — exactly one wins; release lets the other in; stale reclaim", async () => {

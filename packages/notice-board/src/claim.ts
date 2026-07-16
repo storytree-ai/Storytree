@@ -42,6 +42,21 @@ const nonBlankString = z.string().refine((s) => s.trim().length > 0, {
 });
 
 /**
+ * The claim GRADES (ADR-0200 D2 — the noticeboard is the claim ledger): the one claim row
+ * generalises from the exclusive build/work mutex to three grades on the same ledger:
+ * - `exploring` — shared (any number of sessions per unit), taken at session start; carries the
+ *   intent prose ("what I'm thinking"). Renders as the hovering wisp.
+ * - `waiting` — shared, ordered by `claimedAt`: the queue behind a work claim. On release the store
+ *   promotes the oldest LIVE waiter ({@link oldestLiveWaiter} is the pure pick).
+ * - `work` — the exclusive mutex, unchanged in semantics from ADR-0121/0138: one session per unit,
+ *   hard refusal names the holder.
+ */
+export const ClaimGrade = z.enum(["exploring", "waiting", "work"]);
+
+/** The inferred TypeScript type of a claim grade. */
+export type ClaimGradeT = z.infer<typeof ClaimGrade>;
+
+/**
  * The validated claim doc — the current holder of a unit's build-claim.
  *
  * Strict mode: unknown fields are rejected, not stripped (the same "derived, never stored"
@@ -56,8 +71,13 @@ export const ClaimDoc = z
     sessionId: nonBlankString,
     /** The git branch the holder is building on — for the refusal message + audit. */
     branch: nonBlankString,
-    /** Free prose: why the claim is held ("real" / "live-smoke" / "edit"). Not load-bearing. */
+    /** Free prose: why the claim is held ("real" / "live-smoke" / "edit"). Not load-bearing.
+     * For an `exploring` claim this is the "what I'm thinking" prose — ADR-0200 D2 puts the intent
+     * prose ON the claim row (presence's `workingOn` folds in here as presence retires). */
     intent: z.string().default(""),
+    /** The claim grade (ADR-0200 D2). Defaults to `work` so every pre-grade doc — and every
+     * existing producer — parses unchanged as the exclusive work claim (no schema-version bump). */
+    grade: ClaimGrade.default("work"),
     /** When the claim was first taken (ISO 8601). */
     claimedAt: z.string(),
     /** Last liveness bump (ISO 8601); reclaim is measured against this. */
@@ -65,8 +85,22 @@ export const ClaimDoc = z
   })
   .strict();
 
-/** The inferred TypeScript type of a validated claim doc. */
-export type ClaimDocT = z.infer<typeof ClaimDoc>;
+/**
+ * The inferred TypeScript type of a validated claim doc — except `grade`, which stays OPTIONAL at
+ * the type level (ADR-0200 D2 back-compat): an ABSENT grade IS the work claim, so every pre-grade
+ * producer (the store's row mapping, existing fixtures) keeps compiling unchanged while
+ * `ClaimDoc.parse` stamps the default. Read the grade via {@link claimGrade}, never a raw
+ * `doc.grade ?? …` sprinkle.
+ */
+export type ClaimDocT = Omit<z.infer<typeof ClaimDoc>, "grade"> & { grade?: ClaimGradeT };
+
+/**
+ * PURE: a doc's effective grade — `work` when absent (the pre-grade doc, ADR-0200 D2 back-compat;
+ * the same default `ClaimDoc.parse` stamps).
+ */
+export function claimGrade(doc: Pick<ClaimDocT, "grade">): ClaimGradeT {
+  return doc.grade ?? "work";
+}
 
 /** What a caller supplies to take a claim — the store stamps `claimedAt` / `heartbeatAt`. */
 export interface ClaimRequest {
@@ -75,16 +109,25 @@ export interface ClaimRequest {
   branch: string;
   /** Free prose; defaults to "" when omitted. */
   intent?: string;
+  /** The claim grade (ADR-0200 D2); defaults to `work`, so every existing producer is unchanged. */
+  grade?: ClaimGradeT;
 }
 
 /**
  * The outcome of a claim attempt — a discriminated union, the way the spine reads it:
  * `acquired: true` means this session now holds the unit (freshly, re-entrantly, or by reclaiming a
  * stale holder); `acquired: false` carries the live holder so the refusal can name who has it.
+ *
+ * The `queued` arm (ADR-0200 D2): under the grade ledger, a work claim blocked by a held work slot
+ * is not a dead-end refusal — the session lands in the `waiting` queue behind the holder. It still
+ * carries `acquired: false` (every pre-grade consumer switches on `acquired` and reads `heldBy` on
+ * the false branch — both false arms carry it, so those call sites compile and behave unchanged);
+ * grade-aware callers discriminate the queue with `"queued" in result`.
  */
 export type ClaimResult =
   | { acquired: true; claim: ClaimDocT; reclaimed: boolean }
-  | { acquired: false; heldBy: ClaimDocT };
+  | { acquired: false; heldBy: ClaimDocT }
+  | { acquired: false; queued: true; waiting: ClaimDocT; heldBy: ClaimDocT };
 
 // ---------------------------------------------------------------------------
 // Pure reclaim predicate
@@ -156,5 +199,88 @@ export function workClaimRequest(args: WorkClaimArgs): ClaimRequest {
     sessionId: args.sessionId,
     branch: args.branch,
     intent: args.kind,
+    grade: "work",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Graded claim requests (ADR-0200 D2) — the exploring and waiting halves of
+// the ledger. Like workClaimRequest, these are PURE builders: builtins-only,
+// the store stamps `claimedAt` / `heartbeatAt` when the request is taken.
+// ---------------------------------------------------------------------------
+
+/** What {@link exploringClaimRequest} needs to build an exploring {@link ClaimRequest}. */
+export interface ExploringClaimArgs {
+  unitId: string;
+  sessionId: string;
+  branch: string;
+  /** The "what I'm thinking" free prose — ADR-0200 D2 carries it ON the claim row. */
+  intent: string;
+}
+
+/**
+ * PURE: build the exploring (shared, session-start) {@link ClaimRequest} for a unit, stamping
+ * `grade: "exploring"` and carrying the intent prose — "someone is reading / planning here, and
+ * this is what they're thinking" (ADR-0200 D2, the hovering wisp).
+ */
+export function exploringClaimRequest(args: ExploringClaimArgs): ClaimRequest {
+  return {
+    unitId: args.unitId,
+    sessionId: args.sessionId,
+    branch: args.branch,
+    intent: args.intent,
+    grade: "exploring",
+  };
+}
+
+/** What {@link waitingClaimRequest} needs to build a waiting {@link ClaimRequest}. */
+export interface WaitingClaimArgs {
+  unitId: string;
+  sessionId: string;
+  branch: string;
+  /** Free prose (what the waiter will do once promoted); defaults to "" when omitted. */
+  intent?: string;
+}
+
+/**
+ * PURE: build the waiting (queued-behind-a-work-holder) {@link ClaimRequest} for a unit, stamping
+ * `grade: "waiting"` (ADR-0200 D2 — the queue, ordered by `claimedAt`; on release the store
+ * promotes the oldest live waiter, {@link oldestLiveWaiter}).
+ */
+export function waitingClaimRequest(args: WaitingClaimArgs): ClaimRequest {
+  const req: ClaimRequest = {
+    unitId: args.unitId,
+    sessionId: args.sessionId,
+    branch: args.branch,
+    grade: "waiting",
+  };
+  if (args.intent !== undefined) req.intent = args.intent;
+  return req;
+}
+
+// ---------------------------------------------------------------------------
+// Pure promotion pick (ADR-0200 D2) — "on release of the work claim the store
+// atomically promotes the oldest live waiter". The store enforces this in SQL;
+// this is the testable mirror, exactly like isReclaimable's split.
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE: given a unit's waiting claims, pick the one to promote — the oldest by `claimedAt`,
+ * skipping stale waiters (a dead session never wins promotion; staleness is the SAME heartbeat
+ * predicate as reclaim, {@link isReclaimable}). Returns `undefined` when no live waiter remains.
+ * No clock reads — the caller supplies `now`. Ties on `claimedAt` break to the first-listed waiter.
+ */
+export function oldestLiveWaiter(
+  waiters: readonly ClaimDocT[],
+  now: Date,
+  staleMs: number = CLAIM_STALE_RECLAIM_MS,
+): ClaimDocT | undefined {
+  let oldest: ClaimDocT | undefined;
+  for (const w of waiters) {
+    if (isReclaimable(w, now, staleMs)) continue; // stale — a dead waiter never promotes
+    if (oldest === undefined || new Date(w.claimedAt).getTime() < new Date(oldest.claimedAt).getTime()) {
+      oldest = w;
+    }
+  }
+  return oldest;
 }

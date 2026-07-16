@@ -79,6 +79,9 @@ import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
 import { orchestrate } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
+// The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
+import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
+import type { ClaimLedgerStoreLike } from "@storytree/drive";
 import type { PresenceStoreLike, SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
@@ -839,7 +842,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  friction         file what fought you → the Library (ADR-0168) — new | migrate | reinforce | route | list",
-      "  noticeboard      the session presence board (ADR-0033) — view | declare | done",
+      "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree prune   reap DEAD worktrees under .claude/worktrees/ (ADR-0142/0033) — merged+clean+idle; dry-run by default",
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
@@ -895,6 +898,14 @@ function noticeboardHelp(): Envelope {
       "  storytree noticeboard --pg                                        the board (active sessions)",
       "  storytree noticeboard declare --working-on <prose> [--node <id>]... --pg   declare presence",
       "  storytree noticeboard done --pg                                   mark this session done",
+      "",
+      "the graded claim ledger (ADR-0200): exploring is shared and carries your intent prose; work",
+      "is the exclusive slot; waiting is the queue behind it (release promotes the oldest live waiter).",
+      '  storytree noticeboard claim <unit-id> [--grade exploring|waiting|work] [--intent "<prose>"] --pg',
+      "  storytree noticeboard upgrade <unit-id> --pg                      exploring→work (queues when held)",
+      "  storytree noticeboard downgrade <unit-id> --grade exploring|waiting --pg",
+      "  storytree noticeboard release <unit-id> --pg                      drop this session's claim (any grade)",
+      "  storytree noticeboard claims <unit-id> --pg                       the unit's rows, queue order",
       "",
       "presence needs the live DB: pnpm db:up first. Reads degrade politely without it.",
     ].join("\n"),
@@ -1004,6 +1015,12 @@ export interface RunDeps {
     readonly store?: PresenceStoreLike | null;
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
+    /**
+     * The graded claim-ledger slice (ADR-0200 D2): the wider store surface the noticeboard
+     * claim/upgrade/downgrade/release/claims verbs drive. The same live `PgClaimStore` instance
+     * as `claims` when --pg; null/absent offline — the ledger verbs then refuse politely.
+     */
+    readonly ledger?: ClaimLedgerStoreLike | null;
   };
   /**
    * The verdict event log (verdict-glyphs): the live work-store slice when --pg; null/absent
@@ -1551,6 +1568,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     store?: string;
     "working-on"?: string;
     node?: string[];
+    grade?: string;
+    intent?: string;
     outcome?: string;
     witness?: string;
     signer?: string;
@@ -1608,6 +1627,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         store: { type: "string" },
         "working-on": { type: "string" },
         node: { type: "string", multiple: true },
+        // `storytree noticeboard claim/downgrade` — the claim grade + intent prose (ADR-0200 D2).
+        grade: { type: "string" },
+        intent: { type: "string" },
         outcome: { type: "string" },
         witness: { type: "string" },
         signer: { type: "string" },
@@ -1746,6 +1768,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       deps.presence !== undefined && deps.presence.identity !== undefined
         ? deps.presence.identity
         : deriveIdentity();
+    // The graded claim-ledger verbs (ADR-0200 D2) route to the leaf-proven claimLedgerCommand;
+    // declare/done keep the exact noticeboardCommand path below (byte-compatible).
+    if (isClaimLedgerVerb(sub)) {
+      return claimLedgerCommand(
+        sub,
+        third,
+        {
+          ...(values.grade !== undefined ? { grade: values.grade } : {}),
+          ...(values.intent !== undefined ? { intent: values.intent } : {}),
+        },
+        {
+          claims: deps.presence?.ledger ?? null,
+          identity,
+          now: () => new Date(),
+        },
+      );
+    }
     return noticeboardCommand(
       sub,
       {

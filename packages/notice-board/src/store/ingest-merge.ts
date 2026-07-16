@@ -85,7 +85,9 @@ export interface BranchClaimReleaseStore {
  * authoritative "this branch's work is done" fact, so the merge job releases its story-claim. Calls
  * `store.releaseClaimsByBranch(branch)` (capability `claim-store-work-time`, A1), which drops every
  * row whose `branch` column equals `branch` and appends a `released` audit event per cleared claim,
- * in one transaction.
+ * in one transaction — and, under the ADR-0200 grade ledger, atomically promotes each freed unit's
+ * oldest live waiter INSIDE that same store transaction (nothing to wire here: the promotion is the
+ * store method's own contract).
  *
  * Returns the released count (>= 0, where 0 is a clean no-op — a branch holding no claims) on
  * success, or `-1` when the call threw (DB down, transient) — caught and logged, NEVER rethrown,

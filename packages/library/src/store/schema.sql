@@ -199,23 +199,69 @@ CREATE TABLE IF NOT EXISTS events.adr_number (
   at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Per-unit WRITE-CLAIM (ADR-0009's claim, finally built — DBOS deferred, ADR-0019 — as plain
--- Postgres; the ADR-0033 §4 "typed-claims-with-refusal" upgrade the notice board named-deferred).
--- The ENFORCING twin of events.session (presence): presence SHOWS overlap, this REFUSES it. One
--- row per claimed unit; `unit_id` is the PRIMARY KEY, so a second concurrent claim on the same unit
--- cannot insert — the atomic `INSERT ... ON CONFLICT DO UPDATE ... WHERE (re-entrant OR stale)`
--- updates only when the caller already holds it or the holder's heartbeat aged out, and RETURNS no
--- row otherwise = a HARD REFUSAL. Granularity is the unit id, so different units never contend
--- (the existing per-id property) and the SAME unit does (the duplicate-build hole this closes).
--- Staleness reclaims a crashed holder (ADR-0033's "staleness replaces release discipline").
+-- The claim LEDGER (ADR-0200: the noticeboard IS the claim ledger — ADR-0009's claim as plain
+-- Postgres, now GRADED). One row per (unit, session) at one of THREE grades:
+--   exploring — SHARED: any number of sessions per unit; carries the intent prose (the hovering wisp).
+--   waiting   — SHARED: the queue behind a work claim, ordered by claimed_at.
+--   work      — the EXCLUSIVE build/edit mutex (ADR-0121/0138 semantics unchanged): at most one
+--               session per unit; a second concurrent work claim cannot insert = a HARD REFUSAL
+--               that names the holder.
+-- The PK is composite (unit_id, session_id) so shared-grade rows coexist; work-grade exclusivity
+-- moved from the PK to the `node_claim_work_excl` partial unique index below. Granularity stays
+-- the unit id, so different units never contend (the existing per-id property). Staleness reclaims
+-- a crashed holder at every grade (ADR-0033's "staleness replaces release discipline"); grade
+-- transitions (explore→work upgrade, downgrade, release, promote) are audited in events.claim_event.
 CREATE TABLE IF NOT EXISTS events.node_claim (
-  unit_id      TEXT PRIMARY KEY,
+  unit_id      TEXT NOT NULL,
   session_id   TEXT NOT NULL,
+  grade        TEXT NOT NULL DEFAULT 'work',
   branch       TEXT NOT NULL,
   intent       TEXT NOT NULL DEFAULT '',
   claimed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (unit_id, session_id)
 );
+
+-- MIGRATION (ADR-0200): upgrade an EXISTING pre-graded node_claim in place — the FIRST ALTER in
+-- this file (everything above is CREATE IF NOT EXISTS, which never reshapes an existing table).
+-- applySchema runs on every boot, so both this block and the fresh CREATE above must converge on
+-- the same shape, and every statement here is a guarded no-op on re-run. Existing rows are
+-- yesterday's exclusive build/work claims, so 'work' is the correct grade backfill.
+ALTER TABLE events.node_claim
+  ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT 'work';
+
+-- Swap the old single-column PK (unit_id) for the composite (unit_id, session_id), guarded on the
+-- catalog: the block acts only when the CURRENT pk column set is exactly (unit_id), so a re-run —
+-- or a fresh install, whose CREATE above already made the composite PK — no-ops. Duplicate
+-- (unit_id, session_id) pairs are impossible coming from the old shape (unit_id WAS the PK); if an
+-- out-of-band write ever produced one, ADD CONSTRAINT would abort the transaction FAIL-CLOSED —
+-- no row is ever silently dropped.
+DO $$
+DECLARE
+  pk_name TEXT;
+  pk_cols TEXT[];
+BEGIN
+  SELECT c.conname,
+         ARRAY(SELECT a.attname::text
+                 FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+                 JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+                ORDER BY k.ord)
+    INTO pk_name, pk_cols
+    FROM pg_constraint c
+   WHERE c.conrelid = 'events.node_claim'::regclass AND c.contype = 'p';
+
+  IF pk_cols = ARRAY['unit_id'] THEN
+    EXECUTE format('ALTER TABLE events.node_claim DROP CONSTRAINT %I', pk_name);
+    ALTER TABLE events.node_claim
+      ADD CONSTRAINT node_claim_pkey PRIMARY KEY (unit_id, session_id);
+  END IF;
+END $$;
+
+-- Work-grade exclusivity (ADR-0200 D2): at most ONE work claim per unit; shared grades
+-- (exploring / waiting) are unconstrained. Sits AFTER the migration block so the grade column
+-- already exists on an upgraded table when this runs.
+CREATE UNIQUE INDEX IF NOT EXISTS node_claim_work_excl
+  ON events.node_claim (unit_id) WHERE grade = 'work';
 
 -- Claim audit history: one append-only row per claim/reclaim/release/conflict-refused, so a refusal
 -- is a TYPED event (ADR-0009 "a conflict is a hard refusal, never a warning") and the evidence for

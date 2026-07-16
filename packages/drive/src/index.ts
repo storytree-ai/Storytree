@@ -32,6 +32,9 @@ export * from "./oq-gate.js";
 export * from "./resolve-report.js";
 export * from "./curate.js";
 export * from "./noticeboard.js";
+// The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims —
+// the noticeboard IS the claim ledger; declare/done stay byte-compatible in ./noticeboard.js.
+export * from "./noticeboard-claims.js";
 export * from "./ambient-presence.js";
 export * from "./db-control.js";
 // The read/orientation surface (the ADR-0112 pattern, applied to the ADR-0108 orientation gap):

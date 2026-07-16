@@ -17,7 +17,7 @@ import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
 import { run } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
-import type { PresenceStoreLike, SessionClaimStoreLike } from "@storytree/drive";
+import type { ClaimLedgerStoreLike, PresenceStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import type { UatVerdictStoreLike } from "./uat.js";
@@ -32,6 +32,7 @@ async function buildStore(usePg: boolean): Promise<{
   store: Store;
   presence: PresenceStoreLike | null;
   claims: SessionClaimStoreLike | null;
+  ledger: ClaimLedgerStoreLike | null;
   verdicts: VerdictReaderLike | null;
   uatStore: UatVerdictStoreLike | null;
   attestations: AttestationStoreLike | null;
@@ -44,13 +45,18 @@ async function buildStore(usePg: boolean): Promise<{
     // `uat attest` WRITE — it satisfies the read-only VerdictReaderLike and the write-capable
     // UatVerdictStoreLike alike, so the same instance is passed under both seams.
     const work = new PgWorkStore(pool);
+    // One PgClaimStore over the live pool serves both claim seams: the declare/done glue
+    // (SessionClaimStoreLike, ADR-0142) and the graded ledger verbs (ClaimLedgerStoreLike,
+    // ADR-0200 D2 — claim / upgrade / downgrade / release / claims).
+    const claimStore = new PgClaimStore(pool);
     return {
       store: new PgLibraryStore(pool),
       // The presence board (ADR-0033) shares the live pool; offline there is no presence surface.
       presence: new PgPresenceStore(pool),
       // The write-claim store (ADR-0142 claim-at-declare): `noticeboard declare --node` takes the
       // work-time claim (the story wisp) and `done` bulk-releases, over the same pool.
-      claims: new PgClaimStore(pool),
+      claims: claimStore,
+      ledger: claimStore,
       // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
       // through the same pool; offline the column is silently absent.
       verdicts: work,
@@ -68,7 +74,7 @@ async function buildStore(usePg: boolean): Promise<{
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, claims: null, verdicts: null, uatStore: null, attestations: null, adr: null, close: async () => {} };
+  return { store, presence: null, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, close: async () => {} };
 }
 
 /**
@@ -88,14 +94,14 @@ export async function main(): Promise<void> {
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, claims, verdicts, uatStore, attestations, adr, close } = await buildStore(usePg);
+  const { store, presence, claims, ledger, verdicts, uatStore, attestations, adr, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
     const env = await run(argv, {
       store,
       writable: usePg,
-      presence: { store: presence, claims },
+      presence: { store: presence, claims, ledger },
       verdicts,
       uatStore,
       attestations,

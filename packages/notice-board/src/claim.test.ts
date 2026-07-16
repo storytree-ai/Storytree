@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 
 import {
   ClaimDoc,
+  ClaimGrade,
+  claimGrade,
   CLAIM_STALE_RECLAIM_MS,
   isReclaimable,
   bumpHeartbeat,
   workClaimRequest,
+  exploringClaimRequest,
+  waitingClaimRequest,
+  oldestLiveWaiter,
   type ClaimDocT,
 } from "./claim.js";
 
@@ -116,6 +121,137 @@ test("workClaimRequest: stamps intent from the work kind, preserving attribution
     assert.equal(req.sessionId, base.sessionId);
     assert.equal(req.branch, base.branch);
   }
+});
+
+// ── claim grades (ADR-0200 D2): exploring / waiting / work on the one ledger ──
+
+test("ClaimGrade: accepts exactly the three grades, refuses anything else", () => {
+  for (const grade of ["exploring", "waiting", "work"]) {
+    assert.equal(ClaimGrade.parse(grade), grade);
+  }
+  assert.throws(() => ClaimGrade.parse("building"));
+  assert.throws(() => ClaimGrade.parse(""));
+});
+
+test("ClaimDoc: grade defaults to 'work' — every pre-grade doc parses unchanged (back-compat)", () => {
+  // `sample()` carries NO grade field — exactly today's producers' shape; .strict() must accept it.
+  const parsed = ClaimDoc.parse(sample());
+  assert.equal(parsed.grade, "work");
+});
+
+test("ClaimDoc: an explicit exploring/waiting grade parses; an unknown grade is refused", () => {
+  assert.equal(ClaimDoc.parse({ ...sample(), grade: "exploring" }).grade, "exploring");
+  assert.equal(ClaimDoc.parse({ ...sample(), grade: "waiting" }).grade, "waiting");
+  assert.throws(() => ClaimDoc.parse({ ...sample(), grade: "hovering" }));
+});
+
+test("claimGrade: reads the effective grade — 'work' when absent (the pre-grade doc)", () => {
+  assert.equal(claimGrade({}), "work");
+  assert.equal(claimGrade({ grade: "exploring" }), "exploring");
+  assert.equal(claimGrade(ClaimDoc.parse(sample())), "work");
+});
+
+test("ClaimDoc: a graded doc still fail-closes on blank attribution", () => {
+  assert.throws(() => ClaimDoc.parse({ ...sample({ unitId: "  " }), grade: "exploring" }), /non-blank/);
+});
+
+test("workClaimRequest: stamps grade 'work' (the exclusive mutex, ADR-0200 D2)", () => {
+  const req = workClaimRequest({
+    unitId: "wisp-as-story-claim",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+    kind: "edit",
+  });
+  assert.equal(req.grade, "work");
+});
+
+test("exploringClaimRequest: stamps grade 'exploring' and carries the intent prose on the claim row", () => {
+  const req = exploringClaimRequest({
+    unitId: "noticeboard-claim-ledger",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+    intent: "reading the store half before deciding the queue shape",
+  });
+  assert.equal(req.grade, "exploring");
+  assert.equal(req.intent, "reading the store half before deciding the queue shape");
+  assert.equal(req.unitId, "noticeboard-claim-ledger");
+  // Round-trips: once the store stamps timestamps, the request is a legitimate graded ClaimDoc.
+  const stampedAt = "2026-07-16T00:00:00.000Z";
+  const doc = ClaimDoc.parse({ ...req, claimedAt: stampedAt, heartbeatAt: stampedAt });
+  assert.equal(doc.grade, "exploring");
+  assert.equal(doc.intent, "reading the store half before deciding the queue shape");
+});
+
+test("waitingClaimRequest: stamps grade 'waiting'; intent optional, defaults omitted-safe", () => {
+  const base = {
+    unitId: "noticeboard-claim-ledger",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+  };
+  const bare = waitingClaimRequest(base);
+  assert.equal(bare.grade, "waiting");
+  const withIntent = waitingClaimRequest({ ...base, intent: "queued for the store increment" });
+  assert.equal(withIntent.intent, "queued for the store increment");
+  // Round-trips through ClaimDoc.parse once the store stamps timestamps.
+  const stampedAt = "2026-07-16T00:00:00.000Z";
+  const doc = ClaimDoc.parse({ ...bare, claimedAt: stampedAt, heartbeatAt: stampedAt });
+  assert.equal(doc.grade, "waiting");
+});
+
+// ── oldestLiveWaiter (ADR-0200 D2): the pure promotion pick for the queue ─────
+
+/** A waiting-grade sample with per-waiter attribution + timestamps. */
+function waiter(sessionId: string, claimedAt: string, heartbeatAt: string = claimedAt): ClaimDocT {
+  return ClaimDoc.parse({
+    unitId: "noticeboard-claim-ledger",
+    sessionId,
+    branch: `claude/${sessionId}`,
+    intent: "queued",
+    grade: "waiting",
+    claimedAt,
+    heartbeatAt,
+  });
+}
+
+test("oldestLiveWaiter: picks the oldest waiter by claimedAt", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const early = waiter("early-waiter-111111", "2026-07-16T10:00:00.000Z", now.toISOString());
+  const late = waiter("late-waiter-222222", "2026-07-16T11:00:00.000Z", now.toISOString());
+  assert.equal(oldestLiveWaiter([late, early], now), early);
+});
+
+test("oldestLiveWaiter: drops stale waiters (dead sessions never win promotion)", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const staleHeartbeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
+  // The OLDEST waiter by claimedAt is stale — the younger live one must win.
+  const staleOldest = waiter("stale-waiter-333333", "2026-07-16T08:00:00.000Z", staleHeartbeat);
+  const liveYounger = waiter("live-waiter-444444", "2026-07-16T11:00:00.000Z", now.toISOString());
+  assert.equal(isReclaimable(staleOldest, now), true, "precondition: the oldest waiter is stale");
+  assert.equal(oldestLiveWaiter([staleOldest, liveYounger], now), liveYounger);
+});
+
+test("oldestLiveWaiter: no waiters / all stale → undefined (nothing to promote)", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const staleHeartbeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
+  assert.equal(oldestLiveWaiter([], now), undefined);
+  assert.equal(oldestLiveWaiter([waiter("stale-waiter-555555", "2026-07-16T08:00:00.000Z", staleHeartbeat)], now), undefined);
+});
+
+test("oldestLiveWaiter: an explicit staleMs overrides the default (mirrors isReclaimable)", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1_000).toISOString();
+  const w = waiter("live-waiter-666666", "2026-07-16T10:00:00.000Z", tenMinutesAgo);
+  // Default 2h → live; a 5-minute override → stale, so nothing to promote.
+  assert.equal(oldestLiveWaiter([w], now), w);
+  assert.equal(oldestLiveWaiter([w], now, 5 * 60 * 1_000), undefined);
+});
+
+test("oldestLiveWaiter: claimedAt ties break stably to the first-listed waiter", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const at = "2026-07-16T10:00:00.000Z";
+  const first = waiter("tie-waiter-777777", at, now.toISOString());
+  const second = waiter("tie-waiter-888888", at, now.toISOString());
+  assert.equal(oldestLiveWaiter([first, second], now), first);
 });
 
 test("workClaimRequest: the built request round-trips through ClaimDoc.parse once the store stamps timestamps", () => {

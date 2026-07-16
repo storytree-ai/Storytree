@@ -150,7 +150,9 @@ test("declare through the dispatch takes the work-time claim on the anchored nod
   );
   assert.equal(env.ok, true, env.body);
   assert.deepEqual(claimed, [
-    { unitId: "wisp-as-story-claim", sessionId: "alpha-4", branch: "claude/y", intent: "orchestrate" },
+    // workClaimRequest stamps grade: "work" — the declare glue takes the exclusive work claim
+    // on the graded ledger (ADR-0200 D2), semantics unchanged from ADR-0142.
+    { unitId: "wisp-as-story-claim", sessionId: "alpha-4", branch: "claude/y", intent: "orchestrate", grade: "work" },
   ]);
   assert.match(env.body, /wisp is lit/);
 });
