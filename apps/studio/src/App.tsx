@@ -3,26 +3,24 @@ import { api } from './api';
 import { AppDataContext, type AppData } from './lib/appData';
 import { deriveLoadState, type LoadState } from './lib/loadState';
 import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
-import { useOperator } from './lib/operator';
+import { getDesktopAuth } from './lib/desktopAuth';
 import { notifyStoreRecovered } from './lib/presence';
-import { membersHref, homeHref, libraryHref, treeHref, useRoute } from './lib/route';
+import { useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
 import { StoreBanner, type StorePhase } from './components/StoreBanner';
-import { Home } from './components/Home';
+import { Hud, type HudPosture } from './components/Hud';
 import { DocView } from './components/DocView';
 import { AssetView } from './components/AssetView';
 import { AssetEditor } from './components/AssetEditor';
 import { TreeView } from './components/TreeView';
 import { MembersPanel } from './components/MembersPanel';
-import { DesktopCredentialsDock } from './components/DesktopCredentialsDock';
 
 /** A non-member's MeInfo while it's still loading — never read as a member. */
 const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false };
 
 export function App(): React.JSX.Element {
   const route = useRoute();
-  const [operator, setOperator] = useOperator();
   const [me, setMe] = useState<MeInfo | null>(null);
   const [meStatus, setMeStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [meError, setMeError] = useState<string>('');
@@ -125,6 +123,16 @@ export function App(): React.JSX.Element {
     notifyStoreRecovered();
   }, [status, loadMe, loadInitial, refreshAssets, refreshComments]);
 
+  // Hud's posture discriminator (ADR-0204): the injected desktop bridge means `desktop`; a
+  // production browser with no bridge is a real hosted/IAP deploy (`hosted`); a bridge-less DEV
+  // browser is neither a desktop app nor a real IAP session, so it's treated like `desktop` (no
+  // Sign out affordance that couldn't actually clear anything).
+  const posture: HudPosture = getDesktopAuth()
+    ? 'desktop'
+    : import.meta.env.PROD
+      ? 'hosted'
+      : 'desktop';
+
   const appData: AppData = useMemo(
     () => ({
       docs,
@@ -142,41 +150,7 @@ export function App(): React.JSX.Element {
   return (
     <AppDataContext.Provider value={appData}>
       <div className="app">
-        <header className="topbar">
-          <a className="brand" href={homeHref}>
-            <span className="brand-mark">▴</span>
-            <span className="brand-name">storytree</span>
-            <span className="brand-sub">studio · foundation</span>
-          </a>
-          {isMember && (
-            <nav className="topnav">
-              <a href={homeHref}>Overview</a>
-              <a href={treeHref}>Forest</a>
-              <a href={libraryHref()}>Library</a>
-              {me?.role === 'admin' && <a href={membersHref}>Members</a>}
-            </nav>
-          )}
-          <div className="topbar-right">
-            <DesktopCredentialsDock />
-            {me?.email && (
-              <span className="identity-chip" title="your verified identity">
-                <span className={`badge role-${me.role}`}>{me.role}</span>
-                <span className="identity-email">{me.email}</span>
-              </span>
-            )}
-            {isMember && (
-              <label className="operator">
-                <span>operator</span>
-                <input
-                  value={operator}
-                  onChange={(e) => setOperator(e.target.value)}
-                  spellCheck={false}
-                  aria-label="operator identity"
-                />
-              </label>
-            )}
-          </div>
-        </header>
+        <Hud me={appData.me} docs={docs} posture={posture} />
 
         <LoadScreen
           state={loadState}
@@ -396,8 +370,6 @@ function RequestAccessWall({ email }: { email: string | null }): React.JSX.Eleme
 
 function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX.Element {
   switch (route.name) {
-    case 'home':
-      return <Home />;
     case 'doc':
       return <DocView id={route.id} />;
     case 'asset':

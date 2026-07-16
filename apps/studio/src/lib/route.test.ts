@@ -16,7 +16,7 @@ describe('library standalone page retirement', () => {
   });
 
   it('lret-other-routes-preserved: every other route still resolves to its current variant', () => {
-    expect(parseRoute('#/')).toEqual({ name: 'home' });
+    expect(parseRoute('#/')).toEqual({ name: 'tree', focus: null }); // home retired, ADR-0204
     expect(parseRoute('#/members')).toEqual({ name: 'members' });
     expect(parseRoute('#/tree')).toEqual({ name: 'tree', focus: null });
     expect(parseRoute('#/tree/some-story')).toEqual({ name: 'tree', focus: 'some-story' });
