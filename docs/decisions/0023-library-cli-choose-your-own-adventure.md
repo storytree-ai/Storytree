@@ -91,7 +91,11 @@ just-in-time principle a *navigational affordance*, not just a context-assembly 
    are: (#1) the **system prompt**, (#2) **tool / guardrail emissions**, and (#3) **steering** from
    the user or another agent. The Library delivers *content* through #2 (exploration output **is** the
    context) and uses #1 only for a **minimal boot baseline**. There is no fourth "proactively inject a
-   slice" surface — that was the discarded `pull`.
+   slice" surface — that was the discarded `pull`. *(Narrowed by
+   [ADR-0201](0201-prompt-keyed-definition-injection-a-capped-push-at-the-momen.md): one narrow,
+   prompt-keyed push now rides #2 — a `UserPromptSubmit` hook injects the matched definition
+   `oneLine`s, capped and one-line, at the moment of use. The three-surface model stands and the
+   standing corpus-`pull` into #1 remains discarded; only that single keyed exception exists.)*
 
 9. **The boot baseline is map-only; guidance is friction-driven, not front-loaded.** An agent boots
    (surface #1) with the minimum — its goal and a pointer to `storytree library` — **not** a doctrine
