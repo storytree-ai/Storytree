@@ -992,3 +992,45 @@ test("claimsBySession: empty rows → empty list (a claim-less session is a plai
   const docs = await new PgClaimStore(pool as never).claimsBySession("nobody");
   assert.deepEqual(docs, []);
 });
+
+// ── recentDepartures (ADR-0200 D7): the wisp-out departure read ───────────────
+// Another read-only pool.query path (FakeReadPool.connect throws, so a passing
+// test also proves no transaction is opened).
+
+test("recentDepartures: released-only over claim_event, window-bounded in SQL, ORDER BY at DESC, rows map to the departure shape", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [
+    {
+      unit_id: "story-a",
+      session_id: "sess-A",
+      doc: { grade: "exploring", intent: "scoping" },
+      at: new Date("2026-07-16T11:59:30.000Z"),
+    },
+    { unit_id: "story-b", session_id: "sess-B", doc: null, at: "2026-07-16T11:59:00.000Z" },
+  ];
+  const rows = await new PgClaimStore(pool as never).recentDepartures(120_000);
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /FROM events\.claim_event/);
+  assert.match(call.text, /type = 'released'/, "departures are released events ONLY");
+  assert.match(call.text, /at > now\(\)/, "the window is bounded in SQL");
+  assert.match(call.text, /ORDER BY at DESC/, "newest first");
+  assert.deepEqual(call.values, [120_000], "the window rides as the parameter");
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], {
+    unitId: "story-a",
+    sessionId: "sess-A",
+    doc: { grade: "exploring", intent: "scoping" },
+    at: "2026-07-16T11:59:30.000Z",
+  });
+  assert.equal(rows[1]?.at, "2026-07-16T11:59:00.000Z", "a string `at` normalises to ISO too");
+  assert.equal(rows[1]?.doc, null, "the doc passes through untouched — the pure fold reads it tolerantly");
+});
+
+test("recentDepartures: empty rows → empty list (a quiet window is a plain no, not an error)", async () => {
+  const pool = new FakeReadPool();
+  const rows = await new PgClaimStore(pool as never).recentDepartures(120_000);
+  assert.deepEqual(rows, []);
+});

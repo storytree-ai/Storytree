@@ -73,6 +73,7 @@ export {
   type BuildPhase,
   type WispPhaseBand,
   type ClaimColourState,
+  type ClaimGrade,
   wispBand,
   type SceneNodeBase,
   type SceneG,

@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { hash, rand01 } from './rng.js';
 import { crownRadius } from './sizing.js';
 import { routeTrails, trailFillWidth, type TrailIsland } from './routing.js';
 import {
@@ -568,4 +569,196 @@ test('buildScene stays deterministic with a claim layer present (same input → 
   const withClaims = (): SceneInput =>
     mkInput({ territories: [mkTerritory({ claims: [{ key: 's1', title: 't', colourState: 'proving' }] })] });
   assert.deepEqual(buildScene(withClaims()), buildScene(withClaims()));
+});
+
+// ---------- the claim-GRADE wisp geometry + the departure drawable (ADR-0200 D7) ----------
+//
+// Stage-1 GEOMETRY only: which drawable family a grade emits and its deterministic placement.
+// The LOOK (colours / spacing / fade curve) is the mapper's, operator-attested later (ADR-0070).
+
+test('an exploring claim HOVERS: a stationary hover-wisp beside the tree — no orbit phase, deterministic rest spot', () => {
+  const input = (): SceneInput =>
+    mkInput({
+      territories: [
+        mkTerritory({
+          claims: [{ key: 's1', title: 'reading the store seam', colourState: 'authoring', grade: 'exploring' }],
+        }),
+      ],
+    });
+  const scene = buildScene(input());
+  const orbit = mustByKind(scene, 'claim-wisps');
+  const wisp = mustByKind(orbit, 'hover-wisp');
+  // STATIONARY by construction: the mapper animates the orbit rotation only when `phase` is present
+  // (and only on the 'wisp'/'claim-wisp' kinds) — a hover wisp carries NO phase, so it can never spin.
+  assert.equal(wisp.phase, undefined);
+  // the intent prose rides the title; the colour-state is carried unchanged.
+  assert.equal(wisp.title, 'reading the store seam');
+  assert.equal(wisp.colourState, 'authoring');
+  // its OWN drawable family, mirroring the claim-wisp structure.
+  assert.ok(firstByKind(wisp, 'hover-wisp-hit') && firstByKind(wisp, 'hover-wisp-glow') && firstByKind(wisp, 'hover-wisp-dot'));
+  // an exploring claim never emits the orbiting work family.
+  assert.equal(firstByKind(orbit, 'claim-wisp'), null);
+  // deterministic: same input → byte-identical scene; the rest spot is a fixed translate.
+  assert.deepEqual(buildScene(input()), buildScene(input()));
+  const inner = children(wisp)[0];
+  assert.ok(inner && inner.el === 'g');
+  assert.match(inner.transform ?? '', /^translate\(-?[\d.]+ -?[\d.]+\)$/);
+  // per-key jitter: two hoverers on one island never stack exactly.
+  const two = buildScene(
+    mkInput({
+      territories: [
+        mkTerritory({
+          claims: [
+            { key: 's1', title: 't', colourState: 'authoring', grade: 'exploring' },
+            { key: 's2', title: 't', colourState: 'authoring', grade: 'exploring' },
+          ],
+        }),
+      ],
+    }),
+  );
+  const hovers = allByKind(two, 'hover-wisp');
+  assert.equal(hovers.length, 2);
+  const spot = (n: SceneNode): string => {
+    const c0 = children(n)[0];
+    assert.ok(c0);
+    return c0.transform ?? '';
+  };
+  assert.notEqual(spot(hovers[0]!), spot(hovers[1]!));
+});
+
+test('waiting claims QUEUE: queue-wisps in INPUT order along a line — index-placed, never hash-random', () => {
+  const claimsOf = (keys: string[]) =>
+    keys.map((key) => ({ key, title: `waiting ${key}`, colourState: 'proving' as const, grade: 'waiting' as const }));
+  const scene = buildScene(mkInput({ territories: [mkTerritory({ claims: claimsOf(['w1', 'w2', 'w3']) })] }));
+  const queue = allByKind(mustByKind(scene, 'claim-wisps'), 'queue-wisp');
+  assert.equal(queue.length, 3);
+  // input order preserved — the surface sends waiters ordered by claimedAt (the queue contract).
+  assert.deepEqual(queue.map((q) => q.title), ['waiting w1', 'waiting w2', 'waiting w3']);
+  // stationary: no orbit phase anywhere on the queue.
+  for (const q of queue) assert.equal(q.phase, undefined);
+  // strictly ordered positions along ONE line: x advances per queue index, y fixed.
+  const spotOf = (q: SceneNode): { x: number; y: number } => {
+    const inner = children(q)[0];
+    assert.ok(inner && inner.el === 'g');
+    const m = /^translate\((-?[\d.]+) (-?[\d.]+)\)$/.exec(inner.transform ?? '');
+    assert.ok(m, 'a queue wisp sits at a plain translate');
+    return { x: Number(m[1]), y: Number(m[2]) };
+  };
+  const spots = queue.map(spotOf);
+  assert.ok(spots[0]!.x < spots[1]!.x && spots[1]!.x < spots[2]!.x, 'the line advances with the index');
+  assert.ok(spots.every((s) => s.y === spots[0]!.y), 'one line — a shared y');
+  // index-driven, never key-driven: different keys in the same slots land on the SAME spots.
+  const other = buildScene(mkInput({ territories: [mkTerritory({ claims: claimsOf(['zz', 'aa', 'mm']) })] }));
+  assert.deepEqual(allByKind(mustByKind(other, 'claim-wisps'), 'queue-wisp').map(spotOf), spots);
+  // its OWN drawable family, mirroring the claim-wisp structure.
+  assert.ok(
+    firstByKind(queue[0]!, 'queue-wisp-hit') && firstByKind(queue[0]!, 'queue-wisp-glow') && firstByKind(queue[0]!, 'queue-wisp-dot'),
+  );
+});
+
+test('a work claim — and a grade-ABSENT claim — keeps today\'s orbit unchanged (ADR-0200 D2 back-compat lock)', () => {
+  const orbitFor = (claims: NonNullable<SceneTerritoryInput['claims']>): SceneNode =>
+    mustByKind(buildScene(mkInput({ territories: [mkTerritory({ claims })] })), 'claim-wisps');
+  const absent = orbitFor([{ key: 's1', title: 't', colourState: 'proving' }]);
+  const work = orbitFor([{ key: 's1', title: 't', colourState: 'proving', grade: 'work' }]);
+  // an absent grade IS the work claim — byte-identical output (every pre-grade surface unchanged).
+  assert.deepEqual(absent, work);
+  // the regression lock on today's orbit: kind, key-seeded rotation, radius·0.72 + 22 orbit.
+  const wisp = mustByKind(absent, 'claim-wisp');
+  assert.equal(wisp.phase, rand01(hash('s1')) * 360);
+  assert.equal(wisp.colourState, 'proving');
+  const inner = children(wisp)[0];
+  assert.ok(inner && inner.el === 'g');
+  assert.equal(inner.transform, `translate(${(60 * 0.72 + 22).toFixed(1)} 0)`);
+  assert.ok(firstByKind(wisp, 'claim-wisp-hit') && firstByKind(wisp, 'claim-wisp-glow') && firstByKind(wisp, 'claim-wisp-dot'));
+});
+
+test('mixed grades share the ONE claim-wisps layer — each claim renders its own family', () => {
+  const scene = buildScene(
+    mkInput({
+      territories: [
+        mkTerritory({
+          claims: [
+            { key: 'e1', title: 't', colourState: 'authoring', grade: 'exploring' },
+            { key: 'q1', title: 't', colourState: 'proving', grade: 'waiting' },
+            { key: 'k1', title: 't', colourState: 'supplementing', grade: 'work' },
+          ],
+        }),
+      ],
+    }),
+  );
+  assert.equal(allByKind(scene, 'claim-wisps').length, 1);
+  const orbit = mustByKind(scene, 'claim-wisps');
+  assert.equal(allByKind(orbit, 'hover-wisp').length, 1);
+  assert.equal(allByKind(orbit, 'queue-wisp').length, 1);
+  assert.equal(allByKind(orbit, 'claim-wisp').length, 1);
+});
+
+test('departures emit a stationary departing-wisp family carrying ageRatio; absent/empty → NO layer', () => {
+  const departed = buildScene(
+    mkInput({ territories: [mkTerritory({ departures: [{ key: 's9', title: 'left the island', ageRatio: 0.5 }] })] }),
+  );
+  const layer = mustByKind(departed, 'departing-wisps');
+  const wisp = mustByKind(layer, 'departing-wisp');
+  // ageRatio rides the node — the mapper turns it into the fade (the curve is the mapper/CSS's job).
+  assert.equal(wisp.ageRatio, 0.5);
+  assert.equal(wisp.title, 'left the island');
+  assert.equal(wisp.phase, undefined); // stationary — never an orbit
+  assert.ok(
+    firstByKind(wisp, 'departing-wisp-hit') && firstByKind(wisp, 'departing-wisp-glow') && firstByKind(wisp, 'departing-wisp-dot'),
+  );
+  // the leaving translation is deterministic and drifts with age.
+  const spotAt = (ageRatio: number): string => {
+    const s = buildScene(mkInput({ territories: [mkTerritory({ departures: [{ key: 's9', title: 't', ageRatio }] })] }));
+    const inner = children(mustByKind(s, 'departing-wisp'))[0];
+    assert.ok(inner && inner.el === 'g');
+    return inner.transform ?? '';
+  };
+  assert.equal(spotAt(0.5), spotAt(0.5));
+  assert.notEqual(spotAt(0.1), spotAt(0.9));
+  // absent and empty departures both emit NO layer (no new empty groups for the website).
+  assert.equal(firstByKind(buildScene(mkInput()), 'departing-wisps'), null);
+  const empty = buildScene(mkInput({ territories: [mkTerritory({ departures: [] })] }));
+  assert.equal(firstByKind(empty, 'departing-wisps'), null);
+});
+
+test('§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict outcome', () => {
+  const scene = buildScene(
+    mkInput({
+      territories: [
+        mkTerritory({
+          claims: [
+            { key: 'e1', title: 't', colourState: 'authoring', grade: 'exploring' },
+            { key: 'q1', title: 't', colourState: 'proving', grade: 'waiting' },
+            { key: 'k1', title: 't', colourState: 'supplementing', grade: 'work' },
+          ],
+          departures: [{ key: 'd1', title: 't', ageRatio: 0.8 }],
+        }),
+      ],
+    }),
+  );
+  for (const layerKind of ['claim-wisps', 'departing-wisps'] as const) {
+    const layer = mustByKind(scene, layerKind);
+    const walk = (n: SceneNode): void => {
+      assert.ok(!(n.kind ?? '').includes('bloom'), `${layerKind} must emit no bloom kind`);
+      assert.equal(n.outcome, undefined, `a ${layerKind} node must never carry a verdict outcome`);
+      for (const c of children(n)) walk(c);
+    };
+    walk(layer);
+  }
+});
+
+test('website back-compat: NO claims + NO departures → no wisp layers at all — the plate stays last', () => {
+  // the public website omits `claims`/`departures` entirely — build a territory with the keys ABSENT.
+  const { claims: _dropped, ...noClaimsTerritory } = mkTerritory();
+  const scene = buildScene(mkInput({ territories: [noClaimsTerritory] }));
+  const terr = mustByKind(scene, 'territory');
+  assert.ok(terr.el === 'g');
+  const kinds = children(terr).map((n) => n.kind);
+  assert.equal(kinds[kinds.length - 1], 'plate');
+  for (const k of ['wisps', 'claim-wisps', 'departing-wisps']) {
+    assert.ok(!kinds.includes(k as never), `no empty ${k} group`);
+  }
+  // absent and [] render identically — the new optional keys add nothing when unused.
+  assert.deepEqual(scene, buildScene(mkInput({ territories: [mkTerritory()] })));
 });

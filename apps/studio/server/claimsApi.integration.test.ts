@@ -12,15 +12,13 @@ import { handleClaims } from './devApi';
 import { HttpError } from './httpUtil';
 import { groupClaimsBySession, type ClaimDocT } from '@storytree/notice-board';
 
-// Time-RELATIVE fixtures (not a fixed date): the endpoint folds with its OWN `new Date()`, so fixed
-// past timestamps age the heartbeats past CLAIM_STALE_RECLAIM_MS (2h) and `groupClaimsBySession` DROPS
-// them — a date-rollover time-bomb that fired the day after these were authored (the endpoint answered
-// `{ sessions: [] }` while `expected`, folded at the fixed `now`, still had two groups). Anchor every
-// timestamp to a real `now` so the claims stay live whenever the suite runs; `ageMs` — the only
-// now-sensitive output — is stripped before the comparison below.
+// Timestamps are RELATIVE to the real clock, never literals: the endpoint stamps its own
+// `new Date()` (not injectable) and `groupClaimsBySession` DROPS any claim whose heartbeat is
+// older than CLAIM_STALE_RECLAIM_MS against that clock — hard-coded heartbeats made this suite a
+// time bomb that went red repo-wide the moment the wall clock passed heartbeat + threshold
+// (2026-07-16T13:59Z, failing every CI run on every branch).
 const now = new Date();
-const ago = (ms: number): string => new Date(now.getTime() - ms).toISOString();
-const MIN = 60_000;
+const minutesAgo = (m: number): string => new Date(now.getTime() - m * 60_000).toISOString();
 
 const workClaim: ClaimDocT = {
   unitId: 'story-a',
@@ -28,8 +26,8 @@ const workClaim: ClaimDocT = {
   branch: 'claude/sess-old',
   intent: 'real',
   grade: 'work',
-  claimedAt: ago(120 * MIN), // the older session — grouped first (by oldest claim)
-  heartbeatAt: ago(1 * MIN), // fresh — well inside the 2h stale-reclaim window
+  claimedAt: minutesAgo(120),
+  heartbeatAt: minutesAgo(1),
 };
 
 const exploringClaim: ClaimDocT = {
@@ -38,8 +36,8 @@ const exploringClaim: ClaimDocT = {
   branch: 'claude/sess-new',
   intent: 'scoping the map',
   grade: 'exploring',
-  claimedAt: ago(30 * MIN),
-  heartbeatAt: ago(2 * MIN),
+  claimedAt: minutesAgo(30),
+  heartbeatAt: minutesAgo(2),
 };
 
 // The stub flips per test — handleClaims only needs sessionClaims().

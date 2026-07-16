@@ -13,6 +13,7 @@ import {
   trailFillWidth,
   type BuildPhase,
   type ClaimColourState,
+  type ClaimGrade,
   type SceneInput,
   type SceneTrailsInput,
 } from '@storytree/forest-world';
@@ -68,7 +69,12 @@ function mkTrails(): SceneTrailsInput {
   };
 }
 
-function mkInput(wispPhase?: BuildPhase, claimState: ClaimColourState = 'authoring'): SceneInput {
+function mkInput(
+  wispPhase?: BuildPhase,
+  claimState: ClaimColourState = 'authoring',
+  claimGrade?: ClaimGrade,
+  departures?: { key: string; title: string; ageRatio: number }[],
+): SceneInput {
   return {
     offset: { x: 0, y: 0 },
     width: 100,
@@ -96,7 +102,15 @@ function mkInput(wispPhase?: BuildPhase, claimState: ClaimColourState = 'authori
         treeTitle: 'lib — healthy',
         signpost: { outcome: null },
         wisps: [{ runId: 'r1', title: 'building', ...(wispPhase ? { phase: wispPhase } : {}) }],
-        claims: [{ key: 's1', title: 'a session is working lib', colourState: claimState }],
+        claims: [
+          {
+            key: 's1',
+            title: 'a session is working lib',
+            colourState: claimState,
+            ...(claimGrade ? { grade: claimGrade } : {}),
+          },
+        ],
+        ...(departures ? { departures } : {}),
         plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
       },
     ],
@@ -107,6 +121,8 @@ function renderScene(
   over: Partial<SceneCtx> = {},
   wispPhase?: BuildPhase,
   claimState?: ClaimColourState,
+  claimGrade?: ClaimGrade,
+  departures?: { key: string; title: string; ageRatio: number }[],
 ): {
   root: HTMLElement;
   ctx: SceneCtx;
@@ -121,7 +137,7 @@ function renderScene(
   };
   const { container } = render(
     <svg>
-      <SceneView scene={buildScene(mkInput(wispPhase, claimState))} ctx={ctx} />
+      <SceneView scene={buildScene(mkInput(wispPhase, claimState, claimGrade, departures))} ctx={ctx} />
     </svg>,
   );
   return { root: container, ctx };
@@ -229,6 +245,71 @@ describe('SceneView — the studio scene mapper', () => {
     expect(claim.closest('.world-claim-wisp')?.querySelector('.world-bloom')).toBeNull();
     expect(claim.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
     expect(claim.querySelector('.verdict-pass')).toBeNull();
+  });
+
+  it('maps a hovering (exploring-grade) claim to a DISTINCT, STATIONARY class family (ADR-0200 D7)', () => {
+    const { root } = renderScene({}, undefined, 'proving', 'exploring');
+    const hover = root.querySelector('.world-hover-wisp.state-proving');
+    expect(hover).toBeTruthy();
+    // its own glow/dot parts and a transparent hit — its OWN family, not claim-wisp's / wisp's.
+    expect(hover?.querySelector('.world-hover-wisp-glow')).toBeTruthy();
+    expect(hover?.querySelector('.world-hover-wisp-dot')).toBeTruthy();
+    expect(root.querySelector('.world-hover-wisp-hit')?.getAttribute('fill')).toBe('transparent');
+    // STATIONARY by construction — the core never stamps `phase` on a hover-wisp, so the mapper's
+    // rotate branch (gated on `phase != null`) never fires here.
+    expect(hover?.querySelector('animateTransform')).toBeNull();
+    expect(root.querySelector('.world-claim-wisp')).toBeNull();
+  });
+
+  it('maps a queued (waiting-grade) claim to a DISTINCT, STATIONARY class family (ADR-0200 D7)', () => {
+    const { root } = renderScene({}, undefined, 'supplementing', 'waiting');
+    const queue = root.querySelector('.world-queue-wisp.state-supplementing');
+    expect(queue).toBeTruthy();
+    expect(queue?.querySelector('.world-queue-wisp-glow')).toBeTruthy();
+    expect(queue?.querySelector('.world-queue-wisp-dot')).toBeTruthy();
+    expect(root.querySelector('.world-queue-wisp-hit')?.getAttribute('fill')).toBe('transparent');
+    expect(queue?.querySelector('animateTransform')).toBeNull();
+    expect(root.querySelector('.world-claim-wisp')).toBeNull();
+  });
+
+  it('an absent grade still orbits (the ADR-0200 D2 back-compat default, regression lock)', () => {
+    const { root } = renderScene({}, undefined, 'authoring', undefined);
+    const claim = root.querySelector('.world-claim-wisp.state-authoring');
+    expect(claim).toBeTruthy();
+    expect(claim?.querySelector('animateTransform')).toBeTruthy();
+    expect(root.querySelector('.world-hover-wisp')).toBeNull();
+    expect(root.querySelector('.world-queue-wisp')).toBeNull();
+  });
+
+  it('maps a departing claim to a fading, STATIONARY, colourless class — opacity derived from ageRatio (ADR-0200 D7)', () => {
+    const { root } = renderScene({}, undefined, undefined, undefined, [
+      { key: 'd1', title: 'lib — a session departed 1m ago (was work) — no longer claimed', ageRatio: 0.25 },
+    ]);
+    const departing = root.querySelector('.world-departing-wisp');
+    expect(departing).toBeTruthy();
+    // 1 - ageRatio, deterministic (SceneView folds ageRatio → opacity, not a CSS-only illusion).
+    expect(departing?.getAttribute('opacity')).toBe('0.75');
+    expect(departing?.querySelector('animateTransform')).toBeNull();
+    expect(departing?.querySelector('.world-departing-wisp-glow')).toBeTruthy();
+    expect(root.querySelector('.world-departing-wisp-hit')?.getAttribute('fill')).toBe('transparent');
+  });
+
+  it('§5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes (ADR-0200 D7)', () => {
+    const hover = renderScene({}, undefined, 'proving', 'exploring').root.querySelector('.world-hover-wisp')!;
+    expect(hover.classList.contains('world-bloom')).toBe(false);
+    expect(hover.classList.contains('verdict-pass')).toBe(false);
+    expect(hover.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
+
+    const queue = renderScene({}, undefined, 'proving', 'waiting').root.querySelector('.world-queue-wisp')!;
+    expect(queue.classList.contains('world-bloom')).toBe(false);
+    expect(queue.classList.contains('verdict-pass')).toBe(false);
+
+    const departing = renderScene({}, undefined, undefined, undefined, [
+      { key: 'd1', title: 'departed', ageRatio: 0.5 },
+    ]).root.querySelector('.world-departing-wisp')!;
+    expect(departing.classList.contains('world-bloom')).toBe(false);
+    expect(departing.classList.contains('verdict-pass')).toBe(false);
+    expect(departing.querySelector('.bloom-ring, .bloom-spark, .bloom-crown, .bloom-plant')).toBeNull();
   });
 
   it('selects the story on an island click; selects the capability on a plant click (stopping propagation)', () => {

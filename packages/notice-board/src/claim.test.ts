@@ -409,3 +409,104 @@ test("digestOverlapDeltas: units keep first-seen order; a blank intent renders n
     "session sess-other queued for the work slot on story-a",
   ]);
 });
+
+// ── foldDepartures (ADR-0200 D7): the pure wisp-out departure fold ────────────
+
+import { foldDepartures, DEPARTURE_WINDOW_MS, type ClaimDeparture } from "./claim.js";
+
+const DEP_NOW = new Date("2026-07-16T12:00:00.000Z");
+
+/** A raw departure row as the store's `recentDepartures` returns it. */
+function departureRow(over: Partial<ClaimDeparture> = {}): ClaimDeparture {
+  return {
+    unitId: "chat-session-stream",
+    sessionId: "sess-A",
+    doc: { ...sample(), grade: "work" },
+    at: new Date(DEP_NOW.getTime() - 30_000).toISOString(),
+    ...over,
+  };
+}
+
+test("DEPARTURE_WINDOW_MS: the Stage-1 default is 2 minutes", () => {
+  assert.equal(DEPARTURE_WINDOW_MS, 120_000);
+});
+
+test("foldDepartures: a single departure maps to the departed-claim shape, ageMs from the caller's now", () => {
+  const folded = foldDepartures([departureRow()], DEP_NOW);
+  assert.deepEqual(folded, [
+    {
+      unitId: "chat-session-stream",
+      sessionId: "sess-A",
+      grade: "work",
+      ageMs: 30_000,
+      at: new Date(DEP_NOW.getTime() - 30_000).toISOString(),
+    },
+  ]);
+});
+
+test("foldDepartures: deterministic order — newest first (at DESC), ties break on unitId", () => {
+  const older = new Date(DEP_NOW.getTime() - 90_000).toISOString();
+  const newer = new Date(DEP_NOW.getTime() - 10_000).toISOString();
+  const folded = foldDepartures(
+    [
+      departureRow({ unitId: "story-b", at: older }),
+      departureRow({ unitId: "story-z", at: newer }),
+      departureRow({ unitId: "story-a", at: newer }),
+    ],
+    DEP_NOW,
+  );
+  assert.deepEqual(
+    folded.map((d) => d.unitId),
+    ["story-a", "story-z", "story-b"],
+    "newest first, at-ties alphabetical on unitId",
+  );
+});
+
+test("foldDepartures: ageMs clamps to zero on a future `at` (clock skew), never negative", () => {
+  const future = new Date(DEP_NOW.getTime() + 5_000).toISOString();
+  const folded = foldDepartures([departureRow({ at: future })], DEP_NOW);
+  assert.equal(folded[0]?.ageMs, 0);
+});
+
+test("foldDepartures: grade reads off the released doc via claimGrade — every grade, absent → work", () => {
+  const at = new Date(DEP_NOW.getTime() - 1_000).toISOString();
+  const cases: Array<[unknown, string]> = [
+    [{ ...sample(), grade: "exploring" }, "exploring"],
+    [{ ...sample(), grade: "waiting" }, "waiting"],
+    [{ ...sample(), grade: "work" }, "work"],
+    [sample(), "work"], // pre-grade doc: absent grade IS the work claim (ADR-0200 D2 back-compat)
+  ];
+  for (const [doc, expected] of cases) {
+    const folded = foldDepartures([departureRow({ doc, at })], DEP_NOW);
+    assert.equal(folded[0]?.grade, expected, `doc grade → ${expected}`);
+  }
+});
+
+test("foldDepartures: a malformed doc degrades to work, never a throw (the fold is a courtesy read)", () => {
+  const at = new Date(DEP_NOW.getTime() - 1_000).toISOString();
+  for (const doc of [null, undefined, "junk", 42, { grade: "sneaky" }, { grade: 7 }]) {
+    const folded = foldDepartures([departureRow({ doc, at })], DEP_NOW);
+    assert.equal(folded[0]?.grade, "work", `malformed doc ${JSON.stringify(doc)} folds as work`);
+  }
+});
+
+test("foldDepartures: a row older than the window is DROPPED (defense in depth behind the store's SQL bound)", () => {
+  const inside = new Date(DEP_NOW.getTime() - (DEPARTURE_WINDOW_MS - 1_000)).toISOString();
+  const outside = new Date(DEP_NOW.getTime() - (DEPARTURE_WINDOW_MS + 1_000)).toISOString();
+  const folded = foldDepartures(
+    [departureRow({ unitId: "story-in", at: inside }), departureRow({ unitId: "story-out", at: outside })],
+    DEP_NOW,
+  );
+  assert.deepEqual(folded.map((d) => d.unitId), ["story-in"], "the aged-out row never renders");
+});
+
+test("foldDepartures: an explicit windowMs overrides the default", () => {
+  const tenSecondsAgo = new Date(DEP_NOW.getTime() - 10_000).toISOString();
+  // Default 2 min → kept; a 5 s override → dropped.
+  assert.equal(foldDepartures([departureRow({ at: tenSecondsAgo })], DEP_NOW).length, 1);
+  assert.equal(foldDepartures([departureRow({ at: tenSecondsAgo })], DEP_NOW, 5_000).length, 0);
+});
+
+test("foldDepartures: empty in, empty out", () => {
+  assert.deepEqual(foldDepartures([], DEP_NOW), []);
+});

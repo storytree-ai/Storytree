@@ -241,13 +241,54 @@ function BuildWispIcon(): React.JSX.Element {
 
 /** The story-CLAIM wisp (ADR-0138 §5) — the world's OWN `world-claim-wisp state-<x>` classes (the
  *  hollow ring + core), so the legend swatch can never drift from the live claim wisp AND can never be
- *  mistaken for the green bloom (the §5 honesty wall, in the legend too). `state` picks the role hue. */
+ *  mistaken for the green bloom (the §5 honesty wall, in the legend too). `state` picks the role hue.
+ *  This is the WORK grade's icon (the classic orbit) — see {@link HoverWispIcon}/{@link QueueWispIcon}
+ *  for the other two grades (ADR-0200 D7). */
 function ClaimWispIcon({ state }: { state: SubagentColourState }): React.JSX.Element {
   return (
     <svg viewBox="-8 -8 16 16" aria-hidden="true">
       <g className={`world-claim-wisp state-${state}`}>
         <circle className="world-claim-wisp-glow" r={5.5} />
         <circle className="world-claim-wisp-dot" r={2.2} />
+      </g>
+    </svg>
+  );
+}
+
+/** The EXPLORING-grade claim wisp (ADR-0200 D7) — the world's own `world-hover-wisp state-<x>`
+ *  classes, so the legend can never drift from the live hovering wisp. */
+function HoverWispIcon({ state }: { state: SubagentColourState }): React.JSX.Element {
+  return (
+    <svg viewBox="-8 -8 16 16" aria-hidden="true">
+      <g className={`world-hover-wisp state-${state}`}>
+        <circle className="world-hover-wisp-glow" r={5.5} />
+        <circle className="world-hover-wisp-dot" r={2.2} />
+      </g>
+    </svg>
+  );
+}
+
+/** The WAITING-grade claim wisp (ADR-0200 D7) — the world's own `world-queue-wisp state-<x>`
+ *  classes, so the legend can never drift from the live queued wisp. */
+function QueueWispIcon({ state }: { state: SubagentColourState }): React.JSX.Element {
+  return (
+    <svg viewBox="-8 -8 16 16" aria-hidden="true">
+      <g className={`world-queue-wisp state-${state}`}>
+        <circle className="world-queue-wisp-glow" r={5.5} />
+        <circle className="world-queue-wisp-dot" r={2.2} />
+      </g>
+    </svg>
+  );
+}
+
+/** A departing claim's icon (ADR-0200 D7) — the world's own `world-departing-wisp` classes (no
+ *  colour-state — a departure carries none, it wears the fixed neutral slate tone). */
+function DepartingWispIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="-8 -8 16 16" aria-hidden="true">
+      <g className="world-departing-wisp">
+        <circle className="world-departing-wisp-glow" r={5.5} />
+        <circle className="world-departing-wisp-dot" r={2.2} />
       </g>
     </svg>
   );
@@ -710,6 +751,34 @@ export function LegendDrawerBody({
           a “proving” one — never greens the story. Only the green <strong>bloom</strong> is a signed
           verdict (ADR-0045), and only a signed pass paints the crown. The ring self-clears when the
           session’s branch merges or its claim goes stale.
+        </p>
+        {/* ADR-0200 D7: the claim's GRADE — a SEPARATE dimension from the colour above (geometry ⟂
+            colour): which shape a claim takes, not what the orchestrator is doing. */}
+        <div className="legend-fan">
+          <Tile
+            icon={<HoverWispIcon state="proving" />}
+            label="exploring"
+            note="at rest beside the tree — reading / planning, not yet committed"
+          />
+          <Tile
+            icon={<QueueWispIcon state="proving" />}
+            label="waiting"
+            note="queued in line — behind the session holding work"
+          />
+          <Tile icon={<ClaimWispIcon state="proving" />} label="work" note="orbiting — driving / editing" />
+          <Tile
+            icon={<DepartingWispIcon />}
+            label="departed"
+            note="a claim just released — fading, no longer held"
+          />
+        </div>
+        <p className="legend-cap">
+          Its <strong>shape</strong> is a separate signal from its colour: a dashed ring at rest means{' '}
+          <strong>exploring</strong>, a small dim dot in a line means <strong>waiting</strong>, and the
+          full orbiting ring above means <strong>work</strong> — the exclusive build/edit hold. A plain
+          grey ring with no colour at all means the claim just <strong>departed</strong>: it fades out
+          over a couple of minutes rather than vanishing outright, so a released claim reads as “someone
+          just left,” never as a claim still silently held.
         </p>
       </>,
     );

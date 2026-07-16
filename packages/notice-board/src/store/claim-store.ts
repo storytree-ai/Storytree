@@ -3,6 +3,7 @@ import {
   ClaimGrade,
   isReclaimable,
   CLAIM_STALE_RECLAIM_MS,
+  type ClaimDeparture,
   type ClaimDocT,
   type ClaimGradeT,
   type ClaimRequest,
@@ -606,6 +607,26 @@ export class PgClaimStore {
       [sessionId, staleMs],
     );
     return (res.rows as ClaimRow[]).map(rowToDoc);
+  }
+
+  /**
+   * The `released` claim events written inside the last `windowMs` — the wisp-out departure read
+   * (ADR-0200 D7): a wisp that just released reads as GONE on the board, indistinguishable from a
+   * lost claim, so the views render a short-lived departure instead of a silent vanish. Raw rows
+   * (the released doc rides through as-is); the pure `foldDepartures` in claim.ts is the rendering
+   * fold. Newest first (`at` DESC). Read-only (no transaction).
+   */
+  async recentDepartures(windowMs: number): Promise<ClaimDeparture[]> {
+    const res = await this.#pool.query(
+      `SELECT unit_id, session_id, doc, at FROM events.claim_event
+        WHERE type = 'released'
+          AND at > now() - ($1::bigint * interval '1 millisecond')
+        ORDER BY at DESC`,
+      [windowMs],
+    );
+    return (res.rows as { unit_id: string; session_id: string; doc: unknown; at: Date | string }[]).map(
+      (row) => ({ unitId: row.unit_id, sessionId: row.session_id, doc: row.doc, at: toIso(row.at) }),
+    );
   }
 
   /** The append-only audit history for `unitId`, ascending by `seq`. */

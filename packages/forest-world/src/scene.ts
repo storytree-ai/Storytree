@@ -153,6 +153,25 @@ export type SceneKind =
   | 'claim-wisp-hit'
   | 'claim-wisp-glow'
   | 'claim-wisp-dot'
+  // the claim-GRADE drawable families (ADR-0200 D7) — which geometry a claim's grade selects.
+  // `hover-wisp*`: an exploring claim at rest beside the story tree (stationary — no orbit `phase`).
+  // `queue-wisp*`: a waiting claim in the visible queue line (index-placed in input order, stationary).
+  // `departing-wisp*` (under the `departing-wisps` layer): a released claim fading out (`ageRatio`).
+  // ALL are coordination drawables behind the same ADR-0138 §5 honesty wall as `claim-wisp*`:
+  // never a bloom kind, never an `outcome` — a claim (or its departure) is not a proof.
+  | 'hover-wisp'
+  | 'hover-wisp-hit'
+  | 'hover-wisp-glow'
+  | 'hover-wisp-dot'
+  | 'queue-wisp'
+  | 'queue-wisp-hit'
+  | 'queue-wisp-glow'
+  | 'queue-wisp-dot'
+  | 'departing-wisps'
+  | 'departing-wisp'
+  | 'departing-wisp-hit'
+  | 'departing-wisp-glow'
+  | 'departing-wisp-dot'
   // the nameplate
   | 'plate'
   | 'plate-bg'
@@ -213,6 +232,10 @@ export interface SceneNodeBase {
    *  on a BUILD `wisp` when the live work-event stamped one (advisory role tint, additive to
    *  `phaseBand`). A SEPARATE field from `phase` (the orbit rotation) — location ⟂ form. */
   colourState?: ClaimColourState;
+  /** A departing claim wisp's progress through the departure window, 0..1 (ADR-0200 D7) — the
+   *  surface computes it; the mapper turns it into the fade (the opacity curve is mapper/CSS-side,
+   *  the later operator-attested LOOK stage). Carried on a `departing-wisp` node. */
+  ageRatio?: number;
 }
 
 /** The wisp's three visual bands (ADR-0048 §3 v2) — the mapper's `band-red`/`band-green`/
@@ -226,6 +249,15 @@ export type WispPhaseBand = 'red' | 'green' | 'building';
  *  never a proof (only a signed verdict paints the green bloom — ADR-0045). The mapper appends its
  *  `state-<colourState>` class. */
 export type ClaimColourState = 'authoring' | 'proving' | 'supplementing';
+
+/** The three claim GRADES a story claim wears (ADR-0200 D2 / D7) — which drawable family the claim
+ *  renders as: `exploring` hovers at rest beside the tree, `waiting` queues in the visible line,
+ *  `work` orbits (today's claim wisp). DUPLICATED as the core's OWN input vocabulary (the
+ *  scene-graph is a foundational root that depends on nothing — ADR-0093 §Open call 2), mirroring
+ *  `@storytree/notice-board`'s `ClaimGrade` exactly as `ClaimColourState` mirrors the drive's. An
+ *  ABSENT grade IS the work claim (the D2 back-compat default), so every pre-grade surface keeps
+ *  today's orbit unchanged. */
+export type ClaimGrade = 'exploring' | 'waiting' | 'work';
 
 /** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
  *  scene-graph is a foundational root that depends on nothing (ADR-0093 §Open call 2), so it mirrors
@@ -375,8 +407,20 @@ export interface SceneTerritoryInput {
    *  AND from any bloom: a claim is never a proof (the §5 honesty wall). OPTIONAL and back-compat: a
    *  surface with no live-claim concept (the public website, which has no sessions) omits it entirely,
    *  so the claim layer is inert there — `buildClaimWisps` returns null and the render is unchanged.
-   *  Absent/empty when nothing is claimed. */
-  claims?: { key: string; title: string; colourState: ClaimColourState }[];
+   *  Absent/empty when nothing is claimed. The optional `grade` (ADR-0200 D2/D7) selects the
+   *  drawable family — `exploring` hovers, `waiting` queues, `work` orbits; ABSENT means `work`
+   *  (the D2 back-compat default: every pre-grade surface keeps today's orbit byte-for-byte).
+   *  WAITING ORDER CONTRACT: waiters are placed by their INDEX in input order, so the surface sends
+   *  them ordered by `claimedAt` (the queue order the claim ledger already keeps). */
+  claims?: { key: string; title: string; colourState: ClaimColourState; grade?: ClaimGrade }[];
+  /** Recently-RELEASED story claims still fading out (ADR-0200 D7) — the departure drawable. The
+   *  surface folds which departures sit inside the window and computes each `ageRatio` (0..1 — how
+   *  far through the departure window); the core places a stationary `departing-wisp` whose
+   *  geometry drifts upward with age (the "leaving" translation), and carries `ageRatio` on the
+   *  node for the mapper's fade (the curve itself is the mapper/CSS's job — the later
+   *  operator-attested LOOK stage). OPTIONAL and back-compat exactly like `claims`: a surface with
+   *  no claim concept (the public website) omits it entirely and the render is unchanged. */
+  departures?: { key: string; title: string; ageRatio: number }[];
   /** The nameplate box (surface chrome: the studio's `nameplateLayout`, the web's
    *  own sizing) + the text the surface chose. */
   plate: {
@@ -791,7 +835,58 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
   const claims = t.claims ?? [];
   if (!claims.length) return null;
   const orbitR = t.radius * 0.72 + 22;
+  // the hover rest spot is anchored above the story tree (the layer's frame is the centroid).
+  const treeDx = t.treeSpot.x - t.centroid.x;
+  const treeDy = t.treeSpot.y - t.centroid.y;
+  let queueIndex = 0;
   const wisps = claims.map((c) => {
+    // ADR-0200 D2: an ABSENT grade IS the work claim — every pre-grade surface keeps today's orbit.
+    const grade = c.grade ?? 'work';
+    if (grade === 'exploring') {
+      // HOVERING (ADR-0200 D7): a session is reading/planning here — at rest beside/above the story
+      // tree, with a small per-key jitter so several hoverers never stack exactly. STATIONARY by
+      // construction: NO orbit `phase` — the mapper animates the rotation only when `phase` is
+      // present (and only on the wisp/claim-wisp kinds), so a hover wisp can never spin.
+      const k = hash(c.key);
+      const hx = treeDx + (rand01(k + 1) - 0.5) * 18;
+      const hy = treeDy - (orbitR + 12) + (rand01(k + 2) - 0.5) * 10;
+      return g(
+        [
+          g(
+            [
+              circle(0, 0, 12, { kind: 'hover-wisp-hit' }),
+              circle(0, 0, 6.5, { kind: 'hover-wisp-glow' }),
+              circle(0, 0, 2.8, { kind: 'hover-wisp-dot' }),
+            ],
+            { transform: `translate(${f(hx)} ${f(hy)})` },
+          ),
+        ],
+        // `title` carries the claim's intent prose; NEVER an `outcome`/`bloom` (the §5 wall).
+        { kind: 'hover-wisp', title: c.title, colourState: c.colourState },
+      );
+    }
+    if (grade === 'waiting') {
+      // QUEUED (ADR-0200 D7): a visible ordered line anchored just outside the orbit ring — each
+      // waiter placed by its queue INDEX in INPUT order (the surface sends waiters ordered by
+      // claimedAt — deterministic from array order, never hash-random) and stationary (no `phase`).
+      const qx = orbitR + 14 + queueIndex * 16;
+      queueIndex += 1;
+      return g(
+        [
+          g(
+            [
+              circle(0, 0, 12, { kind: 'queue-wisp-hit' }),
+              circle(0, 0, 6.5, { kind: 'queue-wisp-glow' }),
+              circle(0, 0, 2.8, { kind: 'queue-wisp-dot' }),
+            ],
+            { transform: `translate(${f(qx)} 0)` },
+          ),
+        ],
+        // NEVER carries an `outcome`/`bloom` (the §5 wall).
+        { kind: 'queue-wisp', title: c.title, colourState: c.colourState },
+      );
+    }
+    // WORK — today's orbiting claim wisp, unchanged (the ADR-0200 D2 regression lock).
     const phase = rand01(hash(c.key)) * 360;
     return g(
       [
@@ -811,6 +906,44 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
   });
   return g(wisps, {
     kind: 'claim-wisps',
+    transform: `translate(${f(t.centroid.x)} ${f(t.centroid.y)})`,
+  });
+}
+
+/** The DEPARTURE layer (ADR-0200 D7): a recently-released claim fading out — a stationary
+ *  `departing-wisp` per departure, resting where the hover family rests and drifting UPWARD
+ *  proportional to `ageRatio` (the "leaving" translation, encoded deterministically in geometry).
+ *  `ageRatio` (0..1, surface-computed) rides the node for the mapper's fade — the curve itself is
+ *  the mapper/CSS's job (the later operator-attested LOOK stage). Same §5 honesty wall as the claim
+ *  families: a departure is a coordination trace, never a bloom, never an `outcome`. Absent/empty ⇒
+ *  no layer (the website back-compat mirror of `buildClaimWisps`). */
+function buildDepartingWisps(t: SceneTerritoryInput): SceneG | null {
+  const departures = t.departures ?? [];
+  if (!departures.length) return null;
+  const orbitR = t.radius * 0.72 + 22;
+  const treeDx = t.treeSpot.x - t.centroid.x;
+  const treeDy = t.treeSpot.y - t.centroid.y;
+  const wisps = departures.map((d) => {
+    const k = hash(d.key);
+    const x = treeDx + (rand01(k + 1) - 0.5) * 18;
+    const y = treeDy - (orbitR + 12) - d.ageRatio * 24;
+    return g(
+      [
+        g(
+          [
+            circle(0, 0, 12, { kind: 'departing-wisp-hit' }),
+            circle(0, 0, 6.5, { kind: 'departing-wisp-glow' }),
+            circle(0, 0, 2.8, { kind: 'departing-wisp-dot' }),
+          ],
+          { transform: `translate(${f(x)} ${f(y)})` },
+        ),
+      ],
+      // stationary (no `phase`); `ageRatio` is the mapper's fade input. NEVER `outcome`/`bloom`.
+      { kind: 'departing-wisp', title: d.title, ageRatio: d.ageRatio },
+    );
+  });
+  return g(wisps, {
+    kind: 'departing-wisps',
     transform: `translate(${f(t.centroid.x)} ${f(t.centroid.y)})`,
   });
 }
@@ -867,6 +1000,10 @@ export function buildTerritoryFlora(t: SceneTerritoryInput): SceneG {
   // build wisp, never a bloom. Layered after the build wisps so when both run the claim reads outside.
   const claimWisps = buildClaimWisps(t);
   if (claimWisps) children.push(claimWisps);
+  // ADR-0200 D7: the departure layer ("a session just left") — after the claim layer, same
+  // absent/empty ⇒ nothing rule, same §5 honesty wall (never a bloom).
+  const departingWisps = buildDepartingWisps(t);
+  if (departingWisps) children.push(departingWisps);
 
   return g(children, { kind: 'territory', status: t.status, id: t.id });
 }

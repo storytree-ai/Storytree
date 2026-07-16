@@ -600,8 +600,17 @@ export interface TreePayload {
   sessions?: TreeSession[];
   /** Present only when the live store answered AND at least one build is in flight (ADR-0048). */
   builds?: BuildActivity[];
-  /** Present only when the live store answered AND at least one story is CLAIMED (ADR-0138 §5) — so
-   *  the world paints claim wisps on first load too (sibling to `builds`, mirrors its seed contract). */
+  /**
+   * STALE CONTRACT (ADR-0200 D7): historically documented as the claims seed sibling to `builds`
+   * ("so the world paints claim wisps on first load too") — but `/api/tree` never actually sets this
+   * field; only `sessions`/`builds` are seeded there (apps/studio/server/apiRouter.ts's `/api/tree`
+   * handler assigns `payload.sessions`/`payload.builds`, never `payload.claims`). Claims (and
+   * departures) are seeded instead by the FIRST poll of the same `/api/activity` wire
+   * `useClaimActivity` already reads (lib/buildActivity.ts) — a one-poll-cycle-later seed, not a
+   * one-shot one. Left optional / always-undefined so `p.claims ?? []` degrades identically either
+   * way (dead but harmless); not removed here — a TreePayload wire shape change is
+   * apps/studio/server/** territory, outside this unit's file fence.
+   */
   claims?: ClaimActivity[];
 }
 
@@ -768,6 +777,17 @@ export interface ClaimActivity {
   /** The free-prose intent the spine stamped ("edit"|"real"|"orchestrate", or other) — folded to a
    *  colour-state client-side; an unknown intent defaults to `supplementing` (never throws). */
   intent: string;
+  /**
+   * The claim's GRADE (ADR-0200 D2/D7) — which drawable family the world renders: `exploring` hovers
+   * at rest beside the tree, `waiting` queues in a visible line, `work` orbits (the original claim
+   * wisp). Mirrors the server's folded output (apps/studio/server/inFlightActivity.ts's
+   * `claimsToActivity`, which already normalises an absent/unrecognised raw grade to `work`), so a
+   * live row always carries one. OPTIONAL / absent-by-default here anyway — the back-compat idiom
+   * every field on this wire follows ({@link BuildActivity.phase} etc.) — so a hand-built fixture
+   * that predates ADR-0200 (or a narrower mock) still type-checks; a reader defaults a missing grade
+   * to `work` (the SAME D2 back-compat default the server applies).
+   */
+  grade?: ClaimGrade;
   /** ISO string of when the claim was taken (`claimed_at`). */
   at: string;
 }
@@ -785,14 +805,17 @@ export type BuildPhase =
   | 'GATE';
 
 /**
- * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims), polled like
- * /api/presence. Always a 200: `null` is the advisory-absent answer (down DB / json store), never a
- * 503; `[]` means nothing is building / claimed right now. `claims` is optional on the wire (a narrow
- * backend may omit it → treated as `null`), back-compat with a pre-ADR-0138 server that sent only `builds`.
+ * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims + ADR-0200 D7
+ * claim departures), polled like /api/presence. Always a 200: `null` is the advisory-absent answer
+ * (down DB / json store), never a 503; `[]` means nothing is building / claimed / departing right now.
+ * `claims` is optional on the wire (a narrow backend may omit it → treated as `null`), back-compat
+ * with a pre-ADR-0138 server that sent only `builds`; `departures` is the SAME optional/back-compat
+ * shape, sibling to `claims` (a pre-ADR-0200-D7 server omits it → treated as `null`).
  */
 export interface ActivityPayload {
   builds: BuildActivity[] | null;
   claims?: ClaimActivity[] | null;
+  departures?: DepartedClaim[] | null;
 }
 
 // ---------- claim-ledger dock view (GET /api/claims, ADR-0200 D7) ----------
@@ -804,6 +827,28 @@ export interface ActivityPayload {
  * holder), `exploring` (shared, session-start "what I'm thinking").
  */
 export type ClaimGrade = 'exploring' | 'waiting' | 'work';
+
+/**
+ * A recently-RELEASED claim still inside the departure window (ADR-0200 D7 — wisp-out legibility,
+ * unparking friction-released-build-wisp-reads-as-lost-claim): rendered as a fading `departing-wisp`
+ * instead of vanishing indistinguishably from a lost/stale claim. Mirrors the server's `DepartedClaim`
+ * (apps/studio/server/inFlightActivity.ts / `@storytree/notice-board`'s `foldDepartures`) exactly —
+ * `{unitId, sessionId, grade, ageMs, at}`. `ageMs` is the server's READ-TIME snapshot (elapsed ms
+ * since the release, as of the poll that answered); the client folds it to a fade ratio against the
+ * DEPARTURE_WINDOW_MS mirrored in TreeView.tsx rather than re-deriving it from `at` + a live ticker —
+ * a departure is a courtesy read, not a re-ticked wisp (so it fades in discrete poll-sized steps, not
+ * continuously).
+ */
+export interface DepartedClaim {
+  unitId: string;
+  sessionId: string;
+  /** The grade the claim held when released — `work` when the doc doesn't say (pre-grade/odd docs). */
+  grade: ClaimGrade;
+  /** Elapsed ms since the release, as of the server's read (not re-ticked client-side). */
+  ageMs: number;
+  /** When the release was written (ISO 8601). */
+  at: string;
+}
 
 /** One claim inside a {@link SessionClaimGroup} — mirrors the server's `SessionClaimEntry`. */
 export interface SessionClaimEntry {

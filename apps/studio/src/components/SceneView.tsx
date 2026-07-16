@@ -109,6 +109,26 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'claim-wisp-hit': 'world-claim-wisp-hit',
   'claim-wisp-glow': 'world-claim-wisp-glow',
   'claim-wisp-dot': 'world-claim-wisp-dot',
+  // the claim-GRADE families (ADR-0200 D7): `hover-wisp*` (an exploring claim at rest beside the
+  // tree) and `queue-wisp*` (a waiting claim in the visible line) — DISTINCT class families from both
+  // the build wisp AND the orbiting claim wisp, never bloom/verdict (the §5 honesty wall). Each
+  // composes its colour-state in composeClass exactly like `claim-wisp`; the parts below reuse fixed
+  // classes. `departing-wisp*` (a released claim still fading, its own `departing-wisps` layer) is
+  // stationary + colourless (a departure carries no colourState) — composeClass gives it a fixed base
+  // class; the mapper folds its `ageRatio` to opacity (never a bloom/verdict class either).
+  'hover-wisp': 'world-hover-wisp',
+  'hover-wisp-hit': 'world-hover-wisp-hit',
+  'hover-wisp-glow': 'world-hover-wisp-glow',
+  'hover-wisp-dot': 'world-hover-wisp-dot',
+  'queue-wisp': 'world-queue-wisp',
+  'queue-wisp-hit': 'world-queue-wisp-hit',
+  'queue-wisp-glow': 'world-queue-wisp-glow',
+  'queue-wisp-dot': 'world-queue-wisp-dot',
+  'departing-wisps': '',
+  'departing-wisp': 'world-departing-wisp',
+  'departing-wisp-hit': 'world-departing-wisp-hit',
+  'departing-wisp-glow': 'world-departing-wisp-glow',
+  'departing-wisp-dot': 'world-departing-wisp-dot',
   plate: 'world-plate',
   'plate-bg': 'world-plate-bg',
   'plate-id': 'world-plate-id',
@@ -196,6 +216,14 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       // on the claimed story. NEVER world-bloom / verdict-pass — a claim is not a proof (the honesty
       // wall, asserted in SceneView.test.tsx). `colourState` is always present on a claim wisp.
       return `world-claim-wisp state-${node.colourState ?? 'supplementing'}`;
+    case 'hover-wisp':
+      // ADR-0200 D7: the exploring-grade family — a DISTINCT class from claim-wisp/queue-wisp, same
+      // colour-state composition, same honesty wall (never bloom/verdict).
+      return `world-hover-wisp state-${node.colourState ?? 'supplementing'}`;
+    case 'queue-wisp':
+      // ADR-0200 D7: the waiting-grade family — a DISTINCT class from claim-wisp/hover-wisp, same
+      // colour-state composition, same honesty wall (never bloom/verdict).
+      return `world-queue-wisp state-${node.colourState ?? 'supplementing'}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;
@@ -304,10 +332,19 @@ function renderNode(
     node.kind === 'flora-hit' ||
     node.kind === 'wisp-hit' ||
     node.kind === 'claim-wisp-hit' ||
+    node.kind === 'hover-wisp-hit' ||
+    node.kind === 'queue-wisp-hit' ||
+    node.kind === 'departing-wisp-hit' ||
     node.kind === 'hit'
   )
     props.fill = 'transparent';
   if (node.kind === 'bloom-anchor') props['aria-hidden'] = 'true';
+  // ADR-0200 D7: a departing claim's fade is DATA (ageRatio, the core's job to place; the mapper's job
+  // to turn it into opacity — deterministic, testable, never a CSS-only illusion). `1 - ageRatio`: a
+  // just-released wisp (ageRatio 0) starts fully visible and fades to transparent as it ages out.
+  if (node.kind === 'departing-wisp' && node.ageRatio != null) {
+    props.opacity = Number((1 - node.ageRatio).toFixed(2));
+  }
   // Stamp ids into the DOM so TreeView can select by COORDINATE hit-test (robust where the bubbled
   // `click` event is not — Electron retargets a captured click; a moved click can target a non-leaf
   // common ancestor). The per-node onClick above still drives the clean case.
