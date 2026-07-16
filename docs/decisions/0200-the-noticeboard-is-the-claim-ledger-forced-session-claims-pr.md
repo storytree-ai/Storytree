@@ -83,9 +83,16 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    (the "lobby" — reads are offline; nothing claim-gated works there) and obtain their workspace
    through **`storytree worktree create --node <story>… --intent "<what>"`**, which atomically:
    takes the exploring claim(s) FIRST (no claim, no workspace — ADR-0121's claim-before-worktree
-   ordering, generalised), mints the worktree name **`<story-or-arc-slug>-<short-suffix>`** (the
-   basename remains the session id, ADR-0033 — so board/dock/map entries become self-describing),
-   cuts the worktree off main, runs the install synchronously (retiring the fail-silent
+   ordering, generalised), mints the worktree name **`<arc>-<story>-<short-suffix>`** when an arc
+   anchor exists and **`<story>-<short-suffix>`** for planless work (owner-refined 2026-07-16: the
+   arc names the journey — a long-lived worktree walks sibling stories one landing at a time, the
+   worktree surviving each merge, ADR-0142 — and the story names the anchor at creation; the first
+   `--node` wins when several are claimed with no arc; slugs are truncated — the `-arc` suffix
+   dropped, basename capped — because the name rides every pnpm path on Windows). The basename
+   remains the session id (ADR-0033 — board/dock/map entries become self-describing), and it is
+   minted ONCE: a session that walks on to a sibling story keeps its birth name (renaming would
+   change the session's identity mid-flight) — the ledger, not the name, is the truth. The command
+   then cuts the worktree off main, runs the install synchronously (retiring the fail-silent
    SessionStart provisioning path of ADR-0162 for this flow), and returns the **start payload** in
    its envelope: claims taken + the board digest + the "work from this path" ceremony. The
    enforcement ratchet: spawners we own call `worktree create` (deterministic); hand-opened
