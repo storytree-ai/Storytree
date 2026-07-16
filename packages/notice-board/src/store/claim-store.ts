@@ -7,6 +7,7 @@ import {
   type ClaimGradeT,
   type ClaimRequest,
   type ClaimResult,
+  type OverlapDelta,
 } from "../claim.js";
 
 /**
@@ -102,6 +103,38 @@ function rowToDoc(row: ClaimRow): ClaimDocT {
 /** The row's effective grade — `work` when absent, mirroring {@link claimGrade}. */
 function rowGrade(row: ClaimRow): ClaimGradeT {
   return row.grade === undefined ? "work" : ClaimGrade.parse(row.grade);
+}
+
+/** One row from the delta read over `events.claim_event` (ADR-0200 D4). */
+interface DeltaRow {
+  seq: string | number;
+  unit_id: string;
+  type: string;
+  session_id: string;
+  doc: unknown;
+  at: Date | string;
+}
+
+/**
+ * Map a claim-event row to the pure {@link OverlapDelta}. `grade`/`intent` are lifted LENIENTLY
+ * from the event's doc (an old/odd doc yields a delta without them — the digest fold degrades
+ * gracefully; a delta feed never fail-closes a courtesy read the way the claim paths do).
+ */
+function rowToDelta(row: DeltaRow): OverlapDelta {
+  const delta: OverlapDelta = {
+    seq: Number(row.seq),
+    unitId: row.unit_id,
+    type: row.type,
+    sessionId: row.session_id,
+    at: toIso(row.at),
+  };
+  if (row.doc !== null && typeof row.doc === "object") {
+    const doc = row.doc as Record<string, unknown>;
+    const grade = ClaimGrade.safeParse(doc["grade"]);
+    if (grade.success) delta.grade = grade.data;
+    if (typeof doc["intent"] === "string") delta.intent = doc["intent"];
+  }
+  return delta;
 }
 
 const CLAIM_COLUMNS =
@@ -712,7 +745,123 @@ export class PgClaimStore {
     }
   }
 
+  // ── Cursor-once overlap deltas (ADR-0200 D4) ─────────────────────────────────
+
+  /**
+   * Pull the claim events this session has NOT yet heard that touch units it currently holds a
+   * live claim on — and advance its cursor PAST them, atomically (ADR-0200 D4: delivered ONCE;
+   * a repeat pull returns nothing until a genuinely newer event). One transaction:
+   *
+   *   1. Lock the session's cursor row (`FOR UPDATE` serialises two concurrent pulls by the same
+   *      session — each event is delivered to exactly one of them).
+   *   2. FIRST READ (no cursor row): SELF-BASELINE — initialise the cursor to the current max
+   *      `claim_event.seq` and return EMPTY. A session hears only events written AFTER its first
+   *      read (the backlog is history, not news; the board/`claims` views are the snapshot
+   *      surface). This is the load-bearing flood guard.
+   *   3. Otherwise read the deltas bounded by the max seq snapshotted in THIS transaction
+   *      (`cursor < seq <= max`): written by ANOTHER session (`session_id <> me` — a session is
+   *      never told about its own events) on a unit in the session's OWN live-claim set (the same
+   *      heartbeat-liveness clock as {@link listLiveClaims} — a released/expired unit drops out of
+   *      the intersection), ascending seq.
+   *   4. Advance the cursor to that max and COMMIT.
+   *
+   * The cursor advances to the GLOBAL max seq, not just the max delivered: an event on a unit the
+   * session doesn't hold is never news later either — claiming a new unit mid-session starts its
+   * delta stream at the claim, with `claims`/the board as the catch-up read. Under READ COMMITTED
+   * a seq allocated but uncommitted while the max is snapshotted can in principle be skipped — an
+   * accepted edge for a courtesy feed (the ledger itself, not the delta, is the coordination
+   * truth). Never throws into the caller's command path — callers on delivery surfaces wrap this
+   * fail-silent (the footer is a courtesy, ADR-0200 D4).
+   */
+  async pullOverlapDeltas(sessionId: string, opts: ClaimOptions = {}): Promise<OverlapDelta[]> {
+    const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cur = await client.query(
+        "SELECT last_seq FROM events.claim_cursor WHERE session_id = $1 FOR UPDATE",
+        [sessionId],
+      );
+      const cursorRow = (cur.rows as { last_seq: string | number }[])[0];
+      const maxRes = await client.query(
+        "SELECT COALESCE(MAX(seq), 0) AS max_seq FROM events.claim_event",
+      );
+      const maxSeq = Number((maxRes.rows as { max_seq: string | number }[])[0]?.max_seq ?? 0);
+
+      if (cursorRow === undefined) {
+        // First read: self-baseline and stay silent (step 2 above).
+        await this.#upsertCursor(client, sessionId, maxSeq);
+        await client.query("COMMIT");
+        return [];
+      }
+
+      const lastSeq = Number(cursorRow.last_seq);
+      if (maxSeq <= lastSeq) {
+        // Nothing new anywhere — no cursor write needed.
+        await client.query("COMMIT");
+        return [];
+      }
+
+      const res = await client.query(
+        `SELECT e.seq, e.unit_id, e.type, e.session_id, e.doc, e.at
+           FROM events.claim_event e
+          WHERE e.seq > $2 AND e.seq <= $3
+            AND e.session_id <> $1
+            AND e.unit_id IN (
+              SELECT unit_id FROM events.node_claim
+               WHERE session_id = $1
+                 AND heartbeat_at > now() - ($4::bigint * interval '1 millisecond'))
+          ORDER BY e.seq`,
+        [sessionId, lastSeq, maxSeq, staleMs],
+      );
+      await this.#upsertCursor(client, sessionId, maxSeq);
+      await client.query("COMMIT");
+      return (res.rows as DeltaRow[]).map(rowToDelta);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Baseline this session's cursor to the current max `claim_event.seq` WITHOUT delivering
+   * anything — the session-birth call (ADR-0200 D4): `worktree create` shows the new session a
+   * current-overlap SNAPSHOT in its start payload, then baselines here so those same rows never
+   * re-fire as deltas on its first command. Idempotent-forward (`GREATEST` — a baseline never
+   * rewinds a cursor that has already advanced). Atomic.
+   */
+  async baselineCursor(sessionId: string): Promise<void> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      const maxRes = await client.query(
+        "SELECT COALESCE(MAX(seq), 0) AS max_seq FROM events.claim_event",
+      );
+      const maxSeq = Number((maxRes.rows as { max_seq: string | number }[])[0]?.max_seq ?? 0);
+      await this.#upsertCursor(client, sessionId, maxSeq);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   // ── Internals ───────────────────────────────────────────────────────────────
+
+  /** Upsert the session's cursor to `seq` — never backwards (GREATEST guards a concurrent advance). */
+  async #upsertCursor(client: ClaimClient, sessionId: string, seq: number): Promise<void> {
+    await client.query(
+      `INSERT INTO events.claim_cursor (session_id, last_seq) VALUES ($1, $2)
+       ON CONFLICT (session_id) DO UPDATE
+         SET last_seq = GREATEST(events.claim_cursor.last_seq, EXCLUDED.last_seq),
+             updated_at = now()`,
+      [sessionId, seq],
+    );
+  }
 
   /**
    * Promote the oldest LIVE waiter on `unitId` to the work grade — the SQL half of the pure

@@ -29,6 +29,22 @@ export function formatEnvelope(e: Envelope): string {
 }
 
 /**
+ * PURE: append the cursor-once overlap-delta digest (ADR-0200 D4) to an envelope's body — the
+ * piggyback surface every `--pg` command's render shares. Empty lines = the envelope unchanged
+ * (no footer, no header — silence is the steady state). The digest lines come from the one shared
+ * fold (`digestOverlapDeltas`, @storytree/notice-board); this composer only frames them, so the
+ * footer reads identically on every command. Appended to `body` (not `next`): the deltas are
+ * information, never navigation.
+ */
+export function withDeltaFooter(e: Envelope, lines: readonly string[]): Envelope {
+  if (lines.length === 0) return e;
+  const footer =
+    "claims on your stories (since your last look, ADR-0200 D4):\n" +
+    lines.map((l) => `  - ${l}`).join("\n");
+  return { ...e, body: e.body.replace(/\s+$/, "") + "\n\n" + footer };
+}
+
+/**
  * One outbound edge of a context-DAG node: the artifact/node it hands on to, plus an optional gloss.
  * The `ref` is an `asset:<id>` Library pointer (or a bare id) — both an agent-step's ceremony refs
  * and a process node's branch-edges resolve to the same canonical Library pull.

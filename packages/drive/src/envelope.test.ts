@@ -67,3 +67,37 @@ test("the emitted envelope round-trips through formatEnvelope with a `next:` blo
   assert.match(text, /body text/);
   assert.match(text, /next:\n {2}- storytree library artifact one/);
 });
+
+// ── withDeltaFooter (ADR-0200 D4): the cursor-once delta piggyback composer ──
+
+import { withDeltaFooter } from "./envelope.js";
+
+test("withDeltaFooter: empty lines return the envelope UNCHANGED — silence is the steady state", () => {
+  const env = { ok: true, body: "the command's own body\n", next: ["storytree tree --pg"] } as const;
+  const out = withDeltaFooter(env, []);
+  assert.deepEqual(out, env, "no footer, no header, nothing moved");
+});
+
+test("withDeltaFooter: appends the framed digest to the body once, before the next: block renders", () => {
+  const out = withDeltaFooter(
+    { ok: true, body: "Claims on \"notice-board\":\n  - [work] me\n", next: ["storytree noticeboard --pg"] },
+    ['session sess-b is exploring notice-board ("reading")'],
+  );
+  assert.equal(
+    out.body,
+    'Claims on "notice-board":\n  - [work] me\n\nclaims on your stories (since your last look, ADR-0200 D4):\n  - session sess-b is exploring notice-board ("reading")',
+  );
+  assert.deepEqual(out.next, ["storytree noticeboard --pg"], "next rides through untouched");
+  const rendered = formatEnvelope(out);
+  assert.match(rendered, /claims on your stories[\s\S]*next:/, "the footer renders inside the body, ahead of next:");
+});
+
+test("withDeltaFooter: several lines each render as one bullet; ok/doctrine ride through (an error envelope still carries its footer)", () => {
+  const out = withDeltaFooter(
+    { ok: false, body: "refused", doctrine: ["some-doctrine — storytree library artifact some-doctrine"] },
+    ["session a released story-x", "story-y: 3 claim events — latest: session b upgraded to the WORK claim on story-y"],
+  );
+  assert.equal(out.ok, false);
+  assert.deepEqual(out.doctrine, ["some-doctrine — storytree library artifact some-doctrine"]);
+  assert.match(out.body, /\n {2}- session a released story-x\n {2}- story-y: 3 claim events/);
+});

@@ -104,7 +104,12 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    cursor over the sequenced `claim_event` log; deltas that intersect the session's own claim set
    are delivered ONCE (cursor advances; a digest line when several accumulated), piggybacked on
    outputs the agent already reads (CLI envelope footers, gate output, the `worktree create`
-   payload, SessionStart). "Someone else is exploring your story" fires once; it speaks again only
+   payload). **[Corrected 2026-07-16 (inc-4 build, ADR-0200 arc): SessionStart is deliberately NOT a
+   delta surface — an unclaimed session's claim set is empty (no deltas by construction) and a
+   `worktree create`-born session is already baselined at birth, so a hook line would add nothing and
+   preserves the never-blocking-hooks contract (ADR-0033 D3); pending deltas ride the session's
+   first `--pg` CLI envelope instead. The D4 principle — cursor-once, riding existing outputs,
+   never a schedule — is unchanged; only the surface enumeration is corrected.]** "Someone else is exploring your story" fires once; it speaks again only
    on a genuinely new event (upgrade, queued-behind-you, release, reclaim). The statusline remains
    the HUMAN's ambient state display (redrawn, not sent — no dedup needed) and keeps the
    never-blocking-hooks contract (ADR-0033 Decision 3): no scheduled context injection exists.

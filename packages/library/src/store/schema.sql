@@ -275,6 +275,16 @@ CREATE TABLE IF NOT EXISTS events.claim_event (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Per-session cursor over the sequenced claim_event log (ADR-0200 D4): deltas that intersect a
+-- session's OWN claim set are delivered ONCE, riding outputs the agent already reads — the cursor
+-- records the last seq the session has heard, advanced atomically with delivery. Self-baselined to
+-- the current max seq on first read, so a fresh session never floods on backlog.
+CREATE TABLE IF NOT EXISTS events.claim_cursor (
+  session_id TEXT PRIMARY KEY,
+  last_seq   BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Helpful indexes (ADR-0017).
 CREATE INDEX IF NOT EXISTS claim_event_unit_idx ON events.claim_event (unit_id);
 CREATE INDEX IF NOT EXISTS library_artifact_kind_idx ON events.library_artifact (kind);

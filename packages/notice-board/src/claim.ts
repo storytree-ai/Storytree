@@ -320,6 +320,95 @@ const GRADE_RANK: Record<ClaimGradeT, number> = { work: 0, waiting: 1, exploring
  * first), ties on `sessionId`; within a group by grade rank (work > waiting > exploring), then
  * `claimedAt`, then `unitId`. No clock reads — the caller supplies `now`.
  */
+// ---------------------------------------------------------------------------
+// Pure overlap-delta digest (ADR-0200 D4) — cursor-once deltas ride outputs
+// the agent already reads. The store half (per-session cursor over the
+// sequenced claim_event log) is PgClaimStore.pullOverlapDeltas; this is the
+// ONE rendering fold every delivery surface (the CLI envelope footer, the
+// worktree-create payload) shares, so "someone else is exploring your story"
+// reads identically everywhere. Browser-safe like everything above.
+// ---------------------------------------------------------------------------
+
+/**
+ * One claim event delivered to a session because it touches a unit the session holds a live claim
+ * on (ADR-0200 D4). Written by ANOTHER session — a session is never told about its own events.
+ * `grade`/`intent` come from the event's claim doc when it carries them (a `conflict-refused`
+ * event's doc is the BLOCKING holder, so the fold ignores them there).
+ */
+export interface OverlapDelta {
+  /** The event's position in the sequenced claim_event log. */
+  seq: number;
+  unitId: string;
+  /** claimed | reclaimed | released | conflict-refused | upgraded | downgraded | queued | promoted */
+  type: string;
+  /** The acting session (the one that claimed/released/queued/…). */
+  sessionId: string;
+  grade?: ClaimGradeT;
+  intent?: string;
+  /** When the event was written (ISO 8601). */
+  at: string;
+}
+
+/** The one-event phrase — "is exploring <unit>", "took the WORK claim on <unit>", … */
+function deltaPhrase(d: OverlapDelta): string {
+  const intent = d.intent !== undefined && d.intent.trim().length > 0 ? ` ("${d.intent}")` : "";
+  switch (d.type) {
+    case "claimed": {
+      const grade = d.grade ?? "work";
+      if (grade === "exploring") return `is exploring ${d.unitId}${intent}`;
+      if (grade === "waiting") return `is waiting on ${d.unitId}`;
+      return `took the WORK claim on ${d.unitId}`;
+    }
+    case "reclaimed":
+      return `RECLAIMED the work claim on ${d.unitId} (stale holder evicted)`;
+    case "upgraded":
+      return `upgraded to the WORK claim on ${d.unitId}`;
+    // The residual types beyond D4's named set, mapped explicitly (never silence — an event on a
+    // unit you hold is worth one line, whatever its type):
+    case "downgraded":
+      return `downgraded to ${d.grade ?? "a shared grade"} on ${d.unitId}`;
+    case "queued":
+      return `queued for the work slot on ${d.unitId}`;
+    case "promoted":
+      return `was promoted to the WORK claim on ${d.unitId}`;
+    case "released":
+      return `released ${d.unitId}`;
+    case "conflict-refused":
+      return `tried to take the WORK claim on ${d.unitId} (refused — slot held)`;
+    default:
+      // Forward-compat: an unknown event type still speaks, it never silently drops.
+      return `${d.type} on ${d.unitId}`;
+  }
+}
+
+/**
+ * PURE: fold overlap deltas into the human digest lines a delivery surface prints (ADR-0200 D4).
+ * One line per event — `session <id> <phrase>` — except when SEVERAL events accumulated on one
+ * unit, which collapse to a single digest line ("<unit>: N claim events — latest: …") so a busy
+ * unit never floods the footer. Units keep first-seen (seq) order; empty in → empty out. No clock
+ * reads, no I/O.
+ */
+export function digestOverlapDeltas(deltas: readonly OverlapDelta[]): string[] {
+  const byUnit = new Map<string, OverlapDelta[]>();
+  for (const d of deltas) {
+    const bucket = byUnit.get(d.unitId);
+    if (bucket === undefined) byUnit.set(d.unitId, [d]);
+    else bucket.push(d);
+  }
+  const lines: string[] = [];
+  for (const [unitId, events] of byUnit) {
+    const latest = events[events.length - 1] as OverlapDelta;
+    if (events.length === 1) {
+      lines.push(`session ${latest.sessionId} ${deltaPhrase(latest)}`);
+    } else {
+      lines.push(
+        `${unitId}: ${events.length} claim events — latest: session ${latest.sessionId} ${deltaPhrase(latest)}`,
+      );
+    }
+  }
+  return lines;
+}
+
 export function groupClaimsBySession(
   claims: readonly ClaimDocT[],
   now: Date,

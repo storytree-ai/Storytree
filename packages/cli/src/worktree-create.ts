@@ -137,6 +137,12 @@ export interface WorktreeCreateLedgerLike {
   take(req: ClaimRequest): Promise<ClaimResult>;
   release(unitId: string, sessionId: string): Promise<boolean>;
   claimsFor(unitId: string): Promise<ClaimDocT[]>;
+  /**
+   * OPTIONAL: baseline the minted session's overlap-delta cursor (ADR-0200 D4) so the board-digest
+   * snapshot below never re-fires as deltas on the session's first command. A courtesy — the
+   * store's first-read self-baseline is the correctness guard — so absent/failing is fine.
+   */
+  baselineCursor?(sessionId: string): Promise<void>;
 }
 
 /** The injected IO surface — git + fs + pnpm. Real impl is {@link defaultWorktreeCreateIo}. */
@@ -417,6 +423,15 @@ export async function createWorktree(
     } catch {
       // The digest is a courtesy read — a failed board read never fails a created workspace.
     }
+  }
+
+  // Baseline the minted session's delta cursor (ADR-0200 D4): the board digest above IS the birth
+  // snapshot, so those same rows must never re-fire as cursor-once deltas on the session's first
+  // command. Best-effort — the store's first-read self-baseline is the correctness guard.
+  try {
+    await ledger.baselineCursor?.(sessionId);
+  } catch {
+    // courtesy only — a failed baseline never fails a created workspace
   }
 
   const anchor = nodes[0] as string;

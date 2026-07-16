@@ -46,6 +46,7 @@ function claimOf(req: ClaimRequest): ClaimDocT {
 interface FakeLedger extends WorktreeCreateLedgerLike {
   readonly takes: ClaimRequest[];
   readonly releases: { unitId: string; sessionId: string }[];
+  readonly baselines: string[];
   // The wider noticeboard-verb surface (RunDeps.presence.ledger is ClaimLedgerStoreLike) — the
   // create ceremony never calls these; they throw so a stray call is loud, not silent.
   upgrade(unitId: string, sessionId: string, opts?: { branch?: string; intent?: string }): Promise<ClaimResult>;
@@ -56,12 +57,19 @@ interface FakeLedger extends WorktreeCreateLedgerLike {
 function fakeLedger(opts?: {
   takeImpl?: (req: ClaimRequest, callIndex: number) => Promise<ClaimResult>;
   claimsForImpl?: (unitId: string) => Promise<ClaimDocT[]>;
+  baselineThrows?: boolean;
 }): FakeLedger {
   const takes: ClaimRequest[] = [];
   const releases: { unitId: string; sessionId: string }[] = [];
+  const baselines: string[] = [];
   return {
     takes,
     releases,
+    baselines,
+    async baselineCursor(sessionId) {
+      if (opts?.baselineThrows === true) throw new Error("baseline exploded");
+      baselines.push(sessionId);
+    },
     async take(req) {
       const idx = takes.length;
       takes.push(req);
@@ -366,4 +374,54 @@ test("run dispatch: worktreeHelp documents create", async () => {
   const env = await run(["worktree", "--help"], { store: new InMemoryStore() });
   assert.equal(env.ok, true);
   assert.match(env.body, /worktree create/);
+});
+
+// ── The birth cursor-baseline (ADR-0200 D4): the snapshot never re-fires as deltas ──
+
+test("create: baselines the MINTED session's delta cursor after the claims + digest (the birth snapshot is swallowed)", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true);
+  assert.deepEqual(ledger.baselines, ["story-a-aaaaaa"], "baselined once, for the minted identity");
+});
+
+test("create: a THROWING baselineCursor never fails the ceremony (courtesy only)", async () => {
+  const ledger = fakeLedger({ baselineThrows: true });
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true, "the workspace stands; the baseline is best-effort");
+  assert.equal(ledger.releases.length, 0, "the claims stand too");
+});
+
+test("create: a ledger WITHOUT baselineCursor (the optional seam absent) still completes the ceremony", async () => {
+  const bare = fakeLedger();
+  const ledger = { ...bare, takes: bare.takes, releases: bare.releases } as Record<string, unknown>;
+  delete ledger["baselineCursor"];
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger: ledger as unknown as WorktreeCreateLedgerLike, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, true);
+});
+
+test("create: a refused take never reaches the baseline (no workspace, no cursor)", async () => {
+  const holder = claimOf({ unitId: "story-a", sessionId: "other-sess", branch: "claude/other", grade: "work" });
+  const ledger = fakeLedger({
+    takeImpl: async () => ({ acquired: false, heldBy: holder }),
+  });
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+  );
+  assert.equal(env.ok, false);
+  assert.deepEqual(ledger.baselines, [], "no claim, no workspace, no baseline");
 });

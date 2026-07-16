@@ -344,3 +344,68 @@ test("groupClaimsBySession: empty in, empty out; deterministic session tie-break
   );
   assert.deepEqual(groups.map((g) => g.sessionId), ["aa-first", "zz-later"], "equal oldest ages tie-break alphabetically");
 });
+
+// ── digestOverlapDeltas (ADR-0200 D4): the pure cursor-once delta digest ──────
+
+import { digestOverlapDeltas, type OverlapDelta } from "./claim.js";
+
+function delta(over: Partial<OverlapDelta> & Pick<OverlapDelta, "seq" | "type">): OverlapDelta {
+  return {
+    unitId: "notice-board",
+    sessionId: "sess-other",
+    at: "2026-07-16T12:00:00.000Z",
+    ...over,
+  };
+}
+
+test("digestOverlapDeltas: empty in, empty out", () => {
+  assert.deepEqual(digestOverlapDeltas([]), []);
+});
+
+test("digestOverlapDeltas: one exploring event renders the D4 headline line with the intent prose", () => {
+  const lines = digestOverlapDeltas([
+    delta({ seq: 7, type: "claimed", grade: "exploring", intent: "reading the spine" }),
+  ]);
+  assert.deepEqual(lines, ['session sess-other is exploring notice-board ("reading the spine")']);
+});
+
+test("digestOverlapDeltas: every event type maps to an explicit phrase — nothing silently drops", () => {
+  const cases: Array<[Partial<OverlapDelta> & Pick<OverlapDelta, "seq" | "type">, string]> = [
+    [{ seq: 1, type: "claimed", grade: "waiting" }, "session sess-other is waiting on notice-board"],
+    [{ seq: 2, type: "claimed", grade: "work" }, "session sess-other took the WORK claim on notice-board"],
+    [{ seq: 3, type: "claimed" }, "session sess-other took the WORK claim on notice-board"], // absent grade = work (pre-grade back-compat)
+    [{ seq: 4, type: "upgraded" }, "session sess-other upgraded to the WORK claim on notice-board"],
+    [{ seq: 5, type: "queued" }, "session sess-other queued for the work slot on notice-board"],
+    [{ seq: 6, type: "released" }, "session sess-other released notice-board"],
+    [{ seq: 7, type: "reclaimed" }, "session sess-other RECLAIMED the work claim on notice-board (stale holder evicted)"],
+    [{ seq: 8, type: "promoted" }, "session sess-other was promoted to the WORK claim on notice-board"],
+    [{ seq: 9, type: "downgraded", grade: "exploring" }, "session sess-other downgraded to exploring on notice-board"],
+    [{ seq: 10, type: "conflict-refused" }, "session sess-other tried to take the WORK claim on notice-board (refused — slot held)"],
+    [{ seq: 11, type: "some-future-type" }, "session sess-other some-future-type on notice-board"],
+  ];
+  for (const [d, expected] of cases) {
+    assert.deepEqual(digestOverlapDeltas([delta(d)]), [expected], `type=${d.type} grade=${String(d.grade)}`);
+  }
+});
+
+test("digestOverlapDeltas: several events on ONE unit collapse to a single digest line carrying the latest", () => {
+  const lines = digestOverlapDeltas([
+    delta({ seq: 1, type: "claimed", grade: "exploring", sessionId: "sess-a" }),
+    delta({ seq: 2, type: "upgraded", sessionId: "sess-a" }),
+    delta({ seq: 3, type: "released", sessionId: "sess-a" }),
+  ]);
+  assert.deepEqual(lines, [
+    "notice-board: 3 claim events — latest: session sess-a released notice-board",
+  ]);
+});
+
+test("digestOverlapDeltas: units keep first-seen order; a blank intent renders no suffix", () => {
+  const lines = digestOverlapDeltas([
+    delta({ seq: 1, type: "claimed", grade: "exploring", unitId: "story-b", intent: "   " }),
+    delta({ seq: 2, type: "queued", unitId: "story-a" }),
+  ]);
+  assert.deepEqual(lines, [
+    "session sess-other is exploring story-b",
+    "session sess-other queued for the work slot on story-a",
+  ]);
+});

@@ -10,13 +10,15 @@ import {
   PgLibraryStore,
   PgAdrStore,
 } from "@storytree/library/store";
+import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore, PgPresenceStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
 
 import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
 import { run } from "./commands.js";
-import { formatEnvelope } from "./envelope.js";
+import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
+import { deriveIdentity } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, PresenceStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
@@ -37,6 +39,8 @@ async function buildStore(usePg: boolean): Promise<{
   uatStore: UatVerdictStoreLike | null;
   attestations: AttestationStoreLike | null;
   adr: AdrAllocatorLike | null;
+  /** The cursor-once overlap-delta pull (ADR-0200 D4); null offline — no footer surface. */
+  pullDeltas: ((sessionId: string) => Promise<OverlapDelta[]>) | null;
   close: () => Promise<void>;
 }> {
   if (usePg) {
@@ -69,12 +73,42 @@ async function buildStore(usePg: boolean): Promise<{
       // The ADR-number allocator (ADR-0050): `storytree adr new` reserves the next number through
       // events.adr_number on the same pool; offline it falls back to max+1 with a loud warning.
       adr: new PgAdrStore(pool),
+      // The cursor-once overlap-delta pull (ADR-0200 D4): every --pg command's envelope render
+      // piggybacks the deltas that touch this session's own claims — see main() below.
+      pullDeltas: (sessionId: string) => claimStore.pullOverlapDeltas(sessionId),
       close: () => closePool(pool, connector),
     };
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, close: async () => {} };
+  return { store, presence: null, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, pullDeltas: null, close: async () => {} };
+}
+
+/** Time budget for the delta footer's store read — a slow DB never stalls the command's output. */
+const DELTA_FOOTER_TIMEOUT_MS = 3_000;
+
+/**
+ * Piggyback the cursor-once overlap deltas on the envelope this command already renders
+ * (ADR-0200 D4 — deltas ride outputs the agent already reads; never a schedule). FAIL-SILENT by
+ * contract: no worktree identity (the lobby, CI), a delta-read error, or a slow DB (time-boxed)
+ * all return the envelope UNCHANGED — a courtesy footer never fails or stalls a command.
+ */
+async function attachDeltaFooter(
+  env: Envelope,
+  pullDeltas: ((sessionId: string) => Promise<OverlapDelta[]>) | null,
+): Promise<Envelope> {
+  if (pullDeltas === null) return env;
+  try {
+    const identity = deriveIdentity();
+    if (identity === null) return env;
+    const timeout = new Promise<OverlapDelta[]>((resolve) => {
+      setTimeout(() => resolve([]), DELTA_FOOTER_TIMEOUT_MS).unref();
+    });
+    const deltas = await Promise.race([pullDeltas(identity.sessionId).catch(() => []), timeout]);
+    return withDeltaFooter(env, digestOverlapDeltas(deltas));
+  } catch {
+    return env; // fail-silent — the footer is a courtesy, the command's envelope is the payload
+  }
 }
 
 /**
@@ -94,7 +128,7 @@ export async function main(): Promise<void> {
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, claims, ledger, verdicts, uatStore, attestations, adr, close } = await buildStore(usePg);
+  const { store, presence, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -108,7 +142,8 @@ export async function main(): Promise<void> {
       adr,
       ...(actor !== undefined ? { actor } : {}),
     });
-    process.stdout.write(formatEnvelope(env));
+    // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
+    process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
     process.exitCode = env.ok ? 0 : 1;
   } finally {
     await close();
