@@ -13,17 +13,17 @@
 //
 // What is proved:
 //
-//   • va-composer-shows-verified-identity: the composer displays the resolved `me.email` text
+//   • att-composer-shows-verified-identity: the composer displays the resolved `me.email` text
 //     when the identity has resolved.
 //   • va-composer-shows-fallback-identity: the composer displays the conventional `operator`
 //     fallback text when `me.email` is null (the open dev posture).
 //   • va-composer-identity-is-not-editable: the identity is never an editable field — no
 //     `input[aria-label="operator identity"]`, no plain `<input>` at all in the thread.
-//   • va-post-uses-verified-identity: posting a comment sends an author derived from the
+//   • att-post-author-from-verified-identity: posting a comment sends an author derived from the
 //     RESOLVED `me.email`, never a stale localStorage-sourced name.
 //   • va-post-uses-fallback-identity: posting a comment with an UNRESOLVED identity sends the
 //     `operator` fallback, never a stale localStorage-sourced name.
-//   • va-never-touches-operator-localstorage: the `storytree.operator` localStorage key is never
+//   • att-operator-store-retired: the operator module is gone and the `storytree.operator` localStorage key is never
 //     read or written by the composer mount.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -105,7 +105,7 @@ afterEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────
 
 describe('verified attribution (ADR-0204 D4)', () => {
-  it('va-composer-shows-verified-identity: the composer presents the resolved verified email, never the stale localStorage name', async () => {
+  it('att-composer-shows-verified-identity: the composer presents the resolved verified email, never the stale localStorage name', async () => {
     appDataMock.me = { role: 'member', email: 'hua.mick@gmail.com' };
     renderReview('review');
     await flush();
@@ -135,7 +135,7 @@ describe('verified attribution (ADR-0204 D4)', () => {
     expect(container.querySelector('input')).toBeNull();
   });
 
-  it('va-post-uses-verified-identity: posting a comment sends the RESOLVED verified email as author, never the stale localStorage name', async () => {
+  it('att-post-author-from-verified-identity: posting a comment sends the RESOLVED verified email as author, never the stale localStorage name', async () => {
     appDataMock.me = { role: 'member', email: 'hua.mick@gmail.com' };
     renderReview('review');
     await flush();
@@ -167,7 +167,7 @@ describe('verified attribution (ADR-0204 D4)', () => {
     expect(call.author).not.toBe(STALE_OPERATOR_NAME);
   });
 
-  it('va-never-touches-operator-localstorage: the composer never reads or writes the storytree.operator key', async () => {
+  it('att-operator-store-retired: the operator module is deleted and the composer never touches the storytree.operator key', async () => {
     const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
 
