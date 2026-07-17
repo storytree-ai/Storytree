@@ -66,9 +66,9 @@ test("registry schema: a well-formed registry parses successfully", () => {
 // seed registry reflects today's reality
 // ---------------------------------------------------------------------------
 
-test("seed registry: Fable is registered as the admitted frontier judge", () => {
-  const fable = SEED_MODEL_REGISTRY.models.find((m) => m.id === "fable");
-  assert.ok(fable, "fable must be registered in the seed");
+test("seed registry: Fable is registered as the admitted frontier judge, under its concrete Claude SDK runtime id", () => {
+  const fable = SEED_MODEL_REGISTRY.models.find((m) => m.id === "claude-fable-5");
+  assert.ok(fable, "claude-fable-5 must be registered in the seed (the live Claude SDK runtime id, not a bare label)");
   assert.equal(fable!.tier, "frontier");
   assert.equal(fable!.available, true);
 });
@@ -82,12 +82,40 @@ test("seed registry: GPT-5.6 Sol is never admitted as an eligible-by-aspiration 
   }
 });
 
-test("seed registry: resolving a frontier requirement against the seed yields Fable, eligible", () => {
+test("seed registry: resolving a frontier requirement against the seed yields Fable, eligible, under its concrete runtime id", () => {
   const resolution = resolveJudge("frontier", SEED_MODEL_REGISTRY);
   assert.equal(resolution.status, "eligible");
   if (resolution.status === "eligible") {
-    assert.equal(resolution.judge.id, "fable");
+    assert.equal(resolution.judge.id, "claude-fable-5");
     assert.equal(resolution.judge.tier, "frontier");
+  }
+});
+
+test("seed registry: uses the live SDK runtime ids — claude-opus-4-8 (advanced) and claude-fable-5 (frontier) — never a bare label or a Cursor slug", () => {
+  const opus = SEED_MODEL_REGISTRY.models.find((m) => m.id === "claude-opus-4-8");
+  assert.ok(opus, "claude-opus-4-8 (the live SDK runtime id, headless-orchestrator.ts / ADR-0132) must be registered in the seed");
+  assert.equal(opus!.tier, "advanced");
+  assert.equal(opus!.available, true);
+
+  const fable = SEED_MODEL_REGISTRY.models.find((m) => m.id === "claude-fable-5");
+  assert.ok(fable, "claude-fable-5 must be registered in the seed");
+  assert.equal(fable!.tier, "frontier");
+  assert.equal(fable!.available, true);
+
+  const cursorSlug = SEED_MODEL_REGISTRY.models.find((m) => m.id === "claude-fable-5-thinking-high");
+  assert.equal(
+    cursorSlug,
+    undefined,
+    "claude-fable-5-thinking-high is a Cursor model slug, not the Claude SDK runtime id, and must never be registered",
+  );
+});
+
+test("seed registry: an advanced requirement resolves against the seed to the registered Opus-class judge, under its concrete runtime id", () => {
+  const resolution = resolveJudge("advanced", SEED_MODEL_REGISTRY);
+  assert.equal(resolution.status, "eligible");
+  if (resolution.status === "eligible") {
+    assert.equal(resolution.judge.id, "claude-opus-4-8");
+    assert.equal(resolution.judge.tier, "advanced");
   }
 });
 

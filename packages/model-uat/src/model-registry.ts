@@ -50,7 +50,10 @@ export type ModelRegistry = z.infer<typeof ModelRegistry>;
  */
 export const SEED_MODEL_REGISTRY: ModelRegistry = {
   version: MODEL_REGISTRY_VERSION,
-  models: [{ id: "fable", tier: "frontier", available: true }],
+  models: [
+    { id: "claude-opus-4-8", tier: "advanced", available: true },
+    { id: "claude-fable-5", tier: "frontier", available: true },
+  ],
 };
 
 // ---------------------------------------------------------------------------
