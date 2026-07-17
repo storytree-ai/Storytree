@@ -2594,6 +2594,27 @@ a.stat:hover {
   border-color: color-mix(in srgb, var(--term-sage) 55%, transparent);
   background: color-mix(in srgb, var(--term-sage) 7%, transparent);
 }
+/* The clear control — clears the ACTIVE tab's screen (and syncs the pty's ConPTY buffer, patterns-
+   survey inc C). A quieter sibling of the "+" row: same full-width action-row shape, borderless
+   until hover so it never competes with the spawn affordance. */
+.terminal-dock-panel-clear {
+  margin-top: 2px;
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--term-muted) 70%, transparent);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.terminal-dock-panel-clear:hover {
+  color: var(--term-muted);
+  border-color: color-mix(in srgb, var(--term-muted) 45%, transparent);
+  background: color-mix(in srgb, var(--term-muted) 7%, transparent);
+}
 
 /* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled bar — never a spawn, never a
    hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to;

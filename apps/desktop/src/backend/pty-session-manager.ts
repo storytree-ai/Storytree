@@ -1,7 +1,7 @@
 // PtySessionManager — the Electron-main pty lifecycle manager.
 //
 // A deep module over an injected PtyPort: spawn / write / resize / dispose / route-data /
-// snapshot / list / ack, tracking multiple independent sessions and failing closed (typed
+// snapshot / list / ack / clear, tracking multiple independent sessions and failing closed (typed
 // false/null/no-op, never a throw) on an unknown or already-disposed session id. No
 // `electron` import, no `node-pty` import — the real pty is reached only through the
 // injected PtyPort, so the whole lifecycle is provable headlessly (node:test, a fake port).
@@ -61,6 +61,11 @@ export interface PtyHandle {
   /** Resume reading the pty's output once the renderer has consumed back below the low
    *  watermark. The real port wraps node-pty's own resume(). */
   resume(): void;
+  /** ConPTY state-sync (patterns-survey increment C): clear the pty's internal buffer
+   *  representation when the FRONTEND clears — node-pty documents clear() as a no-op except
+   *  on Windows/ConPTY, where an unsynced backend buffer makes ConPTY reprint the stale
+   *  screen on the next resize. The real port wraps node-pty's own clear(). */
+  clear(): void;
   kill(): void;
 }
 
@@ -264,6 +269,32 @@ export class PtySessionManager {
       session.paused = false;
       session.handle.resume();
     }
+    return true;
+  }
+
+  /** ConPTY state-sync for a FRONTEND clear (patterns-survey increment C): the renderer
+   * cleared its xterm buffer, so clear the pty's own buffer representation (node-pty clear()
+   * — a documented no-op except on Windows/ConPTY, where it stops ConPTY reprinting the
+   * stale screen on the next resize) AND the main-held headless screen model in the same
+   * motion, so snapshot() agrees with the cleared frontend — a re-attach after a clear never
+   * replays the pre-clear screen. ASYNC like snapshot(): the headless terminal's pending
+   * writes flush FIRST, so a chunk received before the clear can never re-materialize after
+   * it. Fail-closed: false (never a throw) for an unknown or disposed session id. */
+  async clear(sessionId: string): Promise<boolean> {
+    const session = this.#sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+    await new Promise<void>((resolve) => {
+      session.term.write("", resolve);
+    });
+    // The session may have been disposed while the flush was in flight.
+    const stillLive = this.#sessions.get(sessionId);
+    if (!stillLive) {
+      return false;
+    }
+    stillLive.term.clear();
+    stillLive.handle.clear();
     return true;
   }
 

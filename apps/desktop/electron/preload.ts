@@ -91,6 +91,13 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
   ack: (sessionId: string, charCount: number): void => {
     ipcRenderer.send("terminal:ack", sessionId, charCount);
   },
+  // ConPTY state-sync (patterns-survey increment C): the renderer cleared its xterm buffer —
+  // forward the clear so the pty's own buffer representation (node-pty clear(), a no-op off
+  // Windows) and the main-held screen model clear with it; else ConPTY reprints the stale
+  // screen on the next resize and a re-attach would replay it. Fire-and-forget.
+  clear: (sessionId: string): void => {
+    ipcRenderer.send("terminal:clear", sessionId);
+  },
   ...(windowsBuildNumber === undefined ? {} : { windowsBuildNumber }),
 });
 
