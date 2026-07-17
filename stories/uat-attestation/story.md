@@ -25,8 +25,8 @@ view, distinct from a gate-proven pass, and never greens the story. No path ever
 
 The deciding ADRs are [ADR-0044](../../docs/decisions/0044-per-uat-test-human-attestation.md) — which
 refines ADR-0040's story-level human-witness signpost down to the individual UAT test (a story has one
-tree but many UAT tests, and "always allow both" human and machine) — and
-[ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md),
+tree but many UAT test criteria, and "always allow both" human and machine) — and
+[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md),
 which **supersedes-in-part ADR-0044 §2/§3**: a human stamp on a declared-human test is now a *real
 signed verdict* that greens it (ADR-0007's `operator-attested` mode), not only a never-green signal,
 and a story's own UAT greens as the AND-roll-up of its per-test verdicts. The honesty rule is
@@ -58,7 +58,7 @@ untouched: green is still a signed verdict, and no one can forge one.
 | 2 | [`attestation-signals`](attestation-signals.md) | A per-test attestation persists as an append-only signed signal (human or machine), with relayed-by provenance, separate from gate verdicts and never rolled up. | proposed | `uat-test-units` |
 | 3 | [`attestation-surface`](attestation-surface.md) | The story detail (panel + CLI) shows each UAT test's PROVEN verdict (the signed gate state that can green the story) distinct from its lower-rigor vouch (never green). | proposed | `attestation-signals` |
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 The bold lead is each test's title; the `(witness: …)` tag declares who may attest it (parsed by
 `uat-test-units` into `<story>#uat-<n>` ids — absent ⇒ `either`).

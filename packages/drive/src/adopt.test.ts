@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { ReliabilityGate, UatTest, UatTestWitness } from "@storytree/library";
+import type { ReliabilityGate, UatTestCriterion, UatTestCriterionWitness } from "@storytree/library";
 import { SPINE_PRINCIPAL } from "@storytree/orchestrator";
 
 import {
@@ -65,7 +65,7 @@ function gate(n: number, over: Partial<ReliabilityGate> = {}): ReliabilityGate {
   };
 }
 
-function leg(n: number, witness: UatTestWitness, over: Partial<UatTest> = {}): UatTest {
+function leg(n: number, witness: UatTestCriterionWitness, over: Partial<UatTestCriterion> = {}): UatTestCriterion {
   return { id: `library#uat-${n}`, title: `leg ${n}`, witness, wouldBe: false, ...over };
 }
 
@@ -87,7 +87,7 @@ function recordingStore(): RecordingStore {
 const TWO_OBSERVE: AdoptStory = {
   status: "mapped",
   reliabilityGates: [gate(1, { covers: ["cap-a"] }), gate(2)],
-  uatTests: [],
+  uatTestCriteria: [],
 };
 
 function deps(over: Partial<AdoptDeps> = {}): AdoptDeps {
@@ -124,7 +124,7 @@ test("adopt: a non-observe gate is skipped (only observe gates are observe-and-s
   const story: AdoptStory = {
     status: "mapped",
     reliabilityGates: [gate(1), gate(2, { kind: "build-tests", proofCommand: undefined })],
-    uatTests: [],
+    uatTestCriteria: [],
   };
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   assert.equal(env.ok, true);
@@ -134,14 +134,14 @@ test("adopt: a non-observe gate is skipped (only observe gates are observe-and-s
 
 test("adopt REFUSE: a non-brownfield status (healthy) is never adopted", async () => {
   const store = recordingStore();
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => ({ status: "healthy", reliabilityGates: [gate(1)], uatTests: [] }) }));
+  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => ({ status: "healthy", reliabilityGates: [gate(1)], uatTestCriteria: [] }) }));
   assert.equal(env.ok, false);
   assert.match(env.body, /is "healthy", not a brownfield/);
   assert.equal(store.appended.length, 0);
 });
 
 test("adopt REFUSE: a story with no observe gates", async () => {
-  const env = await runAdopt("library", {}, deps({ loadStory: () => ({ status: "mapped", reliabilityGates: [gate(1, { kind: "build-tests", proofCommand: undefined })], uatTests: [] }) }));
+  const env = await runAdopt("library", {}, deps({ loadStory: () => ({ status: "mapped", reliabilityGates: [gate(1, { kind: "build-tests", proofCommand: undefined })], uatTestCriteria: [] }) }));
   assert.equal(env.ok, false);
   assert.match(env.body, /no `observe` reliability gates/);
 });
@@ -200,7 +200,7 @@ test("ADR-0106: adopt observe-signs a machine leg, leaves human + either legs fo
     status: "mapped",
     reliabilityGates: [gate(1)], // one observe gate
     // the machine leg names its binding explicitly (uat-bound-command-adoption: no sole-gate fallback)
-    uatTests: [leg(1, "machine", { proofGateId: "library#gate-1" }), leg(2, "human"), leg(3, "either")],
+    uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" }), leg(2, "human"), leg(3, "either")],
   };
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   assert.equal(env.ok, true);
@@ -224,7 +224,7 @@ test("ADR-0106: the shared observe suite runs ONCE for the gate + the machine le
     status: "mapped",
     reliabilityGates: [gate(1)],
     // all three legs explicitly share the same binding (uat-bound-command-adoption: no sole-gate fallback)
-    uatTests: [
+    uatTestCriteria: [
       leg(1, "machine", { proofGateId: "library#gate-1" }),
       leg(2, "machine", { proofGateId: "library#gate-1" }),
       leg(3, "machine", { proofGateId: "library#gate-1" }),
@@ -251,7 +251,7 @@ test("ADR-0106: a machine leg whose covering observe gate declares no command is
   const story: AdoptStory = {
     status: "mapped",
     reliabilityGates: [gate(1, { proofCommand: undefined })], // observe gate, but no command to observe
-    uatTests: [leg(1, "machine", { proofGateId: "library#gate-1" })], // explicitly bound to it
+    uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" })], // explicitly bound to it
   };
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   assert.equal(env.ok, false);
@@ -264,7 +264,7 @@ test("ADR-0106: an aspirational (wouldBe) leg is not an obligation — never cla
   const story: AdoptStory = {
     status: "mapped",
     reliabilityGates: [gate(1)],
-    uatTests: [leg(1, "machine", { wouldBe: true })],
+    uatTestCriteria: [leg(1, "machine", { wouldBe: true })],
   };
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   assert.equal(env.ok, true);
@@ -282,7 +282,7 @@ test("uat-bound-command-adoption: an unbound machine leg fails the whole UAT-sig
   const story: AdoptStory = {
     status: "mapped",
     reliabilityGates: [gate(1)], // one observe gate — leg-1 below would resolve fine against it alone
-    uatTests: [
+    uatTestCriteria: [
       leg(1, "machine", { proofGateId: "library#gate-1" }), // validly bound to the declared gate
       leg(2, "machine"), // no proof-gate binding — refused (uat-machine-gate-resolution)
     ],
@@ -305,7 +305,7 @@ test("uat-bound-command-adoption: a machine leg with NO explicit proof-gate bind
   const story: AdoptStory = {
     status: "mapped",
     reliabilityGates: [gate(1)], // exactly one observe gate — must NOT be used as an implicit fallback
-    uatTests: [leg(1, "machine")], // no proofGateId: an unbound machine leg
+    uatTestCriteria: [leg(1, "machine")], // no proofGateId: an unbound machine leg
   };
   const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
   // the envelope fails — an unbound machine leg is never signed via a fallback to "the story's only gate"

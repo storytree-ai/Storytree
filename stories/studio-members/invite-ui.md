@@ -24,7 +24,7 @@ on first Google sign-in.
 - UI: a "Members" admin panel (members list with role + status + invited-by, an invite box, role
   toggle, remove). Members never see it (the role check hides it and the API enforces).
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 1. Admin opens the Members panel and invites a member by email. **Success —** the row appears as
    invited; an audit event exists.

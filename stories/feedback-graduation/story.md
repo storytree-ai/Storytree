@@ -84,7 +84,7 @@ authoring path** owned by the `library` story
 ([declared interface](../library/interface-oq-proposal-authoring.md) — the ADR-0018 OQ→ADR flow).
 Per ADR-0010 §4 these are declared interfaces, not absorbed behaviour.
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 **Goal —** One operator, one session: feedback becomes a connected, attributable signal-graph, a
 wrong post leaves the surface without losing history, and accumulated signal is legible to a future

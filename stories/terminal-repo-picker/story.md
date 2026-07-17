@@ -247,7 +247,7 @@ terminal's Claude Code is still watched through the ALREADY-EXISTING presence-ho
 store-verdict seams with zero new coupling (the ADR-0174 premise). This story picks a directory; it draws
 no edge to the observer organisms.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole feature meets its outcome end-to-end.
 Minimal-first (one coherent journey: with no repo the terminal is gated → pick a repo → the terminal opens

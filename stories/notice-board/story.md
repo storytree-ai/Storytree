@@ -167,7 +167,7 @@ status stays `proposed` forever (ADR-0031: health is a projection of signed verd
 | ~~—~~ | ~~[`declare-presence`](declare-presence.md)~~ | **RETIRED by ADR-0200** — the presence declaration doc (`events.session`) is retired; the claim ledger is the coordination record now. Spec kept as history. | retired | — |
 | ~~—~~ | ~~[`presence-store`](presence-store.md)~~ | **RETIRED by ADR-0200** — `events.session` (+ `session_event`) and the reaper are retired; `events.node_claim` + `claim_event` is the ledger. Spec kept as history. | retired | ~~`declare-presence`~~ |
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 **Goal —** Two parallel sessions and one operator coordinating through the ledger: each session is
 forced onto the ledger at workspace creation, an `exploring` reader and a `work` holder never stomp each

@@ -18,7 +18,7 @@ alongside the witness kind that gates who may prove it.
 
 ## Guidance
 
-Per [ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)
+Per [ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md)
 the detail surface carries a TWO-TIER model per test — a real proof AND a lower-rigor vouch — not the
 single "attestation mark" the ADR-0044-era draft described (ADR-0082 supersedes-in-part ADR-0044
 §2/§3: a human stamp on a declared-human test is now a real proof, no longer only a never-green

@@ -123,7 +123,7 @@ async function seedStories(): Promise<{ dir: string; cleanup: () => Promise<void
 test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UAT obligations", async () => {
   const { dir, cleanup } = await seedStories();
   try {
-    const { stories, uatTestsByStory } = await readTreeWithCaps(dir);
+    const { stories, uatTestCriteriaByStory } = await readTreeWithCaps(dir);
     assert.equal(stories.length, 1, "the one seeded story is read");
     const alpha = stories[0];
     assert.ok(alpha, "the story is present");
@@ -133,7 +133,7 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
     assert.equal(alpha.capabilities[0]?.id, "cap-a", "the cap id is the spec id");
     assert.equal(alpha.capabilities[0]?.title, "Capability A", "the cap title comes from its spec");
     assert.deepEqual(
-      uatTestsByStory.get("alpha")?.map((t) => t.id),
+      uatTestCriteriaByStory.get("alpha")?.map((t) => t.id),
       ["alpha#uat-1"],
       "the per-test UAT obligation is collected (its id rolls into the crown)",
     );
@@ -144,9 +144,9 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
 
 // A missing stories dir returns an empty tree gracefully (never throws) — the offline/empty path.
 test("tree-verdicts: readTreeWithCaps over a missing dir returns an empty tree", async () => {
-  const { stories, uatTestsByStory } = await readTreeWithCaps("/tmp/tree-verdicts-no-such-dir-xyzzy");
+  const { stories, uatTestCriteriaByStory } = await readTreeWithCaps("/tmp/tree-verdicts-no-such-dir-xyzzy");
   assert.deepEqual(stories, [], "no stories");
-  assert.equal(uatTestsByStory.size, 0, "no obligations");
+  assert.equal(uatTestCriteriaByStory.size, 0, "no obligations");
 });
 
 // ---------------------------------------------------------------------------
@@ -158,8 +158,8 @@ test("tree-verdicts: readTreeWithCaps over a missing dir returns an empty tree",
 test("tree-verdicts: foldVerdicts greens the plant (own verdict) AND the island (crown roll-up) from signed verdicts", async () => {
   const { dir, cleanup } = await seedStories();
   try {
-    const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(dir);
-    await foldVerdicts(stories, uatTestsByStory, coverageByStory, {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
       verdictEvents: [passEvent(1, "cap-a", "capability"), passEvent(2, "alpha#uat-1", "story")],
       openQuestions: [],
@@ -186,8 +186,8 @@ test("tree-verdicts: foldVerdicts greens the plant (own verdict) AND the island 
 test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict (under-claims, never over-claims)", async () => {
   const { dir, cleanup } = await seedStories();
   try {
-    const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(dir);
-    await foldVerdicts(stories, uatTestsByStory, coverageByStory, {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: null,
       verdictEvents: null,
       openQuestions: [],
@@ -207,8 +207,8 @@ test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict 
 test("tree-verdicts: a green plant alone does NOT green the island (the crown awaits its own UAT roll-up)", async () => {
   const { dir, cleanup } = await seedStories();
   try {
-    const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(dir);
-    await foldVerdicts(stories, uatTestsByStory, coverageByStory, {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
       verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven, but NO alpha#uat-1 verdict
       openQuestions: [],
@@ -227,8 +227,8 @@ test("tree-verdicts: a green plant alone does NOT green the island (the crown aw
 test("tree-verdicts: an open gating question WITHHOLDS the would-be green crown", async () => {
   const { dir, cleanup } = await seedStories();
   try {
-    const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(dir);
-    await foldVerdicts(stories, uatTestsByStory, coverageByStory, {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
       verdictEvents: [passEvent(1, "cap-a", "capability"), passEvent(2, "alpha#uat-1", "story")],
       openQuestions: [{ id: "oq-1", references: ["node:alpha"] }],

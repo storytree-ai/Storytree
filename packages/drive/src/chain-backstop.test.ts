@@ -170,7 +170,7 @@ function mkSpec(id: string, buildConfig: NodeBuildConfig | undefined): NodeSpec 
     decisions: [],
     buildConfig,
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: [],
     contracts: [],
     file: `${id}.md`,

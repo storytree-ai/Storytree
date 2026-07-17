@@ -173,7 +173,7 @@ export function storytreeDataApi(): Plugin {
             events !== null &&
             rollupStoryGreen(
               unit.spec.capabilities,
-              [...unit.spec.uatTests.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map(
+              [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map(
                 (o) => ({ id: o.id }),
               ),
               events,

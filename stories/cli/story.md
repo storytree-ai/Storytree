@@ -114,7 +114,7 @@ consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imp
 > solar-system world** (the live-library `solar-system-world` proposal, a separate frontend session
 > that reads `consumed_by`). The edges are declared and gate-enforced now; the radial UI draws them.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole `cli` organism end-to-end — *an agent
 runs a few core commands* (ADR-0074 §3), the minimum that proves the goal. The three offline legs are
@@ -154,7 +154,7 @@ it-gate never DROVE those proofs red→green. So its honest path off `mapped` is
 resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
 Fork B). This is the `mapped → healthy` = **Adopt** transition
 [ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-names (d.3 retired the status-blind Build for `mapped` stories). Distinct from `## Story UAT` above
+names (d.3 retired the status-blind Build for `mapped` stories). Distinct from `## UAT Test Criteria` above
 (the integrated, expandable acceptance journey): the gates are the author's **expandable reliability
 floor**, starting by adopting the existing green suite and GROWING a `_(gate: build-tests)_` gate (a
 genuine red→green regression leg) the moment observation proves insufficient — a real dispatch/envelope
@@ -182,7 +182,7 @@ frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the s
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
 when every capability is `healthy` AND every own-proof obligation (the three machine-witnessed Story
 UAT legs bound to `cli#gate-1`, the human-witnessed live leg, and this reliability gate) is signed
-([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof

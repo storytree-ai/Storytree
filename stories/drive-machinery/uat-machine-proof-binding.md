@@ -16,17 +16,17 @@ proof:
     args: ["--filter", "@storytree/library", "test"]
   scope:
     testGlobs:
-      - "packages/library/src/uat-tests.test.ts"
+      - "packages/library/src/uat-test-criteria.test.ts"
     sourceGlobs:
-      - "packages/library/src/uat-tests.ts"
+      - "packages/library/src/uat-test-criteria.ts"
   real:
-    testFile: "packages/library/src/uat-tests.test.ts"
-    sourceFile: "packages/library/src/uat-tests.ts"
+    testFile: "packages/library/src/uat-test-criteria.test.ts"
+    sourceFile: "packages/library/src/uat-test-criteria.ts"
     scope:
       testGlobs:
-        - "packages/library/src/uat-tests.test.ts"
+        - "packages/library/src/uat-test-criteria.test.ts"
       sourceGlobs:
-        - "packages/library/src/uat-tests.ts"
+        - "packages/library/src/uat-test-criteria.ts"
     install: true
     editsExisting: true
     proofCommand:
@@ -48,7 +48,7 @@ per-leg model without dropping or inventing a binding.
 > **Proof status (honest) — authored `proposed`, REAL-proven.** The parser pair was driven through
 > the inner loop in runs `real-mrf0hkoh` and `real-mrf0tr8s`; the completed proof commit is
 > `c49e179`. The signed verdict, not authored frontmatter, derives proof health (ADR-0020). This node
-> still claims only `packages/library/src/uat-tests.{ts,test.ts}`; resolver, command observation,
+> still claims only `packages/library/src/uat-test-criteria.{ts,test.ts}`; resolver, command observation,
 > signing, and witness-label migration remain separate units. Advisory `check:coverage` still reports
 > this contract `0/1` because no test title carries `parses-explicit-uat-proof-gate`; the substantive
 > parser assertions pass, but that static contract-name link remains unresolved.
@@ -58,7 +58,7 @@ per-leg model without dropping or inventing a binding.
 Given Story UAT prose containing machine, human, and either legs:
 
 1. parse a leg carrying `_(proof-gate: drive-machinery#gate-2)_`;
-2. observe the exact full id on that parsed `UatTest`;
+2. observe the exact full id on that parsed `UatTestCriterion`;
 3. parse a leg with no annotation and observe that the optional field is absent; and
 4. present malformed or duplicate proof-gate annotations and observe a parse refusal.
 
@@ -66,7 +66,7 @@ The single observable is the strict parsed UAT model or its explicit parse failu
 
 ## Guidance
 
-Add one optional field to the parsed `UatTest` model:
+Add one optional field to the parsed `UatTestCriterion` model:
 
 ```ts
 proofGateId?: string;
@@ -89,8 +89,8 @@ and refuses malformed authoring without involving gate resolution or the drive.
    - **asserts —** `_(proof-gate: drive-machinery#gate-2)_` parses as
      `proofGateId: "drive-machinery#gate-2"`; absent stays absent; malformed/duplicate annotations
      are refused rather than dropped or guessed.
-   - **covers —** `packages/library/src/uat-tests.ts`.
-   - **proven by —** `packages/library/src/uat-tests.test.ts`, the literal REAL pair.
+   - **covers —** `packages/library/src/uat-test-criteria.ts`.
+   - **proven by —** `packages/library/src/uat-test-criteria.test.ts`, the literal REAL pair.
 
 ## Follow-up machine-witness authoring
 

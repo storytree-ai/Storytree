@@ -11,7 +11,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import type { UatTest, ReliabilityGate } from "@storytree/library";
+import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
   rollupCapStatus,
@@ -162,7 +162,7 @@ export async function treeCommand(
   let storyStatus = "(unknown)";
   let storyOutcome = "(unknown)";
   let capIds: string[] = [];
-  let uatTests: UatTest[] = [];
+  let uatTestCriteria: UatTestCriterion[] = [];
   let reliabilityGates: ReliabilityGate[] = [];
   try {
     const spec = loadNodeSpec(storyFile);
@@ -170,7 +170,7 @@ export async function treeCommand(
     storyStatus = spec.status;
     storyOutcome = spec.outcome;
     capIds = spec.capabilities;
-    uatTests = spec.uatTests;
+    uatTestCriteria = spec.uatTestCriteria;
     reliabilityGates = spec.reliabilityGates;
   } catch {
     // tolerate — render what we can
@@ -212,18 +212,18 @@ export async function treeCommand(
   // The story crown's PROVEN state (ADR-0083 Fork A + ADR-0085): a story greens from the AND of TWO
   // necessary clauses — every capability proven healthy AND the story's OWN-PROOF obligations all
   // proven (rollupStoryGreen) — never the story's own unit-id verdict. Own-proof obligations are the
-  // UNION of the per-test UAT tests (ADR-0082) AND the `## Reliability Gates` (ADR-0085, the
+  // UNION of the per-test UAT test criteria (ADR-0082) AND the `## Reliability Gates` (ADR-0085, the
   // brownfield obligation set). Capabilities-green is necessary (the dependency rule), refining
   // ADR-0082's UAT-only crown. The UAT and gate clauses are each surfaced below as sub-signals. A
   // legacy story with NEITHER keeps the own-unit glyph. Offline (no verdict events) there is no column.
   // ADR-0097: a WOULD-BE (aspirational, unscripted) UAT leg is NOT a hard crown obligation — it must
   // not wedge the story until a real test backs it. The hard own-proof set is the witnessable UAT legs
   // (would-be filtered out) UNION the reliability gates.
-  const hardUatTests = uatTests.filter((t) => !t.wouldBe);
-  const ownObligations = [...hardUatTests, ...reliabilityGates];
+  const hardUatTestCriteria = uatTestCriteria.filter((t) => !t.wouldBe);
+  const ownObligations = [...hardUatTestCriteria, ...reliabilityGates];
   const storyUatRollup =
-    hardUatTests.length > 0 && verdictEvents !== null
-      ? rollupStoryUat(hardUatTests, verdictEvents)
+    hardUatTestCriteria.length > 0 && verdictEvents !== null
+      ? rollupStoryUat(hardUatTestCriteria, verdictEvents)
       : undefined;
   const storyGatesRollup =
     reliabilityGates.length > 0 && verdictEvents !== null
@@ -260,7 +260,7 @@ export async function treeCommand(
     `  status:  ${storyStatus}`,
     `  outcome: ${storyOutcome}`,
   ];
-  if (hardUatTests.length > 0 && verdictEvents !== null) {
+  if (hardUatTestCriteria.length > 0 && verdictEvents !== null) {
     const word =
       storyUatRollup === "healthy"
         ? "GREEN — every UAT test has a signed pass (the story's UAT is proven, ADR-0082)"
@@ -268,10 +268,10 @@ export async function treeCommand(
           ? "WITHERED — a proven UAT test regressed to a signed fail"
           : "unproven — not every UAT test has a signed pass yet (under-claims)";
     lines.push(`  UAT proof: ${word}`);
-  } else if (uatTests.length > 0 && verdictEvents !== null) {
-    // ADR-0097: a `## Story UAT (would-be)` section is the aspirational journey — recorded, not
+  } else if (uatTestCriteria.length > 0 && verdictEvents !== null) {
+    // ADR-0097: a `## UAT Test Criteria (would-be)` section is the aspirational journey — recorded, not
     // green-blocking. Surface it honestly rather than as "unproven".
-    lines.push(`  UAT proof: would-be — ${uatTests.length} aspirational leg(s), no scripted test yet (ADR-0097)`);
+    lines.push(`  UAT proof: would-be — ${uatTestCriteria.length} aspirational leg(s), no scripted test yet (ADR-0097)`);
   }
   if (reliabilityGates.length > 0 && verdictEvents !== null) {
     // The brownfield reliability-gate sub-signal (ADR-0085): the author-declared obligation set that
@@ -286,7 +286,7 @@ export async function treeCommand(
   }
   if (ownObligations.length > 0 && verdictEvents !== null) {
     // The CROWN (ADR-0083 Fork A + ADR-0085): green = (all capabilities proven healthy) AND (the
-    // story's own-proof obligations — its UAT tests AND its reliability gates — all proven). A story
+    // story's own-proof obligations — its UAT test criteria AND its reliability gates — all proven). A story
     // with zero capabilities (a foundational port) satisfies the capability clause vacuously.
     const capNote = capIds.length === 0 ? " (no capabilities — vacuous; green is the own-proof alone)" : "";
     const greenWord =
@@ -317,16 +317,16 @@ export async function treeCommand(
     }
   }
 
-  // UAT-tests block (ADR-0044 attestation-surface + ADR-0082 per-test proof): the story's addressable
-  // UAT tests, each with TWO distinct, never-conflated signals — `proven=` is the SIGNED verdict
+  // UAT-test-criteria block (ADR-0044 attestation-surface + ADR-0082 per-test proof): the story's addressable
+  // UAT test criteria, each with TWO distinct, never-conflated signals — `proven=` is the SIGNED verdict
   // (✓/✗/– the gate proof, ADR-0082, present only with --pg) and the trailing mark (◉/▣) is the
   // lower-rigor ADR-0044 attestation VOUCH. Both drop silently offline (the test list still renders
   // from the spec). The vouch never rolls up to the story; the verdicts do (rollupStoryUat above).
-  if (uatTests.length > 0) {
+  if (uatTestCriteria.length > 0) {
     const marks = await readAttestations(deps.attestations ?? null);
-    lines.push("", "UAT tests:");
-    const idWidth = Math.max(...uatTests.map((t) => t.id.length));
-    for (const t of uatTests) {
+    lines.push("", "UAT test criteria:");
+    const idWidth = Math.max(...uatTestCriteria.map((t) => t.id.length));
+    for (const t of uatTestCriteria) {
       const proven = provenMark(t.id);
       const provenCol = proven === "" ? "" : `  proven=${proven}`;
       const vouch = attestationMark(marks, t.id);
@@ -340,7 +340,7 @@ export async function treeCommand(
   // Reliability-gates block (ADR-0118: `tree` absorbs gate INSPECTION — was `gate list`). The
   // brownfield obligation set rendered per-gate — id, kind, and the SIGNED-verdict glyph — so the
   // story's full reliability surface reads here on the orientation surface, not only in the standalone
-  // `gate list` (kept as a back-compat alias). Mirrors the UAT-tests block: `proven=` (✓/✗/–) is the
+  // `gate list` (kept as a back-compat alias). Mirrors the UAT-test-criteria block: `proven=` (✓/✗/–) is the
   // gate verdict, present only with --pg; the rows still render offline (parsed from the spec).
   if (reliabilityGates.length > 0) {
     lines.push("", "Reliability gates:");

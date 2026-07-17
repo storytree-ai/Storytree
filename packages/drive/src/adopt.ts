@@ -22,7 +22,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { ReliabilityGate, UatTest } from "@storytree/library";
+import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
 import { resolveWitness } from "@storytree/library";
 import {
   findNodeSpecFile,
@@ -87,7 +87,7 @@ export interface AdoptStory {
    * the uncovered `machine` legs as `build-tests` obligations for Build, and leaves `human` legs for
    * the operator's "I saw it work" attestation. Aspirational `wouldBe` legs (ADR-0097) are skipped.
    */
-  uatTests: UatTest[];
+  uatTestCriteria: UatTestCriterion[];
 }
 
 /** Every seam {@link runAdopt} touches, injected for determinism (offline-testable). */
@@ -224,7 +224,7 @@ export async function runAdopt(
   // a sibling leg that would otherwise resolve fine on its own. Reliability-gate signing (above) and
   // the mapped→proposed adoption decision (below) stay separate behaviours, unaffected by this.
   const reliabilityGates = story.reliabilityGates;
-  const realLegs = story.uatTests.filter((t) => !t.wouldBe);
+  const realLegs = story.uatTestCriteria.filter((t) => !t.wouldBe);
   const realMachineLegs = realLegs.filter((t) => t.witness === "machine");
 
   type LegOutcome =
@@ -232,7 +232,7 @@ export async function runAdopt(
     | { kind: "observe"; observedBy: string; proofCommand: string }
     | { kind: "refused"; reason: string };
 
-  function resolveLeg(t: UatTest, gates: ReliabilityGate[]): LegOutcome {
+  function resolveLeg(t: UatTestCriterion, gates: ReliabilityGate[]): LegOutcome {
     if (t.witness !== "machine") return { kind: "human" };
     // Consume ONLY the leg's own resolved binding — never the first/sole observe gate found, and
     // never an independently re-derived binding.
@@ -361,7 +361,7 @@ function loadAdoptStory(storiesDir: string, storyId: string): AdoptStory | null 
   try {
     const spec = loadNodeSpec(file);
     if (spec.tier !== "story") return null;
-    return { status: spec.status, reliabilityGates: spec.reliabilityGates, uatTests: spec.uatTests };
+    return { status: spec.status, reliabilityGates: spec.reliabilityGates, uatTestCriteria: spec.uatTestCriteria };
   } catch {
     return null;
   }

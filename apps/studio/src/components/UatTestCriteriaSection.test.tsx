@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The UAT tests table (ADR-0082 attestation-surface), owner-redesigned: each row carries ONE glyph at
+// The UAT test criteria table (ADR-0082 attestation-surface), owner-redesigned: each row carries ONE glyph at
 // its RIGHT edge — a witness ICON whose SHAPE is the witness (robot = machine-witnessed, person =
 // human-witnessed) and whose state conveys proven-ness. The single actionable case is an unproven
 // HUMAN leg an admin may sign ("I saw it work" → api.signUat, a REAL events.verdict). A machine leg,
@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, cleanup, fireEvent } from '@testing-library/react';
-import type { AttestationsPayload, UatTestRow } from '../types';
+import type { AttestationsPayload, UatTestCriterionRow } from '../types';
 
 const apiMock = vi.hoisted(() => ({
   attestations: vi.fn<(storyId: string) => Promise<AttestationsPayload>>(),
@@ -27,12 +27,12 @@ vi.mock('../lib/appData', () => ({
   useAppData: () => ({ me: appDataMock.me }),
 }));
 
-import { UatTestsSection } from './TreeView';
+import { UatTestCriteriaSection } from './TreeView';
 
 /** Flush the async fetch the mount effect (and any post-click reload) kicks off. */
 const flush = () => act(async () => {});
 
-function payload(tests: UatTestRow[], over: Partial<AttestationsPayload> = {}): AttestationsPayload {
+function payload(tests: UatTestCriterionRow[], over: Partial<AttestationsPayload> = {}): AttestationsPayload {
   return { storyId: 'agent', tests, ...over };
 }
 
@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
+describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () => {
   it('shows a clickable confirm for a `human` leg and NONE for a `machine` leg', async () => {
     apiMock.attestations.mockResolvedValue(
       payload([
@@ -51,7 +51,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
         { id: 'agent#uat-2', title: 'human leg', witness: 'human' },
       ]),
     );
-    render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
 
     // the human leg's icon IS the clickable "I saw it work" affordance…
@@ -71,7 +71,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
     apiMock.attestations.mockResolvedValue(
       payload([{ id: 'agent#uat-2', title: 'human leg', witness: 'human' }]),
     );
-    render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
     expect(
       screen.getByRole('button', { name: /human leg: human-witnessed, not yet proven/i }).hasAttribute('disabled'),
@@ -85,7 +85,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
         { id: 'agent#uat-2', title: 'human leg', witness: 'human' },
       ]),
     );
-    const { container } = render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
 
     // SHAPE ↔ witness: a robot under the machine-witnessed button, a person under the human one.
@@ -106,7 +106,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
       verdict: { unitId: 'agent#uat-2', outcome: 'pass', signer: 'admin', at: '2026-01-01' },
     });
     const onCrownRefresh = vi.fn();
-    render(<UatTestsSection storyId="agent" onCrownRefresh={onCrownRefresh} />);
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={onCrownRefresh} />);
     await flush();
 
     // the machine + proven leg: a non-actionable status icon (passed), never the sign affordance.
@@ -139,7 +139,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
     apiMock.attestations.mockResolvedValue(
       payload([{ id: 'agent#uat-1', title: 'done leg', witness: 'human', proven: 'pass' }]),
     );
-    const { container } = render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
     const btn = screen.getByRole('button', { name: /done leg: human-witnessed, proven/i });
     expect(btn.hasAttribute('disabled')).toBe(true);
@@ -151,7 +151,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
     apiMock.attestations.mockResolvedValue(
       payload([{ id: 'agent#uat-1', title: 'a leg', witness: 'human' }]),
     );
-    const { container } = render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
     // the word `either` is never shown (ADR-0106 d.5)…
     expect(container.textContent ?? '').not.toMatch(/either/i);
@@ -165,7 +165,7 @@ describe('UatTestsSection — witness-icon row (ADR-0082 redesign)', () => {
         unresolvedWitnesses: ['agent#uat-3', 'agent#uat-5'],
       }),
     );
-    render(<UatTestsSection storyId="agent" onCrownRefresh={() => {}} />);
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
     await flush();
     expect(screen.getByText(/2 UAT legs on this adopted story are still undecided/i)).toBeTruthy();
   });

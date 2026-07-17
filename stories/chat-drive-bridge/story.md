@@ -295,7 +295,7 @@ another story's package while declaring the `depends_on` edge" is the **studio-b
   `@storytree/library`). The offline proofs render the SAME in-memory seed. CONSUMED — this story owns
   no schema and no discovery.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `chat-drive-bridge` — the Phase 3+4
 propose→accept→drive→sign→land loop — meets its outcome end-to-end. It is minimal-first (one coherent

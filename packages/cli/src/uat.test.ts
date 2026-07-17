@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { StoreEvent } from "@storytree/storage-protocol";
-import type { UatTest } from "@storytree/library";
+import type { UatTestCriterion } from "@storytree/library";
 import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
 
 import { uatCommand, type UatDeps, type GitState } from "./uat.js";
@@ -57,7 +57,7 @@ function fakeStore(seed: StoreEvent[] = []) {
   };
 }
 
-const DEMO_TESTS: UatTest[] = [
+const DEMO_TESTS: UatTestCriterion[] = [
   { id: "demo#uat-1", title: "Human relay", witness: "human", wouldBe: false },
   { id: "demo#uat-2", title: "Machine run", witness: "machine", wouldBe: false },
   { id: "demo#uat-3", title: "Either", witness: "either", wouldBe: false },
@@ -66,7 +66,7 @@ const DEMO_TESTS: UatTest[] = [
 function baseDeps(over: Partial<UatDeps> = {}): UatDeps {
   return {
     store: fakeStore().store,
-    loadUatTests: (storyId) => (storyId === "demo" ? DEMO_TESTS : []),
+    loadUatTestCriteria: (storyId) => (storyId === "demo" ? DEMO_TESTS : []),
     gitState: (): GitState | null => ({ commitSha: "cafebabe0123", clean: true }),
     identity: { sessionId: "goofy-aryabhata", branch: "claude/x" },
     resolveSigner: (flag) => ({ ok: true, signer: flag ?? "owner@example.com" }),
@@ -82,10 +82,10 @@ test("list: refuses with no story id", async () => {
   assert.equal(r.ok, false);
 });
 
-test("list: a story with no UAT tests reports so (ok)", async () => {
+test("list: a story with no UAT test criteria reports so (ok)", async () => {
   const r = await uatCommand({ mode: "list", target: "empty" }, {}, baseDeps());
   assert.equal(r.ok, true);
-  assert.match(r.body, /declares no UAT tests/);
+  assert.match(r.body, /declares no UAT test criteria/);
 });
 
 test("list: offline (no store) renders tests but drops the PROVEN column", async () => {

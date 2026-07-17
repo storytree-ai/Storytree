@@ -6,7 +6,7 @@ import { z } from "zod";
  * attestation log (ADR-0044 d.2) writes against by **test id**.
  *
  * The granularity is the UAT TEST, not the story (ADR-0044 d.1): a story has one
- * tree but many UAT tests, and "always allow both" human and machine. This module
+ * tree but many UAT test criteria, and "always allow both" human and machine. This module
  * owns the id scheme (`<story>#uat-<n>`) and the per-test witness enum; it never
  * touches a store, a clock, or the verdict log.
  */
@@ -26,9 +26,9 @@ import { z } from "zod";
  * no `either` leg at rest (`unresolvedUatLegs`). The enum keeps `either` so a not-yet-adopted prose
  * leg still loads; it is just never the resting state of an adopted leg, and never user-facing.
  */
-export const UAT_TEST_WITNESSES = ["human", "machine", "either"] as const;
-export const UatTestWitness = z.enum(UAT_TEST_WITNESSES);
-export type UatTestWitness = z.infer<typeof UatTestWitness>;
+export const UAT_TEST_CRITERION_WITNESSES = ["human", "machine", "either"] as const;
+export const UatTestCriterionWitness = z.enum(UAT_TEST_CRITERION_WITNESSES);
+export type UatTestCriterionWitness = z.infer<typeof UatTestCriterionWitness>;
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -42,22 +42,22 @@ export type UatTestWitness = z.infer<typeof UatTestWitness>;
  * allow both"): it neither forges a human-witnessed claim nor restricts a machine
  * run out, so a backward-compatible prose-only test still loads.
  */
-export const UatTest = z
+export const UatTestCriterion = z
   .object({
     /** Stable test id, `<story>#uat-<n>` — the attestation log's key. */
     id: z.string().min(1),
     /** Human-readable title (the prose item's bold lead). */
     title: z.string().min(1),
     /** Who may attest this test. */
-    witness: UatTestWitness.default("either"),
+    witness: UatTestCriterionWitness.default("either"),
     /**
-     * ADR-0097: a WOULD-BE (aspirational, unscripted) leg — one declared under a `## Story UAT
+     * ADR-0097: a WOULD-BE (aspirational, unscripted) leg — one declared under a `## UAT Test Criteria
      * (would-be)` heading, recording the intended acceptance journey before a real scripted test
      * backs it. A would-be leg is parsed and surfaced like any other, but it is NOT a hard own-proof
      * obligation: it must not wedge the story crown until it is actually witnessable (a real
      * machine/scripted test signs it, or a declared human witness attests it). The author drops the
      * `(would-be)` qualifier when a real test lands, and the leg becomes green-blocking. Default
-     * `false` (a leg under a plain `## Story UAT` heading is a real obligation, back-compat).
+     * `false` (a leg under a plain `## UAT Test Criteria` heading is a real obligation, back-compat).
      */
     wouldBe: z.boolean().default(false),
     /**
@@ -73,7 +73,7 @@ export const UatTest = z
   })
   .strict();
 
-export type UatTest = z.infer<typeof UatTest>;
+export type UatTestCriterion = z.infer<typeof UatTestCriterion>;
 
 // ---------------------------------------------------------------------------
 // Id scheme
@@ -83,7 +83,7 @@ export type UatTest = z.infer<typeof UatTest>;
  * PURE: the stable test id for a story's nth UAT test (1-based). The single home of
  * the `<story>#uat-<n>` scheme so the parser and the attestation log can never fork.
  */
-export function uatTestId(storyId: string, ordinal: number): string {
+export function uatTestCriterionId(storyId: string, ordinal: number): string {
   return `${storyId}#uat-${ordinal}`;
 }
 
@@ -91,10 +91,14 @@ export function uatTestId(storyId: string, ordinal: number): string {
 // Prose parser
 // ---------------------------------------------------------------------------
 
-/** Match a `## Story UAT …` heading (e.g. `## Story UAT (would-be)`), capturing the trailing qualifier. */
-const STORY_UAT_HEADING = /^##[^\n\S]+Story UAT([^\n]*)$/im;
 /**
- * The would-be qualifier on a `## Story UAT (would-be)` heading (ADR-0097): the whole section is the
+ * Match a `## UAT Test Criteria …` heading (e.g. `## UAT Test Criteria (would-be)`), capturing the
+ * trailing qualifier. DUAL-ACCEPT (ADR-0206 transitional): the legacy `## Story UAT` heading is
+ * still matched so no story — including in-flight branches authored pre-rename — ever parses to `[]`.
+ */
+const STORY_UAT_HEADING = /^##[^\n\S]+(?:UAT Test Criteria|Story UAT)([^\n]*)$/im;
+/**
+ * The would-be qualifier on a `## UAT Test Criteria (would-be)` heading (ADR-0097): the whole section is the
  * ASPIRATIONAL acceptance journey, so every leg under it is parsed but not a hard crown obligation.
  */
 const WOULD_BE_QUALIFIER = /\(would-be\)/i;
@@ -126,7 +130,7 @@ const PROOF_GATE_TAG_ALL = /\(proof-gate:\s*[^)]+\)/gi;
 const PROOF_GATE_ID_SHAPE = /^\S+#gate-\d+$/i;
 
 /**
- * Extract the `## Story UAT` section (between its heading and the next `##`) AND whether the heading
+ * Extract the `## UAT Test Criteria` section (between its heading and the next `##`) AND whether the heading
  * carries the `(would-be)` qualifier (ADR-0097) — the section-level marker that makes every leg under
  * it aspirational. `null` when there is no Story UAT section.
  */
@@ -168,13 +172,13 @@ function itemTitle(item: string): string {
  * An explicit but invalid value (e.g. `(witness: nobody)`) THROWS — the
  * `witness-kind-validated` contract refuses it rather than defaulting.
  */
-function itemWitness(item: string, id: string): UatTestWitness {
+function itemWitness(item: string, id: string): UatTestCriterionWitness {
   const tag = WITNESS_TAG.exec(item);
   if (tag === null) return "either";
-  const parsed = UatTestWitness.safeParse(tag[1]!.toLowerCase());
+  const parsed = UatTestCriterionWitness.safeParse(tag[1]!.toLowerCase());
   if (!parsed.success) {
     throw new Error(
-      `${id}: invalid witness "${tag[1]}" — must be one of ${UAT_TEST_WITNESSES.join("|")}`,
+      `${id}: invalid witness "${tag[1]}" — must be one of ${UAT_TEST_CRITERION_WITNESSES.join("|")}`,
     );
   }
   return parsed.data;
@@ -210,23 +214,23 @@ function itemProofGateId(item: string, id: string): string | undefined {
 
 /**
  * PURE: parse a story's markdown `body` into addressable UAT test units (ADR-0044
- * d.1). Each numbered item under `## Story UAT` becomes one {@link UatTest} with a
+ * d.1). Each numbered item under `## UAT Test Criteria` becomes one {@link UatTestCriterion} with a
  * positional, stable id (`<story>#uat-<n>`, 1-based) — positional so the same prose
  * always yields the same ids regardless of how the author numbered the list.
  *
- * Backward-compatible: a story with no `## Story UAT` section (or none yet) yields
+ * Backward-compatible: a story with no `## UAT Test Criteria` section (or none yet) yields
  * `[]`; an item with no witness annotation defaults to `either`. An explicit but
- * invalid witness value throws. A leg under a `## Story UAT (would-be)` heading is
+ * invalid witness value throws. A leg under a `## UAT Test Criteria (would-be)` heading is
  * flagged `wouldBe: true` (ADR-0097 — aspirational, not a hard crown obligation).
  */
-export function parseUatTests(storyId: string, body: string): UatTest[] {
+export function parseUatTestCriteria(storyId: string, body: string): UatTestCriterion[] {
   const parsed = storyUatSection(body);
   if (parsed === null) return [];
   const items = splitItems(parsed.section);
   return items.map((item, index) => {
-    const id = uatTestId(storyId, index + 1);
+    const id = uatTestCriterionId(storyId, index + 1);
     const proofGateId = itemProofGateId(item, id);
-    return UatTest.parse({
+    return UatTestCriterion.parse({
       id,
       title: itemTitle(item),
       witness: itemWitness(item, id),

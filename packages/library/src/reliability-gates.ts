@@ -3,10 +3,10 @@ import { z } from "zod";
 /**
  * ADR-0085 (resolving ADR-0083 Fork B): a brownfield / foundational story declares a
  * `## Reliability Gates` section — the author-owned obligation set that flips it green,
- * SEPARATE from `## Story UAT` (the integrated acceptance journey; a pure port has none).
+ * SEPARATE from `## UAT Test Criteria` (the integrated acceptance journey; a pure port has none).
  *
  * Each numbered item is a stable, addressable gate unit (`<story>#gate-<n>`) that earns a
- * real signed verdict; the story greens only when ALL its gates (and its UAT tests, and its
+ * real signed verdict; the story greens only when ALL its gates (and its UAT test criteria, and its
  * capabilities — ADR-0083 Fork A) are healthy. A gate's `kind` says HOW it is earned:
  *  - `observe`      — "the existing suite / scaffolding works": observe-and-sign at a clean
  *                     HEAD → an `adopted` machine verdict (ADR-0085 d.3). Needs a `proofCommand`.
@@ -16,7 +16,7 @@ import { z } from "zod";
  *                     the capability it is folded under greens.
  *
  * Pure, no I/O — a parser + validator the verdict log writes against by gate id. It NEVER
- * touches a store, a clock, or the verdict log (mirrors `uat-tests.ts`, ADR-0044).
+ * touches a store, a clock, or the verdict log (mirrors `uat-test-criteria.ts`, ADR-0044).
  */
 
 // ---------------------------------------------------------------------------

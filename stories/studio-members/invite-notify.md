@@ -31,7 +31,7 @@ is best-effort and never blocks the invite, and the admin sees whether it went o
 - Secret handling: the app password lives in Secret Manager, injected as an env var; the deploy
   flags + setup live in `infra/studio-cloud.md` §4c.
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 1. Admin invites a member with email configured. **Success —** the invitee receives an email
    containing the studio URL; the panel shows "an invite email is on its way"; the `invited` row

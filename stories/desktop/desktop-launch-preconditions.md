@@ -65,7 +65,7 @@ they are stood up at all, it does not consume their outcome.)*
 > real: `apps/desktop/electron/backend-entry.ts` `main()` today calls `acquireBackendStore(() =>
 > createPool())` and, on failure, runs `serveDegraded()` — a read-only shell that hand-re-mounts a
 > SUBSET of the routes (`sidecar-startup.ts`'s `degradedBackend`) while chat/build/spawn silently 404
-> (the recurring *"UAT tests unavailable: unknown endpoint"* bug — a second, drifting route table).
+> (the recurring *"UAT test criteria unavailable: unknown endpoint"* bug — a second, drifting route table).
 > ADR-0176 RETIRES that degraded shell: the sidecar first proves the two launch preconditions, then
 > wires the ONE full backend or refuses. The drivers this gate composes already exist and are real:
 > `@storytree/drive`'s `ensureLiveDb` (probe → auto-wake via keyless Cloud SQL Admin REST → bounded

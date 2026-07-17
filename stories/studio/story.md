@@ -166,7 +166,7 @@ require a declared edge for. The cross-boundary CONTRACT is the wire shape itsel
 by both sides authoring to the same frame, not by a code edge. So `studio`'s `depends_on` is unchanged by
 this capability. (Full reasoning: chat-panel.md "No new cross-story edge".)
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `studio`
 organism meets its outcome end-to-end against the **real running studio** — the proof

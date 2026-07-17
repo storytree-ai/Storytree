@@ -39,7 +39,7 @@ function deps(over: Partial<GateDeps> = {}): GateDeps {
   return {
     store: memStore(),
     loadReliabilityGates: () => GATES,
-    loadUatTests: () => [],
+    loadUatTestCriteria: () => [],
     gitState: () => ({ commitSha: "abc1234", clean: true }),
     observe: async () => ({ code: 0 }),
     resolveSigner: () => ({ ok: true, signer: "hua.mick@gmail.com" }),

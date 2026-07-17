@@ -3,7 +3,7 @@
  * proof surface).
  *
  * A brownfield / foundational story declares a `## Reliability Gates` section — the author-owned
- * obligation set that flips it green, SEPARATE from `## Story UAT` (the integrated acceptance
+ * obligation set that flips it green, SEPARATE from `## UAT Test Criteria` (the integrated acceptance
  * journey; a pure port has none). Each gate is an addressable unit (`<story>#gate-<n>`) with a
  * `kind`:
  *  - `observe`      — "the existing suite / scaffolding works": earned by OBSERVE-AND-SIGN (this
@@ -27,7 +27,7 @@
  * real subprocess.
  */
 
-import type { ReliabilityGate, UatTest } from "@storytree/library";
+import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
 import {
   observeAndSign,
   rollupStatus,
@@ -60,8 +60,8 @@ export interface GateDeps {
   store: GateVerdictStoreLike | null;
   /** A story's declared reliability gates (parsed from its `## Reliability Gates` prose). */
   loadReliabilityGates: (storyId: string) => ReliabilityGate[];
-  /** A story's per-test UAT tests — used only to surface the story's full own-proof set in `list`. */
-  loadUatTests: (storyId: string) => UatTest[];
+  /** A story's per-test UAT test criteria — used only to surface the story's full own-proof set in `list`. */
+  loadUatTestCriteria: (storyId: string) => UatTestCriterion[];
   /** The session repo's HEAD + clean-tree state; null when git can't answer (run then refuses). */
   gitState: () => GitState | null;
   /** The spine's out-of-band observation of a declared command (exit code as data). */
@@ -119,7 +119,7 @@ export function gateHelp(): Envelope {
     body: [
       "storytree gate — the brownfield reliability-gates proof surface (ADR-0085, ADR-0083 Fork B).",
       "A `## Reliability Gates` section is the author-declared obligation set that flips a brownfield /",
-      "foundational story green — distinct from `## Story UAT`. An `observe` gate is proven by",
+      "foundational story green — distinct from `## UAT Test Criteria`. An `observe` gate is proven by",
       "OBSERVE-AND-SIGN (the spine runs its declared command green at a clean HEAD → an `adopted` verdict).",
       "",
       "  storytree gate list <story-id> [--pg]               a story's gates, kind + PROVEN state",
@@ -329,7 +329,7 @@ async function gateRun(
         : "unproven — not every gate has a signed pass yet"),
     "",
     "This is a SIGNED `adopted` verdict (events.verdict). The story CROWN greens when all capabilities",
-    "AND all own-proof obligations (UAT tests + reliability gates) pass (ADR-0083 Fork A + ADR-0085).",
+    "AND all own-proof obligations (UAT test criteria + reliability gates) pass (ADR-0083 Fork A + ADR-0085).",
   ];
   return {
     ok: true,

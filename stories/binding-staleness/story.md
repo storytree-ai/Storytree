@@ -109,7 +109,7 @@ The graph is acyclic. Driven roots-first, a later node builds on the earlier nod
 which is exactly why a `story build binding-staleness --real` chain (ONE shared worktree, topo-ordered)
 resolves the intra-story deps automatically.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough proving the organism's outcome end to end: a proven unit's drift
 becomes real and lazy.
@@ -199,7 +199,7 @@ frontmatter `status:` stays `mapped`; the world's crown DERIVES green from the s
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
 when every capability is `healthy` AND every own-proof obligation (these reliability gates) is signed
 AND the **human-witnessed** Story UAT above is attested (the story node is withheld, ADR-0040;
-[ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof

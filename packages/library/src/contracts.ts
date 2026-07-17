@@ -10,7 +10,7 @@ import { z } from "zod";
  * test only).
  *
  * Pure, no I/O — a parser + validator the coverage classifier reads, mirroring `reliability-gates.ts`
- * (ADR-0085) and `uat-tests.ts` (ADR-0044). It NEVER touches a store, a clock, or the verdict log.
+ * (ADR-0085) and `uat-test-criteria.ts` (ADR-0044). It NEVER touches a store, a clock, or the verdict log.
  *
  * First-slice scope (deliberate): only the contract `id` + `title` are parsed — enough to map
  * declared contracts to observed test names. The per-contract `asserts` / `covers` / `proven by`
