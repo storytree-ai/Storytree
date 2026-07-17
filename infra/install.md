@@ -18,9 +18,27 @@ In dependency order, each step no-ops when already satisfied (see *Idempotency* 
 7. **provision** — `pnpm install` (no-op once `node_modules/.modules.yaml` exists).
 8. **claude-cli** — installs the Claude Code CLI (`irm https://claude.ai/install.ps1 | iex`).
 
-Then it detects whether the dev's Claude CLI is logged in (the `~/.claude/.credentials.json`
-existence probe — **never** the contents) and, pre-D5, launches the desktop app from the checkout
-(`pnpm desktop:start`).
+Then it runs **`storytree doctor`** (D6) to verify the setup, detects whether the dev's Claude CLI
+is logged in (the `~/.claude/.credentials.json` existence probe — **never** the contents), and,
+pre-D5, launches the desktop app from the checkout (`pnpm desktop:start`).
+
+## Verifying + repairing setup (`storytree doctor`, ADR-0207 D6)
+
+`storytree doctor` is the read-only, offline-capable check the installer verifies with and the
+in-app guide wraps. It probes each setup invariant — git/Node present, the checkout provisioned, the
+repo fetchable, the seed readable, the Claude CLI present + logged in, the checkout current — and
+prints a **fix hint per failure**, exiting non-zero on any failure:
+
+```powershell
+pnpm storytree doctor          # from the checkout
+```
+
+Its fixes are not new machinery: each installer-repairable probe names the exact idempotent
+`install.ps1` step that repairs it (the **repair vocabulary** — re-running that step, or the whole
+installer, is the repair). The one exception is Claude login, whose fix is a **dev action** the
+doctor *instructs* (run `claude` and sign in) and never executes — the D3 trust boundary. Undetermined
+offline probes (remote reachability, checkout freshness) resolve to **warnings**, never failures, so
+doctor itself always runs offline. `packages/cli/src/doctor.test.ts` guards both invariants.
 
 ## The trust invariant (ADR-0207 D3)
 
