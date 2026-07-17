@@ -313,10 +313,13 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 - Tests: `node:test` + `node:assert/strict`, `*.test.ts` under `src/`.
 - **Anchor your session on the notice board** once you know what you're working on:
   `pnpm storytree noticeboard declare --working-on "<what>" --node <story-id> --pg` (repeat
-  `--node` per story; re-declares upsert, so refining is cheap). The declare also TAKES the
-  work-time story claim on each `--node` (ADR-0142) — that claim is the story wisp on the map.
-  Hooks only auto-declare `nodes: []`, which renders in the studio session dock but never as a
-  story wisp.
+  `--node` per story; the claim upsert is idempotent per (story, session), so refining is cheap).
+  The declare TAKES the story's **work** claim on each `--node` (ADR-0142/0200) — that claim is the
+  orbiting story wisp on the map. Since **ADR-0200** the noticeboard IS the deterministic claim
+  ledger (grades exploring / waiting / work); advisory session-presence rows are **retired**, so the
+  hooks no longer auto-declare — the `SessionStart` hook injects the claim-ledger anchor nudge
+  (ADR-0143), the studio dock renders claims grouped by session, and an unclaimed session is
+  invisible on the map and **FAILs** the gate's `check:declared` until it claims (ADR-0200 D3).
 - **Landing work** is the `session-orchestrator` operating discipline above (generated from the
   library `merge-ceremony`, the single source of truth — don't hand-copy the rule back here):
   green unit → **non-draft** PR → CI auto-merges (ADR-0022); never `gh pr merge`; a hold (draft /

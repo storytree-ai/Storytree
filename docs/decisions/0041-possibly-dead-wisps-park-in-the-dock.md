@@ -29,6 +29,16 @@ fresh + stale only" **meaning** wherever a count still shows (the dock header, `
 and the wisps are all untouched — only the map-top toolbar *surface* and its "so the dock stays
 reachable" rationale are overtaken.
 
+**Correction ([ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** this whole
+display recalibration (Decisions 1–4) is **overtaken** — it recalibrates the render of session
+*presence*, which ADR-0200 retired for the deterministic claim ledger. There are no possibly-dead
+presence wisps to hide, no `events.session` dock rows to park, and no staleness bands: the forest now
+renders **claims by grade** (hover = exploring, queued = waiting, orbit = work) and the dock groups
+**claims by session**; `/api/presence`, the ADR-0079 reaper, and the fresh/stale/possibly-dead
+classifier all retired in the sweep (#760–#766, 2026-07-17, after the owner's inc-5 render UAT). This
+ADR stays accepted as history; its display machinery is gone.
+
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0041*` on
 2026-06-14 — 0040 is the latest taken; 0041 is free.
 

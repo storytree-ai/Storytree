@@ -34,6 +34,19 @@ around the SDK leaf run in plain code". That rung is **retired**: a build run no
 `SessionEnd` hook rung and the statusline heartbeat rung stand unchanged; Decision 3's marked bullet
 is corrected below.
 
+**Correction ([ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the presence
+*data model* is **retired**. ADR-0200 re-founds the notice board as the deterministic **claim
+ledger** (`events.node_claim` + `claim_event`, three grades), retiring Decision 1's presence
+declaration doc and its `events.session` / `events.session_event` tables (dropped 2026-07-17, #766)
+along with the staleness bands and the ADR-0079 reaper — the retirement sweep landed across #760–#766
+after the owner's inc-5 UAT. What STANDS: the board as a coordination surface, worktree-derived
+identity and the no-signer-chain posture (Decision 1), and the never-blocking automation contract
+(Decision 3) — the `SessionStart`/`SessionEnd` hooks and the statusline heartbeat now bump **claim**
+heartbeats, not presence rows. Decision 4's named-deferred claims are now the core mechanism (grades
+per ADR-0138/0200; the earlier 0121 correction stands). This is overtaken-machinery correction, not a
+re-decision.
+
 ## Date
 
 2026-06-11
