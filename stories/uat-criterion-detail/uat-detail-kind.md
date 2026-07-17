@@ -27,6 +27,7 @@ proof:
       testGlobs: ["packages/uat-criterion/src/detail-kind.test.ts"]
       sourceGlobs: ["packages/uat-criterion/src/detail-kind.ts"]
     install: true
+    editsExisting: true
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/uat-criterion", "typecheck"]
