@@ -585,12 +585,11 @@ const ptyPort: PtyPort = {
         // included — otherwise guess wrong inside a ConPTY session).
         LANG: "en_US.UTF-8",
         ...baseEnv,
-        // Claude Code >= 2.1.88: alt-screen atomic updates. Our xterm 5.5 renderer has no
-        // DEC 2026 synchronized-output support, so Claude's own batching is inert in the dock
-        // and every intermediate repaint renders (flicker). Remove when the renderer moves to
-        // xterm 6 (patterns-survey increment E). CLAUDE_CODE_DISABLE_MOUSE deliberately NOT
-        // set: it would trade Claude's mouse UX for scroll passthrough — an owner call.
-        CLAUDE_CODE_NO_FLICKER: "1",
+        // CLAUDE_CODE_NO_FLICKER deliberately NOT set (retired, patterns-survey increment E):
+        // the xterm 6 renderer supports DEC 2026 synchronized output natively, so Claude Code's
+        // own anti-flicker batching now works as designed — the alt-screen workaround would only
+        // trade behaviour for nothing. CLAUDE_CODE_DISABLE_MOUSE also deliberately NOT set: it
+        // would trade Claude's mouse UX for scroll passthrough — an owner call.
       },
     });
     return {

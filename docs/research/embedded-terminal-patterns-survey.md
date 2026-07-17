@@ -14,11 +14,11 @@ ADR-0190), app-owned sessions with re-attach (ADR-0189), fit-addon lifecycle inc
 and a ResizeObserver, a WebGL renderer with context-loss fallback (#752), and hand-rolled
 Ctrl+C-copy / Ctrl+V-paste. What's missing is the second ring every serious embedder converged on.
 
-**Version topology (load-bearing):** the renderer runs `@xterm/xterm ^5.5.0` (addons: fit 0.10,
-webgl 0.18) while the main runs `@xterm/headless ^6.0.0` (addon-serialize 0.14). The addon lines
-split by core major: 5.x-peer addons are fit 0.10 / webgl 0.18 / **unicode11 0.8** / web-links 0.11
-/ search 0.15 / clipboard 0.1 / serialize 0.13; the 0.x+1 releases are the 6.0-era line (they no
-longer declare peerDependencies, so npm will NOT warn on a mismatch — pin deliberately).
+**Version topology (load-bearing; unified by increment E):** BOTH cores now run the 6.0 major —
+the renderer `@xterm/xterm ^6.0.0` (addons: fit 0.11 / webgl 0.19 / unicode11 0.9 / web-links 0.12
+/ search 0.16 / clipboard 0.2) and the main `@xterm/headless ^6.0.0` (addon-serialize 0.14,
+unicode11 0.9). The 6.0-era addon lines no longer declare peerDependencies, so npm will NOT warn
+on a core/addon mismatch — pin deliberately, and move core + addons together on any future major.
 
 ## The gap list (verified, prioritized as arc increments)
 
@@ -109,12 +109,15 @@ scrollback on aggressive resize is structural; the job is minimizing it:
    path, `preventDefault` the browser menu). Complements, not replaces, the signed Ctrl+C/V
    contract.
 
-### Increment E — the xterm 6 upgrade (owner decision)
+### Increment E — the xterm 6 upgrade (owner decision; DELIVERED — owner said GO 2026-07-17)
 
 Upgrading the renderer to `@xterm/xterm 6.x` buys native **DEC 2026 synchronized output** (Claude
 Code's flicker fix working as designed, no alt-screen trade-off), unifies the split majors with the
 headless side, and moves every addon to its current line. It's a dependency major with rendering
-surface — its own increment, after A–D bed in, with the owner attesting the result.
+surface — its own increment, after A–D bed in, with the owner attesting the result. Delivered
+notes: the `CLAUDE_CODE_NO_FLICKER=1` spawn-env workaround (increment A item 4) is removed;
+`term.unicode` is STILL experimental in 6.0, so `allowProposedApi: true` stays load-bearing;
+addon-clipboard 0.2.0 fixed its one-arg typings, retiring the renderer's constructor cast.
 
 ## Deliberately not adopted (for the record)
 

@@ -84,18 +84,6 @@ const OSC52_WRITE_ONLY_PROVIDER: IClipboardProvider = {
   },
 };
 
-/** @xterm/addon-clipboard 0.1.0 ships `constructor(base64 = new Base64(), provider = new
- *  BrowserClipboardProvider())` at RUNTIME while its published typings declare
- *  `constructor(provider?)` — one parameter. A provider passed per the typings silently lands in
- *  the base64 slot and leaves the READING default provider active (the exfiltration vector the
- *  write-only provider exists to close), so the call site pins the second slot through this
- *  deliberate cast (verified against lib/addon-clipboard.js; the same typings-vs-runtime class as
- *  the UMD default-import form documented in pty-session-manager.ts). */
-const ClipboardAddonCtor = ClipboardAddon as unknown as new (
-  base64?: unknown,
-  provider?: IClipboardProvider,
-) => ClipboardAddon;
-
 /** The bridge the desktop preload exposes on `window` (absent in the hosted/dev studio — a browser). Its
  *  shape mirrors `desktopAuth` / `desktopApply`: `spawn` starts a pty session (the Electron main drives
  *  `pty-session-manager.create`), `write`/`resize`/`dispose` forward to the manager, `onData`/`onExit`
@@ -394,9 +382,9 @@ export function TerminalDock({
         cursorBlink: true,
         convertEol: true,
         // The unicode-version surface (`term.unicode`, the Unicode11Addon's registration point) is
-        // a PROPOSED API in xterm 5.x — without this flag the activation below THROWS at runtime
-        // (a class the mocked vitest seam cannot see; the e2e caught it). The headless snapshot
-        // terminal (pty-session-manager.ts) sets the same flag.
+        // still EXPERIMENTAL in xterm 6.0 — without this flag the activation below THROWS at
+        // runtime (a class the mocked vitest seam cannot see; the e2e caught it). The headless
+        // snapshot terminal (pty-session-manager.ts) sets the same flag.
         allowProposedApi: true,
         // Scrollback PARITY with the main-held headless screen model (DEFAULT_SCROLLBACK_LINES in
         // apps/desktop/src/backend/pty-session-manager.ts): xterm's 1,000-line default holds fewer
@@ -440,9 +428,10 @@ export function TerminalDock({
         );
       }
       // OSC 52 clipboard, WRITE-ONLY (increment D): a TUI can copy INTO the user's clipboard;
-      // reads always answer empty (the paste-exfiltration vector stays closed). The dedicated
-      // constructor pins the provider in the 0.1.0 runtime's SECOND slot — see ClipboardAddonCtor.
-      term.loadAddon(new ClipboardAddonCtor(undefined, OSC52_WRITE_ONLY_PROVIDER));
+      // reads always answer empty (the paste-exfiltration vector stays closed). The provider goes
+      // in the SECOND slot (addon-clipboard 0.2.0's typings now declare both slots honestly —
+      // the 0.1.0 typings-vs-runtime cast this call used to need is gone).
+      term.loadAddon(new ClipboardAddon(undefined, OSC52_WRITE_ONLY_PROVIDER));
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;

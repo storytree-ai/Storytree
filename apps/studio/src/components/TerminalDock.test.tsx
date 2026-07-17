@@ -277,12 +277,11 @@ const searchMock = vi.hoisted(() => {
 vi.mock('@xterm/addon-search', () => ({ SearchAddon: searchMock.FakeSearchAddon }));
 
 // ── the fake ClipboardAddon — the OSC 52 seam (increment D). Captures BOTH constructor arguments:
-//    the 0.1.0 package's published typings declare `constructor(provider?)` but its shipped runtime
-//    is `constructor(base64 = new Base64(), provider = new BrowserClipboardProvider())` — the
-//    provider is the SECOND parameter (verified against lib/addon-clipboard.js), and the default
-//    provider READS the system clipboard. A provider passed per the typings would silently land in
-//    the base64 slot and leave OSC 52 read (the paste-exfiltration vector) enabled, so the contract
-//    pins the second-slot placement explicitly. ─────────────────────────────────────────────────
+//    the runtime is `constructor(base64 = new Base64(), provider = new BrowserClipboardProvider())`
+//    — the provider is the SECOND parameter (0.2.0's typings now declare both slots; 0.1.0's
+//    one-arg typings hid this), and the DEFAULT provider READS the system clipboard. A provider
+//    landing in the base64 slot would leave OSC 52 read (the paste-exfiltration vector) enabled,
+//    so the contract pins the second-slot placement explicitly. ─────────────────────────────────
 const clipboardMock = vi.hoisted(() => {
   interface CapturedClipboardProvider {
     readText(selection: string): string | Promise<string>;
@@ -1261,7 +1260,7 @@ describe('TerminalDock', () => {
     expect(term1!.unicode.activeVersion).toBe('11');
     expect(term2!.unicode.activeVersion).toBe('11');
 
-    // `term.unicode` is a PROPOSED API in xterm 5.x — without this constructor flag the real
+    // `term.unicode` is still EXPERIMENTAL in xterm 6.0 — without this constructor flag the real
     // terminal THROWS on activation (the mocked seam here cannot observe that throw; the e2e
     // caught it live), killing the tab before its session ever spawns.
     expect(term1!.options['allowProposedApi']).toBe(true);
@@ -1593,9 +1592,9 @@ describe('TerminalDock', () => {
   });
 
   //    OSC 52 clipboard, WRITE-ONLY: each tab loads the clipboard addon with a custom provider in
-  //    the SECOND constructor slot (the 0.1.0 runtime is `constructor(base64, provider)` despite
-  //    its published one-arg typings — a provider passed per the typings lands in the base64 slot
-  //    and leaves the READING default provider active). The provider's write half reaches the
+  //    the SECOND constructor slot (the runtime is `constructor(base64, provider)` — a provider
+  //    landing in the base64 slot would leave the READING default provider active; 0.2.0's
+  //    typings now declare both slots). The provider's write half reaches the
   //    system clipboard; its read half always answers EMPTY — OSC 52 read is a paste-exfiltration
   //    vector (any process in the pty could silently read the user's clipboard). Today `initTab`
   //    loads no clipboard addon, so this must fail. ─────────────────────────────────────────────
