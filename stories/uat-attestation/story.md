@@ -49,8 +49,10 @@ untouched: green is still a signed verdict, and no one can forge one.
 > criteria until the explicitly staged corpus migration completes. Legacy `either` can never carry a
 > model tier or enter model judgment by default; new and migrated criteria classify explicitly as
 > `machine | model | human`. That three-kind tiered witness model + its eligibility registry is authored in the
-> arc's first increment, [`stories/model-uat-witness`](../model-uat-witness/story.md), which RESHAPES the
-> shared source (`packages/library/src/uat-test-criteria.ts`) this story's `uat-test-units` maps. The
+> arc's first increment, [`stories/model-uat-witness`](../model-uat-witness/story.md), as the
+> packages-forward `@storytree/model-uat` port in its OWN `packages/model-uat` building (ADR-0192).
+> The existing Library parser stays library-owned until explicit consumer adapter/re-export glue moves
+> it behind that port; the new story claims no proof-bound `packages/library` source. The
 > independent spine-signed model JUDGE run, the per-criterion seed-canonical Library detail artifact, the
 > Studio row concision, and the three-story pilot migration are later arc increments. This story's own
 > vouch-vs-proof + AND-roll-up journey (below) is unbuilt (`proposed`) and untouched by ADR-0209 except

@@ -2,12 +2,35 @@
 id: "three-kind-witness"
 tier: capability
 story: model-uat-witness
+arc: model-uat-promotion
 title: "A classified UAT criterion uses machine, model, or human while legacy either remains unresolved"
 outcome: "A new or migrated UAT criterion explicitly classifies as machine, model, or human while an existing untagged criterion remains parseable only as legacy-unresolved either until migration and can never default into model judgment."
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [209, 82, 106]
+decisions: [209, 192, 82, 106]
+# Node-borne proof config (ADR-0057 / ADR-0192 packages-forward). NET-NEW pair in this story's own
+# `@storytree/model-uat` package: AUTHOR_TEST writes criterion.test.ts importing the missing
+# criterion.ts; IMPLEMENT authors the parser/validator. The assertions pin explicit `model`
+# classification alongside legacy-only unresolved `either` compatibility. `install: true` is
+# required for zod/tsx; typecheck closes the tsx type-stripping gap.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/model-uat", "test"]
+  scope:
+    testGlobs: ["packages/model-uat/src/criterion.test.ts"]
+    sourceGlobs: ["packages/model-uat/src/criterion.ts"]
+  real:
+    testFile: "packages/model-uat/src/criterion.test.ts"
+    sourceFile: "packages/model-uat/src/criterion.ts"
+    scope:
+      testGlobs: ["packages/model-uat/src/criterion.test.ts"]
+      sourceGlobs: ["packages/model-uat/src/criterion.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "typecheck"]
 ---
 
 # A classified UAT criterion uses machine, model, or human while legacy either remains unresolved
@@ -18,13 +41,13 @@ migration and can never default into model judgment.
 
 ## Guidance
 
-- This RESHAPES the existing per-criterion witness enum in
-  `packages/library/src/uat-test-criteria.ts` (brownfield edit-existing red→green). Today
-  `UAT_TEST_CRITERION_WITNESSES = ["human", "machine", "either"]` with `either` the conservative
-  default (ADR-0044/0106). ADR-0209 D1 adds `model` as a DISTINCT third classified kind. Increment 1
-  preserves `either` only as a legacy parse/unresolved compatibility state; new and migrated
-  criteria classify explicitly as `machine | model | human`. The later completed corpus migration,
-  not this increment, removes `either`.
+- Author the criterion parser/validator in the story-owned
+  `packages/model-uat/src/criterion.ts`. Preserve the current Library parser's externally-observed
+  legacy behaviour as the compatibility contract: untagged criteria parse to unresolved `either`.
+  ADR-0209 D1 adds `model` as a DISTINCT third classified kind; new and migrated criteria classify
+  explicitly as `machine | model | human`. The later completed corpus migration, not this increment,
+  removes `either`. Moving existing consumers behind this port is later integration glue, not a
+  proof-bound edit to the foreign `packages/library` building.
 - **`model` is not a spelling of `machine`** (ADR-0209 D1): the enum, the type, and every downstream
   switch must treat it as its own kind. Existing deterministic `machine` proofs and their
   reliability-gate bindings keep their current semantics untouched.
@@ -35,8 +58,8 @@ migration and can never default into model judgment.
   `machine | model | human` witness. Keep the state visibly unresolved so migration can find it.
 - An explicit-but-invalid witness value (e.g. `(witness: nobody)`) is refused as it is today — keep
   the refuse-don't-default behaviour, widen the accepted set to the three kinds.
-- Pure, no I/O: a parser + a zod enum. Test-author ≠ code-author (the reshaped
-  `uat-test-criteria.test.ts` is the red→green pair). Consumers to keep honest downstream (NOT this
+- Pure, no I/O: a parser + a zod enum. Test-author ≠ code-author (`criterion.test.ts` →
+  `criterion.ts` is the red→green pair). Consumers to keep honest downstream (NOT this
   capability's scope, flagged for the judge/pilot increments): the drive's `witness-resolution.ts` and
   any binary `human|machine` assumption in the adopt/rollup path.
 

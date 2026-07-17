@@ -16,26 +16,46 @@ uat_witness: machine
 # migration are LATER arc increments (see "Where this sits in the arc" below) — authored just-in-time as
 # the orchestrator consumes each (slow growth, ADR-0183), NOT scaffolded here.
 arc: model-uat-promotion
-# Cross-story edges (ADR-0010 §4 / ADR-0192 landlord rule): this story's proof-bound SOURCE lives inside
-# the `library` organism's territory — the per-criterion witness parser/validator
-# (packages/library/src/uat-test-criteria.ts, brownfield-mapped by uat-attestation's `uat-test-units`)
-# is RESHAPED here, and the new tier field + eligibility registry are NET-NEW pure modules authored
-# beside it (packages/library/src/*, root-barrel / browser-safe zod, no node: imports). No NEW
-# @storytree/* runtime import is added (the modules are pure zod + resolution inside the library
-# package), so this is a HOSTED-SEAM edge, not a package import.
-depends_on: [library]
-# ADR-0166 artifact edges: the `library` edge is a deliberate NON-IMPORT hosting seam (the reshaped
-# parser + the new tier/registry modules are edits/additions INSIDE packages/library's own territory,
-# not a cross-package import) — the declared-edge honesty gate accepts it without a code import.
-artifact_edges: [library]
+# Packages-forward ownership (ADR-0192): this NEW story owns a NEW workspace package/port,
+# `@storytree/model-uat` (`packages/model-uat`). Every proof-bound source below lives in that building.
+# It imports no other @storytree package in this increment, so the story is a dependency root.
+# Existing `@storytree/library` parser consumers are integrated only AFTER these proofs through an
+# explicit adapter/re-export + package edge owned by the consuming story; no proof source squats there.
+depends_on: []
 # Deciding ADRs (ADR-0037 §2): 0209 (add `model` as a distinct capability-tiered witness below
 # irreducible human — this story's charter); 0082 (per-test witness earns green — the binary model this
 # story extends to three kinds); 0106 (the adopt pass resolves each leg's witness — extended here beyond
 # binary); 0055 (the seed-canonical exception ADR-0209 §5 widens — cited for the LATER detail-artifact
-# increment, not built here); 0010 (the organism model + splitting-rule that tiers these units).
-decisions: [209, 82, 106, 55, 10]
+# increment, not built here); 0192 (packages-forward ownership); 0010 (the organism model +
+# splitting-rule that tiers these units).
+decisions: [209, 192, 82, 106, 55, 10]
 # Capabilities, roots-first (a capability appears after everything it depends on).
 capabilities: [three-kind-witness, model-tier-classification, model-eligibility-registry]
+# Node-borne STORY-UAT proof config (ADR-0057 / ADR-0092). Unlike a completeness-only authoring
+# proof, this greenfield story has a genuine executable integration red: AUTHOR_TEST writes the
+# net-new model-uat-witness.uat.test.ts, which imports a missing net-new model-uat-witness.ts facade;
+# IMPLEMENT authors that pure facade to compose the delivered parser/tier and registry capabilities.
+# The UAT test drives the six all-machine legs end-to-end over literal criteria/registries — including
+# legacy `either` staying unresolved and barred from model judgment — with no DB, SDK, API, or live
+# model. It is story-level composition glue, not a fourth capability journey. `install: true` and
+# typecheck retain the dependency/type wall for @storytree/model-uat in the shared REAL worktree.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/model-uat", "test"]
+  scope:
+    testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
+    sourceGlobs: ["packages/model-uat/src/model-uat-witness.ts"]
+  real:
+    testFile: "packages/model-uat/src/model-uat-witness.uat.test.ts"
+    sourceFile: "packages/model-uat/src/model-uat-witness.ts"
+    scope:
+      testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
+      sourceGlobs: ["packages/model-uat/src/model-uat-witness.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "typecheck"]
 ---
 
 # A classified UAT criterion earns a tiered witness — machine, capability-tiered model, or irreducible human
@@ -117,7 +137,8 @@ here):
 ## Capabilities (3)
 
 Listed roots-first (a capability appears after everything it depends on). Each is a **LEAF** — an
-isolatable backend red→green in pure TypeScript (zod + resolution) under `packages/library`, armed
+isolatable backend red→green in pure TypeScript (zod + resolution) under the story-owned
+`packages/model-uat`, armed
 for `node build --real` (the orchestrator drives it through the prove-it gate; no live service, no DB,
 no API key).
 
@@ -139,21 +160,20 @@ The graph is acyclic; `three-kind-witness` is the root.
   *required tier* (the field tier-classification adds) against the registry, so it consumes the tier
   the prior capability establishes.
 
-## Cross-story edges (the hosting call — ADR-0192)
+## Ownership and future consumption (ADR-0192 packages-forward)
 
-- **`library`** — the per-criterion witness machinery is hosted inside `packages/library`: capability
-  1 RESHAPES the existing `packages/library/src/uat-test-criteria.ts` parser/validator (brownfield —
-  the file is real, mapped by `uat-attestation`'s `uat-test-units`, and consumed by the drive's
-  `witness-resolution.ts`), and capabilities 2–3 add NET-NEW pure modules beside it (the tier field on
-  the criterion schema + a new `model-registry.ts`). All stay root-barrel / browser-safe zod (no
-  `node:`), so no NEW `@storytree/*` runtime import is added — a hosted-seam edge (declared in
-  `artifact_edges`), not a package import.
+This NEW story owns the NEW `@storytree/model-uat` port at `packages/model-uat`; every
+`proof.real.sourceFile` and literal `sourceGlobs` entry is under that one building. The port is pure,
+browser-safe zod/resolution code with no `@storytree/*` dependency, so `depends_on: []` is honest and
+the graph is acyclic.
 
-This reshapes source that `uat-attestation`'s `uat-test-units` capability maps (the cap-replacement
-precedent — a new capability reworking an existing source file, keeping the file's name). See
-`stories/uat-attestation/story.md`'s ADR-0209 reconciliation note: its binary witness enum is
-superseded here by the three-kind tiered model; that story's own (unbuilt) vouch-vs-proof journey is
-untouched.
+The existing `packages/library/src/uat-test-criteria.ts` parser remains `library`-owned until
+integration. Once this port's proofs land, the planner must schedule explicit consumer-side glue:
+`@storytree/library` imports/re-exports or adapts the criterion port (and its story declares the
+resulting dependency), then drive consumers move to that boundary. That glue is outside these leaf
+proof scopes; this story never claims foreign `packages/library` source. See
+`stories/uat-attestation/story.md`'s ADR-0209 reconciliation note: its legacy parser model is
+superseded through the new port after integration, while its vouch-vs-proof journey remains untouched.
 
 ## UAT Test Criteria
 
@@ -220,8 +240,8 @@ honest build order the orchestrator should hand the planner (each a distinct jou
 trigger 1):
 
 1. **`model-uat-witness`** (THIS story) — the tiered-witness DATA + eligibility foundation. Offline
-   LEAF proofs (`node build --real`, pure `packages/library` node:test red→green). No deps beyond
-   `library`.
+   LEAF proofs (`node build --real`, pure `packages/model-uat` node:test red→green). It is a root
+   port (`depends_on: []`); package scaffold + ownership registration must land before the leaf chain.
 2. **`uat-criterion-detail`** (later) — the seed-canonical per-criterion Library artifact kind:
    schema, seed-canonical reconciliation (extending ADR-0055 beyond agents, ADR-0209 D5), the story
    criterion's pointer, and artifact-hash anchoring so a substantive change invalidates stale green

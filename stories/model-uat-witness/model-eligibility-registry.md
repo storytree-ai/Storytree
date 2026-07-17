@@ -2,12 +2,35 @@
 id: "model-eligibility-registry"
 tier: capability
 story: model-uat-witness
+arc: model-uat-promotion
 title: "A criterion's required tier resolves against an explicit versioned registry — substitute up, or hold"
 outcome: "A criterion's required model tier resolves against an explicit, versioned registry — a stronger registered judge substitutes upward, an unregistered or self-declared model is ineligible, and a required tier with no available judge holds the criterion rather than downgrading, rerouting, or relabelling it."
 status: proposed
 proof_mode: integration-test
 depends_on: [model-tier-classification]
-decisions: [209]
+decisions: [209, 192]
+# Node-borne proof config (ADR-0057). NET-NEW pure pair: AUTHOR_TEST writes model-registry.test.ts,
+# whose import is module-not-found against the unchanged tree; IMPLEMENT authors model-registry.ts.
+# The test exercises explicit/versioned registration, frontier-upward substitution, the advanced
+# floor, availability, and the distinct HOLD result over literal data — no DB, API, SDK, or model run.
+# `install: true` + typecheck keeps the package's dependency/type wall intact in the fresh worktree.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/model-uat", "test"]
+  scope:
+    testGlobs: ["packages/model-uat/src/model-registry.test.ts"]
+    sourceGlobs: ["packages/model-uat/src/model-registry.ts"]
+  real:
+    testFile: "packages/model-uat/src/model-registry.test.ts"
+    sourceFile: "packages/model-uat/src/model-registry.ts"
+    scope:
+      testGlobs: ["packages/model-uat/src/model-registry.test.ts"]
+      sourceGlobs: ["packages/model-uat/src/model-registry.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "typecheck"]
 ---
 
 # A criterion's required tier resolves against an explicit versioned registry — substitute up, or hold
@@ -19,7 +42,7 @@ relabelling it.
 
 ## Guidance
 
-- A NET-NEW pure module (recommend `packages/library/src/model-registry.ts`, root-barrel /
+- A NET-NEW pure module at `packages/model-uat/src/model-registry.ts` (the story-owned port,
   browser-safe zod, no `node:`) plus a resolution function that, given a criterion's required tier
   (from `model-tier-classification`) and the current registry, returns one of: an ELIGIBLE judge (the
   registered model that satisfies it) or a HOLD.

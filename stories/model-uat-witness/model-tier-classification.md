@@ -2,12 +2,39 @@
 id: "model-tier-classification"
 tier: capability
 story: model-uat-witness
+arc: model-uat-promotion
 title: "A model criterion declares a minimum capability tier — advanced or frontier, nothing below"
 outcome: "A model criterion declares a minimum capability tier of advanced or frontier; a non-model criterion carries none, and a tier below the advanced floor or an unknown tier is refused at the parse boundary."
 status: proposed
 proof_mode: integration-test
 depends_on: [three-kind-witness]
-decisions: [209]
+decisions: [209, 192]
+# Node-borne proof config (ADR-0057 / ADR-0192). This is the second sequential EDIT-EXISTING increment
+# over the story-owned criterion pair: after three-kind-witness lands, runtime assertions add model-tier syntax,
+# required/exclusive field refinement, advanced floor, and the legacy-`either` no-tier fence. The
+# unchanged parser must RED those assertions before IMPLEMENT edits it. The whole package suite is
+# the regression oracle; install + typecheck are required for the dependency-bearing model-uat package.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/model-uat", "test"]
+  scope:
+    testGlobs: ["packages/model-uat/src/criterion.test.ts"]
+    sourceGlobs: ["packages/model-uat/src/criterion.ts"]
+  real:
+    testFile: "packages/model-uat/src/criterion.test.ts"
+    sourceFile: "packages/model-uat/src/criterion.ts"
+    scope:
+      testGlobs: ["packages/model-uat/src/criterion.test.ts"]
+      sourceGlobs: ["packages/model-uat/src/criterion.ts"]
+    install: true
+    editsExisting: true
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "test"]
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "typecheck"]
 ---
 
 # A model criterion declares a minimum capability tier — advanced or frontier, nothing below
@@ -18,7 +45,7 @@ at the parse boundary.
 
 ## Guidance
 
-- Extends the criterion schema in `packages/library/src/uat-test-criteria.ts` (built on
+- Extends the criterion schema in `packages/model-uat/src/criterion.ts` (built on
   `three-kind-witness`'s committed reshape) with a preclassified minimum-tier field, plus its parser
   annotation (e.g. `(witness: model, tier: advanced)` — settle the exact surface syntax at build,
   reusing the existing `WITNESS_TAG` parsing shape; recommend a `tier:` sub-key or a second
@@ -35,7 +62,7 @@ at the parse boundary.
   `model`); a `model` criterion with no tier is refused (a model witness with no preclassified minimum
   is exactly the ambiguity ADR-0209 D2 forbids). This is the hard fence that keeps legacy
   compatibility from becoming model judgment by default.
-- Pure, no I/O: a zod refinement + parser extension. The reshaped `uat-test-criteria.test.ts` is the
+- Pure, no I/O: a zod refinement + parser extension. The story-owned `criterion.test.ts` is the
   red→green pair; test-author ≠ code-author.
 
 ## Contracts (3)
