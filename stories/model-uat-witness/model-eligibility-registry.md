@@ -9,11 +9,10 @@ status: proposed
 proof_mode: integration-test
 depends_on: [model-tier-classification]
 decisions: [209, 192]
-# Node-borne proof config (ADR-0057). NET-NEW pure pair: AUTHOR_TEST writes model-registry.test.ts,
-# whose import is module-not-found against the unchanged tree; IMPLEMENT authors model-registry.ts.
-# The test exercises explicit/versioned registration, frontier-upward substitution, the advanced
-# floor, availability, and the distinct HOLD result over literal data — no DB, API, SDK, or model run.
-# `install: true` + typecheck keeps the package's dependency/type wall intact in the fresh worktree.
+# Node-borne proof config (ADR-0057), now EDIT-EXISTING after the first REAL promotion. AUTHOR_TEST
+# adds runtime assertions that the seed pins exactly the admitted Claude SDK ids (`claude-opus-4-8`
+# advanced, `claude-fable-5` frontier) and excludes GPT-5.6 Sol; IMPLEMENT corrects model-registry.ts.
+# The whole package suite is the regression oracle; no DB, API, SDK call, or live model.
 proof:
   command:
     file: pnpm
@@ -28,6 +27,10 @@ proof:
       testGlobs: ["packages/model-uat/src/model-registry.test.ts"]
       sourceGlobs: ["packages/model-uat/src/model-registry.ts"]
     install: true
+    editsExisting: true
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "test"]
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/model-uat", "typecheck"]
@@ -42,18 +45,19 @@ relabelling it.
 
 ## Guidance
 
-- A NET-NEW pure module at `packages/model-uat/src/model-registry.ts` (the story-owned port,
-  browser-safe zod, no `node:`) plus a resolution function that, given a criterion's required tier
+- The pure module at `packages/model-uat/src/model-registry.ts` (the story-owned port, browser-safe
+  zod, no `node:`) plus its resolution function: given a criterion's required tier
   (from `model-tier-classification`) and the current registry, returns one of: an ELIGIBLE judge (the
   registered model that satisfies it) or a HOLD.
 - **The registry is explicit and versioned** (ADR-0209 D2): a data structure carrying a schema
-  version and, per registered model, its id and conferred tier. `advanced` = a registered Opus-class
-  or approved-equivalent judge; `frontier` = Fable today. Providers/models NEVER self-declare
-  equivalence — only a registered entry confers a tier; an id absent from the registry is ineligible.
-  Seed the registry with today's reality (ADR-0209 Context): the live runtime is the Claude Agent SDK
-  on subscription; **Fable is the only admitted `frontier` judge**; GPT-5.6 Sol is NOT admitted (a
-  future-only candidate after a separate subscription-funded OpenAI runtime is admitted — leave it out
-  of the seed, or mark it explicitly unavailable, never eligible-by-aspiration).
+  version and, per registered model, its CONCRETE runtime id and conferred tier. The repo's live SDK
+  convention is `claude-<family>-<version>` (`claude-opus-4-8` in
+  `packages/agent/src/headless-orchestrator.ts` / ADR-0132 and `claude-sonnet-5` in
+  `sdk-author.ts`), so the owner-directed seed is exactly:
+  `claude-opus-4-8` = available `advanced`; `claude-fable-5` = available `frontier`.
+  `claude-fable-5-thinking-high` is a Cursor model slug, NOT the Claude SDK runtime id and is barred
+  from this registry. Providers/models NEVER self-declare equivalence; an id absent from the registry
+  is ineligible. GPT-5.6 Sol remains absent/unavailable until a future admitted subscription runtime.
 - **Substitute upward only** (ADR-0209 D2): a required tier is satisfied by a registered judge of that
   tier OR STRONGER — a `frontier` judge satisfies an `advanced` requirement; an `advanced` judge NEVER
   satisfies a `frontier` requirement. This is where the `advanced < frontier` ordering (from
@@ -73,10 +77,12 @@ relabelling it.
 
 ## Contracts (3)
 
-1. **`registry-confers-tier-explicitly`** — only a registered entry confers a tier; no self-declaration
-   - **asserts —** a model id present in the versioned registry resolves to its conferred tier; a model
-     id ABSENT from the registry (or one merely "claiming" a tier) resolves to INELIGIBLE — a model
-     never self-declares equivalence (ADR-0209 D2).
+1. **`registry-confers-tier-explicitly`** — the curated seed pins both admitted Claude runtime ids; only a registered entry confers a tier
+   - **asserts —** the seed contains exactly the available admitted pair
+     `{ id: "claude-opus-4-8", tier: "advanced" }` and
+     `{ id: "claude-fable-5", tier: "frontier" }`; it contains neither the Cursor-only
+     `claude-fable-5-thinking-high` slug nor an available GPT-5.6 Sol entry. An absent/self-declared id
+     resolves INELIGIBLE; only the versioned registry confers tier (ADR-0209 D2).
 2. **`stronger-substitutes-for-lower`** — a higher-tier registered judge satisfies a lower requirement
    - **asserts —** a registered `frontier` judge satisfies an `advanced` requirement (substitute
      upward); a registered `advanced` judge does NOT satisfy a `frontier` requirement; anything below

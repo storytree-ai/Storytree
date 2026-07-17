@@ -31,28 +31,31 @@ depends_on: []
 decisions: [209, 192, 82, 106, 55, 10]
 # Capabilities, roots-first (a capability appears after everything it depends on).
 capabilities: [three-kind-witness, model-tier-classification, model-eligibility-registry]
-# Node-borne STORY-UAT proof config (ADR-0057 / ADR-0092). Unlike a completeness-only authoring
-# proof, this greenfield story has a genuine executable integration red: AUTHOR_TEST writes the
-# net-new model-uat-witness.uat.test.ts, which imports a missing net-new model-uat-witness.ts facade;
-# IMPLEMENT authors that pure facade to compose the delivered parser/tier and registry capabilities.
-# The UAT test drives the six all-machine legs end-to-end over literal criteria/registries — including
-# legacy `either` staying unresolved and barred from model judgment — with no DB, SDK, API, or live
-# model. It is story-level composition glue, not a fourth capability journey. `install: true` and
-# typecheck retain the dependency/type wall for @storytree/model-uat in the shared REAL worktree.
+# Node-borne STORY-UAT proof config (ADR-0057 / ADR-0092), now EDIT-EXISTING after the first REAL
+# promotion. The standing UAT test must import Criterion/ClassifiedWitness/Tier, the registry API,
+# and resolveStoryWitnesses/resolveWitness through the PUBLIC `@storytree/model-uat` root barrel;
+# it must not bypass the public contract with relative internal imports. AUTHOR_TEST adds the
+# barrel-consumption assertion, RED because index.ts currently exports nothing; IMPLEMENT edits only
+# index.ts to export the criterion/tier/registry/story-facade API. The package suite is the explicit
+# proof command and regression wall. No DB, SDK, API, or live model.
 proof:
   command:
     file: pnpm
     args: ["--filter", "@storytree/model-uat", "test"]
   scope:
     testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
-    sourceGlobs: ["packages/model-uat/src/model-uat-witness.ts"]
+    sourceGlobs: ["packages/model-uat/src/index.ts"]
   real:
     testFile: "packages/model-uat/src/model-uat-witness.uat.test.ts"
-    sourceFile: "packages/model-uat/src/model-uat-witness.ts"
+    sourceFile: "packages/model-uat/src/index.ts"
     scope:
       testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
-      sourceGlobs: ["packages/model-uat/src/model-uat-witness.ts"]
+      sourceGlobs: ["packages/model-uat/src/index.ts"]
     install: true
+    editsExisting: true
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/model-uat", "test"]
     typecheck:
       file: pnpm
       args: ["--filter", "@storytree/model-uat", "typecheck"]
@@ -183,55 +186,80 @@ defect-driven thereafter. Every leg is **`(witness: machine)`** — this foundat
 deterministic, offline, spine-observable code (the pleasing bootstrap: the machinery that tiers a
 model witness is proven by a *machine* witness, ADR-0209 D1 keeping `machine` deterministic).
 
-> **Honest status — `proposed`.** Nothing here is proven through the ceremony; `healthy` is derived
-> from signed verdicts, never authored (ADR-0020). This UAT is the TARGET journey the three
-> capabilities must pass once built.
+> **Honest status — implementation promoted; per-test UAT still unproven.** The REAL story build
+> produced the package implementation on `claude/real/model-uat-witness-story-real-mrov6y3t`, but its
+> output correctly reported `uat proof: unproven`: the six criteria had no exact proof-gate bindings.
+> The bindings + gate below repair that obligation; no existing node verdict substitutes for the six
+> per-test rows. Authored status remains `proposed`; `healthy` is derived, never authored (ADR-0020).
 
 **Goal —** An author explicitly classifies one new or migrated UAT criterion's witness and, for a
 model, its tier; the machinery resolves an eligible judge or an honest hold while an existing
 untagged criterion stays legacy-unresolved, and every route from that legacy state into model
 judgment is refused.
 
-1. **Classify the three kinds.** _(witness: machine)_ A criterion tagged `machine`, one tagged
-   `model`, and one tagged `human` each parse to their own witness kind. **Success —** `model` is a
-   DISTINCT kind, never conflated with `machine`; the three kinds round-trip through the parser +
-   validator.
-2. **Preserve legacy parsing without defaulting to model.** _(witness: machine)_ An existing
+1. **Classify the three kinds through the public port.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Import
+   `Criterion`, `ClassifiedWitness`, `Tier`, the registry API, and
+   `resolveStoryWitnesses`/`resolveWitness` from the `@storytree/model-uat` ROOT barrel, then parse a
+   criterion tagged `machine`, one tagged `model`, and one tagged `human`. **Success —** every public
+   symbol resolves through `src/index.ts`; `model` is DISTINCT from `machine`; the three kinds
+   round-trip through the public parser/validator. An empty barrel fails this leg.
+2. **Preserve legacy parsing without defaulting to model.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ An existing
    untagged criterion is presented to the parser before its staged migration. **Success —** it parses
    as legacy-unresolved `either` and continues the current conservative path; it carries no model tier,
    cannot enter model judgment, and remains visibly due for explicit reclassification. A new or
    migrated criterion must explicitly declare `machine`, `model`, or `human` (ADR-0209 D8).
-3. **A model criterion declares its tier.** _(witness: machine)_ A `model` criterion tagged
+3. **A model criterion declares its tier.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `model` criterion tagged
    `advanced` and one tagged `frontier` parse their tiers; a `model` criterion with no tier, and a
    `machine`/`human` criterion carrying a tier, are refused. **Success —** tier ∈ {advanced, frontier}
    is required on and only on a `model` criterion; a below-`advanced` or unknown tier is refused at the
    parse boundary (ADR-0209 D2).
-4. **An eligible registered judge witnesses.** _(witness: machine)_ With a registry admitting Fable at
-   `frontier` and an Opus-class judge at `advanced`, an `advanced` criterion resolves to an eligible
-   judge, and the `frontier` judge SUBSTITUTES upward for an `advanced` requirement. **Success —** the
-   required tier is satisfied by a registered judge of that tier or stronger; an `advanced` judge never
-   satisfies a `frontier` requirement (ADR-0209 D2).
-5. **An unavailable tier HOLDS, honestly.** _(witness: machine)_ A `frontier` criterion is resolved
+4. **The curated concrete judges satisfy their admitted rungs.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Resolve
+   against the seed registry. **Success —** the available advanced entry is exactly
+   `claude-opus-4-8`, the available frontier entry is exactly `claude-fable-5`, an advanced criterion
+   resolves to the advanced Opus entry, and a frontier criterion resolves to Fable. A frontier judge
+   still substitutes upward when it is the eligible stronger judge; an advanced judge never satisfies
+   a frontier requirement (ADR-0209 D2).
+5. **An unavailable tier HOLDS, honestly.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `frontier` criterion is resolved
    against a registry with no available frontier judge. **Success —** it resolves to a distinct HOLD —
    NOT downgraded to `advanced`, NOT routed to a lower model, NOT relabelled `human` (ADR-0209 D2/D4).
-6. **No self-declared judge, no unregistered tier.** _(witness: machine)_ A model that is not in the
-   registry (or that "claims" a tier) is offered as a judge. **Success —** it resolves to ineligible;
-   only an explicit, versioned registry entry confers a tier (ADR-0209 D2).
+6. **Only the curated concrete allowlist confers eligibility.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A
+   self-declared/unregistered model and GPT-5.6 Sol are considered beside the seed. **Success —** the
+   seed's available ids are exactly `claude-opus-4-8` and `claude-fable-5`; GPT-5.6 Sol is absent or
+   unavailable, the self-declared model is ineligible, and only an explicit versioned registry entry
+   confers a tier (ADR-0209 D2).
 
 End state — a new or migrated criterion's witness kind, model tier, and judge eligibility are decided
 by explicit deterministic offline rules; an existing untagged criterion remains parseable only as
 legacy-unresolved `either`; every dishonest shortcut from that state into model judgment, plus every
 below-floor tier, self-declared judge, or laundered downgrade, is refused.
 
+## Reliability Gates
+
+The story's six UAT criteria are deterministic package behaviour and bind explicitly to ONE real,
+command-bearing observe gate (ADR-0082/0085/0106). The gate does not forge per-test rows: during
+Adopt, the spine runs the declared command at a clean committed HEAD, validates every exact
+`proof-gate` binding first (no fallback / no partial signing), and then mints one `adopted` verdict per
+criterion only when the command is green.
+
+1. **The public model-UAT port suite is green** _(gate: observe)_ `pnpm --filter @storytree/model-uat test`.
+   The spine observes the real package suite: public-barrel exports, three-kind classification,
+   legacy-only `either`, tier validity, the concretely pinned Opus/Fable seed, upward substitution,
+   unavailable-tier HOLD, and unregistered/GPT refusal. It then signs
+   `model-uat-witness#gate-1`; all six machine criteria above bind to this exact command-bearing gate.
+
+Run from a clean committed rebuilt HEAD:
+`pnpm storytree adopt model-uat-witness --signer <email> --pg`. Because the story is `proposed`,
+Adopt may be rerun (ADR-0097); it observes the package command once, signs the gate, then signs
+`model-uat-witness#uat-1` through `#uat-6` against their exact binding. No criterion is switched human,
+and no signed row is authored by hand.
+
 ## Proof
 
-The story carries the UAT above (ADR-0010 §2); it is proven when that walkthrough passes against the
-real reshaped parser + the tier/registry modules with the three capabilities' integration tests and
-contracts green underneath. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts —
-nothing here is authored healthy; the authored `status` stays `proposed`. Because every leg is
-`(witness: machine)`, the whole-story UAT is explicitly `uat_witness: machine` (no operator ceremony);
-the crown derives from the capabilities' signed `--real` verdicts plus the story UAT's machine legs,
-once built.
+The story carries the UAT above (ADR-0010 §2). The promoted implementation must now be rebuilt for
+the public barrel + concrete seed corrections, after which Adopt observes the real package suite and
+signs the six exact machine legs. Per ADR-0020, `healthy` is only ever DERIVED from signed verdicts;
+the authored status stays `proposed`. The whole-story UAT remains explicitly
+`uat_witness: machine` — no operator ceremony and no hand-authored signed rows.
 
 ## Where this sits in the arc — the dependency order for the planner
 
