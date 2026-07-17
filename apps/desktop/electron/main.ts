@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -128,6 +129,14 @@ const sidecarCwd = join(serveRoot, "apps", "desktop");
 // The credential lives in the OS keychain, reached only through the broker in THIS (main)
 // process. The renderer never holds it (ADR-0109 §Decision 4).
 const broker = new CredentialBroker(new NapiKeychain());
+
+// The per-launch shared secret gating the loopback sidecar's side-effecting routes (loopback-guard,
+// ADR-0119 §1 hardening). Minted ONCE per app launch in the main process (never on disk, never in the
+// renderer), passed to the sidecar via env and to the static-server proxy, which injects it on every
+// proxied `/api/*` request. The sidecar requires it on mutating routes, so a request reaching its
+// ephemeral port by any path other than our proxy — a browser page, a local non-browser process — is
+// refused. 32 random bytes = 256 bits, unguessable within a launch.
+const sidecarToken = randomBytes(32).toString("hex");
 
 let studioUrl: string | null = null;
 let backendChild: ChildProcess | null = null;
@@ -337,6 +346,9 @@ function startBackend(): Promise<number> {
         ELECTRON_RUN_AS_NODE: "1",
         [RUNTIME_ROOT_ENV]: serveRoot,
         STORYTREE_DESKTOP_RUNTIME_PINNED: ffToMain ? "1" : "",
+        // The per-launch loopback-guard secret (see `sidecarToken` above): the sidecar requires it on
+        // every state-mutating route, and only the static-server proxy (same main process) injects it.
+        STORYTREE_SIDECAR_TOKEN: sidecarToken,
       },
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
@@ -387,7 +399,12 @@ async function ensureStudioServed(): Promise<string> {
     if (!E2E_MODE && backendPort === null) throw new Error("backend port is unavailable");
     // Without a sidecar (e2e mode) the static server answers /api with its clean 503 fallback —
     // the e2e specs stub every /api call in the renderer, so nothing ever reaches it anyway.
-    const served = await serveStudio(STUDIO_DIST, backendPort === null ? {} : { backendPort });
+    // The sidecarToken rides only when a real sidecar is running (it is what validates the proxy's
+    // injected header); in e2e there is no sidecar, so it is omitted with the backendPort.
+    const served = await serveStudio(
+      STUDIO_DIST,
+      backendPort === null ? {} : { backendPort, sidecarToken },
+    );
     studioUrl = served.url;
   }
   return studioUrl;
@@ -399,6 +416,25 @@ async function safeLoadURL(win: BrowserWindow, url: string): Promise<void> {
     await win.loadURL(url);
   } catch (err) {
     if (!win.isDestroyed()) throw err;
+  }
+}
+
+/**
+ * Whether `url` is the app's OWN origin — the loopback studio the main window is meant to show. Used to
+ * lock down renderer navigation (ADR-0109 §Decision 4 hardening): the preload exposes shell-spawn bridges
+ * (`window.desktopTerminal.spawn` → node-pty = local command execution) which persist across navigations
+ * of the same webContents, so if the top frame were ever steered to a remote/untrusted origin (an
+ * attacker link in a member comment or rendered markdown) that page would inherit the bridge → arbitrary
+ * local command execution. We therefore allow navigation ONLY back to the studio origin; everything else
+ * is refused in `will-navigate`. Returns false until the studio is served (only the retry link — handled
+ * separately — can navigate before then).
+ */
+function isAppOwnUrl(url: string): boolean {
+  if (studioUrl === null) return false;
+  try {
+    return new URL(url).origin === new URL(studioUrl).origin;
+  } catch {
+    return false;
   }
 }
 
@@ -447,10 +483,30 @@ async function createWindow(): Promise<void> {
       nodeIntegration: false,
     },
   });
+  // Lock down top-frame navigation (ADR-0109 §Decision 4 hardening). The preload bridges
+  // (`window.desktopTerminal.spawn` → local command execution, `desktopApply.rebuildAndRelaunch`,
+  // `desktopAuth`) persist across navigations of THIS webContents, so the top frame must never be
+  // steered off the app's own origin — an attacker link planted in a member comment or rendered
+  // markdown would otherwise inherit the shell-spawn bridge. Allow only: the internal retry URL
+  // (special-cased to relaunch) and the studio's own loopback origin. Everything else is refused; a
+  // safe http/https target is handed to the OS browser instead of loading in-app (same scheme allowlist
+  // the terminal link-opener uses, open-link-policy.ts).
   win.webContents.on("will-navigate", (event, url) => {
-    if (url !== RETRY_URL) return;
+    if (url === RETRY_URL) {
+      event.preventDefault();
+      void launchBackendForWindow(win);
+      return;
+    }
+    if (isAppOwnUrl(url)) return; // the studio app itself — allowed
     event.preventDefault();
-    void launchBackendForWindow(win);
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
+  });
+  // Deny renderer-initiated new windows (window.open / target=_blank): a child window on this session
+  // could inherit the same preload bridges. A safe external http/https URL is opened in the OS browser
+  // instead (never in-app); every other target is dropped. Pairs with the will-navigate lock above.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
   });
   // Reap every embedded-terminal pty when the window that hosts them closes (ADR-0174) — a closed
   // renderer must never leave an orphaned child shell running.

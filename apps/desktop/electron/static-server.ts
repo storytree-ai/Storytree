@@ -3,6 +3,8 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import type { AddressInfo } from "node:net";
 
+import { guardHttpRequest, SIDECAR_TOKEN_HEADER } from "../src/backend/loopback-guard.js";
+
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -32,14 +34,22 @@ const CONTENT_TYPES: Record<string, string> = {
  * a plain `node:http` request pipe, NO extra deps (the house posture). Without a sidecar (the Step-1
  * shell, or the sidecar not yet started) it falls back to a clean 503 so the studio shows its
  * store-unavailable banner instead of being handed HTML for a JSON fetch.
+ *
+ * SECURITY (ADR-0119 §1 hardening, loopback-guard): this proxy is the ONLY legitimate path to the
+ * sidecar's side-effecting routes, so it is the wall's entry point. It (a) runs the loopback-guard on
+ * every mutating `/api/*` request — refusing a cross-origin Origin or a non-loopback Host (browser CSRF
+ * + DNS rebinding) BEFORE proxying — and (b) injects the per-launch `sidecarToken` on the proxied
+ * request, the secret the sidecar requires so it can tell a proxied request from any other local client
+ * hitting its ephemeral port directly. Read-only GETs proxy untouched.
  */
 export function serveStudio(
   distDir: string,
-  opts?: { backendPort?: number },
+  opts?: { backendPort?: number; sidecarToken?: string },
 ): Promise<{ url: string; server: Server }> {
   const root = normalize(distDir);
   const indexHtml = join(root, "index.html");
   const backendPort = opts?.backendPort;
+  const sidecarToken = opts?.sidecarToken;
 
   const server = createServer((req, res) => {
     const rawPath = (req.url ?? "/").split("?")[0] ?? "/";
@@ -50,6 +60,19 @@ export function serveStudio(
         res.end('{"error":"no local backend (sidecar not started)"}');
         return;
       }
+      // The auth/CSRF/rebinding wall at the proxy entry point: refuse a state-mutating cross-origin /
+      // non-loopback-Host request here, before it is proxied to a side-effecting sidecar route. No token
+      // is checked on the way IN (the renderer holds none — the proxy is what injects it); Origin + Host
+      // are the browser-side gate. Read-only GET/HEAD pass through untouched.
+      const guard = guardHttpRequest(req);
+      if (!guard.ok) {
+        res.writeHead(guard.status, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: guard.reason }));
+        return;
+      }
+      // Inject the per-launch shared secret so the sidecar can distinguish a proxied request from any
+      // other local client hitting its port directly (defense-in-depth over the Origin/Host checks).
+      const headers = { ...req.headers, ...(sidecarToken ? { [SIDECAR_TOKEN_HEADER]: sidecarToken } : {}) };
       // Pipe the full request (method + path + query + headers + body) to the sidecar and stream its
       // response back. A connection error becomes a 502 JSON envelope (never HTML for a JSON fetch).
       const proxyReq = httpRequest(
@@ -58,7 +81,7 @@ export function serveStudio(
           port: backendPort,
           method: req.method,
           path: req.url,
-          headers: req.headers,
+          headers,
         },
         (proxyRes) => {
           res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);

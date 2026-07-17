@@ -54,6 +54,7 @@ import {
   ensureLaunchPreconditions,
 } from "../src/backend/launch-preconditions.js";
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
+import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 import { createBuildRouteMount } from "../src/backend/build-route.js";
 import { createAdoptRouteMount } from "../src/backend/adopt-route.js";
@@ -1063,10 +1064,27 @@ async function main(): Promise<void> {
 
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 
+  // The auth / CSRF / DNS-rebinding wall (loopback-guard, ADR-0119 §1 hardening). The sidecar binds an
+  // ephemeral 127.0.0.1 port, which stops LAN reach but is NOT an auth boundary: any web page the user
+  // visits can port-scan localhost and fire a CORS-simple POST at a side-effecting route (POST /api/chat
+  // starts an autonomous session-orchestrator; /api/build|adopt|uat/attest all mutate). So EVERY
+  // state-mutating request must be same-origin (loopback Origin), loopback-Host (defeats DNS rebinding),
+  // AND carry the per-launch secret the trusted static-server proxy injects (STORYTREE_SIDECAR_TOKEN) —
+  // a request reaching this port by any path other than our proxy is refused. Read-only GET/HEAD stay
+  // lenient. The token is empty only in a mis-spawn (main always sets it); then Origin/Host still gate.
+  const sidecarToken = (process.env.STORYTREE_SIDECAR_TOKEN ?? "").trim() || undefined;
+
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       try {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+        const guard = guardHttpRequest(req, { expectedToken: sidecarToken });
+        if (!guard.ok) {
+          res.statusCode = guard.status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ error: guard.reason }));
+          return;
+        }
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
         if (await buildRouteMount(req, res, pathname)) return;
