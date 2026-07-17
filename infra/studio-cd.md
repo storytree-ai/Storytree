@@ -107,7 +107,8 @@ The deploy SA `storytree-studio-deployer` gets:
 | --- | --- | --- |
 | `roles/iam.workloadIdentityUser` | the deploy SA | the keyless bridge — only storytree-ai/Storytree workflows **on `main`** (`attribute.ref/refs/heads/main`) may impersonate it (tighter than ci-presence's repo-wide binding) |
 | `roles/iam.serviceAccountUser` | on `storytree-studio-host` | actAs at deploy → the revision runs as the keyless runtime SA |
-| `roles/run.admin` | **project** | deploy revisions **and** the `setIamPolicy` that `--iap` performs (binds the IAP service agent as sole invoker) |
+| `roles/run.admin` | the **`storytree-studio` service** only (`google_cloud_run_v2_service_iam_member`) | deploy revisions **and** the `setIamPolicy` that `--iap` performs (binds the IAP service agent as sole invoker) — scoped to this one service so a CD compromise cannot setIamPolicy on / reconfigure any OTHER Cloud Run service |
+| `roles/run.viewer` | project | read-only Run visibility for `gcloud run deploy`'s operation polling + the smoke `describe` (no write, no `setIamPolicy`) |
 | `roles/cloudbuild.builds.editor` | project | submit + watch the image build |
 | `roles/iam.serviceAccountUser` | on the default compute SA (`635716509357-compute@`) | actAs the Cloud Build **execution** SA — `gcloud builds submit` runs the build as it; without this the submit fails `cannot act as …-compute@` (the 2026-06-13 failure) |
 | `roles/serviceusage.serviceUsageConsumer` | project | **required for SA-driven `gcloud builds submit`** — `serviceusage.services.use` (without it the staging-bucket access is refused; hit on the first live run) |
@@ -115,18 +116,22 @@ The deploy SA `storytree-studio-deployer` gets:
 | `roles/storage.admin` | the `…-studio-cd-build` bucket only | upload build source + the `buckets.get` existence check `submit` does |
 | `roles/artifactregistry.reader` | the `storytree` repo | reference the image at deploy |
 
-**The one knowingly-wide grant is project `roles/run.admin`** (vs the narrower `run.developer`). It
-is there because the deploy re-asserts `--iap` every time (so the wall can never silently drift
-off), and `--iap` needs `setIamPolicy` which `run.developer` lacks. It was left project-wide because
-the first apply could not be agent-tested and project `run.admin` is the known-working CD recipe.
-**Tightening options** (owner's call, can be applied later without touching the workflow):
+**`run.admin` is now scoped to the single `storytree-studio` service** (tightening option 1 below,
+applied for the defensive-security least-privilege pass) via `google_cloud_run_v2_service_iam_member`,
+paired with a read-only project `roles/run.viewer`. It is still `run.admin` (not `run.developer`)
+because the deploy re-asserts `--iap` every time (so the wall can never silently drift off) and
+`--iap` needs `setIamPolicy` which `run.developer` lacks — but confined to this one service, so a CD
+compromise cannot `setIamPolicy` on / reconfigure any OTHER Cloud Run service in the project.
+**⚠️ This changes the deploy SA's effective IAM — an owner `terraform apply` is required to take
+effect** (it destroys the old project-wide binding and creates the service-scoped + `run.viewer`
+pair). Verify the first deploy after apply still succeeds (the `--iap` setIamPolicy + operation
+polling must resolve at resource scope; the project `run.viewer` covers describe/operations reads).
 
-1. Scope `run.admin` to the `storytree-studio` service resource (`google_cloud_run_v2_service_iam_member`)
-   + add project `roles/run.viewer` for describe/operations. Tighter; verify the first deploy still
-   succeeds (the `--iap` setIamPolicy + operation polling must resolve at resource scope).
-2. Drop to `roles/run.developer` and **stop passing `--iap`** in the workflow — IAP is a sticky
-   service setting that a new revision preserves — then assert it is still on in the smoke step. Most
-   least-privilege; trades self-healing of the IAP posture for an assertion-only guard.
+Further **tightening option** still open (owner's call, would touch the workflow):
+
+- Drop to `roles/run.developer` and **stop passing `--iap`** in the workflow — IAP is a sticky
+  service setting that a new revision preserves — then assert it is still on in the smoke step. Most
+  least-privilege; trades self-healing of the IAP posture for an assertion-only guard.
 
 ## Post-deploy verification (what CD does, and what it deliberately does NOT)
 
