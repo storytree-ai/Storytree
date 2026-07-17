@@ -36,6 +36,7 @@ export function storytreeDataApi(): Plugin {
       // The pg pool (if store='pg') is built lazily on first use; this just picks the impl.
       backend = createBackend({
         assetsFile: paths.assetsFile,
+        knowledgeFile: paths.knowledgeFile,
         commentsFile: paths.commentsFile,
         usersFile: paths.usersFile,
         attestationsFile: paths.attestationsFile,

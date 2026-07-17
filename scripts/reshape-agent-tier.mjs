@@ -3,7 +3,8 @@
 // Idempotent corpus patcher: UPSERTs new/evolved units by id and REMOVEs retired ids in
 // apps/studio/data/knowledge.json (the git-reviewable seed where the agent tier was
 // originally authored). Re-runnable — same input, same output. After running, regenerate
-// the derived views: `pnpm --filter studio exec tsx data/build-corpus.mjs`.
+// the agent views: `pnpm build:agents && pnpm build:claude` (the generated assets.json view
+// was retired by ADR-0210).
 //
 // The reshape (3 increments, one script):
 //   - LEAF SPLIT: two leaf agents (separate test-authoring vs flip-to-green prompts the

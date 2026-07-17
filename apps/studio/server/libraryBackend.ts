@@ -36,6 +36,10 @@ import { rowsToBuildActivity } from './inFlightBuilds';
 import type { BuildRow } from './inFlightBuilds';
 import { claimsToActivity } from './inFlightActivity';
 import type { ClaimActivity, ClaimRow } from './inFlightActivity';
+// deriveOfflineAssets is safe to import statically: its own `@storytree/library` use is a DYNAMIC
+// package import, so esbuild leaves it external and vite config-load never resolves the library's
+// raw-TS `.js` specifiers (the config-load trap). See deriveOfflineCorpus's header.
+import { deriveOfflineAssets, type KnowledgeUnitLike } from './deriveOfflineCorpus';
 
 /** Latest-per-(testId,witness) attestation marks for one story's tests, keyed by test id. */
 export type StoryAttestations = Record<string, { human?: Attestation; machine?: Attestation }>;
@@ -263,20 +267,45 @@ export class JsonBackend implements LibraryBackend {
   readonly #commentsFile: string;
   readonly #usersFile: string;
   readonly #attestationsFile: string;
+  /**
+   * The structured seed (knowledge.json). When set, the assets store is a GITIGNORED runtime file
+   * SEEDED on first read by deriving the corpus from this file + libraryTemplates() (ADR-0210 — the
+   * in-memory replacement for the retired build-corpus.mjs). When UNSET (integration tests that point
+   * at their own temp store), no seed runs and an absent store reads as empty — the pre-ADR-0210
+   * behaviour, preserved.
+   */
+  readonly #knowledgeFile: string | undefined;
 
   constructor(opts: {
     assetsFile: string;
     commentsFile: string;
     usersFile: string;
     attestationsFile: string;
+    /** knowledge.json — enables the derive-on-first-read seed (real studio); omit to start empty. */
+    knowledgeFile?: string;
   }) {
     this.#assetsFile = opts.assetsFile;
     this.#commentsFile = opts.commentsFile;
     this.#usersFile = opts.usersFile;
     this.#attestationsFile = opts.attestationsFile;
+    this.#knowledgeFile = opts.knowledgeFile;
+  }
+
+  /**
+   * Seed the runtime assets store on first use: when a knowledge seed is configured and the store
+   * file does not yet exist, derive the corpus (knowledge.json rendered + the templates) and write
+   * it. Idempotent — a present store file is left untouched, so user edits persist across restarts
+   * (the cold-restart durability the offline UAT asserts).
+   */
+  async #ensureSeeded(): Promise<void> {
+    if (this.#knowledgeFile === undefined) return;
+    if (existsSync(this.#assetsFile)) return;
+    const units = await readStore<KnowledgeUnitLike[]>(this.#knowledgeFile, []);
+    await writeStore(this.#assetsFile, await deriveOfflineAssets(units));
   }
 
   async listAssets(): Promise<GuidanceAsset[]> {
+    await this.#ensureSeeded();
     return readStore<GuidanceAsset[]>(this.#assetsFile, []);
   }
 
@@ -1146,6 +1175,8 @@ export function createBackend(opts: {
   commentsFile: string;
   usersFile: string;
   attestationsFile: string;
+  /** knowledge.json — enables the offline JsonBackend's derive-on-first-read seed (ADR-0210). */
+  knowledgeFile?: string;
 }): LibraryBackend {
   return selectedStore() === 'pg'
     ? new PgBackend()
@@ -1154,5 +1185,6 @@ export function createBackend(opts: {
         commentsFile: opts.commentsFile,
         usersFile: opts.usersFile,
         attestationsFile: opts.attestationsFile,
+        ...(opts.knowledgeFile !== undefined ? { knowledgeFile: opts.knowledgeFile } : {}),
       });
 }

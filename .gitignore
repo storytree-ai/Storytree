@@ -48,6 +48,12 @@ apps/studio/data/users.json
 # Cloud SQL). Never committed.
 apps/studio/data/attestations.json
 
+# The offline JSON backend's assets store (ADR-0210) is app-owned runtime state: seeded on first
+# read by deriving the corpus from knowledge.json + the library templates, then written here as the
+# offline read/write store (the live source is the events library tables in Cloud SQL). This
+# REPLACED the committed, generated apps/studio/data/assets.json, which was retired. Never committed.
+apps/studio/data/assets.runtime.json
+
 # Editor / OS
 .DS_Store
 Thumbs.db

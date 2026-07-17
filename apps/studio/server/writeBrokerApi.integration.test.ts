@@ -109,6 +109,7 @@ beforeAll(async () => {
       dataDir: distDir,
       commentsFile: path.join(distDir, 'comments.json'),
       assetsFile: path.join(distDir, 'assets.json'),
+      knowledgeFile: path.join(distDir, 'knowledge.json'),
       usersFile: path.join(distDir, 'users.json'),
       attestationsFile: path.join(distDir, 'attestations.json'),
     },

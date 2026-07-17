@@ -111,12 +111,11 @@ Durable project knowledge lives in the **Library** — a typed artifact tier
 into the shared Cloud SQL Postgres store (ADR-0017 / ADR-0019), browsed in the studio,
 and explored from the CLI (`pnpm storytree library`).
 
-The Library's source of truth is the structured `knowledge.json`;
-`apps/studio/data/assets.json` (the rendered corpus) is **generated** from it by
-`apps/studio/data/build-corpus.mjs` and must never be hand-edited. Term definitions are
-authoritative as Library `definition` artifacts, looked up just-in-time (ADR-0135 retired the
-old generated `docs/glossary.md`). To change the Library, edit `knowledge.json` (or use the
-CLI against the live DB) and re-run the generator.
+The Library's source of truth is the structured `knowledge.json` (and, canonically, the live Cloud
+SQL store it seeds). Term definitions are authoritative as Library `definition` artifacts, looked up
+just-in-time (ADR-0135 retired the old generated `docs/glossary.md`; ADR-0210 retired the generated
+`apps/studio/data/assets.json` — the offline studio now derives its view from `knowledge.json` on the
+fly). To change the Library, edit `knowledge.json` (or use the CLI against the live DB).
 
 What remains under `docs/` is therefore intentionally lean — everything else durable has
 folded into the Library:

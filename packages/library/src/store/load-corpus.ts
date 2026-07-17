@@ -5,6 +5,7 @@ import type { Store } from "@storytree/storage-protocol";
 import { createPool, closePool } from "./connection.js";
 import { applySchema } from "./migrate.js";
 import { PgLibraryStore } from "./pg-store.js";
+import { libraryTemplates } from "../templates.js";
 
 /**
  * The corpus migration (ADR-0017 / ADR-0019 Phase 2, ADR-0021): seed the runtime store from the
@@ -12,10 +13,11 @@ import { PgLibraryStore } from "./pg-store.js";
  *
  *  - The structured knowledge units in `apps/studio/data/knowledge.json` (every `KIND_SPECS` kind)
  *    are upserted as artifacts in their STRUCTURED form (kind = the unit's `kind`).
- *  - The generated `template` units (the per-kind `template-<kind>` scaffolds + `template-adr`,
- *    which scaffolds the ADR source layer, not a knowledge kind) are read from the
- *    GENERATED `apps/studio/data/assets.json` (they have no structured source) and upserted in their
- *    rendered form (kind = `template`). Validation accepts both via `validateLibraryDoc`.
+ *  - The `template` units (the per-kind `template-<kind>` scaffolds + `template-adr`, which scaffolds
+ *    the ADR source layer, not a knowledge kind) come from `libraryTemplates()` (ADR-0210 — re-homed
+ *    from the retired generated `apps/studio/data/assets.json`; they have no structured knowledge
+ *    source) and are upserted in their rendered form (kind = `template`). Validation accepts both via
+ *    `validateLibraryDoc`.
  *  - Comments (`apps/studio/data/comments.json`) are loaded into the dedicated `events.comment`
  *    projection + `events.comment_event` history (NOT the library tables) via {@link loadComments}.
  *
@@ -27,13 +29,6 @@ import { PgLibraryStore } from "./pg-store.js";
 interface KnowledgeUnitLike {
   id: string;
   kind: string;
-  [k: string]: unknown;
-}
-
-/** A rendered asset from assets.json (used to pick up the generated `template` artifacts). */
-interface AssetLike {
-  id: string;
-  category: string;
   [k: string]: unknown;
 }
 
@@ -60,8 +55,7 @@ export interface LoadCorpusResult {
  */
 export async function loadCorpus(store: Store): Promise<LoadCorpusResult> {
   const units = JSON.parse(await readFile(dataPath("knowledge.json"), "utf8")) as KnowledgeUnitLike[];
-  const assets = JSON.parse(await readFile(dataPath("assets.json"), "utf8")) as AssetLike[];
-  const templates = assets.filter((a) => a.category === "template");
+  const templates = libraryTemplates();
 
   for (const unit of units) {
     await store.upsertDoc({ id: unit.id, kind: unit.kind, doc: unit, actor: "corpus-migration" });

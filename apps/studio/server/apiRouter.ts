@@ -14,13 +14,11 @@
 //
 // SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
 //   • apps/studio/data/knowledge.json is the STRUCTURED SOURCE of the Library.
-//   • apps/studio/data/assets.json is a GENERATED VIEW, built by
-//     apps/studio/data/build-corpus.mjs from knowledge.json — NEVER hand-edit it.
-//     (This API's POST/PATCH to assets.json is dev-authoring only; whatever
-//     it writes gets CLOBBERED on the next build-corpus run — edit knowledge.json
-//     and rebuild instead.)
+//   • The offline JsonBackend serves a GITIGNORED apps/studio/data/assets.runtime.json, SEEDED on
+//     first read by deriving the corpus from knowledge.json + the library templates (ADR-0210 — the
+//     committed, generated assets.json was retired; nothing hand-edits or commits this runtime store).
 //   • The Library is ALSO migrated into the shared Cloud SQL Postgres store
-//     (packages/store) — the pg backend is the default (oq-studio-store-default → B).
+//     (packages/library/store) — the pg backend is the default (oq-studio-store-default → B).
 
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -104,7 +102,10 @@ export interface Paths {
   storiesDir: string;
   dataDir: string;
   commentsFile: string;
+  /** The offline JsonBackend's GITIGNORED runtime assets store, seeded from knowledgeFile (ADR-0210). */
   assetsFile: string;
+  /** The structured Library seed the offline store derives from on first read (ADR-0210). */
+  knowledgeFile: string;
   usersFile: string;
   attestationsFile: string;
 }
@@ -119,7 +120,10 @@ export function resolveStudioPaths(studioRoot: string): Paths {
     storiesDir: path.join(repoRoot, 'stories'),
     dataDir,
     commentsFile: path.join(dataDir, 'comments.json'),
-    assetsFile: path.join(dataDir, 'assets.json'),
+    // ADR-0210: the offline store is a gitignored RUNTIME file, seeded from knowledge.json on first
+    // read (deriveOfflineAssets) — not the retired committed generated assets.json.
+    assetsFile: path.join(dataDir, 'assets.runtime.json'),
+    knowledgeFile: path.join(dataDir, 'knowledge.json'),
     usersFile: path.join(dataDir, 'users.json'),
     attestationsFile: path.join(dataDir, 'attestations.json'),
   };

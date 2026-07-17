@@ -205,31 +205,18 @@ function repoRoot(): string {
   return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 }
 
-/** Count the generated non-template assets in apps/studio/data/assets.json (for count-reconciliation). */
-function generatedAssetCount(): number | undefined {
-  try {
-    const raw = readFileSync(
-      path.join(repoRoot(), "apps", "studio", "data", "assets.json"),
-      "utf8",
-    );
-    const assets = JSON.parse(raw) as { category?: string }[];
-    const kinds = new Set(Object.keys(KIND_SPECS));
-    return assets.filter((a) => typeof a.category === "string" && kinds.has(a.category)).length;
-  } catch {
-    return undefined;
-  }
-}
-
 /**
- * `storytree library --check` (design §4 surface b) — the FULL per-id health report (all five checks).
- * Provides the fs-backed resolvers (docExists under <repoRoot>/docs, generatedAssetCount from
- * assets.json) so {@link libraryHealth} stays pure. Envelope `ok` is false IFF a GATE check FAILs (a
- * real gate break / non-zero exit); a WARN keeps `ok` true (design §4 "A WARN keeps ok=true").
+ * `storytree library --check` (design §4 surface b) — the FULL per-id health report (all four checks).
+ * Provides the fs-backed `docExists` resolver (under <repoRoot>/docs) so {@link libraryHealth} stays
+ * pure. Envelope `ok` is false IFF a GATE check FAILs (a real gate break / non-zero exit); a WARN
+ * keeps `ok` true (design §4 "A WARN keeps ok=true").
+ *
+ * (The former count-reconciliation check read apps/studio/data/assets.json; it retired with that
+ * generated file, ADR-0210.)
  */
 export async function libraryCheck(store: Store): Promise<Envelope> {
   const docs = await store.queryDocs();
   const docsDir = path.join(repoRoot(), "docs");
-  const genCount = generatedAssetCount();
   const results = libraryHealth(docs, {
     currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     retiredFields: RETIRED_FIELDS,
@@ -241,7 +228,6 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
         return false;
       }
     },
-    ...(genCount !== undefined ? { generatedAssetCount: genCount } : {}),
   });
   const { fail, warn } = levelCounts(results);
   const gateFails = gateFailures(results);
@@ -700,7 +686,7 @@ export async function syncCorpusCommand(deps: RunDeps): Promise<Envelope> {
  * rewrites knowledge.json. Owner-directed policy (ADR-0120 a): OVERWRITE a seed body that drifted from
  * a valid live one + ADD live-only artifacts, but NEVER delete a seed entry, NEVER touch agents/templates,
  * and NEVER write a degraded/below-floor live body (it is refused and reported for a seed→live restore).
- * Needs --pg (it reads the LIVE store); writing the file is a local edit, so re-run build-corpus after.
+ * Needs --pg (it reads the LIVE store); writing the file is a local edit to the seed.
  */
 export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean }): Promise<Envelope> {
   if (deps.writable !== true) return notWritable(deps.store);
@@ -723,16 +709,19 @@ export async function exportCorpusCommand(deps: RunDeps, opts: { write: boolean 
 
   if (write && !r.noop) {
     writeFileSync(knowledgePath, JSON.stringify(r.entries, null, 2) + "\n", "utf8");
-    lines.push("", `WROTE ${knowledgePath}. Now regenerate the views: npx tsx apps/studio/data/build-corpus.mjs`);
+    lines.push(
+      "",
+      `WROTE ${knowledgePath}. The live store stays canonical; the offline studio derives its view from this seed on the fly (ADR-0210 — no assets.json to regenerate).`,
+    );
   } else if (!write && !r.noop) {
-    lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply, then run build-corpus.mjs.");
+    lines.push("", "DRY-RUN — nothing written. Re-run with --write to apply.");
   }
 
   return {
     ok: true,
     body: lines.join("\n"),
     next: write
-      ? ["npx tsx apps/studio/data/build-corpus.mjs   (regenerate assets.json)", "pnpm check:corpus-content"]
+      ? ["pnpm check:corpus-content   (the body-level drift report)"]
       : ["storytree library export-corpus --pg --write   (apply)", "pnpm check:corpus-content   (the body-level drift report)"],
   };
 }

@@ -39,18 +39,17 @@ database.
 ```bash
 pnpm --filter studio typecheck    # strict tsc (repo tsconfig.base)
 pnpm --filter studio build        # static SPA build (no API — see "Persistence")
-npx tsx apps/studio/data/build-corpus.mjs   # regenerate the Library from knowledge.json
 ```
 
-The Library is **generated, not seeded.** The structured source of truth is
-[`data/knowledge.json`](data/knowledge.json); `build-corpus.mjs` renders it into
-[`data/assets.json`](data/assets.json) (what the UI reads). Never hand-edit that
-output; edit `knowledge.json` and rebuild. The old `data/seed.assets.mjs` seeder
-is **retired** (and `docs/glossary.md`, formerly a second generated view, was
-retired by ADR-0135 — the Library's definition artifacts are the term authority).
-The library is **also** migrated into the shared Cloud SQL Postgres
-store ([`packages/store`](../../packages/store)); the studio ↔ store swap (reading
-the Library from Postgres instead of the local JSON) is still **pending**.
+The structured source of truth is [`data/knowledge.json`](data/knowledge.json), migrated into the
+shared Cloud SQL Postgres store ([`@storytree/library/store`](../../packages/library/src/store)), which
+the studio reads **by default** (`STORYTREE_STUDIO_STORE=pg`; bring the DB up with `pnpm db:up`). Set
+`STORYTREE_STUDIO_STORE=json` for the **offline** backend: it derives its corpus from `knowledge.json`
+on first read (rendered via `@storytree/library`, with the `template` scaffolds from
+`libraryTemplates()`) and persists edits to a gitignored `data/assets.runtime.json` — no committed
+generated file. The old `data/build-corpus.mjs` + `data/assets.json` generated view was **retired by
+ADR-0210**; the older `data/seed.assets.mjs` seeder and `docs/glossary.md` (a second generated view,
+ADR-0135) were retired before it. Edit `knowledge.json` (or the live DB via the CLI) to change the Library.
 
 ## Commenting — block placement + the Review-mode editor
 
@@ -135,20 +134,19 @@ shape), and authoring an `adr` works exactly like the other categories.
 
 **`adr` is a first-class artifact category.** You author ADRs in the editor like
 any other artifact — start from the `template-adr` scaffold; they persist to
-`assets.json` and open in `AssetView`. The Library *also* folds in the canonical
+the Library store and open in `AssetView`. The Library *also* folds in the canonical
 ADRs under `docs/decisions/` as read-only `adr` rows (opening in the same
 `DocView` — rendered markdown with comments + annotation), so the `adr` category
 spans both authored artifacts and the doc-backed decision records. The glossary /
 open-questions / adjudication / v1 registers stay in the sidebar's **Reference**
 section, not the Library.
 
-The Library is **generated** from [`data/knowledge.json`](data/knowledge.json) by
-[`data/build-corpus.mjs`](data/build-corpus.mjs) — **74 knowledge units** rendered
-into **81 artifacts** in `assets.json` (the 74 units plus **7 `template`
-scaffolds**): curated guidance synthesised from the ADRs (each `references` its
-source ADR), one `definition` per glossary term, and a few v1 imports. The
-canonical ADRs under `docs/decisions/` additionally fold in read-only as `adr`
-cards at runtime (served live by the dev API, not stored in `assets.json`).
+The Library is the structured corpus in [`data/knowledge.json`](data/knowledge.json) — curated
+guidance synthesised from the ADRs (each `references` its source ADR), one `definition` per term, and a
+few v1 imports — plus the per-kind `template` scaffolds from `libraryTemplates()` (`@storytree/library`).
+The default studio reads it from the live Postgres store; the offline backend derives it from
+`knowledge.json` on the fly (ADR-0210). The canonical ADRs under `docs/decisions/` additionally fold in
+read-only as `adr` cards at runtime (served live by the dev API).
 
 ### API (dev only)
 
@@ -162,11 +160,11 @@ cards at runtime (served live by the dev API, not stored in `assets.json`).
 ## Design choices (for owner review)
 
 - **`adr` is a first-class artifact category.** ADRs are authored in the editor
-  like any other artifact and persist to `assets.json`. The **existing** decision
+  like any other artifact and persist to the Library store. The **existing** decision
   records stay canonical markdown under `docs/decisions/` and fold into the same
   `adr` category read-only (opening in `DocView`), so authored ADRs and the
   doc-backed record browse together. The historical docs are *not* auto-migrated
-  into `assets.json` — they remain the source of truth for the originals, while
+  into the Library store — they remain the source of truth for the originals, while
   new decisions can be authored as `adr` artifacts. Durable guidance is still
   **synthesised out of** the ADRs into principles/patterns/guardrails, each citing
   its source ADR via `references`.
@@ -200,7 +198,7 @@ as inline SVG, ADR-0036.)
 apps/studio
 ├── vite.config.ts          # wires React + the data-api plugin
 ├── server/devApi.ts        # the "backend": docs + comments + artifacts over Vite
-├── data/                   # knowledge.json (source) + build-corpus.mjs → assets.json (generated)
+├── data/                   # knowledge.json (structured seed); the offline backend derives its view (ADR-0210)
 └── src
     ├── App.tsx             # shell: loads docs/artifacts/comments, routes
     ├── api.ts · types.ts   # typed client · shared on-disk shapes
