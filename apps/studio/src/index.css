@@ -175,7 +175,10 @@ code {
   right: 0;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  /* flex-end, not space-between: since ADR-0205 the avatar is the ONLY chrome element, and a
+     lone space-between child sits at flex-START — which visually dumped the avatar top-LEFT.
+     The avatar lives top-right (owner call 2026-07-17: where every app puts it). */
+  justify-content: flex-end;
   padding: 10px 14px;
   pointer-events: none; /* the map underneath stays live; only the chips catch clicks */
   z-index: 30; /* above every map deck/dock (max 20) */
