@@ -6,8 +6,8 @@
 // "Enforced by" line is exactly what separates a guardrail from a mere `pattern`
 // (ADR-0007 / ADR-0008). So `guardrail` requires an "Enforced by" section and the
 // editor blocks save without it. One `template-<category>` artifact per category is
-// the starting scaffold, generated from `packages/core` `KIND_SPECS`
-// (see apps/studio/data/build-corpus.mjs; the old data/seed.assets.mjs is retired, ADR-0018).
+// the starting scaffold, generated from `@storytree/library` `KIND_SPECS` via `libraryTemplates()`
+// (ADR-0210; the old data/build-corpus.mjs + data/seed.assets.mjs generators are retired).
 
 import type { AssetCategory } from '../types';
 

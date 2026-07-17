@@ -215,6 +215,7 @@ if (isMain()) {
   const paths = resolveStudioPaths(STUDIO_ROOT);
   const backend = createBackend({
     assetsFile: paths.assetsFile,
+    knowledgeFile: paths.knowledgeFile,
     commentsFile: paths.commentsFile,
     usersFile: paths.usersFile,
     attestationsFile: paths.attestationsFile,

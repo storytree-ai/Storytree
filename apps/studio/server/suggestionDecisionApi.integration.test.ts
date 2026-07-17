@@ -142,6 +142,7 @@ function startServer(backend: LibraryBackend, dir: string): Server {
       dataDir: dir,
       commentsFile: path.join(dir, 'comments.json'),
       assetsFile: path.join(dir, 'assets.json'),
+      knowledgeFile: path.join(dir, 'knowledge.json'),
       usersFile: path.join(dir, 'users.json'),
       attestationsFile: path.join(dir, 'attestations.json'),
     },

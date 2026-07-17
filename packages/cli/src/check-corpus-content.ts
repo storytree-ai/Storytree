@@ -1,8 +1,8 @@
 // Best-effort LIVE↔SEED content-diff check (ADR-0120), wired into `pnpm gate` — NOT into CI.
 //
-// `check:corpus-sync` (ADR-0103) compares ID PRESENCE only; `count-reconciliation` compares COUNTS.
-// Neither looks at BODIES, so a live artifact whose body has drifted from its seed copy — or a seed
-// copy degraded relative to live — passes both clean. This compares the export-scope tier (structured,
+// `check:corpus-sync` (ADR-0103) compares ID PRESENCE only — it does not look at BODIES, so a live
+// artifact whose body has drifted from its seed copy — or a seed copy degraded relative to live —
+// passes it clean. This compares the export-scope tier (structured,
 // non-agent, non-template) BODY-for-body and WARNs on drift, classifying each:
 //
 //   - value-drift   → live is a valid current body that differs: a genuine edit. Resolve by direction —

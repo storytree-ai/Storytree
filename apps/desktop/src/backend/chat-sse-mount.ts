@@ -18,6 +18,9 @@ import type {
   InspectSurfaceDeps,
 } from "@storytree/drive";
 import { startChatStream } from "@storytree/drive";
+// The `template` artifacts, from the library's browser-safe root barrel (ADR-0210 — re-homed from
+// the retired generated assets.json). NOT the node:/pg-laden `@storytree/library/store` subpath.
+import { libraryTemplates } from "@storytree/library";
 
 // ---------- HTTP helpers (local copies — not imported from studio) ----------
 
@@ -143,7 +146,9 @@ function getDefaultStore(): Promise<SeedStore> {
 
 /**
  * Create a SeedStore seeded with the corpus from apps/studio/data/.
- * Reproduces the algorithm from @storytree/library/store's loadCorpus without importing it.
+ * Reproduces the algorithm from @storytree/library/store's loadCorpus without importing it:
+ * the structured knowledge units from knowledge.json, and the `template` artifacts from the shared
+ * `libraryTemplates()` (ADR-0210 — re-homed from the retired generated assets.json).
  */
 async function loadDefaultStore(): Promise<SeedStore> {
   const store = new SeedStore();
@@ -158,10 +163,7 @@ async function loadDefaultStore(): Promise<SeedStore> {
     await store.upsertDoc({ id: unit.id, kind: unit.kind, doc: unit, actor: "corpus-migration" });
   }
 
-  const assets = JSON.parse(
-    await readFile(fileURLToPath(new URL("assets.json", dataBase)), "utf8"),
-  ) as Array<{ id: string; category: string; [k: string]: unknown }>;
-  for (const tpl of assets.filter((a) => a.category === "template")) {
+  for (const tpl of libraryTemplates()) {
     await store.upsertDoc({ id: tpl.id, kind: "template", doc: tpl, actor: "corpus-migration" });
   }
 

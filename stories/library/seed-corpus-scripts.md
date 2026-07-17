@@ -57,7 +57,7 @@ proof:
 
 The data-provenance root the seeded read store stands on — the seed/DDL plumbing that lands the studio corpus into the store, deliberately separated from the proven eager-migrate path because it carries a weaker proof posture.
 
-`loadCorpus` (`load-corpus.ts:61-74`) reads `knowledge.json` + the generated template assets from `assets.json` and upserts each THROUGH the store write boundary (so validation/upcast run); it is store-agnostic and IS exercised — but only as a real collaborator inside OTHER capabilities' tests (the CLI seed and the health SEED gate), never by a count assertion of its own. `loadComments` (`load-corpus.ts:82-112`), `applySchema` (`migrate.ts:10-14`), `recordLedger` (`batch-migrate.ts:72-84`) and both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). The code edge for the `depends_on`: `loadCorpus` upserts through the `Store` seam ([`event-sourced-store-seam`](event-sourced-store-seam.md)) and each upsert runs `upcastAndValidate` at the boundary ([`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)).
+`loadCorpus` reads `knowledge.json` + the `template` artifacts from `libraryTemplates()` (ADR-0210 — re-homed from the retired generated `assets.json`) and upserts each THROUGH the store write boundary (so validation/upcast run); it is store-agnostic and IS exercised — but only as a real collaborator inside OTHER capabilities' tests (the CLI seed and the health SEED gate), never by a count assertion of its own. `loadComments` (`load-corpus.ts:82-112`), `applySchema` (`migrate.ts:10-14`), `recordLedger` (`batch-migrate.ts:72-84`) and both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). The code edge for the `depends_on`: `loadCorpus` upserts through the `Store` seam ([`event-sourced-store-seam`](event-sourced-store-seam.md)) and each upsert runs `upcastAndValidate` at the boundary ([`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)).
 
 ### Build-tests R2 target (ADR-0098 d.6 — the live pilot, story gate 4)
 
@@ -76,7 +76,7 @@ So the integration test for this capability is **would-be**: the seeding behavio
 The would-be leaf behaviours — each would be **one isolated automated test** against real in-story collaborators (no stubs; integration-test proof mode, ADR-0010 §2). Both are currently would-be tests.
 
 1. **`loadcorpus-upserts-counts`** — loadCorpus upserts every knowledge unit and template through the store and returns counts
-   - **asserts —** `loadCorpus(store)` reads `knowledge.json` + the generated templates from `assets.json`, upserts each via `store.upsertDoc`, and returns `{knowledge, templates}` counts.
+   - **asserts —** `loadCorpus(store)` reads `knowledge.json` + the templates from `libraryTemplates()` (ADR-0210), upserts each via `store.upsertDoc`, and returns `{knowledge, templates}` counts.
    - **covers —** `packages/library/src/store/load-corpus.ts:61-74`
    - **would-be test —** `loadCorpus` runs as a real collaborator inside `cli.test.ts` and `health.test.ts:191-203`, but no test asserts its own returned counts; the seed plumbing is `proposed`.
 2. **`applyschema-idempotent`** — applySchema applies the idempotent DDL to a pool

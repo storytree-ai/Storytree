@@ -135,9 +135,10 @@ file conflicts).
   `… artifact list <category>` · `… library tree focus <id>` — choose-your-own-adventure, just-in-time
   (ADR-0023). Read commands run offline (in-memory seed); no DB needed.
 - **SEED / EXPORT VIEW:** `apps/studio/data/knowledge.json` (the structured corpus the DB was migrated
-  from) + the **generated** `apps/studio/data/assets.json` (via
-  `npx tsx apps/studio/data/build-corpus.mjs`; never hand-edit the generated file). These reflect the
-  seed, not live CLI edits. (`docs/glossary.md` was a second generated view, retired by ADR-0135.)
+  from) is the one committed seed; it reflects the seed, not live CLI edits. (The generated
+  `apps/studio/data/assets.json` was retired by ADR-0210 — the offline studio now derives its view from
+  `knowledge.json` on the fly, and `libraryTemplates()` in `@storytree/library` owns the template
+  scaffolds; `docs/glossary.md`, a second generated view, was retired by ADR-0135.)
 - **STUDIO UI (one parallel session at a time):** the live store is now the **default**
   (`oq-studio-store-default` → B) — `pnpm --filter studio dev` reads/writes the live DB and sees CLI
   edits (bring the DB up first with `pnpm db:up`). For offline work set `STORYTREE_STUDIO_STORE=json`

@@ -15,9 +15,10 @@
 // the Library, and a structured kind is authored through its per-kind fields (option C of
 // oq-library-doc-shape).
 //
-// The mutating tests write through the real handlers into the git-tracked JSON stores
-// (apps/studio/data/comments.json + assets.json) and MUST leave them at their seeded
-// baseline: step 13 cleans up through the UI and the suite asserts byte-equality; a
+// The mutating tests write through the real handlers into the offline stores (git-tracked
+// apps/studio/data/comments.json; the gitignored, first-run-seeded apps/studio/data/assets.runtime.json
+// — ADR-0210, derived from knowledge.json + the library templates) and MUST leave them at their
+// seeded baseline: step 13 cleans up through the UI and the suite asserts byte-equality; a
 // beforeAll/afterAll snapshot-restore guard puts the baseline back if a test dies midway.
 
 import { test, expect, type Page } from '@playwright/test';
@@ -33,7 +34,9 @@ const DOC_URL = `/#/doc/${encodeURIComponent(ADR_0002)}`;
 
 const studioDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMMENTS_FILE = path.join(studioDir, 'data', 'comments.json');
-const ASSETS_FILE = path.join(studioDir, 'data', 'assets.json');
+// ADR-0210: the offline backend serves a gitignored runtime store, seeded from knowledge.json on
+// first read — not the retired committed assets.json.
+const ASSETS_FILE = path.join(studioDir, 'data', 'assets.runtime.json');
 
 test('story UAT (steps 1-3, 7-9): backbone up → read an ADR → cross-link hop → browse the Library → follow a citation back to the corpus', async ({ page }) => {
   // —— Step 1: the persistence backbone is live. The app boots, the /api/* middleware
@@ -67,7 +70,7 @@ test('story UAT (steps 1-3, 7-9): backbone up → read an ADR → cross-link hop
   await expect(page.locator('article.doc h1').first()).toBeVisible();
 
   // —— Step 7: the Library landing renders the seeded corpus — one live-count type card
-  // per non-empty category, served from the seeder's assets.json.
+  // per non-empty category, derived from knowledge.json into the offline runtime store (ADR-0210).
   await page.goto('/#/library');
   const principleCard = page.locator('a.asset-card.type-card', { hasText: 'Principles' });
   await expect(principleCard).toBeVisible();
@@ -155,13 +158,18 @@ const probeAsset = (assets: GuidanceAsset[]): GuidanceAsset | undefined =>
 test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
   test.describe.configure({ mode: 'serial' });
 
-  // Snapshot the two git-tracked stores; restore them if any test dies before step 13's
-  // UI cleanup runs. On a green run the restore is a no-op (writes round-trip
-  // byte-identically through the backend's serializer — verified by step 13's assertion).
+  // Snapshot the comment store (git-tracked) and the offline runtime assets store (gitignored,
+  // ADR-0210); restore them if any test dies before step 13's UI cleanup runs. On a green run the
+  // restore is a no-op (writes round-trip byte-identically through the backend's serializer —
+  // verified by step 13's assertion).
   let commentsBaseline = '';
   let assetsBaseline = '';
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ baseURL }) => {
+    // Force the offline backend to SEED its runtime assets store (ADR-0210 — derived from
+    // knowledge.json on first read) before snapshotting, so the baseline exists even if this block
+    // runs before any page has listed assets.
+    if (baseURL) await fetch(`${baseURL}/api/assets`).catch(() => undefined);
     commentsBaseline = await fs.readFile(COMMENTS_FILE, 'utf8');
     assetsBaseline = await fs.readFile(ASSETS_FILE, 'utf8');
   });

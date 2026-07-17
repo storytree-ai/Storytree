@@ -1,7 +1,7 @@
 // Shape CLAUDE.md's operating-discipline region from the `session-orchestrator` library agent
-// (ADR-0051). The region between the AGENT markers is a GENERATED VIEW — like assets.json is
-// generated from the definitions — so the discipline an agent runs on has ONE source of truth (the
-// library artifact) and can never drift from a hand-copy again.
+// (ADR-0051). The region between the AGENT markers is a GENERATED VIEW — like the `.claude/agents/*.md`
+// files are generated from the agent artifacts — so the discipline an agent runs on has ONE source of
+// truth (the library artifact) and can never drift from a hand-copy again.
 //
 //   pnpm build:claude          regenerate the region in place
 //   pnpm check:claude          fail (exit 1) if the region is stale — the gate's drift guard

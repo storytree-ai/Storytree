@@ -82,7 +82,7 @@ export function parseMemoryFile(file: string, content: string): MemoryFile {
 
 // ---- pure: the snapshot builder -------------------------------------------------------------
 
-/** The fields {@link buildSnapshot} reads off a raw knowledge.json / assets.json doc. */
+/** The fields {@link buildSnapshot} reads off a raw knowledge.json seed doc. */
 interface RawDoc {
   readonly id?: unknown;
   readonly kind?: unknown;
@@ -477,7 +477,7 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
     return {
       ok: false,
       body: `Could not load the Library seed snapshot (${deps.snapshotPath}): ${(e as Error).message}`,
-      next: ["npx tsx apps/studio/data/build-corpus.mjs   (rebuild the seed corpus)"],
+      next: ["ensure the Library seed exists and is valid JSON: apps/studio/data/knowledge.json"],
     };
   }
 

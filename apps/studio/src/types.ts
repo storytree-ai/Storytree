@@ -376,7 +376,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
 
 /**
  * A unified row in the Library grid. `adr` is a first-class artifact category like
- * any other — you author them in the editor and they persist to assets.json. The
+ * any other — you author them in the editor and they persist to the Library store. The
  * Library *also* folds in the canonical ADR docs under docs/decisions/ as
  * read-only `adr` rows, so an item is either an editable artifact
  * (`kind: 'artifact'` → AssetView) or a doc-backed ADR (`kind: 'doc'` → read-only

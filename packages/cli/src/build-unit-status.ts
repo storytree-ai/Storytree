@@ -7,7 +7,7 @@
 //   storytree-cli: node --import tsx src/build-unit-status.ts --check  fail (exit 1) if the file is stale
 //
 // Owner decision (ADR-0120 b): a SEPARATE generated file (not folded into knowledge.json), regenerated
-// like assets.json. It is a VIEW, never an edit surface — editing it is meaningless.
+// from the live store like the other derived views. It is a VIEW, never an edit surface — editing it is meaningless.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

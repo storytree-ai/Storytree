@@ -37,15 +37,13 @@ export interface HealthOpts {
   readonly retiredFields: string[];
   /** Resolve a `doc:<relpath>` pointer on disk (relative to docs/). Omit to skip doc: resolution. */
   readonly docExists?: (relpath: string) => boolean;
-  /** Generated non-template asset count (assets.json), for count-reconciliation. Omit to skip. */
-  readonly generatedAssetCount?: number;
 }
 
 /**
  * The GATE-class checks: the invariant `.strict()` already promises, enforced across the WHOLE set
  * (design §4 "Gate vs. warn"). A FAIL on any of these is a real gate break (non-zero exit). The
- * remaining checks (referential-integrity, count-reconciliation) are WARN-class — graph/derivation
- * invariants with benign transient violations — so they never gate yet.
+ * remaining check (referential-integrity) is WARN-class — a graph invariant with benign transient
+ * violations — so it never gates yet.
  */
 export const GATE_CHECKS: ReadonlySet<string> = new Set([
   "schema-conformance",
@@ -58,7 +56,6 @@ export const CHEAP_CHECKS: ReadonlySet<string> = new Set([
   "schema-conformance",
   "retired-field",
   "version-floor",
-  "count-reconciliation",
 ]);
 
 /**
@@ -196,37 +193,13 @@ function referentialIntegrity(
   };
 }
 
-// 5. count-reconciliation ------------------------------------------------------------------------
-function countReconciliation(
-  docs: readonly StoredDoc[],
-  generatedAssetCount: number | undefined,
-): CheckResult {
-  const structuredCount = docs.filter(isStructured).length;
-  if (generatedAssetCount === undefined) {
-    return {
-      name: "count-reconciliation",
-      level: "PASS",
-      lines: [`structured units: ${structuredCount} (no generated-asset count to reconcile against)`],
-    };
-  }
-  const ok = structuredCount === generatedAssetCount;
-  return {
-    name: "count-reconciliation",
-    level: ok ? "PASS" : "WARN",
-    lines: [
-      `structured units (store): ${structuredCount}`,
-      `generated non-template assets: ${generatedAssetCount}`,
-      ok
-        ? "source == generated (regeneration is current)"
-        : "MISMATCH: assets.json is stale — re-run build-corpus.mjs",
-    ],
-  };
-}
-
 /**
- * Run the full health report (all five checks) over the projection. Pure: filesystem + the
- * generated-asset count come in via {@link HealthOpts}. Returns one {@link CheckResult} per check,
- * in a stable order (the three GATE checks first, then the two WARN-class checks).
+ * Run the full health report (all four checks) over the projection. Pure: the filesystem resolver
+ * comes in via {@link HealthOpts}. Returns one {@link CheckResult} per check, in a stable order (the
+ * three GATE checks first, then the one WARN-class check).
+ *
+ * (The former count-reconciliation check compared the store to the generated assets.json; it was
+ * removed with that file, ADR-0210.)
  */
 export function libraryHealth(docs: StoredDoc[], opts: HealthOpts): CheckResult[] {
   return [
@@ -234,21 +207,19 @@ export function libraryHealth(docs: StoredDoc[], opts: HealthOpts): CheckResult[
     retiredField(docs, opts.retiredFields),
     versionFloor(docs, opts.currentSchemaVersion),
     referentialIntegrity(docs, opts.docExists),
-    countReconciliation(docs, opts.generatedAssetCount),
   ];
 }
 
 /**
- * The CHEAP subset (design §4 surface a): the four checks that need no filesystem walk / DB hit, for
- * the glanceable dashboard banner. Skips the fs-heavy referential-integrity. `docExists` is never
- * called; `generatedAssetCount` is optional (count-reconciliation degrades to PASS without it).
+ * The CHEAP subset (design §4 surface a): the three checks that need no filesystem walk / DB hit, for
+ * the glanceable dashboard banner. Skips the fs-heavy referential-integrity; `docExists` is never
+ * called. (The former count-reconciliation cheap check retired with assets.json, ADR-0210.)
  */
 export function libraryHealthCheap(docs: StoredDoc[], opts: HealthOpts): CheckResult[] {
   return [
     schemaConformance(docs),
     retiredField(docs, opts.retiredFields),
     versionFloor(docs, opts.currentSchemaVersion),
-    countReconciliation(docs, opts.generatedAssetCount),
   ];
 }
 

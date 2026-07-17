@@ -103,13 +103,6 @@ jobs:
       - name: .claude/agents in sync
         run: pnpm check:agents
 
-      # apps/studio/data/assets.json is a GENERATED VIEW of knowledge.json (build-corpus.mjs). Fail if
-      # it has drifted from the structured source — a stale assets.json could otherwise merge clean
-      # (ADR-0120, finding 3a; docs/glossary.md was a second generated view, retired by ADR-0135).
-      # DB-free, like the checks above.
-      - name: Corpus views in sync
-        run: pnpm check:corpus-build
-
       # Process↔entrypoint bijection (ADR-0154): every `process` names a real CLI/pnpm entrypoint in
       # its `surfaces`, and every operator-facing entrypoint has a process behind it. ADVISORY — it
       # WARNs (the backfill worklist) but ALWAYS exits 0, so it never blocks the gate. DB-free (reads

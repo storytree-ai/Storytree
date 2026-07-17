@@ -145,21 +145,6 @@ test("referential-integrity skips doc: resolution when no docExists is injected"
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
 
-test("count-reconciliation PASS when structured count == generatedAssetCount", () => {
-  const results = libraryHealth([stored(validDefinitionBody())], { ...BASE_OPTS, generatedAssetCount: 1 });
-  assert.equal(find(results, "count-reconciliation").level, "PASS");
-});
-
-test("count-reconciliation WARN on a mismatch (stale generated views)", () => {
-  const results = libraryHealth([stored(validDefinitionBody())], { ...BASE_OPTS, generatedAssetCount: 99 });
-  assert.equal(find(results, "count-reconciliation").level, "WARN");
-});
-
-test("count-reconciliation degrades to PASS when no count is injected", () => {
-  const results = libraryHealth([stored(validDefinitionBody())], BASE_OPTS);
-  assert.equal(find(results, "count-reconciliation").level, "PASS");
-});
-
 test("worstLevel / gateFailures / levelCounts agree on a FAIL-class break", () => {
   // A missing required field -> schema-conformance FAIL (a GATE check).
   const bad = validDefinitionBody();
@@ -200,5 +185,5 @@ test("SEED gate: the stamped corpus has NO gate failures (schema/retired/version
     [],
     "the GATE-class checks must be clean on the stamped seed",
   );
-  // referential-integrity / count-reconciliation may be WARN — do NOT assert them as gating here.
+  // referential-integrity may be WARN — do NOT assert it as gating here.
 });

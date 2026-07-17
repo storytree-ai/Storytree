@@ -46,6 +46,11 @@ export {
   upcast,
 } from "./migrations.js";
 export { renderBody, generateTemplate } from "./knowledge-render.js";
+// ADR-0210: the Library `template` artifacts, re-homed here from the retired generated
+// `apps/studio/data/assets.json`. The single source the corpus migration, the desktop seed, and the
+// offline studio backend read for the per-kind authoring scaffolds. Browser-safe (bodies generated
+// from KIND_SPECS via generateTemplate; only editorial metadata + the bespoke template-adr embedded).
+export { libraryTemplates, type LibraryTemplateAsset } from "./templates.js";
 // ADR-0095: the agent-memory → Library graduation engine (the pure candidate-generation core).
 // Browser-safe (no node:, no fs, no clock) — the CLI reads the memory files off disk and passes
 // already-parsed `MemoryFile[]` in; the librarian-curator finalises the emitted candidates.
