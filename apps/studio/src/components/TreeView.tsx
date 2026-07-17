@@ -139,6 +139,7 @@ import {
   type SceneInput,
   type SceneStatus,
   type ScenePlantInput,
+  type SceneTerritoryInput,
   type TrailNetwork,
   type ClaimGrade,
 } from '@storytree/forest-world';
@@ -858,6 +859,38 @@ function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
   };
 }
 
+// The parcel input shape + its theme tag, DERIVED from the core's exported `SceneTerritoryInput`
+// (forest-parcels inc 1) — the element type of its `parcels` field, so the studio fold builds exactly
+// the contract's declared shape (and needs no extra barrel export from the read-only core package).
+type SceneParcelInput = NonNullable<SceneTerritoryInput['parcels']>[number];
+type SurfaceTheme = SceneParcelInput['theme'];
+
+/** The three parcel SURFACE THEMES (forest-parcels inc 1) — the deterministic theme-pick pool. */
+const PARCEL_THEMES: SurfaceTheme[] = ['meadow', 'woodland', 'heath'];
+
+/** A DETERMINISTIC theme for a capability parcel (forest-parcels inc 1) — hashed from the capId (the
+ *  file's `hash` idiom, NEVER Math.random) so parcels vary within and across islands and a given cap
+ *  always surfaces the same country. A Stage-1 default the owner reviews later. */
+function parcelTheme(capId: string): SurfaceTheme {
+  return PARCEL_THEMES[hash(capId) % PARCEL_THEMES.length]!;
+}
+
+/** Fold a laid-out capability into its PARCEL input (forest-parcels inc 1): the capId (the hover /
+ *  delegation hook + the deterministic flora seed), the cap's folded status (the per-cell ground tint
+ *  — the SAME status the plant/flora render uses, {@link capToScene}), its declared testCount (the
+ *  flora-density knob, 0 ⇒ bare ground), a deterministic theme, and the cap's buildWorld layout
+ *  position as the natural Voronoi seed. */
+function capToParcel(spot: CapSpot): SceneParcelInput {
+  const cap = spot.cap;
+  return {
+    capId: cap.id,
+    status: (cap.status ?? 'unknown') as SceneStatus,
+    testCount: cap.testCount,
+    theme: parcelTheme(cap.id),
+    seed: { x: spot.x, y: spot.y },
+  };
+}
+
 /**
  * Mirrors `DEPARTURE_WINDOW_MS` from `@storytree/notice-board` (packages/notice-board/src/claim.ts)
  * locally — apps/studio/src is browser-bundled and stays dependency-light at this data-shape layer
@@ -932,6 +965,13 @@ function territoryToScene(
     coastPaths: t.coastPaths,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
     plants: t.caps.map((spot) => capToScene(spot, now)),
+    // forest-parcels inc 1: ONE parcel per capability (the land IS the capability). Every island WITH
+    // caps carries parcels; the core sub-partitions the island's mesh cells among them (Voronoi over
+    // each seed), tints each cell by its cap's status, grows themed flora with density ∝ testCount, and
+    // RETIRES the decorative conifers + the one-plant-per-cap ring for a parcels-present island. An
+    // empty-caps island stays parcels-ABSENT (no field) — the core's own back-compat semantics
+    // (absent/empty ⇒ today's ground + conifers + plant ring, byte-for-byte).
+    ...(t.caps.length ? { parcels: t.caps.map(capToParcel) } : {}),
     treeTitle: `${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`,
     ...(story.uatWitness === 'human'
       ? { signpost: { outcome: story.verdict?.outcome ?? null } }

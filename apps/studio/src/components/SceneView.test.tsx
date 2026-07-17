@@ -427,3 +427,104 @@ describe('SceneView — the ADR-0169 trail network mapping', () => {
     expect(cave.querySelector('.cave-rim')).toBeTruthy();
   });
 });
+
+// forest-parcels inc 1: the studio mapper translates the core's parcel drawables → the studio's frozen
+// parcel class vocabulary (a parallel lane writes the CSS against these names). GEOMETRY is the core's;
+// here we pin the role → class translation (kind → same-named class, per-cell status, theme, variant).
+describe('SceneView — capability parcels (forest-parcels inc 1)', () => {
+  // Three parcels with distinct seeds so the equal-weight Voronoi assigns each its own cell; the themes
+  // + statuses are chosen so all four flora marks, both variant facets, and both statuses appear:
+  //   a — meadow / healthy  → parcel-blade (guaranteed 3 blades/item)
+  //   b — woodland / unhealthy → parcel-stem + parcel-flower, and the parcel/cell wear st-unhealthy
+  //   c — heath / healthy   → parcel-shrub (v-0 + v-1) + parcel-flower
+  function mkParcelInput(): SceneInput {
+    return {
+      offset: { x: 0, y: 0 },
+      width: 200,
+      height: 200,
+      empties: [],
+      relaxedCells: [
+        { owner: 0, poly: [{ x: -5, y: -5 }, { x: 5, y: -5 }, { x: 5, y: 5 }, { x: -5, y: 5 }], variant: 1, wheat: false },
+        { owner: 0, poly: [{ x: 95, y: -5 }, { x: 105, y: -5 }, { x: 105, y: 5 }, { x: 95, y: 5 }], variant: 0, wheat: false },
+        { owner: 0, poly: [{ x: 45, y: 95 }, { x: 55, y: 95 }, { x: 55, y: 105 }, { x: 45, y: 105 }], variant: 2, wheat: false },
+      ],
+      drawTiles: [],
+      wheatSets: [new Set()],
+      trails: { segments: [], edges: [], caves: [], dropped: [] },
+      territories: [
+        {
+          id: 'lib',
+          status: 'healthy',
+          caps: 3,
+          centroid: { x: 50, y: 40 },
+          radius: 60,
+          treeSpot: { x: 50, y: 40 },
+          labelY: 120,
+          coastPaths: [],
+          decor: [],
+          plants: [],
+          parcels: [
+            { capId: 'lib#a', status: 'healthy', testCount: 3, theme: 'meadow', seed: { x: 0, y: 0 } },
+            { capId: 'lib#b', status: 'unhealthy', testCount: 1, theme: 'woodland', seed: { x: 100, y: 0 } },
+            { capId: 'lib#c', status: 'healthy', testCount: 1, theme: 'heath', seed: { x: 50, y: 100 } },
+          ],
+          treeTitle: 'lib — healthy',
+          wisps: [],
+          claims: [],
+          plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 3 caps', title: 'Library' },
+        },
+      ],
+    };
+  }
+  function renderParcels(): HTMLElement {
+    const ctx: SceneCtx = {
+      territoryClassById: (id, status) => `hex-territory st-${status}`,
+      reveal: null,
+      hidden: new Set(),
+      onSelectStory: vi.fn(),
+      onSelectCap: vi.fn(),
+    };
+    const { container } = render(
+      <svg>
+        <SceneView scene={buildScene(mkParcelInput())} ctx={ctx} />
+      </svg>,
+    );
+    return container;
+  }
+
+  it('maps the transparent per-cap parcel ground group, folding the cap status + carrying the capId title', () => {
+    const root = renderParcels();
+    // one parcel group per cap, wearing st-<status> (the visible tint is on the cells inside).
+    expect(root.querySelectorAll('.parcel.st-healthy').length).toBe(2); // lib#a + lib#c
+    expect(root.querySelector('.parcel.st-unhealthy')).toBeTruthy(); // lib#b
+    // the group carries the capId as a <title> (the hover hook the frozen vocabulary specifies).
+    const titles = [...root.querySelectorAll('.parcel > title')].map((t) => t.textContent);
+    expect(titles).toContain('lib#a');
+  });
+
+  it('folds the PER-CELL status onto the ground cells (st-<status>, no new ground CSS)', () => {
+    const root = renderParcels();
+    // each cell is the existing `relaxed-cell v-N` kind now ALSO carrying its assigned cap's status.
+    expect(root.querySelector('.relaxed-cell.st-healthy')).toBeTruthy();
+    expect(root.querySelector('.relaxed-cell.st-unhealthy')).toBeTruthy();
+    // the variant facet survives (the per-cell tone), e.g. still a `v-<n>` class.
+    expect(root.querySelector('.relaxed-cell[class*="v-"]')).toBeTruthy();
+  });
+
+  it('maps each placed flora item to `parcel-flora` carrying its theme + status', () => {
+    const root = renderParcels();
+    expect(root.querySelector('.parcel-flora.theme-meadow.st-healthy')).toBeTruthy();
+    expect(root.querySelector('.parcel-flora.theme-woodland.st-unhealthy')).toBeTruthy();
+    expect(root.querySelector('.parcel-flora.theme-heath.st-healthy')).toBeTruthy();
+  });
+
+  it('maps the generic flora marks to same-named classes with the `v-<n>` variant facet', () => {
+    const root = renderParcels();
+    expect(root.querySelector('.parcel-blade')).toBeTruthy(); // meadow blades
+    expect(root.querySelector('.parcel-stem')).toBeTruthy(); // woodland/heath stems
+    expect(root.querySelector('.parcel-flower')).toBeTruthy(); // heath berries / woodland flecks
+    // heath emits BOTH variant facets of the shrub dome → proves the v-<n> suffix per node.
+    expect(root.querySelector('.parcel-shrub.v-0')).toBeTruthy();
+    expect(root.querySelector('.parcel-shrub.v-1')).toBeTruthy();
+  });
+});
