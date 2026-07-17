@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 //
 // Red-green of the studio session dock's claims-grouped-by-session view (ADR-0200 D7,
-// noticeboard-claim-ledger-arc inc 3 unit 4) — DATA only, per the two-stage proof: the appearance
-// is operator-attested later at the arc's UAT (ADR-0070 stage 2), so this proves the claim groups
-// render into the dock's DOM (session id, branch, unit id, grade, intent, age), NOT how it looks.
+// noticeboard-claim-ledger-arc inc 3 unit 4, made CLAIMS-ONLY by inc 6's presence retirement) —
+// DATA only, per the two-stage proof: the appearance is operator-attested later at the arc's UAT
+// (ADR-0070 stage 2), so this proves the claim groups render into the dock's DOM (session id,
+// branch, unit id, grade, intent, age), NOT how it looks. Self-reported presence rows are GONE
+// (ADR-0200 D7): the dock renders the claim ledger alone, with honest empty/absent notes.
 // SessionDock is unit-tested directly (like StudioWorldChrome/UatTestsSection elsewhere in this
 // file) rather than driven through the full hex-world map, which needs no click-path simulation
 // for this DATA-facing behaviour.
@@ -11,22 +13,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { SessionDock } from './TreeView';
-import type { SessionClaimGroup, TreeSession } from '../types';
+import type { SessionClaimGroup } from '../types';
 
 afterEach(cleanup);
 
 const NOW = new Date('2026-07-16T12:00:00.000Z');
 
-const noopProps = {
-  anchors: new Map<string, string[]>(),
-  storyForNode: () => null,
-  onShowList: vi.fn(),
-  onShowDetail: vi.fn(),
-  onFocusStory: vi.fn(),
-  onClose: vi.fn(),
-};
-
-describe('SessionDock — claims-grouped-by-session view (ADR-0200 D7)', () => {
+describe('SessionDock — claims-only ledger view (ADR-0200 D7 presence retirement)', () => {
   it('renders one group per session (sessionId + branch) with its claims', () => {
     const groups: SessionClaimGroup[] = [
       {
@@ -65,13 +58,7 @@ describe('SessionDock — claims-grouped-by-session view (ADR-0200 D7)', () => {
     ];
 
     const { container } = render(
-      <SessionDock
-        dock={{ kind: 'list' }}
-        sessions={[]}
-        claimGroups={groups}
-        now={NOW}
-        {...noopProps}
-      />,
+      <SessionDock claimGroups={groups} now={NOW} onClose={vi.fn()} />,
     );
 
     const groupEls = container.querySelectorAll('.claim-session-group');
@@ -96,43 +83,28 @@ describe('SessionDock — claims-grouped-by-session view (ADR-0200 D7)', () => {
     expect(container.textContent).toMatch(/5m/);
   });
 
-  it('degrades silently to the presence-only view when claims is null (down DB / json store)', () => {
-    const sessions: TreeSession[] = [
-      {
-        sessionId: 'sess-a',
-        branch: 'claude/sess-a',
-        workingOn: 'something',
-        nodes: [],
-        band: 'fresh',
-        lastSeenAt: NOW.toISOString(),
-      },
-    ];
-
+  it('renders NO presence rows or bands — the dock is claims-only (presence retired)', () => {
     const { container } = render(
-      <SessionDock
-        dock={{ kind: 'list' }}
-        sessions={sessions}
-        claimGroups={null}
-        now={NOW}
-        {...noopProps}
-      />,
+      <SessionDock claimGroups={[]} now={NOW} onClose={vi.fn()} />,
     );
-
-    expect(container.querySelector('.claim-groups')).toBeNull();
-    // The presence row still renders — the claims layer is advisory, never a blocker.
-    expect(container.textContent).toContain('sess-a');
+    expect(container.querySelector('.session-row')).toBeNull();
+    expect(container.querySelector('.tree-session-band')).toBeNull();
   });
 
-  it('renders no claim-groups block when the store answers with no live claims', () => {
+  it('degrades to an honest silent-store note when claims is null (down DB / json store)', () => {
     const { container } = render(
-      <SessionDock
-        dock={{ kind: 'list' }}
-        sessions={[]}
-        claimGroups={[]}
-        now={NOW}
-        {...noopProps}
-      />,
+      <SessionDock claimGroups={null} now={NOW} onClose={vi.fn()} />,
     );
     expect(container.querySelector('.claim-groups')).toBeNull();
+    // Advisory absence, never an error surface — the StoreBanner owns the explanatory UX.
+    expect(container.textContent).toMatch(/live store/i);
+  });
+
+  it('renders an honest empty note (and no claim-groups block) when the store answers no claims', () => {
+    const { container } = render(
+      <SessionDock claimGroups={[]} now={NOW} onClose={vi.fn()} />,
+    );
+    expect(container.querySelector('.claim-groups')).toBeNull();
+    expect(container.textContent).toMatch(/no live claims/i);
   });
 });

@@ -44,8 +44,7 @@ export interface VerdictBloom {
  * left out of v1. So only a PASS blooms.
  *
  * Pure: the caller supplies `now` (the consumer's slow ticker), the same purity
- * contract formatAge / rebandSessions obey, so the geometry never jitters
- * between renders.
+ * contract formatAge obeys, so the geometry never jitters between renders.
  */
 export function verdictBloom(
   verdict: TreeVerdict | undefined,
@@ -90,7 +89,7 @@ export function anyRecentLanding(
  * younger than the TTL (ADR-0048 §2). The server already drops builds whose run
  * produced a verdict; this is the SUB-POLL aging — a build vanishes the instant
  * the `now` ticker crosses the TTL, not at the next fetch (the same purity rule
- * `classifyPresence` / `verdictBloom` obey: the caller supplies `now`).
+ * `verdictBloom` obeys: the caller supplies `now`).
  *
  * A future-dated `at` (clock skew at the just-started instant) still reads as
  * in-flight; an unparseable `at` (NaN) does not — a malformed timestamp is not

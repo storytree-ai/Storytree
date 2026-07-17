@@ -3,7 +3,7 @@
  * flow above its anchor block (ADR-0140, cap 7 of the review-mode story).
  *
  * Three seams:
- *  • api.listComments  (cap 5 feed) — polled on the PRESENCE_POLL_MS cadence.
+ *  • api.listComments  (cap 5 feed) — polled on the SLOW_POLL_MS cadence.
  *  • api.createComment (cap 1 anchor) — posts with a BLOCK anchor (kind:'block').
  *  • mode prop         (cap 6 toggle) — add-comment affordance shown only in review.
  *
@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api';
-import { PRESENCE_POLL_MS } from '../lib/presence';
+import { SLOW_POLL_MS } from '../lib/poll';
 import type { TopicKind, Comment } from '../types';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -62,13 +62,13 @@ export function InlineCommentThread({
       );
     } catch {
       // Advisory: keep the last-known comments on a failed poll (same discipline
-      // as the presence layer's "keep last-known sessions" on a studio server error).
+      // as the activity layer's "keep the last-known rows" on a studio server error).
     }
   }, [topicId, blockHandle]);
 
   useEffect(() => {
     void loadComments();
-    const id = window.setInterval(() => void loadComments(), PRESENCE_POLL_MS);
+    const id = window.setInterval(() => void loadComments(), SLOW_POLL_MS);
     return () => window.clearInterval(id);
   }, [loadComments]);
 

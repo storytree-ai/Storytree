@@ -12,7 +12,7 @@
 //     (kind: 'block', blockHandle) — never a text-quote or section anchor. The seam to cap 1.
 //
 //   • ict-feed-driven-refresh: a comment posted elsewhere appears after the next poll tick
-//     (PRESENCE_POLL_MS cadence) without a page reload — fake timers drive the poll here.
+//     (SLOW_POLL_MS cadence) without a page reload — fake timers drive the poll here.
 //     The seam to cap 5.
 //
 //   • ict-review-only-affordance: the add-comment form (textarea + Post button) is HIDDEN in
@@ -25,7 +25,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
-import { PRESENCE_POLL_MS } from '../lib/presence';
+import { SLOW_POLL_MS } from '../lib/poll';
 
 // ── Api seam mock ─────────────────────────────────────────────────────────────────────────────
 // Intentionally untyped (vi.fn()) so that mockResolvedValue accepts block-anchor comment shapes
@@ -154,7 +154,7 @@ describe('InlineCommentThread', () => {
 
   // ── ict-feed-driven-refresh ────────────────────────────────────────────────────────────────
   //
-  // A comment posted elsewhere appears on the next poll tick (PRESENCE_POLL_MS cadence)
+  // A comment posted elsewhere appears on the next poll tick (SLOW_POLL_MS cadence)
   // without a page reload. Fake timers drive the poll; the api seam returns an extra comment
   // on the second call. The seam to cap 5 (the review-refresh feed).
   it(
@@ -183,7 +183,7 @@ describe('InlineCommentThread', () => {
       expect(screen.queryByText('Posted by someone else')).toBeNull();
 
       // Advance to the next poll cadence — the feed re-polls and the new comment appears.
-      await tick(PRESENCE_POLL_MS);
+      await tick(SLOW_POLL_MS);
       expect(screen.getByText('Posted by someone else')).toBeTruthy();
     },
   );

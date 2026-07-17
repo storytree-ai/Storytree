@@ -579,10 +579,12 @@ export interface TreeStory {
 }
 
 /**
- * An active session from the notice board (ADR-0033), woven into the tree view when
- * the live store answers — SILENTLY ABSENT otherwise, like the CLI presence block.
- * `band` is derived server-side at read time (never stored): fresh < 1h ≤ stale < 4h
- * ≤ possibly-dead.
+ * RETIRING (ADR-0200 D7 — self-reported presence retires; the claim ledger is the one
+ * coordination + observability signal): the studio FRONTEND no longer reads this shape anywhere
+ * (the presence lib, the `/api/presence` poll, and every session render are deleted). It is kept
+ * ONLY because apps/studio/server (a parallel inc-6 lane's fence) still emits presence
+ * (`libraryBackend.activeSessions` / the `/api/tree` `sessions` seed / `/api/presence`); delete
+ * this type — and {@link TreePayload.sessions} below — with that server-side retirement.
  */
 export interface TreeSession {
   sessionId: string;
@@ -596,20 +598,23 @@ export interface TreeSession {
 
 export interface TreePayload {
   stories: TreeStory[];
-  /** Present only when the live store answered AND at least one session is active. */
+  /**
+   * RETIRING (ADR-0200 D7) — see {@link TreeSession}: no frontend reader remains; kept only
+   * until the parallel server lane stops seeding it into `/api/tree`.
+   */
   sessions?: TreeSession[];
   /** Present only when the live store answered AND at least one build is in flight (ADR-0048). */
   builds?: BuildActivity[];
   /**
    * STALE CONTRACT (ADR-0200 D7): historically documented as the claims seed sibling to `builds`
    * ("so the world paints claim wisps on first load too") — but `/api/tree` never actually sets this
-   * field; only `sessions`/`builds` are seeded there (apps/studio/server/apiRouter.ts's `/api/tree`
-   * handler assigns `payload.sessions`/`payload.builds`, never `payload.claims`). Claims (and
-   * departures) are seeded instead by the FIRST poll of the same `/api/activity` wire
-   * `useClaimActivity` already reads (lib/buildActivity.ts) — a one-poll-cycle-later seed, not a
-   * one-shot one. Left optional / always-undefined so `p.claims ?? []` degrades identically either
-   * way (dead but harmless); not removed here — a TreePayload wire shape change is
-   * apps/studio/server/** territory, outside this unit's file fence.
+   * field; only `builds` is seeded there (apps/studio/server/apiRouter.ts's `/api/tree` handler;
+   * it never assigns `payload.claims`). Claims (and departures) are seeded instead by the FIRST
+   * poll of the same `/api/activity` wire `useClaimActivity` already reads (lib/buildActivity.ts)
+   * — a one-poll-cycle-later seed, not a one-shot one. Left optional / always-undefined so
+   * `p.claims ?? []` degrades identically either way (dead but harmless); not removed here — a
+   * TreePayload wire shape change is apps/studio/server/** territory, outside this unit's file
+   * fence. The retired presence layer's `sessions?` seed is GONE outright (this lane).
    */
   claims?: ClaimActivity[];
 }
@@ -687,16 +692,6 @@ export interface AttestationsPayload {
 export interface UatVerdictResult {
   verdict: { unitId: string; outcome: 'pass' | 'fail'; signer: string; at: string };
   storyUat?: 'healthy' | 'unhealthy' | null;
-}
-
-/**
- * GET /api/presence — the active-session layer alone, polled by the tree view
- * (the world geometry stays a one-shot /api/tree). Always a 200: `null` means
- * the live store didn't answer (down DB / json store) — advisory absence, not
- * an error (ADR-0033); the StoreBanner owns the explanatory UX.
- */
-export interface PresencePayload {
-  sessions: TreeSession[] | null;
 }
 
 // ---------- in-flight build activity (GET /api/activity, ADR-0048) ----------
@@ -806,7 +801,7 @@ export type BuildPhase =
 
 /**
  * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims + ADR-0200 D7
- * claim departures), polled like /api/presence. Always a 200: `null` is the advisory-absent answer
+ * claim departures), polled on the shared slow cadence (lib/poll.ts). Always a 200: `null` is the advisory-absent answer
  * (down DB / json store), never a 503; `[]` means nothing is building / claimed / departing right now.
  * `claims` is optional on the wire (a narrow backend may omit it → treated as `null`), back-compat
  * with a pre-ADR-0138 server that sent only `builds`; `departures` is the SAME optional/back-compat
@@ -874,10 +869,10 @@ export interface SessionClaimGroup {
 
 /**
  * GET /api/claims — every live claim row folded by session (ADR-0200 D7), sibling to
- * {@link PresencePayload}/{@link ActivityPayload}: `sessions: null` means the live store didn't
- * answer (down DB / json store) — advisory absence, not an error; the dock degrades silently to
- * the presence-only view. Fetched only while the session dock is open (not on the world's poll
- * cadence — no new always-on cost class).
+ * {@link ActivityPayload}: `sessions: null` means the live store didn't answer (down DB / json
+ * store) — advisory absence, not an error; the dock renders an honest silent-store note. Fetched
+ * only while the session dock is open (not on the world's poll cadence — no new always-on cost
+ * class).
  */
 export interface ClaimsPayload {
   sessions: SessionClaimGroup[] | null;

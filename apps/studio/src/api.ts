@@ -16,7 +16,6 @@ import type {
   InviteResult,
   MeInfo,
   NewComment,
-  PresencePayload,
   ReviewFeedPayload,
   StoreHealth,
   SuggestionRecord,
@@ -245,17 +244,15 @@ export const api = {
   // backstop so a wedged request can't pin the banner's in-flight guard.
   health: (): Promise<StoreHealth> =>
     http('/api/health', { signal: AbortSignal.timeout(10_000) }),
-  // Presence poll (see lib/presence.ts). Same abort backstop as health: the
-  // server-side probe already times out at ~4s and answers {sessions: null},
-  // so a wedged request must not pin the poll's in-flight guard.
-  presence: (): Promise<PresencePayload> =>
-    http('/api/presence', { signal: AbortSignal.timeout(10_000) }),
   // In-flight build activity (see lib/buildActivity.ts, ADR-0048). Same advisory
-  // contract + abort backstop as presence: a down DB answers {builds: null}.
+  // contract + abort backstop as health: a down DB answers {builds: null} — the
+  // server-side probe already times out at ~4s, so a wedged request must not pin
+  // the poll's in-flight guard. (The old /api/presence poll retired with the
+  // presence layer, ADR-0200 D7.)
   activity: (): Promise<ActivityPayload> =>
     http('/api/activity', { signal: AbortSignal.timeout(10_000) }),
   // The claim-ledger dock view (see lib/sessionClaims.ts, ADR-0200 D7). Same advisory contract +
-  // abort backstop as presence/activity: a down DB answers {sessions: null}. Fetched only while
+  // abort backstop as activity: a down DB answers {sessions: null}. Fetched only while
   // the session dock is open — not on the world's poll cadence.
   claims: (): Promise<ClaimsPayload> =>
     http('/api/claims', { signal: AbortSignal.timeout(10_000) }),
@@ -283,7 +280,7 @@ export const api = {
 
   // Members (app-owned users, ADR-0043). /api/me is the one endpoint a non-member may reach;
   // /api/users is admin-only (the server enforces; the panel is also hidden for members).
-  // Same 10s abort backstop as health/presence/activity: resolving membership reads the live
+  // Same 10s abort backstop as health/activity: resolving membership reads the live
   // store, so an idle-stopped DB can wedge the request — without this the SPA sits on "Resolving
   // access…" forever instead of surfacing the error/wake path. The server degrades sooner (see
   // serve.ts MEMBERS_RESOLVE_TIMEOUT_MS), so the happy outcome is a storeUnreachable banner, not this.

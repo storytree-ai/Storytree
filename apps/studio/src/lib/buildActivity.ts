@@ -1,19 +1,20 @@
 // useBuildActivity / useClaimActivity — the live layers of the story world's in-flight BUILD wisps
-// (ADR-0048), story-CLAIM wisps (ADR-0138 §5), and claim-DEPARTURE wisps (ADR-0200 D7). Siblings to
-// usePresence: they read GET /api/activity — which now serves `{ builds, claims, departures }` on ONE
-// wire (one shared cost envelope) — and return the raw rows; the world ages/filters them between polls
-// with the SAME `now` ticker usePresence publishes, so a wisp vanishes the instant it crosses its
-// window — no second ticker, no extra render storm.
+// (ADR-0048), story-CLAIM wisps (ADR-0138 §5), and claim-DEPARTURE wisps (ADR-0200 D7). They read
+// GET /api/activity — which serves `{ builds, claims, departures }` on ONE wire (one shared cost
+// envelope) — and return the raw rows; the world ages/filters them between polls with the shared
+// `now` ticker (lib/poll.ts), so a wisp vanishes the instant it crosses its window — no second
+// ticker, no extra render storm.
 //
-// Why these are separate signals from presence: a BUILD is the MECHANICAL red-green work the harness
-// drives (events.work_event 'building'), keyed by run_id; a CLAIM is "a session is working this story"
-// (events.node_claim), keyed by session_id — both are node-anchored work signals, not "who is online".
+// A BUILD is the MECHANICAL red-green work the harness drives (events.work_event 'building'),
+// keyed by run_id; a CLAIM is "a session is working this story" (events.node_claim), keyed by
+// session_id — both are node-anchored work signals; the claim ledger is the ONE coordination +
+// observability machinery since self-reported presence retired (ADR-0200 D7).
 // A DEPARTURE is a recently-RELEASED claim still inside its fade window (events.claim_event, ADR-0200
 // D7 wisp-out legibility) — so a released claim reads as "someone just left" instead of vanishing
 // indistinguishably from a lost/stale claim. A claim (or its departure) is NEVER a proof (the §5
 // honesty wall): the renderer paints it visibly distinct from a proven-green bloom.
 //
-// Advisory discipline (mirrors presence): a `null` answer (down DB / json store) empties the layer
+// Advisory discipline: a `null` answer (down DB / json store) empties the layer
 // without an error surface; a failed POLL keeps the last-known rows (the ticker ages them meanwhile).
 // `claims` and `departures` are folded from the SAME poll response (useClaimActivity below) — never
 // two separate fetches for one wire.
@@ -21,19 +22,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { BuildActivity, ClaimActivity, DepartedClaim } from '../types';
-import { PRESENCE_POLL_MS, STORE_RECOVERED_EVENT } from './presence';
+import { SLOW_POLL_MS, STORE_RECOVERED_EVENT } from './poll';
 
 /**
  * The in-flight-build layer: seeded from the one-shot /api/tree payload (so the
  * world paints builds on first load, even on a backgrounded tab whose poll is
- * gated), then kept near-real-time by the GET /api/activity poll on the presence
+ * gated), then kept near-real-time by the GET /api/activity poll on the shared slow
  * cadence (the world geometry stays a one-shot /api/tree — never polled).
  * Returns the RAW builds; the caller TTL-filters against the shared `now` ticker
  * (isBuildInFlight) so a build ages out between polls without a refetch.
  *
  * `seed` is TreeView's builds from the tree payload (undefined until that fetch
  * lands); once the poll has answered, later seed changes are ignored — the poll
- * is the fresher source (the usePresence seed contract).
+ * is the fresher source (the shared seed-then-poll contract).
  */
 export function useBuildActivity(seed: BuildActivity[] | undefined): BuildActivity[] {
   const [raw, setRaw] = useState<BuildActivity[]>([]);
@@ -61,7 +62,7 @@ export function useBuildActivity(seed: BuildActivity[] | undefined): BuildActivi
       }
     };
     void poll(); // immediate first poll — a running build shouldn't wait a cycle
-    const id = window.setInterval(() => void poll(), PRESENCE_POLL_MS);
+    const id = window.setInterval(() => void poll(), SLOW_POLL_MS);
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') void poll();
     };
@@ -94,7 +95,7 @@ export interface ClaimActivityState {
  * Only `claims` is SEEDED from the one-shot /api/tree payload (so the world paints claim wisps on
  * first load); `departures` has no such seed contract (a departure is inherently transient — there is
  * nothing to seed before the first poll answers) and starts empty until then. Once the poll answers,
- * later `seed` changes are ignored (the poll is the fresher source — the usePresence contract).
+ * later `seed` changes are ignored (the poll is the fresher source — the shared seed-then-poll contract).
  *
  * Returns the RAW claims/departures; the caller groups each by story and (for claims) folds
  * `intent → colourState` (lib/claimColour.ts). Unlike a build, a claim has no client-side TTL re-age —
@@ -130,7 +131,7 @@ export function useClaimActivity(seed: ClaimActivity[] | undefined): ClaimActivi
       }
     };
     void poll(); // immediate first poll — a live claim shouldn't wait a cycle
-    const id = window.setInterval(() => void poll(), PRESENCE_POLL_MS);
+    const id = window.setInterval(() => void poll(), SLOW_POLL_MS);
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') void poll();
     };
