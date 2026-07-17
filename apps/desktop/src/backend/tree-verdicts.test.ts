@@ -374,6 +374,156 @@ test("tree-verdicts: applyCapCoverage synthesizes a covered brownfield cap's ver
 });
 
 // ---------------------------------------------------------------------------
+// uatCriteria — the lantern-walk summary (forest-parcels arc increment 2)
+// ---------------------------------------------------------------------------
+//
+// Mirrors the studio's apiRouter.applyUatCriteria / readTree's `uatCriteriaByStory` verbatim (this
+// module's whole reason for being — the re-composition boundary, ADR-0119). MEMBERSHIP: only the
+// WITNESSABLE UAT test criteria (would-be legs and `## Reliability Gates` excluded). STATE: the SAME
+// per-test signed-verdict read (`rollupStatus`) the crown roll-up uses.
+
+/** Seed a temp stories dir with ONE story `mixed`: two real UAT legs + one reliability gate — the
+ *  gate must NEVER appear in `uatCriteriaByStory` (only the crown's `uatTestCriteriaByStory` union). */
+async function seedMixedStory(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tree-verdicts-uatcrit-"));
+  const storyDir = path.join(dir, "mixed");
+  await fs.mkdir(storyDir);
+  await fs.writeFile(
+    path.join(storyDir, "story.md"),
+    [
+      "---",
+      'id: "mixed"',
+      "tier: story",
+      'title: "Mixed story"',
+      'outcome: "the mixed outcome"',
+      "status: proposed",
+      "proof_mode: UAT",
+      "capabilities: []",
+      "---",
+      "",
+      "# Mixed",
+      "",
+      "## UAT Test Criteria",
+      "",
+      "1. **First leg** _(witness: machine)_: it works.",
+      "2. **Second leg** _(witness: human)_: it also works.",
+      "",
+      "## Reliability Gates",
+      "",
+      "1. **A brownfield gate** _(gate: observe)_ `pnpm test`.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return {
+    dir,
+    cleanup: async () => {
+      await fs.rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+test("tree-verdicts: readTreeWithCaps' uatCriteriaByStory collects only witnessable UAT legs, excluding reliability gates", async () => {
+  const { dir, cleanup } = await seedMixedStory();
+  try {
+    const { uatCriteriaByStory, uatTestCriteriaByStory } = await readTreeWithCaps(dir);
+    assert.deepEqual(
+      uatCriteriaByStory.get("mixed")?.map((t) => t.id),
+      ["mixed#uat-1", "mixed#uat-2"],
+      "only the two UAT legs — the reliability gate is excluded",
+    );
+    // The crown's union DOES include the gate — proving the two maps are deliberately different sets.
+    assert.deepEqual(
+      uatTestCriteriaByStory.get("mixed")?.map((t) => t.id).sort(),
+      ["mixed#gate-1", "mixed#uat-1", "mixed#uat-2"].sort(),
+      "the crown's own-obligation union still includes the gate (a different, wider set)",
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tree-verdicts: foldVerdicts derives uatCriteria state from the SAME signed-verdict source as the crown", async () => {
+  const { dir, cleanup } = await seedMixedStory();
+  try {
+    const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(
+      stories,
+      uatTestCriteriaByStory,
+      coverageByStory,
+      {
+        latestVerdicts: null,
+        verdictEvents: [
+          passEvent(1, "mixed#uat-1", "story"),
+          // mixed#uat-2 regressed: rollupStatus is conservative — a bare fail with no prior pass
+          // grants nothing (abstains to 'pending'); 'failing' is reached only via demotion after a
+          // proven pass, the same path rollupStoryGreen's `unhealthy` uses.
+          passEvent(2, "mixed#uat-2", "story"),
+          { kind: "signing", seq: 3, doc: { unitId: "mixed#uat-2", proofMode: "story", outcome: "fail", commitSha: "ca".repeat(20), signer: "ci@example.com", runId: "run-fail", at: TS } },
+        ],
+        openQuestions: [],
+      },
+      uatCriteriaByStory,
+    );
+    const mixed = stories.find((s) => s.id === "mixed");
+    assert.ok(mixed);
+    assert.deepEqual(
+      mixed.uatCriteria,
+      [
+        { id: "mixed#uat-1", state: "proven" },
+        { id: "mixed#uat-2", state: "failing" },
+      ],
+      "signed pass -> proven, signed fail -> failing, mirroring the studio's applyUatCriteria",
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tree-verdicts: foldVerdicts with no verdict events yields 'pending' for every witnessable leg, never throws", async () => {
+  const { dir, cleanup } = await seedMixedStory();
+  try {
+    const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(
+      stories,
+      uatTestCriteriaByStory,
+      coverageByStory,
+      { latestVerdicts: null, verdictEvents: null, openQuestions: [] },
+      uatCriteriaByStory,
+    );
+    const mixed = stories.find((s) => s.id === "mixed");
+    assert.ok(mixed);
+    assert.deepEqual(
+      mixed.uatCriteria,
+      [
+        { id: "mixed#uat-1", state: "pending" },
+        { id: "mixed#uat-2", state: "pending" },
+      ],
+      "a down DB / json backend under-claims to pending, never fabricates proven/failing",
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tree-verdicts: foldVerdicts called WITHOUT the uatCriteriaByStory arg (back-compat) leaves uatCriteria unset", async () => {
+  const { dir, cleanup } = await seedMixedStory();
+  try {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
+      latestVerdicts: null,
+      verdictEvents: null,
+      openQuestions: [],
+    });
+    const mixed = stories.find((s) => s.id === "mixed");
+    assert.ok(mixed);
+    assert.equal(mixed.uatCriteria, undefined, "an omitted map is a back-compat no-op for this layer");
+  } finally {
+    await cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Boundary guard (the desktop story's "Local-backend boundary call" / ADR-0100)
 // ---------------------------------------------------------------------------
 

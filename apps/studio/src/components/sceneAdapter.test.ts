@@ -205,3 +205,45 @@ describe('worldToScene → capability parcels', () => {
     expect(terr(input(), 'top').parcels).toBeUndefined();
   });
 });
+
+// forest-parcels inc 2: the studio fold threads the story's declared UAT criteria straight through to
+// the core's `uatCriteria` scene field (the core owns the walk geometry + lantern placement entirely;
+// this lane just carries the `{id, state}` shape across, exactly like `parcels` above).
+describe('worldToScene → uatCriteria (the UAT lantern walk)', () => {
+  function input(stories: TreeStory[]) {
+    const world = buildWorld(stories);
+    const cells = buildRelaxedCells(world, 'mesh', {});
+    return worldToScene(world, cells, NOW, NO_BUILDS);
+  }
+  function terr(inp: ReturnType<typeof input>, id: string) {
+    const t = inp.territories.find((x) => x.id === id);
+    if (!t) throw new Error(`no territory ${id}`);
+    return t;
+  }
+
+  it('threads a non-empty uatCriteria array through unchanged', () => {
+    const stories = fixture();
+    stories[0] = {
+      ...stories[0]!,
+      uatCriteria: [
+        { id: 'foundation:c1', state: 'proven' },
+        { id: 'foundation:c2', state: 'pending' },
+        { id: 'foundation:c3', state: 'failing' },
+      ],
+    };
+    const foundation = terr(input(stories), 'foundation');
+    expect(foundation.uatCriteria).toEqual([
+      { id: 'foundation:c1', state: 'proven' },
+      { id: 'foundation:c2', state: 'pending' },
+      { id: 'foundation:c3', state: 'failing' },
+    ]);
+  });
+
+  it('omits the field when the story has no uatCriteria (absent or empty)', () => {
+    // the fixture stories declare no uatCriteria at all.
+    expect(terr(input(fixture()), 'foundation').uatCriteria).toBeUndefined();
+    const stories = fixture();
+    stories[0] = { ...stories[0]!, uatCriteria: [] };
+    expect(terr(input(stories), 'foundation').uatCriteria).toBeUndefined();
+  });
+});

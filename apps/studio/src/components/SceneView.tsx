@@ -134,6 +134,17 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'plate-id': 'world-plate-id',
   'plate-sub': 'world-plate-sub',
   hit: 'world-story-hit',
+  // the UAT lantern walk (forest-parcels inc 2, ADR-0208): the walk group + its trail-bed path map
+  // to same-named classes; the wrapper kinds (`lantern-proven`/`-pending`/`-failing`) compose the
+  // shared `.lantern` base + their state class in composeClass below. The body child kinds are
+  // frozen (the splice seam) and map verbatim; `shadow` reuses the existing flora-shadow mapping.
+  'lantern-walk': 'lantern-walk',
+  'walk-path': 'walk-path',
+  'lantern-post': 'lantern-post',
+  'lantern-housing': 'lantern-housing',
+  'lantern-glass': 'lantern-glass',
+  'lantern-roof': 'lantern-roof',
+  'lantern-glow': 'lantern-glow',
 };
 
 const fmt = (n: number): string => n.toFixed(1);
@@ -246,6 +257,13 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
     case 'parcel-flower':
       // the generic flora marks — same-named class + the `v-<n>` facet suffix (exactly like cells).
       return `${k} v-${node.variant ?? 0}`;
+    case 'lantern-proven':
+    case 'lantern-pending':
+    case 'lantern-failing':
+      // forest-parcels inc 2: the lantern wrapper — the shared `.lantern` base (pointer-events: none,
+      // the walk is display-only) + its state class, the composite the CSS keys the glass/glow colour
+      // off (`.lantern-proven .lantern-glass`, etc.).
+      return `lantern ${k}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;

@@ -42,6 +42,7 @@ import type {
   TreeCapability,
   TreePayload,
   TreeStory,
+  UatCriterionSummary,
   WorkStatus,
 } from '../src/types';
 import {
@@ -1085,6 +1086,7 @@ export async function readTree(
 ): Promise<{
   payload: TreePayload;
   uatTestCriteriaByStory: Map<string, { id: string }[]>;
+  uatCriteriaByStory: Map<string, { id: string }[]>;
   coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
 }> {
   const stories: TreeStory[] = [];
@@ -1093,10 +1095,16 @@ export async function readTree(
   // obligation set) — collected as the specs load so the /api/tree handler can roll each story's
   // per-obligation verdicts up into its crown without re-reading every spec. Keyed by `{ id }` only.
   const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
+  // The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 lantern walk) — the SAME
+  // would-be filter as above, but deliberately NOT unioned with `## Reliability Gates`: the crown's
+  // green obligation set and the `TreeStory.uatCriteria` summary are different obligations (ADR-0085
+  // gates are a brownfield adoption mechanism, not a UAT criterion). Feeds `applyUatCriteria`.
+  const uatCriteriaByStory = new Map<string, { id: string }[]>();
   // ADR-0097: per-story capability COVERAGE — the reliability gates (with their `(covers:)` lists), so
   // a brownfield cap with no driven verdict greens via an adopted gate that declares it covered.
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
-  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestCriteriaByStory, coverageByStory };
+  if (!existsSync(storiesDir))
+    return { payload: { stories }, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
   const {
     loadNodeSpec,
     effectiveUatWitness,
@@ -1187,11 +1195,17 @@ export async function readTree(
       // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT test criteria (would-be legs
       // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
       // its reliability gates alone). Both are addressable `{ id }` obligation units.
-      const ownObligations = [
-        ...spec.uatTestCriteria.filter((t) => !t.wouldBe),
-        ...spec.reliabilityGates,
-      ];
+      const witnessableUat = spec.uatTestCriteria.filter((t) => !t.wouldBe);
+      const ownObligations = [...witnessableUat, ...spec.reliabilityGates];
       if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
+      // forest-parcels inc-2: the story's UAT test criteria ALONE (never the reliability gates) — the
+      // lantern-walk summary membership. Set even when empty-of-gates, mirroring `ownObligations` above.
+      if (witnessableUat.length > 0) {
+        uatCriteriaByStory.set(
+          ent.name,
+          witnessableUat.map((t) => ({ id: t.id })),
+        );
+      }
       // The reliability gates double as per-cap coverage (ADR-0097): id + the caps each `(covers:)`.
       if (spec.reliabilityGates.length > 0) {
         coverageByStory.set(
@@ -1204,7 +1218,7 @@ export async function readTree(
     }
     stories.push(story);
   }
-  return { payload: { stories }, uatTestCriteriaByStory, coverageByStory };
+  return { payload: { stories }, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 }
 
 /**
@@ -1248,6 +1262,39 @@ export function applyUatCrowns(
       // support (provenStatus then under-claims an authored `healthy` to `mapped`).
       delete story.verdict;
     }
+  }
+}
+
+/**
+ * Populate each story's {@link TreeStory.uatCriteria} — the lantern-walk summary (forest-parcels
+ * inc-2): one entry per WITNESSABLE UAT test criterion (`uatCriteriaByStory`, would-be legs already
+ * filtered out, `## Reliability Gates` deliberately NOT included — see the map's construction comment
+ * in {@link readTree}). Each entry's `state` is derived from the SAME per-test SIGNED-verdict source
+ * `applyUatCrowns` and the attestations route's `provenOf` use (`rollupStatus`): a signed pass ⇒
+ * `'proven'`, a signed fail ⇒ `'failing'`, no signed verdict OR the live store can't answer (`events ===
+ * null`, the json backend / a down DB) ⇒ `'pending'` — silently, never throws, never fabricates a state
+ * the proof doesn't back. `rollup` is injected (the real `rollupStatus`) so this stays unit-testable
+ * without the lazy orchestrator; omit it (or pass `events: null`) to exercise the advisory-absent path.
+ * ALWAYS sets `uatCriteria` for every story reached here — `[]` for a story with no witnessable UAT test
+ * criteria — so the field is never silently missing on the wire. Mutates `stories` in place.
+ */
+export function applyUatCriteria(
+  stories: TreeStory[],
+  uatCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }> | null,
+  rollup?: (
+    id: string,
+    events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
+  ) => string | null,
+): void {
+  for (const story of stories) {
+    const tests = uatCriteriaByStory.get(story.id) ?? [];
+    story.uatCriteria = tests.map((t): UatCriterionSummary => {
+      const status = events && rollup ? rollup(t.id, events) : null;
+      const state: UatCriterionSummary['state'] =
+        status === 'healthy' ? 'proven' : status === 'unhealthy' ? 'failing' : 'pending';
+      return { id: t.id, state };
+    });
   }
 }
 
@@ -1919,7 +1966,9 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      const { payload, uatTestCriteriaByStory, coverageByStory } = await readTree(ctx.paths.storiesDir);
+      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTree(
+        ctx.paths.storiesDir,
+      );
       // Advisory enrichments (ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
       // Run in parallel so a down DB costs one 4s budget, not three. `builds`
@@ -1946,6 +1995,12 @@ export async function handleApiRequest(
           }
         }
       }
+      // forest-parcels inc-2 (the lantern walk): the story's WITNESSABLE UAT test criteria summary —
+      // ALWAYS set (even with no verdict events / a down DB, when every entry reads 'pending'), so the
+      // field is never silently missing on the wire. `rollupStatus` is the SAME per-test proof read
+      // `applyUatCrowns` / the attestations route's `provenOf` use.
+      const { rollupStatus } = await loadOrchestrator();
+      applyUatCriteria(payload.stories, uatCriteriaByStory, verdictEvents, rollupStatus);
       // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
       // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
       // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)

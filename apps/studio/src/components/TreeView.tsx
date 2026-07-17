@@ -972,6 +972,13 @@ function territoryToScene(
     // empty-caps island stays parcels-ABSENT (no field) — the core's own back-compat semantics
     // (absent/empty ⇒ today's ground + conifers + plant ring, byte-for-byte).
     ...(t.caps.length ? { parcels: t.caps.map(capToParcel) } : {}),
+    // forest-parcels inc 2 (the UAT lantern walk): a straight `{id, state}` pass-through of the
+    // story's declared UAT criteria — the core owns the walk geometry + lantern placement entirely;
+    // the studio just threads the data through. OPTIONAL and back-compat: absent/empty ⇒ no walk
+    // (the core's `buildLanternWalk` absence lock), exactly like `parcels` above.
+    ...(story.uatCriteria?.length
+      ? { uatCriteria: story.uatCriteria.map((c) => ({ id: c.id, state: c.state })) }
+      : {}),
     treeTitle: `${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`,
     ...(story.uatWitness === 'human'
       ? { signpost: { outcome: story.verdict?.outcome ?? null } }

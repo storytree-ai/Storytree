@@ -80,6 +80,17 @@
   --conifer-1: #4d8a59;
   --conifer-2: #2f6b45;
 
+  /* the UAT lantern walk (forest-parcels inc 2, ADR-0208): the lamp-post fixture family. Colour is
+     the only thing the verdict carries — the fixture silhouette is identical in every state
+     (lanternMarks in @storytree/forest-world scene.ts), so only the glass + glow hues vary. */
+  --lantern-post: var(--tree-trunk);
+  --lantern-frame: #4a3628;
+  --lantern-glass-pending: #b3a996;
+  --lantern-glass-proven: #e8b64e;
+  --lantern-glow-proven: #f2c35e;
+  --lantern-glass-failing: var(--crown-unhealthy-hi);
+  --lantern-glow-failing: var(--danger);
+
   /* story-world flora — per-status crown pairs (one source of truth: flora +
      legend). The growth/colour ladder (ADR-0038): proposed = young amber tree,
      mapped = full BROWNFIELD canopy (the glossary's own word for mapped),
@@ -5736,3 +5747,75 @@ button.legend-tile:hover {
 .parcel-flora.theme-heath.st-building .parcel-stem { stroke: #a97e2c; }
 .parcel-flora.theme-heath.st-unhealthy .parcel-stem { stroke: #5d4c3b; }
 .parcel-flora.theme-heath.st-unknown .parcel-stem { stroke: #8f8d82; }
+
+/* ============================================================================
+   UAT LANTERN WALK (forest-parcels inc 2, ADR-0208) — the trail-to-tree walk an island grows when
+   its story carries witnessable UAT criteria: a walk-bed path from the shore up to the trailhead,
+   with one lamp-post lantern per criterion, its light coloured by that criterion's proof state. The
+   core (@storytree/forest-world scene.ts) emits GEOMETRY only (the walk-path cubic + the frozen
+   lantern-body marks, `lanternMarks`); every colour role resolves HERE, keyed by the wrapper's state
+   class composed onto the shared `.lantern` base (`.lantern-proven` / `.lantern-pending` /
+   `.lantern-failing`) — the SceneView mapper (`apps/studio/src/components/SceneView.tsx`) emits the
+   body-part classes (`.lantern-post/-housing/-glass/-roof/-glow`) verbatim; `shadow` reuses the
+   existing `.flora-shadow` mapping (no lantern-specific shadow rule needed).
+
+   DEVIATION from the delivered mockup CSS: the glow keyframes animate `transform: scale` (a gentle
+   breath), NEVER `opacity`. The core already resolves each glow layer's own per-node falloff opacity
+   (the layered fake-radial halo — decreasing radius, increasing opacity, largest-dimmest first); a
+   CSS opacity animation would apply identically to every layer and flatten the halo into one
+   pulsing disc, destroying the depth cue. `transform-box: fill-box` + `transform-origin: center` so
+   the scale breathes from each glow shape's own centre, not the group's local origin.
+   ============================================================================ */
+.walk-path {
+  fill: none;
+  stroke: var(--trail-bed);
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+.lantern {
+  pointer-events: none;
+}
+.lantern-post {
+  fill: var(--lantern-post);
+}
+.lantern-housing {
+  fill: var(--lantern-frame);
+}
+.lantern-roof {
+  fill: var(--lantern-post);
+}
+.lantern-pending .lantern-glass {
+  fill: var(--lantern-glass-pending);
+}
+.lantern-proven .lantern-glass {
+  fill: var(--lantern-glass-proven);
+}
+.lantern-failing .lantern-glass {
+  fill: var(--lantern-glass-failing);
+}
+.lantern-proven .lantern-glow {
+  fill: var(--lantern-glow-proven);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lantern-glow-breathe-proven 3.6s ease-in-out infinite;
+}
+.lantern-failing .lantern-glow {
+  fill: var(--lantern-glow-failing);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lantern-glow-breathe-failing 1.7s ease-in-out infinite;
+}
+@keyframes lantern-glow-breathe-proven {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes lantern-glow-breathe-failing {
+  0%, 100% { transform: scale(0.97); }
+  50% { transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lantern-proven .lantern-glow,
+  .lantern-failing .lantern-glow {
+    animation: none;
+  }
+}

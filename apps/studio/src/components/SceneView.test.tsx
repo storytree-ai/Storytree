@@ -528,3 +528,110 @@ describe('SceneView — capability parcels (forest-parcels inc 1)', () => {
     expect(root.querySelector('.parcel-shrub.v-1')).toBeTruthy();
   });
 });
+
+// forest-parcels inc 2: the studio mapper translates the core's lantern-walk drawables → the studio's
+// frozen lantern class vocabulary (a parallel lane writes the CSS against these names). GEOMETRY
+// (the walk cubic + lantern placement) is the core's; here we pin the role → class translation.
+describe('SceneView — the UAT lantern walk (forest-parcels inc 2)', () => {
+  function mkLanternInput(): SceneInput {
+    return {
+      offset: { x: 0, y: 0 },
+      width: 200,
+      height: 200,
+      empties: [],
+      relaxedCells: [],
+      drawTiles: [],
+      wheatSets: [new Set()],
+      trails: { segments: [], edges: [], caves: [], dropped: [] },
+      territories: [
+        {
+          id: 'lib',
+          status: 'healthy',
+          caps: 3,
+          centroid: { x: 50, y: 40 },
+          radius: 60,
+          treeSpot: { x: 50, y: 40 },
+          labelY: 120,
+          coastPaths: [],
+          decor: [],
+          plants: [],
+          uatCriteria: [
+            { id: 'lib:c1', state: 'proven' },
+            { id: 'lib:c2', state: 'pending' },
+            { id: 'lib:c3', state: 'failing' },
+          ],
+          treeTitle: 'lib — healthy',
+          wisps: [],
+          claims: [],
+          plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 3 caps', title: 'Library' },
+        },
+      ],
+    };
+  }
+  function renderLanterns(): HTMLElement {
+    const ctx: SceneCtx = {
+      territoryClassById: (id, status) => `hex-territory st-${status}`,
+      reveal: null,
+      hidden: new Set(),
+      onSelectStory: vi.fn(),
+      onSelectCap: vi.fn(),
+    };
+    const { container } = render(
+      <svg>
+        <SceneView scene={buildScene(mkLanternInput())} ctx={ctx} />
+      </svg>,
+    );
+    return container;
+  }
+
+  it('maps the walk group + its trail-bed path to same-named classes', () => {
+    const root = renderLanterns();
+    expect(root.querySelector('.lantern-walk')).toBeTruthy();
+    const bed = root.querySelector('.walk-path')!;
+    expect(bed).toBeTruthy();
+    // the core stamps the bed's strokeWidth (6); the mapper applies it generically.
+    expect(bed.getAttribute('stroke-width')).toBe('6');
+  });
+
+  it('maps one lantern wrapper per criterion, composing the shared base + its state class', () => {
+    const root = renderLanterns();
+    expect(root.querySelector('.lantern.lantern-proven')).toBeTruthy();
+    expect(root.querySelector('.lantern.lantern-pending')).toBeTruthy();
+    expect(root.querySelector('.lantern.lantern-failing')).toBeTruthy();
+  });
+
+  it('maps every frozen lantern-body child kind to its own class inside each wrapper', () => {
+    const root = renderLanterns();
+    const proven = root.querySelector('.lantern.lantern-proven')!;
+    expect(proven.querySelector('.lantern-post')).toBeTruthy();
+    expect(proven.querySelector('.lantern-housing')).toBeTruthy();
+    expect(proven.querySelector('.lantern-glass')).toBeTruthy();
+    expect(proven.querySelector('.lantern-roof')).toBeTruthy();
+    // proven + failing carry a lit glow; pending stays dark (no glow marks at all).
+    expect(proven.querySelector('.lantern-glow')).toBeTruthy();
+    expect(root.querySelector('.lantern.lantern-failing')!.querySelector('.lantern-glow')).toBeTruthy();
+    expect(root.querySelector('.lantern.lantern-pending')!.querySelector('.lantern-glow')).toBeNull();
+  });
+
+  it('reuses the existing flora-shadow mapping for the lantern shadow (no special-case needed)', () => {
+    const root = renderLanterns();
+    expect(root.querySelector('.lantern.lantern-proven')!.querySelector('.flora-shadow')).toBeTruthy();
+  });
+
+  it('carries the resolved per-node glow opacity through untouched (the falloff-halo depth cue)', () => {
+    const root = renderLanterns();
+    const glows = [...root.querySelectorAll('.lantern.lantern-proven .lantern-glow')];
+    expect(glows.length).toBeGreaterThan(1);
+    const opacities = new Set(glows.map((g) => g.getAttribute('opacity')));
+    // the layered halo carries DISTINCT per-layer opacities (largest-dimmest first) — the mapper must
+    // never collapse them to one shared value.
+    expect(opacities.size).toBeGreaterThan(1);
+  });
+
+  it('renders nothing lantern-related when the story has no uatCriteria', () => {
+    const { root } = renderScene();
+    expect(root.querySelector('.lantern-walk')).toBeNull();
+    expect(root.querySelector('.walk-path')).toBeNull();
+    expect(root.querySelector('.lantern')).toBeNull();
+  });
+});

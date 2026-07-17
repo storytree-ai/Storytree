@@ -115,6 +115,21 @@ export type SceneKind =
   | 'sign-fail'
   | 'sign-post'
   | 'sign-head'
+  // the UAT lantern walk (forest-parcels inc 2) — the story's UAT criteria as lanterns along a
+  // deterministic trail-to-tree walk arriving at the signpost trailhead. The WRAPPER kind encodes
+  // each criterion's state (the `sign-blank/pass/fail` precedent) and carries the criterion id;
+  // the body marks inside come from the `lanternMarks` splice seam (ADR-0208) on the frozen child
+  // kinds below (+ the shared `shadow`). Colour stays CSS-side (ADR-0093 §4).
+  | 'lantern-walk' // the island's whole walk group: the bed path + the lantern wrappers
+  | 'walk-path' // the visible trail-bed cubic the lanterns hang off
+  | 'lantern-proven'
+  | 'lantern-pending'
+  | 'lantern-failing'
+  | 'lantern-post'
+  | 'lantern-housing'
+  | 'lantern-glass'
+  | 'lantern-roof'
+  | 'lantern-glow'
   // a capability as garden flora
   | 'flora'
   | 'flora-hit'
@@ -283,6 +298,14 @@ export type ClaimGrade = 'exploring' | 'waiting' | 'work';
  *  it. The surface fold folds each capability's real theme into this. */
 export type SurfaceTheme = 'meadow' | 'woodland' | 'heath';
 
+/** A UAT criterion's proof state on the lantern walk (forest-parcels inc 2) — which lantern the
+ *  criterion lights: `proven` glows, `pending` waits unlit, `failing` wears the failed hue.
+ *  DUPLICATED as the core's OWN input vocabulary (the scene-graph is a foundational root that
+ *  depends on nothing — ADR-0093 §Open call 2), mirroring the surface's folded per-criterion proof
+ *  state rather than importing the proof machinery. Encoded in the lantern WRAPPER's kind
+ *  (`lantern-proven`/`lantern-pending`/`lantern-failing`), never as live data on the node. */
+export type LanternState = 'proven' | 'pending' | 'failing';
+
 /** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
  *  scene-graph is a foundational root that depends on nothing (ADR-0093 §Open call 2), so it mirrors
  *  the union rather than importing the orchestrator or proof-protocol. The surface folds its live
@@ -439,6 +462,15 @@ export interface SceneTerritoryInput {
   treeTitle: string;
   /** Present only for a human-witness story; `outcome` null = a blank (unsigned) seal. */
   signpost?: { outcome: 'pass' | 'fail' | null };
+  /** The UAT lantern walk (forest-parcels inc 2). When PRESENT and non-empty, the island grows a
+   *  deterministic trail-to-tree walk (a cubic from the south coast up to the trailhead beside the
+   *  tree, where the signpost seal stands) with ONE lantern per criterion, in input order along the
+   *  walk, each criterion's `state` encoded in its wrapper KIND (`lantern-proven`/`lantern-pending`/
+   *  `lantern-failing`) and its `id` carried as the node id (the hover/delegation hook). The
+   *  human-witness `signpost` seal is RETAINED unconditionally — it is the walk's trailhead seal,
+   *  not replaced by the lanterns. OPTIONAL and back-compat: ABSENT ⇒ today's island renders
+   *  BYTE-FOR-BYTE (the public website fold never sends it and must be unchanged). */
+  uatCriteria?: { id: string; state: LanternState }[];
   /** The crown bloom, folded by the surface; omitted when withered or none. */
   bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
   /** In-flight build wisps, folded from live builds (the core derives each orbit
@@ -651,6 +683,168 @@ function buildSignpost(s: { outcome: 'pass' | 'fail' | null }, R: number): Scene
     ],
     { kind, transform: `translate(${f(R * 0.7 + 9)} 0)` },
   );
+}
+
+// ---------------------------------------------------------------------------
+// the UAT lantern walk (forest-parcels inc 2)
+// ---------------------------------------------------------------------------
+//
+// A uatCriteria-present island grows a trail-to-tree WALK: a deterministic cubic from the island's
+// south coast (the approach, toward the viewer) up to the TRAILHEAD beside the tree — where the
+// human-witness signpost seal already stands (`translate(R·0.7 + 9, 0)` off `treeSpot`); the seal is
+// RETAINED as the trailhead's seal. One lantern per criterion hangs along the walk in input order,
+// on alternating sides via the curve's unit tangent (the spike's placement,
+// docs/research/forest-parcels-spike.html). Everything is seeded from the story id via the existing
+// `hash`/`rand01` helpers — same input ⇒ byte-identical output.
+
+/** THE LANTERN-BODY SPLICE SEAM (ADR-0208): the designer-authored pure body painter. Frozen
+ *  contract `(state, k) => SceneNode[]` — marks positioned with the lantern BASE at (0,0), `k` a
+ *  hash seed for deterministic jitter (draw via `rand01(k + i)`, never Math.random). The wrapper's
+ *  KIND carries the state; the body reuses the frozen `lantern-*` child kinds + the shared
+ *  `shadow`, colour stays CSS-side (ADR-0093 §4). Designed against the owner-approved v5 mockup
+ *  (docs/research/forest-parcels-spike.html ~L830–850): post + housing + glass + gabled roof,
+ *  ~31.6 units tall — a smaller, warmer companion to the ~24-unit signpost. The core carries no
+ *  gradients, so the mockup's radial glow halo is faked with layered circles of DECREASING radius
+ *  and INCREASING opacity (largest-dimmest first) — the housing silhouette stays visible through
+ *  the light. PENDING emits no glow at all: dormant reads as the ABSENCE of light, never a dimmed
+ *  one. Only the lean and roof-apex wobble are jittered — the fixture is the same object family
+ *  in every state; only the light carries the verdict. */
+function lanternMarks(state: LanternState, k: number): SceneNode[] {
+  const POST_H = 14.5;
+  const POST_W = 3.2;
+  const HOUSING_W = 11.5;
+  const HOUSING_H = 11.5;
+  const ROOF_H = 5.6;
+  const GLASS_W = 7.3;
+  const GLASS_H = 7.9;
+
+  const r1 = (n: number): number => Number(n.toFixed(1));
+  // A hand-built lamp leans a touch and its roof apex wobbles — never machine-square.
+  const leanX = (rand01(k) - 0.5) * 1.6;
+  const apexJitter = (rand01(k + 1) - 0.5) * 1.2;
+
+  const postTopY = -POST_H;
+  const housingTopY = postTopY - HOUSING_H;
+  const roofApexY = housingTopY - ROOF_H;
+  const glassY0 = housingTopY + 1.9;
+
+  const marks: SceneNode[] = [ellipse(0, 0.6, 5.6, 1.9, { kind: 'shadow' })];
+
+  if (state !== 'pending') {
+    const glowCy = housingTopY + HOUSING_H / 2;
+    // failing's alarm glow reads tighter and a touch dimmer than proven's generous warm
+    // halo — the two states must never share one glow "temperature".
+    const scale = state === 'proven' ? 1 : 0.82;
+    marks.push(
+      ellipse(r1(leanX * 0.4), 0.4, r1(9 * scale), r1(3.4 * scale), {
+        kind: 'lantern-glow',
+        opacity: state === 'proven' ? 0.28 : 0.22,
+      }),
+    );
+    const layers: Array<[radius: number, opacity: number]> = [
+      [15 * scale, 0.1],
+      [11 * scale, 0.16],
+      [7.5 * scale, 0.24],
+      [4.5 * scale, 0.36],
+    ];
+    for (const [radius, opacity] of layers) {
+      marks.push(circle(r1(leanX), r1(glowCy), r1(radius), { kind: 'lantern-glow', opacity }));
+    }
+  }
+
+  marks.push(rect(r1(-POST_W / 2), r1(postTopY), r1(POST_W), POST_H, 1.2, { kind: 'lantern-post' }));
+  marks.push(
+    rect(r1(-HOUSING_W / 2 + leanX), r1(housingTopY), HOUSING_W, HOUSING_H, 2.2, {
+      kind: 'lantern-housing',
+    }),
+  );
+  // glass — an outer pane + a smaller inset "hot core" for depth (same kind; the per-state
+  // colour is CSS's alone, the depth cue is geometry + the outer pane's resolved opacity).
+  marks.push(
+    rect(r1(-GLASS_W / 2 + leanX), r1(glassY0), GLASS_W, GLASS_H, 1.4, {
+      kind: 'lantern-glass',
+      opacity: 0.88,
+    }),
+  );
+  marks.push(
+    rect(r1(-(GLASS_W - 2.6) / 2 + leanX), r1(glassY0 + 1.3), GLASS_W - 2.6, GLASS_H - 2.6, 1, {
+      kind: 'lantern-glass',
+    }),
+  );
+  const roofPts =
+    `${f(leanX + apexJitter)},${f(roofApexY)} ` +
+    `${f(-HOUSING_W / 2 - 0.7 + leanX)},${f(housingTopY)} ` +
+    `${f(HOUSING_W / 2 + 0.7 + leanX)},${f(housingTopY)}`;
+  marks.push(polygon(roofPts, { kind: 'lantern-roof' }));
+  return marks;
+}
+
+/** The island's lantern walk as one painter-anchored drawable (`y` = the shore end, so the walk
+ *  paints in front of the tree it approaches). Null when `uatCriteria` is absent or empty — the
+ *  byte-for-byte absence path (the public website never sends it). */
+function buildLanternWalk(t: SceneTerritoryInput): { y: number; node: SceneG } | null {
+  const criteria = t.uatCriteria ?? [];
+  if (!criteria.length) return null;
+  // the same crown radius the tree wears (young form folded in) — the trailhead tracks the signpost.
+  const withered = t.status === 'unhealthy';
+  const young = !withered && (t.status === 'proposed' || t.caps === 0);
+  const R = crownRadius(t.caps) * (young ? 0.62 : 1);
+  const k = hash(`${t.id}:uat-walk`);
+  // the trailhead: just south of the signpost seal (`translate(R·0.7 + 9, 0)` off treeSpot).
+  const p1: Pt = { x: t.treeSpot.x + R * 0.7 + 9, y: t.treeSpot.y + 8 };
+  // the approach: the south coast, biased toward the signpost's (east) side, id-seeded jitter.
+  const p0: Pt = {
+    x: t.centroid.x + t.radius * 0.3 + (rand01(k) - 0.5) * t.radius * 0.3,
+    y: t.centroid.y + t.radius * 0.82,
+  };
+  // the spike's shore→tree cubic ratios: c1 bows outward off the shore, c2 sweeps into the trailhead.
+  const dx = p0.x - p1.x;
+  const dy = p0.y - p1.y;
+  const c1: Pt = { x: p0.x + dx * 0.21 + (rand01(k + 1) - 0.5) * 8, y: p0.y - dy * 0.32 };
+  const c2: Pt = { x: p1.x + dx * 0.55 + (rand01(k + 2) - 0.5) * 8, y: p1.y + dy * 0.26 };
+  const at = (tt: number): Pt => {
+    const u = 1 - tt;
+    return {
+      x: u * u * u * p0.x + 3 * u * u * tt * c1.x + 3 * u * tt * tt * c2.x + tt * tt * tt * p1.x,
+      y: u * u * u * p0.y + 3 * u * u * tt * c1.y + 3 * u * tt * tt * c2.y + tt * tt * tt * p1.y,
+    };
+  };
+  const tanAt = (tt: number): Pt => {
+    const u = 1 - tt;
+    const tx = 3 * u * u * (c1.x - p0.x) + 6 * u * tt * (c2.x - c1.x) + 3 * tt * tt * (p1.x - c2.x);
+    const ty = 3 * u * u * (c1.y - p0.y) + 6 * u * tt * (c2.y - c1.y) + 3 * tt * tt * (p1.y - c2.y);
+    const len = Math.hypot(tx, ty) || 1;
+    return { x: tx / len, y: ty / len };
+  };
+  const children: SceneNode[] = [
+    // the modest visible trail bed (the spike draws halo/bed/beads; the core emits geometry only —
+    // the mapper/CSS owns the dressing, ADR-0093 §4).
+    path(
+      `M ${f(p0.x)} ${f(p0.y)} C ${f(c1.x)} ${f(c1.y)}, ${f(c2.x)} ${f(c2.y)}, ${f(p1.x)} ${f(p1.y)}`,
+      { kind: 'walk-path', strokeWidth: 6 },
+    ),
+  ];
+  // spacing: the spike's t = 0.14 + i·0.18, compressed over the available range when many criteria
+  // would overrun the trailhead — every lantern stays inside t ∈ [0.14, 0.86].
+  const step = criteria.length <= 1 ? 0 : Math.min(0.18, 0.72 / (criteria.length - 1));
+  criteria.forEach((c, i) => {
+    const tt = 0.14 + i * step;
+    const pt = at(tt);
+    const tan = tanAt(tt);
+    const side = i % 2 ? 1 : -1; // alternating perpendicular sides (the spike's placement)
+    const x = pt.x - tan.y * 12 * side;
+    const y = pt.y + tan.x * 12 * side * 0.7; // top-down squash on y, same as the wisp orbit
+    const kind: SceneKind =
+      c.state === 'proven' ? 'lantern-proven' : c.state === 'failing' ? 'lantern-failing' : 'lantern-pending';
+    children.push(
+      g(lanternMarks(c.state, hash(`${t.id}:lantern:${c.id}`)), {
+        kind,
+        id: c.id,
+        transform: `translate(${f(x)} ${f(y)})`,
+      }),
+    );
+  });
+  return { y: p0.y, node: g(children, { kind: 'lantern-walk' }) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1851,6 +2045,10 @@ export function buildTerritoryFlora(
     for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
   }
   drawables.push({ y: t.treeSpot.y, node: buildTree(t) });
+  // the UAT lantern walk (forest-parcels inc 2) — anchored at its shore end, so the walk + lanterns
+  // paint in front of the tree they approach. Absent/empty uatCriteria ⇒ nothing (the absence lock).
+  const lanternWalk = buildLanternWalk(t);
+  if (lanternWalk) drawables.push(lanternWalk);
   drawables.sort((a, b) => a.y - b.y);
 
   const children: SceneNode[] = drawables.map((d) => d.node);

@@ -165,7 +165,9 @@ export interface LocalBackendDeps {
  * this module stays pg-free (the desktop's brokered-only write boundary, ADR-0117).
  */
 async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, unknown>> {
-  const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(deps.storiesDir);
+  const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTreeWithCaps(
+    deps.storiesDir,
+  );
   // Run the advisory reads in parallel so a down DB costs one timeout budget, not four.
   const [latestVerdicts, verdictEvents, builds, assets] = await Promise.all([
     deps.backend.latestVerdicts() as Promise<Record<string, DTVerdict> | null>,
@@ -183,11 +185,17 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
         typeof (a as { id?: unknown }).id === "string",
     )
     .map((a) => (a.references !== undefined ? { id: a.id, references: a.references } : { id: a.id }));
-  await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
-    latestVerdicts,
-    verdictEvents,
-    openQuestions,
-  });
+  await foldVerdicts(
+    stories,
+    uatTestCriteriaByStory,
+    coverageByStory,
+    {
+      latestVerdicts,
+      verdictEvents,
+      openQuestions,
+    },
+    uatCriteriaByStory,
+  );
   const payload: Record<string, unknown> = { stories };
   if (builds && builds.length > 0) payload["builds"] = builds;
   return payload;

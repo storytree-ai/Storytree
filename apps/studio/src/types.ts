@@ -510,6 +510,19 @@ export interface AdoptionPlan {
   uncovered: string[];
 }
 
+/**
+ * One WITNESSABLE UAT test criterion's proof-state summary (the lantern-walk arc, forest-parcels inc-2):
+ * `proven` — the latest SIGNED verdict for this test id is a pass; `failing` — the latest signed
+ * verdict is a fail; `pending` — no signed verdict yet, OR the live store can't answer (json backend /
+ * down DB) — never fabricated. DELIBERATELY the same rigor as {@link UatTestCriterionRow.proven}
+ * (signed proof, never the lower-rigor human/machine vouch mark), just folded to a compact per-story
+ * summary shape for the tree wire.
+ */
+export interface UatCriterionSummary {
+  id: string;
+  state: 'proven' | 'pending' | 'failing';
+}
+
 /** One story: its own spec fields, story-level depends_on, and its capability DAG. */
 export interface TreeStory {
   id: string;
@@ -579,6 +592,17 @@ export interface TreeStory {
   verdict?: TreeVerdict;
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
   drift?: DriftState;
+  /**
+   * The story's WITNESSABLE UAT test criteria, summarised for the lantern-walk map layer
+   * (forest-parcels inc-2): one entry per declared `## UAT Test Criteria` leg that is NOT a would-be
+   * (aspirational, ADR-0097) leg. `## Reliability Gates` (ADR-0085 brownfield obligations) are
+   * deliberately EXCLUDED — this is the story's own UAT test criteria, a narrower set than the crown's
+   * full green obligation union ({@link applyUatCrowns}'s `ownObligations`). Computed server-side, set
+   * for every story that reaches the tree route (possibly `[]`) — optional here only because it is
+   * settled by a later enrichment pass, like {@link TreeStory.verdict}, and a hand-built pre-pass
+   * fixture (e.g. `readTree` callers in tests) legitimately omits it.
+   */
+  uatCriteria?: UatCriterionSummary[];
   capabilities: TreeCapability[];
   error?: string;
 }
