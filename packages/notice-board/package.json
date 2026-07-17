@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The notice-board organism (ADR-0068 step 6): the session-presence schema + staleness classification (PresenceDeclarationDoc / classifyPresence / mergeDeclaration / staleness thresholds), extracted from the dissolving @storytree/core. Pure zod, browser-safe, no node: imports.",
+  "description": "The notice-board organism (ADR-0068 step 6): the per-unit claim-ledger schema + reclaim predicate (the one session machinery since the presence retirement, ADR-0200 D7), extracted from the dissolving @storytree/core. Root barrel is pure zod, browser-safe; the Postgres claim store lives behind ./store.",
   "exports": {
     ".": "./src/index.ts",
     "./store": "./src/store/index.ts"

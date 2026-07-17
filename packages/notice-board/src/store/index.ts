@@ -1,20 +1,11 @@
 // @storytree/notice-board/store — the node-only Postgres drawers the notice-board organism owns
-// (ADR-0077 U2): the presence store (ADR-0033) and the merge-retire backstop (ADR-0033 / ADR-0041).
+// (ADR-0077 U2). The presence store + stale-session reaper this barrel once carried were RETIRED
+// with the presence core (ADR-0200 D7); the claim ledger below is the one session machinery.
 // node+pg-only — NEVER re-exported from the root `.` barrel, which the studio's browser bundle imports.
 
-export { PgPresenceStore } from "./presence-store.js";
-export type {
-  PresenceClient,
-  PresencePool,
-  PresencePoolClient,
-  PresenceEvent,
-} from "./presence-store.js";
-
-export { sessionIdFromBranch, retireMergedSession } from "./ingest-merge.js";
-export type { MergeRetireStore } from "./ingest-merge.js";
-
-export { reapStaleSessions } from "./reaper.js";
-export type { ReaperStore } from "./reaper.js";
+// The CI merge-clear backstop (ADR-0138 §4): releases a merged branch's node_claim rows, fail-soft.
+export { releaseBranchClaims } from "./ingest-merge.js";
+export type { BranchClaimReleaseStore } from "./ingest-merge.js";
 
 // The per-unit CLAIM-LEDGER store (ADR-0009's claim on plain Postgres; the ADR-0033 §4 enforcing
 // upgrade of presence; GRADED per ADR-0200 D2 — exploring/waiting shared, work exclusive, with
