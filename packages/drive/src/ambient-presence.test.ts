@@ -1,25 +1,25 @@
 /**
- * Offline proof for ambient-presence.ts (ADR-0033 Decision 3: advisory-by-construction).
+ * Offline proof for ambient-presence.ts (ADR-0033 Decision 3: advisory-by-construction, re-founded
+ * on the claim ledger by ADR-0200 D5/D7 — presence is RETIRED).
  *
- * Every path through the implementation is fail-silent — presence failures must never
- * surface through fn's result or errors. All fixtures are inline; do NOT read
- * .claude/settings.json from disk.
+ * Every path through the implementation is fail-silent — ledger failures must never surface
+ * through the result or errors. All fixtures are inline; do NOT read .claude/settings.json from
+ * disk (hook-config-audit.test.ts scans the real file).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import type { ClaimDocT } from "@storytree/notice-board";
 
-import type { AmbientDeps, HeartbeatState } from "./ambient-presence.js";
+import type { AmbientClaimsLike, AmbientDeps, HeartbeatState } from "./ambient-presence.js";
 import * as ambientPresence from "./ambient-presence.js";
 import {
-  sessionHook,
   statuslineGlance,
   auditHookConfig,
   undeclaredSessionNudge,
 } from "./ambient-presence.js";
 
-import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+import type { SessionIdentity } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Fixed clock
@@ -28,91 +28,56 @@ import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
 const NOW = new Date("2026-06-13T08:00:00.000Z");
 const nowFn = () => NOW;
 
+const IDENTITY: SessionIdentity = {
+  sessionId: "wt-ambient",
+  branch: "claude/real/ambient-integration",
+};
+
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — a recording fake of the ambient claim-ledger slice
 // ---------------------------------------------------------------------------
 
-function makeDoc(overrides: Partial<PresenceDeclarationDoc> = {}): PresenceDeclarationDoc {
+function claimDoc(over: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" | "sessionId">): ClaimDocT {
   return {
-    sessionId: "wt-test",
-    branch: "claude/real/ambient",
-    workingOn: "testing ambient",
-    nodes: [],
-    status: "active",
-    startedAt: NOW.toISOString(),
-    lastSeenAt: NOW.toISOString(),
-    ...overrides,
+    branch: "claude/x",
+    intent: "",
+    claimedAt: NOW.toISOString(),
+    heartbeatAt: NOW.toISOString(),
+    ...over,
   };
 }
 
-interface CallRecordingStore extends PresenceStoreLike {
-  declareCalls: PresenceDeclarationDoc[];
-  declareOpts: Array<{ reactivate?: boolean } | undefined>;
-  doneCalls: Array<{ sessionId: string; lastSeenAt: string }>;
-  docs: Map<string, PresenceDeclarationDoc>;
+interface RecordingClaims extends AmbientClaimsLike {
+  bumps: string[];
+  live: ClaimDocT[];
+  /** When true, every method throws. */
+  throwing: boolean;
+  /** When true, only the bump throws (the reads still answer). */
+  bumpThrows: boolean;
 }
 
-function makeRecordingStore(seed: PresenceDeclarationDoc[] = []): CallRecordingStore {
-  const docs = new Map<string, PresenceDeclarationDoc>();
-  for (const doc of seed) {
-    docs.set(doc.sessionId, doc);
-  }
-  const declareCalls: PresenceDeclarationDoc[] = [];
-  const declareOpts: Array<{ reactivate?: boolean } | undefined> = [];
-  const doneCalls: Array<{ sessionId: string; lastSeenAt: string }> = [];
-  return {
-    declareCalls,
-    declareOpts,
-    doneCalls,
-    docs,
-    async declare(
-      doc: PresenceDeclarationDoc,
-      opts?: { reactivate?: boolean },
-    ): Promise<PresenceDeclarationDoc> {
-      declareCalls.push(doc);
-      declareOpts.push(opts);
-      const existing = docs.get(doc.sessionId);
-      // Models the PgPresenceStore contract: an ambient declare never resurrects a retired row.
-      if (existing !== undefined && existing.status === "done" && opts?.reactivate === false) {
-        return existing;
-      }
-      const persisted: PresenceDeclarationDoc =
-        existing !== undefined ? { ...doc, startedAt: existing.startedAt } : doc;
-      docs.set(persisted.sessionId, persisted);
-      return persisted;
+function makeClaims(live: ClaimDocT[] = [], over: Partial<RecordingClaims> = {}): RecordingClaims {
+  const self: RecordingClaims = {
+    bumps: [],
+    live,
+    throwing: false,
+    bumpThrows: false,
+    async listLiveClaims(): Promise<ClaimDocT[]> {
+      if (self.throwing) throw new Error("ledger error: listLiveClaims");
+      return self.live;
     },
-    async done(sessionId: string, lastSeenAt: string): Promise<PresenceDeclarationDoc | null> {
-      doneCalls.push({ sessionId, lastSeenAt });
-      const existing = docs.get(sessionId);
-      if (existing === undefined) return null;
-      const updated: PresenceDeclarationDoc = { ...existing, status: "done", lastSeenAt };
-      docs.set(sessionId, updated);
-      return updated;
+    async claimsBySession(sessionId: string): Promise<ClaimDocT[]> {
+      if (self.throwing) throw new Error("ledger error: claimsBySession");
+      return self.live.filter((c) => c.sessionId === sessionId);
     },
-    async listActive(): Promise<PresenceDeclarationDoc[]> {
-      return Array.from(docs.values()).filter((d) => d.status === "active");
+    async bumpHeartbeatsBySession(sessionId: string): Promise<number> {
+      if (self.throwing || self.bumpThrows) throw new Error("ledger error: bump");
+      self.bumps.push(sessionId);
+      return self.live.filter((c) => c.sessionId === sessionId).length;
     },
-    async history(): Promise<Array<{ type: string; doc: unknown; actor: string; at: string }>> {
-      return [];
-    },
+    ...over,
   };
-}
-
-function makeThrowingStore(): PresenceStoreLike {
-  return {
-    async declare(): Promise<PresenceDeclarationDoc> {
-      throw new Error("store error: declare");
-    },
-    async done(): Promise<PresenceDeclarationDoc | null> {
-      throw new Error("store error: done");
-    },
-    async listActive(): Promise<PresenceDeclarationDoc[]> {
-      throw new Error("store error: listActive");
-    },
-    async history(): Promise<Array<{ type: string; doc: unknown; actor: string; at: string }>> {
-      throw new Error("store error: history");
-    },
-  };
+  return self;
 }
 
 function makeHeartbeatState(initial: string | null = null): HeartbeatState & { bumps: string[] } {
@@ -128,411 +93,193 @@ function makeHeartbeatState(initial: string | null = null): HeartbeatState & { b
   };
 }
 
-const IDENTITY: SessionIdentity = {
-  sessionId: "wt-ambient",
-  branch: "claude/real/ambient-integration",
-};
-
 // ---------------------------------------------------------------------------
-// builds never write session presence (ADR-0199)
+// the retired writers stay deleted (ADR-0199 / ADR-0200 D7)
 // ---------------------------------------------------------------------------
 
-test("the module exports no build presence wrapper — a build run never writes session presence (ADR-0199)", () => {
-  // `withPresence` declared the BUILD under the LAUNCHING session's worktree identity and retired
-  // that session's row in its finally — a build inside an interactive session clobbered and then
-  // killed the session's declaration (two owner interrupts, 2026-07-15/16). Presence rows are
-  // written by SESSIONS only (sessionHook, the statusline heartbeat, a deliberate declare/done);
-  // a build's footprint is its work-events + the write-claim. Lock the wrapper out for good.
+test("the module exports no build presence wrapper — a build run never writes session state (ADR-0199)", () => {
   assert.ok(
     !("withPresence" in ambientPresence),
     "withPresence must stay deleted — builds never write session presence (ADR-0199)",
   );
 });
 
-// ---------------------------------------------------------------------------
-// sessionHook
-// ---------------------------------------------------------------------------
-
-test("sessionHook start: resolves '' on success and calls declare", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const result = await sessionHook("start", deps, { workingOn: "starting session", timeoutMs: 500 });
-  assert.equal(result, "");
-  assert.ok(store.declareCalls.length >= 1, "start should call declare");
-});
-
-test("sessionHook start: nodes are empty (not a node build — just session scope)", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  await sessionHook("start", deps, { workingOn: "exploring", timeoutMs: 500 });
-  const doc = store.declareCalls[0];
-  assert.ok(doc !== undefined, "declare was called");
-  assert.deepEqual(doc.nodes, [], "start hook declares with empty nodes");
-});
-
-test("sessionHook end: resolves '' on success and calls done", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const result = await sessionHook("end", deps, { workingOn: "ending session", timeoutMs: 500 });
-  assert.equal(result, "");
-  assert.ok(store.doneCalls.length >= 1, "end should call done");
-});
-
-test("sessionHook: resolves '' with throwing store on start", async () => {
-  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
-  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
-  assert.equal(result, "");
-});
-
-test("sessionHook: resolves '' with throwing store on end", async () => {
-  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
-  const result = await sessionHook("end", deps, { workingOn: "work", timeoutMs: 500 });
-  assert.equal(result, "");
-});
-
-test("sessionHook: resolves '' with null store", async () => {
-  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
-  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
-  assert.equal(result, "");
-});
-
-test("sessionHook: resolves '' with null identity", async () => {
-  const store = makeRecordingStore();
-  const deps: AmbientDeps = { store, identity: null, now: nowFn };
-  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 500 });
-  assert.equal(result, "");
-});
-
-test("sessionHook: resolves '' when store call hangs past timeoutMs", async () => {
-  const hangingStore: PresenceStoreLike = {
-    declare: () => new Promise(() => { /* never resolves */ }),
-    done: () => new Promise(() => { /* never resolves */ }),
-    listActive: () => new Promise(() => { /* never resolves */ }),
-    history: () => new Promise(() => { /* never resolves */ }),
-  };
-  const deps: AmbientDeps = { store: hangingStore, identity: IDENTITY, now: nowFn };
-  // Tiny timeout — should not block the test
-  const result = await sessionHook("start", deps, { workingOn: "work", timeoutMs: 20 });
-  assert.equal(result, "");
+test("the module exports no sessionHook — sessions no longer declare/retire presence rows (ADR-0200 D7)", () => {
+  // The SessionStart declare / SessionEnd done pair retired with the presence layer: a fresh
+  // workspace is born claimed (the lobby ceremony, D3) and the nudge below aims at the ledger.
+  assert.ok(
+    !("sessionHook" in ambientPresence),
+    "sessionHook must stay deleted — the claim ledger is the one session surface (ADR-0200 D7)",
+  );
 });
 
 // ---------------------------------------------------------------------------
-// statuslineGlance — rendering
+// statuslineGlance — rendering (sourced from the claim ledger, ADR-0200 D7)
 // ---------------------------------------------------------------------------
 
-test("statuslineGlance: returns non-empty line with active count and own node", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
+test("statuslineGlance: returns a non-empty line with the live-session count and own claimed units", async () => {
+  const claims = makeClaims([
+    claimDoc({ unitId: "ambient-integration", sessionId: IDENTITY.sessionId, grade: "work" }),
+    claimDoc({ unitId: "other-story", sessionId: "wt-other", grade: "exploring", intent: "poking" }),
   ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
 
-  const line = await statuslineGlance(deps, state, 60_000);
+  const line = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
 
   assert.ok(line.length > 0, "should return a non-empty line");
-  // Must mention active session count
-  assert.match(line, /\d+/);
-  // Must mention own node(s)
-  assert.match(line, /ambient-integration/);
+  assert.match(line, /2 sessions on the ledger/, "counts distinct live-claim sessions");
+  assert.match(line, /claims: ambient-integration/, "names this session's own claimed units");
 });
 
-test("statuslineGlance: includes overlap warning when another session shares a node", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-    makeDoc({
-      sessionId: "wt-other",
-      branch: "claude/other",
-      workingOn: "other work on same node",
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
+test("statuslineGlance: includes an overlap warning when another session claims one of your units", async () => {
+  const claims = makeClaims([
+    claimDoc({ unitId: "ambient-integration", sessionId: IDENTITY.sessionId, grade: "work" }),
+    claimDoc({ unitId: "ambient-integration", sessionId: "wt-other", grade: "exploring" }),
   ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
 
-  const line = await statuslineGlance(deps, state, 60_000);
+  const line = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
 
-  // Overlap warning must appear
-  assert.match(line, /overlap|warn|conflict|also|other/i);
+  assert.match(line, /overlap/i);
 });
 
-test("statuslineGlance: no overlap warning when other session has different nodes", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-    makeDoc({
-      sessionId: "wt-other",
-      branch: "claude/other",
-      workingOn: "working on something else",
-      nodes: ["declare-presence"],
-      status: "active",
-    }),
+test("statuslineGlance: no overlap warning when the other session claims different units", async () => {
+  const claims = makeClaims([
+    claimDoc({ unitId: "ambient-integration", sessionId: IDENTITY.sessionId }),
+    claimDoc({ unitId: "unrelated-story", sessionId: "wt-other" }),
   ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  // Provide a prior bump far in the past so heartbeat fires but doesn't mess with the test
-  const state = makeHeartbeatState(NOW.toISOString()); // within window → no heartbeat
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
 
-  const line = await statuslineGlance(deps, state, 60_000);
+  const line = await statuslineGlance(deps, makeHeartbeatState(NOW.toISOString()), 60_000);
 
-  // No overlap warning when nodes don't intersect
   assert.doesNotMatch(line, /overlap|conflict/i);
+});
+
+test("statuslineGlance: a claim-less session renders the count alone (no claims segment)", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "other-story", sessionId: "wt-other" })]);
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
+
+  const line = await statuslineGlance(deps, makeHeartbeatState(NOW.toISOString()), 60_000);
+
+  assert.match(line, /1 session on the ledger/);
+  assert.doesNotMatch(line, /claims:/);
 });
 
 // ---------------------------------------------------------------------------
 // statuslineGlance — fail-silent
 // ---------------------------------------------------------------------------
 
-test("statuslineGlance: returns '' when store is null", async () => {
-  const deps: AmbientDeps = { store: null, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
-  const result = await statuslineGlance(deps, state, 60_000);
+test("statuslineGlance: returns '' when claims store is null", async () => {
+  const deps: AmbientDeps = { claims: null, identity: IDENTITY, now: nowFn };
+  const result = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
   assert.equal(result, "");
 });
 
 test("statuslineGlance: returns '' when identity is null", async () => {
-  const store = makeRecordingStore([]);
-  const deps: AmbientDeps = { store, identity: null, now: nowFn };
-  const state = makeHeartbeatState(null);
-  const result = await statuslineGlance(deps, state, 60_000);
+  const deps: AmbientDeps = { claims: makeClaims(), identity: null, now: nowFn };
+  const result = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
   assert.equal(result, "");
 });
 
-test("statuslineGlance: returns '' when store throws", async () => {
-  const deps: AmbientDeps = { store: makeThrowingStore(), identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
-  const result = await statuslineGlance(deps, state, 60_000);
+test("statuslineGlance: returns '' when the ledger reads throw", async () => {
+  const claims = makeClaims([], { throwing: true });
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
+  const result = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
   assert.equal(result, "");
 });
 
 // ---------------------------------------------------------------------------
-// statuslineGlance — heartbeat debounce
+// statuslineGlance — the claim heartbeat rides the debounce (ADR-0200 D5)
 // ---------------------------------------------------------------------------
 
-test("statuslineGlance: null lastBump → heartbeat fires, declare called, writeLastBump called", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-  ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+test("statuslineGlance: null lastBump → the claim heartbeat bump fires and the bump is recorded", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })]);
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
   const state = makeHeartbeatState(null);
 
   await statuslineGlance(deps, state, 60_000);
 
-  assert.ok(store.declareCalls.length >= 1, "heartbeat should have triggered declare");
-  assert.ok(state.bumps.length >= 1, "writeLastBump should have been called");
+  assert.deepEqual(claims.bumps, [IDENTITY.sessionId], "the beat bumps this session's claims");
+  assert.equal(state.bumps.length, 1, "writeLastBump records the debounce");
 });
 
-test("statuslineGlance: two renders within debounce window — declare called only once total", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-  ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null); // null → first call triggers bump
+test("statuslineGlance: two renders within the debounce window — the bump fires only once", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })]);
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
+  const state = makeHeartbeatState(null);
 
-  // First render — heartbeat fires
   await statuslineGlance(deps, state, 60_000);
-  const countAfterFirst = store.declareCalls.length;
-
-  // Second render — lastBump is NOW.toISOString(), elapsed = 0ms < 60_000ms → no extra bump
   await statuslineGlance(deps, state, 60_000);
 
-  assert.equal(
-    store.declareCalls.length,
-    countAfterFirst,
-    "no extra declare call within debounce window",
-  );
+  assert.equal(claims.bumps.length, 1, "no extra bump within the debounce window");
   assert.equal(state.bumps.length, 1, "writeLastBump called exactly once for both renders");
 });
 
-test("statuslineGlance: past debounce window — heartbeat fires again", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-  ]);
-  // lastBump was 200ms before NOW, debounce = 100ms → expired
+test("statuslineGlance: past the debounce window — the bump fires again", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })]);
   const pastBump = new Date(NOW.getTime() - 200).toISOString();
   const state = makeHeartbeatState(pastBump);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
 
   await statuslineGlance(deps, state, 100);
 
-  assert.ok(store.declareCalls.length >= 1, "heartbeat should fire when debounce window expired");
-  assert.ok(state.bumps.length >= 1, "writeLastBump should be called again after window expired");
+  assert.equal(claims.bumps.length, 1, "the bump fires when the window expired");
+  assert.equal(state.bumps.length, 1);
 });
 
-test("statuslineGlance: within debounce window (non-null lastBump recent enough) — no heartbeat", async () => {
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-  ]);
-  // lastBump = NOW itself → elapsed = 0ms < 60_000ms → within window
+test("statuslineGlance: within the debounce window (recent lastBump) — no bump at all", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })]);
   const state = makeHeartbeatState(NOW.toISOString());
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
 
   await statuslineGlance(deps, state, 60_000);
 
-  assert.equal(store.declareCalls.length, 0, "no heartbeat declare when within debounce window");
-  assert.equal(state.bumps.length, 0, "writeLastBump not called within window");
+  assert.equal(claims.bumps.length, 0, "no bump within the debounce window");
+  assert.equal(state.bumps.length, 0, "writeLastBump not called within the window");
 });
 
-// ---------------------------------------------------------------------------
-// statuslineGlance — declare-if-absent self-heal (lost SessionStart)
-// ---------------------------------------------------------------------------
-
-test("statuslineGlance: no own row + expired debounce — declares a minimal nodes:[] doc", async () => {
-  const store = makeRecordingStore([]); // board empty — SessionStart was lost
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
-
-  await statuslineGlance(deps, state, 60_000);
-
-  assert.equal(store.declareCalls.length, 1, "self-heal should declare exactly once");
-  const doc = store.declareCalls[0];
-  assert.ok(doc !== undefined);
-  assert.equal(doc.sessionId, IDENTITY.sessionId, "sessionId from identity");
-  assert.equal(doc.branch, IDENTITY.branch, "branch from identity");
-  assert.equal(doc.status, "active");
-  assert.deepEqual(doc.nodes, [], "automation can only honestly declare nodes: []");
-  assert.ok(doc.workingOn.trim().length > 0, "workingOn is non-blank");
-  assert.equal(state.bumps.length, 1, "bump recorded so the next render is debounced");
-});
-
-test("statuslineGlance: no own row + within debounce window — no declare (rides the same debounce)", async () => {
-  const store = makeRecordingStore([]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(NOW.toISOString()); // elapsed 0ms < window
-
-  await statuslineGlance(deps, state, 60_000);
-
-  assert.equal(store.declareCalls.length, 0, "no self-heal declare within the window");
-  assert.equal(state.bumps.length, 0);
-});
-
-test("statuslineGlance: self-heal declare throws — fail-silent, line still renders, no bump", async () => {
-  const base = makeRecordingStore([]);
-  const store: PresenceStoreLike = {
-    ...base,
-    async declare(): Promise<PresenceDeclarationDoc> {
-      throw new Error("store error: declare");
-    },
-  };
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
+test("statuslineGlance: a THROWING bump stays silent — the line still renders, the debounce is NOT consumed", async () => {
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })], {
+    bumpThrows: true,
+  });
+  const deps: AmbientDeps = { claims, identity: IDENTITY, now: nowFn };
   const state = makeHeartbeatState(null);
 
   const line = await statuslineGlance(deps, state, 60_000);
 
-  assert.ok(line.length > 0, "glance still renders when the self-heal declare fails");
-  assert.equal(state.bumps.length, 0, "failed declare must not consume the debounce");
+  assert.notEqual(line, "", "the glance still renders despite the bump failure");
+  assert.equal(state.bumps.length, 0, "a failed bump must not consume the debounce (the next render retries)");
 });
 
-test("statuslineGlance: self-heal persists — the next expired beat finds the row and heartbeats it", async () => {
-  const store = makeRecordingStore([]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const pastBump = new Date(NOW.getTime() - 200).toISOString();
-
-  await statuslineGlance(deps, makeHeartbeatState(null), 100); // self-heal declares
-  await statuslineGlance(deps, makeHeartbeatState(pastBump), 100); // expired again
-
-  assert.equal(store.declareCalls.length, 2, "second beat re-declares the existing row");
-  const second = store.declareCalls[1];
-  assert.ok(second !== undefined);
-  assert.equal(second.lastSeenAt, NOW.toISOString(), "second beat is a lastSeenAt heartbeat");
-});
-
-// ---------------------------------------------------------------------------
-// statuslineGlance — the ambient beat never resurrects a retired row
-// ---------------------------------------------------------------------------
-
-test("statuslineGlance: own row retired to done (merge-retire) — heartbeat does NOT flip it back to active", async () => {
-  // The observed live failure: the session's PR merged, ingest-merge retired the row
-  // to done, but the still-open idle tab keeps firing the statusline heartbeat. The
-  // row is invisible to listActive, so the self-heal branch fires — it must declare
-  // ambiently (reactivate: false) so the store refuses the resurrection.
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      status: "done",
-    }),
-  ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null); // expired debounce — the beat fires
-
-  const line = await statuslineGlance(deps, state, 60_000);
-
-  assert.equal(
-    store.docs.get(IDENTITY.sessionId)?.status,
-    "done",
-    "retired row must stay done after an ambient heartbeat",
+test("statuslineGlance: the beat only ever BUMPS — it never takes, upgrades, or releases a claim", async () => {
+  // Structural lock: the ambient seam carries no take/upgrade/release verbs at all, so the beat
+  // CANNOT mutate the ledger beyond liveness (only a deliberate claim/declare lights a wisp).
+  const claims = makeClaims([claimDoc({ unitId: "n1", sessionId: IDENTITY.sessionId })]);
+  await statuslineGlance(
+    { claims, identity: IDENTITY, now: nowFn },
+    makeHeartbeatState(null),
+    60_000,
   );
-  assert.equal(store.declareOpts[0]?.reactivate, false, "ambient declare carries reactivate: false");
-  assert.ok(line.length > 0, "glance still renders");
-});
-
-test("statuslineGlance: heartbeat bump of an active own row is also ambient (reactivate: false)", async () => {
-  // Closes the race where a merge retires the row between the glance's listActive
-  // and its declare — every ambient write carries the flag, not just the self-heal.
-  const store = makeRecordingStore([
-    makeDoc({
-      sessionId: IDENTITY.sessionId,
-      branch: IDENTITY.branch,
-      nodes: ["ambient-integration"],
-      status: "active",
-    }),
-  ]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: nowFn };
-  const state = makeHeartbeatState(null);
-
-  await statuslineGlance(deps, state, 60_000);
-
-  assert.ok(store.declareCalls.length >= 1, "heartbeat declared");
-  assert.equal(store.declareOpts[0]?.reactivate, false, "bump declare carries reactivate: false");
-  assert.equal(store.docs.get(IDENTITY.sessionId)?.status, "active", "active row still bumps");
+  assert.deepEqual(Object.keys(claims).sort(), [
+    "bumpThrows",
+    "bumps",
+    "claimsBySession",
+    "listLiveClaims",
+    "live",
+    "throwing",
+    "bumpHeartbeatsBySession",
+  ].sort());
 });
 
 // ---------------------------------------------------------------------------
 // auditHookConfig
 // ---------------------------------------------------------------------------
 
-// Clean: notice-board hooks only on SessionStart/SessionEnd; unrelated PreToolUse → []
+// Clean: the ambient hooks only on SessionStart / the statusline; unrelated PreToolUse → []
 const CLEAN_SETTINGS = JSON.stringify({
   hooks: {
     SessionStart: [
-      { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard declare --pg" }] },
-    ],
-    SessionEnd: [
-      { matcher: "", hooks: [{ type: "command", command: "storytree noticeboard done --pg" }] },
+      { matcher: "", hooks: [{ type: "command", command: "bash scripts/presence-hook.sh start" }] },
     ],
     PreToolUse: [
       { matcher: "", hooks: [{ type: "command", command: "echo unrelated-hook" }] },
@@ -654,61 +401,6 @@ test("auditHookConfig: ambient-presence hook under Stop is a violation", () => {
   });
   const violations = auditHookConfig(settings);
   assert.ok(violations.length >= 1, "should flag ambient-presence hook under Stop");
-});
-
-// ---------------------------------------------------------------------------
-// statuslineGlance — claim heartbeat piggyback (ADR-0142)
-// ---------------------------------------------------------------------------
-
-function makeClaimBumper(throwing = false): {
-  bumps: string[];
-  bumpHeartbeatsBySession(sessionId: string): Promise<number>;
-} {
-  const bumps: string[] = [];
-  return {
-    bumps,
-    async bumpHeartbeatsBySession(sessionId: string): Promise<number> {
-      if (throwing) throw new Error("claim store error: bump");
-      bumps.push(sessionId);
-      return 1;
-    },
-  };
-}
-
-test("statuslineGlance: the heartbeat beat also bumps the session's claim heartbeats", async () => {
-  const store = makeRecordingStore([makeDoc({ sessionId: IDENTITY.sessionId, nodes: ["n1"] })]);
-  const claims = makeClaimBumper();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: () => NOW, claims };
-  await statuslineGlance(deps, makeHeartbeatState(null), 60_000); // null lastBump → beat fires
-  assert.deepEqual(claims.bumps, [IDENTITY.sessionId]);
-});
-
-test("statuslineGlance: within the debounce window the claim bump does NOT fire (same debounce as presence)", async () => {
-  const store = makeRecordingStore([makeDoc({ sessionId: IDENTITY.sessionId })]);
-  const claims = makeClaimBumper();
-  const recent = new Date(NOW.getTime() - 1_000).toISOString();
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: () => NOW, claims };
-  await statuslineGlance(deps, makeHeartbeatState(recent), 60_000);
-  assert.equal(claims.bumps.length, 0);
-});
-
-test("statuslineGlance: a THROWING claim bumper stays silent — the glance line still renders", async () => {
-  const store = makeRecordingStore([makeDoc({ sessionId: IDENTITY.sessionId, nodes: ["n1"] })]);
-  const deps: AmbientDeps = {
-    store,
-    identity: IDENTITY,
-    now: () => NOW,
-    claims: makeClaimBumper(true),
-  };
-  const line = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
-  assert.notEqual(line, "", "the glance still renders despite the claim bump failure");
-});
-
-test("statuslineGlance: no claims dep (older caller) → beat unchanged, nothing throws", async () => {
-  const store = makeRecordingStore([makeDoc({ sessionId: IDENTITY.sessionId })]);
-  const deps: AmbientDeps = { store, identity: IDENTITY, now: () => NOW };
-  const line = await statuslineGlance(deps, makeHeartbeatState(null), 60_000);
-  assert.notEqual(line, "");
 });
 
 // ---------------------------------------------------------------------------

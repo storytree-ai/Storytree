@@ -36,17 +36,6 @@
           }
         ]
       }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/presence-hook.sh end",
-            "timeout": 20
-          }
-        ]
-      }
     ]
   },
   "statusLine": {

@@ -84,7 +84,7 @@ const IDENTITY = { sessionId: "wt-dispatch", branch: "claude/dispatch" };
 function depsWith(ledger: ClaimLedgerStoreLike | null) {
   return {
     store: new InMemoryStore(),
-    presence: { store: null, identity: IDENTITY, ledger },
+    presence: { identity: IDENTITY, ledger },
   };
 }
 

@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
-import type { PresenceStoreLike } from "@storytree/drive";
+import type { ClaimDocT } from "@storytree/notice-board";
 
 import { branchNext, type BranchDeps } from "./branch.js";
 import { run } from "./commands.js";
@@ -79,11 +78,23 @@ function deps(state: RepoState, extra?: Partial<BranchDeps>): BranchDeps & { cal
   return {
     runGit,
     generateName: () => "claude/fresh-name-facade",
-    presence: null,
+    claims: null,
     identity: null,
     redeclare: null,
     ...extra,
     calls,
+  };
+}
+
+/** A live ClaimDocT for the ledger-read fakes below. */
+function claimDoc(over: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" | "sessionId">): ClaimDocT {
+  const nowIso = new Date().toISOString();
+  return {
+    branch: "claude/old-branch-abc123",
+    intent: "",
+    claimedAt: nowIso,
+    heartbeatAt: nowIso,
+    ...over,
   };
 }
 
@@ -183,51 +194,35 @@ test("branch next: a name collision draws again until a free candidate", async (
   assert.match(env.body, /cut \+ switched to "claude\/free-three"/);
 });
 
-test("branch next: with a wired presence store, the session's declaration is re-taken via the redeclare seam", async () => {
-  const doc: PresenceDeclarationDoc = {
-    sessionId: "determined-lederberg-2657ea",
-    branch: "claude/old-branch-abc123",
-    workingOn: "branch-next ergonomics",
-    nodes: ["library-cli"],
-    status: "active",
-    startedAt: "2026-07-02T00:00:00.000Z",
-    lastSeenAt: "2026-07-02T00:00:00.000Z",
-  };
-  const presence: PresenceStoreLike = {
-    declare: async (d) => d,
-    done: async () => null,
-    listActive: async () => [doc],
-    history: async () => [],
-  };
+test("branch next: with a wired ledger, the session's live claims are re-taken via the redeclare seam", async () => {
   const redeclares: Array<{ workingOn: string; nodes: readonly string[] }> = [];
   const env = await branchNext(
     deps(MERGED, {
-      presence,
+      claims: {
+        claimsBySession: async (sid) =>
+          sid === "determined-lederberg-2657ea"
+            ? [claimDoc({ unitId: "library-cli", sessionId: sid, intent: "branch-next ergonomics" })]
+            : [],
+      },
       identity: { sessionId: "determined-lederberg-2657ea", branch: "claude/old-branch-abc123" },
       redeclare: async (args) => {
         redeclares.push(args);
-        return { ok: true, body: 'Declared presence for session "determined-lederberg-2657ea".' };
+        return { ok: true, body: 'Declared session "determined-lederberg-2657ea" on the claim ledger.' };
       },
     }),
   );
   assert.equal(env.ok, true);
-  // Re-declared with the SAME working-on + nodes the dead branch held — the wisp re-lights.
+  // Re-taken with the SAME units the dead branch held (intent carried) — the wisp re-lights.
   assert.deepEqual(redeclares, [{ workingOn: "branch-next ergonomics", nodes: ["library-cli"] }]);
-  assert.match(env.body, /re-declared presence on the fresh branch/);
-  // No manual declare next-line needed once the re-declare succeeded.
+  assert.match(env.body, /re-took the story claims on the fresh branch/);
+  // No manual declare next-line needed once the re-take succeeded.
   assert.doesNotMatch((env.next ?? []).join("\n"), /noticeboard declare --working-on/);
 });
 
-test("branch next: presence wired but no active declaration → the printed declare next-step remains", async () => {
-  const presence: PresenceStoreLike = {
-    declare: async (d) => d,
-    done: async () => null,
-    listActive: async () => [],
-    history: async () => [],
-  };
+test("branch next: ledger wired but no live claims → the printed declare next-step remains", async () => {
   const env = await branchNext(
     deps(MERGED, {
-      presence,
+      claims: { claimsBySession: async () => [] },
       identity: { sessionId: "determined-lederberg-2657ea", branch: "claude/old-branch-abc123" },
       redeclare: async () => ({ ok: true, body: "unreached" }),
     }),
@@ -236,30 +231,37 @@ test("branch next: presence wired but no active declaration → the printed decl
   assert.match((env.next ?? []).join("\n"), /noticeboard declare --working-on "<what>"/);
 });
 
-test("branch next: a re-declare failure never un-cuts the branch (fail-soft, surfaced loudly)", async () => {
-  const doc: PresenceDeclarationDoc = {
-    sessionId: "s1", branch: "claude/old-branch-abc123", workingOn: "w",
-    nodes: [], status: "active",
-    startedAt: "2026-07-02T00:00:00.000Z", lastSeenAt: "2026-07-02T00:00:00.000Z",
-  };
-  const presence: PresenceStoreLike = {
-    declare: async (d) => d,
-    done: async () => null,
-    listActive: async () => [doc],
-    history: async () => [],
-  };
+test("branch next: a re-take failure never un-cuts the branch (fail-soft, surfaced loudly)", async () => {
   const env = await branchNext(
     deps(MERGED, {
-      presence,
+      claims: {
+        claimsBySession: async () => [claimDoc({ unitId: "story-w", sessionId: "s1", intent: "w" })],
+      },
       identity: { sessionId: "s1", branch: "claude/old-branch-abc123" },
       redeclare: async () => {
         throw new Error("pool closed");
       },
     }),
   );
-  assert.equal(env.ok, true, "the cut succeeded — a board hiccup never fails it");
-  assert.match(env.body, /re-declare FAILED \(pool closed\)/);
+  assert.equal(env.ok, true, "the cut succeeded — a ledger hiccup never fails it");
+  assert.match(env.body, /re-take FAILED \(pool closed\)/);
   assert.match((env.next ?? []).join("\n"), /noticeboard declare --working-on "w"/);
+});
+
+test("branch next: an unreadable ledger degrades to the printed next-step, never a throw", async () => {
+  const env = await branchNext(
+    deps(MERGED, {
+      claims: {
+        claimsBySession: async () => {
+          throw new Error("ledger unreachable");
+        },
+      },
+      identity: { sessionId: "s1", branch: "claude/old-branch-abc123" },
+      redeclare: async () => ({ ok: true, body: "unreached" }),
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.match((env.next ?? []).join("\n"), /noticeboard declare --working-on "<what>"/);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,16 +1,16 @@
 /**
  * `storytree tree [<story-id>]` command (tree-view capability, stories/notice-board).
  *
- * Bare view  — all stories: id, title, status, capability count; active-session summary when live.
- * Focused view — one story's hierarchy, build surface, dependency edges, and the presence block.
+ * Bare view  — all stories: id, title, status, capability count.
+ * Focused view — one story's hierarchy, build surface, and dependency edges.
  *
- * Offline by default; presence is advisory and silently absent on null / errors.
+ * Offline by default. The old presence block is RETIRED (ADR-0200 D7 — the claim ledger is the one
+ * session surface; `storytree noticeboard --pg` is where sessions render now).
  */
 
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import { classifyPresence } from "@storytree/notice-board";
 import type { UatTest, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
@@ -20,7 +20,6 @@ import {
   rollupStoryUat,
 } from "@storytree/orchestrator";
 
-import type { PresenceStoreLike } from "./noticeboard.js";
 import type { Envelope } from "./envelope.js";
 import {
   deriveVerdictGlyphs,
@@ -42,7 +41,6 @@ export interface TreeDeps {
   storiesDir: string;
   /** Registry seam: non-null = registered; `.real !== undefined` = REAL-buildable. */
   lookupConfig: (id: string) => { real?: unknown } | null;
-  presence: PresenceStoreLike | null;
   /**
    * The verdict event log (verdict-glyphs capability): the live work-store slice when --pg;
    * absent/null offline — glyphs are then silently absent, never an error.
@@ -54,6 +52,7 @@ export interface TreeDeps {
    * parsed from the spec; only the mark column drops, like the verdict glyphs).
    */
   attestations?: AttestationReaderLike | null;
+  /** Clock seam (injectable for tests). Unused since the presence block retired (ADR-0200 D7). */
   now: () => Date;
 }
 
@@ -87,13 +86,6 @@ function buildMark(
   if (cfg === null) return "unregistered";
   if (cfg.real !== undefined) return "REAL-buildable";
   return "registered";
-}
-
-function formatAge(lastSeenAt: string, now: Date): string {
-  const elapsed = now.getTime() - new Date(lastSeenAt).getTime();
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 60) return `${minutes}m`;
-  return `${Math.floor(minutes / 60)}h`;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,15 +137,6 @@ export async function treeCommand(
         // tolerate load failures — still list the story
       }
       lines.push(`  ${id}${mark(id)}  ${title}  status=${status}  caps=${capCount}`);
-    }
-
-    if (deps.presence !== null) {
-      try {
-        const active = await deps.presence.listActive();
-        lines.push(`\nActive sessions: ${active.length}`);
-      } catch {
-        // silently absent
-      }
     }
 
     const next: string[] = stories.map(({ id }) => `storytree tree ${id}`);
@@ -369,29 +352,8 @@ export async function treeCommand(
     }
   }
 
-  // Presence block — advisory, never throws, silently absent when empty or on error
-  const relevantNodes = new Set<string>([storyId, ...capIds]);
-  if (deps.presence !== null) {
-    try {
-      const active = await deps.presence.listActive();
-      const matching = active.filter((doc) =>
-        doc.nodes.some((n) => relevantNodes.has(n)),
-      );
-      if (matching.length > 0) {
-        lines.push("", "sessions here:");
-        const now = deps.now();
-        for (const doc of matching) {
-          const band = classifyPresence(doc.lastSeenAt, now);
-          const age = formatAge(doc.lastSeenAt, now);
-          lines.push(`  ${doc.sessionId}  [${band}]  ${age}  ${doc.workingOn}`);
-        }
-      }
-    } catch {
-      // silently absent — the view still renders ok: true
-    }
-  }
-
-  // Next pointers
+  // Next pointers (the presence block that used to render here is retired, ADR-0200 D7 — live
+  // sessions render on the claim-ledger board: `storytree noticeboard --pg`).
   const next: string[] = [
     `storytree noticeboard declare --working-on <prose> --node ${storyId} --pg`,
   ];

@@ -5,9 +5,9 @@
  * without importing `@storytree/cli` (ADR-0112).
  *
  * Behaviours pinned (all OFFLINE — injected fakes, no DB, no SDK):
- *   1. ["tree"]        → the bare story-tree view over the injected storiesDir + presence store.
+ *   1. ["tree"]        → the bare story-tree view over the injected storiesDir.
  *   2. ["library"]     → the library dashboard over the injected knowledge store.
- *   3. ["noticeboard"] → the notice board over the injected presence store.
+ *   3. ["noticeboard"] → the claim-ledger board over the injected ledger read (ADR-0200 D7).
  *   4. Anything else   → an ok:false refusal envelope (read-only by construction, never a throw).
  *   5. The drill-downs (the in-app orchestrator's "answer these sorts of questions" gap):
  *      ["tree","spec",<id>] → the full spec markdown; ["library","artifact",<id>] → one
@@ -24,7 +24,7 @@ import path from "node:path";
 import type { Store } from "@storytree/storage-protocol";
 
 import { createOrientationRunner } from "./orientation-runner.js";
-import type { PresenceStoreLike } from "./noticeboard.js";
+import type { ClaimLedgerReadLike } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -58,29 +58,21 @@ function fakeKnowledgeStore(): {
   };
 }
 
-function fakePresenceStore(): PresenceStoreLike {
+function fakeLedger(): ClaimLedgerReadLike {
+  const nowIso = new Date().toISOString();
   return {
-    async declare(d) {
-      return d;
-    },
-    async done() {
-      return null;
-    },
-    async listActive() {
+    async listLiveClaims() {
       return [
         {
+          unitId: "headless-orchestrator",
           sessionId: "zen-session",
           branch: "claude/zen",
-          workingOn: "orienting the chat agent",
-          nodes: ["headless-orchestrator"],
-          status: "active",
-          startedAt: "2026-07-02T00:00:00.000Z",
-          lastSeenAt: new Date().toISOString(),
+          intent: "orienting the chat agent",
+          grade: "exploring" as const,
+          claimedAt: nowIso,
+          heartbeatAt: nowIso,
         },
       ];
-    },
-    async history() {
-      return [];
     },
   };
 }
@@ -91,7 +83,7 @@ function makeRunner(overrides: Partial<Parameters<typeof createOrientationRunner
     store: fakeKnowledgeStore() as unknown as Store,
     storiesDir: mkdtempSync(path.join(tmpdir(), "orientation-runner-")),
     lookupConfig: () => null,
-    presence: fakePresenceStore(),
+    ledger: fakeLedger(),
     ...overrides,
   });
 }
@@ -100,12 +92,12 @@ function makeRunner(overrides: Partial<Parameters<typeof createOrientationRunner
 // 1. tree
 // ---------------------------------------------------------------------------
 
-test("orientation runner: [tree] renders the story-tree view with the live session summary", async () => {
+test("orientation runner: [tree] renders the story-tree view", async () => {
   const runner = makeRunner();
   const env = await runner(["tree"], { store: null, writable: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /^Stories:/, "the tree view opens with the Stories: header");
-  assert.match(env.body, /Active sessions: 1/, "the injected presence store feeds the live summary");
+  assert.doesNotMatch(env.body, /Active sessions/, "the presence summary is retired (ADR-0200 D7)");
 });
 
 // ---------------------------------------------------------------------------
@@ -124,18 +116,20 @@ test("orientation runner: [library] renders the dashboard over the injected stor
 // 3. noticeboard
 // ---------------------------------------------------------------------------
 
-test("orientation runner: [noticeboard] renders the board over the injected presence store", async () => {
+test("orientation runner: [noticeboard] renders the claim-ledger board over the injected ledger", async () => {
   const runner = makeRunner();
   const env = await runner(["noticeboard"], { store: null, writable: false });
   assert.equal(env.ok, true);
-  assert.match(env.body, /zen-session/, "the active session renders on the board");
-  assert.match(env.body, /headless-orchestrator/, "sessions group under their declared nodes");
+  assert.match(env.body, /Claim ledger \(ADR-0200\)/, "the board IS the claim ledger");
+  assert.match(env.body, /zen-session/, "the claiming session renders on the board");
+  assert.match(env.body, /headless-orchestrator/, "claims name their units");
 });
 
-test("orientation runner: [noticeboard] with no presence store refuses honestly (offline board)", async () => {
-  const runner = makeRunner({ presence: null });
+test("orientation runner: [noticeboard] with no ledger degrades to the empty offline render", async () => {
+  const runner = makeRunner({ ledger: null });
   const env = await runner(["noticeboard"], { store: null, writable: false });
-  assert.equal(env.ok, false, "no store → the board's honest live-store refusal, never a throw");
+  assert.equal(env.ok, true, "no ledger → the empty no-live-claims render, never a throw");
+  assert.match(env.body, /No live claims on the ledger\./);
 });
 
 // ---------------------------------------------------------------------------

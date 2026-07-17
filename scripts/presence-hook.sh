@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Presence hook launcher (ADR-0033 / ADR-0048) — run the ambient-presence entry with a
+# Ambient-session hook launcher (ADR-0033 / ADR-0048; re-founded on the claim ledger by
+# ADR-0200 D5/D7 — presence is retired, the entry now serves the SessionStart claim nudge
+# and the claim-ledger statusline glance + heartbeat). Runs the ambient entry with a
 # `tsx` that exists even in a FRESH git worktree that has no node_modules of its own.
 #
 # THE BUG THIS FIXES (the "5 sessions, nothing on the tree" report, 2026-06-14): a fresh
@@ -18,7 +20,7 @@
 # which install we borrow.
 #
 # HARD CONTRACT (matches ambient-presence-entry.ts): ALWAYS exit 0, bounded, and silent on
-# every failure path — a presence failure must never surface into the session.
+# every failure path — an ambient failure must never surface into the session.
 set -u
 
 rel_tsx="packages/cli/node_modules/.bin/tsx"

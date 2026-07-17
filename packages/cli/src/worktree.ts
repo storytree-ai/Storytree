@@ -18,7 +18,8 @@
  *
  * SAFETY (this is destructive — every rule errs toward KEEP):
  *   - the primary checkout and the CURRENT worktree are NEVER reaped (force cannot override);
- *   - a worktree with a live presence row (--pg) is kept — its basename is the session id (ADR-0033);
+ *   - a worktree whose session holds a live claim on the ledger (--pg, ADR-0200 D6) is kept — its
+ *     basename is the session id (ADR-0033);
  *   - a dirty tree (uncommitted changes) is kept;
  *   - a registered worktree is reaped only when its HEAD is merged into origin/main AND it is idle
  *     (mtime older than the threshold — the offline proxy for "no live session", which the notice
@@ -73,7 +74,7 @@ export interface PrunePolicy {
   readonly currentWorktree: string | null;
   /** Opt-in (--include-detached) to reap idle detached-HEAD worktrees. */
   readonly includeDetached: boolean;
-  /** Worktree basenames with a live presence row (--pg); empty offline. A match ⇒ keep. */
+  /** Worktree basenames with a live claim on the ledger (--pg, ADR-0200 D6); empty offline. A match ⇒ keep. */
   readonly liveSessions: ReadonlySet<string>;
 }
 
@@ -448,7 +449,7 @@ export interface PruneOptions {
   readonly cap: number | null;
   readonly includeDetached: boolean;
   readonly thresholdMs: number;
-  /** Live worktree basenames (--pg presence); empty offline. */
+  /** Live worktree basenames (--pg, from the claim ledger — ADR-0200 D6); empty offline. */
   readonly liveSessions: ReadonlySet<string>;
 }
 

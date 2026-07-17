@@ -2,11 +2,9 @@
  * Proof for the "tree-view" capability node (stories/notice-board/tree-view.md).
  *
  * Covers:
- *   1. bare and focused views render ok:true with presence:null, body free of "sessions here:"
+ *   1. bare and focused views render ok:true (the presence block is RETIRED, ADR-0200 D7 —
+ *      the body never carries "sessions here:")
  *   2. focused marks cap-a REAL-buildable, cap-b registered, cap-c unregistered
- *   3. with a fake presence store the focused body shows "sessions here:" with the
- *      matching sessionId and NOT the unrelated one
- *   4. a presence store whose methods throw → focused still ok:true, no block
  *   5. focused next has a noticeboard declare pointer (--node demo-story) + node build pointer;
  *      bare next has storytree tree demo-story
  *
@@ -19,10 +17,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 
-import type { PresenceStoreLike } from "@storytree/drive";
 import { treeCommand, type TreeDeps } from "./tree.js";
 
 /** A signed-verdict event for a per-test UAT id, shaped for the verdict reader seam. */
@@ -199,71 +195,21 @@ function lookupConfig(id: string): { real?: unknown } | null {
 
 const NOW = new Date("2026-06-11T10:00:00.000Z");
 
-const matchingDoc: PresenceDeclarationDoc = {
-  sessionId: "session-alpha",
-  branch: "claude/real/tree-view",
-  workingOn: "building tree view",
-  nodes: ["demo-story"],
-  status: "active",
-  startedAt: "2026-06-11T09:55:00.000Z",
-  lastSeenAt: "2026-06-11T09:58:00.000Z",
-};
-
-const unrelatedDoc: PresenceDeclarationDoc = {
-  sessionId: "session-beta",
-  branch: "claude/real/other-work",
-  workingOn: "something else entirely",
-  nodes: ["other-story"],
-  status: "active",
-  startedAt: "2026-06-11T09:50:00.000Z",
-  lastSeenAt: "2026-06-11T09:57:00.000Z",
-};
-
-const fakePresence: PresenceStoreLike = {
-  async listActive() {
-    return [matchingDoc, unrelatedDoc];
-  },
-  async declare(doc: PresenceDeclarationDoc) {
-    return doc;
-  },
-  async done(_sessionId: string, _lastSeenAt: string) {
-    return null;
-  },
-  async history(_sessionId: string) {
-    return [];
-  },
-};
-
-const throwingPresence: PresenceStoreLike = {
-  async listActive(): Promise<PresenceDeclarationDoc[]> {
-    throw new Error("presence store exploded");
-  },
-  async declare(_doc: PresenceDeclarationDoc): Promise<PresenceDeclarationDoc> {
-    throw new Error("presence store exploded");
-  },
-  async done(_sessionId: string, _lastSeenAt: string): Promise<PresenceDeclarationDoc | null> {
-    throw new Error("presence store exploded");
-  },
-  async history(_sessionId: string): Promise<Array<{ type: string; doc: unknown; actor: string; at: string }>> {
-    throw new Error("presence store exploded");
-  },
-};
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-// (1a) bare view — presence: null — ok, no sessions block
-test("bare view with presence:null is ok and has no sessions here: block", async () => {
+// (1a) bare view — ok, no sessions block (presence retired, ADR-0200 D7)
+test("bare view is ok and has no sessions here: block", async () => {
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand(undefined, deps);
   assert.equal(env.ok, true);
-  assert.ok(!env.body.includes("sessions here:"), "bare null-presence body must not contain 'sessions here:'");
+  assert.ok(!env.body.includes("sessions here:"), "the bare body never carries the retired presence block");
+  assert.ok(!env.body.includes("Active sessions"), "the bare-view session summary is retired too");
 });
 
 // (1b) bare view — next has storytree tree <id>
@@ -271,7 +217,6 @@ test("bare view next contains storytree tree demo-story", async () => {
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand(undefined, deps);
@@ -282,17 +227,16 @@ test("bare view next contains storytree tree demo-story", async () => {
   );
 });
 
-// (1c) focused view — presence: null — ok, no sessions block
-test("focused view with presence:null is ok and has no sessions here: block", async () => {
+// (1c) focused view — ok, no sessions block (presence retired, ADR-0200 D7)
+test("focused view is ok and has no sessions here: block", async () => {
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
-  assert.ok(!env.body.includes("sessions here:"), "focused null-presence body must not contain 'sessions here:'");
+  assert.ok(!env.body.includes("sessions here:"), "the focused body never carries the retired presence block");
 });
 
 // (2) build-surface marks
@@ -300,7 +244,6 @@ test("focused view marks cap-a REAL-buildable, cap-b registered, cap-c unregiste
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand("demo-story", deps);
@@ -310,41 +253,12 @@ test("focused view marks cap-a REAL-buildable, cap-b registered, cap-c unregiste
   assert.ok(env.body.includes("unregistered"), "body must include 'unregistered' for cap-c");
 });
 
-// (3) presence store — matching session shown, unrelated not shown
-test("focused view with presence store shows matching sessionId not unrelated", async () => {
-  const deps: TreeDeps = {
-    storiesDir,
-    lookupConfig,
-    presence: fakePresence,
-    now: () => NOW,
-  };
-  const env = await treeCommand("demo-story", deps);
-  assert.equal(env.ok, true);
-  assert.ok(env.body.includes("sessions here:"), "body must include 'sessions here:' block");
-  assert.ok(env.body.includes("session-alpha"), "body must include matching sessionId 'session-alpha'");
-  assert.ok(!env.body.includes("session-beta"), "body must NOT include unrelated sessionId 'session-beta'");
-});
-
-// (4) throwing presence store — still ok, no sessions block
-test("focused view with throwing presence store is still ok and omits sessions block", async () => {
-  const deps: TreeDeps = {
-    storiesDir,
-    lookupConfig,
-    presence: throwingPresence,
-    now: () => NOW,
-  };
-  const env = await treeCommand("demo-story", deps);
-  assert.equal(env.ok, true);
-  assert.ok(!env.body.includes("sessions here:"), "body must not contain 'sessions here:' when store throws");
-});
-
 // (6) UAT-tests block — offline (no attestations reader): the test list renders from the spec,
 // with witness kinds, but NO mark column (silently absent, like the verdict glyphs).
 test("focused view renders the UAT tests block from the spec; marks absent offline", async () => {
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand("demo-story", deps);
@@ -379,7 +293,6 @@ test("focused view shows attestation marks when the reader answers (human seal v
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     attestations: reader,
     now: () => NOW,
   };
@@ -406,7 +319,7 @@ test("focused view: a story crown greens when all capabilities AND per-test UAT 
       ];
     },
   };
-  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: demo-story ✓/, "the crown wears the proven glyph");
@@ -430,7 +343,7 @@ test("focused view: a green UAT does NOT green the crown while a capability is u
       ];
     },
   };
-  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: demo-story –/, "the crown under-claims while cap-c is unproven");
@@ -444,7 +357,7 @@ test("focused view: a story with one unproven test under-claims (crown –, the 
       return [verdictEvent(1, "demo-story#uat-1", "pass")];
     },
   };
-  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: demo-story –/, "the crown under-claims (not every test proven)");
@@ -463,7 +376,7 @@ test("brownfield: an adopted gate greens the cap it covers, but an UNcovered cap
       return [verdictEvent(1, "brown-story#gate-1", "pass")];
     },
   };
-  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
   const env = await treeCommand("brown-story", deps);
   assert.equal(env.ok, true);
   assert.match(env.body, /Story: brown-story –/, "the crown under-claims while pocket-cap is uncovered");
@@ -487,7 +400,7 @@ test("brownfield: the crown greens when every cap is covered/proven and only a w
       ];
     },
   };
-  const deps: TreeDeps = { storiesDir, lookupConfig, presence: null, verdicts, now: () => NOW };
+  const deps: TreeDeps = { storiesDir, lookupConfig, verdicts, now: () => NOW };
   const env = await treeCommand("brown-story", deps);
   assert.equal(env.ok, true);
   // Both caps satisfied + the only hard own-proof obligation (the gate) signed; the would-be UAT leg
@@ -504,7 +417,6 @@ test("focused next has noticeboard declare with --node demo-story, node build --
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
-    presence: null,
     now: () => NOW,
   };
   const env = await treeCommand("demo-story", deps);

@@ -36,8 +36,11 @@ export * from "./resolve-report.js";
 export * from "./curate.js";
 export * from "./noticeboard.js";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims —
-// the noticeboard IS the claim ledger; declare/done stay byte-compatible in ./noticeboard.js.
+// the noticeboard IS the claim ledger; declare/done live in ./noticeboard.js as the claim-taking
+// anchor ceremony + bulk release (presence retired, ADR-0200 D7).
 export * from "./noticeboard-claims.js";
+// The ambient session surface (statusline glance + claim heartbeat + the SessionStart nudge +
+// the never-blocking-hooks audit) — ledger-sourced since the presence retirement (ADR-0200 D5/D7).
 export * from "./ambient-presence.js";
 export * from "./db-control.js";
 // The read/orientation surface (the ADR-0112 pattern, applied to the ADR-0108 orientation gap):

@@ -11,7 +11,7 @@ import {
   PgAdrStore,
 } from "@storytree/library/store";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
-import { PgClaimStore, PgPresenceStore } from "@storytree/notice-board/store";
+import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
 
 import type { AdrAllocatorLike } from "./adr.js";
@@ -19,7 +19,7 @@ import type { AttestationStoreLike } from "./attest.js";
 import { run } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
 import { deriveIdentity } from "@storytree/drive";
-import type { ClaimLedgerStoreLike, PresenceStoreLike, SessionClaimStoreLike } from "@storytree/drive";
+import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import type { UatVerdictStoreLike } from "./uat.js";
@@ -32,7 +32,6 @@ import type { UatVerdictStoreLike } from "./uat.js";
  */
 async function buildStore(usePg: boolean): Promise<{
   store: Store;
-  presence: PresenceStoreLike | null;
   claims: SessionClaimStoreLike | null;
   ledger: ClaimLedgerStoreLike | null;
   verdicts: VerdictReaderLike | null;
@@ -55,10 +54,9 @@ async function buildStore(usePg: boolean): Promise<{
     const claimStore = new PgClaimStore(pool);
     return {
       store: new PgLibraryStore(pool),
-      // The presence board (ADR-0033) shares the live pool; offline there is no presence surface.
-      presence: new PgPresenceStore(pool),
       // The write-claim store (ADR-0142 claim-at-declare): `noticeboard declare --node` takes the
-      // work-time claim (the story wisp) and `done` bulk-releases, over the same pool.
+      // work-time claim (the story wisp) and `done` bulk-releases, over the same pool. Presence is
+      // RETIRED (ADR-0200 D7) — the claim ledger is the one session surface.
       claims: claimStore,
       ledger: claimStore,
       // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
@@ -81,7 +79,7 @@ async function buildStore(usePg: boolean): Promise<{
   }
   const store = new InMemoryStore();
   await loadCorpus(store);
-  return { store, presence: null, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, pullDeltas: null, close: async () => {} };
+  return { store, claims: null, ledger: null, verdicts: null, uatStore: null, attestations: null, adr: null, pullDeltas: null, close: async () => {} };
 }
 
 /** Time budget for the delta footer's store read — a slow DB never stalls the command's output. */
@@ -128,14 +126,14 @@ export async function main(): Promise<void> {
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
   loadLocalSecrets();
   const usePg = argv.includes("--pg");
-  const { store, presence, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
+  const { store, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
     const env = await run(argv, {
       store,
       writable: usePg,
-      presence: { store: presence, claims, ledger },
+      presence: { claims, ledger },
       verdicts,
       uatStore,
       attestations,

@@ -2,105 +2,129 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import type { ClaimDocT, ClaimRequest } from "@storytree/notice-board";
 
 import { run } from "./commands.js";
-import type { PresenceStoreLike } from "@storytree/drive";
 
 /**
- * The noticeboard DISPATCH wiring (spine-side, ADR-0033): `run` routes the `noticeboard` area to
- * the leaf-proven `noticeboardCommand` with parsed flags, the injected presence store, and the
- * injectable identity. The command module's own truths live in noticeboard.test.ts (the node's
- * registered proof); this file only proves the glue.
+ * The noticeboard DISPATCH wiring (spine-side, ADR-0033 / ADR-0200 D7 — presence retired): `run`
+ * routes the `noticeboard` area to the leaf-proven `noticeboardCommand` with parsed flags, the
+ * injected claim stores, and the injectable identity. The command module's own truths live in
+ * drive's noticeboard.test.ts; this file only proves the glue.
  */
 
-interface FakePresence extends PresenceStoreLike {
-  docs: Map<string, PresenceDeclarationDoc>;
-  events: Array<{ type: string; doc: unknown; actor: string; at: string }>;
+const NOW_ISO = new Date().toISOString();
+
+function claimDoc(over: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" | "sessionId">): ClaimDocT {
+  return {
+    branch: "claude/x",
+    intent: "",
+    claimedAt: NOW_ISO,
+    heartbeatAt: NOW_ISO,
+    ...over,
+  };
 }
 
-function fakePresenceStore(): FakePresence {
-  const docs = new Map<string, PresenceDeclarationDoc>();
-  const events: FakePresence["events"] = [];
+function fakeClaims() {
+  const claimed: ClaimRequest[] = [];
+  const released: string[] = [];
   return {
-    docs,
-    events,
-    async declare(doc) {
-      docs.set(doc.sessionId, doc);
-      events.push({ type: "declared", doc, actor: doc.sessionId, at: doc.lastSeenAt });
-      return doc;
+    claimed,
+    released,
+    async claim(req: ClaimRequest) {
+      claimed.push(req);
+      return {
+        acquired: true as const,
+        reclaimed: false,
+        claim: claimDoc({
+          unitId: req.unitId,
+          sessionId: req.sessionId,
+          branch: req.branch,
+          intent: req.intent ?? "",
+        }),
+      };
     },
-    async done(sessionId, lastSeenAt) {
-      const existing = docs.get(sessionId);
-      if (existing === undefined) return null;
-      const merged: PresenceDeclarationDoc = { ...existing, status: "done", lastSeenAt };
-      docs.set(sessionId, merged);
-      events.push({ type: "done", doc: merged, actor: sessionId, at: lastSeenAt });
-      return merged;
-    },
-    async listActive() {
-      return [...docs.values()].filter((d) => d.status === "active");
-    },
-    async history(sessionId) {
-      return events.filter((e) => e.actor === sessionId);
+    async releaseClaimsBySession(sessionId: string): Promise<number> {
+      released.push(sessionId);
+      return 1;
     },
   };
 }
 
-test("the noticeboard area routes to the board with the injected presence store", async () => {
-  const presence = fakePresenceStore();
-  await presence.declare({
-    sessionId: "alpha-1",
-    branch: "claude/alpha",
-    workingOn: "building tree-view",
-    nodes: ["tree-view"],
-    status: "active",
-    startedAt: new Date().toISOString(),
-    lastSeenAt: new Date().toISOString(),
-  });
+/** A ledger fake carrying only the board's read half (the store verbs are other tests' business). */
+function fakeLedgerRead(rows: ClaimDocT[]) {
+  return {
+    take: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    upgrade: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    downgrade: async () => true,
+    release: async () => true,
+    claimsFor: async () => [],
+    listLiveClaims: async () => rows,
+  };
+}
+
+test("the noticeboard area routes to the claim-ledger board with the injected ledger read", async () => {
+  const ledger = fakeLedgerRead([
+    claimDoc({ unitId: "tree-view", sessionId: "alpha-1", branch: "claude/alpha", grade: "work", intent: "building tree-view" }),
+  ]);
   const env = await run(["noticeboard"], {
     store: new InMemoryStore(),
-    presence: { store: presence, identity: null },
+    presence: { identity: null, ledger },
   });
   assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /Claim ledger \(ADR-0200\)/);
   assert.match(env.body, /alpha-1/);
   assert.match(env.body, /tree-view/);
 });
 
-test("declare through the dispatch parses --working-on/--node and uses the injected identity", async () => {
-  const presence = fakePresenceStore();
+test("without a ledger the board degrades to the empty offline render, never a crash", async () => {
+  const env = await run(["noticeboard"], {
+    store: new InMemoryStore(),
+    presence: { identity: null },
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /No live claims on the ledger\./);
+  assert.doesNotMatch(env.body, /Active sessions/, "the presence board is retired (ADR-0200 D7)");
+});
+
+test("declare through the dispatch parses --working-on/--node and takes the work-time claim per node", async () => {
+  const claims = fakeClaims();
   const env = await run(
     ["noticeboard", "declare", "--working-on", "wiring the dispatch", "--node", "noticeboard-cli", "--node", "tree-view"],
     {
       store: new InMemoryStore(),
-      presence: { store: presence, identity: { sessionId: "alpha-2", branch: "claude/x" } },
+      presence: { identity: { sessionId: "alpha-2", branch: "claude/x" }, claims },
     },
   );
   assert.equal(env.ok, true, env.body);
-  const doc = presence.docs.get("alpha-2");
-  assert.ok(doc !== undefined);
-  assert.equal(doc.branch, "claude/x");
-  assert.equal(doc.workingOn, "wiring the dispatch");
-  assert.deepEqual(doc.nodes, ["noticeboard-cli", "tree-view"]);
+  assert.deepEqual(
+    claims.claimed.map((r) => ({ unitId: r.unitId, sessionId: r.sessionId, branch: r.branch, intent: r.intent, grade: r.grade })),
+    [
+      // workClaimRequest stamps grade: "work" — the declare glue takes the exclusive work claim
+      // on the graded ledger (ADR-0200 D2), semantics unchanged from ADR-0142.
+      { unitId: "noticeboard-cli", sessionId: "alpha-2", branch: "claude/x", intent: "orchestrate", grade: "work" },
+      { unitId: "tree-view", sessionId: "alpha-2", branch: "claude/x", intent: "orchestrate", grade: "work" },
+    ],
+  );
+  assert.match(env.body, /wisp is lit/);
 });
 
-test("done through the dispatch drops the session from the board", async () => {
-  const presence = fakePresenceStore();
+test("done through the dispatch releases the session's claims", async () => {
+  const claims = fakeClaims();
   const deps = {
     store: new InMemoryStore(),
-    presence: { store: presence, identity: { sessionId: "alpha-3", branch: "b" } },
+    presence: { identity: { sessionId: "alpha-3", branch: "b" }, claims },
   };
-  await run(["noticeboard", "declare", "--working-on", "x"], deps);
   const env = await run(["noticeboard", "done"], deps);
   assert.equal(env.ok, true, env.body);
-  assert.deepEqual(await presence.listActive(), []);
-  assert.equal((await presence.history("alpha-3")).length, 2);
+  assert.deepEqual(claims.released, ["alpha-3"]);
+  assert.match(env.body, /Released 1 story claim/);
 });
 
-test("without a presence store the area degrades to the db guidance, never a crash", async () => {
-  const env = await run(["noticeboard"], {
+test("declare without a claims store degrades to the db guidance, never a crash", async () => {
+  const env = await run(["noticeboard", "declare", "--working-on", "x", "--node", "story-a"], {
     store: new InMemoryStore(),
-    presence: { store: null, identity: null },
+    presence: { identity: { sessionId: "alpha-4", branch: "b" } },
   });
   assert.equal(env.ok, false);
   assert.ok(env.next?.includes("pnpm db:up"));
@@ -109,50 +133,12 @@ test("without a presence store the area degrades to the db guidance, never a cra
 test("noticeboard --help is an ok envelope and the top help names the area", async () => {
   const helpEnv = await run(["noticeboard", "--help"], {
     store: new InMemoryStore(),
-    presence: { store: null, identity: null },
+    presence: { identity: null },
   });
   assert.equal(helpEnv.ok, true);
   assert.match(helpEnv.body, /derived from the enclosing/);
+  assert.match(helpEnv.body, /claim ledger/);
 
   const top = await run([], { store: new InMemoryStore() });
   assert.match(top.body, /noticeboard/);
-});
-
-test("declare through the dispatch takes the work-time claim on the anchored node (ADR-0142 glue)", async () => {
-  const presence = fakePresenceStore();
-  const claimed: Array<{ unitId: string; sessionId: string; branch: string; intent?: string }> = [];
-  const claims = {
-    async claim(req: { unitId: string; sessionId: string; branch: string; intent?: string }) {
-      claimed.push(req);
-      return {
-        acquired: true as const,
-        reclaimed: false,
-        claim: {
-          unitId: req.unitId,
-          sessionId: req.sessionId,
-          branch: req.branch,
-          intent: req.intent ?? "",
-          claimedAt: new Date().toISOString(),
-          heartbeatAt: new Date().toISOString(),
-        },
-      };
-    },
-    async releaseClaimsBySession(): Promise<number> {
-      return 0;
-    },
-  };
-  const env = await run(
-    ["noticeboard", "declare", "--working-on", "landing 0142", "--node", "wisp-as-story-claim"],
-    {
-      store: new InMemoryStore(),
-      presence: { store: presence, identity: { sessionId: "alpha-4", branch: "claude/y" }, claims },
-    },
-  );
-  assert.equal(env.ok, true, env.body);
-  assert.deepEqual(claimed, [
-    // workClaimRequest stamps grade: "work" — the declare glue takes the exclusive work claim
-    // on the graded ledger (ADR-0200 D2), semantics unchanged from ADR-0142.
-    { unitId: "wisp-as-story-claim", sessionId: "alpha-4", branch: "claude/y", intent: "orchestrate", grade: "work" },
-  ]);
-  assert.match(env.body, /wisp is lit/);
 });

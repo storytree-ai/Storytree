@@ -1,40 +1,55 @@
 /**
- * Ambient presence automation surface (ADR-0033 Decision 3: advisory-by-construction).
+ * Ambient session automation surface (ADR-0033 Decision 3: advisory-by-construction; re-founded on
+ * the claim ledger by ADR-0200 D5/D7 — presence is RETIRED).
  *
- * Every exported function is fail-silent: presence failures never surface through
- * fn's result or errors, never throw, never reject, never write output.
+ * Every exported async function is fail-silent: ledger failures never surface through the result
+ * or errors, never throw, never reject, never write output.
  *
  * This module is self-contained — no Envelope, no commands.ts wiring.
  * It imports only types from ./noticeboard.js (never the pg store).
+ *
+ * WHAT RETIRED HERE (ADR-0200 D7 — the retirement sweep):
+ * - `sessionHook` (the SessionStart declare / SessionEnd done pair) is DELETED: sessions no longer
+ *   write presence rows; a fresh workspace is born claimed via the lobby ceremony (ADR-0200 D3)
+ *   and the SessionStart nudge below aims at the claim ledger.
+ * - the statusline glance's presence half (listActive + the declare self-heal) is DELETED: the
+ *   glance now reads the CLAIM LEDGER (count/own/overlap from listLiveClaims/claimsBySession).
+ * - `withPresence` stays deleted (ADR-0199) — builds never write session state.
+ * What STAYS: the statusline itself (the human ambient surface) and the claim HEARTBEAT on the
+ * same debounce (ADR-0200 D5 — a live session's claim must never age into stale-reclaim).
  */
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
+import type { ClaimDocT } from "@storytree/notice-board";
 
-import type { PresenceStoreLike, SessionIdentity } from "./noticeboard.js";
+import type { SessionIdentity } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
+/**
+ * The ambient slice of the claim ledger (ADR-0200 D5/D7): the two reads the glance folds
+ * (count/own/overlap) plus the session-scoped heartbeat bump the beat fires. Satisfied by
+ * `PgClaimStore`; null when offline. NEVER takes or releases a claim — ambient automation only
+ * refreshes liveness; only a deliberate claim/declare lights a wisp.
+ */
+export interface AmbientClaimsLike {
+  listLiveClaims(): Promise<ClaimDocT[]>;
+  claimsBySession(sessionId: string): Promise<ClaimDocT[]>;
+  bumpHeartbeatsBySession(sessionId: string): Promise<number>;
+}
+
 export interface AmbientDeps {
-  store: PresenceStoreLike | null;
+  claims: AmbientClaimsLike | null;
   identity: SessionIdentity | null;
   now: () => Date;
-  /**
-   * The session-scoped claim-heartbeat seam (ADR-0142): the statusline beat that keeps presence
-   * fresh also keeps this session's work-time claims out of the stale-reclaim window. Optional/null
-   * = no claim bumping (offline, older callers). NEVER takes or releases a claim — ambient
-   * automation only refreshes liveness; only a deliberate `declare --node` lights a wisp.
-   */
-  claims?: { bumpHeartbeatsBySession(sessionId: string): Promise<number> } | null;
 }
 
 // NOTE (ADR-0199): there is deliberately NO build presence wrapper here any more. `withPresence`
 // declared the BUILD under the LAUNCHING session's worktree identity and retired that session's row
 // in its finally — a build run inside an interactive session clobbered and then killed the session's
 // declaration (two owner interrupts, 2026-07-15/16). A build's footprint on the shared store is
-// exactly its `building` work-events (observability) + the per-unit write-claim (coordination);
-// presence rows are written by SESSIONS only (the hooks below, the statusline heartbeat, and a
-// deliberate `noticeboard declare`/`done`). Builds must never gain a presence write again.
+// exactly its `building` work-events (observability) + the per-unit write-claim (coordination).
+// With presence retired outright (ADR-0200 D7), sessions too write only CLAIMS.
 
 export interface HeartbeatState {
   readLastBump: () => string | null;
@@ -42,160 +57,77 @@ export interface HeartbeatState {
 }
 
 // ---------------------------------------------------------------------------
-// sessionHook
-// ---------------------------------------------------------------------------
-
-/**
- * Fire-and-forget hook handler.
- * `start` declares (empty nodes), `end` marks done.
- * Races the store call against `opts.timeoutMs`.
- * ALWAYS resolves `""` — never throws, never rejects, no output on any path.
- */
-export async function sessionHook(
-  kind: "start" | "end",
-  deps: AmbientDeps,
-  opts: { workingOn: string; timeoutMs: number },
-): Promise<string> {
-  const { store, identity } = deps;
-
-  if (store !== null && identity !== null) {
-    const nowIso = deps.now().toISOString();
-
-    try {
-      let storeCall: Promise<unknown>;
-
-      if (kind === "start") {
-        storeCall = store.declare({
-          sessionId: identity.sessionId,
-          branch: identity.branch,
-          workingOn: opts.workingOn,
-          nodes: [],
-          status: "active",
-          startedAt: nowIso,
-          lastSeenAt: nowIso,
-        });
-      } else {
-        storeCall = store.done(identity.sessionId, nowIso);
-      }
-
-      // Suppress any rejection so the race itself never throws
-      const safeCall = storeCall.catch(() => undefined);
-      const timeout = new Promise<void>((resolve) =>
-        setTimeout(resolve, opts.timeoutMs),
-      );
-      await Promise.race([safeCall, timeout]);
-    } catch {
-      // swallow — belt-and-suspenders
-    }
-  }
-
-  return "";
-}
-
-// ---------------------------------------------------------------------------
 // statuslineGlance
 // ---------------------------------------------------------------------------
 
 /**
- * Glance + heartbeat. Returns a single status line (count, own nodes, overlap
- * warning) on success; `""` on any failure. The heartbeat re-declares this
- * session's current doc with `lastSeenAt = now()` when the debounce window
- * has expired, and writes the bump timestamp via `state.writeLastBump`.
+ * Glance + heartbeat, sourced from the CLAIM LEDGER (ADR-0200 D7). Returns a single status line —
+ * live-claim session count, this session's own claimed units, an overlap warning when another
+ * session also claims one of them — on success; `""` on any failure.
  *
- * Self-heal: when the beat fires and NO active row exists for this identity
- * (a lost SessionStart — e.g. a fresh worktree had no node_modules yet, so the
- * hook's pnpm exec failed before tsx ever ran), it declares a minimal
- * `nodes: []` doc instead of silently staying off the board forever. The
- * check rides the same debounce; `nodes: []` is all automation can honestly
- * claim — sessions anchor their own story nodes via `noticeboard declare`.
- *
- * Every write here is AMBIENT (`reactivate: false`): a row already retired to
- * `status: "done"` (merge-retire, the ADR-0079 reaper) is never flipped back
- * to active by this beat — an idle-but-open tab must not resurrect a session
- * whose branch already merged. Only a deliberate signal reactivates: an
- * explicit `noticeboard declare` (builds never write presence, ADR-0199).
+ * The heartbeat (ADR-0200 D5, kept from ADR-0142): when the debounce window has expired, the beat
+ * bumps this session's claim heartbeats (`bumpHeartbeatsBySession`) so a live session's claims
+ * never age into the stale-reclaim window, and writes the bump timestamp via
+ * `state.writeLastBump`. A failed bump does NOT consume the debounce (the next render retries).
+ * Bump-only — the beat never takes, upgrades, or releases a claim.
  */
 export async function statuslineGlance(
   deps: AmbientDeps,
   state: HeartbeatState,
   debounceMs: number,
 ): Promise<string> {
-  const { store, identity } = deps;
+  const { claims, identity } = deps;
 
-  if (store === null || identity === null) {
-    return "";
-  }
-
-  let active: PresenceDeclarationDoc[];
-  try {
-    active = await store.listActive();
-  } catch {
+  if (claims === null || identity === null) {
     return "";
   }
 
   const now = deps.now();
 
-  // Find own doc
-  const ownDoc = active.find((d) => d.sessionId === identity.sessionId);
-
-  // Heartbeat: re-declare when debounce window has expired
+  // Heartbeat: bump the session's claim heartbeats when the debounce window has expired — BEFORE
+  // the reads, so a just-revived claim renders live on this very glance.
   const lastBump = state.readLastBump();
   const shouldBump =
     lastBump === null ||
     now.getTime() - new Date(lastBump).getTime() >= debounceMs;
-
   if (shouldBump) {
     try {
-      const nowIso = now.toISOString();
-      const doc: PresenceDeclarationDoc =
-        ownDoc !== undefined
-          ? { ...ownDoc, lastSeenAt: nowIso }
-          : {
-              sessionId: identity.sessionId,
-              branch: identity.branch,
-              workingOn: "session active (auto-declared)",
-              nodes: [],
-              status: "active",
-              startedAt: nowIso,
-              lastSeenAt: nowIso,
-            };
-      await store.declare(doc, { reactivate: false });
-      state.writeLastBump(nowIso);
+      await claims.bumpHeartbeatsBySession(identity.sessionId);
+      state.writeLastBump(now.toISOString());
     } catch {
-      // fail-silent
-    }
-    // Same beat, same debounce: refresh the session's work-time claim heartbeats (ADR-0142) so a
-    // live session's claim never ages into stale-reclaim. Bump-only — never take/release.
-    if (deps.claims !== undefined && deps.claims !== null) {
-      try {
-        await deps.claims.bumpHeartbeatsBySession(identity.sessionId);
-      } catch {
-        // fail-silent
-      }
+      // fail-silent — and the debounce is NOT consumed, so the next render retries
     }
   }
 
-  // Build the status line
-  const count = active.length;
-  const ownNodes = ownDoc !== undefined ? ownDoc.nodes : [];
+  // The glance reads: the whole live ledger (count + overlap) and this session's own rows.
+  let live: ClaimDocT[];
+  let own: ClaimDocT[];
+  try {
+    [live, own] = await Promise.all([
+      claims.listLiveClaims(),
+      claims.claimsBySession(identity.sessionId),
+    ]);
+  } catch {
+    return "";
+  }
 
-  // Overlap: another session that shares at least one of our declared nodes
-  const ownNodeSet = new Set(ownNodes);
-  const otherSessions = active.filter((d) => d.sessionId !== identity.sessionId);
-  const hasOverlap = otherSessions.some((d) =>
-    d.nodes.some((n) => ownNodeSet.has(n)),
+  const sessionCount = new Set(live.map((c) => c.sessionId)).size;
+  const ownUnits = [...new Set(own.map((c) => c.unitId))];
+  const ownUnitSet = new Set(ownUnits);
+  const hasOverlap = live.some(
+    (c) => c.sessionId !== identity.sessionId && ownUnitSet.has(c.unitId),
   );
 
   const parts: string[] = [
-    `${count} active session${count !== 1 ? "s" : ""}`,
+    `${sessionCount} session${sessionCount !== 1 ? "s" : ""} on the ledger`,
   ];
 
-  if (ownNodes.length > 0) {
-    parts.push(`nodes: ${ownNodes.join(", ")}`);
+  if (ownUnits.length > 0) {
+    parts.push(`claims: ${ownUnits.join(", ")}`);
   }
 
   if (hasOverlap) {
-    parts.push("overlap: another session also declares one of your nodes");
+    parts.push("overlap: another session also claims one of your units");
   }
 
   return parts.join(" | ");
@@ -234,7 +166,7 @@ export function undeclaredSessionNudge(identity: SessionIdentity | null): string
 const BLOCKING_EVENTS = ["Stop", "PreToolUse", "UserPromptSubmit"] as const;
 
 /**
- * Keywords that identify a presence-related hook command. Includes `presence-hook` so the
+ * Keywords that identify a noticeboard/ambient hook command. Includes `presence-hook` so the
  * worktree-safe launcher (`scripts/presence-hook.sh`, which is what the shared settings.json
  * actually invokes) is still recognised by the never-blocking-hooks audit even though its
  * command string never names `ambient-presence` directly.
@@ -247,7 +179,7 @@ const PRESENCE_KEYWORDS = ["noticeboard", "ambient-presence", "presence-hook"] a
  * `PreToolUse`, or `UserPromptSubmit` whose command mentions `noticeboard`
  * or `ambient-presence`. Returns `[]` when clean.
  *
- * Hooks on those events that are NOT presence-shaped are NOT violations.
+ * Hooks on those events that are NOT noticeboard-shaped are NOT violations.
  */
 export function auditHookConfig(settingsJsonText: string): string[] {
   let settings: unknown;

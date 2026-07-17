@@ -235,7 +235,7 @@ export async function renderLeafPhasePrompts(): Promise<LeafPhasePromptResult> {
 // ── The verdict store seam (`--store pg`, PR #29 parked decision 4) ─────────
 
 /**
- * The per-unit write-claim seam (ADR-0121) — the ENFORCING twin of {@link PresenceStoreLike}. The
+ * The per-unit write-claim seam (ADR-0121) — the ENFORCING half of the claim ledger (ADR-0200). The
  * build acquires the claim on the unit before the leaf runs and releases it after; a second
  * concurrent builder of the SAME unit is hard-refused (presence merely shows overlap). Injected for
  * tests; satisfied by `PgClaimStore`.

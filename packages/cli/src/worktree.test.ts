@@ -95,7 +95,7 @@ test("KEEP: the primary checkout is never reaped", () => {
   assert.match(v.reason, /primary checkout/);
 });
 
-test("KEEP: a worktree with a live presence row (--pg) is kept though merged + idle", () => {
+test("KEEP: a worktree whose session holds a live claim on the ledger (--pg, ADR-0200 D6) is kept though merged + idle", () => {
   const v = classifyWorktree(snap({ name: "busy" }), policy({ liveSessions: new Set(["busy"]) }));
   assert.equal(v.decision, "keep");
   assert.match(v.reason, /live session/);

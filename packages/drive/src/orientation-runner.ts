@@ -26,7 +26,7 @@ import type { Envelope } from "./envelope.js";
 import { dashboard } from "./library-dashboard.js";
 import { specView, artifactView, artifactList, agentsView } from "./orientation-reads.js";
 import { noticeboardCommand } from "./noticeboard.js";
-import type { PresenceStoreLike } from "./noticeboard.js";
+import type { ClaimLedgerReadLike } from "./noticeboard.js";
 import { treeCommand } from "./tree.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
 import type { AttestationReaderLike } from "./tree-attestations.js";
@@ -42,8 +42,8 @@ export interface OrientationRunnerDeps {
    * `lookupNodeBuildConfig` (the same registry the CLI wires).
    */
   lookupConfig?: (id: string) => { real?: unknown } | null;
-  /** The notice-board presence store — null/absent renders the board offline-silently. */
-  presence?: PresenceStoreLike | null;
+  /** The claim-ledger read the noticeboard board renders (ADR-0200 D7); null/absent = empty board. */
+  ledger?: ClaimLedgerReadLike | null;
   /** The signed-verdict event log — null/absent drops the proof glyphs, never an error. */
   verdicts?: VerdictReaderLike | null;
   /** The ADR-0044 attestation log — null/absent drops the vouch marks, never an error. */
@@ -90,7 +90,6 @@ export function createOrientationRunner(deps: OrientationRunnerDeps): ComposedOr
       return treeCommand(sub, {
         storiesDir: deps.storiesDir,
         lookupConfig: deps.lookupConfig ?? lookupNodeBuildConfig,
-        presence: deps.presence ?? null,
         verdicts: deps.verdicts ?? null,
         attestations: deps.attestations ?? null,
         now,
@@ -115,10 +114,11 @@ export function createOrientationRunner(deps: OrientationRunnerDeps): ComposedOr
 
     if (area === "noticeboard" && sub === undefined) {
       // The board view only — declare/done are writes and are not reachable from this runner.
+      // The board is the claim ledger (ADR-0200 D7); no ledger injected = the empty offline render.
       return noticeboardCommand(undefined, { nodes: [] }, {
-        store: deps.presence ?? null,
         identity: null,
         now,
+        ledger: deps.ledger ?? null,
       });
     }
 

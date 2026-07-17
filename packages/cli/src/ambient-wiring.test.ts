@@ -27,41 +27,58 @@ test("the shared .claude/settings.json exists and passes the never-blocking-hook
   );
 });
 
-test("the presence wrappers ARE wired through the worktree-safe launcher: SessionStart/SessionEnd hooks + the statusline glance", () => {
+test("the ambient wrappers ARE wired through the worktree-safe launcher: the SessionStart nudge + the statusline glance; the SessionEnd presence-done is RETIRED", () => {
   const settings = JSON.parse(fs.readFileSync(settingsFile, "utf8")) as {
     hooks?: Record<string, Array<{ hooks?: Array<{ command?: string; timeout?: number }> }>>;
     statusLine?: { type?: string; command?: string };
   };
-  for (const event of ["SessionStart", "SessionEnd"]) {
-    const hooks = (settings.hooks?.[event] ?? []).flatMap((entry) => entry.hooks ?? []);
-    const presenceHooks = hooks.filter((hook) => (hook.command ?? "").includes("presence-hook"));
-    assert.ok(
-      presenceHooks.length >= 1,
-      `${event} must carry the ambient-presence wrapper via scripts/presence-hook.sh (owner decision 3: shared hooks)`,
-    );
-    // REGRESSION LOCK — the "5 sessions, nothing on the tree" bug (2026-06-14): a bare
-    // `pnpm --filter @storytree/cli exec tsx …ambient-presence-entry…` dies with
-    // "'tsx' is not recognized" in a FRESH worktree (no node_modules), so the hook — and
-    // its statusline self-heal — never run and the session never lands a presence row.
-    // The launcher resolves tsx from the primary checkout. Lock the routing in: a presence
-    // command must NOT invoke tsx directly.
-    assert.ok(
-      hooks.every((hook) => {
-        const command = hook.command ?? "";
-        const isPresence = command.includes("presence-hook") || command.includes("ambient-presence");
-        return !isPresence || !/exec\s+tsx/.test(command);
-      }),
-      `${event} presence hook must route through scripts/presence-hook.sh, not a bare \`pnpm exec tsx\` (which fails in fresh worktrees)`,
-    );
-    // The fail-silent contract is bounded time too — a hook without a timeout can hang a session.
-    assert.ok(
-      presenceHooks.every((hook) => typeof hook.timeout === "number" && hook.timeout <= 60),
-      `${event} presence hooks must declare a short timeout`,
-    );
-  }
+  const hooksFor = (event: string): Array<{ command?: string; timeout?: number }> =>
+    (settings.hooks?.[event] ?? []).flatMap((entry) => entry.hooks ?? []);
+
+  // SessionStart keeps the launcher: it prints the one claim-ledger nudge line (ADR-0143/0200 D3).
+  const startHooks = hooksFor("SessionStart");
+  const startAmbient = startHooks.filter((hook) => (hook.command ?? "").includes("presence-hook"));
+  assert.ok(
+    startAmbient.length >= 1,
+    "SessionStart must carry the ambient wrapper via scripts/presence-hook.sh (the claim-ledger nudge, ADR-0200 D3)",
+  );
+  // REGRESSION LOCK — the "5 sessions, nothing on the tree" bug (2026-06-14): a bare
+  // `pnpm --filter @storytree/cli exec tsx …ambient-presence-entry…` dies with
+  // "'tsx' is not recognized" in a FRESH worktree (no node_modules), so the hook never runs.
+  // The launcher resolves tsx from the primary checkout. Lock the routing in: an ambient
+  // command must NOT invoke tsx directly.
+  assert.ok(
+    startHooks.every((hook) => {
+      const command = hook.command ?? "";
+      const isAmbient = command.includes("presence-hook") || command.includes("ambient-presence");
+      return !isAmbient || !/exec\s+tsx/.test(command);
+    }),
+    "SessionStart ambient hook must route through scripts/presence-hook.sh, not a bare `pnpm exec tsx` (which fails in fresh worktrees)",
+  );
+  // The fail-silent contract is bounded time too — a hook without a timeout can hang a session.
+  assert.ok(
+    startAmbient.every((hook) => typeof hook.timeout === "number" && hook.timeout <= 60),
+    "SessionStart ambient hooks must declare a short timeout",
+  );
+
+  // SessionEnd carried the presence-done write — presence is RETIRED (ADR-0200 D7): the retirement
+  // sweep removed that hook, and it must never come back (claims release via `noticeboard done`,
+  // the CI merge clear, and stale-reclaim — not a session hook).
+  const endAmbient = hooksFor("SessionEnd").filter(
+    (hook) =>
+      (hook.command ?? "").includes("presence-hook") ||
+      (hook.command ?? "").includes("ambient-presence") ||
+      (hook.command ?? "").includes("noticeboard"),
+  );
+  assert.deepEqual(
+    endAmbient.map((h) => h.command),
+    [],
+    "SessionEnd must carry NO presence/noticeboard hook (the presence-done write retired, ADR-0200 D7)",
+  );
+
   assert.ok(
     (settings.statusLine?.command ?? "").includes("presence-hook"),
-    "the statusline glance (owner decision 2: heartbeat ships) must route through scripts/presence-hook.sh",
+    "the statusline glance (the human ambient surface — now ledger-sourced) must route through scripts/presence-hook.sh",
   );
 });
 

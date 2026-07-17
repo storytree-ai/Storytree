@@ -95,3 +95,60 @@ test("run: `--force` WITHOUT `--yes` removes nothing (confirmation required)", a
   assert.match(env.body, /add --yes/);
   assert.equal(io.removed.length, 0);
 });
+
+// ── ADR-0200 D6: prune's live-session consult is the CLAIM LEDGER, not presence ──
+
+test("run: `worktree prune --pg` keeps a worktree whose session holds a live claim (ADR-0200 D6)", async () => {
+  const io = fakeIo();
+  const nowIso = new Date(NOW).toISOString();
+  const ledger = {
+    // The ClaimLedgerStoreLike half (unused by prune) — minimal stubs.
+    take: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    upgrade: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    downgrade: async () => true,
+    release: async () => true,
+    claimsFor: async () => [],
+    // The read half prune consults: the reapable worktree's basename IS a live claim's session id.
+    listLiveClaims: async () => [
+      {
+        unitId: "some-story",
+        sessionId: "orphan-old",
+        branch: "claude/x",
+        intent: "still working",
+        claimedAt: nowIso,
+        heartbeatAt: nowIso,
+      },
+    ],
+    claimsBySession: async () => [],
+  };
+  const env = await run(["worktree", "prune", "--force", "--yes", "--pg"], {
+    store: new InMemoryStore(),
+    presence: { ledger },
+    worktree: { io, now: () => NOW },
+  });
+  assert.equal(env.ok, true);
+  assert.equal(io.removed.length, 0, "a worktree with a live claim on the ledger must be KEPT");
+  assert.match(env.body, /Reaped 0/);
+});
+
+test("run: `worktree prune --pg` with a THROWING ledger falls back to the offline heuristic", async () => {
+  const io = fakeIo();
+  const ledger = {
+    take: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    upgrade: async () => ({ acquired: true as const, reclaimed: false, claim: null as never }),
+    downgrade: async () => true,
+    release: async () => true,
+    claimsFor: async () => [],
+    listLiveClaims: async (): Promise<never[]> => {
+      throw new Error("ledger unreachable");
+    },
+    claimsBySession: async () => [],
+  };
+  const env = await run(["worktree", "prune", "--force", "--yes", "--pg"], {
+    store: new InMemoryStore(),
+    presence: { ledger },
+    worktree: { io, now: () => NOW },
+  });
+  assert.equal(env.ok, true, "an unreadable ledger degrades, never crashes");
+  assert.deepEqual(io.removed, [wt("orphan-old")], "the offline mtime heuristic still reaps");
+});

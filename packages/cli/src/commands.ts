@@ -92,7 +92,8 @@ import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
 import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
-import type { PresenceStoreLike, SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
+import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
+import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
@@ -892,12 +893,13 @@ function treeViewHelp(): Envelope {
       "storytree tree — the work-hierarchy orientation surface (ADR-0033).",
       "",
       "  storytree tree [--pg]              every story, one line each",
-      "  storytree tree <story-id> [--pg]   one story: capabilities, build surface, edges, presence",
+      "  storytree tree <story-id> [--pg]   one story: capabilities, build surface, edges",
       "  storytree tree spec <node-id>      the full spec markdown for one story or capability",
       "",
-      "with --pg the views weave in live presence and one signed-verdict glyph per node",
-      "(✓ proven / ✗ last run failed / – never built, read from events.verdict); offline",
-      "both views render without them — never an error.",
+      "with --pg the views weave in one signed-verdict glyph per node (✓ proven / ✗ last run",
+      "failed / – never built, read from events.verdict); offline both views render without",
+      "them — never an error. Live sessions render on the claim-ledger board (ADR-0200):",
+      "storytree noticeboard --pg.",
     ].join("\n"),
     next: ["storytree tree", "pnpm db:up"],
   };
@@ -907,12 +909,13 @@ function noticeboardHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree noticeboard — the session presence board (ADR-0033): advisory, never enforcing.",
-      "identity is derived from the enclosing .claude/worktrees/<name> checkout — never typed.",
+      "storytree noticeboard — the claim ledger (ADR-0200; presence is retired — the ledger is the",
+      "one coordination + observability surface). identity is derived from the enclosing",
+      ".claude/worktrees/<name> checkout — never typed.",
       "",
-      "  storytree noticeboard --pg                                        the board (active sessions)",
-      "  storytree noticeboard declare --working-on <prose> [--node <id>]... --pg   declare presence",
-      "  storytree noticeboard done --pg                                   mark this session done",
+      "  storytree noticeboard --pg                                        the board (live claims, by session)",
+      "  storytree noticeboard declare --working-on <prose> --node <id>... --pg   take the work claim on each node",
+      "  storytree noticeboard done --pg                                   release every claim this session holds",
       "",
       "the graded claim ledger (ADR-0200): exploring is shared and carries your intent prose; work",
       "is the exclusive slot; waiting is the queue behind it (release promotes the oldest live waiter).",
@@ -922,7 +925,7 @@ function noticeboardHelp(): Envelope {
       "  storytree noticeboard release <unit-id> --pg                      drop this session's claim (any grade)",
       "  storytree noticeboard claims <unit-id> --pg                       the unit's rows, queue order",
       "",
-      "presence needs the live DB: pnpm db:up first. Reads degrade politely without it.",
+      "writes need the live DB: pnpm db:up first. The board read degrades politely without it.",
     ].join("\n"),
     next: ["pnpm db:up", "storytree noticeboard --pg"],
   };
@@ -1021,24 +1024,28 @@ export interface RunDeps {
   /** Recorded as the event `actor` on writes (per-session attribution). Defaults to "cli". */
   readonly actor?: string;
   /**
-   * The presence seam (ADR-0033): `store` is the live presence store when --pg (null offline);
-   * `identity` is injectable for tests — when ABSENT it is derived from the enclosing worktree.
-   * `claims` (ADR-0142) is the write-claim store riding the same pool: `declare --node` takes the
-   * work-time claim (the wisp), `done` bulk-releases the session's claims; null/absent offline.
+   * The session seam (ADR-0033, presence RETIRED by ADR-0200 D7): `identity` is injectable for
+   * tests — when ABSENT it is derived from the enclosing worktree. `claims` (ADR-0142) is the
+   * write-claim store: `declare --node` takes the work-time claim (the wisp), `done` bulk-releases
+   * the session's claims; null/absent offline. (The key keeps its historical `presence` name
+   * through wave 1 — every seam behind it is the claim ledger.)
    */
   readonly presence?: {
-    readonly store?: PresenceStoreLike | null;
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
     /**
      * The graded claim-ledger slice (ADR-0200 D2): the wider store surface the noticeboard
      * claim/upgrade/downgrade/release/claims verbs drive. The same live `PgClaimStore` instance
      * as `claims` when --pg; null/absent offline — the ledger verbs then refuse politely.
-     * The read half (`Partial<ClaimLedgerReadLike>`, ADR-0200 D7) is what the board renders as
-     * its PRIMARY section — `PgClaimStore` carries it; a fake without it (older tests) simply
-     * degrades the board to the legacy presence-only render.
+     * The read half (`Partial<…>`, ADR-0200 D7) is what the board renders, what `worktree prune
+     * --pg` consults for live sessions (D6), and what `branch next` re-takes from — `PgClaimStore`
+     * carries it; a fake without it (older tests) simply degrades each surface offline-silently.
      */
-    readonly ledger?: (ClaimLedgerStoreLike & Partial<ClaimLedgerReadLike>) | null;
+    readonly ledger?:
+      | (ClaimLedgerStoreLike &
+          Partial<ClaimLedgerReadLike> &
+          Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }>)
+      | null;
   };
   /**
    * The verdict event log (verdict-glyphs): the live work-store slice when --pg; null/absent
@@ -1817,7 +1824,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     }
     // The board's ledger read (ADR-0200 D7): the SAME PgClaimStore that drives the ledger verbs
     // rides `presence.ledger`; capture the method so the narrowing survives the closure (a fake
-    // ledger without the read half degrades the board to the legacy presence-only render).
+    // ledger without the read half degrades the board to the empty offline render).
     const ledgerStore = deps.presence?.ledger ?? null;
     const listLiveClaims = ledgerStore?.listLiveClaims;
     return noticeboardCommand(
@@ -1827,12 +1834,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         nodes: values.node ?? [],
       },
       {
-        store: deps.presence?.store ?? null,
         identity,
         now: () => new Date(),
-        // Claim-at-declare (ADR-0142): the anchored node's work-time claim rides the declare.
+        // Claim-at-declare (ADR-0142): the anchored node's work-time claim IS the declare now
+        // (presence retired, ADR-0200 D7).
         claims: deps.presence?.claims ?? null,
-        // The claim-ledger board render (ADR-0200 D7): the ledger is PRIMARY when readable.
+        // The claim-ledger board render (ADR-0200 D7): the ledger IS the board.
         ledger:
           listLiveClaims !== undefined
             ? { listLiveClaims: () => listLiveClaims.call(ledgerStore) }
@@ -1844,9 +1851,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area === "branch") {
     // ADR-0142 — a branch dies on merge. `branch next` is the merge ceremony's post-merge leg in
     // one verb: detect the dead branch, cut + switch a fresh claude/<name> from origin/main, and
-    // re-take presence. The re-declare recurses through the SAME noticeboard dispatch above, so
-    // whatever that path wires (claim-at-declare re-lighting the story wisp) runs on the fresh
-    // branch too — one code path, never a hand-copied declare.
+    // re-take the session's story claims. The re-take recurses through the SAME noticeboard
+    // declare dispatch above (claim-at-declare re-lighting the story wisp on the fresh branch) —
+    // one code path, never a hand-copied claim write. Presence is retired (ADR-0200 D7): the
+    // prior nodes are read from the session's own live claims on the ledger.
     if (help || sub === undefined) return branchHelp();
     if (sub !== "next") {
       return {
@@ -1856,14 +1864,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     const identity = sessionIdentity(deps);
-    const presenceStore = deps.presence?.store ?? null;
+    const ledgerStore = deps.presence?.ledger ?? null;
+    const claimsBySession = ledgerStore?.claimsBySession;
+    const claimStore = deps.presence?.claims ?? null;
     return branchNext({
       ...(deps.branch?.runGit !== undefined ? { runGit: deps.branch.runGit } : {}),
       ...(deps.branch?.generateName !== undefined ? { generateName: deps.branch.generateName } : {}),
-      presence: presenceStore,
+      claims:
+        claimsBySession !== undefined
+          ? { claimsBySession: (sid) => claimsBySession.call(ledgerStore, sid) }
+          : null,
       identity,
       redeclare:
-        presenceStore !== null
+        claimStore !== null
           ? (args) =>
               run(
                 [
@@ -1914,15 +1927,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ],
       };
     }
-    // Optional --pg consult: the notice board is the authoritative "is a session live here" signal;
-    // a live declaration's sessionId IS the worktree basename (ADR-0033), so a match protects it.
+    // Optional --pg consult: the CLAIM LEDGER is the authoritative "is a session live here" signal
+    // (ADR-0200 D6 — presence retired); a live claim's sessionId IS the worktree basename
+    // (ADR-0033), so any live claim (any grade) protects the worktree.
     let liveSessions = new Set<string>();
-    if (values.pg && deps.presence?.store) {
+    const pruneLedger = deps.presence?.ledger ?? null;
+    const pruneListLive = pruneLedger?.listLiveClaims;
+    if (values.pg && pruneListLive !== undefined) {
       try {
-        const active = await deps.presence.store.listActive();
-        liveSessions = new Set(active.map((d) => d.sessionId));
+        const claims = await pruneListLive.call(pruneLedger);
+        liveSessions = new Set(claims.map((c) => c.sessionId));
       } catch {
-        // Unreadable board — fall back to the offline mtime heuristic (still fully safe).
+        // Unreadable ledger — fall back to the offline mtime heuristic (still fully safe).
       }
     }
     const thresholdHours =
@@ -1957,7 +1973,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // already-loaded spec's `proof:` block so a self-registered node also glyphs as buildable; the
       // BUILD path is already spec-first via resolveBuildConfig — this is a cosmetic understatement).
       lookupConfig: lookupNodeBuildConfig,
-      presence: deps.presence?.store ?? null,
       verdicts: deps.verdicts ?? null,
       attestations: deps.attestations ?? null,
       now: () => new Date(),

@@ -3,10 +3,13 @@
  *
  * `branch next` is the merge ceremony's post-merge leg in one verb. After CI merges a PR, its head
  * branch is DEAD: the merged-branch guard (`scripts/merged-branch-guard.sh`) refuses any new PR from
- * it, and the CI merge job machine-cleared its board state (presence + story claim, ADR-0138 cap D).
- * The manual leg — fetch main, cut a fresh `claude/<name>` branch, re-declare presence — is friction;
- * this verb does it: detect the dead branch, cut + switch a fresh branch from `origin/main`, and
- * re-take presence (directly when the live store is wired, else as a printed next-step).
+ * it, and the CI merge job machine-cleared its board state (the story claims, ADR-0138 cap D).
+ * The manual leg — fetch main, cut a fresh `claude/<name>` branch, re-take the story claims — is
+ * friction; this verb does it: detect the dead branch, cut + switch a fresh branch from
+ * `origin/main`, and re-take the session's claims (directly when the live ledger is wired, else as
+ * a printed next-step). Presence is retired (ADR-0200 D7): the prior nodes come from the session's
+ * own live claims on the ledger, and the re-take rides the recursive `noticeboard declare`
+ * (claim-at-declare, ADR-0142) — one code path.
  *
  * Detection is pure git plumbing behind an injected `runGit` (the `deriveIdentity` seam pattern,
  * `packages/drive/src/noticeboard.ts`), so the whole flow is offline-testable:
@@ -20,7 +23,8 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes, randomInt } from "node:crypto";
 
-import type { PresenceStoreLike, SessionIdentity } from "@storytree/drive";
+import type { SessionIdentity } from "@storytree/drive";
+import type { ClaimDocT } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
 
@@ -33,14 +37,17 @@ export interface BranchDeps {
   readonly runGit?: (args: readonly string[]) => string;
   /** Fresh-branch candidate names, e.g. "claude/steady-noether-3f9a2c". Injectable for tests. */
   readonly generateName?: () => string;
-  /** The presence board (--pg): used to find this session's declaration to re-take. Null offline. */
-  readonly presence: PresenceStoreLike | null;
+  /**
+   * The session's own live-claim read on the ledger (--pg, ADR-0200 D7): the units this session
+   * holds are the nodes to re-take on the fresh branch. Null offline.
+   */
+  readonly claims: { claimsBySession(sessionId: string): Promise<ClaimDocT[]> } | null;
   /** Worktree-derived session identity (ADR-0033); null in a plain checkout. */
   readonly identity: SessionIdentity | null;
   /**
-   * Re-declare presence through the SAME noticeboard dispatch the CLI area uses — so whatever that
-   * path wires (claim-at-declare re-taking the story claim, ADR-0142) happens on the fresh branch
-   * too, one code path. Null when no live store is wired.
+   * Re-take the claims through the SAME noticeboard declare dispatch the CLI area uses — so
+   * whatever that path wires (claim-at-declare re-taking the story claim, ADR-0142) happens on the
+   * fresh branch too, one code path. Null when no live store is wired.
    */
   readonly redeclare:
     | ((args: { workingOn: string; nodes: readonly string[] }) => Promise<Envelope>)
@@ -120,9 +127,9 @@ export function branchHelp(): Envelope {
       "",
       "  storytree branch next [--pg]   succeed a DEAD branch: detect it (merged into origin/main and/or",
       "                                 remote gone), cut + switch a fresh claude/<name> from origin/main,",
-      "                                 and re-take presence — with --pg the re-declare runs directly (the",
-      "                                 story claim re-lights on the fresh branch); offline it is printed",
-      "                                 as the next step.",
+      "                                 and re-take the story claims — with --pg the re-take runs directly",
+      "                                 (the story wisp re-lights on the fresh branch, ADR-0200); offline",
+      "                                 it is printed as the next step.",
       "",
       "after a PR merges, its head branch can never land again (the CI merged-branch guard refuses it)",
       "and the merge machine-cleared its board state — `branch next` is the merge ceremony's post-merge",
@@ -270,17 +277,22 @@ export async function branchNext(deps: BranchDeps): Promise<Envelope> {
     };
   }
 
-  // Re-take presence: read this session's active declaration and re-declare it through the
-  // noticeboard path (fail-soft — a board hiccup never un-cuts the branch, it is surfaced instead).
+  // Re-take the story claims: read this session's own live claims on the ledger (ADR-0200 D7) and
+  // re-take them through the noticeboard declare path — claim-at-declare stamps the FRESH branch on
+  // each claim (fail-soft: a ledger hiccup never un-cuts the branch, it is surfaced instead).
   let prior: { workingOn: string; nodes: readonly string[] } | null = null;
-  if (deps.presence !== null && deps.identity !== null) {
+  if (deps.claims !== null && deps.identity !== null) {
     try {
-      const mine = (await deps.presence.listActive()).find(
-        (d) => d.sessionId === deps.identity?.sessionId,
-      );
-      if (mine !== undefined) prior = { workingOn: mine.workingOn, nodes: mine.nodes };
+      const mine = await deps.claims.claimsBySession(deps.identity.sessionId);
+      if (mine.length > 0) {
+        const firstIntent = mine.find((c) => c.intent.trim().length > 0)?.intent;
+        prior = {
+          workingOn: firstIntent ?? "re-taking story claims on the fresh branch (branch next, ADR-0142)",
+          nodes: [...new Set(mine.map((c) => c.unitId))],
+        };
+      }
     } catch {
-      // Unreadable board — fall through to the printed next-step.
+      // Unreadable ledger — fall through to the printed next-step.
     }
   }
   let redeclareLines: string[] = [];
@@ -291,13 +303,13 @@ export async function branchNext(deps: BranchDeps): Promise<Envelope> {
       redeclared = env.ok;
       redeclareLines = [
         env.ok
-          ? "re-declared presence on the fresh branch (the story claim re-takes with it, ADR-0142):"
-          : "re-declare FAILED — run the declare below so the story wisp re-lights:",
+          ? "re-took the story claims on the fresh branch (claim-at-declare, ADR-0142):"
+          : "re-take FAILED — run the declare below so the story wisp re-lights:",
         ...env.body.split("\n").map((l) => `  ${l}`),
       ];
     } catch (err) {
       redeclareLines = [
-        `re-declare FAILED (${err instanceof Error ? err.message : String(err)}) — run the declare below so the story wisp re-lights.`,
+        `re-take FAILED (${err instanceof Error ? err.message : String(err)}) — run the declare below so the story wisp re-lights.`,
       ];
     }
   }
