@@ -123,6 +123,28 @@ test("detail-kind-refuses-malformed: an unknown field is refused (strict)", () =
   );
 });
 
+test("detail-kind-refuses-malformed: whitespace-only required text fields carry no real content and are refused", () => {
+  // A required text field must carry real content (Test creation principles:
+  // "real content over existence") — a string of only whitespace satisfies
+  // `.min(1)` on length but conveys no actual action/success/evidence text,
+  // so the schema must refuse it rather than accept it as present.
+  assert.equal(
+    UatCriterionDetail.safeParse({ ...WELL_FORMED, action: "   " }).success,
+    false,
+    "a whitespace-only action must be refused",
+  );
+  assert.equal(
+    UatCriterionDetail.safeParse({ ...WELL_FORMED, successConditions: "\t\n" }).success,
+    false,
+    "a whitespace-only successConditions must be refused",
+  );
+  assert.equal(
+    UatCriterionDetail.safeParse({ ...WELL_FORMED, evidenceExpectations: "  " }).success,
+    false,
+    "a whitespace-only evidenceExpectations must be refused",
+  );
+});
+
 // ── refusal: the detail is not a second title authority (ADR-0209 D6) ──────
 
 test("detail-kind-refuses-title-redefinition: a competing `title` field is refused", () => {

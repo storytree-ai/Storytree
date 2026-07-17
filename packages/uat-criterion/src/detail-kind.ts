@@ -24,18 +24,29 @@ export const UatCriterionDetailRef = z
 
 export type UatCriterionDetailRef = z.infer<typeof UatCriterionDetailRef>;
 
+/**
+ * A required text field must carry real content, not just satisfy `.min(1)`
+ * on raw length — a whitespace-only string is refused (Test creation
+ * principles: "real content over existence").
+ */
+const nonBlankText = (label: string) =>
+  z
+    .string()
+    .min(1, `${label} must not be empty`)
+    .refine((value) => value.trim().length > 0, `${label} must carry real content`);
+
 /** The structured body of a detailed UAT criterion Library artifact. */
 export const UatCriterionDetail = z
   .object({
     kind: z.literal(UAT_CRITERION_DETAIL_KIND),
     /** The stable id this detail is keyed by, e.g. `<story-id>#<criterion-id>`. */
-    id: z.string().min(1),
+    id: nonBlankText("id"),
     /** What the UAT walk actually does. */
-    action: z.string().min(1),
+    action: nonBlankText("action"),
     /** What observable state constitutes success. */
-    successConditions: z.string().min(1),
+    successConditions: nonBlankText("successConditions"),
     /** What evidence must be captured to attest the walk. */
-    evidenceExpectations: z.string().min(1),
+    evidenceExpectations: nonBlankText("evidenceExpectations"),
     /** Optional refs to reusable Library principles/processes. */
     refs: z.array(UatCriterionDetailRef).default([]),
   })
