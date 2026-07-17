@@ -84,6 +84,13 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
     sessionId: string,
   ): Promise<string | { data: string; cols: number; rows: number }> =>
     ipcRenderer.invoke("terminal:snapshot", sessionId),
+  // Flow-control acknowledgement (increment B): the renderer reports chars it has actually
+  // PARSED (xterm's write callback) so the main can pause the pty past its high watermark and
+  // resume it as the renderer catches up. Fire-and-forget — the manager validates the count
+  // fail-closed on the other side.
+  ack: (sessionId: string, charCount: number): void => {
+    ipcRenderer.send("terminal:ack", sessionId, charCount);
+  },
   ...(windowsBuildNumber === undefined ? {} : { windowsBuildNumber }),
 });
 

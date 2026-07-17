@@ -45,6 +45,13 @@ const MIN_HEIGHT = 160;
 const DEFAULT_HEIGHT = 320;
 const VIEWPORT_MARGIN = 100;
 
+/** Flow-control ack grain (chars) — consumed chars accumulate per tab and are acked to the main in
+ *  batches of at least this size (VS Code's FlowControlConstants ack grain), never per-chunk. Keep
+ *  it no larger than the main's watermark constants (pause 100,000 / resume 5,000 —
+ *  apps/desktop/src/backend/pty-session-manager.ts; duplicated literal, the thin-client boundary
+ *  forbids importing desktop code) or a paused pty starves waiting for a grain that never fills. */
+const ACK_GRAIN_CHARS = 5_000;
+
 /** The bridge the desktop preload exposes on `window` (absent in the hosted/dev studio — a browser). Its
  *  shape mirrors `desktopAuth` / `desktopApply`: `spawn` starts a pty session (the Electron main drives
  *  `pty-session-manager.create`), `write`/`resize`/`dispose` forward to the manager, `onData`/`onExit`
@@ -70,6 +77,11 @@ export interface DesktopTerminalBridge {
    *  any other OS. A plain synchronous value (not a method): it must exist BEFORE the first
    *  Terminal is constructed, and an async main round-trip would race `initTab`. */
   windowsBuildNumber?: number;
+  /** OPTIONAL (feature-guarded like `list?`/`snapshot?` — an older preload lacks it): flow-control
+   *  acknowledgement — reports chars this renderer has actually CONSUMED (xterm parse-complete) so
+   *  the main can pause the pty past its high watermark and resume it as the renderer catches up.
+   *  Without it the main never pauses (an un-acking renderer must not wedge the pty). */
+  ack?(sessionId: string, charCount: number): void;
 }
 
 declare global {
@@ -133,6 +145,8 @@ interface TabRecord {
   /** Live bridge chunks that arrived for this session while `awaitingSnapshot` was true — flushed, in
    *  order, right after the snapshot replay lands. */
   heldChunks: string[];
+  /** Flow control: consumed-but-not-yet-acked chars (the ACK_GRAIN_CHARS accumulator). */
+  ackPending: number;
 }
 
 export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): React.JSX.Element {
@@ -188,6 +202,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       pendingSeed,
       awaitingSnapshot: false,
       heldChunks: [],
+      ackPending: 0,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
@@ -208,11 +223,38 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       pendingSeed: null,
       awaitingSnapshot: true,
       heldChunks: [],
+      ackPending: 0,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
     return id;
   }, []);
+
+  /** Write LIVE pty data into a tab's xterm, acknowledging consumption back to the main (flow
+   *  control, feature-guarded on `bridge.ack` — an older preload lacks it and gets plain writes).
+   *  The ack signal is xterm's `write(data, callback)`, which fires on PARSE-COMPLETE — not on IPC
+   *  receipt: data sitting unparsed in xterm's write buffer is exactly the backlog the main's
+   *  watermarks exist to bound. Acks accumulate per tab and flush in ACK_GRAIN_CHARS batches.
+   *  Renderer-generated text (the snapshot replay, '[process exited]') is written plain — it was
+   *  never counted unacked by the main. */
+  const writePtyData = useCallback(
+    (rec: TabRecord, chunk: string): void => {
+      const term = rec.term;
+      if (!term) return;
+      if (!bridge?.ack) {
+        term.write(chunk);
+        return;
+      }
+      term.write(chunk, () => {
+        rec.ackPending += chunk.length;
+        if (rec.ackPending >= ACK_GRAIN_CHARS && rec.sessionId) {
+          bridge.ack?.(rec.sessionId, rec.ackPending);
+          rec.ackPending = 0;
+        }
+      });
+    },
+    [bridge],
+  );
 
   /** Mount xterm into a tab's committed body div and spawn its (independent) bridge session — guarded
    *  so a tab already carrying a `term` is never re-initialised (mirrors the old termRef guard, per
@@ -333,7 +375,10 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
             const data = typeof result === 'string' ? result : result.data;
             if (typeof result !== 'string') term.resize(result.cols, result.rows);
             term.write(data);
-            for (const chunk of rec.heldChunks) term.write(chunk);
+            // Held chunks are LIVE pty data (counted unacked by the main) — write them through
+            // the acking path; the snapshot replay above is not (the main reset its count when
+            // it answered snapshot()).
+            for (const chunk of rec.heldChunks) writePtyData(rec, chunk);
             rec.heldChunks = [];
             rec.awaitingSnapshot = false;
             // Then fit to the real container, forwarding the FITTED dims to the pty (the same
@@ -373,7 +418,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
         }
       });
     },
-    [bridge],
+    [bridge, writePtyData],
   );
 
   /** Dispose ONE tab's session (bridge + xterm/fit) and reap it from the strip; the sibling tabs are
@@ -446,7 +491,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
           if (rec.awaitingSnapshot) {
             rec.heldChunks.push(chunk);
           } else {
-            rec.term?.write(chunk);
+            writePtyData(rec, chunk);
           }
           break;
         }
@@ -460,7 +505,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
         }
       }
     });
-  }, [bridge]);
+  }, [bridge, writePtyData]);
 
   // Seed lifecycle (seed-opens-new-tab capability, ADR-0186 — SUPERSEDES the old terminal-dock-seed
   // write-to-the-active-session behaviour): on a NEW seed token, expand the dock and open A FRESH TAB

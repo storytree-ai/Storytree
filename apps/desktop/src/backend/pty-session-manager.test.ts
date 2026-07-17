@@ -34,6 +34,8 @@ class FakePtyHandle implements PtyHandle {
   readonly writes: string[] = [];
   readonly resizes: Array<{ cols: number; rows: number }> = [];
   killCount = 0;
+  pauseCount = 0;
+  resumeCount = 0;
   #dataCb: ((chunk: string) => void) | undefined;
   #exitCb: ((e: { exitCode: number }) => void) | undefined;
 
@@ -51,6 +53,14 @@ class FakePtyHandle implements PtyHandle {
 
   resize(cols: number, rows: number): void {
     this.resizes.push({ cols, rows });
+  }
+
+  pause(): void {
+    this.pauseCount += 1;
+  }
+
+  resume(): void {
+    this.resumeCount += 1;
   }
 
   kill(): void {
@@ -80,11 +90,17 @@ class FakePtyPort implements PtyPort {
 
 const BASE_OPTS: PtySpawnOptions = { cols: 80, rows: 24, shell: "bash", cwd: "/tmp/work" };
 
+/** Outwait the manager's data-batching flush window (default 5 ms — increment B), so an
+ *  assertion on the routed sink sees the coalesced flush, not the pre-flush quiet. */
+function flushWindow(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 25));
+}
+
 // ---------------------------------------------------------------------------
 // spawn + routing
 // ---------------------------------------------------------------------------
 
-test("psm-spawns-and-routes-data: create() spawns via the port with the given options and wires onData to the sink", () => {
+test("psm-spawns-and-routes-data: create() spawns via the port with the given options and wires onData to the sink", async () => {
   const port = new FakePtyPort();
   const manager = new PtySessionManager(port);
   const received: Array<{ sessionId: string; chunk: string }> = [];
@@ -103,6 +119,7 @@ test("psm-spawns-and-routes-data: create() spawns via the port with the given op
   const handle = port.spawned[0]?.handle;
   assert.ok(handle);
   handle.emitData("hello from the shell\n");
+  await flushWindow();
 
   assert.deepEqual(received, [{ sessionId, chunk: "hello from the shell\n" }]);
 });
@@ -176,7 +193,7 @@ test("psm-disposes-and-tears-down: the pty's own exit tears the session down and
   assert.equal(handle.killCount, 0);
 });
 
-test("psm-disposes-and-tears-down: a late onData after dispose is dropped, not routed to the freed sink", () => {
+test("psm-disposes-and-tears-down: a late onData after dispose is dropped, not routed to the freed sink", async () => {
   const port = new FakePtyPort();
   const manager = new PtySessionManager(port);
   const received: string[] = [];
@@ -187,6 +204,7 @@ test("psm-disposes-and-tears-down: a late onData after dispose is dropped, not r
   manager.dispose(sessionId);
   // A race: the underlying process still flushes a buffered chunk after kill().
   handle.emitData("buffered output after kill\n");
+  await flushWindow();
 
   assert.deepEqual(received, []);
 });
@@ -228,7 +246,7 @@ test("psm-fails-closed-on-unknown-session: write/resize on an already-disposed s
 // multi-session isolation
 // ---------------------------------------------------------------------------
 
-test("psm-isolates-multiple-sessions: concurrent sessions are isolated — routing and disposal never cross session boundaries", () => {
+test("psm-isolates-multiple-sessions: concurrent sessions are isolated — routing and disposal never cross session boundaries", async () => {
   const port = new FakePtyPort();
   const manager = new PtySessionManager(port);
   const receivedA: string[] = [];
@@ -258,6 +276,7 @@ test("psm-isolates-multiple-sessions: concurrent sessions are isolated — routi
 
   handleA.emitData("chunk for A\n");
   handleB.emitData("chunk for B\n");
+  await flushWindow();
   assert.deepEqual(receivedA, ["chunk for A\n"]);
   assert.deepEqual(receivedB, ["chunk for B\n"]);
 
@@ -381,4 +400,143 @@ test("psm-lists-live-sessions: list() reports live sessions in creation order wi
   assert.ok(handleB);
   handleB.emitExit({ exitCode: 0 });
   assert.deepEqual(manager.list(), [{ sessionId: sessionC, cwd: "/repo/two" }]);
+});
+
+// ---------------------------------------------------------------------------
+// batching (contract 9 — throughput, the embedded-terminal patterns survey
+// increment B): today one sink call fires per pty chunk, so a fast producer
+// (a `pnpm gate` in the dock) floods the IPC wire one message per chunk. The
+// VS Code TerminalDataBufferer pattern: coalesce a session's chunks inside a
+// short flush window (5 ms) and flush them as ONE JOINED string — the
+// (sessionId, chunk) wire shape is unchanged, there are just fewer, larger
+// sink calls, order preserved. Per-session: one session's flush never carries
+// a sibling's bytes.
+// ---------------------------------------------------------------------------
+
+test("psm-batches-chunks-into-one-flush: chunks arriving inside the flush window reach the sink as ONE joined string, order preserved; a later chunk starts a fresh batch", async () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port);
+  const received: Array<{ sessionId: string; chunk: string }> = [];
+  const sessionId = manager.create(
+    BASE_OPTS,
+    (sid, chunk) => received.push({ sessionId: sid, chunk }),
+    () => {},
+  );
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("a");
+  handle.emitData("b");
+  handle.emitData("c");
+
+  // Inside the flush window nothing has reached the sink yet — the chunks are coalescing.
+  assert.deepEqual(received, []);
+
+  await flushWindow();
+  assert.deepEqual(received, [{ sessionId, chunk: "abc" }]);
+
+  // A chunk after the flush starts a FRESH batch — never re-delivers the flushed bytes.
+  handle.emitData("d");
+  await flushWindow();
+  assert.deepEqual(received, [
+    { sessionId, chunk: "abc" },
+    { sessionId, chunk: "d" },
+  ]);
+});
+
+test("psm-flushes-pending-batch-before-exit: a pending batch is flushed to the sink BEFORE the exit routes — joined, in order, never dropped", () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port);
+  const events: Array<{ type: "data"; chunk: string } | { type: "exit"; exitCode: number }> = [];
+  manager.create(
+    BASE_OPTS,
+    (_sid, chunk) => events.push({ type: "data", chunk }),
+    (_sid, e) => events.push({ type: "exit", exitCode: e.exitCode }),
+  );
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("almost ");
+  handle.emitData("done");
+  handle.emitExit({ exitCode: 0 });
+
+  // The pending coalesced batch lands first (one joined sink call), then the exit — so the
+  // renderer's '[process exited]' line can never precede (or swallow) the session's last output.
+  assert.deepEqual(events, [
+    { type: "data", chunk: "almost done" },
+    { type: "exit", exitCode: 0 },
+  ]);
+});
+
+// ---------------------------------------------------------------------------
+// flow control (contract 10 — the same survey increment B): ack-based
+// watermarks, out-of-band (never node-pty's in-band experimental
+// handleFlowControl). Every routed chunk counts toward the session's
+// UNACKNOWLEDGED chars; past the high watermark the manager pauses the pty
+// handle (backpressure at the source — xterm's write buffer is otherwise
+// unbounded until its 50 MB OOM guard). ack() reports chars the renderer has
+// actually consumed (parse-complete); below the low watermark the pty
+// resumes. VS Code's constants: high 100,000 / low 5,000 — injected small
+// here to keep the test data readable.
+// ---------------------------------------------------------------------------
+
+test("psm-pauses-past-high-watermark-and-resumes-on-ack: unacked chars past the high watermark pause the pty once; acks resume it only below the low watermark; ack fails closed on unknown ids and non-positive counts", () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port, { highWatermarkChars: 10, lowWatermarkChars: 3 });
+  const sessionId = manager.create(BASE_OPTS, () => {}, () => {});
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("aaaa"); // 4 unacked — under the high watermark
+  assert.equal(handle.pauseCount, 0);
+
+  handle.emitData("bbbbbbbb"); // 12 unacked — past the high watermark
+  assert.equal(handle.pauseCount, 1);
+
+  handle.emitData("cc"); // 14 unacked — already paused, never re-paused
+  assert.equal(handle.pauseCount, 1);
+
+  // Acks decrement, but the pty resumes only once unacked drops BELOW the low watermark.
+  assert.equal(manager.ack(sessionId, 4), true); // 10 left — still ≥ low
+  assert.equal(handle.resumeCount, 0);
+  assert.equal(manager.ack(sessionId, 8), true); // 2 left — below low, resume
+  assert.equal(handle.resumeCount, 1);
+
+  // Resumed accounting continues from the real remainder — 2 + 2 = 4 stays under the high
+  // watermark, so no fresh pause.
+  handle.emitData("dd");
+  assert.equal(handle.pauseCount, 1);
+
+  // Fail-closed: an unknown session id and non-positive/non-finite counts are typed no-ops.
+  assert.doesNotThrow(() => {
+    assert.equal(manager.ack("no-such-session", 5), false);
+    assert.equal(manager.ack(sessionId, 0), false);
+    assert.equal(manager.ack(sessionId, -5), false);
+    assert.equal(manager.ack(sessionId, Number.NaN), false);
+  });
+});
+
+test("psm-snapshot-resets-unacknowledged-chars: snapshot() — the re-attach entry point — clears the unacked count and resumes a paused pty, so a dropped renderer can never wedge the session", async () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port, { highWatermarkChars: 10, lowWatermarkChars: 3 });
+  const sessionId = manager.create(BASE_OPTS, () => {}, () => {});
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("aaaaaaaaaaaa"); // 12 unacked — paused, and the acking renderer then DROPS
+  assert.equal(handle.pauseCount, 1);
+  assert.equal(handle.resumeCount, 0);
+
+  // A fresh renderer re-attaches (bridge.snapshot): the unacked count resets and the pty resumes
+  // — VS Code's clearUnacknowledgedChars discipline.
+  const snap = await manager.snapshot(sessionId);
+  assert.ok(snap !== null);
+  assert.equal(handle.resumeCount, 1);
+
+  // The count genuinely reset: 8 fresh chars stay under the high watermark (no re-pause)...
+  handle.emitData("eeeeeeee");
+  assert.equal(handle.pauseCount, 1);
+  // ...and crossing it again from the reset baseline pauses anew.
+  handle.emitData("ffff"); // 12 unacked again
+  assert.equal(handle.pauseCount, 2);
 });

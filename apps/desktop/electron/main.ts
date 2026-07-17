@@ -596,6 +596,11 @@ const ptyPort: PtyPort = {
       },
       write: (data) => proc.write(data),
       resize: (cols, rows) => proc.resize(cols, rows),
+      // Flow control (increment B): the manager pauses/resumes the pty at its unacked-char
+      // watermarks — node-pty's own out-of-band pause()/resume(), never the in-band
+      // experimental handleFlowControl.
+      pause: () => proc.pause(),
+      resume: () => proc.resume(),
       kill: () => proc.kill(),
     };
   },
@@ -651,6 +656,12 @@ ipcMain.on("terminal:write", (_e, id: string, data: string) => {
 });
 ipcMain.on("terminal:resize", (_e, id: string, cols: number, rows: number) => {
   terminalManager.resize(id, cols, rows);
+});
+// Flow-control ack (increment B): the renderer reports parsed chars; the manager validates the
+// untrusted count fail-closed (unknown id / non-positive → typed no-op) and resumes a paused pty
+// once the backlog drops below its low watermark.
+ipcMain.on("terminal:ack", (_e, id: string, charCount: number) => {
+  terminalManager.ack(id, charCount);
 });
 ipcMain.on("terminal:dispose", (_e, id: string) => {
   terminalManager.dispose(id);

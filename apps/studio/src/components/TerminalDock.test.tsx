@@ -83,8 +83,11 @@ const xtermMock = vi.hoisted(() => {
     focus(): void {
       this.focusCalls += 1;
     }
-    write(data: string): void {
+    write(data: string, cb?: () => void): void {
       this.written.push(data);
+      // Real xterm fires the write callback on PARSE-COMPLETE (the flow-control ack signal);
+      // the fake "parses" synchronously, so the callback fires right away.
+      cb?.();
     }
     onData(cb: (data: string) => void): void {
       this.dataHandler = cb;
@@ -240,6 +243,9 @@ const bridgeMock = vi.hoisted(() => {
     snapshot: vi.fn<
       (sessionId: string) => Promise<string | { data: string; cols: number; rows: number }>
     >(async (sessionId) => `snapshot for ${sessionId}\n`),
+    // Increment B flow control — OPTIONAL like `list`/`snapshot` (an older preload lacks it): the
+    // renderer reports consumed chars so the main can pause/resume the pty at its watermarks.
+    ack: vi.fn<(sessionId: string, charCount: number) => void>(),
     resetSessionCounter: (): void => {
       sessionCounter = 0;
     },
@@ -338,6 +344,7 @@ beforeEach(() => {
   bridgeMock.onExit.mockClear();
   bridgeMock.list.mockClear();
   bridgeMock.snapshot.mockClear();
+  bridgeMock.ack.mockClear();
   (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
   (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
     FakeResizeObserver as unknown as typeof ResizeObserver;
@@ -1160,5 +1167,56 @@ describe('TerminalDock', () => {
 
     const plainTerm = xtermMock.FakeTerminal.instances[1]!;
     expect('windowsPty' in plainTerm.options).toBe(false);
+  });
+
+  // ── flow-control contracts (embedded-terminal patterns survey, increment B) ──────────────────
+  //    The main pauses the pty past 100,000 UNACKNOWLEDGED chars and resumes below 5,000 — but only
+  //    if the renderer reports consumption. The correct signal is xterm's `write(data, callback)`,
+  //    which fires on PARSE-COMPLETE (not on IPC receipt — data sitting unparsed in xterm's write
+  //    buffer is exactly the backlog flow control exists to bound). Acks are batched in 5,000-char
+  //    grains (VS Code's FlowControlConstants ack grain), never sent per-chunk. Today `onData`
+  //    routing calls `term.write(chunk)` with no callback and no ack is ever sent — red. ──────────
+  it('tdp-acks-consumed-chars-in-grains: consumed chars are acked back over the bridge in ≥5000-char grains from the write parse-complete callback, never per-chunk', async () => {
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    const onData = bridgeMock.onData.mock.calls[0]![0];
+
+    // Below the grain: consumed (the fake fires parse-complete synchronously) but NOT yet acked —
+    // acks are batched, never per-chunk.
+    onData(SESSION_ID, 'x'.repeat(3000));
+    expect(bridgeMock.ack).not.toHaveBeenCalled();
+
+    // Crossing the grain acks the FULL accumulated count, once.
+    onData(SESSION_ID, 'y'.repeat(2500));
+    expect(bridgeMock.ack).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.ack).toHaveBeenCalledWith(SESSION_ID, 5500);
+
+    // The accumulator reset: a following small chunk starts a fresh grain, no premature ack.
+    onData(SESSION_ID, 'z'.repeat(1000));
+    expect(bridgeMock.ack).toHaveBeenCalledTimes(1);
+
+    // The data itself still rendered, in order — flow control never reorders or drops.
+    expect(term.written).toEqual(['x'.repeat(3000), 'y'.repeat(2500), 'z'.repeat(1000)]);
+  });
+
+  //    The ack channel is OPTIONAL on the bridge (feature-guarded like `list?`/`snapshot?` — an
+  //    older preload lacks it): without it the dock renders data exactly as before, never throws,
+  //    never tries to ack. ─────────────────────────────────────────────────────────────────────
+  it('tdp-ack-absent-bridge-member-is-inert: a bridge without ack (older preload) renders data normally — no throw, no ack attempt', async () => {
+    const bridgeWithoutAck = { ...bridgeMock } as Record<string, unknown>;
+    delete bridgeWithoutAck['ack'];
+    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutAck;
+
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    const onData = bridgeMock.onData.mock.calls[0]![0];
+
+    expect(() => onData(SESSION_ID, 'q'.repeat(6000))).not.toThrow();
+    expect(term.written).toEqual(['q'.repeat(6000)]);
+    expect(bridgeMock.ack).not.toHaveBeenCalled();
   });
 });
