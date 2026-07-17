@@ -140,6 +140,50 @@ test("upsert (fresh): BEGIN / SELECT / user_event INSERT / user upsert / COMMIT 
   assert.equal(result.status, "invited", "status preserved");
 });
 
+test("no-lockout mutex: upsert takes the shared advisory lock after BEGIN, before the projection read", async () => {
+  // ADR-0043 TOCTOU fix: every mutation serialises on ONE xact-scoped advisory lock so two
+  // concurrent admin downgrades/removals can't each pass the last-admin guard and both commit.
+  const client = new FakeClient(); // no existing row → plain fresh insert
+  const store = new PgUserStore(new FakePool(client) as never);
+
+  await store.upsert(userDoc({ email: "x@example.com" }), "owner@example.com");
+
+  assertSubsequence(
+    client.calls,
+    ["BEGIN", "pg_advisory_xact_lock", 'FROM events."user"'],
+    "upsert: advisory lock taken after BEGIN and before the projection SELECT",
+  );
+  assert.equal(
+    countMatching(client.calls, "pg_advisory_xact_lock"),
+    1,
+    "exactly one lock acquisition per upsert",
+  );
+});
+
+test("no-lockout mutex: remove takes the shared advisory lock after BEGIN, before the projection read", async () => {
+  const member = userDoc({ email: "m@example.com", role: "member" });
+  const admin = userDoc({ email: "admin@example.com", role: "admin" });
+  const client = new FakeClient();
+  client.projectionRows = [
+    { id: member.email, doc: member },
+    { id: admin.email, doc: admin },
+  ];
+  const store = new PgUserStore(new FakePool(client) as never);
+
+  await store.remove("m@example.com", "owner@example.com");
+
+  assertSubsequence(
+    client.calls,
+    ["BEGIN", "pg_advisory_xact_lock", 'FROM events."user"'],
+    "remove: advisory lock taken after BEGIN and before the projection SELECT",
+  );
+  assert.equal(
+    countMatching(client.calls, "pg_advisory_xact_lock"),
+    1,
+    "exactly one lock acquisition per remove",
+  );
+});
+
 test("role-status-validated: a blank email / unknown role is refused at the write boundary", async () => {
   const store = new PgUserStore(new FakePool(new FakeClient()) as never);
   await assert.rejects(() => store.upsert(userDoc({ email: "  " }), "a"), "blank email refused");
