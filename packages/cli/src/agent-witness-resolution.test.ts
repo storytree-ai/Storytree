@@ -28,16 +28,16 @@ function agentSpec() {
 
 test("ADR-0106 instance: the agent story's six UAT legs are authored 5 machine + 1 human (no `either`)", () => {
   const spec = agentSpec();
-  assert.equal(spec.uatTests.length, 6, `expected 6 UAT legs, got ${spec.uatTests.length}`);
+  assert.equal(spec.uatTestCriteria.length, 6, `expected 6 UAT legs, got ${spec.uatTestCriteria.length}`);
   assert.deepEqual(
-    spec.uatTests.map((l) => l.witness),
+    spec.uatTestCriteria.map((l) => l.witness),
     ["machine", "machine", "machine", "machine", "human", "machine"],
   );
 });
 
 test("ADR-0106 instance: each machine leg resolves to observe via agent#gate-1; leg 5 stays human", () => {
   const spec = agentSpec();
-  for (const leg of spec.uatTests) {
+  for (const leg of spec.uatTestCriteria) {
     const resolution = resolveWitness(leg, spec.reliabilityGates);
     if (leg.id === "agent#uat-5") {
       assert.deepEqual(resolution, { witness: "human" });
@@ -57,7 +57,7 @@ test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + the 5 machine l
   const story: AdoptStory = {
     status: spec.status,
     reliabilityGates: spec.reliabilityGates,
-    uatTests: spec.uatTests,
+    uatTestCriteria: spec.uatTestCriteria,
   };
   const appended: { doc: { unitId: string } }[] = [];
   const deps: AdoptDeps = {

@@ -333,7 +333,7 @@ shared package both surfaces import.
   / inject a scripted `isBuildable`. CONSUMED — this story owns no schema and no discovery (orchestrator
   discovery is reached transitively via drive-machinery / desktop's existing edges).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `desktop-build-mount` — the desktop becomes
 a build-capable surface — meets its outcome end-to-end, OFFLINE. It is minimal-first
@@ -418,7 +418,7 @@ resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declar
 Fork B). This is the `mapped → healthy` = **Adopt** transition
 [ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) names
 (d.3 retired the status-blind Build for `mapped` stories), greening each covered capability via the
-`(covers:)` coverage ADR-0097 §5/§2 defines. Distinct from `## Story UAT` above (the integrated, offline
+`(covers:)` coverage ADR-0097 §5/§2 defines. Distinct from `## UAT Test Criteria` above (the integrated, offline
 acceptance journey): the gates are the author's **expandable reliability floor** — they start by adopting
 the existing green suites and GROW a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the
 moment observation proves insufficient — a real relocation / route / accept-dispatch defect slips through
@@ -473,7 +473,7 @@ every capability is `healthy` (`worker-relocation` and `desktop-build-route` via
 `routed-node-real-dispatch` via its own `--real` verdict) AND every own-proof obligation (the two
 machine-witnessed Story UAT legs above)
 is signed
-([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here
 (`uat-1` and `uat-2` are both `witness: machine`; the former leg 3 is retired and non-numbered), so it
 greens fully by machine observation once the gates + legs are signed.

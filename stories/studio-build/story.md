@@ -165,7 +165,7 @@ worker + the trigger UI, never the build engine, the spine, the wisp pipeline, o
   through the EXISTING `/api/tree` `latestVerdicts` path. The build also drives a real node spec
   loaded from `stories/` (`loadNodeSpec`).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `studio-build` organism — the Phase
 1 local loop — meets its outcome end-to-end against the **real running studio** and the **real build

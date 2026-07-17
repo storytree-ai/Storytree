@@ -26,7 +26,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { Verdict } from "@storytree/proof-protocol";
-import type { UatTestWitness } from "@storytree/library";
+import type { UatTestCriterionWitness } from "@storytree/library";
 
 import { attestLocalUat } from "./local-uat-attest.js";
 import type { AttestLocalUatInput, LocalUatDeclaredTest } from "./local-uat-attest.js";
@@ -37,7 +37,7 @@ import type { ForestWrite, ForestWriteResult } from "./forest-readiness.js";
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function declaredTest(id: string, witness: UatTestWitness): LocalUatDeclaredTest {
+function declaredTest(id: string, witness: UatTestCriterionWitness): LocalUatDeclaredTest {
   return { id, witness };
 }
 

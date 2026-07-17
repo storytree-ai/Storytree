@@ -62,7 +62,7 @@ function story(decisions: number[]): NodeSpec {
     decisions,
     buildConfig: undefined,
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: [],
     contracts: [],
     file: "s/story.md",

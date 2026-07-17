@@ -639,14 +639,14 @@ export interface AttestationMark {
 }
 
 /**
- * One UAT test of a story (parsed from its `## Story UAT` prose) joined with its latest
+ * One UAT test of a story (parsed from its `## UAT Test Criteria` prose) joined with its latest
  * human/machine attestation. `witness` is the RESOLVED binary witness (ADR-0106): the server resolves
  * the declared permission (`human`|`machine`|`either`) through the SAME classifier the adopt pass uses
  * before it leaves the wire, so the owner surface is binary — `human` shows a confirm affordance, a
  * `machine` leg shows none, and the undecided `either` is NEVER rendered (ADR-0106 d.5). `human`/
  * `machine` are the actual recorded vouch marks (absent = un-attested → blank).
  */
-export interface UatTestRow {
+export interface UatTestCriterionRow {
   id: string;
   title: string;
   /** The RESOLVED binary witness (ADR-0106) — `either` is resolved server-side and never reaches here. */
@@ -664,10 +664,10 @@ export interface UatTestRow {
   proven?: 'pass' | 'fail';
 }
 
-/** GET /api/attestations?storyId=… — a story's UAT tests with their per-test marks + proven state. */
+/** GET /api/attestations?storyId=… — a story's UAT test criteria with their per-test marks + proven state. */
 export interface AttestationsPayload {
   storyId: string;
-  tests: UatTestRow[];
+  tests: UatTestCriterionRow[];
   /**
    * The story's own UAT roll-up (ADR-0082 d.3): the AND over its per-test SIGNED verdicts —
    * `healthy` iff every declared test has a signed pass, `unhealthy` if any regressed to a signed

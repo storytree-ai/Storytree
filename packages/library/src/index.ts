@@ -13,7 +13,7 @@
  */
 export * from "./schema.js";
 export { parseUnit } from "./loader.js";
-export * from "./uat-tests.js";
+export * from "./uat-test-criteria.js";
 // ADR-0085 (ADR-0083 Fork B): the brownfield `## Reliability Gates` obligation set — the
 // author-declared gates that flip a brownfield/foundational story green, distinct from UAT.
 export * from "./reliability-gates.js";

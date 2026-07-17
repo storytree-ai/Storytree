@@ -59,13 +59,16 @@ test("GREEN against the REAL library story.md (the checker is grounded against t
   );
 });
 
-test("RED on a missing `## Story UAT` section (the integrated acceptance journey)", () => {
+test("RED on a missing `## UAT Test Criteria` section (the integrated acceptance journey)", () => {
   const noUat = COMPLETE_MACHINE_STORY.replace(
     "## Story UAT\n\n1. **First leg:** _(witness: machine)_ run the thing. **Success —** it works.\n2. **Second leg:** _(witness: machine)_ run the other thing. **Success —** it also works.\n\n",
     "",
   );
   const fails = storyUatCompleteness(FILE, noUat);
-  assert.ok(fails.some((f) => /Story UAT/.test(f)), `expected a Story UAT failure, got: ${fails.join(" | ")}`);
+  assert.ok(
+    fails.some((f) => /UAT Test Criteria/.test(f)),
+    `expected a UAT Test Criteria failure, got: ${fails.join(" | ")}`,
+  );
 });
 
 test("RED on a UAT leg that does not declare its witness (silent `either` default)", () => {

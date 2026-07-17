@@ -1,10 +1,10 @@
 import type { ReliabilityGate } from "./reliability-gates.js";
-import type { UatTest, UatTestWitness } from "./uat-tests.js";
+import type { UatTestCriterion, UatTestCriterionWitness } from "./uat-test-criteria.js";
 
 /**
  * ADR-0106 (amends ADR-0044 / ADR-0082 / ADR-0097): the per-test UAT witness RESOLUTION.
  *
- * A UAT leg's declared `witness` (`uat-tests.ts`, ADR-0044) is a PERMISSION enum that defaults to
+ * A UAT leg's declared `witness` (`uat-test-criteria.ts`, ADR-0044) is a PERMISSION enum that defaults to
  * `either`. ADR-0106 demotes `either` to a transient **pre-adopt, undecided** state: the adopt
  * story-writer pass RESOLVES each leg to a concrete BINARY witness — `human` or `machine` — and an
  * adopted story has no `either` leg at rest. This module is the PURE core of that resolution: a
@@ -23,7 +23,7 @@ import type { UatTest, UatTestWitness } from "./uat-tests.js";
  *
  * **A `machine` label is a PROMISE of a real test (ADR-0106 d.2/d.3), never a bare flag — and the
  * binding is EXACT (`uat-machine-gate-resolution`).** Once a leg is declared `machine`, the classifier
- * looks up exactly `leg.proofGateId` (parsed verbatim by `uat-tests.ts`'s `(proof-gate: story-id#gate-n)`
+ * looks up exactly `leg.proofGateId` (parsed verbatim by `uat-test-criteria.ts`'s `(proof-gate: story-id#gate-n)`
  * annotation, never inferred from ordering, title, package, or `(covers:)`) and resolves it ONLY when
  * that full id names a declared `observe` reliability gate carrying a proof command:
  *  - `observe`  — the named gate is a command-bearing `observe` gate → adopt observe-and-signs the leg
@@ -75,7 +75,7 @@ export type WitnessResolution =
 // ---------------------------------------------------------------------------
 
 /** The fields of a UAT leg the classifier reads — its declared witness permission and exact proof-gate binding. */
-export type ClassifierLeg = Pick<UatTest, "witness" | "proofGateId">;
+export type ClassifierLeg = Pick<UatTestCriterion, "witness" | "proofGateId">;
 /** The fields of a reliability gate the classifier reads — its id, kind, and declared proof command. */
 export type ClassifierGate = Pick<ReliabilityGate, "id" | "kind" | "proofCommand">;
 
@@ -162,7 +162,7 @@ export function resolvedWitnessOf(
 // ---------------------------------------------------------------------------
 
 /** A leg's declared witness is still UNDECIDED (`either`) — not yet resolved by the adopt pass. */
-export function isUnresolvedWitness(witness: UatTestWitness): boolean {
+export function isUnresolvedWitness(witness: UatTestCriterionWitness): boolean {
   return witness === "either";
 }
 

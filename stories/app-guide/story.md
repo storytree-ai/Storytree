@@ -189,7 +189,7 @@ is NOT a package import and adds NO new `depends_on` edge (the `chat-panel` capa
 reasoning stands; threading an `AbortSignal` into `api.chatStream` and onto `fetch` stays inside
 `apps/studio/src`).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the present chat-substrate slice meets its outcome
 end-to-end. Minimal-first (one coherent journey: converse over multiple turns → the scrollback persists →
@@ -258,7 +258,7 @@ observe-and-signed to an `adopted` verdict
 the `mapped → healthy` **Adopt** transition
 ([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
 [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)).
-Distinct from `## Story UAT` above (the integrated continuous-conversation journey): this gate is the
+Distinct from `## UAT Test Criteria` above (the integrated continuous-conversation journey): this gate is the
 machine-observable reliability floor — the two-stage frontend-builder split
 ([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
 the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL stays the

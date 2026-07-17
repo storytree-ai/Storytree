@@ -126,7 +126,7 @@ function gateAsProofSpec(adrFile: string, testFile: string): NodeSpec {
       },
     },
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: [],
     contracts: [],
     file: "stories/drive-machinery/gate-as-proof-fixture.md",

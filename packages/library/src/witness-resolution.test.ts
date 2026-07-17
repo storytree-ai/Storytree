@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { ReliabilityGate } from "./reliability-gates.js";
-import type { UatTest, UatTestWitness } from "./uat-tests.js";
+import type { UatTestCriterion, UatTestCriterionWitness } from "./uat-test-criteria.js";
 import {
   isUnresolvedWitness,
   RESOLVED_WITNESSES,
@@ -15,7 +15,7 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function leg(witness: UatTestWitness, n = 1, proofGateId?: string): UatTest {
+function leg(witness: UatTestCriterionWitness, n = 1, proofGateId?: string): UatTestCriterion {
   return {
     id: `story#uat-${n}`,
     title: `leg ${n}`,

@@ -791,8 +791,8 @@ export async function storyBuild(
       // ADR-0097: a would-be (aspirational) UAT leg is not a hard obligation; the reliability gates are
       // both own-proof obligations AND per-cap coverage. The crown is over the witnessable obligations.
       ...((): string[] => {
-        const hardUat = story.uatTests.filter((t) => !t.wouldBe);
-        const wouldBeCount = story.uatTests.length - hardUat.length;
+        const hardUat = story.uatTestCriteria.filter((t) => !t.wouldBe);
+        const wouldBeCount = story.uatTestCriteria.length - hardUat.length;
         const obligations = [...hardUat, ...story.reliabilityGates];
         if (obligations.length === 0) return [];
         const uatLine =

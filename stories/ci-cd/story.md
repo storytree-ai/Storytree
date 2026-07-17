@@ -129,7 +129,7 @@ process-axis fact, with these two real *outbound* dependencies. Note that **fres
 outcome, not studio-cloud's**; counting it in both is exactly what produced the false "symbiotic
 cycle" ADR-0058 §1 dissolves.
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 The integrated acceptance walkthrough that proves the whole `ci-cd` organism end-to-end: one
 contributor takes one green, **studio-touching** unit from a non-draft PR all the way to a fresh live

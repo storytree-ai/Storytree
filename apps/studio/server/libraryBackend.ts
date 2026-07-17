@@ -111,7 +111,7 @@ export interface LibraryBackend {
 
   /**
    * The RAW signed-verdict event stream (`events.verdict` as `{ kind, seq, doc }`), for the per-test
-   * UAT crown roll-up (ADR-0082): a story that declares per-test UAT tests greens when EVERY per-test
+   * UAT crown roll-up (ADR-0082): a story that declares per-test UAT test criteria greens when EVERY per-test
    * verdict passes (`rollupStoryUat`), so the tree handler needs the events, not just the latest-per-
    * unit map. OPTIONAL + same advisory contract as {@link latestVerdicts}: `null` for the json
    * backend / a down DB; absent on a partial mock — the handler then skips the crown roll-up.

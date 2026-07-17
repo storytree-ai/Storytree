@@ -276,7 +276,7 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
   sidecar glue, operator-attested like the rest of that file (a `node:test` over it would spawn
   subscription-billed sessions on a gate pass, the live spend ADR-0010 §5 forbids).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole spawn authority — converse → claim →
 spawn → observe → the human lands — meets its outcome end-to-end. Minimal-first (one coherent journey),

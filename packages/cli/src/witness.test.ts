@@ -41,8 +41,8 @@ test("top help lists the witness workflow", async () => {
 test("witness list <story> routes to the per-test UAT read path (was `uat list`)", async () => {
   const env = await run(["witness", "list", "library"], { store: await seeded() });
   assert.equal(env.ok, true);
-  // either the story's UAT tests render, or it honestly says there are none — both are the uat-list path
-  assert.match(env.body, /UAT tests for "library"|declares no UAT tests/);
+  // either the story's UAT test criteria render, or it honestly says there are none — both are the uat-list path
+  assert.match(env.body, /UAT test criteria for "library"|declares no UAT test criteria/);
 });
 
 test("witness vouch <test> routes to the attestation-vouch record path (was `attest`) — refuses offline", async () => {

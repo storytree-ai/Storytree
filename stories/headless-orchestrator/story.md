@@ -251,7 +251,7 @@ composition ROOT that drives this runtime and injects the read dispatch through 
   presence reads strictly need the live store, so the OFFLINE proof exercises the tree + library
   surfaces and the live leg exercises the board).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `headless-orchestrator` runtime — the
 Phase-1 read/propose loop — meets its outcome end-to-end. It is minimal-first (one coherent journey:

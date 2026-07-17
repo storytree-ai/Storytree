@@ -203,7 +203,7 @@ a `PhaseAuthor` only AUTHORS inside the two authoring phases (`AUTHOR_TEST` / `I
 observes red/green and never reports a verdict — the spine keeps every honesty property OUTSIDE the
 leaf (ADR-0020).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** proving the organism's outcome end to end: a spine drives
 the SAME two authoring slices through TWO different runtimes behind one seam and gets an authored
@@ -272,7 +272,7 @@ resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declar
 Fork B). This is the `mapped → healthy` = **Adopt** transition
 [ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
 names (its decision d.3 retired the status-blind Build for `mapped` stories). Distinct from
-`## Story UAT` above (the integrated, part-scripted/part-attested acceptance journey across two
+`## UAT Test Criteria` above (the integrated, part-scripted/part-attested acceptance journey across two
 runtimes): the gates are the author's **expandable reliability floor**, starting by adopting the
 existing green suite and GROWING a `_(gate: build-tests)_` gate (a genuine red→green regression leg)
 the moment observation proves insufficient — a real defect slips through, or the live SDK leg
@@ -299,7 +299,7 @@ attested — per-leg now (ADR-0106): the five `machine` legs (1–4, 6) explicit
 (`witness: human`) awaits the operator's "I saw it work" (ADR-0082).
 The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up
-([ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof

@@ -26,7 +26,7 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ReliabilityGate, ResolvedWitnessKind, UatTest } from '@storytree/library';
+import type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@storytree/library';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 // Type-only (fully erased under verbatimModuleSyntax — no runtime import, so it never hits the
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
@@ -688,7 +688,7 @@ export async function handleUsers(
 
 // ---------- per-UAT-test attestations (ADR-0044 attestation-surface) ----------
 //
-// GET /api/attestations?storyId=<id> — the story's UAT tests (parsed from its `## Story UAT`
+// GET /api/attestations?storyId=<id> — the story's UAT test criteria (parsed from its `## UAT Test Criteria`
 // prose via the orchestrator's loadNodeSpec, the SAME source as the CLI tree column) joined with
 // their latest human/machine marks. Member-readable. POST /api/attestations — an admin records a
 // DIRECT human attestation (signer stamped from the verified caller, no agent relay — the higher-
@@ -703,34 +703,34 @@ export async function handleUsers(
 async function uatContextForStory(
   storiesDir: string,
   storyId: string,
-): Promise<{ tests: UatTest[]; gates: ReliabilityGate[]; status: string } | null> {
+): Promise<{ tests: UatTestCriterion[]; gates: ReliabilityGate[]; status: string } | null> {
   const file = path.join(storiesDir, storyId, 'story.md');
   if (!existsSync(file)) return null;
   const { loadNodeSpec } = await loadOrchestrator();
   try {
     const spec = loadNodeSpec(file);
-    return { tests: spec.uatTests, gates: spec.reliabilityGates, status: spec.status };
+    return { tests: spec.uatTestCriteria, gates: spec.reliabilityGates, status: spec.status };
   } catch {
     return null;
   }
 }
 
 /** A story's UAT test units; `[]` for a missing/odd spec (handleUatAttest's narrower need). */
-async function uatTestsForStory(storiesDir: string, storyId: string): Promise<UatTest[]> {
+async function uatTestCriteriaForStory(storiesDir: string, storyId: string): Promise<UatTestCriterion[]> {
   return (await uatContextForStory(storiesDir, storyId))?.tests ?? [];
 }
 
 /** The classifier seam {@link resolveUatRowWitnesses} injects — the library's witness-resolution core. */
 export interface UatWitnessResolver {
   resolvedWitnessOf: (
-    leg: Pick<UatTest, 'witness'>,
+    leg: Pick<UatTestCriterion, 'witness'>,
     gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
   ) => ResolvedWitnessKind;
-  unresolvedUatLegs: <T extends Pick<UatTest, 'witness'>>(legs: readonly T[]) => T[];
+  unresolvedUatLegs: <T extends Pick<UatTestCriterion, 'witness'>>(legs: readonly T[]) => T[];
 }
 
 /** A UAT leg with its DECLARED witness replaced by the RESOLVED binary one (ADR-0106 d.5). */
-export type ResolvedUatLeg = Omit<UatTest, 'witness'> & { witness: ResolvedWitnessKind };
+export type ResolvedUatLeg = Omit<UatTestCriterion, 'witness'> & { witness: ResolvedWitnessKind };
 
 /**
  * PURE (ADR-0106 d.5/d.1): resolve each UAT leg's declared witness into the BINARY one the owner
@@ -742,7 +742,7 @@ export type ResolvedUatLeg = Omit<UatTest, 'witness'> & { witness: ResolvedWitne
  * legs (adopt is what prompts the decision), so the guard does not fire for it.
  */
 export function resolveUatRowWitnesses(
-  tests: readonly UatTest[],
+  tests: readonly UatTestCriterion[],
   gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
   status: string,
   resolver: UatWitnessResolver,
@@ -876,7 +876,7 @@ function storyUatRollup(rolled: string | null): 'healthy' | 'unhealthy' | null {
 
 /** The fields the verdict builder needs about the test + the observation being signed. */
 export interface UatVerdictInput {
-  test: { id: string; witness: UatTest['witness'] };
+  test: { id: string; witness: UatTestCriterion['witness'] };
   outcome: 'pass' | 'fail';
   /** The resolved (verified) operator identity — never client-supplied. */
   signer: string;
@@ -938,13 +938,13 @@ export async function handleUatAttest(
   // The test must be a real DECLARED unit — its witness drives the trust guard. A typo'd id never
   // signs a verdict against nothing (the CLI `uat attest` posture).
   const storyId = uatStoryOf(testId);
-  const tests = await uatTestsForStory(ctx.paths.storiesDir, storyId);
+  const tests = await uatTestCriteriaForStory(ctx.paths.storiesDir, storyId);
   const test = tests.find((t) => t.id === testId);
   if (!test) {
     throw new HttpError(
       400,
       tests.length === 0
-        ? `no UAT test "${testId}" — story "${storyId}" declares no UAT tests (or its spec did not load)`
+        ? `no UAT test "${testId}" — story "${storyId}" declares no UAT test criteria (or its spec did not load)`
         : `no UAT test "${testId}" in story "${storyId}"; declared: ${tests.map((t) => t.id).join(', ')}`,
     );
   }
@@ -1080,19 +1080,19 @@ export async function readTree(
   storiesDir: string,
 ): Promise<{
   payload: TreePayload;
-  uatTestsByStory: Map<string, { id: string }[]>;
+  uatTestCriteriaByStory: Map<string, { id: string }[]>;
   coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
 }> {
   const stories: TreeStory[] = [];
-  // The per-story OWN-PROOF obligations — the UNION of the WITNESSABLE per-test UAT tests (ADR-0082;
+  // The per-story OWN-PROOF obligations — the UNION of the WITNESSABLE per-test UAT test criteria (ADR-0082;
   // would-be legs filtered out per ADR-0097) AND the `## Reliability Gates` (ADR-0085, the brownfield
   // obligation set) — collected as the specs load so the /api/tree handler can roll each story's
   // per-obligation verdicts up into its crown without re-reading every spec. Keyed by `{ id }` only.
-  const uatTestsByStory = new Map<string, { id: string }[]>();
+  const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
   // ADR-0097: per-story capability COVERAGE — the reliability gates (with their `(covers:)` lists), so
   // a brownfield cap with no driven verdict greens via an adopted gate that declares it covered.
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
-  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestsByStory, coverageByStory };
+  if (!existsSync(storiesDir)) return { payload: { stories }, uatTestCriteriaByStory, coverageByStory };
   const {
     loadNodeSpec,
     effectiveUatWitness,
@@ -1180,14 +1180,14 @@ export async function readTree(
           uncovered: proposal.uncovered,
         };
       }
-      // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT tests (would-be legs
+      // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT test criteria (would-be legs
       // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
       // its reliability gates alone). Both are addressable `{ id }` obligation units.
       const ownObligations = [
-        ...spec.uatTests.filter((t) => !t.wouldBe),
+        ...spec.uatTestCriteria.filter((t) => !t.wouldBe),
         ...spec.reliabilityGates,
       ];
-      if (ownObligations.length > 0) uatTestsByStory.set(ent.name, ownObligations);
+      if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
       // The reliability gates double as per-cap coverage (ADR-0097): id + the caps each `(covers:)`.
       if (spec.reliabilityGates.length > 0) {
         coverageByStory.set(
@@ -1200,12 +1200,12 @@ export async function readTree(
     }
     stories.push(story);
   }
-  return { payload: { stories }, uatTestsByStory, coverageByStory };
+  return { payload: { stories }, uatTestCriteriaByStory, coverageByStory };
 }
 
 /**
  * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082) to the tree payload. A
- * story that declares per-test UAT tests has its crown set from `rollupStoryGreen` — the AND of TWO
+ * story that declares per-test UAT test criteria has its crown set from `rollupStoryGreen` — the AND of TWO
  * necessary clauses: (a) EVERY declared capability is proven `healthy`, and (b) the per-test UAT
  * AND-roll-up is green. Capabilities-green is now a NECESSARY condition (the capabilities-green dependency rule),
  * so the crown is NEVER its own unit-id verdict and NEVER a green while any capability is red/unproven:
@@ -1217,7 +1217,7 @@ export async function readTree(
  */
 export function applyUatCrowns(
   stories: TreeStory[],
-  uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   rollup: (
@@ -1228,7 +1228,7 @@ export function applyUatCrowns(
   ) => string | null,
 ): void {
   for (const story of stories) {
-    const tests = uatTestsByStory.get(story.id);
+    const tests = uatTestCriteriaByStory.get(story.id);
     if (!tests || tests.length === 0) continue;
     const capabilityIds = story.capabilities.map((c) => c.id);
     // ADR-0097: a brownfield cap with no driven verdict greens via an adopted gate that `(covers:)` it.
@@ -1915,7 +1915,7 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      const { payload, uatTestsByStory, coverageByStory } = await readTree(ctx.paths.storiesDir);
+      const { payload, uatTestCriteriaByStory, coverageByStory } = await readTree(ctx.paths.storiesDir);
       // Advisory enrichments (ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
       // Run in parallel so a down DB costs one 4s budget, not three. `builds`
@@ -1942,7 +1942,7 @@ export async function handleApiRequest(
           }
         }
       }
-      // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT tests greens from the
+      // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
       // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
       // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
       // or no story declares per-test tests.
@@ -1953,8 +1953,8 @@ export async function handleApiRequest(
         // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
         // per-test UAT existing (a cap greens via its gate's coverage alone).
         applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
-        if (uatTestsByStory.size > 0) {
-          applyUatCrowns(payload.stories, uatTestsByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+        if (uatTestCriteriaByStory.size > 0) {
+          applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
         }
         // ADR-0040 / ADR-0094 d.1: a story now PROVEN green (a signed pass crown, just settled above)
         // offers NO go-green action — drop a stale Adopt/Build the file-only assembly set from authored

@@ -67,7 +67,7 @@ THE CI-PROVABLE CORE IS `local-uat-attest.ts`: export one pure-to-effectful func
 `attestLocalUat`) that receives all context rather than reading global state:
 
 - the requested `testId`, `outcome` (`pass` or `fail`), optional note, and injected sign time;
-- the loaded story test context — the declared UAT tests, including each test's `id` and resolved
+- the loaded story test context — the declared UAT test criteria, including each test's `id` and resolved
   witness — so an unknown or malformed id cannot mint a unit;
 - a separately resolved local operator identity and, when present, the running agent/session identity;
 - git state `{ commitSha, clean }`, already resolved by the caller;
@@ -167,7 +167,7 @@ The capability pair deliberately excludes, while the desktop composition now sup
 - chaining a `POST /api/uat/attest` dispatcher in `apps/desktop/electron/backend-entry.ts`, resolving
   the declared test context + clean HEAD + local operator identity there, and supplying the real
   broker writer; and
-- the frontend permission bit that lets the shared `UatTestsSection` show its existing signing action
+- the frontend permission bit that lets the shared `UatTestCriteriaSection` show its existing signing action
   for this trusted local member without changing `LOCAL_ME` to admin.
 
 Those are composition bindings across already-proven seams, not part of this source/test pair.

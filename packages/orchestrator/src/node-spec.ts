@@ -7,10 +7,10 @@ import {
   Status,
   Tier,
   UatWitness,
-  parseUatTests,
+  parseUatTestCriteria,
   parseReliabilityGates,
   parseContracts,
-  type UatTest,
+  type UatTestCriterion,
   type ReliabilityGate,
   type ContractDecl,
 } from "@storytree/library";
@@ -127,10 +127,10 @@ export interface NodeSpec {
   guidance: string | undefined;
   /**
    * The story's UAT prose parsed into addressable test units (ADR-0044 `uat-test-units`): one per
-   * `## Story UAT` numbered item, with a stable `<id>#uat-<n>` id and a witness kind. `[]` for a
+   * `## UAT Test Criteria` numbered item, with a stable `<id>#uat-<n>` id and a witness kind. `[]` for a
    * capability/contract spec (no Story UAT section) — the attestation surface keys off these ids.
    */
-  uatTests: UatTest[];
+  uatTestCriteria: UatTestCriterion[];
   /**
    * The story's `## Reliability Gates` prose parsed into addressable gate units (ADR-0085,
    * resolving ADR-0083 Fork B): one per numbered item, with a stable `<id>#gate-<n>` id, a
@@ -195,7 +195,7 @@ export function loadNodeSpec(file: string): NodeSpec {
     buildConfig,
     guidance,
     // Parsed off the same body — the join key the attestation surface (ADR-0044) writes against.
-    uatTests: parseUatTests(fm.id, body),
+    uatTestCriteria: parseUatTestCriteria(fm.id, body),
     // ADR-0085: the brownfield `## Reliability Gates` obligations, parsed off the same body.
     reliabilityGates: parseReliabilityGates(fm.id, body),
     // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed off the

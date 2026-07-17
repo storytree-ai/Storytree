@@ -235,8 +235,8 @@ coupling) and marked.
     command's display into `realPrompts`. The 7 default nodes are unchanged (the A parity guard stays
     green). No `test-command-registry.ts` change; no new ADR (ships under ADR-0057 §3 + ADR-0020).
 - `uat-machine-proof-binding` *(authored `proposed`, REAL-proven — completed proof commit `c49e179`)*
-  - `uat-tests.ts` parses the explicit `proof-gate` annotation into the strict per-leg model;
-    `uat-tests.test.ts` is its complete literal edit-existing REAL proof pair. It has no within-story
+  - `uat-test-criteria.ts` parses the explicit `proof-gate` annotation into the strict per-leg model;
+    `uat-test-criteria.test.ts` is its complete literal edit-existing REAL proof pair. It has no within-story
     prerequisite and claims no resolver or adopt behaviour.
 - `uat-machine-gate-resolution` → `uat-machine-proof-binding` *(authored `proposed`, REAL-proven —
   proof commit `28be1de`)*
@@ -285,7 +285,7 @@ File-per-unit here is the **registered-buildable grain** (the drive loads one sp
 buildable node); the authored capability files above follow the seed's contracts-inline convention
 (`stories/README.md`). Both conventions are real; ADR-0031 §3 records the distinction.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** proving the organism's outcome end to end: one operator
 drives a registered node from spec to a landed, signed, persisted proof.
@@ -419,7 +419,7 @@ while their separate signed REAL verdicts derive proof health (ADR-0020). They a
 folded into the three brownfield capability-covering observe gates: each was driven red→green through
 its own literal REAL pair.
 
-Distinct from `## Story UAT` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
+Distinct from `## UAT Test Criteria` above (the part-scripted/part-attested drive-a-node-to-a-landed-proof
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
 leg the moment observation proves insufficient (a real spine/gate defect slips through). **Honesty
 boundary — observe greens OFFLINE behaviour only:** several covered caps carry a `proposed` LIVE pocket
@@ -513,7 +513,7 @@ AND every Story UAT leg above is green. That Story UAT is now FULLY machine-witn
 leg derives green from its bound gate's signed verdict through the same adopt/observe path as these
 reliability gates, NOT from a human "I saw it work" attestation (the story node stays withheld until
 then, ADR-0040;
-[ADR-0082](../../docs/decisions/0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md) /
+[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
 ADR-0083 Fork A + ADR-0085 still govern how each machine UAT leg derives green). No single gate greens
 the story.
 
