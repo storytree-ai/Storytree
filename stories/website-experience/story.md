@@ -351,7 +351,7 @@ rather than cite it; any surviving page copy that ASSERTS a claim keeps its `dat
 attribute under the existing `check:web-grounding` wire. Act 2 is a teaching diorama, not the
 studio: nothing on the site reads the live store, and the CTA points at the real product.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough proving the whole journey end-to-end on the REAL published
 site (or its preview build). Minimal-first (`uat-proves-the-goal-not-the-surface`): one coherent

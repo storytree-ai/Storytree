@@ -107,7 +107,7 @@ type LoadNodeSpec = (file: string) => {
   capabilities: string[];
   decisions: number[];
   render?: string | undefined;
-  uatTests: { id: string; wouldBe?: boolean }[];
+  uatTestCriteria: { id: string; wouldBe?: boolean }[];
   reliabilityGates: { id: string; covers?: readonly string[] }[];
 };
 type ResolveBuildConfig = (spec: unknown) => unknown;
@@ -149,20 +149,20 @@ function loadCapability(
 /**
  * Read the story tree with FULL capabilities + the per-story proof obligations — the desktop analogue
  * of the studio's `readTree` (apiRouter.ts). Returns the bare authored tree (no verdicts yet — that is
- * {@link foldVerdicts}'s job) PLUS the `uatTestsByStory` / `coverageByStory` maps the crown roll-up needs.
+ * {@link foldVerdicts}'s job) PLUS the `uatTestCriteriaByStory` / `coverageByStory` maps the crown roll-up needs.
  * Returns `{ stories: [] }` gracefully for a missing/empty dir (the CI test drives that path).
  *
  * Loaded LAZILY via the orchestrator (the raw-TS `.js` re-export trap local-backend.ts already navigates).
  */
 export async function readTreeWithCaps(storiesDir: string): Promise<{
   stories: DTStory[];
-  uatTestsByStory: Map<string, { id: string }[]>;
+  uatTestCriteriaByStory: Map<string, { id: string }[]>;
   coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
 }> {
   const stories: DTStory[] = [];
-  const uatTestsByStory = new Map<string, { id: string }[]>();
+  const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
-  if (!existsSync(storiesDir)) return { stories, uatTestsByStory, coverageByStory };
+  if (!existsSync(storiesDir)) return { stories, uatTestCriteriaByStory, coverageByStory };
 
   const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig } = (await loadOrchestrator()) as unknown as {
     loadNodeSpec: LoadNodeSpec;
@@ -201,14 +201,14 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       story.capabilities = spec.capabilities.map((capId) =>
         loadCapability(loadNodeSpec, resolveBuildConfig, dir, capId),
       );
-      // The per-story OWN-PROOF obligations: the WITNESSABLE per-test UAT tests (would-be legs filtered
+      // The per-story OWN-PROOF obligations: the WITNESSABLE per-test UAT test criteria (would-be legs filtered
       // out, ADR-0097) UNION the `## Reliability Gates` — both addressable `{ id }` units the crown
       // rolls up (ADR-0085 / ADR-0082). Mirrors the studio's readTree collection verbatim.
       const ownObligations = [
-        ...spec.uatTests.filter((t) => !t.wouldBe),
+        ...spec.uatTestCriteria.filter((t) => !t.wouldBe),
         ...spec.reliabilityGates,
       ];
-      if (ownObligations.length > 0) uatTestsByStory.set(ent.name, ownObligations);
+      if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
       if (spec.reliabilityGates.length > 0) {
         coverageByStory.set(
           ent.name,
@@ -222,7 +222,7 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
     }
     stories.push(story);
   }
-  return { stories, uatTestsByStory, coverageByStory };
+  return { stories, uatTestCriteriaByStory, coverageByStory };
 }
 
 // ---------- verdict fold (re-composes the studio's tree-handler enrichment) ----------
@@ -290,14 +290,14 @@ export function applyCapCoverage(
 }
 
 /**
- * Apply the story-green crown roll-up (ADR-0083 Fork A): a story declaring per-test UAT tests has its
+ * Apply the story-green crown roll-up (ADR-0083 Fork A): a story declaring per-test UAT test criteria has its
  * crown set from `rollupStoryGreen` — the AND of (every capability proven healthy) AND (the per-test UAT
  * roll-up). healthy ⇒ a pass crown, unhealthy ⇒ a fail crown, unproven ⇒ NO verdict (the crown
  * under-claims to `mapped`, never a stale green). Mirrors the studio's `applyUatCrowns`.
  */
 export function applyUatCrowns(
   stories: DTStory[],
-  uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: readonly DTVerdictEvent[],
   rollup: (
@@ -308,7 +308,7 @@ export function applyUatCrowns(
   ) => string | null,
 ): void {
   for (const story of stories) {
-    const tests = uatTestsByStory.get(story.id);
+    const tests = uatTestCriteriaByStory.get(story.id);
     if (!tests || tests.length === 0) continue;
     const capabilityIds = story.capabilities.map((c) => c.id);
     const coverage = coverageByStory.get(story.id) ?? [];
@@ -361,7 +361,7 @@ export function applyOpenQuestionGate(
  */
 export async function foldVerdicts(
   stories: DTStory[],
-  uatTestsByStory: ReadonlyMap<string, readonly { id: string }[]>,
+  uatTestCriteriaByStory: ReadonlyMap<string, readonly { id: string }[]>,
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   overlay: VerdictOverlay,
 ): Promise<void> {
@@ -398,8 +398,8 @@ export async function foldVerdicts(
 
     // ADR-0097: covered brownfield plants greens BEFORE the crown so plants and crown agree.
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
-    if (uatTestsByStory.size > 0) {
-      applyUatCrowns(stories, uatTestsByStory, coverageByStory, events, rollupStoryGreen);
+    if (uatTestCriteriaByStory.size > 0) {
+      applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, rollupStoryGreen);
     }
     // ADR-0107: an open gating question WITHHOLDS a would-be green crown — run AFTER the crown.
     if (overlay.openQuestions.length > 0) {

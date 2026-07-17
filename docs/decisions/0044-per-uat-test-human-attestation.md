@@ -6,6 +6,10 @@ amends: [40]
 
 # ADR-0044: Per-UAT-test human attestation — the owner's "I saw it work" as signal
 
+*[Vocabulary renamed by [ADR-0206](0206-rename-story-level-uat-tests-to-uat-test-criteria.md): the
+story-level "UAT tests" / "UAT test" this ADR defines are now "UAT test criteria" / "UAT test
+criterion"; the stored ids `<story>#uat-<n>` and the `events.attestation` shape are unchanged.]*
+
 ## Status
 
 accepted (2026-06-14) — owner decision on how human observation feeds the proof model. **Amends

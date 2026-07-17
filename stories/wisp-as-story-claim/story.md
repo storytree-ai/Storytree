@@ -139,7 +139,7 @@ claim-gated spawn tools mounted on `runHeadlessOrchestrator`, the real spawn dep
 operator-attested) still stands between here and the spawn being the live hard point alongside the
 declare-time wiring.
 
-## Story UAT
+## UAT Test Criteria
 
 The single human-witnessed walkthrough that proves the story's goal end-to-end on the **real forest map**.
 Operator-attested (ADR-0070): an agent cannot drive or self-attest a "does it LOOK right" judgement — this

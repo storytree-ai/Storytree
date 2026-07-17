@@ -264,7 +264,7 @@ co-located inside a `studio` component two prior stories authored.
 consumes the already-per-session `window.desktopTerminal` bridge, a `window` global, not a package import).
 **No edge to the prove-it-gate / spine** (untouched — this changes only the interactive terminal).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole multi-session terminal meets its outcome
 end-to-end. Minimal-first (one coherent journey: open the app → the terminal has a session panel → run Claude

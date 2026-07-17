@@ -70,7 +70,7 @@ marks/invites a builder is the in-UI invitation (ADR-0043 extended), operator-at
 | 4 | [`invite-notify`](invite-notify.md) | Inviting emails the invitee the studio link (best-effort, config-gated) so they learn they have access; the admin sees whether it sent. | proposed | `invite-ui` |
 | 5 | [`builder-role`](builder-role.md) | A third role — `builder` — a member who may POST brokered builds/writes, resolved by the same access compute, holding no DB identity; `admin ⊇ builder ⊇ member`, last-admin guard unaffected. | proposed | `user-directory` |
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 1. **Bootstrap admin:** the seeded admin signs in. **Success —** they land in the studio as an
    active admin; a `users` row exists with role admin.

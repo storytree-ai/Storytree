@@ -226,7 +226,7 @@ not a package import. **No edge to `app-guide`** (the dormant chat panel is unto
 the prove-it-gate / spine (untouched — this changes only WHERE the click sends its intent, never how a
 signed verdict is produced).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole re-point meets its outcome end-to-end.
 Minimal-first (one coherent journey: on the desktop, click Build → a runnable command appears pre-filled in

@@ -290,7 +290,7 @@ tree schema.
   reloads: the `reloadTree` fetch reads the tree the spawned story-author wrote to `stories/` (ADR-0039
   disk-canonical). CONSUMED — this story owns no schema and no discovery.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `spawn-visibility` journey — converse →
 spawn → SEE it in the chat AND on the map — meets its outcome end-to-end. Minimal-first (one coherent

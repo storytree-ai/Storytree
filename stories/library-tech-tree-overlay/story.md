@@ -252,7 +252,7 @@ import, so no increment adds an edge beyond these two story-level hosting edges.
 world it sits over; it does not consume the `forest-world` render core (it is a sibling overlay, not a
 scene-graph layer).
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `library-tech-tree-overlay` organism
 meets its outcome end-to-end against the **real running studio** (`pnpm --filter studio dev` with the

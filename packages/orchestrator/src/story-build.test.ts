@@ -28,7 +28,7 @@ function spec(
     decisions: [],
     buildConfig: undefined,
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: [],
     contracts: [],
     file: `${id}.md`,

@@ -6,7 +6,7 @@
 // (ADR-0070 stage 2), so this proves the claim groups render into the dock's DOM (session id,
 // branch, unit id, grade, intent, age), NOT how it looks. Self-reported presence rows are GONE
 // (ADR-0200 D7): the dock renders the claim ledger alone, with honest empty/absent notes.
-// SessionDock is unit-tested directly (like StudioWorldChrome/UatTestsSection elsewhere in this
+// SessionDock is unit-tested directly (like StudioWorldChrome/UatTestCriteriaSection elsewhere in this
 // file) rather than driven through the full hex-world map, which needs no click-path simulation
 // for this DATA-facing behaviour.
 

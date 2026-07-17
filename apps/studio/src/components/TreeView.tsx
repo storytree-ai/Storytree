@@ -101,7 +101,7 @@ import type { SearchResult } from '../lib/librarySearch.js';
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { RepoPicker } from './RepoPicker.js';
-import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestCriterionRow } from '../types';
 import {
   hash,
   rand01,
@@ -1344,7 +1344,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // `desktopTerminal` bridge exists (hosted/dev studio — the dock ignores a seed with no bridge).
   const [terminalSeed, setTerminalSeed] = useState<TerminalDockSeed | undefined>(undefined);
 
-  // The one-shot tree load, extracted so a per-test UAT verdict signature (UatTestsSection) can
+  // The one-shot tree load, extracted so a per-test UAT verdict signature (UatTestCriteriaSection) can
   // RE-PULL it — the crown greens from the per-test roll-up server-side (ADR-0082), so after a
   // signature the world must re-fetch to repaint the island.
   const reloadTree = useCallback((): void => {
@@ -3993,8 +3993,8 @@ function PersonIcon(): React.JSX.Element {
 }
 
 /**
- * The story detail's "UAT tests" table (ADR-0082 attestation-surface): each addressable UAT test
- * (parsed from the story's `## Story UAT` prose) as a row carrying ONE glyph at its RIGHT edge — a
+ * The story detail's "UAT test criteria" table (ADR-0082 attestation-surface): each addressable UAT test
+ * (parsed from the story's `## UAT Test Criteria` prose) as a row carrying ONE glyph at its RIGHT edge — a
  * witness icon whose SHAPE is the witness (a robot = machine-witnessed, a person = human-witnessed)
  * and whose COLOUR is the SIGNED verdict in `events.verdict` (the REAL gate state that greens the
  * story crown via the per-test AND-roll-up, ADR-0082 d.3): green proven, red a signed fail, muted
@@ -4007,7 +4007,7 @@ function PersonIcon(): React.JSX.Element {
  * unsurfaced here.) Signing re-pulls this panel (the icon) AND the world tree (the crown). Fetched
  * per-story on open; silently absent when the live store is down.
  */
-export function UatTestsSection({
+export function UatTestCriteriaSection({
   storyId,
   onCrownRefresh,
 }: {
@@ -4017,7 +4017,7 @@ export function UatTestsSection({
   const { me } = useAppData();
   const isAdmin = me.role === 'admin';
   const canAttestUat = isAdmin || me.canAttestUat === true;
-  const [tests, setTests] = useState<UatTestRow[] | null>(null);
+  const [tests, setTests] = useState<UatTestCriterionRow[] | null>(null);
   const [storyUat, setStoryUat] = useState<'healthy' | 'unhealthy' | null | undefined>(undefined);
   // ADR-0106 d.1: ids of legs still `either` on this adopted story — the "no `either` at rest" guard.
   const [unresolved, setUnresolved] = useState<string[]>([]);
@@ -4056,12 +4056,12 @@ export function UatTestsSection({
     }
   };
 
-  if (error) return <p className="muted small">UAT tests unavailable: {error}</p>;
-  if (tests === null || tests.length === 0) return null; // loading, or a story with no parsed UAT tests
+  if (error) return <p className="muted small">UAT test criteria unavailable: {error}</p>;
+  if (tests === null || tests.length === 0) return null; // loading, or a story with no parsed UAT test criteria
 
   return (
-    <div className="uat-tests">
-      <h4 className="tree-subdag-title">UAT tests ({tests.length})</h4>
+    <div className="uat-test-criteria">
+      <h4 className="tree-subdag-title">UAT test criteria ({tests.length})</h4>
       {/* ADR-0106 d.1 — the "no `either` at rest" guard: this adopted story still carries undecided
           legs, which silently land on the operator. Nudge the author to record each leg's witness. */}
       {unresolved.length > 0 && (
@@ -4105,8 +4105,8 @@ export function UatTestsSection({
 
             return (
               <tr key={t.id} className="uat-row">
-                <td className="uat-test-cell">
-                  <span className="uat-test-title">{t.title}</span>
+                <td className="uat-test-criterion-cell">
+                  <span className="uat-test-criterion-title">{t.title}</span>
                 </td>
                 {/* The single witness/state glyph at the RIGHT edge (owner redesign) — where the eye
                     lands for a per-row action. A muted person icon here is the "I saw it work" button;
@@ -4147,10 +4147,10 @@ export function UatTestsSection({
             <span className={`uat-story-rollup rollup-${storyUat ?? 'none'}`}>
               Story UAT:{' '}
               {storyUat === 'healthy'
-                ? 'GREEN — every test proven'
+                ? 'GREEN — every criterion proven'
                 : storyUat === 'unhealthy'
-                  ? 'WITHERED — a proven test failed'
-                  : 'unproven — not every test has a signed pass'}
+                  ? 'WITHERED — a proven criterion failed'
+                  : 'unproven — not every criterion has a signed pass'}
             </span>
           </>
         )}
@@ -4526,7 +4526,7 @@ function StoryPanel({
       {/* The per-UAT-test attestation table sits near the FOOT of the drill-down (the last thing
           you read once you've taken in the story + its capability DAG) — a vouch surface, never
           the gate-green hue (ADR-0044). */}
-      <UatTestsSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
+      <UatTestCriteriaSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
 
       {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the last ACTION in the panel (owner
           placement, 2026-06-22; the collapsed ADR reference below it is footer context, not an

@@ -5,13 +5,13 @@
 // adopt pass uses — the binary can never fork — and is a pure unit testable without the HTTP handler.
 
 import { describe, it, expect } from 'vitest';
-import type { ReliabilityGate, UatTest } from '@storytree/library';
+import type { ReliabilityGate, UatTestCriterion } from '@storytree/library';
 import { resolvedWitnessOf, unresolvedUatLegs } from '@storytree/library';
 import { resolveUatRowWitnesses } from './apiRouter';
 
 const resolver = { resolvedWitnessOf, unresolvedUatLegs };
 
-function leg(n: number, witness: UatTest['witness'], wouldBe = false): UatTest {
+function leg(n: number, witness: UatTestCriterion['witness'], wouldBe = false): UatTestCriterion {
   return { id: `s#uat-${n}`, title: `leg ${n}`, witness, wouldBe };
 }
 function gate(kind: ReliabilityGate['kind'], n = 1): ReliabilityGate {

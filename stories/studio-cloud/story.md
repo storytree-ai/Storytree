@@ -88,7 +88,7 @@ side, so a silently-failed deploy is loud at the gate tail — ADR-0194).
 | 7 | [`write-broker`](write-broker.md) | A members-gated POST endpoint persists a builder's locally-signed verdict / presence — validating shape + attribution, refusing a non-builder (403) / malformed (400) / mismatched signer — holding no signing key, never re-signing. | proposed | `guest-scope` |
 | 8 | [`deploy-health-signal`](deploy-health-signal.md) | A pure classifier turns the deploy-studio CD run list into an ok / red / unknown health signal, so a red post-merge deploy is loud at the gate tail (best-effort, WARN-only, ADR-0194). | proposed | — |
 
-## Story UAT (would-be)
+## UAT Test Criteria (would-be)
 
 **Goal —** One trusted dev who has never seen the system goes from an invite to a comment the
 owner reads, without touching a terminal.

@@ -713,7 +713,7 @@ async function main(): Promise<void> {
         events !== null &&
         rollupStoryGreen(
           unit.spec.capabilities,
-          [...unit.spec.uatTests.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map((o) => ({
+          [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates].map((o) => ({
             id: o.id,
           })),
           events as Parameters<typeof rollupStoryGreen>[2],
@@ -772,7 +772,7 @@ async function main(): Promise<void> {
       testId,
       outcome: body["outcome"] === "fail" ? "fail" : "pass",
       at: new Date().toISOString(),
-      tests: spec.uatTests.map((test) => ({
+      tests: spec.uatTestCriteria.map((test) => ({
         id: test.id,
         witness: resolvedWitnessOf(test, spec.reliabilityGates),
       })),
@@ -797,9 +797,9 @@ async function main(): Promise<void> {
   // ---------- /api/attestations (GET — member-readable UAT test list) ----------
   //
   // Re-composed from @storytree/orchestrator — no apps/studio/server import (ADR-0100 boundary).
-  // Serves the same payload the studio's GET /api/attestations produces: a story's UAT tests
+  // Serves the same payload the studio's GET /api/attestations produces: a story's UAT test criteria
   // with their per-test attestation marks and proven state (from signed verdicts). Used by the
-  // shared UatTestsSection component when a story node is clicked. Advisory (null on any DB
+  // shared UatTestCriteriaSection component when a story node is clicked. Advisory (null on any DB
   // failure) — returns `{ storyId, tests: [] }` gracefully rather than crashing.
   // OPERATOR-ATTESTED GLUE (ADR-0070): the CI-proven cores are the orchestrator functions and
   // PgAttestationStore this wiring threads together; this route wiring is proven transitively.
@@ -838,7 +838,7 @@ async function main(): Promise<void> {
     const spec = storySpecFile !== null
       ? (() => { try { return loadNodeSpec(storySpecFile); } catch { return null; } })()
       : null;
-    const tests = spec?.uatTests ?? [];
+    const tests = spec?.uatTestCriteria ?? [];
     const gates = spec?.reliabilityGates ?? [];
     const status = spec?.status ?? "";
     // Attestation marks and verdict events in parallel (both advisory).

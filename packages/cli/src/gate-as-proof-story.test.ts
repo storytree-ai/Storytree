@@ -127,7 +127,7 @@ function gateAsProofStorySpec(storyFile: string, testFile: string): NodeSpec {
       real: { testFile, sourceFile: storyFile, scope, editsExisting: true },
     },
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: [],
     contracts: [],
     file: "stories/demo/story.md",

@@ -253,9 +253,9 @@ test("focused view marks cap-a REAL-buildable, cap-b registered, cap-c unregiste
   assert.ok(env.body.includes("unregistered"), "body must include 'unregistered' for cap-c");
 });
 
-// (6) UAT-tests block — offline (no attestations reader): the test list renders from the spec,
+// (6) UAT-test-criteria block — offline (no attestations reader): the test list renders from the spec,
 // with witness kinds, but NO mark column (silently absent, like the verdict glyphs).
-test("focused view renders the UAT tests block from the spec; marks absent offline", async () => {
+test("focused view renders the UAT test criteria block from the spec; marks absent offline", async () => {
   const deps: TreeDeps = {
     storiesDir,
     lookupConfig,
@@ -263,7 +263,7 @@ test("focused view renders the UAT tests block from the spec; marks absent offli
   };
   const env = await treeCommand("demo-story", deps);
   assert.equal(env.ok, true);
-  assert.ok(env.body.includes("UAT tests:"), "body has a UAT tests block");
+  assert.ok(env.body.includes("UAT test criteria:"), "body has a UAT test criteria block");
   assert.ok(env.body.includes("demo-story#uat-1"), "lists the first test id");
   assert.ok(env.body.includes("demo-story#uat-2"), "lists the second test id");
   assert.ok(env.body.includes("witness=machine"), "shows the declared witness kind");
@@ -271,7 +271,7 @@ test("focused view renders the UAT tests block from the spec; marks absent offli
   assert.ok(!env.body.includes("◉") && !env.body.includes("▣"), "no attestation marks offline");
 });
 
-// (7) UAT-tests block — with an attestation reader: a human seal on the voucht test, – on the other.
+// (7) UAT-test-criteria block — with an attestation reader: a human seal on the voucht test, – on the other.
 test("focused view shows attestation marks when the reader answers (human seal vs – never voucht)", async () => {
   const reader = {
     async readEvents() {

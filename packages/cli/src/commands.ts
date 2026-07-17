@@ -12,7 +12,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
 } from "@storytree/library";
-import type { UatTest, ReliabilityGate } from "@storytree/library";
+import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
   loadNodeSpec,
   findNodeSpecFile,
@@ -1184,12 +1184,12 @@ function readGitState(): GitState | null {
   }
 }
 
-/** A story's declared UAT tests (parsed from `stories/<id>/story.md`); `[]` for a missing/odd spec. */
-function loadStoryUatTests(storiesDir: string, storyId: string): UatTest[] {
+/** A story's declared UAT test criteria (parsed from `stories/<id>/story.md`); `[]` for a missing/odd spec. */
+function loadStoryUatTestCriteria(storiesDir: string, storyId: string): UatTestCriterion[] {
   const file = path.join(storiesDir, storyId, "story.md");
   if (!existsSync(file)) return [];
   try {
-    return loadNodeSpec(file).uatTests;
+    return loadNodeSpec(file).uatTestCriteria;
   } catch {
     return [];
   }
@@ -1306,7 +1306,7 @@ function loadAdoptStory(storiesDir: string, storyId: string): AdoptStory | null 
   try {
     const spec = loadNodeSpec(file);
     if (spec.tier !== "story") return null;
-    return { status: spec.status, reliabilityGates: spec.reliabilityGates, uatTests: spec.uatTests };
+    return { status: spec.status, reliabilityGates: spec.reliabilityGates, uatTestCriteria: spec.uatTestCriteria };
   } catch {
     return null;
   }
@@ -1446,7 +1446,7 @@ function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): G
   return {
     store: deps.uatStore ?? null,
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
-    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     gitState: readGitState,
     observe: observeCommand,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
@@ -1514,7 +1514,7 @@ function makeUatOpts(values: { outcome?: string; signer?: string; note?: string 
 function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir: string): UatDeps {
   return {
     store: deps.uatStore ?? null,
-    loadUatTests: (storyId) => loadStoryUatTests(storiesDir, storyId),
+    loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     gitState: readGitState,
     identity,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
@@ -1562,7 +1562,7 @@ function witnessHelp(): Envelope {
       "storytree witness — the human/operator proof workflow (ADR-0118): witness a story's UAT, whether",
       "it was adopted or built (it cuts across both, so it is its own workflow).",
       "",
-      "  storytree witness list <story-id> [--pg]            a story's UAT tests + proven state (was `uat list`)",
+      "  storytree witness list <story-id> [--pg]            a story's UAT test criteria + proven state (was `uat list`)",
       "  storytree witness attest <story>#uat-<n> --pg       sign an operator-attested verdict (was `uat attest`)",
       "  storytree witness vouch <story>#uat-<n> --pg        record a lower-rigor attestation vouch (was `attest`)",
       "  storytree witness vouch list <story>#uat-<n> --pg   a test's vouch history (was `attest list`)",
@@ -2026,7 +2026,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const uatOpts = makeUatOpts(values);
     if (sub === "attest") return uatCommand({ mode: "attest", target: third }, uatOpts, uatDeps);
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
-    // bare `witness <story-id>` lists that story's UAT tests (mirrors bare `uat <story>`).
+    // bare `witness <story-id>` lists that story's UAT test criteria (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
 

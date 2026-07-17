@@ -2026,7 +2026,7 @@ a.stat:hover {
    proven, AMBER (--warn) the one actionable case — an unproven HUMAN leg an admin may sign "I saw it
    work". CRUCIAL: this is a REAL gate verdict (events.verdict) that greens the story crown, unlike the
    removed lower-rigor ⚑/⚐ vouch. The icon styling here is owner-attested art (ADR-0070). */
-.uat-tests {
+.uat-test-criteria {
   margin-top: 14px;
 }
 .uat-table {
@@ -2041,12 +2041,12 @@ a.stat:hover {
 .uat-row:first-child {
   border-top: none;
 }
-.uat-test-cell {
+.uat-test-criterion-cell {
   padding: 6px 6px;
   vertical-align: middle;
   width: 100%;
 }
-.uat-test-title {
+.uat-test-criterion-title {
   display: block;
 }
 /* The right-edge witness/state glyph cell — where the eye lands for a per-row action. */

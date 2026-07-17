@@ -304,7 +304,7 @@ fence machinery's origin, the claim store, the loop definitions, or the chat cha
   ADR-0010 §5 forbids). `backend-entry.ts` is also the very file the incident targeted and the canonical
   scoped-edit example.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole scoped-glue actuator — converse → claim →
 spawn the path-fenced glue worker → observe the scoped edit + the fence denial → the human/CI lands —

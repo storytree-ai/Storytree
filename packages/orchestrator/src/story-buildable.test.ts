@@ -40,7 +40,7 @@ function spec(
     decisions: [],
     buildConfig: opts.buildConfig,
     guidance: undefined,
-    uatTests: [],
+    uatTestCriteria: [],
     reliabilityGates: opts.reliabilityGates ?? [],
     contracts: [],
     file: `${id}.md`,

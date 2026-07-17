@@ -286,7 +286,7 @@ export const api = {
   // serve.ts MEMBERS_RESOLVE_TIMEOUT_MS), so the happy outcome is a storeUnreachable banner, not this.
   me: (): Promise<MeInfo> => http('/api/me', { signal: AbortSignal.timeout(10_000) }),
 
-  // Per-UAT-test attestations (ADR-0044): a story's UAT tests with their per-test marks + proven
+  // Per-UAT-test attestations (ADR-0044): a story's UAT test criteria with their per-test marks + proven
   // state. GET, member-readable. The lower-rigor vouch POST is no longer surfaced — the UAT table
   // signs REAL verdicts via signUat (below); the server's /api/attestations POST path stays intact.
   attestations: (storyId: string): Promise<AttestationsPayload> =>

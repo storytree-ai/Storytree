@@ -1,6 +1,6 @@
 import { parse } from "yaml";
 
-import { parseUatTests } from "@storytree/library";
+import { parseUatTestCriteria } from "@storytree/library";
 
 /**
  * ADR-0092 (gate-as-proof for a machine-witnessed story's own UAT node): the per-STORY
@@ -73,31 +73,33 @@ export function storyUatCompleteness(file: string, content: string): string[] {
   }
 
   // 3. The canonical story sections must be present (the integrated UAT and its proof, ADR-0010).
-  for (const section of ["Story UAT", "Proof"]) {
-    if (!new RegExp(`^##\\s+${section}\\b`, "m").test(body)) {
-      failures.push(`missing '## ${section}' section`);
-    }
+  //    The UAT section dual-accepts the legacy `## Story UAT` heading (ADR-0206 transitional).
+  if (!/^##\s+(?:UAT Test Criteria|Story UAT)\b/m.test(body)) {
+    failures.push("missing '## UAT Test Criteria' section");
+  }
+  if (!/^##\s+Proof\b/m.test(body)) {
+    failures.push("missing '## Proof' section");
   }
 
-  // 4. The `## Story UAT` walkthrough must have ≥1 addressable leg, and EVERY leg must name its
-  //    witness explicitly. An untagged leg silently defaults to `either` (parseUatTests) — a complete
+  // 4. The `## UAT Test Criteria` walkthrough must have ≥1 addressable leg, and EVERY leg must name its
+  //    witness explicitly. An untagged leg silently defaults to `either` (parseUatTestCriteria) — a complete
   //    machine-UAT record names `(witness: machine)` on each leg, so an untagged leg is incomplete.
-  let legs: ReturnType<typeof parseUatTests>;
+  let legs: ReturnType<typeof parseUatTestCriteria>;
   try {
     const id = typeof fm["id"] === "string" ? fm["id"] : "story";
-    legs = parseUatTests(id, body);
+    legs = parseUatTestCriteria(id, body);
   } catch (e) {
     // An EXPLICIT-but-invalid witness value (e.g. `(witness: nobody)`) throws — surface it as a
     // completeness failure rather than a crash, so the gate fails closed with a fixable message.
-    return [...failures, `\`## Story UAT\` has an invalid witness tag — ${(e as Error).message}`];
+    return [...failures, `\`## UAT Test Criteria\` has an invalid witness tag — ${(e as Error).message}`];
   }
   if (legs.length === 0) {
-    failures.push("`## Story UAT` has no numbered walkthrough legs (the integrated acceptance journey)");
+    failures.push("`## UAT Test Criteria` has no numbered walkthrough legs (the integrated acceptance journey)");
   }
   const untagged = untaggedLegOrdinals(body);
   if (untagged.length > 0) {
     failures.push(
-      `\`## Story UAT\` leg(s) ${untagged.join(", ")} do not declare a \`(witness: …)\` — a complete ` +
+      `\`## UAT Test Criteria\` leg(s) ${untagged.join(", ")} do not declare a \`(witness: …)\` — a complete ` +
         "machine-UAT names its witness on every leg (an untagged leg silently defaults to `either`)",
     );
   }
@@ -117,8 +119,11 @@ export function storyUatCompleteness(file: string, content: string): string[] {
   return failures;
 }
 
-/** Match a `## Story UAT …` heading (mirrors uat-tests.ts so the section boundary never forks). */
-const STORY_UAT_HEADING = /^##[^\n\S]+Story UAT[^\n]*$/im;
+/**
+ * Match a `## UAT Test Criteria …` heading — legacy `## Story UAT` dual-accepted (ADR-0206
+ * transitional; mirrors uat-test-criteria.ts so the section boundary never forks).
+ */
+const STORY_UAT_HEADING = /^##[^\n\S]+(?:UAT Test Criteria|Story UAT)[^\n]*$/im;
 /** Match the next `## …` heading after the section start. */
 const NEXT_H2 = /^## /m;
 /** A numbered list item lead: `1. …`. */
@@ -127,9 +132,9 @@ const NUMBERED_ITEM = /^(\d+)\.[^\n\S]+/;
 const WITNESS_TAG = /\(witness:\s*[A-Za-z]+\)/i;
 
 /**
- * The 1-based ordinals of `## Story UAT` legs that carry NO `(witness: …)` tag (PURE, no I/O). A
+ * The 1-based ordinals of `## UAT Test Criteria` legs that carry NO `(witness: …)` tag (PURE, no I/O). A
  * complete machine-UAT names its witness on every leg; an untagged leg defaults to `either` silently,
- * so this surfaces exactly which legs under-declare. Positional ordinals mirror `uatTestId`.
+ * so this surfaces exactly which legs under-declare. Positional ordinals mirror `uatTestCriterionId`.
  */
 function untaggedLegOrdinals(body: string): number[] {
   const heading = STORY_UAT_HEADING.exec(body);

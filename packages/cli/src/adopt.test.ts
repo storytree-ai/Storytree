@@ -41,7 +41,7 @@ const PLAN_STORY: AdoptPlanStory = {
 function deps(over: Partial<AdoptDispatchDeps> = {}): AdoptDispatchDeps {
   return {
     store: recordingStore(),
-    loadStory: () => ({ status: "mapped", reliabilityGates: OBSERVE_GATES, uatTests: [] }),
+    loadStory: () => ({ status: "mapped", reliabilityGates: OBSERVE_GATES, uatTestCriteria: [] }),
     gitState: () => ({ commitSha: "abc1234", clean: true }),
     observe: async () => ({ code: 0 }),
     resolveApprover: () => ({ ok: true, signer: "hua.mick@gmail.com" }),
@@ -115,7 +115,7 @@ test("adopt run refuses a non-brownfield (healthy) story (the wall lives in runA
   const env = await adoptCommand(
     { mode: "run", target: "library" },
     {},
-    deps({ loadStory: () => ({ status: "healthy", reliabilityGates: OBSERVE_GATES, uatTests: [] }) }),
+    deps({ loadStory: () => ({ status: "healthy", reliabilityGates: OBSERVE_GATES, uatTestCriteria: [] }) }),
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /not a brownfield/);

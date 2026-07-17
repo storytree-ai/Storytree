@@ -1,11 +1,11 @@
 import type { Status, Verdict } from "@storytree/proof-protocol";
-import type { UatTestWitness } from "@storytree/library";
+import type { UatTestCriterionWitness } from "@storytree/library";
 
 import { rollupStatus, type RollupEvent } from "./rollup.js";
 
 /**
  * The per-test UAT proof COMPUTE (ADR-0082): a story's UAT decomposes into per-test units
- * (`@storytree/library` `uat-tests.ts`, ADR-0044), and each test earns a SIGNED VERDICT by its
+ * (`@storytree/library` `uat-test-criteria.ts`, ADR-0044), and each test earns a SIGNED VERDICT by its
  * declared witness — `machine` by a machine proof, `human` by an `operator-attested` verdict
  * (ADR-0007) signed by a real person, `either` by whichever is produced. The story's own UAT then
  * greens when ALL its tests are green.
@@ -16,14 +16,14 @@ import { rollupStatus, type RollupEvent } from "./rollup.js";
  *  - {@link rollupStoryUat} runs at READ time — it only DERIVES the story-UAT status from the
  *    already-signed per-test verdicts, exactly as {@link rollupStatus} derives a single unit's.
  *
- * The DATA shapes it reads ({@link Verdict}, {@link Status}, {@link UatTestWitness}) are the verdict
+ * The DATA shapes it reads ({@link Verdict}, {@link Status}, {@link UatTestCriterionWitness}) are the verdict
  * CONTRACT's / the library's; this is the COMPUTE half (the farmer organism's ruler, ADR-0068).
  */
 
 /** The fields of a verdict the trust guard inspects. */
 export interface UatProofCheck {
   /** The test's declared witness permission (`human` | `machine` | `either`). */
-  witness: UatTestWitness;
+  witness: UatTestCriterionWitness;
   /** The verdict offered to prove the test — only the fields the guard reads. */
   verdict: Pick<Verdict, "proofMode" | "signer">;
   /**
@@ -144,10 +144,10 @@ export function rollupStoryUat(
  * A story with ZERO capabilities (the two foundational ports `proof-protocol` / `storage-protocol`)
  * satisfies the capability clause VACUOUSLY — its green derives entirely from the own-proof clause.
  *
- * ADR-0085 (resolving ADR-0083 Fork B) widens the second argument from "the per-test UAT tests" to
- * the story's **own-proof obligations** — the UNION of its per-test UAT tests AND its
+ * ADR-0085 (resolving ADR-0083 Fork B) widens the second argument from "the per-test UAT test criteria" to
+ * the story's **own-proof obligations** — the UNION of its per-test UAT test criteria AND its
  * `## Reliability Gates` (the brownfield obligation set). The AND-logic and the vacuous-empty guard
- * are unchanged; the caller passes `[...uatTests, ...reliabilityGates]`, so a pure port greens from
+ * are unchanged; the caller passes `[...uatTestCriteria, ...reliabilityGates]`, so a pure port greens from
  * its reliability gates (zero caps, zero UAT, ≥1 adopted gate) with no logic fork here.
  *
  * ADR-0097 refines the CAPABILITY clause for a brownfield story whose caps have no per-cap driven

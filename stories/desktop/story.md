@@ -336,7 +336,7 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
   ADR-0074 / ADR-0113 §8 "declare the edge, never work around it" pattern the drive-machinery / studio /
   library edges follow.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole thick-local desktop meets its outcome
 end-to-end. Minimal-first (one coherent journey: launch → sign in → the loop runs locally → it blooms
@@ -410,7 +410,7 @@ credential never leaving the machine.
    backend only when both hold, else refusing with the DB reason surfaced unchanged. **Success —** the
    sidecar either wires the single full backend or refuses with a clear reason (through the Electron
    splash → refuse+retry window); it NEVER serves the retired degraded read shell
-   (`serveDegraded` / `degradedBackend` deleted), so the *"UAT tests unavailable: unknown endpoint"*
+   (`serveDegraded` / `degradedBackend` deleted), so the *"UAT test criteria unavailable: unknown endpoint"*
    half-wired-forest failure cannot recur. (`desktop-launch-preconditions`'s contract test proves the
    git-first refusal + the never-wake fence + the DB passthrough over injected git/DB doubles; the
    splash + refuse+retry window flow is operator-attested, ADR-0070 / ADR-0176 §5.) *(This is the
@@ -455,7 +455,7 @@ main-process broker in `apps/desktop` (`node:test`) and the renderer Credentials
 command. The coverage is real, not declared-only: each suite is the cap's OWN contract suite over its
 real collaborators (ADR-0097 §2) — the broker contracts over the real `InMemoryKeychain` + an injected
 environment, the panel contracts over an injected `desktopAuth` fake. This gate is DISTINCT from
-`## Story UAT` above (the integrated acceptance journey, part machine-witnessed and part
+`## UAT Test Criteria` above (the integrated acceptance journey, part machine-witnessed and part
 operator-attested): it is the author's **expandable reliability floor** — it starts by adopting the
 existing green suites and GROWS a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the
 moment observation proves insufficient — a real broker- or panel-contract defect slips the existing

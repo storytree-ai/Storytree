@@ -214,7 +214,7 @@ takes the work-time claim and lights the story wisp, ADR-0142), the store seam (
 --store pg` writes verdicts) — with **zero new coupling**. This story adds no observer code, so it draws
 no edge to the observer organisms (ADR-0174: "nothing new is required to observe it").
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole embedded terminal meets its outcome
 end-to-end. Minimal-first (one coherent journey: open the app → a real terminal sits in the dock → run

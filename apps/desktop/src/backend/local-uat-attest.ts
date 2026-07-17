@@ -27,7 +27,7 @@
 // `ForestWriter` (production: `createBrokerForestWriter` / `writeToForestBroker`).
 
 import { Verdict } from "@storytree/proof-protocol";
-import type { UatTestWitness } from "@storytree/library";
+import type { UatTestCriterionWitness } from "@storytree/library";
 import { checkUatProof } from "@storytree/orchestrator";
 
 import type { ForestWriter } from "./local-backend.js";
@@ -35,7 +35,7 @@ import type { ForestWriter } from "./local-backend.js";
 /** One declared UAT leg from the story's test context — only the fields the trust guard needs. */
 export interface LocalUatDeclaredTest {
   id: string;
-  witness: UatTestWitness;
+  witness: UatTestCriterionWitness;
 }
 
 /** Everything {@link attestLocalUat} needs, all injected — no global state, no hidden reads. */
@@ -104,7 +104,7 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
   if (test === undefined) {
     return {
       ok: false,
-      reason: `unknown test id "${testId}" — not among the declared UAT tests.`,
+      reason: `unknown test id "${testId}" — not among the declared UAT test criteria.`,
     };
   }
 

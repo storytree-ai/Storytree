@@ -145,7 +145,7 @@ and retires `annotate-topic`'s text-anchor contracts; once landed, the `libraria
 reconcile the `studio` story (mark `annotate-topic` superseded-by-this-story, drop the dead
 text-anchor contracts). That curation is a follow-on, surfaced here, NOT done in this authoring pass.
 
-## Story UAT
+## UAT Test Criteria
 
 The integrated **acceptance walkthrough** that proves the whole `library-review` journey end-to-end
 against the **real running studio** + its real `library` / `studio-members` collaborators. It is

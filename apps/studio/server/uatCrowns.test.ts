@@ -1,5 +1,5 @@
 // Unit test for the story-green crown roll-up wiring (ADR-0083 Fork A, refining ADR-0082,
-// apiRouter.applyUatCrowns): a story that declares per-test UAT tests greens from the AND of (all
+// apiRouter.applyUatCrowns): a story that declares per-test UAT test criteria greens from the AND of (all
 // capabilities proven healthy) AND (the per-test UAT AND-roll-up), NOT its own unit-id verdict —
 // healthy ⇒ a pass crown, unhealthy ⇒ a fail crown (a red plant or a UAT regression), unproven ⇒ NO
 // verdict (the world under-claims, never a stale green). Fed the REAL `rollupStoryGreen` + real
