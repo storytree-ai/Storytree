@@ -105,7 +105,7 @@ The deploy SA `storytree-studio-deployer` gets:
 
 | Role | Scope | Why |
 | --- | --- | --- |
-| `roles/iam.workloadIdentityUser` | the deploy SA | the keyless bridge — only HuaMick/Storytree workflows **on `main`** (`attribute.ref/refs/heads/main`) may impersonate it (tighter than ci-presence's repo-wide binding) |
+| `roles/iam.workloadIdentityUser` | the deploy SA | the keyless bridge — only storytree-ai/Storytree workflows **on `main`** (`attribute.ref/refs/heads/main`) may impersonate it (tighter than ci-presence's repo-wide binding) |
 | `roles/iam.serviceAccountUser` | on `storytree-studio-host` | actAs at deploy → the revision runs as the keyless runtime SA |
 | `roles/run.admin` | **project** | deploy revisions **and** the `setIamPolicy` that `--iap` performs (binds the IAP service agent as sole invoker) |
 | `roles/cloudbuild.builds.editor` | project | submit + watch the image build |

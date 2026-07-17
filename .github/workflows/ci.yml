@@ -126,7 +126,7 @@ jobs:
           sha=$(git ls-tree HEAD web | awk '{print $3}')
           if [ -z "$sha" ]; then echo "no web gitlink in HEAD"; exit 1; fi
           rm -rf web
-          git clone --quiet https://github.com/HuaMick/storytree-web.git web
+          git clone --quiet https://github.com/storytree-ai/storytree-web.git web
           git -C web checkout --quiet "$sha"
 
       # The public site's load-bearing claims carry data-grounds="ADR-…" refs; fail if any cites a

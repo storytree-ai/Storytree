@@ -14,7 +14,7 @@ artifactregistry, secretmanager) were already enabled by the studio.
 
 The App **`storytree-web-cms`** is the login + the commit identity. To (re)create it: in `web/`, run
 `npm run dev:editor`, open `/keystatic`, click **"create a GitHub App"** → leave *Deployed App URL*
-and *organization* blank → install on `HuaMick/storytree-web` with **write** access. Keystatic writes
+and *organization* blank → install on `storytree-ai/storytree-web` with **write** access. Keystatic writes
 four vars into `web/.env` (gitignored, never committed):
 `PUBLIC_KEYSTATIC_GITHUB_APP_SLUG` (public) + `KEYSTATIC_GITHUB_CLIENT_ID` / `_CLIENT_SECRET` /
 `KEYSTATIC_SECRET` (→ Secret Manager). The repo is/will be public, so the three secrets NEVER go in it.
