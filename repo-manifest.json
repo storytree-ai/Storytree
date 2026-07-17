@@ -19,7 +19,7 @@
       "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
-      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192).",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
@@ -55,7 +55,8 @@
       "@storytree/proof-protocol": "proof-protocol",
       "@storytree/forest-world": "forest-world",
       "@storytree/forest-world-r3f": "website-experience",
-      "@storytree/model-uat": "model-uat-witness"
+      "@storytree/model-uat": "model-uat-witness",
+      "@storytree/uat-criterion": "uat-criterion-detail"
     },
     "foundational": ["@storytree/storage-protocol", "@storytree/proof-protocol", "@storytree/forest-world"],
     "$comment_surfaces": "Consuming SURFACES (ADR-0100): a surface name → the story that owns it. A surface is an apps/* app (the studio) — a sink that wires organisms together and is consumed by nothing. ADR-0100 brought apps/* into the same boundary scan as packages/*: a surface's package.json @storytree/* deps are COVERED by the same rule as an organism's (declared in the surface's own story depends_on), so the studio's real wiring is enforced + rendered, exactly the visibility-over-exemption call ADR-0074 §2 made for the cli/store hubs. A surface is never `foundational` and draws no inbound edge. (The public-website subrepo is also a consuming surface but ships no workspace package — its forest-world edge is a declared story node backed by the check:web-engine drift gate, ADR-0093, not a package scanned here.)",

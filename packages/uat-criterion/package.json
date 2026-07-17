@@ -1,0 +1,24 @@
+{
+  "name": "@storytree/uat-criterion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The uat-criterion-detail organism: seed-canonical per-criterion Library detail artifacts — kind schema, seed sync, criterion pointer, hash-anchor invalidation, and story-author write-scope. Pure zod + Store seam; packages-forward (ADR-0192 / ADR-0209 D5/D6).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@storytree/model-uat": "workspace:*",
+    "@storytree/storage-protocol": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}
