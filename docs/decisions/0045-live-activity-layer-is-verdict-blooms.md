@@ -27,6 +27,15 @@ in-flight build (the presence model, dock, and `noticeboard declare` stay; only 
 moves). And the named-deferred "in-flight 'building' shimmer" is now **in scope** as ADR-0048's
 centrepiece. The verdict-bloom CORE this ADR decides (Decisions 1–5) STANDS untouched.
 
+**Correction ([ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 6's
+"presence is NOT demoted … the session-presence wisps and dock stay a first-class hosted layer" — and
+the title's "presence stays for multi-dev" — are **overtaken**. ADR-0200 retired session presence
+entirely for the deterministic claim ledger: the forest's live wisps are now **claim-grade-rendered**
+(hover / queued / orbit), `/api/presence` retired, and the presence store was deleted in the
+retirement sweep (#760–#766, 2026-07-17, after the owner's inc-5 render UAT). The verdict-bloom CORE
+(Decisions 1–5) is `verdict.at`-sourced and entirely unaffected — it stands untouched.
+
 *Numbering note:* checked all remote branches post-`git fetch` for `docs/decisions/0045*` on
 2026-06-13/14 — 0043 and 0044 are taken on `main`; 0045 is free (live DB carries no ADR rows of its
 own — ADRs are docs, ADR-0017/0018).

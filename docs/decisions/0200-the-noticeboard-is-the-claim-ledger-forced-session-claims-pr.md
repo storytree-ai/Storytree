@@ -36,8 +36,8 @@ at `worktree create`), and [ADR-0199](0199-a-build-run-never-writes-session-pres
 rows are written by sessions only" becomes "presence rows are not written at all").
 **Supersedes** [ADR-0079](0079-possibly-dead-presence-rows-are-reaped-to-done-by-a-sweep.md) and
 [ADR-0141](0141-ambient-presence-heartbeat-never-resurrects-a-retired-sessio.md) — both are
-lifecycle machinery for the presence rows this ADR retires (they remain operative until the arc's
-final increment lands the retirement; their bodies stay as history).
+lifecycle machinery for the presence rows this ADR retires (they remained operative until the arc's
+final increment landed the retirement on 2026-07-17, PRs #760–#766; their bodies stay as history).
 
 ## Context
 
@@ -131,7 +131,13 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    the ledger. All render legs are **owner-attested before the old machinery is deleted**: the
    retirement sweep (presence store + parity, the hooks' auto-declare, the ADR-0079 reaper,
    `/api/presence`, the `events.session` writers/readers) is the arc's **LAST increment, gated on
-   the owner's appearance-UAT attestation** (owner-directed).
+   the owner's appearance-UAT attestation** (owner-directed). **[Landed 2026-07-17: the owner
+   attested the inc-5 claim-grade renders that morning, gating the sweep, which then landed across
+   PRs #760–#766 — desktop mirror (#760), studio server (#761) and frontend (#762), cli+drive prune
+   re-key and statusline re-source onto the ledger (#763), stories re-authored to the one-ledger
+   world (#764), the notice-board presence core deleted (presence.ts / presence-store.ts / reaper.ts,
+   #765), and the `events.session`/`session_event` tables dropped guarded-idempotent (#766). The
+   claim ledger is now the sole coordination + observability machinery; advisory presence is gone.]**
 
 8. **Stories follow.** `notice-board` and `wisp-as-story-claim` are re-authored (story-author) to
    the one-ledger world as part of the arc — one coherent journey: the deterministic claim board
@@ -157,9 +163,11 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
 - A session that ignores the lobby ceremony is invisible until the gate wall catches it; claim-free
   actions (ADR authoring, curation — ADR-0138 D3's exception) stay invisible on the map. Accepted
   at inner-circle scale; a session-scoped claim key is the named escape hatch if it ever matters.
-- Until the arc's final increment lands, both worlds run side by side (presence still written by
+- ~~Until the arc's final increment lands, both worlds run side by side (presence still written by
   hooks/declare); the interim cost is bounded by ADR-0199 having already removed the destructive
-  writer.
+  writer.~~ *(Resolved 2026-07-17: the final increment landed (#760–#766); presence is no longer
+  written or read anywhere — the two worlds collapsed to the one ledger, so this interim cost is
+  retired.)*
 
 ## References
 
