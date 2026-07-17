@@ -5,6 +5,20 @@
 // /api/uat/attest which stamps the signer; the broker takes a fully-formed Verdict and
 // persists it unchanged — after verifying it).
 //
+// TRUST BOUNDARY — the broker deliberately runs NO proof-of-work check (ADR-0117 accepted
+// cost, owner-reconfirmed 2026-07-18 against a defensive-security review). It enforces
+// authorization + shape + attribution, but it does NOT verify that the verdict came from a
+// real prove-it-gate run: the `Verdict` shape carries no signature (`signer` is a plain
+// string, `boundHash` is an optional advisory hash, neither is checked here), so a `builder`
+// is TRUSTED to be truthful about a verdict its own local gate signed. This is the SAME trust
+// a direct Cloud SQL IAM grant already conferred — and strictly STRICTER, since the raw DB
+// socket validated neither shape nor attribution. Cryptographically verifying the local spine
+// signature is a NAMED, DEFERRED hardening ("revisit if the circle grows past 'trusted to be
+// truthful'", ADR-0117 §Consequences; the trust model is reaffirmed by ADR-0180). A forged
+// `pass` here is at worst a briefly-wrong hue in the observability forest; it can never land
+// broken code on main (ADR-0022 CI re-proves the code independently). This is intended: do NOT
+// re-flag the missing proof-of-work check as a bug without first re-opening ADR-0117.
+//
 // The brokered PRESENCE write type is RETIRED (ADR-0200 D7 — the presence retirement
 // sweep): the claim ledger is the one coordination + observability machinery, so
 // `type: 'presence'` now refuses as an unknown discriminator (400). Verdicts stay.
