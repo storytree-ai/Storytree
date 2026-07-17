@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -15,6 +15,7 @@ import { pickConfiguredRuntime, resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../
 import { PtySessionManager } from "../src/backend/pty-session-manager.js";
 import type { PtyPort, PtyHandle, PtySpawnOptions } from "../src/backend/pty-session-manager.js";
 import { spawn as ptySpawn } from "node-pty";
+import { isAllowedExternalUrl } from "../src/backend/open-link-policy.js";
 import { RepoSelection } from "../src/backend/repo-selection.js";
 import type { DirProbe, SelectionStore } from "../src/backend/repo-selection.js";
 
@@ -681,6 +682,15 @@ ipcMain.on("terminal:clear", (_e, id: string) => {
 ipcMain.on("terminal:dispose", (_e, id: string) => {
   terminalManager.dispose(id);
   terminalSessions.delete(id);
+});
+// Clickable links (patterns-survey increment D): the renderer's web-links addon asks main to open
+// a URL from terminal output in the OS browser. THE SCHEME ALLOWLIST IS ENFORCED HERE — terminal
+// output is untrusted and an unvalidated openExternal from it is a CVE class (electerm advisory
+// GHSA-fwf6-j56g-m97c: file:/UNC/javascript: targets execute or exfiltrate); the renderer's own
+// check is only belt, since a compromised renderer can send any string over IPC. The validator is
+// headless-provable (open-link-policy.test.ts). A refused URL is a quiet no-op, never a throw.
+ipcMain.on("terminal:open-link", (_e, url: unknown) => {
+  if (isAllowedExternalUrl(url)) void shell.openExternal(url);
 });
 // The ADR-0189 re-attach slice: sessions are APP-owned (the dock's unmount no longer disposes them), so
 // a remounting dock enumerates the still-live sessions and replays their buffered scrollback. The

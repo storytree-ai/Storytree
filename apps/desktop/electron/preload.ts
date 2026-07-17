@@ -98,6 +98,14 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
   clear: (sessionId: string): void => {
     ipcRenderer.send("terminal:clear", sessionId);
   },
+  // Clickable links (patterns-survey increment D): the renderer's web-links addon routes a
+  // clicked URI here — NEVER window.open — and the MAIN enforces the http/https scheme
+  // allowlist right before shell.openExternal (open-link-policy.ts; an unvalidated
+  // openExternal from terminal output is the electerm GHSA-fwf6-j56g-m97c CVE class — the
+  // renderer's own scheme check is only belt). Fire-and-forget.
+  openLink: (url: string): void => {
+    ipcRenderer.send("terminal:open-link", url);
+  },
   ...(windowsBuildNumber === undefined ? {} : { windowsBuildNumber }),
 });
 

@@ -74,6 +74,9 @@ const xtermMock = vi.hoisted(() => {
     /** test-only: counts `term.clear()` calls — pins the ConPTY state-sync clear contract
      *  (frontend clear → xterm buffer cleared + bridge.clear forwarded) without a real buffer. */
     clearCalls = 0;
+    /** test-only: increment D tab titles — the handler `onTitleChange` captures, mirroring real
+     *  xterm's OSC 0/2 title hook; `fireTitleChange` simulates the app retitling its terminal. */
+    titleHandler: ((title: string) => void) | null = null;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
     constructor(options?: Record<string, unknown>) {
@@ -97,6 +100,13 @@ const xtermMock = vi.hoisted(() => {
     }
     onResize(cb: (dims: { cols: number; rows: number }) => void): void {
       this.resizeHandler = cb;
+    }
+    onTitleChange(cb: (title: string) => void): void {
+      this.titleHandler = cb;
+    }
+    /** test-only: increment D — simulate the pty app changing its title (OSC 0/2). */
+    fireTitleChange(title: string): void {
+      this.titleHandler?.(title);
     }
     resize(cols: number, rows: number): void {
       this.cols = cols;
@@ -217,6 +227,85 @@ const unicode11Mock = vi.hoisted(() => {
 });
 vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: unicode11Mock.FakeUnicode11Addon }));
 
+// ── the fake WebLinksAddon — the clickable-links seam (increment D). Captures the activation
+//    handler the dock constructs it with, so the contract can invoke it with a URI and assert the
+//    click routes over the feature-guarded bridge (NEVER window.open — the electerm CVE class,
+//    GHSA-fwf6-j56g-m97c). ──────────────────────────────────────────────────────────────────────
+const webLinksMock = vi.hoisted(() => {
+  class FakeWebLinksAddon {
+    static instances: FakeWebLinksAddon[] = [];
+    handler: ((event: MouseEvent, uri: string) => void) | undefined;
+    disposed = false;
+    constructor(handler?: (event: MouseEvent, uri: string) => void) {
+      this.handler = handler;
+      FakeWebLinksAddon.instances.push(this);
+    }
+    dispose(): void {
+      this.disposed = true;
+    }
+  }
+  return { FakeWebLinksAddon };
+});
+vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: webLinksMock.FakeWebLinksAddon }));
+
+// ── the fake SearchAddon — the find-in-scrollback seam (increment D). Records the queries driven
+//    through findNext/findPrevious so the contracts can assert the panel's search chrome targets
+//    the ACTIVE tab's addon only. ────────────────────────────────────────────────────────────────
+const searchMock = vi.hoisted(() => {
+  class FakeSearchAddon {
+    static instances: FakeSearchAddon[] = [];
+    findNextCalls: string[] = [];
+    findPreviousCalls: string[] = [];
+    disposed = false;
+    constructor() {
+      FakeSearchAddon.instances.push(this);
+    }
+    findNext(term: string): boolean {
+      this.findNextCalls.push(term);
+      return true;
+    }
+    findPrevious(term: string): boolean {
+      this.findPreviousCalls.push(term);
+      return true;
+    }
+    dispose(): void {
+      this.disposed = true;
+    }
+  }
+  return { FakeSearchAddon };
+});
+vi.mock('@xterm/addon-search', () => ({ SearchAddon: searchMock.FakeSearchAddon }));
+
+// ── the fake ClipboardAddon — the OSC 52 seam (increment D). Captures BOTH constructor arguments:
+//    the 0.1.0 package's published typings declare `constructor(provider?)` but its shipped runtime
+//    is `constructor(base64 = new Base64(), provider = new BrowserClipboardProvider())` — the
+//    provider is the SECOND parameter (verified against lib/addon-clipboard.js), and the default
+//    provider READS the system clipboard. A provider passed per the typings would silently land in
+//    the base64 slot and leave OSC 52 read (the paste-exfiltration vector) enabled, so the contract
+//    pins the second-slot placement explicitly. ─────────────────────────────────────────────────
+const clipboardMock = vi.hoisted(() => {
+  interface CapturedClipboardProvider {
+    readText(selection: string): string | Promise<string>;
+    writeText(selection: string, text: string): void | Promise<void>;
+  }
+  class FakeClipboardAddon {
+    static instances: FakeClipboardAddon[] = [];
+    base64: unknown;
+    provider: CapturedClipboardProvider | undefined;
+    disposed = false;
+    constructor(base64?: unknown, provider?: CapturedClipboardProvider) {
+      this.base64 = base64;
+      this.provider = provider;
+      FakeClipboardAddon.instances.push(this);
+    }
+    dispose(): void {
+      this.disposed = true;
+    }
+  }
+  return { FakeClipboardAddon };
+});
+vi.mock('@xterm/addon-clipboard', () => ({ ClipboardAddon: clipboardMock.FakeClipboardAddon }));
+
 // ── the desktopTerminal bridge — installed on `window` per test (deleted for the absent-bridge
 //    case). `spawn` resolves asynchronously (a real IPC round-trip would too), so tests await a
 //    flush before asserting the spawned Terminal. `spawn` resolves a FRESH sessionId per call
@@ -256,6 +345,10 @@ const bridgeMock = vi.hoisted(() => {
     // clear forwards to the main so the pty's buffer representation and the main-held screen model
     // clear with it (else ConPTY reprints the stale screen on the next resize).
     clear: vi.fn<(sessionId: string) => void>(),
+    // Increment D clickable links — OPTIONAL like `ack`/`clear` (an older preload lacks it): the
+    // web-links addon routes a clicked URI here; the main enforces the http/https allowlist before
+    // shell.openExternal (open-link-policy.test.ts is the enforcing wall's own contract).
+    openLink: vi.fn<(url: string) => void>(),
     resetSessionCounter: (): void => {
       sessionCounter = 0;
     },
@@ -308,6 +401,16 @@ const flushResizeDebounce = (): Promise<void> =>
     await new Promise((resolve) => setTimeout(resolve, RESIZE_DEBOUNCE_MS * 5));
   });
 
+/** The injected tab-title debounce window (increment D) — the source's default is 150 ms; injected
+ *  small here, the same seam discipline as `resizeDebounceMs`. */
+const TITLE_DEBOUNCE_MS = 5;
+
+/** Outwait the injected title debounce window so an assertion sees the trailing coalesced title. */
+const flushTitleDebounce = (): Promise<void> =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, TITLE_DEBOUNCE_MS * 5));
+  });
+
 /** The single toggle (folded → expand, expanded → collapse), found by aria-label — mirrors ChatDock's
  *  toggle pattern. */
 function toggle(): HTMLElement {
@@ -357,6 +460,9 @@ beforeEach(() => {
   webglMock.FakeWebglAddon.instances.length = 0;
   webglMock.FakeWebglAddon.failConstruction = false;
   unicode11Mock.FakeUnicode11Addon.instances.length = 0;
+  webLinksMock.FakeWebLinksAddon.instances.length = 0;
+  searchMock.FakeSearchAddon.instances.length = 0;
+  clipboardMock.FakeClipboardAddon.instances.length = 0;
   FakeResizeObserver.instances.length = 0;
   bridgeMock.resetSessionCounter();
   bridgeMock.spawn.mockClear();
@@ -369,6 +475,7 @@ beforeEach(() => {
   bridgeMock.snapshot.mockClear();
   bridgeMock.ack.mockClear();
   bridgeMock.clear.mockClear();
+  bridgeMock.openLink.mockClear();
   (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
   (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
     FakeResizeObserver as unknown as typeof ResizeObserver;
@@ -1350,5 +1457,217 @@ describe('TerminalDock', () => {
     ).not.toThrow();
     expect(term.clearCalls).toBe(1);
     expect(bridgeMock.clear).not.toHaveBeenCalled();
+  });
+
+  // ── UX table-stakes contracts (embedded-terminal patterns survey, increment D) ────────────────
+
+  //    Clickable links: each tab loads the web-links addon with a handler that routes the clicked
+  //    URI over the feature-guarded bridge (`openLink?`) to the main's allowlisted
+  //    shell.openExternal — NEVER window.open, never an unvalidated openExternal (the electerm CVE
+  //    class, GHSA-fwf6-j56g-m97c; the main's scheme allowlist is the enforcing wall, this
+  //    renderer check is only belt). An older preload without `openLink` loads NO link addon at
+  //    all — a link affordance that could never open would mislead. Today `initTab` loads no
+  //    web-links addon, so this must fail. ────────────────────────────────────────────────────────
+  it('tdp-opens-links-via-guarded-bridge: every tab loads the web-links addon routing http/https URIs to bridge.openLink; a non-http scheme never reaches the bridge; an absent openLink member loads no link addon', async () => {
+    render(<TerminalDock />);
+    await expand(); // tab 1
+    await openNewTab(); // tab 2 — the addon is per-terminal, EVERY tab gets its own
+
+    expect(webLinksMock.FakeWebLinksAddon.instances.length).toBe(2);
+    const [term1, term2] = xtermMock.FakeTerminal.instances;
+    const links1 = webLinksMock.FakeWebLinksAddon.instances[0]!;
+    expect(term1!.addons).toContain(links1);
+    expect(term2!.addons).toContain(webLinksMock.FakeWebLinksAddon.instances[1]);
+
+    // The handler routes the clicked URI over the bridge, suppressing the default (window.open).
+    const preventDefault = vi.fn();
+    const clickEvent = { preventDefault } as unknown as MouseEvent;
+    expect(links1.handler).toBeDefined();
+    links1.handler!(clickEvent, 'https://github.com/HuaMick/storytree/pull/772');
+    expect(bridgeMock.openLink).toHaveBeenCalledWith('https://github.com/HuaMick/storytree/pull/772');
+    expect(preventDefault).toHaveBeenCalled();
+
+    // Renderer-side belt: a non-http(s) scheme never even reaches the bridge (the main's
+    // allowlist would refuse it anyway — defense in depth).
+    bridgeMock.openLink.mockClear();
+    links1.handler!(clickEvent, 'file:///C:/Windows/System32/cmd.exe');
+    expect(bridgeMock.openLink).not.toHaveBeenCalled();
+
+    cleanup();
+
+    // An older preload without `openLink` (feature-guarded like `ack?`/`clear?`): no link addon
+    // is loaded at all, and nothing throws.
+    const bridgeWithoutOpenLink = { ...bridgeMock } as Record<string, unknown>;
+    delete bridgeWithoutOpenLink['openLink'];
+    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutOpenLink;
+    bridgeMock.resetSessionCounter();
+    webLinksMock.FakeWebLinksAddon.instances.length = 0;
+    render(<TerminalDock />);
+    await expand();
+    expect(webLinksMock.FakeWebLinksAddon.instances.length).toBe(0);
+  });
+
+  //    Tab titles: OSC 0/2 (`term.onTitleChange`) → the session-panel row label, DEBOUNCED
+  //    (trailing — a TUI that animates its title must not re-render the panel per frame). The
+  //    dynamic title lands in VISIBLE TEXT ONLY ("N: title"); the `tab N` / `close tab N`
+  //    aria-labels and the `.terminal-dock-panel-row` class stay BYTE-STABLE (this whole suite +
+  //    the e2e select by them). A pending title timer is cancelled on unmount, the same timer
+  //    discipline as increment C's resize debounce. Today `initTab` never subscribes
+  //    `onTitleChange`, so this must fail. ────────────────────────────────────────────────────────
+  it('tdp-updates-panel-row-title-debounced: an OSC title burst lands ONCE as the trailing title in the row\'s visible text; aria-labels stay byte-stable; unmount cancels a pending title', async () => {
+    const { unmount } = render(<TerminalDock titleDebounceMs={TITLE_DEBOUNCE_MS} />);
+    await expand(); // tab 1 = sess-1
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(term.titleHandler).not.toBeNull();
+
+    // A burst of title changes coalesces — nothing lands until the trailing window elapses...
+    act(() => {
+      term.fireTitleChange('powershell');
+      term.fireTitleChange('claude');
+    });
+    expect(tabButton(1).textContent ?? '').not.toContain('claude');
+
+    await flushTitleDebounce();
+
+    // ...then the FINAL title lands, ordinal-prefixed, in visible text only.
+    expect(tabButton(1).textContent).toContain('1: claude');
+
+    // BYTE-STABLE selectors: the aria-labels and the row class are untouched by the title.
+    expect(screen.getByRole('button', { name: /^tab 1$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^close tab 1$/i })).toBeTruthy();
+    expect(document.querySelectorAll('.terminal-dock-panel-row').length).toBe(1);
+
+    // A pending title at unmount is cancelled — no leaked timer fires into a torn-down dock.
+    act(() => {
+      term.fireTitleChange('late title');
+    });
+    unmount();
+    await flushTitleDebounce(); // must not throw / touch unmounted state
+  });
+
+  //    Find-in-scrollback: a per-tab SearchAddon stored on the TabRecord (like `fit`), driven for
+  //    the ACTIVE tab by the panel's search chrome. Absent by default — no search input until
+  //    toggled, and never a `.terminal-dock-header-right` container (the headerRight slot contract
+  //    keeps its absent-by-default half). Today `initTab` loads no search addon and no search
+  //    chrome exists, so this must fail. ──────────────────────────────────────────────────────────
+  it('tdp-searches-active-tab-scrollback: the panel search chrome drives the ACTIVE tab\'s per-tab search addon (Enter next, Shift+Enter previous), renders no input until toggled, and closes on Escape', async () => {
+    const { container } = render(<TerminalDock />);
+    await expand(); // tab 1
+    await openNewTab(); // tab 2, active
+
+    // Per-tab addon, loaded like fit.
+    expect(searchMock.FakeSearchAddon.instances.length).toBe(2);
+    const [term1, term2] = xtermMock.FakeTerminal.instances;
+    const search1 = searchMock.FakeSearchAddon.instances[0]!;
+    const search2 = searchMock.FakeSearchAddon.instances[1]!;
+    expect(term1!.addons).toContain(search1);
+    expect(term2!.addons).toContain(search2);
+
+    // Absent by default: no input until toggled, and no header-right container involved.
+    expect(screen.queryByRole('textbox', { name: /search scrollback/i })).toBeNull();
+    expect(container.querySelector('.terminal-dock-header-right')).toBeNull();
+
+    // Open the chrome; find-as-you-type drives the ACTIVE tab (2) only.
+    fireEvent.click(screen.getByRole('button', { name: /search terminal/i }));
+    const input = screen.getByRole('textbox', { name: /search scrollback/i });
+    fireEvent.change(input, { target: { value: 'error' } });
+    expect(search2.findNextCalls).toContain('error');
+    expect(search1.findNextCalls).toEqual([]);
+
+    // Enter advances to the next match; Shift+Enter goes back.
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(search2.findNextCalls.filter((q) => q === 'error').length).toBeGreaterThanOrEqual(2);
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+    expect(search2.findPreviousCalls).toEqual(['error']);
+
+    // Switching tabs re-targets the SAME chrome at the newly-active tab.
+    fireEvent.click(tabButton(1));
+    fireEvent.change(input, { target: { value: 'warn' } });
+    expect(search1.findNextCalls).toContain('warn');
+    expect(search2.findNextCalls).not.toContain('warn');
+
+    // Escape closes the chrome — back to absent-by-default.
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: /search scrollback/i })).toBeNull();
+  });
+
+  //    OSC 52 clipboard, WRITE-ONLY: each tab loads the clipboard addon with a custom provider in
+  //    the SECOND constructor slot (the 0.1.0 runtime is `constructor(base64, provider)` despite
+  //    its published one-arg typings — a provider passed per the typings lands in the base64 slot
+  //    and leaves the READING default provider active). The provider's write half reaches the
+  //    system clipboard; its read half always answers EMPTY — OSC 52 read is a paste-exfiltration
+  //    vector (any process in the pty could silently read the user's clipboard). Today `initTab`
+  //    loads no clipboard addon, so this must fail. ─────────────────────────────────────────────
+  it('tdp-clipboard-osc52-write-only: every tab loads the clipboard addon with a second-slot provider whose writes reach the system clipboard and whose reads always resolve empty', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const readText = vi.fn<() => Promise<string>>(async () => 'secret clipboard contents');
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText, readText },
+      configurable: true,
+    });
+
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(clipboardMock.FakeClipboardAddon.instances.length).toBe(1);
+    const clip = clipboardMock.FakeClipboardAddon.instances[0]!;
+    expect(term.addons).toContain(clip);
+
+    // The provider sits in the SECOND runtime slot (never the base64 slot).
+    expect(clip.provider).toBeDefined();
+    expect(typeof clip.provider!.readText).toBe('function');
+    expect(typeof clip.provider!.writeText).toBe('function');
+
+    // WRITE: an app's OSC 52 copy reaches the system clipboard.
+    await clip.provider!.writeText('c', 'copied by the TUI');
+    expect(writeText).toHaveBeenCalledWith('copied by the TUI');
+
+    // READ: disabled — always empty, and the system clipboard is never touched.
+    expect(await clip.provider!.readText('c')).toBe('');
+    expect(readText).not.toHaveBeenCalled();
+  });
+
+  //    Right-click copy/paste (the Windows terminal convention), complementing — never replacing —
+  //    the signed Ctrl+C/V contract 12: a contextmenu on the pane with a selection COPIES it; with
+  //    no selection it PASTES the clipboard through xterm's own paste entry point; the browser
+  //    context menu is always suppressed; an absent navigator.clipboard never throws. Today the
+  //    pane has no contextmenu handler, so this must fail. ─────────────────────────────────────────
+  it('tdp-right-click-copies-selection-or-pastes: contextmenu with a selection copies it (no paste); without a selection it pastes the clipboard; the browser menu is always suppressed; no clipboard never throws', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const readText = vi.fn<() => Promise<string>>(async () => 'clipboard text');
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText, readText },
+      configurable: true,
+    });
+
+    const { container } = render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    const pane = container.querySelector('.terminal-dock-body') as HTMLElement;
+
+    // WITH a selection: copy, no paste, browser menu suppressed (fireEvent returns false when
+    // preventDefault was called on the cancelable event).
+    term.selection = 'picked text';
+    expect(fireEvent.contextMenu(pane)).toBe(false);
+    await flush();
+    expect(writeText).toHaveBeenCalledWith('picked text');
+    expect(term.pasted).toEqual([]);
+
+    // WITHOUT a selection: paste through xterm's own entry point, no copy.
+    writeText.mockClear();
+    term.selection = '';
+    expect(fireEvent.contextMenu(pane)).toBe(false);
+    await flush();
+    expect(readText).toHaveBeenCalled();
+    expect(term.pasted).toEqual(['clipboard text']);
+    expect(writeText).not.toHaveBeenCalled();
+
+    // An absent navigator.clipboard never throws; the browser menu is still suppressed.
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    expect(() => fireEvent.contextMenu(pane)).not.toThrow();
+    expect(fireEvent.contextMenu(pane)).toBe(false);
   });
 });

@@ -2615,6 +2615,43 @@ a.stat:hover {
   border-color: color-mix(in srgb, var(--term-muted) 45%, transparent);
   background: color-mix(in srgb, var(--term-muted) 7%, transparent);
 }
+/* The search toggle — find-in-scrollback for the ACTIVE tab (patterns-survey inc D). Same quiet
+   action-row shape as the clear control; the input renders only while the chrome is open. */
+.terminal-dock-panel-search {
+  margin-top: 2px;
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--term-muted) 70%, transparent);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.terminal-dock-panel-search:hover {
+  color: var(--term-muted);
+  border-color: color-mix(in srgb, var(--term-muted) 45%, transparent);
+  background: color-mix(in srgb, var(--term-muted) 7%, transparent);
+}
+.terminal-dock-panel-search-input {
+  margin-top: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid var(--term-border-inner);
+  border-radius: 6px;
+  background: var(--term-screen);
+  color: #d9cfba;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.terminal-dock-panel-search-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--term-sage) 55%, transparent);
+}
 
 /* Studio-standalone (no desktop bridge): an honest, unobtrusive disabled bar — never a spawn, never a
    hang. It flows position:absolute at the map-frame bottom, the same slot a collapsed dock would fold to;

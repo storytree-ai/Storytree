@@ -39,6 +39,10 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import type { IClipboardProvider } from '@xterm/addon-clipboard';
 
 /** Drag bounds for the expanded dock height (px) — mirrors ChatDock's MIN/DEFAULT/margin. */
 const MIN_HEIGHT = 160;
@@ -60,6 +64,37 @@ const ACK_GRAIN_CHARS = 5_000;
  *  live so the pane feels responsive, and the ADR-0190 re-attach replay is EXEMPT (its snapshot
  *  restore depends on the synchronous forward reaching the pty at the recorded dims). */
 const RESIZE_FORWARD_DEBOUNCE_MS = 100;
+
+/** Tab titles (patterns-survey increment D): OSC 0/2 title changes are DEBOUNCED (trailing) by
+ *  this window before landing in the session-panel row — a TUI that animates its title (a spinner
+ *  frame per repaint) must not re-render the panel per frame. The title goes in VISIBLE TEXT only
+ *  ("N: title"); the `tab N` / `close tab N` aria-labels stay byte-stable (the renderer suite +
+ *  the e2e select by them). */
+const TITLE_UPDATE_DEBOUNCE_MS = 150;
+
+/** OSC 52 clipboard provider, WRITE-ONLY (patterns-survey increment D): the write half lets a TUI
+ *  copy into the user's clipboard; the read half ALWAYS answers empty — OSC 52 read is a
+ *  paste-exfiltration vector (any process in the pty could silently read the clipboard), so it is
+ *  deliberately disabled, never wired to `navigator.clipboard.readText`. */
+const OSC52_WRITE_ONLY_PROVIDER: IClipboardProvider = {
+  readText: () => '',
+  writeText: (_selection, text) => {
+    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+    return clipboard ? clipboard.writeText(text) : undefined;
+  },
+};
+
+/** @xterm/addon-clipboard 0.1.0 ships `constructor(base64 = new Base64(), provider = new
+ *  BrowserClipboardProvider())` at RUNTIME while its published typings declare
+ *  `constructor(provider?)` — one parameter. A provider passed per the typings silently lands in
+ *  the base64 slot and leaves the READING default provider active (the exfiltration vector the
+ *  write-only provider exists to close), so the call site pins the second slot through this
+ *  deliberate cast (verified against lib/addon-clipboard.js; the same typings-vs-runtime class as
+ *  the UMD default-import form documented in pty-session-manager.ts). */
+const ClipboardAddonCtor = ClipboardAddon as unknown as new (
+  base64?: unknown,
+  provider?: IClipboardProvider,
+) => ClipboardAddon;
 
 /** The bridge the desktop preload exposes on `window` (absent in the hosted/dev studio — a browser). Its
  *  shape mirrors `desktopAuth` / `desktopApply`: `spawn` starts a pty session (the Electron main drives
@@ -97,6 +132,13 @@ export interface DesktopTerminalBridge {
    *  or ConPTY reprints the stale screen on the next resize (and a re-attach would replay it).
    *  Fire-and-forget; without it the clear stays local to the renderer. */
   clear?(sessionId: string): void;
+  /** OPTIONAL (feature-guarded like `ack?`/`clear?` — an older preload lacks it): open an
+   *  http/https URL from terminal output in the OS browser. The MAIN enforces the scheme
+   *  allowlist right before `shell.openExternal` (open-link-policy.ts — terminal output is
+   *  untrusted, the electerm GHSA-fwf6-j56g-m97c CVE class); the renderer's own scheme check is
+   *  only belt. When absent, no web-links addon is loaded at all — a link affordance that could
+   *  never open would mislead. Fire-and-forget. */
+  openLink?(url: string): void;
 }
 
 declare global {
@@ -135,6 +177,16 @@ function cancelResizeForward(rec: TabRecord): void {
   rec.pendingResize = null;
 }
 
+/** Cancel a tab's pending (debounced) title update — on tab close and dock unmount, so a leaked
+ *  timer never sets state on a torn-down dock (the `cancelResizeForward` discipline). */
+function cancelTitleUpdate(rec: TabRecord): void {
+  if (rec.titleTimer !== null) {
+    clearTimeout(rec.titleTimer);
+    rec.titleTimer = null;
+  }
+  rec.pendingTitle = null;
+}
+
 /** A seed command to pre-fill into the terminal (never auto-run — no trailing newline). `token` is a
  *  monotonic NONCE, not a cache key: a repeat seed of the identical `command` still re-fires as long
  *  as `token` bumps (a user may Build the same node twice, or re-seed after clearing the terminal). */
@@ -155,6 +207,9 @@ export interface TerminalDockProps {
    *  PtySessionManagerOptions' injectable windows; product code never passes it (the default is
    *  RESIZE_FORWARD_DEBOUNCE_MS, Tabby's audited 100 ms). */
   resizeDebounceMs?: number;
+  /** The tab-title debounce window (ms) — a TEST SEAM only, same discipline as `resizeDebounceMs`;
+   *  product code never passes it (the default is TITLE_UPDATE_DEBOUNCE_MS). */
+  titleDebounceMs?: number;
 }
 
 /** One tab's imperative state — held in `recordsRef` (a `Map`, keyed by the tab's stable local id), NOT
@@ -186,12 +241,21 @@ interface TabRecord {
    *  debounce (the snapshot restore depends on the pty synchronously seeing the recorded dims
    *  before the fitted dims). */
   syncResizeForward: boolean;
+  /** Find-in-scrollback (increment D) — this tab's own search addon, stored like `fit` and driven
+   *  for the ACTIVE tab by the panel's search chrome. */
+  search: SearchAddon | null;
+  /** Tab titles (increment D) — the trailing-debounce state for THIS tab's OSC 0/2 title updates:
+   *  the pending timer and the latest (coalesced) title it will land. Cleared on tab close and
+   *  dock unmount, the same timer discipline as `resizeTimer`. */
+  titleTimer: ReturnType<typeof setTimeout> | null;
+  pendingTitle: string | null;
 }
 
 export function TerminalDock({
   seed,
   headerRight,
   resizeDebounceMs = RESIZE_FORWARD_DEBOUNCE_MS,
+  titleDebounceMs = TITLE_UPDATE_DEBOUNCE_MS,
 }: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
 
@@ -203,6 +267,12 @@ export function TerminalDock({
   // state the bridge callbacks and drag/refocus handlers read. `activeId` is which tab's pane shows.
   const [tabIds, setTabIds] = useState<number[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
+  // Increment D — the debounced OSC 0/2 title per tab (visible row text only; a tab with no title
+  // yet keeps its plain "Session N" label), and the panel's find-in-scrollback chrome state
+  // (absent-by-default: no input rendered until toggled).
+  const [tabTitles, setTabTitles] = useState<Map<number, string>>(new Map());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   // ADR-0189 re-attach slice — true until the mount-time bridge.list() restore has settled (empty,
   // populated, or no `list` at all). Gates spawn-on-first-expand so it never races/duplicates the
   // restore's adopted tabs.
@@ -249,6 +319,9 @@ export function TerminalDock({
       resizeTimer: null,
       pendingResize: null,
       syncResizeForward: false,
+      search: null,
+      titleTimer: null,
+      pendingTitle: null,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
@@ -273,6 +346,9 @@ export function TerminalDock({
       resizeTimer: null,
       pendingResize: null,
       syncResizeForward: false,
+      search: null,
+      titleTimer: null,
+      pendingTitle: null,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
@@ -345,9 +421,32 @@ export function TerminalDock({
       // one-sided tables would make a re-attach replay re-wrap differently than live rendering.
       term.loadAddon(new Unicode11Addon());
       term.unicode.activeVersion = '11';
+      // Find-in-scrollback (increment D): a per-tab search addon, stored on the record like
+      // `fit` — the panel's search chrome drives the ACTIVE tab's instance.
+      const search = new SearchAddon();
+      term.loadAddon(search);
+      // Clickable links (increment D): loaded ONLY when the preload offers `openLink` (an older
+      // preload lacks it — a link affordance that could never open would mislead). The handler
+      // routes the URI over the bridge to the main's ALLOWLISTED shell.openExternal — never
+      // window.open, never an unvalidated openExternal (the electerm GHSA-fwf6-j56g-m97c CVE
+      // class). The main enforces the http/https allowlist (open-link-policy.ts); this scheme
+      // check is only belt.
+      if (bridge.openLink) {
+        term.loadAddon(
+          new WebLinksAddon((event, uri) => {
+            event.preventDefault();
+            if (/^https?:\/\//i.test(uri)) bridge.openLink?.(uri);
+          }),
+        );
+      }
+      // OSC 52 clipboard, WRITE-ONLY (increment D): a TUI can copy INTO the user's clipboard;
+      // reads always answer empty (the paste-exfiltration vector stays closed). The dedicated
+      // constructor pins the provider in the 0.1.0 runtime's SECOND slot — see ClipboardAddonCtor.
+      term.loadAddon(new ClipboardAddonCtor(undefined, OSC52_WRITE_ONLY_PROVIDER));
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;
+      rec.search = search;
 
       // Contract 13 — render on xterm's GPU (WebGL) renderer, not the DOM fallback renderer whose
       // documented rendering issues are the owner-reported artifact class (stale glyphs pinned at
@@ -424,6 +523,20 @@ export function TerminalDock({
           if (dims && rec.sessionId) bridge.resize(rec.sessionId, dims.cols, dims.rows);
         }, resizeDebounceMs);
       });
+      // Tab titles (increment D): OSC 0/2 → this tab's panel-row label, DEBOUNCED (trailing —
+      // a TUI animating its title must not re-render the panel per frame). Visible text only;
+      // the "tab N" aria-labels stay byte-stable. The timer is cancelled on tab close and dock
+      // unmount (cancelTitleUpdate — the resize-timer discipline).
+      term.onTitleChange((title) => {
+        rec.pendingTitle = title;
+        if (rec.titleTimer !== null) clearTimeout(rec.titleTimer);
+        rec.titleTimer = setTimeout(() => {
+          rec.titleTimer = null;
+          const landed = rec.pendingTitle;
+          rec.pendingTitle = null;
+          if (landed !== null) setTabTitles((prev) => new Map(prev).set(id, landed));
+        }, titleDebounceMs);
+      });
 
       if (rec.sessionId) {
         // ADR-0189 re-attach: an ADOPTED tab already carries a live session — never spawn a fresh
@@ -490,7 +603,7 @@ export function TerminalDock({
         }
       });
     },
-    [bridge, writePtyData, resizeDebounceMs],
+    [bridge, writePtyData, resizeDebounceMs, titleDebounceMs],
   );
 
   /** Dispose ONE tab's session (bridge + xterm/fit) and reap it from the strip; the sibling tabs are
@@ -500,11 +613,18 @@ export function TerminalDock({
       const rec = recordsRef.current.get(id);
       if (rec) {
         cancelResizeForward(rec);
+        cancelTitleUpdate(rec);
         rec.fit?.dispose();
         rec.term?.dispose();
         if (rec.sessionId && bridge) bridge.dispose(rec.sessionId);
         recordsRef.current.delete(id);
       }
+      setTabTitles((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
       setTabIds((prev) => {
         const next = prev.filter((x) => x !== id);
         setActiveId((prevActive) =>
@@ -530,6 +650,35 @@ export function TerminalDock({
     rec.term.clear();
     if (rec.sessionId) bridge?.clear?.(rec.sessionId);
   }, [bridge]);
+
+  /** Drive the ACTIVE tab's search addon (increment D) — find-as-you-type and Enter step forward,
+   *  Shift+Enter steps back. A no-op on an empty query or before any tab is active. */
+  const runSearch = useCallback((query: string, direction: 'next' | 'previous'): void => {
+    if (query === '') return;
+    const id = activeIdRef.current;
+    if (id === null) return;
+    const search = recordsRef.current.get(id)?.search;
+    if (!search) return;
+    if (direction === 'next') search.findNext(query);
+    else search.findPrevious(query);
+  }, []);
+
+  /** Right-click copy/paste on a pane (increment D — the Windows terminal convention),
+   *  complementing the signed Ctrl+C/V contract 12: a selection copies, no selection pastes
+   *  through xterm's own bracketed-paste entry point; the browser context menu never shows over a
+   *  terminal pane; an absent `navigator.clipboard` is a quiet no-op, never a throw. */
+  const onPaneContextMenu = useCallback((id: number, event: React.MouseEvent): void => {
+    event.preventDefault();
+    const term = recordsRef.current.get(id)?.term;
+    const clipboard: Clipboard | undefined =
+      typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+    if (!term || !clipboard) return;
+    if (term.hasSelection()) {
+      void clipboard.writeText(term.getSelection());
+    } else {
+      void clipboard.readText().then((text) => term.paste(text));
+    }
+  }, []);
 
   // ADR-0189 re-attach slice — on mount, ask the bridge for still-live sessions and ADOPT each one as
   // its own tab (never `spawn`). Gates `restoringSessions` false once the restore settles (empty,
@@ -623,6 +772,7 @@ export function TerminalDock({
     return () => {
       for (const rec of recordsRef.current.values()) {
         cancelResizeForward(rec);
+        cancelTitleUpdate(rec);
         rec.fit?.dispose();
         rec.term?.dispose();
       }
@@ -780,13 +930,15 @@ export function TerminalDock({
                 id === activeId ? ' terminal-dock-panel-row-active' : ''
               }`}
             >
+              {/* The dynamic OSC title (increment D) lives in VISIBLE TEXT only — the aria-label
+                  stays byte-stable "tab N" (the suite + e2e select by it). */}
               <button
                 type="button"
                 className="terminal-dock-panel-row-switch"
                 aria-label={`tab ${i + 1}`}
                 onClick={() => setActiveId(id)}
               >
-                Session {i + 1}
+                {tabTitles.has(id) ? `${i + 1}: ${tabTitles.get(id)}` : `Session ${i + 1}`}
               </button>
               <button
                 type="button"
@@ -816,6 +968,37 @@ export function TerminalDock({
           >
             ⊘
           </button>
+          {/* Find-in-scrollback (increment D): the toggle lives with the panel's other quiet
+              controls; the input renders ONLY while open (absent-by-default, and never a
+              `.terminal-dock-header-right` container — that slot's contract keeps its
+              absent-by-default half). It drives the ACTIVE tab's per-tab search addon. */}
+          <button
+            type="button"
+            className="terminal-dock-panel-search"
+            aria-label="search terminal"
+            onClick={() => setSearchOpen((open) => !open)}
+          >
+            ⌕
+          </button>
+          {searchOpen && (
+            <input
+              className="terminal-dock-panel-search-input"
+              aria-label="search scrollback"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                runSearch(e.target.value, 'next');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  runSearch(searchQuery, e.shiftKey ? 'previous' : 'next');
+                } else if (e.key === 'Escape') {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                }
+              }}
+            />
+          )}
         </div>
 
         {/* Each tab's xterm mount stays MOUNTED under `hidden` (not conditional render), preserving
@@ -831,6 +1014,7 @@ export function TerminalDock({
               if (rec) rec.bodyEl = el;
             }}
             onMouseDown={() => recordsRef.current.get(id)?.term?.focus()}
+            onContextMenu={(e) => onPaneContextMenu(id, e)}
           />
         ))}
       </div>
