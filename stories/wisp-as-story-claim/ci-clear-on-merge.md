@@ -3,7 +3,7 @@ id: "ci-clear-on-merge"
 tier: capability
 story: wisp-as-story-claim
 title: "CI clears the claim on merge — the merge job releases the merged branch's node_claim rows"
-outcome: "The CI merge job's existing presence sweep also releases `events.node_claim` rows for the merged/closed branch, calling `releaseClaimsByBranch` (capability A1) — the guaranteed machine clear that fixes 'never cleared'."
+outcome: "The CI merge job releases `events.node_claim` rows (every grade) for the merged/closed branch, calling `releaseClaimsByBranch` (capability A1) — the guaranteed machine clear that fixes 'never cleared' (the presence sweep this rode alongside retired with the presence layer, ADR-0200)."
 status: proposed
 proof_mode: operator-attested
 depends_on: [claim-store-work-time]
@@ -29,6 +29,14 @@ alone.
 
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (A1's `releaseClaimsByBranch` is the
 function this wiring calls).
+
+> **ADR-0200 note (all grades, no presence sweep).** The merge job's OLD companion — the possibly-dead
+> **presence** sweep this capability's outcome referenced ("which already sweeps possibly-dead presence
+> rows") — retired with the presence layer (ADR-0200; the ADR-0079 reaper is gone). What stands is the
+> **claim** clear: `releaseClaimsByBranch(<merged-branch>)` now releases **every grade** for the branch
+> (exploring / waiting / work), keyed on `branch` alone, appending one `released` audit event per cleared
+> claim. `worktree prune` (keyed on live claims, ADR-0200 D6) and the 2 h stale-reclaim are the backstops
+> if a clear is ever missed.
 
 > **Proof status (honest) — `proposed`, operator-attested (glue, ADR-0070).** This capability is the
 > **supplement glue** in the `orchestrate-route-supplement` sense: a `.github/workflows/ci.yml` edit has

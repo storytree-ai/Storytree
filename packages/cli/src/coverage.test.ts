@@ -11,7 +11,8 @@ import { run } from "./commands.js";
  * unit loader is a seam), so the command is tested with a fixture loader — no DB, no spec on disk. The
  * headline red→green: an UNCOVERED contract fails the check; a fully-covered unit passes. The final
  * test grounds the whole pipeline (parser + extractor + classifier + the disk loader) on the real
- * `declare-presence` capability ↔ `presence.test.ts`.
+ * `deploy-health-signal` capability ↔ `deploy-health.test.ts` (the former grounding,
+ * `declare-presence` ↔ `presence.test.ts`, was retired with the presence layer, ADR-0200).
  */
 
 function deps(over: Partial<CoverageDeps> = {}): CoverageDeps {
@@ -55,17 +56,21 @@ test("RED: a unit with an uncovered contract FAILS the check and names the uncov
 
 test("GREEN: a unit whose every contract is named by a test PASSES the check", async () => {
   const env = await coverageCommand(
-    "declare-presence",
+    "deploy-health-signal",
     deps({
       loadUnit: () => ({
         tier: "capability",
-        contractIds: ["presence-doc-fail-closed", "staleness-is-derived", "declaration-upsert-merge"],
-        testNames: [
-          "presence-doc-fail-closed: schema validation",
-          "staleness-is-derived: freshness is a pure function of lastSeenAt vs now",
-          "declaration-upsert-merge: mergeDeclaration is pure and stable",
+        contractIds: [
+          "deploy-health-red-run-classifies-loud",
+          "deploy-health-green-run-classifies-quiet",
+          "deploy-health-no-signal-classifies-unknown",
         ],
-        testFiles: ["packages/notice-board/src/presence.test.ts"],
+        testNames: [
+          "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
+          "deploy-health-green-run-classifies-quiet: a green newest run formats one quiet line",
+          "deploy-health-no-signal-classifies-unknown: no completed run reads UNVERIFIED",
+        ],
+        testFiles: ["packages/cli/src/deploy-health.test.ts"],
       }),
     }),
   );
@@ -97,13 +102,14 @@ test("no test surface found: every contract reads uncovered and the report says 
   assert.match(env.body, /c-a\s+UNCOVERED/);
 });
 
-test("end-to-end over the REAL corpus: declare-presence's three contracts are all covered by presence.test.ts", async () => {
-  // No fixture loader — the real disk loader reads stories/notice-board/declare-presence.md's
-  // `## Contracts` and scans its registered real-build test file (presence.test.ts). This grounds the
-  // whole pipeline: parseContracts + extractTestNames + classifyContractCoverage + loadCoverageUnit.
-  const env = await run(["coverage", "declare-presence"], { store: new InMemoryStore() });
+test("end-to-end over the REAL corpus: deploy-health-signal's three contracts are all covered by deploy-health.test.ts", async () => {
+  // No fixture loader — the real disk loader reads stories/studio-cloud/deploy-health-signal.md's
+  // `## Contracts` and scans its registered real-build test file (deploy-health.test.ts). This grounds
+  // the whole pipeline: parseContracts + extractTestNames + classifyContractCoverage + loadCoverageUnit.
+  // (Re-grounded here when the former exemplar, declare-presence, was retired by ADR-0200.)
+  const env = await run(["coverage", "deploy-health-signal"], { store: new InMemoryStore() });
   assert.equal(env.ok, true);
   assert.match(env.body, /contracts: 3\s+\(3 covered, 0 uncovered\)/);
-  assert.match(env.body, /presence-doc-fail-closed\s+COVERED/);
-  assert.match(env.body, /scanned 1 test file\(s\).*presence\.test\.ts/);
+  assert.match(env.body, /deploy-health-red-run-classifies-loud\s+COVERED/);
+  assert.match(env.body, /scanned 1 test file\(s\).*deploy-health\.test\.ts/);
 });

@@ -2,11 +2,14 @@
 id: "tree-view"
 tier: capability
 story: notice-board
-title: "The tree is the orientation surface — offline hierarchy, presence woven in when live"
-outcome: "storytree tree [<story>] renders the work hierarchy offline and weaves the presence block in when the live store is reachable."
+title: "The tree is the orientation surface — offline hierarchy, the live ledger woven in when reachable"
+outcome: "storytree tree [<story>] renders the work hierarchy offline and weaves the live claim ledger's claims in when the store is reachable."
 status: proposed
 proof_mode: integration-test
-depends_on: [declare-presence, presence-store]
+# ADR-0200 re-aim: was `depends_on: [declare-presence, presence-store]` (the retired presence caps). The
+# woven block is now the CLAIM LEDGER, read through the noticeboard board seam (tree.ts imports the store
+# seam type from noticeboard.ts — a real code edge), so the edge points at noticeboard-cli.
+depends_on: [noticeboard-cli]
 # Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
 # NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
 # asserts equality). Self-contained module; dispatch wired spine-side after promotion. install:true
@@ -30,10 +33,19 @@ proof:
       args: ["--filter", "@storytree/cli", "typecheck"]
 ---
 
-# The tree is the orientation surface — offline hierarchy, presence woven in when live
+# The tree is the orientation surface — offline hierarchy, the live ledger woven in when reachable
 
-**Outcome —** `storytree tree [<story>]` renders the work hierarchy offline and weaves the
-presence block in when the live store is reachable.
+**Outcome —** `storytree tree [<story>]` renders the work hierarchy offline and weaves the live
+**claim ledger's** claims in when the store is reachable.
+
+> **ADR-0200 re-aim (one ledger).** The focused story view's woven "who is here" block was originally
+> the **presence block** (active `events.session` rows, staleness-banded). ADR-0200 retired the presence
+> layer; the live signal is now the **claim ledger** — the sessions holding claims (any grade) on the
+> story or its capabilities, read through the injected board seam (`tree.ts` imports the store-seam type
+> from `noticeboard.ts` — the same injection-grain edge, now pointing at the ledger store). The
+> **presence-weaving described in the body below is the pre-sweep implementation** (still live until the
+> arc's final increment deletes the presence core, ADR-0200 D7) and is kept as history; the
+> degrade-silently-offline and never-refuse-on-overlap contracts stand unchanged.
 
 > **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
 > `packages/cli/src/tree.ts` + its test in a fresh worktree; the spine observed the real

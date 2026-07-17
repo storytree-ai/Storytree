@@ -59,6 +59,14 @@ composing real deps (`backend-entry.ts`, operator-attested) and the live spawn w
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (A3's work-time `ClaimRequest` intent
 builder; the seam acquires with `kind: "edit" | "orchestrate"`).
 
+> **ADR-0200 note (grades + forced-at-workspace-creation).** ADR-0200 added the acquisition point this
+> seam foresaw: a session is **forced onto the ledger at `worktree create`** (the `exploring` claim,
+> ADR-0200 D3 — no claim, no workspace), and the `work` claim is taken when it upgrades (declare / spawn).
+> This pre-spawn acquire-or-wait seam is unchanged and still correct — on a refused `work` claim the
+> orchestrator waits or **queues** (the `waiting` grade, atomically promoted on release) rather than
+> hard-failing. The spawn-path gate landed as chat-subagent-spawn's `claim-gated-spawn`; both acquisition
+> paths coexist by design.
+
 > **Proof status (honest) — `proposed`.** The provable piece is the PURE seam — a decision over a
 > `ClaimResult` (acquired → proceed; refused → wait, naming the holder) — net-new and builtins-only. The
 > spawn-path wiring was a clearly-marked DEFERRED contract blocked on ADR-0137 Phase 3; it is now

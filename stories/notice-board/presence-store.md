@@ -4,12 +4,21 @@ tier: capability
 story: notice-board
 title: "Declarations persist as append-only events plus a one-row-per-session projection"
 outcome: "Declarations persist through the store seam as append-only events plus a one-row-per-session projection, atomically."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [declare-presence]
-# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
-# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
-# asserts equality). install:true (the impl imports @storytree/core); typecheck REQUIRED when install.
+# RETIRED by ADR-0200 (2026-07-16), with the self-reported presence layer of the notice-board story.
+# `events.session` (+ `events.session_event`) — the presence projection this capability built — and the
+# possibly-dead reaper (ADR-0079/0141, superseded) are retired; the deterministic CLAIM LEDGER
+# (`events.node_claim` + `events.claim_event`, the graded PgClaimStore in
+# `packages/notice-board/src/store/claim-store.ts`) is the notice board's coordination store now. The
+# `real:` arm is DROPPED so this node no longer registers
+# `packages/notice-board/src/store/presence-store.test.ts` / `presence-store.ts` as its REAL proof —
+# that registration was exactly what blocked the presence-core deletion branch (`presence.ts` +
+# `presence-store.ts` + `reaper.ts` are deleted in the arc's final increment, gated on the owner's
+# appearance-UAT attestation, ADR-0200 D7). buildableNodeIds keys on proof.real, so dropping `real:`
+# removes this node from the REAL-buildable set (the chat-drive-bridge / glue-worker-spawn retirement
+# convention). proof.command + proof.scope are kept as history. The body below is kept as history.
 proof:
   command:
     file: pnpm
@@ -17,19 +26,16 @@ proof:
   scope:
     testGlobs: ["packages/notice-board/src/**/*.test.ts"]
     sourceGlobs: ["packages/notice-board/src/**/*.ts"]
-  real:
-    testFile: "packages/notice-board/src/store/presence-store.test.ts"
-    sourceFile: "packages/notice-board/src/store/presence-store.ts"
-    scope:
-      testGlobs: ["packages/notice-board/src/store/presence-store.test.ts"]
-      sourceGlobs: ["packages/notice-board/src/store/presence-store.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/notice-board", "typecheck"]
 ---
 
 # Declarations persist as append-only events plus a one-row-per-session projection
+
+> **RETIRED by ADR-0200 (2026-07-16).** `events.session` — the presence projection this capability
+> built — is retired along with its reaper; the deterministic **claim ledger**
+> (`events.node_claim` + `claim_event`, the graded `PgClaimStore` in
+> `packages/notice-board/src/store/claim-store.ts`) is the notice board's coordination store now. The
+> `real:` arm was dropped on retirement; the presence store (`presence-store.ts` + its test) is deleted
+> in the arc's final increment. The body below is kept as history of what the presence store WAS.
 
 **Outcome —** Declarations persist through the store seam as append-only events plus a
 one-row-per-session projection, atomically.

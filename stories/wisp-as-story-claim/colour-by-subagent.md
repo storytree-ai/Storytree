@@ -39,6 +39,12 @@ intent** — **authoring** (story-author), **proving** (the red→green leaf, th
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (the work-time claim under whose
 session a spawned subagent runs, so its role sets the colour).
 
+> **ADR-0200 note (colour is intent, grade is geometry).** Under the graded ledger the two render axes
+> are orthogonal: the claim **grade** drives the wisp's GEOMETRY (exploring hovers / work orbits /
+> waiting queues, `render-claim-as-wisp`), while the active subagent role / **intent** drives its COLOUR
+> (this capability). The §5 honesty wall binds both — `"proving"` is a claim colour state, never the
+> proven-green bloom; the mapping must never emit a green/bloom token. Unchanged by ADR-0200 otherwise.
+
 > **Proof status (honest) — `proposed`.** Today `packages/drive/src/phase-activity.ts`
 > (`phaseActivityWriter`) stamps `building` work-events coloured by `doc.phase` (the five gate phases). The
 > generalisation — a colour state driven by the active subagent ROLE / intent — does not exist yet. The

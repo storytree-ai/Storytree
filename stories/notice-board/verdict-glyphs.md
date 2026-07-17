@@ -35,6 +35,12 @@ proof:
 **Outcome —** `storytree tree` shows one signed-verdict glyph per node — ✓ proven / ✗ last run
 failed / – never built — read from `events.verdict` when the DB is up, silently absent offline.
 
+> **ADR-0200 note — untouched by the one-ledger re-decision.** This capability reads `events.verdict`
+> (signed proof), never `events.session` (retired presence) or `events.node_claim` (the coordination
+> ledger). The §5 honesty wall it embodies — a glyph only ever reports a SIGNED verdict, never a claim
+> or a roll-up — is exactly the wall ADR-0200 preserves on the map (a claim state is never a proof).
+> The capability is unchanged; only its sibling orientation surfaces re-aimed.
+
 > **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
 > `packages/cli/src/tree-verdicts.ts` + its test net-new in a fresh worktree; the spine observed
 > the real red→green and signed a PASS (run `real-mqb1dzg2`, commit `b226b4a`, persisted to

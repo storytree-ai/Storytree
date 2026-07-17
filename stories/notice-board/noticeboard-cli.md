@@ -2,11 +2,14 @@
 id: "noticeboard-cli"
 tier: capability
 story: notice-board
-title: "The noticeboard command family — the board, declare, done"
-outcome: "`storytree noticeboard` lists active sessions grouped by story node with staleness; `declare`/`done` write with worktree-derived identity."
+title: "The noticeboard command family — the ledger board, declare/claim, done"
+outcome: "`storytree noticeboard` renders the claim ledger — claims grouped by session and grade (exploring / waiting / work) with cursor-once overlap deltas; `declare`/`claim`/`worktree create` write with worktree-derived identity."
 status: proposed
 proof_mode: integration-test
-depends_on: [declare-presence, presence-store]
+# ADR-0200 re-aim: was `depends_on: [declare-presence, presence-store]` (the retired presence caps). The
+# board is now a view over the CLAIM LEDGER (`events.node_claim`), so it is a within-story root; the
+# ledger store it reads is notice-board's own `PgClaimStore` (cross-referenced from the story).
+depends_on: []
 # Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
 # NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
 # asserts equality). Self-contained handler file; the spine wires commands.ts dispatch AFTER
@@ -30,10 +33,25 @@ proof:
       args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
-# The noticeboard command family — the board, declare, done
+# The noticeboard command family — the ledger board, declare/claim, done
 
-**Outcome —** `storytree noticeboard` lists active sessions grouped by story node with staleness;
-`declare`/`done` write with worktree-derived identity.
+**Outcome —** `storytree noticeboard` renders the **claim ledger** — claims grouped by session and
+grade (`exploring` / `waiting` / `work`) with cursor-once overlap deltas; `declare`/`claim`/`worktree
+create` write with worktree-derived identity.
+
+> **ADR-0200 re-aim (one ledger).** This capability's original cut was the **presence board** (active
+> sessions grouped by story node, staleness-banded) over `events.session`. ADR-0200 retired the
+> self-reported presence layer and unified coordination onto the **claim ledger**
+> (`events.node_claim` + `claim_event`, graded exploring / waiting / work): the board now renders claims
+> grouped by session and grade (`groupClaimsBySession`, `packages/notice-board/src/claim.ts`) with
+> cursor-once overlap-delta footers (`pullOverlapDeltas` → `digestOverlapDeltas`), and the write verbs
+> are the ledger's (`worktree create` takes the exploring claim, `declare --node` / `claim` take/upgrade
+> the work claim, `done` bulk-releases). The **presence-grouped board described in the body below is the
+> pre-sweep implementation** (`packages/drive/src/noticeboard.ts`, still live until the arc's final
+> increment deletes the presence core, ADR-0200 D7) and is kept as history; the ledger board landed
+> alongside it (`packages/drive/src/noticeboard-claims.ts` + the ledger dispatch,
+> `packages/cli/src/noticeboard-ledger-dispatch.test.ts`). Identity-derived-not-typed and the
+> writes-need-`--pg` walls stand unchanged.
 
 > **Proof status (honest) — since PROVEN and PROMOTED (ADR-0031).** The gated leaf authored
 > `packages/drive/src/noticeboard.ts` + its test in a fresh worktree; the spine observed the real

@@ -20,15 +20,19 @@ import {
  */
 
 const COVERED: GateCoverageUnit = {
-  unitId: "declare-presence",
+  unitId: "deploy-health-signal",
   tier: "capability",
-  contractIds: ["presence-doc-fail-closed", "staleness-is-derived", "declaration-upsert-merge"],
-  testNames: [
-    "presence-doc-fail-closed: schema validation",
-    "staleness-is-derived: freshness is a pure function of lastSeenAt vs now",
-    "declaration-upsert-merge: mergeDeclaration is pure and stable",
+  contractIds: [
+    "deploy-health-red-run-classifies-loud",
+    "deploy-health-green-run-classifies-quiet",
+    "deploy-health-no-signal-classifies-unknown",
   ],
-  testFiles: ["packages/notice-board/src/presence.test.ts"],
+  testNames: [
+    "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
+    "deploy-health-green-run-classifies-quiet: a green newest run formats one quiet line",
+    "deploy-health-no-signal-classifies-unknown: no completed run reads UNVERIFIED",
+  ],
+  testFiles: ["packages/cli/src/deploy-health.test.ts"],
 };
 
 // The documented drop: four declared contracts, only one named by a test (ADR-0122 context).
@@ -54,7 +58,7 @@ test("RED: a real-build capability that drops a contract makes the gate WARN and
   // The dropped robustness contract is named — exactly the gap a signed green silently omits.
   assert.match(body, /fr-bounded-never-hangs/);
   // The fully-covered capability is NOT named in the WARN list.
-  assert.doesNotMatch(body, /declare-presence: /);
+  assert.doesNotMatch(body, /deploy-health-signal: /);
 });
 
 test("GREEN: a fully-covered set is a clean OK, no WARN", () => {
@@ -94,7 +98,7 @@ test("classifyGateCoverage: multiple under-covered capabilities are all collecte
   assert.equal(report.clean, false);
 });
 
-test("end-to-end over the REAL corpus: the disk loader filters to real-build capabilities and clears declare-presence", () => {
+test("end-to-end over the REAL corpus: the disk loader filters to real-build capabilities and clears deploy-health-signal", () => {
   // No fixture loader — the real disk loader walks stories/, keeps only capabilities with a registered
   // real-build surface (proof.real.testFile) AND ≥1 declared contract, and scans that exact test file.
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -108,13 +112,14 @@ test("end-to-end over the REAL corpus: the disk loader filters to real-build cap
   for (const u of report.scanned) {
     assert.ok(u.total > 0, `${u.unitId} should declare ≥1 contract to be scanned`);
   }
-  // declare-presence: a real-build surface (presence.test.ts) whose three suites NAME its three
-  // contracts — scanned and fully covered (the stable grounding, robust to other gaps being closed).
-  const presence = report.scanned.find((u) => u.unitId === "declare-presence");
-  assert.ok(presence, "declare-presence should be scanned (it has a real-build surface + contracts)");
-  assert.equal(presence.uncovered.length, 0, "declare-presence's contracts are all covered");
+  // deploy-health-signal: a real-build surface (deploy-health.test.ts) whose three suites NAME its
+  // three contracts — scanned and fully covered (the stable grounding, robust to other gaps being
+  // closed; re-grounded here when declare-presence was retired by ADR-0200).
+  const health = report.scanned.find((u) => u.unitId === "deploy-health-signal");
+  assert.ok(health, "deploy-health-signal should be scanned (it has a real-build surface + contracts)");
+  assert.equal(health.uncovered.length, 0, "deploy-health-signal's contracts are all covered");
   assert.ok(
-    presence.testFiles.some((f) => f.includes("presence.test.ts")),
-    "declare-presence's scanned surface should be its registered real-build test file",
+    health.testFiles.some((f) => f.includes("deploy-health.test.ts")),
+    "deploy-health-signal's scanned surface should be its registered real-build test file",
   );
 });

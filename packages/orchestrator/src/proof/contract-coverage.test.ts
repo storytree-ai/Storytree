@@ -21,9 +21,12 @@ import {
 // ---------------------------------------------------------------------------
 
 test("testNameCoversContract: the `describe(\"<id>: …\")` convention matches", () => {
-  // The real convention (declare-presence ↔ presence.test.ts).
+  // The real convention (deploy-health-signal ↔ deploy-health.test.ts).
   assert.equal(
-    testNameCoversContract("presence-doc-fail-closed: schema validation", "presence-doc-fail-closed"),
+    testNameCoversContract(
+      "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
+      "deploy-health-red-run-classifies-loud",
+    ),
     true,
   );
 });
@@ -214,22 +217,29 @@ test("RED: a declared contract with no observed test is flagged UNCOVERED", () =
 });
 
 test("GREEN: every declared contract named by a test classifies fully covered (none uncovered)", () => {
-  // The real declare-presence ↔ presence.test.ts convention: three contracts, three named suites.
+  // The real deploy-health-signal ↔ deploy-health.test.ts convention: three contracts, three named
+  // suites (re-grounded here when declare-presence was retired by ADR-0200).
   const report = classifyContractCoverage({
-    unitId: "declare-presence",
-    contractIds: ["presence-doc-fail-closed", "staleness-is-derived", "declaration-upsert-merge"],
+    unitId: "deploy-health-signal",
+    contractIds: [
+      "deploy-health-red-run-classifies-loud",
+      "deploy-health-green-run-classifies-quiet",
+      "deploy-health-no-signal-classifies-unknown",
+    ],
     testNames: [
-      "presence-doc-fail-closed: schema validation",
-      "staleness-is-derived: freshness is a pure function of lastSeenAt vs now",
-      "declaration-upsert-merge: mergeDeclaration is pure and stable",
-      "reapable-selection: reapableSessions picks active AND possibly-dead rows only",
+      "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
+      "deploy-health-green-run-classifies-quiet: a green newest run formats one quiet line",
+      "deploy-health-no-signal-classifies-unknown: no completed run reads UNVERIFIED",
+      "an-extra-undeclared-suite: extra test names never confuse the classifier",
     ],
   });
   assert.deepEqual(report.uncovered, []);
   assert.equal(report.covered.length, 3);
   assert.ok(report.contracts.every((c) => c.covered));
   // The covering test name is surfaced (the honesty trail).
-  assert.deepEqual(report.contracts[0]!.coveredBy, ["presence-doc-fail-closed: schema validation"]);
+  assert.deepEqual(report.contracts[0]!.coveredBy, [
+    "deploy-health-red-run-classifies-loud: a failing newest run formats a loud WARN",
+  ]);
 });
 
 test("classifyContractCoverage preserves declared order and collapses a duplicate id", () => {

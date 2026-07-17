@@ -66,6 +66,19 @@ proof:
 
 **Depends on —** (root — no within-story upstream).
 
+> **ADR-0200 re-aim (the claim gained grades; the store generalised).** This capability's three deltas
+> (A1 `releaseClaimsByBranch`, A2 the trace heartbeat bump, A3 the work-time intent builder) all landed
+> and are the CI clear + liveness backstop the ledger still runs on. ADR-0200 then **generalised the same
+> `PgClaimStore` to three grades** (exploring / waiting / work): `packages/notice-board/src/claim.ts`
+> gained `ClaimGrade`, the `exploring`/`waiting` request builders, `oldestLiveWaiter` (the pure promotion
+> pick) and `groupClaimsBySession` / `digestOverlapDeltas` / `foldDepartures` (the view folds); the store
+> gained `take` / `upgrade` / `downgrade` with **atomic waiter promotion**, `releaseClaimsBySession`,
+> `bumpHeartbeatsBySession`, `pullOverlapDeltas`, and `recentDepartures` (proven by the live-gated
+> `claim-store-grades.live.test.ts` / `claim-cursor.live.test.ts` / `claim-departures.live.test.ts`).
+> That graded machinery is the [`notice-board`](../notice-board/story.md) story's living shape (the
+> ledger); this capability remains the render story's hosted-seam entry point onto the claim store
+> (ADR-0192 landlord rule). A1's `releaseClaimsByBranch` releases every grade for the branch.
+
 > **Proof status (honest) — `proposed` (none of the three deltas exist yet).** A1/A2 live in the
 > DB-backed `PgClaimStore` (`packages/notice-board/src/store/claim-store.ts`); A3's provable piece is a pure
 > helper in `packages/notice-board/src/claim.ts`. The `--real` arm drives the load-bearing A1 against an

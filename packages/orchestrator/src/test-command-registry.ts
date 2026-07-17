@@ -6,7 +6,7 @@ import type { NodeBuildConfig, RealProofConfig } from "./proof-config.js";
  * The node→build-config registry. Once the SOURCE OF TRUTH for "how to prove a node", it is now a
  * VALIDATION/FALLBACK layer (ADR-0057): a node's proof config lives primarily in its own spec's
  * `proof:` block ({@link import("./proof-config.js").parseNodeBuildConfig}), and the resolver
- * consults the registry only when a spec declares none. The 7 entries with a `real:` arm are kept
+ * consults the registry only when a spec declares none. The 5 entries with a `real:` arm are kept
  * here during the time-boxed transition as a LIVE PARITY ORACLE — a test asserts each spec-borne
  * config deep-equals its registry twin (no drift) — and to keep the un-migrated `library`-tier
  * entries (the fallback path) buildable.
@@ -70,43 +70,10 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
       },
     },
   },
-  // The notice-board story's first node (ADR-0033): the presence module — zod schema +
-  // pure staleness/merge logic. MOVED from @storytree/core to @storytree/notice-board
-  // (ADR-0068 step 6b). `install: true` (ADR-0031 §2): the impl imports zod, so the
-  // worktree gets a lockfile-only install and promotion requires the notice-board suite green.
-  "declare-presence": {
-    command: pnpmTest("@storytree/notice-board"),
-    scope: pkgScope("notice-board"),
-    real: {
-      testFile: "packages/notice-board/src/presence.test.ts",
-      sourceFile: "packages/notice-board/src/presence.ts",
-      scope: {
-        testGlobs: ["packages/notice-board/src/presence.test.ts"],
-        sourceGlobs: ["packages/notice-board/src/presence.ts"],
-      },
-      install: true,
-      typecheck: pnpmTypecheck("@storytree/notice-board"),
-    },
-  },
-  // The notice-board store node (ADR-0033): the pg presence store — event+projection mirroring
-  // PgCommentStore, proven OFFLINE against a fake transactional client (the live SQL leg is
-  // live-gated/human-verified, never attested by a worktree PASS). `install: true`: the impl
-  // imports @storytree/notice-board (presence merge/validation). ADR-0077: the presence drawer moved
-  // into @storytree/notice-board's node-only ./store subpath, so it is proven by notice-board's suite.
-  "presence-store": {
-    command: pnpmTest("@storytree/notice-board"),
-    scope: pkgScope("notice-board"),
-    real: {
-      testFile: "packages/notice-board/src/store/presence-store.test.ts",
-      sourceFile: "packages/notice-board/src/store/presence-store.ts",
-      scope: {
-        testGlobs: ["packages/notice-board/src/store/presence-store.test.ts"],
-        sourceGlobs: ["packages/notice-board/src/store/presence-store.ts"],
-      },
-      install: true,
-      typecheck: pnpmTypecheck("@storytree/notice-board"),
-    },
-  },
+  // (The notice-board presence nodes — declare-presence + presence-store — were RETIRED by ADR-0200
+  // with the self-reported presence layer: their `real:` arms were dropped spec-side and their
+  // registry entries removed, so they are no longer REAL-buildable. The claim ledger is the
+  // notice board's coordination record now.)
   // The notice-board CLI node (ADR-0033): the `storytree noticeboard` command module — a
   // self-contained handler file (the spine wires commands.ts dispatch AFTER promotion; the leaf's
   // walls deliberately exclude it). `install: true`: imports @storytree/notice-board + ./envelope.js.

@@ -2,8 +2,8 @@
 id: "render-claim-as-wisp"
 tier: capability
 story: wisp-as-story-claim
-title: "Render the claim as a wisp — claimed-but-not-proven, visibly distinct from proven-green"
-outcome: "The wisp source reads `events.node_claim` alongside the `building` rows, so a claimed story orbits a wisp; a claimed-but-not-proven activity carries a distinct discriminator so it renders differently from the proven-green bloom (the ADR-0138 §5 honesty wall)."
+title: "Render the graded claim as a wisp — hover / orbit / queue, visibly distinct from proven-green"
+outcome: "The wisp source reads `events.node_claim` alongside the `building` rows, so a claimed story renders a wisp shaped by its GRADE (exploring hovers, work orbits, waiting queues) and departure-faded on release; a claimed-but-not-proven activity carries a distinct discriminator so it renders differently from the proven-green bloom (the ADR-0138 §5 honesty wall)."
 status: proposed
 proof_mode: integration-test
 depends_on: [claim-store-work-time]
@@ -39,6 +39,17 @@ claim is never a proof).
 
 **Depends on —** [`claim-store-work-time`](claim-store-work-time.md) (the work-time `node_claim` rows this
 fold reads).
+
+> **ADR-0200 re-aim (graded render, landed + owner-attested 2026-07-17).** The original cut of this fold
+> was **binary** — claimed-but-not-proven vs proven-green. ADR-0200 gave the claim three **grades**, and
+> the landed `claimsToActivity` (`apps/studio/server/inFlightActivity.ts`) now carries the **grade as the
+> render's GEOMETRY signal** (`exploring` hovers, `work` orbits, `waiting` queues; colour still folds
+> from `intent`), with the departure fade for a just-released claim sourced from `foldDepartures`
+> (`packages/notice-board/src/claim.ts`). The §5 discriminator is unchanged and reinforced: **no grade
+> and no colour is ever a proof** — only a real signed verdict paints the green bloom (ADR-0045/0099).
+> The fold reads ONLY `events.node_claim` (the ledger), never a retired presence row. The owner attested
+> the graded look on 2026-07-17. The body below is the landed contract; the grade-geometry note above is
+> the ADR-0200 generalisation it now carries.
 
 > **Proof status (honest) — `proposed`.** Today `apps/studio/server/inFlightBuilds.ts`
 > (`rowsToBuildActivity`, a pure fold) reads ONLY `building` work-event rows and colours by `doc->>'phase'`;

@@ -2,8 +2,8 @@
 id: "ambient-integration"
 tier: capability
 story: notice-board
-title: "Presence declares itself — fail-silent session hooks, a statusline glance; a build never writes it"
-outcome: "Presence declares itself: fail-silent session hooks and a statusline glance — never via a blocking-capable hook, and a build run NEVER writes session presence (ADR-0199)."
+title: "The board declares itself — a statusline glance over the ledger; a build never writes presence"
+outcome: "The board declares itself: the statusline glances the claim ledger and bumps the session's claim heartbeats (debounced, fail-silent) — never via a blocking-capable hook; a build run NEVER writes session presence (ADR-0199); and nothing notice-board-shaped sits on a blocking-capable hook."
 status: proposed
 proof_mode: integration-test
 depends_on: [noticeboard-cli, tree-view]
@@ -30,10 +30,24 @@ proof:
       args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
-# Presence declares itself — fail-silent session hooks, a statusline glance; a build never writes it
+# The board declares itself — a statusline glance over the ledger; a build never writes presence
 
-**Outcome —** Presence declares itself: fail-silent session hooks and a statusline glance — never
-via a blocking-capable hook, and a build run NEVER writes session presence (ADR-0199).
+**Outcome —** The board declares itself: the statusline glances the **claim ledger** and bumps the
+session's **claim heartbeats** (debounced, fail-silent) — never via a blocking-capable hook; a build
+run NEVER writes session presence (ADR-0199); and nothing notice-board-shaped sits on a
+blocking-capable hook.
+
+> **ADR-0200 re-aim (one ledger).** The automation rung is unchanged in spirit — advisory by
+> construction, never blocking, a build never writes presence — but its record changed. The **hooks'
+> auto-declare/done rung and the statusline's presence half were removed in wave 1** (ADR-0200 D3/D7):
+> a session no longer self-declares presence from a hook. The statusline now reads the **claim ledger**
+> and its heartbeat bumps the session's **claim** heartbeats (`bumpHeartbeatsBySession`,
+> `packages/notice-board/src/store/claim-store.ts`) so a live session's claims never age into the 2 h
+> stale-reclaim window (ADR-0200 D5) — the same debounced, fail-silent posture. The **build-never-writes-
+> presence** wall (ADR-0199) generalises to "presence rows are not written at all" (ADR-0200 D1). The
+> `withPresence`/`BuildPresenceInfo`-absence and never-blocking-hooks audits described in the body below
+> stand; the presence-flavoured `sessionHook`/`statuslineGlance` shapes are pre-sweep history (the
+> presence core deletes in the arc's final increment, ADR-0200 D7).
 
 > **Proof status (honest) — `proposed`, registered for REAL build.** The registered proof
 > (`packages/drive/src/ambient-presence.test.ts`) covers the MODULE legs offline — the

@@ -2,8 +2,8 @@
 id: "appearance-uat"
 tier: capability
 story: wisp-as-story-claim
-title: "Appearance UAT — on the forest map, does the claim-wisp LOOK right?"
-outcome: "The human-eyes leg: on the real forest map, exactly one wisp per claimed story, the colour shifts by the active subagent, claimed is visibly distinct from proven-green, and the wisp clears on merge — operator-attested, never self-attested."
+title: "Appearance UAT — on the forest map, does the graded claim-wisp LOOK right?"
+outcome: "The human-eyes leg: on the real forest map, exactly one wisp per claimed story shaped by its grade (exploring hovers, work orbits, waiting queues, a released claim fades), the colour shifts by the active subagent, claimed is visibly distinct from proven-green, and the wisp clears on merge — operator-attested, never self-attested (owner-attested 2026-07-17)."
 status: proposed
 proof_mode: operator-attested
 depends_on: [render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn]
@@ -58,14 +58,20 @@ recorded, not hidden).
 ## UAT (operator-attested — the story's UAT node)
 
 The four human-witnessed legs that prove the story's goal end-to-end on the real forest map. Each is
-_(witness: human)_; an agent may set the stage (claim a story, drive a build) but a human renders the verdict.
+_(witness: human)_; an agent may set the stage (claim a story, drive a build) but a human renders the
+verdict. **Owner-attested 2026-07-17** (the graded claim-wisps landed default-ON — hover / queue / orbit +
+departure fades — and the owner signed the look); these legs are the standing walkthrough that
+re-witnesses the goal after any change (ADR-0200 D7 gated the presence-core retirement on this attestation).
 
-1. **One wisp per claimed story.** _(witness: human)_ A claimed story shows exactly one wisp on its node; a
-   second session claiming it is refused and told the holder (no second wisp).
+1. **One wisp per claimed story, shaped by grade.** _(witness: human)_ A claimed story shows exactly one
+   wisp on its node — an `exploring` claim **hovers**, a `work` claim **orbits**; a second session taking
+   the **work** claim is refused and told the holder, or **queues** as a `waiting` wisp (never a second
+   orbiting wisp).
 2. **Colour shifts by the active subagent.** _(witness: human)_ As the orchestrator authors → proves →
-   supplements on the claimed story, the wisp's colour changes across the three states, distinguishably.
+   supplements on the claimed story, the work-wisp's colour changes across the three states, distinguishably.
 3. **Claimed is visibly distinct from proven-green.** _(witness: human)_ The claimed-but-not-proven wisp
-   looks clearly different from a story carrying a real signed-verdict green bloom — the §5 honesty wall, on
-   the map.
-4. **The wisp clears on merge.** _(witness: human)_ When the holder's branch merges (the CI release sweep
-   runs), the story's claim-wisp disappears — no stale zombie wisp.
+   (any grade) looks clearly different from a story carrying a real signed-verdict green bloom — the §5
+   honesty wall, on the map; no grade or colour reads as a proof.
+4. **The wisp clears on merge, with a legible departure.** _(witness: human)_ When the holder's branch
+   merges (the CI release sweep runs), the story's claim-wisp **fades on departure** (reads as *just left*,
+   not silently gone) then disappears — no stale zombie wisp, no exit mistaken for a lost claim.

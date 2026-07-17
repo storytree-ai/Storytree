@@ -159,9 +159,7 @@ test("the registry covers the library story + its seven capabilities; a miss is 
 test("the verdict-line entry carries a REAL proof config whose write walls really wall", () => {
   assert.deepEqual(realBuildableNodeIds(), [
     "ambient-integration",
-    "declare-presence",
     "noticeboard-cli",
-    "presence-store",
     "tree-view",
     "verdict-glyphs",
     "verdict-line",
@@ -202,48 +200,10 @@ test("the ambient-integration entry is REAL-buildable with install and exact-fil
   assert.equal(scope.isWriteAllowed("IMPLEMENT", "package.json"), false);
 });
 
-test("the declare-presence entry is REAL-buildable with install (zod import) and real walls", () => {
-  const real = lookupNodeBuildConfig("declare-presence")?.real;
-  assert.ok(real !== undefined);
-  assert.equal(real.testFile, "packages/notice-board/src/presence.test.ts");
-  assert.equal(real.sourceFile, "packages/notice-board/src/presence.ts");
-  assert.equal(real.install, true);
-  // install:true implies the typecheck wall (tsx strips types — the proof run cannot see type
-  // errors; the 2026-06-11 exactOptionalPropertyTypes escape is the lesson).
-  assert.deepEqual(real.typecheck, {
-    file: "pnpm",
-    args: ["--filter", "@storytree/notice-board", "typecheck"],
-  });
-  const scope = new PathWriteScope(real.scope);
-  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
-  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
-  // The leaf can never reach the dependency manifests (deny-by-default, ADR-0031 §2).
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", "package.json"), false);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", "pnpm-lock.yaml"), false);
-});
-
-test("the presence-store entry is REAL-buildable with install (core import) and real walls", () => {
-  const real = lookupNodeBuildConfig("presence-store")?.real;
-  assert.ok(real !== undefined);
-  // ADR-0077: the presence drawer moved into @storytree/notice-board's node-only ./store subpath.
-  assert.equal(real.testFile, "packages/notice-board/src/store/presence-store.test.ts");
-  assert.equal(real.sourceFile, "packages/notice-board/src/store/presence-store.ts");
-  assert.equal(real.install, true);
-  assert.deepEqual(real.typecheck, {
-    file: "pnpm",
-    args: ["--filter", "@storytree/notice-board", "typecheck"],
-  });
-  const scope = new PathWriteScope(real.scope);
-  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.testFile), true);
-  assert.equal(scope.isWriteAllowed("AUTHOR_TEST", real.sourceFile), false);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.sourceFile), true);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", real.testFile), false);
-  // Neither sibling notice-board drawers nor unrelated source are reachable.
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/notice-board/src/store/ingest-merge.ts"), false);
-  assert.equal(scope.isWriteAllowed("IMPLEMENT", "packages/notice-board/src/presence.ts"), false);
-});
+// (The declare-presence / presence-store per-entry wall tests were retired with the presence layer,
+// ADR-0200: their registry entries + spec-borne `real:` arms are gone, so the nodes are no longer
+// REAL-buildable. The install/typecheck/wall invariants they exercised stay covered by the surviving
+// entries below + the registry-wide install→typecheck invariant.)
 
 test("the noticeboard-cli entry is REAL-buildable with install and walls excluding the dispatch", () => {
   const real = lookupNodeBuildConfig("noticeboard-cli")?.real;
@@ -430,9 +390,7 @@ test("real mode fails closed on a registered node WITHOUT a real-proof config", 
   assert.match(result.reason, /no REAL proof config/);
   assert.deepEqual(result.registered, [
     "ambient-integration",
-    "declare-presence",
     "noticeboard-cli",
-    "presence-store",
     "tree-view",
     "verdict-glyphs",
     "verdict-line",
@@ -454,8 +412,8 @@ test("realPrompts names the REAL files, the REAL proof command, and the no-node_
 });
 
 test("realPrompts for an install-bearing node names the typecheck wall (type-legal from the start)", () => {
-  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "declare-presence.md"));
-  const real = lookupNodeBuildConfig("declare-presence")?.real;
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  const real = lookupNodeBuildConfig("tree-view")?.real;
   assert.ok(real !== undefined);
   const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
   // The install-mode brief: dependencies are present, but the leaf is told promotion also runs
@@ -485,8 +443,8 @@ test("realPrompts brief the feedback loop: run_proof in both phases, feedback �
 });
 
 test("realPrompts for an install-bearing node also brief run_typecheck", () => {
-  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "declare-presence.md"));
-  const real = lookupNodeBuildConfig("declare-presence")?.real;
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
+  const real = lookupNodeBuildConfig("tree-view")?.real;
   assert.ok(real !== undefined);
   const prompts = realPrompts(spec, real, realProofCommand(real, REPO_ROOT).display);
   assert.match(prompts.authorTest, /run_typecheck/);
@@ -513,7 +471,7 @@ test("feedbackCommandsFor: run_proof always (the SAME command, really spawnable)
 });
 
 test("real-mode resolution arms the live leaf with run_proof + run_typecheck (install node)", () => {
-  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "declare-presence.md"));
+  const spec = loadNodeSpec(path.join(STORIES_DIR, "notice-board", "tree-view.md"));
   const result = resolveProveSpec(spec, {
     mode: "real",
     workspace: os.tmpdir(),
@@ -785,11 +743,11 @@ test("ADR-0127 — the seam returns undefined when the authored test file is mis
 
 // ── ADR-0057 keystone: node-borne proof config resolves; registry is fallback; walls still hold ──
 
-/** The 7 nodes migrated to a spec-borne `proof:` block (their registry twins are kept as the oracle). */
+/** The 5 nodes migrated to a spec-borne `proof:` block (their registry twins are kept as the oracle).
+ * (declare-presence + presence-store left the set when ADR-0200 retired the presence layer and their
+ * `real:` arms were dropped on both sides.) */
 const PARITY_IDS = [
   "verdict-line",
-  "declare-presence",
-  "presence-store",
   "noticeboard-cli",
   "tree-view",
   "ambient-integration",
@@ -804,7 +762,7 @@ function loadById(id: string) {
 }
 
 // Contract 4 — existing-entries-migrate-without-drift (the migration correctness / parity oracle).
-test("contract 4 — the 7 migrated specs resolve IDENTICALLY to their live registry twin (no drift)", () => {
+test("contract 4 — the 5 migrated specs resolve IDENTICALLY to their live registry twin (no drift)", () => {
   for (const id of PARITY_IDS) {
     const spec = loadById(id);
     assert.ok(spec.buildConfig !== undefined, `${id} declares a spec-borne proof: block`);
@@ -839,7 +797,7 @@ test("contract 2 — a spec-borne node with NO registry entry resolves (dry-run 
 });
 
 test("contract 2 — real-mode arms the leaf off a spec-borne install config (run_proof + run_typecheck)", () => {
-  const specOnly = { ...loadById("declare-presence"), id: "spec-only-install" };
+  const specOnly = { ...loadById("tree-view"), id: "spec-only-install" };
   assert.equal(lookupNodeBuildConfig("spec-only-install"), null, "not in the registry");
   const result = resolveProveSpec(specOnly, {
     mode: "real",

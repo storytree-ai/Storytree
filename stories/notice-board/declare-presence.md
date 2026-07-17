@@ -4,13 +4,21 @@ tier: capability
 story: notice-board
 title: "A presence declaration is a validated doc; staleness derived, merge pure"
 outcome: "A session's presence declaration is a validated doc with derived staleness and pure upsert-merge semantics — fail-closed on any missing identity or substance field (sessionId, branch, workingOn)."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: []
-# Node-borne proof config (ADR-0057): authoring this block makes the node buildable — no
-# NODE_BUILD_REGISTRY edit. Mirrors the registry's NodeBuildConfig shape EXACTLY (a parity guard
-# asserts equality). install:true (the impl imports zod): the worktree gets a lockfile-only install,
-# and install:true REQUIRES a typecheck command (tsx strips types; only tsc --noEmit catches them).
+# RETIRED by ADR-0200 (2026-07-16), with the self-reported presence layer of the notice-board story.
+# The noticeboard is now the CLAIM LEDGER (`events.node_claim` + `claim_event`): the presence
+# declaration doc (`events.session`), its derived staleness bands, and the possibly-dead reaper are
+# retired — presence rows are not written at all (ADR-0200 D1, generalising ADR-0199). The `real:` arm
+# is DROPPED so this node no longer registers `packages/notice-board/src/presence.test.ts` /
+# `presence.ts` as its REAL proof — that registration was exactly what blocked the presence-core
+# deletion branch (`presence.ts` + `presence-store.ts` + `reaper.ts` are deleted in the arc's final
+# increment, gated on the owner's appearance-UAT attestation, ADR-0200 D7). buildableNodeIds keys on
+# proof.real (packages/drive/src/node-build.ts), so dropping `real:` removes this node from the
+# REAL-buildable set (the same retirement convention as chat-drive-bridge's caps / glue-worker-spawn).
+# proof.command + proof.scope are kept as history (the node stays visible, never REAL-buildable). The
+# body below is kept as history.
 proof:
   command:
     file: pnpm
@@ -18,19 +26,17 @@ proof:
   scope:
     testGlobs: ["packages/notice-board/src/**/*.test.ts"]
     sourceGlobs: ["packages/notice-board/src/**/*.ts"]
-  real:
-    testFile: "packages/notice-board/src/presence.test.ts"
-    sourceFile: "packages/notice-board/src/presence.ts"
-    scope:
-      testGlobs: ["packages/notice-board/src/presence.test.ts"]
-      sourceGlobs: ["packages/notice-board/src/presence.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/notice-board", "typecheck"]
 ---
 
 # A presence declaration is a validated doc; staleness derived, merge pure
+
+> **RETIRED by ADR-0200 (2026-07-16).** The self-reported presence declaration doc (`events.session`)
+> is retired — the deterministic **claim ledger** (`events.node_claim` + `claim_event`, three grades
+> exploring / waiting / work) is the notice board's coordination record now (see
+> [`../wisp-as-story-claim/claim-store-work-time`](../wisp-as-story-claim/claim-store-work-time.md) for
+> the pure claim doc + store). The `real:` arm was dropped on retirement; the presence core
+> (`presence.ts` and its test) is deleted in the arc's final increment. The body below is kept as
+> history of what presence WAS.
 
 **Outcome —** A session's presence declaration is a validated doc with derived staleness and pure
 upsert-merge semantics — fail-closed on any missing identity or substance field (`sessionId`,

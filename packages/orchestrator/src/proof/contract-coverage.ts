@@ -15,8 +15,8 @@ import type { ContractDecl } from "@storytree/library";
  *
  * This is the structural, offline check: it maps each declared contract to an OBSERVED test by the
  * naming convention — a contract is covered iff some test names it (the convention
- * `describe("<contract-id>: …")`, proven real by `declare-presence`'s three contracts naming
- * `presence.test.ts`'s three suites). Pure-by-injection (contract ids + test names in, report out),
+ * `describe("<contract-id>: …")`, proven real by `deploy-health-signal`'s three contracts naming
+ * `deploy-health.test.ts`'s three suites). Pure-by-injection (contract ids + test names in, report out),
  * deterministic, order-preserving — it mirrors {@link import("./adoption-proposal.js").classifyAdoption}
  * one tier DOWN (that is capability→gate coverage; this is contract→test coverage). No store / git / clock.
  *

@@ -31,6 +31,15 @@ builder is what the declare acquires with; the session-scoped bulk operations be
 `bySession` twins of A1's `releaseClaimsByBranch` and A2's heartbeat bump, added to the same
 `PgClaimStore`).
 
+> **ADR-0200 note (declare is one acquisition point of several).** Declare-time acquisition (this
+> capability) stands, but it is no longer the *earliest*: under ADR-0200 a session is **born claimed** at
+> `worktree create` (the `exploring` claim, ADR-0200 D3), and `declare --node` / `noticeboard claim`
+> **upgrade** to the `work` claim. `done` still bulk-releases via `releaseClaimsBySession`; the statusline
+> heartbeat still bumps via `bumpHeartbeatsBySession`. The refusal path generalises: a held work slot no
+> longer only refuses — the session can **queue** (`waiting`) and be atomically promoted on release. The
+> `check:declared` rung hardened from WARN to **FAIL** (ADR-0200 D3): a session holding zero live claims
+> of any grade cannot reach the merge ceremony.
+
 > **Proof status (honest) — LANDED (ADR-0142, PR #535); the authored status stays `proposed`.** This
 > capability documents work that landed WITH its ADR, proven by the ordinary offline package suites —
 > not driven red→green through the prove-it-gate after the fact (no `proof:` block; a `real:` arm

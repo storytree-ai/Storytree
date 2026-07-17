@@ -77,11 +77,12 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
 // ── Contract 1 (continued): spec-borne node with install + typecheck declared ────────────────────
 
 test("resolveReport on an install-bearing real arm renders typecheck as a display string", () => {
-  // declare-presence: spec-borne, real: install=true, typecheck=pnpm --filter @storytree/notice-board typecheck
-  const file = findNodeSpecFile(STORIES_DIR, "declare-presence");
-  assert.ok(file !== null, "declare-presence spec file exists");
+  // tree-view: spec-borne, real: install=true, typecheck=pnpm --filter @storytree/cli typecheck
+  // (re-grounded here when the former exemplar, declare-presence, was retired by ADR-0200).
+  const file = findNodeSpecFile(STORIES_DIR, "tree-view");
+  assert.ok(file !== null, "tree-view spec file exists");
   const spec = loadNodeSpec(file);
-  assert.ok(spec.buildConfig !== undefined, "declare-presence has a spec-borne block");
+  assert.ok(spec.buildConfig !== undefined, "tree-view has a spec-borne block");
 
   const report = resolveReport(spec);
 
@@ -93,11 +94,11 @@ test("resolveReport on an install-bearing real arm renders typecheck as a displa
   assert.equal(report.real.install, true);
   assert.equal(report.real.editsExisting, false);
   // typecheck is declared → rendered as "file args..." display string
-  assert.equal(report.real.typecheck, "pnpm --filter @storytree/notice-board typecheck");
+  assert.equal(report.real.typecheck, "pnpm --filter @storytree/cli typecheck");
   assert.equal(report.real.proofCommand, null); // no custom proofCommand
   assert.equal(
     report.real.proofDisplay,
-    "node --import tsx --test packages/notice-board/src/presence.test.ts",
+    "node --import tsx --test packages/cli/src/tree.test.ts",
   );
 });
 
