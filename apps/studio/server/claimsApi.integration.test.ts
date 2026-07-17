@@ -1,5 +1,5 @@
 // Integration tests for GET /api/claims (devApi.ts handleClaims) over a REAL node:http server
-// with a STUB backend — no DB, no Vite (the presenceApi.integration.test.ts pattern). The contract
+// with a STUB backend — no DB, no Vite (the activityApi.integration.test.ts pattern). The contract
 // under test: sessionClaims() never throws, so the endpoint always answers 200 — `{sessions: null}`
 // IS the down-DB/json-store answer (ADR-0200 D7 advisory absence), never a 503. The claim rows the
 // stub returns are folded through the REAL `groupClaimsBySession` (packages/notice-board), so this
@@ -51,7 +51,7 @@ beforeAll(async () => {
     void handleClaims(req, res, {
       sessionClaims: async () => sessionClaimsResult,
     }).catch((err: unknown) => {
-      // devApi's central HttpError mapping, inlined like presenceApi.integration.test.ts.
+      // devApi's central HttpError mapping, inlined like activityApi.integration.test.ts.
       const status = err instanceof HttpError ? err.status : 500;
       res.statusCode = status;
       res.setHeader('Content-Type', 'application/json');

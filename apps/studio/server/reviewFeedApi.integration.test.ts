@@ -90,7 +90,6 @@ function makeStubBackend(posture: 'pg' | 'json' | 'down'): LibraryBackend {
     deleteAsset: async () => false,
     health: async () => ({ db: 'n/a' as const }),
     latestVerdicts: async () => null,
-    activeSessions: async () => null,
     inFlightBuilds: async () => null,
     listComments: async (filter) => {
       if (posture === 'down') throw new Error('connection refused (stub down DB)');

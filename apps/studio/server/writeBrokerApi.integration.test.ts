@@ -10,7 +10,8 @@
 //   - an admin POST      → 201 (admin ⊇ builder)
 //   - a mismatched signer→ 403 (attribution wall) — nothing persisted
 //   - a malformed body   → 400 (shape wall) — nothing persisted
-//   - a builder presence → 201 (the declarePresence seam is mounted too)
+//   - a builder presence → 400 (the presence write type is RETIRED, ADR-0200 D7 — the claim
+//                          ledger is the one coordination machinery; only verdicts broker now)
 //
 // INTEGRITY (ADR-0117 d.3 / ADR-0091): the persisted verdict is asserted byte-equal to the POSTed
 // one, so the broker is proven to persist the spine's locally-signed verdict as-is — never re-stamping
@@ -23,7 +24,6 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Verdict } from '@storytree/proof-protocol';
-import { PresenceDeclaration } from '@storytree/notice-board';
 import type { UserDoc } from '@storytree/studio-members';
 import { createStudioServer } from './serve';
 import { parseSeedAdmins } from './guestPolicy';
@@ -54,9 +54,8 @@ const userRow = (over: Partial<UserDoc> & { email: string; role: UserDoc['role']
 // store's fail-closed Verdict.parse so the persisted shape is the real one.
 // ---------------------------------------------------------------------------
 
-const persisted: { verdicts: { verdict: Verdict; actor: string }[]; presence: { actor: string }[] } = {
+const persisted: { verdicts: { verdict: Verdict; actor: string }[] } = {
   verdicts: [],
-  presence: [],
 };
 
 const usersDb: UserDoc[] = [
@@ -72,7 +71,6 @@ const stubBackend: LibraryBackend = {
   deleteAsset: async () => false,
   health: async () => ({ db: 'n/a' as const }),
   latestVerdicts: async () => null,
-  activeSessions: async () => null,
   inFlightBuilds: async () => null,
   // The write-broker's verdict seam: persist the builder's locally-signed verdict UNCHANGED. The real
   // PgBackend.signUatVerdict writes `doc: verdict` through PgWorkStore as-is; this stub validates the
@@ -80,12 +78,6 @@ const stubBackend: LibraryBackend = {
   signUatVerdict: async (verdict, actor) => {
     const parsed = Verdict.parse(verdict);
     persisted.verdicts.push({ verdict: parsed, actor });
-    return parsed;
-  },
-  // The write-broker's presence seam (PgPresenceStore.declare in the real backend).
-  declarePresence: async (doc, actor) => {
-    const parsed = PresenceDeclaration.parse(doc);
-    persisted.presence.push({ actor });
     return parsed;
   },
   listComments: async () => [],
@@ -134,7 +126,6 @@ afterAll(async () => {
 
 beforeEach(() => {
   persisted.verdicts.length = 0;
-  persisted.presence.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -157,7 +148,7 @@ function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, un
   };
 }
 
-/** A minimal fully-valid PresenceDeclaration. */
+/** The RETIRED presence-declaration shape (ADR-0200 D7) — posted only to prove the 400 refusal. */
 function makePresence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = '2026-06-27T10:00:00.000Z';
   return {
@@ -226,16 +217,14 @@ describe('mounted /api/write-broker — members-gated (ADR-0117)', () => {
     expect(persisted.verdicts).toHaveLength(0);
   });
 
-  it('a builder persists a valid presence declaration (201) — the declarePresence seam is mounted', async () => {
+  // ADR-0200 D7 (presence retirement sweep, wave 1): the brokered presence write type is RETIRED —
+  // the claim ledger is the one coordination machinery. Even an authorized builder's presence POST
+  // is refused as an unknown discriminator, and nothing is persisted. Verdicts are unaffected.
+  it('refuses a builder presence write (400 unknown type) — the presence type is retired (ADR-0200 D7)', async () => {
     const res = await post({ type: 'presence', payload: makePresence() }, BUILDER);
-    expect(res.status).toBe(201);
-    expect(persisted.presence).toHaveLength(1);
-    expect(persisted.presence[0]?.actor).toBe(BUILDER);
-  });
-
-  it('refuses a member presence declaration (403) — builder scope required', async () => {
-    const res = await post({ type: 'presence', payload: makePresence() }, MEMBER);
-    expect(res.status).toBe(403);
-    expect(persisted.presence).toHaveLength(0);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('unknown type discriminator');
+    expect(persisted.verdicts).toHaveLength(0);
   });
 });

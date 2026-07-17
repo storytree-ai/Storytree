@@ -8,7 +8,9 @@
 //   2. Persists comments + guidance assets through the LibraryBackend seam
 //      (libraryBackend.ts): Cloud SQL Postgres by default, json files offline.
 //   3. Reads the story tree live from <repo>/stories, enriched with verdicts +
-//      presence when the live store answers (advisory, ADR-0033).
+//      claim activity when the live store answers (advisory; self-reported presence
+//      retired by the ADR-0200 D7 retirement sweep — the claim ledger is the one
+//      coordination + observability machinery).
 //
 // SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
 //   • apps/studio/data/knowledge.json is the STRUCTURED SOURCE of the Library.
@@ -1418,25 +1420,8 @@ export async function handleHealth(
 }
 
 /**
- * GET /api/presence — the active-session layer ALONE, so the client can poll it
- * cheaply (StoreBanner's slow cadence) without re-walking stories/ the way
- * /api/tree does. activeSessions() is contractually non-throwing: a down DB or
- * the json backend answers 200 `{sessions: null}` (ADR-0033 advisory — absence,
- * never an error), so the only error path here is the 405 method guard.
- * Exported for the integration test (the dbControl.ts pattern).
- */
-export async function handlePresence(
-  req: IncomingMessage,
-  res: ServerResponse,
-  backend: Pick<LibraryBackend, 'activeSessions'>,
-): Promise<void> {
-  if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-  sendJson(res, 200, { sessions: await backend.activeSessions() });
-}
-
-/**
  * GET /api/activity — the map-activity layer (ADR-0048 builds + ADR-0138 story claims + ADR-0200 D7
- * claim DEPARTURES), polled cheaply by the world (sibling to /api/presence). All three reads are
+ * claim DEPARTURES), polled cheaply by the world without re-walking stories/. All three reads are
  * contractually non-throwing: a down DB / json backend answers 200 `{builds: null, claims: null,
  * departures: null}` (advisory absence, never a 503), so the only error path is the 405 method guard.
  * A claim carries `kind: "claim"` (the §5 honesty wall) so the renderer paints it VISIBLY DISTINCT
@@ -1445,7 +1430,7 @@ export async function handlePresence(
  * friction-released-build-wisp-reads-as-lost-claim): a claim released inside the window renders as a
  * departure instead of vanishing indistinguishably from a lost claim. `inFlightClaims` and
  * `inFlightDepartures` are OPTIONAL (a narrow mock may omit either → `null`). Exported for the
- * integration test (handlePresence pattern).
+ * integration test (the handleClaims pattern).
  */
 export async function handleActivity(
   req: IncomingMessage,
@@ -1468,11 +1453,11 @@ export async function handleActivity(
  * session through the pure `groupClaimsBySession` (packages/notice-board/src/claim.ts — the ONE
  * grouping every ledger view, board and dock alike, shares) so the studio session dock can render
  * "who's doing what, grouped by session" instead of raw claim rows. `sessionClaims()` is
- * contractually non-throwing like `activeSessions()`: a down DB / json backend answers 200
+ * contractually non-throwing like `latestVerdicts()`: a down DB / json backend answers 200
  * `{sessions: null}` (advisory absence, never a 503) — the only error path is the 405 method
- * guard. Sibling to /api/presence and /api/activity, but its OWN endpoint (not folded onto
- * /api/activity's wire) since the dock fetches it only while open, not on the world's poll
- * cadence. Exported for the integration test (the handlePresence pattern).
+ * guard. Sibling to /api/activity, but its OWN endpoint (not folded onto /api/activity's wire)
+ * since the dock fetches it only while open, not on the world's poll cadence. Exported for the
+ * integration test (the handleActivity pattern).
  */
 export async function handleClaims(
   req: IncomingMessage,
@@ -1626,19 +1611,21 @@ async function handleDocs(
 
 // ---------- write-broker (ADR-0117 — a builder's brokered write into the shared forest) ----------
 //
-// POST /api/write-broker persists a builder's LOCALLY-SIGNED verdict / presence declaration through
-// the store seam (writeBroker.ts) — the precondition for the operator-attested "invite a builder →
-// their local build blooms via the broker" walk (ADR-0070). The handler holds no signing key and
-// NEVER re-signs (ADR-0091/ADR-0117 d.3): it validates shape + attribution (signer ≡ caller), then
-// persists the verdict UNCHANGED — the spine's signature/anchor survive byte-for-byte (PgWorkStore
-// writes `doc: verdict` as-is; the `actor` is a separate audit field, never the verdict's signer).
-// The LibraryBackend verdict/presence writes are OPTIONAL (the json backend has neither), so this
-// adapter refuses with 503 when the live store isn't behind the backend, mirroring handleUatAttest.
+// POST /api/write-broker persists a builder's LOCALLY-SIGNED verdict through the store seam
+// (writeBroker.ts) — the precondition for the operator-attested "invite a builder → their local
+// build blooms via the broker" walk (ADR-0070). The handler holds no signing key and NEVER re-signs
+// (ADR-0091/ADR-0117 d.3): it validates shape + attribution (signer ≡ caller), then persists the
+// verdict UNCHANGED — the spine's signature/anchor survive byte-for-byte (PgWorkStore writes
+// `doc: verdict` as-is; the `actor` is a separate audit field, never the verdict's signer).
+// The brokered PRESENCE write type is RETIRED (ADR-0200 D7 — the claim ledger is the one
+// coordination machinery); the handler refuses it as an unknown discriminator. The LibraryBackend
+// verdict write is OPTIONAL (the json backend has none), so this adapter refuses with 503 when the
+// live store isn't behind the backend, mirroring handleUatAttest.
 
 /**
  * Adapt the studio's {@link LibraryBackend} to the handler's required {@link WriteBrokerBackend} seam:
- * delegate to the backend's optional verdict/presence writes, refusing with 503 when they are absent
- * (the json backend has no events.verdict / events.session). The 503 fires only AFTER the handler's
+ * delegate to the backend's optional verdict write, refusing with 503 when it is absent
+ * (the json backend has no events.verdict). The 503 fires only AFTER the handler's
  * authorization + shape + attribution walls pass, so a refused/forged write never reaches here.
  */
 function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
@@ -1648,12 +1635,6 @@ function writeBrokerBackend(backend: LibraryBackend): WriteBrokerBackend {
         throw new HttpError(503, 'persisting a brokered verdict needs the live store (pg) — bring the DB up (pnpm db:up)');
       }
       return backend.signUatVerdict(verdict, actor);
-    },
-    async declarePresence(doc, actor) {
-      if (!backend.declarePresence) {
-        throw new HttpError(503, 'persisting brokered presence needs the live store (pg) — bring the DB up (pnpm db:up)');
-      }
-      return backend.declarePresence(doc, actor);
     },
   };
 }
@@ -1935,17 +1916,17 @@ export async function handleApiRequest(
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
       const { payload, uatTestsByStory, coverageByStory } = await readTree(ctx.paths.storiesDir);
-      // Advisory enrichments (ADR-0033 / ADR-0048): no call ever throws — null
+      // Advisory enrichments (ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
-      // Run in parallel so a down DB costs one 4s budget, not four. `builds`
+      // Run in parallel so a down DB costs one 4s budget, not three. `builds`
       // seeds the in-flight wisp layer so the world paints it on first load
-      // (the poll then keeps it fresh) — parity with `sessions`. `verdictEvents`
-      // feeds the per-test UAT crown roll-up (ADR-0082); absent on a backend that
-      // doesn't implement it (the json store / a partial mock).
-      const [verdicts, verdictEvents, sessions, builds, assets] = await Promise.all([
+      // (the poll then keeps it fresh). `verdictEvents` feeds the per-test UAT
+      // crown roll-up (ADR-0082); absent on a backend that doesn't implement it
+      // (the json store / a partial mock). The `sessions` presence weave is
+      // RETIRED (ADR-0200 D7) — claim activity rides /api/activity + /api/claims.
+      const [verdicts, verdictEvents, builds, assets] = await Promise.all([
         ctx.backend.latestVerdicts(),
         ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
-        ctx.backend.activeSessions(),
         ctx.backend.inFlightBuilds(),
         // ADR-0107: the proving-process OQ-gate layer reads the live open-questions to withhold the
         // green of any story with an open fork. Advisory like the rest — null on failure never throws.
@@ -2000,11 +1981,8 @@ export async function handleApiRequest(
           }
         }
       }
-      if (sessions && sessions.length > 0) payload.sessions = sessions;
       if (builds && builds.length > 0) payload.builds = builds;
       sendJson(res, 200, payload);
-    } else if (url.pathname === '/api/presence') {
-      await handlePresence(req, res, ctx.backend);
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
     } else if (url.pathname === '/api/claims') {
@@ -2040,8 +2018,8 @@ export async function handleApiRequest(
       const commitSha = process.env['STORYTREE_STUDIO_COMMIT'] ?? stamp?.startedAt ?? null;
       await handleUatAttest(req, res, ctx, ctx.policy?.me.email ?? null, commitSha);
     } else if (url.pathname === '/api/write-broker') {
-      // ADR-0117: a remote builder's local build spine POSTs its locally-signed verdict / presence
-      // here so the build blooms in the shared forest (ADR-0070). The policy gate already enforced
+      // ADR-0117: a remote builder's local build spine POSTs its locally-signed verdict here so
+      // the build blooms in the shared forest (ADR-0070). The policy gate already enforced
       // builder-or-admin scope; the handler re-checks (defence in depth via mayBrokerWrite), enforces
       // the attribution wall (signer ≡ caller), and persists the verdict UNCHANGED (no re-sign). The
       // caller + resolved access ride the SAME policy the gate authorized from. Hosted-only: the open

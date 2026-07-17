@@ -23,14 +23,13 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { UserDoc } from '@storytree/studio-members';
-import type { ClaimDocT, DepartedClaim, PresenceDeclarationDoc } from '@storytree/notice-board';
+import type { ClaimDocT, DepartedClaim } from '@storytree/notice-board';
 import type { Attestation, Verdict } from '@storytree/proof-protocol';
 import {
   type AssetCategory,
   type BuildActivity,
   type Comment,
   type GuidanceAsset,
-  type TreeSession,
   type TreeVerdict,
 } from '../src/types';
 import { rowsToBuildActivity } from './inFlightBuilds';
@@ -106,7 +105,7 @@ export interface LibraryBackend {
    * Latest signed verdict per unit from `events.verdict`, for the tree view's glyphs
    * (ADR-0033 owner decision 3: ✓ / ✗ / absent-means-never-built). NEVER throws —
    * `null` when there is no DB behind this backend (json) or the DB doesn't answer;
-   * the tree renders without glyphs rather than failing (presence-block discipline).
+   * the tree renders without glyphs rather than failing (the advisory-absence discipline).
    */
   latestVerdicts(): Promise<Record<string, TreeVerdict> | null>;
 
@@ -132,28 +131,10 @@ export interface LibraryBackend {
   signUatVerdict?(verdict: Verdict, actor: string): Promise<Verdict>;
 
   /**
-   * Persist a builder's BROKERED presence declaration into events.session via PgPresenceStore.declare
-   * — the SAME atomic append+upsert path `storytree noticeboard declare` and the presence hook write
-   * through (ADR-0033). Used by the write-broker (ADR-0117): a remote builder's local session declares
-   * its presence so it appears on the shared notice board / in the forest. Presence carries no signing
-   * chain (ADR-0033 d.1), so `actor` is advisory — the store anchors the row on the declaration's own
-   * sessionId. OPTIONAL: implemented only by the pg backend (the json backend has no events.session),
-   * so the broker refuses with "needs the live store", mirroring {@link signUatVerdict}.
-   */
-  declarePresence?(doc: PresenceDeclarationDoc, actor: string): Promise<PresenceDeclarationDoc>;
-
-  /**
-   * Active notice-board sessions (events.session projection, ADR-0033) with the
-   * staleness band derived at read time. NEVER throws — `null` for the json backend
-   * or when the DB doesn't answer; presence is advisory and silently absent.
-   */
-  activeSessions(): Promise<TreeSession[] | null>;
-
-  /**
    * In-flight builds (ADR-0048): the latest `events.work_event` `building` row per
    * unit whose run has not yet produced a signed verdict, within the TTL — the
    * harness signal the orbiting wisp is sourced from. Same advisory contract as
-   * {@link activeSessions}: NEVER throws — `null` for json / a down DB.
+   * {@link latestVerdicts}: NEVER throws — `null` for json / a down DB.
    */
   inFlightBuilds(): Promise<BuildActivity[] | null>;
 
@@ -188,9 +169,9 @@ export interface LibraryBackend {
    * SQL by heartbeat. Unlike {@link inFlightClaims} (which folds each row to a map-wisp
    * `ClaimActivity`), this stays the raw claim shape so the caller (the `/api/claims` handler)
    * folds it through the pure `groupClaimsBySession` — the ONE grouping every ledger view shares
-   * (packages/notice-board/src/claim.ts). Same advisory contract as {@link activeSessions}: NEVER
+   * (packages/notice-board/src/claim.ts). Same advisory contract as {@link latestVerdicts}: NEVER
    * throws — `null` for the json backend or when the DB doesn't answer; the dock's claims view
-   * degrades silently to the presence-only view (advisory absence, never an error surface).
+   * degrades silently (advisory absence, never an error surface).
    * OPTIONAL like {@link inFlightClaims}: a narrow mock may omit it, and the `/api/claims` handler
    * falls back to `null` (advisory absence, never an over-claim).
    */
@@ -345,10 +326,6 @@ export class JsonBackend implements LibraryBackend {
     return null; // no events.verdict behind the JSON files — the UAT crown roll-up is skipped
   }
 
-  async activeSessions(): Promise<TreeSession[] | null> {
-    return null; // no events.session behind the JSON files — presence silently absent
-  }
-
   async inFlightBuilds(): Promise<BuildActivity[] | null> {
     return null; // no events.work_event behind the JSON files — activity silently absent
   }
@@ -495,7 +472,7 @@ function lastAdminError(message: string): Error {
 // ---------------------------------------------------------------------------
 
 // Cross-package, ESM. The runtime values (createPool/closePool/PgLibraryStore/PgCommentStore/
-// renderStoredDoc + PgUserStore + PgAttestationStore + PgPresenceStore) are loaded LAZILY via dynamic
+// renderStoredDoc + PgUserStore + PgAttestationStore + PgClaimStore) are loaded LAZILY via dynamic
 // imports the first time PgBackend is used — NOT a static top-level import. That matters: this module
 // is reached at Vite config-load / `vite build` time (vite.config.ts → devApi.ts → here), where the
 // loader has no tsx transform and cannot resolve the store subpaths' `.js` re-export specifiers
@@ -504,7 +481,7 @@ function lastAdminError(message: string): Error {
 // STORYTREE_STUDIO_STORE='pg' actually runs the dev API.
 //
 // ADR-0077: `@storytree/store` was dissolved — the substrate + central drawers moved to
-// `@storytree/library/store`, the presence drawer to `@storytree/notice-board/store`, the user drawer
+// `@storytree/library/store`, the claim drawer to `@storytree/notice-board/store`, the user drawer
 // to `@storytree/studio-members/store`, and the attestation drawer to `@storytree/orchestrator/store`.
 // We load each node-only `./store` subpath lazily and merge them into one module-shaped object so the
 // `store.X` call sites below are unchanged.
@@ -515,7 +492,7 @@ import type { PgUserStore } from '@storytree/studio-members/store';
 import type { PgAttestationStore, PgWorkStore } from '@storytree/orchestrator/store';
 
 // The merged store surface PgBackend uses: the library substrate/central drawers + the organism
-// drawers it instantiates (user / attestation / presence), plus CURRENT_SCHEMA_VERSION from the
+// drawers it instantiates (user / attestation / claim), plus CURRENT_SCHEMA_VERSION from the
 // library main entry (the schema-skew probe compares it against the DB's max version). Intersection of
 // the four `./store` subpaths and the library main module.
 type StoreModule = typeof import('@storytree/library/store') &
@@ -553,9 +530,9 @@ function loadStudioMembersModule(): Promise<StudioMembersModule> {
   return (studioMembersModulePromise ??= import('@storytree/studio-members'));
 }
 
-// @storytree/notice-board is raw-TS too (same `.js` config-load trap), so classifyPresence is
-// loaded lazily on the first presence read — even though it is browser-safe (zod-only, no node:).
-// (ADR-0068 step 6b: presence moved out of core into the notice-board organism.)
+// @storytree/notice-board is raw-TS too (same `.js` config-load trap), so its claim folds
+// (foldDepartures, DEPARTURE_WINDOW_MS) are loaded lazily on first use — even though the package
+// is browser-safe (zod-only, no node:).
 type NoticeBoardModule = typeof import('@storytree/notice-board');
 
 let noticeBoardModulePromise: Promise<NoticeBoardModule> | null = null;
@@ -868,58 +845,6 @@ export class PgBackend implements LibraryBackend {
   }
 
   /**
-   * Persist a brokered presence declaration into events.session via PgPresenceStore.declare — the SAME
-   * atomic append+upsert path `storytree noticeboard declare` and the presence hook use (ADR-0033). A
-   * real WRITE (not raced/swallowed like the advisory reads): a failure (down DB) propagates to the
-   * handler, mapped to 503. Presence carries no signing chain (ADR-0033 d.1), so `actor` is advisory —
-   * the store anchors the row on the declaration's own sessionId.
-   */
-  async declarePresence(doc: PresenceDeclarationDoc, _actor: string): Promise<PresenceDeclarationDoc> {
-    const { store } = await this.#ready();
-    const handle = this.#handle;
-    if (!handle) throw new Error('no pool');
-    return new store.PgPresenceStore(handle.pool).declare(doc);
-  }
-
-  /**
-   * Active sessions from events.session via PgPresenceStore.listActive(), staleness
-   * classified at read time (classifyPresence, the ADR-0033 fixed thresholds). Same
-   * advisory contract as latestVerdicts(): null on any failure, never a throw.
-   */
-  async activeSessions(): Promise<TreeSession[] | null> {
-    let timer: NodeJS.Timeout | undefined;
-    try {
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('presence probe timed out')), 4000);
-      });
-      // Same shape as latestVerdicts(): the pool build is part of the raced work.
-      const docs = await Promise.race([
-        (async () => {
-          const { store } = await this.#ready();
-          const handle = this.#handle;
-          if (!handle) throw new Error('no pool');
-          return new store.PgPresenceStore(handle.pool).listActive();
-        })(),
-        timeout,
-      ]);
-      const noticeBoard = await loadNoticeBoardModule();
-      const now = new Date();
-      return docs.map((d) => ({
-        sessionId: d.sessionId,
-        branch: d.branch,
-        workingOn: d.workingOn,
-        nodes: d.nodes,
-        band: noticeBoard.classifyPresence(d.lastSeenAt, now),
-        lastSeenAt: d.lastSeenAt,
-      }));
-    } catch {
-      return null;
-    } finally {
-      if (timer !== undefined) clearTimeout(timer);
-    }
-  }
-
-  /**
    * In-flight builds (ADR-0048): the latest `building` work-event per unit whose
    * run has NOT produced a signed verdict, then TTL-filtered in JS so a dangling
    * build (a hard-killed run) clears in minutes. Keyed by `runId` (the build's
@@ -1059,7 +984,7 @@ export class PgBackend implements LibraryBackend {
    * Every live claim row via `PgClaimStore.listLiveClaims()` (ADR-0200 D7 dock view) — the SAME
    * store's already-tested heartbeat stale-filter (no hand-rolled SQL here), raced against the
    * same ~4s timeout as the other advisory reads above. Null on ANY failure (stopped instance,
-   * missing table, pool build error) — the dock's claims view is advisory, like activeSessions().
+   * missing table, pool build error) — the dock's claims view is advisory, like latestVerdicts().
    */
   async sessionClaims(): Promise<ClaimDocT[] | null> {
     let timer: NodeJS.Timeout | undefined;

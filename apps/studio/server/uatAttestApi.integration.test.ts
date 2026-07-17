@@ -68,7 +68,6 @@ const stubBackend: LibraryBackend = {
     signed.push(parsed);
     return parsed;
   },
-  activeSessions: async () => null,
   inFlightBuilds: async () => null,
   listComments: async () => [],
   createComment: async (c) => c,

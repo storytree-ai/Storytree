@@ -1,5 +1,5 @@
 // Integration tests for GET /api/health (devApi.ts handleHealth) over a REAL node:http
-// server with stubbed deps — no DB, no git, no Vite (the presenceApi.integration.test.ts
+// server with stubbed deps — no DB, no git, no Vite (the claimsApi.integration.test.ts
 // pattern). The contract under test: health always answers 200 (it is what the UI leans on
 // when everything else is down); the code stamp rides along when the probe answers, is
 // silently absent when it can't — and a probe REJECTION is flattened to the same absence,

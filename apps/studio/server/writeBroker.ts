@@ -1,17 +1,20 @@
 // Write-broker endpoint (ADR-0117 d.2–d.4): a builder-scoped POST that persists a
-// builder's locally-signed verdict or presence declaration through the studio's store
-// seam — validating shape (zod strict) and attribution (signer/session ≡ caller),
-// refusing non-builders (403) and forged attribution. Holds NO signing key and NEVER
-// re-signs (the inverse of /api/uat/attest which stamps the signer; the broker takes
-// a fully-formed Verdict and persists it unchanged — after verifying it).
+// builder's locally-signed VERDICT through the studio's store seam — validating shape
+// (zod strict) and attribution (signer ≡ caller), refusing non-builders (403) and
+// forged attribution. Holds NO signing key and NEVER re-signs (the inverse of
+// /api/uat/attest which stamps the signer; the broker takes a fully-formed Verdict and
+// persists it unchanged — after verifying it).
+//
+// The brokered PRESENCE write type is RETIRED (ADR-0200 D7 — the presence retirement
+// sweep): the claim ledger is the one coordination + observability machinery, so
+// `type: 'presence'` now refuses as an unknown discriminator (400). Verdicts stay.
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Verdict } from '@storytree/proof-protocol';
-import type { PresenceDeclarationDoc } from '@storytree/notice-board';
 import type { ResolvedAccess } from '@storytree/studio-members';
 import { HttpError, sendJson } from './httpUtil.js';
 
-// The verdict/presence zod schemas + the brokered-write role predicate (mayBrokerWrite) live in raw-TS
+// The verdict zod schema + the brokered-write role predicate (mayBrokerWrite) live in raw-TS
 // workspace packages whose `.js` re-export specifiers don't resolve under a no-tsx loader — and
 // apiRouter.ts (which imports this module) is reached by vite's config-load bundling. So import the
 // TYPES statically (erased) and load the runtime VALUES lazily, on first use: the SAME config-load
@@ -22,24 +25,18 @@ let proofProtocolModule: Promise<typeof import('@storytree/proof-protocol')> | n
 const loadProofProtocol = (): Promise<typeof import('@storytree/proof-protocol')> =>
   (proofProtocolModule ??= import('@storytree/proof-protocol'));
 
-let noticeBoardModule: Promise<typeof import('@storytree/notice-board')> | null = null;
-const loadNoticeBoard = (): Promise<typeof import('@storytree/notice-board')> =>
-  (noticeBoardModule ??= import('@storytree/notice-board'));
-
 let studioMembersModule: Promise<typeof import('@storytree/studio-members')> | null = null;
 const loadStudioMembers = (): Promise<typeof import('@storytree/studio-members')> =>
   (studioMembersModule ??= import('@storytree/studio-members'));
 
 // ---------------------------------------------------------------------------
-// Store-write seam (injected by the caller; the production wiring uses PgBackend +
-// PgPresenceStore; the integration test injects a recording stub).
+// Store-write seam (injected by the caller; the production wiring uses PgBackend;
+// the integration test injects a recording stub).
 // ---------------------------------------------------------------------------
 
 export interface WriteBrokerBackend {
   /** Persist a builder's locally-signed verdict (same store path as PgBackend.signUatVerdict). */
   signUatVerdict(verdict: Verdict, actor: string): Promise<Verdict>;
-  /** Upsert a builder's presence declaration (same store path as PgPresenceStore.declare). */
-  declarePresence(doc: PresenceDeclarationDoc, actor: string): Promise<PresenceDeclarationDoc>;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,12 +69,13 @@ function readBody(req: IncomingMessage): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * POST /api/write-broker — persists a builder's locally-signed verdict or presence
- * declaration through the studio's store seam.
+ * POST /api/write-broker — persists a builder's locally-signed verdict through the
+ * studio's store seam. (`type: 'presence'` is RETIRED — ADR-0200 D7; it now refuses
+ * as an unknown discriminator like any other unrecognised type.)
  *
  * Three walls enforced BEFORE any write:
  *   - AUTHORIZATION (ADR-0117 d.2): builder-or-admin only; no identity → 401; member → 403
- *   - SHAPE (ADR-0117 d.3):         Verdict / PresenceDeclaration .safeParse strict;
+ *   - SHAPE (ADR-0117 d.3):         Verdict.safeParse strict;
  *                                    invalid body or unknown type → 400
  *   - ATTRIBUTION (ADR-0117 d.3):   verdict.signer must equal the verified caller;
  *                                    mismatch → 403 (a builder cannot persist another's verdict)
@@ -138,18 +136,8 @@ export async function handleWriteBroker(
 
     const persisted = await ctx.backend.signUatVerdict(verdict, ctx.caller);
     sendJson(res, 201, { ok: true, verdict: persisted });
-  } else if (type === 'presence') {
-    // ---- SHAPE wall (PresenceDeclaration.safeParse strict) ----
-    const { PresenceDeclaration } = await loadNoticeBoard();
-    const result = PresenceDeclaration.safeParse(payload);
-    if (!result.success) {
-      throw new HttpError(400, `invalid presence shape: ${result.error.message}`);
-    }
-    const doc = result.data;
-
-    const persisted = await ctx.backend.declarePresence(doc, ctx.caller);
-    sendJson(res, 201, { ok: true, presence: persisted });
   } else {
+    // Anything else — including the RETIRED 'presence' type (ADR-0200 D7) — is refused.
     throw new HttpError(400, `unknown type discriminator "${String(type)}"`);
   }
 }

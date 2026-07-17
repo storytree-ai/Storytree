@@ -21,7 +21,7 @@ import { BuildRegistry, routedBuildRunner, adoptRunnerFromAdoptStory } from '@st
 import { installDevServerResilience } from './devServerResilience';
 
 // Re-exported for the existing integration tests (the route table's real home).
-export { handleHealth, handlePresence, handleActivity, handleClaims, type HealthDeps } from './apiRouter';
+export { handleHealth, handleActivity, handleClaims, type HealthDeps } from './apiRouter';
 
 export function storytreeDataApi(): Plugin {
   let paths: Paths;

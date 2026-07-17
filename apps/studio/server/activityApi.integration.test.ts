@@ -1,5 +1,5 @@
 // Integration tests for GET /api/activity (handleActivity) over a REAL node:http
-// server with a STUB backend — no DB, no Vite (the presenceApi.integration.test.ts
+// server with a STUB backend — no DB, no Vite (the claimsApi.integration.test.ts
 // pattern, ADR-0048 / ADR-0138). The contract: inFlightBuilds(), inFlightClaims() AND
 // inFlightDepartures() never throw, so the endpoint always answers 200 —
 // `{builds: null, claims: null, departures: null}` IS the down-DB / json-store answer

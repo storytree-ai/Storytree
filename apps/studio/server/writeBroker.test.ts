@@ -1,15 +1,17 @@
 // Integration test for the write-broker endpoint (ADR-0117 d.2–d.4):
-// a builder-scoped POST that persists a builder's locally-signed verdict or presence
-// declaration through the studio's store seam — validating shape (zod, strict) and
-// attribution (signer/session ≡ caller), refusing non-builders (403) and forged
-// attribution. The store-write double records what was persisted so each wall is
-// asserted on the ACTUAL SIDE-EFFECT, not a success flag.
+// a builder-scoped POST that persists a builder's locally-signed VERDICT through the
+// studio's store seam — validating shape (zod, strict) and attribution (signer ≡
+// caller), refusing non-builders (403) and forged attribution. The store-write double
+// records what was persisted so each wall is asserted on the ACTUAL SIDE-EFFECT, not
+// a success flag. The presence write type is RETIRED (ADR-0200 D7 — the claim ledger
+// is the one coordination machinery): `type: 'presence'` is now an unknown
+// discriminator → 400, proven below.
 //
 // Three honesty walls under test (all enforced BEFORE any write):
 //   - AUTHORIZATION (ADR-0117 d.2): builder-or-admin scope only;
 //                                    no identity → 401, member → 403
-//   - SHAPE (ADR-0117 d.3):         Verdict.safeParse / PresenceDeclaration.safeParse
-//                                    (strict — unknown fields rejected); invalid body → 400
+//   - SHAPE (ADR-0117 d.3):         Verdict.safeParse (strict — unknown fields
+//                                    rejected); invalid body → 400
 //   - ATTRIBUTION (ADR-0117 d.3):   verdict.signer must equal the verified caller;
 //                                    mismatch → 403; nothing persisted
 
@@ -17,7 +19,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Verdict } from '@storytree/proof-protocol';
-import type { PresenceDeclarationDoc } from '@storytree/notice-board';
 import { type ResolvedAccess } from '@storytree/studio-members';
 import { handleWriteBroker } from './writeBroker.js';
 import { HttpError } from './httpUtil.js';
@@ -33,17 +34,12 @@ const COMMIT = 'cafebabecafebabecafebabecafebabecafebabe';
 // ---------------------------------------------------------------------------
 
 const persistedVerdicts: Verdict[] = [];
-const persistedPresence: PresenceDeclarationDoc[] = [];
 
 const stubBackend = {
   signUatVerdict: async (verdict: Verdict, _actor: string): Promise<Verdict> => {
     const parsed = Verdict.parse(verdict);
     persistedVerdicts.push(parsed);
     return parsed;
-  },
-  declarePresence: async (doc: PresenceDeclarationDoc, _actor: string): Promise<PresenceDeclarationDoc> => {
-    persistedPresence.push(doc);
-    return doc;
   },
 };
 
@@ -110,7 +106,7 @@ function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, un
   };
 }
 
-/** A minimal fully-valid PresenceDeclaration. */
+/** The RETIRED presence-declaration shape (ADR-0200 D7) — posted only to prove the 400 refusal. */
 function makePresence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = '2026-06-27T10:00:00.000Z';
   return {
@@ -240,51 +236,18 @@ describe('write-broker — SHAPE wall (Verdict.safeParse strict, ADR-0117 d.3)',
 });
 
 // ---------------------------------------------------------------------------
-// Presence declaration path
+// Presence write type is RETIRED (ADR-0200 D7 — presence retirement sweep)
 // ---------------------------------------------------------------------------
 
-describe('write-broker — presence declaration path (ADR-0117 d.3)', () => {
-  it('a builder persists a valid presence declaration (201)', async () => {
-    const before = persistedPresence.length;
+describe('write-broker — presence write type retired (ADR-0200 D7)', () => {
+  it('refuses a presence write as an unknown type discriminator (400) — nothing persisted', async () => {
+    const before = persistedVerdicts.length;
     currentCaller = BUILDER;
     currentAccess = builderAccess;
     const res = await post({ type: 'presence', payload: makePresence() });
-    expect(res.status).toBe(201);
-    expect(persistedPresence.length).toBe(before + 1);
-    expect(persistedPresence[persistedPresence.length - 1]).toMatchObject({
-      sessionId: 'write-broker-worktree',
-      branch: 'claude/write-broker-worktree',
-    });
-  });
-
-  it('refuses a malformed presence body (400) — no write', async () => {
-    const before = persistedPresence.length;
-    currentCaller = BUILDER;
-    currentAccess = builderAccess;
-    // sessionId is blank (nonBlankString fails), branch and workingOn missing
-    const res = await post({ type: 'presence', payload: { sessionId: '' } });
     expect(res.status).toBe(400);
-    expect(persistedPresence.length).toBe(before);
-  });
-
-  it('refuses a presence body with extra fields (400) — strict mode', async () => {
-    const before = persistedPresence.length;
-    currentCaller = BUILDER;
-    currentAccess = builderAccess;
-    const res = await post({
-      type: 'presence',
-      payload: { ...makePresence(), unknownExtra: 'injected' },
-    });
-    expect(res.status).toBe(400);
-    expect(persistedPresence.length).toBe(before);
-  });
-
-  it('a member cannot persist a presence declaration (403) — builder scope required', async () => {
-    const before = persistedPresence.length;
-    currentCaller = MEMBER;
-    currentAccess = memberAccess;
-    const res = await post({ type: 'presence', payload: makePresence() });
-    expect(res.status).toBe(403);
-    expect(persistedPresence.length).toBe(before);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('unknown type discriminator');
+    expect(persistedVerdicts.length).toBe(before);
   });
 });

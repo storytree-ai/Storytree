@@ -132,7 +132,6 @@ function makeStubBackend(): LibraryBackend {
     deleteAsset: async () => false,
     health: async () => ({ db: 'n/a' as const }),
     latestVerdicts: async () => null,
-    activeSessions: async () => null,
     inFlightBuilds: async () => null,
     listComments: async () => [],
     createComment: async (c) => c,
