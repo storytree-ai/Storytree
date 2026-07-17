@@ -1,8 +1,11 @@
-// Hud — the floating global chrome (ADR-0204). The forest map is the landing surface; the top
-// banner and the Overview page retire, and this is the ONLY global chrome left: a brand chip
-// (top-left) linking back to the forest, and a verified-identity avatar (top-right) whose menu
-// carries the read-only identity + role, the Library lens, Documents, and the posture-/role-gated
-// Members, Credentials, and Sign out actions.
+// Hud — the floating global chrome (ADR-0204/ADR-0205). The forest map is the landing surface; the
+// top banner and the Overview page retire, and this is the ONLY global chrome left: a single
+// verified-identity avatar (top-right). ADR-0205 retires the v1 brand chip (the forest IS the
+// landing surface, so a permanent "back to the forest" chip is a second pathway to where you
+// already are) and the menu's Library/Documents entries (the map's library drawer is the one
+// Library pathway, the lens dive is the one document pathway) — the avatar menu is a PURE account
+// surface: the read-only identity + role line, and the posture-/role-gated Members, Credentials,
+// and Sign out actions. No navigation affordance of any kind lives in the chrome any more.
 //
 // Every input is a prop (the `BuildSection`/`StoreBanner` precedent) so this is a clean jsdom unit
 // with no context/router coupling required — the composition root (`App`) resolves `me`/`docs` and
@@ -11,7 +14,7 @@
 
 import { useState } from 'react';
 import { getDesktopAuth } from '../lib/desktopAuth';
-import { docHref, homeHref, libraryHref, membersHref } from '../lib/route';
+import { membersHref } from '../lib/route';
 import type { DocMeta, MeInfo } from '../types';
 import { CredentialsPanel } from './CredentialsPanel';
 
@@ -44,12 +47,15 @@ function initialsFromEmail(email: string): string {
 
 export function Hud({
   me,
-  docs,
   posture,
 }: {
   /** The verified `/api/me` identity (ADR-0043) — presented, never re-authenticated here. */
   me: MeInfo;
-  /** The document corpus, so the "Documents" menu item has somewhere real to land. */
+  /**
+   * The document corpus — accepted for compatibility with the composition root's existing data
+   * flow, but no longer read: ADR-0205 retires the menu's Documents shortcut (the lens dive is the
+   * one document pathway), so the HUD carries no document-derived state any more.
+   */
   docs: DocMeta[];
   posture: HudPosture;
 }): React.JSX.Element {
@@ -61,17 +67,8 @@ export function Hud({
   // `me`, or a genuinely unresolved caller) — a neutral placeholder glyph instead.
   const initials = me.email ? initialsFromEmail(me.email) : null;
 
-  const firstDoc = docs.find((d) => d.group === 'Decisions') ?? docs[0];
-
   return (
     <div className="hud">
-      <a className="hud-brand" href={homeHref}>
-        <span className="hud-brand-mark" aria-hidden="true">
-          ▴
-        </span>
-        <span className="hud-brand-name">storytree</span>
-      </a>
-
       <div className="hud-account">
         <button
           type="button"
@@ -95,16 +92,6 @@ export function Hud({
               <span className="hud-menu-email">{me.email ?? 'not signed in'}</span>
               {me.role && <span className={`badge role-${me.role}`}>{me.role}</span>}
             </div>
-
-            <a className="hud-menu-item" role="menuitem" href={libraryHref()}>
-              Library
-            </a>
-
-            {firstDoc && (
-              <a className="hud-menu-item" role="menuitem" href={docHref(firstDoc.id)}>
-                Documents
-              </a>
-            )}
 
             {me.role === 'admin' && (
               <a className="hud-menu-item" role="menuitem" href={membersHref}>

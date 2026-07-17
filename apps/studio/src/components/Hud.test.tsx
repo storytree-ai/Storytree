@@ -1,23 +1,27 @@
 // @vitest-environment jsdom
 //
-// The floating HUD chrome (ADR-0204): the forest map is the landing surface, the top banner and
-// the Overview page retire, and the only global chrome left is a floating brand chip (top-left)
-// plus a verified-identity avatar menu (top-right). Two things are pinned here, in the ONE file
-// the custom proof command runs:
+// The floating HUD chrome (ADR-0204/ADR-0205): the forest map is the landing surface, the top
+// banner and the Overview page retire, and the ONLY global chrome left is a single floating
+// verified-identity avatar (top-right) whose menu is a PURE account surface. ADR-0205 retires the
+// v1 brand chip (the forest IS the landing surface, so a permanent "back to the forest" chip is a
+// second pathway to where you already are) and the menu's Library/Documents entries (the map's
+// library drawer is the one Library pathway, the lens dive is the one document pathway). Things
+// pinned here, in the ONE file the custom proof command runs:
 //
 //   1. the LANDING ROUTE RETIREMENT — `parseRoute` never yields `{ name: 'home' }` any more; `#/`,
 //      an empty hash, and every unmatched path resolve to the forest (`{ name: 'tree', focus: null }`).
-//   2. the HUD component's behavioural composition — the brand chip's target, the avatar's honest
-//      identity presentation (initials from a verified email, a non-invented fallback when identity
-//      hasn't resolved), the menu's items composing off role + posture, and the retirement of the
-//      free-text operator input from the chrome.
+//   2. the HUD component's behavioural composition — NO brand chip, the avatar's honest identity
+//      presentation (initials from a verified email, a non-invented fallback when identity hasn't
+//      resolved), the menu composed of ONLY the identity/role line + role-/posture-gated Members,
+//      Credentials, Sign out (NO Library, NO Documents, NO nav of any kind), and the retirement of
+//      the free-text operator input from the chrome.
 //
 // No visual/colour/pixel assertion here (ADR-0070 stage 2 owns the LOOK) — every assertion below is
 // routing, presence/absence, or menu composition, all drivable in jsdom with no real fetch/socket.
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { parseRoute, homeHref, libraryHref, membersHref } from '../lib/route';
+import { parseRoute, membersHref } from '../lib/route';
 import type { DocMeta, MeInfo } from '../types';
 import { Hud } from './Hud';
 
@@ -68,12 +72,11 @@ const docs: DocMeta[] = [
   { id: 'reference/glossary.md', title: 'Glossary', group: 'Reference', excerpt: 'terms' },
 ];
 
-describe('Hud — brand chip', () => {
-  it('hud-brand-chip-links-forest: the brand chip links to homeHref, which now lands on the forest', () => {
-    render(<Hud me={admin} docs={docs} posture="desktop" />);
-    const brand = screen.getByRole('link', { name: /storytree/i });
-    expect(brand.getAttribute('href')).toBe(homeHref);
-    expect(parseRoute(homeHref)).toEqual({ name: 'tree', focus: null });
+describe('Hud — no brand chip (ADR-0205)', () => {
+  it('hud-no-navigation-chrome: the HUD renders no brand chip or forest-return link — the avatar is the only floating control', () => {
+    const { container } = render(<Hud me={admin} docs={docs} posture="desktop" />);
+    expect(container.querySelector('.hud-brand')).toBeNull();
+    expect(screen.queryByRole('link', { name: /storytree/i })).toBeNull();
   });
 });
 
@@ -95,7 +98,7 @@ describe('Hud — avatar identity', () => {
 });
 
 describe('Hud — avatar menu composition', () => {
-  it('hud-avatar-menu-core-and-lenses: the identity/role line renders as read-only text, never an input', () => {
+  it('hud-avatar-menu-account-only: the identity/role line renders as read-only text, never an input', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
     const identity = screen.getByTestId('hud-menu-identity');
@@ -104,25 +107,19 @@ describe('Hud — avatar menu composition', () => {
     expect(identity.querySelector('input')).toBeNull();
   });
 
-  it('hud-menu-library-targets-the-lens: Library targets the overlay lens over the tree, never #/library', () => {
+  it('hud-menu-no-library-item: the menu carries no Library entry (the map drawer is the one Library pathway)', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
-    const link = screen.getByRole('menuitem', { name: 'Library' });
-    const href = link.getAttribute('href') ?? '';
-    expect(href).toBe(libraryHref());
-    expect(href).toContain('overlay=library');
-    expect(href).toContain('#/tree');
+    expect(screen.queryByRole('menuitem', { name: 'Library' })).toBeNull();
   });
 
-  it('hud-menu-documents-targets-a-doc-route: Documents resolves (via parseRoute) to a doc route', () => {
+  it('hud-menu-no-documents-item: the menu carries no Documents entry (the lens dive is the one document pathway)', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
-    const link = screen.getByRole('menuitem', { name: 'Documents' });
-    const href = link.getAttribute('href') ?? '';
-    expect(parseRoute(href).name).toBe('doc');
+    expect(screen.queryByRole('menuitem', { name: 'Documents' })).toBeNull();
   });
 
-  it('hud-avatar-menu-gated-items: Members is present for an admin', () => {
+  it('hud-menu-members-present-for-admin: Members is present for an admin', () => {
     render(<Hud me={admin} docs={docs} posture="desktop" />);
     fireEvent.click(screen.getByTestId('hud-avatar'));
     const link = screen.getByRole('menuitem', { name: 'Members' });

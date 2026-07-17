@@ -33,11 +33,21 @@ unverified where it doesn't.
    `#/asset/...`, and `#/members` routes remain.
 2. **The topbar is removed.** Global chrome becomes a floating HUD over the full-bleed app: a brand
    chip top-left (routes to the forest) and an avatar top-right — an initials circle derived from
-   the verified identity, carrying the role.
+   the verified identity, carrying the role. *(The brand chip is OVERTAKEN by
+   [ADR-0205](0205-one-pathway-chrome-the-hud-sheds-the-brand-chip-and-lens-sho.md) §1, 2026-07-17:
+   the chip RETIRES — the forest is the landing surface and a permanent "home" affordance to the
+   place you already are is a second pathway to nowhere (`one-way-to-do-things`). The topbar-removal
+   and the top-right avatar stand. Noted in place per ADR-0139.)*
 3. **The avatar menu carries the rehomed functions:** the identity + role line, Library lens
    (overlay), Documents (the doc-corpus entry Overview/Sidebar used to provide), Members
    (admin-gated), Credentials (desktop-gated, behaviour unchanged), and Sign out (clears the IAP
-   session on the hosted deployment; hidden where there is no IAP).
+   session on the hosted deployment; hidden where there is no IAP). *(The Library lens and Documents
+   entries are OVERTAKEN by
+   [ADR-0205](0205-one-pathway-chrome-the-hud-sheds-the-brand-chip-and-lens-sho.md) §2, 2026-07-17:
+   both menu shortcuts RETIRE — the map's library drawer (ADR-0191) is the one pathway to the Library
+   and the lens dive (ADR-0185) the one pathway into document bodies, so the duplicating menu entries
+   fail the `one-way-to-do-things` bar; the menu becomes a pure account surface. The identity + role
+   line, Members, Credentials, and Sign out stand. Noted in place per ADR-0139.)*
 4. **The operator field retires** (the amends edge on ADR-0008): attribution everywhere comes from
    the verified identity — the IAP email on the hosted path, `STORYTREE_STUDIO_DEV_IDENTITY`
    locally, the conventional `operator` fallback only in the open dev posture. The localStorage
