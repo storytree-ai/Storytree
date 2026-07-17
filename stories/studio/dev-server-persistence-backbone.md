@@ -16,6 +16,14 @@ depends_on: []
 **Depends on —** *(none — a root capability)*
 
 > **Proof status (honest) —** CODE EXISTS AND RUNS; NO AUTOMATED PROOF. Fully implemented and live under `pnpm --filter studio dev` (vite.config.ts mounts the plugin; the server logs the data-api line on boot; assets.json holds 88 seeded records served through the real readStore path). Exercised by hand via the UI during development. But package.json defines only dev/build/preview/typecheck; no vitest/jest; zero .test/.spec files; no scripted integration test. NOT proven, NOT verified-green — all 15 contracts and the integration test are retrospective specs awaiting a runner.
+>
+> **Historical note (librarian pass, 2026-07-18):** the `assets.json` / `seed.assets.mjs` machinery
+> described above is **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at
+> ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last committed
+> `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier
+> is now DB-backed, the offline backend deriving its view from `knowledge.json` (+ `@storytree/library`
+> `libraryTemplates()`) at runtime. This stays a retrospective spec of the original JSON-store era —
+> kept as history, not current code.
 
 ## Guidance
 

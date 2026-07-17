@@ -16,6 +16,14 @@ depends_on: [dev-server-persistence-backbone, browse-library]
 **Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md), [`browse-library`](browse-library.md)
 
 > **Proof status (honest) —** HONEST: code exists and runs. All cited behaviours are implemented in the real working studio (AssetEditor.tsx, AssetView.tsx, server/devApi.ts, api.ts) and the app launches under `pnpm --filter studio dev`, mutating apps/studio/data/assets.json on disk. But there is NO automated proof yet: apps/studio has no test suite and no scripted integration-test runner. Every contract describes the isolated unit test that WOULD prove its leaf (collaborators stubbed) but none is written; the integration test is an unautomated prose walkthrough against the real in-story collaborators. SPEC-AUTHORED RETROSPECTIVELY over already-built code — must not be called 'proven' or 'healthy' until the contracts are implemented and the integration test executed.
+>
+> **Historical note (librarian pass, 2026-07-18):** the `assets.json` machinery described above is
+> **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at ADR-0018, artifact
+> state became live Cloud SQL-canonical at ADR-0023, and the last committed `assets.json` + the
+> `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier is now DB-backed, the
+> offline backend deriving its view from `knowledge.json` (+ `@storytree/library` `libraryTemplates()`)
+> at runtime. This stays a retrospective spec of the original JSON-store era — kept as history, not
+> current code.
 
 ## Guidance
 

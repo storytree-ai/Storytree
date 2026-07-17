@@ -16,6 +16,14 @@ depends_on: []
 **Depends on —** *(none — a root capability)*
 
 > **Proof status (honest) —** Code exists and runs today, and is the lone studio unit whose proof is AUTOMATABLE NOW. seed.assets.mjs executes under `node apps/studio/data/seed.assets.mjs` and produces apps/studio/data/assets.json; the committed output is verified to match the spec — 88 artifacts, split {definition:54,pattern:11,guardrail:8,principle:5,techstack:4,template:6}, 81 of 88 with >=1 reference (the 7 without are edit-first-curation + the 6 template scaffolds), all references doc:-prefixed, four dup-slug glossary blocks skipped (proof mode/prove-it-gate/deep-modules/standalone-resilient-library), term-map table excluded, per-mention ADR refs present (e.g. 'node' cites ADR-0004 + ADR-0009). HOWEVER there is NO automated test and NO scripted integration test in the repo: the integration test and all 9 contracts are RETROSPECTIVE — they describe assertions that WOULD prove each behaviour; none are currently written or running. NOT proven, NOT healthy — author-built and manually observed only.
+>
+> **Historical note (librarian pass, 2026-07-18):** the `seed.assets.mjs` → `assets.json` machinery
+> this spec is entirely about is **retired**. `seed.assets.mjs` was superseded by the `build-corpus.mjs`
+> generator at ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last
+> committed `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210 — the 13 `template`
+> artifacts now come from `@storytree/library` `libraryTemplates()` and knowledge bodies re-render from
+> `knowledge.json`. This stays a retrospective spec of the original JSON-store era — kept as history,
+> not current code.
 
 ## Guidance
 

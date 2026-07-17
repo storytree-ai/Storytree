@@ -134,7 +134,7 @@ representation is plain files).
    test-collaborator surface is correct, not a missing edge.
 
 3. **`seed-library-corpus` — capability, or a contract-cluster?** Its honest proof is
-   largely one observable effect (the written `assets.json`), which smells contract-ish,
+   largely one observable effect (the written `assets.json` — since retired, ADR-0210), which smells contract-ish,
    but it is a self-contained runnable journey with real branches (no-clobber vs
    `--force`, glossary extraction, dup-slug skip) against real collaborators (the `docs/`
    tree). *Recommendation:* **keep as a capability** — it has a genuine build-time
