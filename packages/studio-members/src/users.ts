@@ -50,11 +50,32 @@ export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+/**
+ * PURE: does the normalised address carry a control character (C0 range 0x00–0x1f or DEL
+ * 0x7f)? The dangerous case is an embedded CR/LF: the email flows verbatim into raw SMTP
+ * protocol lines (RCPT TO / the `To:` header, inviteMailer.ts), where a newline would
+ * terminate the command/header early and inject attacker-controlled envelope recipients or
+ * headers. `.trim()` only strips leading/trailing whitespace, so an INTERIOR newline survives
+ * normalisation — this is what the emailField refine below rejects, at the schema, so
+ * `User.parse` (the store write boundary) fails closed. The mailer re-checks defensively too.
+ * A charCodeAt scan (no literal control chars in source — robust to editor/encoding churn).
+ */
+export function hasControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
 const emailField = z
   .string()
   .transform(normalizeEmail)
   .refine((s) => s.length > 0 && s.includes("@"), {
     message: "must be a non-blank email address",
+  })
+  .refine((s) => !hasControlChar(s), {
+    message: "must not contain control characters (CR/LF header-injection guard)",
   });
 
 // ---------------------------------------------------------------------------

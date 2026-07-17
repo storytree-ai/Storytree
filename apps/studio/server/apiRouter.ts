@@ -283,12 +283,24 @@ export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   });
 }
 
-/** Resolve a requested doc id to an absolute path, refusing traversal. */
-function safeDocPath(docsDir: string, id: string): string | null {
-  const resolved = path.resolve(docsDir, id);
-  const rel = path.relative(docsDir, resolved);
+/**
+ * Resolve `id` under `baseDir`, refusing traversal that escapes it (a `..` that climbs out, or an
+ * absolute id). Returns the absolute resolved path, or null on escape. The ONE containment rule
+ * shared by {@link safeDocPath} (docs) and {@link uatContextForStory} (stories): `path.join` /
+ * `path.resolve` COLLAPSE `..` segments, so an id like `../../x` would otherwise reach outside the
+ * base — this asserts the resolved path stays within it. Exported for the traversal unit test.
+ */
+export function containedPath(baseDir: string, id: string): string | null {
+  const resolved = path.resolve(baseDir, id);
+  const rel = path.relative(baseDir, resolved);
   if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  if (!resolved.endsWith('.md')) return null;
+  return resolved;
+}
+
+/** Resolve a requested doc id to an absolute path, refusing traversal + a non-`.md` target. */
+function safeDocPath(docsDir: string, id: string): string | null {
+  const resolved = containedPath(docsDir, id);
+  if (!resolved || !resolved.endsWith('.md')) return null;
   return resolved;
 }
 
@@ -705,11 +717,18 @@ export async function handleUsers(
  * route a `machine` leg, and its status, for the "no `either` at rest" guard) via loadNodeSpec (lazy
  * orchestrator); `null` for a missing/odd spec.
  */
-async function uatContextForStory(
+export async function uatContextForStory(
   storiesDir: string,
   storyId: string,
 ): Promise<{ tests: UatTestCriterion[]; gates: ReliabilityGate[]; status: string } | null> {
-  const file = path.join(storiesDir, storyId, 'story.md');
+  // `storyId` comes from the GET /api/attestations query string (member-readable). Refuse an id that
+  // escapes the stories root — the SAME containment guard `safeDocPath` uses — before `path.join`
+  // collapses a `../…` out of the root. Bounded to files named `story.md`, but an unchecked `..`
+  // would still be a filesystem existence oracle + limited structured (UAT) disclosure. A rejected id
+  // reads as a missing story (null), never an oracle.
+  const storyDir = containedPath(storiesDir, storyId);
+  if (!storyDir) return null;
+  const file = path.join(storyDir, 'story.md');
   if (!existsSync(file)) return null;
   const { loadNodeSpec } = await loadOrchestrator();
   try {

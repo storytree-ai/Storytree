@@ -119,6 +119,24 @@ export function inviteContent(
 
 const quoted = (s: string): string => `"${s.replace(/["\\]/g, '')}"`;
 
+/**
+ * Reject an address carrying a control character (CR/LF/NUL/DEL, any code < 0x20 or 0x7f) BEFORE it
+ * is written into a raw SMTP line (RCPT TO / MAIL FROM / the `To:` header). An embedded `\r\n` would
+ * terminate the command/header early and inject attacker-controlled envelope recipients or headers —
+ * SMTP header/envelope injection. Belt-and-suspenders to the schema-level guard
+ * (@storytree/studio-members `emailField`): the mailer fails closed on ANY call path. Throws — every
+ * caller runs inside `send`'s best-effort try, so this degrades to a `failed` notice, never a 500.
+ * A charCodeAt scan (no literal control chars in source).
+ */
+function assertMailSafeAddress(addr: string): void {
+  for (let i = 0; i < addr.length; i++) {
+    const code = addr.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) {
+      throw new Error('invalid email address: control characters (CR/LF) are not allowed');
+    }
+  }
+}
+
 /** Assemble RFC-5322 headers + body into the wire message (CRLF line endings). Pure. */
 export function buildMessage(m: {
   from: string;
@@ -127,6 +145,9 @@ export function buildMessage(m: {
   subject: string;
   body: string;
 }): string {
+  // Fail closed before either address reaches a raw header line (SMTP header injection guard).
+  assertMailSafeAddress(m.to);
+  assertMailSafeAddress(m.from);
   const headers = [
     `From: ${quoted(m.fromName)} <${m.from}>`,
     `To: <${m.to}>`,
@@ -255,6 +276,11 @@ export async function sendMailOverSocket(
   to: string,
   message: string,
 ): Promise<void> {
+  // Fail closed before either address is written into a raw envelope line (SMTP injection guard) —
+  // belt-and-suspenders even though buildMessage already checked, since this is the seam a test /
+  // future caller could reach directly.
+  assertMailSafeAddress(to);
+  assertMailSafeAddress(cfg.user);
   const io = smtpIo(socket);
   try {
     await io.expect([220]); // server greeting

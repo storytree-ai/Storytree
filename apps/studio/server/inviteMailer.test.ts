@@ -153,6 +153,38 @@ describe('createInviteMailer (env gating)', () => {
   });
 });
 
+describe('SMTP header/envelope injection guard', () => {
+  // Control chars built from codepoints so the test source stays pure printable ASCII.
+  const CR = String.fromCharCode(13);
+  const LF = String.fromCharCode(10);
+  const injected = `newbie@example.com${CR}${LF}Bcc: evil@attacker.example`;
+
+  it('buildMessage refuses a recipient carrying CR/LF (would inject a header / extra envelope line)', () => {
+    expect(() =>
+      buildMessage({
+        from: 'me@gmail.com',
+        fromName: 'storytree studio',
+        to: injected,
+        subject: 'hi',
+        body: 'body',
+      }),
+    ).toThrow(/control characters/i);
+  });
+
+  it('send() degrades a CRLF recipient to `failed` (best-effort) and never opens a connection', async () => {
+    const mailer = createInviteMailer({
+      STORYTREE_STUDIO_SMTP_USER: 'me@gmail.com',
+      STORYTREE_STUDIO_SMTP_PASS: 'app-pass',
+      STORYTREE_STUDIO_PUBLIC_URL: 'https://studio.example',
+    } as NodeJS.ProcessEnv);
+    // The guard throws inside buildMessage, before any socket is opened; send's catch turns it into
+    // a `failed` notice (never a throw, never a sent message).
+    const r = await mailer.send(injected, 'member', 'admin@z.com');
+    expect(r.status).toBe('failed');
+    expect(r.detail).toMatch(/control characters/i);
+  });
+});
+
 describe('sendMailOverSocket (full SMTP conversation)', () => {
   it('authenticates, sends the message, and dot-stuffs leading-dot body lines', async () => {
     const srv = await fakeSmtpServer();

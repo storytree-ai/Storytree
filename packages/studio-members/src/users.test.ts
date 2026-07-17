@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   User,
   normalizeEmail,
+  hasControlChar,
   mergeUser,
   adminCount,
   mayBrokerWrite,
@@ -48,6 +49,33 @@ test("User schema normalises email, defaults status/invitedBy, fails closed on a
   assert.throws(() =>
     User.parse({ email: "a@b.com", role: "member", createdAt: "t", lastSeenAt: "t", extra: 1 }),
   );
+});
+
+test("emailField rejects CR/LF (SMTP header/envelope injection guard)", () => {
+  // Build the control chars from codepoints so the source stays pure printable ASCII.
+  const CR = String.fromCharCode(13);
+  const LF = String.fromCharCode(10);
+  const NUL = String.fromCharCode(0);
+  const DEL = String.fromCharCode(0x7f);
+  const parseEmail = (email: string): void => {
+    User.parse({ email, role: "member", createdAt: "t", lastSeenAt: "t" });
+  };
+  // An interior CR/LF survives trim(); it would terminate the RCPT TO / `To:` line early and inject
+  // attacker-controlled SMTP protocol content (inviteMailer.ts). User.parse must fail closed.
+  assert.throws(() => parseEmail("a@b.com" + CR + LF + "Bcc: evil@x.com"));
+  assert.throws(() => parseEmail("a@b.com" + LF + "RCPT TO:<evil@x.com>"));
+  assert.throws(() => parseEmail("a@b.com" + CR + "x"));
+  // Other control characters (incl. NUL and DEL) are refused too.
+  assert.throws(() => parseEmail("a" + NUL + "@b.com"));
+  assert.throws(() => parseEmail("a@b.com" + DEL));
+  // A trailing CR/LF is stripped by trim() and leaves a clean address — that is not an injection.
+  assert.equal(
+    User.parse({ email: "clean@b.com" + CR + LF, role: "member", createdAt: "t", lastSeenAt: "t" }).email,
+    "clean@b.com",
+  );
+  // hasControlChar itself: the pure predicate the refine leans on.
+  assert.equal(hasControlChar("plain@example.com"), false);
+  assert.equal(hasControlChar("a@b.com" + CR + LF + "x"), true);
 });
 
 test("mergeUser ignores undefined, never mutates, anchors email + createdAt", () => {
