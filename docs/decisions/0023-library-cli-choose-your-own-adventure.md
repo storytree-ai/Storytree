@@ -120,8 +120,11 @@ just-in-time principle a *navigational affordance*, not just a context-assembly 
 11. **The shared store is the live source of truth for artifact state; `knowledge.json` is a seed.**
     Parallel artifact work goes through the CLI to the **live `--pg` store** (the offline in-memory
     copy is read-only-by-convention — a write without `--pg` is refused with guidance). `knowledge.json`
-    + the generated `assets.json` / `docs/glossary.md` are the **migration seed / export view**, no
-    longer the edit-here surface for live changes. **Do not re-run `load-corpus.ts --force`** against a
+    is the **migration seed / export view**, no longer the edit-here surface for live changes.
+    *(Amended: the generated `assets.json` / `docs/glossary.md` views that once accompanied the seed are
+    retired — `docs/glossary.md` by ADR-0135, `assets.json` by
+    [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md) — so `knowledge.json` is now
+    the sole committed seed / export surface.)* **Do not re-run `load-corpus.ts --force`** against a
     live DB that has CLI edits — it would revert them (a DB→seed export path is later work). The studio
     reflects CLI edits only when run in store mode (`STORYTREE_STUDIO_STORE=pg`) — the single UI
     session's concern; this ADR changes no studio code.

@@ -34,10 +34,17 @@ recorded here as it resolves.
 1. **Structured source of truth.** `apps/studio/data/knowledge.json` is the single source — typed units
    validated by a `packages/core` *(now `packages/library` — ADR-0068)* zod `Knowledge` union
    discriminated by `kind`. `assets.json` (the
-   studio view) and `docs/glossary.md` (the glossary view, retired by ADR-0135) are **generated** from it by
+   studio view) and `docs/glossary.md` (the glossary view) **were generated** from it by
    `build-corpus.mjs`. The old `seed.assets.mjs` and glossary-as-source are **retired**. *(Resolves the
    durability question, ex-`oq-library-body-durability`: the store is the source; there is no competing
    generator left to revert it.)*
+   *(Amended — both generated views have since been retired outright: `docs/glossary.md` by
+   [ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md), then `assets.json`
+   together with the `build-corpus.mjs` generator by
+   [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md); `knowledge.json` is now the
+   sole committed corpus source and the committed generated-view set is zero — the offline studio
+   derives its view at runtime and per-kind templates live in `@storytree/library`'s
+   `libraryTemplates()`.)*
 
 2. **Templates are schema-derived.** One ordered `KIND_SPECS` table per kind drives the zod schema, the
    body renderer, and the blank-template generator — one table, three consumers. This **resolves
@@ -70,7 +77,9 @@ recorded here as it resolves.
 ## Consequences
 
 - Library units **94 → 82** (curation + retiring the four resolved open-questions); `assets.json` and
-  `docs/glossary.md` are now pure derivatives of `knowledge.json`.
+  `docs/glossary.md` were pure derivatives of `knowledge.json` (both generated views have since been
+  retired — `docs/glossary.md` by ADR-0135, `assets.json` by ADR-0210 — leaving `knowledge.json` the
+  sole committed corpus source).
 - The structured source is the input to **Phase 2** — migrating the corpus into the provisioned Cloud
   SQL store ([ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) / ADR-0017).
 - **Known tradeoffs (for the DB phase):** `glossaryBody` duplicates content with the Library body
@@ -95,6 +104,6 @@ recorded here as it resolves.
   [ADR-0016](0016-knowledge-code-binding-and-staleness.md),
   [ADR-0017](0017-cross-cutting-knowledge-tier.md),
   [ADR-0015](0015-gcp-hosting-cloud-sql-event-store.md) (Phase 2 target).
-- `apps/studio/data/knowledge.json` (source), `apps/studio/data/build-corpus.mjs` (generator),
+- `apps/studio/data/knowledge.json` (source), `apps/studio/data/build-corpus.mjs` (generator, removed by ADR-0210),
   `packages/core/src/knowledge.ts` *(now `packages/library/src/knowledge.ts` — ADR-0068)*
   (schema / `KIND_SPECS`), `docs/research/library-template-alignment.md`.

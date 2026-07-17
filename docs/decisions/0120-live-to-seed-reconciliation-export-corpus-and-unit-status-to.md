@@ -57,6 +57,10 @@ owner-directed calls. Four parts:
    the CI `verify` job (`check:corpus-build`). A stale generated view can no longer merge clean.
    **Correction (2026-07-06 — ADR-0139 pass):** per [ADR-0135](0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md)
    the glossary is retired; `--check` now covers `assets.json` only.
+   **Amended (2026-07-18 — [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md)):**
+   `assets.json`, the `build-corpus.mjs` generator, and the `check:corpus-build` gate are now all
+   removed — part 1 no longer stands. Nothing regenerates a committed view, so the seed↔view drift this
+   gate policed cannot occur (there is no view). Findings 2–4 are unaffected.
 2. **Content-diff reconciliation** (finding 3 / bodies). A reconciliation that compares seed↔live by
    BODY, not just count/id — WARN-only and SKIP-offline (mirroring `check:corpus-sync`, since CI's
    verify job is DB-free), classifying each drift as *degraded-live* (restore seed→live) vs
@@ -96,7 +100,8 @@ lives in its own generated file, not in `knowledge.json`.
   guessed. The tooling lands first; the one-time reconciliation follows.
 - **Bound — the live-touching checks are local/gate-only.** Content-diff and any live read SKIP without
   a DB and never gate CI (verify stays DB-free), exactly like `check:corpus-sync`. `build-corpus
-  --check` is the only new CI gate, and it is fully offline.
+  --check` was the only new CI gate, and it was fully offline *(the generator, the `assets.json` view,
+  and this `check:corpus-build` gate were all removed by ADR-0210 — see the Decision part 1 amendment)*.
 - **Bound — unit-status is derived, never authored.** The generated file is a projection of verdicts;
   it is not an edit surface and does not change the rule that `healthy` is earned, not written
   (ADR-0020). Editing it by hand is meaningless — it is regenerated from the event log.
@@ -112,12 +117,14 @@ lives in its own generated file, not in `knowledge.json`.
 - [ADR-0095](0095-agent-memory-graduates-into-the-library-as-a-signal-sourc.md) — graduation writes
   edits to the seed, the reason some seed copies are the canonical side of a value-drift.
 - [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) — the generated-view
-  model `build-corpus --check` now gates.
+  model `build-corpus --check` gated *(both the last committed view and this gate were removed by
+  [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md))*.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) /
   [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — `healthy` is derived from
   signed verdicts, never authored; the unit-status file is a view, not an edit surface.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — design-time owner
   direction is the ratification.
 - Code: `apps/studio/data/build-corpus.mjs` (`--check`), `packages/cli/src/corpus-build-check.test.ts`,
-  `package.json` (`check:corpus-build`), `.github/workflows/ci.yml`; the export + content-diff +
+  `package.json` (`check:corpus-build`), `.github/workflows/ci.yml` *(part 1's generator, test, gate,
+  and CI wiring were all removed by ADR-0210)*; the export + content-diff +
   unit-status surfaces land in `@storytree/library/store` + `packages/cli` across the following PRs.

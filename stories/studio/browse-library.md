@@ -16,6 +16,14 @@ depends_on: [dev-server-persistence-backbone, seed-library-corpus, read-corpus]
 **Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md), [`seed-library-corpus`](seed-library-corpus.md), [`read-corpus`](read-corpus.md)
 
 > **Proof status (honest) —** CODE EXISTS AND RUNS, NO AUTOMATED PROOF YET. All read-side behaviours are implemented and the studio runs under `pnpm --filter studio dev` serving the real 88-artifact seed; the full integration path (open #/library → narrow by chip → substring-search → open #/asset/<id> → follow a doc: ref to #/doc/<relpath>) is manually walkable today. But apps/studio has NO automated test suite and NO scripted integration test: none of the 11 contracts exist as tests, and the integration test is unscripted. The corpus counts and the 0-asset:-refs honesty caveat were verified by inspecting apps/studio/data/assets.json during this decomposition, not by any committed assertion. RETROSPECTIVE spec — nothing here is 'proven' or 'healthy', only present and exercised by hand.
+>
+> **Historical note (librarian pass, 2026-07-18):** the `assets.json` / `seed.assets.mjs` machinery
+> described above is **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at
+> ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last committed
+> `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier
+> is now DB-backed, the offline backend deriving its view from `knowledge.json` (+ `@storytree/library`
+> `libraryTemplates()`) at runtime. This stays a retrospective spec of the original JSON-store era —
+> kept as history, not current code.
 
 ## Guidance
 

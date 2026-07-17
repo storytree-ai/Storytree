@@ -27,6 +27,14 @@ decisions: [8, 36, 38, 100, 112]
 
 apps/studio is a hand-built, single-process Vite dev app (run with `pnpm --filter studio dev`) that turns the repo's own docs/ corpus and a synthesised guidance Library into a reviewable forum: read rendered ADRs/glossary, anchor comments onto exact text spans / sections / whole topics and resolve them, and browse-author-seed a categorised Library of injectable guidance artifacts. The whole 'backend' is one Vite middleware file (server/devApi.ts) serving docs read-only from <repo>/docs and persisting comments + assets to git-tracked JSON stores under apps/studio/data. HONESTY: every unit below is a RETROSPECTIVE spec over already-working code: each contract describes the isolated unit test that WOULD prove a leaf (citing real code at file:line), each capability describes the integration test that WOULD prove it against its real in-story collaborators (no stubs within the organism), and the single story-level UAT below describes the acceptance walkthrough that WOULD prove the whole organism against the real running app. As of 2026-06-12 the package carries test tooling (a vitest suite in `pnpm -r test` scope, and a scripted Playwright shadow of part of the story UAT — see § Proof), but no proof ceremony has run. Nothing here is 'proven', 'healthy', or 'mapped'; proof status is authored-only.
 
+> **Historical note (librarian pass, 2026-07-18):** the `assets.json` / `seed.assets.mjs` machinery this
+> story and its UAT walkthrough describe is **retired** — `seed.assets.mjs` → the `build-corpus.mjs`
+> generator at ADR-0018, artifact state to the live Cloud SQL store at ADR-0023, and the last committed
+> `assets.json` + `build-corpus.mjs` at ADR-0210. The studio's Library tier is now DB-backed (the offline
+> backend derives its view from `knowledge.json` + `@storytree/library` `libraryTemplates()` at runtime);
+> comments likewise moved off `comments.json` to the store. Kept as a retrospective spec of the original
+> JSON-store era, not current code.
+
 ## What this is
 
 This is storytree's **first story** — the seed of the self-building tree, authored by

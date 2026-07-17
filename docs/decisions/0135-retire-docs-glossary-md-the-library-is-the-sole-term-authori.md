@@ -18,6 +18,11 @@ machinery is moot. ADR-0125 flips to `superseded`.
 drops `docs/glossary.md` from the seed/export surface (0023 §11), and makes `check:corpus-build`
 assets-only (0120 part 1). None overturned: `knowledge.json` stays the structured source, the non-agent
 tier stays live-canonical, and `check:corpus-build` still gates the remaining generated view.
+**Amended in turn (2026-07-18 — [ADR-0210](0210-retire-the-generated-apps-studio-data-assets-json.md)):**
+that "remaining generated view" — `assets.json` — is now retired too, with the `build-corpus.mjs`
+generator and the `check:corpus-build` gate. The committed generated-view set this ADR narrowed to one
+is now **zero**; `knowledge.json` is the sole committed corpus source. This ADR's glossary decision is
+unchanged.
 
 ## Context
 
@@ -86,14 +91,16 @@ with no live write.
 - [ADR-0023](0023-library-cli-choose-your-own-adventure.md) — the choose-your-own-adventure / pull-based
   JIT context model this realizes; the glossary front-load was the lone drift from it.
 - [ADR-0018](0018-knowledge-tier-phase1-structured-source.md) — `knowledge.json` as the structured
-  source + the generated-view model, narrowed here to `assets.json` only.
+  source + the generated-view model, narrowed here to `assets.json` only *(and to zero by ADR-0210)*.
 - [ADR-0120](0120-live-to-seed-reconciliation-export-corpus-and-unit-status-to.md) —
-  `check:corpus-build` (now assets-only) + the body-diff that surfaced the seed↔live drift.
+  `check:corpus-build` (assets-only after this ADR, then removed entirely by ADR-0210) + the body-diff
+  that surfaced the seed↔live drift.
 - [ADR-0125](0125-glossary-bearing-corpus-docs-are-seed-canonical-reconcile-th.md) — superseded:
   proposed reconcile machinery for the glossary's seed-canonical source; mooted by retiring the file.
 - [ADR-0055](0055-the-library-agent-tier-is-seed-canonical-sync-agents-reconci.md) /
   [ADR-0103](0103-seed-to-live-reconcile-for-the-non-agent-corpus-tier-sync-co.md) — the seed-canonical
   agent tier + migrate-only `sync-corpus`; the seed/live model whose glossary corner this removes.
-- Code: `apps/studio/data/build-corpus.mjs` (glossary half removed),
-  `packages/library/src/store/render-agent.ts` (`renderAgentPrompt` never injected the glossary),
-  `packages/cli/src/corpus-build-check.test.ts` (the assets-only drift gate).
+- Code: `apps/studio/data/build-corpus.mjs` (glossary half removed; the whole file later removed by
+  ADR-0210), `packages/library/src/store/render-agent.ts` (`renderAgentPrompt` never injected the
+  glossary), `packages/cli/src/corpus-build-check.test.ts` (the assets-only drift gate; removed with the
+  file by ADR-0210).
