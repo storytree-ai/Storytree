@@ -36,6 +36,7 @@ class FakePtyHandle implements PtyHandle {
   killCount = 0;
   pauseCount = 0;
   resumeCount = 0;
+  clearCount = 0;
   #dataCb: ((chunk: string) => void) | undefined;
   #exitCb: ((e: { exitCode: number }) => void) | undefined;
 
@@ -61,6 +62,10 @@ class FakePtyHandle implements PtyHandle {
 
   resume(): void {
     this.resumeCount += 1;
+  }
+
+  clear(): void {
+    this.clearCount += 1;
   }
 
   kill(): void {
@@ -514,6 +519,65 @@ test("psm-pauses-past-high-watermark-and-resumes-on-ack: unacked chars past the 
     assert.equal(manager.ack(sessionId, -5), false);
     assert.equal(manager.ack(sessionId, Number.NaN), false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// clear() — ConPTY state-sync on a frontend clear (contract 11 — the embedded-
+// terminal patterns survey increment C): ConPTY reprints the screen on resize,
+// so when the FRONTEND clears its xterm buffer the pty's own buffer
+// representation must be cleared too (node-pty's documented clear() — a no-op
+// except on Windows/ConPTY) or the next resize resurrects the stale screen.
+// The main-held headless screen model must be cleared IN THE SAME MOTION, so
+// snapshot() agrees with the cleared frontend — a re-attach after a clear must
+// never replay the pre-clear screen. ASYNC like snapshot(): pending headless
+// writes flush FIRST, so a chunk received before the clear can never
+// re-materialize after it. Fail-closed: false, never a throw, for an unknown
+// or disposed session id.
+// ---------------------------------------------------------------------------
+
+test("psm-clear-syncs-pty-and-screen-model: clear() clears the pty handle AND the headless screen model (snapshot no longer replays the cleared screen), failing closed on unknown or disposed ids", async () => {
+  const port = new FakePtyPort();
+  const manager = new PtySessionManager(port);
+  const sessionId = manager.create(BASE_OPTS, () => {}, () => {});
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("stale screen line\r\n");
+  const before = await manager.snapshot(sessionId);
+  assert.ok(before !== null);
+  assert.match(before!.data, /stale screen line/);
+
+  // The frontend cleared — the pty representation and the screen model clear together.
+  const ok = await manager.clear(sessionId);
+  assert.equal(ok, true);
+  assert.equal(handle.clearCount, 1);
+
+  const after = await manager.snapshot(sessionId);
+  assert.ok(after !== null);
+  assert.doesNotMatch(after!.data, /stale screen line/);
+  // The session itself stays fully live: dims tracked, later output still snapshots.
+  assert.equal(after?.cols, 80);
+  assert.equal(after?.rows, 24);
+  handle.emitData("fresh output\r\n");
+  const later = await manager.snapshot(sessionId);
+  assert.match(later!.data, /fresh output/);
+
+  // A chunk already received (but possibly still unparsed) BEFORE the clear is flushed
+  // into the model first, then cleared with it — never re-materialized after.
+  handle.emitData("raced ahead of the clear\r\n");
+  await manager.clear(sessionId);
+  const postRace = await manager.snapshot(sessionId);
+  assert.doesNotMatch(postRace!.data, /raced ahead of the clear/);
+
+  // Fail-closed: an unknown session id resolves false, never a throw — and nothing
+  // reaches any handle.
+  assert.equal(await manager.clear("no-such-session"), false);
+
+  // A disposed session also resolves false; its (already-killed) handle is not cleared again.
+  const clearsBeforeDispose = handle.clearCount;
+  manager.dispose(sessionId);
+  assert.equal(await manager.clear(sessionId), false);
+  assert.equal(handle.clearCount, clearsBeforeDispose);
 });
 
 test("psm-snapshot-resets-unacknowledged-chars: snapshot() — the re-attach entry point — clears the unacked count and resumes a paused pty, so a dropped renderer can never wedge the session", async () => {

@@ -573,6 +573,11 @@ const ptyPort: PtyPort = {
       cols: opts.cols,
       rows: opts.rows,
       cwd: opts.cwd ?? repoSelection.resolveCwd(serveRoot),
+      // Escape hatch (increment C), OFF by default: node-pty's bundled Windows-Terminal
+      // conpty.dll instead of the OS ConPTY — VS Code ships it behind a setting for OS-ConPTY
+      // hangs, but it is still experimental upstream, so it is opt-in via env only, never a
+      // default. Ignored off Windows.
+      useConptyDll: process.env["STORYTREE_TERMINAL_USE_CONPTY_DLL"] === "1",
       env: {
         // UTF-8 hint FIRST so an owner-set locale in the base env always wins (the Windows
         // mojibake class: CLIs that read LANG/LC_ALL to decide unicode output — Claude Code
@@ -601,6 +606,10 @@ const ptyPort: PtyPort = {
       // experimental handleFlowControl.
       pause: () => proc.pause(),
       resume: () => proc.resume(),
+      // ConPTY state-sync (increment C): clear the pty's internal buffer representation when
+      // the frontend clears — node-pty documents clear() as a no-op except on Windows/ConPTY,
+      // where an unsynced buffer makes ConPTY reprint the stale screen on the next resize.
+      clear: () => proc.clear(),
       kill: () => proc.kill(),
     };
   },
@@ -662,6 +671,12 @@ ipcMain.on("terminal:resize", (_e, id: string, cols: number, rows: number) => {
 // once the backlog drops below its low watermark.
 ipcMain.on("terminal:ack", (_e, id: string, charCount: number) => {
   terminalManager.ack(id, charCount);
+});
+// ConPTY state-sync (increment C): the renderer cleared its xterm buffer — clear the pty's own
+// buffer representation and the main-held screen model with it (the manager fails closed on an
+// unknown/disposed id). Fire-and-forget, like write/resize/ack.
+ipcMain.on("terminal:clear", (_e, id: string) => {
+  void terminalManager.clear(id);
 });
 ipcMain.on("terminal:dispose", (_e, id: string) => {
   terminalManager.dispose(id);

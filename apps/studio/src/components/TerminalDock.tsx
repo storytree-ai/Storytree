@@ -52,6 +52,15 @@ const VIEWPORT_MARGIN = 100;
  *  forbids importing desktop code) or a paused pty starves waiting for a grain that never fills. */
 const ACK_GRAIN_CHARS = 5_000;
 
+/** ConPTY-aware resize (patterns-survey increment C): the PTY-SIDE resize forward is DEBOUNCED
+ *  (trailing) by this window — ConPTY reprints the screen on EVERY resize and xterm upstream closed
+ *  clean-scrollback-resize as out-of-scope (xterm.js#3513), so a drag storm must reach the pty as
+ *  ONE trailing resize carrying the final dims, not one reprint per mousemove. 100 ms is Tabby's
+ *  audited value. Only the `bridge.resize` forward is coalesced — the xterm-side fit()/resize stays
+ *  live so the pane feels responsive, and the ADR-0190 re-attach replay is EXEMPT (its snapshot
+ *  restore depends on the synchronous forward reaching the pty at the recorded dims). */
+const RESIZE_FORWARD_DEBOUNCE_MS = 100;
+
 /** The bridge the desktop preload exposes on `window` (absent in the hosted/dev studio — a browser). Its
  *  shape mirrors `desktopAuth` / `desktopApply`: `spawn` starts a pty session (the Electron main drives
  *  `pty-session-manager.create`), `write`/`resize`/`dispose` forward to the manager, `onData`/`onExit`
@@ -82,6 +91,12 @@ export interface DesktopTerminalBridge {
    *  the main can pause the pty past its high watermark and resume it as the renderer catches up.
    *  Without it the main never pauses (an un-acking renderer must not wedge the pty). */
   ack?(sessionId: string, charCount: number): void;
+  /** OPTIONAL (feature-guarded like `ack?` — an older preload lacks it): ConPTY state-sync on a
+   *  FRONTEND clear (node-pty's documented clear() use case): when this renderer clears its xterm
+   *  buffer, the pty's own buffer representation and the main-held screen model must clear with it,
+   *  or ConPTY reprints the stale screen on the next resize (and a re-attach would replay it).
+   *  Fire-and-forget; without it the clear stays local to the renderer. */
+  clear?(sessionId: string): void;
 }
 
 declare global {
@@ -109,6 +124,17 @@ function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, value));
 }
 
+/** Cancel a tab's pending (debounced) pty-resize forward — on tab close and dock unmount, so a
+ *  leaked timer never fires into a torn-down dock (the session survives unmount and the next
+ *  mount refits anyway). */
+function cancelResizeForward(rec: TabRecord): void {
+  if (rec.resizeTimer !== null) {
+    clearTimeout(rec.resizeTimer);
+    rec.resizeTimer = null;
+  }
+  rec.pendingResize = null;
+}
+
 /** A seed command to pre-fill into the terminal (never auto-run — no trailing newline). `token` is a
  *  monotonic NONCE, not a cache key: a repeat seed of the identical `command` still re-fires as long
  *  as `token` bumps (a user may Build the same node twice, or re-seed after clearing the terminal). */
@@ -125,6 +151,10 @@ export interface TerminalDockProps {
    *  case the header renders byte-identical to before (no extra container). Never rendered in the
    *  absent-bridge disabled state (nothing to host a repo control for). */
   headerRight?: React.ReactNode;
+  /** The pty-side resize-forward debounce window (ms) — a TEST SEAM only, mirroring
+   *  PtySessionManagerOptions' injectable windows; product code never passes it (the default is
+   *  RESIZE_FORWARD_DEBOUNCE_MS, Tabby's audited 100 ms). */
+  resizeDebounceMs?: number;
 }
 
 /** One tab's imperative state — held in `recordsRef` (a `Map`, keyed by the tab's stable local id), NOT
@@ -147,9 +177,22 @@ interface TabRecord {
   heldChunks: string[];
   /** Flow control: consumed-but-not-yet-acked chars (the ACK_GRAIN_CHARS accumulator). */
   ackPending: number;
+  /** ConPTY-aware resize (increment C) — the trailing-debounce state for THIS tab's pty-side
+   *  resize forward: the pending timer and the latest (coalesced) dims it will forward. Cleared
+   *  on tab close and dock unmount (a leaked timer must never fire into a torn-down dock). */
+  resizeTimer: ReturnType<typeof setTimeout> | null;
+  pendingResize: { cols: number; rows: number } | null;
+  /** True only while the ADR-0190 re-attach replay runs — its resize forwards bypass the
+   *  debounce (the snapshot restore depends on the pty synchronously seeing the recorded dims
+   *  before the fitted dims). */
+  syncResizeForward: boolean;
 }
 
-export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): React.JSX.Element {
+export function TerminalDock({
+  seed,
+  headerRight,
+  resizeDebounceMs = RESIZE_FORWARD_DEBOUNCE_MS,
+}: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
 
   const [expanded, setExpanded] = useState(false);
@@ -203,6 +246,9 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       awaitingSnapshot: false,
       heldChunks: [],
       ackPending: 0,
+      resizeTimer: null,
+      pendingResize: null,
+      syncResizeForward: false,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
@@ -224,6 +270,9 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       awaitingSnapshot: true,
       heldChunks: [],
       ackPending: 0,
+      resizeTimer: null,
+      pendingResize: null,
+      syncResizeForward: false,
     });
     setTabIds((prev) => [...prev, id]);
     setActiveId(id);
@@ -354,9 +403,26 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       term.onData((data) => {
         if (rec.sessionId) bridge.write(rec.sessionId, data);
       });
-      // Terminal resize (driven by our fit() calls) → forward the new pty geometry for THIS session.
+      // Terminal resize (driven by our fit() calls) → forward the new pty geometry for THIS
+      // session — DEBOUNCED (trailing, increment C): ConPTY reprints the screen on every resize
+      // it sees, so a drag storm coalesces into ONE forward carrying the final dims; each resize
+      // resets the window, and only the xterm side stays live in between. The ADR-0190 re-attach
+      // replay bypasses the debounce (`syncResizeForward` — its restore depends on the pty
+      // synchronously seeing the recorded dims before the fitted dims).
       term.onResize(({ cols, rows }) => {
-        if (rec.sessionId) bridge.resize(rec.sessionId, cols, rows);
+        if (!rec.sessionId) return;
+        if (rec.syncResizeForward) {
+          bridge.resize(rec.sessionId, cols, rows);
+          return;
+        }
+        rec.pendingResize = { cols, rows };
+        if (rec.resizeTimer !== null) clearTimeout(rec.resizeTimer);
+        rec.resizeTimer = setTimeout(() => {
+          rec.resizeTimer = null;
+          const dims = rec.pendingResize;
+          rec.pendingResize = null;
+          if (dims && rec.sessionId) bridge.resize(rec.sessionId, dims.cols, dims.rows);
+        }, resizeDebounceMs);
       });
 
       if (rec.sessionId) {
@@ -373,6 +439,11 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
             // captured at (the resize forwards to the pty via the onResize -> bridge.resize wiring
             // above, since `rec.sessionId` is already set for an adopted tab).
             const data = typeof result === 'string' ? result : result.data;
+            // The whole replay sequence forwards its resizes SYNCHRONOUSLY (bypassing the
+            // increment-C debounce): the restore depends on the pty seeing the recorded dims
+            // before the data lands, then the fitted dims right after — a coalesced trailing
+            // forward would drop the recorded-dims step entirely.
+            rec.syncResizeForward = true;
             if (typeof result !== 'string') term.resize(result.cols, result.rows);
             term.write(data);
             // Held chunks are LIVE pty data (counted unacked by the main) — write them through
@@ -385,6 +456,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
             // onResize -> bridge.resize wiring) — so the resident TUI receives a real resize and
             // repaints itself into the terminal's actual geometry.
             fit.fit();
+            rec.syncResizeForward = false;
           });
         } else {
           rec.awaitingSnapshot = false;
@@ -418,7 +490,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
         }
       });
     },
-    [bridge, writePtyData],
+    [bridge, writePtyData, resizeDebounceMs],
   );
 
   /** Dispose ONE tab's session (bridge + xterm/fit) and reap it from the strip; the sibling tabs are
@@ -427,6 +499,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     (id: number): void => {
       const rec = recordsRef.current.get(id);
       if (rec) {
+        cancelResizeForward(rec);
         rec.fit?.dispose();
         rec.term?.dispose();
         if (rec.sessionId && bridge) bridge.dispose(rec.sessionId);
@@ -442,6 +515,21 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
     },
     [bridge],
   );
+
+  /** Clear the ACTIVE tab's terminal — the frontend-clear entry point (increment C): the xterm
+   *  buffer clears locally, AND the clear forwards over the bridge so the pty's own buffer
+   *  representation and the main-held screen model clear with it (node-pty's documented ConPTY
+   *  state-sync — else ConPTY reprints the stale screen on the next resize, and a re-attach
+   *  would replay it). `bridge.clear` is OPTIONAL (feature-guarded like `ack?` — an older
+   *  preload lacks it and the clear stays local, never a throw). */
+  const clearActiveTerminal = useCallback((): void => {
+    const id = activeIdRef.current;
+    if (id === null) return;
+    const rec = recordsRef.current.get(id);
+    if (!rec?.term) return;
+    rec.term.clear();
+    if (rec.sessionId) bridge?.clear?.(rec.sessionId);
+  }, [bridge]);
 
   // ADR-0189 re-attach slice — on mount, ask the bridge for still-live sessions and ADOPT each one as
   // its own tab (never `spawn`). Gates `restoringSessions` false once the restore settles (empty,
@@ -534,6 +622,7 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
   useEffect(() => {
     return () => {
       for (const rec of recordsRef.current.values()) {
+        cancelResizeForward(rec);
         rec.fit?.dispose();
         rec.term?.dispose();
       }
@@ -716,6 +805,16 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
             onClick={() => openSession(null)}
           >
             +
+          </button>
+          {/* Clear the ACTIVE tab (increment C — the frontend-clear entry point that keeps the
+              pty's ConPTY buffer and the main-held screen model in sync with the cleared xterm). */}
+          <button
+            type="button"
+            className="terminal-dock-panel-clear"
+            aria-label="clear terminal"
+            onClick={clearActiveTerminal}
+          >
+            ⊘
           </button>
         </div>
 

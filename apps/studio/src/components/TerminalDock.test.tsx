@@ -71,6 +71,9 @@ const xtermMock = vi.hoisted(() => {
     /** test-only: mirrors real xterm's `unicode` handling surface — starts at xterm's Unicode 6
      *  default so the unicode11 contract genuinely observes the source flipping it to '11'. */
     unicode: { activeVersion: string } = { activeVersion: '6' };
+    /** test-only: counts `term.clear()` calls — pins the ConPTY state-sync clear contract
+     *  (frontend clear → xterm buffer cleared + bridge.clear forwarded) without a real buffer. */
+    clearCalls = 0;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
     constructor(options?: Record<string, unknown>) {
@@ -100,6 +103,9 @@ const xtermMock = vi.hoisted(() => {
       this.rows = rows;
       this.resized.push({ cols, rows });
       this.resizeHandler?.({ cols, rows });
+    }
+    clear(): void {
+      this.clearCalls += 1;
     }
     loadAddon(addon: unknown): void {
       // records the addon (the fake FitAddon still wires itself via activate() below) so the
@@ -246,6 +252,10 @@ const bridgeMock = vi.hoisted(() => {
     // Increment B flow control — OPTIONAL like `list`/`snapshot` (an older preload lacks it): the
     // renderer reports consumed chars so the main can pause/resume the pty at its watermarks.
     ack: vi.fn<(sessionId: string, charCount: number) => void>(),
+    // Increment C ConPTY state-sync — OPTIONAL like `ack` (an older preload lacks it): a frontend
+    // clear forwards to the main so the pty's buffer representation and the main-held screen model
+    // clear with it (else ConPTY reprints the stale screen on the next resize).
+    clear: vi.fn<(sessionId: string) => void>(),
     resetSessionCounter: (): void => {
       sessionCounter = 0;
     },
@@ -284,6 +294,19 @@ import { TerminalDock } from './TerminalDock';
 
 /** Flush the microtask queue the bridge's `spawn()` promise resolves on. */
 const flush = (): Promise<void> => act(async () => {});
+
+/** The injected pty-resize debounce window used by the resize contracts (the source's default is
+ *  100 ms — Tabby's audited value; injected small here to keep the tests fast, the same discipline
+ *  pty-session-manager.test.ts uses on its 5 ms data-flush window). */
+const RESIZE_DEBOUNCE_MS = 5;
+
+/** Outwait the injected pty-resize debounce window, so an assertion on `bridge.resize` sees the
+ *  trailing coalesced forward — the pty-side resize is DEBOUNCED (ConPTY-aware resize, patterns-
+ *  survey increment C) while the xterm-side fit()/resize stays live. */
+const flushResizeDebounce = (): Promise<void> =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, RESIZE_DEBOUNCE_MS * 5));
+  });
 
 /** The single toggle (folded → expand, expanded → collapse), found by aria-label — mirrors ChatDock's
  *  toggle pattern. */
@@ -345,6 +368,7 @@ beforeEach(() => {
   bridgeMock.list.mockClear();
   bridgeMock.snapshot.mockClear();
   bridgeMock.ack.mockClear();
+  bridgeMock.clear.mockClear();
   (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
   (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
     FakeResizeObserver as unknown as typeof ResizeObserver;
@@ -396,7 +420,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-resizes-with-the-dock ────────────────────────────────────────────────
   it('tdp-resizes-with-the-dock: dragging the dock resize edge refits the terminal, forwards the new geometry to the bridge, and clamps the dock height', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
     await expand();
 
     const root = dockRoot(container);
@@ -417,8 +441,10 @@ describe('TerminalDock', () => {
     expect(grown).toBeGreaterThan(start);
     expect(Math.abs(grown - (start + 100))).toBeLessThanOrEqual(2);
 
-    // The fit recomputed and the new geometry was forwarded to the bridge as the pty resize.
+    // The fit recomputed and the new geometry was forwarded to the bridge as the pty resize —
+    // through the debounced pty-side forward (increment C), so outwait the trailing window.
     expect(fit.fitCalls).toBeGreaterThan(0);
+    await flushResizeDebounce();
     expect(bridgeMock.resize).toHaveBeenCalledWith(SESSION_ID, 132, 45);
 
     // An extreme DOWN drag clamps at the floor (never below 160, ChatDock's MIN_HEIGHT).
@@ -673,7 +699,7 @@ describe('TerminalDock', () => {
   //    neither the tab-switch handler nor the toggle handler calls fit() at all, so this must fail
   //    against current behaviour.
   it('tdp-refits-on-expand-activation-and-resize: switching tabs and re-expanding the dock re-fits the now-visible terminal and forwards the new dims to the bridge', async () => {
-    render(<TerminalDock />);
+    render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
     await expand(); // tab 1 = sess-1, active; fit1 fit-before-spawn already ran once (contract 10)
     await openNewTab(); // tab 2 = sess-2, becomes active; fit2 fit-before-spawn already ran once
 
@@ -684,10 +710,12 @@ describe('TerminalDock', () => {
 
     // Switching TO tab 1 (now the visible pane) must re-fit ITS terminal to its container and
     // forward the resulting dims to the bridge as a real pty resize — not just flip which pane
-    // carries the `hidden` attribute.
+    // carries the `hidden` attribute. The pty-side forward is debounced (increment C), so
+    // outwait the trailing window before asserting it.
     fireEvent.click(tabButton(1));
 
     expect(fit1.fitCalls).toBeGreaterThan(fit1CallsBeforeSwitch);
+    await flushResizeDebounce();
     expect(bridgeMock.resize).toHaveBeenCalledWith('sess-1', 100, 40);
 
     // Folding the dock then re-expanding it must ALSO re-fit the now-active tab's terminal
@@ -703,6 +731,7 @@ describe('TerminalDock', () => {
     await flush();
 
     expect(fit1.fitCalls).toBeGreaterThan(fit1CallsBeforeToggle);
+    await flushResizeDebounce();
     expect(bridgeMock.resize).toHaveBeenCalledWith('sess-1', 120, 48);
   });
 
@@ -889,6 +918,9 @@ describe('TerminalDock', () => {
   //    handed straight to `term.write()`, and not silently skipping the fit. Today's code treats
   //    `snapshot()`'s resolved value as a bare string, writes it as-is, and never resizes or fits an
   //    adopted tab at all — so this must fail against current behaviour.
+  //    Since increment C this contract ALSO pins that the re-attach sequence is EXEMPT from the
+  //    pty-resize debounce: it renders with the DEFAULT (100 ms) window and asserts the recorded-
+  //    dims forward with no debounce flush — the replay depends on the synchronous forward.
   it("tdp-restores-snapshot-at-recorded-size-then-fits: an adopted session is resized to the snapshot's recorded cols/rows before its screen data is written, then fit to its real container with the fitted dims forwarded to the bridge", async () => {
     bridgeMock.list.mockResolvedValueOnce([{ sessionId: 'sess-9' }]);
     bridgeMock.snapshot.mockResolvedValueOnce({
@@ -950,7 +982,7 @@ describe('TerminalDock', () => {
   //    container-size change currently leaves the terminal at its stale geometry. This must fail
   //    against current behaviour. ──────────────────────────────────────────────────────────────────
   it('tdp-refits-on-container-resize: a ResizeObserver firing for the dock body refits the active terminal and forwards the new dims to the bridge, with no drag and no tab switch', async () => {
-    render(<TerminalDock />);
+    render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
     await expand();
 
     const fit = fitMock.FakeFitAddon.instances[0]!;
@@ -968,7 +1000,10 @@ describe('TerminalDock', () => {
       ro.fire();
     });
 
+    // The xterm-side refit is LIVE (synchronous); the pty-side forward is debounced (increment
+    // C), so outwait the trailing window before asserting the bridge call.
     expect(fit.fitCalls).toBeGreaterThan(fitCallsBefore);
+    await flushResizeDebounce();
     expect(bridgeMock.resize).toHaveBeenCalledWith(SESSION_ID, 150, 50);
   });
 
@@ -1218,5 +1253,102 @@ describe('TerminalDock', () => {
     expect(() => onData(SESSION_ID, 'q'.repeat(6000))).not.toThrow();
     expect(term.written).toEqual(['q'.repeat(6000)]);
     expect(bridgeMock.ack).not.toHaveBeenCalled();
+  });
+
+  // ── ConPTY-aware resize contracts (embedded-terminal patterns survey, increment C) ───────────
+  //    ConPTY reprints the screen on every resize and xterm upstream closed clean-scrollback-
+  //    resize as out-of-scope (xterm.js#3513) — mangled scrollback on aggressive resize is
+  //    structural, so the job is MINIMIZING the resizes ConPTY sees. The pty-side forward
+  //    (bridge.resize) is DEBOUNCED per tab (trailing, ~100 ms — Tabby's audited value; injected
+  //    small here): a resize storm (a drag) reaches the pty as ONE trailing forward carrying the
+  //    LAST dims, while the xterm-side resize stays live so the pane feels responsive. Today the
+  //    onResize wiring forwards every resize immediately, so the coalescing assertions must fail. ──
+  it('tdp-debounces-pty-resize-forward: a resize storm forwards ONE trailing bridge.resize with the last dims (xterm-side stays live); a quiet later resize forwards again; unmount cancels a pending forward', async () => {
+    const { unmount } = render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    bridgeMock.resize.mockClear();
+
+    // A drag-like storm: three xterm-side resizes in one burst. The xterm side is LIVE (every
+    // resize lands on the terminal immediately)...
+    term.resize(100, 40);
+    term.resize(110, 42);
+    term.resize(120, 48);
+    expect(term.resized.slice(-3)).toEqual([
+      { cols: 100, rows: 40 },
+      { cols: 110, rows: 42 },
+      { cols: 120, rows: 48 },
+    ]);
+    // ...but NOTHING has reached the pty yet — the forward is coalescing.
+    expect(bridgeMock.resize).not.toHaveBeenCalled();
+
+    // The trailing window elapses: exactly ONE forward, carrying the LAST dims — never the
+    // intermediates (each is a full ConPTY screen-reprint).
+    await flushResizeDebounce();
+    expect(bridgeMock.resize).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.resize).toHaveBeenCalledWith(SESSION_ID, 120, 48);
+
+    // A later, quiet resize starts a fresh window and forwards again.
+    term.resize(90, 30);
+    await flushResizeDebounce();
+    expect(bridgeMock.resize).toHaveBeenCalledTimes(2);
+    expect(bridgeMock.resize).toHaveBeenLastCalledWith(SESSION_ID, 90, 30);
+
+    // Unmount with a forward still pending: the timer is cancelled (no leaked timer firing into
+    // a torn-down dock — the sessions survive unmount and the next mount refits anyway).
+    term.resize(80, 24);
+    unmount();
+    await flushResizeDebounce();
+    expect(bridgeMock.resize).toHaveBeenCalledTimes(2);
+  });
+
+  //    node-pty's documented ConPTY state-sync: when the FRONTEND clears, the pty's own buffer
+  //    representation must clear too (else ConPTY reprints the stale screen on the next resize).
+  //    The panel's "clear terminal" control clears the ACTIVE tab's xterm buffer and forwards the
+  //    clear over the bridge — `clear?` is OPTIONAL (feature-guarded like `ack?`; an older preload
+  //    lacks it and gets the local xterm clear only, never a throw). Today no clear control exists
+  //    and no bridge.clear is ever sent — red. ─────────────────────────────────────────────────
+  it('tdp-clear-control-clears-active-tab-and-syncs-pty: the clear control clears the ACTIVE tab\'s xterm and forwards bridge.clear for its session only; an absent bridge.clear member stays inert (local clear, no throw)', async () => {
+    render(<TerminalDock />);
+    await expand(); // tab 1 = sess-1
+    await openNewTab(); // tab 2 = sess-2, active
+
+    const term1 = xtermMock.FakeTerminal.instances[0]!;
+    const term2 = xtermMock.FakeTerminal.instances[1]!;
+    const clearButton = screen.getByRole('button', { name: /clear terminal/i });
+
+    // Clearing acts on the ACTIVE tab (2) only — its xterm buffer clears and ITS session's pty
+    // is synced; the sibling tab is untouched.
+    fireEvent.click(clearButton);
+    expect(term2.clearCalls).toBe(1);
+    expect(term1.clearCalls).toBe(0);
+    expect(bridgeMock.clear).toHaveBeenCalledTimes(1);
+    expect(bridgeMock.clear).toHaveBeenCalledWith('sess-2');
+
+    // Switching tabs re-targets the control at the newly-active tab.
+    fireEvent.click(tabButton(1));
+    fireEvent.click(clearButton);
+    expect(term1.clearCalls).toBe(1);
+    expect(bridgeMock.clear).toHaveBeenLastCalledWith('sess-1');
+
+    cleanup();
+
+    // An older preload without `clear` (feature-guarded like `ack?`): the local xterm clear
+    // still happens, nothing is forwarded, nothing throws.
+    const bridgeWithoutClear = { ...bridgeMock } as Record<string, unknown>;
+    delete bridgeWithoutClear['clear'];
+    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutClear;
+    bridgeMock.resetSessionCounter();
+    bridgeMock.clear.mockClear();
+
+    render(<TerminalDock />);
+    await expand();
+    const term = xtermMock.FakeTerminal.instances[2]!;
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: /clear terminal/i })),
+    ).not.toThrow();
+    expect(term.clearCalls).toBe(1);
+    expect(bridgeMock.clear).not.toHaveBeenCalled();
   });
 });
