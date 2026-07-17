@@ -5544,3 +5544,195 @@ button.legend-tile:hover {
   font-weight: 700;
   pointer-events: none;
 }
+
+/* ============================================================================
+   CAPABILITY-PARCEL FLORA colours (forest-parcels inc 1, ADR-0208) — the designer
+   swarm's meadow / woodland / heath surfaces. The core (@storytree/forest-world
+   scene.ts) emits GEOMETRY only (SceneNode kind + variant + folded status); every
+   palette role is resolved HERE, keyed by .parcel-flora.theme-<t>.st-<status> on the
+   item group × the mark class × .v-<n> (cel faces: v0 light / v1 dark; v2+ within-tier
+   rotation e.g. meadow's petal colours, woodland's sapling canopy, heath's gorse alt
+   lobe + 2-colour bells). Ground is the existing status-tinted .relaxed-cell (zero new
+   ground CSS); ground-contact shadows reuse .flora-shadow. Hex values are the designer
+   palette objects VERBATIM (visually tuned); a single tuned set — the studio map is
+   theme-invariant, matching .flora-shadow / cave practice.
+
+   The SceneView mapper (parallel lane) MUST emit, for each SceneNode:
+     kind 'parcel-flora' → class  parcel-flora theme-<theme> st-<status>
+     kind 'parcel-blade' → class  parcel-blade v-<variant>
+     kind 'parcel-shrub' → class  parcel-shrub v-<variant>
+     kind 'parcel-stem'  → class  parcel-stem  v-<variant>
+     kind 'parcel-flower'→ class  parcel-flower v-<variant>
+     kind 'shadow'       → class  flora-shadow  (existing)
+   ============================================================================ */
+
+/* stroked marks: every parcel-stem, plus HEATH's grass blades (wiry strokes). Filled
+   marks (meadow/woodland blades, all shrubs, all flowers) default to no stroke. */
+.parcel-flora .parcel-stem {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.parcel-flora.theme-heath .parcel-blade {
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------- MEADOW ---------------------------------- */
+/* grass blades (filled two-face): v0 light / v1 dark. healthy + building = default. */
+.parcel-flora.theme-meadow .parcel-blade.v-0 { fill: #71a154; }
+.parcel-flora.theme-meadow .parcel-blade.v-1 { fill: #436b32; }
+.parcel-flora.theme-meadow.st-mapped .parcel-blade.v-0,
+.parcel-flora.theme-meadow.st-proposed .parcel-blade.v-0 { fill: #9fa88f; }
+.parcel-flora.theme-meadow.st-mapped .parcel-blade.v-1,
+.parcel-flora.theme-meadow.st-proposed .parcel-blade.v-1 { fill: #7d886c; }
+.parcel-flora.theme-meadow.st-unknown .parcel-blade.v-0 { fill: #b0afa2; }
+.parcel-flora.theme-meadow.st-unknown .parcel-blade.v-1 { fill: #8f8e7c; }
+.parcel-flora.theme-meadow.st-unhealthy .parcel-blade.v-0 { fill: #ab8c54; }
+.parcel-flora.theme-meadow.st-unhealthy .parcel-blade.v-1 { fill: #87693b; }
+/* shrub (filled cel dome): v0 light / v1 dark. */
+.parcel-flora.theme-meadow .parcel-shrub.v-0 { fill: #89b56b; }
+.parcel-flora.theme-meadow .parcel-shrub.v-1 { fill: #4f7a3e; }
+.parcel-flora.theme-meadow.st-building .parcel-shrub.v-0 { fill: #eccb6d; }
+.parcel-flora.theme-meadow.st-building .parcel-shrub.v-1 { fill: #cc9f3c; }
+.parcel-flora.theme-meadow.st-unhealthy .parcel-shrub.v-0 { fill: #a08355; }
+.parcel-flora.theme-meadow.st-unhealthy .parcel-shrub.v-1 { fill: #7a5f3a; }
+/* flowers / buds / berries / flecks (filled discs). Defaults = healthy/mapped values. */
+.parcel-flora.theme-meadow .parcel-flower.v-0 { fill: #faf1da; } /* petal cream */
+.parcel-flora.theme-meadow .parcel-flower.v-1 { fill: #e0973f; } /* flower core */
+.parcel-flora.theme-meadow .parcel-flower.v-2 { fill: #b5762c; } /* core speck */
+.parcel-flora.theme-meadow .parcel-flower.v-3 { fill: #c1543f; } /* berry (healthy) */
+.parcel-flora.theme-meadow .parcel-flower.v-4 { fill: #ffffff; } /* petal white */
+.parcel-flora.theme-meadow .parcel-flower.v-5 { fill: #f6da5c; } /* petal yellow */
+.parcel-flora.theme-meadow .parcel-flower.v-6 { fill: #f0b3c2; } /* petal pink */
+.parcel-flora.theme-meadow.st-proposed .parcel-flower.v-0 { fill: #cdba79; } /* proposed bud light */
+.parcel-flora.theme-meadow.st-proposed .parcel-flower.v-1 { fill: #a99a5f; } /* proposed bud dark */
+.parcel-flora.theme-meadow.st-building .parcel-flower.v-0 { fill: #f0bd3f; } /* building bud light */
+.parcel-flora.theme-meadow.st-building .parcel-flower.v-1 { fill: #c98f1c; } /* building bud dark */
+.parcel-flora.theme-meadow.st-proposed .parcel-flower.v-2,
+.parcel-flora.theme-meadow.st-building .parcel-flower.v-2 { fill: #fbf2d8; } /* sprout highlight */
+.parcel-flora.theme-meadow.st-unhealthy .parcel-flower.v-0 { fill: #9f2d22; } /* dead fleck */
+.parcel-flora.theme-meadow.st-unhealthy .parcel-flower.v-1 { fill: #7a2018; } /* dead fleck dark */
+.parcel-flora.theme-meadow.st-unhealthy .parcel-flower.v-3 { fill: #9c3d2c; } /* berry dark */
+/* stems (stroked). healthy/mapped = flower stem; proposed/building = sprout; unhealthy = twig/wilt. */
+.parcel-flora.theme-meadow .parcel-stem { stroke: #4f7a3e; }
+.parcel-flora.theme-meadow.st-proposed .parcel-stem,
+.parcel-flora.theme-meadow.st-building .parcel-stem { stroke: #5f7d47; }
+.parcel-flora.theme-meadow.st-proposed .parcel-stem.v-0,
+.parcel-flora.theme-meadow.st-building .parcel-stem.v-0 { stroke: #7c9a5e; } /* sprout seed-leaves */
+.parcel-flora.theme-meadow.st-unhealthy .parcel-stem.v-0 { stroke: #7c5b40; } /* dead twig */
+.parcel-flora.theme-meadow.st-unhealthy .parcel-stem.v-1 { stroke: #6e5535; } /* wilt stem */
+
+/* --------------------------------- WOODLAND --------------------------------- */
+/* fern blades (filled two-face): v0 light / v1 dark. */
+.parcel-flora.theme-woodland .parcel-blade.v-0 { fill: #6bb15f; }
+.parcel-flora.theme-woodland .parcel-blade.v-1 { fill: #1f4a29; }
+.parcel-flora.theme-woodland.st-building .parcel-blade.v-0 { fill: #e0c15a; }
+.parcel-flora.theme-woodland.st-building .parcel-blade.v-1 { fill: #6b5f1e; }
+.parcel-flora.theme-woodland.st-mapped .parcel-blade.v-0 { fill: #a7b6ab; }
+.parcel-flora.theme-woodland.st-mapped .parcel-blade.v-1 { fill: #5f6f65; }
+.parcel-flora.theme-woodland.st-proposed .parcel-blade.v-0 { fill: #d6c887; }
+.parcel-flora.theme-woodland.st-proposed .parcel-blade.v-1 { fill: #8a7a3e; }
+.parcel-flora.theme-woodland.st-unknown .parcel-blade.v-0 { fill: #c1c0b6; }
+.parcel-flora.theme-woodland.st-unknown .parcel-blade.v-1 { fill: #797870; }
+/* undershrub (v0 light / v1 dark) + sapling crown (v2 light / v3 dark). */
+.parcel-flora.theme-woodland .parcel-shrub.v-0 { fill: #54945a; }
+.parcel-flora.theme-woodland .parcel-shrub.v-1 { fill: #1c4324; }
+.parcel-flora.theme-woodland .parcel-shrub.v-2 { fill: #55a06a; }
+.parcel-flora.theme-woodland .parcel-shrub.v-3 { fill: #2f6b3f; }
+.parcel-flora.theme-woodland.st-building .parcel-shrub.v-0 { fill: #c7ac4e; }
+.parcel-flora.theme-woodland.st-building .parcel-shrub.v-1 { fill: #786a20; }
+.parcel-flora.theme-woodland.st-building .parcel-shrub.v-2 { fill: #c9a13f; }
+.parcel-flora.theme-woodland.st-building .parcel-shrub.v-3 { fill: #8a7a2e; }
+.parcel-flora.theme-woodland.st-mapped .parcel-shrub.v-0,
+.parcel-flora.theme-woodland.st-mapped .parcel-shrub.v-2 { fill: #8fa091; }
+.parcel-flora.theme-woodland.st-mapped .parcel-shrub.v-1,
+.parcel-flora.theme-woodland.st-mapped .parcel-shrub.v-3 { fill: #546257; }
+.parcel-flora.theme-woodland.st-proposed .parcel-shrub.v-0,
+.parcel-flora.theme-woodland.st-proposed .parcel-shrub.v-2 { fill: #bfab5c; }
+.parcel-flora.theme-woodland.st-proposed .parcel-shrub.v-1,
+.parcel-flora.theme-woodland.st-proposed .parcel-shrub.v-3 { fill: #7d6c33; }
+.parcel-flora.theme-woodland.st-unknown .parcel-shrub.v-0,
+.parcel-flora.theme-woodland.st-unknown .parcel-shrub.v-2 { fill: #b1b0a7; }
+.parcel-flora.theme-woodland.st-unknown .parcel-shrub.v-1,
+.parcel-flora.theme-woodland.st-unknown .parcel-shrub.v-3 { fill: #7a7972; }
+/* anemone bloom: v0 lit petal / v1 shadow petal / v2 core; v0 also = fleck when unhealthy. */
+.parcel-flora.theme-woodland .parcel-flower.v-0 { fill: #f3ecdf; }
+.parcel-flora.theme-woodland .parcel-flower.v-1 { fill: #d9cfe0; }
+.parcel-flora.theme-woodland .parcel-flower.v-2 { fill: #e0a640; }
+.parcel-flora.theme-woodland.st-building .parcel-flower.v-0 { fill: #f3e2ab; }
+.parcel-flora.theme-woodland.st-building .parcel-flower.v-1 { fill: #e0cf9e; }
+.parcel-flora.theme-woodland.st-building .parcel-flower.v-2 { fill: #c98a2e; }
+.parcel-flora.theme-woodland.st-mapped .parcel-flower.v-0 { fill: #c2ccc3; }
+.parcel-flora.theme-woodland.st-mapped .parcel-flower.v-1 { fill: #abb7ae; }
+.parcel-flora.theme-woodland.st-mapped .parcel-flower.v-2 { fill: #b7c2ba; }
+.parcel-flora.theme-woodland.st-proposed .parcel-flower.v-0 { fill: #d7cea5; }
+.parcel-flora.theme-woodland.st-proposed .parcel-flower.v-1 { fill: #c3b98d; }
+.parcel-flora.theme-woodland.st-proposed .parcel-flower.v-2 { fill: #cec49a; }
+.parcel-flora.theme-woodland.st-unknown .parcel-flower.v-0 { fill: #d2d0cd; }
+.parcel-flora.theme-woodland.st-unknown .parcel-flower.v-1 { fill: #bcbab7; }
+.parcel-flora.theme-woodland.st-unknown .parcel-flower.v-2 { fill: #c8c6c3; }
+.parcel-flora.theme-woodland.st-unhealthy .parcel-flower.v-0 { fill: #9f2d22; } /* fleck */
+/* stems: v0 twig (unhealthy) / v1 flower-stem (fern-dark) / v2 sapling trunk. */
+.parcel-flora.theme-woodland .parcel-stem.v-1 { stroke: #1f4a29; }
+.parcel-flora.theme-woodland.st-building .parcel-stem.v-1 { stroke: #6b5f1e; }
+.parcel-flora.theme-woodland.st-mapped .parcel-stem.v-1,
+.parcel-flora.theme-woodland.st-proposed .parcel-stem.v-1,
+.parcel-flora.theme-woodland.st-unknown .parcel-stem.v-1 { stroke: #5f6f65; }
+.parcel-flora.theme-woodland .parcel-stem.v-2 { stroke: #5c4530; }
+.parcel-flora.theme-woodland.st-building .parcel-stem.v-2 { stroke: #7c6a4a; }
+.parcel-flora.theme-woodland.st-unhealthy .parcel-stem.v-0 { stroke: #7c5b40; }
+
+/* ----------------------------------- HEATH ---------------------------------- */
+/* wiry moor-grass blades (STROKED): v0 grassB light / v1 grassA dark. */
+.parcel-flora.theme-heath .parcel-blade.v-0 { stroke: #6f9950; }
+.parcel-flora.theme-heath .parcel-blade.v-1 { stroke: #4d7938; }
+.parcel-flora.theme-heath.st-mapped .parcel-blade.v-0 { stroke: #a3a492; }
+.parcel-flora.theme-heath.st-mapped .parcel-blade.v-1 { stroke: #8b8d7a; }
+.parcel-flora.theme-heath.st-proposed .parcel-blade.v-0 { stroke: #c2b678; }
+.parcel-flora.theme-heath.st-proposed .parcel-blade.v-1 { stroke: #a89a58; }
+.parcel-flora.theme-heath.st-building .parcel-blade.v-0 { stroke: #cf9f45; }
+.parcel-flora.theme-heath.st-building .parcel-blade.v-1 { stroke: #a97e2c; }
+.parcel-flora.theme-heath.st-unhealthy .parcel-blade.v-0 { stroke: #96825b; }
+.parcel-flora.theme-heath.st-unhealthy .parcel-blade.v-1 { stroke: #7a6644; }
+.parcel-flora.theme-heath.st-unknown .parcel-blade.v-0 { stroke: #a7a498; }
+.parcel-flora.theme-heath.st-unknown .parcel-blade.v-1 { stroke: #8f8d82; }
+/* scrub mound (filled): body v1 / highlight v0; healthy gorse alt lobe body v3 / hi v2. */
+.parcel-flora.theme-heath .parcel-shrub.v-0 { fill: #6bc07a; }
+.parcel-flora.theme-heath .parcel-shrub.v-1 { fill: #3d7a49; }
+.parcel-flora.theme-heath .parcel-shrub.v-2 { fill: #a8bd54; }
+.parcel-flora.theme-heath .parcel-shrub.v-3 { fill: #707c34; }
+.parcel-flora.theme-heath.st-mapped .parcel-shrub.v-0 { fill: #b3b7a8; }
+.parcel-flora.theme-heath.st-mapped .parcel-shrub.v-1 { fill: #8d9182; }
+.parcel-flora.theme-heath.st-proposed .parcel-shrub.v-0 { fill: #d5cc9c; }
+.parcel-flora.theme-heath.st-proposed .parcel-shrub.v-1 { fill: #ab9f70; }
+.parcel-flora.theme-heath.st-building .parcel-shrub.v-0 { fill: #f2bb4e; }
+.parcel-flora.theme-heath.st-building .parcel-shrub.v-1 { fill: #bd7f22; }
+.parcel-flora.theme-heath.st-unhealthy .parcel-shrub.v-0 { fill: #a08c62; }
+.parcel-flora.theme-heath.st-unhealthy .parcel-shrub.v-1 { fill: #725f42; }
+.parcel-flora.theme-heath.st-unknown .parcel-shrub.v-0 { fill: #b6b3a6; }
+.parcel-flora.theme-heath.st-unknown .parcel-shrub.v-1 { fill: #8f8d81; }
+/* bells (light v0/v4, dark v1/v5, core v2), building spark v6, unhealthy dead fleck v0. */
+.parcel-flora.theme-heath .parcel-flower.v-0 { fill: #a877c2; }
+.parcel-flora.theme-heath .parcel-flower.v-4 { fill: #c495d8; }
+.parcel-flora.theme-heath .parcel-flower.v-1 { fill: #7e529b; }
+.parcel-flora.theme-heath .parcel-flower.v-5 { fill: #9868b0; }
+.parcel-flora.theme-heath .parcel-flower.v-2 { fill: #f4e37a; }
+.parcel-flora.theme-heath.st-mapped .parcel-flower.v-0 { fill: #c6c2b3; }
+.parcel-flora.theme-heath.st-mapped .parcel-flower.v-1 { fill: #a8a394; }
+.parcel-flora.theme-heath.st-mapped .parcel-flower.v-2 { fill: #e2ded0; }
+.parcel-flora.theme-heath.st-proposed .parcel-flower.v-0 { fill: #e0cf8c; }
+.parcel-flora.theme-heath.st-proposed .parcel-flower.v-1 { fill: #c2b06a; }
+.parcel-flora.theme-heath.st-proposed .parcel-flower.v-2 { fill: #f7ecb0; }
+.parcel-flora.theme-heath.st-building .parcel-flower.v-0 { fill: #f7c24a; }
+.parcel-flora.theme-heath.st-building .parcel-flower.v-1 { fill: #dd9f2c; }
+.parcel-flora.theme-heath.st-building .parcel-flower.v-2 { fill: #fff5cf; }
+.parcel-flora.theme-heath.st-building .parcel-flower.v-6 { fill: #ffe38a; } /* build spark */
+.parcel-flora.theme-heath.st-unhealthy .parcel-flower.v-0 { fill: #9f2d22; } /* dead fleck */
+/* stems (raceme = grassA; twig = twigUnhealthy). all v0. */
+.parcel-flora.theme-heath .parcel-stem { stroke: #4d7938; }
+.parcel-flora.theme-heath.st-mapped .parcel-stem { stroke: #8b8d7a; }
+.parcel-flora.theme-heath.st-proposed .parcel-stem { stroke: #a89a58; }
+.parcel-flora.theme-heath.st-building .parcel-stem { stroke: #a97e2c; }
+.parcel-flora.theme-heath.st-unhealthy .parcel-stem { stroke: #5d4c3b; }
+.parcel-flora.theme-heath.st-unknown .parcel-stem { stroke: #8f8d82; }

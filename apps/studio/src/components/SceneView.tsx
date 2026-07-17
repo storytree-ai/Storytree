@@ -193,8 +193,14 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       return withFilter('story-tree', node.status, ctx);
     case 'flora':
       return withFilter('garden-flora', node.status, ctx);
-    case 'cell':
-      return `relaxed-cell v-${node.variant ?? 0}`;
+    case 'cell': {
+      // A parcels-present island (forest-parcels inc 1) now sets a PER-CELL status — each ground cell
+      // tinted by its assigned capability — so fold it through as `st-<status>` (ZERO new ground CSS:
+      // the existing per-status cell tint carries the colour). A plain (non-parcel) cell carries no
+      // status → the class is unchanged `relaxed-cell v-N`.
+      const cellBase = `relaxed-cell v-${node.variant ?? 0}`;
+      return node.status ? `${cellBase} st-${node.status}` : cellBase;
+    }
     case 'tile-top':
       return `hex-top v-${node.variant ?? 0}`;
     case 'conifer-body':
@@ -224,6 +230,22 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       // ADR-0200 D7: the waiting-grade family — a DISTINCT class from claim-wisp/hover-wisp, same
       // colour-state composition, same honesty wall (never bloom/verdict).
       return `world-queue-wisp state-${node.colourState ?? 'supplementing'}`;
+    case 'parcel':
+      // forest-parcels inc 1: the transparent per-capability ground group (id=capId, title for hover).
+      // It carries the cap's folded status so a group-level rule can key on it; the visible tint lives
+      // on the cells inside (also `st-<status>`). Same-named base class + `st-<status>` (frozen vocab).
+      return `parcel st-${status}`;
+    case 'parcel-flora':
+      // one placed flora item: its theme (meadow/woodland/heath → `theme-<t>`) + the cap's status. The
+      // colour itself stays CSS-side (a parallel lane owns the parcel colour block) — the mapper only
+      // names the class the theme selects.
+      return `parcel-flora theme-${node.theme ?? 'meadow'} st-${status}`;
+    case 'parcel-blade':
+    case 'parcel-shrub':
+    case 'parcel-stem':
+    case 'parcel-flower':
+      // the generic flora marks — same-named class + the `v-<n>` facet suffix (exactly like cells).
+      return `${k} v-${node.variant ?? 0}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;

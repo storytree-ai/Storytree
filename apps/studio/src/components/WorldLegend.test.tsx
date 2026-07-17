@@ -26,6 +26,7 @@ const cap = (
   status,
   proofMode: 'red-green',
   dependsOn: [],
+  testCount: 0,
   ...extra,
 });
 

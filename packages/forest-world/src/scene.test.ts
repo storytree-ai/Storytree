@@ -6,10 +6,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { hash, rand01 } from './rng.js';
 import { crownRadius } from './sizing.js';
 import { routeTrails, trailFillWidth, type TrailIsland } from './routing.js';
+import type { RelaxedCell } from './substrate.js';
 import {
   buildScene,
   buildTrails,
@@ -761,4 +764,235 @@ test('website back-compat: NO claims + NO departures → no wisp layers at all �
   }
   // absent and [] render identically — the new optional keys add nothing when unused.
   assert.deepEqual(scene, buildScene(mkInput({ territories: [mkTerritory()] })));
+});
+
+// ---------- the byte-for-byte parcels-ABSENT regression lock (forest-parcels inc 1) ----------
+//
+// The website (and every parcels-unaware surface) must render TODAY's ground + conifer decor +
+// one-plant-per-cap ring BYTE-FOR-BYTE once capability parcels land. This lock was generated from
+// HEAD behaviour BEFORE the parcels branch existed and asserts deep-equality against the committed
+// golden scene forever after — the parcels feature may only ADD a branch, never perturb the absence
+// path. If this test goes red, the absence path drifted: fix the drift, never re-bake the fixture.
+//
+// The fixture input deliberately exercises every parcels-absent drawable family: conifer decor,
+// the capability plant ring (alive + withered + a plant bloom), scattered wheat, a crown bloom, a
+// signpost, an in-flight build wisp, and a story claim — across a healthy and a proposed island.
+
+/** The pinned parcels-ABSENT input. Kept as pure literal data (+ a routed trail) so the golden
+ *  generator can reproduce it verbatim; NO `parcels` field anywhere → the absence render path. */
+function absenceLockInput(): SceneInput {
+  const trails = routeTrails(
+    [isle('library', 100, 200, 60), isle('cli', 300, 60, 50)],
+    [{ from: 'library', to: 'cli', title: 'cli depends on library' }],
+    'absence-lock',
+  );
+  return {
+    offset: { x: 300, y: 400 },
+    width: 1200,
+    height: 1600,
+    empties: [
+      { q: 0, r: 0 },
+      { q: 1, r: 0 },
+    ],
+    relaxedCells: [
+      { owner: 0, poly: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], variant: 1, wheat: false },
+      { owner: 0, poly: [{ x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }], variant: 2, wheat: true },
+      { owner: 0, poly: [{ x: 0, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 10 }], variant: 0, wheat: true },
+      { owner: 1, poly: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }], variant: 0, wheat: false },
+    ],
+    drawTiles: [
+      { h: { q: 0, r: 0 }, owner: 0 },
+      { h: { q: 1, r: 0 }, owner: 1 },
+    ],
+    wheatSets: [new Set(['0,0']), new Set()],
+    trails,
+    territories: [
+      {
+        id: 'library',
+        status: 'healthy',
+        caps: 3,
+        centroid: { x: 100, y: 200 },
+        radius: 60,
+        treeSpot: { x: 100, y: 190 },
+        labelY: 260,
+        coastPaths: ['M 0 0 L 10 0 L 10 10 Z'],
+        decor: [
+          { x: 80, y: 180, seed: 7 },
+          { x: 120, y: 210, seed: 4 },
+        ],
+        plants: [
+          { id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a', bloom: { ageRatio: 0.5, outcome: 'pass' } },
+          { id: 'library#cap-b', status: 'unhealthy', x: 110, y: 215, title: 'cap b' },
+        ],
+        treeTitle: 'library — healthy',
+        signpost: { outcome: 'pass' },
+        bloom: { ageRatio: 0.8, outcome: 'pass' },
+        wisps: [{ runId: 'r1', title: 'building', phase: 'CONFIRM_RED', colourState: 'proving' }],
+        claims: [{ key: 's1', title: 'a session is here', colourState: 'authoring', grade: 'work' }],
+        plate: { w: 120, h: 33, rx: 7, idY: 14, subY: 27, idText: 'library', subText: 'healthy · 3 caps', title: 'The library' },
+      },
+      {
+        id: 'cli',
+        status: 'proposed',
+        caps: 2,
+        centroid: { x: 300, y: 60 },
+        radius: 50,
+        treeSpot: { x: 300, y: 50 },
+        labelY: 120,
+        coastPaths: ['M 0 0 L 8 0 L 8 8 Z'],
+        decor: [{ x: 290, y: 55, seed: 5 }],
+        plants: [{ id: 'cli#cap-x', status: 'proposed', x: 295, y: 65, title: 'cap x' }],
+        treeTitle: 'cli — proposed',
+        wisps: [],
+        claims: [],
+        plate: { w: 100, h: 30, rx: 6, idY: 13, subY: 25, idText: 'cli', subText: 'proposed · 2 caps', title: 'The cli' },
+      },
+    ],
+  };
+}
+
+const ABSENCE_GOLDEN = fileURLToPath(new URL('./scene-absence-fixture.json', import.meta.url));
+
+test('parcels-ABSENT scene matches the committed byte-for-byte lock (generated from HEAD)', () => {
+  const golden = JSON.parse(readFileSync(ABSENCE_GOLDEN, 'utf8'));
+  assert.deepEqual(buildScene(absenceLockInput()), golden);
+});
+
+// ---------- capability PARCELS (forest-parcels inc 1) ----------
+//
+// Stage-1 GEOMETRY only: the cell → parcel assignment, the per-cell cap-status tint, the flora
+// density curve, and the conifer/plant-ring retirement. The LOOK (theme palettes / flora craft) is
+// the mapper's, operator-attested later (ADR-0070).
+
+/** A relaxed substrate cell whose centroid is EXACTLY (cx, cy) — a small triangle around it. */
+const cellAt = (cx: number, cy: number, owner: number): RelaxedCell => ({
+  owner,
+  poly: [{ x: cx - 2, y: cy - 2 }, { x: cx + 2, y: cy - 2 }, { x: cx, y: cy + 4 }],
+  variant: 0,
+  wheat: false,
+});
+
+const SEED_A = { x: 0, y: 0 };
+const SEED_B = { x: 100, y: 0 };
+// four cells hugging seed A, four hugging seed B — a mis-assignment would move the 4/4 split.
+const CELLS_AB: RelaxedCell[] = [
+  cellAt(0, 0, 0), cellAt(6, 6, 0), cellAt(-4, 4, 0), cellAt(8, -6, 0),
+  cellAt(100, 0, 0), cellAt(96, 6, 0), cellAt(104, -4, 0), cellAt(98, 8, 0),
+];
+
+type Parcels = NonNullable<SceneTerritoryInput['parcels']>;
+const parcelsAB = (testA: number, testB: number, theme: 'meadow' | 'woodland' | 'heath' = 'meadow'): Parcels => [
+  { capId: 'capA', status: 'healthy', testCount: testA, theme, seed: SEED_A },
+  { capId: 'capB', status: 'unhealthy', testCount: testB, theme, seed: SEED_B },
+];
+
+/** A one-island scene whose territory carries `parcels` — AND still has `decor`/`plants` set, so the
+ *  retirement of the conifers + plant ring is observable. The territory status is `proposed` so a
+ *  per-cell tint that matched it could not be mistaken for the (healthy/unhealthy) cap statuses. */
+function parcelScene(parcels: Parcels, cells: RelaxedCell[]): SceneG {
+  return buildScene(
+    mkInput({
+      relaxedCells: cells,
+      territories: [
+        mkTerritory({
+          id: 'library',
+          status: 'proposed',
+          parcels,
+          decor: [{ x: 80, y: 180, seed: 7 }],
+          plants: [{ id: 'library#cap-a', status: 'healthy', x: 90, y: 205, title: 'cap a' }],
+        }),
+      ],
+    }),
+  );
+}
+
+test('parcels sub-partition the island cells by nearest seed (equal-weight Voronoi), deterministically', () => {
+  const scene = parcelScene(parcelsAB(3, 3), CELLS_AB);
+  const parcels = allByKind(mustByKind(scene, 'ground-mesh'), 'parcel');
+  assert.equal(parcels.length, 2);
+  const capA = parcels.find((p) => p.id === 'capA')!;
+  const capB = parcels.find((p) => p.id === 'capB')!;
+  // the 4 cells nearest seed A land under capA, the 4 nearest seed B under capB.
+  assert.equal(children(capA).length, 4);
+  assert.equal(children(capB).length, 4);
+  // deterministic: same parcels input → byte-identical scene.
+  assert.deepEqual(scene, parcelScene(parcelsAB(3, 3), CELLS_AB));
+});
+
+test('every parcel cell wears its ASSIGNED cap status — not the per-territory status', () => {
+  const scene = parcelScene(parcelsAB(3, 3), CELLS_AB);
+  const parcels = allByKind(mustByKind(scene, 'ground-mesh'), 'parcel');
+  const capA = parcels.find((p) => p.id === 'capA')!;
+  const capB = parcels.find((p) => p.id === 'capB')!;
+  // reuses the existing `cell` kind (zero new ground CSS) with the CAP's status, not the island's.
+  for (const c of children(capA)) {
+    assert.equal(c.kind, 'cell');
+    assert.equal(c.status, 'healthy');
+  }
+  for (const c of children(capB)) {
+    assert.equal(c.kind, 'cell');
+    assert.equal(c.status, 'unhealthy');
+  }
+  // the territory is `proposed`, so neither cap tint could be the island tint bleeding through.
+});
+
+test('flora density IS the test count — a higher-testCount parcel grows strictly more flora (same island, same theme)', () => {
+  const scene = parcelScene(parcelsAB(1, 12), CELLS_AB); // both meadow
+  const flora = allByKind(mustByKind(scene, 'flora-layer'), 'parcel-flora');
+  const a = flora.filter((n) => n.id === 'capA').length;
+  const b = flora.filter((n) => n.id === 'capB').length;
+  assert.ok(a > 0, 'a 1-test parcel still shows a sprig');
+  assert.ok(b > a, `the 12-test parcel grows strictly more marks than the 1-test one: ${a} < ${b}`);
+});
+
+test('a parcels-present island RETIRES the conifer decor AND the one-plant-per-cap ring', () => {
+  const scene = parcelScene(parcelsAB(3, 3), CELLS_AB); // territory ALSO carries decor + plants
+  const layer = mustByKind(scene, 'flora-layer');
+  assert.equal(firstByKind(layer, 'conifer'), null, 'no decorative conifers on a parcels island');
+  assert.equal(firstByKind(layer, 'flora'), null, 'no one-plant-per-cap ring on a parcels island');
+  // the central tree still stands and the parcel flora replaced them.
+  assert.ok(firstByKind(layer, 'tree'));
+  assert.ok(firstByKind(layer, 'parcel-flora'));
+});
+
+test('parcel flora carries theme + status + capId; the generic mark vocabulary is emitted', () => {
+  const scene = parcelScene(parcelsAB(4, 4), CELLS_AB);
+  const item = mustByKind(scene, 'parcel-flora');
+  assert.equal(item.theme, 'meadow');
+  assert.ok(item.status === 'healthy' || item.status === 'unhealthy');
+  assert.ok(typeof item.id === 'string' && item.id.startsWith('cap'));
+  const layer = mustByKind(scene, 'flora-layer');
+  // meadow healthy → grass blades; meadow unhealthy → a dead stem: the generic kinds appear.
+  assert.ok(allByKind(layer, 'parcel-blade').length > 0);
+  assert.ok(allByKind(layer, 'parcel-stem').length > 0);
+});
+
+test('each theme routes through its own SurfaceFn — the theme tag rides every flora item', () => {
+  for (const theme of ['meadow', 'woodland', 'heath'] as const) {
+    const scene = parcelScene([{ capId: 'c', status: 'healthy', testCount: 6, theme, seed: SEED_A }], CELLS_AB);
+    for (const item of allByKind(mustByKind(scene, 'flora-layer'), 'parcel-flora')) {
+      assert.equal(item.theme, theme);
+    }
+    // woodland/heath healthy forms carry a shrub blob; meadow carries blades.
+    const layer = mustByKind(scene, 'flora-layer');
+    if (theme === 'meadow') assert.ok(allByKind(layer, 'parcel-blade').length > 0);
+    else assert.ok(allByKind(layer, 'parcel-shrub').length > 0);
+  }
+});
+
+test('buildScene stays deterministic with parcels present (same input → byte-identical)', () => {
+  assert.deepEqual(parcelScene(parcelsAB(2, 9, 'woodland'), CELLS_AB), parcelScene(parcelsAB(2, 9, 'woodland'), CELLS_AB));
+});
+
+test('§ back-compat: parcels absent OR no substrate cells → today\'s conifer + plant render (no parcel kinds)', () => {
+  // parcels set but the island is hex-ground (no relaxedCells) → the feature no-ops, conifers stay.
+  const hex = buildScene(
+    mkInput({
+      relaxedCells: null,
+      territories: [mkTerritory({ id: 'library', parcels: parcelsAB(5, 5) })],
+    }),
+  );
+  const layer = mustByKind(hex, 'flora-layer');
+  assert.equal(firstByKind(layer, 'parcel-flora'), null, 'no parcels without the relaxed mesh');
+  assert.ok(firstByKind(layer, 'conifer'), 'conifers survive when parcels cannot render');
 });

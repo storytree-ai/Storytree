@@ -16,6 +16,7 @@ const cap = (id: string, status: WorkStatus = 'mapped'): TreeCapability => ({
   status,
   proofMode: 'red-green',
   dependsOn: [],
+  testCount: 0,
 });
 
 const story = (id: string, over: Partial<TreeStory> = {}): TreeStory => ({
@@ -90,11 +91,24 @@ describe('worldToScene → buildScene (the real studio world model)', () => {
     expect(all(territory(s, 'mid'), 'bare')).toHaveLength(1);
   });
 
-  it('gardens each capability as flora; a failing capability withers', () => {
-    const foundation = territory(scene(), 'foundation');
-    expect(all(foundation, 'flora')).toHaveLength(2);
-    // the unhealthy capability shows a dead-ground patch; the healthy one does not.
-    expect(all(foundation, 'dead-ground')).toHaveLength(1);
+  it('gardens each capability as a PARCEL of ground, retiring the plant + conifer ring (forest-parcels inc 1)', () => {
+    const s = scene();
+    // territory flora layer: on a parcels-present (mesh) island the one-plant-per-cap ring AND the
+    // decorative conifers are RETIRED — the capability land IS the capability now.
+    const foundation = territory(s, 'foundation');
+    expect(all(foundation, 'flora')).toHaveLength(0);
+    expect(all(foundation, 'conifer')).toHaveLength(0);
+    // the GROUND layer now carries one transparent parcel group per capability that won cells in the
+    // Voronoi split (both caps here), keyed by capId and wearing the cap's folded status.
+    const parcels = all(s, 'parcel').filter((p) => p.id?.startsWith('foundation#'));
+    expect(parcels.length).toBeGreaterThan(0);
+    expect(parcels.length).toBeLessThanOrEqual(2);
+    expect(parcels.every((p) => p.status === 'healthy' || p.status === 'unhealthy')).toBe(true);
+    // every ground cell inside a parcel carries a PER-CELL status (the tint moved from the whole
+    // island down to the per-cap parcel).
+    const foundationCells = parcels.flatMap((p) => all(p, 'cell'));
+    expect(foundationCells.length).toBeGreaterThan(0);
+    expect(foundationCells.every((c) => c.status === 'healthy' || c.status === 'unhealthy')).toBe(true);
   });
 
   it('marks the human-witness story with a signpost (blank until signed)', () => {
@@ -130,5 +144,64 @@ describe('worldToScene → buildScene (the real studio world model)', () => {
 
   it('is deterministic — same world → byte-identical scene', () => {
     expect(scene()).toEqual(scene());
+  });
+});
+
+// forest-parcels inc 1: the studio fold builds one PARCEL per capability (the land IS the capability)
+// and threads it into the core's SceneInput. Asserted on `worldToScene`'s output — the exact shape this
+// lane owns; the parcel GEOMETRY (Voronoi + themed flora) is the core's (forest-world/scene.test.ts).
+describe('worldToScene → capability parcels', () => {
+  function input() {
+    const world = buildWorld(fixture());
+    const cells = buildRelaxedCells(world, 'mesh', {});
+    return worldToScene(world, cells, NOW, NO_BUILDS);
+  }
+  function terr(inp: ReturnType<typeof input>, id: string) {
+    const t = inp.territories.find((x) => x.id === id);
+    if (!t) throw new Error(`no territory ${id}`);
+    return t;
+  }
+
+  it('builds one parcel per capability, carrying the cap status + testCount + a finite seed', () => {
+    const foundation = terr(input(), 'foundation');
+    expect(foundation.parcels).toHaveLength(2);
+    const byId = new Map(foundation.parcels!.map((p) => [p.capId, p]));
+    // the parcel's status is the cap's folded status (the SAME the plant/flora render uses)…
+    expect(byId.get('foundation#a')!.status).toBe('healthy');
+    expect(byId.get('foundation#b')!.status).toBe('unhealthy');
+    for (const p of foundation.parcels!) {
+      expect(p.testCount).toBe(0); // the fixture caps declare no contracts
+      expect(Number.isFinite(p.seed.x) && Number.isFinite(p.seed.y)).toBe(true);
+      expect(['meadow', 'woodland', 'heath']).toContain(p.theme);
+    }
+  });
+
+  it('picks the theme deterministically from the capId (same world → same themes)', () => {
+    const a = terr(input(), 'foundation').parcels!.map((p) => `${p.capId}:${p.theme}`);
+    const b = terr(input(), 'foundation').parcels!.map((p) => `${p.capId}:${p.theme}`);
+    expect(a).toEqual(b);
+  });
+
+  it('seeds each parcel at the SAME position buildWorld laid the cap plant out at', () => {
+    const foundation = terr(input(), 'foundation');
+    for (const p of foundation.parcels!) {
+      const plant = foundation.plants.find((pl) => pl.id === p.capId)!;
+      expect(p.seed).toEqual({ x: plant.x, y: plant.y });
+    }
+  });
+
+  it('flows the declared testCount onto the parcel (the flora-density knob)', () => {
+    const world = buildWorld([
+      story('s', { capabilities: [{ ...cap('s#a', 'healthy'), testCount: 4 }] }),
+    ]);
+    const cells = buildRelaxedCells(world, 'mesh', {});
+    const inp = worldToScene(world, cells, NOW, NO_BUILDS);
+    const parcel = inp.territories.find((t) => t.id === 's')!.parcels![0]!;
+    expect(parcel.testCount).toBe(4);
+  });
+
+  it('omits parcels for a story with NO capabilities (parcels-absent)', () => {
+    // `top` declares no capabilities in the fixture → no parcels field (the core reads absent ⇒ today).
+    expect(terr(input(), 'top').parcels).toBeUndefined();
   });
 });

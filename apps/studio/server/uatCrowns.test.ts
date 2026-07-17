@@ -34,7 +34,7 @@ function story(id: string, over: Partial<TreeStory> = {}): TreeStory {
 }
 
 function cap(id: string): TreeCapability {
-  return { id, title: id, outcome: '', status: null, proofMode: '', dependsOn: [] };
+  return { id, title: id, outcome: '', status: null, proofMode: '', dependsOn: [], testCount: 0 };
 }
 
 /** A typed empty coverage map (ADR-0097) — the greenfield default (each cap earns its own verdict). */

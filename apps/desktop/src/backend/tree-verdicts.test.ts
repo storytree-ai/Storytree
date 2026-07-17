@@ -150,6 +150,94 @@ test("tree-verdicts: readTreeWithCaps over a missing dir returns an empty tree",
 });
 
 // ---------------------------------------------------------------------------
+// testCount — the declared-contract count (forest-parcels increment 1, mirrors the studio's readTree)
+// ---------------------------------------------------------------------------
+
+/** Seed a temp stories dir with ONE story `parcels` declaring two capabilities: one with a
+ *  `## Contracts` section listing 3 items, one with none. */
+async function seedContractStories(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tree-verdicts-contracts-"));
+  const storyDir = path.join(dir, "parcels");
+  await fs.mkdir(storyDir);
+  await fs.writeFile(
+    path.join(storyDir, "story.md"),
+    [
+      "---",
+      'id: "parcels"',
+      "tier: story",
+      'title: "Parcels story"',
+      'outcome: "the parcels outcome"',
+      "status: proposed",
+      "proof_mode: UAT",
+      "capabilities: [three-contracts, no-contracts]",
+      "---",
+      "",
+      "# Parcels",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.writeFile(
+    path.join(storyDir, "three-contracts.md"),
+    [
+      "---",
+      'id: "three-contracts"',
+      "tier: capability",
+      'title: "Three Contracts"',
+      'outcome: "o"',
+      "status: proposed",
+      "proof_mode: contract-test",
+      "---",
+      "",
+      "# Three Contracts",
+      "",
+      "## Contracts (3)",
+      "",
+      "1. **`three-contracts-1`** — leaf behaviour 1",
+      "2. **`three-contracts-2`** — leaf behaviour 2",
+      "3. **`three-contracts-3`** — leaf behaviour 3",
+    ].join("\n"),
+    "utf8",
+  );
+  await fs.writeFile(
+    path.join(storyDir, "no-contracts.md"),
+    [
+      "---",
+      'id: "no-contracts"',
+      "tier: capability",
+      'title: "No Contracts"',
+      'outcome: "o"',
+      "status: proposed",
+      "proof_mode: contract-test",
+      "---",
+      "",
+      "# No Contracts",
+    ].join("\n"),
+    "utf8",
+  );
+  return {
+    dir,
+    cleanup: async () => {
+      await fs.rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+test("tree-verdicts: readTreeWithCaps counts declared `## Contracts` items into testCount (mirrors the studio's readTree)", async () => {
+  const { dir, cleanup } = await seedContractStories();
+  try {
+    const { stories } = await readTreeWithCaps(dir);
+    const parcels = stories.find((s) => s.id === "parcels");
+    assert.ok(parcels, "the story is present");
+    const three = parcels.capabilities.find((c) => c.id === "three-contracts");
+    const none = parcels.capabilities.find((c) => c.id === "no-contracts");
+    assert.equal(three?.testCount, 3, "three declared contracts are counted");
+    assert.equal(none?.testCount, 0, "a spec with no `## Contracts` section yields 0");
+  } finally {
+    await cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // foldVerdicts — the green derivation
 // ---------------------------------------------------------------------------
 
@@ -264,8 +352,8 @@ test("tree-verdicts: applyCapCoverage synthesizes a covered brownfield cap's ver
       dependsOn: [],
       consumedBy: [],
       capabilities: [
-        { id: "cap-covered", title: "Covered", outcome: "", status: "mapped", proofMode: "", dependsOn: [] },
-        { id: "cap-bare", title: "Bare", outcome: "", status: "mapped", proofMode: "", dependsOn: [] },
+        { id: "cap-covered", title: "Covered", outcome: "", status: "mapped", proofMode: "", dependsOn: [], testCount: 0 },
+        { id: "cap-bare", title: "Bare", outcome: "", status: "mapped", proofMode: "", dependsOn: [], testCount: 0 },
       ],
     },
   ];

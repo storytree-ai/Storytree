@@ -24,6 +24,7 @@ const cap = (id: string, dependsOn: string[] = []) => ({
   status: 'mapped' as const,
   proofMode: 'red-green',
   dependsOn,
+  testCount: 0,
 });
 
 const story = (

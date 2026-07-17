@@ -1052,6 +1052,7 @@ function loadTreeCapability(
     status: null,
     proofMode: '',
     dependsOn: [],
+    testCount: 0,
   };
   const file = path.join(storyDir, `${capId}.md`);
   if (!existsSync(file)) return { node: { ...node, error: 'spec file missing' }, spec: null };
@@ -1068,6 +1069,9 @@ function loadTreeCapability(
         // ADR-0090 Phase 1: a node is buildable when it carries a proof config (spec-borne or
         // registry) — the SAME determination `node build`/`node resolve` make.
         buildable: resolveBuildConfig(spec) != null,
+        // The declared leaf-contract count (the spec's `## Contracts` section, parsed via
+        // `parseContracts` — already folded into `spec.contracts` by `loadNodeSpec`).
+        testCount: spec.contracts.length,
       },
       spec,
     };

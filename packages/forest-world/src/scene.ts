@@ -132,6 +132,19 @@ export type SceneKind =
   | 'conifer'
   | 'conifer-body'
   | 'conifer-snow'
+  // capability PARCELS (forest-parcels inc 1) — a capability rendered as a parcel of the island's
+  // existing relaxed-cell ground, tinted by the cap's status and surfaced by a `SurfaceTheme`. The
+  // ground cells stay the existing `cell`/`cell-wheat` kinds (per-cell `status` now set) so no new
+  // ground CSS is needed; `parcel` is a transparent identity/delegation `<g>` (carries the capId).
+  // The flora marks are a small GENERIC vocabulary shared across themes — the theme reaches the
+  // mapper via the node's `theme` field (a `theme-<t>` class), the parcel's status via `status`; the
+  // colour itself stays CSS-side (ADR-0093 §4). `variant` distinguishes facets within a kind.
+  | 'parcel' // per-capability ground group (transparent — cells inside carry the visible tint)
+  | 'parcel-flora' // one placed flora item (a grass tuft / tree / shrub), positioned by transform
+  | 'parcel-blade' // a grass blade / tussock / young sprout stroke
+  | 'parcel-shrub' // a foliage blob — bush dome / tree crown
+  | 'parcel-stem' // a woody stem / trunk / bare twig
+  | 'parcel-flower' // a small accent disc — flower petal (variant 0) / core or berry (variant 1) / dead fleck
   // the recently-landed bloom
   | 'bloom-anchor'
   | 'bloom-crown'
@@ -216,6 +229,10 @@ export interface SceneNodeBase {
   strokeWidth?: number;
   /** An additive accent modifier (a node that wears a second semantic class). */
   accent?: boolean;
+  /** A capability parcel's SURFACE THEME (forest-parcels inc 1) — the mapper appends its
+   *  `theme-<t>` class so meadow / woodland / heath flora read as distinct country. Carried on the
+   *  `parcel-flora` item group; the colour itself stays CSS-side (ADR-0093 §4). */
+  theme?: SurfaceTheme;
   /** A bloom's verdict outcome (drives the mapper's `verdict-<outcome>`). */
   outcome?: 'pass' | 'fail';
   /** A wisp's orbit phase in degrees (the mapper drives the rotation from it). */
@@ -258,6 +275,13 @@ export type ClaimColourState = 'authoring' | 'proving' | 'supplementing';
  *  ABSENT grade IS the work claim (the D2 back-compat default), so every pre-grade surface keeps
  *  today's orbit unchanged. */
 export type ClaimGrade = 'exploring' | 'waiting' | 'work';
+
+/** A capability parcel's SURFACE THEME (forest-parcels inc 1) — which per-theme surface function
+ *  (`SURFACES[theme]`) paints its patch of ground + flora. DUPLICATED as the core's OWN input
+ *  vocabulary (the scene-graph is a foundational root that depends on nothing — ADR-0093 §Open
+ *  call 2), mirroring the surface swarm's theme set (meadow / woodland / heath) rather than importing
+ *  it. The surface fold folds each capability's real theme into this. */
+export type SurfaceTheme = 'meadow' | 'woodland' | 'heath';
 
 /** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
  *  scene-graph is a foundational root that depends on nothing (ADR-0093 §Open call 2), so it mirrors
@@ -368,6 +392,22 @@ export interface ScenePlantInput {
   bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
 }
 
+/** A capability rendered as a PARCEL of the island's ground (forest-parcels inc 1) — its id (the
+ *  delegation/hover hook + the deterministic flora seed), its folded `status` (the per-cell ground
+ *  tint), its `testCount` (drives the flora DENSITY, not the parcel's area — island size stays keyed
+ *  to the caps count), the `theme` that surfaces it, and a `seed` position. The island's EXISTING
+ *  relaxed substrate cells are sub-partitioned among the parcels by equal-weight Voronoi over the
+ *  `seed` points (nearest seed wins); a parcel owns the cells nearest its seed. */
+export interface SceneParcelInput {
+  capId: string;
+  status: SceneStatus;
+  /** The capability's test-criteria count — the flora density knob (0 ⇒ bare ground). */
+  testCount: number;
+  theme: SurfaceTheme;
+  /** The parcel's Voronoi seed point, in island/map space (the same space `relaxedCells[].poly` is in). */
+  seed: Pt;
+}
+
 /** One island's drawable data — geometry the surface computed (centroid / treeSpot
  *  / coast / decor seeds), folded status, and the surface's folded marks (signpost
  *  presence, crown bloom, in-flight wisps) + nameplate box & text. */
@@ -383,9 +423,18 @@ export interface SceneTerritoryInput {
   /** The nameplate baseline y (also the delegation hit's bottom). */
   labelY: number;
   coastPaths: string[];
-  /** Conifer-clump seeds; the core expands each into 2–3 deterministic conifers. */
+  /** Conifer-clump seeds; the core expands each into 2–3 deterministic conifers.
+   *  RETIRED for a parcels-present island (the parcel flora replaces the decorative conifers). */
   decor: { x: number; y: number; seed: number }[];
   plants: ScenePlantInput[];
+  /** Capability PARCELS (forest-parcels inc 1). When PRESENT (and the island has relaxed substrate
+   *  cells), the island's existing cells are sub-partitioned among these capabilities by equal-weight
+   *  Voronoi over each parcel's `seed`, each cell tinted by its assigned cap's `status`, and each
+   *  parcel's flora emitted through its `theme`'s surface function with density ∝ `testCount` — and
+   *  the decorative conifers (`decor`) + the one-plant-per-cap ring (`plants`) are RETIRED for this
+   *  island. OPTIONAL and back-compat: absent ⇒ today's ground + conifers + plant ring render
+   *  byte-for-byte (the public website omits it entirely). */
+  parcels?: SceneParcelInput[];
   /** The crown tooltip (surface vocabulary). */
   treeTitle: string;
   /** Present only for a human-witness story; `outcome` null = a blank (unsigned) seal. */
@@ -969,26 +1018,838 @@ function buildPlate(t: SceneTerritoryInput): SceneG {
 }
 
 // ---------------------------------------------------------------------------
+// capability PARCELS — the land IS the capability (forest-parcels inc 1)
+// ---------------------------------------------------------------------------
+//
+// A parcels-present island sub-partitions its EXISTING relaxed substrate cells among its
+// capabilities (equal-weight Voronoi over each parcel's seed), tints each cell by its assigned cap's
+// status, and surfaces each parcel through its theme's `SurfaceFn`. THE SPLICE SEAM below (`SurfaceFn`
+// + the `SURFACES` registry) is the contract a designer swarm plugs into (ADR-0208): each theme
+// returns `{ ground, flora }` from the parcel's cells / status / testCount / a seeded rand. The three
+// functions ported here are the INITIAL in-repo implementations — designer-refined ones splice over
+// them later (the seam's shape + the kinds vocabulary are frozen; the craft is not). Everything is
+// deterministic (a seeded rand stream, no Math.random).
+
+/** One ground cell handed to a `SurfaceFn`: the resolved polygon + its centroid (the flora anchor).
+ *  The spike's `{ poly, cx, cy }`; its `boundary` flag drove a per-cell hem stroke that would need
+ *  NEW ground CSS, so it is dropped here — the ground reuses the existing `st-<status>` cell CSS. */
+export interface ParcelCell {
+  poly: Pt[];
+  cx: number;
+  cy: number;
+}
+
+/** One placed flora item a `SurfaceFn` emits — the spike's `{ y, svg }`, with `svg` now a SceneNode.
+ *  `y` is the item's painter-anchor (the island y-sorts flora with the tree so southern art overlaps
+ *  northern). */
+export interface ParcelFloraMark {
+  y: number;
+  node: SceneNode;
+}
+
+/** THE SPLICE SEAM (ADR-0208): a per-theme surface painter. Frozen contract
+ *  `(cells, status, testCount, rand) => { ground, flora }` — turns a capability parcel's cells into
+ *  its tinted ground cell nodes + its placed flora marks. `rand` is a seeded STATEFUL stream (the
+ *  core seeds it per parcel), so a `SurfaceFn` MUST stay deterministic — draw only from `rand`, never
+ *  Math.random. A designer swarm ships refined implementations that splice into `SURFACES`. */
+export type SurfaceFn = (
+  cells: ParcelCell[],
+  status: SceneStatus,
+  testCount: number,
+  rand: () => number,
+) => { ground: SceneNode[]; flora: ParcelFloraMark[] };
+
+/** A seeded mulberry32 STREAM `() => number` (a `SurfaceFn` draws many values). Mirrors the spike's
+ *  `mulberry32(hash(seed))`; `rand01` in rng.ts is a single-STEP variant, so the stream lives here.
+ *  Browser-safe, deterministic. */
+function streamRand(seed: string): () => number {
+  let a = hash(seed);
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** The shared parcel GROUND: every cell reused as the existing `cell` kind carrying the parcel's
+ *  folded status (so `st-<status>` colours it — ZERO new ground CSS) + a rand tone variant. */
+function parcelGround(cells: ParcelCell[], status: SceneStatus, rand: () => number): SceneNode[] {
+  return cells.map((c) =>
+    path(polyPath(c.poly), { kind: 'cell', variant: Math.floor(rand() * 3), status }),
+  );
+}
+
+// --- the three DESIGNER-AUTHORED theme surfaces (ADR-0208 splice) ------------------
+//
+// Ported faithfully from the designer swarm's `meadow.js` / `woodland.js` / `heath.js` (SVG-string
+// medium → SceneNode). The designers' own GROUND passes + `cell.boundary` hems are DROPPED — the
+// core's `parcelGround` owns the per-cell status-tinted ground (zero new ground CSS); only each
+// theme's FLORA vocabulary is ported, verbatim in geometry / density / status-composition / placement.
+// Every designer mark family maps onto the frozen generic kinds (`parcel-blade` / `parcel-shrub` /
+// `parcel-stem` / `parcel-flower` + shared `shadow`); cel-shading faces and within-tier colour
+// rotation ride `variant` (v0 light face, v1 dark face, v2+ rotation — a distinct sub-look like the
+// woodland sapling canopy takes its own variants, never a new kind); COLOUR itself stays CSS-side
+// (`apps/studio/src/index.css`, keyed `.parcel-flora.theme-<t>.st-<status>` × mark × `.v-<n>`). Each
+// function consumes `rand` in the DESIGNER's exact order, so it stays pure + deterministic (the
+// scene determinism test enforces identical output for identical input).
+
+/** Wrap a theme's absolute-coord marks as one placed `parcel-flora` item at painter-anchor `y`. The
+ *  capId is stamped later (in `buildTerritorySurface`, where the parcel identity is known). */
+function parcelFloraItem(
+  theme: SurfaceTheme,
+  status: SceneStatus,
+  y: number,
+  marks: SceneNode[],
+  opacity?: number,
+): ParcelFloraMark {
+  return {
+    y,
+    node: g(marks, {
+      kind: 'parcel-flora',
+      theme,
+      status,
+      ...(opacity != null ? { opacity } : {}),
+    }),
+  };
+}
+
+/** A soft ground-contact shadow — reuses the shared `shadow` kind (zero new shadow CSS). */
+function parcelShadow(x: number, y: number, rx: number, ry: number): SceneNode {
+  return ellipse(x, y, rx, ry, { kind: 'shadow' });
+}
+
+/** MEADOW (meadow.js) — long-grass tufts are the density bulk, healthy ground crowned with 4-petal
+ *  wildflowers (colour rotated across cream/white/yellow/pink), amber sprouts while proposed/building,
+ *  fallen twigs + wilt-red flecks when unhealthy. grass → `parcel-blade`, shrub → `parcel-shrub`,
+ *  flower/bud/berry/fleck → `parcel-flower`, flower-stem/sprout-stem/twig/wilt → `parcel-stem`. */
+function meadowSurface(
+  cells: ParcelCell[],
+  status: SceneStatus,
+  tests: number,
+  rand: () => number,
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+  const ground = parcelGround(cells, status, rand);
+  const flora: ParcelFloraMark[] = [];
+  if (!cells.length) return { ground, flora };
+
+  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
+    parcelFloraItem('meadow', status, y, marks);
+  const shadow = (x: number, y: number, rx: number): SceneNode =>
+    parcelShadow(x, y + 0.7, rx, rx * 0.32);
+
+  // density budget (verbatim): grass is the ramp bulk; shrubs a "grown" mark only where standing bulk
+  // grows (healthy/building/unhealthy); flowers a healthy (mapped-rare) accent.
+  const shrubEligible = status === 'healthy' || status === 'building' || status === 'unhealthy';
+  let grassCount: number;
+  let shrubCount: number;
+  let flowerCount: number;
+  if (tests <= 0) {
+    grassCount = Math.min(2, cells.length);
+    shrubCount = 0;
+    flowerCount = 0;
+  } else {
+    grassCount = Math.round(2 + tests * 1.9);
+    shrubCount = shrubEligible ? Math.round(tests / 2.6) : 0;
+    flowerCount =
+      status === 'healthy'
+        ? Math.round(Math.max(0, tests - 1) * 0.7)
+        : status === 'mapped'
+          ? tests >= 8
+            ? 1
+            : 0
+          : 0;
+  }
+  if (status === 'unhealthy') shrubCount = Math.round(shrubCount * 0.7);
+  if (status === 'unknown') grassCount = Math.round(grassCount * 0.6);
+  if (status === 'mapped' || status === 'proposed') grassCount = Math.round(grassCount * 0.85);
+  const lushBlade = (status === 'healthy' || status === 'building') && tests >= 6;
+
+  // deal cells with reshuffle-on-exhaust so density can exceed cell count
+  let deck: number[] = [];
+  const nextCell = (): ParcelCell => {
+    if (deck.length === 0) {
+      deck = cells.map((_, k) => k);
+      for (let k = deck.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        const tmp = deck[k]!;
+        deck[k] = deck[j]!;
+        deck[j] = tmp;
+      }
+    }
+    return cells[deck.pop()!]!;
+  };
+  const spot = (jx: number, jy: number): Pt => {
+    const cell = nextCell();
+    return { x: cell.cx + (rand() - 0.5) * jx, y: cell.cy + (rand() - 0.5) * jy };
+  };
+
+  // mark: long grass tuft — 3-4 filled two-face blades (dark back-face v1 under a narrower light
+  // front-face v0), one soft shared base shadow.
+  const grassTuft = (x: number, y: number): SceneNode[] => {
+    const n = status === 'unknown' ? 2 : lushBlade && rand() < 0.55 ? 4 : 3;
+    const marks: SceneNode[] = [shadow(x, y, 1.9 + n * 0.35)];
+    for (let b = 0; b < n; b++) {
+      const bx = x + (b - (n - 1) / 2) * 2.0 + (rand() - 0.5) * 0.7;
+      const lean = (rand() - 0.5) * 3.4;
+      const h = (status === 'unknown' ? 2.6 : 3.4) + rand() * 2.4;
+      const tipx = bx + lean;
+      const tipy = y - h;
+      const midx = bx + lean * 0.45;
+      const midy = y - h * 0.55;
+      marks.push(
+        path(
+          `M ${f(bx - 0.75)} ${f(y)} Q ${f(midx - 0.5)} ${f(midy)} ${f(tipx)} ${f(tipy)} Q ${f(midx + 0.75)} ${f(midy)} ${f(bx + 0.75)} ${f(y)} Z`,
+          { kind: 'parcel-blade', variant: 1 },
+        ),
+      );
+      marks.push(
+        path(
+          `M ${f(bx - 0.28)} ${f(y)} Q ${f(midx - 0.16)} ${f(midy)} ${f(tipx)} ${f(tipy)} Q ${f(midx + 0.35)} ${f(midy)} ${f(bx + 0.45)} ${f(y)} Z`,
+          { kind: 'parcel-blade', variant: 0 },
+        ),
+      );
+    }
+    return marks;
+  };
+
+  // mark: small shrub — 3 dark under-lobes (v1) set a bushy silhouette, 2 light crown lobes (v0), an
+  // optional berry (v3, healthy or unhealthy-dark via status).
+  const shrub = (x: number, y: number): SceneNode[] => {
+    const s = 1.1 + rand() * 0.4;
+    const marks: SceneNode[] = [shadow(x, y + 1.5 * s, 3.8 * s)];
+    const lobes: readonly (readonly [number, number, number])[] = [
+      [-2.3, 0.9, 1.9],
+      [2.1, 1.1, 2.0],
+      [0.2, -0.6, 2.5],
+    ];
+    for (const [lx0, ly0, lr0] of lobes) {
+      const lx = lx0 * s + (rand() - 0.5) * 0.8;
+      const ly = ly0 * s + (rand() - 0.5) * 0.5;
+      const lr = lr0 * s;
+      marks.push(ellipse(x + lx, y + ly, lr, lr * 0.78, { kind: 'parcel-shrub', variant: 1 }));
+    }
+    marks.push(ellipse(x - 1.3 * s, y - 1.2 * s, 1.9 * s, 1.35 * s, { kind: 'parcel-shrub', variant: 0 }));
+    marks.push(
+      ellipse(x + 0.9 * s, y - 0.9 * s, 1.3 * s, 0.95 * s, { kind: 'parcel-shrub', variant: 0, opacity: 0.9 }),
+    );
+    if (status === 'unhealthy' && rand() < 0.7) {
+      marks.push(circle(x + (rand() - 0.5) * 3.4 * s, y - rand() * 1.4 * s, 0.65 * s, { kind: 'parcel-flower', variant: 3 }));
+    } else if (status === 'healthy' && rand() < 0.55) {
+      marks.push(circle(x + (rand() - 0.5) * 3 * s, y - rand() * 1.6 * s, 0.7 * s, { kind: 'parcel-flower', variant: 3 }));
+    }
+    return marks;
+  };
+
+  // mark: flower — stem (parcel-stem v1) + 4-petal blossom (rotated petal variant 0/4/5/6) + core (v1)
+  // + a tiny core speck (v2).
+  const flower = (x: number, y: number): SceneNode[] => {
+    const petalV = [0, 4, 5, 6][Math.floor(rand() * 4)]!;
+    const top = y - 4.6 - rand() * 1.6;
+    const marks: SceneNode[] = [shadow(x, y, 1.3)];
+    marks.push(path(`M ${f(x)} ${f(y)} L ${f(x)} ${f(top + 1.0)}`, { kind: 'parcel-stem', variant: 1, strokeWidth: 0.9 }));
+    for (const [dx, dy] of [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4]] as const) {
+      marks.push(circle(x + dx, top + dy, 1.35, { kind: 'parcel-flower', variant: petalV }));
+    }
+    marks.push(circle(x, top, 1.05, { kind: 'parcel-flower', variant: 1 }));
+    marks.push(circle(x - 0.3, top - 0.3, 0.4, { kind: 'parcel-flower', variant: 2 }));
+    return marks;
+  };
+
+  // mark: sprout (proposed = muted straw bud, building = amber active bud) — stem (parcel-stem v1) +
+  // bud (dark v1 / light v0 / highlight v2) + two seed-leaves (parcel-stem v0).
+  const sprout = (x: number, y: number): SceneNode[] => {
+    const h = 3.4 + rand() * 2.0;
+    const lean = (rand() - 0.5) * 2.0;
+    const tipx = x + lean;
+    const tipy = y - h;
+    const marks: SceneNode[] = [shadow(x, y, 2.0)];
+    marks.push(path(`M ${f(x)} ${f(y)} Q ${f(x + lean * 0.4)} ${f(y - h * 0.55)} ${f(tipx)} ${f(tipy)}`, { kind: 'parcel-stem', variant: 1, strokeWidth: 1.0 }));
+    marks.push(circle(tipx, tipy - 0.9, 1.45, { kind: 'parcel-flower', variant: 1 }));
+    marks.push(circle(tipx - 0.35, tipy - 1.25, 0.8, { kind: 'parcel-flower', variant: 0 }));
+    marks.push(circle(tipx - 0.55, tipy - 1.45, 0.32, { kind: 'parcel-flower', variant: 2 }));
+    marks.push(path(`M ${f(x - 0.35)} ${f(y - 0.5)} Q ${f(x - 1.55)} ${f(y - 1.05)} ${f(x - 2.0)} ${f(y - 2.0)}`, { kind: 'parcel-stem', variant: 0, strokeWidth: 0.65, opacity: 0.85 }));
+    marks.push(path(`M ${f(x + 0.35)} ${f(y - 0.6)} Q ${f(x + 1.4)} ${f(y - 1.0)} ${f(x + 1.8)} ${f(y - 1.8)}`, { kind: 'parcel-stem', variant: 0, strokeWidth: 0.55, opacity: 0.7 }));
+    return marks;
+  };
+
+  // mark: unhealthy fallen twig (parcel-stem v0 + bright fleck v0) OR a drooping wilt stem (parcel-stem
+  // v1 + dark fleck v1 + bright fleck v0).
+  const wilt = (x: number, y: number): SceneNode[] => {
+    if (rand() < 0.5) {
+      const cw = 3.2 + rand() * 2.0;
+      return [
+        path(`M ${f(x - cw)} ${f(y)} L ${f(x - cw * 0.3)} ${f(y + 0.8)} L ${f(x + cw * 0.35)} ${f(y - 0.6)} L ${f(x + cw)} ${f(y + 0.6)}`, { kind: 'parcel-stem', variant: 0, strokeWidth: 1.0, opacity: 0.85 }),
+        circle(x + cw * 0.35, y - 1.3, 0.7, { kind: 'parcel-flower', variant: 0 }),
+      ];
+    }
+    const dir = rand() < 0.5 ? -1 : 1;
+    const th = 3.6 + rand() * 1.6;
+    return [
+      shadow(x, y, 1.9),
+      path(`M ${f(x)} ${f(y)} Q ${f(x + dir * 0.5)} ${f(y - th)} ${f(x + dir * 2.3)} ${f(y - th + 1.6)}`, { kind: 'parcel-stem', variant: 1, strokeWidth: 1.0 }),
+      circle(x + dir * 2.3, y - th + 1.6, 1.05, { kind: 'parcel-flower', variant: 1 }),
+      circle(x + dir * 1.9, y - th + 1.3, 0.5, { kind: 'parcel-flower', variant: 0 }),
+    ];
+  };
+
+  // assembly (verbatim): shrubs first (grass reads over them), then the grass bulk, then the
+  // status-specific accent layer.
+  for (let k = 0; k < shrubCount; k++) {
+    const ps = spot(5, 3.5);
+    flora.push(item(ps.y + 1, shrub(ps.x, ps.y)));
+  }
+  for (let k = 0; k < grassCount; k++) {
+    const pg = spot(8.5, 5);
+    const marks = grassTuft(pg.x, pg.y);
+    if (status === 'unhealthy' && rand() < 0.4) marks.push(...wilt(pg.x + 3, pg.y));
+    flora.push(item(pg.y, marks));
+  }
+  if (status === 'healthy' || (status === 'mapped' && flowerCount)) {
+    for (let k = 0; k < flowerCount; k++) {
+      const pf = spot(6.5, 4.2);
+      flora.push(item(pf.y, flower(pf.x, pf.y)));
+    }
+  }
+  if (status === 'proposed' || status === 'building') {
+    const sproutCount = tests <= 0 ? 0 : Math.max(1, Math.round(tests * (status === 'building' ? 0.6 : 0.45)));
+    for (let k = 0; k < sproutCount; k++) {
+      const psp = spot(6.5, 4.2);
+      flora.push(item(psp.y, sprout(psp.x, psp.y)));
+    }
+  }
+  if (status === 'unhealthy') {
+    const wiltCount = tests <= 0 ? 0 : Math.max(1, Math.round(tests * 0.4));
+    for (let k = 0; k < wiltCount; k++) {
+      const pw = spot(6.5, 4.2);
+      flora.push(item(pw.y, wilt(pw.x, pw.y)));
+    }
+  }
+  return { ground, flora };
+}
+
+/** WOODLAND (woodland.js) — a fern-frond understory (density bulk) with leafy undershrubs, anemone
+ *  blooms, and a BONUS sapling canopy at high density; withered twigs + red flecks when unhealthy.
+ *  fern → `parcel-blade`; undershrub → `parcel-shrub` (v0/v1); sapling CROWN → `parcel-shrub`
+ *  (v2/v3 — the distinct canopy sub-look on its own variants, per the frozen vocab); flower →
+ *  `parcel-flower`; flower-stem/trunk/twig → `parcel-stem` (twig v0 / flower-stem v1 / trunk v2). */
+function woodlandSurface(
+  cells: ParcelCell[],
+  status: SceneStatus,
+  tests: number,
+  rand: () => number,
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+  const ground = parcelGround(cells, status, rand);
+  const flora: ParcelFloraMark[] = [];
+  if (!cells.length) return { ground, flora };
+
+  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
+    parcelFloraItem('woodland', status, y, marks);
+  const shadow = (x: number, y: number, rx: number): SceneNode => parcelShadow(x, y, rx, rx * 0.34);
+  const fleck = (x: number, y: number): SceneNode => circle(x, y, 0.8, { kind: 'parcel-flower', variant: 0 });
+  const distressed = status === 'unhealthy';
+
+  const bladePath = (
+    x: number,
+    y: number,
+    tipx: number,
+    tipy: number,
+    midx: number,
+    midy: number,
+    bw: number,
+  ): string =>
+    `M${f(x - bw * 0.5)} ${f(y)} Q${f(midx - bw * 0.4)} ${f(midy)} ${f(tipx)} ${f(tipy)} Q${f(midx + bw * 0.4)} ${f(midy)} ${f(x + bw * 0.5)} ${f(y)} Z`;
+
+  // cell picking: deal without replacement + a 3-candidate min-spacing pick so flora spreads.
+  let deck: number[] = [];
+  const pickCell = (): ParcelCell => {
+    if (deck.length === 0) {
+      deck = cells.map((_, k) => k);
+      for (let k = deck.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        const tmp = deck[k]!;
+        deck[k] = deck[j]!;
+        deck[j] = tmp;
+      }
+    }
+    return cells[deck.pop()!]!;
+  };
+  const placed: Pt[] = [];
+  const spot = (jx: number, jy: number): Pt => {
+    let best: { p: Pt; dMin: number } | null = null;
+    for (let a = 0; a < 3; a++) {
+      const cell = pickCell();
+      const p = { x: cell.cx + (rand() * 2 - 1) * jx, y: cell.cy + (rand() * 2 - 1) * jy };
+      let dMin = 1e9;
+      for (const q of placed) {
+        const dx = p.x - q.x;
+        const dy = p.y - q.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < dMin) dMin = d2;
+      }
+      if (best === null || dMin > best.dMin) best = { p, dMin };
+      if (dMin > 64) break;
+    }
+    placed.push(best!.p);
+    return best!.p;
+  };
+
+  // mark: fern tuft — each blade a dark back-half (v1) under a narrower light front-half (v0).
+  const fern = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+    const s = 1.05 + rand() * 0.4;
+    if (distressed) {
+      const marks: SceneNode[] = [shadow(x, y, 2.4 * s)];
+      marks.push(
+        path(
+          `M${f(x - 1.2 * s)} ${f(y)} L${f(x - 2.3 * s)} ${f(y - 3 * s)} M${f(x + 0.6 * s)} ${f(y)} L${f(x + 1.9 * s)} ${f(y - 3.4 * s)} M${f(x - 0.3 * s)} ${f(y)} L${f(x)} ${f(y - 3.9 * s)}`,
+          { kind: 'parcel-stem', variant: 0, strokeWidth: 0.9 },
+        ),
+      );
+      marks.push(fleck(x + 1.9 * s, y - 3.6 * s));
+      return { y, marks };
+    }
+    const n = 3 + Math.floor(rand() * 2);
+    const marks: SceneNode[] = [shadow(x, y + 0.3 * s, 2.8 * s)];
+    for (let b = 0; b < n; b++) {
+      const t = n === 1 ? 0.5 : b / (n - 1);
+      const lean = (t - 0.5) * 5.6 * s;
+      const h = 5.2 * s * (0.82 + rand() * 0.34);
+      const tipx = x + lean;
+      const tipy = y - h;
+      const midx = x + lean * 0.55;
+      const midy = y - h * 0.6;
+      const bw = 2.0 * s;
+      marks.push(path(bladePath(x, y, tipx, tipy, midx, midy, bw), { kind: 'parcel-blade', variant: 1 }));
+      const lTipx = x + lean * 0.92 - bw * 0.16;
+      const lTipy = y - h * 0.86;
+      const lMidx = x + lean * 0.5 - bw * 0.12;
+      const lMidy = y - h * 0.5;
+      marks.push(path(bladePath(x, y, lTipx, lTipy, lMidx, lMidy, bw * 0.52), { kind: 'parcel-blade', variant: 0 }));
+    }
+    return { y, marks };
+  };
+
+  // mark: undershrub — side lump + main dome (dark v1) + upper-left highlight lobe (light v0).
+  const shrub = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+    const s = 0.85 + rand() * 0.35;
+    if (distressed) {
+      const marks: SceneNode[] = [shadow(x, y, 3.2 * s)];
+      marks.push(
+        path(
+          `M${f(x - 1.6 * s)} ${f(y)} L${f(x - 3.0 * s)} ${f(y - 3.6 * s)} M${f(x + 1.0 * s)} ${f(y)} L${f(x + 2.6 * s)} ${f(y - 4.2 * s)} M${f(x - 0.2 * s)} ${f(y)} L${f(x + 0.2 * s)} ${f(y - 4.8 * s)}`,
+          { kind: 'parcel-stem', variant: 0, strokeWidth: 1 },
+        ),
+      );
+      marks.push(fleck(x - 3.0 * s, y - 3.8 * s), fleck(x + 2.6 * s, y - 4.4 * s));
+      return { y, marks };
+    }
+    const marks: SceneNode[] = [shadow(x, y + 0.5 * s, 3.6 * s)];
+    const lumpSide = rand() < 0.5 ? -1 : 1;
+    marks.push(ellipse(x + lumpSide * 2.6 * s, y + 0.7 * s, 2.3 * s, 1.7 * s, { kind: 'parcel-shrub', variant: 1 }));
+    marks.push(ellipse(x, y, 3.8 * s, 2.7 * s, { kind: 'parcel-shrub', variant: 1 }));
+    marks.push(ellipse(x - 1.3 * s, y - 1.0 * s, 2.1 * s, 1.4 * s, { kind: 'parcel-shrub', variant: 0 }));
+    return { y: y + 2.5 * s, marks };
+  };
+
+  // mark: anemone bloom — stem (parcel-stem v1) + shadow petals (v1) + lit petals (v0) + core (v2).
+  const flower = (x: number, y: number): { y: number; marks: SceneNode[] } | null => {
+    if (distressed) return null;
+    const stemH = 3.4 + rand() * 1.4;
+    const top = y - stemH;
+    const marks: SceneNode[] = [];
+    marks.push(path(`M${f(x)} ${f(y)} Q${f(x + 0.4)} ${f(y - stemH * 0.6)} ${f(x)} ${f(top)}`, { kind: 'parcel-stem', variant: 1, strokeWidth: 0.6 }));
+    const petals = 5;
+    for (let pass = 0; pass < 2; pass++) {
+      const ox = pass === 0 ? 0.5 : -0.15;
+      const oy = pass === 0 ? 0.4 : -0.2;
+      const variant = pass === 0 ? 1 : 0;
+      for (let pt = 0; pt < petals; pt++) {
+        const ang = (pt / petals) * Math.PI * 2 + rand() * 0.2;
+        const px = x + ox + Math.cos(ang) * 1.5;
+        const py = top + oy + Math.sin(ang) * 1.5;
+        marks.push(circle(px, py, 1.0, { kind: 'parcel-flower', variant }));
+      }
+    }
+    marks.push(circle(x, top, 0.75, { kind: 'parcel-flower', variant: 2 }));
+    return { y, marks };
+  };
+
+  // mark: sapling — trunk (parcel-stem v2) + crown facet pair on its OWN variants (dark v3 / light v2).
+  const sapling = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+    const s = 0.8 + rand() * 0.3;
+    if (distressed) {
+      const marks: SceneNode[] = [shadow(x, y, 3 * s)];
+      marks.push(
+        path(
+          `M${f(x)} ${f(y)} L${f(x)} ${f(y - 9 * s)} M${f(x)} ${f(y - 4.5 * s)} L${f(x - 3.2 * s)} ${f(y - 8 * s)} M${f(x)} ${f(y - 6 * s)} L${f(x + 2.8 * s)} ${f(y - 9.5 * s)}`,
+          { kind: 'parcel-stem', variant: 0, strokeWidth: 1.1 },
+        ),
+      );
+      marks.push(fleck(x - 3.2 * s, y - 8.4 * s), fleck(x + 2.8 * s, y - 10 * s), fleck(x + 0.4 * s, y - 9.6 * s));
+      return { y, marks };
+    }
+    const r = 4.4 * s;
+    const trunkH = 4.4 * s;
+    const cy0 = y - trunkH - r * 0.8;
+    const marks: SceneNode[] = [shadow(x, y, r * 0.8)];
+    marks.push(path(`M${f(x)} ${f(y)} L${f(x)} ${f(y - trunkH - 1)}`, { kind: 'parcel-stem', variant: 2, strokeWidth: 1.4 }));
+    marks.push(circle(x, cy0, r, { kind: 'parcel-shrub', variant: 3 }));
+    marks.push(circle(x - r * 0.3, cy0 - r * 0.3, r * 0.75, { kind: 'parcel-shrub', variant: 2 }));
+    return { y, marks };
+  };
+
+  // density: three tiers always present past 0, saplings a bonus top layer.
+  const nFerns = tests <= 0 ? 1 : Math.min(cells.length, 2 + Math.round(tests * 0.85));
+  const nShrubs = tests <= 0 ? 0 : Math.max(1, Math.round(tests * 0.45));
+  const nFlowers = tests < 2 ? 0 : Math.max(1, Math.round(tests * 0.32));
+  const nSaplings = Math.floor(tests / 4);
+
+  for (let i = 0; i < nFerns; i++) {
+    const p = spot(3.5, 2.4);
+    const m = fern(p.x, p.y);
+    flora.push(item(m.y, m.marks));
+  }
+  for (let i = 0; i < nShrubs; i++) {
+    const p = spot(4, 2.6);
+    const m = shrub(p.x, p.y);
+    flora.push(item(m.y, m.marks));
+  }
+  for (let i = 0; i < nFlowers; i++) {
+    const p = spot(4.2, 2.6);
+    const m = flower(p.x, p.y);
+    if (m) flora.push(item(m.y, m.marks));
+  }
+  for (let i = 0; i < nSaplings; i++) {
+    const p = spot(4.5, 3);
+    const m = sapling(p.x, p.y);
+    flora.push(item(m.y, m.marks));
+  }
+  return { ground, flora };
+}
+
+/** The per-status heath config (heath.js `heathStatusConfig`, colour-stripped) — the density/opacity
+ *  knobs + whether each tier fires. Bell palette SIZES drive the healthy 2-colour bell rotation. */
+interface HeathConf {
+  scale: number;
+  opacity: number;
+  twiggy: boolean;
+  spark: boolean;
+  flowerBoost: number;
+  altShrubChance: number;
+  bloomChance: number;
+  bellLight: number;
+  bellDark: number;
+}
+function heathConf(status: SceneStatus): HeathConf {
+  switch (status) {
+    case 'healthy':
+      return { scale: 1.0, opacity: 1, twiggy: false, spark: false, flowerBoost: 1, altShrubChance: 0.35, bloomChance: 0.4, bellLight: 2, bellDark: 2 };
+    case 'mapped':
+      return { scale: 0.82, opacity: 0.72, twiggy: false, spark: false, flowerBoost: 0.3, altShrubChance: 0, bloomChance: 0.05, bellLight: 1, bellDark: 1 };
+    case 'proposed':
+      return { scale: 0.8, opacity: 0.78, twiggy: false, spark: false, flowerBoost: 0.4, altShrubChance: 0, bloomChance: 0.1, bellLight: 1, bellDark: 1 };
+    case 'building':
+      return { scale: 0.96, opacity: 1, twiggy: false, spark: true, flowerBoost: 0.85, altShrubChance: 0, bloomChance: 0.3, bellLight: 1, bellDark: 1 };
+    case 'unhealthy':
+      return { scale: 0.92, opacity: 0.92, twiggy: true, spark: false, flowerBoost: 0.2, altShrubChance: 0, bloomChance: 0, bellLight: 1, bellDark: 1 };
+    case 'unknown':
+    default:
+      return { scale: 0.68, opacity: 0.6, twiggy: false, spark: false, flowerBoost: 0, altShrubChance: 0, bloomChance: 0, bellLight: 0, bellDark: 0 };
+  }
+}
+
+/** HEATH (heath.js) — quilted moor turf grows wiry grass tufts (bulk), heather/gorse scrub mounds (the
+ *  density driver, two-face domes with a healthy gorse-olive alt lobe), and heather-bell racemes;
+ *  distressed statuses go to bare twigs. tests drives every tier, status only recolours/mutes (a group
+ *  opacity carries the mute). grass → `parcel-blade` (STROKED); mound → `parcel-shrub` (body v1 / hi v0,
+ *  gorse alt v3/v2); bell/spark/fleck → `parcel-flower`; raceme-stem/twig → `parcel-stem`. */
+function heathSurface(
+  cells: ParcelCell[],
+  status: SceneStatus,
+  tests: number,
+  rand: () => number,
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+  const ground = parcelGround(cells, status, rand);
+  const flora: ParcelFloraMark[] = [];
+  const conf = heathConf(status);
+  if (!cells.length) return { ground, flora };
+
+  const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
+    parcelFloraItem('heath', status, y, marks, conf.opacity < 1 ? conf.opacity : undefined);
+  // bell face variants: light index 0/1 → v0/v4, dark index 0/1 → v1/v5 (the healthy 2-colour rotation).
+  const bellLightV = (idx: number): number => (idx === 1 ? 4 : 0);
+  const bellDarkV = (idx: number): number => (idx === 1 ? 5 : 1);
+
+  // one clean two-face domed lobe: a body-tone mound + an offset highlight cap.
+  const mound = (cx: number, cy: number, s: number, bodyV: number, hiV: number): SceneNode[] => [
+    ellipse(cx, cy, 3.3 * s, 2.7 * s, { kind: 'parcel-shrub', variant: bodyV }),
+    ellipse(cx - 1.15 * s, cy - 1.05 * s, 1.85 * s, 1.5 * s, { kind: 'parcel-shrub', variant: hiV }),
+  ];
+  // a couple of small bells sitting on a mound's crown (bloom-in-flower).
+  const bloomOnMound = (cx: number, cy: number, s: number): SceneNode[] => {
+    if (!conf.bellLight) return [];
+    const out: SceneNode[] = [];
+    const n = 1 + Math.floor(rand() * 2);
+    for (let bi = 0; bi < n; bi++) {
+      const bx = cx + (rand() * 2 - 1) * 1.8 * s;
+      const by = cy - 2.1 * s - rand() * 0.8 * s;
+      const dv = bellDarkV(Math.floor(rand() * conf.bellDark));
+      const lv = bellLightV(Math.floor(rand() * conf.bellLight));
+      out.push(ellipse(bx, by, 0.75 * s, 1.0 * s, { kind: 'parcel-flower', variant: dv }));
+      out.push(ellipse(bx - 0.3 * s, by - 0.25 * s, 0.55 * s, 0.75 * s, { kind: 'parcel-flower', variant: lv }));
+    }
+    return out;
+  };
+
+  // tier 1: long wiry moor-grass tufts (stroked blades, grassA dark v1 / grassB light v0 alternating).
+  const grassTuft = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+    const s = conf.scale * (0.85 + rand() * 0.35);
+    const n = 3 + Math.floor(rand() * 3);
+    const marks: SceneNode[] = [ellipse(x + 0.3 * s, y + 0.6 * s, 2.6 * s, 0.8 * s, { kind: 'shadow' })];
+    for (let i = 0; i < n; i++) {
+      const dx = (i - (n - 1) / 2) * 1.15 * s;
+      const h = (3.2 + rand() * 2.6) * s;
+      const bend = dx * 1.1 + (rand() * 1.4 - 0.7) * s;
+      const variant = i % 2 === 0 ? 1 : 0;
+      marks.push(
+        path(
+          `M${f(x + dx)} ${f(y)} Q${f(x + dx + bend * 0.5)} ${f(y - h * 0.62)} ${f(x + dx + bend)} ${f(y - h)}`,
+          { kind: 'parcel-blade', variant, strokeWidth: 0.7 * s },
+        ),
+      );
+    }
+    return { y, marks };
+  };
+
+  // tier 2: heather/gorse scrub mounds (density driver). A hero is a clump (companion + main mound);
+  // distressed goes to bare wiry twigs + dead flecks.
+  const shrub = (x: number, y: number, hero: boolean): { y: number; marks: SceneNode[] } => {
+    const s = conf.scale * (hero ? 1.05 + rand() * 0.25 : 0.75 + rand() * 0.28);
+    const useAlt = conf.altShrubChance > 0 && rand() < conf.altShrubChance;
+    const bodyV = useAlt ? 3 : 1;
+    const hiV = useAlt ? 2 : 0;
+    const footprint = (hero ? 6.0 : 4.2) * s;
+    const marks: SceneNode[] = [ellipse(x + 0.4 * s, y + 2.6 * s, footprint, footprint * 0.28, { kind: 'shadow' })];
+
+    if (conf.twiggy) {
+      const tn = 3 + Math.floor(rand() * 2);
+      for (let w = 0; w < tn; w++) {
+        const wx = x + (w - (tn - 1) / 2) * 2.1 * s + (rand() * 1.4 - 0.7);
+        const wh = (3.4 + rand() * 2.0) * s;
+        const lean = (w - (tn - 1) / 2) * 1.3 + (rand() - 0.5);
+        marks.push(
+          path(`M${f(wx)} ${f(y + 1.0 * s)} q${f(lean)} ${f(-wh * 0.6)} ${f(lean * 1.7)} ${f(-wh)}`, {
+            kind: 'parcel-stem',
+            variant: 0,
+            strokeWidth: 0.55 * s,
+          }),
+        );
+      }
+      const fn = 2 + Math.floor(rand() * 2);
+      for (let d = 0; d < fn; d++) {
+        marks.push(circle(x + (rand() * 2 - 1) * 3.4 * s, y - rand() * 3.4 * s, 0.6 * s, { kind: 'parcel-flower', variant: 0 }));
+      }
+      return { y: y + 2.7 * s, marks };
+    }
+
+    if (hero) {
+      const side = rand() < 0.5 ? -1 : 1;
+      const altCompanion = conf.altShrubChance > 0 && rand() < 0.6;
+      const cBodyV = altCompanion ? 3 : bodyV;
+      const cHiV = altCompanion ? 2 : hiV;
+      marks.push(...mound(x + side * 3.1 * s, y + 0.75 * s, s * 0.6, cBodyV, cHiV));
+    }
+    marks.push(...mound(x, y, s, bodyV, hiV));
+
+    if (conf.bloomChance && rand() < conf.bloomChance) {
+      marks.push(...bloomOnMound(x, y, s));
+    }
+    if (conf.spark) {
+      const sk = 1 + Math.floor(rand() * 2);
+      for (let k = 0; k < sk; k++) {
+        marks.push(circle(x + (rand() * 2 - 1) * 2.6 * s, y - 1.4 * s - rand() * 1.6 * s, 0.5 * s, { kind: 'parcel-flower', variant: 6 }));
+      }
+    }
+    return { y: y + 3.0 * s, marks };
+  };
+
+  // tier 3: heather-bell raceme — a stem (parcel-stem v0) up which bells (dark back v1/v5, light face
+  // v0/v4, tiny core v2) climb.
+  const bellCluster = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+    if (!conf.bellLight) return { y, marks: [] };
+    const s = conf.scale * (1.0 + rand() * 0.3);
+    const n = 3 + Math.floor(rand() * 3);
+    const topY = y - (2.4 + n * 1.15) * s;
+    const marks: SceneNode[] = [];
+    marks.push(
+      path(`M${f(x)} ${f(y)} Q${f(x + 0.5 * s)} ${f((y + topY) / 2)} ${f(x + 0.3 * s)} ${f(topY)}`, {
+        kind: 'parcel-stem',
+        variant: 0,
+        strokeWidth: 0.65 * s,
+      }),
+    );
+    for (let i = 0; i < n; i++) {
+      const bx = x + 0.3 * s + (i % 2 === 0 ? -1 : 1) * 1.0 * s;
+      const by = y - (2.0 + i * 1.15) * s;
+      const dv = bellDarkV(Math.floor(rand() * conf.bellDark));
+      const lv = bellLightV(Math.floor(rand() * conf.bellLight));
+      marks.push(ellipse(bx, by, 1.0 * s, 1.35 * s, { kind: 'parcel-flower', variant: dv }));
+      marks.push(ellipse(bx - 0.35 * s, by - 0.3 * s, 0.75 * s, 1.02 * s, { kind: 'parcel-flower', variant: lv }));
+      marks.push(circle(bx - 0.3 * s, by + 0.55 * s, 0.32 * s, { kind: 'parcel-flower', variant: 2 }));
+    }
+    return { y, marks };
+  };
+
+  // shuffle cell order so flora spreads across the whole parcel.
+  const order = cells.slice();
+  for (let j = order.length - 1; j > 0; j--) {
+    const k = Math.floor(rand() * (j + 1));
+    const tmp = order[j]!;
+    order[j] = order[k]!;
+    order[k] = tmp;
+  }
+  let idx = 0;
+  const next = (jx: number, jy?: number): Pt => {
+    const cell = order[idx % order.length]!;
+    idx++;
+    const jyy = jy == null ? jx * 0.7 : jy;
+    return { x: cell.cx + (rand() * 2 - 1) * jx, y: cell.cy + (rand() * 2 - 1) * jyy };
+  };
+
+  // density budget: tests drives every tier, status only recolours/mutes.
+  const t = Math.max(0, tests | 0);
+  const grassCount = cells.length ? Math.min(cells.length, t === 0 ? 4 : 4 + Math.round(t * 1.3)) : 0;
+  const shrubCount = Math.round(t * 0.75);
+  const flowerClusters = t < 2 ? 0 : Math.round((t - 1) * 0.3 * conf.flowerBoost);
+
+  for (let i = 0; i < grassCount; i++) {
+    const p = next(4.2);
+    const m = grassTuft(p.x, p.y);
+    flora.push(item(m.y, m.marks));
+  }
+  for (let i = 0; i < shrubCount; i++) {
+    const p = next(3.4);
+    const m = shrub(p.x, p.y, i < 2);
+    flora.push(item(m.y, m.marks));
+  }
+  for (let i = 0; i < flowerClusters; i++) {
+    const p = next(4.4);
+    const m = bellCluster(p.x, p.y);
+    flora.push(item(m.y, m.marks));
+  }
+  return { ground, flora };
+}
+
+/** THE SURFACE REGISTRY (ADR-0208) — the splice point: theme → its `SurfaceFn`. These are the
+ *  designer-authored surfaces (meadow / woodland / heath), spliced over the initial in-repo ports
+ *  behind the frozen seam (the `SurfaceFn` shape + the kinds vocabulary are frozen; the craft is not). */
+export const SURFACES: Record<SurfaceTheme, SurfaceFn> = {
+  meadow: meadowSurface,
+  woodland: woodlandSurface,
+  heath: heathSurface,
+};
+
+// --- Voronoi assignment + the once-computed per-territory surface ---
+
+function cellCentroid(poly: Pt[]): Pt {
+  let x = 0;
+  let y = 0;
+  for (const p of poly) {
+    x += p.x;
+    y += p.y;
+  }
+  const n = poly.length || 1;
+  return { x: x / n, y: y / n };
+}
+
+/** The equal-weight VORONOI assignment: a cell → the nearest parcel seed (ties → lowest index). */
+function nearestParcel(centroid: Pt, seeds: readonly Pt[]): number {
+  let best = 0;
+  let bd = Infinity;
+  for (let i = 0; i < seeds.length; i++) {
+    const s = seeds[i]!;
+    const d = (centroid.x - s.x) ** 2 + (centroid.y - s.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** One parcels-present island's full surface, computed ONCE (buildScene threads the `ground` to
+ *  `buildGround` and the `flora` to `buildTerritoryFlora`). Each parcel's ground cells are wrapped in
+ *  a transparent `parcel` group carrying the capId (the hover/delegation hook). Returns null when the
+ *  island has no parcels or no substrate cells (the feature needs the relaxed mesh), so every caller
+ *  falls back to today's render. */
+export interface ParcelSurface {
+  ground: SceneNode[];
+  flora: ParcelFloraMark[];
+}
+function buildTerritorySurface(t: SceneTerritoryInput, ownerCells: RelaxedCell[]): ParcelSurface | null {
+  const parcels = t.parcels;
+  if (!parcels || !parcels.length || !ownerCells.length) return null;
+  const seeds = parcels.map((p) => p.seed);
+  const groups: ParcelCell[][] = parcels.map(() => []);
+  for (const c of ownerCells) {
+    const cen = cellCentroid(c.poly);
+    const idx = nearestParcel(cen, seeds);
+    groups[idx]!.push({ poly: c.poly, cx: cen.x, cy: cen.y });
+  }
+  const ground: SceneNode[] = [];
+  const flora: ParcelFloraMark[] = [];
+  parcels.forEach((parcel, i) => {
+    const cells = groups[i]!;
+    if (!cells.length) return;
+    const rand = streamRand(`parcel:${t.id}:${parcel.capId}`);
+    const out = SURFACES[parcel.theme](cells, parcel.status, parcel.testCount, rand);
+    ground.push(
+      g(out.ground, { kind: 'parcel', id: parcel.capId, status: parcel.status, title: parcel.capId }),
+    );
+    // Stamp each flora item with its capId (the SurfaceFn is capId-agnostic, so attribution — the
+    // hover-flora → capability hook — is added here, where the parcel identity is known).
+    for (const fm of out.flora) {
+      fm.node.id = parcel.capId;
+      flora.push(fm);
+    }
+  });
+  return { ground, flora };
+}
+
+// ---------------------------------------------------------------------------
 // a whole island's flora layer (TerritoryFlora)
 // ---------------------------------------------------------------------------
 
 /** One island's flora group: conifers (expanded from the decor seeds), capability
  *  plants, and the central tree — all y-sorted so southern art overlaps northern —
- *  then the nameplate and the wisp orbit. */
-export function buildTerritoryFlora(t: SceneTerritoryInput): SceneG {
+ *  then the nameplate and the wisp orbit.
+ *
+ *  When `parcelFlora` is provided (a parcels-present island, forest-parcels inc 1), the decorative
+ *  conifers (`decor`) and the one-plant-per-cap ring (`plants`) are RETIRED — the parcel surface
+ *  flora replaces them, y-sorted into the same list as the tree so the interleave with the canopy
+ *  still holds. Absent ⇒ today's conifer + plant render is byte-for-byte unchanged. */
+export function buildTerritoryFlora(
+  t: SceneTerritoryInput,
+  parcelFlora?: ParcelFloraMark[] | null,
+): SceneG {
   const drawables: { y: number; node: SceneNode }[] = [];
 
-  for (const d of t.decor) {
-    const count = 2 + (d.seed % 2);
-    for (let i = 0; i < count; i++) {
-      const a = rand01(d.seed + i * 7) * Math.PI * 2;
-      const rr = rand01(d.seed + i * 13) * HEX_R * 0.55;
-      const x = d.x + Math.cos(a) * rr;
-      const y = d.y + Math.sin(a) * rr * 0.8 + 4;
-      drawables.push({ y, node: buildConifer(x, y, 7 + rand01(d.seed + i) * 4, d.seed + i) });
+  if (parcelFlora) {
+    // parcels-present: the parcel surface flora IS the island's flora (conifers + plant ring retired).
+    for (const fm of parcelFlora) drawables.push({ y: fm.y, node: fm.node });
+  } else {
+    for (const d of t.decor) {
+      const count = 2 + (d.seed % 2);
+      for (let i = 0; i < count; i++) {
+        const a = rand01(d.seed + i * 7) * Math.PI * 2;
+        const rr = rand01(d.seed + i * 13) * HEX_R * 0.55;
+        const x = d.x + Math.cos(a) * rr;
+        const y = d.y + Math.sin(a) * rr * 0.8 + 4;
+        drawables.push({ y, node: buildConifer(x, y, 7 + rand01(d.seed + i) * 4, d.seed + i) });
+      }
     }
+    for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
   }
-  for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
   drawables.push({ y: t.treeSpot.y, node: buildTree(t) });
   drawables.sort((a, b) => a.y - b.y);
 
@@ -1040,13 +1901,19 @@ function buildCoast(input: SceneInput): SceneG {
   return g(groups, { kind: 'coast-layer' });
 }
 
-function buildGround(input: SceneInput): SceneG {
+function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): SceneG {
   if (input.relaxedCells) {
     const cells = input.relaxedCells;
     const groups = input.territories
       .map((t, owner): SceneG | null => {
         const owned = cells.filter((c) => c.owner === owner);
         if (!owned.length) return null;
+        const surf = surfaces[owner];
+        if (surf) {
+          // parcels-present: the per-parcel, per-cell status-tinted ground replaces the plain cells
+          // (the per-territory status tint that keyed today's ground moves down to per-cell cap status).
+          return g(surf.ground, { kind: 'ground', status: t.status, id: t.id });
+        }
         return g(
           owned.map((c) =>
             path(polyPath(c.poly), c.wheat ? { kind: 'cell-wheat' } : { kind: 'cell', variant: c.variant }),
@@ -1215,15 +2082,26 @@ function buildHits(input: SceneInput): SceneG {
  * layered on top.
  */
 export function buildScene(input: SceneInput): SceneG {
+  // Compute each parcels-present island's surface ONCE (forest-parcels inc 1) — the ground threads to
+  // `buildGround`, the flora to `buildTerritoryFlora`. Null (no parcels / no mesh cells) ⇒ today's
+  // render on both seams, byte-for-byte.
+  const cells = input.relaxedCells;
+  const surfaces: (ParcelSurface | null)[] = input.territories.map((t, owner) =>
+    cells ? buildTerritorySurface(t, cells.filter((c) => c.owner === owner)) : null,
+  );
   return g(
     [
       buildEmpties(input),
       buildCoast(input),
-      buildGround(input),
+      buildGround(input, surfaces),
       buildTrails(input),
-      g([...input.territories.map(buildTerritoryFlora), ...buildCaves(input)], {
-        kind: 'flora-layer',
-      }),
+      g(
+        [
+          ...input.territories.map((t, i) => buildTerritoryFlora(t, surfaces[i]?.flora ?? null)),
+          ...buildCaves(input),
+        ],
+        { kind: 'flora-layer' },
+      ),
       buildHits(input),
     ],
     { kind: 'world', transform: `translate(${f(input.offset.x)} ${f(input.offset.y)})` },

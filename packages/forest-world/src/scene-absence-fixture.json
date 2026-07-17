@@ -1,0 +1,1077 @@
+{
+  "el": "g",
+  "children": [
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "path",
+          "d": "M 0.0 -26.4 L 22.9 -13.2 L 22.9 13.2 L 0.0 26.4 L -22.9 13.2 L -22.9 -13.2 Z",
+          "kind": "empty"
+        },
+        {
+          "el": "path",
+          "d": "M 46.8 -26.4 L 69.6 -13.2 L 69.6 13.2 L 46.8 26.4 L 23.9 13.2 L 23.9 -13.2 Z",
+          "kind": "empty"
+        }
+      ],
+      "kind": "empties-layer"
+    },
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 0 0 L 10 0 L 10 10 Z",
+              "kind": "coast-shore"
+            }
+          ],
+          "kind": "coast",
+          "status": "healthy",
+          "id": "library"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 0 0 L 8 0 L 8 8 Z",
+              "kind": "coast-shore"
+            }
+          ],
+          "kind": "coast",
+          "status": "proposed",
+          "id": "cli"
+        }
+      ],
+      "kind": "coast-layer"
+    },
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 0.0 0.0 L 5.0 0.0 L 5.0 5.0 Z",
+              "kind": "cell",
+              "variant": 1
+            },
+            {
+              "el": "path",
+              "d": "M 5.0 0.0 L 10.0 0.0 L 10.0 5.0 Z",
+              "kind": "cell-wheat"
+            },
+            {
+              "el": "path",
+              "d": "M 0.0 5.0 L 5.0 5.0 L 5.0 10.0 Z",
+              "kind": "cell-wheat"
+            }
+          ],
+          "kind": "ground",
+          "status": "healthy",
+          "id": "library"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 0.0 0.0 L 5.0 0.0 L 5.0 5.0 Z",
+              "kind": "cell",
+              "variant": 0
+            }
+          ],
+          "kind": "ground",
+          "status": "proposed",
+          "id": "cli"
+        }
+      ],
+      "kind": "ground-mesh"
+    },
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "kind": "trail-shadow",
+              "id": "tbv58gy",
+              "usage": 1,
+              "edges": "library->cli",
+              "strokeWidth": 8
+            }
+          ],
+          "kind": "trail-shadow-pass"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "kind": "trail-casing",
+              "id": "tbv58gy",
+              "usage": 1,
+              "edges": "library->cli",
+              "strokeWidth": 5.5
+            }
+          ],
+          "kind": "trail-casing-pass"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "path",
+              "d": "M 258.19 87.42 C 254.31 89.96 250.46 91.99 246.55 95.05 C 242.02 98.59 239.27 105.2 232.84 107.72 C 223.37 111.44 202.78 103.32 192.28 107.78 C 183.41 111.56 178.87 121.74 172.14 128.64 C 165.45 135.5 157.47 143.64 152.05 149.05 C 148.42 152.67 145.93 155.04 142.88 158.03",
+              "kind": "trail-fill",
+              "id": "tbv58gy",
+              "usage": 1,
+              "edges": "library->cli",
+              "strokeWidth": 3,
+              "spur": true
+            }
+          ],
+          "kind": "trail-fill-pass"
+        },
+        {
+          "el": "g",
+          "children": [],
+          "kind": "trail-ghost-pass"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "g",
+              "children": [],
+              "kind": "trail-edge",
+              "from": "library",
+              "to": "cli",
+              "title": "cli depends on library",
+              "segments": "tbv58gy:R"
+            }
+          ],
+          "kind": "trail-edges"
+        }
+      ],
+      "kind": "trails-layer"
+    },
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 2.6636975867673756,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -1.0 -7.0 L 3.0 0 L -3.0 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 1
+                },
+                {
+                  "el": "path",
+                  "d": "M -1.0 -7.0 L 0.4 -3.2 L -2.3 -3.2 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(80.2 184.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 2.9464781241640448,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -0.6 -7.8 L 3.3 0 L -3.3 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 0
+                },
+                {
+                  "el": "path",
+                  "d": "M -0.6 -7.8 L 0.9 -3.5 L -2.1 -3.5 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(72.6 186.7)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 2.8823182968031613,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -0.7 -7.6 L 3.2 0 L -3.2 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 2
+                },
+                {
+                  "el": "path",
+                  "d": "M -0.7 -7.6 L 0.8 -3.4 L -2.1 -3.4 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(69.4 186.9)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 2,
+                  "cy": 2,
+                  "rx": 19.188000000000002,
+                  "ry": 4.920000000000001,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -3.6 0 C -3.2 -12.2, -2.4 -26.4, -2.2 -40.6 L 2.2 -40.6 C 2.4 -26.4, 3.2 -12.2, 3.6 0 Q 0 2.4 -3.6 0 Z",
+                  "kind": "trunk"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "circle",
+                      "cx": 0,
+                      "cy": -40.59,
+                      "r": 24.6
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -15.225136921238155,
+                      "cy": -32.25184489516541,
+                      "r": 15.928325260829219
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 13.939541957991198,
+                      "cy": -33.18593122312333,
+                      "r": 16.147666975796188
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -10.852568339919673,
+                      "cy": -52.33774213579763,
+                      "r": 14.044386251882091
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 9.182941260784865,
+                      "cy": -52.38714170252904,
+                      "r": 13.938397751915975
+                    }
+                  ],
+                  "kind": "crown-lo"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "circle",
+                      "cx": -5.000543202146888,
+                      "cy": -48.348710874742835,
+                      "r": 14.058231830365955
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -14.44287610705197,
+                      "cy": -42.497759863855315,
+                      "r": 9.056348518133461
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 7.9146456303801385,
+                      "cy": -53.81913552565501,
+                      "r": 8.516833502010405
+                    }
+                  ],
+                  "kind": "crown-hi"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "g",
+                      "children": [
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 29.028,
+                          "kind": "bloom-ring"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": -16.219332760889078,
+                          "cy": 16.2845698906276,
+                          "r": 1.294407555414364,
+                          "kind": "bloom-spark"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": -35.02889273786876,
+                          "cy": 6.466659931339153,
+                          "r": 1.714530294982251,
+                          "kind": "bloom-spark"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 16.94163965931477,
+                          "cy": -22.91966287936532,
+                          "r": 1.6389815338072369,
+                          "kind": "bloom-spark"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": -18.781135808337474,
+                          "cy": 15.552493253125576,
+                          "r": 1.4512632742873395,
+                          "kind": "bloom-spark"
+                        }
+                      ],
+                      "kind": "bloom-crown",
+                      "outcome": "pass"
+                    }
+                  ],
+                  "kind": "bloom-anchor",
+                  "transform": "translate(0.0 -40.6)",
+                  "opacity": 0.82
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "ellipse",
+                      "cx": 0.6,
+                      "cy": 0.8,
+                      "rx": 4,
+                      "ry": 1.6,
+                      "kind": "shadow"
+                    },
+                    {
+                      "el": "rect",
+                      "x": -1.3,
+                      "y": -15,
+                      "width": 2.6,
+                      "height": 15,
+                      "rx": 1.1,
+                      "kind": "sign-post"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 0,
+                      "cy": -18,
+                      "r": 6.5,
+                      "kind": "sign-head"
+                    }
+                  ],
+                  "kind": "sign-pass",
+                  "transform": "translate(26.2 0)"
+                }
+              ],
+              "kind": "tree",
+              "status": "healthy",
+              "title": "library — healthy",
+              "transform": "translate(100.0 190.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "circle",
+                  "cx": 0,
+                  "cy": 0,
+                  "r": 9.5,
+                  "kind": "flora-hit"
+                },
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 8,
+                  "ry": 2.6,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "path",
+                      "d": "M -1.2 0 C -1 -4 -0.8 -7 -0.6 -9.5 L 0.9 -9.5 C 1 -7 1.2 -4 1.4 0 Z",
+                      "kind": "sapling-trunk"
+                    },
+                    {
+                      "el": "polygon",
+                      "points": "0,-18.5 5.4,-15.4 6.6,-10.2 3.4,-7.2 -3.4,-7.2 -6.6,-10.2 -5.4,-15.4",
+                      "kind": "flora-dark"
+                    },
+                    {
+                      "el": "polygon",
+                      "points": "-0.6,-18.3 3.8,-15.8 3.4,-12 -1.6,-11.4 -4.4,-14.2",
+                      "kind": "flora-light"
+                    }
+                  ]
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "g",
+                      "children": [
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 8,
+                          "kind": "bloom-ring"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": -8.405472786645955,
+                          "cy": 1.930583707936231,
+                          "r": 1.1704075064742938,
+                          "kind": "bloom-spark"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": -7.066323755177245,
+                          "cy": 0.5834579538234262,
+                          "r": 1.2546792110195384,
+                          "kind": "bloom-spark"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 0.025608082293607157,
+                          "cy": -6.927626671172215,
+                          "r": 0.9394430968211964,
+                          "kind": "bloom-spark"
+                        }
+                      ],
+                      "kind": "bloom-plant",
+                      "outcome": "pass"
+                    }
+                  ],
+                  "kind": "bloom-anchor",
+                  "transform": "translate(0.0 -5.0)",
+                  "opacity": 0.63
+                }
+              ],
+              "kind": "flora",
+              "status": "healthy",
+              "id": "library#cap-a",
+              "title": "cap a",
+              "transform": "translate(90.0 205.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 4.042537930034102,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.8 -10.7 L 4.5 0 L -4.5 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 1
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.8 -10.7 L 2.9 -4.8 L -1.2 -4.8 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(132.2 208.9)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 3.688939665310085,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.4 -9.8 L 4.1 0 L -4.1 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 2
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.4 -9.8 L 2.2 -4.4 L -1.5 -4.4 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(110.0 213.4)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "circle",
+                  "cx": 0,
+                  "cy": 0,
+                  "r": 9.5,
+                  "kind": "flora-hit"
+                },
+                {
+                  "el": "ellipse",
+                  "cx": 0,
+                  "cy": 0.5,
+                  "rx": 8,
+                  "ry": 3.2,
+                  "kind": "dead-ground"
+                },
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 6,
+                  "ry": 2.2,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "ellipse",
+                      "cx": 0,
+                      "cy": 0.4,
+                      "rx": 8.5,
+                      "ry": 3,
+                      "kind": "flora-bed",
+                      "opacity": 0.7
+                    },
+                    {
+                      "el": "path",
+                      "d": "M 0.5 0 C 0.6 -6 0.4 -10 2.6 -11.4 C 4.4 -12.4 5.8 -10.8 5.6 -9.2",
+                      "kind": "flora-dead-stem",
+                      "strokeWidth": 1.2
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 5.6,
+                      "cy": -8.2,
+                      "r": 1.7,
+                      "kind": "flora-dead-head",
+                      "accent": true
+                    },
+                    {
+                      "el": "path",
+                      "d": "M -3.5 0 C -4 -5 -4.5 -8.5 -2.5 -10 C -1 -11 0.5 -10 0.8 -8.4",
+                      "kind": "flora-dead-stem",
+                      "strokeWidth": 1.1
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 0.8,
+                      "cy": -7.6,
+                      "r": 1.4,
+                      "kind": "flora-dead-head"
+                    },
+                    {
+                      "el": "path",
+                      "d": "M 4.2 0 L 4.8 -5.2 L 7.6 -7.4",
+                      "kind": "flora-dead-stem",
+                      "strokeWidth": 1.1
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -7,
+                      "cy": -0.5,
+                      "r": 1,
+                      "kind": "litter"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 2.5,
+                      "cy": 1.2,
+                      "r": 1,
+                      "kind": "litter"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 6.5,
+                      "cy": 0.2,
+                      "r": 1,
+                      "kind": "litter"
+                    }
+                  ]
+                }
+              ],
+              "kind": "flora",
+              "status": "unhealthy",
+              "id": "library#cap-b",
+              "title": "cap b",
+              "transform": "translate(110.0 215.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "rect",
+                  "x": 0,
+                  "y": 0,
+                  "width": 120,
+                  "height": 33,
+                  "rx": 7,
+                  "kind": "plate-bg"
+                },
+                {
+                  "el": "text",
+                  "x": 60,
+                  "y": 14,
+                  "text": "library",
+                  "anchor": "middle",
+                  "kind": "plate-id"
+                },
+                {
+                  "el": "text",
+                  "x": 60,
+                  "y": 27,
+                  "text": "healthy · 3 caps",
+                  "anchor": "middle",
+                  "kind": "plate-sub"
+                }
+              ],
+              "kind": "plate",
+              "title": "The library",
+              "transform": "translate(40.0 260.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "g",
+                      "children": [
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 12,
+                          "kind": "wisp-hit"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 6.5,
+                          "kind": "wisp-glow"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 2.8,
+                          "kind": "wisp-dot"
+                        }
+                      ],
+                      "transform": "translate(53.2 0)"
+                    }
+                  ],
+                  "kind": "wisp",
+                  "title": "building",
+                  "phase": 130.62944166362286,
+                  "phaseBand": "red",
+                  "colourState": "proving"
+                }
+              ],
+              "kind": "wisps",
+              "transform": "translate(100.0 200.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "g",
+                      "children": [
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 12,
+                          "kind": "claim-wisp-hit"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 6.5,
+                          "kind": "claim-wisp-glow"
+                        },
+                        {
+                          "el": "circle",
+                          "cx": 0,
+                          "cy": 0,
+                          "r": 2.8,
+                          "kind": "claim-wisp-dot"
+                        }
+                      ],
+                      "transform": "translate(65.2 0)"
+                    }
+                  ],
+                  "kind": "claim-wisp",
+                  "title": "a session is here",
+                  "phase": 248.56533327139914,
+                  "colourState": "authoring"
+                }
+              ],
+              "kind": "claim-wisps",
+              "transform": "translate(100.0 200.0)"
+            }
+          ],
+          "kind": "territory",
+          "status": "healthy",
+          "id": "library"
+        },
+        {
+          "el": "g",
+          "children": [
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 2,
+                  "cy": 2,
+                  "rx": 10.83264,
+                  "ry": 2.7776,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -3.6 0 C -3.2 -6.9, -2.4 -14.9, -2.2 -22.9 L 2.2 -22.9 C 2.4 -14.9, 3.2 -6.9, 3.6 0 Q 0 2.4 -3.6 0 Z",
+                  "kind": "trunk"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "circle",
+                      "cx": 0,
+                      "cy": -22.9152,
+                      "r": 13.888
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -8.997285597985387,
+                      "cy": -18.260199726451933,
+                      "r": 8.197422472316097
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 7.948995598822235,
+                      "cy": -18.53933154852688,
+                      "r": 8.860404313969134
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -5.5629974462223055,
+                      "cy": -30.1493854954949,
+                      "r": 7.852002947267771
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 5.0930021194821595,
+                      "cy": -29.811703403297063,
+                      "r": 7.85639602114731
+                    }
+                  ],
+                  "kind": "crown-lo"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "circle",
+                      "cx": -2.1811361507248876,
+                      "cy": -27.49527829377055,
+                      "r": 8.316463861809968
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -6.9421250054836285,
+                      "cy": -23.55769716165662,
+                      "r": 5.2683936771461015
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 4.46461827568531,
+                      "cy": -30.17490332826376,
+                      "r": 4.969762477618074
+                    }
+                  ],
+                  "kind": "crown-hi"
+                }
+              ],
+              "kind": "tree",
+              "status": "proposed",
+              "title": "cli — proposed",
+              "transform": "translate(300.0 50.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 3.688939665310085,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.4 -9.8 L 4.1 0 L -4.1 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 2
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.4 -9.8 L 2.2 -4.4 L -1.5 -4.4 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(286.2 51.4)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 2.6636975867673756,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M -1.0 -7.0 L 3.0 0 L -3.0 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 1
+                },
+                {
+                  "el": "path",
+                  "d": "M -1.0 -7.0 L 0.4 -3.2 L -2.3 -3.2 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(299.3 61.9)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 3.4409288761038335,
+                  "ry": 2.4,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.1 -9.1 L 3.8 0 L -3.8 0 Z",
+                  "kind": "conifer-body",
+                  "variant": 0
+                },
+                {
+                  "el": "path",
+                  "d": "M 0.1 -9.1 L 1.8 -4.1 L -1.7 -4.1 Z",
+                  "kind": "conifer-snow"
+                }
+              ],
+              "kind": "conifer",
+              "transform": "translate(288.6 63.6)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "circle",
+                  "cx": 0,
+                  "cy": 0,
+                  "r": 9.5,
+                  "kind": "flora-hit"
+                },
+                {
+                  "el": "ellipse",
+                  "cx": 1,
+                  "cy": 1,
+                  "rx": 8,
+                  "ry": 2.6,
+                  "kind": "shadow"
+                },
+                {
+                  "el": "g",
+                  "children": [
+                    {
+                      "el": "polygon",
+                      "points": "0,-12.5 5.5,-10.5 8.5,-5.5 7,-1 0,0.8 -7,-1 -8.5,-5.5 -5.5,-10.5",
+                      "kind": "flora-dark"
+                    },
+                    {
+                      "el": "polygon",
+                      "points": "-1,-12.5 4.5,-10.8 6,-7 0.5,-5.6 -4.8,-7.4 -4.6,-10.6",
+                      "kind": "flora-light"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": -3.5,
+                      "cy": -4.5,
+                      "r": 1.5,
+                      "kind": "flora-core"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 2,
+                      "cy": -7.5,
+                      "r": 1.5,
+                      "kind": "flora-core"
+                    },
+                    {
+                      "el": "circle",
+                      "cx": 4.5,
+                      "cy": -3.5,
+                      "r": 1.4,
+                      "kind": "flora-core"
+                    }
+                  ]
+                }
+              ],
+              "kind": "flora",
+              "status": "proposed",
+              "id": "cli#cap-x",
+              "title": "cap x",
+              "transform": "translate(295.0 65.0)"
+            },
+            {
+              "el": "g",
+              "children": [
+                {
+                  "el": "rect",
+                  "x": 0,
+                  "y": 0,
+                  "width": 100,
+                  "height": 30,
+                  "rx": 6,
+                  "kind": "plate-bg"
+                },
+                {
+                  "el": "text",
+                  "x": 50,
+                  "y": 13,
+                  "text": "cli",
+                  "anchor": "middle",
+                  "kind": "plate-id"
+                },
+                {
+                  "el": "text",
+                  "x": 50,
+                  "y": 25,
+                  "text": "proposed · 2 caps",
+                  "anchor": "middle",
+                  "kind": "plate-sub"
+                }
+              ],
+              "kind": "plate",
+              "title": "The cli",
+              "transform": "translate(250.0 120.0)"
+            }
+          ],
+          "kind": "territory",
+          "status": "proposed",
+          "id": "cli"
+        }
+      ],
+      "kind": "flora-layer"
+    },
+    {
+      "el": "g",
+      "children": [
+        {
+          "el": "rect",
+          "x": 40,
+          "y": 107.58,
+          "width": 120,
+          "height": 185.42000000000002,
+          "rx": 14,
+          "kind": "hit",
+          "id": "library",
+          "title": "The library"
+        },
+        {
+          "el": "rect",
+          "x": 250,
+          "y": -26.47999999999999,
+          "width": 100,
+          "height": 176.48,
+          "rx": 14,
+          "kind": "hit",
+          "id": "cli",
+          "title": "The cli"
+        }
+      ],
+      "kind": "hits-layer"
+    }
+  ],
+  "kind": "world",
+  "transform": "translate(300.0 400.0)"
+}

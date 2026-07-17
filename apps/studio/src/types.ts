@@ -439,6 +439,11 @@ export interface TreeCapability {
   /** Sibling capability ids this one depends on (the in-story `depends_on` edges). */
   dependsOn: string[];
   /**
+   * The number of declared leaf contracts (the spec's `## Contracts` section, parsed via
+   * `parseContracts` from `@storytree/library`) — 0 when the spec declares no `## Contracts` section.
+   */
+  testCount: number;
+  /**
    * Whether this node can be driven through the prove-it-gate (it carries a proof config — spec-borne
    * or registry), i.e. `storytree node build <id>` would resolve. Drives the studio's UI-driven Build
    * control (ADR-0090 Phase 1): the Build button is offered only for a buildable node. Computed

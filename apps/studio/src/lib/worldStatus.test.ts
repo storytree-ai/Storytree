@@ -23,6 +23,7 @@ const cap = (
   status,
   proofMode: 'red-green',
   dependsOn: [],
+  testCount: 0,
   ...(verdict ? { verdict } : {}),
   ...(drift ? { drift } : {}),
 });

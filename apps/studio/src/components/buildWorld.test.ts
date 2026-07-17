@@ -18,6 +18,7 @@ const cap = (id: string) => ({
   status: 'mapped' as const,
   proofMode: 'red-green',
   dependsOn: [],
+  testCount: 0,
 });
 
 const library = (): TreeStory => ({

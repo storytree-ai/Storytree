@@ -50,6 +50,12 @@ export interface DTCapability {
   status: string | null;
   proofMode: string;
   dependsOn: string[];
+  /**
+   * The number of declared leaf contracts (the spec's `## Contracts` section, parsed via
+   * `parseContracts` — already folded into `spec.contracts` by `loadNodeSpec`) — 0 when the spec
+   * declares no `## Contracts` section. Mirrors the studio's `TreeCapability.testCount`.
+   */
+  testCount: number;
   buildable?: boolean;
   verdict?: DTVerdict;
   error?: string;
@@ -109,6 +115,9 @@ type LoadNodeSpec = (file: string) => {
   render?: string | undefined;
   uatTestCriteria: { id: string; wouldBe?: boolean }[];
   reliabilityGates: { id: string; covers?: readonly string[] }[];
+  // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed via
+  // `parseContracts` and already folded in by `loadNodeSpec` — the count feeds `DTCapability.testCount`.
+  contracts: { id: string; title: string }[];
 };
 type ResolveBuildConfig = (spec: unknown) => unknown;
 
@@ -127,6 +136,7 @@ function loadCapability(
     status: null,
     proofMode: "",
     dependsOn: [],
+    testCount: 0,
   };
   const file = path.join(storyDir, `${capId}.md`);
   if (!existsSync(file)) return { ...node, error: "spec file missing" };
@@ -140,6 +150,8 @@ function loadCapability(
       proofMode: spec.proofMode,
       dependsOn: spec.dependsOn,
       buildable: resolveBuildConfig(spec) != null,
+      // The declared leaf-contract count (already parsed by `loadNodeSpec` via `parseContracts`).
+      testCount: spec.contracts.length,
     };
   } catch (err) {
     return { ...node, error: err instanceof Error ? err.message : String(err) };
