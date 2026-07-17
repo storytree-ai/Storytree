@@ -3,7 +3,20 @@ id: "headless-orchestrator"
 tier: story
 title: "The headless orchestrator runtime — the session-orchestrator agent, run server-side, that orients and proposes"
 outcome: "A programmatic intent drives a server-side runtime that loads the generated session-orchestrator agent headlessly with read-only orientation tools wired, the agent orients on the real three surfaces (story tree, notice board, library) and emits a proposed unit — read/propose only, one orchestration at a time, holding no signing key."
-status: proposed
+# RETIRED by ADR-0175 (companion reconcile, owner-directed 2026-07-17 — explorer-onboarding-arc inc 1).
+# ADR-0174 retired the in-app INTERACTIVE orchestrator chat in favour of an embedded terminal running
+# real Claude Code; ADR-0175 repurposed the freed-up chat infrastructure into the `app-guide` concierge
+# ("repurpose, don't delete"). This node's dormant chat substrate — the SDK session engine + the
+# read-only orientation tools (packages/agent/src/headless-orchestrator.ts, orientation-tools.ts) and the
+# orchestrate/chat-stream composition (packages/drive/src/{orchestrate,chat-stream}.ts), mounted via
+# desktop's chat-sse-mount — is now OWNED by `app-guide` (see ../app-guide/story.md). This story is
+# retired in place (like chat-drive-bridge / scoped-glue-actuator): the body is kept as history, the
+# capability files flip to `status: retired`. NOT retired here: the code itself (no unmount — a separate
+# thin PR, ADR-0175); and the caps keep their `real:` arms in this stories/**-only reconcile — dropping
+# them + updating packages/cli/src/node-build.test.ts's REAL-buildable snapshot AND removing this story
+# from repo-manifest.json's hostedStories.register are the companion code-cleanup PR (both are edits
+# OUTSIDE stories/**). Readers: this substrate now lives under `app-guide`.
+status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs are machine-witnessed by the package suites;
 # the live orientation leg (a real subscription query() against the real three surfaces) is human-
@@ -65,6 +78,17 @@ decisions: [108, 30, 51, 4, 33, 90, 91, 112, 113]
 ---
 
 # The headless orchestrator runtime — the session-orchestrator agent, run server-side, that orients and proposes
+
+> **RETIRED — ADR-0175 (companion reconcile, owner-directed 2026-07-17, explorer-onboarding-arc inc 1).**
+> ADR-0174 retired the in-app *interactive* orchestrator chat for an embedded terminal running real
+> Claude Code; **ADR-0175** repurposed the freed-up chat infrastructure into the **`app-guide`**
+> concierge rather than deleting it. The dormant chat substrate this story owned — the SDK session
+> engine + read-only orientation tools (`packages/agent/src/headless-orchestrator.ts`,
+> `orientation-tools.ts`) and the `orchestrate` / `chat-stream` composition
+> (`packages/drive/src/{orchestrate,chat-stream}.ts`), mounted through desktop's `chat-sse-mount` — is
+> now **owned by [`app-guide`](../app-guide/story.md)**. This story is retired IN PLACE (the
+> `chat-drive-bridge` / `scoped-glue-actuator` precedent): the body below is kept as history. The code
+> is NOT unmounted here (a separate thin PR, ADR-0175). **See [`app-guide`](../app-guide/story.md).**
 
 **Outcome —** A programmatic intent drives a server-side runtime that loads the generated
 `session-orchestrator` agent headlessly with read-only orientation tools wired, the agent orients on

@@ -3,7 +3,18 @@ id: "chat-subagent-spawn"
 tier: story
 title: "The chat spawns the inner loop — the desktop session-orchestrator gains subagent-spawning under the claim-at-spawn wall (ADR-0137 / ADR-0108 Phase 3)"
 outcome: "From a desktop chat conversation the session-orchestrator spawns the right subagent under a held story-claim — the story-author to bring a story in, the builder leaf to drive a change red→green through the prove-it-gate — while the chat itself keeps no write tool, hands in no verdict, and leaves landing to the human."
-status: proposed
+# RETIRED by ADR-0174 + ADR-0175 (companion reconcile, owner-directed 2026-07-17 — explorer-onboarding-arc
+# inc 1). The chat's AGENT-side spawn authority is MOOT: ADR-0174 retired the in-app INTERACTIVE
+# orchestrator chat in favour of an embedded terminal running REAL Claude Code (the interactive seat is now
+# the `embedded-terminal` story), and ADR-0175 held that spawn/landing do NOT belong to the `app-guide`
+# concierge. So the chat-driven spawn_story_author / spawn_builder rung this story built has no live seat —
+# it is retired in place (like chat-drive-bridge / scoped-glue-actuator), the body kept as history, the
+# capability files flipped to `status: retired`. NOT retired: `wisp-as-story-claim` (the claim ledger / map
+# wisps stay load-bearing for terminal Claude Code via the noticeboard). The caps keep their `real:` arms in
+# this stories/**-only reconcile — dropping them + updating packages/cli/src/node-build.test.ts's
+# REAL-buildable snapshot AND removing this story from repo-manifest.json's hostedStories.register are the
+# companion code-cleanup PR (edits OUTSIDE stories/**; no code unmount here, ADR-0175 item F).
+status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the fenced story-author spawn session, the
 # builder dispatch through the existing routed worker, the claim-before-spawn gate, the composed spawn
@@ -107,6 +118,17 @@ decisions: [137, 108, 138, 136, 91, 30, 4, 51, 112, 99, 130, 70]
 ---
 
 # The chat spawns the inner loop — subagent-spawning under the claim-at-spawn wall
+
+> **RETIRED — ADR-0174 + ADR-0175 (companion reconcile, owner-directed 2026-07-17, explorer-onboarding-arc
+> inc 1).** The chat's agent-side spawn authority is MOOT: **ADR-0174** retired the in-app *interactive*
+> orchestrator chat for an **embedded terminal running real Claude Code** (the interactive seat is now the
+> [`embedded-terminal`](../embedded-terminal/story.md) story), and **ADR-0175** held that spawn/landing do
+> NOT belong to the `app-guide` concierge. The `spawn_story_author` / `spawn_builder` rung this story built
+> therefore has no live seat and is retired IN PLACE (the `chat-drive-bridge` / `scoped-glue-actuator`
+> precedent): the body below is kept as history. The code is NOT unmounted here (a separate thin PR,
+> ADR-0175). NOT retired: [`wisp-as-story-claim`](../wisp-as-story-claim/story.md) — the claim ledger / map
+> wisps stay load-bearing for terminal Claude Code via the noticeboard; the claim path for the terminal is
+> the noticeboard `declare`, not this chat spawn.
 
 **Outcome —** From a desktop chat conversation the session-orchestrator spawns the right subagent
 under a held story-claim — the **story-author** to bring a story in, the **builder leaf** to drive a

@@ -4,7 +4,12 @@ tier: capability
 story: chat-subagent-spawn
 title: "The spawn tool surface — mount spawn_story_author + spawn_builder on the chat session, walls pinned by tests"
 outcome: "The headless orchestrator session mounts the two typed spawn tools (spawn_story_author / spawn_builder) — each wrapped in the claim gate — while the chat session itself keeps NO Write/Edit/Bash, the single-session guard holds, and no verdict crosses back."
-status: proposed
+# RETIRED with the chat-subagent-spawn story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat's
+# agent-side spawn authority is moot (the embedded terminal running real Claude Code is the interactive
+# seat; spawn/landing do not go to app-guide). Retired in place; body kept as history. The `real:` arm is
+# dropped, so this capability is no longer REAL-buildable (buildableNodeIds keys on proof.real) —
+# packages/cli/src/node-build.test.ts's REAL-buildable snapshot is updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn]
 decisions: [137, 108, 138, 91, 4, 30]
@@ -29,20 +34,8 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/spawn-tool-surface.test.ts"
-    sourceFile: "packages/agent/src/spawn-tool-surface.ts"
-    scope:
-      testGlobs: ["packages/agent/src/spawn-tool-surface.test.ts"]
-      sourceGlobs: ["packages/agent/src/spawn-tool-surface.ts", "packages/agent/src/headless-orchestrator.ts"]
-    editsExisting: true
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The spawn tool surface — mount the spawn tools on the chat session, walls pinned by tests

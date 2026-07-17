@@ -4,7 +4,12 @@ tier: capability
 story: headless-orchestrator
 title: "A read-only in-process orientation tool surface — the read surfaces wrapped with drill-down args, no write tool"
 outcome: "A read-only in-process tool surface exposes the storytree read surfaces (tree, library, noticeboard, agents) to a model with parameterized drill-down args, each returning a real envelope body, with NO write tool, write verbs refused at the surface, and writes structurally impossible."
-status: proposed
+# RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed 2026-07-17):
+# the dormant chat substrate is absorbed into `app-guide` (../app-guide/story.md). Retired in place; the
+# body is kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -22,16 +27,8 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/orientation-tools.test.ts"
-    sourceFile: "packages/agent/src/orientation-tools.ts"
-    scope:
-      testGlobs: ["packages/agent/src/orientation-tools.test.ts"]
-      sourceGlobs: ["packages/agent/src/orientation-tools.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # A read-only in-process orientation tool surface

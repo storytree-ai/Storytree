@@ -4,7 +4,12 @@ tier: capability
 story: chat-subagent-spawn
 title: "The spawn-deps composition — render the real story-author agent, stamp session identity, thread the deps through orchestrate"
 outcome: "The drive-side composition assembles the REAL spawn deps — the rendered story-author library agent (fail-closed when absent), the claim deps carrying session identity + work-kind intent, the worker-backed dispatch — and threads them through orchestrate() to the runtime without forking the Phase-1/2 chain."
-status: proposed
+# RETIRED with the chat-subagent-spawn story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat's
+# agent-side spawn authority is moot (the embedded terminal running real Claude Code is the interactive
+# seat; spawn/landing do not go to app-guide). Retired in place; body kept as history. The `real:` arm is
+# dropped, so this capability is no longer REAL-buildable (buildableNodeIds keys on proof.real) —
+# packages/cli/src/node-build.test.ts's REAL-buildable snapshot is updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn, spawn-tool-surface]
 decisions: [137, 51, 112, 108, 138]
@@ -28,20 +33,8 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/spawn-deps.test.ts"
-    sourceFile: "packages/drive/src/spawn-deps.ts"
-    scope:
-      testGlobs: ["packages/drive/src/spawn-deps.test.ts"]
-      sourceGlobs: ["packages/drive/src/spawn-deps.ts", "packages/drive/src/orchestrate.ts"]
-    editsExisting: true
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The spawn-deps composition — render the real agents, stamp identity, thread through orchestrate

@@ -3,12 +3,23 @@ id: "spawn-visibility"
 tier: story
 title: "A spawn is visible where it happens — the operator SEES the subagent in the chat transcript AND on the forest map (ADR-0137 Phase-3 follow-on)"
 outcome: "During a live spawn from the desktop chat, the operator can SEE that a subagent was spawned (a spawn line in the chat transcript) and WHERE it is working (the just-authored story's island appears live on the forest map, and its claim wisp lights) — the spawn is no longer invisible."
-# status: proposed = ADR-0097 "adoption underway". The four capabilities LANDED in PR #567 with passing
+# RETIRED by ADR-0174 + ADR-0175 (companion reconcile, owner-directed 2026-07-17 — explorer-onboarding-arc
+# inc 1). This is the visibility follow-on to `chat-subagent-spawn`: it surfaced the chat's spawn activity
+# in the transcript + on the map. With chat-subagent-spawn retired (the in-app interactive orchestrator
+# chat retired for an embedded terminal running real Claude Code — ADR-0174; spawn/landing do not go to
+# app-guide — ADR-0175), there is no chat spawn to make visible, so this follow-on is moot and retires with
+# it, in place (chat-drive-bridge / scoped-glue-actuator precedent). Body kept as history; the capability
+# files flip to `status: retired`. NOT retired: `wisp-as-story-claim` (the claim ledger / map wisps stay
+# load-bearing for terminal Claude Code via the noticeboard). The caps keep their `real:` arms in this
+# stories/**-only reconcile — dropping them + updating packages/cli/src/node-build.test.ts's REAL-buildable
+# snapshot AND removing this story from repo-manifest.json's hostedStories.register are the companion
+# code-cleanup PR (edits OUTSIDE stories/**; no code unmount here, ADR-0175 item F).
+# ORIGINAL status note — status: proposed = ADR-0097 "adoption underway". The four capabilities LANDED in PR #567 with passing
 # real-arm tests across three offline suites, but that merge ran through DB-free CI, so the prove-it-gate
 # never signed a `--real --store pg` verdict — it was BROWNFIELD (built, tested, gate never drove it).
 # `storytree adopt spawn-visibility` observe-and-signed the `## Reliability Gates` below + the four
 # machine UAT legs and flipped mapped → proposed; NOT a `--real` build (the green base had no red to drive).
-status: proposed
+status: retired
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the typed spawn trace threaded onto the chat
 # stream, the SSE frame carrying it, the frontend geometry that renders the spawn line and triggers the
@@ -112,6 +123,17 @@ decisions: [137, 70, 138, 4, 33, 108, 106]
 ---
 
 # A spawn is visible where it happens — the operator SEES the subagent in the chat AND on the map
+
+> **RETIRED — ADR-0174 + ADR-0175 (companion reconcile, owner-directed 2026-07-17, explorer-onboarding-arc
+> inc 1).** This is the visibility follow-on to
+> [`chat-subagent-spawn`](../chat-subagent-spawn/story.md) — it surfaced the chat's spawn activity in the
+> transcript and lit the just-authored story on the map. With chat-subagent-spawn retired (**ADR-0174**
+> retired the in-app *interactive* orchestrator chat for an embedded terminal running real Claude Code;
+> **ADR-0175** held spawn/landing do not belong to `app-guide`), there is no chat spawn to make visible —
+> so this follow-on is moot and retires with it, IN PLACE (the `chat-drive-bridge` /
+> `scoped-glue-actuator` precedent): the body below is kept as history. The code is NOT unmounted here (a
+> separate thin PR, ADR-0175). NOT retired: [`wisp-as-story-claim`](../wisp-as-story-claim/story.md) — the
+> claim ledger / map wisps stay load-bearing for terminal Claude Code via the noticeboard.
 
 **Outcome —** During a live spawn from the desktop chat, the operator can SEE that a subagent was
 spawned (a spawn line in the chat transcript) and WHERE it is working (the just-authored story's island

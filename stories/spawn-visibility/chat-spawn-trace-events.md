@@ -4,7 +4,13 @@ tier: capability
 story: spawn-visibility
 title: "Chat spawn-trace events — type the spawn trace and thread it onto the chat stream as an additive, ordered event"
 outcome: "The spawn boundary traces are typed as a `SpawnTrace` union and surfaced out of the swallowing claim gate: `startChatStream` intercepts them and pushes a new non-terminal `ChatStreamSpawnEvent` onto the same FIFO the deltas use — interleaved and ordered — while the trace still bumps the claim heartbeat, and an absent-spawn-deps session emits none."
-status: proposed
+# RETIRED with the spawn-visibility story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat spawn
+# this made visible is retired with chat-subagent-spawn (interactive orchestrator chat retired for an
+# embedded terminal running real Claude Code; spawn/landing do not go to app-guide). Retired in place; body
+# kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [137, 138, 112, 4]
@@ -30,20 +36,8 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/chat-spawn-trace.test.ts"
-    sourceFile: "packages/drive/src/chat-stream.ts"
-    scope:
-      testGlobs: ["packages/drive/src/chat-spawn-trace.test.ts"]
-      sourceGlobs: ["packages/drive/src/chat-stream.ts", "packages/drive/src/spawn-deps.ts", "packages/drive/src/spawn-trace.ts"]
-    editsExisting: true
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # Chat spawn-trace events — type the trace, thread it onto the chat stream

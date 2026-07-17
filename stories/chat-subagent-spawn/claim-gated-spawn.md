@@ -4,7 +4,12 @@ tier: capability
 story: chat-subagent-spawn
 title: "The claim-at-spawn gate — no claim, no subagent; a refusal names the holder; the trace bumps the heartbeat"
 outcome: "Every spawn is claim-gated: the story-claim is acquired (work-kind intent stamped) BEFORE the spawn function runs, a refusal names the holder and spawns nothing, and the loop's trace signals bump the claim heartbeat so a live spawn never ages out — realising wisp-as-story-claim's deferred E2 contract."
-status: proposed
+# RETIRED with the chat-subagent-spawn story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat's
+# agent-side spawn authority is moot (the embedded terminal running real Claude Code is the interactive
+# seat; spawn/landing do not go to app-guide). Retired in place; body kept as history. The `real:` arm is
+# dropped, so this capability is no longer REAL-buildable (buildableNodeIds keys on proof.real) —
+# packages/cli/src/node-build.test.ts's REAL-buildable snapshot is updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [138, 137, 121, 142]
@@ -29,16 +34,8 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/claim-gated-spawn.test.ts"
-    sourceFile: "packages/agent/src/claim-gated-spawn.ts"
-    scope:
-      testGlobs: ["packages/agent/src/claim-gated-spawn.test.ts"]
-      sourceGlobs: ["packages/agent/src/claim-gated-spawn.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The claim-at-spawn gate — no claim, no subagent

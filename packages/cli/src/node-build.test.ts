@@ -154,11 +154,8 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
   // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
   // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
-  // model-runtime-seam, owned-turn-loop; the four `headless-orchestrator`-story capabilities
-  // (stories/headless-orchestrator/*.md — each a NET-NEW `real:` arm): headless-session-runner,
-  // orchestrator-composition, orientation-tool-surface (ADR-0108 Phase 1) + chat-session-stream
-  // (ADR-0108 Phase 2); and the three thick-client `desktop`-story capabilities (stories/desktop/*.md,
-  // ADR-0113 — each a NET-NEW `real:` arm): local-backend-boot, local-credential-wiring,
+  // model-runtime-seam, owned-turn-loop; and the three thick-client `desktop`-story capabilities
+  // (stories/desktop/*.md, ADR-0113 — each a NET-NEW `real:` arm): local-backend-boot, local-credential-wiring,
   // shared-forest-connection (the last RE-HOMED by ADR-0117 — same proof file, now a broker client), plus
   // two more desktop `real:` caps beyond that original ADR-0113 trio: boot-read-routes (ADR-0119, the boot
   // read set) and chat-sse-mount (ADR-0108 Phase 2 — the consumed startChatStream mounted at POST /api/chat
@@ -199,6 +196,11 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // propose_unit / accept-to-Build handshake was removed (PR #587) — the session-orchestrator drives via
   // its spawn (ADR-0137) + landing (ADR-0152) tools instead of proposing a unit for a human to accept.
   // Their `real:` arms were dropped, so they are no longer REAL-buildable (the whole story retired).
+  // The four `headless-orchestrator`-story capabilities (headless-session-runner,
+  // orchestrator-composition, orientation-tool-surface, chat-session-stream) are NO LONGER here:
+  // RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed
+  // 2026-07-17) — the dormant chat substrate is absorbed into `app-guide`. Their `real:` arms were
+  // dropped, so they are no longer REAL-buildable (the story specs stay, retired in place, as history).
   // And the desktop-build-mount story's `worker-relocation` + `desktop-build-route` capabilities
   // (stories/desktop-build-mount/*.md — ADR-0133, the desktop becomes a build surface by relocating the
   // build worker to a shared package and mounting it on the desktop sidecar), each a `real:` arm. Its
@@ -219,15 +221,12 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // review-refresh-feed; and the three LOOK caps with vitest two-stage `real:` arms (ADR-0070):
   // review-mode-toggle, inline-comment-thread, collapsed-suggestion-view. The ninth cap,
   // remove-text-selection-anchoring, is GLUE (no `real:` arm) so it is absent here.
-  // And the five `chat-subagent-spawn`-story capabilities (stories/chat-subagent-spawn/*.md —
-  // ADR-0137 / ADR-0108 Phase 3, the desktop chat's session-orchestrator gains subagent-spawning
-  // under the claim-at-spawn wall): story-author-spawn (the write-fenced spawned story-author
-  // session), builder-spawn-dispatch (the worker-routed builder dispatch), claim-gated-spawn (the
-  // no-claim-no-subagent gate, realising wisp-as-story-claim's deferred E2), spawn-tool-surface
-  // (the two typed spawn tools mounted on the chat session, walls pinned) and
-  // spawn-deps-composition (the drive-side deps assembly threaded through orchestrate()). All five
-  // carry `real:` arms (authored, awaiting their drives); the live spawn walk is the story's
-  // operator-attested UAT legs, not a capability.
+  // The five `chat-subagent-spawn`-story capabilities (story-author-spawn, builder-spawn-dispatch,
+  // claim-gated-spawn, spawn-tool-surface, spawn-deps-composition) are NO LONGER here: RETIRED by
+  // ADR-0174 + ADR-0175 (owner-directed 2026-07-17) — the chat's agent-side spawn authority is moot
+  // now that the embedded terminal running real Claude Code is the interactive seat (spawn/landing do
+  // not go to app-guide). Their `real:` arms were dropped, so they are no longer REAL-buildable (the
+  // story specs stay, retired in place, as history).
   // And the four parent-side LEAF caps of the `website-experience` story
   // (stories/website-experience/*.md — ADR-0134 the two-act vibe-coding experience, over the
   // ADR-0123 R3F mapper): r3f-world-spike (NET-NEW — the pure world→3D descriptor mapping; the
@@ -241,12 +240,12 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // (stories/desktop-build-mount/routed-node-real-dispatch.md — ADR-0144, an editsExisting `real:` arm
   // over packages/drive/src/build-worker.ts: the routed NODE dispatch drives `node build --real` with
   // persist semantics instead of the synthetic `--live` smoke).
-  // And the four PROVABLE `spawn-visibility`-story capabilities (stories/spawn-visibility/*.md —
-  // ADR-0137 Phase-3 UAT follow-on, making a live spawn VISIBLE): chat-spawn-trace-events (the drive
-  // seam threading the swallowed spawn traces onto the chat stream), claim-wisp-cold-start (the
-  // desktop advisory per-read budget so a fresh claim survives a DB cold-start) and the two
-  // frontend two-stage caps chat-panel-spawn-render + live-story-island-refresh (ADR-0070 — geometry
-  // machine-proven `real:` arm, on-screen/on-map appearance operator-attested).
+  // The four `spawn-visibility`-story capabilities (chat-spawn-trace-events, claim-wisp-cold-start,
+  // chat-panel-spawn-render, live-story-island-refresh) are NO LONGER here: RETIRED by ADR-0174 +
+  // ADR-0175 (owner-directed 2026-07-17) — the chat spawn this made visible is retired with
+  // chat-subagent-spawn (interactive orchestrator chat retired for an embedded terminal running real
+  // Claude Code). Their `real:` arms were dropped, so they are no longer REAL-buildable (the story
+  // specs stay, retired in place, as history).
   // And the four `app-guide`-story capabilities (stories/app-guide/*.md — formerly `terminal-chat`,
   // re-aimed under ADR-0175; ADR-0137 Phase-3 UAT feedback, ADR-0070 two-stage: the chat-panel UX
   // substrate for the concierge): the three thin-client caps multi-turn-transcript (the persistent
@@ -408,7 +407,7 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // check-graduation-worklist.ts rewire are after-PASS supplement glue (ADR-0158), not the `real:` arm.
   assert.match(
     bare.body,
-    /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, ambient-integration, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, builder-role, builder-spawn-dispatch, change-event-store, change-store-pg, chat-panel, chat-panel-spawn-render, chat-session-stream, chat-spawn-trace-events, chat-sse-mount, claim-gated-spawn, claim-store-work-time, claim-wisp-cold-start, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, compose-build-command, credential-broker, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, headless-session-runner, hosted-story-landlord-rule, hud-chrome, inline-comment-thread, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, live-story-island-refresh, local-backend-boot, local-credential-wiring, map-build-seeds-terminal, member-suggest-write-policy, model-runtime-seam, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, orchestrator-composition, orientation-tool-surface, owned-turn-loop, packages-forward-refusal, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, shared-forest-connection, source-drift, spawn-deps-composition, spawn-tool-surface, story-author-spawn, suggestion-edit-store, take-claim-at-spawn, terminal-dock-panel, terminal-repo-gate, transcript-reset, tree-view, uat-bound-command-adoption, uat-machine-gate-resolution, uat-machine-proof-binding, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
+    /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, ambient-integration, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, builder-role, change-event-store, change-store-pg, chat-panel, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, collapsed-suggestion-view, colour-by-subagent, compose-build-command, credential-broker, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, hosted-story-landlord-rule, hud-chrome, inline-comment-thread, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, local-backend-boot, local-credential-wiring, map-build-seeds-terminal, member-suggest-write-policy, model-runtime-seam, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, owned-turn-loop, packages-forward-refusal, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, shared-forest-connection, source-drift, suggestion-edit-store, take-claim-at-spawn, terminal-dock-panel, terminal-repo-gate, transcript-reset, tree-view, uat-bound-command-adoption, uat-machine-gate-resolution, uat-machine-proof-binding, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
   );
 
   const noId = await run(["node", "build", "--dry-run"], deps);

@@ -9,10 +9,11 @@ proof_mode: UAT
 # operator-attested); the rest are the ADR-0113 thick-client step (the local backend + its boot read
 # routes, the in-process credential wiring, the shared-forest connection). The chat surface that ships
 # INSIDE this desktop has TWO halves: its provable streaming BACKEND (the SSE/intake core,
-# `startChatStream`) is headless-orchestrator's Phase 2 (ADR-0108), CONSUMED here; but the desktop-side
+# `startChatStream`) was headless-orchestrator's Phase 2 (ADR-0108) and is now OWNED by `app-guide` (the
+# ADR-0175 absorb, 2026-07-17 — headless-orchestrator retired), CONSUMED here; but the desktop-side
 # MOUNT of that core — the `POST /api/chat` route on the local backend that serialises its event stream
-# as SSE — IS a desktop capability (`chat-sse-mount`), the thin glue chat-session-stream's Guidance
-# names. The renderer chat PANEL is a `studio` frontend component (consumed compiled), not a capability
+# as SSE — IS a desktop capability (`chat-sse-mount`), the thin glue the consuming surface owns. The
+# renderer chat PANEL is a `studio` frontend component (consumed compiled), not a capability
 # here (see the Cross-story boundary section + "Renderer chat panel placement").
 capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, chat-sse-mount, local-credential-wiring, shared-forest-connection, brokered-local-uat-signing, desktop-launch-preconditions]
 # Story-level edges (ADR-0010 §4 / ADR-0074 — these are the cross-story `depends_on` the boundary
@@ -33,14 +34,17 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       ADR-0004) — the desktop never imports @storytree/agent directly.
 #   - library         — @storytree/library/store (renderAgentPrompt + loadCorpus) for the local backend's
 #                       library/tree reads and the orchestrate composition's prompt render (ADR-0051).
-#   - headless-orchestrator — the chat/loop streaming CORE that ships INSIDE this desktop is its Phase 2
-#                       (ADR-0108): the orchestrate-driven session + its SSE-shaped event stream
-#                       (`startChatStream`). The desktop CONSUMES that core; it is NOT a desktop capability.
-#                       The desktop-side MOUNT of it — the `POST /api/chat` SSE route on the local backend —
-#                       IS a desktop capability (`chat-sse-mount`), the thin glue chat-session-stream's
-#                       Guidance assigns to the consuming surface. The renderer chat PANEL is a `studio`
-#                       frontend component (a thin client over the route, ADR-0108 d.1), also not a
-#                       capability here.
+#   - app-guide — the chat/loop streaming CORE that ships INSIDE this desktop (the orchestrate-driven
+#                       session + its SSE-shaped event stream `startChatStream`, physically in
+#                       @storytree/drive). This core was headless-orchestrator's Phase 2 (ADR-0108); as of
+#                       the ADR-0175 absorb (2026-07-17) it is OWNED by `app-guide` (headless-orchestrator is
+#                       retired, its dormant substrate absorbed there). The desktop CONSUMES that core; it is
+#                       NOT a desktop capability (edge inverts to desktop → app-guide). The desktop-side
+#                       MOUNT of it — the `POST /api/chat` SSE route on the local backend — REMAINS a desktop
+#                       capability (`chat-sse-mount`), the thin glue the consuming surface owns. The renderer
+#                       chat PANEL is a `studio` frontend component (a thin client over the route, ADR-0108
+#                       d.1), also not a capability here. (Import is by package name into @storytree/drive —
+#                       already declared — so this app-guide edge is an artifact_edge, non-import ownership.)
 #   - studio-cloud    — ADR-0117 (amends ADR-0113 §6 for friends): the friend's forest writes are now
 #                       BROKERED, not direct. The local backend POSTs his locally-signed verdict/presence
 #                       to studio-cloud's `write-broker` (a members-gated /api/* endpoint), and the SERVER
@@ -56,12 +60,12 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       they are DECLARED deps in apps/desktop/package.json, so `check:boundaries` requires the
 #                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
 #                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
-depends_on: [studio, drive-machinery, library, headless-orchestrator, studio-cloud, proof-protocol, notice-board]
+depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio, headless-orchestrator, studio-cloud]
+artifact_edges: [studio, app-guide, studio-cloud]
 # Deciding ADRs (ADR-0037 §2): 0109 sanctions the credential-host Electron client; 0111 fixes Step 1's
 # placement (apps/desktop + this story); 0113 redefines Step 2 as booting the worker LOCALLY (the thick
 # client) and amends ADR-0090 d.4 for the trusted inner-circle phase; 0117 amends ADR-0113 §6 — the
@@ -69,11 +73,13 @@ artifact_edges: [studio, headless-orchestrator, studio-cloud]
 # an in-app `builder` role instead); 0090 the client/worker split + d.4 source guard (amended); 0091 the
 # proof-off-tether sanction the local backend rides (and the broker holds no signing key); 0004 the
 # orchestrator/agent boundary preserved by topology (main IS the boundary); 0108 the chat surface that
-# ships here; 0021 keyless Cloud SQL IAM (the per-friend grant ADR-0117 REMOVES for friends); 0070 the
+# ships here; 0175 re-points the consumed chat streaming CORE's ownership from the retired
+# headless-orchestrator to `app-guide` (the absorb) — desktop consumes it (desktop → app-guide), the
+# chat-sse-mount MOUNT stays desktop's; 0021 keyless Cloud SQL IAM (the per-friend grant ADR-0117 REMOVES for friends); 0070 the
 # operator-attested appearance (and the live `builder` grant); 0176 supersedes 0119 and is the complete
 # current sidecar decision: tsx-sidecar + studio boot reads + re-compose boundary, with DB/git launch
 # preconditions and no degraded shell.
-decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 21, 70, 179, 180, 198]
+decisions: [109, 111, 113, 117, 176, 90, 91, 4, 108, 175, 21, 70, 179, 180, 198]
 ---
 
 # Desktop client — a trusted member runs the whole storytree loop on their own machine
@@ -237,7 +243,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind context-isolated `desktopAuth` for the Credentials panel. | operator-attested (ADR-0070) | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
 | 4 | [`boot-read-routes`](boot-read-routes.md) | The local backend adds the studio's remaining BOOT read routes — `me` (a local member identity), `docs` (read from the member's checkout), `comments` (an injected store seam) — re-composed from the organism drivers (never importing the studio server), so the frontend boots and renders the forest instead of an access/error screen (ADR-0119 §2). | contract-test (CI red→green) | `local-backend-boot` |
-| 5 | [`chat-sse-mount`](chat-sse-mount.md) | The local backend adds a `POST /api/chat` route that starts an `orchestrate`-driven session (the CONSUMED headless-orchestrator `chat-session-stream` core, `startChatStream`) and streams its events to the renderer as SSE — re-composed from `@storytree/drive` (never importing the studio server), read/propose only (no signing, no build, no PR; ADR-0091). | contract-test (CI red→green) | `local-backend-boot` |
+| 5 | [`chat-sse-mount`](chat-sse-mount.md) | The local backend adds a `POST /api/chat` route that starts an `orchestrate`-driven session (the CONSUMED chat streaming core `startChatStream` — app-guide's absorbed substrate, ADR-0175, formerly headless-orchestrator's `chat-session-stream`) and streams its events to the renderer as SSE — re-composed from `@storytree/drive` (never importing the studio server), read/propose only (no signing, no build, no PR; ADR-0091). | contract-test (CI red→green) | `local-backend-boot` |
 | 6 | [`local-credential-wiring`](local-credential-wiring.md) | The keychain-brokered credential is fed to the in-process local backend's build/orchestrate drivers (no TLS hop), and the renderer never receives the raw token. | contract-test (CI red→green) | `credential-broker`, `local-backend-boot` |
 | 7 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
 | 8 | [`brokered-local-uat-signing`](brokered-local-uat-signing.md) | A local human's observation of a declared human-witness UAT leg becomes a real operator-attested verdict pinned to a clean git HEAD and persisted through the injected forest broker writer; machine legs, blank/agent signers, dirty/malformed state, unknown tests, and broker refusals fail closed. | integration-test (CI red→green) | `shared-forest-connection`, `boot-read-routes` |
@@ -245,7 +251,8 @@ Listed roots-first (a capability appears after everything it depends on).
 
 The **chat surface** the member talks to has THREE layers, split across two stories:
 - its provable streaming **BACKEND** (the SSE/intake core that drives `orchestrate`, `startChatStream`)
-  is **headless-orchestrator's Phase 2** (ADR-0108, BUILT/green), CONSUMED by this desktop;
+  was **headless-orchestrator's Phase 2** (ADR-0108, BUILT/green) and is now **owned by `app-guide`** (the
+  ADR-0175 absorb — headless-orchestrator retired), CONSUMED by this desktop;
 - the desktop-side **MOUNT** of that core — the `POST /api/chat` route on the local backend that
   serialises the core's event stream as SSE — IS a desktop capability ([`chat-sse-mount`](chat-sse-mount.md),
   #5 above), the thin glue [`chat-session-stream`](../headless-orchestrator/chat-session-stream.md)'s
@@ -269,10 +276,10 @@ any backend is wired at all, and consumes only `@storytree/drive`'s `ensureLiveD
   remaining boot read routes — the Electron main mounts both dispatchers on the same surface, ADR-0119 §2).
 - `chat-sse-mount` → `local-backend-boot` (it EXTENDS the keystone's `/api/*` backend with the
   `POST /api/chat` route — a THIRD sibling dispatcher the Electron main mounts on the same `/api/*`
-  surface alongside boot-read-routes and the local-backend handler). It also CONSUMES
-  `headless-orchestrator`'s `chat-session-stream` core cross-story (`startChatStream` from
-  `@storytree/drive`) — see the Cross-story boundary section; that is a cross-story edge, already in
-  `depends_on`, not a within-story one.
+  surface alongside boot-read-routes and the local-backend handler). It also CONSUMES the absorbed
+  chat streaming core cross-story — `app-guide`'s `startChatStream` (from `@storytree/drive`; formerly
+  headless-orchestrator's `chat-session-stream`, absorbed by ADR-0175) — see the Cross-story boundary
+  section; that is a cross-story edge, already in `depends_on`, not a within-story one.
 - `local-credential-wiring` → `credential-broker`, `local-backend-boot` (it feeds the broker's credential
   into the backend the boot capability stands up — so it couples to both).
 - `shared-forest-connection` → `local-backend-boot` (the connection/readiness is the backend's store seam).
@@ -289,7 +296,7 @@ edge — Step 1's safety boundary and Step 2's backend boot are independent root
 Authored from the intended consumed seams (re-verify against the real imports when built). All are
 CONSUMED, not absorbed — this story owns the desktop shell + the local backend COMPOSITION (the
 `/api/*` router, the in-process credential wiring, the readiness probe), never the drive drivers, the
-agent/SDK seam, the library schema, the studio frontend, or the headless-orchestrator runtime.
+agent/SDK seam, the library schema, the studio frontend, or the app-guide-owned chat streaming runtime.
 
 - **`studio`** — the **compiled frontend** (including the renderer chat PANEL). The renderer loads
   studio's compiled dist (ADR-0090 d.4); it is studio's delivered outcome the desktop's UAT needs. The
@@ -306,19 +313,21 @@ agent/SDK seam, the library schema, the studio frontend, or the headless-orchest
 - **`library`** — the **knowledge surface + prompt render**. The local backend's library/tree reads and
   the orchestrate composition consume `@storytree/library/store` (`renderAgentPrompt(store,
   "session-orchestrator")` — the ONE loop definition, ADR-0051 — and `loadCorpus`).
-- **`headless-orchestrator`** — the **chat/loop streaming CORE (its Phase 2)**. The chat SSE streaming
-  backend + the orchestrate-driven session that ship inside this desktop are headless-orchestrator's
-  Phase 2 ([`chat-session-stream`](../headless-orchestrator/chat-session-stream.md), `startChatStream`,
-  ADR-0108, BUILT/green). The desktop CONSUMES that core (imported as `startChatStream` from
-  `@storytree/drive` by package name — its source sits physically in drive, the studio-build precedent)
-  and MOUNTS it as a `POST /api/chat` SSE route in this story's own [`chat-sse-mount`](chat-sse-mount.md)
-  capability — the thin HTTP/SSE glue chat-session-stream's Guidance explicitly assigns to the consuming
-  surface. The mount is OWNED here; the streaming core is NOT re-owned. The desktop does NOT import
+- **`app-guide`** — the **chat/loop streaming CORE (the absorbed substrate, ADR-0175)**. The chat SSE
+  streaming backend + the orchestrate-driven session that ship inside this desktop were
+  headless-orchestrator's Phase 2 (`chat-session-stream`, `startChatStream`, ADR-0108, BUILT/green); as of
+  the ADR-0175 absorb (2026-07-17) that dormant substrate is OWNED by
+  [`app-guide`](../app-guide/story.md) (headless-orchestrator is retired). The desktop CONSUMES that core
+  (imported as `startChatStream` from `@storytree/drive` by package name — its source sits physically in
+  drive, the studio-build precedent) and MOUNTS it as a `POST /api/chat` SSE route in this story's own
+  [`chat-sse-mount`](chat-sse-mount.md) capability — the thin HTTP/SSE glue the consuming surface owns.
+  The mount is OWNED here; the streaming core is NOT re-owned. The desktop does NOT import
   `apps/studio/server` (the surface boundary, ADR-0100) — `startChatStream` is reached by package name,
-  and `@storytree/drive` is already a declared dep, so `check:boundaries` is satisfied by the existing
-  `headless-orchestrator` edge in `depends_on` (the ADR-0074 "declare the edge" pattern). The renderer
-  chat panel (the thin client over the route) is a `studio` frontend component, consumed compiled — see
-  the next bullet + "Renderer chat panel placement".
+  and `@storytree/drive` is already a declared dep, so `check:boundaries` is satisfied by the `app-guide`
+  edge in `depends_on` (declared as an `artifact_edge` — the consumed core is reached through the
+  @storytree/drive package import, not an app-guide package import; the ADR-0074 "declare the edge"
+  pattern). The renderer chat panel (the thin client over the route) is a `studio` frontend component,
+  consumed compiled — see the next bullet + "Renderer chat panel placement".
 - **`studio-cloud`** — the **members-gated write-broker (ADR-0117)**. The local backend's forest writes
   are BROKERED, not direct: it POSTs the locally-signed `Verdict` / `PresenceDeclaration` to studio-cloud's
   [`write-broker`](../studio-cloud/write-broker.md) over HTTPS, and the server persists them (the friend
@@ -399,7 +408,7 @@ credential never leaving the machine.
    (`shared-forest-connection`'s contract test proves the fail-closed probe over an injected broker-POST
    seam; the live broker + the `builder` grant are operator-attested.)
 7. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat
-   panel (the consumed headless-orchestrator Phase-2 surface), and the approval-to-land gate read as one
+   panel (the consumed app-guide chat surface, absorbed from headless-orchestrator's Phase 2, ADR-0175), and the approval-to-land gate read as one
    coherent native application. **Success —** the owner's two-stage visual verdict (ADR-0070 / ADR-0113
    §9): the appearance is witnessed, not machine-asserted.
 8. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).**
@@ -532,12 +541,14 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
 
 ### Recorded as decided-and-surfaced (forced by existing decisions, reversible, internal — not re-litigated per the owner-fork bar):
 
-1. **The chat surface's STREAMING CORE is consumed from `headless-orchestrator`; its desktop-side MOUNT
-   is a desktop capability; its renderer PANEL is a `studio` component (decided — the cap-vs-glue +
-   panel-placement call, the story-author's layout domain).** Three layers, three homes:
-   - The provable streaming **backend** (`startChatStream` driving `orchestrate`) is
-     headless-orchestrator's Phase 2 ([`chat-session-stream`](../headless-orchestrator/chat-session-stream.md),
-     ADR-0108, green) — CONSUMED, not re-owned.
+1. **The chat surface's STREAMING CORE is consumed from `app-guide` (the ADR-0175 absorb; formerly
+   `headless-orchestrator`); its desktop-side MOUNT is a desktop capability; its renderer PANEL is a
+   `studio` component (decided — the cap-vs-glue + panel-placement call, the story-author's layout
+   domain).** Three layers, three homes:
+   - The provable streaming **backend** (`startChatStream` driving `orchestrate`) was
+     headless-orchestrator's Phase 2 (`chat-session-stream`, ADR-0108, green) and is now OWNED by
+     [`app-guide`](../app-guide/story.md) (ADR-0175 absorb — headless-orchestrator retired) — CONSUMED, not
+     re-owned.
    - The desktop-side **mount** — the `POST /api/chat` route on the local backend that drives that core
      and serialises its event stream as SSE — is a NEW desktop capability
      ([`chat-sse-mount`](chat-sse-mount.md)), NOT glue folded under `local-backend-boot`. The

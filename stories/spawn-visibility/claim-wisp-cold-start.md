@@ -4,7 +4,13 @@ tier: capability
 story: spawn-visibility
 title: "The claim wisp survives a cold-start — a softer per-read budget so a fresh claim is not dropped at 4s"
 outcome: "The advisory reader gains a per-read budget (a timeout override and/or a single retry-once on cold-start) so the `inFlightClaims` read survives a DB cold-start that exceeds 4s and the fresh claim is not dropped — WITHOUT slowing the other four overlay reads or letting `/api/tree` hang."
-status: proposed
+# RETIRED with the spawn-visibility story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat spawn
+# this made visible is retired with chat-subagent-spawn (interactive orchestrator chat retired for an
+# embedded terminal running real Claude Code; spawn/landing do not go to app-guide). Retired in place; body
+# kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [138, 33, 137]
@@ -30,20 +36,8 @@ proof:
   scope:
     testGlobs: ["apps/desktop/src/**/*.test.ts"]
     sourceGlobs: ["apps/desktop/src/**/*.ts"]
-  real:
-    testFile: "apps/desktop/src/backend/advisory.test.ts"
-    sourceFile: "apps/desktop/src/backend/advisory.ts"
-    scope:
-      testGlobs: ["apps/desktop/src/backend/advisory.test.ts"]
-      sourceGlobs: ["apps/desktop/src/backend/advisory.ts"]
-    editsExisting: true
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "desktop", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "desktop", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The claim wisp survives a cold-start — a softer per-read budget

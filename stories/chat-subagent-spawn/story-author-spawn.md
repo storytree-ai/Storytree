@@ -4,7 +4,12 @@ tier: capability
 story: chat-subagent-spawn
 title: "The story-author spawn runner — a write-scoped SDK session fenced to the work-hierarchy surface"
 outcome: "A spawned write-scoped SDK session runs an injected story-author prompt with its writes fenced fail-closed to the work-hierarchy surface (stories/**), returning a typed spawn result that is never a verdict."
-status: proposed
+# RETIRED with the chat-subagent-spawn story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat's
+# agent-side spawn authority is moot (the embedded terminal running real Claude Code is the interactive
+# seat; spawn/landing do not go to app-guide). Retired in place; body kept as history. The `real:` arm is
+# dropped, so this capability is no longer REAL-buildable (buildableNodeIds keys on proof.real) —
+# packages/cli/src/node-build.test.ts's REAL-buildable snapshot is updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [137, 30, 4, 51, 130]
@@ -28,16 +33,8 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/spawn-story-author.test.ts"
-    sourceFile: "packages/agent/src/spawn-story-author.ts"
-    scope:
-      testGlobs: ["packages/agent/src/spawn-story-author.test.ts"]
-      sourceGlobs: ["packages/agent/src/spawn-story-author.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The story-author spawn runner — a write-scoped SDK session fenced to the work-hierarchy surface

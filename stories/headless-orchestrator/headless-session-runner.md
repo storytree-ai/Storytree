@@ -4,7 +4,12 @@ tier: capability
 story: headless-orchestrator
 title: "A single read-only SDK session that runs an injected prompt with orientation tools wired and surfaces a proposal"
 outcome: "A single read-only SDK session runs an injected system prompt with the orientation tools wired, surfaces the agent's final proposal text, and fails closed on a dead/empty session — one session at a time."
-status: proposed
+# RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed 2026-07-17):
+# the dormant chat substrate is absorbed into `app-guide` (../app-guide/story.md). Retired in place; the
+# body is kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [orientation-tool-surface]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -23,16 +28,8 @@ proof:
   scope:
     testGlobs: ["packages/agent/src/**/*.test.ts"]
     sourceGlobs: ["packages/agent/src/**/*.ts"]
-  real:
-    testFile: "packages/agent/src/headless-orchestrator.test.ts"
-    sourceFile: "packages/agent/src/headless-orchestrator.ts"
-    scope:
-      testGlobs: ["packages/agent/src/headless-orchestrator.test.ts"]
-      sourceGlobs: ["packages/agent/src/headless-orchestrator.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/agent", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # A single read-only SDK session that orients and proposes

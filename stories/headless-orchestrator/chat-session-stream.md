@@ -4,7 +4,12 @@ tier: capability
 story: headless-orchestrator
 title: "The chat surface (Phase 2) — an HTTP intake + SSE route streams an orchestrate-driven session"
 outcome: "An HTTP chat intake + SSE route streams an `orchestrate`-driven session's live output to a thin-client chat panel — reusing the Phase-1 composition, read/propose only."
-status: proposed
+# RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed 2026-07-17):
+# the dormant chat substrate is absorbed into `app-guide` (../app-guide/story.md). Retired in place; the
+# body is kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [orchestrator-composition]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -28,16 +33,8 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/chat-stream.test.ts"
-    sourceFile: "packages/drive/src/chat-stream.ts"
-    scope:
-      testGlobs: ["packages/drive/src/chat-stream.test.ts"]
-      sourceGlobs: ["packages/drive/src/chat-stream.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The chat surface (Phase 2) — an HTTP intake + SSE route streams an orchestrate-driven session

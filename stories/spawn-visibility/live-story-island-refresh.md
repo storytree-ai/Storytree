@@ -4,7 +4,13 @@ tier: capability
 story: spawn-visibility
 title: "The just-authored island appears live — a story-author finish triggers TreeView.reloadTree (two-stage)"
 outcome: "When the chat surface sees a spawn-finished event for a story-author, `ChatDock` invokes a `TreeView.reloadTree` callback so the just-authored story's island appears live on the forest map — geometry/behaviour machine-witnessed (the callback fires on the right event, imports no drive/agent code); the island appearing live operator-attested."
-status: proposed
+# RETIRED with the spawn-visibility story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat spawn
+# this made visible is retired with chat-subagent-spawn (interactive orchestrator chat retired for an
+# embedded terminal running real Claude Code; spawn/landing do not go to app-guide). Retired in place; body
+# kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [chat-panel-spawn-render]
 decisions: [137, 70, 4]
@@ -31,27 +37,8 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
-  real:
-    testFile: "apps/studio/src/components/ChatDock.reload.test.tsx"
-    sourceFile: "apps/studio/src/components/ChatDock.tsx"
-    scope:
-      testGlobs: ["apps/studio/src/components/ChatDock.reload.test.tsx"]
-      sourceGlobs: ["apps/studio/src/components/ChatDock.tsx", "apps/studio/src/components/ChatPanel.tsx"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest (jsdom), not node:test. Run the ONE test file under vitest (cwd = apps/studio).
-    proofCommand:
-      file: pnpm
-      args:
-        - "--filter"
-        - "studio"
-        - "exec"
-        - "vitest"
-        - "run"
-        - "src/components/ChatDock.reload.test.tsx"
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The just-authored island appears live — a story-author finish triggers TreeView.reloadTree

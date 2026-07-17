@@ -4,7 +4,12 @@ tier: capability
 story: headless-orchestrator
 title: "The Phase-1 composition + programmatic entry — render the session-orchestrator agent, drive a session, surface a proposal"
 outcome: "A programmatic intent renders the session-orchestrator agent, drives a scripted headless session against the real seed corpus, and surfaces an orientation/proposal."
-status: proposed
+# RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed 2026-07-17):
+# the dormant chat substrate is absorbed into `app-guide` (../app-guide/story.md). Retired in place; the
+# body is kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [headless-session-runner]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -27,17 +32,8 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/orchestrate-single-session.test.ts"
-    sourceFile: "packages/drive/src/orchestrate.ts"
-    scope:
-      testGlobs: ["packages/drive/src/orchestrate-single-session.test.ts"]
-      sourceGlobs: ["packages/drive/src/orchestrate.ts"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The Phase-1 composition + programmatic entry

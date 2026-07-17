@@ -3,6 +3,9 @@ id: "app-guide"
 tier: story
 title: "The app-guide concierge wires a newcomer's Claude Code into the observability layer"
 outcome: "A newcomer opening the desktop app is guided by a conversational concierge from a fresh machine to a Claude Code session wired into the observability layer — install, authenticate, point at the repo, wire the presence hooks — until a wisp lights on the map confirming they are now watched."
+# Immutable arc provenance (ADR-0183): this node's absorb of the dormant headless-orchestrator chat
+# substrate is increment 1 of the explorer-onboarding-arc (ADR-0174 / ADR-0175, owner-directed 2026-07-17).
+arc: explorer-onboarding-arc
 # RENAMED / RE-AIMED (ADR-0175, 2026-07-09). This node was formerly `terminal-chat` — a chat-panel
 # UX-polish story ("make the desktop chat panel feel like a terminal") from a live ADR-0137 Phase-3 UAT
 # walk (2026-07-03). Two companion decisions re-aimed it: ADR-0174 retired the in-app INTERACTIVE
@@ -37,19 +40,32 @@ capabilities: [multi-turn-transcript, auto-grow-input, transcript-reset, backend
 #               chat-panel surface — a real code edge into apps/studio/src. The panel is proven under the
 #               studio VITEST suite; the concierge-chat FEEL is witnessed inside the desktop app (the
 #               consuming surface, ADR-0070 / the desktop story's leg-7 precedent).
-#   - drive-machinery — ONLY the OPTIONAL backend-chat-reset-route cap consumes drive (the exported
-#               composition guard-reset it calls). The three thin-client caps do NOT touch drive (the
-#               thin-client wall, modelPathBoundary.test.ts). If the stretch cap is HELD, this edge is
-#               dormant; it is declared so the cap is buildable when picked up (ADR-0074 "declare the edge").
-#   - desktop (ADR-0192 landlord rule) — the backend-chat-reset-route cap's proof sources live in the
-#               desktop's territory (apps/desktop/src/backend/chat-reset-route.ts): a hosted-seam edge,
-#               annotated below.
-depends_on: [studio, drive-machinery, desktop]
+#   - drive-machinery — the OPTIONAL backend-chat-reset-route cap consumes drive (the exported
+#               composition guard-reset it calls); AND, as of the ADR-0175 absorb, app-guide now OWNS the
+#               dormant chat-substrate composition physically hosted in packages/drive
+#               (orchestrate.ts / chat-stream.ts) — the hosted-code-in-another-package seam (studio-build
+#               precedent). The three thin-client caps do NOT touch drive (the thin-client wall,
+#               modelPathBoundary.test.ts). Declared so the substrate/cap is honest + buildable when picked
+#               up (ADR-0074 "declare the edge").
+#   - agent (ADR-0175 absorb) — app-guide now OWNS the dormant headless-orchestrator engine + read-only
+#               orientation tools, physically hosted in packages/agent (headless-orchestrator.ts,
+#               orientation-tools.ts) — the same hosted-code-in-another-package seam. The concierge that
+#               DRIVES this substrate is the DEFERRED build (no app-guide code imports @storytree/agent
+#               yet), so this is an artifact_edge (deliberate non-import ownership seam).
+#   - NOTE (cycle-break, ADR-0058): app-guide NO LONGER declares `desktop` in depends_on. desktop now
+#               CONSUMES this absorbed substrate — its chat-sse-mount MOUNT rides app-guide's
+#               orchestrate/chat-stream core — so the edge inverts to desktop → app-guide (see
+#               stories/desktop/story.md). The backend-chat-reset-route stretch cap's proof source hosted in
+#               apps/desktop is covered by THAT reverse edge (the ADR-0192 landlord rule accepts either
+#               direction); the future concierge RIDING desktop's chat-sse-mount is DEFERRED and cited in
+#               prose below, not a depends_on edge (declaring app-guide → desktop while desktop → app-guide
+#               would be a cycle).
+depends_on: [studio, drive-machinery, agent]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio, drive-machinery, desktop]
+artifact_edges: [studio, drive-machinery, agent]
 # Deciding ADRs (ADR-0037 §2): 0175 (repurpose-don't-delete the chat infra into the app-guide concierge —
 # this node's re-aim); 0174 (retire the in-app interactive orchestrator chat for an embedded terminal —
 # the companion that freed this infra, and why "terminal feel" retired: the real terminal is now
@@ -87,6 +103,24 @@ map. The whole premise of ADR-0174 is that the observability layer already watch
 Code session *through those seams*; app-guide is the thing that does the wiring and hand-holds the
 setup. Its tool scope is **read / advise / setup** — read-only orientation + inspection, plus narrow
 setup-scoped writes for config and hooks — NOT write-scoped story-code execution.
+
+**app-guide OWNS the dormant headless-orchestrator chat substrate (the ADR-0175 absorb, owner-directed
+2026-07-17, explorer-onboarding-arc inc 1).** The [`headless-orchestrator`](../headless-orchestrator/story.md)
+story is now RETIRED and its dormant chat substrate is absorbed HERE, so a future session plans the
+concierge against ONE story rather than split ownership. What app-guide now owns (ownership honesty — NOT a
+capability dump of new red→green work in this increment): the SDK **session engine** and the read-only
+**orientation tools** (`packages/agent/src/headless-orchestrator.ts`, `orientation-tools.ts`), and the
+`orchestrate` / `chat-stream` **composition** (`packages/drive/src/{orchestrate,chat-stream}.ts`) — code
+physically hosted in the `agent` / `drive-machinery` packages (the studio-build hosted-code precedent; the
+`agent` + `drive-machinery` edges are declared in the frontmatter above). It RIDES desktop's
+[`chat-sse-mount`](../desktop/chat-sse-mount.md) as the HTTP/SSE **mount surface** (that capability stays
+desktop's; the edge is desktop → app-guide, desktop consuming this absorbed core). Spawn and landing do
+NOT come to app-guide (ADR-0175): those retired with [`chat-subagent-spawn`](../chat-subagent-spawn/story.md)
+/ [`spawn-visibility`](../spawn-visibility/story.md), and the interactive seat is the
+[`embedded-terminal`](../embedded-terminal/story.md) running real Claude Code (ADR-0174). The full concierge
+onboarding/wiring build — orient → advise → wire the user's Claude Code → verify a wisp lights, plus the
+orientation-surface consumption edges (`library` / `notice-board`) it will then declare — remains DEFERRED
+(another session is planning it); this absorb is ownership honesty only.
 
 **The build is DEFERRED (ADR-0175).** ADR-0175 is a standing "repurpose, don't delete" marker so the
 chat infrastructure is neither ripped out nor left as unowned dead code. The four capabilities below
@@ -135,8 +169,9 @@ point-at-repo → presence-hook wiring, and verify a wisp lights — is the **de
 (ADR-0175). It will likely need FURTHER capabilities when it is picked up, for example: a
 setup-scoped-write fence for config/hooks (ADR-0175's "narrow writes" note; the same fail-closed
 path-fence discipline the retired glue actuator used, ADR-0160 D2), a wire-and-verify walkthrough that
-confirms a wisp actually lights on the map, and the re-aim of the `headless-orchestrator` SDK session
-engine + the read-only inspect surface (`inspect-tool-surface.ts`) as the concierge's caller. Those are
+confirms a wisp actually lights on the map, and the wiring of the NOW-OWNED headless SDK session engine +
+read-only orientation tools (absorbed from the retired `headless-orchestrator`, ADR-0175) + the read-only
+inspect surface (`inspect-tool-surface.ts`) as the concierge's caller. Those are
 **not authored here** — per the journey-principle and slow-growth, they are named as future work and
 left for the story-author pass that accompanies the actual build. Do NOT scaffold empty capability files
 ahead of a provable walkthrough.

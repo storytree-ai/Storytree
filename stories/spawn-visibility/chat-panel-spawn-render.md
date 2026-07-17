@@ -4,7 +4,13 @@ tier: capability
 story: spawn-visibility
 title: "The chat panel renders the spawn line — the spawn variant on the wire union + the transcript render (two-stage)"
 outcome: "The studio chat surface carries the `spawn` variant on its `ChatEvent` wire union + `isChatEvent` guard and the `ChatPanel` renders it as a spawn line (\"🔧 spawning story-author for <id>…\" → \"✓ story-author finished\") — geometry/behaviour machine-witnessed over a scripted seam; the on-screen appearance operator-attested."
-status: proposed
+# RETIRED with the spawn-visibility story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat spawn
+# this made visible is retired with chat-subagent-spawn (interactive orchestrator chat retired for an
+# embedded terminal running real Claude Code; spawn/landing do not go to app-guide). Retired in place; body
+# kept as history. The `real:` arm is dropped, so this capability is no longer REAL-buildable
+# (buildableNodeIds keys on proof.real) — packages/cli/src/node-build.test.ts's REAL-buildable snapshot is
+# updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: [chat-spawn-trace-events]
 decisions: [137, 70, 4, 138]
@@ -33,28 +39,8 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
-  real:
-    testFile: "apps/studio/src/components/ChatPanel.spawn.test.tsx"
-    sourceFile: "apps/studio/src/components/ChatPanel.tsx"
-    scope:
-      testGlobs: ["apps/studio/src/components/ChatPanel.spawn.test.tsx"]
-      sourceGlobs: ["apps/studio/src/components/ChatPanel.tsx", "apps/studio/src/api.ts"]
-    editsExisting: true
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest (jsdom), not node:test — so the default `node --test` real proof cannot
-    # run this `.test.tsx`. Run the ONE test file under vitest (cwd = apps/studio).
-    proofCommand:
-      file: pnpm
-      args:
-        - "--filter"
-        - "studio"
-        - "exec"
-        - "vitest"
-        - "run"
-        - "src/components/ChatPanel.spawn.test.tsx"
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The chat panel renders the spawn line — the spawn variant on the wire union + the transcript render

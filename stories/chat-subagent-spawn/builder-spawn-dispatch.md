@@ -4,7 +4,12 @@ tier: capability
 story: chat-subagent-spawn
 title: "The builder-leaf spawn dispatch — route the decided unit through the existing routed build worker"
 outcome: "Given the unit the orchestrator decided to drive, a spawn-side dispatch validates it buildable and routes it through the EXISTING routed build worker, returning a typed runId and folding coarse progress back as conversation text — a build intent, never a verdict path."
-status: proposed
+# RETIRED with the chat-subagent-spawn story (ADR-0174 + ADR-0175, owner-directed 2026-07-17): the chat's
+# agent-side spawn authority is moot (the embedded terminal running real Claude Code is the interactive
+# seat; spawn/landing do not go to app-guide). Retired in place; body kept as history. The `real:` arm is
+# dropped, so this capability is no longer REAL-buildable (buildableNodeIds keys on proof.real) —
+# packages/cli/src/node-build.test.ts's REAL-buildable snapshot is updated in this pass.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [137, 108, 91, 99, 90, 136]
@@ -26,12 +31,8 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/spawn-builder.test.ts"
-    sourceFile: "packages/drive/src/spawn-builder.ts"
-    scope:
-      testGlobs: ["packages/drive/src/spawn-builder.test.ts"]
-      sourceGlobs: ["packages/drive/src/spawn-builder.ts"]
+# The `real:` arm was dropped on retirement (explorer-onboarding-arc inc1 / ADR-0175 companion) — see the
+# RETIRED note above. proof.command + proof.scope are kept as history.
 ---
 
 # The builder-leaf spawn dispatch — route the decided unit through the existing routed build worker
