@@ -21,7 +21,7 @@
 
 variable "github_repository" {
   type        = string
-  default     = "HuaMick/Storytree"
+  default     = "storytree-ai/Storytree"
   description = "owner/repo allowed to impersonate the CI service account via WIF (OIDC attribute.repository)."
 }
 
@@ -42,7 +42,7 @@ resource "google_project_service" "iam" {
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
   display_name              = "GitHub Actions"
-  description               = "OIDC federation for HuaMick/Storytree CI (presence merge-retire)"
+  description               = "OIDC federation for storytree-ai/Storytree CI (presence merge-retire)"
   depends_on                = [google_project_service.iam]
 }
 
@@ -91,7 +91,7 @@ resource "google_project_iam_member" "ci_presence_sql_instance_user" {
   member  = "serviceAccount:${google_service_account.ci_presence.email}"
 }
 
-# Let ONLY HuaMick/Storytree's workflows impersonate the SA (the keyless bridge). The
+# Let ONLY storytree-ai/Storytree's workflows impersonate the SA (the keyless bridge). The
 # principalSet is scoped by attribute.repository, so a fork / another repo cannot assume it.
 resource "google_service_account_iam_member" "ci_presence_wif_user" {
   service_account_id = google_service_account.ci_presence.name

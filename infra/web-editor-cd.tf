@@ -9,7 +9,7 @@
 # --allow-unauthenticated, no IAP, no DB). Mirrors infra/studio-cd.tf (ADR-0046) — minus IAP.
 #
 # ── WHY A SECOND PROVIDER (the safety crux) ─────────────────────────────────────────────────────
-# The trigger lives in HuaMick/storytree-web, a DIFFERENT repo than the parent HuaMick/Storytree
+# The trigger lives in storytree-ai/storytree-web, a DIFFERENT repo than the parent storytree-ai/Storytree
 # that ci-presence.tf's `github` provider trusts (its attribute_condition rejects every other repo).
 # We do NOT widen that provider, and we do NOT touch it — that keeps the CI + studio trust it backs
 # provably unchanged. Instead we ADD a sibling provider `github-web` to the SAME pool, scoped to
@@ -22,7 +22,7 @@
 # attribute.repository (NOT attribute.ref): its identities carry no attribute.ref, so they can never
 # match the studio's ref-based binding. main is still enforced — at the provider's
 # attribute_condition (token acceptance), not as a principal attribute. This editor deployer binds
-# on attribute.repository/HuaMick/storytree-web, which only `github-web` can mint (the `github`
+# on attribute.repository/storytree-ai/storytree-web, which only `github-web` can mint (the `github`
 # provider rejects that repo), so only storytree-web@main can assume it.
 #
 # ── SEQUENCING: the pool must exist first ───────────────────────────────────────────────────────
@@ -41,8 +41,8 @@
 
 locals {
   # The repo whose Actions OIDC may impersonate the editor deploy SA. NOTE the lowercase `storytree-web`
-  # (the GitHub repo's exact name) — distinct from ci-presence's `HuaMick/Storytree`.
-  web_editor_cd_github_repository = "HuaMick/storytree-web"
+  # (the GitHub repo's exact name) — distinct from ci-presence's `storytree-ai/Storytree`.
+  web_editor_cd_github_repository = "storytree-ai/storytree-web"
 
   # The hosted-editor runtime SA (created imperatively by infra/deploy-web-editor.sh §1 — NOT a TF
   # resource). The deployed revision runs AS this SA (Secret Manager read for the Keystatic creds;
@@ -90,7 +90,7 @@ resource "google_service_account" "web_editor_deployer" {
   display_name = "Website editor CD — deploy on merge (ADR-0101), keyless WIF"
 }
 
-# Only HuaMick/storytree-web's workflows (which only `github-web` can mint, and only on main) may
+# Only storytree-ai/storytree-web's workflows (which only `github-web` can mint, and only on main) may
 # impersonate the deploy SA. Bound on attribute.repository because `github-web` does not map
 # attribute.ref; main is enforced at the provider's attribute_condition.
 resource "google_service_account_iam_member" "web_editor_deployer_wif_user" {

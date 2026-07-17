@@ -21,7 +21,7 @@ Wired in three pieces:
 
 ## Why a second provider (read before applying)
 
-The trigger lives in **HuaMick/storytree-web**, a different repo than the parent **HuaMick/Storytree**
+The trigger lives in **storytree-ai/storytree-web**, a different repo than the parent **storytree-ai/Storytree**
 that `ci-presence.tf`'s `github` provider trusts (its `attribute_condition` rejects all other repos).
 Rather than widen that shared provider, `web-editor-cd.tf` **adds** a sibling provider `github-web`
 scoped to `storytree-web@main` only, and leaves `github` untouched — so the CI + studio trust it backs
@@ -32,7 +32,7 @@ The subtle trap it avoids: the studio deployer is bound to the **pool-level** pr
 `attribute.ref`, a storytree-web@main token would satisfy that binding and could impersonate the
 **studio** deployer. So `github-web` maps only `google.subject` + `attribute.repository` (**not**
 `attribute.ref`); main is still enforced, at the provider's `attribute_condition`. The editor deployer
-binds on `attribute.repository/HuaMick/storytree-web`, which only `github-web` can mint.
+binds on `attribute.repository/storytree-ai/storytree-web`, which only `github-web` can mint.
 
 ## ONE-TIME OWNER STEP — the IAM apply (BLOCKING until done)
 
@@ -93,7 +93,7 @@ the IAM deliberately and reviews the surface below.
 - **Owner manual merge (the normal path).** storytree-web has no automerge — the owner merges PRs, and
   a user-token merge cascades `push: main` directly (GitHub only blocks `GITHUB_TOKEN` pushes from
   cascading), so the deploy fires. No dispatch shim is needed (unlike the studio's ADR-0061 path).
-- **On demand / break-glass:** `gh workflow run deploy-editor.yml --ref main -R HuaMick/storytree-web`.
+- **On demand / break-glass:** `gh workflow run deploy-editor.yml --ref main -R storytree-ai/storytree-web`.
 
 ## The IAM surface (review before applying)
 
