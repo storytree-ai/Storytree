@@ -5,6 +5,13 @@ title: "UAT attestation — each UAT test earns green by its witness; a vouch ne
 outcome: "A story's UAT is a set of individually-addressable tests, each declaring a witness (human, machine, or either). A test earns a real signed verdict by its witness — a machine proof, or a human's 'I saw it work' operator attestation — and the story's own UAT greens as the AND-roll-up of those per-test verdicts. A separate, lower-rigor vouch ('I also eyeballed it') stays in the detail view, distinct from a gate-proven pass, and never greens the story. No path ever forges a green."
 status: proposed
 proof_mode: UAT
+# Arc membership (ADR-0183 / ADR-0209): a RESHAPED child of the `model-uat-promotion` arc. This story
+# is the historical home of the per-test witness model ADR-0209 amends; its classified binary witness
+# enum is superseded by the three-kind tiered model authored in the arc's first increment
+# `stories/model-uat-witness`, while `either` remains legacy-only parse compatibility until the staged
+# corpus migration completes. See the ADR-0209 reconciliation note below. This story's own
+# (still-unbuilt) vouch-vs-proof + AND-roll-up journey is otherwise untouched.
+arc: model-uat-promotion
 capabilities: [uat-test-units, attestation-signals, attestation-surface]
 depends_on: [studio, library]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
@@ -12,7 +19,7 @@ depends_on: [studio, library]
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
 artifact_edges: [studio, library]
-decisions: [44, 82]
+decisions: [44, 82, 209]
 ---
 
 # UAT attestation — each UAT test earns green by its witness; a vouch never forges a green
@@ -31,6 +38,24 @@ which **supersedes-in-part ADR-0044 §2/§3**: a human stamp on a declared-human
 signed verdict* that greens it (ADR-0007's `operator-attested` mode), not only a never-green signal,
 and a story's own UAT greens as the AND-roll-up of its per-test verdicts. The honesty rule is
 untouched: green is still a signed verdict, and no one can forge one.
+
+> **Reconciliation — ADR-0209 (the `model-uat-promotion` arc) supersedes-in-part this story's witness
+> model.** ADR-0209 (accepted 2026-07-17) amends ADR-0082 to add a THIRD witness kind: a criterion now
+> resolves to deterministic `machine`, capability-tiered `model` (a rubric-bound read-only model judge,
+> tiered `advanced` / `frontier`), or irreducible `human`. The binary `witness: human | machine |
+> either` this story's design floor and `uat-test-units` capability describe is therefore **overtaken
+> for classified criteria**: `model` is a distinct new kind (not a spelling of `machine`), while
+> `either` remains only as a legacy parse/unresolved compatibility state for existing untagged
+> criteria until the explicitly staged corpus migration completes. Legacy `either` can never carry a
+> model tier or enter model judgment by default; new and migrated criteria classify explicitly as
+> `machine | model | human`. That three-kind tiered witness model + its eligibility registry is authored in the
+> arc's first increment, [`stories/model-uat-witness`](../model-uat-witness/story.md), which RESHAPES the
+> shared source (`packages/library/src/uat-test-criteria.ts`) this story's `uat-test-units` maps. The
+> independent spine-signed model JUDGE run, the per-criterion seed-canonical Library detail artifact, the
+> Studio row concision, and the three-story pilot migration are later arc increments. This story's own
+> vouch-vs-proof + AND-roll-up journey (below) is unbuilt (`proposed`) and untouched by ADR-0209 except
+> for the witness enum; read the sections below as pre-ADR-0209 history for the binary enum, and defer to
+> `model-uat-witness` for the resting witness model.
 
 ## Design floor (ADR-0044, reconciled by ADR-0082)
 
