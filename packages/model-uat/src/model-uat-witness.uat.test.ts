@@ -5,6 +5,12 @@ import type { ModelRegistry } from "./model-registry.js";
 import { MODEL_REGISTRY_VERSION, SEED_MODEL_REGISTRY } from "./model-registry.js";
 import { resolveStoryWitnesses, resolveWitness } from "./model-uat-witness.js";
 import type { WitnessResolution } from "./model-uat-witness.js";
+// Namespace import of the package's PUBLIC entry point (`@storytree/model-uat` →
+// `src/index.ts`) — deliberately separate from the internal-file imports above, and
+// typed loosely (cast at each use site) so this file compiles regardless of what
+// `index.ts` currently exports. A downstream story depends on the package root, not
+// on reaching into `model-uat-witness.js` directly.
+import * as ModelUatPackageRoot from "./index.js";
 
 /**
  * Story UAT for `model-uat-witness` (ADR-0209): the integrated acceptance walkthrough proving the
@@ -200,4 +206,41 @@ test("end-to-end: resolving the same story body against the same registry is det
 
 test("end-to-end: a story with no UAT section resolves to no witnesses (backward-compatible)", () => {
   assert.deepEqual(resolveStoryWitnesses(STORY, "# Just a heading\n\nno uat here\n", SEED_MODEL_REGISTRY), []);
+});
+
+// ---------------------------------------------------------------------------
+// Leg 7 — the STORY's public package entry point exposes the composed facade
+// ---------------------------------------------------------------------------
+//
+// A downstream story depends on `@storytree/model-uat` (the package root,
+// `src/index.ts`), never on reaching into `model-uat-witness.ts` directly. Today
+// `index.ts` is a placeholder (`export {}` — "reserved for subsequent leaf units"),
+// so the story's outcome, though fully proven internally above, is not yet a
+// consumable contract at the package boundary. These regress until `index.ts`
+// re-exports the composed facade.
+
+test("UAT leg 7: the package root exports resolveStoryWitnesses as a callable function", () => {
+  const facade = ModelUatPackageRoot as unknown as Record<string, unknown>;
+  assert.equal(
+    typeof facade.resolveStoryWitnesses,
+    "function",
+    "the package root (@storytree/model-uat) must export resolveStoryWitnesses — the story's public composed facade — not leave it reachable only via the internal model-uat-witness.js file",
+  );
+});
+
+test("UAT leg 7: resolveStoryWitnesses from the package root resolves a full journey identically to the internal facade", () => {
+  const facade = ModelUatPackageRoot as unknown as {
+    resolveStoryWitnesses?: (storyId: string, body: string, registry: ModelRegistry) => WitnessResolution[];
+    SEED_MODEL_REGISTRY?: ModelRegistry;
+  };
+  assert.equal(typeof facade.resolveStoryWitnesses, "function", "resolveStoryWitnesses must be exported from the package root");
+  assert.equal(typeof facade.SEED_MODEL_REGISTRY, "object", "SEED_MODEL_REGISTRY must be exported from the package root");
+
+  const viaPackageRoot = facade.resolveStoryWitnesses!(STORY, JOURNEY_BODY, facade.SEED_MODEL_REGISTRY!);
+  const viaInternalFile = resolveStoryWitnesses(STORY, JOURNEY_BODY, SEED_MODEL_REGISTRY);
+  assert.deepEqual(
+    viaPackageRoot,
+    viaInternalFile,
+    "the package root's facade must resolve the same journey to the exact same outcome as the internal file",
+  );
 });
