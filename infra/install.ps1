@@ -163,6 +163,13 @@ Invoke-Step -Name 'claude-cli' `
   -Install { irm https://claude.ai/install.ps1 | iex; Update-SessionPath }
 
 # --- trailing actions (not idempotent-convergent steps) ------------------------------------------
+# Verify the setup with `storytree doctor` (ADR-0207 D6: the installer verifies with it). doctor is
+# read-only and offline-capable; a non-zero exit (e.g. Claude login still pending) does NOT halt this
+# script - it is surfaced for the dev, and re-running the doctor / this installer is the repair loop.
+Write-Info "verifying setup with 'storytree doctor'..."
+Push-Location $CheckoutDir
+try { pnpm storytree doctor } catch { Write-Warn "doctor could not run yet: $_" } finally { Pop-Location }
+
 # Claude login is the dev's action in their own browser - we DETECT + INSTRUCT, never capture (D3).
 # A logged-in CLI writes ~/.claude/.credentials.json; its presence is the "already logged in" signal
 # (storytree reads only its EXISTENCE, never its contents).

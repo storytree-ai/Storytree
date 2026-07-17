@@ -5489,13 +5489,49 @@ button.legend-tile:hover {
   display: block;
   background: var(--lp-panel);
 }
-/* drawn reference edges — soft moss vine strokes, under the plaques. */
+/* drawn reference edges — soft moss vine strokes: border-anchored beziers curving through the rank
+   gap, a directional chevron pointing foundation → dependent. */
 .ldag-edge {
   stroke: var(--lp-moss);
-  stroke-width: 1.5;
+  stroke-width: 1.75;
   stroke-linecap: round;
-  opacity: 0.32;
+  fill: none;
+  opacity: 0.5;
   pointer-events: none;
+}
+.ldag-arrowhead {
+  fill: var(--lp-moss);
+  opacity: 0.72;
+}
+/* the two faint grounds framing the centre — left "stands on", right "stood on by". */
+.ldag-swimlane {
+  pointer-events: none;
+}
+.ldag-swimlane-left {
+  fill: var(--lp-moss);
+  opacity: 0.05;
+}
+.ldag-swimlane-right {
+  fill: var(--lp-sprout);
+  opacity: 0.06;
+}
+/* the centre plaque's soft moss glow — reads the focus even amid warm neighbours. */
+.ldag-node-halo {
+  fill: var(--lp-moss);
+  opacity: 0.13;
+  pointer-events: none;
+}
+/* the column legend — constant-size HTML header over the fit-to-view SVG (never scales with it). */
+.ldag-lane-legend {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 12px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-ink-soft);
 }
 /* the node plaque — a seed-packet card; kind is text, colour is state. */
 .ldag-node {

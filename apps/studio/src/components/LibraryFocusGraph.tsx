@@ -31,8 +31,12 @@
 import { useMemo, useState } from 'react';
 import {
   buildFocusGraph,
+  edgePath,
+  fitViewBox,
+  focusSwimlanes,
   FOCUS_NODE_HEIGHT,
   FOCUS_NODE_WIDTH,
+  wrapTitle,
   type FocusCollapsedGroup,
   type FocusNode,
 } from '../lib/focusGraph';
@@ -99,6 +103,7 @@ export function LibraryFocusGraph({
     const collapsedGroup = collapsedByParent.get(node.id);
     const left = node.x - FOCUS_NODE_WIDTH / 2;
     const top = node.y - FOCUS_NODE_HEIGHT / 2;
+    const titleLines = wrapTitle(node.title);
     return (
       <g
         key={node.id}
@@ -111,11 +116,22 @@ export function LibraryFocusGraph({
         onClick={() => handleNodeClick(node)}
         onDoubleClick={() => onOpen?.(toSearchResult(node))}
       >
-        <rect className="ldag-node-rect" width={FOCUS_NODE_WIDTH} height={FOCUS_NODE_HEIGHT} rx={6} />
-        <text className="ldag-node-title" x={10} y={22}>
-          {node.title}
+        {/* full, untruncated title on hover — keeps the 2-line clamp lossless */}
+        <title>{node.title}</title>
+        <rect className="ldag-node-rect" width={FOCUS_NODE_WIDTH} height={FOCUS_NODE_HEIGHT} rx={8} />
+        <text className="ldag-node-title" x={12} y={24}>
+          {titleLines.map((line, i) => (
+            <tspan key={i} x={12} dy={i === 0 ? 0 : 16}>
+              {line}
+            </tspan>
+          ))}
         </text>
-        <text className="ldag-node-kind" data-testid={`lfg-node-kind-${node.id}`} x={10} y={40}>
+        <text
+          className="ldag-node-kind"
+          data-testid={`lfg-node-kind-${node.id}`}
+          x={12}
+          y={FOCUS_NODE_HEIGHT - 12}
+        >
           {kindLabel(node.category, arcDisplay)}
         </text>
         {collapsedGroup && renderExpander(node, collapsedGroup)}
@@ -142,28 +158,85 @@ export function LibraryFocusGraph({
     );
   }
 
-  const viewBox = `${graph.bbox.minX} ${graph.bbox.minY} ${graph.bbox.width} ${graph.bbox.height}`;
+  // Cap the zoom: never scale a small graph (or a lone node) up past a natural size — pad the
+  // viewBox out to the minimum window instead, so the on-screen node size stays consistent.
+  const view = fitViewBox(graph.bbox);
+  const viewBox = `${view.minX} ${view.minY} ${view.width} ${view.height}`;
+  const lanes = focusSwimlanes(graph.nodes, view);
+  const centreNode = graph.nodes.find((n) => n.side === 'centre');
 
   return (
     <div className="library-focus-graph-shell">
+      {(lanes.left || lanes.right) && (
+        <div className="ldag-lane-legend" data-testid="ldag-lane-legend">
+          <span>{lanes.left ? 'Stands on' : ''}</span>
+          <span>{lanes.right ? 'Stood on by' : ''}</span>
+        </div>
+      )}
       <svg
         className="library-focus-graph"
         data-testid="library-focus-graph"
         viewBox={viewBox}
+        preserveAspectRatio="xMidYMid meet"
       >
+        <defs>
+          {/* directional chevron — userSpaceOnUse so it scales with the viewBox, not stroke-width */}
+          <marker
+            id="lfg-arrow"
+            viewBox="0 0 10 10"
+            refX={9}
+            refY={5}
+            markerWidth={16}
+            markerHeight={16}
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path className="ldag-arrowhead" d="M0,0 L10,5 L0,10 L2.5,5 Z" />
+          </marker>
+        </defs>
+        {/* swimlane grounds (back): faint stands-on / stood-on-by bands framing the centre */}
+        {lanes.left && (
+          <rect
+            className="ldag-swimlane ldag-swimlane-left"
+            data-testid="ldag-swimlane-left"
+            x={lanes.left.x}
+            y={view.minY}
+            width={lanes.left.width}
+            height={view.height}
+          />
+        )}
+        {lanes.right && (
+          <rect
+            className="ldag-swimlane ldag-swimlane-right"
+            data-testid="ldag-swimlane-right"
+            x={lanes.right.x}
+            y={view.minY}
+            width={lanes.right.width}
+            height={view.height}
+          />
+        )}
+        {/* centre halo — a soft moss glow so the focused node reads even amid its neighbours */}
+        {centreNode && (
+          <rect
+            className="ldag-node-halo"
+            x={centreNode.x - FOCUS_NODE_WIDTH / 2 - 6}
+            y={centreNode.y - FOCUS_NODE_HEIGHT / 2 - 6}
+            width={FOCUS_NODE_WIDTH + 12}
+            height={FOCUS_NODE_HEIGHT + 12}
+            rx={12}
+          />
+        )}
         {graph.edges.map((edge) => {
           const fromNode = graph.nodes.find((n) => n.id === edge.from);
           const toNode = graph.nodes.find((n) => n.id === edge.to);
           if (!fromNode || !toNode) return null;
           return (
-            <line
+            <path
               key={`${edge.from}-${edge.to}`}
               className="ldag-edge"
               data-testid={`ldag-edge-${edge.from}-${edge.to}`}
-              x1={fromNode.x}
-              y1={fromNode.y}
-              x2={toNode.x}
-              y2={toNode.y}
+              d={edgePath(fromNode, toNode)}
+              markerEnd="url(#lfg-arrow)"
             />
           );
         })}

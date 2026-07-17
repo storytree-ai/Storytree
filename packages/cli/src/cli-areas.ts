@@ -33,6 +33,7 @@ export const CLI_AREAS = [
   "desktop",
   "onboarding",
   "friction",
+  "doctor",
 ] as const;
 
 export type CliArea = (typeof CLI_AREAS)[number];

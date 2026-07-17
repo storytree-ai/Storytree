@@ -101,8 +101,13 @@ function resolveRef(ref: string): string {
 /** Per-branch fan cap: a parent past this many next-hop neighbours collapses the overflow. */
 export const FAN_CAP = 6;
 
-export const FOCUS_NODE_WIDTH = 160;
-export const FOCUS_NODE_HEIGHT = 54;
+export const FOCUS_NODE_WIDTH = 210;
+export const FOCUS_NODE_HEIGHT = 66;
+
+/** Reserved slack added to the RIGHT of the laid-out bbox (downstream side only — `minX` is never
+ *  touched) so the rightmost "stood on by" column is never occluded by the pinned selection card;
+ *  paired with `preserveAspectRatio="xMinYMid meet"` in the component to anchor the DAG left. */
+export const RIGHT_GUTTER = 56;
 
 /** Builds the dagre rankdir-LR one-level-each-way DAG over `references[]`, centred on `centre`. */
 export function buildFocusGraph({
@@ -193,7 +198,8 @@ export function buildFocusGraph({
   expandFrontier([centre.id], (id) => downstreamOf.get(id) ?? [], 'downstream');
 
   const graph = new dagre.graphlib.Graph();
-  graph.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 60, marginx: 8, marginy: 8 });
+  // Wider ranks so the border-anchored bezier edges + arrowheads have room to read (the vine idiom).
+  graph.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: 120, marginx: 16, marginy: 16 });
   graph.setDefaultEdgeLabel(() => ({}));
   for (const id of includedIds) {
     graph.setNode(id, { width: FOCUS_NODE_WIDTH, height: FOCUS_NODE_HEIGHT });
@@ -236,7 +242,9 @@ export function buildFocusGraph({
   const bbox: FocusBBox = {
     minX: rawMinX,
     minY: rawMinY,
-    width: rawMaxX - rawMinX,
+    // Reserve a right gutter so the downstream column clears the pinned selection card. Grows
+    // width ONLY (minX/minY/height unchanged) — every node CENTRE stays inside the viewBox.
+    width: rawMaxX - rawMinX + RIGHT_GUTTER,
     height: rawMaxY - rawMinY,
   };
 
@@ -245,4 +253,136 @@ export function buildFocusGraph({
   );
 
   return { nodes, edges, collapsed, bbox };
+}
+
+/** The minimum viewBox window (user units) — a zoom CAP. `fitViewBox` never shrinks below this, so
+ *  a small graph (or a lone node with no references) renders at a natural, consistent size instead of
+ *  being blown up to fill the canvas; only a graph LARGER than this scales down to fit. Chosen to
+ *  frame ~5 node-widths across, so a single 210-wide plaque reads as a normal node, never a poster. */
+export const MIN_VIEW_WIDTH = 1080;
+export const MIN_VIEW_HEIGHT = 620;
+
+/**
+ * The fit-to-view rectangle: the laid-out `bbox`, but never smaller than `MIN_VIEW_WIDTH ×
+ * MIN_VIEW_HEIGHT` — the shortfall is padded symmetrically around the content's centre. This caps the
+ * maximum zoom so the on-screen node size stays consistent across selections (a small graph no longer
+ * scales up to fill the viewport); a graph bigger than the minimum is returned unchanged and still
+ * fits-to-view. Every node centre stays inside the returned rect (padding only grows it).
+ */
+export function fitViewBox(
+  bbox: FocusBBox,
+  minW = MIN_VIEW_WIDTH,
+  minH = MIN_VIEW_HEIGHT,
+): FocusBBox {
+  const width = Math.max(bbox.width, minW);
+  const height = Math.max(bbox.height, minH);
+  return {
+    minX: bbox.minX - (width - bbox.width) / 2,
+    minY: bbox.minY - (height - bbox.height) / 2,
+    width,
+    height,
+  };
+}
+
+/** How many characters a title line carries before wrapping — ~(FOCUS_NODE_WIDTH − 2×12 pad) at the
+ *  12.5px/600 title face (~6.6px/char). One tunable knob; the wrap is a pure char estimate, not DOM
+ *  measurement, so it stays test-friendly. */
+export const TITLE_CHARS_PER_LINE = 27;
+const TITLE_MAX_LINES = 2;
+
+/** Clip `s` to fit `maxChars` INCLUDING a trailing ellipsis, trimming dangling punctuation first. */
+function ellipsize(s: string, maxChars: number): string {
+  return s.slice(0, Math.max(1, maxChars - 1)).replace(/[\s.,;:—-]+$/, '') + '…';
+}
+
+/**
+ * Greedy word-wrap `text` into at most `maxLines` lines of ~`maxChars` each, ellipsising the last
+ * kept line when content is dropped (or a lone over-long word overruns a line). Keeps the id-forward
+ * prefix (e.g. "ADR-0018:") on line 1. Pure — no DOM, safe to unit-test in a node env.
+ */
+export function wrapTitle(
+  text: string,
+  maxChars = TITLE_CHARS_PER_LINE,
+  maxLines = TITLE_MAX_LINES,
+): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [''];
+
+  // 1) greedy-wrap into as many lines as the words need (a lone word wider than a line gets its own).
+  const all: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const cand = cur ? `${cur} ${w}` : w;
+    if (cand.length <= maxChars || cur === '') cur = cand;
+    else {
+      all.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) all.push(cur);
+
+  // 2) clamp to the line budget; ellipsise the last kept line only when something was dropped.
+  if (all.length > maxLines) {
+    const kept = all.slice(0, maxLines);
+    const last = kept[maxLines - 1];
+    if (last !== undefined) kept[maxLines - 1] = ellipsize(last, maxChars);
+    return kept;
+  }
+  // within budget: only a lone-word line that itself overflows needs a hard clip.
+  return all.map((ln) => (ln.length > maxChars ? ellipsize(ln, maxChars) : ln));
+}
+
+/**
+ * A border-anchored cubic-bezier path from the RIGHT edge of the (upstream, left) referenced node to
+ * the LEFT edge of the (downstream, right) referencer node, with horizontal control handles so the
+ * curve leaves/enters level (the arrow tangent stays horizontal) and lives entirely in the rank gap
+ * — never tunnelling under a plaque. `from`/`to` are node CENTRES (dagre positions).
+ */
+export function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
+  const x1 = from.x + FOCUS_NODE_WIDTH / 2;
+  const y1 = from.y;
+  const x2 = to.x - FOCUS_NODE_WIDTH / 2;
+  const y2 = to.y;
+  const dx = Math.max(28, (x2 - x1) * 0.5);
+  return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+}
+
+/** One faint swimlane band — full-height ground behind a side's column. */
+export interface FocusSwimlane {
+  x: number;
+  width: number;
+}
+
+/** The two "stands on" (left) / "stood on by" (right) grounds; a side is `null` when it has no fan. */
+export interface FocusSwimlanes {
+  left: FocusSwimlane | null;
+  right: FocusSwimlane | null;
+}
+
+/**
+ * The two swimlane grounds framing the centre: the left band spans `[bbox.minX, midpoint(rightmost
+ * upstream centre, centre)]`, the right band spans `[midpoint(centre, leftmost downstream centre),
+ * bbox.maxX]` — leaving the centre column on neutral ground between them. A side with no neighbours
+ * yields `null` (no band drawn). Pure geometry over the laid-out nodes + bbox.
+ */
+export function focusSwimlanes(nodes: FocusNode[], bbox: FocusBBox): FocusSwimlanes {
+  const centre = nodes.find((n) => n.side === 'centre');
+  if (!centre) return { left: null, right: null };
+
+  const minX = bbox.minX;
+  const maxX = bbox.minX + bbox.width;
+  const upstream = nodes.filter((n) => n.side === 'upstream');
+  const downstream = nodes.filter((n) => n.side === 'downstream');
+
+  let left: FocusSwimlane | null = null;
+  let right: FocusSwimlane | null = null;
+  if (upstream.length > 0) {
+    const boundary = (Math.max(...upstream.map((n) => n.x)) + centre.x) / 2;
+    left = { x: minX, width: boundary - minX };
+  }
+  if (downstream.length > 0) {
+    const boundary = (centre.x + Math.min(...downstream.map((n) => n.x))) / 2;
+    right = { x: boundary, width: maxX - boundary };
+  }
+  return { left, right };
 }

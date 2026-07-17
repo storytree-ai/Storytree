@@ -50,6 +50,7 @@ import {
   type ResolveElectronFn,
 } from "./desktop.js";
 import { onboardingCommand, onboardingHelp } from "./onboarding.js";
+import { doctorCommand, doctorHelp } from "./doctor.js";
 import {
   newFriction,
   migrateFriction,
@@ -2321,6 +2322,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return onboardingCommand(positionals.slice(1), {
       ...(values["agent-type"] !== undefined ? { agentType: values["agent-type"] } : {}),
     });
+  }
+
+  if (area === "doctor") {
+    // The explorer-onboarding setup check (ADR-0207 D6). Read-only, offline-capable: it probes the
+    // setup invariants of THIS checkout and prints a fix hint per failure — no store, no --pg, and it
+    // never handles a Claude credential (detects a logged-in CLI by file existence only, D3).
+    if (help) return doctorHelp();
+    return doctorCommand(positionals.slice(1));
   }
 
   if (area !== "library") {
