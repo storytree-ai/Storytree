@@ -103,7 +103,8 @@ The deploy SA `storytree-web-editor-deployer` gets:
 | --- | --- | --- |
 | `roles/iam.workloadIdentityUser` | the deploy SA | the keyless bridge — only storytree-web workflows **on `main`** (via `github-web`) may impersonate it |
 | `roles/iam.serviceAccountUser` | on `storytree-web-editor-host` | actAs at deploy → the revision runs as the keyless runtime SA |
-| `roles/run.admin` | **project** | deploy revisions + keep the public `--allow-unauthenticated` binding from drifting off (see tightening) |
+| `roles/run.admin` | the **`storytree-web-editor` service** only (`google_cloud_run_v2_service_iam_member`) | deploy revisions + the `setIamPolicy` that `--allow-unauthenticated` performs (keeps the public allUsers-invoker binding from drifting off) — scoped to this one service so a CD compromise cannot setIamPolicy on / reconfigure any OTHER Cloud Run service |
+| `roles/run.viewer` | project | read-only Run visibility for `gcloud run deploy`'s operation polling + the smoke `describe` (no write, no `setIamPolicy`) |
 | `roles/cloudbuild.builds.editor` | project | submit + watch the image build |
 | `roles/iam.serviceAccountUser` | on the default compute SA (`635716509357-compute@`) | actAs the Cloud Build **execution** SA |
 | `roles/serviceusage.serviceUsageConsumer` | project | required for SA-driven `gcloud builds submit` |
@@ -114,11 +115,17 @@ The deploy SA `storytree-web-editor-deployer` gets:
 Plus the WIF resource: the **`github-web` provider** on the existing pool (storytree-web@main only).
 The existing `github` provider, the studio deployer, and the CI presence SA are untouched.
 
-**The one knowingly-wide grant is project `roles/run.admin`** (vs `run.developer`), mirroring the
-studio CD's known-working recipe. **Tightening** (owner's call, no workflow change): drop to
-`roles/run.developer` and stop passing `--allow-unauthenticated` (the allUsers invoker binding is a
-sticky service setting a new revision preserves), then assert the service is still public in the smoke
-step.
+**`run.admin` is now scoped to the single `storytree-web-editor` service** (defensive-security
+least-privilege pass, mirroring the studio CD) via `google_cloud_run_v2_service_iam_member`, paired
+with a read-only project `roles/run.viewer`. It is still `run.admin` (not `run.developer`) because
+`--allow-unauthenticated` performs a `setIamPolicy` that `run.developer` lacks — but confined to this
+one service, so a CD compromise cannot `setIamPolicy` on / reconfigure any OTHER Cloud Run service.
+**⚠️ This changes the deploy SA's effective IAM — an owner `terraform apply` is required to take
+effect** (it destroys the old project-wide binding and creates the service-scoped + `run.viewer`
+pair); verify the first deploy after apply still succeeds. **Further tightening** still open (owner's
+call, would touch the workflow): drop to `roles/run.developer` and stop passing
+`--allow-unauthenticated` (the allUsers invoker binding is a sticky service setting a new revision
+preserves), then assert the service is still public in the smoke step.
 
 ## Post-deploy verification
 

@@ -68,18 +68,36 @@ resource "google_service_account_iam_member" "studio_deployer_actas_runtime" {
   member             = "serviceAccount:${google_service_account.studio_deployer.email}"
 }
 
-# Deploy Cloud Run revisions + re-assert the IAP posture. NOTE: this is `roles/run.admin`, not
-# the narrower `roles/run.developer`, ON PURPOSE: the deploy passes `--iap` every time so the
-# IAP wall can never silently drift off, and `--iap` performs a setIamPolicy (binds the IAP
-# service agent as the sole invoker) which run.developer cannot do. This is deliberately broader
-# than the repo's usual least-privilege; it is the one knowingly-wide grant here. TIGHTENING
-# OPTIONS for the owner (see infra/studio-cd.md): scope run.admin to the storytree-studio service
-# resource, or drop to run.developer + stop passing --iap (rely on IAP being a sticky service
-# setting) + assert-iap-still-on in the smoke step. Left project-wide because the first apply
-# could not be agent-tested and project-run.admin is the known-working CD recipe.
-resource "google_project_iam_member" "studio_deployer_run_admin" {
+# Deploy Cloud Run revisions of the storytree-studio service + re-assert its IAP posture. This is
+# `roles/run.admin`, not the narrower `roles/run.developer`, ON PURPOSE: the deploy passes `--iap`
+# every time so the IAP wall can never silently drift off, and `--iap` performs a setIamPolicy (binds
+# the IAP service agent as the sole invoker) which run.developer cannot do.
+#
+# SCOPED TO THE ONE storytree-studio SERVICE, not the whole project (ADR-0046 tightening, studio-cd.md
+# option 1). Project-wide run.admin would let this CD SA modify/replace ANY Cloud Run service in the
+# project and run setIamPolicy on them — e.g. add an `allUsers` invoker to make an unrelated service
+# public / bypass IAP — so a CD compromise (only reachable via a poisoned main-branch deploy) could
+# reconfigure or expose the whole project's Run surface. Resource scope contains the blast radius to
+# redeploying THIS one service. The deploy (`gcloud run deploy storytree-studio …`) and the smoke
+# `gcloud run services describe storytree-studio` both target only this service, so resource-scoped
+# run.admin covers them; project `roles/run.viewer` below (read-only) covers any operation-polling /
+# describe that resolves at project scope. The service is created imperatively (studio-cloud.md §1 —
+# not a TF resource), so this binding references it by location + name rather than a resource address.
+resource "google_cloud_run_v2_service_iam_member" "studio_deployer_run_admin" {
+  project  = var.project_id
+  location = var.region
+  name     = "storytree-studio"
+  role     = "roles/run.admin"
+  member   = "serviceAccount:${google_service_account.studio_deployer.email}"
+}
+
+# Read-only, project-wide Cloud Run visibility for `gcloud run deploy`'s operation polling and the
+# smoke step's describe (studio-cd.md option 1). `roles/run.viewer` grants NO write — no
+# services.update, no setIamPolicy — so it does NOT reintroduce the cross-service blast radius the
+# service-scoped run.admin above removes; it only lets the SA read Run state.
+resource "google_project_iam_member" "studio_deployer_run_viewer" {
   project = var.project_id
-  role    = "roles/run.admin"
+  role    = "roles/run.viewer"
   member  = "serviceAccount:${google_service_account.studio_deployer.email}"
 }
 

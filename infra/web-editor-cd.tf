@@ -107,16 +107,37 @@ resource "google_service_account_iam_member" "web_editor_deployer_actas_runtime"
   member             = "serviceAccount:${google_service_account.web_editor_deployer.email}"
 }
 
-# Deploy Cloud Run revisions. This is `roles/run.admin` (not the narrower run.developer) to mirror
-# the known-working studio CD recipe and to keep the public --allow-unauthenticated binding from
-# silently drifting off (the editor's "wall" is GitHub login at the app, but the service must stay
-# publicly reachable for that login to happen). TIGHTENING (owner's call, no workflow change): drop
-# to roles/run.developer and stop passing --allow-unauthenticated — the allUsers invoker binding is a
-# sticky service-level setting a new revision preserves — then assert it is still public in the smoke
-# step. Left project-wide because the first apply could not be agent-tested. See infra/web-editor-cd.md.
-resource "google_project_iam_member" "web_editor_deployer_run_admin" {
+# Deploy Cloud Run revisions of the storytree-web-editor service + keep its public
+# --allow-unauthenticated (allUsers invoker) binding from silently drifting off (the editor's "wall"
+# is GitHub login at the app, but the service must stay publicly reachable for that login to happen).
+# This is `roles/run.admin` (not the narrower run.developer) because --allow-unauthenticated performs
+# a setIamPolicy that run.developer cannot do.
+#
+# SCOPED TO THE ONE storytree-web-editor SERVICE, not the whole project (ADR-0101 tightening, mirrors
+# studio-cd.md option 1). Project-wide run.admin would let this CD SA modify/replace ANY Cloud Run
+# service in the project and run setIamPolicy on them — e.g. add an `allUsers` invoker to an unrelated
+# service or bypass the studio's IAP wall — so a CD compromise (only reachable via a poisoned
+# storytree-web main-branch deploy) could reconfigure or expose the whole project's Run surface.
+# Resource scope contains the blast radius to redeploying THIS one service. The deploy
+# (`gcloud run deploy storytree-web-editor …`) and the smoke describe/curl target only this service,
+# so resource-scoped run.admin covers them; project `roles/run.viewer` below (read-only) covers any
+# operation-polling / describe that resolves at project scope. The service is created imperatively
+# (deploy-web-editor.sh — not a TF resource), so this references it by location + name.
+resource "google_cloud_run_v2_service_iam_member" "web_editor_deployer_run_admin" {
+  project  = var.project_id
+  location = var.region
+  name     = "storytree-web-editor"
+  role     = "roles/run.admin"
+  member   = "serviceAccount:${google_service_account.web_editor_deployer.email}"
+}
+
+# Read-only, project-wide Cloud Run visibility for `gcloud run deploy`'s operation polling and the
+# smoke step's describe. `roles/run.viewer` grants NO write — no services.update, no setIamPolicy —
+# so it does NOT reintroduce the cross-service blast radius the service-scoped run.admin above
+# removes; it only lets the SA read Run state.
+resource "google_project_iam_member" "web_editor_deployer_run_viewer" {
   project = var.project_id
-  role    = "roles/run.admin"
+  role    = "roles/run.viewer"
   member  = "serviceAccount:${google_service_account.web_editor_deployer.email}"
 }
 
