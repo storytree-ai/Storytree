@@ -387,12 +387,13 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   // verdict (red streak length / red-since / newest red URL / last green, LOUD WARN format). The
   // gh-shelling wrapper (check-deploy-health.ts) + the root package.json gate-tail wiring are
   // un-asserted session glue (ADR-0158), not part of the `real:` arm.
-  // And the `studio` story's hud-chrome capability (stories/studio/hud-chrome.md — ADR-0204, the
-  // studio chrome retirement under studio-hud-chrome-arc, ADR-0070 two-stage): the BROWNFIELD studio
-  // vitest `real:` arm over App.tsx + lib/route.ts + the NET-NEW Hud component (the forest as the
-  // landing route with Home/Overview retired, the topbar removed, the floating brand chip + the
-  // verified-identity initials avatar whose menu rehomes Library lens / Documents / Members
-  // (admin-gated) / Credentials (desktop-gated) / IAP Sign out); the HUD look is the story's
+  // And the `studio` story's hud-chrome capability (stories/studio/hud-chrome.md — ADR-0204 as
+  // amended by ADR-0205's one-pathway re-tense, under studio-hud-chrome-arc, ADR-0070 two-stage):
+  // the BROWNFIELD studio vitest `real:` arm over App.tsx + lib/route.ts + Hud.tsx (the forest as
+  // the landing route with Home/Overview retired, the topbar removed, and ONE floating control —
+  // the verified-identity initials avatar whose menu is account-only: identity line + Members
+  // (admin-gated) / Credentials (desktop-gated) / IAP Sign out; no brand chip, no navigation
+  // entries — the map's library drawer is the one pathway); the HUD look is the story's
   // operator-attested UAT leg (ADR-0070 stage 2). Its arc sibling verified-attribution
   // (stories/studio/verified-attribution.md — ADR-0204 D4, increment 2): the BROWNFIELD studio
   // vitest `real:` arm finishing the operator-field retirement — comment attribution derives from
