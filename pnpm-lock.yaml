@@ -31,6 +31,9 @@ importers:
       '@xterm/addon-serialize':
         specifier: ^0.14.0
         version: 0.14.0
+      '@xterm/addon-unicode11':
+        specifier: ^0.9.0
+        version: 0.9.0
       '@xterm/headless':
         specifier: ^6.0.0
         version: 6.0.0
@@ -86,6 +89,9 @@ importers:
       '@xterm/addon-fit':
         specifier: ^0.10.0
         version: 0.10.0(@xterm/xterm@5.5.0)
+      '@xterm/addon-unicode11':
+        specifier: ^0.8.0
+        version: 0.8.0(@xterm/xterm@5.5.0)
       '@xterm/addon-webgl':
         specifier: ^0.18.0
         version: 0.18.0(@xterm/xterm@5.5.0)
@@ -1736,6 +1742,14 @@ packages:
 
   '@xterm/addon-serialize@0.14.0':
     resolution: {integrity: sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA==}
+
+  '@xterm/addon-unicode11@0.8.0':
+    resolution: {integrity: sha512-LxinXu8SC4OmVa6FhgwsVCBZbr8WoSGzBl2+vqe8WcQ6hb1r6Gj9P99qTNdPiFPh4Ceiu2pC8xukZ6+2nnh49Q==}
+    peerDependencies:
+      '@xterm/xterm': ^5.0.0
+
+  '@xterm/addon-unicode11@0.9.0':
+    resolution: {integrity: sha512-FxDnYcyuXhNl+XSqGZL/t0U9eiNb/q3EWT5rYkQT/zuig8Gz/VagnQANKHdDWFM2lTMk9ly0EFQxxxtZUoRetw==}
 
   '@xterm/addon-webgl@0.18.0':
     resolution: {integrity: sha512-xCnfMBTI+/HKPdRnSOHaJDRqEpq2Ugy8LEj9GiY4J3zJObo3joylIFaMvzBwbYRg8zLtkO0KQaStCeSfoaI2/w==}
@@ -4888,6 +4902,12 @@ snapshots:
       '@xterm/xterm': 5.5.0
 
   '@xterm/addon-serialize@0.14.0': {}
+
+  '@xterm/addon-unicode11@0.8.0(@xterm/xterm@5.5.0)':
+    dependencies:
+      '@xterm/xterm': 5.5.0
+
+  '@xterm/addon-unicode11@0.9.0': {}
 
   '@xterm/addon-webgl@0.18.0(@xterm/xterm@5.5.0)':
     dependencies:

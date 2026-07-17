@@ -568,11 +568,24 @@ function defaultShell(): string {
 // the manager owns session tracking, data routing, and the fail-closed no-ops.
 const ptyPort: PtyPort = {
   spawn(opts: PtySpawnOptions): PtyHandle {
+    const baseEnv = opts.env ?? (process.env as Record<string, string>);
     const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
       cols: opts.cols,
       rows: opts.rows,
       cwd: opts.cwd ?? repoSelection.resolveCwd(serveRoot),
-      env: opts.env ?? process.env,
+      env: {
+        // UTF-8 hint FIRST so an owner-set locale in the base env always wins (the Windows
+        // mojibake class: CLIs that read LANG/LC_ALL to decide unicode output — Claude Code
+        // included — otherwise guess wrong inside a ConPTY session).
+        LANG: "en_US.UTF-8",
+        ...baseEnv,
+        // Claude Code >= 2.1.88: alt-screen atomic updates. Our xterm 5.5 renderer has no
+        // DEC 2026 synchronized-output support, so Claude's own batching is inert in the dock
+        // and every intermediate repaint renders (flicker). Remove when the renderer moves to
+        // xterm 6 (patterns-survey increment E). CLAUDE_CODE_DISABLE_MOUSE deliberately NOT
+        // set: it would trade Claude's mouse UX for scroll passthrough — an owner call.
+        CLAUDE_CODE_NO_FLICKER: "1",
+      },
     });
     return {
       onData: (cb) => {

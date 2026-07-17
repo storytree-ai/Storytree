@@ -38,6 +38,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 
 /** Drag bounds for the expanded dock height (px) — mirrors ChatDock's MIN/DEFAULT/margin. */
 const MIN_HEIGHT = 160;
@@ -62,6 +63,13 @@ export interface DesktopTerminalBridge {
    *  (`data`) at the dims it was recorded at (`cols`/`rows`), replayed into a fresh xterm on
    *  re-attach. An older preload may still resolve the pre-ADR-0190 bare scrollback string. */
   snapshot?(sessionId: string): Promise<string | { data: string; cols: number; rows: number }>;
+  /** OPTIONAL (feature-guarded like `list?`/`snapshot?` — an older preload lacks it): the Windows OS
+   *  build number, for xterm's ConPTY heuristics (`windowsPty` — without them a row-increase resize
+   *  can LOSE data, and reflow runs on conpty builds where it must not). Present ONLY when the
+   *  desktop preload runs on win32, so its presence doubles as the platform signal — never set on
+   *  any other OS. A plain synchronous value (not a method): it must exist BEFORE the first
+   *  Terminal is constructed, and an async main round-trip would race `initTab`. */
+  windowsBuildNumber?: number;
 }
 
 declare global {
@@ -214,10 +222,38 @@ export function TerminalDock({ seed, headerRight }: TerminalDockProps = {}): Rea
       const rec = recordsRef.current.get(id);
       if (!bridge || !rec || rec.term || !rec.bodyEl) return;
 
-      const term = new Terminal({ cursorBlink: true, convertEol: true });
+      const buildNumber = bridge.windowsBuildNumber;
+      const term = new Terminal({
+        cursorBlink: true,
+        convertEol: true,
+        // The unicode-version surface (`term.unicode`, the Unicode11Addon's registration point) is
+        // a PROPOSED API in xterm 5.x — without this flag the activation below THROWS at runtime
+        // (a class the mocked vitest seam cannot see; the e2e caught it). The headless snapshot
+        // terminal (pty-session-manager.ts) sets the same flag.
+        allowProposedApi: true,
+        // Scrollback PARITY with the main-held headless screen model (DEFAULT_SCROLLBACK_LINES in
+        // apps/desktop/src/backend/pty-session-manager.ts): xterm's 1,000-line default holds fewer
+        // lines than a re-attach can replay. Duplicated literal by design — the thin-client
+        // boundary forbids importing desktop code; keep the two aligned.
+        scrollback: 5000,
+        // ConPTY heuristics (Windows only — the bridge carries `windowsBuildNumber` ONLY on a
+        // win32 desktop preload): without `windowsPty` a row-increase resize can LOSE data
+        // (ConPTY emits empty rows instead of restoring scrollback) and reflow runs on conpty
+        // builds where it must not (< 21376). The key is OMITTED entirely elsewhere — xterm
+        // treats its presence as "apply ConPTY behaviour".
+        ...(typeof buildNumber === 'number' && buildNumber > 0
+          ? { windowsPty: { backend: 'conpty' as const, buildNumber } }
+          : {}),
+      });
       const fit = new FitAddon();
       term.loadAddon(fit);
       fit.activate(term); // wire the addon to this terminal so a later fit()/dispose() has effect
+      // Unicode 11 width tables, in PARITY with the main's headless snapshot terminal
+      // (pty-session-manager.ts): xterm's Unicode 6 default mis-measures emoji/spinner/box glyphs
+      // (Claude Code's staple output) so the next glyph draws into an overlapping cell — and
+      // one-sided tables would make a re-attach replay re-wrap differently than live rendering.
+      term.loadAddon(new Unicode11Addon());
+      term.unicode.activeVersion = '11';
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;

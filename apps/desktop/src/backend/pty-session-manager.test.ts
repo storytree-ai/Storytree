@@ -316,6 +316,36 @@ test("psm-snapshots-serialized-screen-state: snapshot() resolves the serialized 
 });
 
 // ---------------------------------------------------------------------------
+// Unicode 11 width tables (contract 8 — rendering-correctness parity, the
+// embedded-terminal patterns survey increment A): xterm defaults to UNICODE 6
+// widths, which mis-measure emoji/spinner glyphs (Claude Code's staple output).
+// The renderer terminal activates Unicode 11 (TerminalDock, its own vitest
+// contract); the headless snapshot terminal here must match — ONE-SIDED width
+// tables make a re-attach replay re-wrap differently than the live rendering
+// did. This runs the REAL @xterm/addon-unicode11 against the real headless
+// core: U+26A1 (⚡) measures 1 cell under Unicode 6 but 2 under Unicode 11.
+// ---------------------------------------------------------------------------
+
+test("psm-unicode11-wide-glyph-width: the headless screen model measures a wide emoji at 2 cells (Unicode 11), so a 4-column row wraps where Unicode 6 would not", async () => {
+  const port = new FakePtyPort();
+  // scrollback 0 + a single 4-column row: a wrapped-out first row is DROPPED, so the surviving
+  // serialized content differs by width table. "ab⚡" fills the row only when ⚡ is 2 cells wide
+  // (2+2=4, Unicode 11) — "x" then wraps and the first row scrolls out. Under Unicode 6 widths
+  // (⚡ = 1 cell) all four glyphs fit the row and "ab" survives — the red this contract pins.
+  const manager = new PtySessionManager(port, { scrollbackLines: 0 });
+  const sessionId = manager.create({ cols: 4, rows: 1 }, () => {}, () => {});
+  const handle = port.spawned[0]?.handle;
+  assert.ok(handle);
+
+  handle.emitData("ab⚡x");
+
+  const snap = await manager.snapshot(sessionId);
+  assert.ok(snap !== null);
+  assert.match(snap!.data, /x/);
+  assert.doesNotMatch(snap!.data, /ab/);
+});
+
+// ---------------------------------------------------------------------------
 // list() — the live-session enumeration (contract 7 — re-attach discovery,
 // ADR-0189: the Electron-main glue scopes re-attach per repo via the cwd this
 // reports; the manager itself reports facts only, no policy).

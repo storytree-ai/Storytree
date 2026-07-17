@@ -38,6 +38,19 @@ type RebuildRelaunchResult =
 // mount (N route trips would write every chunk N times). ONE ipc listener per channel is registered here
 // at preload eval, and each `onData(cb)`/`onExit(cb)` call REPLACES the callback it fans out to — the
 // remounting dock swaps itself in; the unmounted dock's stale callback is simply dropped.
+// The Windows OS build number (e.g. 26100 from "10.0.26100") — the renderer's xterm needs it for
+// ConPTY-specific heuristics (`windowsPty`: without them a row-increase resize can LOSE data, and
+// reflow runs on conpty builds where it must not, < 21376). Computed here SYNCHRONOUSLY (Electron's
+// process API is available in the preload) so it exists before the renderer constructs its first
+// Terminal — an async main round-trip would race the dock's initTab. win32-only: the member's very
+// PRESENCE is the renderer's platform signal (feature-guarded like `list`/`snapshot`), so it is
+// omitted entirely on any other OS or when the build can't be parsed.
+const windowsBuildNumber: number | undefined = (() => {
+  if (process.platform !== "win32") return undefined;
+  const build = Number(process.getSystemVersion().split(".")[2]);
+  return Number.isFinite(build) && build > 0 ? build : undefined;
+})();
+
 let terminalDataCb: ((sessionId: string, chunk: string) => void) | null = null;
 let terminalExitCb: ((sessionId: string, e: { exitCode: number }) => void) | null = null;
 ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => {
@@ -71,6 +84,7 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
     sessionId: string,
   ): Promise<string | { data: string; cols: number; rows: number }> =>
     ipcRenderer.invoke("terminal:snapshot", sessionId),
+  ...(windowsBuildNumber === undefined ? {} : { windowsBuildNumber }),
 });
 
 // The repo-picker bridge (terminal-repo-picker story, ADR-0174 follow-on). Its mere PRESENCE

@@ -13,21 +13,26 @@
 
 import type { Terminal as HeadlessTerminal, ITerminalAddon as HeadlessTerminalAddon } from "@xterm/headless";
 import type { SerializeAddon as XtermSerializeAddon } from "@xterm/addon-serialize";
+import type { Unicode11Addon as XtermUnicode11Addon } from "@xterm/addon-unicode11";
 import xtermHeadless from "@xterm/headless";
 import xtermSerialize from "@xterm/addon-serialize";
+import xtermUnicode11 from "@xterm/addon-unicode11";
 
-// Both @xterm/headless and @xterm/addon-serialize ship UMD/CJS bundles that assign their
-// named exports dynamically (a runtime `for...in` copy onto `exports`), which
-// cjs-module-lexer cannot see statically — a plain `import { Terminal } from
-// "@xterm/headless"` throws "does not provide an export named 'Terminal'" under Node's
-// native ESM loader. static default imports — named ESM imports fail on these UMD bundles
-// under node:test, and createRequire(import.meta.url) crashes the esbuild CJS bundle
-// (import.meta.url is undefined there, thrown at apps/desktop/dist/main.cjs load); the
-// default-import-then-destructure form is the only one green in BOTH runtimes. Static
+// The @xterm packages (headless, addon-serialize, addon-unicode11) ship UMD/CJS bundles
+// that assign their named exports dynamically (a runtime `for...in` copy onto
+// `exports`), which cjs-module-lexer cannot see statically — a plain `import { Terminal }
+// from "@xterm/headless"` throws "does not provide an export named 'Terminal'" under
+// Node's native ESM loader. static default imports — named ESM imports fail on these UMD
+// bundles under node:test, and createRequire(import.meta.url) crashes the esbuild CJS
+// bundle (import.meta.url is undefined there, thrown at apps/desktop/dist/main.cjs load);
+// the default-import-then-destructure form is the only one green in BOTH runtimes. Static
 // types come from `import type` above (elided at runtime by verbatimModuleSyntax).
 const { Terminal } = xtermHeadless as unknown as { Terminal: typeof HeadlessTerminal };
 const { SerializeAddon } = xtermSerialize as unknown as {
   SerializeAddon: typeof XtermSerializeAddon;
+};
+const { Unicode11Addon } = xtermUnicode11 as unknown as {
+  Unicode11Addon: typeof XtermUnicode11Addon;
 };
 
 export interface PtySpawnOptions {
@@ -71,7 +76,10 @@ export interface PtySessionManagerOptions {
   scrollbackLines?: number;
 }
 
-// Generous default — several thousand lines of typical terminal output.
+// Generous default — several thousand lines of typical terminal output. The renderer's
+// TerminalDock constructs its xterm with the SAME literal (its constructor `scrollback`) —
+// duplicated there by design, the thin-client boundary forbids it importing desktop code;
+// keep the two aligned or a re-attach replays more lines than the renderer can hold.
 const DEFAULT_SCROLLBACK_LINES = 5_000;
 
 let nextSessionSeq = 0;
@@ -113,6 +121,13 @@ export class PtySessionManager {
     // target @xterm/xterm, not @xterm/headless — a narrow cast at this seam is the
     // sanctioned escape (ADR-0190).
     term.loadAddon(serializeAddon as unknown as HeadlessTerminalAddon);
+    // Unicode 11 width tables, in PARITY with the renderer's TerminalDock terminal (its
+    // own vitest contract): xterm defaults to Unicode 6 widths, which mis-measure
+    // emoji/spinner glyphs — one-sided tables would make a re-attach replay re-wrap
+    // differently than the live rendering did. Term-owned after loadAddon (term.dispose()
+    // reaps it with the session).
+    term.loadAddon(new Unicode11Addon() as unknown as HeadlessTerminalAddon);
+    term.unicode.activeVersion = "11";
 
     this.#sessions.set(sessionId, { handle, cwd: opts.cwd ?? null, term, serializeAddon });
 

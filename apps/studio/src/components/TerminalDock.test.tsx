@@ -65,9 +65,16 @@ const xtermMock = vi.hoisted(() => {
      *  xterm's own hook; null until the source wires it (the missing-behaviour red this test pins:
      *  invoking a still-null handler is the RIGHT kind of red for the unbuilt wiring). */
     customKeyEventHandler: ((event: KeyboardEvent) => boolean) | null = null;
+    /** test-only: the CONSTRUCTOR options this terminal was built with — the seam that pins the
+     *  rendering-correctness constructor contracts (scrollback alignment, windowsPty). */
+    options: Record<string, unknown>;
+    /** test-only: mirrors real xterm's `unicode` handling surface — starts at xterm's Unicode 6
+     *  default so the unicode11 contract genuinely observes the source flipping it to '11'. */
+    unicode: { activeVersion: string } = { activeVersion: '6' };
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
-    constructor() {
+    constructor(options?: Record<string, unknown>) {
+      this.options = options ?? {};
       FakeTerminal.instances.push(this);
     }
     open(el: HTMLElement): void {
@@ -181,6 +188,25 @@ const webglMock = vi.hoisted(() => {
   return { FakeWebglAddon };
 });
 vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: webglMock.FakeWebglAddon }));
+
+// ── the fake Unicode11Addon — the width-table seam (tdp-activates-unicode11-widths). Real xterm
+//    defaults to Unicode 6 width tables (emoji/spinner/box glyphs mis-measured → overlapping
+//    cells, the owner-reported edge-artifact class); the contract pins that the dock loads the
+//    addon on EVERY tab's terminal and flips `unicode.activeVersion` to '11'. ──────────────────
+const unicode11Mock = vi.hoisted(() => {
+  class FakeUnicode11Addon {
+    static instances: FakeUnicode11Addon[] = [];
+    disposed = false;
+    constructor() {
+      FakeUnicode11Addon.instances.push(this);
+    }
+    dispose(): void {
+      this.disposed = true;
+    }
+  }
+  return { FakeUnicode11Addon };
+});
+vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: unicode11Mock.FakeUnicode11Addon }));
 
 // ── the desktopTerminal bridge — installed on `window` per test (deleted for the absent-bridge
 //    case). `spawn` resolves asynchronously (a real IPC round-trip would too), so tests await a
@@ -301,6 +327,7 @@ beforeEach(() => {
   fitMock.FakeFitAddon.instances.length = 0;
   webglMock.FakeWebglAddon.instances.length = 0;
   webglMock.FakeWebglAddon.failConstruction = false;
+  unicode11Mock.FakeUnicode11Addon.instances.length = 0;
   FakeResizeObserver.instances.length = 0;
   bridgeMock.resetSessionCounter();
   bridgeMock.spawn.mockClear();
@@ -1063,5 +1090,75 @@ describe('TerminalDock', () => {
     expect(fallbackTerm.opened).not.toBeNull();
     fallbackTerm.typeIn('dom renderer\n');
     expect(bridgeMock.write).toHaveBeenCalledWith(SESSION_ID, 'dom renderer\n');
+  });
+
+  // ── rendering-correctness contracts (embedded-terminal patterns survey, increment A) ─────────
+  //    xterm defaults to UNICODE 6 width tables — emoji/spinner/box glyphs (Claude Code's staple
+  //    output) get the wrong cell width and the next glyph draws into an overlapping cell, a
+  //    co-culprit of the owner-reported edge artifacts. Every tab's terminal must load the
+  //    Unicode11Addon and flip `unicode.activeVersion` to '11'. PARITY is load-bearing: the
+  //    main's headless snapshot terminal does the same (pty-session-manager.test.ts pins it with
+  //    the REAL addon) — one-sided width tables make re-attach replays re-wrap differently than
+  //    live rendering. Today `initTab` loads no unicode addon, so this must fail. ───────────────
+  it('tdp-activates-unicode11-widths: every tab loads the Unicode11Addon and activates Unicode 11 width tables', async () => {
+    render(<TerminalDock />);
+    await expand(); // tab 1
+    await openNewTab(); // tab 2 — the addon is per-terminal, EVERY tab must get its own
+
+    expect(unicode11Mock.FakeUnicode11Addon.instances.length).toBe(2);
+    const [term1, term2] = xtermMock.FakeTerminal.instances;
+    expect(term1!.addons).toContain(unicode11Mock.FakeUnicode11Addon.instances[0]);
+    expect(term2!.addons).toContain(unicode11Mock.FakeUnicode11Addon.instances[1]);
+    expect(term1!.unicode.activeVersion).toBe('11');
+    expect(term2!.unicode.activeVersion).toBe('11');
+
+    // `term.unicode` is a PROPOSED API in xterm 5.x — without this constructor flag the real
+    // terminal THROWS on activation (the mocked seam here cannot observe that throw; the e2e
+    // caught it live), killing the tab before its session ever spawns.
+    expect(term1!.options['allowProposedApi']).toBe(true);
+  });
+
+  //    The renderer terminal is constructed with xterm's default 1,000-line scrollback while the
+  //    main's headless screen model keeps 5,000 (DEFAULT_SCROLLBACK_LINES,
+  //    pty-session-manager.ts) — a re-attach can replay more lines than the renderer can hold.
+  //    Today the constructor passes no `scrollback` at all, so this must fail. ──────────────────
+  it('tdp-constructs-with-aligned-scrollback: the terminal is constructed with scrollback 5000, aligned with the main-held headless screen model', async () => {
+    render(<TerminalDock />);
+    await expand();
+
+    const term = xtermMock.FakeTerminal.instances[0]!;
+    expect(term.options['scrollback']).toBe(5000);
+  });
+
+  //    windowsPty — the ConPTY heuristics gate: without it a row-increase resize can LOSE data
+  //    (ConPTY emits empty rows instead of restoring scrollback) and reflow runs where it must
+  //    not (conpty < build 21376). The Windows signal is the OPTIONAL bridge member
+  //    `windowsBuildNumber` (present only on a win32 desktop preload — feature-guarded like
+  //    `list?`/`snapshot?`); a bridge without it (older preload, or any non-Windows OS) must
+  //    construct with NO windowsPty key at all. Today the constructor never sets it, so the
+  //    first half must fail. ─────────────────────────────────────────────────────────────────
+  it('tdp-sets-windows-pty-from-bridge-build-number: a bridge carrying windowsBuildNumber yields windowsPty { backend conpty, buildNumber }; an absent member yields no windowsPty at all', async () => {
+    const bridgeWithBuild = bridgeMock as typeof bridgeMock & { windowsBuildNumber?: number };
+    bridgeWithBuild.windowsBuildNumber = 26100;
+    try {
+      render(<TerminalDock />);
+      await expand();
+
+      const term = xtermMock.FakeTerminal.instances[0]!;
+      expect(term.options['windowsPty']).toEqual({ backend: 'conpty', buildNumber: 26100 });
+    } finally {
+      delete bridgeWithBuild.windowsBuildNumber;
+    }
+
+    cleanup();
+
+    // The absent-member half: no windowsBuildNumber on the bridge → no windowsPty option at all
+    // (never a stub object — xterm treats the key's presence as "apply ConPTY heuristics").
+    bridgeMock.resetSessionCounter();
+    render(<TerminalDock />);
+    await expand();
+
+    const plainTerm = xtermMock.FakeTerminal.instances[1]!;
+    expect('windowsPty' in plainTerm.options).toBe(false);
   });
 });
