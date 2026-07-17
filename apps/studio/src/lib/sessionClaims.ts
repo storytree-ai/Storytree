@@ -1,18 +1,18 @@
 // useSessionClaimGroups — the studio session dock's claims-grouped-by-session layer (ADR-0200 D7,
-// noticeboard-claim-ledger-arc inc 3 unit 4). Sibling to usePresence/useBuildActivity/useClaimActivity,
+// noticeboard-claim-ledger-arc inc 3 unit 4). Sibling to useBuildActivity/useClaimActivity,
 // but deliberately NOT a global always-on poll: the ledger view is dock-scoped (rendered only while an
 // operator has the session dock open), so this hook fetches GET /api/claims once when `open` flips
-// true and then keeps polling on the SAME slow cadence as presence for as long as the dock stays open
-// — no new background cost class when the dock is closed.
+// true and then keeps polling on the SAME shared slow cadence (lib/poll.ts) for as long as the dock
+// stays open — no new background cost class when the dock is closed.
 //
-// Advisory discipline (mirrors presence/activity): `sessions: null` (down DB / json store) is a
-// silent absence, never an error surface — the dock degrades to the presence-only view. A failed
+// Advisory discipline (mirrors activity): `sessions: null` (down DB / json store) is a
+// silent absence, never an error surface — the dock renders an honest silent-store note. A failed
 // poll (the studio server itself not answering) keeps the last-known groups.
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { SessionClaimGroup } from '../types';
-import { PRESENCE_POLL_MS } from './presence';
+import { SLOW_POLL_MS } from './poll';
 
 /**
  * Fetch + poll the claim-ledger dock view while `open` is true. Returns `null` before the first
@@ -39,7 +39,7 @@ export function useSessionClaimGroups(open: boolean): SessionClaimGroup[] | null
       }
     };
     void poll(); // immediate fetch on open — don't wait out the interval
-    const id = window.setInterval(() => void poll(), PRESENCE_POLL_MS);
+    const id = window.setInterval(() => void poll(), SLOW_POLL_MS);
     return () => window.clearInterval(id);
   }, [open]);
 

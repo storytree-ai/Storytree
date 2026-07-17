@@ -2,12 +2,13 @@
 //
 // Red-green of the desktop-layout owner feedback (2026-07-13, item B — routed out of the library
 // arc to the forest/app-shell surface): the forest map at #/tree is FULL-BLEED — no `pad` padding
-// ring around the world — and carries NO session-presence counter above the map (the
-// "N active sessions (+M aged)" toolbar was owner-cited clutter). The SessionDock itself stays:
-// still reachable through a story panel's session rows (detail → "all sessions"); only the
-// always-on map-top counter goes. ADR-0128's honest-by-absence and ADR-0138's claim wisps are
-// untouched — the wisp remains the map's presence render. The visual result (the map actually
-// filling the window edge-to-edge) is the owner-attested look leg (ADR-0070 stage 2).
+// ring around the world — and carries NO session counter above the map (the
+// "N active sessions (+M aged)" toolbar was owner-cited clutter). Self-reported session presence
+// has since retired outright (ADR-0200 D7 — the claim ledger is the one coordination signal), so
+// the counter now has no data source either; this stays as the regression lock that no toolbar
+// counter grows back over the map. The claims-only SessionDock stays, reachable through a story
+// panel's claim rows. The visual result (the map actually filling the window edge-to-edge) is the
+// owner-attested look leg (ADR-0070 stage 2).
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
@@ -15,8 +16,6 @@ import { AppDataContext, type AppData } from '../lib/appData';
 import { api } from '../api';
 import { TreeView } from './TreeView';
 
-// The tree payload carries ACTIVE sessions (one orbiting, one parked) — exactly the input that
-// used to render the "1 active session (+1 aged)" counter, so its absence is load-bearing.
 vi.mock('../api', () => ({
   api: {
     tree: vi.fn(async () => ({
@@ -33,26 +32,7 @@ vi.mock('../api', () => ({
           capabilities: [],
         },
       ],
-      sessions: [
-        {
-          sessionId: 'sess-live',
-          branch: 'claude/x',
-          workingOn: 'something',
-          nodes: [],
-          band: 'fresh',
-          lastSeenAt: new Date().toISOString(),
-        },
-        {
-          sessionId: 'sess-old',
-          branch: 'claude/y',
-          workingOn: 'older thing',
-          nodes: [],
-          band: 'possibly-dead',
-          lastSeenAt: new Date(Date.now() - 5 * 3_600_000).toISOString(),
-        },
-      ],
     })),
-    presence: vi.fn(async () => ({ sessions: null })),
     activity: vi.fn(async () => ({ builds: null, claims: null })),
   },
 }));
@@ -76,7 +56,7 @@ async function renderTree(): Promise<HTMLElement> {
       <TreeView focus={null} />
     </AppDataContext.Provider>,
   );
-  // Flush the one-shot /api/tree load so the sessions seed has landed before asserting.
+  // Flush the one-shot /api/tree load so the world has landed before asserting.
   await act(async () => {});
   expect(api.tree).toHaveBeenCalled();
   return container;

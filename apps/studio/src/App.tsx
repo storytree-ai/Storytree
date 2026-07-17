@@ -4,7 +4,7 @@ import { AppDataContext, type AppData } from './lib/appData';
 import { deriveLoadState, type LoadState } from './lib/loadState';
 import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
 import { getDesktopAuth } from './lib/desktopAuth';
-import { notifyStoreRecovered } from './lib/presence';
+import { notifyStoreRecovered } from './lib/poll';
 import { useRoute } from './lib/route';
 import type { Comment, DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';

@@ -31,7 +31,7 @@
 // status filter.
 //
 // Data is /api/tree — offline, straight from stories/ frontmatter; verdict
-// glyphs and presence wisps are advisory layers that appear only when the
+// glyphs and build/claim wisps are advisory layers that appear only when the
 // live store answers. All "randomness" (tile growth, crown-blob jitter, road
 // bows) is hashed from ids so the world renders identically every time.
 
@@ -42,7 +42,8 @@ import { useAppData } from '../lib/appData';
 import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
-import { formatAge, isOrbitingBand, splitSessions, usePresence } from '../lib/presence';
+import { formatAge } from '../lib/format';
+import { useNowTick } from '../lib/poll';
 import { useSessionClaimGroups } from '../lib/sessionClaims';
 import { docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
@@ -100,7 +101,7 @@ import type { SearchResult } from '../lib/librarySearch.js';
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { RepoPicker } from './RepoPicker.js';
-import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeSession, TreeStory, TreeVerdict, UatTestRow } from '../types';
+import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestRow } from '../types';
 import {
   hash,
   rand01,
@@ -1294,20 +1295,16 @@ function layoutSubdag(story: TreeStory): SubLayout {
 // feedback). 10px comfortably clears click jitter while staying responsive for an intentional drag.
 const DRAG_SLOP = 10;
 
-type Band = TreeSession['band'];
-
-/** What the session dock shows: the board-level list, or one session's detail. */
-export type SessionDockState = { kind: 'list' } | { kind: 'detail'; id: string };
-
 export function TreeView({ focus }: { focus: string | null }): React.JSX.Element {
   const [stories, setStories] = useState<TreeStory[] | null>(null);
-  // Sessions: seeded by the one-shot tree payload, then kept near-real-time by
-  // the /api/presence poll; `now` ticks so wisps age between polls (lib/presence.ts).
-  const [seedSessions, setSeedSessions] = useState<TreeSession[] | undefined>(undefined);
-  const { sessions, now } = usePresence(seedSessions);
+  // The shared `now` ticker (lib/poll.ts): ages build/claim wisps and verdict blooms between
+  // polls with zero fetches. Self-reported session presence is RETIRED (ADR-0200 D7) — the
+  // claim ledger is the one coordination + observability layer; the ticker outlived the
+  // presence render it was born in.
+  const now = useNowTick();
   // In-flight builds (ADR-0048): the harness signal the orbiting wisp is sourced
-  // from. Seeded from the tree payload, then polled; aged by the SAME `now`
-  // ticker usePresence publishes.
+  // from. Seeded from the tree payload, then polled; aged by the SAME shared
+  // `now` ticker above.
   const [seedBuilds, setSeedBuilds] = useState<BuildActivity[] | undefined>(undefined);
   const rawBuilds = useBuildActivity(seedBuilds);
   // In-flight story CLAIMS (ADR-0138 §5) + claim DEPARTURES (ADR-0200 D7): the coordination signal
@@ -1317,14 +1314,11 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // still escapes it).
   const [seedClaims, setSeedClaims] = useState<ClaimActivity[] | undefined>(undefined);
   const { claims: rawClaims, departures: rawDepartures } = useClaimActivity(seedClaims);
-  // The session dock: the board-level list (a detail card's "all sessions" click) or one
-  // session's detail (wisp / row click). Sessions whose nodes anchor to no loaded story —
-  // including nodes:[] hook declarations — are reachable ONLY through the list.
-  const [sessionDock, setSessionDock] = useState<SessionDockState | null>(null);
-  // The claim-ledger dock view (ADR-0200 D7): "who's doing what, grouped by session" — fetched
-  // only while the dock is open (not the world's always-on poll cadence). `null` (down DB / json
-  // store) degrades silently to the presence-only view.
-  const claimGroups = useSessionClaimGroups(sessionDock !== null);
+  // The session dock — the claim-ledger view (ADR-0200 D7, claims-only since the inc-6 presence
+  // retirement): "who's doing what, grouped by session". Opened from a story panel's claim rows;
+  // fetched only while open (not the world's always-on poll cadence).
+  const [sessionDock, setSessionDock] = useState(false);
+  const claimGroups = useSessionClaimGroups(sessionDock);
   const [loadError, setLoadError] = useState('');
   // Selection lives in the URL (#/tree/<storyId>) so a focused territory is
   // deep-linkable; the route's `focus` IS the selected story — but only when
@@ -1358,7 +1352,6 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       .tree()
       .then((p) => {
         setStories(presentStories(p.stories));
-        setSeedSessions(p.sessions ?? []);
         setSeedBuilds(p.builds ?? []);
         setSeedClaims(p.claims ?? []);
       })
@@ -1747,47 +1740,12 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // sub-DAG inside the detail panel (a different, click-scoped surface).
   const storyIds = useMemo(() => new Set((stories ?? []).map((s) => s.id)), [stories]);
 
-  /** capability id → owning story id (resolves session node anchors). */
+  /** capability id → owning story id (resolves build/claim unit anchors). */
   const capOwner = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of stories ?? []) for (const c of s.capabilities) m.set(c.id, s.id);
     return m;
   }, [stories]);
-
-  /** A declared node's territory: the story itself, or its capability's owner. */
-  const storyForNode = (node: string): string | null =>
-    storyIds.has(node) ? node : (capOwner.get(node) ?? null);
-
-  /**
-   * session → the story territories its nodes resolve to. A session that
-   * resolves to NONE (nodes:[] hook declarations, or ids no loaded story
-   * owns) anchors nowhere — no wisp, only the board-level list shows it.
-   */
-  const sessionAnchors = useMemo(() => {
-    const anchors = new Map<string, string[]>();
-    for (const session of sessions) {
-      const ids = new Set<string>();
-      for (const node of session.nodes) {
-        if (storyIds.has(node)) ids.add(node);
-        const ownerId = capOwner.get(node);
-        if (ownerId) ids.add(ownerId);
-      }
-      anchors.set(session.sessionId, [...ids]);
-    }
-    return anchors;
-  }, [storyIds, capOwner, sessions]);
-
-  const sessionsByStory = useMemo(() => {
-    const byStory = new Map<string, TreeSession[]>();
-    for (const session of sessions) {
-      for (const id of sessionAnchors.get(session.sessionId) ?? []) {
-        const list = byStory.get(id);
-        if (list) list.push(session);
-        else byStory.set(id, [session]);
-      }
-    }
-    return byStory;
-  }, [sessions, sessionAnchors]);
 
   /**
    * In-flight builds grouped by the story territory their unit resolves to
@@ -2041,8 +1999,8 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
 
   return (
     // Full-bleed (owner feedback 2026-07-13): no `pad` ring and no session-counter toolbar — the
-    // map is the whole content area. Session presence stays reachable through a story panel's
-    // session rows → the dock's "all sessions" (the counter was owner-cited clutter).
+    // map is the whole content area. The claim ledger stays reachable through a story panel's
+    // claim rows → the session dock (the counter was owner-cited clutter).
     <div className="tree-wrap">
       <div className="tree-layout">
         <SharedIslandsPanel
@@ -2274,16 +2232,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
           </div>
           {sessionDock && (
             <SessionDock
-              dock={sessionDock}
-              sessions={sessions}
               claimGroups={claimGroups}
-              anchors={sessionAnchors}
               now={now}
-              storyForNode={storyForNode}
-              onShowList={() => setSessionDock({ kind: 'list' })}
-              onShowDetail={(id) => setSessionDock({ kind: 'detail', id })}
-              onFocusStory={(id) => navigate(treeFocusHref(id))}
-              onClose={() => setSessionDock(null)}
+              onClose={() => setSessionDock(false)}
             />
           )}
           {/* `?arrive=` demo: replay the arrival — remounts the scene subtree so the
@@ -2386,14 +2337,14 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
             story={selected}
             stories={stories}
             storyIds={storyIds}
-            sessions={sessionsByStory.get(selected.id) ?? []}
+            claims={claimsByStory.get(selected.id) ?? []}
             now={now}
             selectedCap={selectedCap}
             hoverCap={hoverCap}
             hidden={hidden}
             onSelectCap={setSelectedCap}
             onHoverCap={setHoverCap}
-            onSelectSession={(id) => setSessionDock({ kind: 'detail', id })}
+            onShowSessions={() => setSessionDock(true)}
             onCrownRefresh={reloadTree}
             onClose={clearSelection}
             onSeedTerminal={seedTerminal}
@@ -3759,8 +3710,8 @@ function TerritoryFlora({
 
       {/* The orbiting layer is the HARNESS (ADR-0048 §5): a wisp orbits a story
           only while a leaf agent is mechanically building one of its units.
-          Session presence no longer orbits — it lives in the dock / toolbar /
-          panel ("who's planning work" is re-homed to a quieter form later). This
+          Self-reported session presence is RETIRED outright (ADR-0200 D7) — the
+          claim wisps below are the one "a session is here" signal. This
           is what makes the layer self-cleaning: no SessionEnd dependency, no 4 h
           zombie window, no nodes:[] dead-ends. */}
       <g transform={`translate(${t.centroid.x} ${t.centroid.y})`}>
@@ -3902,153 +3853,40 @@ function TerritoryFlora({
 }
 
 /**
- * The session dock — a small overlay in the world frame (the wisps' detail
- * surface). List mode shows EVERY active session, including the ones whose
- * declared nodes resolve to no loaded story (nodes:[] hook declarations) and so
- * orbit nowhere; detail mode shows one session's identity, work, anchors, and a
- * live-updating age/band (the `now` ticker re-renders it between polls).
- * Possibly-dead sessions no longer orbit as wisps (ADR-0041) but stay listed
- * here, parked after the live ones — the dock is the history/debugging surface
- * (a worktree deleted before SessionEnd leaves a row that can never be marked
- * done). Advisory like the wisps: a session that vanishes from the poll renders
- * an honest "no longer active" note rather than a stale card.
+ * The session dock — a small overlay in the world frame: the CLAIM LEDGER's dock view
+ * (ADR-0200 D7), claims-only since the inc-6 presence retirement (self-reported session
+ * presence is gone; a claim row in `events.node_claim` is the one "a session is here"
+ * signal). Renders every live claim grouped by session (ClaimGroupList below). Advisory
+ * like the wisps: `null` (down DB / json store) is silent absence — an honest note, never
+ * an error surface (the StoreBanner owns the explanatory UX).
  */
 export function SessionDock({
-  dock,
-  sessions,
   claimGroups,
-  anchors,
   now,
-  storyForNode,
-  onShowList,
-  onShowDetail,
-  onFocusStory,
   onClose,
 }: {
-  dock: SessionDockState;
-  sessions: TreeSession[];
   /** The claim-ledger dock view (ADR-0200 D7) — `null` before the first fetch answers or when the
-   *  live store is silent (down DB / json store); the list then degrades to the presence rows alone. */
+   *  live store is silent (down DB / json store). */
   claimGroups: SessionClaimGroup[] | null;
-  anchors: ReadonlyMap<string, string[]>;
   now: Date;
-  storyForNode: (node: string) => string | null;
-  onShowList: () => void;
-  onShowDetail: (sessionId: string) => void;
-  onFocusStory: (storyId: string) => void;
   onClose: () => void;
 }): React.JSX.Element {
-  const detail =
-    dock.kind === 'detail' ? sessions.find((s) => s.sessionId === dock.id) : undefined;
-  const { orbiting, parked } = splitSessions(sessions);
-  const row = (s: TreeSession): React.JSX.Element => {
-    const anchored = anchors.get(s.sessionId) ?? [];
-    return (
-      <button
-        key={s.sessionId}
-        type="button"
-        className={`session-row${isOrbitingBand(s.band) ? '' : ' is-parked'}`}
-        onClick={() => {
-          onShowDetail(s.sessionId);
-          // A row that maps to a territory also focuses it on the map.
-          const first = anchored[0];
-          if (first) onFocusStory(first);
-        }}
-      >
-        <span className={`tree-session-band band-${s.band}`} title={s.band} />
-        <code>{s.sessionId}</code>
-        <span className="muted small">
-          {formatAge(s.lastSeenAt, now)}
-          {anchored.length === 0 ? ' · no territory' : ''}
-        </span>
-      </button>
-    );
-  };
   return (
-    <div className="session-dock" role="dialog" aria-label="active sessions">
+    <div className="session-dock" role="dialog" aria-label="session claims">
       <header>
-        <h4>{dock.kind === 'list' ? `active sessions (${orbiting.length})` : 'session'}</h4>
+        <h4>session claims{claimGroups ? ` (${claimGroups.length})` : ''}</h4>
         <button type="button" className="btn" onClick={onClose} aria-label="close sessions">
           ✕
         </button>
       </header>
-      {dock.kind === 'list' ? (
-        <>
-          {/* The claim-ledger view (ADR-0200 D7) is the dock's PRIMARY list: who is doing what,
-              grouped by session. `null` (down DB / json store, or not yet fetched) is silent
-              absence — the presence rows below still render on their own. */}
-          {claimGroups && claimGroups.length > 0 && (
-            <ClaimGroupList groups={claimGroups} now={now} />
-          )}
-          {sessions.length === 0 ? (
-            <p className="muted small">No active sessions right now.</p>
-          ) : (
-            <>
-              {orbiting.map(row)}
-              {parked.length > 0 && (
-                <>
-                  <p className="session-parked-label muted small">
-                    possibly dead — quiet ≥ 4 h, no longer orbiting
-                  </p>
-                  {parked.map(row)}
-                </>
-              )}
-            </>
-          )}
-        </>
-      ) : detail ? (
-        <div className="session-detail">
-          <p className="session-detail-id">
-            <span className={`tree-session-band band-${detail.band}`} title={detail.band} />
-            <code>{detail.sessionId}</code>
-          </p>
-          <dl>
-            <dt>state</dt>
-            <dd>
-              {detail.band} · last seen {formatAge(detail.lastSeenAt, now)} ago
-            </dd>
-            <dt>branch</dt>
-            <dd>
-              <code>{detail.branch}</code>
-            </dd>
-            <dt>working on</dt>
-            <dd>{detail.workingOn}</dd>
-            <dt>nodes</dt>
-            <dd>
-              {detail.nodes.length === 0 ? (
-                <span className="muted">none declared — anchored to no territory</span>
-              ) : (
-                detail.nodes.map((n) => {
-                  const owner = storyForNode(n);
-                  return owner ? (
-                    <button
-                      key={n}
-                      type="button"
-                      className="tree-link"
-                      onClick={() => onFocusStory(owner)}
-                    >
-                      {n}
-                    </button>
-                  ) : (
-                    <code key={n} title="resolves to no loaded story">
-                      {n}{' '}
-                    </code>
-                  );
-                })
-              )}
-            </dd>
-          </dl>
-          <button type="button" className="tree-link" onClick={onShowList}>
-            all sessions
-          </button>
-        </div>
+      {claimGroups === null ? (
+        <p className="muted small">
+          Claim ledger unavailable — the live store didn&apos;t answer.
+        </p>
+      ) : claimGroups.length === 0 ? (
+        <p className="muted small">No live claims right now.</p>
       ) : (
-        <div className="session-detail">
-          <p className="muted small">This session is no longer active.</p>
-          <button type="button" className="tree-link" onClick={onShowList}>
-            all sessions
-          </button>
-        </div>
+        <ClaimGroupList groups={claimGroups} now={now} />
       )}
     </div>
   );
@@ -4379,14 +4217,14 @@ function StoryPanel({
   story,
   stories,
   storyIds,
-  sessions,
+  claims,
   now,
   selectedCap,
   hoverCap,
   hidden,
   onSelectCap,
   onHoverCap,
-  onSelectSession,
+  onShowSessions,
   onCrownRefresh,
   onClose,
   onSeedTerminal,
@@ -4394,14 +4232,17 @@ function StoryPanel({
   story: TreeStory;
   stories: TreeStory[];
   storyIds: ReadonlySet<string>;
-  sessions: TreeSession[];
+  /** This story's live claims (ADR-0200 D7 — the one "a session is here" signal since the inc-6
+   *  presence retirement): the same rows the claim wisps orbit with (claimsByStory). */
+  claims: ClaimActivity[];
   now: Date;
   selectedCap: string | null;
   hoverCap: string | null;
   hidden: ReadonlySet<string>;
   onSelectCap: (id: string | null) => void;
   onHoverCap: (id: string | null) => void;
-  onSelectSession: (sessionId: string) => void;
+  /** Opens the session dock (the claim ledger's claims-grouped-by-session view). */
+  onShowSessions: () => void;
   /** Re-pull the world tree after a per-test UAT verdict is signed, so the crown repaints. */
   onCrownRefresh: () => void;
   onClose: () => void;
@@ -4415,18 +4256,19 @@ function StoryPanel({
   // names it. Resolved from the whole story list so the inverse is recovered (the
   // de-noised cli hub declares none of its own spokes). See lib/connectionSet.ts.
   const connections = useMemo(() => fullConnectionSet(stories, story.id), [stories, story.id]);
-  const panelSessions = splitSessions(sessions);
-  const sessionLine = (s: TreeSession): React.JSX.Element => (
-    <p
-      key={s.sessionId}
-      className={`tree-session small${isOrbitingBand(s.band) ? '' : ' is-parked'}`}
-    >
-      <span className={`tree-session-band band-${s.band}`} title={s.band} />
-      <button type="button" className="tree-link" onClick={() => onSelectSession(s.sessionId)}>
-        <code>{s.sessionId}</code>
+  // The panel's "sessions here" rows are the story's live CLAIMS (ADR-0200 D7 — presence
+  // retired): the same coordination signal the claim wisps orbit with, each row opening the
+  // session dock's claim ledger. A claim is never a proof (§5 honesty wall).
+  const claimLine = (c: ClaimActivity): React.JSX.Element => (
+    <p key={c.sessionId} className="tree-session small">
+      <button type="button" className="tree-link" onClick={onShowSessions}>
+        <code>{c.sessionId}</code>
       </button>
-      <span className="muted"> {formatAge(s.lastSeenAt, now)} · </span>
-      {s.workingOn}
+      <span className="muted">
+        {' '}
+        {c.grade ?? 'work'} · {formatAge(c.at, now)} ·{' '}
+      </span>
+      {c.intent}
     </p>
   );
   const [panelW, setPanelW] = useState(savedPanelWidth);
@@ -4560,21 +4402,13 @@ function StoryPanel({
         onNavigate={(d) => navigate(treeFocusHref(d))}
       />
 
-      {sessions.length > 0 && (
+      {claims.length > 0 && (
         <div className="tree-sessions">
-          {/* The panel is a detail surface like the dock (ADR-0041): the count
-              speaks live sessions only; parked (possibly-dead) rows stay listed
-              after them — they no longer orbit the territory as wisps. */}
-          <h4 className="tree-subdag-title">sessions here ({panelSessions.orbiting.length})</h4>
-          {panelSessions.orbiting.map(sessionLine)}
-          {panelSessions.parked.length > 0 && (
-            <>
-              <p className="session-parked-label muted small">
-                possibly dead — quiet ≥ 4 h, no longer orbiting
-              </p>
-              {panelSessions.parked.map(sessionLine)}
-            </>
-          )}
+          {/* The panel is a detail surface like the dock: one row per live CLAIM on this story
+              (ADR-0200 D7 — self-reported presence retired; the claim ledger is the one
+              coordination signal). Clicking a row opens the session dock's grouped ledger. */}
+          <h4 className="tree-subdag-title">sessions here ({claims.length})</h4>
+          {claims.map(claimLine)}
         </div>
       )}
 
