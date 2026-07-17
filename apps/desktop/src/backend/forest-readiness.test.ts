@@ -29,7 +29,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Verdict } from "@storytree/proof-protocol";
-import { PresenceDeclaration } from "@storytree/notice-board";
 
 import { probeForestReadiness, writeToForestBroker, WRITE_BROKER_PATH } from "./forest-readiness.js";
 // The broker-post seam is now exported by the implementation (production wires it to a real `fetch`
@@ -220,11 +219,12 @@ test("forest-readiness: a hanging broker fails closed within the supplied timeou
 // ===========================================================================
 // WRITE CLIENT (ADR-0117 d.2–d.4, contract `fr-write-brokers-not-direct`)
 //
-// The positive half of the re-home: the local backend's locally-signed Verdict / PresenceDeclaration
-// reach the SHARED forest by POSTing the `{ type, payload }` envelope to the studio's write-broker —
-// opening NO DB connection. These cases pin: the EXACT shape reaches the broker POST (attributed to
-// the member); a 2xx broker response → persisted; a 401/403/4xx / network-error / hang → a clear
-// NOT-persisted result (never a silent success, never a forged "persisted").
+// The positive half of the re-home: the local backend's locally-signed Verdict reaches the SHARED
+// forest by POSTing the `{ type, payload }` envelope to the studio's write-broker — opening NO DB
+// connection. These cases pin: the EXACT shape reaches the broker POST (attributed to the member);
+// a 2xx broker response → persisted; a 401/403/4xx / network-error / hang → a clear NOT-persisted
+// result (never a silent success, never a forged "persisted"). Verdict is the ONLY write type —
+// the brokered PresenceDeclaration branch retired with self-reported presence (ADR-0200 D7).
 // ===========================================================================
 
 const MEMBER = "friend-builder@example.com";
@@ -260,17 +260,6 @@ function memberVerdict() {
   });
 }
 
-/** A minimal fully-valid presence declaration for the member's session. */
-function memberPresence() {
-  return PresenceDeclaration.parse({
-    sessionId: "desktop-worktree",
-    branch: "claude/desktop-worktree",
-    workingOn: "shared-forest-connection write client",
-    startedAt: "2026-06-27T10:00:00.000Z",
-    lastSeenAt: "2026-06-27T10:00:00.000Z",
-  });
-}
-
 // ---------------------------------------------------------------------------
 // 5. THE WRITE REACHES THE BROKER — exact Verdict shape, 2xx → persisted
 // ---------------------------------------------------------------------------
@@ -303,25 +292,25 @@ test("write client: POSTs the exact { type, payload } Verdict envelope and repor
 });
 
 // ---------------------------------------------------------------------------
-// 6. THE WRITE REACHES THE BROKER — exact PresenceDeclaration shape, 2xx → persisted
+// 6. PRESENCE IS RETIRED (ADR-0200 D7) — the ForestWrite union carries NO presence branch
 // ---------------------------------------------------------------------------
 
-test("write client: POSTs the exact { type, payload } PresenceDeclaration envelope and reports persisted on 2xx", async () => {
-  const presence = memberPresence();
-  const { post, calls } = recordingBroker({ status: 201, body: { ok: true, presence } });
-
-  const result = await writeToForestBroker(post, { type: "presence", payload: presence });
-
-  assert.equal(calls.length, 1, "exactly one broker POST");
-  const call = calls[0];
-  assert.ok(call, "the broker seam was called");
-  assert.equal(call.path, WRITE_BROKER_PATH, "POSTs to the write-broker endpoint, not a DB socket");
-  assert.deepEqual(
-    call.body,
-    { type: "presence", payload: presence },
-    "the POST body is the exact { type, payload } envelope with the presence declaration",
+test("write client: forest-readiness.ts carries no presence write branch (ADR-0200 D7)", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const src = readFileSync(path.join(here, "forest-readiness.ts"), "utf8");
+  // The union is verdict-only: no `type: "presence"` member and no notice-board shape import.
+  assert.ok(
+    !/type:\s*"presence"/.test(src),
+    "ForestWrite must not carry a presence branch — brokered presence retired with ADR-0200 D7",
   );
-  assert.equal(result.persisted, true, "a 2xx broker response means persisted");
+  const imports = src
+    .split(/\r?\n/)
+    .filter((l) => /^\s*import\b/.test(l))
+    .join("\n");
+  assert.ok(
+    !/@storytree\/notice-board/.test(imports),
+    "the write client no longer imports the notice-board presence shapes",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -367,7 +356,7 @@ test("write client: a 400 broker response fails closed (not persisted) — the b
 test("write client: a 401 broker response fails closed (not persisted) — authentication required", async () => {
   const { post } = recordingBroker({ status: 401, body: { error: "authentication required" } });
 
-  const result = await writeToForestBroker(post, { type: "presence", payload: memberPresence() });
+  const result = await writeToForestBroker(post, { type: "verdict", payload: memberVerdict() });
 
   assert.equal(result.persisted, false, "a 401 must NOT be reported as persisted");
   if (result.persisted) assert.fail("a 401 must never report persisted");

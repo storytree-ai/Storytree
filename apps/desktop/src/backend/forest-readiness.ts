@@ -5,7 +5,7 @@
 // the broker is unreachable (studio down / URL wrong) or the caller is not yet an authorized builder
 // (builder role not yet granted via the Members panel). ADR-0117 d.5.
 //
-// WRITE CLIENT: POSTs a locally-signed Verdict / PresenceDeclaration to the broker's write endpoint
+// WRITE CLIENT: POSTs a locally-signed Verdict to the broker's write endpoint
 // (ADR-0117 d.2–d.4). The SERVER persists it under its one service-account identity; the client holds
 // no key and opens no DB connection — it forwards the already-signed bytes and reports an honest
 // persisted / not-persisted result the local backend can act on (never a forged "persisted").
@@ -14,11 +14,12 @@
 // DB socket and never imports apps/studio/server (the surface boundary, ADR-0100): it POSTs to the
 // hosted studio's broker endpoints via the injected BrokerPostFn seam. Offline-testable: inject an
 // in-memory double, no real network required. The cross-story desktop → studio-cloud edge is a runtime
-// HTTP edge only — the Verdict / PresenceDeclaration SHAPES come from the proof-protocol / notice-board
-// protocol packages, imported as erased types (no runtime coupling to the server).
+// HTTP edge only — the Verdict SHAPE comes from the proof-protocol package, imported as an erased
+// type (no runtime coupling to the server). Brokered PRESENCE writes retired with self-reported
+// presence (ADR-0200 D7) — the claim ledger is the one coordination surface; verdict is the only
+// write type left.
 
 import type { Verdict } from "@storytree/proof-protocol";
-import type { PresenceDeclarationDoc } from "@storytree/notice-board";
 
 /**
  * The injected broker-POST seam. Production wires this to a real `fetch` POST to the configured
@@ -197,10 +198,9 @@ export async function probeForestReadiness(
  *
  * The `payload` is a fully-formed, locally-signed shape from the protocol packages: the spine ran
  * the gate and signed on the member's machine (ADR-0091); the client only forwards the bytes.
+ * Verdict-only since ADR-0200 D7 (the presence branch retired with self-reported presence).
  */
-export type ForestWrite =
-  | { type: "verdict"; payload: Verdict }
-  | { type: "presence"; payload: PresenceDeclarationDoc };
+export type ForestWrite = { type: "verdict"; payload: Verdict };
 
 /**
  * The result of a brokered forest write — what the local backend acts on.
@@ -216,7 +216,7 @@ export type ForestWriteResult =
   | { persisted: false; status: number | null; guidance: string };
 
 /**
- * POST a locally-signed `Verdict` / `PresenceDeclaration` to the hosted studio's members-gated
+ * POST a locally-signed `Verdict` to the hosted studio's members-gated
  * write-broker (ADR-0117 d.2–d.4) via the injected `brokerPost` seam.
  *
  * The client opens NO DB connection and holds NO signing key: it forwards the already-signed bytes

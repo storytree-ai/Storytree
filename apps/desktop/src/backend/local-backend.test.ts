@@ -36,7 +36,6 @@ function stubBackend(): LocalBackendDeps["backend"] {
   return {
     listAssets: async () => [],
     health: async () => ({ db: "n/a" as const }),
-    activeSessions: async () => null,
     inFlightBuilds: async () => null,
     latestVerdicts: async () => null,
     // verdictEvents is optional; omitting it is fine — the handler falls back gracefully.
@@ -129,13 +128,14 @@ test("local-backend: GET /api/tree returns { stories: [] } from real discovery o
 });
 
 // ===========================================================================
-// VERDICT / ACTIVITY / PRESENCE OVERLAY (ADR-0119 deferred overlay) — the desktop forest paints
+// VERDICT / ACTIVITY OVERLAY (ADR-0119 deferred overlay) — the desktop forest paints
 // proof-health from signed verdicts, NOT the authored-status brown the bare tree fell back to.
 //
 // These pin the chip's outcome end-to-end over the REAL route dispatch + REAL discovery: GET /api/tree
 // folds an injected signed-verdict fixture into island/plant hue (green from a signed pass), and
-// GET /api/activity + GET /api/presence serve the in-flight-build / session overlays (advisory: a null
-// seam answers a 200 `{ builds: null }` / `{ sessions: null }`, never a 404 or a crash).
+// GET /api/activity serves the in-flight-build overlay (advisory: a null seam answers a 200
+// `{ builds: null }`, never a 404 or a crash). The self-reported PRESENCE overlay is RETIRED
+// (ADR-0200 D7) — /api/presence is no longer a route, pinned below.
 // ===========================================================================
 
 const TS = "2026-06-27T10:00:00.000Z";
@@ -361,31 +361,50 @@ test("local-backend: GET /api/activity is advisory for claims — { claims: null
   });
 });
 
-// GET /api/presence serves the active-session overlay (the session dock) from the injected seam.
-test("local-backend: GET /api/presence returns the active-session overlay { sessions } from the seam", async () => {
-  const sessions = [
-    { sessionId: "s1", branch: "b1", workingOn: "x", nodes: ["alpha"], band: "fresh", lastSeenAt: TS },
-  ];
-  const backend = overlayBackend({ activeSessions: async () => sessions });
+// PRESENCE IS RETIRED (ADR-0200 D7): /api/presence is no longer a route — it falls through to the
+// 404 'unknown endpoint', and the tree payload no longer weaves a `sessions` block. The claim
+// ledger (/api/claims below) is the one coordination + observability surface.
+test("local-backend: GET /api/presence is retired — 404 unknown endpoint (ADR-0200 D7)", async () => {
   const handler = createLocalBackend({
     storiesDir: NO_STORIES_DIR,
     docsDir: NO_DOCS_DIR,
-    backend,
+    backend: stubBackend(),
     store: "pg",
   });
 
   await withServer(handler, async (base) => {
     const res = await fetch(`${base}/api/presence`);
-    assert.equal(res.status, 200, "presence must be 200");
+    assert.equal(res.status, 404, "the presence mirror is gone — the route falls through to 404");
     const body = (await res.json()) as Record<string, unknown>;
-    assert.deepEqual(body["sessions"], sessions, "{ sessions } is the backend's activeSessions result");
+    assert.ok(typeof body["error"] === "string", "carries the standard 404 error body");
   });
+});
+
+// The tree payload carries NO self-reported `sessions` weave any more (ADR-0200 D7).
+test("local-backend: GET /api/tree carries no `sessions` block — the presence weave is retired", async () => {
+  const { dir, cleanup } = await seedStoriesDir();
+  try {
+    const handler = createLocalBackend({
+      storiesDir: dir,
+      docsDir: NO_DOCS_DIR,
+      backend: stubBackend(),
+      store: "pg",
+    });
+    await withServer(handler, async (base) => {
+      const res = await fetch(`${base}/api/tree`);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.ok(!("sessions" in body), "no self-reported sessions weave rides the tree payload");
+    });
+  } finally {
+    await cleanup();
+  }
 });
 
 // ===========================================================================
 // GET /api/claims — the claim-ledger DOCK view (ADR-0200 D7). Re-composes the studio's handleClaims:
 // fold the backend's raw live claim rows through the pure `groupClaimsBySession`. Sibling to
-// /api/presence + /api/activity but its OWN endpoint (the studio dock fetches it only while open). Before
+// /api/activity but its OWN endpoint (the studio dock fetches it only while open). Before
 // this route existed the request fell through to the local-backend 404 'unknown endpoint' — the exact
 // class of desktop-only gap PR #751 fixed for /api/docs/content. Advisory: a null/absent seam answers
 // 200 { sessions: null }, never a 503; the only error path is the 405 method guard.
@@ -544,7 +563,8 @@ test("local-backend: an unrecognised /api/* endpoint returns 404 with an error b
 });
 
 // ===========================================================================
-// FOREST-WRITE ROUTE (ADR-0117) — the local backend's verdict/presence writes are BROKERED.
+// FOREST-WRITE ROUTE (ADR-0117) — the local backend's verdict writes are BROKERED.
+// (Brokered PRESENCE writes retired with self-reported presence, ADR-0200 D7 — pinned below.)
 //
 // These pin step 3 of the re-home: POST /api/forest/write routes through the injected broker writer
 // (never a direct @storytree/store / PgWorkStore path), surfaces the broker's refusal honestly
@@ -683,6 +703,44 @@ test("local-backend: POST /api/forest/write rejects a malformed payload (400) be
     });
     assert.equal(res.status, 400, "a malformed verdict is rejected with 400");
     assert.equal(called, false, "the writer is NOT called when the shape is invalid — no forged write");
+  });
+});
+
+// Pins the presence retirement (ADR-0200 D7): `presence` is no longer a forest-write type — it is
+// refused as unknown (400) and the writer is never called.
+test("local-backend: POST /api/forest/write refuses type 'presence' as unknown (400) — presence writes are retired", async () => {
+  let called = false;
+  const forestWrite: ForestWriter = {
+    write: async () => {
+      called = true;
+      return { persisted: true, status: 201, body: {} };
+    },
+  };
+  const handler = createLocalBackend({
+    storiesDir: NO_STORIES_DIR,
+    docsDir: NO_DOCS_DIR,
+    backend: stubBackend(),
+    store: "json",
+    forestWrite,
+  });
+
+  await withServer(handler, async (base) => {
+    const res = await fetch(`${base}/api/forest/write`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "presence",
+        payload: {
+          sessionId: "s1",
+          branch: "b1",
+          workingOn: "x",
+          startedAt: "2026-06-27T10:00:00.000Z",
+          lastSeenAt: "2026-06-27T10:00:00.000Z",
+        },
+      }),
+    });
+    assert.equal(res.status, 400, "presence is an unknown forest-write type since ADR-0200 D7");
+    assert.equal(called, false, "the writer is NOT called for the retired presence type");
   });
 });
 

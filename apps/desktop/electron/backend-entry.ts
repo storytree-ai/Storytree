@@ -27,8 +27,7 @@ import {
   PgCommentStore,
   renderStoredDoc,
 } from "@storytree/library/store";
-import { PgPresenceStore, PgClaimStore } from "@storytree/notice-board/store";
-import { classifyPresence } from "@storytree/notice-board";
+import { PgClaimStore } from "@storytree/notice-board/store";
 import { SIGNING_EVENT_KIND } from "@storytree/proof-protocol";
 import { loadLocalSecrets } from "@storytree/drive/secrets";
 import {
@@ -132,11 +131,12 @@ function deriveChatIdentity(root: string): { sessionId: string; branch: string }
   }
 }
 
-// ---------- verdict / activity / presence overlay drivers (ADR-0119 deferred overlay) ----------
+// ---------- verdict / activity overlay drivers (ADR-0119 deferred overlay) ----------
 //
 // Re-composed from apps/studio/server's PgBackend reads (libraryBackend.ts) — the SAME raw SQL over
-// events.verdict / events.work_event + PgPresenceStore over events.session — so the desktop forest
-// paints the SAME proof-health / wisp / session layers as the hosted studio. NOT an import of
+// events.verdict / events.work_event — so the desktop forest paints the SAME proof-health / wisp
+// layers as the hosted studio. (The self-reported PRESENCE overlay retired with ADR-0200 D7 — the
+// claim ledger is the one coordination surface.) NOT an import of
 // apps/studio/server (the surface boundary, ADR-0100). This is the operator-attested GLUE the desktop
 // story assigns to electron/backend-entry.ts (the sidecar wiring is attested, not a CI capability); the
 // CI-proven core is the tree-verdicts.ts fold, exercised through these seams by stubs. Each read is
@@ -348,7 +348,6 @@ async function main(): Promise<void> {
   const { pool, connector } = await createPool();
   const library = new PgLibraryStore(pool);
   const comments = new PgCommentStore(pool);
-  const presence = new PgPresenceStore(pool);
   const attestations = new PgAttestationStore(pool);
   // The ledger read behind the session dock's GET /api/claims view (ADR-0200 D7) — the SAME store the
   // CLI board reads; listLiveClaims staleness-filters in SQL. Separate instance from the PgClaimStore
@@ -367,9 +366,10 @@ async function main(): Promise<void> {
   };
 
   // The read backend the local-backend factory dispatches (the pg-backed shape, mirroring devApi.ts's
-  // PgBackend reads). The verdict/activity/presence overlays are now WIRED (ADR-0119 deferred overlay)
-  // — the SAME SQL the studio's PgBackend runs — so the desktop forest paints proof-health, in-flight
-  // wisps, and the session dock identically to the hosted studio.
+  // PgBackend reads). The verdict/activity overlays are WIRED (ADR-0119 deferred overlay)
+  // — the SAME SQL the studio's PgBackend runs — so the desktop forest paints proof-health and
+  // in-flight wisps identically to the hosted studio. (Self-reported presence retired, ADR-0200 D7 —
+  // the session dock reads the claim ledger via /api/claims.)
   const backend: LocalBackendBackend = {
     listAssets: async () => {
       const docs = await library.queryDocs();
@@ -417,21 +417,6 @@ async function main(): Promise<void> {
     // The RAW signed-verdict event stream — what the per-test crown roll-up
     // (rollupStoryGreen/rollupCapStatus) reads; advisory here (null on any failure).
     verdictEvents: async () => advisory("verdict-events", readVerdictEventRows),
-    // Active notice-board sessions (events.session) with the staleness band derived at read time — the
-    // session dock layer (ADR-0033), mirroring the studio PgBackend's activeSessions.
-    activeSessions: async () =>
-      advisory("active-sessions", async () => {
-        const docs = await presence.listActive();
-        const now = new Date();
-        return docs.map((d) => ({
-          sessionId: d.sessionId,
-          branch: d.branch,
-          workingOn: d.workingOn,
-          nodes: d.nodes,
-          band: classifyPresence(d.lastSeenAt, now),
-          lastSeenAt: d.lastSeenAt,
-        }));
-      }),
     // In-flight builds (ADR-0048): the latest `building` work-event per unit whose run has NOT yet
     // produced a signed verdict, TTL-filtered + phase-surfaced in JS — the orbiting-wisp layer. Mirrors
     // the studio PgBackend's inFlightBuilds query + its rowsToBuildActivity fold (re-composed here).
@@ -572,8 +557,10 @@ async function main(): Promise<void> {
   // (tree/library/noticeboard) dispatch through @storytree/drive's createOrientationRunner — the
   // drive-resident composition of the SAME three read commands the terminal CLI serves (the CLI's
   // run() itself stays in @storytree/cli, which this sidecar may not import; ADR-0112) — composed
-  // here over the LIVE stores: the pg library store (dashboard), the stories/ dir + signed-verdict
-  // log (tree), and the presence store (noticeboard + the tree's sessions block). The verdict read
+  // here over the LIVE stores: the pg library store (dashboard) and the stories/ dir + signed-verdict
+  // log (tree). (The presence store is no longer wired — self-reported presence retired, ADR-0200 D7;
+  // the noticeboard view renders offline-silently, the claim ledger is the coordination read.) The
+  // verdict read
   // shares readVerdictEventRows with the forest overlays; a down DB throws inside the reader and the
   // tree renders with the proof columns silently absent (the offline-silent contract),
   // never a hung tool. Attestation vouch-marks are not wired here (no attestation read in this
@@ -582,7 +569,6 @@ async function main(): Promise<void> {
   const orientationRunner = createOrientationRunner({
     store: library,
     storiesDir,
-    presence,
     verdicts: { readEvents: readVerdictEventRows },
   });
   // The chat mount is composed AFTER the build context below — its OPTIONAL spawn surface

@@ -114,7 +114,8 @@ const json = (route, body) => route.fulfill({ json: body });
 /**
  * Register the offline `/api/*` stubs on a window. Every endpoint the studio boot touches answers from a
  * fixture so the app reaches `loadState: 'app'` and the forest paints deterministically with no DB.
- * Advisory layers (presence/activity) answer the documented "store didn't answer" null shape.
+ * The activity advisory layer answers the documented "store didn't answer" null shape. (The
+ * /api/presence stub left with the presence retirement, ADR-0200 D7 — the route no longer exists.)
  */
 export async function stubApi(win) {
   await win.route('**/api/tree', (r) => json(r, TREE_FIXTURE));
@@ -123,7 +124,6 @@ export async function stubApi(win) {
   await win.route('**/api/docs', (r) => json(r, [])); // listDocs (and /api/docs/content is unused here)
   await win.route('**/api/assets', (r) => json(r, []));
   await win.route('**/api/comments**', (r) => json(r, []));
-  await win.route('**/api/presence', (r) => json(r, { sessions: null }));
   await win.route('**/api/activity', (r) => json(r, { builds: null }));
 }
 

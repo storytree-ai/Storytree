@@ -266,7 +266,6 @@ test("advisory: a failing overlay read logs AND the route still answers the advi
     latestVerdicts: async () => advisory("latest-verdicts", async () => {
       throw new Error("connection refused");
     }),
-    activeSessions: async () => null,
     inFlightBuilds: async () =>
       advisory("in-flight-builds", async () => {
         throw new Error("connection refused");

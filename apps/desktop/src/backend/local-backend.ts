@@ -18,7 +18,7 @@ import type {
 import { readTreeWithCaps, foldVerdicts } from "./tree-verdicts.js";
 import type { DTVerdict, DTVerdictEvent } from "./tree-verdicts.js";
 
-// The verdict/presence zod schemas live in raw-TS workspace packages whose `.js` re-export
+// The verdict/claim zod schemas live in raw-TS workspace packages whose `.js` re-export
 // specifiers don't resolve under a non-tsx loader; load the runtime VALUES lazily, on first use —
 // the SAME discipline the orchestrator import below (and the studio's writeBroker.ts) follow, so a
 // future bundle of this module never reaches their enums at load time. Type-only imports are erased,
@@ -93,7 +93,6 @@ export interface LocalBackendBackend {
     code?: { startedAt: string; head: string; stale: boolean };
     runtime?: { branch: string | null; behind: number | null; pinned?: boolean };
   }>;
-  activeSessions: () => Promise<unknown[] | null>;
   inFlightBuilds: () => Promise<unknown[] | null>;
   latestVerdicts: () => Promise<unknown>;
   /** Optional — absent on the json backend; the handler falls back gracefully when missing. */
@@ -142,7 +141,7 @@ export interface LocalBackendDeps {
   /** Build seam; omit for read-only deployments. */
   build?: LocalBackendBuild;
   /**
-   * Forest-write seam — the desktop persists its locally-signed verdict/presence to the SHARED
+   * Forest-write seam — the desktop persists its locally-signed verdict to the SHARED
    * forest THROUGH THE BROKER (ADR-0117), never a direct Cloud SQL connection. Omit to leave the
    * forest-write route disabled (→ 404). Production wires {@link createBrokerForestWriter} over the
    * configured studio broker URL.
@@ -159,18 +158,18 @@ export interface LocalBackendDeps {
  * signed `verdict.outcome === 'pass'`, not the authored-status brown the bare tree fell back to.
  *
  * Every overlay leg is advisory (ADR-0033): a `null` source (the json backend / a down DB) leaves the
- * authored hue — the tree UNDER-claims, never over-claims, and never throws. Seeds `sessions`/`builds`
- * on first load (the `/api/presence` + `/api/activity` polls then keep them fresh) — parity with the
- * studio handler. The verdict pg SQL lives behind `deps.backend` (electron/backend-entry.ts); this
- * module stays pg-free (the desktop's brokered-only write boundary, ADR-0117).
+ * authored hue — the tree UNDER-claims, never over-claims, and never throws. Seeds `builds` on first
+ * load (the `/api/activity` poll then keeps it fresh) — parity with the studio handler. The
+ * self-reported `sessions` weave retired with presence (ADR-0200 D7 — the claim ledger is the one
+ * coordination surface). The verdict pg SQL lives behind `deps.backend` (electron/backend-entry.ts);
+ * this module stays pg-free (the desktop's brokered-only write boundary, ADR-0117).
  */
 async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, unknown>> {
   const { stories, uatTestsByStory, coverageByStory } = await readTreeWithCaps(deps.storiesDir);
-  // Run the advisory reads in parallel so a down DB costs one timeout budget, not five.
-  const [latestVerdicts, verdictEvents, sessions, builds, assets] = await Promise.all([
+  // Run the advisory reads in parallel so a down DB costs one timeout budget, not four.
+  const [latestVerdicts, verdictEvents, builds, assets] = await Promise.all([
     deps.backend.latestVerdicts() as Promise<Record<string, DTVerdict> | null>,
     (deps.backend.verdictEvents?.() ?? Promise.resolve(null)) as Promise<readonly DTVerdictEvent[] | null>,
-    deps.backend.activeSessions(),
     deps.backend.inFlightBuilds(),
     deps.backend.listAssets().catch(() => null),
   ]);
@@ -190,7 +189,6 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
     openQuestions,
   });
   const payload: Record<string, unknown> = { stories };
-  if (sessions && sessions.length > 0) payload["sessions"] = sessions;
   if (builds && builds.length > 0) payload["builds"] = builds;
   return payload;
 }
@@ -210,7 +208,6 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
  *                        deferred overlay) — green from a signed pass, not authored brown
  * - GET  /api/activity — the map-activity wisp layer: in-flight builds (ADR-0048) + story claims
  *                        (ADR-0138), `{ builds, claims }` — both advisory
- * - GET  /api/presence — the active-session layer (ADR-0033), `{ sessions }`
  * - GET  /api/claims   — the claim-ledger DOCK view (ADR-0200 D7), `{ sessions }` — live claim rows
  *                        grouped by session (advisory: `{ sessions: null }` when the seam/DB is silent)
  * - GET  /api/assets   — library assets from the injected `backend`
@@ -245,16 +242,11 @@ export function createLocalBackend(
           deps.backend.inFlightClaims?.() ?? Promise.resolve(null),
         ]);
         sendJson(res, 200, { builds, claims });
-      } else if (url.pathname === "/api/presence") {
-        // The active-session layer (ADR-0033), polled by the world — `{ sessions }` (advisory: null when
-        // the backend can't answer). Mirrors the studio's GET /api/presence (handlePresence).
-        if ((req.method ?? "GET") !== "GET") throw new HttpError(405, "method not allowed");
-        sendJson(res, 200, { sessions: await deps.backend.activeSessions() });
       } else if (url.pathname === "/api/claims") {
         // The claim-ledger DOCK view (ADR-0200 D7): every live claim row folded by session through the
         // pure `groupClaimsBySession` so the desktop session dock renders "who's doing what, grouped by
         // session" — the SAME shape the studio's GET /api/claims produces (handleClaims), re-composed
-        // here (no apps/studio/server import, ADR-0100). Sibling to /api/presence + /api/activity, but its
+        // here (no apps/studio/server import, ADR-0100). Sibling to /api/activity, but its
         // OWN endpoint (the dock fetches it only while open, not on the world's poll cadence). Advisory:
         // `sessionClaims` absent / a down DB → 200 `{ sessions: null }`, never a 503; the only error path
         // is the 405 method guard. `groupClaimsBySession` rides the existing `loadNoticeBoard` lazy loader
@@ -293,7 +285,7 @@ export function createLocalBackend(
         void deps.build.runner(unitId, () => undefined);
         sendJson(res, 202, { runId: unitId });
       } else if (url.pathname === "/api/forest/write") {
-        // Persist a locally-signed verdict/presence to the SHARED forest THROUGH THE BROKER
+        // Persist a locally-signed verdict to the SHARED forest THROUGH THE BROKER
         // (ADR-0117) — the desktop's forest-write path is brokered, never a direct DB connection.
         if (deps.forestWrite === undefined) throw new HttpError(404, "forest write is not enabled");
         const method = req.method ?? "GET";
@@ -330,6 +322,8 @@ export function createLocalBackend(
  * Throws {@link HttpError}(400) on an unknown type or a payload that fails its protocol shape — the
  * desktop fast-fails malformed local input before the network hop; the broker re-validates as the
  * authority (ADR-0117 d.3). The zod schemas are lazy-loaded (the raw-TS `.js` re-export discipline).
+ * `verdict` is the ONLY write type — brokered presence retired with self-reported presence
+ * (ADR-0200 D7; the claim ledger is the one coordination surface).
  */
 async function parseForestWrite(input: Record<string, unknown>): Promise<ForestWrite> {
   const type = input["type"];
@@ -338,12 +332,6 @@ async function parseForestWrite(input: Record<string, unknown>): Promise<ForestW
     const parsed = Verdict.safeParse(input["payload"]);
     if (!parsed.success) throw new HttpError(400, `invalid verdict shape: ${parsed.error.message}`);
     return { type: "verdict", payload: parsed.data };
-  }
-  if (type === "presence") {
-    const { PresenceDeclaration } = await loadNoticeBoard();
-    const parsed = PresenceDeclaration.safeParse(input["payload"]);
-    if (!parsed.success) throw new HttpError(400, `invalid presence shape: ${parsed.error.message}`);
-    return { type: "presence", payload: parsed.data };
   }
   throw new HttpError(400, `unknown forest write type "${String(type)}"`);
 }
@@ -377,7 +365,7 @@ export function createFetchBrokerPost(brokerBaseUrl: string): BrokerPostFn {
 }
 
 /**
- * The desktop's forest-write seam: persist a locally-signed verdict/presence to the shared forest
+ * The desktop's forest-write seam: persist a locally-signed verdict to the shared forest
  * THROUGH THE BROKER (ADR-0117) — never a direct Cloud SQL connection.
  */
 export interface ForestWriter {
