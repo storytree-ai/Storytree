@@ -494,6 +494,18 @@ importers:
         specifier: ~5.7.3
         version: 5.7.3
 
+  packages/procedural-architecture:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ~5.7.3
+        version: 5.7.3
+
   packages/proof-protocol:
     dependencies:
       zod:

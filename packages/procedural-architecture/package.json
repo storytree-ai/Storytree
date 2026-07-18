@@ -1,0 +1,19 @@
+{
+  "name": "@storytree/procedural-architecture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The procedural-architecture organism: buildings grown from declared structural relations rather than typed coordinates. Pure math + string building — a shape/builder core, a physics invariant checker, an isometric SVG backend, and two parametric buildings. Zero runtime dependencies, browser-safe, depends on no other workspace package.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.3"
+  }
+}
