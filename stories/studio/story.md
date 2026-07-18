@@ -14,7 +14,7 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # out of cli) for its db-control / build surfaces and DROPPED its @storytree/cli dependency — so the
 # `cli` edge is gone. The drive surface is owned by drive-machinery, already in depends_on below, so
 # this is a re-pointing of the same code edge to a narrower package, not a graph change.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol]
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), and the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112).

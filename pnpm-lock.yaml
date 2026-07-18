@@ -86,6 +86,9 @@ importers:
       '@storytree/studio-members':
         specifier: workspace:*
         version: link:../../packages/studio-members
+      '@storytree/uat-criterion':
+        specifier: workspace:*
+        version: link:../../packages/uat-criterion
       '@xterm/addon-clipboard':
         specifier: 0.2.0
         version: 0.2.0

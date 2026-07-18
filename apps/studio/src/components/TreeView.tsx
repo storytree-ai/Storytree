@@ -45,7 +45,7 @@ import { claimColourState } from '../lib/claimColour';
 import { formatAge } from '../lib/format';
 import { useNowTick } from '../lib/poll';
 import { useSessionClaimGroups } from '../lib/sessionClaims';
-import { docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
+import { assetHref, docHref, navigate, treeFocusHref, treeHref } from '../lib/route';
 import { presentStories } from '../lib/worldStatus.js';
 import {
   WorldLegend,
@@ -4150,11 +4150,27 @@ export function UatTestCriteriaSection({
                 ? `${t.title}: human-witnessed, not yet proven — click to sign "I saw it work"`
                 : `${t.title}: ${witnessNoun}-witnessed, not yet proven`;
 
+            // ADR-0209 D7: story-owned one-liner is display-canonical; optional Library detail
+            // pointer opens via assetHref — never dumps procedure prose into the cell, and never
+            // steals the witness-glyph "I saw it work" click (separate right-edge control).
+            const detailId = t.detailArtifactId;
+            const titleNode =
+              detailId !== undefined && detailId.length > 0 ? (
+                <a
+                  className="uat-test-criterion-title uat-test-criterion-detail-link"
+                  href={assetHref(detailId)}
+                  title={`Open Library detail: ${detailId}`}
+                  aria-label={`${t.title}: open Library detail`}
+                >
+                  {t.title}
+                </a>
+              ) : (
+                <span className="uat-test-criterion-title">{t.title}</span>
+              );
+
             return (
               <tr key={t.id} className="uat-row">
-                <td className="uat-test-criterion-cell">
-                  <span className="uat-test-criterion-title">{t.title}</span>
-                </td>
+                <td className="uat-test-criterion-cell">{titleNode}</td>
                 {/* The single witness/state glyph at the RIGHT edge (owner redesign) — where the eye
                     lands for a per-row action. A muted person icon here is the "I saw it work" button;
                     a robot, or an already-proven/failed icon, is a non-interactive status indicator. */}

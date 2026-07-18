@@ -170,3 +170,100 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
     expect(screen.getByText(/2 UAT legs on this adopted story are still undecided/i)).toBeTruthy();
   });
 });
+
+describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open', () => {
+  it('renders the story-owned one-liner and never the detail-body procedure prose', async () => {
+    const oneLiner = 'Reader can open the pointed detail';
+    const detailProse =
+      'Action: open the Library artifact and verify the action/success/evidence sections render.';
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        {
+          id: 'uat-detail-studio#uat-1',
+          title: oneLiner,
+          witness: 'machine',
+          detailArtifactId: 'uat-criterion-detail:example',
+        },
+      ]),
+    );
+    const { container } = render(
+      <UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />,
+    );
+    await flush();
+
+    expect(container.querySelector('.uat-test-criterion-title')?.textContent).toBe(oneLiner);
+    expect(container.textContent ?? '').not.toContain(detailProse);
+    expect(container.textContent ?? '').not.toContain('Action:');
+  });
+
+  it('a pointed row links to the Library detail asset; the one-liner stays the label', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        {
+          id: 'uat-detail-studio#uat-2',
+          title: 'Open reaches the detail',
+          witness: 'machine',
+          detailArtifactId: 'uat-criterion-detail:open-me',
+        },
+      ]),
+    );
+    render(<UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />);
+    await flush();
+
+    const link = screen.getByRole('link', { name: /Open reaches the detail: open Library detail/i });
+    expect(link.getAttribute('href')).toBe('#/asset/uat-criterion-detail%3Aopen-me');
+    expect(link.textContent).toBe('Open reaches the detail');
+  });
+
+  it('a row without a detail pointer has no fake open link', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([{ id: 'legacy#uat-1', title: 'Legacy one-liner', witness: 'human' }]),
+    );
+    const { container } = render(
+      <UatTestCriteriaSection storyId="legacy" onCrownRefresh={() => {}} />,
+    );
+    await flush();
+
+    expect(container.querySelector('.uat-test-criterion-detail-link')).toBeNull();
+    expect(screen.queryByRole('link', { name: /open Library detail/i })).toBeNull();
+    expect(container.querySelector('.uat-test-criterion-title')?.textContent).toBe('Legacy one-liner');
+    // existing sign path undisturbed — human unproven leg stays the clickable glyph
+    expect(
+      screen.getByRole('button', {
+        name: /Legacy one-liner: human-witnessed, not yet proven.*click to sign/i,
+      }).hasAttribute('disabled'),
+    ).toBe(false);
+  });
+
+  it('concision does not steal the witness sign glyph (human signable, machine inert)', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        {
+          id: 'uat-detail-studio#uat-m',
+          title: 'machine pointed',
+          witness: 'machine',
+          detailArtifactId: 'uat-criterion-detail:m',
+        },
+        {
+          id: 'uat-detail-studio#uat-h',
+          title: 'human pointed',
+          witness: 'human',
+          detailArtifactId: 'uat-criterion-detail:h',
+        },
+      ]),
+    );
+    render(<UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />);
+    await flush();
+
+    expect(screen.getAllByRole('link', { name: /open Library detail/i })).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: /machine pointed: machine-witnessed, not yet proven/i })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(
+      screen.getByRole('button', {
+        name: /human pointed: human-witnessed, not yet proven.*click to sign/i,
+      }).hasAttribute('disabled'),
+    ).toBe(false);
+  });
+});

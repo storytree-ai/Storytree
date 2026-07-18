@@ -2068,6 +2068,16 @@ a.stat:hover {
 .uat-test-criterion-title {
   display: block;
 }
+/* ADR-0209 D7 — open Library detail from the one-liner; quiet underline, not a card/chip. */
+.uat-test-criterion-detail-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--border-strong) 55%, transparent);
+  text-underline-offset: 2px;
+}
+.uat-test-criterion-detail-link:hover {
+  text-decoration-color: var(--fg);
+}
 /* The right-edge witness/state glyph cell — where the eye lands for a per-row action. */
 .uat-witness-cell {
   width: 26px;

@@ -677,6 +677,10 @@ export interface AttestationMark {
  */
 export interface UatTestCriterionRow {
   id: string;
+  /**
+   * Story-owned one-line acceptance intent (ADR-0209 D7 / `displayTitle`). Never the detail
+   * artifact's action/success/evidence prose — that lives behind {@link detailArtifactId}.
+   */
   title: string;
   /** The RESOLVED binary witness (ADR-0106) — `either` is resolved server-side and never reaches here. */
   witness: 'human' | 'machine';
@@ -691,6 +695,12 @@ export interface UatTestCriterionRow {
    * when the live store can't answer (json backend / down DB), like the CLI tree's proven glyphs.
    */
   proven?: 'pass' | 'fail';
+  /**
+   * Optional Library detail artifact id from the story criterion's `(detail: …)` pointer
+   * (ADR-0209 D5/D7 / `@storytree/uat-criterion`). When present, the Studio row may open that
+   * artifact; absent for legacy legs until migration attaches a pointer.
+   */
+  detailArtifactId?: string;
 }
 
 /** GET /api/attestations?storyId=… — a story's UAT test criteria with their per-test marks + proven state. */
