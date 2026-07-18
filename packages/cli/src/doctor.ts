@@ -375,6 +375,6 @@ export function doctorCommand(
     // onward to the guide's next step. The guide (D6 top layer) reads the report object, not this.
     next: report.ok
       ? ["storytree library", "storytree agents"]
-      : ["infra/install.md", "infra/install.ps1"],
+      : ["storytree guide", "storytree guide --fix", "infra/install.md"],
   };
 }

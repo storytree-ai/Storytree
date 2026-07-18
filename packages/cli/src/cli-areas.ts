@@ -34,6 +34,7 @@ export const CLI_AREAS = [
   "onboarding",
   "friction",
   "doctor",
+  "guide",
 ] as const;
 
 export type CliArea = (typeof CLI_AREAS)[number];

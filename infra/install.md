@@ -58,6 +58,20 @@ step list to drift against.
 This is what makes the guide's repair loop enactable: `doctor`'s `fixStep` → `planRepairs`'
 installer-step action → `guide-loop`'s `run-installer-step` directive → this command.
 
+### The guided loop (`storytree guide`)
+
+`storytree guide` runs that whole chain for you, so you rarely invoke `-Step` by hand:
+
+```powershell
+pnpm storytree guide          # check + explain what needs repairing — enacts NOTHING
+pnpm storytree guide --fix    # repair each failure, re-checking after every step
+```
+
+Bare `guide` is a **preview**: it names the concrete steps it would run and stops. `--fix` is your
+confirmation — it repairs, re-checks, and repeats until the setup is healthy, blocked on you, or
+needs the owner. Your Claude sign-in is the one thing it never automates: it tells you to run
+`claude`, then stops and waits for you to re-run the guide (D3).
+
 ## The trust invariant (ADR-0207 D3)
 
 storytree **never handles Claude credentials**. The script installs the CLI and points the dev at

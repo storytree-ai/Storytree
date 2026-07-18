@@ -51,6 +51,7 @@ import {
 } from "./desktop.js";
 import { onboardingCommand, onboardingHelp } from "./onboarding.js";
 import { doctorCommand, doctorHelp } from "./doctor.js";
+import { guideCommand, guideHelp } from "./guide.js";
 import {
   newFriction,
   migrateFriction,
@@ -1623,6 +1624,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     route?: string;
     source?: string;
     force?: boolean;
+    fix?: boolean;
     yes?: boolean;
     cap?: string;
     "include-detached"?: boolean;
@@ -1641,6 +1643,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         file: { type: "string" },
         set: { type: "string", multiple: true },
         "dry-run": { type: "boolean", default: false },
+        // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
+        fix: { type: "boolean", default: false },
         live: { type: "boolean", default: false },
         real: { type: "boolean", default: false },
         "emit-wisp": { type: "boolean", default: false },
@@ -2330,6 +2334,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // never handles a Claude credential (detects a logged-in CLI by file existence only, D3).
     if (help) return doctorHelp();
     return doctorCommand(positionals.slice(1));
+  }
+
+  if (area === "guide") {
+    // The guided repair loop over doctor (ADR-0207 D6): run the check, explain it plainly, and — only
+    // under `--fix` — repair each failure by re-running its idempotent `install.ps1` step, re-checking
+    // after each. The Claude sign-in is INSTRUCTED and never performed (D3): the guide stops and tells
+    // the dev what to do. Bare `storytree guide` previews and enacts nothing.
+    if (help) return guideHelp();
+    return guideCommand(positionals.slice(1), { fix: values["fix"] === true });
   }
 
   if (area !== "library") {
