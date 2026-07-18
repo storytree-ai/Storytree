@@ -95,7 +95,11 @@ Once D5 ships the public distribution bucket, the one-liner is:
 irm https://storage.googleapis.com/storytree-dist/install.ps1 | iex
 ```
 
-**Until D5 lands** (the bucket does not exist yet), the repo is private, so a raw GitHub URL will
+The bucket is now **codified** in [`dist-bucket.tf`](dist-bucket.tf) (see
+[`dist-bucket.md`](dist-bucket.md)) but still needs the owner's one-time `terraform apply` plus a
+`gsutil cp` of this script. The one-liner goes live the moment that URL answers.
+
+**Until that apply lands**, the repo is private, so a raw GitHub URL will
 not fetch unauthenticated. Deliver the script by pasting its contents or hosting it at a temporary
 public URL, then:
 
