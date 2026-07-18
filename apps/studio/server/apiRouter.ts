@@ -825,9 +825,34 @@ export async function handleAttestations(
       };
       storyUat = storyUatRollup(rollupStoryUat(tests, events));
     }
+    // ADR-0209 D7: attach optional Library detail pointers from `(detail: …)` tags so the Studio
+    // row can open the detail artifact. Parsed via `@storytree/uat-criterion` (same grammar as the
+    // offline port); legs without a pointer stay pointer-less.
+    const detailByCriterionId = new Map<string, string>();
+    const storyDir = containedPath(ctx.paths.storiesDir, storyId);
+    if (storyDir) {
+      const storyFile = path.join(storyDir, 'story.md');
+      if (existsSync(storyFile)) {
+        try {
+          const { parseCriterionPointers } = await import('@storytree/uat-criterion');
+          const body = await fs.readFile(storyFile, 'utf8');
+          for (const binding of parseCriterionPointers(storyId, body)) {
+            detailByCriterionId.set(binding.criterion.id, binding.detailArtifactId);
+          }
+        } catch {
+          // Malformed detail tags must not blank the attestations panel — omit pointers.
+        }
+      }
+    }
     const rows = resolvedTests.map((t) => {
       const proven = provenOf?.(t.id);
-      return { ...t, ...(marks[t.id] ?? {}), ...(proven ? { proven } : {}) };
+      const detailArtifactId = detailByCriterionId.get(t.id);
+      return {
+        ...t,
+        ...(marks[t.id] ?? {}),
+        ...(proven ? { proven } : {}),
+        ...(detailArtifactId !== undefined ? { detailArtifactId } : {}),
+      };
     });
     return sendJson(res, 200, {
       storyId,
