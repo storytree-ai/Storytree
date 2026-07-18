@@ -88,3 +88,64 @@ test("the D3 trust invariant is honoured: the script never captures a Claude cre
     "install.ps1 must not read the contents of .credentials.json (D3: detect, never capture)",
   );
 });
+
+// --- D6 targeted repair: -Step single-step invocation --------------------------------------------
+// The guide's repair loop emits a `run-installer-step` directive naming ONE `# @step:` (doctor's
+// fixStep -> planRepairs -> guide-loop). That directive is only enactable if the installer can run a
+// SINGLE step, so these assert the -Step contract the loop depends on.
+
+test("-Step: the installer accepts a single-step parameter (the loop's enactable repair)", () => {
+  assert.ok(
+    /\[string\]\$Step\b/.test(script),
+    "install.ps1 must declare a [string]$Step parameter so one @step can be re-invoked",
+  );
+});
+
+test("-Step dispatches on the SAME @step inventory (no second step list to drift against)", () => {
+  // The filter must compare the runner's own $Name against $Step, so every declared @step is
+  // invocable by construction and a new step needs no registration anywhere else.
+  const fnStart = script.indexOf("function Invoke-Step");
+  const body = script.slice(fnStart, fnStart + 900);
+  assert.ok(
+    /\$Name\s*-ne\s*\$script:Step/.test(body),
+    "Invoke-Step must filter by comparing its own $Name against $Step (dispatch by inventory)",
+  );
+  // The valid-name list is accumulated from the runner itself, never hand-maintained.
+  assert.ok(
+    /\$script:StepNames\s*\+=\s*\$Name/.test(body),
+    "the valid-step list must be collected from Invoke-Step calls, not hand-maintained",
+  );
+});
+
+test("-Step skips a non-matching step WHOLE (never runs its Check or Install)", () => {
+  const fnStart = script.indexOf("function Invoke-Step");
+  const body = script.slice(fnStart, fnStart + 900);
+  const filterIdx = body.search(/if\s*\(\s*\$Name\s*-ne\s*\$script:Step\s*\)\s*\{\s*return/);
+  const checkIdx = body.search(/if\s*\(\s*&\s*\$Check\s*\)/);
+  assert.notEqual(filterIdx, -1, "the -Step filter must return early for a non-matching step");
+  assert.notEqual(checkIdx, -1, "Invoke-Step must still run its Check for a matching step");
+  assert.ok(
+    filterIdx < checkIdx,
+    "the -Step skip must precede the Check, so a filtered-out step is a whole no-op",
+  );
+});
+
+test("-Step fails LOUDLY on an unknown name (never a silent no-op the guide misreads as repaired)", () => {
+  assert.ok(
+    /throw\s+"unknown -Step/.test(script),
+    "an unrecognised -Step name must throw, not silently do nothing",
+  );
+  assert.ok(
+    /\$script:StepNames\s*-join/.test(script),
+    "the unknown-step error must list the valid step names",
+  );
+});
+
+test("-Step stops before the trailing actions (a targeted repair never launches the app)", () => {
+  const guardIdx = script.search(/if\s*\(\$Step\)\s*\{[\s\S]*?return\s*\n\}/);
+  const trailingIdx = script.indexOf("trailing actions (not idempotent-convergent steps)");
+  const launchIdx = script.indexOf("Start-Process");
+  assert.notEqual(guardIdx, -1, "install.ps1 must return after a -Step run");
+  assert.ok(guardIdx < trailingIdx, "the -Step return must precede the trailing verify/login actions");
+  assert.ok(guardIdx < launchIdx, "a -Step repair must never reach the desktop-app launch");
+});

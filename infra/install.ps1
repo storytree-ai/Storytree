@@ -28,6 +28,9 @@
     powershell -ExecutionPolicy Bypass -File infra/install.ps1
     # or once D5 lands the public bucket:
     #   irm https://storage.googleapis.com/storytree-dist/install.ps1 | iex
+
+    # D6 targeted repair - re-run ONE idempotent step (what the guide's repair loop invokes):
+    powershell -ExecutionPolicy Bypass -File infra/install.ps1 -Step node
 #>
 [CmdletBinding()]
 param(
@@ -36,7 +39,12 @@ param(
   # The read-only clone URL (storytree-ai org - capital S retained after the ADR-0207 D2 transfer).
   [string]$RepoUrl = 'https://github.com/storytree-ai/Storytree.git',
   # Skip the final desktop-app launch (provision only) - used by re-run/repair flows.
-  [switch]$SkipLaunch
+  [switch]$SkipLaunch,
+  # Run ONLY the named `# @step:<name>` and stop - the D6 targeted repair (ADR-0207). The guide's
+  # repair loop names the exact step to re-invoke (doctor's fixStep -> planRepairs' InstallerStepAction
+  # -> the run-installer-step directive), so a repair re-runs ONE idempotent step rather than
+  # re-walking the whole install. An unknown name fails loudly. Omit for the full install sequence.
+  [string]$Step
 )
 
 Set-StrictMode -Version Latest
@@ -72,12 +80,21 @@ function Install-Winget($id) {
 # The idempotent step runner - D1's load-bearing invariant lives HERE. Check returns $true when the
 # step is already satisfied; in that case Install is NEVER called (the no-op-when-satisfied contract).
 # After an install, Check is re-run to confirm convergence; a step that does not converge throws.
+$script:StepNames = @()
+$script:StepMatched = $false
+
 function Invoke-Step {
   param(
     [Parameter(Mandatory)][string]$Name,
     [Parameter(Mandatory)][scriptblock]$Check,
     [Parameter(Mandatory)][scriptblock]$Install
   )
+  $script:StepNames += $Name
+  # -Step: run ONLY the named step (the D6 targeted repair). Non-matching steps are skipped whole.
+  if ($script:Step) {
+    if ($Name -ne $script:Step) { return }
+    $script:StepMatched = $true
+  }
   if (& $Check) { Write-Ok "$Name - already satisfied"; return }
   Write-Info "$Name - setting up..."
   & $Install
@@ -161,6 +178,18 @@ Invoke-Step -Name 'provision' `
 Invoke-Step -Name 'claude-cli' `
   -Check  { Test-Have claude } `
   -Install { irm https://claude.ai/install.ps1 | iex; Update-SessionPath }
+
+# --- targeted repair (-Step) stops here ----------------------------------------------------------
+# A -Step run is the D6 repair loop enacting ONE idempotent step; the guide re-doctors afterwards,
+# so the installer skips the trailing verify/login-notice/launch entirely. An unknown step name is a
+# loud failure (never a silent no-op that the guide would misread as a successful repair).
+if ($Step) {
+  if (-not $script:StepMatched) {
+    throw "unknown -Step '$Step'. Valid steps: $($script:StepNames -join ', ')."
+  }
+  Write-Ok "step '$Step' complete."
+  return
+}
 
 # --- trailing actions (not idempotent-convergent steps) ------------------------------------------
 # Verify the setup with `storytree doctor` (ADR-0207 D6: the installer verifies with it). doctor is

@@ -40,6 +40,24 @@ doctor *instructs* (run `claude` and sign in) and never executes — the D3 trus
 offline probes (remote reachability, checkout freshness) resolve to **warnings**, never failures, so
 doctor itself always runs offline. `packages/cli/src/doctor.test.ts` guards both invariants.
 
+### Enacting one repair (`-Step`)
+
+A repair re-runs **one** idempotent step rather than re-walking the whole install:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/install.ps1 -Step node
+```
+
+`-Step` runs only the named `# @step:` and stops — it skips every other step whole (neither their
+`Check` nor their `Install` runs) and returns **before** the trailing verify / login-notice / app
+launch, because the guide re-doctors after the repair itself. An unknown name fails loudly and lists
+the valid steps, so a mistyped repair can never be misread as a successful one. Dispatch is by the
+runner's own step name, so every declared `@step` is invocable by construction — there is no second
+step list to drift against.
+
+This is what makes the guide's repair loop enactable: `doctor`'s `fixStep` → `planRepairs`'
+installer-step action → `guide-loop`'s `run-installer-step` directive → this command.
+
 ## The trust invariant (ADR-0207 D3)
 
 storytree **never handles Claude credentials**. The script installs the CLI and points the dev at
