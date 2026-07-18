@@ -63,7 +63,7 @@ export interface DTCapability {
 
 /**
  * One WITNESSABLE UAT test criterion's proof-state summary (mirrors the studio's
- * `UatCriterionSummary`, forest-parcels arc increment 2 — the lantern walk).
+ * `UatCriterionSummary`, forest-parcels arc increment 2 — the marker walk).
  */
 export interface DTUatCriterion {
   id: string;
@@ -182,7 +182,7 @@ function loadCapability(
 export async function readTreeWithCaps(storiesDir: string): Promise<{
   stories: DTStory[];
   uatTestCriteriaByStory: Map<string, { id: string }[]>;
-  /** The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 lantern walk) — the same
+  /** The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 marker walk) — the same
    *  would-be filter as `uatTestCriteriaByStory`, but NEVER unioned with `## Reliability Gates`. Feeds
    *  `applyUatCriteria`. Mirrors the studio's readTree `uatCriteriaByStory` verbatim. */
   uatCriteriaByStory: Map<string, { id: string }[]>;

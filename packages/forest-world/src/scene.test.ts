@@ -997,17 +997,18 @@ test('§ back-compat: parcels absent OR no substrate cells → today\'s conifer 
   assert.ok(firstByKind(layer, 'conifer'), 'conifers survive when parcels cannot render');
 });
 
-// ---------- the UAT lantern walk (forest-parcels inc 2) ----------
+// ---------- the UAT marker walk (forest-parcels inc 2) ----------
 //
-// Stage-1 GEOMETRY only: the walk + lantern STRUCTURE — wrapper kinds, counts, input order, id
-// carriage, deterministic placement. The lantern BODY is a placeholder behind the `lanternMarks`
-// splice seam (ADR-0208): its exact marks are deliberately NOT pinned here, so the designer's art
-// can replace the body without touching these tests. The LOOK is operator-attested later (ADR-0070).
+// Stage-1 GEOMETRY only: the walk + marker STRUCTURE — wrapper kinds, counts, input order, id
+// carriage, deterministic placement. The marker BODY is behind the `brazierMarks` splice seam
+// (ADR-0208): its exact marks are deliberately NOT pinned here, so the designer's art can change the
+// body without touching these tests. The LOOK is operator-attested later (ADR-0070). The walk's
+// placement cubic is INVISIBLE (owner call 2026-07-18 — no trail-bed drawable).
 
 type UatCriteria = NonNullable<SceneTerritoryInput['uatCriteria']>;
 
 /** A one-island scene whose territory carries `uatCriteria` + the human-witness signpost. */
-function lanternScene(uatCriteria: UatCriteria, over: Partial<SceneTerritoryInput> = {}): SceneG {
+function markerScene(uatCriteria: UatCriteria, over: Partial<SceneTerritoryInput> = {}): SceneG {
   return buildScene(
     mkInput({ territories: [mkTerritory({ signpost: { outcome: null }, uatCriteria, ...over })] }),
   );
@@ -1019,68 +1020,62 @@ const THREE_CRITERIA: UatCriteria = [
   { id: 'crit-c', state: 'failing' },
 ];
 
-test('a uatCriteria-present island emits a lantern-walk: a walk-path bed + one lantern per criterion in input order', () => {
-  const scene = lanternScene(THREE_CRITERIA);
-  const walk = mustByKind(scene, 'lantern-walk');
+test('a uatCriteria-present island emits a uat-walk: one marker per criterion in input order, NO visible bed', () => {
+  const scene = markerScene(THREE_CRITERIA);
+  const walk = mustByKind(scene, 'uat-walk');
   assert.ok(walk.el === 'g');
-  // the walk bed is the FIRST child — one cubic bezier the lanterns hang off.
-  const bed = children(walk)[0];
-  assert.ok(bed, 'the walk carries a bed path');
-  assert.equal(bed.kind, 'walk-path');
-  assert.ok(bed.el === 'path' && /^M -?[\d.]+ -?[\d.]+ C /.test(bed.d), 'the bed is a cubic');
-  // one wrapper per criterion, INPUT order preserved, each wearing its state kind + criterion id.
-  const lanterns = children(walk).slice(1);
-  assert.equal(lanterns.length, THREE_CRITERIA.length);
+  // the placement cubic is INVISIBLE — the walk carries ONLY the marker wrappers (owner call
+  // 2026-07-18: the visible bed clashed with the inter-island trail network).
+  const markers = children(walk);
+  assert.equal(markers.length, THREE_CRITERIA.length);
   assert.deepEqual(
-    lanterns.map((l) => l.kind),
-    ['lantern-proven', 'lantern-pending', 'lantern-failing'],
+    markers.map((m) => m.kind),
+    ['brazier-proven', 'brazier-pending', 'brazier-failing'],
   );
-  assert.deepEqual(lanterns.map((l) => l.id), ['crit-a', 'crit-b', 'crit-c']);
-  for (const l of lanterns) {
-    assert.ok(l.el === 'g' && children(l).length > 0, 'a lantern wrapper carries body marks');
-    assert.match(l.transform ?? '', /^translate\(-?[\d.]+ -?[\d.]+\)$/);
+  assert.deepEqual(markers.map((m) => m.id), ['crit-a', 'crit-b', 'crit-c']);
+  for (const m of markers) {
+    assert.ok(m.el === 'g' && children(m).length > 0, 'a marker wrapper carries body marks');
+    // the 0.9 scale is the design review's walk-density trim, applied on the wrapper.
+    assert.match(m.transform ?? '', /^translate\(-?[\d.]+ -?[\d.]+\) scale\(0\.9\)$/);
   }
 });
 
-test('the walk arrives at the trailhead beside the tree, and the human-witness signpost seal is RETAINED', () => {
-  const scene = lanternScene(THREE_CRITERIA, { signpost: { outcome: 'pass' } });
-  // the signpost is the trailhead seal — the lanterns never replace it.
-  assert.ok(firstByKind(scene, 'sign-pass'), 'the signpost seal survives a lantern walk');
-  // the bed ends at the trailhead: treeSpot + (R·0.7 + 9, 8) — beside the signpost's translate.
-  const R = crownRadius(3); // mkTerritory: healthy, caps 3 → the full crown
-  const bed = children(mustByKind(scene, 'lantern-walk'))[0];
-  assert.ok(bed && bed.el === 'path');
-  assert.ok(
-    bed.d.endsWith(`${(100 + R * 0.7 + 9).toFixed(1)} ${(190 + 8).toFixed(1)}`),
-    `the bed arrives at the trailhead: ${bed.d}`,
-  );
+test('the markers stand on a placed walk, and the human-witness signpost seal is RETAINED', () => {
+  const scene = markerScene(THREE_CRITERIA, { signpost: { outcome: 'pass' } });
+  // the signpost is the trailhead seal — the markers never replace it.
+  assert.ok(firstByKind(scene, 'sign-pass'), 'the signpost seal survives a marker walk');
+  // every marker resolves to a concrete spot along the (invisible) placement cubic.
+  const walk = mustByKind(scene, 'uat-walk');
+  const spots = children(walk).map((m) => /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(0\.9\)$/.exec(m.transform ?? ''));
+  assert.ok(spots.every((s) => s !== null), 'every marker carries a translate + the density-trim scale');
+  assert.equal(new Set(spots.map((s) => s![0])).size, spots.length, 'markers stand on distinct spots');
 });
 
-test('the lantern walk is deterministic (same input → byte-identical) and id-seeded (different story → different walk)', () => {
-  assert.deepEqual(lanternScene(THREE_CRITERIA), lanternScene(THREE_CRITERIA));
+test('the marker walk is deterministic (same input → byte-identical) and id-seeded (different story → different walk)', () => {
+  assert.deepEqual(markerScene(THREE_CRITERIA), markerScene(THREE_CRITERIA));
   const walkOf = (id: string): SceneNode =>
-    mustByKind(lanternScene(THREE_CRITERIA, { id }), 'lantern-walk');
+    mustByKind(markerScene(THREE_CRITERIA, { id }), 'uat-walk');
   assert.notDeepEqual(walkOf('alpha'), walkOf('beta'));
 });
 
-test('many criteria space gracefully: every lantern lands on its own spot along the walk', () => {
+test('many criteria space gracefully: every marker lands on its own spot along the walk', () => {
   const many: UatCriteria = Array.from({ length: 8 }, (_, i) => ({
     id: `crit-${i}`,
     state: (['proven', 'pending', 'failing'] as const)[i % 3]!,
   }));
-  const walk = mustByKind(lanternScene(many), 'lantern-walk');
-  const lanterns = children(walk).slice(1);
-  assert.equal(lanterns.length, 8);
-  const spots = lanterns.map((l) => l.transform ?? '');
-  assert.equal(new Set(spots).size, 8, 'no two lanterns stack on one spot');
+  const walk = mustByKind(markerScene(many), 'uat-walk');
+  const markers = children(walk);
+  assert.equal(markers.length, 8);
+  const spots = markers.map((m) => m.transform ?? '');
+  assert.equal(new Set(spots).size, 8, 'no two markers stack on one spot');
 });
 
-test('§ back-compat ABSENCE LOCK: uatCriteria absent OR empty → NO lantern kinds; absent and [] byte-identical', () => {
-  // absent (mkTerritory carries no uatCriteria) → no lantern-walk anywhere. The committed golden
+test('§ back-compat ABSENCE LOCK: uatCriteria absent OR empty → NO marker kinds; absent and [] byte-identical', () => {
+  // absent (mkTerritory carries no uatCriteria) → no uat-walk anywhere. The committed golden
   // fixture test above ("parcels-ABSENT scene matches …") is the byte-for-byte pre-change lock —
   // it must stay green untouched; this adds the absent ≡ [] equivalence, the inc-1 pattern.
   const absent = buildScene(mkInput());
-  for (const k of ['lantern-walk', 'walk-path', 'lantern-proven', 'lantern-pending', 'lantern-failing']) {
+  for (const k of ['uat-walk', 'brazier-proven', 'brazier-pending', 'brazier-failing']) {
     assert.equal(firstByKind(absent, k), null, `no ${k} on a uatCriteria-absent island`);
   }
   const empty = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria: [] })] }));

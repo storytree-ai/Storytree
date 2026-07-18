@@ -511,7 +511,7 @@ export interface AdoptionPlan {
 }
 
 /**
- * One WITNESSABLE UAT test criterion's proof-state summary (the lantern-walk arc, forest-parcels inc-2):
+ * One WITNESSABLE UAT test criterion's proof-state summary (the marker walk arc, forest-parcels inc-2):
  * `proven` — the latest SIGNED verdict for this test id is a pass; `failing` — the latest signed
  * verdict is a fail; `pending` — no signed verdict yet, OR the live store can't answer (json backend /
  * down DB) — never fabricated. DELIBERATELY the same rigor as {@link UatTestCriterionRow.proven}
@@ -593,7 +593,7 @@ export interface TreeStory {
   /** Binding-staleness drift of the story's own UAT span (ADR-0016 §3); see {@link TreeCapability.drift}. */
   drift?: DriftState;
   /**
-   * The story's WITNESSABLE UAT test criteria, summarised for the lantern-walk map layer
+   * The story's WITNESSABLE UAT test criteria, summarised for the marker walk map layer
    * (forest-parcels inc-2): one entry per declared `## UAT Test Criteria` leg that is NOT a would-be
    * (aspirational, ADR-0097) leg. `## Reliability Gates` (ADR-0085 brownfield obligations) are
    * deliberately EXCLUDED — this is the story's own UAT test criteria, a narrower set than the crown's

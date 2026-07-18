@@ -374,7 +374,7 @@ test("tree-verdicts: applyCapCoverage synthesizes a covered brownfield cap's ver
 });
 
 // ---------------------------------------------------------------------------
-// uatCriteria — the lantern-walk summary (forest-parcels arc increment 2)
+// uatCriteria — the marker walk summary (forest-parcels arc increment 2)
 // ---------------------------------------------------------------------------
 //
 // Mirrors the studio's apiRouter.applyUatCriteria / readTree's `uatCriteriaByStory` verbatim (this

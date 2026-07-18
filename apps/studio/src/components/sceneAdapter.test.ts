@@ -207,9 +207,9 @@ describe('worldToScene → capability parcels', () => {
 });
 
 // forest-parcels inc 2: the studio fold threads the story's declared UAT criteria straight through to
-// the core's `uatCriteria` scene field (the core owns the walk geometry + lantern placement entirely;
+// the core's `uatCriteria` scene field (the core owns the walk geometry + marker placement entirely;
 // this lane just carries the `{id, state}` shape across, exactly like `parcels` above).
-describe('worldToScene → uatCriteria (the UAT lantern walk)', () => {
+describe('worldToScene → uatCriteria (the UAT marker walk)', () => {
   function input(stories: TreeStory[]) {
     const world = buildWorld(stories);
     const cells = buildRelaxedCells(world, 'mesh', {});

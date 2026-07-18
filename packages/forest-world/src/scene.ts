@@ -115,21 +115,29 @@ export type SceneKind =
   | 'sign-fail'
   | 'sign-post'
   | 'sign-head'
-  // the UAT lantern walk (forest-parcels inc 2) — the story's UAT criteria as lanterns along a
-  // deterministic trail-to-tree walk arriving at the signpost trailhead. The WRAPPER kind encodes
-  // each criterion's state (the `sign-blank/pass/fail` precedent) and carries the criterion id;
-  // the body marks inside come from the `lanternMarks` splice seam (ADR-0208) on the frozen child
-  // kinds below (+ the shared `shadow`). Colour stays CSS-side (ADR-0093 §4).
-  | 'lantern-walk' // the island's whole walk group: the bed path + the lantern wrappers
-  | 'walk-path' // the visible trail-bed cubic the lanterns hang off
-  | 'lantern-proven'
-  | 'lantern-pending'
-  | 'lantern-failing'
-  | 'lantern-post'
-  | 'lantern-housing'
-  | 'lantern-glass'
-  | 'lantern-roof'
-  | 'lantern-glow'
+  // the UAT marker walk (forest-parcels inc 2) — the story's UAT criteria as trailside BRAZIER
+  // markers along a deterministic trail-to-tree walk arriving at the signpost trailhead. The WRAPPER
+  // kind encodes each criterion's state (the `sign-blank/pass/fail` precedent) and carries the
+  // criterion id; the body marks inside come from the `brazierMarks` splice seam (ADR-0208) on the
+  // frozen child kinds below (+ the shared `shadow`). Colour stays CSS-side (ADR-0093 §4). The walk's
+  // placement CURVE is invisible — no trail-bed drawable (owner call 2026-07-18: the bed clashed with
+  // the inter-island trail network; alignment is a later increment).
+  | 'uat-walk' // the island's whole walk group: the marker wrappers along the invisible curve
+  | 'brazier-proven'
+  | 'brazier-pending'
+  | 'brazier-failing'
+  | 'brazier-plinth'
+  | 'brazier-plinth-band'
+  | 'brazier-collar'
+  | 'brazier-bowl'
+  | 'brazier-bowl-rim'
+  | 'brazier-bowl-interior'
+  | 'brazier-coal'
+  | 'brazier-ember'
+  | 'brazier-flame'
+  | 'brazier-glow'
+  | 'brazier-spark'
+  | 'brazier-smoke'
   // a capability as garden flora
   | 'flora'
   | 'flora-hit'
@@ -298,13 +306,13 @@ export type ClaimGrade = 'exploring' | 'waiting' | 'work';
  *  it. The surface fold folds each capability's real theme into this. */
 export type SurfaceTheme = 'meadow' | 'woodland' | 'heath';
 
-/** A UAT criterion's proof state on the lantern walk (forest-parcels inc 2) — which lantern the
- *  criterion lights: `proven` glows, `pending` waits unlit, `failing` wears the failed hue.
+/** A UAT criterion's proof state on the marker walk (forest-parcels inc 2) — how the criterion's
+ *  brazier reads: `proven` burns warm gold, `pending` waits cold and unlit, `failing` gutters red.
  *  DUPLICATED as the core's OWN input vocabulary (the scene-graph is a foundational root that
  *  depends on nothing — ADR-0093 §Open call 2), mirroring the surface's folded per-criterion proof
- *  state rather than importing the proof machinery. Encoded in the lantern WRAPPER's kind
- *  (`lantern-proven`/`lantern-pending`/`lantern-failing`), never as live data on the node. */
-export type LanternState = 'proven' | 'pending' | 'failing';
+ *  state rather than importing the proof machinery. Encoded in the marker WRAPPER's kind
+ *  (`brazier-proven`/`-pending`/`-failing`), never as live data on the node. */
+export type MarkerState = 'proven' | 'pending' | 'failing';
 
 /** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
  *  scene-graph is a foundational root that depends on nothing (ADR-0093 §Open call 2), so it mirrors
@@ -462,15 +470,17 @@ export interface SceneTerritoryInput {
   treeTitle: string;
   /** Present only for a human-witness story; `outcome` null = a blank (unsigned) seal. */
   signpost?: { outcome: 'pass' | 'fail' | null };
-  /** The UAT lantern walk (forest-parcels inc 2). When PRESENT and non-empty, the island grows a
-   *  deterministic trail-to-tree walk (a cubic from the south coast up to the trailhead beside the
-   *  tree, where the signpost seal stands) with ONE lantern per criterion, in input order along the
-   *  walk, each criterion's `state` encoded in its wrapper KIND (`lantern-proven`/`lantern-pending`/
-   *  `lantern-failing`) and its `id` carried as the node id (the hover/delegation hook). The
-   *  human-witness `signpost` seal is RETAINED unconditionally — it is the walk's trailhead seal,
-   *  not replaced by the lanterns. OPTIONAL and back-compat: ABSENT ⇒ today's island renders
-   *  BYTE-FOR-BYTE (the public website fold never sends it and must be unchanged). */
-  uatCriteria?: { id: string; state: LanternState }[];
+  /** The UAT marker walk (forest-parcels inc 2). When PRESENT and non-empty, the island grows a
+   *  deterministic trail-to-tree walk (an INVISIBLE placement cubic from the south coast up to the
+   *  trailhead beside the tree, where the signpost seal stands — no trail-bed drawable, owner call
+   *  2026-07-18) with ONE brazier marker per criterion, in input order along the walk, each
+   *  criterion's `state` encoded in its wrapper KIND
+   *  (`brazier-proven`/`-pending`/`-failing`) and its `id` carried as the node id (the
+   *  hover/delegation hook). The human-witness `signpost` seal is RETAINED unconditionally — it is
+   *  the walk's trailhead seal, not replaced by the markers. OPTIONAL and back-compat: ABSENT ⇒
+   *  today's island renders BYTE-FOR-BYTE (the public website fold never sends it and must be
+   *  unchanged). */
+  uatCriteria?: { id: string; state: MarkerState }[];
   /** The crown bloom, folded by the surface; omitted when withered or none. */
   bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
   /** In-flight build wisps, folded from live builds (the core derives each orbit
@@ -686,103 +696,222 @@ function buildSignpost(s: { outcome: 'pass' | 'fail' | null }, R: number): Scene
 }
 
 // ---------------------------------------------------------------------------
-// the UAT lantern walk (forest-parcels inc 2)
+// the UAT marker walk (forest-parcels inc 2)
 // ---------------------------------------------------------------------------
 //
 // A uatCriteria-present island grows a trail-to-tree WALK: a deterministic cubic from the island's
 // south coast (the approach, toward the viewer) up to the TRAILHEAD beside the tree — where the
 // human-witness signpost seal already stands (`translate(R·0.7 + 9, 0)` off `treeSpot`); the seal is
-// RETAINED as the trailhead's seal. One lantern per criterion hangs along the walk in input order,
-// on alternating sides via the curve's unit tangent (the spike's placement,
-// docs/research/forest-parcels-spike.html). Everything is seeded from the story id via the existing
-// `hash`/`rand01` helpers — same input ⇒ byte-identical output.
+// RETAINED as the trailhead's seal. One brazier marker per criterion stands along the walk in
+// input order, on alternating sides via the curve's unit tangent (the spike's placement,
+// docs/research/forest-parcels-spike.html). The curve itself is INVISIBLE — no trail-bed drawable
+// (owner call 2026-07-18: the bed clashed with the inter-island trail network; alignment is a later
+// increment). Everything is seeded from the story id via the existing `hash`/`rand01` helpers —
+// same input ⇒ byte-identical output.
 
-/** THE LANTERN-BODY SPLICE SEAM (ADR-0208): the designer-authored pure body painter. Frozen
- *  contract `(state, k) => SceneNode[]` — marks positioned with the lantern BASE at (0,0), `k` a
- *  hash seed for deterministic jitter (draw via `rand01(k + i)`, never Math.random). The wrapper's
- *  KIND carries the state; the body reuses the frozen `lantern-*` child kinds + the shared
- *  `shadow`, colour stays CSS-side (ADR-0093 §4). Designed against the owner-approved v5 mockup
- *  (docs/research/forest-parcels-spike.html ~L830–850): post + housing + glass + gabled roof,
- *  ~31.6 units tall — a smaller, warmer companion to the ~24-unit signpost. The core carries no
- *  gradients, so the mockup's radial glow halo is faked with layered circles of DECREASING radius
- *  and INCREASING opacity (largest-dimmest first) — the housing silhouette stays visible through
- *  the light. PENDING emits no glow at all: dormant reads as the ABSENCE of light, never a dimmed
- *  one. Only the lean and roof-apex wobble are jittered — the fixture is the same object family
- *  in every state; only the light carries the verdict. */
-function lanternMarks(state: LanternState, k: number): SceneNode[] {
-  const POST_H = 14.5;
-  const POST_W = 3.2;
-  const HOUSING_W = 11.5;
-  const HOUSING_H = 11.5;
-  const ROOF_H = 5.6;
-  const GLASS_W = 7.3;
-  const GLASS_H = 7.9;
+/** One flame tongue's flat-facet silhouette — a bowed teardrop from `(cx±w, baseY)` up to a single
+ *  jittered tip. `notch` (FAILING only) pulls the left edge into a torn, concave bite partway up —
+ *  an asymmetric silhouette cue ("this flame is wrong") that reads even colourblind, independent of
+ *  the red hue. PROVEN never carries a notch: its silhouette stays one calm, controlled curve. */
+function flamePath(cx: number, baseY: number, h: number, w: number, tipX: number, notch = false): string {
+  const tipY = baseY - h;
+  const left = notch
+    ? `C ${f(cx - w * 0.9)} ${f(baseY - h * 0.22)}, ${f(cx - w * 0.32)} ${f(baseY - h * 0.4)}, ${f(cx - w * 0.62)} ${f(baseY - h * 0.5)} ` +
+      `C ${f(cx - w * 0.86)} ${f(baseY - h * 0.58)}, ${f(cx - w * 0.3)} ${f(baseY - h * 0.68)}, ${f(cx + tipX)} ${f(tipY)} `
+    : `C ${f(cx - w * 0.85)} ${f(baseY - h * 0.4)}, ${f(cx - w * 0.4 + tipX * 0.3)} ${f(baseY - h * 0.72)}, ${f(cx + tipX)} ${f(tipY)} `;
+  return (
+    `M ${f(cx - w)} ${f(baseY)} ` +
+    left +
+    `C ${f(cx + w * 0.4 + tipX * 0.3)} ${f(baseY - h * 0.72)}, ${f(cx + w * 0.85)} ${f(baseY - h * 0.4)}, ${f(cx + w)} ${f(baseY)} Z`
+  );
+}
 
-  const r1 = (n: number): number => Number(n.toFixed(1));
-  // A hand-built lamp leans a touch and its roof apex wobbles — never machine-square.
-  const leanX = (rand01(k) - 0.5) * 1.6;
-  const apexJitter = (rand01(k + 1) - 0.5) * 1.2;
+// The brazier fixture's shared body geometry (identical across all three states — only the
+// flame/glow/ember treatment differs; the "only the light carries the verdict" rule the owner
+// approved on the lantern round).
+const BRAZIER_PLINTH_BOTTOM_W = 15;
+const BRAZIER_PLINTH_TOP_W = 10;
+const BRAZIER_PLINTH_H = 16.5;
+const BRAZIER_COLLAR_H = 1.8;
+const BRAZIER_BOWL_FOOT_W = 10.5;
+const BRAZIER_BOWL_H = 8.2;
+const BRAZIER_BOWL_RIM_W = 21;
 
-  const postTopY = -POST_H;
-  const housingTopY = postTopY - HOUSING_H;
-  const roofApexY = housingTopY - ROOF_H;
-  const glassY0 = housingTopY + 1.9;
+/** THE MARKER-BODY SPLICE SEAM (ADR-0208): the designer-authored pure body painter — the BRAZIER
+ *  concept, picked from the ten-option design swarm by the orchestrator's design review (owner
+ *  delegated the pick 2026-07-18 after rejecting the lantern look; the composite LOOK stays
+ *  owner-attested). Frozen contract `(state, k) => SceneNode[]` — marks positioned with the fixture
+ *  BASE at (0,0), `k` a hash seed for deterministic jitter (draw via `rand01(k + n)`, never
+ *  Math.random). The wrapper's KIND carries the state; the body child kinds map to CSS classes,
+ *  colour stays CSS-side (ADR-0093 §4). A stone plinth + iron dish fire bowl: at the designer's
+ *  native scale the bare PENDING fixture is ~29u tall (clearing the ~24.5u signpost), PROVEN burns
+ *  to ~52u at the flame tip — the walk applies a 0.9 wrapper scale (the review's density trim), so
+ *  on-island the states land ~26u / ~47u: above the signpost, well under the ~90–120u tree. The
+ *  glow is faked with layered circles of DECREASING radius and INCREASING opacity (largest-dimmest
+ *  first). PENDING emits no flame/glow/ember at all — dormant reads as the ABSENCE of fire, never a
+ *  dimmed one (cold coal stays in the bowl: a fixture, not a prop). FAILING leans hard, burns short
+ *  with a torn notch, and gutters smoke — wrongness reads in silhouette before hue. */
+function brazierMarks(state: MarkerState, k: number): SceneNode[] {
+  const r1 = (n: number): number => Number(n.toFixed(2));
+  const pt = (x: number, y: number): string => `${f(x)},${f(y)}`;
+  const leanX = (rand01(k) - 0.5) * 1.4;
 
-  const marks: SceneNode[] = [ellipse(0, 0.6, 5.6, 1.9, { kind: 'shadow' })];
+  const marks: SceneNode[] = [ellipse(0.6, 1, 10.5, 2.6, { kind: 'shadow' })];
 
+  // stone plinth — a tapered trapezoid split into a light-left / dark-right facet pair (the same
+  // two-facet cel-shading idiom the parcel flora / crown use).
+  marks.push(
+    polygon(
+      [pt(-BRAZIER_PLINTH_BOTTOM_W / 2, 0), pt(0, 0), pt(0, -BRAZIER_PLINTH_H), pt(-BRAZIER_PLINTH_TOP_W / 2, -BRAZIER_PLINTH_H)].join(' '),
+      { kind: 'brazier-plinth', variant: 0 },
+    ),
+    polygon(
+      [pt(0, 0), pt(BRAZIER_PLINTH_BOTTOM_W / 2, 0), pt(BRAZIER_PLINTH_TOP_W / 2, -BRAZIER_PLINTH_H), pt(0, -BRAZIER_PLINTH_H)].join(' '),
+      { kind: 'brazier-plinth', variant: 1 },
+    ),
+  );
+  // two mortar-band accents (pure geometry — width tapers to track the plinth).
+  for (const t of [0.35, 0.7]) {
+    const y = -BRAZIER_PLINTH_H * t;
+    const w = BRAZIER_PLINTH_BOTTOM_W + (BRAZIER_PLINTH_TOP_W - BRAZIER_PLINTH_BOTTOM_W) * t;
+    marks.push(rect(-w / 2, y - 0.4, w, 0.8, 0.3, { kind: 'brazier-plinth-band', opacity: 0.5 }));
+  }
+
+  // iron collar — the join between stone stand and metal dish.
+  const collarY = -BRAZIER_PLINTH_H;
+  marks.push(
+    rect(-BRAZIER_BOWL_FOOT_W / 2, collarY - BRAZIER_COLLAR_H, BRAZIER_BOWL_FOOT_W, BRAZIER_COLLAR_H, 0.5, {
+      kind: 'brazier-collar',
+    }),
+  );
+
+  // the dish — a wide flared trapezoid (light-left / dark-right facets again), capped with a rim
+  // ellipse and a darker interior ellipse (the coal bed's basin).
+  const footY = collarY - BRAZIER_COLLAR_H;
+  const rimY = footY - BRAZIER_BOWL_H;
+  marks.push(
+    polygon(
+      [pt(-BRAZIER_BOWL_FOOT_W / 2, footY), pt(0, footY), pt(0, rimY), pt(-BRAZIER_BOWL_RIM_W / 2, rimY)].join(' '),
+      { kind: 'brazier-bowl', variant: 0 },
+    ),
+    polygon(
+      [pt(0, footY), pt(BRAZIER_BOWL_FOOT_W / 2, footY), pt(BRAZIER_BOWL_RIM_W / 2, rimY), pt(0, rimY)].join(' '),
+      { kind: 'brazier-bowl', variant: 1 },
+    ),
+    ellipse(leanX * 0.15, rimY, BRAZIER_BOWL_RIM_W / 2 + 0.4, 2.6, { kind: 'brazier-bowl-rim' }),
+    ellipse(leanX * 0.15, rimY + 0.35, BRAZIER_BOWL_RIM_W / 2 - 1.8, 1.7, { kind: 'brazier-bowl-interior' }),
+  );
+
+  // the coal bed — always present (a brazier without fuel would read as a prop, not a fixture);
+  // PROVEN/FAILING mix glowing embers among the cold lumps, PENDING is coal alone.
+  const bedY = rimY + 0.3;
+  for (let i = 0; i < 8; i++) {
+    const rx = (rand01(k + 10 + i) - 0.5) * (BRAZIER_BOWL_RIM_W - 3.5);
+    const ry = (rand01(k + 30 + i) - 0.5) * 1.9;
+    const r = 0.9 + rand01(k + 50 + i) * 0.75;
+    marks.push(circle(r1(rx), r1(bedY + ry), r1(r), { kind: 'brazier-coal', variant: i % 2 }));
+  }
   if (state !== 'pending') {
-    const glowCy = housingTopY + HOUSING_H / 2;
-    // failing's alarm glow reads tighter and a touch dimmer than proven's generous warm
-    // halo — the two states must never share one glow "temperature".
-    const scale = state === 'proven' ? 1 : 0.82;
-    marks.push(
-      ellipse(r1(leanX * 0.4), 0.4, r1(9 * scale), r1(3.4 * scale), {
-        kind: 'lantern-glow',
-        opacity: state === 'proven' ? 0.28 : 0.22,
-      }),
-    );
-    const layers: Array<[radius: number, opacity: number]> = [
-      [15 * scale, 0.1],
-      [11 * scale, 0.16],
-      [7.5 * scale, 0.24],
-      [4.5 * scale, 0.36],
-    ];
-    for (const [radius, opacity] of layers) {
-      marks.push(circle(r1(leanX), r1(glowCy), r1(radius), { kind: 'lantern-glow', opacity }));
+    for (let i = 0; i < 4; i++) {
+      const rx = (rand01(k + 70 + i) - 0.5) * (BRAZIER_BOWL_RIM_W - 8);
+      const ry = (rand01(k + 90 + i) - 0.5) * 1.2;
+      const r = 0.55 + rand01(k + 110 + i) * 0.45;
+      marks.push(circle(r1(rx), r1(bedY + ry - 0.3), r1(r), { kind: 'brazier-ember' }));
     }
   }
 
-  marks.push(rect(r1(-POST_W / 2), r1(postTopY), r1(POST_W), POST_H, 1.2, { kind: 'lantern-post' }));
+  if (state === 'pending') return marks;
+
+  const failing = state === 'failing';
+  // FAILING leans hard to one side and stands shorter — a guttering flame caught mid-flicker, not a
+  // controlled upright one. PROVEN stands tall and true.
+  const tilt = failing ? 4.6 + (rand01(k + 2) - 0.5) * 1.4 : (rand01(k + 2) - 0.5) * 1.0;
+  const scale = failing ? 0.66 : 1;
+  const baseY = bedY - 0.2;
+
+  // the fake-radial glow — sized to the flame's own envelope, never a giant sun-halo: a brazier's
+  // glow pools close around the fire. Largest-dimmest-first layered circles (the lantern recipe) so
+  // the bowl/coal silhouette stays visible through the light; FAILING's alarm glow reads tighter and
+  // dimmer than PROVEN's generous warm halo.
+  const glowCy = baseY - 16.5 * scale * 0.4;
   marks.push(
-    rect(r1(-HOUSING_W / 2 + leanX), r1(housingTopY), HOUSING_W, HOUSING_H, 2.2, {
-      kind: 'lantern-housing',
+    ellipse(r1(leanX + tilt * 0.3), r1(bedY + 0.4), r1(7 * scale + 2), r1(2.6 * scale), {
+      kind: 'brazier-glow',
+      opacity: failing ? 0.2 : 0.26,
     }),
   );
-  // glass — an outer pane + a smaller inset "hot core" for depth (same kind; the per-state
-  // colour is CSS's alone, the depth cue is geometry + the outer pane's resolved opacity).
+  const glowLayers: Array<[radius: number, opacity: number]> = [
+    [10 * scale + 2, 0.09],
+    [7.5 * scale + 1.5, 0.15],
+    [5 * scale + 1, 0.24],
+    [3 * scale + 0.5, 0.36],
+  ];
+  for (const [radius, opacity] of glowLayers) {
+    marks.push(circle(r1(leanX + tilt * 0.4), r1(glowCy), r1(radius), { kind: 'brazier-glow', opacity }));
+  }
+
+  // side tongues drawn FIRST (they sit behind the main flame), then the main outer → mid → core
+  // tongues on top — the classic layered bicolour flame. PROVEN's tongues are smooth calm curves;
+  // FAILING's carry the torn `notch` silhouette cue so "wrong" reads even without colour.
+  if (!failing) {
+    marks.push(
+      path(flamePath(leanX - 3.4, baseY, 9.4, 3.8, tilt - 1.3), { kind: 'brazier-flame', variant: 0, opacity: 0.92 }),
+      path(flamePath(leanX + 3.2, baseY, 8.7, 3.6, tilt + 1.1), { kind: 'brazier-flame', variant: 0, opacity: 0.92 }),
+    );
+  } else {
+    // a single detached flicker spike off to the guttering side.
+    marks.push(
+      path(flamePath(leanX + tilt * 1.5, baseY, 5.6, 2.2, tilt * 1.9 + (rand01(k + 4) - 0.5) * 1.4, true), {
+        kind: 'brazier-flame',
+        variant: 0,
+        opacity: 0.85,
+      }),
+    );
+  }
+  const mainH = failing ? 11 : 16.5;
+  const mainW = failing ? 5.2 : 6.8;
+  marks.push(path(flamePath(leanX, baseY, mainH, mainW, tilt, failing), { kind: 'brazier-flame', variant: 0 }));
   marks.push(
-    rect(r1(-GLASS_W / 2 + leanX), r1(glassY0), GLASS_W, GLASS_H, 1.4, {
-      kind: 'lantern-glass',
-      opacity: 0.88,
+    path(flamePath(leanX, baseY, mainH * 0.72, mainW * 0.68, tilt * 1.15 + (rand01(k + 3) - 0.5) * 0.8, failing), {
+      kind: 'brazier-flame',
+      variant: 1,
     }),
   );
   marks.push(
-    rect(r1(-(GLASS_W - 2.6) / 2 + leanX), r1(glassY0 + 1.3), GLASS_W - 2.6, GLASS_H - 2.6, 1, {
-      kind: 'lantern-glass',
+    path(flamePath(leanX, baseY, mainH * 0.42, mainW * 0.4, tilt * 1.3 + (rand01(k + 5) - 0.5) * 0.6), {
+      kind: 'brazier-flame',
+      variant: 2,
     }),
   );
-  const roofPts =
-    `${f(leanX + apexJitter)},${f(roofApexY)} ` +
-    `${f(-HOUSING_W / 2 - 0.7 + leanX)},${f(housingTopY)} ` +
-    `${f(HOUSING_W / 2 + 0.7 + leanX)},${f(housingTopY)}`;
-  marks.push(polygon(roofPts, { kind: 'lantern-roof' }));
+
+  if (!failing) {
+    // rising sparks — small warm motes above the flame tip (PROVEN only: an alive fire throws
+    // embers, a guttering one doesn't).
+    const tipY = baseY - mainH;
+    for (let i = 0; i < 3; i++) {
+      const sx = leanX + tilt + (rand01(k + 120 + i) - 0.5) * 8;
+      const sy = tipY - 2 - rand01(k + 140 + i) * 6.5;
+      marks.push(circle(r1(sx), r1(sy), r1(0.55 + rand01(k + 160 + i) * 0.4), { kind: 'brazier-spark' }));
+    }
+  } else {
+    // guttering smoke — irregular dark wisps rising off the stunted flame, decreasing
+    // radius/opacity with height (the alarm's visual "wrongness").
+    const tipY = baseY - mainH;
+    for (let i = 0; i < 3; i++) {
+      const sx = leanX + tilt * 1.4 + (rand01(k + 180 + i) - 0.5) * 5 + i * 1.4;
+      const sy = tipY - 1 - i * 4.2 - rand01(k + 200 + i) * 2;
+      const r = 2.4 - i * 0.5;
+      marks.push(ellipse(r1(sx), r1(sy), r1(r), r1(r * 0.75), { kind: 'brazier-smoke', opacity: r1(0.32 - i * 0.07) }));
+    }
+  }
+
   return marks;
 }
 
-/** The island's lantern walk as one painter-anchored drawable (`y` = the shore end, so the walk
+/** The island's UAT marker walk as one painter-anchored drawable (`y` = the shore end, so the walk
  *  paints in front of the tree it approaches). Null when `uatCriteria` is absent or empty — the
  *  byte-for-byte absence path (the public website never sends it). */
-function buildLanternWalk(t: SceneTerritoryInput): { y: number; node: SceneG } | null {
+function buildUatWalk(t: SceneTerritoryInput): { y: number; node: SceneG } | null {
   const criteria = t.uatCriteria ?? [];
   if (!criteria.length) return null;
   // the same crown radius the tree wears (young form folded in) — the trailhead tracks the signpost.
@@ -816,16 +945,11 @@ function buildLanternWalk(t: SceneTerritoryInput): { y: number; node: SceneG } |
     const len = Math.hypot(tx, ty) || 1;
     return { x: tx / len, y: ty / len };
   };
-  const children: SceneNode[] = [
-    // the modest visible trail bed (the spike draws halo/bed/beads; the core emits geometry only —
-    // the mapper/CSS owns the dressing, ADR-0093 §4).
-    path(
-      `M ${f(p0.x)} ${f(p0.y)} C ${f(c1.x)} ${f(c1.y)}, ${f(c2.x)} ${f(c2.y)}, ${f(p1.x)} ${f(p1.y)}`,
-      { kind: 'walk-path', strokeWidth: 6 },
-    ),
-  ];
+  // NO visible trail-bed drawable — the cubic is a placement curve only (owner call 2026-07-18:
+  // the bed clashed with the inter-island trail network; alignment is a later increment).
+  const children: SceneNode[] = [];
   // spacing: the spike's t = 0.14 + i·0.18, compressed over the available range when many criteria
-  // would overrun the trailhead — every lantern stays inside t ∈ [0.14, 0.86].
+  // would overrun the trailhead — every marker stays inside t ∈ [0.14, 0.86].
   const step = criteria.length <= 1 ? 0 : Math.min(0.18, 0.72 / (criteria.length - 1));
   criteria.forEach((c, i) => {
     const tt = 0.14 + i * step;
@@ -835,16 +959,23 @@ function buildLanternWalk(t: SceneTerritoryInput): { y: number; node: SceneG } |
     const x = pt.x - tan.y * 12 * side;
     const y = pt.y + tan.x * 12 * side * 0.7; // top-down squash on y, same as the wisp orbit
     const kind: SceneKind =
-      c.state === 'proven' ? 'lantern-proven' : c.state === 'failing' ? 'lantern-failing' : 'lantern-pending';
+      c.state === 'proven'
+        ? 'brazier-proven'
+        : c.state === 'failing'
+          ? 'brazier-failing'
+          : 'brazier-pending';
     children.push(
-      g(lanternMarks(c.state, hash(`${t.id}:lantern:${c.id}`)), {
+      // the 0.9 scale is the design review's walk-density trim: it narrows the ~21u dish below the
+      // 12u lateral offset's collision envelope and keeps a many-criterion walk from collectively
+      // out-shouting the tree, while bare PENDING (~26u) still clears the ~24.5u signpost.
+      g(brazierMarks(c.state, hash(`${t.id}:marker:${c.id}`)), {
         kind,
         id: c.id,
-        transform: `translate(${f(x)} ${f(y)})`,
+        transform: `translate(${f(x)} ${f(y)}) scale(0.9)`,
       }),
     );
   });
-  return { y: p0.y, node: g(children, { kind: 'lantern-walk' }) };
+  return { y: p0.y, node: g(children, { kind: 'uat-walk' }) };
 }
 
 // ---------------------------------------------------------------------------
@@ -2045,10 +2176,10 @@ export function buildTerritoryFlora(
     for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
   }
   drawables.push({ y: t.treeSpot.y, node: buildTree(t) });
-  // the UAT lantern walk (forest-parcels inc 2) — anchored at its shore end, so the walk + lanterns
+  // the UAT marker walk (forest-parcels inc 2) — anchored at its shore end, so the walk + markers
   // paint in front of the tree they approach. Absent/empty uatCriteria ⇒ nothing (the absence lock).
-  const lanternWalk = buildLanternWalk(t);
-  if (lanternWalk) drawables.push(lanternWalk);
+  const uatWalk = buildUatWalk(t);
+  if (uatWalk) drawables.push(uatWalk);
   drawables.sort((a, b) => a.y - b.y);
 
   const children: SceneNode[] = drawables.map((d) => d.node);

@@ -529,11 +529,11 @@ describe('SceneView — capability parcels (forest-parcels inc 1)', () => {
   });
 });
 
-// forest-parcels inc 2: the studio mapper translates the core's lantern-walk drawables → the studio's
-// frozen lantern class vocabulary (a parallel lane writes the CSS against these names). GEOMETRY
-// (the walk cubic + lantern placement) is the core's; here we pin the role → class translation.
-describe('SceneView — the UAT lantern walk (forest-parcels inc 2)', () => {
-  function mkLanternInput(): SceneInput {
+// forest-parcels inc 2: the studio mapper translates the core's uat-walk drawables → the studio's
+// frozen brazier class vocabulary (the CSS is keyed off these names). GEOMETRY (the invisible
+// placement cubic + marker placement) is the core's; here we pin the role → class translation.
+describe('SceneView — the UAT marker walk (forest-parcels inc 2)', () => {
+  function mkMarkerInput(): SceneInput {
     return {
       offset: { x: 0, y: 0 },
       width: 200,
@@ -568,7 +568,7 @@ describe('SceneView — the UAT lantern walk (forest-parcels inc 2)', () => {
       ],
     };
   }
-  function renderLanterns(): HTMLElement {
+  function renderMarkers(): HTMLElement {
     const ctx: SceneCtx = {
       territoryClassById: (id, status) => `hex-territory st-${status}`,
       reveal: null,
@@ -578,49 +578,60 @@ describe('SceneView — the UAT lantern walk (forest-parcels inc 2)', () => {
     };
     const { container } = render(
       <svg>
-        <SceneView scene={buildScene(mkLanternInput())} ctx={ctx} />
+        <SceneView scene={buildScene(mkMarkerInput())} ctx={ctx} />
       </svg>,
     );
     return container;
   }
 
-  it('maps the walk group + its trail-bed path to same-named classes', () => {
-    const root = renderLanterns();
-    expect(root.querySelector('.lantern-walk')).toBeTruthy();
-    const bed = root.querySelector('.walk-path')!;
-    expect(bed).toBeTruthy();
-    // the core stamps the bed's strokeWidth (6); the mapper applies it generically.
-    expect(bed.getAttribute('stroke-width')).toBe('6');
+  it('maps the walk group to a same-named class with NO trail-bed drawable', () => {
+    const root = renderMarkers();
+    expect(root.querySelector('.uat-walk')).toBeTruthy();
+    // the placement cubic is invisible (owner call 2026-07-18) — no bed path is emitted at all.
+    expect(root.querySelector('.walk-path')).toBeNull();
   });
 
-  it('maps one lantern wrapper per criterion, composing the shared base + its state class', () => {
-    const root = renderLanterns();
-    expect(root.querySelector('.lantern.lantern-proven')).toBeTruthy();
-    expect(root.querySelector('.lantern.lantern-pending')).toBeTruthy();
-    expect(root.querySelector('.lantern.lantern-failing')).toBeTruthy();
+  it('maps one marker wrapper per criterion, composing the shared base + its state class', () => {
+    const root = renderMarkers();
+    expect(root.querySelector('.brazier.brazier-proven')).toBeTruthy();
+    expect(root.querySelector('.brazier.brazier-pending')).toBeTruthy();
+    expect(root.querySelector('.brazier.brazier-failing')).toBeTruthy();
   });
 
-  it('maps every frozen lantern-body child kind to its own class inside each wrapper', () => {
-    const root = renderLanterns();
-    const proven = root.querySelector('.lantern.lantern-proven')!;
-    expect(proven.querySelector('.lantern-post')).toBeTruthy();
-    expect(proven.querySelector('.lantern-housing')).toBeTruthy();
-    expect(proven.querySelector('.lantern-glass')).toBeTruthy();
-    expect(proven.querySelector('.lantern-roof')).toBeTruthy();
-    // proven + failing carry a lit glow; pending stays dark (no glow marks at all).
-    expect(proven.querySelector('.lantern-glow')).toBeTruthy();
-    expect(root.querySelector('.lantern.lantern-failing')!.querySelector('.lantern-glow')).toBeTruthy();
-    expect(root.querySelector('.lantern.lantern-pending')!.querySelector('.lantern-glow')).toBeNull();
+  it('maps the frozen brazier-body child kinds to their own classes inside each wrapper', () => {
+    const root = renderMarkers();
+    const proven = root.querySelector('.brazier.brazier-proven')!;
+    // the fixture facets carry the v-<n> suffix (plinth/bowl light-dark, nested flame tongues).
+    expect(proven.querySelector('.brazier-plinth.v-0')).toBeTruthy();
+    expect(proven.querySelector('.brazier-plinth.v-1')).toBeTruthy();
+    expect(proven.querySelector('.brazier-bowl.v-0')).toBeTruthy();
+    expect(proven.querySelector('.brazier-bowl-rim')).toBeTruthy();
+    expect(proven.querySelector('.brazier-bowl-interior')).toBeTruthy();
+    expect(proven.querySelector('.brazier-coal.v-0')).toBeTruthy();
+    // proven + failing burn (flame tongues + glow + embers); pending stays cold (no fire marks).
+    expect(proven.querySelector('.brazier-flame.v-2')).toBeTruthy();
+    expect(proven.querySelector('.brazier-glow')).toBeTruthy();
+    expect(proven.querySelector('.brazier-ember')).toBeTruthy();
+    expect(proven.querySelector('.brazier-spark')).toBeTruthy();
+    const failing = root.querySelector('.brazier.brazier-failing')!;
+    expect(failing.querySelector('.brazier-flame.v-0')).toBeTruthy();
+    expect(failing.querySelector('.brazier-glow')).toBeTruthy();
+    expect(failing.querySelector('.brazier-smoke')).toBeTruthy();
+    const pending = root.querySelector('.brazier.brazier-pending')!;
+    expect(pending.querySelector('.brazier-flame')).toBeNull();
+    expect(pending.querySelector('.brazier-glow')).toBeNull();
+    expect(pending.querySelector('.brazier-ember')).toBeNull();
+    expect(pending.querySelector('.brazier-coal.v-1')).toBeTruthy();
   });
 
-  it('reuses the existing flora-shadow mapping for the lantern shadow (no special-case needed)', () => {
-    const root = renderLanterns();
-    expect(root.querySelector('.lantern.lantern-proven')!.querySelector('.flora-shadow')).toBeTruthy();
+  it('reuses the existing flora-shadow mapping for the marker shadow (no special-case needed)', () => {
+    const root = renderMarkers();
+    expect(root.querySelector('.brazier.brazier-proven')!.querySelector('.flora-shadow')).toBeTruthy();
   });
 
   it('carries the resolved per-node glow opacity through untouched (the falloff-halo depth cue)', () => {
-    const root = renderLanterns();
-    const glows = [...root.querySelectorAll('.lantern.lantern-proven .lantern-glow')];
+    const root = renderMarkers();
+    const glows = [...root.querySelectorAll('.brazier.brazier-proven .brazier-glow')];
     expect(glows.length).toBeGreaterThan(1);
     const opacities = new Set(glows.map((g) => g.getAttribute('opacity')));
     // the layered halo carries DISTINCT per-layer opacities (largest-dimmest first) — the mapper must
@@ -628,10 +639,9 @@ describe('SceneView — the UAT lantern walk (forest-parcels inc 2)', () => {
     expect(opacities.size).toBeGreaterThan(1);
   });
 
-  it('renders nothing lantern-related when the story has no uatCriteria', () => {
+  it('renders nothing marker-related when the story has no uatCriteria', () => {
     const { root } = renderScene();
-    expect(root.querySelector('.lantern-walk')).toBeNull();
-    expect(root.querySelector('.walk-path')).toBeNull();
-    expect(root.querySelector('.lantern')).toBeNull();
+    expect(root.querySelector('.uat-walk')).toBeNull();
+    expect(root.querySelector('.brazier')).toBeNull();
   });
 });

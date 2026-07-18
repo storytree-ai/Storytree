@@ -1118,7 +1118,7 @@ export async function readTree(
   // obligation set) — collected as the specs load so the /api/tree handler can roll each story's
   // per-obligation verdicts up into its crown without re-reading every spec. Keyed by `{ id }` only.
   const uatTestCriteriaByStory = new Map<string, { id: string }[]>();
-  // The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 lantern walk) — the SAME
+  // The story's WITNESSABLE UAT test criteria ALONE (forest-parcels inc-2 marker walk) — the SAME
   // would-be filter as above, but deliberately NOT unioned with `## Reliability Gates`: the crown's
   // green obligation set and the `TreeStory.uatCriteria` summary are different obligations (ADR-0085
   // gates are a brownfield adoption mechanism, not a UAT criterion). Feeds `applyUatCriteria`.
@@ -1222,7 +1222,7 @@ export async function readTree(
       const ownObligations = [...witnessableUat, ...spec.reliabilityGates];
       if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
       // forest-parcels inc-2: the story's UAT test criteria ALONE (never the reliability gates) — the
-      // lantern-walk summary membership. Set even when empty-of-gates, mirroring `ownObligations` above.
+      // marker walk summary membership. Set even when empty-of-gates, mirroring `ownObligations` above.
       if (witnessableUat.length > 0) {
         uatCriteriaByStory.set(
           ent.name,
@@ -1289,7 +1289,7 @@ export function applyUatCrowns(
 }
 
 /**
- * Populate each story's {@link TreeStory.uatCriteria} — the lantern-walk summary (forest-parcels
+ * Populate each story's {@link TreeStory.uatCriteria} — the marker walk summary (forest-parcels
  * inc-2): one entry per WITNESSABLE UAT test criterion (`uatCriteriaByStory`, would-be legs already
  * filtered out, `## Reliability Gates` deliberately NOT included — see the map's construction comment
  * in {@link readTree}). Each entry's `state` is derived from the SAME per-test SIGNED-verdict source
@@ -2018,7 +2018,7 @@ export async function handleApiRequest(
           }
         }
       }
-      // forest-parcels inc-2 (the lantern walk): the story's WITNESSABLE UAT test criteria summary —
+      // forest-parcels inc-2 (the marker walk): the story's WITNESSABLE UAT test criteria summary —
       // ALWAYS set (even with no verdict events / a down DB, when every entry reads 'pending'), so the
       // field is never silently missing on the wire. `rollupStatus` is the SAME per-test proof read
       // `applyUatCrowns` / the attestations route's `provenOf` use.

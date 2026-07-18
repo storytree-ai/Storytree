@@ -1,4 +1,4 @@
-// Unit + integration tests for the story's WITNESSABLE UAT test criteria summary (the lantern-walk
+// Unit + integration tests for the story's WITNESSABLE UAT test criteria summary (the marker walk
 // map layer, forest-parcels arc increment 2, apiRouter.applyUatCriteria / readTree's `uatCriteriaByStory`).
 //
 // MEMBERSHIP: one entry per WITNESSABLE UAT test criterion (`spec.uatTestCriteria.filter(t =>
