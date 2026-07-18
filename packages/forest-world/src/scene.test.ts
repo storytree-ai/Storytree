@@ -534,6 +534,55 @@ test('each claim intent → its colour-state on the claim wisp (authoring / prov
   assert.equal(claimFor('supplementing').colourState, 'supplementing');
 });
 
+// ---------- the build phase folded onto the ONE work body (ADR-0212) ----------
+
+test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on the SAME body', () => {
+  const claimWith = (phase?: 'CONFIRM_RED' | 'IMPLEMENT' | 'GATE') =>
+    mustByKind(
+      buildScene(
+        mkInput({
+          territories: [
+            mkTerritory({
+              claims: [
+                { key: 's1', title: 't', colourState: 'proving', ...(phase ? { phase } : {}) },
+              ],
+            }),
+          ],
+        }),
+      ),
+      'claim-wisp',
+    );
+
+  // The build phase rides as the BAND on the one work body — no second orbiting wisp is emitted.
+  assert.equal(claimWith('CONFIRM_RED').phaseBand, 'red');
+  assert.equal(claimWith('GATE').phaseBand, 'green');
+  assert.equal(claimWith('IMPLEMENT').phaseBand, 'building');
+
+  // Back-compat: a claim with no live build carries NO band at all (pre-ADR-0212 surfaces unchanged).
+  assert.equal(claimWith().phaseBand, undefined);
+});
+
+test('ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
+  const wisp = mustByKind(
+    buildScene(
+      mkInput({
+        territories: [
+          mkTerritory({
+            // GATE → the green band, the most at-risk case: green must stay MOTION, never colour.
+            claims: [{ key: 's1', title: 't', colourState: 'proving', phase: 'GATE' }],
+          }),
+        ],
+      }),
+    ),
+    'claim-wisp',
+  );
+  // Colour stays INTENT-driven — the band must not overwrite it into anything bloom-like.
+  assert.equal(wisp.colourState, 'proving');
+  // And the body still carries no verdict token: a claim is never a proof.
+  assert.equal(wisp.outcome, undefined);
+  assert.equal(firstByKind(wisp, 'bloom'), null);
+});
+
 test('§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
   // A claim in EVERY colour-state, including the at-risk "proving" (the in-flight hue that must NOT
   // read as the proven-green bloom): the claim layer must emit no bloom drawable and no `outcome`.
