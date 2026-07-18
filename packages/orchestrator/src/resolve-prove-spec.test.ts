@@ -1629,3 +1629,100 @@ test("ADR-0104 — the declared budget reaches the spine's OWN proof command (a 
   const obs = await resolved.spec.testExecutor.run(spec.id);
   assert.equal(obs.result, "red", "a proof outrunning its declared budget is SIGKILLed → fail-closed red");
 });
+
+// ── ADR-0211: the assert-oracle guard closes the in-process forged-green hole (real default command) ──
+// The IMPLEMENT-phase source runs in the SAME process as the test, so it could force a hollow exit 0 —
+// monkeypatch the shared assert oracle, or process.exit(0) before any assertion runs. The guard (freeze)
+// + out-of-band accounting (assertion count) turn each into a fail-closed RED at CONFIRM_GREEN, so the
+// walk NEVER reaches a signed pass. These are the highest-fidelity regressions: the SAME wiring a real
+// `--real` build uses (default node:test command, spine-committed clean tree), only the leaf is scripted.
+
+/** A fresh temp git repo with NOTHING at HEAD but package.json — a net-new node's precondition. */
+async function netNewOracleFixture(): Promise<{ root: string; testFile: string; sourceFile: string }> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-oracle-e2e-"));
+  await execFileP("git", ["init", "-b", "main"], { cwd: root });
+  await execFileP("git", ["config", "user.email", "fixture@storytree.invalid"], { cwd: root });
+  await execFileP("git", ["config", "user.name", "fixture"], { cwd: root });
+  await fs.writeFile(path.join(root, "package.json"), '{\n  "type": "module"\n}\n');
+  await execFileP("git", ["add", "-A"], { cwd: root });
+  await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: empty net-new"], {
+    cwd: root,
+  });
+  return { root, testFile: "unit.test.ts", sourceFile: "impl.ts" };
+}
+
+/** A spec-borne net-new real config (the DEFAULT node:test command — the accounted path). */
+function netNewOracleSpec(fix: { testFile: string; sourceFile: string }, id: string) {
+  const scope = { testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] };
+  return {
+    ...loadById("verdict-line"),
+    id,
+    buildConfig: {
+      command: { file: "node", args: ["--version"] },
+      scope,
+      real: { testFile: fix.testFile, sourceFile: fix.sourceFile, scope },
+    },
+  };
+}
+
+/** The honest RED test the leaf authors in AUTHOR_TEST — imports the (missing) impl, asserts behaviour. */
+const ORACLE_HONEST_TEST =
+  'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
+  'import { add } from "./impl.js";\ntest("add(2,3)===5", () => assert.equal(add(2, 3), 5));\n';
+
+for (const attack of [
+  {
+    slug: "monkeypatch",
+    label: "monkeypatches the shared assert oracle",
+    // Frozen by the guard → the reassignment throws at import → the proof reds directly.
+    impl:
+      'import assert from "node:assert/strict";\nassert.equal = () => {};\n' +
+      "export const add = (_a: number, _b: number): number => 0;\n",
+  },
+  {
+    slug: "process-exit",
+    label: "truncates the run with process.exit(0)",
+    // Exit code is 0, but the guard's exit-hook reports 0 assertions → the green is vetoed.
+    impl: "export const add = (_a: number, _b: number): number => 0;\nprocess.exit(0);\n",
+  },
+] as const) {
+  test(`ADR-0211 — a leaf that authors an honest red then forges the green (${attack.label}) fails closed at CONFIRM_GREEN, no signing row`, async () => {
+    const fix = await netNewOracleFixture();
+    const store = new InMemoryStore();
+    try {
+      const spec = netNewOracleSpec(fix, `oracle-forge-${attack.slug}`);
+      // The scripted leaf: AUTHOR_TEST writes the honest failing test (red — impl missing at HEAD),
+      // IMPLEMENT writes the FORGING source. The write walls are the same the live leaf gets.
+      const author = new OwnedLoopAuthor({
+        model: scriptedWriterModel([
+          { path: fix.testFile, content: ORACLE_HONEST_TEST },
+          { path: fix.sourceFile, content: attack.impl },
+        ]),
+        tools: new FileToolExecutor({ rootDir: fix.root }),
+        scope: new PathWriteScope({ testGlobs: [fix.testFile], sourceGlobs: [fix.sourceFile] }),
+        writeTools: FILE_WRITE_TOOLS,
+      });
+      const resolved = resolveProveSpec(spec, {
+        mode: "real",
+        workspace: fix.root,
+        store,
+        runId: `oracle-forge-${attack.slug}-1`,
+        signerInputs: { flag: "tester@example.com" },
+        authorOverride: author,
+        // NO treeState injected: the default real seam commits spine-side and reads real git.
+      });
+      assert.equal(resolved.ok, true);
+      if (!resolved.ok) return;
+      const result = await proveUnit(resolved.spec);
+      assert.equal(result.ok, false, "a forged green must NOT yield a signed pass");
+      if (result.ok) return;
+      // The honest test reds correctly at CONFIRM_RED (impl missing); the forgery is caught at the GREEN.
+      assert.equal(result.failedAt, "CONFIRM_GREEN");
+      // Proof is non-authorable: NO signing row was ever appended.
+      const events = await store.readEvents();
+      assert.equal(events.filter((e) => e.kind === "signing").length, 0, "no forged verdict was signed");
+    } finally {
+      await fs.rm(fix.root, { recursive: true, force: true });
+    }
+  });
+}

@@ -62,6 +62,14 @@ export interface ShellCommand {
 export interface ShellTestResolver {
   command: (testId: string) => ShellCommand;
   classifyKind?: (out: ShellRunResult) => "compile" | "runtime" | undefined;
+  /**
+   * ADR-0211: an optional GREEN cross-check. On an exit-0 (green) observation the executor consults
+   * this out-of-band oracle report; a non-ok result DOWNGRADES the green to a fail-closed RED (with a
+   * forensic note). It closes the forged-green hole where the IMPLEMENT-phase source — which runs in
+   * the proof process — neutralises the assertion oracle or truncates the run yet still exits 0
+   * (see {@link ./proof/oracle-accounting.ts}). Absent ⇒ exit-code-only observation (unchanged).
+   */
+  verifyGreen?: (out: ShellRunResult) => { ok: true } | { ok: false; reason: string };
 }
 
 /**
@@ -97,6 +105,14 @@ export class ShellTestExecutor implements TestExecutor {
     const out = await this.spawn(cmd);
 
     if (out.code === 0) {
+      // ADR-0211: a green is trusted only if the assert-oracle actually ran. The source-under-test
+      // shares this proof process and could force a hollow `exit 0` (monkeypatch the oracle, or
+      // process.exit(0) before any assertion). The out-of-band cross-check catches that and DOWNGRADES
+      // the green to a fail-closed red, so the spine never signs a forged pass. Absent ⇒ exit-code only.
+      const veto = this.resolver.verifyGreen?.(out);
+      if (veto !== undefined && !veto.ok) {
+        return { result: "red", kind: "runtime", testId, note: veto.reason };
+      }
       return { result: "green", testId };
     }
 

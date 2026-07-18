@@ -33,6 +33,13 @@ export type TestObservation = {
   result: "red" | "green";
   kind?: "compile" | "runtime";
   testId: string;
+  /**
+   * ADR-0211 (optional): a forensic reason attached when the observation was DOWNGRADED — an exit-0
+   * green the spine refused because the assert-oracle accounting showed the proof did not actually
+   * exercise the oracle (neutralised or truncated). Carried through so the gate's fail-closed reason
+   * says WHY the green was refused, not just "not green".
+   */
+  note?: string;
 };
 
 /** The result of {@link nextPhase}: an allowed transition, or a fail-closed refusal with a reason. */

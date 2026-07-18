@@ -188,7 +188,15 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   const greenObs = await spec.testExecutor.run(spec.testId);
   const greenGate = nextPhase("CONFIRM_GREEN", greenObs);
   if (!greenGate.ok) {
-    return fail("CONFIRM_GREEN", greenGate.reason + exhaustionNote(implementExhaustion, "green"), visited);
+    // ADR-0211: when the green was DOWNGRADED by the assert-oracle cross-check, `greenObs.note` says
+    // WHY (the proof exited 0 but did not exercise the oracle) — surface it so the refusal is forensic,
+    // not just "not green".
+    const noteSuffix = greenObs.note !== undefined ? ` — ${greenObs.note}` : "";
+    return fail(
+      "CONFIRM_GREEN",
+      greenGate.reason + noteSuffix + exhaustionNote(implementExhaustion, "green"),
+      visited,
+    );
   }
 
   // ── Phase 5: GATE (ADR-0020 §4 — the forensic floor) ────────────────────

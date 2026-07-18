@@ -17,7 +17,13 @@ import { classifyDeclaredCoverage, extractVouchingTestNames } from "./proof/cont
 import { PathWriteScope } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { ShellTestExecutor, runShellCommand } from "./shell-test-executor.js";
-import type { ShellCommand } from "./shell-test-executor.js";
+import type { ShellCommand, ShellRunResult } from "./shell-test-executor.js";
+import {
+  PROOF_REPORT_ENV,
+  assertOracleGuardUrl,
+  oracleReportPath,
+  verifyOracleExercised,
+} from "./proof/oracle-accounting.js";
 import { gitTreeState } from "./prove-it-gate.js";
 import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
 import type { NodeSpec } from "./node-spec.js";
@@ -395,12 +401,26 @@ function resolveReal(
   // spine-wide DEFAULT_PROOF_TIMEOUT_MS applies); the db-env spread below preserves it.
   const base = realProofCommand(real, opts.workspace);
   const proofDisplay = base.display;
+  // ADR-0211: oracle accounting for the DEFAULT node:test command. A per-build report path (in the OS
+  // temp dir, OUTSIDE the worktree — so the guard writing it never dirties the tree the GATE proves
+  // clean) is FORCED onto the ONE proof command both the spine's CONFIRM observation and the leaf's
+  // run_proof spawn, and the spine cross-checks it on every green: a proof that exits 0 without
+  // exercising the assert oracle is downgraded to a fail-closed red. Custom-command nodes are not
+  // accounted (base.accounted === false → reportPath undefined → no report env, no green-veto).
+  const reportPath = base.accounted ? oracleReportPath(opts.runId, spec.id) : undefined;
+  const proofEnv: Record<string, string> = {
+    ...(base.command.env ?? {}),
+    ...(reportPath !== undefined ? { [PROOF_REPORT_ENV]: reportPath } : {}),
+    // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
+    ...(real.db === true && opts.dbProofEnv !== undefined ? opts.dbProofEnv : {}),
+  };
   const realProofCmd: ShellCommand =
-    real.db === true && opts.dbProofEnv !== undefined
-      ? { ...base.command, env: { ...(base.command.env ?? {}), ...opts.dbProofEnv } }
-      : base.command;
+    Object.keys(proofEnv).length > 0 ? { ...base.command, env: proofEnv } : base.command;
   const testExecutor = new ShellTestExecutor({
     command: (): ShellCommand => realProofCmd,
+    ...(reportPath !== undefined
+      ? { verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out) }
+      : {}),
   });
   const scope = new PathWriteScope(real.scope);
 
@@ -514,7 +534,7 @@ function tsxLoaderUrl(): string {
 export function realProofCommand(
   real: RealProofConfig,
   workspace: string,
-): { command: ShellCommand; display: string } {
+): { command: ShellCommand; display: string; accounted: boolean } {
   // ADR-0104: a per-node proof budget. A declared `real.timeoutMs` overrides the spine-wide
   // DEFAULT_PROOF_TIMEOUT_MS on this ONE resolved command — so both the spine's CONFIRM observation
   // and the leaf's run_proof (which spawn the SAME command object) ride it. Spread absent-not-undefined
@@ -523,19 +543,36 @@ export function realProofCommand(
   const budget = real.timeoutMs !== undefined ? { timeoutMs: real.timeoutMs } : {};
   if (real.proofCommand !== undefined) {
     const command = platformShellCommand({ ...real.proofCommand, cwd: workspace });
+    // ADR-0211: a CUSTOM proof command may assert via an API the guard does not count (a package
+    // suite, vitest), so it is NOT oracle-accounted — it keeps exit-code-only observation (the
+    // documented narrower scope). `accounted: false` tells resolveReal to wire no report/veto.
     return {
       command: { ...command, ...budget },
       display: `${real.proofCommand.file} ${real.proofCommand.args.join(" ")}`.trim(),
+      accounted: false,
     };
   }
+  // ADR-0211: the DEFAULT node:test command gets the assert-oracle guard PRELOADED (--import), so the
+  // spine can tamper-check the green out-of-band (the IMPLEMENT-phase source runs in this proof
+  // process and could otherwise force a hollow exit 0). The guard imports only node: builtins, so its
+  // order relative to tsx is irrelevant; it is loaded from the spine's OWN copy (assertOracleGuardUrl),
+  // never a worktree file. `display` stays the human-facing command (the guard is spine plumbing).
   return {
     command: {
       file: process.execPath,
-      args: ["--import", tsxLoaderUrl(), "--test", path.join(workspace, real.testFile)],
+      args: [
+        "--import",
+        tsxLoaderUrl(),
+        "--import",
+        assertOracleGuardUrl(),
+        "--test",
+        path.join(workspace, real.testFile),
+      ],
       cwd: workspace,
       ...budget,
     },
     display: `node --import tsx --test ${real.testFile}`,
+    accounted: true,
   };
 }
 
