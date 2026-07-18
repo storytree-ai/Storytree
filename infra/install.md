@@ -4,6 +4,9 @@
 as an **explorer** (read-only) on Windows. The dev pastes it and enters one GitHub device code;
 everything else is automatic and idempotent.
 
+> **Owner:** the full invite ceremony — the two access grants plus this message —
+> is [`explorer-invite.md`](explorer-invite.md).
+
 ## What it does
 
 In dependency order, each step no-ops when already satisfied (see *Idempotency* below):
