@@ -500,20 +500,7 @@ export interface SceneTerritoryInput {
    *  (the D2 back-compat default: every pre-grade surface keeps today's orbit byte-for-byte).
    *  WAITING ORDER CONTRACT: waiters are placed by their INDEX in input order, so the surface sends
    *  them ordered by `claimedAt` (the queue order the claim ledger already keeps). */
-  /*  The optional `phase` (ADR-0212) is the LIVE prove-it-gate phase of a build running on this story,
-   *  folded onto the WORK-grade claim body — the first step of merging the separate build-wisp layer
-   *  (ADR-0048) into the one-wisp-per-session lifecycle. The surface joins build → claim by STORY, not
-   *  by session: `BuildActivity` carries no session identity, but the work claim is an exclusive mutex
-   *  (ADR-0200 D2), so a story with a work claim AND a live build has exactly one possible actor.
-   *  ABSENT ⇒ no band, and every pre-ADR-0212 surface renders BYTE-FOR-BYTE unchanged. Ignored on the
-   *  `exploring`/`waiting` grades — only work builds. */
-  claims?: {
-    key: string;
-    title: string;
-    colourState: ClaimColourState;
-    grade?: ClaimGrade;
-    phase?: BuildPhase;
-  }[];
+  claims?: { key: string; title: string; colourState: ClaimColourState; grade?: ClaimGrade }[];
   /** Recently-RELEASED story claims still fading out (ADR-0200 D7) — the departure drawable. The
    *  surface folds which departures sit inside the window and computes each `ageRatio` (0..1 — how
    *  far through the departure window); the core places a stationary `departing-wisp` whose
@@ -1240,16 +1227,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
       ],
       // `phase` is the orbit ROTATION (geometry); `colourState` is the subagent role (form) — two
       // independent fields (location ⟂ form). NEVER carries an `outcome`/`bloom` (the §5 wall).
-      // `phaseBand` (ADR-0212) is the live build state folded onto this ONE body, replacing the
-      // separate orbiting build wisp: colour stays INTENT (`colourState`, never green), the band is
-      // the build phase. Absent when no build runs on this story — back-compat byte-for-byte.
-      {
-        kind: 'claim-wisp',
-        title: c.title,
-        phase,
-        colourState: c.colourState,
-        ...(c.phase ? { phaseBand: wispBand(c.phase) } : {}),
-      },
+      { kind: 'claim-wisp', title: c.title, phase, colourState: c.colourState },
     );
   });
   return g(wisps, {

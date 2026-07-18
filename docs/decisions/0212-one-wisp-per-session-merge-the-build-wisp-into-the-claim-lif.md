@@ -106,16 +106,25 @@ This cannot land as one green unit: the exploring small-orbit needs the studio m
 rotation only for the `wisp`/`claim-wisp` kinds), and deleting the build layer before a surface stops
 sending `wisps` would break the render. It lands additively in three increments, each green on its own:
 
-1. **Core accepts the band (LANDED with this ADR).** `claims[]` takes an optional `phase`; the
-   WORK-grade body folds it to `phaseBand` on the SAME drawable. Purely additive and back-compat — no
-   surface sends it yet, so nothing changes visually. Locked by two `scene.test.ts` tests, including
-   the at-risk case: a GREEN band must not turn the claim body into a proof.
-2. **The surface flips.** The studio joins live builds to the story's work claim (by STORY — see the
-   join rule above), stops sending `wisps`, and gains the exploring small-orbit. Touches the mapper
-   (`SceneView.tsx`, incl. rotation for the hover kind + a nested transform so the small orbit is
-   centred on the rest spot, NOT the centroid), `index.css`, and `WorldLegend.tsx` (the `building`
-   RowKey retires into the claim row).
-3. **The core layer is deleted.** `buildWisps` and the `wisps` input go once no surface sends them.
+1. **This ADR lands alone (docs-only).** The decision is recorded before any engine code moves.
+
+2. **Core + surface flip, as ONE unit.** `claims[]` takes an optional `phase`, the WORK-grade body
+   folds it to `phaseBand` on the SAME drawable, the studio joins live builds to the story's work
+   claim (by STORY — see the join rule above), stops sending `wisps`, and gains the exploring
+   small-orbit. Touches `scene.ts`, the mapper (`SceneView.tsx`, incl. rotation for the hover kind +
+   a NESTED transform so the small orbit centres on the rest spot, NOT the centroid — an
+   `animateTransform` rotate REPLACES a `transform` attribute on the same `g`), `index.css`, and
+   `WorldLegend.tsx` (the `building` RowKey retires into the claim row).
+
+   **WHY the core is not split off first:** any change under `packages/forest-world/src` puts the
+   website's synced copy (`web/src/lib/forest-world/`) out of date and BLOCKS CI on
+   `check:web-engine` — so it drags a full cross-repo publish (`pnpm sync:web-engine` → PR in the
+   separate `storytree-web` repo → pin bump) behind it. Splitting the core out would pay that
+   cross-repo cost TWICE for a first increment that is functionally inert. Note the local gate does
+   NOT catch this when the `web` submodule is uninitialised in a worktree (`git submodule status`
+   shows a leading `-`): `check:web-engine` passes vacuously and the drift appears only in CI.
+
+3. **The old layer is deleted.** `buildWisps` and the `wisps` input go once no surface sends them.
 
 ## References
 
