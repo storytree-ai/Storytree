@@ -29,6 +29,7 @@
  *     structured DATA (named invariants + levels), never scraped log text.
  */
 
+import { HOSTED_READ_REFUSED_DETAIL } from "./doctor.js";
 import type { DoctorReport, Probe, ProbeLevel } from "./doctor.js";
 import type { RepairPlan } from "./repair-planner.js";
 
@@ -120,16 +121,32 @@ export function escalationCategoryOf(probe: Probe): EscalationCategory | null {
   if (probe.name === "repo-fetchable" && probe.level === "WARN" && probe.fixStep === "github-auth") {
     return "access";
   }
+  // Access: the D4 hosted live read refused this dev's identity — the IAP membership grant is the
+  // owner's half of the D2 invite ceremony, so a refusal is theirs to fix. Only the CONCRETE refusal
+  // escalates: `unconfigured` is a local setting and `unreachable` cannot distinguish offline from
+  // revoked, so neither bothers the owner (the repo-fetchable rule, applied to D4).
+  if (probe.name === "hosted-read" && probe.level === "WARN" && probe.detail === HOSTED_READ_REFUSED_DETAIL) {
+    return "access";
+  }
   // Identity/subscription: no logged-in Claude CLI. D3 — the dev signs in with their own subscription.
   if (probe.name === "claude-login" && probe.level === "FAIL") return "identity";
   return null;
 }
 
-/** The owner-facing next step for an escalation category — narration the dev pastes, never a secret. */
-function ownerActionFor(category: EscalationCategory): string {
-  return category === "access"
-    ? "Confirm the dev still has GitHub Read access to storytree-ai/Storytree (it may be offline, or the grant may have been revoked); re-invite if it was pulled."
-    : "The dev signs in to their OWN Claude subscription (`claude`); if it has lapsed that is theirs to renew — storytree never handles the credential (ADR-0207 D3).";
+/**
+ * The owner-facing next step — narration the dev pastes, never a secret. Keyed on the PROBE, not just
+ * the category: the two `access` blocks are different halves of D2's invite ceremony and have
+ * genuinely different remedies (a GitHub Read grant vs an IAP membership grant), so collapsing them
+ * to one message would send the owner to the wrong console.
+ */
+function ownerActionFor(probe: Probe, category: EscalationCategory): string {
+  if (probe.name === "hosted-read") {
+    return "Grant the dev's Google identity access to the hosted studio (the IAP membership half of the invite ceremony, ADR-0207 D2/D4); re-grant if it was pulled. Their offline checkout still works meanwhile.";
+  }
+  if (category === "access") {
+    return "Confirm the dev still has GitHub Read access to storytree-ai/Storytree (it may be offline, or the grant may have been revoked); re-invite if it was pulled.";
+  }
+  return "The dev signs in to their OWN Claude subscription (`claude`); if it has lapsed that is theirs to renew — storytree never handles the credential (ADR-0207 D3).";
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +163,7 @@ export function buildEscalationBlob(report: DoctorReport, opts: { plan?: RepairP
     .map((p): UnmetInvariant | null => {
       const category = escalationCategoryOf(p);
       if (category === null) return null;
-      return { probe: p.name, category, detail: redact(p.detail), ownerAction: ownerActionFor(category) };
+      return { probe: p.name, category, detail: redact(p.detail), ownerAction: ownerActionFor(p, category) };
     })
     .filter((u): u is UnmetInvariant => u !== null);
 

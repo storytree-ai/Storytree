@@ -36,6 +36,7 @@ const HEALTHY: DoctorObservations = {
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,
+  hostedRead: "ok",
 };
 
 const obs = (over: Partial<DoctorObservations>): DoctorObservations => ({ ...HEALTHY, ...over });

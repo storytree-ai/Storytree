@@ -7,6 +7,9 @@ import {
   runDoctor,
   formatDoctorReport,
   doctorCommand,
+  probeHostedRead,
+  classifyHostedReadStatus,
+  HOSTED_READ_REFUSED_DETAIL,
   NODE_MAJOR_FLOOR,
   type DoctorObservations,
 } from "./doctor.js";
@@ -32,6 +35,7 @@ const HEALTHY: DoctorObservations = {
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,
+  hostedRead: "ok",
 };
 
 /** A fresh, un-set-up environment — every fixable invariant is unmet. */
@@ -44,6 +48,7 @@ const BROKEN: DoctorObservations = {
   claudeCliPresent: false,
   claudeLoggedIn: false,
   checkoutBehind: null,
+  hostedRead: "unconfigured",
 };
 
 test("GREEN: a healthy environment passes every probe and the report is ok", () => {
@@ -120,15 +125,15 @@ test("D6: every probe fixStep names a real install.ps1 @step (the repair vocabul
 });
 
 // --- the shell + rendering ----------------------------------------------------------------------
-test("doctorCommand shapes an ok:false envelope on a broken env and routes to the installer", () => {
-  const env = doctorCommand([], { observe: () => BROKEN, checkoutDir: "/x" });
+test("doctorCommand shapes an ok:false envelope on a broken env and routes to the installer", async () => {
+  const env = await doctorCommand([], { observe: () => BROKEN, checkoutDir: "/x" });
   assert.equal(env.ok, false);
   assert.match(env.body, /FAIL/);
   assert.ok((env.next ?? []).some((n) => n.includes("install")));
 });
 
-test("doctorCommand shapes an ok:true envelope on a healthy env", () => {
-  const env = doctorCommand([], { observe: () => HEALTHY, checkoutDir: "/x" });
+test("doctorCommand shapes an ok:true envelope on a healthy env", async () => {
+  const env = await doctorCommand([], { observe: () => HEALTHY, checkoutDir: "/x" });
   assert.equal(env.ok, true);
   assert.match(env.body, /setup is healthy/);
 });
@@ -139,4 +144,71 @@ test("formatDoctorReport renders one greppable line per probe plus a fix line un
     assert.ok(text.includes(name), `report should name the ${name} probe`);
   }
   assert.match(text, /fix:/, "a failing report must print fix hints");
+});
+
+// --- D4 hosted live read (ADR-0207 D4/D6) --------------------------------------------------------
+// The gap this closes: without it a dev with GitHub Read but NO IAP grant was told "setup is
+// healthy", then hit a broken live read. Every state is a WARN — D4 makes the offline checkout the
+// zero-credential FALLBACK, so an unreachable live read degrades exploring rather than breaking it.
+
+test("hosted-read: a reachable hosted studio PASSes", () => {
+  const probe = runDoctor(HEALTHY).probes.find((p) => p.name === "hosted-read")!;
+  assert.equal(probe.level, "PASS");
+});
+
+test("hosted-read: every non-ok state WARNs — never FAILs (the offline seed is the fallback)", () => {
+  for (const hostedRead of ["refused", "unconfigured", "unreachable"] as const) {
+    const report = runDoctor({ ...HEALTHY, hostedRead });
+    const probe = report.probes.find((p) => p.name === "hosted-read")!;
+    assert.equal(probe.level, "WARN", `${hostedRead} must WARN, not FAIL`);
+    assert.equal(report.ok, true, `${hostedRead} must not break doctor's ok (no FAIL)`);
+    assert.ok(probe.fixHint !== undefined, `${hostedRead} must carry a fix hint`);
+    assert.equal(probe.fixStep, undefined, "no hosted-read state is repaired by an installer step");
+  }
+});
+
+test("hosted-read: each state's detail is distinguishable (different remedies, different messages)", () => {
+  const detailOf = (hostedRead: DoctorObservations["hostedRead"]): string =>
+    runDoctor({ ...HEALTHY, hostedRead }).probes.find((p) => p.name === "hosted-read")!.detail;
+  const details = (["ok", "refused", "unconfigured", "unreachable"] as const).map(detailOf);
+  assert.equal(new Set(details).size, 4, "all four hosted-read states must read differently");
+  // The refusal detail is the shared constant escalation-blob discriminates on — no drift.
+  assert.equal(detailOf("refused"), HOSTED_READ_REFUSED_DETAIL);
+});
+
+test("probeHostedRead: no configured URL is 'unconfigured', never a false 'refused'", async () => {
+  assert.equal(await probeHostedRead(undefined), "unconfigured");
+  assert.equal(await probeHostedRead(""), "unconfigured");
+  assert.equal(await probeHostedRead("   "), "unconfigured");
+});
+
+test("probeHostedRead: a network failure is 'unreachable' — offline is never reported as revoked", async () => {
+  // An unroutable host: whatever the failure mode, it must not read as an access verdict.
+  assert.equal(await probeHostedRead("http://127.0.0.1:9"), "unreachable");
+});
+
+test("classifyHostedReadStatus: only a real identity rejection reads as 'refused'", () => {
+  // ok
+  for (const s of [200, 204, 299]) assert.equal(classifyHostedReadStatus(s), "ok", `${s}`);
+  // refused: the IAP login redirect, and explicit identity rejections
+  for (const s of [301, 302, 303, 307, 401, 403]) assert.equal(classifyHostedReadStatus(s), "refused", `${s}`);
+  // NOT refused: a 404 means the URL is not a studio (misconfiguration), a 5xx means it is unwell.
+  // Classifying either as "refused" would send the owner a spurious IAP-grant escalation.
+  for (const s of [400, 404, 418, 500, 502, 503]) assert.equal(classifyHostedReadStatus(s), "unreachable", `${s}`);
+});
+
+test("probeHostedRead: builds the /api/health URL, sends redirect:manual, and maps the status", async () => {
+  let seenUrl = "";
+  let seenRedirect: string | undefined;
+  const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    seenUrl = String(url);
+    seenRedirect = init?.redirect;
+    return new Response(null, { status: 302 });
+  }) as unknown as typeof fetch;
+
+  // A trailing slash must not double up in the path.
+  const state = await probeHostedRead("https://studio.example.com/", fakeFetch);
+  assert.equal(seenUrl, "https://studio.example.com/api/health");
+  assert.equal(seenRedirect, "manual", "an IAP login redirect must never be followed to a false 200");
+  assert.equal(state, "refused");
 });

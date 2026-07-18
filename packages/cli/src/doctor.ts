@@ -3,7 +3,8 @@
  *
  * A deterministic, READ-ONLY, OFFLINE-CAPABLE CLI that probes each setup invariant a fresh explorer
  * environment must satisfy — git/Node present, the checkout provisioned, the repo fetchable, the seed
- * readable, the Claude CLI present + logged in, the checkout current — and emits machine-readable
+ * readable, the Claude CLI present + logged in, the checkout current, the D4 hosted live read
+ * reachable — and emits machine-readable
  * results plus a fix hint per failing probe. It is the keystone of D6: D1's installer VERIFIES with it,
  * and D6's conversational guide WRAPS it (run doctor → explain a failure → propose the fix → dev
  * confirms → re-run the idempotent installer step → re-doctor).
@@ -26,8 +27,10 @@
  *
  * OFFLINE-CAPABLE: doctor itself must run with no network and no DB (it is part of the zero-credential
  * path, ADR-0207 §Consequences). A probe it cannot determine offline (the remote reachability, the
- * checkout-behind count) resolves to WARN, never FAIL — doctor never reports a broken environment
- * merely because doctor ran offline.
+ * checkout-behind count, the D4 hosted read) resolves to WARN, never FAIL — doctor never reports a
+ * broken environment merely because doctor ran offline. The hosted-read probe is WARN-only for a
+ * second reason too: D4 makes the offline checkout + in-memory seed the zero-credential FALLBACK, so
+ * an unreachable live read DEGRADES exploring rather than breaking it.
  */
 
 import { execFileSync } from "node:child_process";
@@ -93,7 +96,30 @@ export interface DoctorObservations {
   readonly claudeLoggedIn: boolean;
   /** Commits the checkout HEAD is behind `origin/main`, or null if undetermined offline. */
   readonly checkoutBehind: number | null;
+  /**
+   * The D4 hosted live read: can this dev's identity reach the IAP-gated hosted studio API?
+   * Four genuinely different states, each with a different remedy — hence a union, not a boolean:
+   *   • `ok`           — the hosted API answered; the live read works.
+   *   • `refused`      — it answered 401/403 (or redirected to a login): the dev's Google identity
+   *                      lacks IAP membership, or it was revoked. OWNER-side (D2's invite ceremony).
+   *   • `unconfigured` — no hosted studio URL is set, so the live read simply isn't wired up here.
+   *   • `unreachable`  — a network error/timeout: offline, or the hosted studio is down. We CANNOT
+   *                      conclude access is gone, so this never escalates (the repo-fetchable rule).
+   */
+  readonly hostedRead: HostedReadState;
 }
+
+/** The four distinguishable outcomes of the D4 hosted-live-read probe. */
+export type HostedReadState = "ok" | "refused" | "unconfigured" | "unreachable";
+
+/**
+ * The `hosted-read` probe's detail for the CONCRETE refusal — the one hosted-read state that is
+ * owner-escalatable. Exported as a constant because `escalation-blob.ts` discriminates on it: every
+ * hosted-read state is a WARN with no fixStep, so there is no other structural marker to key on.
+ * Sharing the string means a reworded detail can never silently stop escalating (asserted in the test).
+ */
+export const HOSTED_READ_REFUSED_DETAIL =
+  "the hosted studio refused your identity (IAP access missing or revoked)";
 
 /**
  * PURE: resolve every setup-invariant probe from the raw observations. The level/fix-hint policy —
@@ -231,6 +257,38 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     probes.push({ name: "checkout-current", level: "PASS", detail: "checkout is up to date with origin/main" });
   }
 
+  // 9. hosted-read — the D4 live read through the IAP-gated hosted studio. NEVER a FAIL: D4 makes the
+  // offline checkout + in-memory seed the zero-credential FALLBACK, so an unreachable hosted read
+  // DEGRADES exploring rather than breaking it (and doctor itself must stay offline-capable). Only the
+  // concrete `refused` is owner-escalatable — the same "can't conclude access is gone offline" rule
+  // repo-fetchable follows. No fixStep: none of these is repaired by re-running an installer step.
+  if (obs.hostedRead === "ok") {
+    probes.push({ name: "hosted-read", level: "PASS", detail: "the hosted live read is reachable" });
+  } else if (obs.hostedRead === "refused") {
+    probes.push({
+      name: "hosted-read",
+      level: "WARN",
+      detail: HOSTED_READ_REFUSED_DETAIL,
+      fixHint:
+        "ask the owner to grant your Google identity access to the hosted studio (the D2 invite ceremony's IAP grant). Exploring still works offline from the checkout in the meantime.",
+    });
+  } else if (obs.hostedRead === "unconfigured") {
+    probes.push({
+      name: "hosted-read",
+      level: "WARN",
+      detail: "no hosted studio URL configured (STORYTREE_STUDIO_URL unset)",
+      fixHint:
+        "set STORYTREE_STUDIO_URL to the hosted studio URL the owner sent you to read live tree state; without it you still get the offline seed.",
+    });
+  } else {
+    probes.push({
+      name: "hosted-read",
+      level: "WARN",
+      detail: "hosted live read not determined (offline, or the hosted studio is down)",
+      fixHint: "reconnect to the network and re-run `storytree doctor` to confirm the live read.",
+    });
+  }
+
   const failing = probes.filter((p) => p.level === "FAIL").length;
   const warning = probes.filter((p) => p.level === "WARN").length;
   const passing = probes.filter((p) => p.level === "PASS").length;
@@ -321,8 +379,59 @@ function seedReadable(checkoutDir: string): boolean {
   }
 }
 
+/**
+ * Probe the D4 hosted live read, read-only and fail-soft. Behind IAP an unauthenticated request is
+ * REDIRECTED to a Google login, so `redirect: "manual"` is load-bearing: with the default
+ * follow-behaviour we would chase the redirect and read Google's 200 HTML page as a healthy studio.
+ * Any 3xx/401/403 therefore means "refused", a network error means "unreachable" (never "refused" —
+ * offline must not be reported as revoked access), and no configured URL means "unconfigured".
+ */
+export async function probeHostedRead(
+  baseUrl: string | undefined = process.env["STORYTREE_STUDIO_URL"],
+  fetchImpl: typeof fetch = fetch,
+): Promise<HostedReadState> {
+  if (baseUrl === undefined || baseUrl.trim() === "") return "unconfigured";
+  const url = `${baseUrl.replace(/\/+$/, "")}/api/health`;
+  try {
+    const res = await fetchImpl(url, {
+      redirect: "manual", // an IAP login redirect must read as refused, never followed to a 200
+      signal: AbortSignal.timeout(8_000),
+      headers: { accept: "application/json" },
+    });
+    return classifyHostedReadStatus(res.status);
+  } catch {
+    return "unreachable"; // DNS/timeout/offline — we cannot conclude anything about access.
+  }
+}
+
+/**
+ * PURE: map an HTTP status to a hosted-read verdict. Only a status that genuinely means "your
+ * identity was not accepted" may read as `refused`, because `refused` is what sends the owner an
+ * IAP-grant escalation — a spurious one wastes their time and misdirects the dev. So:
+ *   • 2xx            → ok
+ *   • 3xx            → refused: behind IAP an unauthenticated request is REDIRECTED to a Google login
+ *   • 401 / 403      → refused: an explicit identity rejection
+ *   • anything else  → unreachable: a 404 means the URL is not a studio at all (a misconfiguration,
+ *                      NOT an access verdict) and a 5xx means the studio is unwell — neither is a
+ *                      statement about this dev's access, so neither may bother the owner.
+ */
+export function classifyHostedReadStatus(status: number): HostedReadState {
+  if (status >= 200 && status < 300) return "ok";
+  if (status >= 300 && status < 400) return "refused";
+  if (status === 401 || status === 403) return "refused";
+  return "unreachable";
+}
+
 /** Gather every real environment observation for the checkout doctor runs against. */
-export function gatherObservations(checkoutDir: string): DoctorObservations {
+export async function gatherObservations(checkoutDir: string): Promise<DoctorObservations> {
+  return {
+    ...gatherLocalObservations(checkoutDir),
+    hostedRead: await probeHostedRead(),
+  };
+}
+
+/** The synchronous, purely-local half of the sweep (everything but the D4 network probe). */
+function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, "hostedRead"> {
   return {
     gitPresent: commandPresent("git"),
     nodeMajor: nodeMajor(),
@@ -357,16 +466,19 @@ export function doctorHelp(): Envelope {
  * observations for the checkout it runs against (default: this checkout) and shapes the envelope.
  * `argv` is the positionals AFTER the "doctor" area word. Injected `observe` for tests.
  */
-export function doctorCommand(
+export async function doctorCommand(
   argv: readonly string[],
-  deps: { observe?: (checkoutDir: string) => DoctorObservations; checkoutDir?: string } = {},
-): Envelope {
+  deps: {
+    observe?: (checkoutDir: string) => DoctorObservations | Promise<DoctorObservations>;
+    checkoutDir?: string;
+  } = {},
+): Promise<Envelope> {
   const [sub] = argv;
   if (sub === "help") return doctorHelp();
 
   const checkoutDir = deps.checkoutDir ?? repoRoot();
   const observe = deps.observe ?? gatherObservations;
-  const report = runDoctor(observe(checkoutDir));
+  const report = runDoctor(await observe(checkoutDir));
 
   return {
     ok: report.ok,

@@ -62,7 +62,7 @@ export interface GuideRun {
 /** The effects the driver needs. Injected so the whole conversation is testable without a machine. */
 export interface GuideEffects {
   /** Gather the raw doctor observations for a checkout. */
-  readonly observe: (checkoutDir: string) => DoctorObservations;
+  readonly observe: (checkoutDir: string) => DoctorObservations | Promise<DoctorObservations>;
   /** Enact one idempotent `install.ps1` @step. Only called in `--fix` mode. */
   readonly runStep: (step: string, checkoutDir: string) => void;
   readonly checkoutDir: string;
@@ -82,7 +82,7 @@ const MAX_TURNS = 64;
  * narration. Every effect — probing, enacting a step — goes through {@link GuideEffects}, so this is
  * fully fixture-testable; the loop policy itself lives in guide-loop and is not re-derived here.
  */
-export function driveGuide(fx: GuideEffects): GuideRun {
+export async function driveGuide(fx: GuideEffects): Promise<GuideRun> {
   const lines: string[] = [];
   const stepsRun: string[] = [];
   let turn: GuideTurn = startGuide();
@@ -93,7 +93,7 @@ export function driveGuide(fx: GuideEffects): GuideRun {
     switch (directive.kind) {
       case "run-doctor": {
         lines.push(formatGuideDirective(directive));
-        const report = runDoctor(fx.observe(fx.checkoutDir));
+        const report = runDoctor(await fx.observe(fx.checkoutDir));
         turn = stepGuide(state, { type: "doctored", report });
         continue;
       }
@@ -205,15 +205,15 @@ export function guideHelp(): Envelope {
  * The `storytree guide` dispatch. `argv` is the positionals AFTER the "guide" area word. Effects are
  * injectable for tests; the defaults are the real ones.
  */
-export function guideCommand(
+export async function guideCommand(
   argv: readonly string[],
   deps: Partial<Pick<GuideEffects, "observe" | "runStep" | "checkoutDir" | "fix">> = {},
-): Envelope {
+): Promise<Envelope> {
   const [sub] = argv;
   if (sub === "help") return guideHelp();
 
   const checkoutDir = deps.checkoutDir ?? repoRoot();
-  const run = driveGuide({
+  const run = await driveGuide({
     observe: deps.observe ?? gatherObservations,
     runStep: deps.runStep ?? runInstallerStep,
     checkoutDir,

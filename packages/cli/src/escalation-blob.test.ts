@@ -23,6 +23,7 @@ const HEALTHY: DoctorObservations = {
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,
+  hostedRead: "ok",
 };
 
 // --- (1) a healthy report needs no escalation ---------------------------------------------------
@@ -134,4 +135,32 @@ test("escalationCategoryOf is narrow: PASS/installer-repairable/advisory probes 
     if (p.name === "repo-fetchable") assert.equal(escalationCategoryOf(p), null, "offline-undetermined is not 'revoked'");
     if (p.name === "checkout-current") assert.equal(escalationCategoryOf(p), null, "a freshness WARN is not escalation");
   }
+});
+
+// --- D4 hosted live read: the second half of the invite ceremony ---------------------------------
+
+test("hosted-read REFUSED escalates as access — the owner's IAP grant, not GitHub", () => {
+  const blob = buildEscalationBlob(runDoctor({ ...HEALTHY, hostedRead: "refused" }));
+  assert.equal(blob.needed, true, "a refused hosted read is owner-side and must escalate");
+  const unmet = blob.unmet.find((u) => u.probe === "hosted-read")!;
+  assert.equal(unmet.category, "access");
+  // The owner must be sent to the RIGHT console: IAP membership, not the GitHub Read grant.
+  assert.match(unmet.ownerAction, /IAP/i);
+  assert.doesNotMatch(unmet.ownerAction, /GitHub Read/i);
+});
+
+test("hosted-read: unconfigured / unreachable never bother the owner", () => {
+  for (const hostedRead of ["unconfigured", "unreachable"] as const) {
+    const blob = buildEscalationBlob(runDoctor({ ...HEALTHY, hostedRead }));
+    assert.equal(blob.needed, false, `${hostedRead} is not an owner escalation`);
+  }
+});
+
+test("the two access blocks keep DISTINCT owner actions (repo grant vs IAP grant)", () => {
+  const both = buildEscalationBlob(runDoctor({ ...HEALTHY, remoteReachable: false, hostedRead: "refused" }));
+  const repo = both.unmet.find((u) => u.probe === "repo-fetchable")!;
+  const hosted = both.unmet.find((u) => u.probe === "hosted-read")!;
+  assert.equal(repo.category, "access");
+  assert.equal(hosted.category, "access");
+  assert.notEqual(repo.ownerAction, hosted.ownerAction, "same category, genuinely different remedies");
 });

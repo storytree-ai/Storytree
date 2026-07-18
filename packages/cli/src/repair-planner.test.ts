@@ -27,6 +27,7 @@ const HEALTHY: DoctorObservations = {
   claudeCliPresent: true,
   claudeLoggedIn: true,
   checkoutBehind: 0,
+  hostedRead: "ok",
 };
 
 /** A fresh, un-set-up environment — every fixable invariant is unmet. */
@@ -39,6 +40,7 @@ const BROKEN: DoctorObservations = {
   claudeCliPresent: false,
   claudeLoggedIn: false,
   checkoutBehind: null,
+  hostedRead: "unconfigured",
 };
 
 test("GREEN: a healthy report yields an EMPTY plan (nothing to repair)", () => {
