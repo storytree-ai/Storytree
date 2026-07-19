@@ -72,8 +72,10 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
      purpose by [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md)
      (decided 2026-07-18, which cites this as the D7 render detail): window shopping now carries a
      small-radius orbit BESIDE the island, so the hover family MOVES. The exploring GRADE itself —
-     shared, taken at session start, carrying the intent prose — is unchanged. Decision only: not yet
-     built.]*
+     shared, taken at session start, carrying the intent prose — is unchanged. BUILT in ADR-0212
+     increment 2 (PR #828, 2026-07-18): the rest spot sits on a parent `g` and the orbit radius on a
+     child `g`, because an SVG `animateTransform` rotate REPLACES the transform on the node it
+     animates (`asset:stack-pixijs-react-studio`).]*
    - **waiting** — shared, ordered by `claimed_at`: the **queue** behind a work claim. On release
      of the work claim the store atomically promotes the oldest live waiter (audited `promoted`).
    - **work** — the exclusive mutex, unchanged in semantics from ADR-0121/0138: one session per

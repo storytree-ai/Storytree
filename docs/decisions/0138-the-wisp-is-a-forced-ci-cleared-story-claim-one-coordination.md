@@ -150,9 +150,11 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
   (decided 2026-07-18): the build wisp IS now retired as a separate drawable. Wisp count encodes
   SESSIONS — one session renders exactly ONE wisp — and the red→green `phaseBand` folds into that
   wisp's MOTION channel, not its colour. The two-layer split this bullet assumes is collapsed; the §5
-  honesty wall above is explicitly PRESERVED by ADR-0212, not relaxed. Decision only: `scene.ts` still
-  builds both `buildWisps` and `buildClaimWisps` — the merge is ADR-0212 increments 2–3, NOT yet
-  built.]*
+  honesty wall above is explicitly PRESERVED by ADR-0212, not relaxed. BUILT as of ADR-0212 increment 2
+  (PR #828, 2026-07-18): `claims[]` carries an optional build `phase` folded to `phaseBand` on the SAME
+  work-grade drawable, and the studio joins live builds to the story's work claim BY STORY (red wins
+  across concurrent runs). `scene.ts` still *defines* `buildWisps` and the `wisps` input for the
+  marketing website, which has not yet migrated — deleting that layer is ADR-0212 increment 3.]*
 
 ## References
 
