@@ -142,6 +142,7 @@ import {
   type SceneTerritoryInput,
   type TrailNetwork,
   type ClaimGrade,
+  type BuildPhase,
 } from '@storytree/forest-world';
 import { SceneView, type SceneCtx } from './SceneView.js';
 
@@ -929,6 +930,77 @@ function claimWispTitle(c: ClaimActivity, now: Date): string {
   return `${c.unitId} — ${c.branch} ${verb} this story (${c.intent}) · claimed ${formatAge(c.at, now)} — a claim, not a proof`;
 }
 
+/** ADR-0212 multi-run collapse. The build wisp was keyed by `runId`, so N concurrent runs on one
+ *  story drew N orbiting bodies; merged onto the ONE session body they collapse to one, which forces
+ *  a resolution rule: **RED WINS**. A green on one run must never mask a red on another — the map
+ *  would then read "proving fine" while a sibling run sits failing. Ranked red < building < green,
+ *  lowest wins; ties keep input order. Exported for the unit test. */
+const PHASE_BAND_RANK: Record<BuildPhase, number> = {
+  AUTHOR_TEST: 0,
+  CONFIRM_RED: 0,
+  IMPLEMENT: 1,
+  CONFIRM_GREEN: 2,
+  GATE: 2,
+};
+
+export function resolveBuildPhase(builds: BuildActivity[]): BuildPhase | undefined {
+  if (!builds.length) return undefined;
+  let best: BuildPhase | undefined;
+  for (const b of builds) {
+    if (!b.phase) continue;
+    if (best === undefined || PHASE_BAND_RANK[b.phase] < PHASE_BAND_RANK[best]) best = b.phase;
+  }
+  // A LIVE build whose row never stamped a phase (a pre-ADR-0048 mark, or the json read) still has
+  // to read as building — otherwise the flip would silently drop "someone is building here" on
+  // those rows. `IMPLEMENT` is the phase that folds to `wispBand`'s documented neutral `building`
+  // band, i.e. byte-identical to what the old phase-less build wisp already showed. The value never
+  // surfaces as prose — only the band is read from it (the tooltip is built from the claim).
+  return best ?? 'IMPLEMENT';
+}
+
+/** ADR-0212's join, surface-side: fold a story's live builds onto its ONE work body.
+ *
+ *  Two outcomes, and the second is the one that keeps the flip safe:
+ *  - the story HAS a work claim → its build phase rides that body as the band (channel 3). By the
+ *    ADR-0200 D2 mutex there is at most one such claim, so "the first work-grade claim" is "the".
+ *  - the story has NO work claim (an unattended build, CI, or the website's demo data) → a
+ *    claim-LESS body is manufactured for the build, keyed by the winning run so a single-run story
+ *    keeps the exact orbit phase its old build wisp had. This is the fallback ADR-0212 calls for,
+ *    and it is what lets the `wisps` layer stop being fed at all.
+ *
+ *  `claims` must already be in the core's waiting-order (see {@link orderClaimsForScene}); the
+ *  manufactured body is appended, which never disturbs a waiter's queue index. */
+function foldBuildOntoClaims(
+  claims: ClaimActivity[],
+  builds: BuildActivity[],
+  now: Date,
+): NonNullable<SceneInput['territories'][number]['claims']> {
+  const phase = resolveBuildPhase(builds);
+  const workClaim = claims.find((c) => (c.grade ?? 'work') === 'work');
+  const folded = claims.map((c) => ({
+    key: c.sessionId,
+    title: claimWispTitle(c, now),
+    colourState: claimColourState(c.intent),
+    grade: c.grade ?? 'work',
+    // only the WORK stage carries the band — window shopping and queueing are not building.
+    ...(phase && c === workClaim ? { phase } : {}),
+  }));
+  if (!phase || workClaim) return folded;
+  const primary = builds.find((b) => b.phase === phase) ?? builds[0]!;
+  return [
+    ...folded,
+    {
+      key: primary.runId,
+      title: `${primary.unitId} — building (${primary.tier})${primary.phase ? ` · ${primary.phase}` : ''} · ${formatAge(primary.at, now)} · run ${primary.runId} — a build, not a proof`,
+      // a build with no claim is a PROOF drive with no declared intent — teal `proving`, never green
+      // (the ADR-0138 §5 wall), unless the work-event stamped a real subagent role.
+      colourState: primary.colourState ?? 'proving',
+      grade: 'work' as const,
+      phase,
+    },
+  ];
+}
+
 /** A departure's tooltip title (ADR-0200 D7 wisp-out legibility) — an honest "someone just left" note,
  *  never a proof or a still-claimed read. Shared by the scene path and the legacy inline render. */
 function departureWispTitle(d: DepartedClaim, now: Date): string {
@@ -984,25 +1056,23 @@ function territoryToScene(
       ? { signpost: { outcome: story.verdict?.outcome ?? null } }
       : {}),
     ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
-    wisps: builds.map((b) => ({
-      runId: b.runId,
-      title: `${b.unitId} — building (${b.tier})${b.phase ? ` · ${b.phase}` : ''} · ${formatAge(b.at, now)} · run ${b.runId}`,
-      // ADR-0048 §3 v2: the live gate phase → the core folds it to the wisp's red→green band.
-      ...(b.phase ? { phase: b.phase } : {}),
-      // ADR-0138 §5: the live subagent role the work-event stamped → an additive role tint (back-compat).
-      ...(b.colourState ? { colourState: b.colourState } : {}),
-    })),
+    // ADR-0212: the separate build-wisp LAYER is no longer fed. Wisp count encodes SESSIONS, and a
+    // session that both HOLDS and BUILDS a story used to draw two orbiting bodies 12px apart — an
+    // unreachable state, since the work claim is an exclusive mutex (ADR-0200 D2). The build's only
+    // signal the claim body didn't already carry (the red→green band) now rides the claim below.
+    // The input itself survives until increment 3 deletes it from the core.
+    wisps: [],
     // ADR-0138 §5 / ADR-0200 D7: one claim wisp per claim on this story — "a session is here"
     // (coordination, NOT a proof). Keyed by sessionId (its own stable identity); coloured by the
     // intent → colour-state; GRADED (hover / queue / orbit) by `grade` — an absent grade defaults to
     // `work` (the D2 back-compat orbit). Sorted ascending by `at` FIRST (orderClaimsForScene) so the
     // core's waiting-order contract (queue position = input index) reads oldest-waiter-first.
-    claims: orderClaimsForScene(claims).map((c) => ({
-      key: c.sessionId,
-      title: claimWispTitle(c, now),
-      colourState: claimColourState(c.intent),
-      grade: c.grade ?? 'work',
-    })),
+    //
+    // ADR-0212: a live build on this story folds its phase onto the WORK-grade body. The join key is
+    // the STORY, not the session — `BuildActivity` is keyed by runId and carries no session identity,
+    // but the work claim is an exclusive mutex, so a story with a work claim AND a live build has
+    // exactly one possible actor. (If that mutex is ever relaxed, THIS join must be revisited first.)
+    claims: foldBuildOntoClaims(orderClaimsForScene(claims), builds, now),
     // ADR-0200 D7: recently-released claims still fading — the departure layer (wisp-out legibility).
     // Keyed by sessionId like a live claim; `ageRatio` folds the server's read-time `ageMs` snapshot
     // against the mirrored DEPARTURE_WINDOW_MS above.

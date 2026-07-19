@@ -187,7 +187,9 @@ export type SceneKind =
   | 'claim-wisp-glow'
   | 'claim-wisp-dot'
   // the claim-GRADE drawable families (ADR-0200 D7) — which geometry a claim's grade selects.
-  // `hover-wisp*`: an exploring claim at rest beside the story tree (stationary — no orbit `phase`).
+  // `hover-wisp*`: an exploring claim window-shopping BESIDE the story tree — a small local orbit
+  //   around a per-key rest spot (ADR-0212 reversed ADR-0200 D7's stationary rule; it carries a
+  //   `phase` and the rest spot lives on a PARENT `g` so the mapper's rotate can't replace it).
   // `queue-wisp*`: a waiting claim in the visible queue line (index-placed in input order, stationary).
   // `departing-wisp*` (under the `departing-wisps` layer): a released claim fading out (`ageRatio`).
   // ALL are coordination drawables behind the same ADR-0138 §5 honesty wall as `claim-wisp*`:
@@ -500,7 +502,20 @@ export interface SceneTerritoryInput {
    *  (the D2 back-compat default: every pre-grade surface keeps today's orbit byte-for-byte).
    *  WAITING ORDER CONTRACT: waiters are placed by their INDEX in input order, so the surface sends
    *  them ordered by `claimedAt` (the queue order the claim ledger already keeps). */
-  claims?: { key: string; title: string; colourState: ClaimColourState; grade?: ClaimGrade }[];
+  /*  The optional `phase` (ADR-0212) is the LIVE prove-it-gate phase of a build running on this story,
+   *  folded onto the WORK-grade claim body — the first step of merging the separate build-wisp layer
+   *  (ADR-0048) into the one-wisp-per-session lifecycle. The surface joins build → claim by STORY, not
+   *  by session: `BuildActivity` carries no session identity, but the work claim is an exclusive mutex
+   *  (ADR-0200 D2), so a story with a work claim AND a live build has exactly one possible actor.
+   *  ABSENT ⇒ no band, and every pre-ADR-0212 surface renders BYTE-FOR-BYTE unchanged. Ignored on the
+   *  `exploring`/`waiting` grades — only work builds. */
+  claims?: {
+    key: string;
+    title: string;
+    colourState: ClaimColourState;
+    grade?: ClaimGrade;
+    phase?: BuildPhase;
+  }[];
   /** Recently-RELEASED story claims still fading out (ADR-0200 D7) — the departure drawable. The
    *  surface folds which departures sit inside the window and computes each `ageRatio` (0..1 — how
    *  far through the departure window); the core places a stationary `departing-wisp` whose
@@ -1156,6 +1171,10 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
  *  carrying a `colourState` that is NEVER `green`/`bloom` — only a signed verdict paints the green
  *  bloom (ADR-0045). A claimed-but-not-proven story can therefore never render as a proven-green one.
  *  Orbits a touch wider than the build wisp so the two layers read as distinct when both are present. */
+/** The window-shopping orbit radius (ADR-0212 channel 1): small and LOCAL — deliberately far tighter
+ *  than the work stage's whole-island orbit, so the two stages read apart on position alone. */
+const HOVER_ORBIT_R = 9;
+
 function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
   // `claims` is OPTIONAL (a surface with no live-claim concept omits it) — absent/empty ⇒ no layer.
   const claims = t.claims ?? [];
@@ -1169,26 +1188,40 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
     // ADR-0200 D2: an ABSENT grade IS the work claim — every pre-grade surface keeps today's orbit.
     const grade = c.grade ?? 'work';
     if (grade === 'exploring') {
-      // HOVERING (ADR-0200 D7): a session is reading/planning here — at rest beside/above the story
-      // tree, with a small per-key jitter so several hoverers never stack exactly. STATIONARY by
-      // construction: NO orbit `phase` — the mapper animates the rotation only when `phase` is
-      // present (and only on the wisp/claim-wisp kinds), so a hover wisp can never spin.
+      // WINDOW SHOPPING (ADR-0200 D7, position channel restated by ADR-0212): a session is
+      // reading/planning here — a SMALL LOCAL ORBIT beside/above the story tree, with a per-key
+      // jitter on the rest spot so several hoverers never stack exactly. ADR-0212 REVERSES
+      // ADR-0200 D7's "stationary by construction": window shopping now carries its own orbit
+      // `phase`, so position alone separates it from the whole-island work orbit (a spinning hover
+      // wisp is the DECISION — see ADR-0212 Consequences, not a regression).
+      //
+      // THREE nesting levels, and the split is load-bearing: an SVG `animateTransform` rotate
+      // REPLACES the `transform` attribute on the node it animates, so the rest spot and the
+      // rotation can never share one `g` — the dot would sweep the centroid instead of its rest
+      // spot. Outer g = the rest spot; middle g = the kind-bearing node the mapper rotates;
+      // innermost g = the small orbit radius.
       const k = hash(c.key);
       const hx = treeDx + (rand01(k + 1) - 0.5) * 18;
       const hy = treeDy - (orbitR + 12) + (rand01(k + 2) - 0.5) * 10;
+      const phase = rand01(k) * 360;
       return g(
         [
           g(
             [
-              circle(0, 0, 12, { kind: 'hover-wisp-hit' }),
-              circle(0, 0, 6.5, { kind: 'hover-wisp-glow' }),
-              circle(0, 0, 2.8, { kind: 'hover-wisp-dot' }),
+              g(
+                [
+                  circle(0, 0, 12, { kind: 'hover-wisp-hit' }),
+                  circle(0, 0, 6.5, { kind: 'hover-wisp-glow' }),
+                  circle(0, 0, 2.8, { kind: 'hover-wisp-dot' }),
+                ],
+                { transform: `translate(${f(HOVER_ORBIT_R)} 0)` },
+              ),
             ],
-            { transform: `translate(${f(hx)} ${f(hy)})` },
+            // `title` carries the claim's intent prose; NEVER an `outcome`/`bloom` (the §5 wall).
+            { kind: 'hover-wisp', title: c.title, phase, colourState: c.colourState },
           ),
         ],
-        // `title` carries the claim's intent prose; NEVER an `outcome`/`bloom` (the §5 wall).
-        { kind: 'hover-wisp', title: c.title, colourState: c.colourState },
+        { transform: `translate(${f(hx)} ${f(hy)})` },
       );
     }
     if (grade === 'waiting') {
@@ -1227,7 +1260,16 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
       ],
       // `phase` is the orbit ROTATION (geometry); `colourState` is the subagent role (form) — two
       // independent fields (location ⟂ form). NEVER carries an `outcome`/`bloom` (the §5 wall).
-      { kind: 'claim-wisp', title: c.title, phase, colourState: c.colourState },
+      // `phaseBand` (ADR-0212) is the live build state folded onto this ONE body, replacing the
+      // separate orbiting build wisp: colour stays INTENT (`colourState`, never green), the band is
+      // the build phase. Absent when no build runs on this story — back-compat byte-for-byte.
+      {
+        kind: 'claim-wisp',
+        title: c.title,
+        phase,
+        colourState: c.colourState,
+        ...(c.phase ? { phaseBand: wispBand(c.phase) } : {}),
+      },
     );
   });
   return g(wisps, {

@@ -216,24 +216,28 @@ describe('WorldLegend (adaptive bar)', () => {
     expect(screen.queryByRole('button', { name: 'activity' })).toBeNull();
   });
 
-  it('an in-flight build lights the building row with the harness honesty caption (ADR-0048)', () => {
+  it('ADR-0212: an in-flight build lights the CLAIM row — the `building` row is retired, not renamed', () => {
     // 5 min before NOW — well inside the TTL
     renderLegend(offlineWorld(), { builds: [buildFor('studio', '2026-06-13T23:55:00.000Z')] });
-    const chip = screen.getByRole('button', { name: 'building' });
-    expect(chip).toBeTruthy();
+    // the build no longer has a drawable of its own, so it no longer has a legend row of its own.
+    expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
+    const chip = screen.getByRole('button', { name: 'sessions working' });
     fireEvent.click(chip);
-    expect(screen.getByText(/work, not who is online/)).toBeTruthy();
-    expect(screen.getByText(/self-clears/)).toBeTruthy();
+    // the band vocabulary is taught inside the claim drawer — motion, not a second body.
+    const labels = [...document.querySelectorAll('.legend-tile-label')].map((n) => n.textContent);
+    for (const band of ['red', 'implementing', 'green']) {
+      expect(labels).toContain(band);
+    }
+    // and the caption teaches the merge itself: one session is one wisp.
+    expect(screen.getByText(/does not get a second wisp/)).toBeTruthy();
+    // multi-run collapse needs a rule, and the legend states it.
+    expect(screen.getByText(/red wins/)).toBeTruthy();
   });
 
-  it('an aged-out build (older than the TTL) shows no building row', () => {
+  it('ADR-0212: an aged-out build lights nothing — TTL still governs (no claim row without a claim)', () => {
     // a full day before NOW — past the TTL
     renderLegend(offlineWorld(), { builds: [buildFor('studio', '2026-06-13T00:00:00.000Z')] });
-    expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
-  });
-
-  it('no builds → no building row', () => {
-    renderLegend(offlineWorld());
+    expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'building' })).toBeNull();
   });
 
@@ -262,12 +266,11 @@ describe('WorldLegend (adaptive bar)', () => {
     }
   });
 
-  it('no claims → no "sessions working" row (flag off / nothing claimed → the legend is unchanged)', () => {
+  it('nothing claimed AND nothing building → no "sessions working" row (the legend is unchanged)', () => {
     renderLegend(offlineWorld());
     expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
-    // default (claims prop omitted) also yields no row — back-compat with every existing caller.
-    renderLegend(offlineWorld(), { builds: [buildFor('studio', '2026-06-13T23:55:00.000Z')] });
-    expect(screen.queryByRole('button', { name: 'sessions working' })).toBeNull();
+    // ADR-0212 widened the row's visibility to "claimed OR building" (a live build now renders on
+    // this layer), so an in-flight build DOES light it — asserted in the ADR-0212 test above.
   });
 
   it('a machine-witnessed world has no signpost states at all', () => {

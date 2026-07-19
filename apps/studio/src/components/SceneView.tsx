@@ -236,10 +236,16 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       // ADR-0138 §5: a claim wisp is its OWN class family, coloured by what the orchestrator is doing
       // on the claimed story. NEVER world-bloom / verdict-pass — a claim is not a proof (the honesty
       // wall, asserted in SceneView.test.tsx). `colourState` is always present on a claim wisp.
-      return `world-claim-wisp state-${node.colourState ?? 'supplementing'}`;
+      // ADR-0212: when a build is live on this story, its red→green band rides the SAME body as a
+      // `band-*` class ALONGSIDE the state class — the merged build wisp. The band is a MOTION
+      // channel in CSS (never a hue), so it cannot push the body toward the bloom's green.
+      return `world-claim-wisp state-${node.colourState ?? 'supplementing'}${
+        node.phaseBand ? ` band-${node.phaseBand}` : ''
+      }`;
     case 'hover-wisp':
       // ADR-0200 D7: the exploring-grade family — a DISTINCT class from claim-wisp/queue-wisp, same
-      // colour-state composition, same honesty wall (never bloom/verdict).
+      // colour-state composition, same honesty wall (never bloom/verdict). Carries no band: window
+      // shopping is by definition not building (ADR-0212 folds the band onto the work stage only).
       return `world-hover-wisp state-${node.colourState ?? 'supplementing'}`;
     case 'queue-wisp':
       // ADR-0200 D7: the waiting-grade family — a DISTINCT class from claim-wisp/hover-wisp, same
@@ -435,10 +441,31 @@ function renderNode(
 
   const kids: React.ReactNode[] = [];
   if (node.title) kids.push(React.createElement('title', { key: '__title' }, node.title));
-  // Both the build wisp (ADR-0048) and the story-claim wisp (ADR-0138) orbit — the rotation is the
-  // node's `phase` (geometry, seeded by runId / claim key). The claim orbits a touch slower so the two
-  // layers read as distinct in motion when both are present on one island.
-  if ((node.kind === 'wisp' || node.kind === 'claim-wisp') && node.phase != null) {
+  // Every orbiting wisp family rotates by its `phase` (geometry, seeded by runId / claim key). Since
+  // ADR-0212 that includes `hover-wisp` — window shopping now spins on a small local orbit (which
+  // REVERSES ADR-0200 D7's stationary rule on purpose; a future reader finding a spinning hover wisp
+  // should land on ADR-0212, not file a bug). The legacy `wisp` kind stays until increment 3.
+  //
+  // ⚠ The rotate REPLACES the `transform` attribute on the node it animates, which is why the core
+  // never puts a rest-spot translate on a rotated node — the hover family's rest spot lives on its
+  // PARENT `g` and its orbit radius on a CHILD `g`. Flatten that nesting and the dot sweeps the
+  // island centroid instead of its own rest spot.
+  //
+  // SPEED is the ADR-0212 motion channel: a claim body with a live build band orbits at the build
+  // wisp's old 6s (active), an idle-claimed body keeps the calmer 9s, and window shopping drifts
+  // slowest of all — so stage and activity read apart in motion as well as position.
+  if (
+    (node.kind === 'wisp' || node.kind === 'claim-wisp' || node.kind === 'hover-wisp') &&
+    node.phase != null
+  ) {
+    const dur =
+      node.kind === 'hover-wisp'
+        ? '14s'
+        : node.kind === 'claim-wisp'
+          ? node.phaseBand
+            ? '6s'
+            : '9s'
+          : '6s';
     kids.push(
       React.createElement('animateTransform', {
         key: '__spin',
@@ -446,7 +473,7 @@ function renderNode(
         type: 'rotate',
         from: `${fmt(node.phase)} 0 0`,
         to: `${fmt(node.phase + 360)} 0 0`,
-        dur: node.kind === 'claim-wisp' ? '9s' : '6s',
+        dur,
         repeatCount: 'indefinite',
       }),
     );

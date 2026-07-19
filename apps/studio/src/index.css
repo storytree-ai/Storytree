@@ -3407,6 +3407,33 @@ a.stat:hover {
   .world-claim-wisp-glow { animation: none; opacity: 0.7; }
 }
 
+/* THE BUILD BAND, folded onto the ONE work body (ADR-0212 channel 3). The separate orbiting build
+   wisp is gone; its red→green signal now rides the claim body it was duplicating 12px away.
+
+   THIS IS A MOTION CHANNEL ONLY — and that restriction IS the ADR-0138 §5 honesty wall surviving the
+   merge. `--claim-hue` is NEVER touched here: colour stays INTENT (amber authoring / teal proving /
+   violet supplementing), so a claimed-and-building story can never drift toward the healthy-green
+   bloom hue no matter what its build is doing. Green is expressed as SPEED (the work is landing),
+   not as colour. The bloom keeps its own silhouette (scale-pulse + spark) and stays the only proof.
+
+   Red is STEADY — a watchful hold, the one band that stops the breathing entirely, so a failing run
+   reads as "stopped here" against every other body on the map. */
+.world-claim-wisp.band-red .world-claim-wisp-glow {
+  animation: none;
+  opacity: 0.85;
+  stroke-width: 2;
+}
+.world-claim-wisp.band-building .world-claim-wisp-glow {
+  animation: claim-orbit-pulse 1.6s ease-in-out infinite;
+}
+.world-claim-wisp.band-green .world-claim-wisp-glow {
+  animation: claim-orbit-pulse 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-claim-wisp.band-building .world-claim-wisp-glow,
+  .world-claim-wisp.band-green .world-claim-wisp-glow { animation: none; opacity: 0.7; }
+}
+
 /* claim-GRADE families (ADR-0200 D7): which drawable family a claim's GRADE renders as — a session
    `exploring` (hovering, at rest), `waiting` (queued in line), or `work` (world-claim-wisp above,
    the classic orbit — unchanged). All three still reuse the `--claim-hue` colour pattern (colour
@@ -3414,9 +3441,12 @@ a.stat:hover {
    but wear DISTINCT SILHOUETTES so grade reads at a glance without relying on colour alone. Same §5
    HONESTY WALL as world-claim-wisp (non-negotiable): none of these may reuse bloom/verdict-pass. */
 
-/* EXPLORING — a session reading/planning, at rest beside the story tree. A dashed hollow ring that
-   breathes slowly (opacity only — it never spins; the core stamps it no orbit `phase`), so "someone
-   is here, not yet committed to work" reads calm next to the queued/orbiting families. */
+/* EXPLORING — window shopping: a session reading/planning, on a SMALL LOCAL orbit beside the story
+   tree. A dashed hollow ring that breathes slowly, so "someone is here, not yet committed to work"
+   reads calm next to the queued/orbiting families. ADR-0212 REVERSED ADR-0200 D7's "never spins":
+   the core now stamps it an orbit `phase` and the mapper rotates it, but around a TIGHT radius on
+   its own rest spot — position is what separates window shopping from the work stage's whole-island
+   orbit, so the two never read alike despite both moving. */
 .world-hover-wisp {
   cursor: pointer;
   animation: wisp-in 0.6s ease-out both;
