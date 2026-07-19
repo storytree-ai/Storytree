@@ -80,6 +80,9 @@ importers:
       '@storytree/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
+      '@storytree/procedural-architecture':
+        specifier: workspace:*
+        version: link:../../packages/procedural-architecture
       '@storytree/proof-protocol':
         specifier: workspace:*
         version: link:../../packages/proof-protocol

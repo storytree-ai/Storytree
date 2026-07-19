@@ -20,6 +20,7 @@
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",
+    "@storytree/procedural-architecture": "workspace:*",
     "@storytree/studio-members": "workspace:*",
     "@storytree/proof-protocol": "workspace:*",
     "@storytree/uat-criterion": "workspace:*",

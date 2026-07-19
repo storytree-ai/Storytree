@@ -155,6 +155,39 @@ look verdict.
   unused**. `DEFAULT_REVEAL` is 0.34, compared at 0 / 0.18 / 0.34 / 0.7 on both flat and tapered
   facets. What is settled is that the approach produces real reveal geometry; **the look verdict is
   still the owner's and is not yet given** (ADR-0070 stage 2, decision 7).
+- **Resolved (2026-07-19, increment 5 — a question this ADR did NOT pose, and decision 4's missing
+  half):** decision 4 says parts bake at build time and the runtime composes them, but left open *what
+  a baked part is* and *who may consume one* — which mattered the moment a second surface wanted a
+  building, because the factory emits a full SVG document and a scene consumer wants drawables. The
+  answer needed no adapter and no second pipeline: the pipeline splits **one step before markup**.
+  `bake.ts` runs shade / cull / cut / order / project and returns resolved vector drawables in painter
+  order; `render-svg.ts` was reduced to a *printer* of that list. **One bake, two printers** — a second
+  consumer therefore cannot drift from the SVG backend, and a test holds the seam by asserting the
+  printer emits exactly one element per baked node. Decision 4 stands unchanged and is now realised.
+- **Measured (2026-07-19, increment 5) — a building's DOM cost is NOT its polygon count, and the cost
+  bullet above is the thing it bears on.** The prediction that split count inflates node count held;
+  the ratio is now measured at roughly **1.5x**, because every fragment the ordering pass splits emits
+  *two* nodes — a fill and an outline. Increment 4's arc entry recorded the mushroom at 936 polygons
+  and read that figure against ADR-0069's 1,000–3,000 comfortable ceiling as "~30% of the budget";
+  the true node cost is ~1,394, i.e. about **half** the comfortable ceiling for one building. Guarded
+  by a node-cost test in `bake.test.ts`. Coplanar-fragment merging remains the un-taken mitigation.
+  This is why increment 5's `?factoryart=on` flag defaults **off**, and the default is load-bearing
+  rather than mere caution: the studio map's own node count is already unbounded in work volume
+  (`scene.ts` scales vegetation as `2 + tests * 1.9`, with no LOD, culling or density budget), so
+  stamping a ~1,400-node building per story is a density decision that has not been taken.
+- **Discovered, and an OPEN OWNER CALL (2026-07-19, increment 5) — baked art cannot currently enter
+  the shared scene-graph.** A baked facade's fill is its material modulated by N·L, so two walls of one
+  building differ and no CSS class can name them. But `SceneNodeBase`
+  (`packages/forest-world/src/scene.ts`) deliberately carries no fill/stroke:
+  [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md) decision 1 keeps
+  colour class-driven and its decision 4 shares *the look only*. Increment 5 therefore placed the
+  buildings in studio **chrome**, where ADR-0102's flat identity glyphs already lived (ADR-0093
+  decision 2's line), behind `?factoryart=on`, default off. The consequence is real and is not a bug:
+  the public website never gets buildings, and `packages/forest-world-r3f`'s mapper would emit
+  `{ kind: 'skipped' }` for any building kind. **Whether baked art may carry its own paint into the
+  shared scene is an owner fork — it would amend ADR-0093, and it is NOT decided here.** Recorded so
+  the next session finds the constraint rather than rediscovering it, or widens `SceneNodeBase`
+  without noticing that doing so is a fork.
 - **Unresolved, and honestly so:** the central bet — capability from machinery rather than model tier —
   remains externally unvalidated (increment 2, question E). It rests on an in-house n=2. The
   human-in-the-loop entry point means the machinery does not have to carry that bet alone.
@@ -177,5 +210,8 @@ look verdict.
 - `docs/research/grounded-art-prior-art-addendum.md` (increment 2, PR #820) — the boolean kernel, the
   draw-order finding, the layout-solver negatives, IDS, VGBench.
 - `docs/research/forest-house-art/README.md` — the 19-house defect record this ADR is grounded in.
-- `packages/procedural-architecture` — the spike: the part-tree, the checker, the ~200-line SVG backend.
+- `packages/procedural-architecture` — no longer the spike this ADR was written against: stations 1–3
+  are shipped (the part-tree, the checker, `draw-order.ts`, `apertures.ts`), `bake.ts` is the pipeline
+  tail that returns drawables, and the SVG backend is now an 83-line printer over that bake rather than
+  the pipeline's end. `baked/kit.json` is the build-time roster of decision 4, drift-guarded by a test.
 - `packages/forest-world/src/scene.ts` — the per-type factories that already exist and already work.
