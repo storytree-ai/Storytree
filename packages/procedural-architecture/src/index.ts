@@ -18,7 +18,7 @@ export * from './apertures.js';
 export * from './draw-order.js';
 export * from './render-svg.js';
 
-// Both buildings name their parameter block `DEFAULTS`; the barrel disambiguates
+// Every building names its parameter block `DEFAULTS`; the barrel disambiguates
 // rather than picking a winner.
 export {
   mushroomDwelling,
@@ -34,5 +34,3 @@ export type { WindmillParams } from './buildings/forest-windmill.js';
 export { tieredPagoda, DEFAULTS as PAGODA_DEFAULTS } from './buildings/tiered-pagoda.js';
 export type { PagodaParams } from './buildings/tiered-pagoda.js';
 
-export { coastalStiltHouse, DEFAULTS as STILT_HOUSE_DEFAULTS } from './buildings/coastal-stilt-house.js';
-export type { StiltHouseParams } from './buildings/coastal-stilt-house.js';

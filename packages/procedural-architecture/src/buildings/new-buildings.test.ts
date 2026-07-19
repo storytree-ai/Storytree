@@ -1,11 +1,16 @@
-// new-buildings.test.ts — the two houses re-authored through the finished factory.
+// new-buildings.test.ts — houses re-authored through the finished factory.
 //
-// `tiered-pagoda` and `coastal-stilt-house` were picked from the nineteen hand-drawn
-// houses in docs/research/forest-house-art/ precisely because they stress the parts of
-// the machinery the first two did not: a pagoda is a stack of deliberate overhangs (the
-// occlusion case), and a stilt house is a declared load path with things driven through
-// each other (the contact case). Both came out of the factory clean on the first pass
-// that satisfied the checker — that is the claim, and this file is what holds it.
+// `tiered-pagoda` was picked from the nineteen hand-drawn houses in
+// docs/research/forest-house-art/ because it stresses the part of the machinery the
+// first two did not: it is a stack of deliberate overhangs, which is the occlusion case.
+//
+// A `coastal-stilt-house` was authored alongside it and then DROPPED (owner call,
+// 2026-07-19): a house on stilts hides its own understructure and would occlude its
+// neighbours, so it wastes tile area in a top-down map. What it bought survives it —
+// the `door-reachable` rule below used to check only a threshold's HEIGHT, so a door
+// onto any raised deck, veranda or jetty was a violation. Those tests are the durable
+// residue of a building that is no longer shipped, and they stand on their own minimal
+// models rather than on the house that exposed the gap.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,16 +20,12 @@ import { check } from '../invariants.js';
 import { renderDetailed } from '../render-svg.js';
 import { findDepthConflicts } from '../draw-order.js';
 import { tieredPagoda, DEFAULTS as PAGODA } from './tiered-pagoda.js';
-import { coastalStiltHouse, DEFAULTS as STILT } from './coastal-stilt-house.js';
 
 // ---------------------------------------------------------------------------
-// both, end to end
+// end to end. The list is a list because the next building joins it here.
 // ---------------------------------------------------------------------------
 
-for (const [label, build] of [
-  ['tiered-pagoda', tieredPagoda],
-  ['coastal-stilt-house', coastalStiltHouse],
-] as const) {
+for (const [label, build] of [['tiered-pagoda', tieredPagoda]] as const) {
   test(`${label} is physically sound and orders without inversion`, () => {
     const model = build();
     assert.deepEqual(check(model), []);
@@ -68,26 +69,6 @@ test('every pagoda tier is carried by the one below it', () => {
     assert.equal(wall.parentId, `tier-${k - 1}-roof`, 'a storey stands on the roof below it');
     const below = byId.get(`tier-${k - 1}-wall`);
     assert.ok(below && wall.baseZ > below.topZ, 'and strictly above that storey');
-  }
-});
-
-test('the stilt house declares a real load path to the ground', () => {
-  const model = coastalStiltHouse();
-  const byId = new Map(model.parts.map((p) => [p.id, p]));
-  const grounded = model.parts.filter((p) => p.relation === 'ground');
-  assert.deepEqual(grounded.map((p) => p.id), ['mast'], 'exactly one part reaches the ground');
-
-  // Everything traces back to it — that is what makes "held above the water" checkable
-  // rather than merely drawn.
-  for (const part of model.parts) {
-    let cur = part;
-    let hops = 0;
-    while (cur.relation !== 'ground' && hops++ < model.parts.length) {
-      const next = cur.parentId === null ? undefined : byId.get(cur.parentId);
-      assert.ok(next, `${part.id} has an unbroken chain`);
-      cur = next;
-    }
-    assert.equal(cur.id, 'mast', `${part.id} traces back to the mast`);
   }
 });
 
@@ -180,8 +161,6 @@ test('a flared roof does not stroke the seams between its profile rings', () => 
 test('the shipped defaults are the ones under test', () => {
   assert.equal(PAGODA.floors, 3);
   assert.equal(PAGODA.style_theme, 'temple');
-  assert.equal(STILT.floors, 1);
-  assert.ok(STILT.stiltHeight > 4, 'the deck genuinely stands clear of the ground');
 });
 
 test('a gable roof and a flared roof compose without inversion', () => {
