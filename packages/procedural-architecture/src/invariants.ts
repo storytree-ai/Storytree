@@ -11,10 +11,15 @@
 // a part balanced on a parent it barely overlaps, an aperture running off the end
 // of its wall, two windows on top of each other, a door on the third floor.
 
-import { apertureQuad, bbox } from './procedural-utils.js';
+import { add3, apertureQuad, bbox, scale3 } from './procedural-utils.js';
 import type { BuildingModel, Part } from './procedural-utils.js';
 
 const EPS = 1e-6;
+
+/** The tallest rise you can simply step up — a threshold, a kerb, one shallow stair. */
+const GROUND_STEP = 0.35;
+/** How far outside a doorway a caller stands, when looking for the floor under them. */
+const STAND_OUT = 0.5;
 
 /** The rules a model can break. One name per invariant, so a failure reads. */
 export type ViolationRule =
@@ -211,7 +216,12 @@ export function check(model: BuildingModel, { margin = 0.6, minSupport = 0.55 }:
     }
   }
 
-  // --- 7. a door must be reachable: on a facet whose base sits on the ground.
+  // --- 7. a door must be reachable — you can stand at its threshold.
+  //
+  //     Ground level is the easy case. The one that matters is a door onto a DECK, a
+  //     landing or a plinth: it opens far above z=0 and is perfectly reachable, because
+  //     some other part's top surface is right there under the sill. Checking only the
+  //     height called every stilt house and every raised veranda a violation.
   for (const ap of model.apertures) {
     if (ap.kind !== 'door') continue;
     const host = byId.get(ap.host);
@@ -219,8 +229,25 @@ export function check(model: BuildingModel, { margin = 0.6, minSupport = 0.55 }:
     const q = apertureQuad(model, ap);
     if (!q) continue;
     const footZ = Math.min(q.pts[0].z, q.pts[1].z);
-    if (footZ > 0.35) {
-      out.push({ rule: 'door-reachable', aperture: ap.id, detail: `threshold sits at z=${footZ.toFixed(2)} with nothing to stand on` });
+    if (footZ <= GROUND_STEP) continue;
+
+    // Where a caller would actually stand: just OUTSIDE the threshold, on the far side
+    // of the wall from the room.
+    const mid = scale3(add3(q.pts[0], q.pts[1]), 0.5);
+    const stand = add3(mid, scale3(q.facet.normal, STAND_OUT));
+
+    const landing = model.parts.some((p) => {
+      if (p.id === ap.host) return false;
+      if (Math.abs(p.topZ - footZ) > GROUND_STEP) return false;
+      const b = bbox(p);
+      return stand.x >= b.min.x - EPS && stand.x <= b.max.x + EPS && stand.y >= b.min.y - EPS && stand.y <= b.max.y + EPS;
+    });
+    if (!landing) {
+      out.push({
+        rule: 'door-reachable',
+        aperture: ap.id,
+        detail: `threshold sits at z=${footZ.toFixed(2)} with nothing to stand on`,
+      });
     }
   }
 

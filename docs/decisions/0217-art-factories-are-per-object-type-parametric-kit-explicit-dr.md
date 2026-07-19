@@ -145,9 +145,16 @@ look verdict.
 - **Cost:** a factory per object type means the work does not amortise across types the way a general
   system would have. That is the deliberate trade — generality is what produced the layout-solver and
   occlusion-solver problems that stations 3 and B/C respectively resolved by narrowing scope.
-- **Unresolved:** whether compound-path apertures read acceptably where a wall's thickness should show
-  as a reveal. Suspected to be a painted trapezoid in this look; unproven. First thing the building
-  factory should test.
+- **Resolved (2026-07-19, increment 4 — the question this ADR posed and the increment closed):** how
+  compound-path apertures show a wall's thickness as a reveal. The suspicion above was that it would
+  have to be a *painted* trapezoid; it is a trapezoid, but a **real** one — `reveal()`
+  (`packages/procedural-architecture/src/apertures.ts`) emits an outer rim, a pane set back along the
+  facet normal, and jamb/head quads bridging them, so the reveal takes the same N·L shading as every
+  other surface and cannot drift out of register with the hole it lines. Two quads per opening, no
+  boolean kernel, no new dependency — so **decision 5 stands unchanged and `manifold-3d` remains
+  unused**. `DEFAULT_REVEAL` is 0.34, compared at 0 / 0.18 / 0.34 / 0.7 on both flat and tapered
+  facets. What is settled is that the approach produces real reveal geometry; **the look verdict is
+  still the owner's and is not yet given** (ADR-0070 stage 2, decision 7).
 - **Unresolved, and honestly so:** the central bet — capability from machinery rather than model tier —
   remains externally unvalidated (increment 2, question E). It rests on an in-house n=2. The
   human-in-the-loop entry point means the machinery does not have to carry that bet alone.

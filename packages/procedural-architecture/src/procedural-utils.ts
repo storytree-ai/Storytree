@@ -339,6 +339,66 @@ export function dome({ r, h, sides = 20, rings = 6, bulge = 0, kind = 'roof' }: 
   return { height: h, radius: r + bulge, verts, faces, facets: [] };
 }
 
+export interface FlaredRoofParams {
+  sides?: number;
+  /** eave radius — the WIDEST point, at the bottom */
+  r0: number;
+  /** radius at the ridge */
+  r1?: number;
+  h: number;
+  rings?: number;
+  /** >1 bows the profile inward — the pagoda sweep. 1 is a straight hip roof. */
+  sweep?: number;
+  rot?: number;
+  kind?: FaceKind;
+}
+
+/**
+ * A hipped roof that overhangs its wall and sweeps concave from eave to ridge — the
+ * pagoda/temple profile, and at `sweep: 1` an ordinary straight hip roof.
+ *
+ * Its faces are `smooth`, so the horizontal seams between profile rings are not
+ * stroked: they are a discretisation artefact of sampling a curve, and outlining them
+ * bands the roof like a stack of trays. The hips still read, because four faces at
+ * four bearings take four different N·L values — shading separates them without a line.
+ *
+ * The underside is emitted as `floor` (never drawn): an eave overhang is only ever seen
+ * from above at this projection, so the soffit would be culled every frame anyway.
+ */
+export function flaredRoof({
+  sides = 4,
+  r0,
+  r1 = r0 * 0.3,
+  h,
+  rings = 4,
+  sweep = 2.2,
+  rot = 45,
+  kind = 'roof',
+}: FlaredRoofParams): Shape {
+  const radiusAt = (t: number): number => r1 + (r0 - r1) * Math.pow(1 - t, sweep);
+  const verts: Vec3[] = [];
+  for (let ring = 0; ring <= rings; ring++) {
+    const t = ring / rings;
+    const r = radiusAt(t);
+    for (let i = 0; i < sides; i++) {
+      const a = rot * DEG + (i / sides) * Math.PI * 2;
+      verts.push(v3(Math.cos(a) * r, Math.sin(a) * r, t * h));
+    }
+  }
+  const faces: Face[] = [];
+  for (let ring = 0; ring < rings; ring++) {
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides;
+      const a = ring * sides;
+      const b = (ring + 1) * sides;
+      faces.push({ idx: [a + i, a + j, b + j, b + i], kind, smooth: true });
+    }
+  }
+  faces.push({ idx: Array.from({ length: sides }, (_, i) => rings * sides + i), kind });
+  faces.push({ idx: Array.from({ length: sides }, (_, i) => sides - 1 - i), kind: 'floor' });
+  return { height: h, radius: r0, verts, faces, facets: [] };
+}
+
 export interface GableParams {
   w: number;
   d: number;
