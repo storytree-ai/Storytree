@@ -11,7 +11,8 @@ decided: 2026-07-02
 superseded (2026-07-19) by
 [ADR-0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md) — website-story
 frame authority consolidates there (with 0167/0172). Historical decision text below is unchanged.
-Act 1 choreography awaits a sibling Act 1 consolidating ADR; Act 2 stays on
+Act 1 choreography consolidates as
+[ADR-0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md); Act 2 stays on
 [ADR-0213](0213-act-2-experience-one-continuous-orchestrator-led-walk.md).
 
 ~~accepted (2026-07-02) — the owner declared the two-act design settled at the act1-terminal-storm

@@ -7,7 +7,7 @@ outcome: "On the live home page, one visitor gesture breeds the storm: a single 
 status: proposed
 proof_mode: operator-attested
 depends_on: [experience-rollout-guardrails]
-decisions: [134]
+decisions: [216]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The storm lands in storytree-web (a separate public
 # repo, its own CD; branch off ITS origin/main), which is NOT a pnpm workspace member, so the parent
 # spine cannot observe a red→green inside it — and the storm's real risk is FEEL (pacing, overwhelm,
@@ -147,7 +147,7 @@ live. Supersedes the calm-card details of the `3e53f14` section above:
 
 ## Guidance
 
-THE DRAMATURGY (ADR-0134 §1, owner decisions 2026-07-02 — the spec of the feel):
+THE DRAMATURGY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D2 — the spec of the feel):
 
 - **One gesture, then the machine takes over.** The visitor sends ONE prompt and never works again
   in Act 1 — every subsequent terminal is an agent's doing (diegetic multiplication: agents spawning

@@ -45,8 +45,9 @@ consumed_by: []
 # fallback, package home delegated to this story (123); website-story frame consolidates as
 # ADR-0215 (supersedes 134/167/172 — two-act pitch, experience-is-the-site, diorama/boundary,
 # a11y-only escapes, replay-only); Act 2 experience authority consolidates as ADR-0213
-# (supersedes 145/148/150/153/157/165). Act 1 choreography awaits its consolidating ADR.
-decisions: [93, 123, 213, 215]
+# (supersedes 145/148/150/153/157/165); Act 1 experience authority consolidates as ADR-0216
+# (frozen overwhelm → finale → transform).
+decisions: [93, 123, 213, 215, 216]
 ---
 
 # The two-act vibe-coding experience — the public site's front door enacts chaos → calm

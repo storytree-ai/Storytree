@@ -22,7 +22,8 @@ end-of-flow ask.
 experience amend stack. Their bodies stay as history; **this ADR is the sole current authority for
 the Act 2 visitor experience.** It does **not** supersede the website-story frame
 ([ADR-0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md) — consolidates
-0134/0167/0172) or Act 1's as-built (a separate Act 1 consolidating ADR, still pending).
+0134/0167/0172) or Act 1
+([ADR-0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md)).
 
 ## Context
 
@@ -41,9 +42,10 @@ taste stay explicitly **open** (§Open iteration) so later sessions can reshape 
 another full-stack supersede — unless a change breaks a Decision point below.
 
 **Sibling consolidations:** website-story frame is
-[ADR-0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md) (landed). Act 1
-(felt overwhelm → finale → transform; attested freeze) remains planned. Parent/engine contracts
-stay on [`act2-beat-director`](../../stories/website-experience/act2-beat-director.md) — cited, not
+[ADR-0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md); Act 1 is
+[ADR-0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) (frozen).
+Parent/engine contracts stay on
+[`act2-beat-director`](../../stories/website-experience/act2-beat-director.md) — cited, not
 restated.
 
 ## Decision
@@ -187,9 +189,6 @@ change breaks a Decision point above:
 
 - **Consolidation is not a terminal LOOK close.** Landed builds were attested as step-forward; Act 2
   still needs iteration. Treat §Open iteration as the work queue, not as unfinished Decision prose.
-- **Act 1 consolidating ADR still pending.** Website-story frame is ADR-0215; until Act 1
-  consolidates, Act 1 as-built caps remain that slice's choreography record — do not re-litigate
-  frame or Act 1 inside Act 2 caps.
 - **Caps and site copy may still cite superseded ADR numbers** until a follow-on pass rewrites
   citations to 0213. Citation drift is curation debt, not a re-decision.
 
@@ -197,7 +196,8 @@ change breaks a Decision point above:
 
 - Two-act framing, brochure retirement, a11y marker policy, site-wide replay-only →
   [ADR-0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md).
-- Act 1 terminal swarm / finale / transform choreography → Act 1 consolidating ADR.
+- Act 1 terminal swarm / finale / transform choreography →
+  [ADR-0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md).
 - `act2-beat-director` zod / `dependsOn` / `abd-*` contracts / `--real` proofs → the LEAF cap.
 - `worldSvg` / sync / grounding rail mechanism → ADR-0093 / 0056 / 0066 (cite).
 - General copy style as principle → Library (`plain-language-first`; graduate industry-honesty if
@@ -212,6 +212,7 @@ change breaks a Decision point above:
   [0157](0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md),
   [0165](0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md).
 - Sibling frame (not superseded here): [0215](0215-public-website-story-frame-two-act-experience-is-the-entire.md).
+- Sibling Act 1 (not superseded here): [0216](0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md).
 - Cited: [0058](0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md),
   [0020](0020-red-green-enforcement-on-the-owned-loop.md),
   [0030](0030-all-in-on-claude-agent-sdk.md),

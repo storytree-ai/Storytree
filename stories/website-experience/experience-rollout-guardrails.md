@@ -83,7 +83,7 @@ adds all THREE markers when it flips home; the closure walk is seeded at the ent
 storm's script graph hangs off its imports, resolved extensionless-tolerant via
 `withExtensionFallback`, `web-experience-check.ts:215`).
 
-THE NO-WEBGL-IN-ACT-1 WALL (ADR-0134 §1 tech split + §2's "the exhale buys the load"). Act 1 is
+THE NO-WEBGL-IN-ACT-1 WALL ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D2/D4 — tech split + "the exhale buys the load"). Act 1 is
 plain DOM/CSS + canvas + Web Audio; the R3F bundle may load ONLY at the inflection. The judge walks
 static import edges from the Act 1 entry module (the storm's script entry) and reds if the closure
 reaches `three`, `@react-three/*`, or the synced `forest-world-r3f` dir. Dynamic `import()` behind

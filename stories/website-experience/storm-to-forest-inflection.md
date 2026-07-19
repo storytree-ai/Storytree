@@ -7,7 +7,7 @@ outcome: "At peak overload the storm dims and ONE calm storytree affordance appe
 status: proposed
 proof_mode: operator-attested
 depends_on: [act1-terminal-storm, web-experience-sync]
-decisions: [134, 123]
+decisions: [216, 123]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work; the transform is a felt, choreographed moment no
 # machine can honestly judge. Its machine floor lives upstream: `check:web-experience` holds the
 # lazy-load wall (the R3F island is reachable from Act 1 ONLY behind a dynamic import — a static
@@ -97,7 +97,7 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
 
 ## Guidance
 
-THE CHOREOGRAPHY (ADR-0134 §2 — the spec of the moment):
+THE CHOREOGRAPHY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D3–D4 — the spec of the moment):
 
 - **The affordance appears AT peak, not before.** The storm must be fully felt first; the dimming +
   the single calm affordance are the reward for having been buried. One affordance only — amid ten
