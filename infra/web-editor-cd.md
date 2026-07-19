@@ -34,6 +34,32 @@ The subtle trap it avoids: the studio deployer is bound to the **pool-level** pr
 `attribute.ref`); main is still enforced, at the provider's `attribute_condition`. The editor deployer
 binds on `attribute.repository/storytree-ai/storytree-web`, which only `github-web` can mint.
 
+## ⚠️ Two-phase: the run.admin binding waits for the service to exist
+
+The CD SA's `run.admin` is **scoped to the one `storytree-web-editor` service**, and a service-scoped
+IAM binding can only be created once that service exists. The service is stood up **imperatively**
+(`bash infra/deploy-web-editor.sh`), not by Terraform — so until that first stand-up, applying the
+binding fails with:
+
+```
+Error 404: Resource 'storytree-web-editor' of kind 'SERVICE' in region 'australia-southeast1' ... does not exist
+```
+
+...which fails the **whole module**, including unrelated resources in `infra/`. (The binding used to
+be project-wide, which applied regardless; scoping it introduced the dependency.)
+
+So it is gated on `web_editor_deployed`, **default false**. Nothing is lost while it is off — before
+the first stand-up the CD SA has nothing to deploy to. The order is:
+
+1. `terraform apply` — everything except the binding (the gate is off).
+2. `bash infra/deploy-web-editor.sh` — the owner's break-glass first stand-up, which creates the service.
+3. `terraform apply -var web_editor_deployed=true` (or set it in `terraform.tfvars`) — hands CD its
+   scoped `run.admin`. **CD cannot deploy until this step.**
+
+`packages/cli/src/web-editor-iam-bootstrap.test.ts` pins the gate, since the failure is invisible to
+CI: the module cannot be applied or planned there, and `terraform validate` passes (the 404 is a
+runtime fact, not a config error).
+
 ## ONE-TIME OWNER STEP — the IAM apply (BLOCKING until done)
 
 Creating a WIF provider + a service account + project IAM bindings needs Owner-level ADC an agent

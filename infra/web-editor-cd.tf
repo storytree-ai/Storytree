@@ -123,12 +123,39 @@ resource "google_service_account_iam_member" "web_editor_deployer_actas_runtime"
 # so resource-scoped run.admin covers them; project `roles/run.viewer` below (read-only) covers any
 # operation-polling / describe that resolves at project scope. The service is created imperatively
 # (deploy-web-editor.sh — not a TF resource), so this references it by location + name.
+#
+# BOOTSTRAP ORDER (why this is gated): a service-scoped binding can only be created once the service
+# EXISTS, and this service is stood up imperatively (deploy-web-editor.sh), not by Terraform. While
+# `storytree-web-editor` has never been deployed, applying this resource fails the WHOLE module with
+# `Error 404: Resource 'storytree-web-editor' of kind 'SERVICE' ... does not exist` — blocking every
+# unrelated apply in infra/. (The previous project-wide `google_project_iam_member` applied whether or
+# not the service existed, so scoping it to the service introduced this dependency.)
+#
+# So it is gated on `web_editor_deployed`, default false. Nothing is lost while it is off: before the
+# first stand-up the CD SA has nothing to deploy TO, and the first stand-up is the owner's break-glass
+# `bash infra/deploy-web-editor.sh` either way. After that stand-up, flip the variable and re-apply to
+# hand CD its scoped run.admin. The studio's equivalent binding is deliberately NOT gated — that
+# service exists, so its binding applies cleanly.
 resource "google_cloud_run_v2_service_iam_member" "web_editor_deployer_run_admin" {
+  count = var.web_editor_deployed ? 1 : 0
+
   project  = var.project_id
   location = var.region
   name     = "storytree-web-editor"
   role     = "roles/run.admin"
   member   = "serviceAccount:${google_service_account.web_editor_deployer.email}"
+}
+
+variable "web_editor_deployed" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Has the storytree-web-editor Cloud Run service been stood up yet (bash infra/deploy-web-editor.sh)?
+    Its CD service account's run.admin binding is SERVICE-SCOPED, so it can only be created after the
+    service exists — applying it beforehand 404s and blocks every other resource in this module.
+    Leave false until the first stand-up, then set it true (terraform.tfvars or -var) and re-apply to
+    grant CD its scoped deploy permission.
+  EOT
 }
 
 # Read-only, project-wide Cloud Run visibility for `gcloud run deploy`'s operation polling and the

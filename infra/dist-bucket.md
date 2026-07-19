@@ -21,6 +21,18 @@ If gating is ever wanted, the documented upgrade path is serving downloads throu
 IAP-protected Cloud Run using the same Google identity as D4 — **never bucket IAM**, which would
 recreate exactly the runtime-token problem this decision exists to avoid.
 
+## Status — the bucket is APPLIED; publishing is the remaining step
+
+`terraform apply` (2026-07-18) created the bucket and its public-read binding. Verified live:
+`uniform_bucket_level_access: True`, `versioning: True`, `STANDARD`, `public_access_prevention:
+inherited`, `allUsers → roles/storage.objectViewer`. The bucket is currently **empty** — the one-liner
+goes live once `install.ps1` is published:
+
+```bash
+gsutil cp infra/install.ps1 gs://storytree-dist/install.ps1
+curl -sSf https://storage.googleapis.com/storytree-dist/install.ps1 | head -1
+```
+
 ## Owner step (one-time, BLOCKING)
 
 Creating a bucket and a public IAM binding needs Owner-level ADC an agent session lacks, so this is
