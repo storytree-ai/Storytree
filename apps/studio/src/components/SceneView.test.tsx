@@ -74,6 +74,8 @@ function mkInput(
   claimState: ClaimColourState = 'authoring',
   claimGrade?: ClaimGrade,
   departures?: { key: string; title: string; ageRatio: number }[],
+  /** ADR-0212: a live build folded onto the work claim — the merged band. */
+  claimPhase?: BuildPhase,
 ): SceneInput {
   return {
     offset: { x: 0, y: 0 },
@@ -108,6 +110,7 @@ function mkInput(
             title: 'a session is working lib',
             colourState: claimState,
             ...(claimGrade ? { grade: claimGrade } : {}),
+            ...(claimPhase ? { phase: claimPhase } : {}),
           },
         ],
         ...(departures ? { departures } : {}),
@@ -123,6 +126,7 @@ function renderScene(
   claimState?: ClaimColourState,
   claimGrade?: ClaimGrade,
   departures?: { key: string; title: string; ageRatio: number }[],
+  claimPhase?: BuildPhase,
 ): {
   root: HTMLElement;
   ctx: SceneCtx;
@@ -137,7 +141,10 @@ function renderScene(
   };
   const { container } = render(
     <svg>
-      <SceneView scene={buildScene(mkInput(wispPhase, claimState, claimGrade, departures))} ctx={ctx} />
+      <SceneView
+        scene={buildScene(mkInput(wispPhase, claimState, claimGrade, departures, claimPhase))}
+        ctx={ctx}
+      />
     </svg>,
   );
   return { root: container, ctx };
@@ -247,7 +254,7 @@ describe('SceneView — the studio scene mapper', () => {
     expect(claim.querySelector('.verdict-pass')).toBeNull();
   });
 
-  it('maps a hovering (exploring-grade) claim to a DISTINCT, STATIONARY class family (ADR-0200 D7)', () => {
+  it('maps a hovering (exploring-grade) claim to a DISTINCT class family on a SMALL LOCAL orbit (ADR-0212)', () => {
     const { root } = renderScene({}, undefined, 'proving', 'exploring');
     const hover = root.querySelector('.world-hover-wisp.state-proving');
     expect(hover).toBeTruthy();
@@ -255,9 +262,19 @@ describe('SceneView — the studio scene mapper', () => {
     expect(hover?.querySelector('.world-hover-wisp-glow')).toBeTruthy();
     expect(hover?.querySelector('.world-hover-wisp-dot')).toBeTruthy();
     expect(root.querySelector('.world-hover-wisp-hit')?.getAttribute('fill')).toBe('transparent');
-    // STATIONARY by construction — the core never stamps `phase` on a hover-wisp, so the mapper's
-    // rotate branch (gated on `phase != null`) never fires here.
-    expect(hover?.querySelector('animateTransform')).toBeNull();
+    // ADR-0212 REVERSES ADR-0200 D7's stationary rule: window shopping now spins. What keeps it
+    // distinct from the work stage is POSITION (a small orbit beside the island) and SPEED.
+    const spin = hover?.querySelector('animateTransform');
+    expect(spin).toBeTruthy();
+    expect(spin?.getAttribute('dur')).toBe('14s');
+    // ⚠ THE NESTING IS THE CONTRACT: the rotate REPLACES `transform` on the node it animates, so the
+    // rest spot must live on the PARENT g and the orbit radius on a CHILD g. If a future refactor
+    // flattens these, the rest-spot translate is silently clobbered and the dot sweeps the island
+    // centroid instead of hovering beside the tree — a bug that looks like "the map went wrong".
+    expect(hover?.getAttribute('transform')).toBeNull();
+    expect(hover?.parentElement?.getAttribute('transform')).toMatch(/^translate\(/);
+    const arm = [...(hover?.children ?? [])].find((c) => c.tagName === 'g');
+    expect(arm?.getAttribute('transform')).toMatch(/^translate\([\d.]+ 0\)$/);
     expect(root.querySelector('.world-claim-wisp')).toBeNull();
   });
 
@@ -270,6 +287,35 @@ describe('SceneView — the studio scene mapper', () => {
     expect(root.querySelector('.world-queue-wisp-hit')?.getAttribute('fill')).toBe('transparent');
     expect(queue?.querySelector('animateTransform')).toBeNull();
     expect(root.querySelector('.world-claim-wisp')).toBeNull();
+  });
+
+  it('ADR-0212: a live build rides the work claim as a band class on the SAME body — one wisp, not two', () => {
+    const { root } = renderScene({}, undefined, 'proving', 'work', undefined, 'IMPLEMENT');
+    const claim = root.querySelector('.world-claim-wisp.state-proving.band-building');
+    expect(claim).toBeTruthy();
+    // ONE orbiting claim body — the whole point. The build contributes a class, never a sibling.
+    expect(root.querySelectorAll('.world-claim-wisp').length).toBe(1);
+    // and it quickens: a banded body orbits at the retired build wisp's 6s, not the idle 9s.
+    expect(claim?.querySelector('animateTransform')?.getAttribute('dur')).toBe('6s');
+    // no band when nothing builds — back-compat, and the idle orbit stays calm.
+    const { root: idle } = renderScene({}, undefined, 'proving', 'work');
+    const idleClaim = idle.querySelector('.world-claim-wisp');
+    expect(idleClaim?.getAttribute('class') ?? '').not.toMatch(/band-/);
+    expect(idleClaim?.querySelector('animateTransform')?.getAttribute('dur')).toBe('9s');
+  });
+
+  it('ADR-0212 honesty wall: a GREEN build band never paints the claim body as a proof', () => {
+    // GATE → the green band, the case ADR-0138 §5 is most at risk from under the merge.
+    const { root } = renderScene({}, undefined, 'proving', 'work', undefined, 'GATE');
+    const claim = root.querySelector('.world-claim-wisp.band-green');
+    expect(claim).toBeTruthy();
+    // The INTENT hue survives untouched — green is expressed as motion, never as colour.
+    expect(claim?.classList.contains('state-proving')).toBe(true);
+    // and NOTHING bloom-shaped is anywhere on the claim layer: no bloom class, no verdict class.
+    const cls = claim?.getAttribute('class') ?? '';
+    expect(cls).not.toMatch(/bloom|verdict/);
+    expect(claim?.querySelector('.world-bloom')).toBeNull();
+    expect(claim?.querySelector('[class*="verdict-"]')).toBeNull();
   });
 
   it('an absent grade still orbits (the ADR-0200 D2 back-compat default, regression lock)', () => {

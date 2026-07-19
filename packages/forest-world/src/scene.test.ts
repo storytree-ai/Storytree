@@ -534,6 +534,55 @@ test('each claim intent → its colour-state on the claim wisp (authoring / prov
   assert.equal(claimFor('supplementing').colourState, 'supplementing');
 });
 
+// ---------- the build phase folded onto the ONE work body (ADR-0212) ----------
+
+test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on the SAME body', () => {
+  const claimWith = (phase?: 'CONFIRM_RED' | 'IMPLEMENT' | 'GATE') =>
+    mustByKind(
+      buildScene(
+        mkInput({
+          territories: [
+            mkTerritory({
+              claims: [
+                { key: 's1', title: 't', colourState: 'proving', ...(phase ? { phase } : {}) },
+              ],
+            }),
+          ],
+        }),
+      ),
+      'claim-wisp',
+    );
+
+  // The build phase rides as the BAND on the one work body — no second orbiting wisp is emitted.
+  assert.equal(claimWith('CONFIRM_RED').phaseBand, 'red');
+  assert.equal(claimWith('GATE').phaseBand, 'green');
+  assert.equal(claimWith('IMPLEMENT').phaseBand, 'building');
+
+  // Back-compat: a claim with no live build carries NO band at all (pre-ADR-0212 surfaces unchanged).
+  assert.equal(claimWith().phaseBand, undefined);
+});
+
+test('ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
+  const wisp = mustByKind(
+    buildScene(
+      mkInput({
+        territories: [
+          mkTerritory({
+            // GATE → the green band, the most at-risk case: green must stay MOTION, never colour.
+            claims: [{ key: 's1', title: 't', colourState: 'proving', phase: 'GATE' }],
+          }),
+        ],
+      }),
+    ),
+    'claim-wisp',
+  );
+  // Colour stays INTENT-driven — the band must not overwrite it into anything bloom-like.
+  assert.equal(wisp.colourState, 'proving');
+  // And the body still carries no verdict token: a claim is never a proof.
+  assert.equal(wisp.outcome, undefined);
+  assert.equal(firstByKind(wisp, 'bloom'), null);
+});
+
 test('§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
   // A claim in EVERY colour-state, including the at-risk "proving" (the in-flight hue that must NOT
   // read as the proven-green bloom): the claim layer must emit no bloom drawable and no `outcome`.
@@ -579,7 +628,7 @@ test('buildScene stays deterministic with a claim layer present (same input → 
 // Stage-1 GEOMETRY only: which drawable family a grade emits and its deterministic placement.
 // The LOOK (colours / spacing / fade curve) is the mapper's, operator-attested later (ADR-0070).
 
-test('an exploring claim HOVERS: a stationary hover-wisp beside the tree — no orbit phase, deterministic rest spot', () => {
+test('an exploring claim WINDOW-SHOPS: a small local orbit beside the tree, rest spot on a PARENT g', () => {
   const input = (): SceneInput =>
     mkInput({
       territories: [
@@ -591,9 +640,10 @@ test('an exploring claim HOVERS: a stationary hover-wisp beside the tree — no 
   const scene = buildScene(input());
   const orbit = mustByKind(scene, 'claim-wisps');
   const wisp = mustByKind(orbit, 'hover-wisp');
-  // STATIONARY by construction: the mapper animates the orbit rotation only when `phase` is present
-  // (and only on the 'wisp'/'claim-wisp' kinds) — a hover wisp carries NO phase, so it can never spin.
-  assert.equal(wisp.phase, undefined);
+  // ADR-0212 REVERSES ADR-0200 D7's stationary rule: window shopping carries its own orbit `phase`,
+  // so the mapper spins it. Position (a SMALL local orbit beside the island vs the work stage's
+  // whole-island orbit) is what separates the two stages — see ADR-0212 channel 1.
+  assert.equal(typeof wisp.phase, 'number');
   // the intent prose rides the title; the colour-state is carried unchanged.
   assert.equal(wisp.title, 'reading the store seam');
   assert.equal(wisp.colourState, 'authoring');
@@ -603,9 +653,20 @@ test('an exploring claim HOVERS: a stationary hover-wisp beside the tree — no 
   assert.equal(firstByKind(orbit, 'claim-wisp'), null);
   // deterministic: same input → byte-identical scene; the rest spot is a fixed translate.
   assert.deepEqual(buildScene(input()), buildScene(input()));
-  const inner = children(wisp)[0];
-  assert.ok(inner && inner.el === 'g');
-  assert.match(inner.transform ?? '', /^translate\(-?[\d.]+ -?[\d.]+\)$/);
+  // THE NESTING IS THE CONTRACT (ADR-0212): an `animateTransform` rotate REPLACES the `transform`
+  // on the node it animates, so the rest spot may NOT sit on the rotated node — it lives on the
+  // PARENT g, and the kind-bearing node holds only the small-orbit child. Collapse these three
+  // levels into two and the dot sweeps the island centroid instead of its own rest spot.
+  const restSpot = mustByKind(scene, 'claim-wisps');
+  const outer = children(restSpot)[0];
+  assert.ok(outer && outer.el === 'g' && outer.kind === undefined);
+  assert.match(outer.transform ?? '', /^translate\(-?[\d.]+ -?[\d.]+\)$/);
+  assert.equal(children(outer)[0], wisp);
+  // the rotated node itself carries NO transform of its own for the rotate to clobber.
+  assert.equal(wisp.transform, undefined);
+  const orbitArm = children(wisp)[0];
+  assert.ok(orbitArm && orbitArm.el === 'g');
+  assert.match(orbitArm.transform ?? '', /^translate\([\d.]+ 0\)$/);
   // per-key jitter: two hoverers on one island never stack exactly.
   const two = buildScene(
     mkInput({
@@ -621,12 +682,11 @@ test('an exploring claim HOVERS: a stationary hover-wisp beside the tree — no 
   );
   const hovers = allByKind(two, 'hover-wisp');
   assert.equal(hovers.length, 2);
-  const spot = (n: SceneNode): string => {
-    const c0 = children(n)[0];
-    assert.ok(c0);
-    return c0.transform ?? '';
-  };
-  assert.notEqual(spot(hovers[0]!), spot(hovers[1]!));
+  // the rest spot now lives on the PARENT g, so read the jitter from there — every hover-wisp's own
+  // orbit arm is the same constant radius, which is exactly why it can't carry the rest spot.
+  const spots = children(mustByKind(two, 'claim-wisps')).map((n) => n.transform ?? '');
+  assert.equal(spots.length, 2);
+  assert.notEqual(spots[0], spots[1]);
 });
 
 test('waiting claims QUEUE: queue-wisps in INPUT order along a line — index-placed, never hash-random', () => {

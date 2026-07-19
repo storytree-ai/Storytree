@@ -29,7 +29,10 @@ import { useEffect, useRef, useState } from 'react';
 import { anyInFlight, anyRecentLanding } from '../lib/activity';
 import type { BuildActivity, ClaimActivity, SubagentColourState, TreeStory } from '../types';
 
-export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'building' | 'claim' | 'decor';
+// ADR-0212 retired the `building` row: the build wisp is no longer its own drawable, so it is no
+// longer its own legend row — the band it contributes is taught inside `claim`, where the one
+// session body now lives.
+export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'claim' | 'decor';
 
 /**
  * Status fan order: the growth ladder, then the failure state. `building` and
@@ -226,14 +229,24 @@ function SignIcon({ state }: { state: 'blank' | 'pass' | 'fail' }): React.JSX.El
   );
 }
 
-/** The in-flight build wisp (ADR-0048) — the world's `world-wisp band-building`
- *  classes, so the swatch can never drift from the live teal pulse. */
-function BuildWispIcon(): React.JSX.Element {
+/** A work body wearing a live BUILD BAND (ADR-0212) — the same `world-claim-wisp state-<x>` ring as
+ *  {@link ClaimWispIcon} plus its `band-<x>` class, because since ADR-0212 there is no separate build
+ *  drawable to draw: the band rides the ONE session body. Reusing the world's own classes is what
+ *  keeps the swatch honest — the band is a MOTION channel in CSS, so this swatch inherits the same
+ *  steady-red / pulsing-green behaviour the map shows, and inherits the hue from `state` (never
+ *  green) rather than restating it here. */
+function BuildBandIcon({
+  state,
+  band,
+}: {
+  state: SubagentColourState;
+  band: 'red' | 'building' | 'green';
+}): React.JSX.Element {
   return (
     <svg viewBox="-8 -8 16 16" aria-hidden="true">
-      <g className="world-wisp band-building">
-        <circle className="world-wisp-glow" r={5.5} />
-        <circle className="world-wisp-dot" r={2.4} />
+      <g className={`world-claim-wisp state-${state} band-${band}`}>
+        <circle className="world-claim-wisp-glow" r={5.5} />
+        <circle className="world-claim-wisp-dot" r={2.2} />
       </g>
     </svg>
   );
@@ -497,21 +510,15 @@ function legendModel(
       icons: <BloomIcon />,
     },
     {
-      // The in-flight harness layer (ADR-0048): a wisp orbits while a leaf agent
-      // drives a unit through the red-green gate. Drops out when nothing builds.
-      key: 'building',
-      label: 'building',
-      visible: building,
-      icons: <BuildWispIcon />,
-    },
-    {
       // The coordination layer (ADR-0138 §5): a claim wisp orbits while a SESSION is working a story
       // ("someone is here"), coloured by what the orchestrator is doing. NOT a proof — only the green
       // bloom is a signed verdict (the §5 honesty wall). Drops out when nothing is claimed (flag off
       // → no claims → no row), so `main` never shows it until the owner attests.
+      // ADR-0212: the retired `building` row folded in here — a live build is now a BAND on this same
+      // body, so the row is visible when anything is claimed OR building.
       key: 'claim',
       label: 'sessions working',
-      visible: claims.length > 0,
+      visible: claims.length > 0 || building,
       icons: <ClaimWispIcon state="authoring" />,
     },
     { key: 'decor', label: 'decoration', visible: true, icons: <ConiferIcon /> },
@@ -527,7 +534,6 @@ export function legendRowLabel(key: RowKey): string {
       flora: 'garden plants',
       proof: 'proof',
       activity: 'activity',
-      building: 'building',
       claim: 'sessions working',
       decor: 'decoration',
     } as const
@@ -700,27 +706,6 @@ export function LegendDrawerBody({
       </>,
     );
   }
-  if (rowKey === 'building') {
-    return region(
-      'building',
-      <>
-        <div className="legend-fan">
-          <Tile
-            icon={<BuildWispIcon />}
-            label="building"
-            note="a leaf agent is driving this unit through the gate right now"
-          />
-        </div>
-        <p className="legend-cap">
-          A teal wisp orbits a story while the <strong>harness</strong> is mechanically building one
-          of its units — a leaf agent walking the red-green prove-it-gate (ADR-0048). Unlike a
-          session wisp it tracks <strong>work, not who is online</strong>: it appears when a build
-          starts and <strong>self-clears</strong> when the verdict lands (a pass then blooms green)
-          or after a few minutes if the run died — so it can never become a stale false positive.
-        </p>
-      </>,
-    );
-  }
   if (rowKey === 'claim') {
     return region(
       'sessions working',
@@ -779,6 +764,35 @@ export function LegendDrawerBody({
           grey ring with no colour at all means the claim just <strong>departed</strong>: it fades out
           over a couple of minutes rather than vanishing outright, so a released claim reads as “someone
           just left,” never as a claim still silently held.
+        </p>
+        {/* ADR-0212: the retired `building` row, folded in as a THIRD dimension of the same body —
+            what the session's build is doing. Position = stage, colour = intent, motion = build. */}
+        <div className="legend-fan">
+          <Tile
+            icon={<BuildBandIcon state="proving" band="red" />}
+            label="red"
+            note="holding on a failing test — steady, not breathing"
+          />
+          <Tile
+            icon={<BuildBandIcon state="proving" band="building" />}
+            label="implementing"
+            note="driving the gate — a steady working pulse"
+          />
+          <Tile
+            icon={<BuildBandIcon state="proving" band="green" />}
+            label="green"
+            note="the run went green — quickening, but the ring stays its intent colour"
+          />
+        </div>
+        <p className="legend-cap">
+          A working session that is also <strong>building</strong> does not get a second wisp — one
+          session is always one wisp (ADR-0212). Instead the same ring changes its{' '}
+          <strong>motion</strong>: <strong>steady</strong> while a run holds red, a working{' '}
+          <strong>pulse</strong> while it implements, and a <strong>quickened</strong> pulse once it
+          observes green. With several runs on one story, <strong>red wins</strong> — a green
+          elsewhere never masks a failing run. Note what does <em>not</em> change: the{' '}
+          <strong>colour</strong>. A green run leaves the ring teal/amber/violet, because a build
+          going green is not a signed verdict — only the <strong>bloom</strong> is.
         </p>
       </>,
     );
