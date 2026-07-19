@@ -99,8 +99,13 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
 5. **The wisp's colour is the active subagent / intent; the proof stays distinct.** One story wisp,
    coloured by what the orchestrator is currently doing on the story: **authoring** (story-author),
    **proving** (the builder leaf's red→green phases — the old build-wisp, now a colour *state*),
-   **supplementing** (glue). A spawned subagent runs under the story's claim, so its role sets the
-   colour. **Honesty wall (non-negotiable):** a claim's presence or colour is **never** a proof — only a
+   **supplementing** (glue). *[Overtaken in part by
+   [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md) (decided
+   2026-07-18): the colour-by-role channel STANDS (authoring / proving / supplementing), but the
+   builder leaf's red→green `phaseBand` is no longer carried by COLOUR — it moves to the MOTION
+   channel (speed / pulse), on the work stage only. Decision only: the engine change is ADR-0212's
+   increment 2 and is NOT yet built.]* A spawned subagent runs under the story's claim, so its role
+   sets the colour. **Honesty wall (non-negotiable):** a claim's presence or colour is **never** a proof — only a
    real build's `CONFIRM_GREEN` + signed verdict paints the green **bloom**
    ([ADR-0045](0045-live-activity-layer-is-verdict-blooms.md) /
    [ADR-0099](0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md)). A claimed-but-not-proven
@@ -141,6 +146,13 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
   supersession edge on accept.
 - ADR-0048's build-wisp is **not deleted** — it becomes the *proving* colour state of the story-claim
   wisp; "honest by absence" **generalises** (an empty map now means no session holds any node).
+  *[Overtaken by [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md)
+  (decided 2026-07-18): the build wisp IS now retired as a separate drawable. Wisp count encodes
+  SESSIONS — one session renders exactly ONE wisp — and the red→green `phaseBand` folds into that
+  wisp's MOTION channel, not its colour. The two-layer split this bullet assumes is collapsed; the §5
+  honesty wall above is explicitly PRESERVED by ADR-0212, not relaxed. Decision only: `scene.ts` still
+  builds both `buildWisps` and `buildClaimWisps` — the merge is ADR-0212 increments 2–3, NOT yet
+  built.]*
 
 ## References
 

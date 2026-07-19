@@ -68,7 +68,12 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    exclusivity is enforced by a partial unique index on `unit_id WHERE grade='work'`:
    - **exploring** — shared (any number of sessions per story), taken at session start, carries the
      intent prose. Renders as a **hovering** wisp (stationary at the story): "someone is reading /
-     planning here, and this is what they're thinking."
+     planning here, and this is what they're thinking." *[The "stationary" half is REVERSED on
+     purpose by [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md)
+     (decided 2026-07-18, which cites this as the D7 render detail): window shopping now carries a
+     small-radius orbit BESIDE the island, so the hover family MOVES. The exploring GRADE itself —
+     shared, taken at session start, carrying the intent prose — is unchanged. Decision only: not yet
+     built.]*
    - **waiting** — shared, ordered by `claimed_at`: the **queue** behind a work claim. On release
      of the work claim the store atomically promotes the oldest live waiter (audited `promoted`).
    - **work** — the exclusive mutex, unchanged in semantics from ADR-0121/0138: one session per
@@ -126,7 +131,13 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
 
 7. **Views, not stores.** The forest map renders claims by grade (hover / queued / orbit) **by
    default** — the `?claims=` flag retires; the proving colour + verdict bloom stay work-event- and
-   verdict-sourced (the ADR-0138 §5 honesty wall is untouched: no claim state is ever a proof). The
+   verdict-sourced (the ADR-0138 §5 honesty wall is untouched: no claim state is ever a proof).
+   *[Amended by [ADR-0212](0212-one-wisp-per-session-merge-the-build-wisp-into-the-claim-lif.md)
+   (decided 2026-07-18): the three grades and the by-default render STAND, but the render families
+   change — "hover" gains a small local orbit (see the D2 note above), and the build layer stops being
+   a drawable of its own, so a story's live build phase folds onto that story's work-claim wisp as
+   MOTION. The honesty wall named here is explicitly preserved by ADR-0212. Decision only: not yet
+   built.]* The
    studio dock becomes claims-grouped-by-session; `/api/presence` retires. The CLI board renders
    the ledger. All render legs are **owner-attested before the old machinery is deleted**: the
    retirement sweep (presence store + parity, the hooks' auto-declare, the ADR-0079 reaper,
