@@ -89,10 +89,19 @@ gallery, but it is invalid SVG and worth a lint pass if these files are ever reu
 Two things changed after this swarm started, and this file is written for both of them:
 
 - **`@storytree/procedural-architecture`** is landing: buildings authored as parameters with derived
-  positions, mechanically checked for structural coherence. That removes exactly the error class
-  catalogued above (floating parts, unmet joins, occlusion inversions) by construction — a parametric
-  system cannot produce a door 15px off its wall plane. These SVGs are hand-drawn and will never be
-  fully clean the way a parametric system is.
+  positions, mechanically checked for structural coherence. That removes the **floating parts / unmet
+  joins** class catalogued above by construction — a parametric system cannot produce a door 15px off
+  its wall plane. These SVGs are hand-drawn and will never be fully clean the way a parametric system
+  is.
+
+  **Correction (2026-07-19, ADR-0217):** an earlier version of this bullet also claimed the
+  **occlusion-inversion** class was removed "by construction". It is not. A part-tree derives
+  *positions*; it does not derive *draw order*, and the spike's own documented bug was a centroid
+  painter's sort putting a ground-level door behind the wall it was cut into while the checker
+  returned zero violations. Depth-order inversion (5 of the 19 houses) needs an **explicit draw-order
+  pass** — ADR-0217 station 3, now built as `packages/procedural-architecture/src/draw-order.ts` (a
+  BSP that splits interpenetrating polygons, plus `findDepthConflicts` as its oracle). ADR-0214
+  decision 1 carried the same wrong claim and was corrected by ADR-0217.
 - **A render-backend evaluation is separately in flight.** Once it lands, the owner decides whether to
   (a) hand-fix the defects above and use these as real assets, or (b) treat this gallery purely as
   **look reference** for the new engine (silhouette, palette, mood) while the geometry gets rebuilt

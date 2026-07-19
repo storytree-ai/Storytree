@@ -46,6 +46,10 @@ export const THEMES = {
   brick:    { wall: '#a8583f', roof: '#4e3b34', gable: '#9d5039', soffit: '#43322c', trim: '#33251f', glass: '#ffe0a3', door: '#4b3226', stone: '#8d8378' },
   glass:    { wall: '#7fa8bd', roof: '#4f6b7d', gable: '#7099b0', soffit: '#3f5666', trim: '#2d3f4b', glass: '#d7f0ff', door: '#3d5563', stone: '#9aa7ad' },
   mushroom: { wall: '#efe3cf', roof: '#c4453f', gable: '#e6d6bd', soffit: '#f4ece0', trim: '#6b4a35', glass: '#ffce6b', door: '#7a5133', stone: '#9c9184', spot: '#fbf3e4', gill: '#e8d7c0' },
+  // Warm timber against cool slate — the contrast a tiered roof needs to read as a
+  // stack rather than one mass. Trim is gold because the finial and the eave hardware
+  // are the only warm accents above the wall line.
+  temple:   { wall: '#8b6244', roof: '#42667f', gable: '#7d5a3f', soffit: '#2f4859', trim: '#c9a24e', glass: '#ffcf78', door: '#5a3a24', stone: '#9aa1a6' },
 } satisfies Record<string, Palette>;
 
 /** The themes that ship. A `style` outside this set falls back to `timber`. */

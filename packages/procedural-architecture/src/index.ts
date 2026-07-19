@@ -30,3 +30,9 @@ export type { MushroomParams } from './buildings/mushroom-dwelling.js';
 
 export { forestWindmill, DEFAULTS as WINDMILL_DEFAULTS } from './buildings/forest-windmill.js';
 export type { WindmillParams } from './buildings/forest-windmill.js';
+
+export { tieredPagoda, DEFAULTS as PAGODA_DEFAULTS } from './buildings/tiered-pagoda.js';
+export type { PagodaParams } from './buildings/tiered-pagoda.js';
+
+export { coastalStiltHouse, DEFAULTS as STILT_HOUSE_DEFAULTS } from './buildings/coastal-stilt-house.js';
+export type { StiltHouseParams } from './buildings/coastal-stilt-house.js';

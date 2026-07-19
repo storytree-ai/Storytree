@@ -64,12 +64,24 @@ Two alternatives were weighed against that and rejected:
 **The layer that changes is the AUTHORING MODEL, not the render substrate. SVG output stands
 (ADR-0069 decision 3 upheld); buildings are authored as solids and composed by CSG.**
 
-1. **CSG is the modelling kernel.** An aperture is a boolean subtraction from a solid wall, not a quad
-   painted near it. That removes the decal which had to be depth-sorted at all, so the
-   silent-occlusion class is eliminated by construction rather than patched per case — the spike's
-   three-line host-facet fix holds for one flat wall and breaks on an L-plan, a wing, or a porch in
-   front of another wall. Part joins likewise become boolean facts that are checkable rather than
-   eyeballed.
+1. ~~**CSG is the modelling kernel.**~~ **REVERSED by [ADR-0217](0217-art-factories-are-per-object-type-parametric-kit-explicit-dr.md)
+   decision 5 — both its mechanism and its occlusion claim.** This decision read: *an aperture is a
+   boolean subtraction from a solid wall, not a quad painted near it; that removes the decal which had
+   to be depth-sorted at all, so the silent-occlusion class is eliminated by construction rather than
+   patched per case — the spike's three-line host-facet fix holds for one flat wall and breaks on an
+   L-plan, a wing, or a porch in front of another wall. Part joins likewise become boolean facts that
+   are checkable rather than eyeballed.*
+
+   Two things in that are wrong. **No boolean kernel is adopted:** zero of the 19 catalogued house
+   defects has a fault CSG subtraction would have prevented, CGA does apertures as facade subdivision
+   and asset instancing rather than subtraction, and the vendored-`csg.js` plan is retired. Apertures
+   are compound paths with real reveal quads, shipped without a kernel or a new dependency.
+   **Occlusion is NOT eliminated by construction:** a part-tree derives *positions*, it does not derive
+   *draw order*, and subtraction never addressed inter-part occlusion at all — a roof overhang crossing
+   a wall is back to sorting filled polygons. Five of the 19 single-object buildings get depth order
+   wrong. That class needs the explicit draw-order pass of ADR-0217 station 3, built as
+   `packages/procedural-architecture/src/draw-order.ts`. Decisions 2, 3 and 4 below are unaffected and
+   stand.
 2. **Authors declare parts, sockets, and dials — never a coordinate.** The part-tree's `on` /
    `attached` relations stand, extended with typed socket compatibility (a `wall_top` accepts a
    `roof_bottom`), so an invalid composition is unexpressible rather than merely wrong. Face-relative
@@ -96,8 +108,10 @@ look verdict.
 
 ## Consequences
 
-- **Good:** the one error class that passes the gate and fails the eye dies by construction rather than
-  by cleverness. `packages/forest-world` is untouched — this lands beside it as a building-authoring
+- **Good:** ~~the one error class that passes the gate and fails the eye dies by construction rather than
+  by cleverness.~~ *(Corrected per decision 1 above: the floating/no-contact class does die by
+  derivation, but the silent-occlusion class does not — it needs ADR-0217 station 3.)*
+  `packages/forest-world` is untouched — this lands beside it as a building-authoring
   layer over the existing engine-agnostic seam. Output stays diffable text, renders without a GPU, and
   keeps DOM text. The agent's authoring surface shrinks to parts / sockets / dials, which is precisely
   what raises the ceiling: capability comes from the machinery, not from the model tier.
@@ -117,10 +131,15 @@ look verdict.
 
 ## References
 
+- [ADR-0217](0217-art-factories-are-per-object-type-parametric-kit-explicit-dr.md) — **amends this
+  ADR.** Decisions 2, 3 and 4 stand; decision 1's CSG mechanism is reversed, its "occlusion eliminated
+  by construction" claim is corrected, decision 5's vision reviewer is demoted to advisor, and decision
+  6's kernel constraints are re-scoped to runtime. Read it before relying on anything here.
 - [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — parameterise the
   forest-world geometry, stay on SVG. This ADR upholds its decisions 3 and 4 and **amends** it: the
-  silent-occlusion class is a fourth error class its three swap triggers do not cover, and the fix is at
-  the model layer rather than a substrate swap.
+  silent-occlusion class is a fourth error class its three swap triggers do not cover. The fix is at the
+  model layer rather than a substrate swap — though per ADR-0217 it is an explicit draw-order pass, not
+  the boolean subtraction this ADR originally proposed.
 - [ADR-0093](0093-shared-forest-world-render-core-for-studio-and-the-public-we.md) — the shared forest-world render core; the
   engine-agnostic seam this lands beside.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) / [ADR-0159](0159-frontend-builder-proves-stage-1-through-the-inner-loop-visua.md)
