@@ -188,6 +188,13 @@ look verdict.
   shared scene is an owner fork — it would amend ADR-0093, and it is NOT decided here.** Recorded so
   the next session finds the constraint rather than rediscovering it, or widens `SceneNodeBase`
   without noticing that doing so is a fork.
+  **Resolved by [ADR-0218](0218-baked-art-carries-resolved-paint-into-the-shared-scene-via-a.md)
+  (2026-07-20, increment 6):** the owner directed the standing-stones through the factory as baked
+  isometric solids, which forced exactly this fork. ADR-0218 amends ADR-0093 with a single, named,
+  fenced `baked-def`/`baked-use` node family — the one place in the scene-graph that carries resolved
+  paint — so baked art now MAY enter the shared scene through that self-describing exception, everything
+  else staying colour-class-driven. The "OPEN OWNER CALL" framing above is the increment-5 state; the
+  fork is settled (the LOOK verdict on the baked stones remains separately the owner's, ADR-0070 stage 2).
 - **Unresolved, and honestly so:** the central bet — capability from machinery rather than model tier —
   remains externally unvalidated (increment 2, question E). It rests on an in-house n=2. The
   human-in-the-loop entry point means the machinery does not have to carry that bet alone.
