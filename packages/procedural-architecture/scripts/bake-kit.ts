@@ -16,6 +16,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { bakeKit } from '../src/kit.js';
+import { bakeHeroKit } from '../src/hero-kit.js';
 import { bakeStone } from '../src/landscape/standing-stone.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,18 +31,30 @@ const GENERATED = (guard: string): string =>
 // account, useless to a surface painting the result, and by far the largest thing in the
 // bake. Dropping it is the difference between a ~1 MB asset and a ~10 MB one.
 const kit = bakeKit();
+// --- the cosy-island heroes (grounded-art inc 10) --------------------------
+// A SECOND named roster in the same file: the fixed garden pieces (cottage / gazebo /
+// autumn tree / stepping stone) the concept island is composed from (increment 11). They
+// ride alongside `entries` so the existing building bake stays byte-for-byte unchanged and
+// the studio's `loadFactoryKit` (which reads `.entries`) is untouched.
+const heroes = bakeHeroKit();
 const kitOut = resolve(bakedDir, 'kit.json');
 writeFileSync(
   kitOut,
   JSON.stringify(
-    { note: GENERATED('kit.test.ts'), entries: kit.map(({ polys: _polys, ...rest }) => rest) },
+    {
+      note: GENERATED('kit.test.ts'),
+      entries: kit.map(({ polys: _polys, ...rest }) => rest),
+      heroes: heroes.map(({ polys: _polys, ...rest }) => rest),
+    },
     null,
     2,
   ) + '\n',
   'utf8',
 );
 const kitNodes = kit.reduce((n, e) => n + e.nodes.length, 0);
+const heroNodes = heroes.reduce((n, e) => n + e.nodes.length, 0);
 console.log(`baked ${kit.length} buildings, ${kitNodes} nodes → ${kitOut}`);
+console.log(`baked ${heroes.length} heroes, ${heroNodes} nodes → ${kitOut}`);
 
 // --- the standing stone (ADR-0218, the first landscape type) ----------------
 // A SEPARATE asset, not a kit entry: a stone is its own object type (ADR-0217 D1), and the
