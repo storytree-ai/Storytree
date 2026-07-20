@@ -34,7 +34,7 @@ export const DEFAULTS: SteppingStoneParams = {
   style_theme: 'pathstone',
   light_angle: 135,
   radius: 4.2,
-  height: 1.3,
+  height: 0.8,
   topScale: 0.86,
   sides: 14,
 };

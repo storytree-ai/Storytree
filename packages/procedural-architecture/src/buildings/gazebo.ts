@@ -40,10 +40,10 @@ export const DEFAULTS: GazeboParams = {
   width: 8,
   style_theme: 'gazebo',
   light_angle: 135,
-  postHeight: 6,
+  postHeight: 7,
   postWidth: 0.7,
   roofPitch: 0.62,
-  eaveOverhang: 1.2,
+  eaveOverhang: 0.85,
 };
 
 export function gazebo(params: Partial<GazeboParams> = {}): BuildingModel {
@@ -62,9 +62,10 @@ export function gazebo(params: Partial<GazeboParams> = {}): BuildingModel {
   const deckH = 0.5;
   b.add('deck', box({ w: width, d: width, h: deckH }), { ground: true, material: 'wall' });
 
-  // --- four corner posts, standing ON the deck. Set in from the edge by a post-width so
-  //     the eaves still oversail them. Each footprint is fully carried by the deck.
-  const inset = width / 2 - postW * 0.9;
+  // --- four corner posts, standing ON the deck. Set in from the edge so they tuck UNDER the
+  //     roof canopy (the eave line reads cleanly above their caps, no peeking post-tops). Each
+  //     footprint is fully carried by the deck.
+  const inset = width / 2 - postW * 2.0;
   const corners: Array<[number, number]> = [
     [inset, inset],
     [inset, -inset],
@@ -79,10 +80,11 @@ export function gazebo(params: Partial<GazeboParams> = {}): BuildingModel {
     });
   });
 
-  // --- the top plate: a thin square beam ring fixed ACROSS the tops of the posts. It is
-  //     attached to one post (attachment asks only for contact, which a plate spanning the
-  //     whole footprint plainly has) and sits exactly at post height, so it caps all four.
-  const plateH = 0.5;
+  // --- the top plate: a square beam ring fixed ACROSS the tops of the posts. It is attached
+  //     to one post (attachment asks only for contact, which a plate spanning the whole
+  //     footprint plainly has) and sits exactly at post height, so it caps all four. A little
+  //     depth lifts the eave line a clear margin above the post caps.
+  const plateH = 0.8;
   const plateW = inset * 2 + postW;
   b.add('plate', box({ w: plateW, d: plateW, h: plateH }), {
     attached: 'post-0',
@@ -91,9 +93,11 @@ export function gazebo(params: Partial<GazeboParams> = {}): BuildingModel {
   });
 
   // --- the hipped shingle roof, standing ON the plate and oversailing it. A 4-gon flared
-  //     roof spun corner-to-camera, with a gentle sweep so it reads as a pavilion cap, not
-  //     a spike. Its footprint is wider than the plate, so the checker treats the eaves as
-  //     a deliberate overhang and only asks that its centre stays over the plate — it does.
+  //     roof spun corner-to-camera. It tapers nearly to a POINT (a tiny top face) so the apex
+  //     reads as a peak, not a dark recessed socket. Its eaves sit a clear margin above the
+  //     inset post caps and oversail them, so the canopy encloses the posts with no peeking
+  //     tops. Its footprint is wider than the plate, so the checker treats the eaves as a
+  //     deliberate overhang and only asks that its centre stays over the plate — it does.
   const eaveReach = width / 2 + overhang;
   const roofH = width * pitch;
   b.add(
@@ -102,15 +106,15 @@ export function gazebo(params: Partial<GazeboParams> = {}): BuildingModel {
       sides: 4,
       rot: 45,
       r0: radiusForFace(eaveReach),
-      r1: radiusForFace(width * 0.14),
+      r1: radiusForFace(width * 0.05),
       h: roofH,
-      sweep: 1.25,
+      sweep: 1.1,
     }),
     { on: 'plate', material: 'roof' },
   );
 
-  // --- a small finial capping the ridge.
-  b.add('finial', frustum({ sides: 8, r0: 0.42, r1: 0, h: 1.1 }), { on: 'roof', material: 'trim' });
+  // --- a small finial capping the peak: a low, blunt knob, not a needle in a socket.
+  b.add('finial', frustum({ sides: 8, r0: 0.32, r1: 0.14, h: 0.65 }), { on: 'roof', material: 'trim' });
 
   // --- the bench, tucked under the roof: a seat plank and a low back, both ON the deck and
   //     set toward the far side so the open near side reads into the interior.
