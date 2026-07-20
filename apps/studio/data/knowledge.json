@@ -271,19 +271,41 @@
   {
     "kind": "techstack",
     "id": "stack-pi-coding-agent",
-    "title": "The owned per-node agent loop",
+    "title": "The owned agent loop · offline & pivot-out fallback",
     "description": "The owned per-node agent loop — a minimal tool-use loop on the Anthropic Messages API in `packages/agent` — now the offline/deterministic executor and pivot-out fallback; the LIVE per-node runtime is the Claude Agent SDK (ADR-0030).",
     "references": [
       "doc:decisions/0001-foundational-stack.md",
       "doc:decisions/0004-orchestrator-agent-boundary.md",
-      "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md"
+      "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
+      "asset:stack-claude-agent-sdk"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
-    "updatedAt": "2026-07-06T00:00:00.000Z",
+    "updatedAt": "2026-07-20T00:00:00.000Z",
     "statement": "The per-node leaf runtime is owned code behind the `PhaseAuthor` seam: the owned Messages-API loop (ADR-0011) serves as the offline executor and pivot-out fallback, demoted under the live Claude Agent SDK runtime (ADR-0030).",
     "whatItIs": "The owned agent loop runs everything *inside* a node — the model loop, steering, diffs, approvals. It is a minimal tool-use loop on the Anthropic Messages API (`@anthropic-ai/sdk`): `messages.create` with `tools` → dispatch `tool_use` → feed `tool_result` → loop to `end_turn`, emitting a lifecycle event stream plus `edit`-tool diffs. It lives in `packages/agent` (ADR-0011 replaced the third-party `pi` leaf with this owned loop). Since ADR-0030 it is the OFFLINE/deterministic executor (`ScriptedModel`) and the pivot-out fallback (`AnthropicModel`); the **live** runtime is `ClaudeAgentAuthor` (`sdk-author.ts`) on the Claude Agent SDK, both behind the `PhaseAuthor` seam.",
     "whyThis": "Context engineering and the agent loop are the layers storytree most needs to own and see into — renting them means renting exactly what we need to control. ADR-0011 retired the earlier bet on a third-party `pi` leaf in favour of this owned loop, for that reason; `packages/pi-adapter` has since been removed entirely; the `pi-` ids here are residual naming debt, not a live `pi` dependency. The v1 Claude Code SDK opacity (an opaque wrapper around a binary) is the cautionary tale. Anthropic-only for now behind a thin internal seam; the earlier model-agnostic non-negotiable is relaxed to a *revisit-if-it-bites* posture, not re-committed (ADR-0011).",
     "constraints": "The model runtime is reached **only** through `packages/agent`, the sole model-runtime import site; `packages/storage-protocol` and `apps/studio` have no path to it (ADR-0004, amended by ADR-0011).",
+    "schemaVersion": 3
+  },
+  {
+    "kind": "techstack",
+    "id": "stack-claude-agent-sdk",
+    "title": "Claude Agent SDK · the live per-node runtime",
+    "description": "The LIVE per-node leaf runtime: `@anthropic-ai/claude-agent-sdk`, subscription-funded and harness-tuned, driven behind the spine-owned `PhaseAuthor` seam as `ClaudeAgentAuthor` — every honesty property (write-scope, red/green) held OUTSIDE it by the spine (ADR-0030).",
+    "references": [
+      "doc:decisions/0030-all-in-on-claude-agent-sdk.md",
+      "doc:decisions/0011-own-the-agent-loop-and-context-engineering.md",
+      "doc:decisions/0020-red-green-enforcement-on-the-owned-loop.md",
+      "doc:decisions/0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md",
+      "asset:stack-pi-coding-agent"
+    ],
+    "createdAt": "2026-07-20T00:00:00.000Z",
+    "updatedAt": "2026-07-20T00:00:00.000Z",
+    "statement": "The LIVE per-node leaf runtime is the rented Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), driven behind the spine-owned `PhaseAuthor` seam as `ClaudeAgentAuthor`; the owned Messages-API loop is demoted to the offline/deterministic executor and pivot-out fallback (ADR-0030).",
+    "whatItIs": "`@anthropic-ai/claude-agent-sdk` is Anthropic's harness runtime — the same tool loop, context management, and behavioural calibration the Claude Code CLI rides — invoked in-process. In storytree it backs the LIVE leaf: `ClaudeAgentAuthor` (`packages/agent/src/sdk-author.ts`) runs each authoring slice as one SDK `query()`, and sibling leaves (`sdk-curator.ts`, `spawn-story-author.ts`, `headless-orchestrator.ts`) drive the same `query()` for their roles. It sits behind the runtime-agnostic `PhaseAuthor` seam (`phase-author.ts`) alongside the owned loop (`AnthropicModel` / `ScriptedModel`), which since ADR-0030 is the offline/deterministic executor and the pivot-out fallback. Authenticated by the subscription (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, auto-hydrated from `~/.storytree/secrets.json`), not a metered API key.",
+    "whyThis": "Two owner reasons (ADR-0030, 2026-06-10) flipped ADR-0011's own-the-loop bet. First, storytree's research object is the story tree itself — the map and the pull surfaces (the Library, ADR-0023's CLI), not the loop that consumes them — so owning every byte of the context window was instrumental, never the premise. Second, models are increasingly tuned with and for the Claude Code harness (tool shapes, context management, behavioural calibration), so a bespoke raw-API loop re-derives harness quality per model release and falls behind, while the SDK rides the curve. Code being cheap now (re-coding the loop is days, not months) turns the V1 opacity risk into a cheap remedy — *provided the pivot seams hold*. Chosen over the owned raw-API loop as the live driver; the owned loop is kept, not deleted, as the escape hatch and the deterministic test harness.",
+    "constraints": "Version pin `@anthropic-ai/claude-agent-sdk` `^0.3.170`, in `packages/agent`. **Every honesty property stays OUTSIDE the rented runtime** (ADR-0020, reaffirmed by ADR-0030): write scope is enforced fail-closed by a `PreToolUse` hook BEFORE any write lands; `Bash` is deliberately NOT in the leaf tool surface (a shell write would bypass the scope hook); and red/green is never this runtime's to report — the spine's own out-of-band `shell-test-executor` runs observe and sign the verdict after the leaf stops. Feedback tools are bounded (option A): the spine may expose its registered proof/typecheck commands as in-process MCP tools (`mcp__spine__run_proof` …) that spawn FIXED commands (the leaf controls zero arguments), output-as-feedback only. **Pivot-out is architectural** (ADR-0030 §2): the SDK is imported ONLY within `packages/agent` (ADR-0004's single-import-site rule, widened to the package), and `sdk-author.ts` re-exports the SDK's hook/permission types so a version bump that renames or drops one fails THIS package's typecheck — a silently re-shaped write-wall API becomes a RED gate, not a quietly-opened wall. Live/real builds carry no USD ceiling by default; the turn cap is the runaway brake (ADR-0130), `--budget` opts into a total ceiling. Cursor was briefly a second live leaf (ADR-0177) and was retired (ADR-0198) — the Claude Agent SDK on subscription auth is the only admitted live prove-it-gate leaf; a broad provider registry stays deferred.",
+    "provenance": "Authored 2026-07-20 to fill the techstack gap: the LIVE per-node runtime (ADR-0030) had no techstack artifact, and the sibling `asset:stack-pi-coding-agent` documents only the demoted owned loop.",
     "schemaVersion": 3
   },
   {
