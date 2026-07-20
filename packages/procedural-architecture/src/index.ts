@@ -52,3 +52,17 @@ export {
 } from './landscape/standing-stone.js';
 export type { StandingStoneParams, BakedStone } from './landscape/standing-stone.js';
 
+// The cosy-island hero pieces (grounded-art inc 10) — the fixed garden set the concept
+// island is composed from (increment 11). Each is its own factory module (ADR-0217 D1);
+// `HERO_KIT` / `bakeHeroKit` are the build-time roster, baked into `kit.json` under `heroes`.
+export { cottage, DEFAULTS as COTTAGE_DEFAULTS } from './buildings/cottage.js';
+export type { CottageParams } from './buildings/cottage.js';
+export { gazebo, DEFAULTS as GAZEBO_DEFAULTS } from './buildings/gazebo.js';
+export type { GazeboParams } from './buildings/gazebo.js';
+export { autumnTree, expectedTreePartCount, DEFAULTS as AUTUMN_TREE_DEFAULTS } from './landscape/autumn-tree.js';
+export type { AutumnTreeParams } from './landscape/autumn-tree.js';
+export { steppingStone, DEFAULTS as STEPPING_STONE_DEFAULTS } from './landscape/stepping-stone.js';
+export type { SteppingStoneParams } from './landscape/stepping-stone.js';
+export { HERO_KIT, bakeHeroKit } from './hero-kit.js';
+export type { HeroEntry, BakedHeroEntry } from './hero-kit.js';
+

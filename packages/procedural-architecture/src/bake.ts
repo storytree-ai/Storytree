@@ -26,7 +26,7 @@ import {
   project,
   shade,
 } from './procedural-utils.js';
-import type { Aperture, ApertureQuad, BuildingModel, Facet, Vec2, Vec3 } from './procedural-utils.js';
+import type { Aperture, ApertureQuad, BuildingModel, Facet, ShadeOptions, Vec2, Vec3 } from './procedural-utils.js';
 import { facadeStrips, openingOf, reveal } from './apertures.js';
 import type { Opening } from './apertures.js';
 import { orderForPainter } from './draw-order.js';
@@ -63,6 +63,30 @@ export const THEMES = {
   // stack rather than one mass. Trim is gold because the finial and the eave hardware
   // are the only warm accents above the wall line.
   temple:   { wall: '#8b6244', roof: '#42667f', gable: '#7d5a3f', soffit: '#2f4859', trim: '#c9a24e', glass: '#ffcf78', door: '#5a3a24', stone: '#9aa1a6' },
+
+  // --- the cosy-island hero palettes (grounded-art inc 10) --------------------
+  // Read from docs/research/grounded-art-concept/cosy-island-concept.png through the
+  // style bible (docs/research/grounded-art-concept/style-bible.md). ADR-0219: the
+  // concept informs the KIT, it is never parsed. The whole family is WARM and low
+  // saturation — there is not one cool grey in the concept — so a hero baked with these
+  // sits beside the owner-attested `--flower-*` family rather than beside the old lime.
+
+  // The shingled cottage: cream plaster infill, a warm-tan shingle roof, exposed timber
+  // frame, a window that glows warm from within.
+  cottage:  { wall: '#ece1cb', roof: '#9c7b53', gable: '#e4d7bd', soffit: '#6f573c', trim: '#7c5c3f', glass: '#f4d38f', door: '#6a4a30', stone: '#bcad8c' },
+  // The open gazebo: a warm timber frame and posts under the same shingle roof as the
+  // cottage (one island, one roofing), with a soft cream bench cushion inside.
+  gazebo:   { wall: '#8a6a48', roof: '#9c7b53', gable: '#8a6a48', soffit: '#5f4a33', trim: '#6a563c', glass: '#f4d38f', door: '#5a3a24', stone: '#bcad8c', cushion: '#e8e0d2' },
+  // The big autumn tree: a warm grey-brown trunk under a canopy of soft rounded crowns.
+  // The crown base is the LIT tone (style bible: shadow #85583a → lit #ae754e); the
+  // dome's many smooth facets spread N·L into a soft gradient across each blob rather
+  // than two hard tones. `foliage` is the crown colour, kept off the named `roof` slot
+  // so the trunk (`wall`) and canopy read as one family without a slate roof in sight.
+  autumn:   { wall: '#96806a', roof: '#b3794b', gable: '#b3794b', soffit: '#6f4a30', trim: '#6f573c', glass: '#f4d38f', door: '#5a3a24', stone: '#9a9086', foliage: '#b3794b', bough: '#8a7053' },
+  // A flat stepping stone: warm pale tan, deliberately soft. The stone precedent (#832):
+  // the owner rejected over-rendered baked stones, so this is LOW and rounded — mostly a
+  // pale lit top with a barely-shaded rim, no busy facet contrast.
+  pathstone:{ wall: '#b8a888', roof: '#cabd9d', gable: '#b8a888', soffit: '#8f8168', trim: '#8f8168', glass: '#f4d38f', door: '#5a3a24', stone: '#c3b696' },
 } satisfies Record<string, Palette>;
 
 /** The themes that ship. A `style` outside this set falls back to `timber`. */
@@ -113,6 +137,23 @@ export interface RenderOptions {
   /** override model.lightAngle (azimuth degrees) */
   lightAngle?: number;
   lightElevation?: number;
+  /**
+   * The N·L shading contrast: `ambient` is the brightness a fully shaded face keeps,
+   * `diffuse` is what the light adds on top (a face pointing at the light reaches
+   * `ambient + diffuse`). Left unset they fall to the pure core's defaults (0.42 / 0.58),
+   * so a bake that does not pass them is byte-for-byte what it was — the buildings and the
+   * standing stone rely on that. The cosy-island heroes raise `ambient` toward a soft,
+   * low-contrast light, which is what the style bible reads off the concept
+   * (docs/research/grounded-art-concept/style-bible.md: "Overall contrast is low").
+   */
+  ambient?: number;
+  diffuse?: number;
+  /**
+   * How dark a flat face's outline is relative to its fill (0..1). The default (0.62)
+   * gives the buildings a crisp isometric edge; a softer piece can raise it toward the
+   * fill so its facets read as one soft form rather than a wireframe.
+   */
+  outlineShade?: number;
   /** extra material-key colours merged over the theme */
   palette?: Record<string, string>;
   /** tuning for station 3's draw-order pass */
@@ -188,6 +229,12 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
   const { showGround = true, strokeWidth = 0.35, normalize = false } = opts;
   const theme: Palette = { ...themeFor(opts.theme ?? model.style), ...(opts.palette ?? {}) };
   const light = lightVector(opts.lightAngle ?? model.lightAngle, opts.lightElevation ?? 52);
+  // Shading contrast + outline darkness. Undefined ⇒ the core defaults, so a bake that
+  // does not tune them is byte-identical (the buildings and stone depend on that).
+  const shadeOpts: ShadeOptions = {};
+  if (opts.ambient !== undefined) shadeOpts.ambient = opts.ambient;
+  if (opts.diffuse !== undefined) shadeOpts.diffuse = opts.diffuse;
+  const outlineK = opts.outlineShade ?? 0.62;
 
   const prims: OrderPoly<Paint>[] = [];
 
@@ -205,14 +252,14 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
     const n = faceNormal(worldPts);
     const facing = n.x + n.y + n.z; // dot with the (1,1,1) view axis
     if (facing <= 0.0001) return; // backface cull — before ordering, so it splits less
-    const k = flat ? 1 : shade(n, light);
+    const k = flat ? 1 : shade(n, light, shadeOpts);
     const fill = litColour(baseColour, k);
     const meta: Paint = {
       fill,
       // A curved surface's internal seams are a discretisation artefact — stroking
       // them turns a dome into a tiled parasol. Match the stroke to the fill and the
       // shell reads as one form, banded only by N·L.
-      stroke: smooth ? fill : outline(fill),
+      stroke: smooth ? fill : outline(fill, outlineK),
     };
     if (opacity !== undefined) meta.opacity = opacity;
     const prim: OrderPoly<Paint> = { pts: worldPts, meta };
