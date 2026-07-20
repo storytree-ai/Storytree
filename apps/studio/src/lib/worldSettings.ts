@@ -94,6 +94,7 @@ export type ControlValue = number | boolean | string;
 
 const GROUP_GROUND = 'Ground';
 const GROUP_LAYOUT = 'Layout';
+const GROUP_COSY = 'Cosy island';
 
 /** substrate aliases, mirroring readSubstrateMode. */
 function normalizeSubstrate(raw: string | null): string {
@@ -163,6 +164,36 @@ export const CONTROLS: readonly ControlSpec[] = [
   // there is no on/off to dial, so the gear no longer carries a Panels section. The distributed
   // consumer stamp is still controlled by the `?buildings=off` URL escape (read by TreeView,
   // not a gear control).
+
+  // ---- Cosy island (grounded-art arc) ----
+  // The arc's two default-OFF feature gates, surfaced as gear TOGGLES so they are flicked in the
+  // panel rather than typed as URLs (owner ask 2026-07-20). Each toggle writes the SAME query key
+  // the standalone readers use (`readGardenIsland` / `readCosyIsland`), so on ⇒ `garden=on` /
+  // `cosy=on`, and off ⇒ the param is removed (the default world stays byte-identical). The
+  // `garden` composition renders on the warm land, so turning it on also warms the palette
+  // regardless of the `cosy` toggle (grounded-art inc 11, ADR-0221).
+  {
+    kind: 'toggle',
+    key: 'garden',
+    label: 'Garden island',
+    group: GROUP_COSY,
+    hint: 'Compose the studio island as the cosy-island concept garden — the cottage, gazebo and autumn-tree heroes on warm land (grounded-art inc 11). Default off; other islands are unchanged.',
+    default: false,
+    offToken: 'off',
+    onToken: 'on',
+    offReads: ['off', '0', 'false'],
+  },
+  {
+    kind: 'toggle',
+    key: 'cosy',
+    label: 'Cosy palette',
+    group: GROUP_COSY,
+    hint: 'Warm the island palette toward the cosy concept — sage grass, dustier ground. A colour-only shift (geometry unchanged); default off.',
+    default: false,
+    offToken: 'off',
+    onToken: 'on',
+    offReads: ['off', '0', 'false'],
+  },
 ] as const;
 
 const BY_KEY = new Map<string, ControlSpec>(CONTROLS.map((c) => [c.key, c]));
@@ -298,5 +329,19 @@ export function readRenderScene(search: string): boolean {
  */
 export function readCosyIsland(search: string): boolean {
   const v = new URLSearchParams(search).get('cosy');
+  return v === 'on' || v === '1' || v === 'true';
+}
+
+/**
+ * grounded-art increment 11 (ADR-0221 / re-lit ADR-0218): the cosy-island GARDEN composition behind
+ * this DEFAULT-OFF flag. Off ⇒ every island renders byte-for-byte (the `SceneInput.garden` absence
+ * lock; no heroes fetched, main bundle unchanged). `?garden=on` (or `=1` / `=true`) fetches the inc-10
+ * heroes from the dynamic kit chunk and composes them onto the exemplar `studio` island — the
+ * autumn-tree hero as the central tree, a cottage and gazebo placed around it, decorative flora
+ * suppressed. The garden renders on the cosy-WARM land (it implies `?cosy`), matching the concept. The
+ * look is the owner's ADR-0070 stage-2 call — this flag is how the composed island is shown, not shipped.
+ */
+export function readGardenIsland(search: string): boolean {
+  const v = new URLSearchParams(search).get('garden');
   return v === 'on' || v === '1' || v === 'true';
 }

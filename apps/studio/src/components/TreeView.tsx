@@ -60,6 +60,7 @@ import {
   readControlValue,
   readRenderScene,
   readCosyIsland,
+  readGardenIsland,
   type ControlSpec,
 } from '../lib/worldSettings.js';
 import {
@@ -96,6 +97,7 @@ import {
   factoryScale,
   loadBakedStone,
   loadFactoryKit,
+  loadGardenHeroes,
   usedFactoryBuildings,
   type BakedStoneAsset,
   type FactoryBuilding,
@@ -149,6 +151,7 @@ import {
   trailFillWidth,
   wispBand,
   type SceneInput,
+  type SceneGardenInput,
   type SceneStatus,
   type ScenePlantInput,
   type SceneTerritoryInput,
@@ -1118,6 +1121,7 @@ export function worldToScene(
   claimsByStory: Map<string, ClaimActivity[]> = new Map(),
   departuresByStory: Map<string, DepartedClaim[]> = new Map(),
   bakedStone: BakedStoneAsset | null = null,
+  garden: SceneGardenInput | null = null,
 ): SceneInput {
   return {
     offset: world.offset,
@@ -1140,6 +1144,9 @@ export function worldToScene(
     // ADR-0218: the baked standing-stone solid, supplied only when `?factoryart=on` fetched it. The
     // core swaps each UAT marker's flat body for a `<use>` of this one def; absent ⇒ flat stones.
     ...(bakedStone ? { bakedStone } : {}),
+    // ADR-0221 (grounded-art inc 11): the cosy-island garden, supplied only when `?garden=on` fetched
+    // the heroes. The core composes them onto `garden.islandId`; absent ⇒ every island byte-for-byte.
+    ...(garden ? { garden } : {}),
   };
 }
 
@@ -1963,21 +1970,27 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // switch the CSS override block in index.css targets. Off ⇒ no class is ever added, so the
   // default render stays byte-identical.
   const cosyOn = useMemo(() => readCosyIsland(search), [search]);
+  // grounded-art increment 11 (ADR-0221): the cosy-island GARDEN composition, default-off behind
+  // `?garden=on`. It fetches the inc-10 heroes and composes them onto the exemplar `studio` island —
+  // and it renders on the cosy-WARM land (the concept is entirely warm, style-bible.md), so the garden
+  // flag IMPLIES `?cosy`. Off ⇒ no heroes fetched, `SceneInput.garden` absent, every island byte-identical.
+  const gardenOn = useMemo(() => readGardenIsland(search), [search]);
+  const garden = useGardenIsland(gardenOn);
   useEffect(() => {
-    if (!cosyOn) return;
+    if (!cosyOn && !gardenOn) return;
     document.body.classList.add('cosy-island');
     return () => {
       document.body.classList.remove('cosy-island');
     };
-  }, [cosyOn]);
+  }, [cosyOn, gardenOn]);
   const scene = useMemo(
     () =>
       world
         ? buildScene(
-            worldToScene(world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone),
+            worldToScene(world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden),
           )
         : null,
-    [world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone],
+    [world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden],
   );
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
@@ -2299,6 +2312,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
                   world={world}
                   hidden={hidden}
                   onStampClick={(id) => setHighlightShared(id)}
+                  gardenIslandId={gardenOn ? GARDEN_ISLAND_ID : null}
                 />
               </>
             ) : (
@@ -2963,6 +2977,30 @@ function useBakedStone(enabled: boolean): BakedStoneAsset | null {
   return stone;
 }
 
+/** The exemplar island the cosy-island garden composes onto (grounded-art inc 11, ADR-0221) — the
+ *  `studio` story, whose concept image the whole arc matches. */
+const GARDEN_ISLAND_ID = 'studio';
+
+/**
+ * The cosy-island garden, assembled only when `?garden=on` (ADR-0221) has fetched the inc-10 heroes
+ * from the dynamic kit chunk — `null` until they arrive, and forever if the flag is off. The mirror of
+ * {@link useBakedStone} for the garden composition: until it resolves the exemplar island renders its
+ * normal flora, so the swap is a late repaint rather than a hole in the world.
+ */
+function useGardenIsland(enabled: boolean): SceneGardenInput | null {
+  const [heroes, setHeroes] = useState<SceneGardenInput['heroes'] | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    void loadGardenHeroes().then(
+      (h) => { if (live) setHeroes(h); },
+      (err: unknown) => { console.error('garden heroes failed to load; keeping the default island', err); },
+    );
+    return () => { live = false; };
+  }, [enabled]);
+  return enabled && heroes ? { islandId: GARDEN_ISLAND_ID, heroes } : null;
+}
+
 /**
  * A promoted ICON STAMP (ADR-0102) on a map island: the identity glyph of a BUILDING this island
  * depends on ("you carry the icon of what you depend on"). NOT a replacement for the island's tree
@@ -3034,11 +3072,17 @@ export function StudioWorldChrome({
   world,
   hidden,
   onStampClick,
+  gardenIslandId = null,
 }: {
   world: HexWorld;
   hidden: ReadonlySet<string>;
   /** ADR-0102: clicking an island's stamp highlights the shared island it names in the left panel. */
   onStampClick: (sharedId: string) => void;
+  /** The cosy-island garden's exemplar island id when `?garden` is on (grounded-art inc 11, ADR-0221),
+   *  else null. The garden island carries NO 2D dependency stamps and NO identity-key glyph — the
+   *  concept is a clean garden with no little house glyphs (owner ask 2026-07-20). Every OTHER island
+   *  is untouched, and with the flag off (null) nothing changes. */
+  gardenIslandId?: string | null;
 }): React.JSX.Element {
   // ADR-0217 increment 5: every island's identity drawn as a building the factory produced.
   // Behind a flag because the LOOK is the owner's verdict to give (ADR-0070 stage 2), not ours.
@@ -3065,25 +3109,31 @@ export function StudioWorldChrome({
           ))}
         </g>
       )}
-      {/* The distributed-consumer building stamps each island carries (ADR-0102). */}
+      {/* The distributed-consumer building stamps each island carries (ADR-0102). The cosy-island
+          GARDEN island carries none — the concept is a clean garden, no little house glyphs (ADR-0221). */}
       {world.territories.map((t) =>
-        t.stamps.map((stamp) => (
-          <StoryStamp
-            key={`stamp:${t.story.id}:${stamp.icon}`}
-            story={t.story}
-            icon={stamp.icon}
-            spot={stamp.spot}
-            hidden={hidden}
-            onStampClick={onStampClick}
-            kit={kit}
-          />
-        )),
+        t.story.id === gardenIslandId
+          ? null
+          : t.stamps.map((stamp) => (
+              <StoryStamp
+                key={`stamp:${t.story.id}:${stamp.icon}`}
+                story={t.story}
+                icon={stamp.icon}
+                spot={stamp.spot}
+                hidden={hidden}
+                onStampClick={onStampClick}
+                kit={kit}
+              />
+            )),
       )}
       {/* The per-nameplate identity-key glyph (ADR-0102) — the scene draws the plate; this restores
           the key beside it at the SAME world placement the legacy TerritoryFlora used: inside the
           plate group (centroid.x - w/2, labelY), then right of the plate base-aligned to its bottom
           (w + NAMEPLATE_KEY_MARGIN, h). The building-glyph stays false on the map (ADR-0088). */}
       {world.territories.map((t) => {
+        // The garden island shows no identity-key house glyph either — a clean nameplate to match the
+        // concept (ADR-0221); every other island keeps its key. Flag off ⇒ gardenIslandId is null.
+        if (t.story.id === gardenIslandId) return null;
         const plate = nameplateLayout(t.story.id.length, t.buildingGlyph);
         const x = t.centroid.x - plate.w / 2 + plate.w + NAMEPLATE_KEY_MARGIN;
         const y = t.labelY + plate.h;

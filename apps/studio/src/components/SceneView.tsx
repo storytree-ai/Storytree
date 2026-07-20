@@ -151,6 +151,11 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'tall-flower-center': 'tall-flower-center',
   'tall-flower-bud': 'tall-flower-bud',
   'tall-flower-glow': 'tall-flower-glow',
+  // the cosy-island GARDEN's flat decorative accents (grounded-art inc 11) — lavender + grass tufts,
+  // colour CSS-side like the tall-flower family (ADR-0093 §4). Decorative, no verdict.
+  'garden-lavender-stem': 'garden-lavender-stem',
+  'garden-lavender-head': 'garden-lavender-head',
+  'garden-grass-blade': 'garden-grass-blade',
   // ADR-0218: the fenced baked-art family. `baked-defs` is the definition layer (rendered as
   // `<defs>`, non-rendering — no class); `baked-art` is a placement `<use>` (a stable hook, no colour
   // of its own — the paint is inside the referenced def).

@@ -360,6 +360,45 @@ test('r3f UAT-marker flowers (grounded-art inc 7): tall-flower markers add ZERO 
   assert.ok(skips.includes('tall-flower-petal'), 'a flower body mark skips by name');
 });
 
+test('r3f garden composition (grounded-art inc 11, ADR-0221): baked heroes + flat accents add ZERO 3D instances and skip by name', () => {
+  // The cosy-island garden is studio-only + flag-only; the website never sends `garden`, so R3F never
+  // sees it in production. This test asserts that IF it did, every garden node is a NAMED skip (never a
+  // stray 3D instance): the heroes ride the ADR-0218 baked-art family R3F already skips, and the new flat
+  // accent kinds (lavender/grass) auto-skip via the mapper's default — the coverage the plan's Unit 5 asks.
+  const gHero = (height: number) => ({
+    nodes: [{ el: 'polygon' as const, points: '0,0 5,0 0,-5', fill: '#cba', stroke: '#210', strokeWidth: 0.3 }],
+    width: 10,
+    height,
+  });
+  const garden = {
+    islandId: 'library',
+    heroes: { cottage: gHero(21.8), gazebo: gHero(15.4), 'autumn-tree': gHero(20.6), 'stepping-stone': gHero(6.3) },
+  };
+  const uatCriteria = [{ id: 'a', state: 'proven' as const }];
+  const bare = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] })));
+  const withGarden = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })], garden })));
+
+  const skips = withGarden.filter(asSkipped).map((s) => s.sceneKind);
+  assert.ok(skips.includes('baked-art'), 'the baked hero + stone placements skip by name');
+  assert.ok(skips.includes('baked-defs'), 'the baked-defs layer skips by name');
+  assert.ok(skips.includes('garden-lavender-stem'), 'the lavender accent skips by name');
+  assert.ok(skips.includes('garden-grass-blade'), 'the grass accent skips by name');
+  assert.ok(skips.includes('tall-flower-proven'), 'the UAT daisy-bed flowers still skip by name');
+
+  // no garden node became a real instance, and the hero tree REPLACES the procedural story-tree on the
+  // garden island (a baked skip, not a story-tree), so the garden island has no story-tree instance.
+  for (const d of withGarden.filter(asInstance)) {
+    const kind = String(d.kind);
+    assert.ok(!kind.startsWith('garden-') && kind !== 'baked-art', `${kind} must not be a 3D instance`);
+  }
+  assert.equal(
+    withGarden.filter(asInstance).filter((d) => d.kind === 'story-tree').length,
+    0,
+    'the hero tree replaces the story-tree on the garden island',
+  );
+  assert.ok(bare.filter(asInstance).some((d) => d.kind === 'story-tree'), 'the default (no-garden) island keeps its story-tree');
+});
+
 // ---------------------------------------------------------------------------
 // folded status flows to the material variant
 // ---------------------------------------------------------------------------

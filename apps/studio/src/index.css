@@ -94,6 +94,12 @@
   --flower-petal-failing: #b9b3a7; /* desaturated, greyed — a wilted head */
   --flower-center-failing: #8f8672; /* a dull, spent centre */
 
+  /* the cosy-island GARDEN's decorative accents (grounded-art inc 11) — warm, low-saturation, matching
+     the concept's lavender + sage grass (docs/research/grounded-art-concept/style-bible.md). */
+  --garden-lavender-stem: #7c8a5b; /* muted sage-green lavender stalk */
+  --garden-lavender-head: #9a8fb0; /* dusty muted purple flower spike */
+  --garden-grass-blade: #8a9663; /* warm sage grass blade */
+
   /* story-world flora — per-status crown pairs (one source of truth: flora +
      legend). The growth/colour ladder (ADR-0038): proposed = young amber tree,
      mapped = full BROWNFIELD canopy (the glossary's own word for mapped),
@@ -5916,4 +5922,23 @@ button.legend-tile:hover {
   .tall-flower-proven .tall-flower-glow {
     animation: none;
   }
+}
+/* ============================================================================
+   The cosy-island GARDEN's flat decorative accents (grounded-art inc 11) — a lavender clump and grass
+   tufts in the attested flat tall-flower style. Colour resolves HERE (colour-is-class, ADR-0093 §4); the
+   SceneView mapper emits `.garden-lavender-stem/-head` and `.garden-grass-blade` verbatim. Decorative
+   only — they carry no verdict. Warm, low-saturation to match the concept (docs/research/grounded-art-concept).
+   ============================================================================ */
+.garden-lavender-stem {
+  fill: none;
+  stroke: var(--garden-lavender-stem, #7c8a5b);
+  stroke-linecap: round;
+}
+.garden-lavender-head {
+  fill: var(--garden-lavender-head, #9a8fb0);
+}
+.garden-grass-blade {
+  fill: none;
+  stroke: var(--garden-grass-blade, #8a9663);
+  stroke-linecap: round;
 }

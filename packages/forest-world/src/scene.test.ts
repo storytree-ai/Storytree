@@ -25,6 +25,8 @@ import {
   type SceneInput,
   type SceneTerritoryInput,
   type ScenePlantInput,
+  type SceneGardenInput,
+  type SceneGardenHero,
 } from './scene.js';
 
 // ---------- traversal helpers ----------
@@ -1222,4 +1224,197 @@ test('§ back-compat ABSENCE LOCK: uatCriteria absent OR empty → NO marker kin
   }
   const empty = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria: [] })] }));
   assert.deepEqual(empty, buildScene(mkInput({ territories: [mkTerritory()] })));
+});
+
+// ---------- the cosy-island GARDEN (grounded-art inc 11, ADR-0221) ----------
+//
+// PRESENT ⇒ the named island composes as the concept garden: the four heroes placed through the re-lit
+// ADR-0218 baked-art seam, decorative flora suppressed, the autumn-tree hero standing as the central
+// tree. ABSENT ⇒ every island byte-for-byte (the committed golden fixture above is the byte lock).
+
+/** A minimal baked hero (one polygon) at a given baked height — enough to assert defs/placement/scale. */
+const gHero = (height: number): SceneGardenHero => ({
+  nodes: [{ el: 'polygon', points: '0,0 5,0 0,-5', fill: '#cba', stroke: '#210', strokeWidth: 0.3 }],
+  width: 10,
+  height,
+});
+/** A garden naming `islandId`, carrying all four heroes at their real baked heights. */
+const mkGarden = (islandId: string): SceneGardenInput => ({
+  islandId,
+  heroes: {
+    cottage: gHero(21.8),
+    gazebo: gHero(15.4),
+    'autumn-tree': gHero(20.6),
+    'stepping-stone': gHero(6.3),
+  },
+});
+/** Every descendant (incl. self) whose `el` matches. */
+const allByEl = (n: SceneNode, el: string): SceneNode[] => {
+  const out: SceneNode[] = [];
+  const walk = (m: SceneNode): void => {
+    if (m.el === el) out.push(m);
+    for (const c of children(m)) walk(c);
+  };
+  walk(n);
+  return out;
+};
+/** The territory group with the given id. */
+const territoryById = (scene: SceneNode, id: string): SceneNode => {
+  const hit = allByKind(scene, 'territory').find((t) => t.id === id);
+  assert.ok(hit, `expected a territory "${id}"`);
+  return hit;
+};
+/** A two-island scene: `library` composes as a garden, `cli` is a normal island. */
+const mkGardenTerritories = (over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInput[] => [
+  mkTerritory({ id: 'library', ...over }),
+  mkTerritory({ id: 'cli', caps: 2, centroid: { x: 300, y: 60 }, treeSpot: { x: 300, y: 50 }, plants: [], decor: [] }),
+];
+
+test('garden ABSENT → no baked-defs / baked-art anywhere (the absence lock; golden guards the bytes)', () => {
+  const scene = buildScene(mkInput());
+  assert.equal(firstByKind(scene, 'baked-defs'), null);
+  assert.equal(firstByKind(scene, 'baked-art'), null);
+});
+
+test('garden PRESENT → one baked-defs layer, a def per USED hero + the stepping-stone path', () => {
+  const scene = buildScene(mkInput({ garden: mkGarden('library') }));
+  const defs = allByEl(mustByKind(scene, 'baked-defs'), 'baked-def');
+  assert.equal(defs.length, 4, 'four defs — the three garden heroes + the stepping-stone path (unit 2, define-once)');
+  const ids = defs.map((d) => (d as { defId: string }).defId).sort();
+  assert.deepEqual(ids, [
+    'garden-hero-autumn-tree',
+    'garden-hero-cottage',
+    'garden-hero-gazebo',
+    'garden-hero-stepping-stone',
+  ]);
+});
+
+test('garden PRESENT → three hero placements + a stepping-stone path, all on the NAMED island', () => {
+  const scene = buildScene(mkInput({ garden: mkGarden('library') }));
+  const uses = allByKind(scene, 'baked-art');
+  const heroRefs = uses
+    .map((u) => (u as { defId: string }).defId)
+    .filter((d) => d !== 'garden-hero-stepping-stone')
+    .sort();
+  assert.deepEqual(heroRefs, ['garden-hero-autumn-tree', 'garden-hero-cottage', 'garden-hero-gazebo']);
+  const stones = uses.filter((u) => (u as { defId: string }).defId === 'garden-hero-stepping-stone');
+  assert.ok(stones.length >= 1, 'the stone path lays at least one stepping-stone (define-once, many uses)');
+  // everything (heroes + stones) is on the NAMED island; the normal island is untouched.
+  assert.equal(allByKind(territoryById(scene, 'library'), 'baked-art').length, uses.length);
+  assert.equal(allByKind(territoryById(scene, 'cli'), 'baked-art').length, 0, 'the normal island is untouched');
+});
+
+test('garden PRESENT → the autumn-tree hero REPLACES the procedural tree on the garden island only', () => {
+  const scene = buildScene(mkInput({ garden: mkGarden('library') }));
+  const gardenIsle = territoryById(scene, 'library');
+  assert.equal(firstByKind(gardenIsle, 'tree'), null, 'no procedural tree on the garden island');
+  const treeUse = allByKind(gardenIsle, 'baked-art').find(
+    (u) => (u as { defId: string }).defId === 'garden-hero-autumn-tree',
+  );
+  assert.ok(treeUse, 'the autumn-tree hero stands as the central tree');
+  assert.ok(firstByKind(territoryById(scene, 'cli'), 'tree'), 'the normal island keeps its procedural tree');
+});
+
+test('garden PRESENT → procedural flora + central tree suppressed; the 1:1 UAT scatter folds into a massed BED', () => {
+  const scene = buildScene(
+    mkInput({
+      territories: mkGardenTerritories({
+        uatCriteria: [
+          { id: 'c1', state: 'proven' },
+          { id: 'c2', state: 'pending' },
+          { id: 'c3', state: 'failing' },
+        ],
+      }),
+      garden: mkGarden('library'),
+    }),
+  );
+  const gardenIsle = territoryById(scene, 'library');
+  // the decorative conifers / capability-plant flora and the PROCEDURAL central tree are replaced by heroes.
+  for (const k of ['conifer', 'flora', 'tree']) {
+    assert.equal(firstByKind(gardenIsle, k), null, `no ${k} on the garden island`);
+  }
+  // the UAT verdict is RETAINED — one flower per criterion in a massed bed, each keeping its id + state
+  // (the FORM reads the verdict, the id is the click-to-detail hook) — NOT the busy 1:1 island scatter.
+  const beds = [
+    ...allByKind(gardenIsle, 'tall-flower-proven'),
+    ...allByKind(gardenIsle, 'tall-flower-pending'),
+    ...allByKind(gardenIsle, 'tall-flower-failing'),
+  ];
+  assert.equal(beds.length, 3, 'one flower per criterion in the bed (verdict retained, not suppressed)');
+  assert.deepEqual(beds.map((f) => f.id).sort(), ['c1', 'c2', 'c3'], 'each bed flower keeps its criterion id');
+});
+
+test('garden PRESENT → the human-witness signpost is RETAINED beside the hero tree', () => {
+  const scene = buildScene(
+    mkInput({
+      territories: mkGardenTerritories({ signpost: { outcome: 'pass' } }),
+      garden: mkGarden('library'),
+    }),
+  );
+  assert.ok(firstByKind(territoryById(scene, 'library'), 'sign-pass'), 'signpost retained on the garden island');
+});
+
+test('garden is deterministic — same input → byte-identical scene', () => {
+  assert.deepEqual(
+    buildScene(mkInput({ garden: mkGarden('library') })),
+    buildScene(mkInput({ garden: mkGarden('library') })),
+  );
+});
+
+test('garden def carries the hero nodes VERBATIM (BakedPaintNode shape-parity with kit.json heroes)', () => {
+  const gdn = mkGarden('library');
+  const scene = buildScene(mkInput({ garden: gdn }));
+  const def = allByEl(mustByKind(scene, 'baked-defs'), 'baked-def')[0] as { nodes: unknown[] };
+  assert.deepEqual(def.nodes, gdn.heroes['autumn-tree'].nodes, 'the def references the folded nodes unchanged');
+});
+
+test('garden stone path — deterministic stepping-stones that dock at the downward-shore landfall (unit 2)', () => {
+  // The path threads landfall → cottage → tree → gazebo. Assert it lays stones, is deterministic
+  // (seeded — no Math.random), and reaches DOWN toward the bottom-shore landfall (a stone sits below
+  // the tree spot), so it reads continuous with the island's inter-island trail.
+  const yOf = (n: SceneNode): number => Number(/translate\((?:-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '')?.[1] ?? '0');
+  const scene = buildScene(mkInput({ territories: mkGardenTerritories(), garden: mkGarden('library') }));
+  const again = buildScene(mkInput({ territories: mkGardenTerritories(), garden: mkGarden('library') }));
+  assert.deepEqual(scene, again, 'the stone path is deterministic');
+  const isle = territoryById(scene, 'library');
+  const stones = allByKind(isle, 'baked-art').filter((u) => (u as { defId: string }).defId === 'garden-hero-stepping-stone');
+  assert.ok(stones.length >= 2, 'the path lays several stepping-stones');
+  const tree = mkTerritory({ id: 'library' }).treeSpot.y;
+  assert.ok(stones.some((s) => yOf(s) > tree), 'a stone sits below the tree — the path docks toward the bottom-shore landfall');
+});
+
+test('garden heroes are FITTED to the island — a small island shrinks them within its shore, a large one does not (unit 2)', () => {
+  // The owner's "buildings dont fully land within the island" fix: `crownRadius` saturates, so on a
+  // small island the crown-scaled footprint overflows. Every test hero is gHero(width 10), so a
+  // `baked-use`'s base HALF-WIDTH is scale·10/2. On a SMALL island the fit cap holds each footprint
+  // inside the island; on a LARGE island the cap is slack and the SAME hero grows (concept proportions).
+  const scaleOf = (n: SceneNode): number => Number(/scale\(([\d.]+)\)/.exec(n.transform ?? '')?.[1] ?? '0');
+  const HERO_W = 10;
+  const heroesOf = (radius: number): SceneNode[] => {
+    const scene = buildScene(
+      mkInput({
+        territories: [
+          mkTerritory({ id: 'library', radius, caps: 9 }),
+          mkTerritory({ id: 'cli', caps: 2, centroid: { x: 800, y: 60 }, treeSpot: { x: 800, y: 50 } }),
+        ],
+        garden: mkGarden('library'),
+      }),
+    );
+    return allByKind(territoryById(scene, 'library'), 'baked-art').filter(
+      (u) => (u as { defId: string }).defId !== 'garden-hero-stepping-stone',
+    );
+  };
+  const small = heroesOf(20);
+  assert.equal(small.length, 3);
+  for (const u of small) {
+    const halfW = (scaleOf(u) * HERO_W) / 2;
+    assert.ok(halfW <= 0.5 * 20, `${(u as { defId: string }).defId} half-width ${halfW} overflows the small island`);
+  }
+  // the SAME heroes on a much larger island are bigger — the fit is island-relative, not fixed.
+  const large = heroesOf(400);
+  const smallById = new Map(small.map((u) => [(u as { defId: string }).defId, scaleOf(u)]));
+  for (const u of large) {
+    const id = (u as { defId: string }).defId;
+    assert.ok(scaleOf(u) > smallById.get(id)!, `${id} did not grow on the larger island — the fit isn't island-relative`);
+  }
 });

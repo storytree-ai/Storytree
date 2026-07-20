@@ -25,6 +25,7 @@ import {
   buildShareUrl,
   readRenderScene,
   readCosyIsland,
+  readGardenIsland,
   type ControlSpec,
 } from './worldSettings.js';
 
@@ -38,10 +39,11 @@ function ctl(key: string): ControlSpec {
 describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
   it('exposes exactly the surviving dials, each with a key/label/group/kind/hint', () => {
     const keys = CONTROLS.map((c) => c.key);
-    // Layout (DAG vs solar) + Ground (tiling) — the only dials left. The `buildingIsland`
-    // toggle was REMOVED with ADR-0088 (the shared-island panel is permanent, not a gear
-    // flag), so the gear no longer carries a Panels switch.
-    const expected = ['layout', 'substrate'];
+    // Layout (DAG vs solar) + Ground (tiling), plus the grounded-art cosy-island feature gates
+    // (`garden` / `cosy`) surfaced as gear toggles (owner ask 2026-07-20 — flick them in the panel
+    // rather than type URLs). The `buildingIsland` toggle was REMOVED with ADR-0088 (the shared-island
+    // panel is permanent, not a gear flag), so the gear no longer carries a Panels switch.
+    const expected = ['layout', 'substrate', 'garden', 'cosy'];
     expect([...keys].sort()).toEqual([...expected].sort());
     // The retired river/pond dials, road-routing dials AND the removed building toggles
     // (building-DRAWER, then building-ISLAND) must be GONE (genuinely stripped, not shelved —
@@ -72,13 +74,15 @@ describe('worldSettings — schema (docked-line roads, ADR-0076)', () => {
     }
   });
 
-  it('groups controls under Layout and Ground only (Panels gone with ADR-0088)', () => {
+  it('groups controls under Layout, Ground and Cosy island (Panels gone with ADR-0088)', () => {
     const groups = new Set(CONTROLS.map((c) => c.group));
     expect(groups.has('Layout')).toBe(true);
     expect(groups.has('Ground')).toBe(true);
+    // The grounded-art cosy-island feature gates (garden / cosy) live in their own gear section.
+    expect(groups.has('Cosy island')).toBe(true);
     // The building-island toggle (the only Panels control) was removed — no Panels section.
     expect(groups.has('Panels')).toBe(false);
-    expect(groups.size).toBe(2);
+    expect(groups.size).toBe(3);
   });
 
   it('keys are unique', () => {
@@ -190,5 +194,46 @@ describe('worldSettings — readCosyIsland (grounded-art inc 9, default-off cosy
   it('an unknown ?cosy value stays OFF (no silent typo-activation)', () => {
     expect(readCosyIsland('?cosy=wat')).toBe(false);
     expect(readCosyIsland('?cosy=off')).toBe(false);
+  });
+});
+
+describe('worldSettings — readGardenIsland (grounded-art inc 11, ADR-0221, default-off garden flag)', () => {
+  it('defaults OFF (absent or unrelated params)', () => {
+    expect(readGardenIsland('')).toBe(false);
+    expect(readGardenIsland('?cosy=on&layout=solar')).toBe(false);
+  });
+  it('reads ON for the accepted spellings', () => {
+    expect(readGardenIsland('?garden=on')).toBe(true);
+    expect(readGardenIsland('?garden=1')).toBe(true);
+    expect(readGardenIsland('?garden=true')).toBe(true);
+  });
+  it('an unknown ?garden value stays OFF', () => {
+    expect(readGardenIsland('?garden=wat')).toBe(false);
+    expect(readGardenIsland('?garden=off')).toBe(false);
+  });
+});
+
+describe('worldSettings — the cosy-island gear TOGGLES (owner ask: gear panel, not URLs)', () => {
+  it('garden + cosy are default-off toggles in the "Cosy island" group', () => {
+    for (const key of ['garden', 'cosy']) {
+      const c = ctl(key);
+      expect(c.kind).toBe('toggle');
+      expect(c.group).toBe('Cosy island');
+      expect(readControlValue('', c)).toBe(false); // default off
+    }
+  });
+  it('flicking the garden toggle writes garden=on / removes it — and the reader agrees', () => {
+    const c = ctl('garden');
+    const on = setControlValue('', c, true);
+    expect(on).toBe('?garden=on');
+    expect(readControlValue(on, c)).toBe(true);
+    expect(readGardenIsland(on)).toBe(true); // the gear toggle and the standalone reader match
+    expect(setControlValue('?garden=on', c, false)).toBe(''); // back to default removes the param
+  });
+  it('the cosy toggle writes cosy=on / removes it, matching readCosyIsland', () => {
+    const c = ctl('cosy');
+    expect(setControlValue('', c, true)).toBe('?cosy=on');
+    expect(readCosyIsland('?cosy=on')).toBe(true);
+    expect(setControlValue('?cosy=on', c, false)).toBe('');
   });
 });

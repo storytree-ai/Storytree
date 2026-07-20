@@ -27,7 +27,7 @@
 // able to enter the shared scene at all is a live question for the owner — see the
 // increment-5 notes — and deliberately NOT decided here.
 
-import type { BakedPaintNode } from '@storytree/forest-world';
+import type { BakedPaintNode, GardenHeroId, SceneGardenHero } from '@storytree/forest-world';
 import { storyIcon } from './buildingLayout.js';
 
 /** One drawable of a baked building — the vector node vocabulary, already resolved. */
@@ -50,6 +50,15 @@ export interface FactoryBuilding {
 interface KitAsset {
   note: string;
   entries: FactoryBuilding[];
+}
+
+/** One baked cosy-island HERO in `kit.json`'s `heroes` array (grounded-art inc 10) — the same
+ *  resolved-vector node vocabulary as a building, plus its stable id/label. */
+interface KitHero extends FactoryBuilding {
+  id: GardenHeroId;
+}
+interface KitAssetWithHeroes extends KitAsset {
+  heroes: KitHero[];
 }
 
 /** Resolved once and reused — the asset is immutable and the parse is not free. */
@@ -87,6 +96,35 @@ export function factoryBuildingFor(kit: readonly FactoryBuilding[], storyId: str
 
 /** The `<defs>` id a building is defined under, and referenced by. */
 export const factoryDefId = (kitId: string): string => `factory-building-${kitId}`;
+
+// ---------------------------------------------------------------------------
+// the cosy-island GARDEN heroes (grounded-art inc 11) — the fold into SceneInput.garden
+// ---------------------------------------------------------------------------
+//
+// The studio side of ADR-0221's garden composition: it fetches the four inc-10 heroes from the SAME
+// dynamic `kit.json` chunk (off the main bundle) and hands the core their resolved-paint nodes + baked
+// box, keyed by id. The core (`@storytree/forest-world`) places them through the re-lit ADR-0218 seam;
+// paint stays inside the baked family, so ADR-0093 §4's colour-is-class invariant holds everywhere else.
+
+/** Resolved once and reused — the asset is immutable and the parse is not free. */
+let heroesPromise: Promise<Record<GardenHeroId, SceneGardenHero>> | null = null;
+
+/**
+ * Load the cosy-island heroes, keyed by their `kit.json` id.
+ *
+ * DYNAMIC for the same reason as the kit and the stone: the geometry (the autumn-tree hero alone is
+ * ~480 nodes) rides in its own chunk fetched only when `?garden=on` asks for it, so a studio load with
+ * the flag off pays nothing for it (the megabyte-chunk precedent, inc 5/10).
+ */
+export function loadGardenHeroes(): Promise<Record<GardenHeroId, SceneGardenHero>> {
+  heroesPromise ??= import('@storytree/procedural-architecture/kit.json').then((m) => {
+    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as unknown as KitAssetWithHeroes);
+    const byId = {} as Record<GardenHeroId, SceneGardenHero>;
+    for (const h of kit.heroes) byId[h.id] = { nodes: h.nodes, width: h.width, height: h.height };
+    return byId;
+  });
+  return heroesPromise;
+}
 
 /**
  * The kit entries a given set of stories actually needs, in kit order.
