@@ -9,13 +9,18 @@ proof_mode: UAT
 # reliability gate (the core's own offline determinism/invariant suite), observe-and-signed into an
 # `adopted` verdict. No DB, no API key, no browser — the geometry is exercised headless.
 uat_witness: machine
-# Lightweight + expandable (ADR-0074 §3, the foundational-root shape): the geometry KERNEL
-# (mesh / coast / ranking / hex / sizing) and the framework-agnostic SCENE-GRAPH (`scene.ts`,
-# buildScene over the core's own SceneInput contract) are both BUILT in this core, and the three thin
-# mappers (studio React; website string-SVG, synced; R3F, packages/forest-world-r3f) live with their
-# surfaces/packages — all without growing this list. ZERO sub-capabilities stays the authoring
-# choice: add one when an in-core unit needs its own red→green leg (a real defect, a new layer).
-capabilities: []
+# The capability FLOOR (ADR-0222 D2, option A — the owner's stated preference, executing the live
+# `forest-world-capability-floor` proposal): ONE capability standing for the render core — the geometry
+# KERNEL (mesh / coast / ranking / hex / sizing) plus the deterministic trail router and the
+# framework-agnostic SCENE-GRAPH (`scene.ts`, buildScene over the core's own SceneInput contract), all
+# BUILT in this core — its contracts carrying the observed 106-test suite so the island grows honest
+# flora (the map's parcels + flora density derive from a capability's contract count; an empty list
+# painted forest-world a bare sapling despite its real suite). The three thin mappers (studio React;
+# website string-SVG, synced; R3F, packages/forest-world-r3f) live with their surfaces/packages, proven
+# there — outside this list. Split no finer than the floor until an in-core unit earns its own red→green
+# leg (a real defect, a new layer). The thin-port empty-capabilities exemption (proof-protocol /
+# storage-protocol) is explicitly NOT reopened (ADR-0222 D2).
+capabilities: [render-core]
 # Foundational root organism (ADR-0093 §1, standing on ADR-0068 / ADR-0075): forest-world owns its OWN
 # minimal input contract (a story is just an id + deps + its capabilities' deps), so it depends on
 # NOTHING — `depends_on: []`, alongside proof-protocol and storage-protocol at the bottom of the order.
@@ -30,8 +35,9 @@ consumed_by: [website-experience]
 # Deciding ADRs (ADR-0037 §2): the shared render-core decision / this package's identity as a
 # foundational root (93); the organism model it stands on (68); ports/shared cores as root organisms,
 # the foundational-minimality rule (75); author-defined story green + mapped-as-bootstrap (83); the
-# brownfield reliability gates + observe-and-sign that flip it off mapped (85).
-decisions: [68, 75, 83, 85, 93]
+# brownfield reliability gates + observe-and-sign that flip it off mapped (85); and the capability-floor
+# split that gives this story its one render-core capability (222).
+decisions: [68, 75, 83, 85, 93, 222]
 ---
 
 # The forest-world render core — the shared deterministic geometry both surfaces draw from
@@ -119,12 +125,14 @@ this core is ever authored as its own capability. (The scene-graph
 three mappers (§2–§3, [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md))
 live with their surfaces/packages, proven there; none of that growth has needed a new gate here yet.)
 
-1. **The core's own geometry suite is green** _(gate: observe)_ `pnpm --filter @storytree/forest-world test`.
-   The spine runs it at a clean committed HEAD and OBSERVES it green — the 41 offline tests
-   (18 geometry-kernel + 23 scene-graph) covering determinism (same input → byte-identical mesh,
-   coast, and scene), longest-path ranking (a dependent ranks strictly above every dependency,
-   cycle-safe), the mesh / coast invariants, and the scene-graph's drawable / status-folding
-   correctness all pass offline (no DB, no API key, no browser) — then signs an `adopted` verdict
+1. **The core's own geometry suite is green** _(gate: observe)_ _(covers: render-core)_ `pnpm --filter @storytree/forest-world test`.
+   The spine runs it at a clean committed HEAD and OBSERVES it green — the 106 offline tests
+   (18 geometry-kernel + 23 trail-router + 65 scene-graph) covering determinism (same input →
+   byte-identical mesh, coast, trail network, and scene), longest-path ranking (a dependent ranks
+   strictly above every dependency, cycle-safe), the mesh / coast invariants, and the scene-graph's
+   drawable / status-folding correctness all pass offline (no DB, no API key, no browser) — then the
+   one `render-core` capability greens via this gate's `(covers:)` (ADR-0097 §5) and the spine signs an
+   `adopted` verdict
    (`storytree gate run forest-world#gate-1 --pg`). This is the
    [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
    / [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md) /
@@ -135,8 +143,9 @@ live with their surfaces/packages, proven there; none of that growth has needed 
 ## Proof
 
 **Status off `mapped` is EARNED, not authored.** `packages/forest-world` already has a real, passing,
-offline suite (41 tests today — determinism, ranking, mesh/coast invariants, scene-graph correctness)
-that observationally verifies both pure layers — that observational green is brownfield `mapped`.
+offline suite (106 tests today — determinism, ranking, mesh/coast invariants, the deterministic trail
+router, and scene-graph correctness) that observationally verifies both pure layers — that observational
+green is brownfield `mapped`.
 The core leaves `mapped` exactly when its `observe` reliability gate above is **adopted**: the spine observes the suite
 green at a clean committed HEAD and signs an `adopted` machine verdict
 ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
@@ -146,15 +155,17 @@ verdict.
 
 ## Open modeling calls (for the owner)
 
-1. **Capability granularity.** Kept to ZERO sub-capabilities — the core is one proven thing (ADR-0074
-   §3 lightweight-and-expandable). Since this story was authored, the framework-agnostic
-   **scene-graph** builder has LANDED inside the core (`scene.ts` — `buildScene` over the core's own
-   `SceneInput` contract → typed drawables, covered by the same observed suite), and all three thin
-   mappers exist OUTSIDE it: the **studio** React mapper (`worldToScene`,
+1. **Capability granularity — TAKEN (ADR-0222 D2, 2026-07-20).** This was the open call "when a
+   capability should exist"; the owner took it as the capability-floor decision, option A: ONE
+   capability, [`render-core`](render-core.md), standing for the whole core (the geometry kernel + the
+   deterministic trail router + the framework-agnostic scene-graph, `scene.ts` — `buildScene` over the
+   core's own `SceneInput` contract → typed drawables), with `## Contracts` carrying the observed
+   106-test suite so the island grows honest flora. The three thin mappers still live OUTSIDE it,
+   proven with their surfaces/packages: the **studio** React mapper (`worldToScene`,
    `apps/studio/src/components/TreeView.tsx`), the **website** string-SVG mapper (over the synced
    engine, [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
    §3), and the **R3F** 3D mapper (`packages/forest-world-r3f`,
    [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
-   — proven in its own package under the `website-experience` story). None of that growth demanded a
-   capability here; the open call is when one should exist — author it when an in-core unit needs its
-   own red→green leg (a real defect, a new layer), not merely to mirror what landed.
+   — proven in its own package under the `website-experience` story). Split finer than this floor only
+   when an in-core unit earns its own red→green leg (a real defect, a new layer), not merely to mirror
+   what landed; the thin-port empty-capabilities exemption is not reopened (ADR-0222 D2).

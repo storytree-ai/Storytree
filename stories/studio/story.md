@@ -14,11 +14,13 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # out of cli) for its db-control / build surfaces and DROPPED its @storytree/cli dependency — so the
 # `cli` edge is gone. The drive surface is owned by drive-machinery, already in depends_on below, so
 # this is a re-pointing of the same code edge to a narrower package, not a graph change.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail]
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
-# the app brought into the boundary scan as a consuming surface (100), and the drive-package
-# extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112).
-decisions: [8, 36, 38, 100, 112]
+# the app brought into the boundary scan as a consuming surface (100), the drive-package
+# extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the
+# garden-composition fold that added the baked-kit import (221), and the art-factory split that
+# makes that import a declared cross-story edge (222).
+decisions: [8, 36, 38, 100, 112, 221, 222]
 ---
 
 # The studio
@@ -146,6 +148,12 @@ now declared + forest-rendered edges too, each read off real imports:
   geometry kernel (`src/components/TreeView.tsx:110`, `src/components/SceneView.tsx:13`) — the studio and
   the public site draw the same look from one deterministic core (ADR-0093). Consumed as a package; the
   website consumes the synced artifact.
+- **`art-factory`** — the **baked-art kit**: `src/lib/factoryBuildings.ts` imports the factory's
+  build-time assets (`@storytree/procedural-architecture/kit.json` + `/stone.json`) and folds the baked
+  buildings / hero garden set / stones onto the island (ADR-0221). This is a real package import
+  (`apps/studio/package.json` `@storytree/procedural-architecture`), made a declared + forest-rendered
+  cross-story edge by the ADR-0222 split that moved the package's ownership from `forest-world` to its
+  own `art-factory` story.
 - **`studio-members`** — the **access-control compute**: the server resolves member access with
   `resolveAccess` / `mergeUser` (`server/libraryBackend.ts:25`, `server/guestPolicy.ts:17`) — the
   member/user schema the Members panel renders from (ADR-0043).
