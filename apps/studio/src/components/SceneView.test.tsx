@@ -11,7 +11,6 @@ import { render, fireEvent, cleanup } from '@testing-library/react';
 import {
   buildScene,
   trailFillWidth,
-  BAKED_STONE_DEF,
   type BuildPhase,
   type ClaimColourState,
   type ClaimGrade,
@@ -576,10 +575,11 @@ describe('SceneView — capability parcels (forest-parcels inc 1)', () => {
   });
 });
 
-// forest-parcels inc 2: the studio mapper translates the core's scattered stone-marker drawables →
-// the studio's frozen standing-stone class vocabulary (the CSS is keyed off these names). GEOMETRY
-// (the id-seeded scatter + keep-outs) is the core's; here we pin the role → class translation.
-describe('SceneView — the UAT marker walk (forest-parcels inc 2)', () => {
+// forest-parcels inc 2 (tall flowers, grounded-art inc 7): the studio mapper translates the core's
+// scattered flower-marker drawables → the studio's `.tall-flower-*` class vocabulary (the CSS is keyed
+// off these names). GEOMETRY (the id-seeded scatter + keep-outs) is the core's; here we pin the role →
+// class translation.
+describe('SceneView — the UAT marker flowers (forest-parcels inc 2; grounded-art inc 7)', () => {
   function mkMarkerInput(): SceneInput {
     return {
       offset: { x: 0, y: 0 },
@@ -631,115 +631,56 @@ describe('SceneView — the UAT marker walk (forest-parcels inc 2)', () => {
     return container;
   }
 
-  it('maps one marker wrapper per criterion, composing the shared base + its state class', () => {
+  it('maps one flower-marker wrapper per criterion, composing the shared base + its state class', () => {
     const root = renderMarkers();
-    expect(root.querySelector('.standing-stone-marker.standing-stone-proven')).toBeTruthy();
-    expect(root.querySelector('.standing-stone-marker.standing-stone-pending')).toBeTruthy();
-    expect(root.querySelector('.standing-stone-marker.standing-stone-failing')).toBeTruthy();
-    // no walk group and no bed — the stones are scattered drawables (owner call 2026-07-18).
+    expect(root.querySelector('.tall-flower-marker.tall-flower-proven')).toBeTruthy();
+    expect(root.querySelector('.tall-flower-marker.tall-flower-pending')).toBeTruthy();
+    expect(root.querySelector('.tall-flower-marker.tall-flower-failing')).toBeTruthy();
+    // no walk group and no bed — the flowers are scattered drawables (owner call 2026-07-18).
     expect(root.querySelector('.uat-walk')).toBeNull();
     expect(root.querySelector('.walk-path')).toBeNull();
   });
 
-  it('maps the frozen stone-body child kinds to their own classes inside each wrapper', () => {
+  it('maps the flower body child kinds to their own classes; the verdict is read from FORM', () => {
     const root = renderMarkers();
-    const proven = root.querySelector('.standing-stone-marker.standing-stone-proven')!;
-    expect(proven.querySelector('.standing-stone-body')).toBeTruthy();
-    expect(proven.querySelector('.standing-stone-face')).toBeTruthy();
-    expect(proven.querySelector('.standing-stone-cap')).toBeTruthy();
-    expect(proven.querySelector('.standing-stone-rune')).toBeTruthy();
-    // proven + failing carry a lit sigil glow; pending stays dark (no glow marks at all).
-    expect(proven.querySelector('.standing-stone-glow')).toBeTruthy();
-    expect(
-      root.querySelector('.standing-stone-marker.standing-stone-failing')!.querySelector('.standing-stone-glow'),
-    ).toBeTruthy();
-    expect(
-      root.querySelector('.standing-stone-marker.standing-stone-pending')!.querySelector('.standing-stone-glow'),
-    ).toBeNull();
+    // every flower has a stem + leaves.
+    const proven = root.querySelector('.tall-flower-marker.tall-flower-proven')!;
+    expect(proven.querySelector('.tall-flower-stem')).toBeTruthy();
+    expect(proven.querySelector('.tall-flower-leaf')).toBeTruthy();
+    // PROVEN = a bloomed daisy: petals + a centre + the soft warm glow.
+    expect(proven.querySelector('.tall-flower-petal')).toBeTruthy();
+    expect(proven.querySelector('.tall-flower-center')).toBeTruthy();
+    expect(proven.querySelector('.tall-flower-glow')).toBeTruthy();
+    // FAILING = a wilted head: petals + centre, but never a glow (not a bloom).
+    const failing = root.querySelector('.tall-flower-marker.tall-flower-failing')!;
+    expect(failing.querySelector('.tall-flower-petal')).toBeTruthy();
+    expect(failing.querySelector('.tall-flower-glow')).toBeNull();
+    // PENDING = a closed bud: no petals, no centre, no glow — dormant reads as the absence of bloom.
+    const pending = root.querySelector('.tall-flower-marker.tall-flower-pending')!;
+    expect(pending.querySelector('.tall-flower-bud')).toBeTruthy();
+    expect(pending.querySelector('.tall-flower-petal')).toBeNull();
+    expect(pending.querySelector('.tall-flower-glow')).toBeNull();
   });
 
   it('reuses the existing flora-shadow mapping for the marker shadow (no special-case needed)', () => {
     const root = renderMarkers();
     expect(
-      root.querySelector('.standing-stone-marker.standing-stone-proven')!.querySelector('.flora-shadow'),
+      root.querySelector('.tall-flower-marker.tall-flower-proven')!.querySelector('.flora-shadow'),
     ).toBeTruthy();
   });
 
-  it('carries the resolved per-node glow opacity through untouched (the falloff-halo depth cue)', () => {
+  it('carries the resolved per-node glow opacity through untouched (the soft-halo depth cue)', () => {
     const root = renderMarkers();
-    const glows = [...root.querySelectorAll('.standing-stone-marker.standing-stone-proven .standing-stone-glow')];
+    const glows = [...root.querySelectorAll('.tall-flower-marker.tall-flower-proven .tall-flower-glow')];
     expect(glows.length).toBeGreaterThan(1);
     const opacities = new Set(glows.map((g) => g.getAttribute('opacity')));
-    // the layered halo carries DISTINCT per-layer opacities (largest-dimmest first) — the mapper must
-    // never collapse them to one shared value.
+    // the layered halo carries DISTINCT per-layer opacities — the mapper must never collapse them to
+    // one shared value.
     expect(opacities.size).toBeGreaterThan(1);
   });
 
   it('renders nothing marker-related when the story has no uatCriteria', () => {
     const { root } = renderScene();
-    expect(root.querySelector('.standing-stone-marker')).toBeNull();
-  });
-
-  // ADR-0218: when the surface supplies the bake, the flat body is swapped for a `<use>` of the one
-  // baked solid, defined once in a `<defs>`. The paint is inline on the def (a bake's colour is
-  // material × N·L, the fenced exception) — everything else in the marker stays class-driven.
-  function mkBakedMarkerInput(): SceneInput {
-    return {
-      ...mkMarkerInput(),
-      bakedStone: {
-        nodes: [
-          { el: 'polygon', points: '0,0 10,-3 6,-50', fill: '#8a9299', stroke: '#464b4f', strokeWidth: 0.35 },
-          { el: 'polygon', points: '0,0 -6,-3 6,-50', fill: '#41464a', stroke: '#292c2e', strokeWidth: 0.35 },
-        ],
-        width: 22,
-        height: 50,
-      },
-    };
-  }
-  function renderBaked(): HTMLElement {
-    const ctx: SceneCtx = {
-      territoryClassById: (id, status) => `hex-territory st-${status}`,
-      reveal: null,
-      hidden: new Set(),
-      onSelectStory: vi.fn(),
-      onSelectCap: vi.fn(),
-    };
-    return render(
-      <svg>
-        <SceneView scene={buildScene(mkBakedMarkerInput())} ctx={ctx} />
-      </svg>,
-    ).container;
-  }
-
-  it('defines the baked stone ONCE in <defs> with resolved paint inline, referenced by <use>', () => {
-    const root = renderBaked();
-    const def = root.querySelector(`defs g#${BAKED_STONE_DEF}`);
-    expect(def).toBeTruthy();
-    const facets = def!.querySelectorAll('polygon');
-    expect(facets.length).toBe(2);
-    // paint is stamped inline (the fence), not via a class
-    expect(facets[0]!.getAttribute('fill')).toBe('#8a9299');
-    expect(facets[1]!.getAttribute('fill')).toBe('#41464a');
-
-    // one <use> per marker (3 criteria), each referencing the one def
-    const uses = [...root.querySelectorAll('use')].filter((u) => u.getAttribute('href') === `#${BAKED_STONE_DEF}`);
-    expect(uses.length).toBe(3);
-  });
-
-  it('swaps the flat body for the baked solid but leaves the state overlays (rune/glow) intact', () => {
-    const root = renderBaked();
-    // the flat cel-shaded body is gone everywhere…
-    expect(root.querySelector('.standing-stone-body')).toBeNull();
-    expect(root.querySelector('.standing-stone-face')).toBeNull();
-    expect(root.querySelector('.standing-stone-cap')).toBeNull();
-    // …replaced by the baked <use> inside each marker wrapper…
-    const proven = root.querySelector('.standing-stone-marker.standing-stone-proven')!;
-    expect(proven.querySelector('use')).toBeTruthy();
-    // …and the verdict overlays are untouched.
-    expect(proven.querySelector('.standing-stone-rune')).toBeTruthy();
-    expect(proven.querySelector('.standing-stone-glow')).toBeTruthy();
-    expect(
-      root.querySelector('.standing-stone-marker.standing-stone-pending')!.querySelector('.standing-stone-glow'),
-    ).toBeNull();
+    expect(root.querySelector('.tall-flower-marker')).toBeNull();
   });
 });

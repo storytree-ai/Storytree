@@ -20,14 +20,11 @@ import {
   buildPlant,
   buildConifer,
   buildBloom,
-  BAKED_STONE_DEF,
   type SceneG,
   type SceneNode,
   type SceneInput,
   type SceneTerritoryInput,
   type ScenePlantInput,
-  type SceneBakedDef,
-  type SceneBakedUse,
 } from './scene.js';
 
 // ---------- traversal helpers ----------
@@ -1060,14 +1057,13 @@ test('§ back-compat: parcels absent OR no substrate cells → today\'s conifer 
   assert.ok(firstByKind(layer, 'conifer'), 'conifers survive when parcels cannot render');
 });
 
-// ---------- the UAT markers (forest-parcels inc 2) ----------
+// ---------- the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7) ----------
 //
 // Stage-1 GEOMETRY only: the scattered-marker STRUCTURE — wrapper kinds, counts, id carriage,
-// deterministic id-seeded placement with keep-outs. The marker BODY is behind the
-// `standingStoneMarks` splice seam (ADR-0208): its exact marks are deliberately NOT pinned here,
-// so the designer's art can change the body without touching these tests. The LOOK is
-// operator-attested later (ADR-0070). Placement is a SCATTER around the island (owner call
-// 2026-07-18 — no path, no visible bed); each stone is its own y-sorted drawable.
+// deterministic id-seeded placement with keep-outs. The marker BODY is the `tallFlowerMarks` painter:
+// its exact marks are deliberately NOT pinned here, so the designer's art can change the body without
+// touching these tests. The LOOK is operator-attested later (ADR-0070). Placement is a SCATTER around
+// the island (owner call 2026-07-18 — no path, no visible bed); each flower is its own y-sorted drawable.
 
 type UatCriteria = NonNullable<SceneTerritoryInput['uatCriteria']>;
 
@@ -1122,11 +1118,11 @@ function markerScene(
   );
 }
 
-const STONE_TRANSFORM = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(0\.6\)$/;
+const MARKER_TRANSFORM = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(0\.6\)$/;
 
-/** The stone wrapper's base point (the translate part of `translate(x y) scale(s)`). */
-function stoneSpot(m: SceneG): { x: number; y: number } {
-  const [, x, y] = STONE_TRANSFORM.exec(m.transform ?? '') ?? [];
+/** The flower wrapper's base point (the translate part of `translate(x y) scale(s)`). */
+function markerSpot(m: SceneG): { x: number; y: number } {
+  const [, x, y] = MARKER_TRANSFORM.exec(m.transform ?? '') ?? [];
   return { x: Number(x), y: Number(y) };
 }
 
@@ -1136,14 +1132,14 @@ const THREE_CRITERIA: UatCriteria = [
   { id: 'crit-c', state: 'failing' },
 ];
 
-const STONE_KINDS = ['standing-stone-proven', 'standing-stone-pending', 'standing-stone-failing'] as const;
+const FLOWER_KINDS = ['tall-flower-proven', 'tall-flower-pending', 'tall-flower-failing'] as const;
 
-/** Every standing-stone wrapper in the scene, in document order. */
-function stonesOf(scene: SceneG): SceneG[] {
+/** Every tall-flower wrapper in the scene, in document order. */
+function flowersOf(scene: SceneG): SceneG[] {
   const out: SceneG[] = [];
   const walk = (n: SceneNode): void => {
     if (n.el === 'g') {
-      if (n.kind && (STONE_KINDS as readonly string[]).includes(n.kind)) out.push(n);
+      if (n.kind && (FLOWER_KINDS as readonly string[]).includes(n.kind)) out.push(n);
       for (const c of n.children) walk(c);
     }
   };
@@ -1151,27 +1147,27 @@ function stonesOf(scene: SceneG): SceneG[] {
   return out;
 }
 
-test('a uatCriteria-present island scatters one stone marker per criterion, state on the wrapper kind', () => {
+test('a uatCriteria-present island scatters one flower marker per criterion, state on the wrapper kind', () => {
   const scene = markerScene(THREE_CRITERIA);
-  const stones = stonesOf(scene);
-  assert.equal(stones.length, THREE_CRITERIA.length);
-  assert.deepEqual(new Set(stones.map((m) => m.kind)), new Set(STONE_KINDS));
-  assert.deepEqual(new Set(stones.map((m) => m.id)), new Set(['crit-a', 'crit-b', 'crit-c']));
-  for (const m of stones) {
+  const flowers = flowersOf(scene);
+  assert.equal(flowers.length, THREE_CRITERIA.length);
+  assert.deepEqual(new Set(flowers.map((m) => m.kind)), new Set(FLOWER_KINDS));
+  assert.deepEqual(new Set(flowers.map((m) => m.id)), new Set(['crit-a', 'crit-b', 'crit-c']));
+  for (const m of flowers) {
     assert.ok(m.children.length > 0, 'a marker wrapper carries body marks');
-    // translate + the 0.6 wrapper scale (owner feedback 2026-07-18: signpost-weight, not half-tree).
-    assert.match(m.transform ?? '', STONE_TRANSFORM);
+    // translate + the 0.6 wrapper scale (the scatter footprint the placement keep-outs were tuned for).
+    assert.match(m.transform ?? '', MARKER_TRANSFORM);
   }
 });
 
-test('the stones respect the keep-outs, and the human-witness signpost seal is RETAINED', () => {
+test('the flowers respect the keep-outs, and the human-witness signpost seal is RETAINED', () => {
   const scene = markerScene(THREE_CRITERIA, { signpost: { outcome: 'pass' } });
   // the signpost is retained — the markers never replace it.
   assert.ok(firstByKind(scene, 'sign-pass'), 'the signpost seal survives the markers');
-  const spots = stonesOf(scene).map(stoneSpot);
+  const spots = flowersOf(scene).map(markerSpot);
   assert.ok(spots.every((s) => Number.isFinite(s.x) && Number.isFinite(s.y)));
   // distinct spots, all inside the island's reach, none in the tree well (mkTerritory geometry).
-  assert.equal(new Set(spots.map((s) => `${s.x},${s.y}`)).size, spots.length, 'stones stand apart');
+  assert.equal(new Set(spots.map((s) => `${s.x},${s.y}`)).size, spots.length, 'flowers stand apart');
   for (const s of spots) {
     const t = mkTerritory({});
     assert.ok(Math.hypot(s.x - t.centroid.x, s.y - t.centroid.y) <= t.radius * 0.85 + 1, 'inside the island');
@@ -1182,144 +1178,48 @@ test('the stones respect the keep-outs, and the human-witness signpost seal is R
 test('the marker scatter is deterministic (same input → byte-identical) and id-seeded (different story → different spots)', () => {
   assert.deepEqual(markerScene(THREE_CRITERIA), markerScene(THREE_CRITERIA));
   const spotsOf = (id: string): string[] =>
-    stonesOf(markerScene(THREE_CRITERIA, { id })).map((m) => m.transform ?? '');
+    flowersOf(markerScene(THREE_CRITERIA, { id })).map((m) => m.transform ?? '');
   assert.notDeepEqual(spotsOf('alpha'), spotsOf('beta'));
 });
 
-test('many criteria still place: every stone gets its own spot (rejection sampling never drops one)', () => {
+test('many criteria still place: every flower gets its own spot (rejection sampling never drops one)', () => {
   const many: UatCriteria = Array.from({ length: 8 }, (_, i) => ({
     id: `crit-${i}`,
     state: (['proven', 'pending', 'failing'] as const)[i % 3]!,
   }));
-  const stones = stonesOf(markerScene(many));
-  assert.equal(stones.length, 8);
-  assert.equal(new Set(stones.map((m) => m.transform)).size, 8, 'no two stones stack on one spot');
+  const flowers = flowersOf(markerScene(many));
+  assert.equal(flowers.length, 8);
+  assert.equal(new Set(flowers.map((m) => m.transform)).size, 8, 'no two flowers stack on one spot');
 });
 
-test('the scatter keeps IN the island: on a concave land mass every stone stands on a substrate cell', () => {
+test('the scatter keeps IN the island: on a concave land mass every flower stands on a substrate cell', () => {
   // land = only the WEST half of the island disc — a concave hex-cluster stand-in. The old
-  // radius-only scatter drifted stones into the water here (owner feedback 2026-07-18).
+  // radius-only scatter drifted markers into the water here (owner feedback 2026-07-18).
   const westLand = isleCells({ xMin: 40, xMax: 100, yMin: 140, yMax: 260 });
-  const spots = stonesOf(markerScene(THREE_CRITERIA, {}, westLand)).map(stoneSpot);
+  const spots = flowersOf(markerScene(THREE_CRITERIA, {}, westLand)).map(markerSpot);
   assert.equal(spots.length, THREE_CRITERIA.length, 'every criterion still renders');
   for (const s of spots) {
     assert.ok(
       westLand.some((c) => inPoly(s.x, s.y, c.poly)),
-      `stone at ${s.x},${s.y} stands on land`,
+      `flower at ${s.x},${s.y} stands on land`,
     );
   }
 });
 
-test('no substrate cells (classic ground) still renders every stone — the radius-clamped fallback', () => {
-  const stones = stonesOf(markerScene(THREE_CRITERIA, {}, null));
-  assert.equal(stones.length, THREE_CRITERIA.length);
-  for (const m of stones) assert.match(m.transform ?? '', STONE_TRANSFORM);
+test('no substrate cells (classic ground) still renders every flower — the radius-clamped fallback', () => {
+  const flowers = flowersOf(markerScene(THREE_CRITERIA, {}, null));
+  assert.equal(flowers.length, THREE_CRITERIA.length);
+  for (const m of flowers) assert.match(m.transform ?? '', MARKER_TRANSFORM);
 });
 
 test('§ back-compat ABSENCE LOCK: uatCriteria absent OR empty → NO marker kinds; absent and [] byte-identical', () => {
-  // absent (mkTerritory carries no uatCriteria) → no stones anywhere. The committed golden
+  // absent (mkTerritory carries no uatCriteria) → no flowers anywhere. The committed golden
   // fixture test above ("parcels-ABSENT scene matches …") is the byte-for-byte pre-change lock —
   // it must stay green untouched; this adds the absent ≡ [] equivalence, the inc-1 pattern.
   const absent = buildScene(mkInput());
-  for (const k of STONE_KINDS) {
+  for (const k of FLOWER_KINDS) {
     assert.equal(firstByKind(absent, k), null, `no ${k} on a uatCriteria-absent island`);
   }
   const empty = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria: [] })] }));
   assert.deepEqual(empty, buildScene(mkInput({ territories: [mkTerritory()] })));
-});
-
-// ---------------------------------------------------------------------------
-// ADR-0218: baked-art stones — the fenced paint-carrying family
-// ---------------------------------------------------------------------------
-//
-// A UAT marker's flat cel-shaded body is swapped for ONE `baked-art` <use> of the single stone def
-// WHEN the surface supplies the bake (`SceneInput.bakedStone`, threaded from `?factoryart=on`). The
-// solid is state-independent — the verdict still rides the glow/rune overlays, which do not move. The
-// surface supplies opaque paint-node DATA; the core owns the placement, the def id, and the swap.
-
-/** A stand-in baked stone: two shaded facet polygons + a supplied box. The scene never inspects the
- *  drawables (they are the factory's job), so a couple of fakes exercise the plumbing exactly. */
-const FAKE_BAKE: NonNullable<SceneInput['bakedStone']> = {
-  nodes: [
-    { el: 'polygon', points: '0,0 10,-3 6,-50', fill: '#8a9299', stroke: '#464b4f', strokeWidth: 0.35 },
-    { el: 'polygon', points: '0,0 -6,-3 6,-50', fill: '#41464a', stroke: '#292c2e', strokeWidth: 0.35 },
-  ],
-  width: 22,
-  height: 50,
-};
-
-function bakedScene(uat: UatCriteria = THREE_CRITERIA, over: Partial<SceneTerritoryInput> = {}): SceneG {
-  return buildScene(
-    mkInput({
-      territories: [mkTerritory({ signpost: { outcome: null }, uatCriteria: uat, ...over })],
-      relaxedCells: FULL_LAND,
-      bakedStone: FAKE_BAKE,
-    }),
-  );
-}
-
-/** Every node (any depth) matching `pred`, in document order. */
-function collectNodes(scene: SceneNode, pred: (n: SceneNode) => boolean): SceneNode[] {
-  const out: SceneNode[] = [];
-  const walk = (n: SceneNode): void => {
-    if (pred(n)) out.push(n);
-    if (n.el === 'g') for (const c of n.children) walk(c);
-  };
-  walk(scene);
-  return out;
-}
-
-test('ADR-0218 back-compat: WITHOUT a supplied bake, stones keep their flat cel-shaded body and no baked-art appears', () => {
-  const scene = markerScene(THREE_CRITERIA);
-  assert.equal(collectNodes(scene, (n) => n.el === 'baked-def').length, 0, 'no def layer without a bake');
-  assert.equal(collectNodes(scene, (n) => n.el === 'baked-use').length, 0, 'no use without a bake');
-  for (const m of stonesOf(scene)) {
-    assert.equal(collectNodes(m, (n) => n.kind === 'standing-stone-body').length, 1, 'flat body present');
-  }
-});
-
-test('ADR-0218: a supplied bake defines the stone ONCE and every marker references it (define-once-reference-many)', () => {
-  const scene = bakedScene();
-  const defs = collectNodes(scene, (n) => n.el === 'baked-def') as SceneBakedDef[];
-  assert.equal(defs.length, 1, 'exactly one def for the whole scene');
-  assert.equal(defs[0]!.defId, BAKED_STONE_DEF);
-  assert.deepEqual(defs[0]!.nodes, FAKE_BAKE.nodes, 'the def carries the surface-supplied drawables verbatim');
-  assert.equal(
-    collectNodes(scene, (n) => n.el === 'g' && n.kind === 'baked-defs').length,
-    1,
-    'the def rides in a baked-defs layer a mapper renders into <defs>',
-  );
-
-  const uses = collectNodes(scene, (n) => n.el === 'baked-use') as SceneBakedUse[];
-  assert.equal(uses.length, THREE_CRITERIA.length, 'one use per marker');
-  for (const u of uses) {
-    assert.equal(u.kind, 'baked-art');
-    assert.equal(u.defId, BAKED_STONE_DEF);
-  }
-});
-
-test('ADR-0218: the baked solid REPLACES the flat body, and the state overlays (glow/rune) are untouched', () => {
-  const stones = stonesOf(bakedScene());
-  assert.equal(stones.length, THREE_CRITERIA.length);
-  for (const m of stones) {
-    for (const flat of ['standing-stone-body', 'standing-stone-face', 'standing-stone-cap']) {
-      assert.equal(collectNodes(m, (n) => n.kind === flat).length, 0, `no flat ${flat}`);
-    }
-    assert.equal(collectNodes(m, (n) => n.el === 'baked-use').length, 1, 'exactly one baked solid');
-    assert.ok(collectNodes(m, (n) => n.kind === 'standing-stone-rune').length >= 1, 'rune retained');
-  }
-  const proven = stones.find((m) => m.kind === 'standing-stone-proven')!;
-  assert.ok(collectNodes(proven, (n) => n.kind === 'standing-stone-glow').length > 0, 'proven still glows');
-  const pending = stones.find((m) => m.kind === 'standing-stone-pending')!;
-  assert.equal(collectNodes(pending, (n) => n.kind === 'standing-stone-glow').length, 0, 'pending stays dark');
-});
-
-test('ADR-0218: the baked solid is scaled to the flat silhouette envelope (placement + overlays stay coherent)', () => {
-  const use = collectNodes(bakedScene(), (n) => n.el === 'baked-use')[0] as SceneBakedUse;
-  // STONE_MARK_HEIGHT (43.5) / supplied height (50) = 0.87
-  assert.equal(use.transform, 'scale(0.87)');
-});
-
-test('ADR-0218: the baked scene is deterministic', () => {
-  assert.deepEqual(bakedScene(), bakedScene());
 });

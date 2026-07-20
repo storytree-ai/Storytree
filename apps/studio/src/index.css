@@ -80,24 +80,19 @@
   --conifer-1: #4d8a59;
   --conifer-2: #2f6b45;
 
-  /* the UAT markers (forest-parcels inc 2, ADR-0208): the standing-stone marker family
-     (owner-chosen 2026-07-18, replacing the brazier). Colour is the only thing the verdict
-     carries — the stone silhouette is identical in every state (standingStoneMarks in
-     @storytree/forest-world scene.ts); only the carved sigil's light changes. Stone facets reuse
-     the cool neutral the palette already uses for "unknown" status; the state light reuses the
-     owner-approved warm gold + the app's alarm red. */
-  --stone-body: #4c5058; /* crown-unknown-lo, cooled/darkened for the shadowed facet */
-  --stone-face: #8a909a; /* between crown-unknown lo/hi — the lit facet */
-  --stone-cap: #c3c8d0; /* lightened past crown-unknown-hi — the fresh-hewn top */
-  --stone-crack: #33363b; /* an unlit crevice */
-  --stone-moss: #35502c; /* crown-healthy-lo, darkened toward shade */
-  --stone-moss-fleck: #6f9457; /* crown-healthy-hi, lightened for a sun-fleck */
-  --stone-rune-pending: #4a4438; /* an incised groove, no light behind it — dormant, not broken */
-  --stone-light-proven: #f2c35e; /* owner-approved warm gold */
-  --stone-fill-proven: #e8b64e; /* the deeper gold for the proven crack-vein */
-  --stone-spark: #ffe6a3;
-  --stone-light-failing: var(--danger); /* #b42318 — the app's alarm red */
-  --stone-fill-failing: var(--crown-unhealthy-hi); /* #c75545 */
+  /* the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7): one soft flat flower per
+     criterion, its verdict read from FORM (a bloomed daisy = proven, a closed bud = pending, a wilted
+     nodding head = failing) and its palette from state. Tuned to the cosy-island concept
+     (docs/research/grounded-art-concept) — soft leaf-greens, warm cream daisy petals, a golden centre;
+     failing desaturates. The standing-stone tokens this replaced were rejected as noisy (#832). */
+  --flower-stem: #6f9257; /* soft leaf-green stalk */
+  --flower-leaf: #7ea363; /* a touch lighter for the leaves */
+  --flower-bud: #7f9d5c; /* sage-green closed bud — calm, unopened (pending) */
+  --flower-petal-proven: #fbf3e0; /* warm cream daisy petal */
+  --flower-center-proven: #eab94e; /* golden daisy centre */
+  --flower-glow-proven: #f4d98a; /* the soft warm halo behind a bloom */
+  --flower-petal-failing: #b9b3a7; /* desaturated, greyed — a wilted head */
+  --flower-center-failing: #8f8672; /* a dull, spent centre */
 
   /* story-world flora — per-status crown pairs (one source of truth: flora +
      legend). The growth/colour ladder (ADR-0038): proposed = young amber tree,
@@ -5833,108 +5828,69 @@ button.legend-tile:hover {
 .parcel-flora.theme-heath.st-unknown .parcel-stem { stroke: #8f8d82; }
 
 /* ============================================================================
-   UAT MARKERS (forest-parcels inc 2, ADR-0208) — one standing-stone marker per witnessable UAT
-   criterion, SCATTERED deterministically around the island (owner call 2026-07-18: stones, not
-   braziers, and no path — the walk + its bed are retired), each stone's carved sigil lit by its
-   criterion's proof state. The core (@storytree/forest-world scene.ts) emits GEOMETRY only (the
-   frozen stone-body marks, `standingStoneMarks`); every colour role resolves HERE, keyed by the
-   wrapper's state class composed onto the shared `.standing-stone-marker` base
-   (`.standing-stone-proven` / `-pending` / `-failing`) — the SceneView mapper emits the body-part
-   classes (`.standing-stone-body/-face/-cap/-crack/-crack-glow/-rune/-glow/-spark/-moss/
-   -moss-fleck`) verbatim; `shadow` reuses the existing `.flora-shadow` mapping (no marker-specific
-   shadow rule needed).
+   UAT MARKERS (forest-parcels inc 2; tall flowers, grounded-art inc 7) — one soft flat flower per
+   witnessable UAT criterion, SCATTERED deterministically around the island. The owner rejected the
+   standing-stones as "messy and noisy rather than cosy" (#832) and directed a cosy stand-in matching
+   the cosy-island concept (owner call 2026-07-20): a tall flower whose FORM reads the verdict — a
+   bloomed daisy = proven, a closed bud = pending, a wilted nodding head = failing. The core
+   (@storytree/forest-world scene.ts) emits GEOMETRY only (`tallFlowerMarks`); every colour role
+   resolves HERE, keyed by the wrapper's state class composed onto the shared `.tall-flower-marker`
+   base (`.tall-flower-proven` / `-pending` / `-failing`) — the SceneView mapper emits the body-part
+   classes (`.tall-flower-stem/-leaf/-petal/-center/-bud/-glow`) verbatim; `shadow` reuses the existing
+   `.flora-shadow` mapping (no marker-specific shadow rule needed).
 
-   DEVIATION rule carried from the lantern round: the glow breathe keyframes animate `transform:
-   scale` (a gentle breath), NEVER `opacity` — the core already resolves each glow layer's own
-   per-node falloff opacity (the layered fake-radial halo), and a CSS opacity animation would
-   flatten it into one pulsing disc. Only the circular `.standing-stone-glow` layers breathe — the
-   long `.standing-stone-crack-glow` vein stays static (a scale on that path would drift its
-   endpoints off the rune and the ground). `transform-box: fill-box` + `transform-origin: center`
-   so each glow scales from its own centre.
+   DEVIATION rule carried from the standing-stone round: the glow breathe keyframes animate `transform:
+   scale` (a gentle breath), NEVER `opacity` — the core already resolves each glow layer's own per-node
+   falloff opacity (the layered soft halo), and a CSS opacity animation would flatten it into one pulsing
+   disc. Only the proven bloom's `.tall-flower-glow` breathes. `transform-box: fill-box` +
+   `transform-origin: center` so each glow scales from its own centre.
    ============================================================================ */
-.standing-stone-marker {
+.tall-flower-marker {
   pointer-events: none;
 }
-.standing-stone-body {
-  fill: var(--stone-body);
-}
-.standing-stone-face {
-  fill: var(--stone-face);
-}
-.standing-stone-cap {
-  fill: var(--stone-cap);
-}
-.standing-stone-moss {
-  fill: var(--stone-moss);
-}
-.standing-stone-moss-fleck {
-  fill: var(--stone-moss-fleck);
-}
-.standing-stone-crack {
+.tall-flower-stem {
   fill: none;
-  stroke: var(--stone-crack);
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-.standing-stone-crack-glow {
-  fill: none;
-  stroke-linecap: round;
-}
-.standing-stone-rune {
-  fill: none;
+  stroke: var(--flower-stem);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.standing-stone-spark {
-  fill: var(--stone-spark);
+.tall-flower-leaf {
+  fill: var(--flower-leaf);
 }
-/* -- PENDING: an incised groove with no light behind it — dormant, not broken -- */
-.standing-stone-pending .standing-stone-rune {
-  stroke: var(--stone-rune-pending);
-  opacity: 0.8;
+.tall-flower-bud {
+  fill: var(--flower-bud);
 }
-/* -- PROVEN: warm gold, the owner-approved "unmistakably good" language -- */
-.standing-stone-proven .standing-stone-rune {
-  stroke: var(--stone-light-proven);
+.tall-flower-glow {
+  fill: var(--flower-glow-proven);
 }
-.standing-stone-proven .standing-stone-glow {
-  fill: var(--stone-light-proven);
+/* -- PROVEN: a bloomed daisy — warm cream petals, a golden centre, a soft warm halo -- */
+.tall-flower-proven .tall-flower-petal {
+  fill: var(--flower-petal-proven);
 }
-.standing-stone-proven .standing-stone-crack-glow {
-  stroke: var(--stone-fill-proven);
+.tall-flower-proven .tall-flower-center {
+  fill: var(--flower-center-proven);
 }
-/* -- FAILING: tight, hot, alarming red — never proven's soft bloom -- */
-.standing-stone-failing .standing-stone-rune {
-  stroke: var(--stone-fill-failing);
+/* -- FAILING: a wilted, desaturated head — greyed petals, a dull centre; never proven's bloom -- */
+.tall-flower-failing .tall-flower-petal {
+  fill: var(--flower-petal-failing);
 }
-.standing-stone-failing .standing-stone-glow {
-  fill: var(--stone-light-failing);
+.tall-flower-failing .tall-flower-center {
+  fill: var(--flower-center-failing);
 }
-.standing-stone-failing .standing-stone-crack-glow {
-  stroke: var(--stone-light-failing);
-}
-/* -- the glow breathe: the circular halo layers only, transform-only (see the deviation note) -- */
-.standing-stone-proven .standing-stone-glow {
+/* (PENDING draws only a closed `.tall-flower-bud` — no petals, no centre, no glow: dormant reads as the
+   absence of bloom.) */
+/* -- the proven glow breathe: transform-only (see the deviation note) -- */
+.tall-flower-proven .tall-flower-glow {
   transform-box: fill-box;
   transform-origin: center;
-  animation: standing-stone-breathe-proven 3.6s ease-in-out infinite;
+  animation: tall-flower-breathe 4.2s ease-in-out infinite;
 }
-.standing-stone-failing .standing-stone-glow {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: standing-stone-breathe-failing 1.7s ease-in-out infinite;
-}
-@keyframes standing-stone-breathe-proven {
+@keyframes tall-flower-breathe {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
-}
-@keyframes standing-stone-breathe-failing {
-  0%, 100% { transform: scale(0.97); }
-  50% { transform: scale(1.08); }
+  50% { transform: scale(1.05); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .standing-stone-proven .standing-stone-glow,
-  .standing-stone-failing .standing-stone-glow {
+  .tall-flower-proven .tall-flower-glow {
     animation: none;
   }
 }

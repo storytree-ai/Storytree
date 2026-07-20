@@ -140,21 +140,17 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'plate-id': 'world-plate-id',
   'plate-sub': 'world-plate-sub',
   hit: 'world-story-hit',
-  // the UAT markers (forest-parcels inc 2, ADR-0208): standing-stone markers scattered around the
-  // island (owner call 2026-07-18 — no walk group, no bed; each stone is its own drawable). The
-  // wrapper kinds (`standing-stone-proven`/`-pending`/`-failing`) compose the shared
-  // `.standing-stone-marker` base + their state class in composeClass below. The body child kinds
-  // are frozen (the splice seam) and map verbatim; `shadow` reuses the flora-shadow map.
-  'standing-stone-body': 'standing-stone-body',
-  'standing-stone-face': 'standing-stone-face',
-  'standing-stone-cap': 'standing-stone-cap',
-  'standing-stone-crack': 'standing-stone-crack',
-  'standing-stone-crack-glow': 'standing-stone-crack-glow',
-  'standing-stone-rune': 'standing-stone-rune',
-  'standing-stone-glow': 'standing-stone-glow',
-  'standing-stone-spark': 'standing-stone-spark',
-  'standing-stone-moss': 'standing-stone-moss',
-  'standing-stone-moss-fleck': 'standing-stone-moss-fleck',
+  // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7): one soft flat flower per
+  // criterion scattered around the island (the standing-stones were rejected as noisy/colliding, #832;
+  // owner call 2026-07-20). The wrapper kinds (`tall-flower-proven`/`-pending`/`-failing`) compose the
+  // shared `.tall-flower-marker` base + their state class in composeClass below. The body child kinds
+  // map verbatim; `shadow` reuses the flora-shadow map.
+  'tall-flower-stem': 'tall-flower-stem',
+  'tall-flower-leaf': 'tall-flower-leaf',
+  'tall-flower-petal': 'tall-flower-petal',
+  'tall-flower-center': 'tall-flower-center',
+  'tall-flower-bud': 'tall-flower-bud',
+  'tall-flower-glow': 'tall-flower-glow',
   // ADR-0218: the fenced baked-art family. `baked-defs` is the definition layer (rendered as
   // `<defs>`, non-rendering — no class); `baked-art` is a placement `<use>` (a stable hook, no colour
   // of its own — the paint is inside the referenced def).
@@ -327,13 +323,14 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
     case 'parcel-flower':
       // the generic flora marks — same-named class + the `v-<n>` facet suffix (exactly like cells).
       return `${k} v-${node.variant ?? 0}`;
-    case 'standing-stone-proven':
-    case 'standing-stone-pending':
-    case 'standing-stone-failing':
-      // forest-parcels inc 2: the marker wrapper — the shared `.standing-stone-marker` base
-      // (pointer-events: none, the markers are display-only) + its state class, the composite the
-      // CSS keys the rune/glow colour off (`.standing-stone-proven .standing-stone-glow`, etc.).
-      return `standing-stone-marker ${k}`;
+    case 'tall-flower-proven':
+    case 'tall-flower-pending':
+    case 'tall-flower-failing':
+      // forest-parcels inc 2 (tall flowers, grounded-art inc 7): the marker wrapper — the shared
+      // `.tall-flower-marker` base (pointer-events: none, the markers are display-only) + its state
+      // class, the composite the CSS keys the petal/centre/glow colour off
+      // (`.tall-flower-proven .tall-flower-petal`, etc.).
+      return `tall-flower-marker ${k}`;
     default: {
       const base = BASE[k] ?? '';
       return node.accent && base ? `${base} flora-dead-accent` : base;

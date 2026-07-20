@@ -115,30 +115,29 @@ export type SceneKind =
   | 'sign-fail'
   | 'sign-post'
   | 'sign-head'
-  // the UAT markers (forest-parcels inc 2) — the story's UAT criteria as STANDING-STONE markers
-  // SCATTERED deterministically around the island (owner call 2026-07-18: stones, not braziers, and
-  // scattered rather than lining a path). The WRAPPER kind encodes each criterion's state (the
-  // `sign-blank/pass/fail` precedent) and carries the criterion id; the body marks inside come from
-  // the `standingStoneMarks` splice seam (ADR-0208) on the frozen child kinds below (+ the shared
-  // `shadow`). Colour stays CSS-side (ADR-0093 §4). No group kind: each stone is its own y-sorted
-  // drawable inside the territory, so painter depth interleaves with the tree + flora.
-  | 'standing-stone-proven'
-  | 'standing-stone-pending'
-  | 'standing-stone-failing'
-  | 'standing-stone-body'
-  | 'standing-stone-face'
-  | 'standing-stone-cap'
-  | 'standing-stone-crack'
-  | 'standing-stone-crack-glow'
-  | 'standing-stone-rune'
-  | 'standing-stone-glow'
-  | 'standing-stone-spark'
-  | 'standing-stone-moss'
-  | 'standing-stone-moss-fleck'
-  // baked art in the shared scene (ADR-0218) — the fenced paint-carrying family. `baked-defs` is
-  // the once-per-scene definition LAYER (a mapper renders it into `<defs>`, non-rendering);
-  // `baked-art` is a placement `<use>` referencing a def. A UAT marker's flat body is swapped for a
-  // `baked-art` of the single stone def when the surface supplies the bake (`SceneInput.bakedStone`).
+  // the UAT markers (forest-parcels inc 2; stones → tall flowers, grounded-art inc 7). The story's UAT
+  // criteria as TALL-FLOWER markers scattered deterministically around the island. The owner rejected
+  // the standing-stones as noisy/colliding (#832) and directed a cosy stand-in (2026-07-20): one soft,
+  // flat flower per criterion, its STATE read from FORM — a bloomed daisy = proven, a closed bud =
+  // pending, a wilted nodding head = failing (the `sign-blank/pass/fail` precedent). The WRAPPER kind
+  // encodes the state + carries the criterion id; the body marks come from the `tallFlowerMarks` painter
+  // on the child kinds below (+ the shared `shadow`). Colour stays CSS-side (ADR-0093 §4). No group
+  // kind: each flower is its own y-sorted drawable inside the territory, so painter depth interleaves
+  // with the tree + flora.
+  | 'tall-flower-proven'
+  | 'tall-flower-pending'
+  | 'tall-flower-failing'
+  | 'tall-flower-stem'
+  | 'tall-flower-leaf'
+  | 'tall-flower-petal'
+  | 'tall-flower-center'
+  | 'tall-flower-bud'
+  | 'tall-flower-glow'
+  // baked art in the shared scene (ADR-0218) — the fenced paint-carrying family, KEPT as dormant
+  // reusable machinery. `baked-defs` is the once-per-scene definition LAYER (a mapper renders it into
+  // `<defs>`, non-rendering); `baked-art` is a placement `<use>` referencing a def. The UAT-marker
+  // stone that once produced these retired with the tall-flower markers (grounded-art inc 7); the
+  // family stays wired through the mapper for a future baked object type (see `SceneInput.bakedStone`).
   | 'baked-defs'
   | 'baked-art'
   // a capability as garden flora
@@ -311,12 +310,12 @@ export type ClaimGrade = 'exploring' | 'waiting' | 'work';
  *  it. The surface fold folds each capability's real theme into this. */
 export type SurfaceTheme = 'meadow' | 'woodland' | 'heath';
 
-/** A UAT criterion's proof state on the island's markers (forest-parcels inc 2) — how the
- *  criterion's standing-stone reads: `proven` glows warm gold, `pending` waits as dead stone,
- *  `failing` glows an alarm red. DUPLICATED as the core's OWN input vocabulary (the scene-graph is
- *  a foundational root that depends on nothing — ADR-0093 §Open call 2), mirroring the surface's
- *  folded per-criterion proof state rather than importing the proof machinery. Encoded in the
- *  marker WRAPPER's kind (`standing-stone-proven`/`-pending`/`-failing`), never as live data. */
+/** A UAT criterion's proof state on the island's markers (forest-parcels inc 2; tall flowers,
+ *  grounded-art inc 7) — how the criterion's flower reads BY FORM: `proven` is a bloomed daisy,
+ *  `pending` a closed bud, `failing` a wilted nodding head. DUPLICATED as the core's OWN input
+ *  vocabulary (the scene-graph is a foundational root that depends on nothing — ADR-0093 §Open call 2),
+ *  mirroring the surface's folded per-criterion proof state rather than importing the proof machinery.
+ *  Encoded in the marker WRAPPER's kind (`tall-flower-proven`/`-pending`/`-failing`), never as live data. */
 export type MarkerState = 'proven' | 'pending' | 'failing';
 
 /** The prove-it-gate's phases (ADR-0020 §1), DUPLICATED as the core's OWN input vocabulary — the
@@ -510,16 +509,15 @@ export interface SceneTerritoryInput {
   treeTitle: string;
   /** Present only for a human-witness story; `outcome` null = a blank (unsigned) seal. */
   signpost?: { outcome: 'pass' | 'fail' | null };
-  /** The UAT markers (forest-parcels inc 2). When PRESENT and non-empty, the island grows ONE
-   *  standing-stone marker per criterion, SCATTERED deterministically around the island (owner call
-   *  2026-07-18 — stones stand among the parcels rather than lining a path; each spot is id-seeded
-   *  with keep-outs for the tree well, the signpost, the nameplate band, and other stones, and a
-   *  keep-IN to the island's substrate land cells so no stone drifts into the water). Each
-   *  criterion's `state` is encoded in its wrapper KIND (`standing-stone-proven`/`-pending`/
-   *  `-failing`) and its `id` carried as the node id (the hover/delegation hook). The human-witness
-   *  `signpost` seal is RETAINED unconditionally — the markers never replace it. OPTIONAL and
-   *  back-compat: ABSENT ⇒ today's island renders BYTE-FOR-BYTE (the public website fold never
-   *  sends it and must be unchanged). */
+  /** The UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7). When PRESENT and
+   *  non-empty, the island grows ONE tall-flower marker per criterion, SCATTERED deterministically
+   *  around the island (each spot is id-seeded with keep-outs for the tree well, the signpost, the
+   *  nameplate band, and other flowers, and a keep-IN to the island's substrate land cells so no flower
+   *  drifts into the water). Each criterion's `state` is encoded in its wrapper KIND
+   *  (`tall-flower-proven`/`-pending`/`-failing`) and its `id` carried as the node id (the
+   *  hover/delegation hook). The human-witness `signpost` seal is RETAINED unconditionally — the markers
+   *  never replace it. OPTIONAL and back-compat: ABSENT ⇒ today's island renders BYTE-FOR-BYTE (the
+   *  public website fold never sends it and must be unchanged). */
   uatCriteria?: { id: string; state: MarkerState }[];
   /** The crown bloom, folded by the surface; omitted when withered or none. */
   bloom?: { ageRatio: number; outcome: 'pass' | 'fail' };
@@ -595,19 +593,18 @@ export interface SceneInput {
   wheatSets: ReadonlySet<string>[];
   trails: SceneTrailsInput;
   territories: SceneTerritoryInput[];
-  /** The baked standing-stone solid (ADR-0218), supplied by the surface when `?factoryart=on`. When
-   *  present, every UAT marker's flat body is replaced by ONE `baked-art` `<use>` of this single def
-   *  (the body is state-independent — proven/pending/failing rides the glow/rune overlays, which stay
-   *  CSS-side). The surface bakes it once (a build-time factory artifact); the core defines it once in
-   *  a `baked-defs` layer and references it per marker. `width`/`height` are the baked box, used to
-   *  scale the solid to the marker envelope. OPTIONAL and back-compat: ABSENT ⇒ today's flat stones
-   *  render byte-for-byte (the public-website fold never sends it, so the site is unchanged). */
+  /** DORMANT ADR-0218 seam hook. The baked standing-stone once rode here (fed a `baked-defs` layer that
+   *  every UAT marker's `baked-art` `<use>` referenced), but the stone-in-scene instance retired with
+   *  the tall-flower markers (grounded-art inc 7) — `buildScene` no longer reads this field, so supplying
+   *  it is a no-op. The field + the baked-art types/kinds/mapper handling are KEPT as reusable machinery
+   *  (owner call: keep the seam) for a FUTURE baked object type; that type re-lights the emission in
+   *  `buildScene`. `width`/`height` are the baked box (a future consumer scales the solid to its envelope). */
   bakedStone?: { nodes: BakedPaintNode[]; width: number; height: number };
 }
 
-/** The scene-graph's id for the single baked standing-stone def (ADR-0218). The core owns BOTH ends —
- *  it emits the `baked-def` and every `baked-use` under this id — so no cross-package id coordination
- *  is needed; the surface supplies only the drawables. */
+/** DORMANT: the scene-graph's def id the baked standing-stone once used (ADR-0218). No longer emitted
+ *  (the stone-in-scene instance retired with the tall-flower markers, grounded-art inc 7); KEPT exported
+ *  as the seam's documented def-id pattern for a future baked object type. */
 export const BAKED_STONE_DEF = 'baked-standing-stone';
 
 // ---------------------------------------------------------------------------
@@ -762,178 +759,130 @@ function buildSignpost(s: { outcome: 'pass' | 'fail' | null }, R: number): Scene
 }
 
 // ---------------------------------------------------------------------------
-// the UAT markers (forest-parcels inc 2)
+// the UAT markers (forest-parcels inc 2; stones → tall flowers, grounded-art inc 7)
 // ---------------------------------------------------------------------------
 //
-// A uatCriteria-present island grows ONE standing-stone marker per criterion, SCATTERED
-// deterministically around the island (owner call 2026-07-18: stones, not braziers, and scattered
-// rather than lining a path — the earlier trail-walk placement + its visible bed are retired).
-// Each spot is id-seeded with keep-outs for the tree well (which also covers the signpost beside
-// it), the nameplate band, and the other stones — and a keep-IN to the island's substrate land
-// cells (no stone in the water); every stone is its OWN y-sorted drawable so it
-// interleaves honestly with the tree + flora in painter order. The human-witness signpost seal is
-// RETAINED. Everything is seeded from the story id via the existing `hash`/`rand01` helpers —
+// A uatCriteria-present island grows ONE tall-flower marker per criterion, SCATTERED deterministically
+// around the island. The standing-stones the placement first carried (owner call 2026-07-18) were
+// rejected as noisy/colliding (#832) and replaced with a cosy stand-in (owner call 2026-07-20): a soft
+// flat flower whose FORM reads the verdict. Each spot is id-seeded with keep-outs for the tree well
+// (which also covers the signpost beside it), the nameplate band, and the other flowers — and a keep-IN
+// to the island's substrate land cells (no flower in the water); every flower is its OWN y-sorted
+// drawable so it interleaves honestly with the tree + flora in painter order. The human-witness signpost
+// seal is RETAINED. Everything is seeded from the story id via the existing `hash`/`rand01` helpers —
 // same input ⇒ byte-identical output.
 
-/** THE MARKER-BODY SPLICE SEAM (ADR-0208): the designer-authored pure body painter — the
- *  STANDING-STONE concept, owner-chosen 2026-07-18 from the ten-option design swarm (replacing the
- *  brazier; the composite LOOK stays owner-attested, ADR-0070 stage 2). Frozen contract
- *  `(state, k) => SceneNode[]` — marks positioned with the stone's BASE at (0,0), `k` a hash seed
- *  for deterministic jitter (draw via `rand01(k + i)`, never Math.random). The wrapper's KIND
- *  carries the state; the body child kinds map to CSS classes, colour stays CSS-side (ADR-0093
- *  §4). A carved runestone ~43.5 units tall — weightier than the ~24-unit signpost, well under the
- *  ~90–120u tree. THREE cel-shaded facets (dark body / lit face / fresh-cut cap sliver) give the
- *  "catches the light" read with no gradient; the glow is faked with layered circles of DECREASING
- *  radius and INCREASING opacity (largest-dimmest first). PENDING emits no glow at all — dormant
- *  reads as the ABSENCE of light. Only the lean, the hand-hewn vertex jitter, and the moss
- *  placement are seeded; the stone is the same object family in every state — only its carved
- *  sigil's light carries the verdict. */
-function standingStoneMarks(
-  state: MarkerState,
-  k: number,
-  baked: { scale: number } | null = null,
-): SceneNode[] {
-  const r1 = (n: number): number => Number(n.toFixed(2));
-  const pt = (x: number, y: number): string => `${f(x)},${f(y)}`;
-  // hand-hewn irregularity: every vertex nudges a little, deterministically per (k, state).
-  const jx = (n: number): number => rand01(k + n) - 0.5;
-  const leanTop = jx(0) * 3.4; // the whole monolith leans a touch off true vertical
-  const leanAt = (y: number): number => leanTop * (-y / 43.5); // more lean higher up (base planted)
+/** THE MARKER-BODY PAINTER (grounded-art inc 7, superseding the ADR-0208 standing-stone splice seam):
+ *  a soft, flat, colour-class-driven TALL FLOWER — the cosy stand-in the owner directed after rejecting
+ *  the baked standing-stones as "messy and noisy rather than cosy" (#832, 2026-07-20). One flower per
+ *  UAT criterion; the verdict is read from its FORM, not a glow: a bloomed daisy = proven, a closed bud
+ *  = pending, a wilted nodding head = failing (the `sign-blank/pass/fail` precedent). Contract
+ *  `(state, k) => SceneNode[]` — marks positioned with the flower's BASE at (0,0), growing UP in −y; `k`
+ *  is a hash seed for deterministic jitter (`rand01(k + i)`, never Math.random), so a cluster reads
+ *  natural not cloned (lean, height, petal count, rotation all seeded). The wrapper's KIND carries the
+ *  state; the body child kinds map to CSS classes, colour stays CSS-side (ADR-0093 §4). Sibling in
+ *  spirit of buildBloom/buildPlant — flat pastel fills, NO isometric shading — matching the island's
+ *  existing flat look and the cosy-island concept (`docs/research/grounded-art-concept`). */
+function tallFlowerMarks(state: MarkerState, k: number): SceneNode[] {
+  const jx = (n: number): number => rand01(k + n) - 0.5; // per-marker jitter in [-0.5, 0.5)
+  const j01 = (n: number): number => rand01(k + n); // per-marker roll in [0, 1)
 
-  // the silhouette: a gently-tapered blocky slab (base ~14u, chipped top ~6u) — weighty, not a needle.
-  const raw: Array<[number, number]> = [
-    [-7.2, 0],
-    [-8.0 + jx(1) * 0.6, -5],
-    [-6.6 + jx(2) * 0.6, -16],
-    [-6.0 + jx(3) * 0.6, -27],
-    [-5.0 + jx(4) * 0.6, -35],
-    [-3.6 + jx(5) * 0.5, -40],
-    [-1.6 + jx(6) * 0.7, -43.5], // left corner of the chipped top
-    [4.6 + jx(7) * 0.7, -39.5], // right corner of the chipped top (a wide, near-flat break)
-    [6.2 + jx(8) * 0.6, -35],
-    [7.0 + jx(9) * 0.6, -27],
-    [7.4 + jx(10) * 0.6, -16],
-    [7.0 + jx(11) * 0.6, -5],
-    [6.8, 0],
-  ];
-  const sil = raw.map(([x, y]) => [x + leanAt(y), y] as const);
-  const bodyPts = sil.map(([x, y]) => pt(x, y)).join(' ');
+  const height = 36 + j01(0) * 8; // 36–44u tall — a slender flower, a narrower footprint than the stone
+  const lean = jx(1) * 7; // the whole stalk leans a touch off true vertical (base planted)
 
-  // the lit face (right/front ~55%): shares the body's right edge + both top corners so it seams —
-  // the two-tone cel-shaded read (crown-lo/crown-hi precedent).
-  const centreRaw: Array<[number, number]> = [
-    [-0.6 + jx(12) * 0.5, 0],
-    [-0.7 + jx(13) * 0.5, -16],
-    [-0.3 + jx(14) * 0.5, -27],
-    [0.3 + jx(15) * 0.4, -35],
-  ];
-  const centre = centreRaw.map(([x, y]) => [x + leanAt(y), y] as const);
-  const apexL = sil[6]!;
-  const apexR = sil[7]!;
-  const facePts = [
-    ...centre.map(([x, y]) => pt(x, y)),
-    pt(apexL[0], apexL[1]),
-    pt(apexR[0], apexR[1]),
-    ...sil.slice(8).map(([x, y]) => pt(x, y)),
-  ].join(' ');
+  // the upright head anchor; failing nods it over + sinks it (a wilted, bowed head).
+  const upX = lean;
+  const upY = -height;
+  const nodSide = jx(2) < 0 ? -1 : 1;
+  const failing = state === 'failing';
+  const headX = failing ? upX + nodSide * 6.5 : upX;
+  const headY = failing ? upY + 7 : upY;
 
-  // the bright top-cut sliver: a fresh-hewn face catching the most light, just inside the break.
-  const capPts = [
-    pt(apexL[0], apexL[1]),
-    pt(apexR[0], apexR[1]),
-    pt(apexR[0] - 1.0, apexR[1] + 1.4),
-    pt(apexL[0] + 0.6, apexL[1] + 1.6),
-  ].join(' ');
-
-  // the carved sigil — a Gebo-cross rune (an X plus a vertical stem through the crossing): symmetric,
-  // so it reads as a CARVED MARK at map scale and never a directional arrow (the review's up-arrow
-  // fix). The SAME glyph in every state; only the light it casts changes.
-  const runeCx = 0.7 + leanAt(-27);
-  const runeCy = -27;
-  const runeD =
-    `M ${f(runeCx - 3)} ${f(runeCy - 4)} L ${f(runeCx + 3)} ${f(runeCy + 4)} ` +
-    `M ${f(runeCx + 3)} ${f(runeCy - 4)} L ${f(runeCx - 3)} ${f(runeCy + 4)} ` +
-    `M ${f(runeCx)} ${f(runeCy - 5)} L ${f(runeCx)} ${f(runeCy + 5)}`;
-
-  // the weathering crack: a hairline fissure from the sigil down to the moss — always present; lit as
-  // a vein of light only when proven/failing (how the glow reaches the ground).
-  const crackD =
-    `M ${f(runeCx - 0.4)} ${f(runeCy + 3)} ` +
-    `C ${f(runeCx - 1.6)} ${f(runeCy + 9)}, ${f(runeCx + 0.8)} ${f(runeCy + 13)}, ${f(runeCx - 0.6 + leanAt(-8))} -8 ` +
-    `C ${f(runeCx - 1.2 + leanAt(-3))} -5, ${f(runeCx + 0.4)} -2, ${f(0.4)} 0`;
+  // the stalk: a gentle cubic from the planted base up to the head. Failing arcs OVER — the second
+  // control point pulls above the sunken head so the tip bows down, reading as a wilted stem.
+  const stemD = failing
+    ? `M 0 0 C ${f(lean * 0.5)} ${f(-height * 0.5)}, ${f(upX)} ${f(upY - 5)}, ${f(headX)} ${f(headY)}`
+    : `M 0 0 C ${f(lean * 0.5 + jx(3) * 2)} ${f(-height * 0.4)}, ${f(upX * 0.85)} ${f(-height * 0.78)}, ${f(headX)} ${f(headY)}`;
 
   const marks: SceneNode[] = [
-    ellipse(0.6, 0.7, 8.2, 2.5, { kind: 'shadow' }),
-    // moss clumps hug the foot — always present, unlit (the stone's age, not its verdict).
-    ellipse(-5.6 + jx(16) * 1.2, -0.4, 4.6, 2.2, { kind: 'standing-stone-moss', opacity: 0.92 }),
-    ellipse(4.3 + jx(17) * 1.2, -0.2, 3.7, 1.8, { kind: 'standing-stone-moss', opacity: 0.85 }),
-    ...[0, 1, 2].map((i) =>
-      circle(-2 + jx(18 + i) * 9, -0.6 - rand01(k + 27 + i) * 1.4, 0.8 + rand01(k + 24 + i) * 0.6, {
-        kind: 'standing-stone-moss-fleck',
-      }),
-    ),
-    // The MONOLITH. Two shapes of the same object: the flat cel-shaded silhouette (body / lit face /
-    // fresh-cut cap), or — when the surface supplies the bake (ADR-0218) — ONE `baked-art` `<use>` of
-    // the isometric solid, scaled to the same envelope so the crack / rune / glow / moss still register
-    // on it. The solid is state-INDEPENDENT: the verdict rides the glow + rune below, unchanged.
-    ...(baked
-      ? [{ el: 'baked-use', kind: 'baked-art', defId: BAKED_STONE_DEF, transform: `scale(${r1(baked.scale)})` } as SceneBakedUse]
-      : [
-          polygon(bodyPts, { kind: 'standing-stone-body' }),
-          polygon(facePts, { kind: 'standing-stone-face' }),
-          polygon(capPts, { kind: 'standing-stone-cap' }),
-        ]),
-    path(crackD, { kind: 'standing-stone-crack', strokeWidth: 0.8 }),
+    // a soft flat ground shadow (reuses the shared `shadow` kind the flora already map to `.flora-shadow`).
+    ellipse(0.4, 0.6, 5.2, 1.7, { kind: 'shadow' }),
+    path(stemD, { kind: 'tall-flower-stem', strokeWidth: 2.2 }),
   ];
 
-  if (state !== 'pending') {
-    const scale = state === 'proven' ? 1 : 0.84; // failing reads tighter/hotter than proven's bloom
-    const layers: Array<[radius: number, opacity: number]> = [
-      [15.5 * scale, 0.08],
-      [11.5 * scale, 0.14],
-      [7.8 * scale, 0.22],
-      [4.8 * scale, 0.34],
-      [2.4 * scale, 0.52],
-    ];
-    for (const [radius, opacity] of layers) {
-      marks.push(
-        circle(runeCx, runeCy, r1(radius), { kind: 'standing-stone-glow', opacity: r1(opacity) }),
-      );
-    }
-    // the vein of light down the crack to the moss — STATIC (not in the breathe set: the review
-    // caught that scaling this long path drifts its endpoints; only the circular glow layers breathe).
-    marks.push(path(crackD, { kind: 'standing-stone-crack-glow', strokeWidth: 1.1, opacity: 0.75 }));
-    // a small ground-pool wash where the lit crack meets the moss.
+  // two small leaves along the stalk, alternating sides, angled up-and-out — seeded so they vary.
+  const firstSide = jx(4) < 0 ? -1 : 1;
+  ([
+    [0.34, firstSide],
+    [0.6, -firstSide],
+  ] as const).forEach(([t, side], i) => {
+    const ly = -height * t;
+    const lx = lean * t;
     marks.push(
-      ellipse(0.4, 0.4, r1(4.4 * scale), r1(1.5 * scale), { kind: 'standing-stone-glow', opacity: 0.16 }),
+      ellipse(lx + side * 3.4, ly, 4.0 + jx(10 + i) * 0.9, 1.8, {
+        kind: 'tall-flower-leaf',
+        transform: `rotate(${f(side * (34 + jx(12 + i) * 12))} ${f(lx)} ${f(ly)})`,
+      }),
     );
-  }
+  });
 
   if (state === 'proven') {
-    // owner-approved gold language: a couple of stray sparks drifting off the sigil.
+    // a soft warm glow behind the bloom — proven ONLY, low opacity, calm (no sparks: the owner's noise
+    // complaint). Drawn first so the petals sit crisp on top.
     marks.push(
-      circle(runeCx - 4.2, runeCy - 3.4, 0.9, { kind: 'standing-stone-spark' }),
-      circle(runeCx + 3.6, runeCy + 2.6, 0.7, { kind: 'standing-stone-spark' }),
-      circle(runeCx + 1.4, runeCy - 6.2, 0.6, { kind: 'standing-stone-spark' }),
+      circle(headX, headY, 10.5, { kind: 'tall-flower-glow', opacity: 0.1 }),
+      circle(headX, headY, 6.8, { kind: 'tall-flower-glow', opacity: 0.16 }),
     );
+    // 7–8 soft petals radiating around the centre disc — a full daisy (the concept's flower). Each petal
+    // is a slender elongated ellipse rooted at the head centre and rotated into place; count + angle +
+    // length are seeded so no two flowers are identical.
+    const petals = 7 + (j01(5) > 0.5 ? 1 : 0);
+    for (let i = 0; i < petals; i++) {
+      const ang = (i / petals) * 360 + jx(20 + i) * 10;
+      const plen = 6.8 + jx(30 + i) * 1.1;
+      marks.push(
+        ellipse(headX, headY - plen, 2.15, plen, {
+          kind: 'tall-flower-petal',
+          transform: `rotate(${f(ang)} ${f(headX)} ${f(headY)})`,
+        }),
+      );
+    }
+    marks.push(circle(headX, headY, 3.4, { kind: 'tall-flower-center' }));
+  } else if (failing) {
+    // a wilted, nodding head: petals all droop into the lower arc, sitting low + to one side on the
+    // bowed stem — the muted colour resolves CSS-side. No glow (dormant/failing is not a bloom).
+    const petals = 6;
+    for (let i = 0; i < petals; i++) {
+      const ang = 112 + (i / (petals - 1)) * 136 + jx(20 + i) * 12; // 112–248°: hangs down + out
+      const plen = 5.8 + jx(30 + i) * 1.0;
+      marks.push(
+        ellipse(headX, headY - plen, 1.95, plen, {
+          kind: 'tall-flower-petal',
+          transform: `rotate(${f(ang)} ${f(headX)} ${f(headY)})`,
+        }),
+      );
+    }
+    marks.push(circle(headX, headY, 2.9, { kind: 'tall-flower-center' }));
+  } else {
+    // pending: a closed teardrop bud — calm, unopened; dormant reads as the ABSENCE of bloom (the
+    // stone's dark-rune precedent).
+    const bx = headX;
+    const by = headY;
+    const budD =
+      `M ${f(bx)} ${f(by - 10.5)} ` +
+      `C ${f(bx - 3.7)} ${f(by - 7.5)}, ${f(bx - 3.5)} ${f(by - 1.5)}, ${f(bx)} ${f(by)} ` +
+      `C ${f(bx + 3.5)} ${f(by - 1.5)}, ${f(bx + 3.7)} ${f(by - 7.5)}, ${f(bx)} ${f(by - 10.5)} Z`;
+    marks.push(path(budD, { kind: 'tall-flower-bud' }));
   }
 
-  // the sigil drawn last so it sits crisp on top of its own glow.
-  marks.push(path(runeD, { kind: 'standing-stone-rune', strokeWidth: 1.3 }));
   return marks;
 }
 
-/** The stones' wrapper scale (owner feedback 2026-07-18: the full-size stone read as half the
- *  tree — signpost-weight instead). The body painter stays untouched behind the frozen ADR-0208
- *  splice seam; the whole marker scales at the WRAPPER (translate + scale — CSS only ever animates
- *  the glow-circle CHILDREN, so the wrapper transform is never clobbered). */
-const STONE_SCALE = 0.6;
-
-/** The flat silhouette's height in the marker's local space (the `raw` polygon runs base 0 → chipped
- *  top −43.5). A baked solid is scaled to THIS so it occupies the same envelope the crack / rune / glow
- *  / moss overlays and the placement keep-outs were all tuned against — the swap changes the body's
- *  RENDERING, not its footprint. */
-const STONE_MARK_HEIGHT = 43.5;
+/** The flower's wrapper scale — kept at the stone's 0.6 so the scatter keep-outs (tree well, spacing,
+ *  nameplate band) still hold against the same footprint they were tuned for. The whole marker scales
+ *  at the WRAPPER (translate + scale — CSS only ever animates the glow-circle CHILDREN, so the wrapper
+ *  transform is never clobbered). */
+const MARKER_SCALE = 0.6;
 
 /** Ray-cast point-in-polygon over a substrate cell ring. */
 function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
@@ -946,14 +895,14 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
   return inside;
 }
 
-/** The island's UAT markers as INDIVIDUAL y-sorted drawables — one standing-stone per criterion,
- *  scattered deterministically (owner call 2026-07-18: no path). Each stone is its own painter
+/** The island's UAT markers as INDIVIDUAL y-sorted drawables — one tall flower per criterion,
+ *  scattered deterministically (owner call 2026-07-18: no path). Each flower is its own painter
  *  entry so it interleaves honestly with the tree + flora by depth. Placement: per-criterion
  *  id-seeded polar samples inside the island (radius 0.30–0.80·R, the wisp-orbit 0.7 y-squash),
  *  re-drawn up to 20 times to clear the tree well (which also covers the signpost beside it), the
- *  nameplate band, other stones — and, when the island's relaxed substrate cells are provided, to
+ *  nameplate band, other flowers — and, when the island's relaxed substrate cells are provided, to
  *  land ON the island (the keep-IN, owner feedback 2026-07-18: the radius-only scatter drifted
- *  stones into the water on concave hex clusters). Deterministic rejection sampling: same input ⇒
+ *  markers into the water on concave hex clusters). Deterministic rejection sampling: same input ⇒
  *  the same spots. Exhausting the draws SNAPS to the nearest free land-cell centroid (never the
  *  water) when cells are known, else keeps the last sample — every criterion ALWAYS renders.
  *  Empty/absent `uatCriteria` ⇒ nothing (the byte-for-byte absence path — the public website
@@ -961,14 +910,9 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
 function buildUatMarkers(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[] | null,
-  bakedStone: { height: number } | null = null,
 ): Array<{ y: number; node: SceneG }> {
   const criteria = t.uatCriteria ?? [];
   if (!criteria.length) return [];
-  // When the surface supplies the bake (ADR-0218), scale the baked solid to the flat silhouette's
-  // envelope so every stone reads at the same size the placement + overlays assume. `null` ⇒ the flat
-  // cel-shaded body, byte-for-byte.
-  const baked = bakedStone ? { scale: STONE_MARK_HEIGHT / bakedStone.height } : null;
   const land = ownerCells && ownerCells.length ? ownerCells : null;
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
@@ -1006,16 +950,16 @@ function buildUatMarkers(
     placed.push({ x, y });
     const kind: SceneKind =
       c.state === 'proven'
-        ? 'standing-stone-proven'
+        ? 'tall-flower-proven'
         : c.state === 'failing'
-          ? 'standing-stone-failing'
-          : 'standing-stone-pending';
+          ? 'tall-flower-failing'
+          : 'tall-flower-pending';
     out.push({
       y,
-      node: g(standingStoneMarks(c.state, k, baked), {
+      node: g(tallFlowerMarks(c.state, k), {
         kind,
         id: c.id,
-        transform: `translate(${f(x)} ${f(y)}) scale(${STONE_SCALE})`,
+        transform: `translate(${f(x)} ${f(y)}) scale(${MARKER_SCALE})`,
       }),
     });
   });
@@ -2182,7 +2126,6 @@ export function buildTerritoryFlora(
   t: SceneTerritoryInput,
   parcelFlora?: ParcelFloraMark[] | null,
   ownerCells?: RelaxedCell[] | null,
-  bakedStone?: { height: number } | null,
 ): SceneG {
   const drawables: { y: number; node: SceneNode }[] = [];
 
@@ -2203,10 +2146,10 @@ export function buildTerritoryFlora(
     for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
   }
   drawables.push({ y: t.treeSpot.y, node: buildTree(t) });
-  // the UAT markers (forest-parcels inc 2) — each scattered stone is its OWN y-sorted drawable so
-  // it interleaves with the tree + flora by depth. The island's substrate cells (when known) are
-  // the scatter's keep-in. Absent/empty uatCriteria ⇒ nothing (the lock).
-  drawables.push(...buildUatMarkers(t, ownerCells ?? null, bakedStone ?? null));
+  // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7) — each scattered flower
+  // is its OWN y-sorted drawable so it interleaves with the tree + flora by depth. The island's
+  // substrate cells (when known) are the scatter's keep-in. Absent/empty uatCriteria ⇒ nothing (the lock).
+  drawables.push(...buildUatMarkers(t, ownerCells ?? null));
   drawables.sort((a, b) => a.y - b.y);
 
   const children: SceneNode[] = drawables.map((d) => d.node);
@@ -2451,11 +2394,11 @@ export function buildScene(input: SceneInput): SceneG {
     const own = ownerCells[i];
     return own ? buildTerritorySurface(t, own) : null;
   });
-  // ADR-0218: the fenced baked-art definitions, emitted ONCE when the surface supplies the bake. A
-  // mapper renders this layer into `<defs>` (non-rendering) and every marker's `baked-art` `<use>`
-  // references it. Absent ⇒ no layer, and the markers render their flat cel-shaded body (back-compat).
-  const bakedStone = input.bakedStone ?? null;
-  const markerBake = bakedStone ? { height: bakedStone.height } : null;
+  // ADR-0218's fenced baked-art seam (the types, the `baked-defs`/`baked-art` kinds, the mapper's
+  // def/use handling, and the `SceneInput.bakedStone` hook) is KEPT as dormant reusable machinery — but
+  // the stone-in-scene INSTANCE that once fed it retired with the tall-flower markers (grounded-art inc
+  // 7). The markers are flat flowers now, so nothing emits a baked def (an emitted-but-unreferenced def
+  // would be an orphan `<use>`-less `<defs>` entry). A future baked object type re-lights the seam here.
   const layers: SceneNode[] = [
     buildEmpties(input),
     buildCoast(input),
@@ -2464,7 +2407,7 @@ export function buildScene(input: SceneInput): SceneG {
     g(
       [
         ...input.territories.map((t, i) =>
-          buildTerritoryFlora(t, surfaces[i]?.flora ?? null, ownerCells[i] ?? null, markerBake),
+          buildTerritoryFlora(t, surfaces[i]?.flora ?? null, ownerCells[i] ?? null),
         ),
         ...buildCaves(input),
       ],
@@ -2472,10 +2415,6 @@ export function buildScene(input: SceneInput): SceneG {
     ),
     buildHits(input),
   ];
-  if (bakedStone) {
-    const def: SceneBakedDef = { el: 'baked-def', defId: BAKED_STONE_DEF, nodes: bakedStone.nodes };
-    layers.push(g([def], { kind: 'baked-defs' }));
-  }
   return g(layers, {
     kind: 'world',
     transform: `translate(${f(input.offset.x)} ${f(input.offset.y)})`,

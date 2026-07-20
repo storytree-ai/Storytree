@@ -338,39 +338,26 @@ test('r3f-unknown-kind-skips-visibly: an unhandled SceneKind yields a named skip
   );
 });
 
-test('r3f baked-art (ADR-0218): baked stones add ZERO 3D instances and skip by name — no regression from the flat stones', () => {
-  // A flat isometric bake does not translate to a real 3D scene, so the baked-art family is skipped
-  // here — which for the STONES is a no-op: they were already skipped (only tile/tree/trail/cave/wisp
-  // become instances). Opening the ADR-0218 colour fork therefore cannot break the R3F island.
+test('r3f UAT-marker flowers (grounded-art inc 7): tall-flower markers add ZERO 3D instances and skip by name', () => {
+  // A flat tall-flower marker does not translate to a real 3D scene, so the whole tall-flower family is
+  // skipped here — like the standing-stones it replaced, this is a no-op for the island (only
+  // tile/tree/trail/cave/wisp become instances). The UAT markers therefore cannot change the R3F island.
   const uatCriteria = [
     { id: 'a', state: 'proven' as const },
     { id: 'b', state: 'pending' as const },
+    { id: 'c', state: 'failing' as const },
   ];
-  const flat = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] })));
-  const baked = worldTo3D(
-    buildScene(
-      mkInput({
-        territories: [mkTerritory({ uatCriteria })],
-        bakedStone: {
-          nodes: [
-            { el: 'polygon', points: '0,0 10,-3 6,-50', fill: '#8a9299', stroke: '#464b4f', strokeWidth: 0.35 },
-            { el: 'polygon', points: '0,0 -6,-3 6,-50', fill: '#41464a', stroke: '#292c2e', strokeWidth: 0.35 },
-          ],
-          width: 22,
-          height: 50,
-        },
-      }),
-    ),
-  );
+  const bare = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({})] })));
+  const withFlowers = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] })));
 
-  // The 3D INSTANCE set is identical whether the stones are flat or baked.
-  assert.deepEqual(baked.filter(asInstance), flat.filter(asInstance));
+  // The 3D INSTANCE set is identical whether or not the island carries UAT-marker flowers.
+  assert.deepEqual(withFlowers.filter(asInstance), bare.filter(asInstance));
 
-  // And the new family degrades to explicit NAMED skips (total coverage) — never a throw, never a
-  // silent drop, never a stray instance.
-  const bakedSkips = baked.filter(asSkipped).map((s) => s.sceneKind);
-  assert.ok(bakedSkips.includes('baked-art'), 'the baked-art placement skips by name');
-  assert.ok(bakedSkips.includes('baked-defs'), 'the baked-defs layer skips by name');
+  // And the flower family degrades to explicit NAMED skips (total coverage) — never a throw, never a
+  // silent drop, never a stray instance. Both the wrapper and the body marks skip by name.
+  const skips = withFlowers.filter(asSkipped).map((s) => s.sceneKind);
+  assert.ok(skips.includes('tall-flower-proven'), 'the proven wrapper skips by name');
+  assert.ok(skips.includes('tall-flower-petal'), 'a flower body mark skips by name');
 });
 
 // ---------------------------------------------------------------------------
