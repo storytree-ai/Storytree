@@ -10,13 +10,13 @@
           },
           {
             "type": "command",
-            "command": "node packages/cli/provision-worktree.mjs --hook",
-            "timeout": 300
+            "command": "bash -c 't=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && node \"$t/packages/cli/worktree-health.mjs\" --hook || true'",
+            "timeout": 60
           },
           {
             "type": "command",
-            "command": "node packages/cli/worktree-health.mjs --hook",
-            "timeout": 15
+            "command": "node packages/cli/provision-worktree.mjs --hook",
+            "timeout": 300
           },
           {
             "type": "command",

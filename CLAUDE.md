@@ -182,17 +182,18 @@ file conflicts).
   via `scripts/presence-hook.sh`.
 - **Worktree slot NEVER created (empty/unregistered, branch at MAIN)?** Distinct from the unprovisioned
   worktree above: the `.claude/worktrees/<name>` slot is EMPTY and git resolves it UP to the main
-  checkout — the branch was checked out at main first, so `git worktree add` fatally refused
-  (`'<branch>' is already used by worktree at '<main>'`), leaving an unregistered husk (ADR-0033). It
-  fails **OPEN** — `git status`, reads, and CLI reads all succeed against MAIN — so it surfaces only at
-  the first worktree-identity WRITE (`noticeboard declare --pg` → *"Identity is derived from the session
-  worktree"*), many tool-calls in. A `SessionStart` hook (`node packages/cli/worktree-health.mjs --hook`)
-  auto-announces this **when the slot has content** (the populated-husk half-`git worktree remove`
-  variant); an EMPTY slot has no script to run, so at session start ALSO confirm `git worktree list`
-  shows your slot and `pwd` is a populated checkout (or run `node packages/cli/worktree-health.mjs --cwd
-  <slot>` from main). If broken: do NOT build here (writes land in main; the gate's `check:declared`
-  can't pass) and do NOT do mid-build git surgery — **RESTART the session** so the harness recreates the
-  slot, and escalate if it recurs (the creation harness is leaving the branch at main).
+  checkout — the harness's create sequence (checkout branch at main → detach → `worktree add`) died
+  before the detach, so the add fatally refused (`'<branch>' is already used by worktree at '<main>'`),
+  leaving an unregistered husk (ADR-0033). It fails **OPEN** (reads succeed against MAIN), but the
+  `SessionStart` health hook now **AUTO-REPAIRS the empty husk** (owner-directed 2026-07-20):
+  `.claude/settings.json` invokes `worktree-health.mjs --hook` THROUGH `git rev-parse --show-toplevel`
+  (which resolves an empty husk UP to main, whose copy runs), and when the fingerprint is provable
+  (slot EMPTY + main HEAD on a `claude/*` branch) it finishes the sequence — detaches main in place
+  (same commit, working tree untouched), mounts the branch at the slot, and the provision hook that
+  runs next installs node_modules. You'll see a **"WORKTREE AUTO-REPAIRED"** heads-up — proceed
+  normally, do NOT restart. Announce-only (→ **RESTART the session**, no mid-build git surgery)
+  remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
+  not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (tests are offline — no DB or API key needed)
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
