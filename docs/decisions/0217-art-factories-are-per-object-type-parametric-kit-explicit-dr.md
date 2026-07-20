@@ -118,12 +118,18 @@ not.**
    checker of station 2 is the gate.
 7. **Station 5 — the owner attests the look.** Unchanged, and not automatable (ADR-0070 stage 2 /
    ADR-0159). ADR-0214 decision 4 stands: fidelity to the existing look is the metric and improving the
-   art is a non-goal.
+   art is a non-goal. **Amended by
+   [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md):** the metric
+   shifts from "fidelity to the existing look" to "moves toward the directed cosy target"; the owner
+   still attests (station 5 unchanged), and the never-reinterpret rule stands.
 8. **Concept art designs the factory, not the instance.** A reference image informs one object type's
    kit once, deliberately; instances are then composed from that kit. This is what reconciles a
    generative entry point with ADR-0214 decision 4's "report the gap, never reinterpret". *(Proposed in
    conversation and approved by the owner; if per-instance references are later wanted, that is a fresh
-   decision.)*
+   decision.)* **Extended by
+   [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md):** the generative
+   entry point is made concrete — a generative image model (nano-banana / `@google/genai`),
+   AUTHOR-TIME only, bridged raster→checkable-vector; D8 itself stands.
 
 Rejected: a general cross-object composition or layout solver; forking Holodeck's solver; adopting
 buildingSMART IDS as the rule format; a boolean kernel as a present-day dependency; any machine-signed
