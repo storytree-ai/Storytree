@@ -95,7 +95,11 @@ Two alternatives were weighed against that and rejected:
    the art is an explicit non-goal. The look comes from a fixed kit of proven parts, a locked palette
    addressed by material name, one shared light vector, and seeded deterministic jitter (`rand01`,
    never `Math.random`) — not from the agent's taste. Where a backend or a kit cannot reproduce
-   something, that is a finding to report, not a licence to reinterpret.
+   something, that is a finding to report, not a licence to reinterpret. **Amended by
+   [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md):** the metric is no
+   longer "fidelity / improving the art is a non-goal" but "moves toward a named cosy target" (a
+   directed aesthetic, owner-attested). D4's **never-reinterpret rule STANDS** — the concept goes TO an
+   author and is never parsed into our code (ADR-0217 D2).
 5. **Two verdicts, neither automated away.** A render-to-PNG step plus a vision reviewer is required,
    because markup-only critics are provably blind to geometry (the house swarm demonstrated this). The
    final look verdict stays owner-attested ([ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)
