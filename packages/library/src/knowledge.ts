@@ -958,3 +958,20 @@ export type Friction = z.infer<typeof Friction>;
 export type Arc = z.infer<typeof Arc>;
 export type Plan = z.infer<typeof Plan>;
 export type UatCriterion = z.infer<typeof UatCriterion>;
+
+/**
+ * The known top-level field names of a structured Knowledge kind, read straight from that kind's
+ * (strict) schema shape via the discriminated union's `optionsMap`. Includes both KIND_SPECS body
+ * fields and the schema-level extras (`increments`, `route`, `stepRefs`, …). Returns null for a kind
+ * that is not a structured Knowledge kind — a rendered LibraryAsset carries `category`, not `kind`.
+ *
+ * Its reason for existing: a write surface (the CLI's `artifact edit`) can check a `--set field=…`
+ * name against this set and reject a typo'd field with a CLEAR message, instead of the opaque
+ * discriminated-union "Unrecognized key(s)" dump the `.strict()` schema throws. Drift-proof: the set
+ * is derived from the live schema, never a hand-maintained list.
+ */
+export function knownFieldsForKind(kind: string): ReadonlySet<string> | null {
+  const schema = Knowledge.optionsMap.get(kind as KnowledgeKind);
+  if (schema === undefined) return null;
+  return new Set(Object.keys(schema.shape));
+}

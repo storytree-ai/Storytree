@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { EPHEMERAL_KINDS, KIND_SPECS, Knowledge, type KnowledgeKind } from "./knowledge.js";
+import { EPHEMERAL_KINDS, KIND_SPECS, Knowledge, knownFieldsForKind, type KnowledgeKind } from "./knowledge.js";
 import { renderBody, generateTemplate } from "./knowledge-render.js";
 import { validateLibraryDoc } from "./library-doc.js";
 
@@ -521,4 +521,25 @@ test("renderBody: a ref-list renders as one bullet per ref; an empty optional li
   const body = renderBody(doc as never);
   assert.ok(body.includes("## Context\n\n- asset:a-one\n- asset:b-two"), "bulleted ref-list");
   assert.ok(!body.includes("## Rules"), "empty ref-list emits no heading");
+});
+
+test("knownFieldsForKind: exact schema fields per kind (KIND_SPECS body + schema extras), null for non-kinds", () => {
+  // arc carries the KIND_SPECS narrative fields AND the schema-level `increments` extra.
+  const arc = knownFieldsForKind("arc");
+  assert.ok(arc, "arc is a known kind");
+  for (const f of ["intent", "endState", "increments", "id", "title", "description"]) {
+    assert.ok(arc!.has(f), `arc field set includes ${f}`);
+  }
+  assert.ok(!arc!.has("endstate"), "a typo'd field is absent (this is what the CLI guard keys on)");
+
+  // Every structured kind resolves; the set is never empty.
+  for (const kind of KINDS) {
+    const fields = knownFieldsForKind(kind);
+    assert.ok(fields && fields.size > 0, `${kind} has a non-empty known-field set`);
+    assert.ok(fields!.has("kind"), `${kind} always carries the kind discriminator`);
+  }
+
+  // A rendered LibraryAsset (category, not kind) and an unknown kind are both null.
+  assert.equal(knownFieldsForKind("template"), null);
+  assert.equal(knownFieldsForKind("from-the-future"), null);
 });
