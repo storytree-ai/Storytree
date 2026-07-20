@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadCorpus } from "@storytree/library/store";
@@ -279,6 +282,85 @@ test("artifact edit on a missing id is guidance", async () => {
   assert.match(env.body, /no artifact "ghost" to edit/);
 });
 
+test("artifact edit --set field=@path reads the value from a file (no shell-mangled newlines)", async () => {
+  const store = await seeded();
+  const dir = mkdtempSync(path.join(tmpdir(), "cli-atpath-"));
+  try {
+    const file = path.join(dir, "desc.txt");
+    writeFileSync(file, "first line\nsecond line", "utf8");
+    const env = await run(
+      ["library", "artifact", "edit", "edit-first-curation", "--set", `description=@${file}`, "--pg"],
+      { store, writable: true },
+    );
+    assert.equal(env.ok, true);
+    const got = (await store.getDoc("edit-first-curation"))?.doc as { description?: string };
+    assert.equal(got.description, "first line\nsecond line"); // REAL newline, not a literal \n
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** Seed a minimal live-shaped arc into a store (arcs are live-only, absent from the offline seed). */
+async function seedArc(store: InMemoryStore): Promise<void> {
+  await store.upsertDoc({
+    id: "dispatch-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "dispatch-arc",
+      title: "Dispatch arc",
+      description: "d",
+      intent: "old intent",
+      endState: "old end state",
+      increments: [{ date: "2026-07-01", pr: "#1", outcome: "first" }],
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+}
+
+test("arc increment add <id> via dispatch appends one increment (positional routing + real clock)", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  const env = await run(
+    ["arc", "increment", "add", "dispatch-arc", "--outcome", "landed inc 2", "--pr", "#42", "--date", "2026-07-20", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true);
+  assert.match(env.body, /appended increment to arc dispatch-arc/);
+  const log = (await store.getDoc("dispatch-arc"))?.doc as { increments: Array<Record<string, unknown>> };
+  assert.equal(log.increments.length, 2);
+  assert.deepEqual(log.increments[1], { date: "2026-07-20", pr: "#42", outcome: "landed inc 2" });
+});
+
+test("arc edit --end-state @path via dispatch reads long prose from a file", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  const dir = mkdtempSync(path.join(tmpdir(), "cli-arc-"));
+  try {
+    const file = path.join(dir, "end.md");
+    writeFileSync(file, "closed when:\n- a\n- b", "utf8");
+    const env = await run(["arc", "edit", "dispatch-arc", "--end-state", `@${file}`, "--pg"], {
+      store,
+      writable: true,
+    });
+    assert.equal(env.ok, true);
+    const got = (await store.getDoc("dispatch-arc"))?.doc as { endState?: string };
+    assert.equal(got.endState, "closed when:\n- a\n- b");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("arc edit without --pg is refused (arcs live only in the shared store)", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  const env = await run(["arc", "edit", "dispatch-arc", "--intent", "x"], { store });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /writes to the shared store/);
+});
+
 test("sync-agents without --pg is refused with the write-surface guidance", async () => {
   const env = await run(["library", "sync-agents"], { store: await seeded() });
   assert.equal(env.ok, false);
@@ -343,14 +425,17 @@ test("sync-corpus (writable) is idempotent — a clean live tier reports nothing
   assert.match(env.body, /NOTHING TO MIGRATE/);
 });
 
-test("artifact edit that breaks the schema is refused, not persisted", async () => {
+test("artifact edit --set on an unknown field is refused with a clear message, not persisted", async () => {
   const store = await seeded();
+  // edit-first-curation is a pattern; `bogusField` is not one of its fields. The guard names the
+  // bad field + lists the editable ones, instead of the opaque .strict() union dump it used to throw.
   const env = await run(
     ["library", "artifact", "edit", "edit-first-curation", "--set", "bogusField=nope"],
     { store, writable: true },
   );
   assert.equal(env.ok, false);
-  assert.match(env.body, /would make "edit-first-curation" invalid/);
+  assert.match(env.body, /unknown field "bogusField" for a pattern artifact/);
+  assert.match(env.body, /editable fields: .*statement/);
   const got = await store.getDoc("edit-first-curation");
   assert.equal((got?.doc as { bogusField?: string }).bogusField, undefined, "not persisted");
 });

@@ -11,6 +11,7 @@ import {
   groupSources,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
+  knownFieldsForKind,
 } from "@storytree/library";
 import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
 import {
@@ -27,7 +28,7 @@ import type { SeedEntry } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { arcCommand, arcHelp } from "./arc.js";
+import { arcCommand, arcHelp, arcEdit, arcIncrementAdd, type ArcWriteDeps } from "./arc.js";
 import { planCommand, planHelp, type CountCommitsSince } from "./plan.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
@@ -419,10 +420,30 @@ export async function newArtifact(
 }
 
 /**
+ * Resolve a CLI value that may reference a file: a leading `@` means "read the rest as a UTF-8 file
+ * path" (the curl -d @file convention). Lets long/multi-line prose — an arc's endState, an increment
+ * outcome, a `--set field=@path` value — come from a file instead of a shell argument that would
+ * mangle newlines into a literal `\n`. A plain value passes through unchanged. Throws (ENOENT etc.)
+ * when the file can't be read — callers convert that into an envelope.
+ */
+export async function resolveAtPathValue(value: string): Promise<string> {
+  return value.startsWith("@") ? readFile(value.slice(1), "utf8") : value;
+}
+
+/** Machine-managed doc fields hidden from the `artifact edit` "editable fields" hint (still validated). */
+const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion", "createdAt", "updatedAt"]);
+
+/**
  * `storytree library artifact edit <id> --set <field>=<value> ...` (or `--json`/`--file` to replace
  * wholesale) — patch one artifact in the shared store. Loads it, applies the change, re-validates
  * (a bad edit returns the validation message as guidance, never persists), then upserts (one event +
  * projection update). The id must already exist — `new` creates.
+ *
+ * Two ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path` reads
+ * the value from a FILE (long/multi-line prose without shell mangling), and a typo'd field name on a
+ * structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of the
+ * opaque `.strict()` union dump. Note: a structured field that is an ARRAY of objects (an arc's
+ * `increments`) still cannot be appended via `--set` — that is what `storytree arc increment add` is for.
  */
 export async function editArtifact(
   deps: RunDeps,
@@ -478,17 +499,42 @@ export async function editArtifact(
     // A typed ref-list field (KIND_SPECS refList, e.g. the agent kind's context/rules) is a
     // string[] on the doc — coerce the --set string by splitting on whitespace/commas so
     // `--set context=asset:a,asset:b` works without --json.
+    const kindStr = typeof base["kind"] === "string" ? (base["kind"] as string) : undefined;
     const kindSpecs =
-      typeof base["kind"] === "string" && Object.hasOwn(KIND_SPECS, base["kind"])
-        ? KIND_SPECS[base["kind"] as keyof typeof KIND_SPECS]
+      kindStr !== undefined && Object.hasOwn(KIND_SPECS, kindStr)
+        ? KIND_SPECS[kindStr as keyof typeof KIND_SPECS]
         : [];
     const refListFields = new Set(kindSpecs.filter((s) => s.refList === true).map((s) => s.field));
+    // The known field set for a structured kind (null for a rendered LibraryAsset, which carries
+    // `category` not `kind`) — used to reject a typo'd field name up front with a clear message,
+    // rather than letting the .strict() schema throw an opaque "Unrecognized key(s)" union dump.
+    const knownFields = kindStr !== undefined ? knownFieldsForKind(kindStr) : null;
     const changed: string[] = [];
     for (const s of opts.sets) {
       const i = s.indexOf("=");
-      if (i < 0) return { ok: false, body: `bad --set "${s}" — use field=value.`, next: [] };
+      if (i < 0) return { ok: false, body: `bad --set "${s}" — use field=value (or field=@path to read the value from a file).`, next: [] };
       const field = s.slice(0, i);
-      const value = s.slice(i + 1);
+      if (knownFields !== null && !knownFields.has(field)) {
+        const editable = [...knownFields].filter((f) => !UNSETTABLE_FIELDS.has(f)).sort();
+        return {
+          ok: false,
+          body: [
+            `unknown field "${field}" for a ${kindStr} artifact — the strict schema would reject it, so this edit is refused (not silently dropped).`,
+            `editable fields: ${editable.join(", ")}.`,
+            ...(kindStr === "arc"
+              ? ["for an arc's narrative or its increment log, use the first-class verbs: storytree arc edit / storytree arc increment add."]
+              : []),
+          ].join("\n"),
+          next: [`storytree library artifact ${id}`],
+        };
+      }
+      // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
+      let value: string;
+      try {
+        value = await resolveAtPathValue(s.slice(i + 1));
+      } catch (e) {
+        return { ok: false, body: `could not read --set ${field}=${s.slice(i + 1)}: ${(e as Error).message}`, next: [] };
+      }
       base[field] = refListFields.has(field)
         ? value.split(/[\s,]+/).filter((v) => v !== "")
         : value;
@@ -1604,6 +1650,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     supersedes?: string;
     amends?: string;
     arc?: string;
+    "end-state"?: string;
+    date?: string;
+    pr?: string;
     threshold?: string;
     decided?: boolean;
     current?: boolean;
@@ -1668,6 +1717,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         supersedes: { type: "string" },
         amends: { type: "string" },
         arc: { type: "string" },
+        // `storytree arc edit` / `arc increment add` — the first-class arc write verbs (long prose via @path).
+        "end-state": { type: "string" },
+        date: { type: "string" },
+        pr: { type: "string" },
         threshold: { type: "string" },
         decided: { type: "boolean", default: false },
         current: { type: "boolean", default: false },
@@ -2086,6 +2139,44 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // The derived initiative view (ADR-0183 D3): plans by `arcRef` query, ADRs/stories by their
     // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
     if (help) return arcHelp();
+
+    // The WRITE verbs (arc edit / arc increment add) go through the validated write path — a
+    // first-class replacement for the raw store one-shot (the ADR-0168 arc-edit friction). Long
+    // prose (--intent/--end-state/--outcome) accepts `@path` to read from a file so shell quoting
+    // never mangles multi-line values into a literal `\n`.
+    if (sub === "edit" || sub === "increment") {
+      const writeDeps: ArcWriteDeps = {
+        store: deps.store,
+        writable: deps.writable === true,
+        ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+        now: new Date().toISOString(),
+        pg: values.pg === true,
+      };
+      let resolved: { intent?: string; endState?: string; outcome?: string };
+      try {
+        resolved = {
+          ...(values.intent !== undefined ? { intent: await resolveAtPathValue(values.intent) } : {}),
+          ...(values["end-state"] !== undefined ? { endState: await resolveAtPathValue(values["end-state"]) } : {}),
+          ...(values.outcome !== undefined ? { outcome: await resolveAtPathValue(values.outcome) } : {}),
+        };
+      } catch (e) {
+        return { ok: false, body: `could not read a @file value: ${(e as Error).message}`, next: ["storytree arc --help"] };
+      }
+      if (sub === "edit") {
+        return arcEdit(writeDeps, third, {
+          ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
+          ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
+        });
+      }
+      // `arc increment add <id>` (canonical) or the shorthand `arc increment <id>` — both append one.
+      const incId = third === "add" ? fourth : third;
+      return arcIncrementAdd(writeDeps, incId, {
+        ...(values.date !== undefined ? { date: values.date } : {}),
+        ...(values.pr !== undefined ? { pr: values.pr } : {}),
+        ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
+      });
+    }
+
     return arcCommand(sub, third, {
       store: deps.store,
       decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
+import { upcastAndValidate } from "@storytree/library";
 
 import { loadAdrListings } from "./adr.js";
 import type { Envelope } from "./envelope.js";
@@ -191,6 +192,170 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
   };
 }
 
+// ---------------------------------------------------------------------------
+// arc WRITES — the first-class validated edit surface (was: a fragile store one-shot).
+//
+// An arc is LIVE-canonical (ADR-0023) and load-bearing, so its two authored mutations — narrative
+// edits (intent / endState) and the append-at-landing increment log (ADR-0183 D1) — deserve a
+// first-class verb that goes through the SAME upcast-and-validate write path as `library artifact
+// edit`, not a hand-rolled `getDoc → mutate → upsertDoc` bypass. Named flags mean the author never
+// guesses a schema field name, and long/multi-line prose comes from a file (`@path`, resolved by the
+// dispatch layer) so shell quoting never mangles it into literal `\n`. `friction`'s reinforce/route
+// verbs are the precedent: read the doc, mutate one structured slice, re-validate the WHOLE doc, upsert.
+// ---------------------------------------------------------------------------
+
+/** The write context the arc edit verbs need: the live store, the writable flag, an actor + clock. */
+export interface ArcWriteDeps {
+  /** The doc store — the live store under --pg (arcs live only there). */
+  store: Store;
+  /** True when the store persists (the live --pg store). A write refuses when false. */
+  writable: boolean;
+  /** Recorded as the event `actor` on writes; defaults to "cli". */
+  actor?: string;
+  /** An ISO timestamp (composition-root clock): stamps `updatedAt`; the increment date defaults to its date part. */
+  now: string;
+  /** True when --pg is attached — used only for the honest offline hint on a miss. */
+  pg: boolean;
+}
+
+/** Guidance when an arc WRITE is attempted offline — arcs live only in the shared store. */
+function arcNotWritable(verb: string): Envelope {
+  return {
+    ok: false,
+    body: `arc ${verb} writes to the shared store — run with --pg (and bring the DB up first: pnpm db:up).`,
+    next: ["pnpm db:up", `storytree arc ${verb} <id> --pg`],
+  };
+}
+
+/** Load an arc doc for a write, or return the honest miss/wrong-kind envelope (the arcShow messaging). */
+async function loadArcForWrite(
+  deps: ArcWriteDeps,
+  id: string,
+): Promise<{ doc: Record<string, unknown> } | { error: Envelope }> {
+  const stored = await deps.store.getDoc(id);
+  if (!stored || stored.kind !== "arc") {
+    return {
+      error: {
+        ok: false,
+        body: stored
+          ? `"${id}" is a ${stored.kind}, not an arc.`
+          : `no arc "${id}"${deps.pg ? "" : " in the OFFLINE seed — arcs are live-canonical; try --pg"}.`,
+        next: ["storytree arc list --pg"],
+      },
+    };
+  }
+  const doc =
+    typeof stored.doc === "object" && stored.doc !== null ? { ...(stored.doc as Record<string, unknown>) } : {};
+  return { doc };
+}
+
+/**
+ * `storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg` — patch an arc's
+ * narrative fields through the validated write path. At least one of intent / end state is required;
+ * the value(s) arrive already `@path`-resolved (the dispatch layer reads the file so long prose is
+ * never mangled by shell quoting). Re-validates the WHOLE arc (a bad edit returns the message, never
+ * persists), then upserts (one event + projection update). The id must already exist.
+ */
+export async function arcEdit(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { intent?: string | undefined; endState?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("edit");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc edit needs an id: storytree arc edit <id> --intent <text|@file> | --end-state <text|@file> --pg",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  if (opts.intent === undefined && opts.endState === undefined) {
+    return {
+      ok: false,
+      body: "nothing to change — pass --intent <text|@file> and/or --end-state <text|@file> (long prose: @path reads from a file).",
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+
+  const base = found.doc;
+  if (opts.intent !== undefined) base["intent"] = opts.intent;
+  if (opts.endState !== undefined) base["endState"] = opts.endState;
+  base["updatedAt"] = deps.now;
+
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return { ok: false, body: `edit would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+  }
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const changed = [opts.intent !== undefined ? "intent" : null, opts.endState !== undefined ? "endState" : null]
+    .filter((s): s is string => s !== null)
+    .join(", ");
+  return { ok: true, body: `updated arc ${saved.id} (${changed}).`, next: [`storytree arc show ${saved.id} --pg`] };
+}
+
+/**
+ * `storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` —
+ * APPEND one {@link ArcIncrement} to the arc's landing log (ADR-0183 D1: the durable residue). This is
+ * the operation `library artifact edit --set` structurally CANNOT do (the log is an array of objects);
+ * the old path was a raw `upsertDoc` one-shot that bypassed validation. `--outcome` is required (what
+ * landed / halted / was re-planned); `--pr` is optional (an increment can close without its own PR);
+ * `--date` defaults to today (the landing date). Re-validates the WHOLE arc — the new increment must
+ * satisfy the ArcIncrement schema — then upserts (append-only, like the decision log).
+ */
+export async function arcIncrementAdd(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { date?: string | undefined; pr?: string | undefined; outcome?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("increment add");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc increment add needs an id: storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const outcome = opts.outcome?.trim();
+  if (outcome === undefined || outcome === "") {
+    return {
+      ok: false,
+      body: "arc increment add needs --outcome — what landed / halted / was re-planned (long prose: --outcome @path reads from a file).",
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
+  const increment: Record<string, unknown> = { date, outcome, ...(pr !== undefined && pr !== "" ? { pr } : {}) };
+
+  const base = found.doc;
+  const priorIncrements = Array.isArray(base["increments"]) ? [...(base["increments"] as unknown[])] : [];
+  base["increments"] = [...priorIncrements, increment];
+  base["updatedAt"] = deps.now;
+
+  let valid: unknown;
+  try {
+    valid = upcastAndValidate(base);
+  } catch (e) {
+    return { ok: false, body: `increment would make "${id}" invalid:\n${(e as Error).message}`, next: [`storytree arc show ${id} --pg`] };
+  }
+  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? "cli" });
+  const count = Array.isArray((valid as Record<string, unknown>)["increments"])
+    ? ((valid as Record<string, unknown>)["increments"] as unknown[]).length
+    : 0;
+  return {
+    ok: true,
+    body: `appended increment to arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}\n(${count} increment(s) now).`,
+    next: [`storytree arc show ${saved.id} --pg`],
+  };
+}
+
 export function arcHelp(): Envelope {
   return {
     ok: true,
@@ -200,11 +365,20 @@ export function arcHelp(): Envelope {
       "  storytree arc list [--pg]        every arc: intent + increment log summary",
       "  storytree arc show <id> [--pg]   one arc: intent / end state / increments + derived children",
       "",
+      "edit an arc (validated write path — no fragile store one-shot; long prose via @path reads from a file):",
+      "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
+      "  storytree arc increment add <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      "        APPEND one landing to the increment log (ADR-0183 D1) — the merge-ceremony residue.",
+      "",
       "Every containment edge lives on the CHILD (plan.arcRef; ADR/story frontmatter `arc:` stamps via",
       "`storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",
       "Arcs are live-canonical and plans live-ONLY — run with --pg (pnpm db:up) for the real view.",
     ].join("\n"),
-    next: ["storytree arc list --pg", "storytree arc show <id> --pg"],
+    next: [
+      "storytree arc list --pg",
+      "storytree arc show <id> --pg",
+      "storytree arc increment add <id> --outcome \"<what landed>\" --pr <ref> --pg",
+    ],
   };
 }
 
