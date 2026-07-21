@@ -1505,6 +1505,46 @@ a.stat:hover {
 .relaxed-cell.v-2 { fill: var(--hex-top-2); }
 .relaxed-cell.is-wheat { fill: var(--hex-wheat); }
 
+/* ISLAND GROUND STATUS TINT (owner call 2026-07-21, grounded-art arc): the island's LAND carries
+   the story's folded status — the meaning read at a glance: green = healthy, brown = mapped
+   (the brownfield), blackened = unhealthy, young amber-wheat = proposed, working gold = building.
+   Implemented as territory-scoped re-definitions of the same --hex-top-*/--hex-side tokens the
+   cells fill from (colour-is-class, ADR-0093 §4): the `.hex-territory.st-<status>` classes were
+   already stamped on every island's tile/coast/flora groups by TreeView/SceneView, so this is
+   CSS-only. Element-scoped vars beat the body-scoped cosy sage, so `unknown` alone keeps the
+   base grass family (sage under `body.cosy-island`). */
+.hex-territory.st-healthy {
+  --hex-top-0: #96b56d; /* alive green — gently muted toward the cosy read, but clearly green */
+  --hex-top-1: #8aa961;
+  --hex-top-2: #a3c17c;
+  --hex-side: #71894c;
+}
+.hex-territory.st-mapped {
+  --hex-top-0: #b3946a; /* warm tilled brown — kin to the dirt-lane --trail-bed family */
+  --hex-top-1: #a68557;
+  --hex-top-2: #bda278;
+  --hex-side: #85683f;
+}
+.hex-territory.st-proposed {
+  --hex-top-0: #cab77c; /* young amber-wheat — the ground echo of the proposed amber crown */
+  --hex-top-1: #bdaa6b;
+  --hex-top-2: #d5c48d;
+  --hex-side: #9a874f;
+}
+.hex-territory.st-building {
+  --hex-top-0: #d5b45c; /* working gold — a notch more saturated than proposed */
+  --hex-top-1: #c7a44b;
+  --hex-top-2: #dfc673;
+  --hex-side: #a2843a;
+}
+.hex-territory.st-unhealthy {
+  --hex-top-0: #57544a; /* blackened, charred — dark but still shaped by the cell seams */
+  --hex-top-1: #4a473e;
+  --hex-top-2: #635f52;
+  --hex-side: #37352c;
+  --hex-wheat: #6f6852; /* the wheat accent cells char with the ground (bright wheat would pop) */
+}
+
 /* organic island land: the smoothed coastline filled as a sandy beach, drawn
    UNDER the hex tiles so each island reads as one solid blob with a shore rim
    instead of loose tiles ringed by a hexagonal moat. */
