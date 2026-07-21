@@ -25,6 +25,31 @@ import type { BuildActivity, ClaimActivity, DepartedClaim } from '../types';
 import { SLOW_POLL_MS, STORE_RECOVERED_EVENT } from './poll';
 
 /**
+ * True when two activity payloads are field-for-field identical, so the hook can KEEP its previous
+ * array identity across a byte-identical poll instead of handing every downstream memo (…ByStory → the
+ * scene) a fresh reference that forces a needless O(nodes) scene rebuild ~2×/min while idle (the
+ * studio-map idle-rebuild, ADR-0069 / memory `studio-map-svg-scaling-wall`). Every field on these
+ * wires is a primitive (see `BuildActivity`/`ClaimActivity`/`DepartedClaim` in types.ts), so a
+ * per-key shallow compare is EXACT — no false "unchanged", so it can never suppress a real update.
+ * (A `DepartedClaim`'s `ageMs` grows every read, so a live departure never matches — it correctly
+ * keeps rebuilding as it fades; only steady claims / in-flight builds / empty payloads match.)
+ */
+export function sameRows<T extends object>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]! as Record<string, unknown>;
+    const y = b[i]! as Record<string, unknown>;
+    const keys = Object.keys(x);
+    if (keys.length !== Object.keys(y).length) return false;
+    for (const k of keys) {
+      if (x[k] !== y[k]) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * The in-flight-build layer: seeded from the one-shot /api/tree payload (so the
  * world paints builds on first load, even on a backgrounded tab whose poll is
  * gated), then kept near-real-time by the GET /api/activity poll on the shared slow
@@ -42,7 +67,7 @@ export function useBuildActivity(seed: BuildActivity[] | undefined): BuildActivi
   const polled = useRef(false); // a poll answered — seeds are stale from here on
 
   useEffect(() => {
-    if (seed !== undefined && !polled.current) setRaw(seed);
+    if (seed !== undefined && !polled.current) setRaw((prev) => (sameRows(prev, seed) ? prev : seed));
   }, [seed]);
 
   useEffect(() => {
@@ -53,8 +78,10 @@ export function useBuildActivity(seed: BuildActivity[] | undefined): BuildActivi
       try {
         const { builds } = await api.activity();
         polled.current = true;
-        // null → [] : the layer unmounts silently (advisory absence, ADR-0048).
-        setRaw(builds ?? []);
+        // null → [] : the layer unmounts silently (advisory absence, ADR-0048). Preserve the previous
+        // array identity on a byte-identical payload (sameRows) so an idle poll doesn't rebuild the scene.
+        const next = builds ?? [];
+        setRaw((prev) => (sameRows(prev, next) ? prev : next));
       } catch {
         // The studio server itself didn't answer — keep the last-known layer.
       } finally {
@@ -110,7 +137,8 @@ export function useClaimActivity(seed: ClaimActivity[] | undefined): ClaimActivi
   const polled = useRef(false); // a poll answered — seeds are stale from here on
 
   useEffect(() => {
-    if (seed !== undefined && !polled.current) setClaims(seed);
+    if (seed !== undefined && !polled.current)
+      setClaims((prev) => (sameRows(prev, seed) ? prev : seed));
   }, [seed]);
 
   useEffect(() => {
@@ -122,8 +150,12 @@ export function useClaimActivity(seed: ClaimActivity[] | undefined): ClaimActivi
         const { claims: rawClaims, departures: rawDepartures } = await api.activity();
         polled.current = true;
         // null/undefined → [] : the layer unmounts silently (advisory absence, ADR-0138 §5 / ADR-0200 D7).
-        setClaims(rawClaims ?? []);
-        setDepartures(rawDepartures ?? []);
+        // Preserve identity on a byte-identical payload (sameRows) so a steady claim set doesn't rebuild
+        // the scene each poll; a departure's growing `ageMs` correctly never matches, so it keeps fading.
+        const nextClaims = rawClaims ?? [];
+        const nextDepartures = rawDepartures ?? [];
+        setClaims((prev) => (sameRows(prev, nextClaims) ? prev : nextClaims));
+        setDepartures((prev) => (sameRows(prev, nextDepartures) ? prev : nextDepartures));
       } catch {
         // The studio server itself didn't answer — keep the last-known layers.
       } finally {

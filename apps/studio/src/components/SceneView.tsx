@@ -576,8 +576,21 @@ function renderNode(
  * Render a scene tree as React SVG. The root is the core's offset `world` group; the
  * caller supplies the `<svg>` shell + `<defs>` and layers any studio-only chrome
  * (solar spokes, the Shared-Islands panel, building stamps) ON TOP.
+ *
+ * `React.memo` is LOAD-BEARING for pan performance (ADR-0069 / memory
+ * `studio-map-svg-scaling-wall`): a pointermove pans by updating the camera state on the parent, which
+ * re-renders TreeView. The scene subtree does not depend on the camera, so as long as the caller hands
+ * `scene` and `ctx` STABLE identities across a pan (TreeView memoises both), memo bails out here and the
+ * ~O(nodes) React walk is skipped — only the parent `.world-camera` <g> transform attribute updates.
+ * Keep this wrapped; unwrapping it re-introduces the felt pan lag.
  */
-export function SceneView({ scene, ctx }: { scene: SceneNode; ctx: SceneCtx }): React.JSX.Element {
+export const SceneView = React.memo(function SceneView({
+  scene,
+  ctx,
+}: {
+  scene: SceneNode;
+  ctx: SceneCtx;
+}): React.JSX.Element {
   // The scene root (the `world` group) always renders — only the hit layer is skipped.
   return renderNode(scene, 'scene', undefined, ctx) ?? <g />;
-}
+});

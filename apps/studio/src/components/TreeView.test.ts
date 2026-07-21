@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   demoClaims,
   demoDepartures,
+  nextSceneNow,
   orderClaimsForScene,
   readClaimsMode,
   resolveBuildPhase,
@@ -160,5 +161,36 @@ describe('resolveBuildPhase (ADR-0212 — RED WINS)', () => {
     expect(resolveBuildPhase([build(), build({ runId: 'r2', phase: 'CONFIRM_RED' })])).toBe(
       'CONFIRM_RED',
     );
+  });
+});
+
+// The idle-freeze of the scene's `now` (studio-map idle-rebuild, ADR-0069 / memory
+// `studio-map-svg-scaling-wall`): while nothing on the map ages with `now`, the 60s ticker must not
+// advance the value the scene memo reads — else it rebuilds a byte-identical scene every minute.
+describe('nextSceneNow (studio-map idle-freeze of the age ticker)', () => {
+  const t0 = new Date('2026-07-22T00:00:00.000Z'); // the frozen previous scene-now
+  const t1 = new Date('2026-07-22T00:01:00.000Z'); // one 60s tick later (live now)
+
+  it('idle (no wisps, no bloom, was not blooming) → FREEZES at the previous scene-now', () => {
+    expect(nextSceneNow(t1, t0, false, false, false)).toBe(t0);
+  });
+
+  it('any wisp present → advances to the live now (a title ages every minute)', () => {
+    expect(nextSceneNow(t1, t0, true, false, false)).toBe(t1);
+  });
+
+  it('a bloom in-window now → advances to the live now (the bloom is fading)', () => {
+    expect(nextSceneNow(t1, t0, false, true, false)).toBe(t1);
+  });
+
+  it('the falling edge: not blooming now but WAS last tick → one final advance so the bloom clears', () => {
+    // The bloom just aged past its window — a now-driven change no poll reports. Without this extra
+    // advance the scene would freeze one tick early and keep a ghost bloom.
+    expect(nextSceneNow(t1, t0, false, false, true)).toBe(t1);
+  });
+
+  it('after the falling edge, a fully-idle tick freezes again (no perpetual advance)', () => {
+    // wasBlooming is false now (cleared last tick), and nothing else ages → frozen.
+    expect(nextSceneNow(t1, t0, false, false, false)).toBe(t0);
   });
 });

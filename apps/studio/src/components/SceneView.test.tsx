@@ -151,6 +151,14 @@ function renderScene(
 }
 
 describe('SceneView — the studio scene mapper', () => {
+  it('is React.memo-wrapped so a pan (identical scene + ctx) skips the O(nodes) re-walk (ADR-0069)', () => {
+    // Pan perf rests on this: a pointermove pans by moving the parent camera <g>, re-rendering
+    // TreeView; because TreeView hands stable `scene` + `ctx` identities, memo bails out here and the
+    // whole scene subtree is NOT re-walked. Unwrapping the memo re-introduces the felt pan lag
+    // (studio-map-svg-scaling-wall) — this pins the wrapper in place.
+    expect((SceneView as { $$typeof?: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+  });
+
   it('maps roles to the studio classes, folding status + variant', () => {
     const { root } = renderScene();
     expect(root.querySelector('.story-tree.st-healthy')).toBeTruthy();

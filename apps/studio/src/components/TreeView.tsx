@@ -39,7 +39,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
+import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
 import { claimColourState } from '../lib/claimColour';
 import { formatAge } from '../lib/format';
@@ -973,6 +973,34 @@ export function resolveBuildPhase(builds: BuildActivity[]): BuildPhase | undefin
   return best ?? 'IMPLEMENT';
 }
 
+/**
+ * The `now` the SCENE should render against, so the 60s age-ticker doesn't rebuild a byte-identical
+ * idle map (the studio-map idle-rebuild, ADR-0069 / memory `studio-map-svg-scaling-wall`). The scene
+ * only reads `now` to age content that is actually present — a wisp title ("claimed 2m ago") or a
+ * verdict bloom fading over its window — so while nothing ages, the scene is identical every tick and
+ * the ticker should be frozen OUT of the scene memo.
+ *
+ * Advance to the live `now` whenever anything ages with it: any build/claim/departure wisp
+ * (`hasWisps`), or a bloom in-window right now (`bloomingNow`) — AND for ONE final tick after the last
+ * bloom ages out (`wasBlooming`), so the faded bloom actually clears. That falling edge matters
+ * because a bloom aging past its window is a now-driven change no poll reports; without the extra
+ * tick the scene would freeze one step early and keep a ghost bloom. Otherwise return the frozen
+ * `prevSceneNow` so the scene memo sees an unchanged input and skips the rebuild.
+ *
+ * Pure so it is unit-testable; the caller holds `prevSceneNow` / `wasBlooming` in refs. `bloomingNow`
+ * and `wasBlooming` are always computed against the LIVE `now` (never the frozen one), so the window
+ * edge is judged correctly.
+ */
+export function nextSceneNow(
+  now: Date,
+  prevSceneNow: Date,
+  hasWisps: boolean,
+  bloomingNow: boolean,
+  wasBlooming: boolean,
+): Date {
+  return hasWisps || bloomingNow || wasBlooming ? now : prevSceneNow;
+}
+
 /** ADR-0212's join, surface-side: fold a story's live builds onto its ONE work body.
  *
  *  Two outcomes, and the second is the one that keeps the flip safe:
@@ -1887,16 +1915,34 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     return m;
   }, [stories]);
 
+  // ── The scene's `now`, frozen while the map is idle (studio-map idle-rebuild, ADR-0069) ──
+  // The scene reads `now` only to age content that is present (wisp titles, verdict blooms). While
+  // nothing ages, the 60s ticker would still rebuild a byte-identical scene ~1×/min. `nextSceneNow`
+  // freezes the scene's `now` in that idle case (advancing it only when a wisp exists or a bloom is/was
+  // in-window) so the scene memo — and every `…ByStory` fold feeding it — stays identity-stable. The
+  // gate predicates use the LIVE `now`; only the SCENE reads `sceneNow`. Refs hold the previous scene-now
+  // and the previous blooming flag (the "storing info from previous renders" pattern — a pure derivation,
+  // safe to compute during render). Other surfaces (the Shared-Islands panel) keep the live `now`.
+  const bloomingNow = useMemo(() => anyRecentLanding(stories ?? [], now), [stories, now]);
+  const hasWisps = rawBuilds.length > 0 || rawClaims.length > 0 || rawDepartures.length > 0;
+  const sceneNowRef = useRef(now);
+  const wasBloomingRef = useRef(bloomingNow);
+  const sceneNow = nextSceneNow(now, sceneNowRef.current, hasWisps, bloomingNow, wasBloomingRef.current);
+  sceneNowRef.current = sceneNow;
+  wasBloomingRef.current = bloomingNow;
+
   /**
    * In-flight builds grouped by the story territory their unit resolves to
-   * (ADR-0048). TTL-aged against the shared `now` ticker so a build's wisp
-   * vanishes the instant it crosses BUILD_IN_FLIGHT_TTL_MS, not at the next
-   * poll. A build whose unit no loaded story owns anchors nowhere (no wisp).
+   * (ADR-0048). TTL-aged against `sceneNow` (the idle-frozen ticker above) so a build's wisp
+   * vanishes the instant it crosses BUILD_IN_FLIGHT_TTL_MS, not at the next poll — while nothing is
+   * in flight (`rawBuilds` empty ⇒ `hasWisps` false ⇒ `sceneNow` frozen) this fold keeps a stable
+   * identity so the scene doesn't rebuild every tick. A build whose unit no loaded story owns anchors
+   * nowhere (no wisp).
    */
   const buildsByStory = useMemo(() => {
     const byStory = new Map<string, BuildActivity[]>();
     for (const b of rawBuilds) {
-      if (!isBuildInFlight(b.at, now)) continue;
+      if (!isBuildInFlight(b.at, sceneNow)) continue;
       const storyId = storyIds.has(b.unitId) ? b.unitId : capOwner.get(b.unitId);
       if (storyId === undefined) continue;
       const list = byStory.get(storyId);
@@ -1904,7 +1950,7 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
       else byStory.set(storyId, [b]);
     }
     return byStory;
-  }, [rawBuilds, now, storyIds, capOwner]);
+  }, [rawBuilds, sceneNow, storyIds, capOwner]);
 
   // The claim layer flag (ADR-0138 §5 / ADR-0200 D7): LIVE by default. `demo` injects synthetic
   // claims + a departure client-side (DB-free preview); `live` uses the polled `/api/activity` rows;
@@ -1987,10 +2033,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     () =>
       world
         ? buildScene(
-            worldToScene(world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden),
+            worldToScene(world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden),
           )
         : null,
-    [world, relaxedCells, now, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden],
+    [world, relaxedCells, sceneNow, buildsByStory, claimsByStory, departuresByStory, bakedStone, garden],
   );
 
   // ADR-0169 §3: trails are hidden by default and GROW on island focus. The plan is the
@@ -2062,6 +2108,50 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     [world, arrivalIds],
   );
 
+  // ── A STABLE scene ctx so the memoised <SceneView> skips the O(nodes) re-walk on a pan ──
+  // A pointermove pans by updating `cam` (state), re-rendering TreeView. Neither the scene nor this
+  // ctx depends on `cam`, so giving both a stable identity lets React.memo(SceneView) bail out — only
+  // the parent `.world-camera` <g> transform updates (the felt pan lag, ADR-0069 / memory
+  // `studio-map-svg-scaling-wall`). These hooks sit ABOVE the early returns so their order is fixed.
+  //
+  // territoryClassById DOES affect the render (the `.is-selected` shore border, the hub tag), so it is
+  // a dep of the ctx memo below — the map re-walks when the SELECTION changes, just not on a pan.
+  const territoryClassById = useCallback(
+    (id: string, status: string): string => {
+      const cls = ['hex-territory', `st-${status}`];
+      if (HUB_IDS.has(id)) cls.push('is-hub'); // solar-mode central wiring hub
+      // The only focus affordance on the map is a cheap shore border on the SELECTED island
+      // (`.is-selected`) — no ancestor/descendant/dim recolour (owner 2026-07-06).
+      if (id === selectedStory) cls.push('is-selected');
+      return cls.join(' ');
+    },
+    [selectedStory],
+  );
+  // The click handlers do NOT affect the render (only what a click DOES), so they get a stable
+  // identity via a ref to the latest `selectStory` (assigned just below its definition) and stay OUT
+  // of the ctx deps. `handledRef` marks the click handled so the viewport hit-test fallback (below)
+  // doesn't re-fire it.
+  const selectStoryRef = useRef<(storyId: string, capId: string | null) => void>(() => {});
+  const onSelectStoryStable = useCallback((id: string): void => {
+    handledRef.current = true;
+    selectStoryRef.current(id, null);
+  }, []);
+  const onSelectCapStable = useCallback((storyId: string, capId: string): void => {
+    handledRef.current = true;
+    selectStoryRef.current(storyId, capId);
+  }, []);
+  const sceneCtx = useMemo<SceneCtx>(
+    () => ({
+      territoryClassById,
+      reveal: growPlan,
+      hidden,
+      arrivalIds,
+      onSelectStory: onSelectStoryStable,
+      onSelectCap: onSelectCapStable,
+    }),
+    [territoryClassById, growPlan, hidden, arrivalIds, onSelectStoryStable, onSelectCapStable],
+  );
+
   if (loadError) {
     return (
       <div className="pad">
@@ -2089,16 +2179,9 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     setHidden(next);
   };
 
-  // The focus-aware island class — by id + folded status, so the scene mapper
-  // (SceneView) can compute it from a scene node (which carries id + status).
-  const territoryClassById = (id: string, status: string): string => {
-    const cls = ['hex-territory', `st-${status}`];
-    if (HUB_IDS.has(id)) cls.push('is-hub'); // solar-mode central wiring hub
-    // The only focus affordance on the map is a cheap shore border on the SELECTED
-    // island (`.is-selected`) — no ancestor/descendant/dim recolour (owner 2026-07-06).
-    if (id === selectedStory) cls.push('is-selected');
-    return cls.join(' ');
-  };
+  // The focus-aware island class — by id + folded status, so the scene mapper (SceneView) can compute
+  // it from a scene node. `territoryClassById` is the stable useCallback hoisted above the early
+  // returns (for the memoised ctx); this thin wrapper adapts a whole story for the legacy inline render.
   const territoryClass = (story: TreeStory): string =>
     territoryClassById(story.id, story.status ?? 'unknown');
 
@@ -2129,6 +2212,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
     setSelectedCap(capId);
     navigate(treeFocusHref(storyId));
   };
+  // Keep the stable ctx handlers (onSelectStoryStable / onSelectCapStable, above the early returns)
+  // pointed at the LATEST closure — so they act with current state without giving the ctx a new identity
+  // every render (which would defeat the pan memoisation).
+  selectStoryRef.current = selectStory;
 
   /**
    * Select by HIT-TESTING the pointer position rather than trusting the `click` event's target — the
@@ -2290,23 +2377,13 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
               // `<svg>` and are untouched.
               <>
                 <SceneView
-                  key={`arrive-${arriveRun}`}
+                  // The key only needs to change for the `?arrive=` DEMO replay (its button bumps
+                  // `arriveRun` to remount the subtree so the CSS keyframes run again). In normal
+                  // operation (no demo) it stays constant so a re-render NEVER remounts the whole map —
+                  // a live arrival stages via classes, not a remount (ADR-0069 / studio-map-svg-scaling-wall).
+                  key={demoArrivalId ? `arrive-${arriveRun}` : 'scene'}
                   scene={scene}
-                  ctx={{
-                    territoryClassById,
-                    reveal: growPlan,
-                    hidden,
-                    arrivalIds,
-                    // mark the click handled so the viewport's hit-test fallback doesn't re-fire it
-                    onSelectStory: (id) => {
-                      handledRef.current = true;
-                      selectStory(id, null);
-                    },
-                    onSelectCap: (storyId, capId) => {
-                      handledRef.current = true;
-                      selectStory(storyId, capId);
-                    },
-                  }}
+                  ctx={sceneCtx}
                 />
                 <StudioWorldChrome
                   world={world}
