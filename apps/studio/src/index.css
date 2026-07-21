@@ -1505,23 +1505,31 @@ a.stat:hover {
 .relaxed-cell.v-2 { fill: var(--hex-top-2); }
 .relaxed-cell.is-wheat { fill: var(--hex-wheat); }
 
-/* ISLAND GROUND STATUS TINT (owner call 2026-07-21, grounded-art arc): the island's LAND carries
-   the story's folded status — the meaning read at a glance: green = healthy, brown = mapped
-   (the brownfield), blackened = unhealthy. Everything else (proposed / building) stays the normal
-   green grass — an owner correction to the first cut, whose amber-wheat proposed ground turned a
-   mostly-proposed map wall-to-wall brown; the crown already carries the proposed/building read.
-   Implemented as territory-scoped re-definitions of the same --hex-top-*/--hex-side tokens the
-   cells fill from (colour-is-class, ADR-0093 §4): the `.hex-territory.st-<status>` classes were
+/* ISLAND GROUND STATUS TINT (owner calls 2026-07-21, grounded-art arc): the island's LAND carries
+   the story's folded status — the meaning read at a glance: yellow = proposed (the young-amber
+   rung of the ADR-0038 crown ladder, on the ground), orange-gold = building, green = healthy,
+   brown = mapped (the brownfield), blackened = unhealthy. The yellow must stay clearly YELLOW —
+   the first cut's muted amber-tan read as brown and drowned the mostly-proposed map (owner
+   rejection); mapped's tilled brown is the desaturated one.
+   Implemented as territory-scoped re-definitions of the same hex-top/hex-side tokens the cells
+   fill from (colour-is-class, ADR-0093 §4). CAUTION: never write the token glob with a star
+   before a slash inside this comment — "star slash" terminates the comment and the parser then
+   silently swallows the NEXT rule (this exact bug shipped twice). The `.hex-territory.st-<status>`
+   classes were
    already stamped on every island's tile/coast/flora groups by TreeView/SceneView, so this is
-   CSS-only. Element-scoped vars beat the body-scoped cosy sage, so proposed/building land stays
-   green even under `body.cosy-island` (the sage wasteland read was the original complaint);
-   `unknown` alone keeps the base family. */
-.hex-territory.st-proposed,
+   CSS-only. Element-scoped vars beat the body-scoped cosy sage (the sage wasteland read was the
+   original complaint); `unknown` alone keeps the base family. */
+.hex-territory.st-proposed {
+  --hex-top-0: #d8c069; /* bright wheat yellow — young, unproven land */
+  --hex-top-1: #ccb258;
+  --hex-top-2: #e2cf7e;
+  --hex-side: #a8914a;
+}
 .hex-territory.st-building {
-  --hex-top-0: #a9c87f; /* the classic grass, pinned so the cosy sage cannot dull live work */
-  --hex-top-1: #9fc174;
-  --hex-top-2: #b2cf8b;
-  --hex-side: #87985f;
+  --hex-top-0: #dcab52; /* orange-gold — work underway, the proposed crown's own hue family */
+  --hex-top-1: #d09a42;
+  --hex-top-2: #e6bc68;
+  --hex-side: #aa7d33;
 }
 .hex-territory.st-healthy {
   --hex-top-0: #8cb85e; /* a lusher, deeper green than the base grass — proven-alive land */
