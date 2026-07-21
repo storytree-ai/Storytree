@@ -285,7 +285,11 @@ export const FIXTURE_MAP_STORY_IDS = ['alpha-engine', 'beta-surface', 'gamma-flo
  * select zoom both animate, and a fixed wait flakes on a slow box).
  */
 export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
-  await win.waitForSelector('g.story-tree', { state: 'attached', timeout });
+  // Wait on the per-island TERRITORY group (`g.hex-flora`), not the central tree: under the ADR-0226
+  // vegetation vocabulary (now the studio default) the tree is a baked-art `<use>` (the autumn-tree
+  // hero), NOT a `g.story-tree`, so waiting on the tree class would hang. `g.hex-flora` is present
+  // regardless of the tree kind or the async hero-kit load.
+  await win.waitForSelector('g.hex-flora', { state: 'attached', timeout });
   const readTransform = () =>
     win.evaluate(() => {
       const g = document.querySelector('g.world-camera');
@@ -322,8 +326,12 @@ export async function resetToForest(win) {
  */
 export const findStoryTarget = (win) =>
   win.evaluate(() => {
-    const HIT = 'g.hex-flora,g.story-tree,.relaxed-tile,.coast-fill-group,.world-story-hit,[data-story-id]';
-    const trees = [...document.querySelectorAll('g.story-tree')]
+    const HIT = 'g.hex-flora,g.story-tree,.baked-art,.relaxed-tile,.coast-fill-group,.world-story-hit,[data-story-id]';
+    // Candidate points come from each island's central tree — a `g.story-tree` (flag-off / pre-hero) OR a
+    // `.baked-art` `<use>` (the autumn-tree hero, the ADR-0226 default). Both sit at the island centre
+    // inside its `g.hex-flora` territory group, so `elementFromPoint(...).closest(HIT)` resolves to the
+    // story either way. Without the `.baked-art` fallback the default forest has no candidates.
+    const trees = [...document.querySelectorAll('g.story-tree, .baked-art')]
       .map((t) => t.getBoundingClientRect())
       .filter((r) => r.width > 6 && r.left > 40 && r.top > 110 && r.bottom < window.innerHeight - 60);
     for (const r of trees) {
@@ -343,7 +351,7 @@ export const findStoryTarget = (win) =>
  *  and pan gestures. Returns null if the view is fully covered (then the caller skips that assertion). */
 export const findEmptyPoint = (win) =>
   win.evaluate(() => {
-    const ON = 'g.hex-flora,g.story-tree,.relaxed-tile,.coast-fill-group,.world-story-hit,[data-story-id],.shared-islands-panel,.tree-detail,.panel-drawer';
+    const ON = 'g.hex-flora,g.story-tree,.baked-art,.relaxed-tile,.coast-fill-group,.world-story-hit,[data-story-id],.shared-islands-panel,.tree-detail,.panel-drawer';
     for (let y = 130; y < window.innerHeight - 120; y += 17) {
       for (let x = 320; x < window.innerWidth - 20; x += 17) {
         const el = document.elementFromPoint(x, y);
