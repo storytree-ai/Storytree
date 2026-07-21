@@ -153,6 +153,7 @@ import {
   wispBand,
   type SceneInput,
   type SceneGardenInput,
+  type SceneGardenHero,
   type SceneVegetationInput,
   type SceneStatus,
   type ScenePlantInput,
@@ -2033,7 +2034,10 @@ export function TreeView({ focus }: { focus: string | null }): React.JSX.Element
   // unhealthy, signpost retired). Off ⇒ `SceneInput.vegetation` absent, every island byte-identical. A
   // pure vocabulary switch — orthogonal to the cosy palette (the owner can combine `?veg=on&cosy=on`).
   const vegOn = useMemo(() => readVegetationVocab(search), [search]);
-  const vegetation = useMemo<SceneVegetationInput | null>(() => (vegOn ? {} : null), [vegOn]);
+  // grounded-art (ADR-0226 decision 1): the tree-spread fetches the `autumn-tree` hero from the kit
+  // chunk and sends it as `vegetation.heroTree`, so every non-garden island's central tree becomes the
+  // baked hero. Until it resolves the procedural tree stands (a late repaint). Off ⇒ vegetation null.
+  const vegetation = useVegetation(vegOn);
   useEffect(() => {
     if (!cosyOn && !gardenOn) return;
     document.body.classList.add('cosy-island');
@@ -3088,6 +3092,31 @@ function useGardenIsland(enabled: boolean): SceneGardenInput | null {
     return () => { live = false; };
   }, [enabled]);
   return enabled && heroes ? { islandId: GARDEN_ISLAND_ID, heroes } : null;
+}
+
+/**
+ * The unified vegetation vocabulary (grounded-art, ADR-0226), assembled when `?veg=on`. Presence flips
+ * the vocabulary on the non-garden islands; the `autumn-tree` hero — fetched from the SAME dynamic kit
+ * chunk as the garden heroes (the tree-spread, decision 1, amends ADR-0221) — is added once it resolves,
+ * replacing every non-garden island's procedural central tree with a `<use>`. `null` when the flag is
+ * off; `{}` (vocabulary on, procedural tree) until the hero arrives, so the tree swap is a late repaint
+ * rather than a hole. Off ⇒ `SceneInput.vegetation` absent, every island byte-identical.
+ */
+function useVegetation(enabled: boolean): SceneVegetationInput | null {
+  const [heroTree, setHeroTree] = useState<SceneGardenHero | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    void loadGardenHeroes().then(
+      (h) => { if (live) setHeroTree(h['autumn-tree']); },
+      (err: unknown) => { console.error('vegetation hero tree failed to load; keeping the procedural tree', err); },
+    );
+    return () => { live = false; };
+  }, [enabled]);
+  return useMemo<SceneVegetationInput | null>(
+    () => (enabled ? (heroTree ? { heroTree } : {}) : null),
+    [enabled, heroTree],
+  );
 }
 
 /**

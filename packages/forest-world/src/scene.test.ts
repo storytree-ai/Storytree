@@ -1596,3 +1596,71 @@ test('placeGardenHeroes keeps every settled hero outside the fitted tree footpri
     assert.ok(dist > canopyKeepOut, `${id} (dist ${dist}) sits inside the tree canopy keep-out ${canopyKeepOut}`);
   }
 });
+
+// ---------- the tree-spread (ADR-0226 decision 1, amends ADR-0221) ----------
+//
+// When `vegetation.heroTree` is supplied (studio-only, `?veg=on` fetching the autumn-tree hero), EVERY
+// non-garden island's procedural central tree becomes a `<use>` of the ONE baked hero def — define-once,
+// reference-many, so the whole map reads as one authored world. ABSENT ⇒ the procedural tree stays
+// byte-for-byte. The garden island keeps its own composition (the hero doesn't double-apply). The hero
+// rides kind `baked-art`, which the studio/website mappers already render and R3F already skips — zero
+// new mapper/R3F code.
+
+const HERO_TREE = gHero(20.6); // the autumn-tree hero's baked height
+const VEG_TREE: SceneVegetationInput = { heroTree: HERO_TREE };
+
+test('ADR-0226 §1: heroTree replaces the procedural tree with a baked-use on every non-garden island', () => {
+  const scene = buildScene(mkInput({ vegetation: VEG_TREE }));
+  assert.equal(firstByKind(scene, 'tree'), null, 'the procedural tree is gone');
+  const trees = allByKind(scene, 'baked-art').filter((u) => (u as { defId: string }).defId === 'veg-hero-autumn-tree');
+  assert.equal(trees.length, mkInput().territories.length, 'one hero-tree use per island');
+  for (const t of trees) assert.match((t as { transform?: string }).transform ?? '', /^translate\(.*\) scale\(.*\)$/);
+});
+
+test('ADR-0226 §1: the tree-spread emits ONE hero-tree def (define-once), carrying the hero nodes verbatim', () => {
+  const scene = buildScene(mkInput({ vegetation: VEG_TREE }));
+  const defs = allByEl(mustByKind(scene, 'baked-defs'), 'baked-def');
+  assert.equal(defs.length, 1, 'exactly one def — define-once');
+  assert.equal((defs[0] as { defId: string }).defId, 'veg-hero-autumn-tree');
+  assert.deepEqual((defs[0] as { nodes: unknown }).nodes, HERO_TREE.nodes);
+});
+
+test('ADR-0226 §1: absent heroTree keeps the procedural tree (the UNIT-1 vocabulary still applies)', () => {
+  const scene = buildScene(mkInput({ vegetation: {} }));
+  assert.ok(firstByKind(scene, 'tree'), 'the procedural tree stays without a heroTree');
+  assert.equal(firstByKind(scene, 'baked-art'), null, 'no hero-tree use');
+  assert.equal(firstByKind(scene, 'baked-defs'), null, 'no hero-tree def');
+});
+
+test('ADR-0226 §1: the island keeps its UAT markers — ONLY the tree becomes the hero', () => {
+  const scene = buildScene(
+    mkInput({
+      relaxedCells: FULL_LAND,
+      territories: [mkTerritory({ uatCriteria: THREE_CRITERIA })],
+      vegetation: VEG_TREE,
+    }),
+  );
+  const isle = territoryById(scene, 'library');
+  assert.ok(
+    allByKind(isle, 'baked-art').some((u) => (u as { defId: string }).defId === 'veg-hero-autumn-tree'),
+    'the hero tree stands',
+  );
+  assert.equal(flowersOf(scene).length, THREE_CRITERIA.length, 'the UAT flowers still render (1:1)');
+});
+
+test('ADR-0226 §1: garden takes precedence on its island; the tree-spread governs the others', () => {
+  const scene = buildScene(mkInput({ territories: mkGardenTerritories(), garden: mkGarden('library'), vegetation: VEG_TREE }));
+  const gardenTree = allByKind(territoryById(scene, 'library'), 'baked-art').find(
+    (u) => (u as { defId: string }).defId === 'garden-hero-autumn-tree',
+  );
+  assert.ok(gardenTree, 'the garden island keeps its own autumn-tree composition');
+  const normalTree = allByKind(territoryById(scene, 'cli'), 'baked-art').find(
+    (u) => (u as { defId: string }).defId === 'veg-hero-autumn-tree',
+  );
+  assert.ok(normalTree, 'the normal island gets the tree-spread hero');
+  assert.equal(firstByKind(territoryById(scene, 'cli'), 'tree'), null, 'no procedural tree on the normal island');
+});
+
+test('ADR-0226 §1: the tree-spread is deterministic (same input → byte-identical)', () => {
+  assert.deepEqual(buildScene(mkInput({ vegetation: VEG_TREE })), buildScene(mkInput({ vegetation: VEG_TREE })));
+});

@@ -2671,6 +2671,35 @@ function buildGardenDefs(garden: SceneGardenInput): SceneG {
   return g(defs, { kind: 'baked-defs' });
 }
 
+/** The scene-graph def id the tree-spread's `autumn-tree` hero `<use>` references (ADR-0226 decision 1,
+ *  amends ADR-0221). Distinct from the garden's `garden-hero-autumn-tree` so the two features stay
+ *  independent — the tree-spread applies to EVERY non-garden island, the garden to its one exemplar. */
+const VEG_HERO_TREE_DEF = 'veg-hero-autumn-tree';
+
+/** Place the tree-spread's `autumn-tree` hero as the central tree of a non-garden island (ADR-0226
+ *  decision 1) — a paint-free `baked-use` at the island's tree spot, FITTED to the island exactly like a
+ *  garden hero (`fittedHeroScale`), so its footprint lands within a small island's shore. Define-once /
+ *  reference-many: one {@link VEG_HERO_TREE_DEF} def, N cheap `<use>`s (one per island). Kind `baked-art`
+ *  is the existing ADR-0218 placement kind — the studio/website mappers already render it and R3F already
+ *  skips it, so there is zero new mapper/R3F code (the same de-risk as the garden hero tree). */
+function vegHeroTreeUse(heroTree: SceneGardenHero, t: SceneTerritoryInput): SceneBakedUse {
+  const s = fittedHeroScale('autumn-tree', heroTree, t);
+  return {
+    el: 'baked-use',
+    defId: VEG_HERO_TREE_DEF,
+    kind: 'baked-art',
+    id: `veg-tree-${t.id}`,
+    transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)}) scale(${f(s)})`,
+  };
+}
+
+/** The tree-spread's baked-art DEFINITIONS layer (ADR-0226 decision 1): the ONE `autumn-tree` hero def,
+ *  define-once, referenced by every island's `vegHeroTreeUse`. Emitted only when the surface supplies
+ *  `vegetation.heroTree`; absent ⇒ the procedural tree stays and no defs layer is emitted. */
+function buildVegetationDefs(heroTree: SceneGardenHero): SceneG {
+  return g([{ el: 'baked-def', defId: VEG_HERO_TREE_DEF, nodes: heroTree.nodes }], { kind: 'baked-defs' });
+}
+
 // ---------------------------------------------------------------------------
 // a whole island's flora layer (TerritoryFlora)
 // ---------------------------------------------------------------------------
@@ -2719,7 +2748,17 @@ export function buildTerritoryFlora(
       }
       for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
     }
-    drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg) });
+    // The central tree. Under the tree-spread (ADR-0226 decision 1, amends ADR-0221), a supplied
+    // `vegetation.heroTree` replaces the procedural `buildTree` with a `<use>` of the baked `autumn-tree`
+    // hero — define-once / reference-many, so the whole map reads as one authored world (and, per island,
+    // one cheap `<use>` instead of the inlined procedural crown). The island keeps its grass / flora / UAT
+    // markers; ONLY the tree becomes the hero. Absent `heroTree` ⇒ the procedural tree (the vocabulary's
+    // grass/flowers still apply, and flag-off is byte-for-byte).
+    if (vegetation?.heroTree) {
+      drawables.push({ y: t.treeSpot.y, node: vegHeroTreeUse(vegetation.heroTree, t) });
+    } else {
+      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg) });
+    }
     // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7; small flowers folded into
     // the grass, ADR-0226) — each scattered flower is its OWN y-sorted drawable so it interleaves with the
     // tree + flora by depth. Under the vocabulary flag they render SMALL (a low meadow flower, not a tall
@@ -2984,6 +3023,10 @@ export function buildScene(input: SceneInput): SceneG {
   const garden = input.garden ?? null;
   const layers: SceneNode[] = [
     ...(garden ? [buildGardenDefs(garden)] : []),
+    // ADR-0226 decision 1 (the tree-spread): the ONE `autumn-tree` hero def, emitted when the surface
+    // supplies `vegetation.heroTree`, referenced by every non-garden island's central-tree `<use>`.
+    // Absent ⇒ no defs layer, and every island's tree renders as the procedural `buildTree` byte-for-byte.
+    ...(vegetation?.heroTree ? [buildVegetationDefs(vegetation.heroTree)] : []),
     buildEmpties(input),
     buildCoast(input),
     buildGround(input, surfaces),
