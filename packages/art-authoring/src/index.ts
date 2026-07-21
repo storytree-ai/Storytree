@@ -12,4 +12,5 @@
 
 export * from './adapter.js';
 export * from './fixture-backend.js';
+export * from './backends/nvidia-trellis.js';
 export * from './reauthor.js';
