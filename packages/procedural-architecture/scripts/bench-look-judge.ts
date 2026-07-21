@@ -328,6 +328,9 @@ const W = 720;
 const mushroom = mushroomDwelling();
 const windmill = forestWindmill();
 const pagoda = tieredPagoda();
+// the "flat plates" before-state: a straight hip (sweep 1) instead of the flaredRoof's
+// concave sweep (default 1.5) — the exact kit gap the temple/flaredRoof retune closed (#824).
+const pagodaFlatPlates = tieredPagoda({ sweep: 1 });
 
 const pairs: PairSpec[] = [
   // ---- OBJECTIVE (calibration — carry objective ground truth) --------------
@@ -432,10 +435,24 @@ const pairs: PairSpec[] = [
     },
   },
   {
+    id: 'flatplates-vs-flared-pagoda',
+    category: 'taste',
+    object: 'tiered pagoda',
+    fix: 'flaredRoof concave sweep (1.5) vs a straight-hip roof (sweep 1) — the "flat plates" kit gap',
+    worse: 'before',
+    groundTruth: 'without the concave flaredRoof sweep the tiered roofs read as flat plates (kit gap, #824).',
+    variants: {
+      before: benchBake(pagodaFlatPlates, { width: W, theme: 'temple' }),
+      after: benchBake(pagoda, { width: W, theme: 'temple' }),
+    },
+  },
+  {
+    // SYNTHETIC CONTROL — not a defect the owner called out; an obvious extreme (shading
+    // fully off) that confirms the judges detect a blatant regression (the floor).
     id: 'flat-vs-shaded-mushroom',
     category: 'taste',
     object: 'mushroom dwelling',
-    fix: 'N·L shading (facets read as solid form) vs flat plates (every face one tone)',
+    fix: 'N·L shading (facets read as solid form) vs flat plates (every face one tone) [synthetic control]',
     worse: 'before',
     groundTruth: 'flat shading collapses the isometric solid into flat coloured plates with no read of depth.',
     variants: {
