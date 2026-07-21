@@ -57,11 +57,15 @@ Make the island's living surface **one legible language**, studio-side:
    deliberately out of scope: no per-test pass/fail signal reaches the fold, and a capability-level
    `unhealthy` is honest without new plumbing.
 
-4. **Flowers = the story's UAT criteria.** `tallFlowerMarks` becomes *small* flowers folded into the
-   grass, not a tall scatter. The form-reads-state encoding is kept: unbloomed bud = awaiting UAT,
-   bloomed small flower = UAT passed, wilted = failing. Because UAT criteria are few, small flowers
-   read as a natural meadow accent rather than a marker field — the inc-7 "busy" concern resolves
-   structurally.
+4. **Flowers = the story's UAT criteria** — one marker per criterion (**still 1:1**), the verdict read
+   from form: unbloomed bud = awaiting UAT, bloomed = UAT passed, wilted = failing. The marker is the
+   **grounded baked-vector flower landed in increment 14** (`uat-flower.ts`, PR #862 — the owner's
+   "grounded flower, still 1:1" pick), placed into the scene in place of the flat `tallFlowerMarks`
+   decal and sized **small** so it reads as a low meadow flower, not a tall scatter. *(This reconciles
+   the as-merged wording of this decision: the marker stays one-per-criterion, NOT folded/aggregated —
+   the owner rejected the aggregate-hero option for inc 14 — and its substrate is the baked inc-14
+   asset, not a shrink of the flat primitive. The decision — small, 1:1, verdict-from-form — is
+   unchanged; only the substrate description is corrected.)*
 
 5. **The human-witness signpost is retired.** `buildSignpost` and its `sign-blank | sign-pass |
    sign-fail` kinds are removed. Story-level UAT state is carried by the (now small) UAT flowers and,
@@ -78,8 +82,8 @@ Good:
 
 - One reading of the island: **grass = the proving work (a capability's tests), flowers = the story's
   UAT, dead grass = failing** — a viewer learns three shapes and reads the whole map.
-- The grass/flower ambiguity is gone; the busy tall-flower scatter is gone (small flowers fold into
-  grass); three redundant UAT markers collapse to the flowers plus the crown bloom.
+- The grass/flower ambiguity is gone (grass = tests, flowers = UAT); the *tall* scatter shrinks to
+  small low flowers; three redundant UAT markers collapse to the flowers plus the crown bloom.
 - The hero tree everywhere makes the map read as one authored world, and — define-once /
   reference-many — likely *reduces* node count versus the per-island procedural tree it replaces.
 
@@ -100,15 +104,20 @@ Landing:
   `check:web-engine` triggers the web-engine sync + pin + owner-gated deploy dance. The website render
   is unchanged (it never sends `uatCriteria` or the hero input), so the publish is a source-sync, not
   a visible website change.
-- **Two build units, sequenced to avoid conflicting on `buildTerritoryFlora`:** the **vegetation
-  vocabulary** (decisions 2–5; the resteered flower session) and the **tree-spread** (decision 1).
-  Each is a frontend increment with an operator-attested stage-2 look verdict (ADR-0070) — neither is
-  self-signed.
+- **Remaining build units, sequenced to avoid conflicting on `buildTerritoryFlora`:** increment 14
+  already landed the UAT-flower *asset* (`uat-flower.ts`, PR #862) — awaiting its stage-2 look verdict
+  and not yet placed in `scene.ts`. What remains is (a) **placing that flower small + the surrounding
+  vegetation vocabulary** (decisions 2–5) and (b) the **tree-spread** (decision 1). Each is a frontend
+  increment with an operator-attested stage-2 look verdict (ADR-0070) — neither is self-signed. *(The
+  flower session named in the arc log landed inc 14 concurrently rather than being resteered — the
+  resteer was moot.)*
 
 ## References
 
 - Amends ADR-0221 (autumn-tree hero as the garden-flag central tree — now every island).
-- ADR-0208 / grounded-art increment 7 (the tall-flower UAT markers this redefines as small).
+- ADR-0208 / grounded-art increment 7 (the flat tall-flower UAT markers this redefines as small).
+- Grounded-art increment 14 / PR #862 — the grounded baked UAT-flower asset this places small
+  (`packages/procedural-architecture/src/landscape/uat-flower.ts`).
 - ADR-0093 §4 (colour-is-class), ADR-0045 (only a signed verdict blooms — the honesty wall),
   ADR-0062 (one element per signal), ADR-0070 (operator-attested look verdicts).
 - Arc: grounded-art-machinery-arc.
