@@ -48,8 +48,39 @@ three buildings) with switches that REVERT one specific fix:
   (the "facade seams" / "X across the door" class).
 
 The **taste** pairs need no mutation — they are pure inputs to the real pipeline (a flat one-hue palette
-vs the temple palette; a flush pane vs the 0.34 reveal vs an over-deep 0.7 reveal; flat shading vs N·L
-shading). Their "worse" side is the owner's *directed* call, recorded as ground truth.
+vs the temple palette; a straight-hip roof vs the flaredRoof concave sweep; a flush pane vs the 0.34
+reveal vs an over-deep 0.7 reveal). Their "worse" side is the owner's *directed* call, recorded as
+ground truth.
+
+### Grounding — the defects the owner actually called out
+
+The benchmark's whole value is that its pairs are the look defects the **owner personally caught by
+eye** during the factory work (arc increments #822 / #823+#824), not synthetic ones. Coverage against
+that list:
+
+| Defect the owner called out | In the benchmark? |
+|---|---|
+| sail-blade behind railing (centroid vs station-3) | ✅ windmill (+ pagoda, mushroom as extra depth samples), oracle-confirmed |
+| door-with-X (stroked cut edges) | ✅ folded into the mushroom seam pair |
+| facade-seams vs compound-path | ✅ pagoda seam pair |
+| one-blue-mass vs temple palette | ✅ |
+| **flat-plates vs retuned** | ✅ pagoda `flaredRoof` sweep 1 (straight-hip plates) vs 1.5 (concave flare) — the kit gap #824 ties "flat plates" to |
+| flush vs reveal 0.34 vs 0.7 | ✅ both reveal pairs |
+| **horizontal-braces vs knee-braces (stilt-house)** | ❌ **not benchmarkable — the defect is occluded** (see below) |
+
+One extra pair, `flat-vs-shaded-mushroom` (shading fully off), is a **synthetic control** — not a
+called-out defect, but an obvious extreme that confirms the judges detect a blatant regression (the
+floor). It is scored but flagged as such.
+
+**Why the stilt-house braces are excluded.** Recovering the dropped `coastal-stilt-house.ts` from git
+and rendering it confirms the arc's own reason for dropping it: at the map camera the **deck completely
+occludes the mast and the cross-braces beneath it** — the horizontal-vs-knee-brace fix is *invisible*.
+
+![stilt house — deck occludes the braces](renders/stilt-occluded.png)
+
+A pair whose difference a human cannot see is not a fair test of whether a judge can see it, so its
+absence from the scored set is correct, not an oversight. (It would only become benchmarkable at a
+lower camera or with a cutaway — neither is how the map draws.)
 
 Each pair is rendered to two PNGs (Playwright headless chromium), composed side-by-side as panel **A**
 (left) and **B** (right) with the worse side **randomised per pair** and a hidden key
@@ -67,16 +98,16 @@ directly with **`node score.mjs .`** (from this directory) — no re-run of the 
 
 ## Results
 
-**27 blind judgments across 9 pairs (3 per pair).** Baseline for a forced A/B choice is ~50%.
+**30 blind judgments across 10 pairs (3 per pair).** Baseline for a forced A/B choice is ~50%.
 
 | Bucket | Pairs | Judgments | Agreement | Abstains (SAME) | **False reverts** |
 |---|---|---|---|---|---|
 | Objective — depth order (station 3) | 3 | 9 | **100%** (9/9) | 0 | **0** |
-| Taste — palette / shading (strong) | 2 | 6 | **100%** (6/6) | 0 | **0** |
+| Taste — palette / shape / shading | 3 | 9 | **100%** (9/9) | 0 | **0** |
 | Taste — reveal depth (subtle) | 2 | 6 | 83% (5/6) | 1 | **0** |
 | Aperture fix — seams (near threshold) | 2 | 6 | 67% (4/6) | 1 | **1** |
-| **All visible (suprathreshold)** | **7** | **21** | **95% (20/21)** | **1** | **0** |
-| **Overall** | **9** | **27** | **89% (24/27)** | **2** | **1** |
+| **All visible (suprathreshold)** | **8** | **24** | **96% (23/24)** | **1** | **0** |
+| **Overall** | **10** | **30** | **90% (27/30)** | **2** | **1** |
 
 Per pair (blind — the judge never saw before/after or the truth):
 
@@ -86,7 +117,8 @@ Per pair (blind — the judge never saw before/after or the truth):
 | centroid-vs-bsp · pagoda | station 3 draw order | B | B, B, B | 3/3 | 27 → 0 |
 | centroid-vs-bsp · mushroom | station 3 draw order | B | B, B, B | 3/3 | 104 → 0 |
 | oneblue-vs-temple · pagoda | temple palette | B | B, B, B | 3/3 | — |
-| flat-vs-shaded · mushroom | N·L shading | A | A, A, A | 3/3 | — |
+| flatplates-vs-flared · pagoda | flaredRoof sweep 1 → 1.5 | A | A, A, A | 3/3 | — |
+| flat-vs-shaded · mushroom | N·L shading *(synthetic control)* | A | A, A, A | 3/3 | — |
 | deep-vs-reveal · pagoda | 0.34 vs 0.7 reveal | B | B, B, B | 3/3 | — |
 | flush-vs-reveal · pagoda | 0.34 vs flush reveal | B | B, SAME, B | 2/3 (+abstain) | — |
 | seams-vs-compound · mushroom | aperture fix (176aca90) | A | A, **B**, A | 2/3 (**1 false revert**) | 0 → 0¹ |
@@ -106,7 +138,7 @@ sub-threshold seam / subtle-reveal pairs, never on a visible defect.
 ## What it means
 
 **The result clears the go/no-go bar the increment set by a wide margin.** Increment 4's exact words
-were: *"near 50% means keep the human in the loop and say so."* We are at **89% overall, 95% on every
+were: *"near 50% means keep the human in the loop and say so."* We are at **90% overall, 96% on every
 visible defect, and 100% on the depth-order class the whole factory exists to protect** — all far above
 both the ~50% chance floor and the ~58% BlindTest absolute-geometry ceiling that motivated ADR-0217's
 caution. The design's central bet is vindicated: **pairwise, same-object, before/after** is a
@@ -115,7 +147,7 @@ scoring the ~58% number came from. The judges did not merely guess the worse pan
 precise defect (a floating door frame on the eave, a sail lattice sorted behind its own beams, red cap
 facets biting notches out of white spots), which is what an advisor that must *justify* a revert needs.
 
-**The one failure is the informative one, and it is exactly the failure the design anticipated.** Of 27
+**The one failure is the informative one, and it is exactly the failure the design anticipated.** Of 30
 judgments there was a single **false revert** — a judge that named the machinery-*fixed* panel as worse.
 It occurred on `seams-vs-compound-mushroom`, a pair whose defect (stray facade-subdivision strokes) sits
 *near the map-scale visibility threshold* — the owner scoped station 3 for silhouette-scale defects, not
@@ -165,7 +197,7 @@ of the lift is "pairwise" vs "stronger model." See Limitations.
   station 4 would run a current model on the pairwise task, so this measures the configuration that
   would actually ship. It does NOT vindicate the ~58% figure being wrong; it measures a different, easier
   task with a better model.
-- **n is small** (9 pairs, 27 judgments, 3 buildings). This is a go/no-go probe, not a published
+- **n is small** (10 pairs, 30 judgments, 3 buildings). This is a go/no-go probe, not a published
   benchmark. The pairs are also *our own* assets, judged against *our own* known answers — the same n=2
   caveat ADR-0217's central bet already carries.
 - **The "before" renders come from a faithful re-implementation of the bake with one fix reverted, not
@@ -182,8 +214,9 @@ of the lift is "pairwise" vs "stronger model." See Limitations.
 - ADR-0217 (five-station factory; D6 = station 4 design) · ADR-0222 (art-factory story) · ADR-0070 /
   ADR-0159 (operator-attested look, stage 2 — unchanged by this).
 - `packages/procedural-architecture/scripts/bench-look-judge.ts` — the harness (committed, reproducible).
-- `renders/*__sheet.png` — the 9 blind A/B pair sheets shown to the judges. `renders/manifest.json` —
-  per-pair provenance + oracle conflict counts.
+- `renders/*__sheet.png` — the 10 blind A/B pair sheets shown to the judges. `renders/manifest.json` —
+  per-pair provenance + oracle conflict counts. `renders/stilt-occluded.png` — the recovered stilt
+  house, showing the deck occluding the braces (why that owner-called-out defect is not benchmarkable).
 - `verdicts/*.txt` — all 27 raw blind verdicts. `judge-key.json` — the hidden A/B→before/after key +
   worse side + oracle counts. `score.mjs` — the scorer (`node score.mjs .` reproduces the table).
   `score-output.txt` — the captured scorer output, including every judge's one-line reason.

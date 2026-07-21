@@ -162,10 +162,28 @@
       }
     },
     {
+      "id": "flatplates-vs-flared-pagoda",
+      "category": "taste",
+      "object": "tiered pagoda",
+      "fix": "flaredRoof concave sweep (1.5) vs a straight-hip roof (sweep 1) — the \"flat plates\" kit gap",
+      "worse": "before",
+      "groundTruth": "without the concave flaredRoof sweep the tiered roofs read as flat plates (kit gap, #824).",
+      "variants": {
+        "before": {
+          "svg": "flatplates-vs-flared-pagoda__before.svg",
+          "oracleConflicts": 0
+        },
+        "after": {
+          "svg": "flatplates-vs-flared-pagoda__after.svg",
+          "oracleConflicts": 0
+        }
+      }
+    },
+    {
       "id": "flat-vs-shaded-mushroom",
       "category": "taste",
       "object": "mushroom dwelling",
-      "fix": "N·L shading (facets read as solid form) vs flat plates (every face one tone)",
+      "fix": "N·L shading (facets read as solid form) vs flat plates (every face one tone) [synthetic control]",
       "worse": "before",
       "groundTruth": "flat shading collapses the isometric solid into flat coloured plates with no read of depth.",
       "variants": {

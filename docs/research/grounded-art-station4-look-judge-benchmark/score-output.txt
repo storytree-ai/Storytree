@@ -37,6 +37,12 @@
      · A's red cap is a flat uniform mass with no light/dark contrast, while B has shaded facets giving the dome a clear 3D form.
 
 [taste — palette / shading (strong)]
+  flatplates-vs-flared-pagoda  worse=A  votes=[A,A,A]  agreed=3/3  same=0  false-revert=0
+     · Panel A's roofs are flat plain plates with no shaped form, while B's gradient-shaded roofs read as a properly flared, curved pagoda roof.
+     · A's roofs read as flat plain plates, while B's carry flared shading that gives the pagoda roof a properly shaped 3D form.
+     · A's roofs are flat uniform-colour plates with no facet shading, while B's roofs are properly shaped and flared with light/dark 3D form.
+
+[taste — palette / shading (strong)]
   oneblue-vs-temple-pagoda  worse=B  votes=[B,B,B]  agreed=3/3  same=0  false-revert=0
      · Its blue walls merge with the blue roofs into a muddy single-colour mass with weak light/dark contrast, whereas A's brown walls keep the tiers distinct.
      · B's walls, roofs, and base share one blue tone, collapsing into a muddy single-colour mass with weak contrast, while A's brown walls read distinctly against the blue roofs.
@@ -59,14 +65,14 @@
   objective — depth order (station 3)
      pairs=3 judgments=9  agreement=100% (9/9)  same=0  false-revert=0
   taste — palette / shading (strong)
-     pairs=2 judgments=6  agreement=100% (6/6)  same=0  false-revert=0
+     pairs=3 judgments=9  agreement=100% (9/9)  same=0  false-revert=0
   taste — reveal depth (subtle)
      pairs=2 judgments=6  agreement=83% (5/6)  same=1  false-revert=0
   aperture fix — seams (near map-scale threshold)
      pairs=2 judgments=6  agreement=67% (4/6)  same=1  false-revert=1
 
 === HEADLINE ===
-  overall agreement:                 89% (24/27)
+  overall agreement:                 90% (27/30)
   objective depth-order agreement:   100% (9/9)
-  suprathreshold (visible) agreement:95% (20/21)   false-reverts=0
+  suprathreshold (visible) agreement:96% (23/24)   false-reverts=0
   baseline (chance, A/B):            ~50%
