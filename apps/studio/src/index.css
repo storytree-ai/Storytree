@@ -1507,35 +1507,33 @@ a.stat:hover {
 
 /* ISLAND GROUND STATUS TINT (owner call 2026-07-21, grounded-art arc): the island's LAND carries
    the story's folded status — the meaning read at a glance: green = healthy, brown = mapped
-   (the brownfield), blackened = unhealthy, young amber-wheat = proposed, working gold = building.
+   (the brownfield), blackened = unhealthy. Everything else (proposed / building) stays the normal
+   green grass — an owner correction to the first cut, whose amber-wheat proposed ground turned a
+   mostly-proposed map wall-to-wall brown; the crown already carries the proposed/building read.
    Implemented as territory-scoped re-definitions of the same --hex-top-*/--hex-side tokens the
    cells fill from (colour-is-class, ADR-0093 §4): the `.hex-territory.st-<status>` classes were
    already stamped on every island's tile/coast/flora groups by TreeView/SceneView, so this is
-   CSS-only. Element-scoped vars beat the body-scoped cosy sage, so `unknown` alone keeps the
-   base grass family (sage under `body.cosy-island`). */
+   CSS-only. Element-scoped vars beat the body-scoped cosy sage, so proposed/building land stays
+   green even under `body.cosy-island` (the sage wasteland read was the original complaint);
+   `unknown` alone keeps the base family. */
+.hex-territory.st-proposed,
+.hex-territory.st-building {
+  --hex-top-0: #a9c87f; /* the classic grass, pinned so the cosy sage cannot dull live work */
+  --hex-top-1: #9fc174;
+  --hex-top-2: #b2cf8b;
+  --hex-side: #87985f;
+}
 .hex-territory.st-healthy {
-  --hex-top-0: #96b56d; /* alive green — gently muted toward the cosy read, but clearly green */
-  --hex-top-1: #8aa961;
-  --hex-top-2: #a3c17c;
-  --hex-side: #71894c;
+  --hex-top-0: #8cb85e; /* a lusher, deeper green than the base grass — proven-alive land */
+  --hex-top-1: #7dab50;
+  --hex-top-2: #9ac570;
+  --hex-side: #648244;
 }
 .hex-territory.st-mapped {
   --hex-top-0: #b3946a; /* warm tilled brown — kin to the dirt-lane --trail-bed family */
   --hex-top-1: #a68557;
   --hex-top-2: #bda278;
   --hex-side: #85683f;
-}
-.hex-territory.st-proposed {
-  --hex-top-0: #cab77c; /* young amber-wheat — the ground echo of the proposed amber crown */
-  --hex-top-1: #bdaa6b;
-  --hex-top-2: #d5c48d;
-  --hex-side: #9a874f;
-}
-.hex-territory.st-building {
-  --hex-top-0: #d5b45c; /* working gold — a notch more saturated than proposed */
-  --hex-top-1: #c7a44b;
-  --hex-top-2: #dfc673;
-  --hex-side: #a2843a;
 }
 .hex-territory.st-unhealthy {
   --hex-top-0: #57544a; /* blackened, charred — dark but still shaped by the cell seams */
