@@ -18,6 +18,7 @@ import type { BakedBuilding, BakeOptions } from './bake.js';
 import { KIT_LIGHT_ANGLE } from './kit.js';
 import { cottage } from './buildings/cottage.js';
 import { gazebo } from './buildings/gazebo.js';
+import { forestHut } from './buildings/forest-hut.js';
 import { autumnTree } from './landscape/autumn-tree.js';
 import { steppingStone } from './landscape/stepping-stone.js';
 
@@ -39,6 +40,9 @@ export const HERO_KIT: HeroEntry[] = [
   { id: 'gazebo', label: 'garden gazebo', model: () => gazebo({ light_angle: KIT_LIGHT_ANGLE }) },
   { id: 'autumn-tree', label: 'big autumn tree', model: () => autumnTree({ light_angle: KIT_LIGHT_ANGLE }) },
   { id: 'stepping-stone', label: 'stepping stone', model: () => steppingStone({ light_angle: KIT_LIGHT_ANGLE }) },
+  // Appended, not inserted: the four above keep their indices, so their committed bake
+  // in kit.json stays byte-for-byte and only the new `forest-hut` entry moves.
+  { id: 'forest-hut', label: 'cosy forest hut', model: () => forestHut({ light_angle: KIT_LIGHT_ANGLE }) },
 ];
 
 /**

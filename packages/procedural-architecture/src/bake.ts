@@ -87,6 +87,15 @@ export const THEMES = {
   // the owner rejected over-rendered baked stones, so this is LOW and rounded — mostly a
   // pale lit top with a barely-shaded rim, no busy facet contrast.
   pathstone:{ wall: '#b8a888', roof: '#cabd9d', gable: '#b8a888', soffit: '#8f8168', trim: '#8f8168', glass: '#f4d38f', door: '#5a3a24', stone: '#c3b696' },
+  // The forest hut (grounded-art forest-hut hero). Re-authored by eye from
+  // docs/research/grounded-art-concept/forest-hut-concept.png (ADR-0219: the concept
+  // informs the KIT, it is never parsed). Where the cottage is cream-plaster infill, the
+  // hut is ALL warm TIMBER — honey-brown plank walls (`wall`), a warm TERRACOTTA shingle
+  // roof (`roof`, oranger than the cottage's tan tile), a timber-plank gable END that
+  // matches the walls rather than the roof (`gable`, so the front triangle reads as boards
+  // not tiles), a dark timber frame (`trim`), a warm-lit window (`glass`) and a warm
+  // putty-STONE chimney (`stone` — no cool grey, per the style bible).
+  foresthut:{ wall: '#a67c50', roof: '#bd7a4e', gable: '#9a7145', soffit: '#5f4a33', trim: '#674627', glass: '#f4d38f', door: '#6a4a30', stone: '#a99a82' },
 } satisfies Record<string, Palette>;
 
 /** The themes that ship. A `style` outside this set falls back to `timber`. */
